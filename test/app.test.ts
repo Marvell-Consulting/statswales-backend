@@ -48,5 +48,4 @@ describe('Test app.ts', () => {
             notes: 'Expand endpoint to check for database connection and other services.'
         });
     });
-
 });
