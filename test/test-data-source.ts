@@ -11,7 +11,7 @@ export const datasourceOptions: DataSourceOptions = {
     type: 'better-sqlite3',
     database: ':memory:',
     synchronize: true,
-    logging: true,
+    logging: false,
     entities: [Datafile],
     // entities: [`${__dirname}/entity/*.ts`],
     // migrations: [`${__dirname}/migration/*.ts`],

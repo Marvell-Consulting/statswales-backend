@@ -17,7 +17,7 @@ export const datasourceOptions: DataSourceOptions = {
     database: DB_DATABASE,
     ssl: true,
     synchronize: false,
-    logging: true,
+    logging: false,
     entities: [Datafile],
     // entities: [`${__dirname}/entity/*.ts`],
     migrations: [`${__dirname}/migration/*.ts`],
