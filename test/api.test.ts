@@ -42,9 +42,6 @@ describe('API Endpoints', () => {
         expect(res.status).toBe(400);
         expect(res.body).toEqual({
             success: false,
-            datafile_id: 'test-data-1.csv',
-            headers: undefined,
-            data: undefined,
             errors: [
                 {
                     field: 'csv',
@@ -55,16 +52,15 @@ describe('API Endpoints', () => {
     });
 
     test('Upload returns 400 if no filename is given', async () => {
-        const res = await request(app).post('/en-GB/api/csv');
+        const csvfile = path.resolve(__dirname, `./test-data-1.csv`);
+        const res = await request(app).post('/en-GB/api/csv').attach('csv', csvfile);
         expect(res.status).toBe(400);
         expect(res.body).toEqual({
             success: false,
-            headers: undefined,
-            data: undefined,
             errors: [
                 {
                     field: 'filename',
-                    message: 'No filename provided'
+                    message: 'No datasetname provided'
                 }
             ]
         });
@@ -76,12 +72,17 @@ describe('API Endpoints', () => {
         const res = await request(app)
             .post('/en-GB/api/csv')
             .attach('csv', csvfile)
-            .query({ filename: 'bdc40218-af89-424b-b86e-d21710bc92f1' });
+            .field('filename', 'test-upload-data-1')
+            .field('description', 'Test Data File 1');
+        const datafile: Datafile | null = await Datafile.findOneBy({ name: 'test-upload-data-1' });
         expect(res.status).toBe(200);
         expect(res.body).toEqual({
             success: true,
-            datafile_id: 'bdc40218-af89-424b-b86e-d21710bc92f1'
+            datafile_id: datafile?.id,
+            datafile_name: datafile?.name,
+            datafile_description: datafile?.description
         });
+        datafile?.remove();
     });
 
     test('Get a filelist list returns 200 with a file list', async () => {
