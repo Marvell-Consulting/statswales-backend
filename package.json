@@ -58,7 +58,7 @@
     "@azure/storage-file-datalake": "^12.16.0",
     "csv": "^6.3.8",
     "dotenv": "^16.4.4",
-    "ejs": "^3.1.9",
+    "ejs": "^3.1.10",
     "express": ">=4.19.2",
     "govuk-frontend": "^5.1.0",
     "i18next": "^23.10.1",
