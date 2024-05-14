@@ -22,12 +22,22 @@ apiRoute.get('/', (req, res) => {
 });
 
 apiRoute.post('/csv', upload.single('csv'), async (req: Request, res: Response) => {
-    // const page_number_str: string = req.query.page_number || req.body?.page_number;
-    // const page_size_str: string = req.query.page_size || req.body?.page_size;
-    // const page_number: number = Number.parseInt(page_number_str, 10) || 1;
-    // const page_size: number = Number.parseInt(page_size_str, 10) || 100;
-    const filemame: string | undefined = req.query.filename?.toString() || req.file?.originalname;
-    if (filemame === undefined) {
+    if (!req.file) {
+        res.status(400);
+        res.json({
+            success: false,
+            headers: undefined,
+            data: undefined,
+            errors: [
+                {
+                    field: 'csv',
+                    message: 'No CSV data available'
+                }
+            ]
+        });
+        return;
+    }
+    if (!req.body?.filename) {
         res.status(400);
         res.json({
             success: false,
@@ -36,13 +46,32 @@ apiRoute.post('/csv', upload.single('csv'), async (req: Request, res: Response) 
             errors: [
                 {
                     field: 'filename',
-                    message: 'No filename provided'
+                    message: 'No datasetname provided'
                 }
             ]
         });
         return;
     }
-    const processedCSV = await uploadCSV(req.file?.buffer, filemame);
+    if (!req.body?.description) {
+        res.status(400);
+        res.json({
+            success: false,
+            headers: undefined,
+            data: undefined,
+            errors: [
+                {
+                    field: 'description',
+                    message: 'No datasetname provided'
+                }
+            ]
+        });
+        return;
+    }
+    const datafile = new Datafile();
+    datafile.name = req.body?.filename;
+    datafile.description = req.body?.description;
+    const saved_datafile_record = await datafile.save();
+    const processedCSV = await uploadCSV(req.file?.buffer, saved_datafile_record);
     if (!processedCSV.success) {
         res.status(400);
     }

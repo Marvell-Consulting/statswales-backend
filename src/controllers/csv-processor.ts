@@ -56,17 +56,17 @@ function validateParams(page_number: number, max_page_number: number, page_size:
     return errors;
 }
 
-export const uploadCSV = async (buff: Buffer | undefined, datafile: string | undefined): Promise<ProcessedCSV> => {
+export const uploadCSV = async (buff: Buffer, datafile: Datafile): Promise<ProcessedCSV> => {
     const dataLateService = new DataLakeService();
     if (buff) {
         try {
             logger.debug(`Uploading file ${datafile} to datalake`);
-            await dataLateService.uploadFile(datafile, buff);
+            await dataLateService.uploadFile(`${datafile.id}.csv`, buff);
             return {
                 success: true,
-                datafile_id: datafile,
-                datafile_name: undefined,
-                datafile_description: undefined,
+                datafile_id: datafile.id,
+                datafile_name: datafile.name,
+                datafile_description: datafile.description,
                 page_size: undefined,
                 page_info: undefined,
                 pages: undefined,
@@ -78,9 +78,10 @@ export const uploadCSV = async (buff: Buffer | undefined, datafile: string | und
             };
         } catch (err) {
             logger.error(err);
+            datafile.remove();
             return {
                 success: false,
-                datafile_id: datafile,
+                datafile_id: undefined,
                 datafile_name: undefined,
                 datafile_description: undefined,
                 page_size: undefined,
@@ -95,9 +96,10 @@ export const uploadCSV = async (buff: Buffer | undefined, datafile: string | und
         }
     } else {
         logger.debug('No buffer to upload to datalake');
+        datafile.remove();
         return {
             success: false,
-            datafile_id: datafile,
+            datafile_id: datafile.id,
             datafile_name: undefined,
             datafile_description: undefined,
             page_size: undefined,
