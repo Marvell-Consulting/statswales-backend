@@ -1,19 +1,52 @@
-# Starter pipeline
-# Start with a minimal pipeline that you can customize to build and deploy your code.
-# Add steps that build, run tests, deploy, and more:
-# https://aka.ms/yaml
+# Docker
+# Build and push an image to Azure Container Registry
+# https://docs.microsoft.com/azure/devops/pipelines/languages/docker
 
 trigger:
 - main
 
-pool:
-  vmImage: ubuntu-latest
+resources:
+- repo: self
 
-steps:
-- script: echo Hello, world!
-  displayName: 'Run a one-line script'
+variables:
+  # Container registry service connection established during pipeline creation
+  dockerRegistryServiceConnection: '17615c2d-e115-4122-9753-a0c542653d28'
+  imageRepository: 'statswales-backend'
+  containerRegistry: 'statswalesregistry.azurecr.io'
+  dockerfilePath: '$(Build.SourcesDirectory)/Dockerfile'
+  tag: '$(Build.BuildId)'
 
-- script: |
-    echo Add other tasks to build, test, and deploy your project.
-    echo See https://aka.ms/yaml
-  displayName: 'Run a multi-line script'
+  # Agent VM image name
+  vmImageName: 'ubuntu-latest'
+
+stages:
+- stage: Build
+  displayName: Build and push stage
+  jobs:
+  - job: Build
+    displayName: Build
+    pool:
+      vmImage: $(vmImageName)
+    steps:
+    - task: Docker@2
+      displayName: Build and push an image to container registry
+      inputs:
+        containerRegistry: '$(dockerRegistryServiceConnection)'
+        repository: '$(imageRepository)'
+        command: 'buildAndPush'
+        Dockerfile: '**/Dockerfile'
+        tags: '$(tag)'
+    - task: AzureContainerApps@1
+      inputs:
+        azureSubscription: 'Marvell Consulting(3f7a282e-96dc-4706-9b9e-65609c29b2c8)'
+        acrName: 'StatsWalesRegistry'
+        acrUsername: 'StatsWalesRegistry'
+        acrPassword: '$(acr_password)'
+        dockerfilePath: 'Dockerfile'
+        resourceGroup: 'statswales-container-app-rg'
+        containerAppName: 'statswales-develop-backend'
+        containerAppEnvironment: 'statswales-container-app-environment'
+        targetPort: '3000'
+        ingress: 'external'
+        imageToDeploy: '$(containerRegistry)/$(imageRepository):$(tag)'
+        environmentVariables: 'DB_HOST=$(db_host) DB_PORT=5432 DB_USERNAME=$(db_username) DB_PASSWORD=$(db_password) DB_DATABASE=$(db_database) AZURE_STORAGE_ACCOUNT_NAME=$(azure_storage_account_name) AZURE_STORAGE_ACCOUNT_KEY=$(azure_storage_account_key) AZURE_STORAGE_DIRECTORY_NAME=$(azure_storage_directory_name)'
