@@ -7,7 +7,7 @@ import Backend from 'i18next-fs-backend';
 import i18nextMiddleware from 'i18next-http-middleware';
 import { DataSourceOptions } from 'typeorm';
 
-import { apiRoute } from './route/api';
+import { apiRoute } from './route/dataset';
 import { healthcheck } from './route/healthcheck';
 import DatabaseManager from './database-manager';
 
@@ -45,10 +45,9 @@ export const logger = pino({
 });
 
 app.use(i18nextMiddleware.handle(i18next));
-app.use('/:lang/api', apiRoute);
+app.use('/:lang/dataset', apiRoute);
 app.use('/:lang/healthcheck', healthcheck);
 app.use('/healthcheck', healthcheck);
-app.use('/public', express.static(`${__dirname}/public`));
 
 app.get('/', (req: Request, res: Response) => {
     const lang = req.headers['accept-language'] || req.headers['Accept-Language'] || req.i18n.language || 'en-GB';
