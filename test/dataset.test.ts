@@ -31,14 +31,8 @@ beforeAll(async () => {
 });
 
 describe('API Endpoints', () => {
-    test('Inital API endpoint works', async () => {
-        const res = await request(app).get('/en-GB/api/');
-        expect(res.status).toBe(200);
-        expect(res.body).toEqual({ message: 'api.available' });
-    });
-
     test('Upload returns 400 if no file attached', async () => {
-        const res = await request(app).post('/en-GB/api/csv').query({ filename: 'test-data-1.csv' });
+        const res = await request(app).post('/en-GB/dataset').query({ filename: 'test-data-1.csv' });
         expect(res.status).toBe(400);
         expect(res.body).toEqual({
             success: false,
@@ -53,7 +47,7 @@ describe('API Endpoints', () => {
 
     test('Upload returns 400 if no filename is given', async () => {
         const csvfile = path.resolve(__dirname, `./test-data-1.csv`);
-        const res = await request(app).post('/en-GB/api/csv').attach('csv', csvfile);
+        const res = await request(app).post('/en-GB/dataset').attach('csv', csvfile);
         expect(res.status).toBe(400);
         expect(res.body).toEqual({
             success: false,
@@ -70,7 +64,7 @@ describe('API Endpoints', () => {
         const csvfile = path.resolve(__dirname, `./test-data-1.csv`);
 
         const res = await request(app)
-            .post('/en-GB/api/csv')
+            .post('/en-GB/dataset')
             .attach('csv', csvfile)
             .field('filename', 'test-upload-data-1')
             .field('description', 'Test Data File 1');
@@ -86,7 +80,7 @@ describe('API Endpoints', () => {
     });
 
     test('Get a filelist list returns 200 with a file list', async () => {
-        const res = await request(app).get('/en-GB/api/csv');
+        const res = await request(app).get('/en-GB/dataset');
         expect(res.status).toBe(200);
         expect(res.body).toEqual({
             filelist: [
@@ -108,7 +102,7 @@ describe('API Endpoints', () => {
         const testFile2 = path.resolve(__dirname, `./test-data-2.csv`);
         const testFile2Buffer = fs.readFileSync(testFile2);
         DataLakeService.prototype.downloadFile = jest.fn().mockReturnValue(testFile2Buffer);
-        const res = await request(app).get('/en-GB/api/csv/test-data-2.csv/view').query({ page_number: 20 });
+        const res = await request(app).get('/en-GB/dataset/test-data-2.csv/view').query({ page_number: 20 });
         expect(res.status).toBe(400);
         expect(res.body).toEqual({
             success: false,
@@ -134,7 +128,7 @@ describe('API Endpoints', () => {
         const testFile2Buffer = fs.readFileSync(testFile2);
         DataLakeService.prototype.downloadFile = jest.fn().mockReturnValue(testFile2Buffer);
 
-        const res = await request(app).get('/en-GB/api/csv/test-data-2.csv/view').query({ page_size: 1000 });
+        const res = await request(app).get('/en-GB/dataset/test-data-2.csv/view').query({ page_size: 1000 });
         expect(res.status).toBe(400);
         expect(res.body).toEqual({
             success: false,
@@ -160,7 +154,7 @@ describe('API Endpoints', () => {
         const testFile2Buffer = fs.readFileSync(testFile2);
         DataLakeService.prototype.downloadFile = jest.fn().mockReturnValue(testFile2Buffer);
 
-        const res = await request(app).get('/en-GB/api/csv/test-data-2.csv/view').query({ page_size: 1 });
+        const res = await request(app).get('/en-GB/dataset/test-data-2.csv/view').query({ page_size: 1 });
         expect(res.status).toBe(400);
         expect(res.body).toEqual({
             success: false,
@@ -185,10 +179,38 @@ describe('API Endpoints', () => {
         const testFile2 = path.resolve(__dirname, `./test-data-2.csv`);
         const testFile2Buffer = fs.readFileSync(testFile2);
         DataLakeService.prototype.downloadFile = jest.fn().mockReturnValue(testFile2Buffer.toString());
+        const datafile = await Datafile.findOneBy({ id: 'fa07be9d-3495-432d-8c1f-d0fc6daae359' });
+        const res = await request(app).get('/en-GB/dataset/fa07be9d-3495-432d-8c1f-d0fc6daae359/');
+        expect(res.status).toBe(200);
+        expect(res.body).toEqual({
+            id: datafile?.id,
+            name: datafile?.name,
+            description: datafile?.description,
+            creation_date: datafile?.creationDate.toISOString(),
+            csv_link: `/datafile/fa07be9d-3495-432d-8c1f-d0fc6daae359/csv`,
+            xslx_link: `/datafile/fa07be9d-3495-432d-8c1f-d0fc6daae359/xlsx`,
+            view_link: `/datafile/fa07be9d-3495-432d-8c1f-d0fc6daae359/view`
+        });
+    });
 
-        const res = await request(app).get('/en-GB/api/csv/test-data-2.csv');
+    test('Get csv file rertunrs 200 and complete file data', async () => {
+        const testFile2 = path.resolve(__dirname, `./test-data-2.csv`);
+        const testFile2Buffer = fs.readFileSync(testFile2);
+        DataLakeService.prototype.downloadFile = jest.fn().mockReturnValue(testFile2Buffer.toString());
+
+        const res = await request(app).get('/en-GB/dataset/test-data-2.csv/csv');
         expect(res.status).toBe(200);
         expect(res.text).toEqual(testFile2Buffer.toString());
+    });
+
+    test('Get xlsx file rertunrs 200 and complete file data', async () => {
+        const testFile2 = path.resolve(__dirname, `./test-data-2.csv`);
+        const testFile2Buffer = fs.readFileSync(testFile2);
+        DataLakeService.prototype.downloadFile = jest.fn().mockReturnValue(testFile2Buffer.toString());
+
+        const res = await request(app).get('/en-GB/dataset/test-data-2.csv/xlsx');
+        expect(res.status).toBe(200);
+        expect(res.body).toEqual({ message: 'Not implmented yet' });
     });
 
     test('Get file view returns 200 and correct page data', async () => {
@@ -197,7 +219,7 @@ describe('API Endpoints', () => {
         DataLakeService.prototype.downloadFile = jest.fn().mockReturnValue(testFile1Buffer.toString());
 
         const res = await request(app)
-            .get('/en-GB/api/csv/fa07be9d-3495-432d-8c1f-d0fc6daae359/view')
+            .get('/en-GB/dataset/fa07be9d-3495-432d-8c1f-d0fc6daae359/view')
             .query({ page_number: 2, page_size: 100 });
         expect(res.status).toBe(200);
         expect(res.body.current_page).toBe(2);
@@ -211,7 +233,7 @@ describe('API Endpoints', () => {
     test('Get file view returns 404 when a non-existant file is requested', async () => {
         DataLakeService.prototype.downloadFile = jest.fn().mockReturnValue(null);
 
-        const res = await request(app).get('/en-GB/api/csv/test-data-4.csv');
+        const res = await request(app).get('/en-GB/dataset/test-data-4.csv/csv');
         expect(res.status).toBe(404);
         expect(res.body).toEqual({ message: 'File not found... file is null or undefined' });
     });
@@ -219,7 +241,7 @@ describe('API Endpoints', () => {
     test('Get file view returns 404 when a non-existant file view is requested', async () => {
         DataLakeService.prototype.downloadFile = jest.fn().mockReturnValue(null);
 
-        const res = await request(app).get('/en-GB/api/csv/test-data-4.csv/view');
+        const res = await request(app).get('/en-GB/dataset/test-data-4.csv/view');
         expect(res.status).toBe(404);
         expect(res.body).toEqual({ message: 'File not found... file is null or undefined' });
     });

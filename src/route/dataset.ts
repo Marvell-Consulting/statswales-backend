@@ -6,6 +6,7 @@ import { processCSV, uploadCSV, DEFAULT_PAGE_SIZE } from '../controllers/csv-pro
 import { DataLakeService } from '../controllers/datalake';
 import { Datafile } from '../entity/Datafile';
 import { FileDescription } from '../models/filelist';
+import { DatafileDTO } from '../models/datafile-dto';
 
 const storage = multer.memoryStorage();
 const upload = multer({ storage });
@@ -17,11 +18,7 @@ export const logger = pino({
 
 export const apiRoute = Router();
 
-apiRoute.get('/', (req, res) => {
-    res.json({ message: req.t('api.available') });
-});
-
-apiRoute.post('/csv', upload.single('csv'), async (req: Request, res: Response) => {
+apiRoute.post('/', upload.single('csv'), async (req: Request, res: Response) => {
     if (!req.file) {
         res.status(400);
         res.json({
@@ -78,7 +75,7 @@ apiRoute.post('/csv', upload.single('csv'), async (req: Request, res: Response) 
     res.json(processedCSV);
 });
 
-apiRoute.get('/csv/', async (req, res) => {
+apiRoute.get('/', async (req, res) => {
     const datafiles = await Datafile.find();
     const fileList: FileDescription[] = [];
     for (const datafile of datafiles) {
@@ -91,7 +88,32 @@ apiRoute.get('/csv/', async (req, res) => {
     res.json({ filelist: fileList });
 });
 
-apiRoute.get('/csv/:file', async (req, res) => {
+apiRoute.get('/:file', async (req, res) => {
+    const fileId = req.params.file;
+    if (fileId === undefined || fileId === null) {
+        res.status(404);
+        res.json({ message: 'File not found... file is null or undefined' });
+        return;
+    }
+    const datafile = await Datafile.findOneBy({ id: fileId });
+    if (datafile === undefined || datafile === null) {
+        res.status(404);
+        res.json({ message: 'File not found... file ID not found in Database' });
+        return;
+    }
+    const datafileDTO: DatafileDTO = {
+        id: datafile.id,
+        name: datafile.name,
+        description: datafile.description,
+        creation_date: datafile.creationDate,
+        csv_link: `/datafile/${fileId}/csv`,
+        xslx_link: `/datafile/${fileId}/xlsx`,
+        view_link: `/datafile/${fileId}/view`
+    };
+    res.json(datafileDTO);
+});
+
+apiRoute.get('/:file/csv', async (req, res) => {
     const dataLakeService = new DataLakeService();
     const filename = req.params.file;
     const file = await dataLakeService.downloadFile(`${filename}.csv`);
@@ -107,7 +129,21 @@ apiRoute.get('/csv/:file', async (req, res) => {
     res.end();
 });
 
-apiRoute.get('/csv/:file/view', async (req, res) => {
+apiRoute.get('/:file/xlsx', async (req, res) => {
+    const dataLakeService = new DataLakeService();
+    const filename = req.params.file;
+    const file = await dataLakeService.downloadFile(`${filename}.csv`);
+    if (file === undefined || file === null) {
+        res.status(404);
+        res.json({ message: 'File not found... file is null or undefined' });
+        return;
+    }
+    res.json({
+        message: 'Not implmented yet'
+    });
+});
+
+apiRoute.get('/:file/view', async (req, res) => {
     const dataLakeService = new DataLakeService();
     const filename = req.params.file;
     const file = await dataLakeService.downloadFile(`${filename}.csv`);
