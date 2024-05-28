@@ -1,3 +1,5 @@
+import { Dataset } from '../entity/dataset';
+
 import { Error } from './error';
 
 export interface PageInfo {
@@ -8,9 +10,7 @@ export interface PageInfo {
 
 export interface ProcessedCSV {
     success: boolean;
-    datafile_id: string | undefined;
-    datafile_name: string | undefined;
-    datafile_description: string | undefined;
+    dataset: Dataset | undefined;
     current_page: number | undefined;
     page_info: PageInfo | undefined;
     pages: Array<string | number> | undefined;

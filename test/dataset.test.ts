@@ -1,11 +1,14 @@
 import path from 'path';
 import * as fs from 'fs';
+import { createHash } from 'crypto';
 
 import request from 'supertest';
 
 import { DataLakeService } from '../src/controllers/datalake';
-import app, { connectToDb } from '../src/app';
-import { Datafile } from '../src/entity/Datafile';
+import app, { dbManager, connectToDb } from '../src/app';
+import { Dataset } from '../src/entity/dataset';
+import { Datafile } from '../src/entity/datafile';
+import { datasetToDatasetDTO } from '../src/dtos/dataset-dto';
 
 import { datasourceOptions } from './test-data-source';
 
@@ -15,22 +18,33 @@ DataLakeService.prototype.listFiles = jest
 
 DataLakeService.prototype.uploadFile = jest.fn();
 
-beforeAll(async () => {
-    await connectToDb(datasourceOptions);
-    const datafile1 = new Datafile();
-    datafile1.name = 'test-data-1.csv';
-    datafile1.description = 'Test Data File 1';
-    datafile1.id = 'bdc40218-af89-424b-b86e-d21710bc92f1';
-    await datafile1.save();
-    const datafile2 = new Datafile();
-    datafile2.name = 'test-data-2.csv';
-    datafile2.description = 'Test Data File 2';
-    datafile2.id = 'fa07be9d-3495-432d-8c1f-d0fc6daae359';
-    await datafile2.save();
-    console.log(`Datafile created: ${Datafile.find()}`);
-});
-
 describe('API Endpoints', () => {
+    beforeAll(async () => {
+        await connectToDb(datasourceOptions);
+        await dbManager.initializeDataSource();
+
+        const dataset1 = Dataset.createDataset('Test Data 1', 'test', 'bdc40218-af89-424b-b86e-d21710bc92f1');
+        dataset1.live = true;
+        dataset1.code = 'tst0001';
+        await dataset1.save();
+        dataset1.addTitleByString('Test Dataset 1', 'EN');
+        dataset1.addDescriptionByString('I am the first test dataset', 'EN');
+
+        const dataset2 = Dataset.createDataset('Test Data 2', 'test', 'fa07be9d-3495-432d-8c1f-d0fc6daae359');
+        dataset2.live = true;
+        dataset2.code = 'tst0002';
+        dataset2.createdBy = 'test';
+        await dataset2.save();
+        const datafile2 = new Datafile();
+        const testFile2 = path.resolve(__dirname, `./test-data-2.csv`);
+        const testFile2Buffer = fs.readFileSync(testFile2);
+        datafile2.sha256hash = createHash('sha256').update(testFile2Buffer).digest('hex');
+        datafile2.createdBy = 'test';
+        await dataset2.addDatafile(datafile2);
+        dataset2.addTitleByString('Test Dataset 2', 'EN');
+        dataset2.addDescriptionByString('I am the second test dataset', 'EN');
+    });
+
     test('Upload returns 400 if no file attached', async () => {
         const res = await request(app).post('/en-GB/dataset').query({ filename: 'test-data-1.csv' });
         expect(res.status).toBe(400);
@@ -53,8 +67,8 @@ describe('API Endpoints', () => {
             success: false,
             errors: [
                 {
-                    field: 'filename',
-                    message: 'No datasetname provided'
+                    field: 'internal_name',
+                    message: 'No internal name for the dataset has been provided'
                 }
             ]
         });
@@ -66,17 +80,19 @@ describe('API Endpoints', () => {
         const res = await request(app)
             .post('/en-GB/dataset')
             .attach('csv', csvfile)
-            .field('filename', 'test-upload-data-1')
-            .field('description', 'Test Data File 1');
-        const datafile: Datafile | null = await Datafile.findOneBy({ name: 'test-upload-data-1' });
+            .field('internal_name', 'Test Dataset 3');
+        const dataset = await Dataset.findOneBy({ internalName: 'Test Dataset 3' });
+        if (!dataset) {
+            expect(dataset).not.toBeNull();
+            return;
+        }
+        const datasetDTO = await datasetToDatasetDTO(dataset);
         expect(res.status).toBe(200);
         expect(res.body).toEqual({
             success: true,
-            datafile_id: datafile?.id,
-            datafile_name: datafile?.name,
-            datafile_description: datafile?.description
+            dataset: datasetDTO
         });
-        datafile?.remove();
+        await dataset.remove();
     });
 
     test('Get a filelist list returns 200 with a file list', async () => {
@@ -85,14 +101,12 @@ describe('API Endpoints', () => {
         expect(res.body).toEqual({
             filelist: [
                 {
-                    name: 'test-data-1.csv',
-                    id: 'bdc40218-af89-424b-b86e-d21710bc92f1',
-                    description: 'Test Data File 1'
+                    internal_name: 'Test Data 1',
+                    id: 'bdc40218-af89-424b-b86e-d21710bc92f1'
                 },
                 {
-                    name: 'test-data-2.csv',
-                    id: 'fa07be9d-3495-432d-8c1f-d0fc6daae359',
-                    description: 'Test Data File 2'
+                    internal_name: 'Test Data 2',
+                    id: 'fa07be9d-3495-432d-8c1f-d0fc6daae359'
                 }
             ]
         });
@@ -102,18 +116,13 @@ describe('API Endpoints', () => {
         const testFile2 = path.resolve(__dirname, `./test-data-2.csv`);
         const testFile2Buffer = fs.readFileSync(testFile2);
         DataLakeService.prototype.downloadFile = jest.fn().mockReturnValue(testFile2Buffer);
-        const res = await request(app).get('/en-GB/dataset/test-data-2.csv/view').query({ page_number: 20 });
+        const res = await request(app)
+            .get('/en-GB/dataset/fa07be9d-3495-432d-8c1f-d0fc6daae359/view')
+            .query({ page_number: 20 });
         expect(res.status).toBe(400);
         expect(res.body).toEqual({
             success: false,
-            datafile_id: 'test-data-2.csv',
-            datafile_name: undefined,
-            datafile_description: undefined,
-            page_size: undefined,
-            current_page: undefined,
-            total_pages: undefined,
-            headers: undefined,
-            data: undefined,
+            dataset_id: 'fa07be9d-3495-432d-8c1f-d0fc6daae359',
             errors: [
                 {
                     field: 'page_number',
@@ -128,18 +137,13 @@ describe('API Endpoints', () => {
         const testFile2Buffer = fs.readFileSync(testFile2);
         DataLakeService.prototype.downloadFile = jest.fn().mockReturnValue(testFile2Buffer);
 
-        const res = await request(app).get('/en-GB/dataset/test-data-2.csv/view').query({ page_size: 1000 });
+        const res = await request(app)
+            .get('/en-GB/dataset/fa07be9d-3495-432d-8c1f-d0fc6daae359/view')
+            .query({ page_size: 1000 });
         expect(res.status).toBe(400);
         expect(res.body).toEqual({
             success: false,
-            datafile_id: 'test-data-2.csv',
-            datafile_name: undefined,
-            datafile_description: undefined,
-            page_size: undefined,
-            current_page: undefined,
-            total_pages: undefined,
-            headers: undefined,
-            data: undefined,
+            dataset_id: 'fa07be9d-3495-432d-8c1f-d0fc6daae359',
             errors: [
                 {
                     field: 'page_size',
@@ -154,18 +158,13 @@ describe('API Endpoints', () => {
         const testFile2Buffer = fs.readFileSync(testFile2);
         DataLakeService.prototype.downloadFile = jest.fn().mockReturnValue(testFile2Buffer);
 
-        const res = await request(app).get('/en-GB/dataset/test-data-2.csv/view').query({ page_size: 1 });
+        const res = await request(app)
+            .get('/en-GB/dataset/fa07be9d-3495-432d-8c1f-d0fc6daae359/view')
+            .query({ page_size: 1 });
         expect(res.status).toBe(400);
         expect(res.body).toEqual({
             success: false,
-            datafile_id: 'test-data-2.csv',
-            datafile_name: undefined,
-            datafile_description: undefined,
-            page_size: undefined,
-            current_page: undefined,
-            total_pages: undefined,
-            headers: undefined,
-            data: undefined,
+            dataset_id: 'fa07be9d-3495-432d-8c1f-d0fc6daae359',
             errors: [
                 {
                     field: 'page_size',
@@ -179,18 +178,16 @@ describe('API Endpoints', () => {
         const testFile2 = path.resolve(__dirname, `./test-data-2.csv`);
         const testFile2Buffer = fs.readFileSync(testFile2);
         DataLakeService.prototype.downloadFile = jest.fn().mockReturnValue(testFile2Buffer.toString());
-        const datafile = await Datafile.findOneBy({ id: 'fa07be9d-3495-432d-8c1f-d0fc6daae359' });
+        const dataset = await Dataset.findOneBy({ id: 'fa07be9d-3495-432d-8c1f-d0fc6daae359' });
+        if (!dataset) {
+            expect(dataset).not.toBeNull();
+            return;
+        }
+
         const res = await request(app).get('/en-GB/dataset/fa07be9d-3495-432d-8c1f-d0fc6daae359/');
         expect(res.status).toBe(200);
-        expect(res.body).toEqual({
-            id: datafile?.id,
-            name: datafile?.name,
-            description: datafile?.description,
-            creation_date: datafile?.creationDate.toISOString(),
-            csv_link: `/datafile/fa07be9d-3495-432d-8c1f-d0fc6daae359/csv`,
-            xslx_link: `/datafile/fa07be9d-3495-432d-8c1f-d0fc6daae359/xlsx`,
-            view_link: `/datafile/fa07be9d-3495-432d-8c1f-d0fc6daae359/view`
-        });
+        const expectedDTO = await datasetToDatasetDTO(dataset);
+        expect(res.body).toEqual(expectedDTO);
     });
 
     test('Get csv file rertunrs 200 and complete file data', async () => {
@@ -198,7 +195,7 @@ describe('API Endpoints', () => {
         const testFile2Buffer = fs.readFileSync(testFile2);
         DataLakeService.prototype.downloadFile = jest.fn().mockReturnValue(testFile2Buffer.toString());
 
-        const res = await request(app).get('/en-GB/dataset/test-data-2.csv/csv');
+        const res = await request(app).get('/en-GB/dataset/fa07be9d-3495-432d-8c1f-d0fc6daae359/csv');
         expect(res.status).toBe(200);
         expect(res.text).toEqual(testFile2Buffer.toString());
     });
@@ -208,7 +205,7 @@ describe('API Endpoints', () => {
         const testFile2Buffer = fs.readFileSync(testFile2);
         DataLakeService.prototype.downloadFile = jest.fn().mockReturnValue(testFile2Buffer.toString());
 
-        const res = await request(app).get('/en-GB/dataset/test-data-2.csv/xlsx');
+        const res = await request(app).get('/en-GB/dataset/fa07be9d-3495-432d-8c1f-d0fc6daae359/xlsx');
         expect(res.status).toBe(200);
         expect(res.body).toEqual({ message: 'Not implmented yet' });
     });
@@ -235,7 +232,7 @@ describe('API Endpoints', () => {
 
         const res = await request(app).get('/en-GB/dataset/test-data-4.csv/csv');
         expect(res.status).toBe(404);
-        expect(res.body).toEqual({ message: 'File not found... file is null or undefined' });
+        expect(res.body).toEqual({ message: 'Dataset not found... Dataset ID not found in Database' });
     });
 
     test('Get file view returns 404 when a non-existant file view is requested', async () => {
@@ -243,6 +240,10 @@ describe('API Endpoints', () => {
 
         const res = await request(app).get('/en-GB/dataset/test-data-4.csv/view');
         expect(res.status).toBe(404);
-        expect(res.body).toEqual({ message: 'File not found... file is null or undefined' });
+        expect(res.body).toEqual({ message: 'Dataset not found... Dataset ID not found in Database' });
+    });
+
+    afterAll(async () => {
+        await dbManager.getDataSource().dropDatabase();
     });
 });

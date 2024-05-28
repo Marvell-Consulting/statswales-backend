@@ -1,12 +1,12 @@
 import 'reflect-metadata';
-import { DataSourceOptions } from 'typeorm';
+import { DataSource, DataSourceOptions } from 'typeorm';
 import * as dotenv from 'dotenv';
-
-import { Datafile } from './entity/Datafile';
 
 dotenv.config();
 
 const { DB_HOST, DB_PORT, DB_USERNAME, DB_PASSWORD, DB_DATABASE } = process.env;
+
+console.log(DB_HOST);
 
 export const datasourceOptions: DataSourceOptions = {
     type: 'postgres',
@@ -18,8 +18,9 @@ export const datasourceOptions: DataSourceOptions = {
     ssl: true,
     synchronize: false,
     logging: false,
-    entities: [Datafile],
-    // entities: [`${__dirname}/entity/*.ts`],
+    entities: [`${__dirname}/entity/*.ts`],
     migrations: [`${__dirname}/migration/*.ts`],
     subscribers: []
 };
+
+export const dataSource = new DataSource(datasourceOptions);

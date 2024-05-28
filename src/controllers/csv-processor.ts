@@ -1,9 +1,15 @@
+/* eslint-disable import/no-cycle */
+import { createHash } from 'crypto';
+
 import { parse } from 'csv';
 import pino from 'pino';
 
-import { ProcessedCSV } from '../models/processedcsv';
+import { UploadDTO, UploadErrDTO } from '../dtos/upload-dto';
 import { Error } from '../models/error';
-import { Datafile } from '../entity/Datafile';
+import { Datafile } from '../entity/datafile';
+import { Dataset } from '../entity/dataset';
+import { ViewDTO, ViewErrDTO } from '../dtos/view-dto';
+import { datasetToDatasetDTO } from '../dtos/dataset-dto';
 
 import { DataLakeService } from './datalake';
 
@@ -56,41 +62,26 @@ function validateParams(page_number: number, max_page_number: number, page_size:
     return errors;
 }
 
-export const uploadCSV = async (buff: Buffer, datafile: Datafile): Promise<ProcessedCSV> => {
-    const dataLateService = new DataLakeService();
+export const uploadCSV = async (buff: Buffer, dataset: Dataset): Promise<UploadDTO | UploadErrDTO> => {
+    const dataLakeService = new DataLakeService();
+    const hash = createHash('sha256').update(buff).digest('hex');
+    const datafile = Datafile.createDatafile(dataset, hash.toString(), 'BetaUser');
+    const savedDataFile = await datafile.save();
+    const dto = await datasetToDatasetDTO(dataset);
     if (buff) {
         try {
-            logger.debug(`Uploading file ${datafile} to datalake`);
-            await dataLateService.uploadFile(`${datafile.id}.csv`, buff);
+            logger.debug(`Uploading file ${savedDataFile.id} to datalake`);
+            await dataLakeService.uploadFile(`${savedDataFile.id}.csv`, buff);
             return {
                 success: true,
-                datafile_id: datafile.id,
-                datafile_name: datafile.name,
-                datafile_description: datafile.description,
-                page_size: undefined,
-                page_info: undefined,
-                pages: undefined,
-                current_page: undefined,
-                total_pages: undefined,
-                headers: undefined,
-                data: undefined,
-                errors: undefined
+                dataset: dto
             };
         } catch (err) {
             logger.error(err);
             datafile.remove();
             return {
                 success: false,
-                datafile_id: undefined,
-                datafile_name: undefined,
-                datafile_description: undefined,
-                page_size: undefined,
-                page_info: undefined,
-                pages: undefined,
-                current_page: undefined,
-                total_pages: undefined,
-                headers: undefined,
-                data: undefined,
+                dataset: dto,
                 errors: [{ field: 'csv', message: 'Error uploading file to datalake' }]
             };
         }
@@ -99,16 +90,7 @@ export const uploadCSV = async (buff: Buffer, datafile: Datafile): Promise<Proce
         datafile.remove();
         return {
             success: false,
-            datafile_id: datafile.id,
-            datafile_name: undefined,
-            datafile_description: undefined,
-            page_size: undefined,
-            page_info: undefined,
-            pages: undefined,
-            current_page: undefined,
-            total_pages: undefined,
-            headers: undefined,
-            data: undefined,
+            dataset: dto,
             errors: [{ field: 'csv', message: 'No CSV data available' }]
         };
     }
@@ -124,10 +106,30 @@ function setupPagination(page: number, total_pages: number): Array<string | numb
     return pages;
 }
 
-export const processCSV = async (filename: string, page: number, size: number): Promise<ProcessedCSV> => {
-    const dataLateService = new DataLakeService();
+export const processCSV = async (dataset: Dataset, page: number, size: number): Promise<ViewErrDTO | ViewDTO> => {
+    const datalakeService = new DataLakeService();
     try {
-        const buff = await dataLateService.downloadFile(`${filename}.csv`);
+        const datafiles = await dataset.datafiles;
+        const datafile: Datafile | undefined = datafiles
+            .sort(
+                (first: Datafile, second: Datafile) =>
+                    new Date(second.creationDate).getTime() - new Date(first.creationDate).getTime()
+            )
+            .shift();
+        if (datafile === undefined || datafile === null) {
+            return {
+                success: false,
+                errors: [
+                    {
+                        field: 'dataset',
+                        message: 'No datafile attached to Dataset'
+                    }
+                ],
+                dataset_id: dataset.id
+            };
+        }
+        const buff = await datalakeService.downloadFile(`${datafile.id}.csv`);
+
         const dataArray: Array<Array<string>> = (await parse(buff, {
             delimiter: ','
         }).toArray()) as string[][];
@@ -137,34 +139,8 @@ export const processCSV = async (filename: string, page: number, size: number): 
         if (errors.length > 0) {
             return {
                 success: false,
-                datafile_id: filename,
-                datafile_name: undefined,
-                datafile_description: undefined,
-                page_size: undefined,
-                page_info: undefined,
-                pages: undefined,
-                current_page: undefined,
-                total_pages: undefined,
-                headers: undefined,
-                data: undefined,
-                errors
-            };
-        }
-        const datafile = await Datafile.findOneBy({ id: filename });
-        if (datafile === null) {
-            return {
-                success: false,
-                datafile_id: filename,
-                datafile_name: undefined,
-                datafile_description: undefined,
-                page_size: undefined,
-                page_info: undefined,
-                pages: undefined,
-                current_page: undefined,
-                total_pages: undefined,
-                headers: undefined,
-                data: undefined,
-                errors: [{ field: 'csv', message: 'unable to find datafile in database' }]
+                errors,
+                dataset_id: dataset.id
             };
         }
 
@@ -179,11 +155,10 @@ export const processCSV = async (filename: string, page: number, size: number): 
                 return page * size;
             }
         };
+        const dto = await datasetToDatasetDTO(dataset);
         return {
             success: true,
-            datafile_id: filename,
-            datafile_name: datafile.name,
-            datafile_description: datafile.description,
+            dataset: dto,
             current_page: page,
             page_info: {
                 total_records: dataArray.length,
@@ -194,24 +169,14 @@ export const processCSV = async (filename: string, page: number, size: number): 
             page_size: size,
             total_pages,
             headers: csvheaders,
-            data: csvdata,
-            errors: undefined
+            data: csvdata
         };
     } catch (err) {
         logger.error(err);
         return {
             success: false,
-            datafile_id: filename,
-            datafile_name: undefined,
-            datafile_description: undefined,
-            page_size: undefined,
-            page_info: undefined,
-            pages: undefined,
-            current_page: undefined,
-            total_pages: undefined,
-            headers: undefined,
-            data: undefined,
-            errors: [{ field: 'csv', message: 'Error downloading file from datalake' }]
+            errors: [{ field: 'csv', message: 'Error downloading file from datalake' }],
+            dataset_id: dataset.id
         };
     }
 };

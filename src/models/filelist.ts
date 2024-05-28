@@ -1,7 +1,6 @@
 export interface FileDescription {
     id: string;
-    name: string;
-    description: string;
+    internal_name: string;
 }
 
 export interface FileList {
