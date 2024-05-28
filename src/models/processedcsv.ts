@@ -1,4 +1,4 @@
-import { Dataset } from '../entity/dataset';
+import { DatasetDTO } from '../dtos/dataset-dto';
 
 import { Error } from './error';
 
@@ -10,7 +10,7 @@ export interface PageInfo {
 
 export interface ProcessedCSV {
     success: boolean;
-    dataset: Dataset | undefined;
+    dataset: DatasetDTO | undefined;
     current_page: number | undefined;
     page_info: PageInfo | undefined;
     pages: Array<string | number> | undefined;
