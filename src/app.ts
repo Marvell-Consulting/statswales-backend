@@ -1,21 +1,27 @@
+/* eslint-disable import/no-cycle */
 import 'reflect-metadata';
 
-import pino from 'pino';
+import pino, { Logger } from 'pino';
 import express, { Application, Request, Response } from 'express';
 import i18next from 'i18next';
 import Backend from 'i18next-fs-backend';
 import i18nextMiddleware from 'i18next-http-middleware';
 import { DataSourceOptions } from 'typeorm';
 
-import { apiRoute } from './route/dataset';
+import { apiRoute } from './route/dataset-route';
 import { healthcheck } from './route/healthcheck';
 import DatabaseManager from './database-manager';
 
 // eslint-disable-next-line import/no-mutable-exports
 export let dbManager: DatabaseManager;
 
+export const logger: Logger = pino({
+    name: 'StatsWales-Alpha-App',
+    level: 'debug'
+});
+
 export const connectToDb = async (datasourceOptions: DataSourceOptions) => {
-    dbManager = new DatabaseManager(datasourceOptions);
+    dbManager = new DatabaseManager(datasourceOptions, logger);
     await dbManager.initializeDataSource();
 };
 
@@ -38,11 +44,6 @@ i18next
     });
 
 const app: Application = express();
-
-export const logger = pino({
-    name: 'StatsWales-Alpha-App',
-    level: 'debug'
-});
 
 app.use(i18nextMiddleware.handle(i18next));
 app.use('/:lang/dataset', apiRoute);

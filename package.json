@@ -17,7 +17,7 @@
     "dev": "nodemon --watch src -e ts,ejs --exec npm run dev:start",
     "start": "npm run build && node dist/server.js",
     "start:container": "node dist/server.js",
-    "typeorm": "ts-node -r tsconfig-paths/register ./node_modules/typeorm/cli.js",
+    "typeorm": "typeorm-ts-node-commonjs",
     "migration": "npm run typeorm migration:run"
   },
   "keywords": [],

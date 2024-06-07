@@ -1,8 +1,8 @@
 import request from 'supertest';
 
 import { DataLakeService } from '../src/controllers/datalake';
-import app, { connectToDb } from '../src/app';
-import { Datafile } from '../src/entity/Datafile';
+import app, { dbManager, connectToDb } from '../src/app';
+import { Dataset } from '../src/entity/dataset';
 
 import { datasourceOptions } from './test-data-source';
 
@@ -12,22 +12,27 @@ DataLakeService.prototype.listFiles = jest
 
 DataLakeService.prototype.uploadFile = jest.fn();
 
-beforeAll(async () => {
-    await connectToDb(datasourceOptions);
-    const datafile1 = new Datafile();
-    datafile1.name = 'test-data-1.csv';
-    datafile1.description = 'Test Data File 1';
-    datafile1.id = 'bdc40218-af89-424b-b86e-d21710bc92f1';
-    await datafile1.save();
-    const datafile2 = new Datafile();
-    datafile2.name = 'test-data-2.csv';
-    datafile2.description = 'Test Data File 2';
-    datafile2.id = 'fa07be9d-3495-432d-8c1f-d0fc6daae359';
-    await datafile2.save();
-    console.log(`Datafile created: ${Datafile.find()}`);
-});
-
 describe('Test app.ts', () => {
+    beforeAll(async () => {
+        await connectToDb(datasourceOptions);
+        await dbManager.initializeDataSource();
+
+        const dataset1 = Dataset.createDataset('Test Data 1', 'test', 'bdc40218-af89-424b-b86e-d21710bc92f1');
+        await dataset1.save();
+        dataset1.live = true;
+        dataset1.code = 'tst0001';
+        dataset1.addTitleByString('Test Dataset 1', 'EN');
+        dataset1.addDescriptionByString('I am the first test dataset', 'EN');
+
+        const dataset2 = Dataset.createDataset('Test Data 2', 'test', 'fa07be9d-3495-432d-8c1f-d0fc6daae359');
+        await dataset2.save();
+        dataset2.live = true;
+        dataset2.code = 'tst0002';
+        dataset2.createdBy = 'test';
+        dataset2.addTitleByString('Test Dataset 2', 'EN');
+        dataset2.addDescriptionByString('I am the second test dataset', 'EN');
+    });
+
     test('Redirects to language when going to /', async () => {
         const res = await request(app).get('/');
         expect(res.status).toBe(302);
