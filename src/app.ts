@@ -15,16 +15,19 @@ import DatabaseManager from './database-manager';
 // eslint-disable-next-line import/no-mutable-exports
 export let dbManager: DatabaseManager;
 
+// Logger handling and export
 export const logger: Logger = pino({
     name: 'StatsWales-Alpha-App',
     level: 'debug'
 });
 
+// Database handling and export
 export const connectToDb = async (datasourceOptions: DataSourceOptions) => {
     dbManager = new DatabaseManager(datasourceOptions, logger);
     await dbManager.initializeDataSource();
 };
 
+// Languague handling and exports
 i18next
     .use(Backend)
     .use(i18nextMiddleware.LanguageDetector)
@@ -42,6 +45,11 @@ i18next
         preload: ['en-GB', 'cy-GB'],
         debug: false
     });
+
+export const i18n = i18next;
+export const t = i18next.t;
+export const ENGLISH = 'en-GB';
+export const WELSH = 'cy-GB';
 
 const app: Application = express();
 

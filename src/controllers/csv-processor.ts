@@ -2,7 +2,6 @@
 import { createHash } from 'crypto';
 
 import { parse } from 'csv';
-import pino from 'pino';
 
 import { UploadDTO, UploadErrDTO } from '../dtos/upload-dto';
 import { Error } from '../models/error';
@@ -10,17 +9,13 @@ import { Datafile } from '../entity/datafile';
 import { Dataset } from '../entity/dataset';
 import { ViewDTO, ViewErrDTO } from '../dtos/view-dto';
 import { datasetToDatasetDTO } from '../dtos/dataset-dto';
+import { ENGLISH, WELSH, logger, t } from '../app';
 
 import { DataLakeService } from './datalake';
 
-const MAX_PAGE_SIZE = 500;
-const MIN_PAGE_SIZE = 5;
+export const MAX_PAGE_SIZE = 500;
+export const MIN_PAGE_SIZE = 5;
 export const DEFAULT_PAGE_SIZE = 100;
-
-export const logger = pino({
-    name: 'StatsWales-Alpha-App',
-    level: 'debug'
-});
 
 function paginate<T>(array: Array<T>, page_number: number, page_size: number): Array<T> {
     const page = array.slice((page_number - 1) * page_size, page_number * page_size);
@@ -51,13 +46,57 @@ function validatMaxPageNumber(page_number: number, max_page_number: number): boo
 function validateParams(page_number: number, max_page_number: number, page_size: number): Array<Error> {
     const errors: Array<Error> = [];
     if (!validatePageSize(page_size)) {
-        errors.push({ field: 'page_size', message: `Page size must be between ${MIN_PAGE_SIZE} and ${MAX_PAGE_SIZE}` });
+        errors.push({
+            field: 'page_size',
+            message: [
+                {
+                    lang: ENGLISH,
+                    message: t('errors.page_size', {
+                        lng: ENGLISH,
+                        max_page_size: MAX_PAGE_SIZE,
+                        min_page_size: MIN_PAGE_SIZE
+                    })
+                },
+                {
+                    lang: WELSH,
+                    message: t('errors.page_size', {
+                        lng: WELSH,
+                        max_page_size: MAX_PAGE_SIZE,
+                        min_page_size: MIN_PAGE_SIZE
+                    })
+                }
+            ],
+            tag: {
+                name: 'errors.page_size',
+                params: { max_page_size: MAX_PAGE_SIZE, min_page_size: MIN_PAGE_SIZE }
+            }
+        });
     }
     if (!validatMaxPageNumber(page_number, max_page_number)) {
-        errors.push({ field: 'page_number', message: `Page number must be less than or equal to ${max_page_number}` });
+        errors.push({
+            field: 'page_number',
+            message: [
+                {
+                    lang: ENGLISH,
+                    message: t('errors.page_number_to_high', { lng: ENGLISH, page_number: max_page_number })
+                },
+                { lang: WELSH, message: t('errors.page_number_to_high', { lng: WELSH, page_number: max_page_number }) }
+            ],
+            tag: {
+                name: 'errors.page_number_to_high',
+                params: { page_number: max_page_number }
+            }
+        });
     }
     if (!validatePageNumber(page_number)) {
-        errors.push({ field: 'page_number', message: 'Page number must be greater than 0' });
+        errors.push({
+            field: 'page_number',
+            message: [
+                { lang: ENGLISH, message: t('errors.page_number_to_low', { lng: ENGLISH }) },
+                { lang: WELSH, message: t('errors.page_number_to_low', { lng: WELSH }) }
+            ],
+            tag: { name: 'errors.page_number_to_low', params: {} }
+        });
     }
     return errors;
 }
@@ -82,7 +121,16 @@ export const uploadCSV = async (buff: Buffer, dataset: Dataset): Promise<UploadD
             return {
                 success: false,
                 dataset: dto,
-                errors: [{ field: 'csv', message: 'Error uploading file to datalake' }]
+                errors: [
+                    {
+                        field: 'csv',
+                        message: [
+                            { lang: ENGLISH, message: t('errors.upload_to_datalake', { lng: ENGLISH }) },
+                            { lang: WELSH, message: t('errors.upload_to_datalake', { lng: WELSH }) }
+                        ],
+                        tag: { name: 'errors.upload_to_datalake', params: {} }
+                    }
+                ]
             };
         }
     } else {
@@ -91,7 +139,16 @@ export const uploadCSV = async (buff: Buffer, dataset: Dataset): Promise<UploadD
         return {
             success: false,
             dataset: dto,
-            errors: [{ field: 'csv', message: 'No CSV data available' }]
+            errors: [
+                {
+                    field: 'csv',
+                    message: [
+                        { lang: ENGLISH, message: t('errors.no_csv_data', { lng: ENGLISH }) },
+                        { lang: WELSH, message: t('errors.no_csv_data', { lng: WELSH }) }
+                    ],
+                    tag: { name: 'errors.no_csv_data', params: {} }
+                }
+            ]
         };
     }
 };
@@ -122,7 +179,11 @@ export const processCSV = async (dataset: Dataset, page: number, size: number): 
                 errors: [
                     {
                         field: 'dataset',
-                        message: 'No datafile attached to Dataset'
+                        message: [
+                            { lang: ENGLISH, message: t('errors.no_datafile', { lng: ENGLISH }) },
+                            { lang: WELSH, message: t('errors.no_datafile', { lng: WELSH }) }
+                        ],
+                        tag: { name: 'erorors.no_datafile', params: {} }
                     }
                 ],
                 dataset_id: dataset.id
@@ -175,7 +236,16 @@ export const processCSV = async (dataset: Dataset, page: number, size: number): 
         logger.error(err);
         return {
             success: false,
-            errors: [{ field: 'csv', message: 'Error downloading file from datalake' }],
+            errors: [
+                {
+                    field: 'csv',
+                    message: [
+                        { lang: ENGLISH, message: t('errors.download_from_datalake', { lng: ENGLISH }) },
+                        { lang: WELSH, message: t('errors.download_from_datalake', { lng: WELSH }) }
+                    ],
+                    tag: { name: 'errors.download_from_datalake', params: {} }
+                }
+            ],
             dataset_id: dataset.id
         };
     }

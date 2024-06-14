@@ -1,12 +1,8 @@
 import { Router } from 'express';
-import pino from 'pino';
 
+// eslint-disable-next-line import/no-cycle
+import { logger } from '../app';
 import { DataLakeService } from '../controllers/datalake';
-
-export const logger = pino({
-    name: 'StatsWales-Alpha-App: Healthcheck',
-    level: 'debug'
-});
 
 const dataLakeService = new DataLakeService();
 export const healthcheck = Router();

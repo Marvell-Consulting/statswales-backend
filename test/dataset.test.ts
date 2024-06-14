@@ -5,10 +5,12 @@ import { createHash } from 'crypto';
 import request from 'supertest';
 
 import { DataLakeService } from '../src/controllers/datalake';
-import app, { dbManager, connectToDb } from '../src/app';
+import app, { ENGLISH, WELSH, t, dbManager, connectToDb } from '../src/app';
 import { Dataset } from '../src/entity/dataset';
 import { Datafile } from '../src/entity/datafile';
 import { datasetToDatasetDTO } from '../src/dtos/dataset-dto';
+import { ViewErrDTO } from '../src/dtos/view-dto';
+import { MAX_PAGE_SIZE, MIN_PAGE_SIZE } from '../src/controllers/csv-processor';
 
 import { datasourceOptions } from './test-data-source';
 
@@ -46,32 +48,62 @@ describe('API Endpoints', () => {
     });
 
     test('Upload returns 400 if no file attached', async () => {
-        const res = await request(app).post('/en-GB/dataset').query({ filename: 'test-data-1.csv' });
-        expect(res.status).toBe(400);
-        expect(res.body).toEqual({
+        const err: ViewErrDTO = {
             success: false,
+            dataset_id: undefined,
             errors: [
                 {
                     field: 'csv',
-                    message: 'No CSV data available'
+                    message: [
+                        {
+                            lang: ENGLISH,
+                            message: t('errors.no_csv_data', { lng: ENGLISH })
+                        },
+                        {
+                            lang: WELSH,
+                            message: t('errors.no_csv_data', { lng: WELSH })
+                        }
+                    ],
+                    tag: {
+                        name: 'errors.no_csv_data',
+                        params: {}
+                    }
                 }
             ]
-        });
+        };
+        const res = await request(app).post('/en-GB/dataset').query({ filename: 'test-data-1.csv' });
+        expect(res.status).toBe(400);
+        expect(res.body).toEqual(err);
     });
 
-    test('Upload returns 400 if no filename is given', async () => {
-        const csvfile = path.resolve(__dirname, `./test-data-1.csv`);
-        const res = await request(app).post('/en-GB/dataset').attach('csv', csvfile);
-        expect(res.status).toBe(400);
-        expect(res.body).toEqual({
+    test('Upload returns 400 if no internal name is given', async () => {
+        const err: ViewErrDTO = {
             success: false,
+            dataset_id: undefined,
             errors: [
                 {
                     field: 'internal_name',
-                    message: 'No internal name for the dataset has been provided'
+                    message: [
+                        {
+                            lang: ENGLISH,
+                            message: t('errors.internal_name', { lng: ENGLISH })
+                        },
+                        {
+                            lang: WELSH,
+                            message: t('errors.internal_name', { lng: WELSH })
+                        }
+                    ],
+                    tag: {
+                        name: 'errors.internal_name',
+                        params: {}
+                    }
                 }
             ]
-        });
+        };
+        const csvfile = path.resolve(__dirname, `./test-data-1.csv`);
+        const res = await request(app).post('/en-GB/dataset').attach('csv', csvfile);
+        expect(res.status).toBe(400);
+        expect(res.body).toEqual(err);
     });
 
     test('Upload returns 200 if a file is attached', async () => {
@@ -126,7 +158,14 @@ describe('API Endpoints', () => {
             errors: [
                 {
                     field: 'page_number',
-                    message: 'Page number must be less than or equal to 6'
+                    message: [
+                        { lang: ENGLISH, message: t('errors.page_number_to_high', { lng: ENGLISH, page_number: 6 }) },
+                        { lang: WELSH, message: t('errors.page_number_to_high', { lng: WELSH, page_number: 6 }) }
+                    ],
+                    tag: {
+                        name: 'errors.page_number_to_high',
+                        params: { page_number: 6 }
+                    }
                 }
             ]
         });
@@ -147,7 +186,28 @@ describe('API Endpoints', () => {
             errors: [
                 {
                     field: 'page_size',
-                    message: 'Page size must be between 5 and 500'
+                    message: [
+                        {
+                            lang: ENGLISH,
+                            message: t('errors.page_size', {
+                                lng: ENGLISH,
+                                max_page_size: MAX_PAGE_SIZE,
+                                min_page_size: MIN_PAGE_SIZE
+                            })
+                        },
+                        {
+                            lang: WELSH,
+                            message: t('errors.page_size', {
+                                lng: WELSH,
+                                max_page_size: MAX_PAGE_SIZE,
+                                min_page_size: MIN_PAGE_SIZE
+                            })
+                        }
+                    ],
+                    tag: {
+                        name: 'errors.page_size',
+                        params: { max_page_size: MAX_PAGE_SIZE, min_page_size: MIN_PAGE_SIZE }
+                    }
                 }
             ]
         });
@@ -168,7 +228,28 @@ describe('API Endpoints', () => {
             errors: [
                 {
                     field: 'page_size',
-                    message: 'Page size must be between 5 and 500'
+                    message: [
+                        {
+                            lang: ENGLISH,
+                            message: t('errors.page_size', {
+                                lng: ENGLISH,
+                                max_page_size: MAX_PAGE_SIZE,
+                                min_page_size: MIN_PAGE_SIZE
+                            })
+                        },
+                        {
+                            lang: WELSH,
+                            message: t('errors.page_size', {
+                                lng: WELSH,
+                                max_page_size: MAX_PAGE_SIZE,
+                                min_page_size: MIN_PAGE_SIZE
+                            })
+                        }
+                    ],
+                    tag: {
+                        name: 'errors.page_size',
+                        params: { max_page_size: MAX_PAGE_SIZE, min_page_size: MIN_PAGE_SIZE }
+                    }
                 }
             ]
         });

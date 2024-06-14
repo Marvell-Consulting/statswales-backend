@@ -1,8 +1,9 @@
+/* eslint-disable import/no-cycle */
 import { Request, Response, Router } from 'express';
 import multer from 'multer';
-import pino from 'pino';
 
-// eslint-disable-next-line import/no-cycle
+import { ViewErrDTO } from '../dtos/view-dto';
+import { ENGLISH, WELSH, t } from '../app';
 import { processCSV, uploadCSV, DEFAULT_PAGE_SIZE } from '../controllers/csv-processor';
 import { DataLakeService } from '../controllers/datalake';
 import { Dataset } from '../entity/dataset';
@@ -12,42 +13,64 @@ import { datasetToDatasetDTO } from '../dtos/dataset-dto';
 
 const storage = multer.memoryStorage();
 const upload = multer({ storage });
-
-export const logger = pino({
-    name: 'StatsWales-Alpha-App',
-    level: 'debug'
-});
-
 export const apiRoute = Router();
 
 apiRoute.post('/', upload.single('csv'), async (req: Request, res: Response) => {
     if (!req.file) {
-        res.status(400);
-        res.json({
+        const err: ViewErrDTO = {
             success: false,
-            headers: undefined,
-            data: undefined,
+            dataset_id: undefined,
             errors: [
                 {
                     field: 'csv',
-                    message: 'No CSV data available'
+                    message: [
+                        {
+                            lang: ENGLISH,
+                            message: t('errors.no_csv_data', { lng: ENGLISH })
+                        },
+                        {
+                            lang: WELSH,
+                            message: t('errors.no_csv_data', { lng: WELSH })
+                        }
+                    ],
+                    tag: {
+                        name: 'errors.no_csv_data',
+                        params: {}
+                    }
                 }
             ]
-        });
+        };
+        res.status(400);
+        res.json(err);
         return;
     }
     const internalName: string = req.body?.internal_name;
     if (!internalName) {
-        res.status(400);
-        res.json({
+        const err: ViewErrDTO = {
             success: false,
+            dataset_id: undefined,
             errors: [
                 {
                     field: 'internal_name',
-                    message: 'No internal name for the dataset has been provided'
+                    message: [
+                        {
+                            lang: ENGLISH,
+                            message: t('errors.internal_name', { lng: ENGLISH })
+                        },
+                        {
+                            lang: WELSH,
+                            message: t('errors.internal_name', { lng: WELSH })
+                        }
+                    ],
+                    tag: {
+                        name: 'errors.internal_name',
+                        params: {}
+                    }
                 }
             ]
-        });
+        };
+        res.status(400);
+        res.json(err);
         return;
     }
     const dataset = Dataset.createDataset(internalName, 'BetaUser');

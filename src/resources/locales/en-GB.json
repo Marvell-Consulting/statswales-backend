@@ -30,10 +30,20 @@
         "uploadBtn": "Upload CSV"
     },
 	"errors": {
-		"missing": "Filename Missing",
-        "description_missing": "Dataset Description Missing",
+        "missing": "Filename Missing",
+		"problem": "There is a problem",
         "name_missing": "Dataset Name Missing",
-		"problem": "There is a problem"
+        "page_size": "Page size must be between {{min_page_size}} and {{max_page_size}}",
+        "page_number_to_high": "Page number must be less than or equal to {{page_number}}",
+        "page_number_to_low": "Page number must be greater than 0",
+        "no_datafile": "No datafile attached to Dataset",
+        "download_from_datalake": "Error downloading file from datalake",
+        "upload": {
+            "no-internal-name": "No internal name for the dataset has been provided",
+            "no-csv:": "No CSV data provided",
+            "no-csv-data": "No CSV data available",
+            "upload_to_datalake": "Error uploading the file to the datalake"
+        }
 	},
     "list": {
         "title": "Display Data"
