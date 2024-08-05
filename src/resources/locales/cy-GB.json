@@ -33,6 +33,7 @@
 		"problem": "Mae problem wedi codi",
         "name_missing": "Ni ddarparwyd enw set ddata",
         "upload": {
+            "no_title": "Nid yw teitl ar gyfer y set ddata wedi’i ddarparu (GPT)",
             "no-csv": "Ni ddarparwyd data CSV",
             "no-csv-data": "Nid oes data CSV ar gael",
             "upload_to_datalake": "Gwall wrth uwchlwytho'r ffeil i'r llyn data (GPT)",

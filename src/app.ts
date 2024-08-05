@@ -10,6 +10,7 @@ import { DataSourceOptions } from 'typeorm';
 
 import { apiRoute } from './route/dataset-route';
 import { healthcheck } from './route/healthcheck';
+import { userRoute } from './route/user-route';
 import DatabaseManager from './database-manager';
 
 // eslint-disable-next-line import/no-mutable-exports
@@ -57,6 +58,7 @@ app.use(i18nextMiddleware.handle(i18next));
 app.use('/:lang/dataset', apiRoute);
 app.use('/:lang/healthcheck', healthcheck);
 app.use('/healthcheck', healthcheck);
+app.use('/user', userRoute);
 
 app.get('/', (req: Request, res: Response) => {
     const lang = req.headers['accept-language'] || req.headers['Accept-Language'] || req.i18n.language || 'en-GB';

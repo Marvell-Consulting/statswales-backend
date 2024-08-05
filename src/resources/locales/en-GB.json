@@ -39,6 +39,7 @@
         "no_datafile": "No datafile attached to Dataset",
         "download_from_datalake": "Error downloading file from datalake",
         "upload": {
+            "no_title": "No title for the dataset has been provided",
             "no-internal-name": "No internal name for the dataset has been provided",
             "no-csv:": "No CSV data provided",
             "no-csv-data": "No CSV data available",

@@ -7,6 +7,7 @@ export class Datafiles1716456713793 implements MigrationInterface {
         CREATE TABLE IF NOT EXISTS "datafiles" (
                "id" uuid NOT NULL DEFAULT gen_random_uuid(),
                "sha256hash" varchar(255) NOT NULL,
+               "draft" boolean NOT NULL DEFAULT true,
                "dataset_id" uuid NOT NULL,
                "creation_date" TIMESTAMP NOT NULL DEFAULT now(),
                "created_by" varchar(255) NULL,

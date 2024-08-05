@@ -11,9 +11,9 @@ export const logger = pino({
     level: 'debug'
 });
 
-const accountName = process.env.AZURE_STORAGE_ACCOUNT_NAME || 'your-storage-account-name';
-const accountKey = process.env.AZURE_STORAGE_ACCOUNT_KEY || 'your-storage';
-const defaultDirectoryName = process.env.AZURE_STORAGE_DIRECTORY_NAME || 'your-directory-name';
+const accountName = process.env.AZURE_DATALAKE_STORAGE_ACCOUNT_NAME || 'your-storage-account-name';
+const accountKey = process.env.AZURE_DATALAKE_STORAGE_ACCOUNT_KEY || 'your-storage';
+const defaultDirectoryName = process.env.AZURE_DATALAKE_STORAGE_DIRECTORY_NAME || 'your-directory-name';
 // const fileSystemName = process.env.AZURE_STORAGE_FILESYSTEM_NAME || 'your-filesystem-name';
 // const containerName = process.env.AZURE_STORAGE_CONTAINER_NAME || 'your-container-name';
 
