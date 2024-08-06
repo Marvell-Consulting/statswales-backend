@@ -156,7 +156,7 @@ describe('API Endpoints', () => {
         const res = await request(app)
             .get('/en-GB/dataset/fa07be9d-3495-432d-8c1f-d0fc6daae359/view')
             .query({ page_number: 20 });
-        expect(res.status).toBe(400);
+        expect(res.status).toBe(500);
         expect(res.body).toEqual({
             success: false,
             dataset_id: 'fa07be9d-3495-432d-8c1f-d0fc6daae359',
@@ -184,7 +184,7 @@ describe('API Endpoints', () => {
         const res = await request(app)
             .get('/en-GB/dataset/fa07be9d-3495-432d-8c1f-d0fc6daae359/view')
             .query({ page_size: 1000 });
-        expect(res.status).toBe(400);
+        expect(res.status).toBe(500);
         expect(res.body).toEqual({
             success: false,
             dataset_id: 'fa07be9d-3495-432d-8c1f-d0fc6daae359',
@@ -226,7 +226,7 @@ describe('API Endpoints', () => {
         const res = await request(app)
             .get('/en-GB/dataset/fa07be9d-3495-432d-8c1f-d0fc6daae359/view')
             .query({ page_size: 1 });
-        expect(res.status).toBe(400);
+        expect(res.status).toBe(500);
         expect(res.body).toEqual({
             success: false,
             dataset_id: 'fa07be9d-3495-432d-8c1f-d0fc6daae359',
@@ -286,16 +286,6 @@ describe('API Endpoints', () => {
         expect(res.text).toEqual(testFile2Buffer.toString());
     });
 
-    test('Get xlsx file rertunrs 200 and complete file data', async () => {
-        const testFile2 = path.resolve(__dirname, `./test-data-2.csv`);
-        const testFile2Buffer = fs.readFileSync(testFile2);
-        DataLakeService.prototype.downloadFile = jest.fn().mockReturnValue(testFile2Buffer.toString());
-
-        const res = await request(app).get('/en-GB/dataset/fa07be9d-3495-432d-8c1f-d0fc6daae359/xlsx');
-        expect(res.status).toBe(200);
-        expect(res.body).toEqual({ message: 'Not implmented yet' });
-    });
-
     test('Get file view returns 200 and correct page data', async () => {
         const testFile2 = path.resolve(__dirname, `./test-data-2.csv`);
         const testFile1Buffer = fs.readFileSync(testFile2);
@@ -317,16 +307,16 @@ describe('API Endpoints', () => {
         DataLakeService.prototype.downloadFile = jest.fn().mockReturnValue(null);
 
         const res = await request(app).get('/en-GB/dataset/test-data-4.csv/csv');
-        expect(res.status).toBe(404);
-        expect(res.body).toEqual({ message: 'Dataset not found... Dataset ID not found in Database' });
+        expect(res.status).toBe(400);
+        expect(res.body).toEqual({ message: 'Dataset ID is not valid' });
     });
 
     test('Get file view returns 404 when a not valid UUID is supplied', async () => {
         DataLakeService.prototype.downloadFile = jest.fn().mockReturnValue(null);
 
         const res = await request(app).get('/en-GB/dataset/test-data-4.csv/view');
-        expect(res.status).toBe(404);
-        expect(res.body).toEqual({ message: 'Dataset not found...File ID is not Valid.' });
+        expect(res.status).toBe(400);
+        expect(res.body).toEqual({ message: 'Dataset ID is not valid' });
     });
 
     test('Get file view returns 404 when a UUID is not present', async () => {

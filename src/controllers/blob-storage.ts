@@ -13,6 +13,11 @@ const accountName = process.env.AZURE_BLOB_STORAGE_ACCOUNT_NAME || 'your-storage
 const accountKey = process.env.AZURE_BLOB_STORAGE_ACCOUNT_KEY || 'your-storage';
 const containerName = process.env.AZURE_BLOB_STORAGE_CONTAINER_NAME || 'your-container-name';
 
+/*
+  Wrapper Class around the Azure Blob Storage API.
+  Proper filename handling is assumed to be handled by the Azure API.
+  Filenames coming to this class should be from database generated UUIDs.
+*/
 export class BlobStorageService {
     private readonly blobServiceClient: BlobServiceClient;
     private readonly containerClient: ContainerClient;
@@ -42,12 +47,11 @@ export class BlobStorageService {
             throw new Error('File name is undefined');
         }
         if (fileContent === undefined) {
-            throw new Error('File name is undefined');
+            throw new Error('File content is undefined');
         }
-        logger.debug(`Uploading file with file '${fileName}' to blob storage`);
-        logger.debug('Getting block blob client for file upload');
+
         const blockBlobClient = this.containerClient.getBlockBlobClient(fileName);
-        logger.debug('Uploading file to blob storage');
+
         const uploadBlobResponse = await blockBlobClient.upload(fileContent, fileContent.length);
         return uploadBlobResponse;
     }

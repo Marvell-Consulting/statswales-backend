@@ -25,6 +25,20 @@ function isValidUUID(uuid: string): boolean {
     return uuid.length === 36 && uuidRegex.test(uuid);
 }
 
+function checkDatasetID(datasetID: string, res: Response): boolean {
+    if (datasetID === undefined || datasetID === null) {
+        res.status(400);
+        res.json({ message: 'Dataset ID is null or undefined' });
+        return false;
+    }
+    if (isValidUUID(datasetID) === false) {
+        res.status(400);
+        res.json({ message: 'Dataset ID is not valid' });
+        return false;
+    }
+    return true;
+}
+
 apiRoute.post('/', upload.single('csv'), async (req: Request, res: Response) => {
     if (!req.file) {
         const err: ViewErrDTO = {
@@ -107,21 +121,12 @@ apiRoute.get('/', async (req, res) => {
 });
 
 apiRoute.get('/:dataset', async (req, res) => {
-    const datasetID = req.params.dataset;
-    if (datasetID === undefined || datasetID === null) {
-        res.status(404);
-        res.json({ message: 'Dataset not found... file is null or undefined' });
-        return;
-    }
-    if (isValidUUID(datasetID) === false) {
-        res.status(404);
-        res.json({ message: 'Dataset not found...File ID is not Valid.' });
-        return;
-    }
+    const datasetID: string = req.params.dataset;
+    if (!checkDatasetID(datasetID, res)) return;
     const dataset = await Dataset.findOneBy({ id: datasetID });
     if (!dataset) {
         res.status(404);
-        res.json({ message: 'Dataset not found... dataset id is invalid' });
+        res.json({ message: 'Dataset not found.' });
         return;
     }
     const datafiles = await dataset.datafiles;
@@ -137,20 +142,11 @@ apiRoute.get('/:dataset', async (req, res) => {
 apiRoute.get('/:dataset/csv', async (req, res) => {
     const dataLakeService = new DataLakeService();
     const datasetID = req.params.dataset;
-    if (datasetID === undefined || datasetID === null) {
-        res.status(404);
-        res.json({ message: 'Dataset not found... You must specify a dataset ID' });
-        return;
-    }
+    if (!checkDatasetID(datasetID, res)) return;
     const dataset = await Dataset.findOneBy({ id: datasetID });
     if (dataset === undefined || dataset === null) {
         res.status(404);
         res.json({ message: 'Dataset not found... Dataset ID not found in Database' });
-        return;
-    }
-    if (isValidUUID(datasetID) === false) {
-        res.status(404);
-        res.json({ message: 'Dataset not found...File ID is not Valid.' });
         return;
     }
     const datafiles = await dataset.datafiles;
@@ -178,41 +174,9 @@ apiRoute.get('/:dataset/csv', async (req, res) => {
     res.end();
 });
 
-apiRoute.get('/:dataset/xlsx', async (req, res) => {
-    const datasetID = req.params.dataset;
-    if (datasetID === undefined || datasetID === null) {
-        res.status(404);
-        res.json({ message: 'Dataset not found... You must specify a dataset ID' });
-        return;
-    }
-    if (isValidUUID(datasetID) === false) {
-        res.status(404);
-        res.json({ message: 'Dataset not found...File ID is not Valid.' });
-        return;
-    }
-    const dataset = await Dataset.findOneBy({ id: datasetID });
-    if (dataset === undefined || dataset === null) {
-        res.status(404);
-        res.json({ message: 'Dataset not found... Dataset ID not found in Database' });
-        return;
-    }
-    res.json({
-        message: 'Not implmented yet'
-    });
-});
-
 apiRoute.get('/:dataset/preview', async (req, res) => {
     const datasetID = req.params.dataset;
-    if (datasetID === undefined || datasetID === null) {
-        res.status(404);
-        res.json({ message: 'Dataset not found... You must specify a dataset ID' });
-        return;
-    }
-    if (isValidUUID(datasetID) === false) {
-        res.status(404);
-        res.json({ message: 'Dataset not found...File ID is not Valid.' });
-        return;
-    }
+    if (!checkDatasetID(datasetID, res)) return;
     const dataset = await Dataset.findOneBy({ id: datasetID });
     if (dataset === undefined || dataset === null) {
         res.status(404);
@@ -225,23 +189,14 @@ apiRoute.get('/:dataset/preview', async (req, res) => {
     const page_size: number = Number.parseInt(page_size_str, 10) || DEFAULT_PAGE_SIZE;
     const processedCSV = await processCSVFromBlobStorage(dataset, page_number, page_size);
     if (!processedCSV.success) {
-        res.status(400);
+        res.status(500);
     }
     res.json(processedCSV);
 });
 
 apiRoute.get('/:dataset/view', async (req, res) => {
     const datasetID = req.params.dataset;
-    if (datasetID === undefined || datasetID === null) {
-        res.status(404);
-        res.json({ message: 'Dataset not found... You must specify a dataset ID' });
-        return;
-    }
-    if (isValidUUID(datasetID) === false) {
-        res.status(404);
-        res.json({ message: 'Dataset not found...File ID is not Valid.' });
-        return;
-    }
+    if (!checkDatasetID(datasetID, res)) return;
     const dataset = await Dataset.findOneBy({ id: datasetID });
     if (dataset === undefined || dataset === null) {
         res.status(404);
@@ -254,7 +209,7 @@ apiRoute.get('/:dataset/view', async (req, res) => {
     const page_size: number = Number.parseInt(page_size_str, 10) || DEFAULT_PAGE_SIZE;
     const processedCSV = await processCSVFromDatalake(dataset, page_number, page_size);
     if (!processedCSV.success) {
-        res.status(400);
+        res.status(500);
     }
     res.json(processedCSV);
 });

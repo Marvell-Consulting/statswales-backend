@@ -163,11 +163,11 @@ export const moveCSVFromBlobStorageToDatalake = async (dataset: Dataset): Promis
 
 export const uploadCSVToBlobStorage = async (buff: Buffer, dataset: Dataset): Promise<UploadDTO | UploadErrDTO> => {
     const blobStorageService = new BlobStorageService();
-    const hash = createHash('sha256').update(buff).digest('hex');
-    const datafile = Datafile.createDatafile(dataset, hash.toString(), 'BetaUser');
-    const savedDataFile = await datafile.save();
-    const dto = await datasetToDatasetDTO(dataset);
     if (buff) {
+        const hash = createHash('sha256').update(buff).digest('hex');
+        const datafile = Datafile.createDatafile(dataset, hash.toString(), 'BetaUser');
+        const savedDataFile = await datafile.save();
+        const dto = await datasetToDatasetDTO(dataset);
         try {
             logger.debug(`Uploading file ${savedDataFile.id} to blob storage`);
             await blobStorageService.uploadFile(`${savedDataFile.id}.csv`, buff);
@@ -195,7 +195,7 @@ export const uploadCSVToBlobStorage = async (buff: Buffer, dataset: Dataset): Pr
         }
     } else {
         logger.debug('No buffer to upload to datalake');
-        datafile.remove();
+        const dto = await datasetToDatasetDTO(dataset);
         return {
             success: false,
             dataset: dto,
