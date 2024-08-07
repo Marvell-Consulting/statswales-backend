@@ -11,6 +11,9 @@ export class Datafile extends BaseEntity {
     @Column({ nullable: false })
     sha256hash: string;
 
+    @Column({ name: 'draft', default: true })
+    draft: boolean;
+
     @ManyToOne(() => Dataset, (dataset) => dataset.datafiles, { onDelete: 'CASCADE', eager: true })
     @JoinColumn({ name: 'dataset_id' })
     dataset: Dataset;
@@ -24,6 +27,7 @@ export class Datafile extends BaseEntity {
     public static createDatafile(dataset: Dataset, hash: string, user: string): Datafile {
         const datafile = new Datafile();
         datafile.dataset = dataset;
+        datafile.draft = true;
         datafile.sha256hash = hash;
         datafile.createdBy = user;
         datafile.creationDate = new Date(Date.now());

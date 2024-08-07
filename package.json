@@ -55,6 +55,8 @@
     "typescript": "^5.3.3"
   },
   "dependencies": {
+    "@azure/identity": "^4.4.1",
+    "@azure/storage-blob": "^12.24.0",
     "@azure/storage-file-datalake": "^12.16.0",
     "csv": "^6.3.8",
     "dotenv": "^16.4.4",
