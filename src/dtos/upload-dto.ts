@@ -10,6 +10,6 @@ export interface UploadDTO {
 
 export interface UploadErrDTO {
     success: boolean;
-    dataset: DatasetDTO;
+    dataset: DatasetDTO | undefined;
     errors: Error[];
 }

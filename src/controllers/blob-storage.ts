@@ -1,4 +1,5 @@
 import { BlobServiceClient, ContainerClient, StorageSharedKeyCredential } from '@azure/storage-blob';
+import { Readable } from 'stream';
 import * as dotenv from 'dotenv';
 import pino from 'pino';
 
@@ -42,7 +43,7 @@ export class BlobStorageService {
         return this.containerClient;
     }
 
-    public async uploadFile(fileName: string | undefined, fileContent: Buffer) {
+    public async uploadFile(fileName: string | undefined, fileContent: Readable) {
         if (fileName === undefined) {
             throw new Error('File name is undefined');
         }
@@ -52,7 +53,7 @@ export class BlobStorageService {
 
         const blockBlobClient = this.containerClient.getBlockBlobClient(fileName);
 
-        const uploadBlobResponse = await blockBlobClient.upload(fileContent, fileContent.length);
+        const uploadBlobResponse = await blockBlobClient.uploadStream(fileContent, fileContent.readableLength);
         return uploadBlobResponse;
     }
 

@@ -1,12 +1,15 @@
 /* eslint-disable import/no-cycle */
-import { createHash } from 'crypto';
+import { createHash, randomUUID } from 'crypto';
+import { Readable } from 'stream';
 
 import { parse } from 'csv';
 
 import { UploadDTO, UploadErrDTO } from '../dtos/upload-dto';
 import { Error } from '../models/error';
-import { Datafile } from '../entity/datafile';
-import { Dataset } from '../entity/dataset';
+import { DatasetRevision } from '../entity2/revision';
+
+import { Import } from 'src/entity2/import';
+
 import { ViewDTO, ViewErrDTO } from '../dtos/view-dto';
 import { datasetToDatasetDTO } from '../dtos/dataset-dto';
 import { ENGLISH, WELSH, logger, t } from '../app';
@@ -17,6 +20,21 @@ import { BlobStorageService } from './blob-storage';
 export const MAX_PAGE_SIZE = 500;
 export const MIN_PAGE_SIZE = 5;
 export const DEFAULT_PAGE_SIZE = 100;
+
+function hashReadableStream(stream: Readable, algorithm: string = 'sha256'): Promise<string> {
+    return new Promise((resolve, reject) => {
+        const hash = createHash(algorithm);
+        stream.on('data', (chunk) => {
+            hash.update(chunk);
+        });
+        stream.on('end', () => {
+            resolve(hash.digest('hex'));
+        });
+        stream.on('error', (err) => {
+            reject(err);
+        });
+    });
+}
 
 function paginate<T>(array: Array<T>, page_number: number, page_size: number): Array<T> {
     const page = array.slice((page_number - 1) * page_size, page_number * page_size);
@@ -161,55 +179,30 @@ export const moveCSVFromBlobStorageToDatalake = async (dataset: Dataset): Promis
     }
 };
 
-export const uploadCSVToBlobStorage = async (buff: Buffer, dataset: Dataset): Promise<UploadDTO | UploadErrDTO> => {
+export const uploadCSVToBlobStorage = async (fileStream: Readable, filetype: string): Promise<Import> => {
     const blobStorageService = new BlobStorageService();
-    if (buff) {
-        const hash = createHash('sha256').update(buff).digest('hex');
-        const datafile = Datafile.createDatafile(dataset, hash.toString(), 'BetaUser');
-        const savedDataFile = await datafile.save();
-        const dto = await datasetToDatasetDTO(dataset);
+    if (fileStream) {
+        const importRecord = new Import();
+        importRecord.id = randomUUID();
+        importRecord.mime_type = filetype;
         try {
-            logger.debug(`Uploading file ${savedDataFile.id} to blob storage`);
-            await blobStorageService.uploadFile(`${savedDataFile.id}.csv`, buff);
-            return {
-                success: true,
-                dataset: dto
-            };
+            await blobStorageService.uploadFile(`${importRecord.id}.csv`, fileStream);
+            const resolvedHash = await hashReadableStream(fileStream)
+                .then((hash) => {
+                    return hash.toString();
+                })
+                .catch((error) => {
+                    throw new Error(`Error hashing stream: ${error}`);
+                });
+            if (resolvedHash) importRecord.file_hash = resolvedHash;
+            return await importRecord.save();
         } catch (err) {
             logger.error(err);
-            datafile.remove();
-            return {
-                success: false,
-                dataset: dto,
-                errors: [
-                    {
-                        field: 'csv',
-                        message: [
-                            { lang: ENGLISH, message: t('errors.upload_to_datalake', { lng: ENGLISH }) },
-                            { lang: WELSH, message: t('errors.upload_to_datalake', { lng: WELSH }) }
-                        ],
-                        tag: { name: 'errors.upload_to_datalake', params: {} }
-                    }
-                ]
-            };
+            throw new Error('Error processing file upload to blob storage');
         }
     } else {
-        logger.debug('No buffer to upload to datalake');
-        const dto = await datasetToDatasetDTO(dataset);
-        return {
-            success: false,
-            dataset: dto,
-            errors: [
-                {
-                    field: 'csv',
-                    message: [
-                        { lang: ENGLISH, message: t('errors.no_csv_data', { lng: ENGLISH }) },
-                        { lang: WELSH, message: t('errors.no_csv_data', { lng: WELSH }) }
-                    ],
-                    tag: { name: 'errors.no_csv_data', params: {} }
-                }
-            ]
-        };
+        logger.error('No buffer to upload to blob storage');
+        throw new Error('No buffer to upload to blob storage');
     }
 };
 

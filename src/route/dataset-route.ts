@@ -1,6 +1,8 @@
+/* eslint-disable no-warning-comments */
 /* eslint-disable import/no-cycle */
 import { Request, Response, Router } from 'express';
 import multer from 'multer';
+import pino from 'pino';
 
 import { ViewErrDTO } from '../dtos/view-dto';
 import { ENGLISH, WELSH, t } from '../app';
@@ -11,10 +13,17 @@ import {
     DEFAULT_PAGE_SIZE
 } from '../controllers/csv-processor';
 import { DataLakeService } from '../controllers/datalake';
-import { Dataset } from '../entity/dataset';
-import { Datafile } from '../entity/datafile';
+import { Dataset } from '../entity2/dataset';
+import { DatasetInfo } from '../entity2/dataset_info';
+import { DatasetRevision } from '../entity2/revision';
+import { Import } from '../entity2/import';
 import { FileDescription } from '../models/filelist';
 import { datasetToDatasetDTO } from '../dtos/dataset-dto';
+
+export const logger = pino({
+    name: 'StatsWales-Alpha-App: DatasetRoute',
+    level: 'debug'
+});
 
 const storage = multer.memoryStorage();
 const upload = multer({ storage });
@@ -39,72 +48,81 @@ function checkDatasetID(datasetID: string, res: Response): boolean {
     return true;
 }
 
+function errorDtoGenerator(
+    field: string,
+    translationString: string,
+    datasetID: string | undefined = undefined
+): ViewErrDTO {
+    return {
+        success: false,
+        dataset_id: datasetID,
+        errors: [
+            {
+                field,
+                message: [
+                    {
+                        lang: ENGLISH,
+                        message: t(translationString, { lng: ENGLISH })
+                    },
+                    {
+                        lang: WELSH,
+                        message: t(translationString, { lng: WELSH })
+                    }
+                ],
+                tag: {
+                    name: translationString,
+                    params: {}
+                }
+            }
+        ]
+    };
+}
+
+
 apiRoute.post('/', upload.single('csv'), async (req: Request, res: Response) => {
     if (!req.file) {
-        const err: ViewErrDTO = {
-            success: false,
-            dataset_id: undefined,
-            errors: [
-                {
-                    field: 'csv',
-                    message: [
-                        {
-                            lang: ENGLISH,
-                            message: t('errors.no_csv_data', { lng: ENGLISH })
-                        },
-                        {
-                            lang: WELSH,
-                            message: t('errors.no_csv_data', { lng: WELSH })
-                        }
-                    ],
-                    tag: {
-                        name: 'errors.no_csv_data',
-                        params: {}
-                    }
-                }
-            ]
-        };
         res.status(400);
-        res.json(err);
+        res.json(errorDtoGenerator('csv', 'errors.no_csv_data'));
         return;
     }
     const lang: string = req.body?.language || req.i18n.language;
     const title: string = req.body?.title;
     if (!title) {
-        const err: ViewErrDTO = {
-            success: false,
-            dataset_id: undefined,
-            errors: [
-                {
-                    field: 'title',
-                    message: [
-                        {
-                            lang: ENGLISH,
-                            message: t('errors.no_title', { lng: ENGLISH })
-                        },
-                        {
-                            lang: WELSH,
-                            message: t('errors.no_title', { lng: WELSH })
-                        }
-                    ],
-                    tag: {
-                        name: 'errors.no_title',
-                        params: {}
-                    }
-                }
-            ]
-        };
         res.status(400);
-        res.json(err);
+        res.json(errorDtoGenerator('title', 'errors.no_title'));
         return;
     }
-    const dataset = Dataset.createDataset(title, 'BetaUser');
-    const saved_dataset_record = await dataset.save();
-    saved_dataset_record.addTitleByString(title, lang);
-    const uploadDTO = await uploadCSVToBlobStorage(req.file?.buffer, saved_dataset_record);
-    if (!uploadDTO.success) {
-        res.status(400);
+    let importRecord: Import;
+    try {
+        importRecord = await uploadCSVToBlobStorage(req.file?.stream, req.file?.mimetype);
+    } catch (err) {
+        logger.error(`An error occured trying to upload the file with the following error: ${e}`);
+        res.status(500);
+        res.json({ message: 'Error uploading file' });
+        return;
     }
+
+    // Everything looks good so far, let's create the dataset and revision records
+    const dataset = new Dataset();
+    dataset.creation_date = new Date();
+    // TODO change how we handle authentication to get the user on the Backend
+    dataset.created_by = 'Test User';
+    const saved_dataset_record = await dataset.save();
+    const datasetInfo = new DatasetInfo();
+    datasetInfo.language = lang;
+    datasetInfo.title = title;
+    datasetInfo.dataset = saved_dataset_record;
+    datasetInfo.save();
+    const revision = new DatasetRevision();
+    revision.dataset = saved_dataset_record;
+    revision.revision_index = 1;
+    revision.creation_date = new Date();
+    // TODO change how we handle authentication to get the user on the Backend
+    revision.created_by = 'Test User';
+    const saved_revision_record = await revision.save();
+    importRecord.revision = saved_revision_record;
+    importRecord.save();
+
     res.json(uploadDTO);
 });
 
