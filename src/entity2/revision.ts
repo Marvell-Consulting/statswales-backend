@@ -1,8 +1,10 @@
-import { Entity, PrimaryGeneratedColumn, Column, BaseEntity, JoinColumn, ManyToOne } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, BaseEntity, JoinColumn, OneToMany, ManyToOne } from 'typeorm';
 
 // eslint-disable-next-line import/no-cycle
 import { Dataset } from './dataset';
 import { User } from './user';
+// eslint-disable-next-line import/no-cycle
+import { Import } from './import';
 
 interface Revision {
     id: string;
@@ -15,6 +17,7 @@ interface Revision {
     approval_date: Date;
     approved_by: User;
     created_by: User;
+    imports: Import[];
 }
 
 @Entity()
@@ -44,6 +47,9 @@ export class RevisionEntity extends BaseEntity implements Revision {
 
     @Column({ type: 'timestamp', nullable: true })
     approval_date: Date;
+
+    @OneToMany(() => Import, (importEntity) => importEntity.revision)
+    imports: Import[];
 
     @ManyToOne(() => User, { nullable: true })
     @JoinColumn({ name: 'approved_by' })

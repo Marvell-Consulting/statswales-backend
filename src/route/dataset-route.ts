@@ -4,7 +4,7 @@ import { Request, Response, Router } from 'express';
 import multer from 'multer';
 import pino from 'pino';
 
-import { ViewErrDTO } from '../dtos/view-dto';
+import { ViewErrDTO, ViewDTO } from '../dtos2/view-dto';
 import { ENGLISH, WELSH, t } from '../app';
 import {
     processCSVFromDatalake,
@@ -12,13 +12,14 @@ import {
     uploadCSVToBlobStorage,
     DEFAULT_PAGE_SIZE
 } from '../controllers/csv-processor';
-import { DataLakeService } from '../controllers/datalake';
 import { Dataset } from '../entity2/dataset';
 import { DatasetInfo } from '../entity2/dataset_info';
-import { DatasetRevision } from '../entity2/revision';
+import { Dimension } from '../entity2/dimension';
+import { RevisionEntity } from '../entity2/revision';
 import { Import } from '../entity2/import';
-import { FileDescription } from '../models/filelist';
-import { datasetToDatasetDTO } from '../dtos/dataset-dto';
+import { User } from '../entity2/user';
+import { DatasetTitle, FileDescription } from '../dtos2/filelist';
+import { DatasetDTO, DimensionDTO, RevisionDTO } from '../dtos2/dataset-dto';
 
 export const logger = pino({
     name: 'StatsWales-Alpha-App: DatasetRoute',
@@ -29,23 +30,72 @@ const storage = multer.memoryStorage();
 const upload = multer({ storage });
 export const apiRoute = Router();
 
+const DATASET = 'Dataset';
+const REVISION = 'Revision';
+const DIMENSION = 'Dimension';
+const IMPORT = 'Import';
+
 function isValidUUID(uuid: string): boolean {
     const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
     return uuid.length === 36 && uuidRegex.test(uuid);
 }
 
-function checkDatasetID(datasetID: string, res: Response): boolean {
-    if (datasetID === undefined || datasetID === null) {
+function validateIds(id: string, idType: string, res: Response): boolean {
+    if (id === undefined || id === null) {
         res.status(400);
-        res.json({ message: 'Dataset ID is null or undefined' });
+        res.json({ message: `${idType} ID is null or undefined` });
         return false;
     }
-    if (isValidUUID(datasetID) === false) {
+    if (isValidUUID(id) === false) {
         res.status(400);
-        res.json({ message: 'Dataset ID is not valid' });
+        res.json({ message: `${idType} ID is not valid` });
         return false;
     }
     return true;
+}
+
+async function validateDataset(datasetID: string, res: Response): Promise<Dataset | null> {
+    if (!validateIds(datasetID, DATASET, res)) return null;
+    const dataset = await Dataset.findOneBy({ id: datasetID });
+    if (!dataset) {
+        res.status(404);
+        res.json({ message: 'Dataset not found.' });
+        return null;
+    }
+    return dataset;
+}
+
+async function validateDimension(dimensionID: string, res: Response): Promise<Dimension | null> {
+    if (!validateIds(dimensionID, DIMENSION, res)) return null;
+    const dimension = await Dimension.findOneBy({ id: dimensionID });
+    if (!dimension) {
+        res.status(404);
+        res.json({ message: 'Dimension not found.' });
+        return null;
+    }
+    return dimension;
+}
+
+async function validateRevision(revisionID: string, res: Response): Promise<RevisionEntity | null> {
+    if (!validateIds(revisionID, REVISION, res)) return null;
+    const revision = await RevisionEntity.findOneBy({ id: revisionID });
+    if (!revision) {
+        res.status(404);
+        res.json({ message: 'Revision not found.' });
+        return null;
+    }
+    return revision;
+}
+
+async function validateImport(importID: string, res: Response): Promise<Import | null> {
+    if (!validateIds(importID, IMPORT, res)) return null;
+    const importObj = await Import.findOneBy({ id: importID });
+    if (!importObj) {
+        res.status(404);
+        res.json({ message: 'Import not found.' });
+        return null;
+    }
+    return importObj;
 }
 
 function errorDtoGenerator(
@@ -78,7 +128,10 @@ function errorDtoGenerator(
     };
 }
 
-
+// POST /api/dataset
+// Upload a CSV file to the server
+// Returns a JSON object with the a DTO object that represents the dataset
+// first revision and the import record.
 apiRoute.post('/', upload.single('csv'), async (req: Request, res: Response) => {
     if (!req.file) {
         res.status(400);
@@ -96,7 +149,7 @@ apiRoute.post('/', upload.single('csv'), async (req: Request, res: Response) => 
     try {
         importRecord = await uploadCSVToBlobStorage(req.file?.stream, req.file?.mimetype);
     } catch (err) {
-        logger.error(`An error occured trying to upload the file with the following error: ${e}`);
+        logger.error(`An error occured trying to upload the file with the following error: ${err}`);
         res.status(500);
         res.json({ message: 'Error uploading file' });
         return;
@@ -106,128 +159,137 @@ apiRoute.post('/', upload.single('csv'), async (req: Request, res: Response) => 
     const dataset = new Dataset();
     dataset.creation_date = new Date();
     // TODO change how we handle authentication to get the user on the Backend
-    dataset.created_by = 'Test User';
-    const saved_dataset_record = await dataset.save();
+    // We are using a stub test user for all requests at the moment
+    dataset.created_by = User.getTestUser();
     const datasetInfo = new DatasetInfo();
     datasetInfo.language = lang;
     datasetInfo.title = title;
-    datasetInfo.dataset = saved_dataset_record;
-    datasetInfo.save();
-    const revision = new DatasetRevision();
-    revision.dataset = saved_dataset_record;
+    datasetInfo.dataset = dataset;
+    dataset.datasetInfos = [datasetInfo];
+    const revision = new RevisionEntity();
+    revision.dataset = dataset;
     revision.revision_index = 1;
     revision.creation_date = new Date();
     // TODO change how we handle authentication to get the user on the Backend
-    revision.created_by = 'Test User';
-    const saved_revision_record = await revision.save();
-    importRecord.revision = saved_revision_record;
-    importRecord.save();
-
+    revision.created_by = User.getTestUser();
+    importRecord.revision = revision;
+    revision.imports = [importRecord];
+    const savedDataset = await dataset.save();
+    const uploadDTO = DatasetDTO.fromDatasetWithImports(savedDataset);
     res.json(uploadDTO);
 });
 
-apiRoute.get('/', async (req, res) => {
+// GET /api/dataset
+// Returns a list of all datasets
+// Returns a JSON object with a list of all datasets
+// and their titles
+apiRoute.get('/', async (req: Request, res: Response) => {
     const datasets = await Dataset.find();
     const fileList: FileDescription[] = [];
     for (const dataset of datasets) {
+        const titles: DatasetTitle[] = [];
+        for (const datasetInfo of dataset.datasetInfos) {
+            titles.push({
+                title: datasetInfo.title,
+                language: datasetInfo.language
+            });
+        }
         fileList.push({
-            internal_name: dataset.internalName,
-            id: dataset.id
+            titles,
+            dataset_id: dataset.id
         });
     }
     res.json({ filelist: fileList });
 });
 
-apiRoute.get('/:dataset', async (req, res) => {
-    const datasetID: string = req.params.dataset;
-    if (!checkDatasetID(datasetID, res)) return;
-    const dataset = await Dataset.findOneBy({ id: datasetID });
-    if (!dataset) {
-        res.status(404);
-        res.json({ message: 'Dataset not found.' });
-        return;
-    }
-    const datafiles = await dataset.datafiles;
-    if (datafiles.length < 1) {
-        res.status(404);
-        res.json({ message: 'Dataset has no datafiles attached' });
-        return;
-    }
-    const dto = await datasetToDatasetDTO(dataset);
+// GET /api/dataset/:dataset_id
+// Returns a shallow dto of the dataset with the given ID
+// Shallow gives the revisions and dimensions of the dataset only
+apiRoute.get('/:dataset_id', async (req: Request, res: Response) => {
+    const datasetID: string = req.params.dataset_id;
+    const dataset = await validateDataset(datasetID, res);
+    if (dataset) return;
+    const dto = DatasetDTO.fromDatasetWithShallowDimensionsAndRevisions(dataset);
     res.json(dto);
 });
 
-apiRoute.get('/:dataset/csv', async (req, res) => {
-    const dataLakeService = new DataLakeService();
-    const datasetID = req.params.dataset;
-    if (!checkDatasetID(datasetID, res)) return;
-    const dataset = await Dataset.findOneBy({ id: datasetID });
-    if (dataset === undefined || dataset === null) {
-        res.status(404);
-        res.json({ message: 'Dataset not found... Dataset ID not found in Database' });
-        return;
-    }
-    const datafiles = await dataset.datafiles;
-    const fileToDownload: Datafile | undefined = datafiles
-        .sort(
-            (first: Datafile, second: Datafile) =>
-                new Date(second.creationDate).getTime() - new Date(first.creationDate).getTime()
-        )
-        .shift();
-    if (fileToDownload === undefined || fileToDownload === null) {
-        res.status(404);
-        res.json({ message: 'Dataset has no file attached' });
-        return;
-    }
-    const file = await dataLakeService.downloadFile(`${fileToDownload.id}.csv`);
-    if (file === undefined || file === null) {
-        res.status(404);
-        res.json({ message: 'File not found... file is null or undefined' });
-        return;
-    }
-    res.setHeader('Content-Length', file.length);
-    res.setHeader('Content-Type', 'text/csv');
-    res.setHeader('Content-Disposition', `attachment; filename=${fileToDownload.id}.csv`);
-    res.write(file, 'binary');
-    res.end();
+// GET /api/dataset/:dataset_id/dimension/id/:dimension_id
+// Returns details of a dimension with its sources and imports
+apiRoute.get('/:dataset_id/dimension/by-id/:dimension_id', async (req: Request, res: Response) => {
+    const datasetID: string = req.params.dataset_id;
+    const dataset = await validateDataset(datasetID, res);
+    if (dataset) return;
+    const dimensionID: string = req.params.dimension_id;
+    const dimension = await validateDimension(dimensionID, res);
+    if (!dimension) return;
+    const dto = DimensionDTO.fromDimension(dimension);
+    res.json(dto);
 });
 
-apiRoute.get('/:dataset/preview', async (req, res) => {
-    const datasetID = req.params.dataset;
-    if (!checkDatasetID(datasetID, res)) return;
-    const dataset = await Dataset.findOneBy({ id: datasetID });
-    if (dataset === undefined || dataset === null) {
-        res.status(404);
-        res.json({ message: 'Dataset not found... Dataset ID not found in Database' });
-        return;
-    }
-    const page_number_str: string = req.query.page_number || req.body?.page_number;
-    const page_size_str: string = req.query.page_size || req.body?.page_size;
-    const page_number: number = Number.parseInt(page_number_str, 10) || 1;
-    const page_size: number = Number.parseInt(page_size_str, 10) || DEFAULT_PAGE_SIZE;
-    const processedCSV = await processCSVFromBlobStorage(dataset, page_number, page_size);
-    if (!processedCSV.success) {
-        res.status(500);
-    }
-    res.json(processedCSV);
+// GET /api/dataset/:dataset_id/revision/id/:revision_id
+// Returns details of a revision with its imports
+apiRoute.get('/:dataset_id/revision/by-id/:revision_id', async (req: Request, res: Response) => {
+    const datasetID: string = req.params.dataset_id;
+    const dataset = await validateDataset(datasetID, res);
+    if (dataset) return;
+    const revisionID: string = req.params.revision_id;
+    const revision = await validateRevision(revisionID, res);
+    if (!revision) return;
+    const dto = RevisionDTO.fromRevision(revision);
+    res.json(dto);
 });
 
-apiRoute.get('/:dataset/view', async (req, res) => {
-    const datasetID = req.params.dataset;
-    if (!checkDatasetID(datasetID, res)) return;
-    const dataset = await Dataset.findOneBy({ id: datasetID });
-    if (dataset === undefined || dataset === null) {
-        res.status(404);
-        res.json({ message: 'Dataset not found... Dataset ID not found in Database' });
-        return;
+// GET /api/dataset/:dataset_id/revision/id/:revision_id/import/id/:import_id/preview
+// Returns a view of the data file attached to the import
+apiRoute.get(
+    '/:dataset/revision/by-id/:revision_id/import/by-id/:import_id/preview',
+    async (req: Request, res: Response) => {
+        const datasetID: string = req.params.dataset_id;
+        const dataset = await validateDataset(datasetID, res);
+        if (!dataset) return;
+        const revisionID: string = req.params.revision_id;
+        const revision = await validateRevision(revisionID, res);
+        if (!revision) return;
+        const importID: string = req.params.import_id;
+        const importRecord = await validateImport(importID, res);
+        if (!importRecord) return;
+        const page_number_str: string = req.query.page_number || req.body?.page_number;
+        const page_size_str: string = req.query.page_size || req.body?.page_size;
+        const page_number: number = Number.parseInt(page_number_str, 10) || 1;
+        const page_size: number = Number.parseInt(page_size_str, 10) || DEFAULT_PAGE_SIZE;
+        let processedCSV: ViewErrDTO | ViewDTO;
+        if (importRecord.location === 'BlobStorage') {
+            processedCSV = await processCSVFromBlobStorage(dataset, importRecord, page_number, page_size);
+        } else if (importRecord.location === 'Datalake') {
+            processedCSV = await processCSVFromDatalake(dataset, importRecord, page_number, page_size);
+        } else {
+            res.status(500);
+            res.json({ message: 'Import location not supported.' });
+            return;
+        }
+        if (!processedCSV.success) {
+            res.status(500);
+        }
+        res.json(processedCSV);
     }
-    const page_number_str: string = req.query.page_number || req.body?.page_number;
-    const page_size_str: string = req.query.page_size || req.body?.page_size;
-    const page_number: number = Number.parseInt(page_number_str, 10) || 1;
-    const page_size: number = Number.parseInt(page_size_str, 10) || DEFAULT_PAGE_SIZE;
-    const processedCSV = await processCSVFromDatalake(dataset, page_number, page_size);
-    if (!processedCSV.success) {
-        res.status(500);
-    }
-    res.json(processedCSV);
-});
+);
+
+// apiRoute.get('/:dataset/view', async (req: Request, res: Response) => {
+//     const datasetID = req.params.dataset;
+//     if (!checkDatasetID(datasetID, res)) return;
+//     const dataset = await Dataset.findOneBy({ id: datasetID });
+//     if (dataset === undefined || dataset === null) {
+//         res.status(404);
+//         res.json({ message: 'Dataset not found... Dataset ID not found in Database' });
+//         return;
+//     }
+//     const page_number_str: string = req.query.page_number || req.body?.page_number;
+//     const page_size_str: string = req.query.page_size || req.body?.page_size;
+//     const page_number: number = Number.parseInt(page_number_str, 10) || 1;
+//     const page_size: number = Number.parseInt(page_size_str, 10) || DEFAULT_PAGE_SIZE;
+//     const processedCSV = await processCSVFromDatalake(dataset, page_number, page_size);
+//     if (!processedCSV.success) {
+//         res.status(500);
+//     }
+//     res.json(processedCSV);
+// });

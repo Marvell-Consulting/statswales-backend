@@ -1,9 +1,12 @@
 import { Entity, PrimaryGeneratedColumn, Column, BaseEntity, ManyToOne, OneToMany, JoinColumn } from 'typeorm';
 
+// eslint-disable-next-line import/no-cycle
 import { Dataset } from './dataset';
+// eslint-disable-next-line import/no-cycle
 import { RevisionEntity } from './revision';
 // eslint-disable-next-line import/no-cycle
 import { DimensionInfo } from './dimension_info';
+import { Source } from './source';
 
 @Entity()
 export class Dimension extends BaseEntity {
@@ -31,4 +34,7 @@ export class Dimension extends BaseEntity {
 
     @OneToMany(() => DimensionInfo, (dimensionInfo) => dimensionInfo.dimension)
     dimensionInfos: DimensionInfo[];
+
+    @OneToMany(() => Source, (source) => source.dimension)
+    sources: Source[];
 }

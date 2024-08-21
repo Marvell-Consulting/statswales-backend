@@ -1,5 +1,4 @@
-import { DatasetDTO } from '../dtos/dataset-dto';
-
+import { DatasetDTO } from './dataset-dto';
 import { Error } from './error';
 
 export interface PageInfo {

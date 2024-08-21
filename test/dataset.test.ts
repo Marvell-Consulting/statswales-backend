@@ -9,8 +9,8 @@ import { BlobStorageService } from '../src/controllers/blob-storage';
 import app, { ENGLISH, WELSH, t, dbManager, connectToDb } from '../src/app';
 import { Dataset } from '../src/entity/dataset';
 import { Datafile } from '../src/entity/datafile';
-import { datasetToDatasetDTO } from '../src/dtos/dataset-dto';
-import { ViewErrDTO } from '../src/dtos/view-dto';
+import { DatasetDTO } from '../src/dtos2/dataset-dto';
+import { ViewErrDTO } from '../src/dtos2/view-dto';
 import { MAX_PAGE_SIZE, MIN_PAGE_SIZE } from '../src/controllers/csv-processor';
 
 import { datasourceOptions } from './test-data-source';

@@ -4,18 +4,15 @@ import { Readable } from 'stream';
 
 import { parse } from 'csv';
 
-import { UploadDTO, UploadErrDTO } from '../dtos/upload-dto';
-import { Error } from '../models/error';
-import { DatasetRevision } from '../entity2/revision';
-
-import { Import } from 'src/entity2/import';
-
-import { ViewDTO, ViewErrDTO } from '../dtos/view-dto';
-import { datasetToDatasetDTO } from '../dtos/dataset-dto';
 import { ENGLISH, WELSH, logger, t } from '../app';
+import { DatasetDTO, ImportDTO } from '../dtos2/dataset-dto';
+import { Error } from '../dtos2/error';
+import { ViewDTO, ViewErrDTO } from '../dtos2/view-dto';
+import { Dataset } from '../entity2/dataset';
+import { Import } from '../entity2/import';
 
-import { DataLakeService } from './datalake';
 import { BlobStorageService } from './blob-storage';
+import { DataLakeService } from './datalake';
 
 export const MAX_PAGE_SIZE = 500;
 export const MIN_PAGE_SIZE = 5;
@@ -120,82 +117,32 @@ function validateParams(page_number: number, max_page_number: number, page_size:
     return errors;
 }
 
-export const moveCSVFromBlobStorageToDatalake = async (dataset: Dataset): Promise<UploadDTO | UploadErrDTO> => {
-    const blobStorageService = new BlobStorageService();
-    const dataLakeService = new DataLakeService();
-    const datafiles = await dataset.datafiles;
-    const datafile: Datafile | undefined = datafiles
-        .filter((filterfile: Datafile) => filterfile.draft === false)
-        .sort(
-            (first: Datafile, second: Datafile) =>
-                new Date(second.creationDate).getTime() - new Date(first.creationDate).getTime()
-        )
-        .shift();
-    const dto = await datasetToDatasetDTO(dataset);
-    if (datafile) {
-        try {
-            logger.debug(`Moving file ${datafile.id} from blob storage to datalake`);
-            const buff: Buffer = await blobStorageService.readFileToBuffer(`${datafile.id}.csv`);
-            await dataLakeService.uploadFile(`${datafile.id}.csv`, buff);
-            datafile.draft = false;
-            await datafile.save();
-            await blobStorageService.deleteFile(`${datafile.id}.csv`);
-            return {
-                success: true,
-                dataset: dto
-            };
-        } catch (err) {
-            logger.error(err);
-            return {
-                success: false,
-                dataset: dto,
-                errors: [
-                    {
-                        field: 'csv',
-                        message: [
-                            { lang: ENGLISH, message: t('errors.move_to_datalake', { lng: ENGLISH }) },
-                            { lang: WELSH, message: t('errors.move_to_datalake', { lng: WELSH }) }
-                        ],
-                        tag: { name: 'errors.move_to_datalake', params: {} }
-                    }
-                ]
-            };
-        }
-    } else {
-        return {
-            success: false,
-            dataset: dto,
-            errors: [
-                {
-                    field: 'csv',
-                    message: [
-                        { lang: ENGLISH, message: t('errors.no_csv', { lng: ENGLISH }) },
-                        { lang: WELSH, message: t('errors.no_csv', { lng: WELSH }) }
-                    ],
-                    tag: { name: 'errors.no_csv', params: {} }
-                }
-            ]
-        };
-    }
-};
-
 export const uploadCSVToBlobStorage = async (fileStream: Readable, filetype: string): Promise<Import> => {
     const blobStorageService = new BlobStorageService();
     if (fileStream) {
         const importRecord = new Import();
         importRecord.id = randomUUID();
         importRecord.mime_type = filetype;
+        if (filetype === 'text/csv') {
+            importRecord.filename = `${importRecord.id}.csv`;
+        } else {
+            importRecord.filename = `${importRecord.id}.zip`;
+        }
         try {
-            await blobStorageService.uploadFile(`${importRecord.id}.csv`, fileStream);
-            const resolvedHash = await hashReadableStream(fileStream)
+            const promisedHash = hashReadableStream(fileStream)
                 .then((hash) => {
                     return hash.toString();
                 })
                 .catch((error) => {
                     throw new Error(`Error hashing stream: ${error}`);
                 });
-            if (resolvedHash) importRecord.file_hash = resolvedHash;
-            return await importRecord.save();
+            await blobStorageService.uploadFile(`${importRecord.id}.csv`, fileStream);
+            const resolvedHash = await promisedHash;
+            if (resolvedHash) importRecord.hash = resolvedHash;
+            importRecord.uploaded_at = new Date(Date.now());
+            importRecord.type = 'Draft';
+            importRecord.location = 'BlobStorage';
+            return importRecord;
         } catch (err) {
             logger.error(err);
             throw new Error('Error processing file upload to blob storage');
@@ -216,80 +163,67 @@ function setupPagination(page: number, total_pages: number): Array<string | numb
     return pages;
 }
 
+async function processCSVData(
+    buffer: Buffer,
+    page: number,
+    size: number,
+    dataset: Dataset,
+    importObj: Import
+): Promise<ViewDTO | ViewErrDTO> {
+    const dataArray: Array<Array<string>> = (await parse(buffer, {
+        delimiter: ','
+    }).toArray()) as string[][];
+    const csvheaders = dataArray.shift();
+    const total_pages = Math.ceil(dataArray.length / size);
+    const errors = validateParams(page, total_pages, size);
+    if (errors.length > 0) {
+        return {
+            success: false,
+            errors,
+            dataset_id: dataset.id
+        };
+    }
+
+    const csvdata = paginate(dataArray, page, size);
+    const pages = setupPagination(page, total_pages);
+    const end_record = () => {
+        if (size > dataArray.length) {
+            return dataArray.length;
+        } else if (page === total_pages) {
+            return dataArray.length;
+        } else {
+            return page * size;
+        }
+    };
+
+    return {
+        success: true,
+        dataset: DatasetDTO.fromDatasetShallow(dataset),
+        import: ImportDTO.fromImport(importObj),
+        current_page: page,
+        page_info: {
+            total_records: dataArray.length,
+            start_record: (page - 1) * size + 1,
+            end_record: end_record()
+        },
+        pages,
+        page_size: size,
+        total_pages,
+        headers: csvheaders,
+        data: csvdata
+    };
+}
+
 export const processCSVFromDatalake = async (
     dataset: Dataset,
+    importObj: Import,
     page: number,
     size: number
 ): Promise<ViewErrDTO | ViewDTO> => {
     const datalakeService = new DataLakeService();
+    let buff: Buffer;
     try {
-        const datafiles = await dataset.datafiles;
-        const datafile: Datafile | undefined = datafiles
-            .filter((filterfile: Datafile) => filterfile.draft === false)
-            .sort(
-                (first: Datafile, second: Datafile) =>
-                    new Date(second.creationDate).getTime() - new Date(first.creationDate).getTime()
-            )
-            .shift();
-        if (datafile === undefined || datafile === null) {
-            return {
-                success: false,
-                errors: [
-                    {
-                        field: 'dataset',
-                        message: [
-                            { lang: ENGLISH, message: t('errors.no_datafile', { lng: ENGLISH }) },
-                            { lang: WELSH, message: t('errors.no_datafile', { lng: WELSH }) }
-                        ],
-                        tag: { name: 'erorors.no_datafile', params: {} }
-                    }
-                ],
-                dataset_id: dataset.id
-            };
-        }
-        const buff = await datalakeService.downloadFile(`${datafile.id}.csv`);
-
-        const dataArray: Array<Array<string>> = (await parse(buff, {
-            delimiter: ','
-        }).toArray()) as string[][];
-        const csvheaders = dataArray.shift();
-        const total_pages = Math.ceil(dataArray.length / size);
-        const errors = validateParams(page, total_pages, size);
-        if (errors.length > 0) {
-            return {
-                success: false,
-                errors,
-                dataset_id: dataset.id
-            };
-        }
-
-        const csvdata = paginate(dataArray, page, size);
-        const pages = setupPagination(page, total_pages);
-        const end_record = () => {
-            if (size > dataArray.length) {
-                return dataArray.length;
-            } else if (page === total_pages) {
-                return dataArray.length;
-            } else {
-                return page * size;
-            }
-        };
-        const dto = await datasetToDatasetDTO(dataset);
-        return {
-            success: true,
-            dataset: dto,
-            current_page: page,
-            page_info: {
-                total_records: dataArray.length,
-                start_record: (page - 1) * size + 1,
-                end_record: end_record()
-            },
-            pages,
-            page_size: size,
-            total_pages,
-            headers: csvheaders,
-            data: csvdata
-        };
+        buff = await datalakeService.downloadFile(importObj.filename);
     } catch (err) {
         logger.error(err);
         return {
@@ -307,82 +241,19 @@ export const processCSVFromDatalake = async (
             dataset_id: dataset.id
         };
     }
+    return processCSVData(buff, page, size, dataset, importObj);
 };
 
 export const processCSVFromBlobStorage = async (
     dataset: Dataset,
+    importObj: Import,
     page: number,
     size: number
 ): Promise<ViewErrDTO | ViewDTO> => {
     const blobStoageService = new BlobStorageService();
+    let buff: Buffer;
     try {
-        const datafiles = await dataset.datafiles;
-        const datafile: Datafile | undefined = datafiles
-            .filter((filterfile: Datafile) => filterfile.draft === true)
-            .sort(
-                (first: Datafile, second: Datafile) =>
-                    new Date(second.creationDate).getTime() - new Date(first.creationDate).getTime()
-            )
-            .shift();
-        if (datafile === undefined || datafile === null) {
-            return {
-                success: false,
-                errors: [
-                    {
-                        field: 'dataset',
-                        message: [
-                            { lang: ENGLISH, message: t('errors.no_datafile', { lng: ENGLISH }) },
-                            { lang: WELSH, message: t('errors.no_datafile', { lng: WELSH }) }
-                        ],
-                        tag: { name: 'erorors.no_datafile', params: {} }
-                    }
-                ],
-                dataset_id: dataset.id
-            };
-        }
-        const buff = await blobStoageService.readFile(`${datafile.id}.csv`);
-
-        const dataArray: Array<Array<string>> = (await parse(buff, {
-            delimiter: ','
-        }).toArray()) as string[][];
-        const csvheaders = dataArray.shift();
-        const total_pages = Math.ceil(dataArray.length / size);
-        const errors = validateParams(page, total_pages, size);
-        if (errors.length > 0) {
-            return {
-                success: false,
-                errors,
-                dataset_id: dataset.id
-            };
-        }
-
-        const csvdata = paginate(dataArray, page, size);
-        const pages = setupPagination(page, total_pages);
-        const end_record = () => {
-            if (size > dataArray.length) {
-                return dataArray.length;
-            } else if (page === total_pages) {
-                return dataArray.length;
-            } else {
-                return page * size;
-            }
-        };
-        const dto = await datasetToDatasetDTO(dataset);
-        return {
-            success: true,
-            dataset: dto,
-            current_page: page,
-            page_info: {
-                total_records: dataArray.length,
-                start_record: (page - 1) * size + 1,
-                end_record: end_record()
-            },
-            pages,
-            page_size: size,
-            total_pages,
-            headers: csvheaders,
-            data: csvdata
-        };
+        buff = await blobStoageService.readFile(importObj.filename);
     } catch (err) {
         logger.error(err);
         return {
@@ -391,8 +262,8 @@ export const processCSVFromBlobStorage = async (
                 {
                     field: 'csv',
                     message: [
-                        { lang: ENGLISH, message: t('errors.download_from_datalake', { lng: ENGLISH }) },
-                        { lang: WELSH, message: t('errors.download_from_datalake', { lng: WELSH }) }
+                        { lang: ENGLISH, message: t('errors.download_from_blobstorage', { lng: ENGLISH }) },
+                        { lang: WELSH, message: t('errors.download_from_blobstorage', { lng: WELSH }) }
                     ],
                     tag: { name: 'errors.download_from_datalake', params: {} }
                 }
@@ -400,4 +271,5 @@ export const processCSVFromBlobStorage = async (
             dataset_id: dataset.id
         };
     }
+    return processCSVData(buff, page, size, dataset, importObj);
 };

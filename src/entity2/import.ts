@@ -1,5 +1,15 @@
-import { Entity, PrimaryGeneratedColumn, Column, BaseEntity, ManyToOne, OneToOne, JoinColumn } from 'typeorm';
+import {
+    Entity,
+    PrimaryGeneratedColumn,
+    Column,
+    BaseEntity,
+    OneToOne,
+    ManyToOne,
+    OneToMany,
+    JoinColumn
+} from 'typeorm';
 
+// eslint-disable-next-line import/no-cycle
 import { RevisionEntity } from './revision';
 // eslint-disable-next-line import/no-cycle
 import { CsvInfo } from './csv_info';
@@ -25,6 +35,18 @@ export class Import extends BaseEntity {
     @Column({ type: 'varchar', length: 255 })
     filename: string;
 
-    @OneToOne(() => Source, (source) => source.import)
-    source: Source;
+    @Column({ type: 'varchar', length: 255 })
+    hash: string;
+
+    @Column({ type: 'timestamp', default: () => 'CURRENT_TIMESTAMP' })
+    uploaded_at: Date;
+
+    @Column({ type: 'enum', enum: ['Draft', 'FactTable', 'LookupTable'], nullable: false })
+    type: string;
+
+    @Column({ type: 'enum', enum: ['BlobStorage', 'Datalake'], nullable: false })
+    location: string;
+
+    @OneToMany(() => Source, (source) => source.import)
+    sources: Source[];
 }

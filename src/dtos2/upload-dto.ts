@@ -1,6 +1,4 @@
-/* eslint-disable import/no-cycle */
-import { Error } from '../models/error';
-
+import { Error } from './error';
 import { DatasetDTO } from './dataset-dto';
 
 export interface UploadDTO {

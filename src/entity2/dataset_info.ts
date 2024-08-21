@@ -1,13 +1,14 @@
-import { Entity, PrimaryGeneratedColumn, Column, BaseEntity, ManyToOne, JoinColumn } from 'typeorm';
+import { Entity, PrimaryColumn, Column, BaseEntity, ManyToOne, JoinColumn } from 'typeorm';
 
 // eslint-disable-next-line import/no-cycle
 import { Dataset } from './dataset';
 
 @Entity()
 export class DatasetInfo extends BaseEntity {
-    @PrimaryGeneratedColumn('uuid')
+    @PrimaryColumn({ name: 'dataset_id' })
     id: string;
 
+    @PrimaryColumn({ name: 'language' })
     @Column({ type: 'varchar', length: 5, nullable: true })
     language: string;
 

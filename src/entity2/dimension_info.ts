@@ -1,12 +1,14 @@
-import { Entity, PrimaryGeneratedColumn, Column, BaseEntity, ManyToOne, JoinColumn } from 'typeorm';
+import { Entity, PrimaryColumn, Column, BaseEntity, ManyToOne, JoinColumn } from 'typeorm';
 
+// eslint-disable-next-line import/no-cycle
 import { Dimension } from './dimension';
 
 @Entity()
 export class DimensionInfo extends BaseEntity {
-    @PrimaryGeneratedColumn('uuid')
+    @PrimaryColumn({ name: 'dimension_id' })
     id: string;
 
+    @PrimaryColumn({ name: 'language' })
     @Column({ type: 'varchar', length: 5, nullable: true })
     language: string;
 

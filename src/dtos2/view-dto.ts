@@ -1,7 +1,5 @@
-/* eslint-disable import/no-cycle */
-import { Error } from '../models/error';
-
-import { DatasetDTO } from './dataset-dto';
+import { Error } from './error';
+import { DatasetDTO, ImportDTO } from './dataset-dto';
 
 export interface PageInfo {
     total_records: number | undefined;
@@ -18,6 +16,7 @@ export interface ViewErrDTO {
 export interface ViewDTO {
     success: boolean;
     dataset: DatasetDTO;
+    import: ImportDTO;
     current_page: number;
     page_info: PageInfo;
     pages: Array<string | number>;

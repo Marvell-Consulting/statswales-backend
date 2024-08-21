@@ -1,5 +1,11 @@
-import { BlobServiceClient, ContainerClient, StorageSharedKeyCredential } from '@azure/storage-blob';
 import { Readable } from 'stream';
+
+import {
+    BlobServiceClient,
+    BlobUploadCommonResponse,
+    ContainerClient,
+    StorageSharedKeyCredential
+} from '@azure/storage-blob';
 import * as dotenv from 'dotenv';
 import pino from 'pino';
 
@@ -53,7 +59,10 @@ export class BlobStorageService {
 
         const blockBlobClient = this.containerClient.getBlockBlobClient(fileName);
 
-        const uploadBlobResponse = await blockBlobClient.uploadStream(fileContent, fileContent.readableLength);
+        const uploadBlobResponse: BlobUploadCommonResponse = await blockBlobClient.uploadStream(
+            fileContent,
+            fileContent.readableLength
+        );
         return uploadBlobResponse;
     }
 
@@ -85,7 +94,18 @@ export class BlobStorageService {
             if (chunk instanceof Buffer) chunks.push(chunk);
             else chunks.push(Buffer.from(chunk));
         }
-        return Buffer.concat(chunks).toString('utf-8');
+        return Buffer.concat(chunks);
+    }
+
+    public async getReadableStream(fileName: string) {
+        const blockBlobClient = this.containerClient.getBlockBlobClient(fileName);
+        const downloadBlockBlobResponse = await blockBlobClient.download();
+        const readableStreamBody: ReadableStream | undefined = downloadBlockBlobResponse.readableStreamBody;
+
+        if (!readableStreamBody) {
+            throw new Error('Failed to get readable stream body from download response.');
+        }
+        return readableStreamBody;
     }
 
     public async readFileToBuffer(fileName: string) {
