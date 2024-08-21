@@ -1,6 +1,6 @@
 # StatsWales Backend Service
 
-> This service is currenrtly in beta and under active development
+> This service is currently in beta and under active development
 > some features maybe incomplete, not working or missing.
 
 ## Requirements
@@ -11,7 +11,7 @@
 
 ## To get going
 
-You'll need to define the following environment variables either in to the environment or in to a `.env` file:
+You'll need to define the following environment variables either in the environment or in a `.env` file:
 
 ```env
 DB_HOST
@@ -22,6 +22,16 @@ DB_DATABASE
 AZURE_STORAGE_ACCOUNT_NAME
 AZURE_STORAGE_ACCOUNT_KEY
 AZURE_STORAGE_DIRECTORY_NAME
+AZURE_BLOB_STORAGE_ACCOUNT_NAME
+AZURE_BLOB_STORAGE_ACCOUNT_KEY
+AZURE_BLOB_STORAGE_CONTAINER_NAME
+```
+
+and optionally:
+
+```env
+BACKEND_PORT
+DB_SSL
 ```
 
 To run the app should be as simple as:
@@ -31,4 +41,4 @@ npm install
 npm run dev
 ```
 
-The app should then be available on port 3000.
+The app should then be available on port 3000 by default (or whatever you specified for `BACKEND_PORT`).
