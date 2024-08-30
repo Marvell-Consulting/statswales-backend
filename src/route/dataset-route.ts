@@ -5,10 +5,9 @@ import { Readable } from 'stream';
 
 import { Request, Response, Router } from 'express';
 import multer from 'multer';
-import pino from 'pino';
-
+import { logger } from '../utils/logger';
 import { ViewErrDTO, ViewDTO, ViewStream } from '../dtos/view-dto';
-import { ENGLISH, WELSH, t } from '../app';
+import { ENGLISH, WELSH, i18next } from '../middleware/translation';
 import {
     processCSVFromDatalake,
     processCSVFromBlobStorage,
@@ -26,11 +25,7 @@ import { Import } from '../entities/import';
 import { DatasetTitle, FileDescription } from '../dtos/filelist';
 import { DatasetDTO, DimensionDTO, RevisionDTO } from '../dtos/dataset-dto';
 
-export const logger = pino({
-    name: 'StatsWales-Alpha-App: DatasetRoute',
-    level: 'debug'
-});
-
+const t = i18next.t;
 const storage = multer.memoryStorage();
 const upload = multer({ storage });
 export const apiRoute = Router();

@@ -1,10 +1,11 @@
 /* eslint-disable import/no-cycle */
-import { createHash, randomUUID } from 'crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { Readable } from 'stream';
 
 import { parse } from 'csv';
 
-import { ENGLISH, WELSH, logger, t } from '../app';
+import { i18next, ENGLISH, WELSH } from '../middleware/translation';
+import { logger } from '../utils/logger';
 import { DatasetDTO, ImportDTO } from '../dtos/dataset-dto';
 import { Error } from '../dtos/error';
 import { ViewStream, ViewDTO, ViewErrDTO } from '../dtos/view-dto';
@@ -17,6 +18,8 @@ import { DataLakeService } from './datalake';
 export const MAX_PAGE_SIZE = 500;
 export const MIN_PAGE_SIZE = 5;
 export const DEFAULT_PAGE_SIZE = 100;
+
+const t = i18next.t;
 
 function hashReadableStream(stream: Readable, algorithm: string = 'sha256'): Promise<string> {
     return new Promise((resolve, reject) => {

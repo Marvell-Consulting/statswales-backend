@@ -1,7 +1,6 @@
 import { Router } from 'express';
 
-// eslint-disable-next-line import/no-cycle
-import { logger } from '../app';
+import { logger } from '../utils/logger';
 import { DataLakeService } from '../controllers/datalake';
 
 const dataLakeService = new DataLakeService();
