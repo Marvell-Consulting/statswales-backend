@@ -9,6 +9,7 @@ import { dataSource } from './data-source';
 import DatabaseManager from './database-manager';
 import { i18next, i18nextMiddleware } from './middleware/translation';
 import { initPassport } from './middleware/passport-auth';
+import { rateLimiter } from './middleware/rate-limiter';
 import { apiRoute as datasetRoutes } from './route/dataset-route';
 import { healthcheck as healthCheckRoutes } from './route/healthcheck';
 import { auth as authRoutes } from './route/auth';
@@ -32,10 +33,10 @@ app.use(httpLogger);
 app.use(i18nextMiddleware.handle(i18next));
 app.use(express.json());
 
-app.use('/auth', authRoutes);
-app.use('/healthcheck', healthCheckRoutes);
-app.use('/:lang/dataset', passport.authenticate('jwt'), datasetRoutes);
-app.use('/:lang/healthcheck', healthCheckRoutes);
+app.use('/auth', rateLimiter, authRoutes);
+app.use('/healthcheck', rateLimiter, healthCheckRoutes);
+app.use('/:lang/dataset', rateLimiter, passport.authenticate('jwt'), datasetRoutes);
+app.use('/:lang/healthcheck', rateLimiter, healthCheckRoutes);
 
 app.get('/', (req: Request, res: Response) => {
     const lang = req.headers['accept-language'] || req.headers['Accept-Language'] || req.i18n.language || 'en-GB';
