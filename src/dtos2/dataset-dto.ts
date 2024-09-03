@@ -3,7 +3,7 @@ import { Dimension } from '../entity2/dimension';
 import { DimensionInfo } from '../entity2/dimension_info';
 import { Source } from '../entity2/source';
 import { Import } from '../entity2/import';
-import { RevisionEntity } from '../entity2/revision';
+import { Revision } from '../entity2/revision';
 import { DatasetInfo } from '../entity2/dataset_info';
 
 export class DatasetInfoDTO {
@@ -36,35 +36,36 @@ export class DimensionDTO {
     finish_revision_id?: string;
     validator?: string;
     sources?: SourceDTO[];
-    dimensionInfos?: DimensionInfoDTO[];
+    dimensionInfo?: DimensionInfoDTO[];
     dataset_id?: string;
 
-    static fromDimension(dimension: Dimension): DimensionDTO {
-        const dto = new DimensionDTO();
-        dto.id = dimension.id;
-        dto.type = dimension.type;
-        dto.start_revision_id = dimension.start_revision.id;
-        dto.finish_revision_id = dimension.finish_revision ? dimension.finish_revision.id : undefined;
-        dto.validator = dimension.validator;
-        dto.dimensionInfos = dimension.dimensionInfos.map((dimensionInfo: DimensionInfo) => {
+    static async fromDimension(dimension: Dimension): Promise<DimensionDTO> {
+        const dimDto = new DimensionDTO();
+        dimDto.id = dimension.id;
+        dimDto.type = dimension.type;
+        dimDto.start_revision_id = (await dimension.start_revision).id;
+        dimDto.finish_revision_id = (await dimension.finish_revision)?.id || '';
+        dimDto.validator = dimension.validator;
+        dimDto.dimensionInfo = (await dimension.dimensionInfo).map((dimInfo: DimensionInfo) => {
             const infoDto = new DimensionInfoDTO();
-            infoDto.language = dimensionInfo.language;
-            infoDto.name = dimensionInfo.name;
-            infoDto.description = dimensionInfo.description;
-            infoDto.notes = dimensionInfo.notes;
+            infoDto.language = dimInfo.language;
+            infoDto.name = dimInfo.name;
+            infoDto.description = dimInfo.description;
+            infoDto.notes = dimInfo.notes;
             return infoDto;
         });
-        dto.sources = dimension.sources.map((source: Source) => {
-            const sourceDto = new SourceDTO();
-            sourceDto.id = source.id;
-            sourceDto.import_id = source.import.id;
-            sourceDto.revision_id = source.revision.id;
-            sourceDto.csv_field = source.csv_field;
-            sourceDto.action = source.action;
-            return sourceDto;
-        });
-        dto.dataset_id = dimension.dataset.id;
-        return dto;
+        dimDto.sources = await Promise.all(
+            (await dimension.sources).map(async (source: Source) => {
+                const sourceDto = new SourceDTO();
+                sourceDto.id = source.id;
+                sourceDto.import_id = (await source.import).id;
+                sourceDto.revision_id = (await source.revision).id;
+                sourceDto.csv_field = source.csv_field;
+                sourceDto.action = source.action;
+                return sourceDto;
+            })
+        );
+        return dimDto;
     }
 }
 
@@ -74,20 +75,33 @@ export class ImportDTO {
     mime_type: string;
     filename: string;
     hash: string;
-    uploaded_at: Date;
+    uploaded_at: string;
     type: string;
     location: string;
+    sources?: SourceDTO[];
 
-    static fromImport(importEntity: Import): ImportDTO {
+    static async fromImport(importEntity: Import): Promise<ImportDTO> {
         const dto = new ImportDTO();
         dto.id = importEntity.id;
-        dto.revision_id = importEntity.revision.id;
+        const revision = await importEntity.revision;
+        dto.revision_id = revision.id;
         dto.mime_type = importEntity.mime_type;
         dto.filename = importEntity.filename;
         dto.hash = importEntity.hash;
-        dto.uploaded_at = importEntity.uploaded_at;
+        dto.uploaded_at = importEntity.uploaded_at?.toISOString() || '';
         dto.type = importEntity.type;
         dto.location = importEntity.location;
+        dto.sources = await Promise.all(
+            (await importEntity.sources).map(async (source: Source) => {
+                const sourceDto = new SourceDTO();
+                sourceDto.id = source.id;
+                sourceDto.import_id = (await source.import).id;
+                sourceDto.revision_id = (await source.revision).id;
+                sourceDto.csv_field = source.csv_field;
+                sourceDto.action = source.action;
+                return sourceDto;
+            })
+        );
         return dto;
     }
 }
@@ -95,286 +109,64 @@ export class ImportDTO {
 export class RevisionDTO {
     id: string;
     revision_index: number;
-    creation_date: Date;
+    creation_date: string;
     previous_revision_id?: string;
     online_cube_filename?: string;
-    publish_date?: Date;
-    approval_date?: Date;
+    publish_date?: string;
+    approval_date?: string;
     approved_by?: string;
     created_by: string;
     imports: ImportDTO[];
     dataset_id?: string;
 
-    static fromRevision(revision: RevisionEntity): RevisionDTO {
-        const dto = new RevisionDTO();
-        dto.id = revision.id;
-        dto.revision_index = revision.revision_index;
-        dto.dataset_id = revision.dataset.id;
-        dto.creation_date = revision.creation_date;
-        dto.previous_revision_id = revision.previous_revision ? revision.previous_revision.id : undefined;
-        dto.online_cube_filename = revision.online_cube_filename;
-        dto.publish_date = revision.publish_date;
-        dto.approval_date = revision.approval_date;
-        dto.approved_by = revision.approved_by ? revision.approved_by.name : undefined;
-        dto.created_by = revision.created_by.name;
-        dto.imports = revision.imports.map((importEntity: Import) => {
-            return ImportDTO.fromImport(importEntity);
-        });
-        return dto;
+    static async fromRevision(revision: Revision): Promise<RevisionDTO> {
+        const revDto = new RevisionDTO();
+        revDto.id = revision.id;
+        revDto.revision_index = revision.revision_index;
+        revDto.dataset_id = (await revision.dataset).id;
+        revDto.creation_date = revision.creation_date.toISOString();
+        revDto.previous_revision_id = (await revision.previous_revision)?.id || '';
+        revDto.online_cube_filename = revision.online_cube_filename;
+        revDto.publish_date = revision.publish_date?.toISOString() || '';
+        revDto.approval_date = revision.approval_date?.toISOString() || '';
+        revDto.approved_by = (await revision.approved_by)?.name || undefined;
+        revDto.created_by = (await revision.created_by).name;
+        revDto.imports = await Promise.all(
+            (await revision.imports).map(async (imp: Import) => {
+                const impDto = new ImportDTO();
+                impDto.id = imp.id;
+                impDto.revision_id = (await imp.revision).id;
+                impDto.mime_type = imp.mime_type;
+                impDto.filename = imp.filename;
+                impDto.hash = imp.hash;
+                impDto.uploaded_at = imp.uploaded_at.toISOString();
+                impDto.type = imp.type;
+                impDto.location = imp.location;
+                return impDto;
+            })
+        );
+        return revDto;
     }
 }
 
 export class DatasetDTO {
     id: string;
-    creation_date: Date;
+    creation_date: string;
     created_by: string;
-    live?: Date;
-    archive?: Date;
+    live?: string;
+    archive?: string;
     dimensions?: DimensionDTO[];
     revisions?: RevisionDTO[];
-    datasetInfos?: DatasetInfoDTO[];
+    datasetInfo?: DatasetInfoDTO[];
 
-    static fromDatasetComplete(dataset: Dataset): DatasetDTO {
+    static async fromDatasetShallow(dataset: Dataset): Promise<DatasetDTO> {
         const dto = new DatasetDTO();
         dto.id = dataset.id;
-        dto.creation_date = dataset.creation_date;
-        dto.created_by = dataset.created_by.name;
-        dto.live = dataset.live;
-        dto.archive = dataset.archive;
-        dto.datasetInfos = dataset.datasetInfos.map((datasetInfo: DatasetInfo) => {
-            const infoDto = new DatasetInfoDTO();
-            infoDto.language = datasetInfo.language;
-            infoDto.title = datasetInfo.title;
-            infoDto.description = datasetInfo.description;
-            return infoDto;
-        });
-        dto.dimensions = dataset.dimensions.map((dimension: Dimension) => {
-            const dimDto = new DimensionDTO();
-            dimDto.id = dimension.id;
-            dimDto.type = dimension.type;
-            dimDto.start_revision_id = dimension.start_revision.id;
-            dimDto.finish_revision_id = dimension.finish_revision.id;
-            dimDto.validator = dimension.validator;
-            dimDto.dimensionInfos = dimension.dimensionInfos.map((dimInfo: DimensionInfo) => {
-                const infoDto = new DimensionInfoDTO();
-                infoDto.language = dimInfo.language;
-                infoDto.name = dimInfo.name;
-                infoDto.description = dimInfo.description;
-                infoDto.notes = dimInfo.notes;
-                return infoDto;
-            });
-            dimDto.sources = dimension.sources.map((source: Source) => {
-                const sourceDto = new SourceDTO();
-                sourceDto.id = source.id;
-                sourceDto.import_id = source.import.id;
-                sourceDto.revision_id = source.revision.id;
-                sourceDto.csv_field = source.csv_field;
-                sourceDto.action = source.action;
-                return sourceDto;
-            });
-            return dimDto;
-        });
-        dto.revisions = dataset.revisions.map((revision: RevisionEntity) => {
-            const revDto = new RevisionDTO();
-            revDto.id = revision.id;
-            revDto.revision_index = revision.revision_index;
-            revDto.dataset_id = revision.dataset.id;
-            revDto.creation_date = revision.creation_date;
-            revDto.previous_revision_id = revision.previous_revision.id;
-            revDto.online_cube_filename = revision.online_cube_filename;
-            revDto.publish_date = revision.publish_date;
-            revDto.approval_date = revision.approval_date;
-            revDto.approved_by = revision.approved_by.name;
-            revDto.created_by = revision.created_by.name;
-            revDto.imports = revision.imports.map((imp: Import) => {
-                const impDto = new ImportDTO();
-                impDto.id = imp.id;
-                impDto.revision_id = imp.revision.id;
-                impDto.mime_type = imp.mime_type;
-                impDto.filename = imp.filename;
-                impDto.hash = imp.hash;
-                impDto.uploaded_at = imp.uploaded_at;
-                impDto.type = imp.type;
-                impDto.location = imp.location;
-                return impDto;
-            });
-            return revDto;
-        });
-        return dto;
-    }
-
-    static fromDatasetWithDimensions(dataset: Dataset): DatasetDTO {
-        const dto = new DatasetDTO();
-        dto.id = dataset.id;
-        dto.creation_date = dataset.creation_date;
-        dto.created_by = dataset.created_by.name;
-        dto.live = dataset.live;
-        dto.archive = dataset.archive;
-        dto.datasetInfos = dataset.datasetInfos.map((datasetInfo: DatasetInfo) => {
-            const infoDto = new DatasetInfoDTO();
-            infoDto.language = datasetInfo.language;
-            infoDto.title = datasetInfo.title;
-            infoDto.description = datasetInfo.description;
-            return infoDto;
-        });
-        dto.dimensions = dataset.dimensions.map((dimension: Dimension) => {
-            const dimDto = new DimensionDTO();
-            dimDto.id = dimension.id;
-            dimDto.type = dimension.type;
-            dimDto.start_revision_id = dimension.start_revision.id;
-            dimDto.finish_revision_id = dimension.finish_revision.id;
-            dimDto.validator = dimension.validator;
-            dimDto.sources = dimension.sources.map((source: Source) => {
-                const sourceDto = new SourceDTO();
-                sourceDto.id = source.id;
-                sourceDto.import_id = source.import.id;
-                sourceDto.revision_id = source.revision.id;
-                sourceDto.csv_field = source.csv_field;
-                sourceDto.action = source.action;
-                return sourceDto;
-            });
-            return dimDto;
-        });
-        dto.revisions = [];
-        return dto;
-    }
-
-    static fromDatasetWithRevisions(dataset: Dataset): DatasetDTO {
-        const dto = new DatasetDTO();
-        dto.id = dataset.id;
-        dto.creation_date = dataset.creation_date;
-        dto.created_by = dataset.created_by.name;
-        dto.live = dataset.live;
-        dto.archive = dataset.archive;
-        dto.datasetInfos = dataset.datasetInfos.map((datasetInfo: DatasetInfo) => {
-            const infoDto = new DatasetInfoDTO();
-            infoDto.language = datasetInfo.language;
-            infoDto.title = datasetInfo.title;
-            infoDto.description = datasetInfo.description;
-            return infoDto;
-        });
-        dto.dimensions = [];
-        dto.revisions = dataset.revisions.map((revision: RevisionEntity) => {
-            const revDto = new RevisionDTO();
-            revDto.id = revision.id;
-            revDto.revision_index = revision.revision_index;
-            revDto.dataset_id = revision.dataset.id;
-            revDto.creation_date = revision.creation_date;
-            revDto.previous_revision_id = revision.previous_revision.id;
-            revDto.online_cube_filename = revision.online_cube_filename;
-            revDto.publish_date = revision.publish_date;
-            revDto.approval_date = revision.approval_date;
-            revDto.approved_by = revision.approved_by.name;
-            revDto.created_by = revision.created_by.name;
-            revDto.imports = [];
-            return revDto;
-        });
-        return dto;
-    }
-
-    static fromDatasetWithShallowDimensionsAndRevisions(dataset: Dataset): DatasetDTO {
-        const dto = new DatasetDTO();
-        dto.id = dataset.id;
-        dto.creation_date = dataset.creation_date;
-        dto.created_by = dataset.created_by.name;
-        dto.live = dataset.live;
-        dto.archive = dataset.archive;
-        dto.datasetInfos = dataset.datasetInfos.map((datasetInfo: DatasetInfo) => {
-            const infoDto = new DatasetInfoDTO();
-            infoDto.language = datasetInfo.language;
-            infoDto.title = datasetInfo.title;
-            infoDto.description = datasetInfo.description;
-            return infoDto;
-        });
-        dto.dimensions = dataset.dimensions.map((dimension: Dimension) => {
-            const dimDto = new DimensionDTO();
-            dimDto.id = dimension.id;
-            dimDto.type = dimension.type;
-            dimDto.start_revision_id = dimension.start_revision.id;
-            dimDto.finish_revision_id = dimension.finish_revision.id;
-            dimDto.validator = dimension.validator;
-            dimDto.dimensionInfos = dimension.dimensionInfos.map((dimInfo: DimensionInfo) => {
-                const infoDto = new DimensionInfoDTO();
-                infoDto.language = dimInfo.language;
-                infoDto.name = dimInfo.name;
-                infoDto.description = dimInfo.description;
-                infoDto.notes = dimInfo.notes;
-                return infoDto;
-            });
-            dimDto.sources = [];
-            return dimDto;
-        });
-        dto.revisions = dataset.revisions.map((revision: RevisionEntity) => {
-            const revDto = new RevisionDTO();
-            revDto.id = revision.id;
-            revDto.revision_index = revision.revision_index;
-            revDto.dataset_id = revision.dataset.id;
-            revDto.creation_date = revision.creation_date;
-            revDto.previous_revision_id = revision.previous_revision.id;
-            revDto.online_cube_filename = revision.online_cube_filename;
-            revDto.publish_date = revision.publish_date;
-            revDto.approval_date = revision.approval_date;
-            revDto.approved_by = revision.approved_by.name;
-            revDto.created_by = revision.created_by.name;
-            revDto.imports = [];
-            return revDto;
-        });
-        return dto;
-    }
-
-    static fromDatasetWithImports(dataset: Dataset): DatasetDTO {
-        const dto = new DatasetDTO();
-        dto.id = dataset.id;
-        dto.creation_date = dataset.creation_date;
-        dto.created_by = dataset.created_by.name;
-        dto.live = dataset.live;
-        dto.archive = dataset.archive;
-        dto.datasetInfos = dataset.datasetInfos.map((datasetInfo: DatasetInfo) => {
-            const infoDto = new DatasetInfoDTO();
-            infoDto.language = datasetInfo.language;
-            infoDto.title = datasetInfo.title;
-            infoDto.description = datasetInfo.description;
-            return infoDto;
-        });
-        dto.dimensions = [];
-        dto.revisions = dataset.revisions.map((revision: RevisionEntity) => {
-            const revDto = new RevisionDTO();
-            revDto.id = revision.id;
-            revDto.revision_index = revision.revision_index;
-            revDto.dataset_id = revision.dataset.id;
-            revDto.creation_date = revision.creation_date;
-            revDto.previous_revision_id = revision.previous_revision.id;
-            revDto.online_cube_filename = revision.online_cube_filename;
-            revDto.publish_date = revision.publish_date;
-            revDto.approval_date = revision.approval_date;
-            revDto.approved_by = revision.approved_by.name;
-            revDto.created_by = revision.created_by.name;
-            revDto.imports = revision.imports.map((imp: Import) => {
-                const impDto = new ImportDTO();
-                impDto.id = imp.id;
-                impDto.revision_id = imp.revision.id;
-                impDto.mime_type = imp.mime_type;
-                impDto.filename = imp.filename;
-                impDto.hash = imp.hash;
-                impDto.uploaded_at = imp.uploaded_at;
-                impDto.type = imp.type;
-                impDto.location = imp.location;
-                return impDto;
-            });
-            return revDto;
-        });
-        return dto;
-    }
-
-    // Returns a very shallow DTO with only the dataset info
-    static fromDatasetShallow(dataset: Dataset): DatasetDTO {
-        const dto = new DatasetDTO();
-        dto.id = dataset.id;
-        dto.creation_date = dataset.creation_date;
-        dto.created_by = dataset.created_by.name;
-        dto.live = dataset.live;
-        dto.archive = dataset.archive;
-        dto.datasetInfos = dataset.datasetInfos.map((datasetInfo: DatasetInfo) => {
+        dto.creation_date = dataset.creation_date.toISOString();
+        dto.created_by = (await dataset.created_by).name;
+        dto.live = dataset.live?.toISOString() || '';
+        dto.archive = dataset.archive?.toISOString() || '';
+        dto.datasetInfo = (await dataset.datasetInfo).map((datasetInfo: DatasetInfo) => {
             const infoDto = new DatasetInfoDTO();
             infoDto.language = datasetInfo.language;
             infoDto.title = datasetInfo.title;
@@ -383,6 +175,229 @@ export class DatasetDTO {
         });
         dto.dimensions = [];
         dto.revisions = [];
+        return dto;
+    }
+
+    static async fromDatasetComplete(dataset: Dataset): Promise<DatasetDTO> {
+        const dto = new DatasetDTO();
+        dto.id = dataset.id;
+        dto.creation_date = dataset.creation_date.toISOString();
+        dto.created_by = (await dataset.created_by).name;
+        dto.live = dataset.live?.toISOString() || '';
+        dto.archive = dataset.archive?.toISOString() || '';
+        dto.datasetInfo = (await dataset.datasetInfo).map((datasetInfo: DatasetInfo) => {
+            const infoDto = new DatasetInfoDTO();
+            infoDto.language = datasetInfo.language;
+            infoDto.title = datasetInfo.title;
+            infoDto.description = datasetInfo.description;
+            return infoDto;
+        });
+        dto.dimensions = await Promise.all(
+            (await dataset.dimensions).map(async (dimension: Dimension) => {
+                const dimDto = new DimensionDTO();
+                dimDto.id = dimension.id;
+                dimDto.type = dimension.type;
+                dimDto.start_revision_id = (await dimension.start_revision).id;
+                dimDto.finish_revision_id = (await dimension.finish_revision)?.id || undefined;
+                dimDto.validator = dimension.validator;
+                dimDto.dimensionInfo = (await dimension.dimensionInfo).map((dimInfo: DimensionInfo) => {
+                    const infoDto = new DimensionInfoDTO();
+                    infoDto.language = dimInfo.language;
+                    infoDto.name = dimInfo.name;
+                    infoDto.description = dimInfo.description;
+                    infoDto.notes = dimInfo.notes;
+                    return infoDto;
+                });
+                dimDto.sources = await Promise.all(
+                    (await dimension.sources).map(async (source: Source) => {
+                        const sourceDto = new SourceDTO();
+                        sourceDto.id = source.id;
+                        sourceDto.import_id = (await source.import).id;
+                        sourceDto.revision_id = (await source.revision).id;
+                        sourceDto.csv_field = source.csv_field;
+                        sourceDto.action = source.action;
+                        return sourceDto;
+                    })
+                );
+                return dimDto;
+            })
+        );
+        dto.revisions = await Promise.all(
+            (await dataset.revisions).map(async (revision: Revision) => {
+                const revDto = new RevisionDTO();
+                revDto.id = revision.id;
+                revDto.revision_index = revision.revision_index;
+                revDto.dataset_id = (await revision.dataset).id;
+                revDto.creation_date = revision.creation_date.toISOString();
+                revDto.previous_revision_id = (await revision.previous_revision)?.id || undefined;
+                revDto.online_cube_filename = revision.online_cube_filename;
+                revDto.publish_date = revision.publish_date?.toISOString() || '';
+                revDto.approval_date = revision.approval_date?.toISOString() || '';
+                revDto.approved_by = (await revision.approved_by)?.name || undefined;
+                revDto.created_by = (await revision.created_by)?.name;
+                revDto.imports = await Promise.all(
+                    (await revision.imports).map(async (imp: Import) => {
+                        const impDto = new ImportDTO();
+                        impDto.id = imp.id;
+                        impDto.revision_id = (await imp.revision).id;
+                        impDto.mime_type = imp.mime_type;
+                        impDto.filename = imp.filename;
+                        impDto.hash = imp.hash;
+                        impDto.uploaded_at = imp.uploaded_at.toISOString();
+                        impDto.type = imp.type;
+                        impDto.location = imp.location;
+                        impDto.sources = await Promise.all(
+                            (await imp.sources).map(async (source: Source) => {
+                                const sourceDto = new SourceDTO();
+                                sourceDto.id = source.id;
+                                sourceDto.import_id = (await source.import).id;
+                                sourceDto.revision_id = (await source.revision).id;
+                                sourceDto.csv_field = source.csv_field;
+                                sourceDto.action = source.action;
+                                return sourceDto;
+                            })
+                        );
+                        return impDto;
+                    })
+                );
+                return revDto;
+            })
+        );
+        return dto;
+    }
+
+    static async fromDatasetWithRevisions(dataset: Dataset): Promise<DatasetDTO> {
+        const dto = new DatasetDTO();
+        dto.id = dataset.id;
+        dto.creation_date = dataset.creation_date.toISOString();
+        dto.created_by = (await dataset.created_by).name;
+        dto.live = dataset.live?.toISOString() || '';
+        dto.archive = dataset.archive?.toISOString() || '';
+        dto.datasetInfo = (await dataset.datasetInfo).map((datasetInfo: DatasetInfo) => {
+            const infoDto = new DatasetInfoDTO();
+            infoDto.language = datasetInfo.language;
+            infoDto.title = datasetInfo.title;
+            infoDto.description = datasetInfo.description;
+            return infoDto;
+        });
+        dto.dimensions = [];
+        dto.revisions = await Promise.all(
+            (await dataset.revisions).map(async (revision: Revision) => {
+                const revDto = new RevisionDTO();
+                revDto.id = revision.id;
+                revDto.revision_index = revision.revision_index;
+                revDto.dataset_id = (await revision.dataset).id;
+                revDto.creation_date = revision.creation_date.toISOString();
+                revDto.previous_revision_id = (await revision.previous_revision).id;
+                revDto.online_cube_filename = revision.online_cube_filename;
+                revDto.publish_date = revision.publish_date?.toISOString() || '';
+                revDto.approval_date = revision.approval_date?.toISOString() || '';
+                revDto.approved_by = (await revision.approved_by)?.name || '';
+                revDto.created_by = (await revision.created_by)?.name || '';
+                revDto.imports = [];
+                return revDto;
+            })
+        );
+        return dto;
+    }
+
+    static async fromDatasetWithRevisionsAndImports(dataset: Dataset): Promise<DatasetDTO> {
+        const dto = new DatasetDTO();
+        dto.id = dataset.id;
+        dto.creation_date = dataset.creation_date.toISOString();
+        dto.created_by = (await dataset.created_by).name;
+        dto.live = dataset.live?.toISOString() || '';
+        dto.archive = dataset.archive?.toISOString() || '';
+        dto.datasetInfo = (await dataset.datasetInfo).map((datasetInfo: DatasetInfo) => {
+            const infoDto = new DatasetInfoDTO();
+            infoDto.language = datasetInfo.language;
+            infoDto.title = datasetInfo.title;
+            infoDto.description = datasetInfo.description;
+            return infoDto;
+        });
+        dto.dimensions = [];
+        dto.revisions = await Promise.all(
+            (await dataset.revisions).map(async (revision: Revision) => {
+                const revDto = new RevisionDTO();
+                revDto.id = revision.id;
+                revDto.revision_index = revision.revision_index;
+                revDto.creation_date = revision.creation_date.toISOString();
+                revDto.previous_revision_id = (await revision.previous_revision)?.id || undefined;
+                revDto.online_cube_filename = revision.online_cube_filename;
+                revDto.publish_date = revision.publish_date?.toISOString() || '';
+                revDto.approval_date = revision.approval_date?.toISOString() || '';
+                revDto.approved_by = (await revision.approved_by)?.name || undefined;
+                revDto.created_by = (await revision.created_by)?.name;
+                revDto.imports = await Promise.all(
+                    (await revision.imports).map((imp: Import) => {
+                        const impDto = new ImportDTO();
+                        impDto.id = imp.id;
+                        impDto.mime_type = imp.mime_type;
+                        impDto.filename = imp.filename;
+                        impDto.hash = imp.hash;
+                        impDto.uploaded_at = imp.uploaded_at.toISOString();
+                        impDto.type = imp.type;
+                        impDto.location = imp.location;
+                        return impDto;
+                    })
+                );
+                return revDto;
+            })
+        );
+        return dto;
+    }
+
+    static async fromDatasetWithShallowDimensionsAndRevisions(dataset: Dataset): Promise<DatasetDTO> {
+        const dto = new DatasetDTO();
+        dto.id = dataset.id;
+        dto.creation_date = dataset.creation_date.toISOString();
+        dto.created_by = (await dataset.created_by).name;
+        dto.live = dataset.live?.toISOString() || '';
+        dto.archive = dataset.archive?.toISOString() || '';
+        dto.datasetInfo = (await dataset.datasetInfo).map((datasetInfo: DatasetInfo) => {
+            const infoDto = new DatasetInfoDTO();
+            infoDto.language = datasetInfo.language;
+            infoDto.title = datasetInfo.title;
+            infoDto.description = datasetInfo.description;
+            return infoDto;
+        });
+        dto.dimensions = await Promise.all(
+            (await dataset.dimensions).map(async (dimension: Dimension) => {
+                const dimDto = new DimensionDTO();
+                dimDto.id = dimension.id;
+                dimDto.type = dimension.type;
+                dimDto.start_revision_id = (await dimension.start_revision).id;
+                dimDto.finish_revision_id = (await dimension.finish_revision)?.id || undefined;
+                dimDto.validator = dimension.validator;
+                dimDto.dimensionInfo = (await dimension.dimensionInfo).map((dimInfo: DimensionInfo) => {
+                    const infoDto = new DimensionInfoDTO();
+                    infoDto.language = dimInfo.language;
+                    infoDto.name = dimInfo.name;
+                    infoDto.description = dimInfo.description;
+                    infoDto.notes = dimInfo.notes;
+                    return infoDto;
+                });
+                dimDto.sources = []; // Sources are intentionally empty in this method as per original code
+                return dimDto;
+            })
+        );
+        dto.revisions = await Promise.all(
+            (await dataset.revisions).map(async (revision: Revision) => {
+                const revDto = new RevisionDTO();
+                revDto.id = revision.id;
+                revDto.revision_index = revision.revision_index;
+                revDto.dataset_id = (await revision.dataset).id;
+                revDto.creation_date = revision.creation_date.toISOString();
+                revDto.previous_revision_id = (await revision.previous_revision)?.id || undefined;
+                revDto.online_cube_filename = revision.online_cube_filename;
+                revDto.publish_date = revision.publish_date?.toISOString() || '';
+                revDto.approval_date = revision.approval_date?.toISOString() || '';
+                revDto.approved_by = (await revision.approved_by)?.name || '';
+                revDto.created_by = (await revision.created_by)?.name || '';
+                revDto.imports = []; // Imports are intentionally empty in this method as per original code
+                return revDto;
+            })
+        );
         return dto;
     }
 }

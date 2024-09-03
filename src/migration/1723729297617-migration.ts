@@ -4,8 +4,7 @@ export class Migration1723729297617 implements MigrationInterface {
     public async up(queryRunner: QueryRunner): Promise<void> {
         await queryRunner.query(`
                     CREATE TABLE users (
-                        id UUID PRIMARY KEY,
-                        username VARCHAR(255) NOT NULL UNIQUE,
+                        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
                         email VARCHAR(255) NOT NULL UNIQUE,
                         oidc_subject VARCHAR(255) UNIQUE,
                         oidc_issuer VARCHAR(255),
@@ -13,16 +12,17 @@ export class Migration1723729297617 implements MigrationInterface {
                         refresh_token TEXT,
                         id_token TEXT,
                         token_expiry TIMESTAMP,
-                        first_name VARCHAR(255),
+                        name VARCHAR(255),
+                        given_name VARCHAR(255),
                         last_name VARCHAR(255),
                         profile_picture VARCHAR(255),
                         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                         active BOOLEAN NOT NULL DEFAULT true
                     );
 
                     CREATE TABLE dataset (
-                        id UUID PRIMARY KEY,
+                        id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
                         creation_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                         created_by UUID,
                         live TIMESTAMP,
@@ -31,26 +31,16 @@ export class Migration1723729297617 implements MigrationInterface {
                     );
 
                     CREATE TABLE dataset_info (
-                        id UUID PRIMARY KEY,
                         dataset_id UUID,
                         language VARCHAR(5),
                         title TEXT,
                         description TEXT,
+                        PRIMARY KEY (dataset_id, language),
                         FOREIGN KEY (dataset_id) REFERENCES dataset(id) ON DELETE CASCADE
                     );
 
-                    CREATE TABLE dimension_info (
-                        id UUID PRIMARY KEY,
-                        dimension_id UUID,
-                        language VARCHAR(5),
-                        name TEXT,
-                        description TEXT,
-                        notes TEXT,
-                        FOREIGN KEY (dimension_id) REFERENCES dimension(id) ON DELETE CASCADE
-                    );
-
                     CREATE TABLE revision (
-                        id UUID PRIMARY KEY,
+                        id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
                         revision_index INT,
                         dataset_id UUID,
                         creation_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -66,16 +56,43 @@ export class Migration1723729297617 implements MigrationInterface {
                         FOREIGN KEY (created_by) REFERENCES users(id)
                     );
 
+                    CREATE TYPE dimension_type AS ENUM ('RAW', 'TEXT', 'NUMERIC', 'SYMBOL', 'LOOKUP_TABLE', 'TIME_PERIOD', 'TIME_POINT');
+
                     CREATE TABLE dimension (
-                        id UUID PRIMARY KEY,
+                        id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
                         dataset_id UUID,
-                        type VARCHAR(255) NOT NULL,
+                        type dimension_type NOT NULL,
                         start_revision_id UUID NOT NULL,
                         finish_revision_id UUID,
                         validator TEXT,
                         FOREIGN KEY (dataset_id) REFERENCES dataset(id) ON DELETE CASCADE,
                         FOREIGN KEY (start_revision_id) REFERENCES revision(id) ON DELETE CASCADE,
                         FOREIGN KEY (finish_revision_id) REFERENCES revision(id) ON DELETE SET NULL
+                    );
+
+                    CREATE TABLE dimension_info (
+                        dimension_id UUID,
+                        language VARCHAR(5),
+                        name TEXT,
+                        description TEXT,
+                        notes TEXT,
+                        PRIMARY KEY (dimension_id, language),
+                        FOREIGN KEY (dimension_id) REFERENCES dimension(id) ON DELETE CASCADE
+                    );
+
+                    CREATE TYPE import_type AS ENUM ('Draft', 'FactTable', 'LookupTable');
+                    CREATE TYPE location_type AS ENUM ('BlobStorage', 'Datalake');
+
+                    CREATE TABLE import (
+                        id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+                        revision_id UUID,
+                        mime_type VARCHAR(255),
+                        filename VARCHAR(255),
+                        hash VARCHAR(255),
+                        uploaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        type import_type NOT NULL,
+                        location location_type NOT NULL,
+                        FOREIGN KEY (revision_id) REFERENCES revision(id) ON DELETE CASCADE
                     );
 
                     CREATE TABLE csv_info (
@@ -86,28 +103,54 @@ export class Migration1723729297617 implements MigrationInterface {
                         FOREIGN KEY (import_id) REFERENCES import(id) ON DELETE CASCADE
                     );
 
-                    CREATE TABLE import (
-                        id UUID PRIMARY KEY,
-                        revision_id UUID,
-                        csv_info UUID UNIQUE,
-                        mime_type VARCHAR(255),
-                        filename VARCHAR(255),
-                        FOREIGN KEY (revision_id) REFERENCES revision(id) ON DELETE CASCADE,
-                        FOREIGN KEY (csv_info) REFERENCES csv_info(import_id) ON DELETE CASCADE
-                    );
+                    CREATE TYPE source_action_type AS ENUM ('create', 'append', 'truncate-then-load', 'ignore');
 
                     CREATE TABLE source (
-                        id UUID PRIMARY KEY,
+                        id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
                         dimension_id UUID,
                         import_id UUID UNIQUE,
                         revision_id UUID,
-                        lookup_table_revision_id UUID,
+                        column_index INT,
                         csv_field TEXT,
-                        action VARCHAR(255) NOT NULL,
+                        action source_action_type NOT NULL,
                         FOREIGN KEY (dimension_id) REFERENCES dimension(id) ON DELETE CASCADE,
                         FOREIGN KEY (import_id) REFERENCES import(id) ON DELETE CASCADE,
-                        FOREIGN KEY (revision_id) REFERENCES revision(id) ON DELETE CASCADE,
-                        FOREIGN KEY (lookup_table_revision_id) REFERENCES revision(id) ON DELETE SET NULL
+                        FOREIGN KEY (revision_id) REFERENCES revision(id) ON DELETE CASCADE
+                    );
+
+                    INSERT INTO users (
+                        id,
+                        email,
+                        oidc_subject,
+                        oidc_issuer,
+                        access_token,
+                        refresh_token,
+                        id_token,
+                        token_expiry,
+                        name,
+                        given_name,
+                        last_name,
+                        profile_picture,
+                        created_at,
+                        updated_at,
+                        active
+                    )
+                    VALUES (
+                        '12345678-1234-1234-1234-123456789012',
+                        'test@test.com',
+                        '',
+                        'localAuth',
+                        '',
+                        '',
+                        '',
+                        NULL,
+                        'Test User',
+                        'Test',
+                        'User',  -- Corrected by closing the quote
+                        '',
+                        CURRENT_TIMESTAMP,
+                        CURRENT_TIMESTAMP,
+                        true
                     );
                 `);
     }

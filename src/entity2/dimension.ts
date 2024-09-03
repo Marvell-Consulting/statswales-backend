@@ -3,38 +3,58 @@ import { Entity, PrimaryGeneratedColumn, Column, BaseEntity, ManyToOne, OneToMan
 // eslint-disable-next-line import/no-cycle
 import { Dataset } from './dataset';
 // eslint-disable-next-line import/no-cycle
-import { RevisionEntity } from './revision';
+import { Revision } from './revision';
 // eslint-disable-next-line import/no-cycle
 import { DimensionInfo } from './dimension_info';
 import { Source } from './source';
+import { DimensionType } from './dimension_types';
 
 @Entity()
 export class Dimension extends BaseEntity {
     @PrimaryGeneratedColumn('uuid')
     id: string;
 
-    @ManyToOne(() => Dataset)
+    @ManyToOne(() => Dataset, {
+        onDelete: 'CASCADE',
+        orphanedRowAction: 'delete'
+    })
     @JoinColumn({ name: 'dataset_id' })
-    dataset: Dataset;
+    dataset: Promise<Dataset>;
 
     // Replace with actual enum types
-    @Column({ type: 'enum', enum: ['type1', 'type2'], nullable: false })
-    type: string;
+    @Column({
+        type: process.env.NODE_ENV === 'test' ? 'text' : 'enum',
+        enum: [
+            DimensionType.RAW,
+            DimensionType.TEXT,
+            DimensionType.NUMERIC,
+            DimensionType.SYMBOL,
+            DimensionType.LOOKUP_TABLE,
+            DimensionType.TIME_PERIOD,
+            DimensionType.TIME_POINT
+        ],
+        nullable: false
+    })
+    type: DimensionType;
 
-    @ManyToOne(() => RevisionEntity)
+    @ManyToOne(() => Revision)
     @JoinColumn({ name: 'start_revision_id' })
-    start_revision: RevisionEntity;
+    start_revision: Promise<Revision>;
 
-    @ManyToOne(() => RevisionEntity, { nullable: true })
+    @ManyToOne(() => Revision, { nullable: true })
     @JoinColumn({ name: 'finish_revision_id' })
-    finish_revision: RevisionEntity;
+    finish_revision: Promise<Revision>;
 
     @Column({ type: 'text', nullable: true })
     validator: string;
 
-    @OneToMany(() => DimensionInfo, (dimensionInfo) => dimensionInfo.dimension)
-    dimensionInfos: DimensionInfo[];
+    @OneToMany(() => DimensionInfo, (dimensionInfo) => dimensionInfo.dimension, {
+        cascade: true
+    })
+    dimensionInfo: Promise<DimensionInfo[]>;
 
-    @OneToMany(() => Source, (source) => source.dimension)
-    sources: Source[];
+    @OneToMany(() => Source, (source) => source.dimension, {
+        cascade: true
+    })
+    sources: Promise<Source[]>;
 }

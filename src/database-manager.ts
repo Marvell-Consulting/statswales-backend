@@ -1,15 +1,16 @@
-/* eslint-disable import/no-cycle */
 import 'reflect-metadata';
 import { DataSource, DataSourceOptions, EntityManager } from 'typeorm';
 import { Logger } from 'pino';
 
-import { Dataset } from './entity/dataset';
-import { Datafile } from './entity/datafile';
-import { LookupTable } from './entity/lookuptable';
-import { DatasetTitle } from './entity/dataset_title';
-import { DatasetColumn } from './entity/dataset_column';
-import { DatasetDescription } from './entity/dataset_description';
-import { ColumnTitle } from './entity/column_title';
+import { Dataset } from './entity2/dataset';
+import { DatasetInfo } from './entity2/dataset_info';
+import { Revision } from './entity2/revision';
+import { Import } from './entity2/import';
+import { CsvInfo } from './entity2/csv_info';
+import { Source } from './entity2/source';
+import { Dimension } from './entity2/dimension';
+import { DimensionInfo } from './entity2/dimension_info';
+import { Users } from './entity2/users';
 
 class DatabaseManager {
     private datasourceOptions: DataSourceOptions;
@@ -38,7 +39,7 @@ class DatabaseManager {
     async initializeDataSource() {
         this.dataSource = new DataSource({
             ...this.datasourceOptions,
-            entities: [Dataset, Datafile, LookupTable, DatasetTitle, DatasetDescription, DatasetColumn, ColumnTitle]
+            entities: [Dataset, DatasetInfo, Revision, Import, CsvInfo, Source, Dimension, DimensionInfo, Users]
         });
 
         await this.dataSource

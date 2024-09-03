@@ -1,3 +1,5 @@
+import { Readable } from 'stream';
+
 import { Error } from './error';
 import { DatasetDTO, ImportDTO } from './dataset-dto';
 
@@ -24,4 +26,9 @@ export interface ViewDTO {
     total_pages: number;
     headers: Array<string> | undefined;
     data: Array<Array<string>>;
+}
+
+export interface ViewStream {
+    success: boolean;
+    stream: Readable;
 }

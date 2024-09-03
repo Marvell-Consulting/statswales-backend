@@ -1,16 +1,7 @@
-import {
-    Entity,
-    PrimaryGeneratedColumn,
-    Column,
-    BaseEntity,
-    OneToOne,
-    ManyToOne,
-    OneToMany,
-    JoinColumn
-} from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, BaseEntity, ManyToOne, OneToMany, JoinColumn } from 'typeorm';
 
 // eslint-disable-next-line import/no-cycle
-import { RevisionEntity } from './revision';
+import { Revision } from './revision';
 // eslint-disable-next-line import/no-cycle
 import { CsvInfo } from './csv_info';
 // eslint-disable-next-line import/no-cycle
@@ -21,13 +12,18 @@ export class Import extends BaseEntity {
     @PrimaryGeneratedColumn('uuid')
     id: string;
 
-    @ManyToOne(() => RevisionEntity)
+    @ManyToOne(() => Revision, {
+        onDelete: 'CASCADE',
+        orphanedRowAction: 'delete'
+    })
     @JoinColumn({ name: 'revision_id' })
-    revision: RevisionEntity;
+    revision: Promise<Revision>;
 
-    @OneToOne(() => CsvInfo, (csvInfo) => csvInfo.import, { onDelete: 'CASCADE' })
+    @OneToMany(() => CsvInfo, (csvInfo) => csvInfo.import, {
+        cascade: true
+    })
     @JoinColumn({ name: 'csv_info' })
-    csvInfo: CsvInfo;
+    csvInfo: Promise<CsvInfo[]>;
 
     @Column({ type: 'varchar', length: 255 })
     mime_type: string;
@@ -38,15 +34,25 @@ export class Import extends BaseEntity {
     @Column({ type: 'varchar', length: 255 })
     hash: string;
 
-    @Column({ type: 'timestamp', default: () => 'CURRENT_TIMESTAMP' })
+    @Column({ type: process.env.NODE_ENV === 'test' ? 'datetime' : 'timestamp', default: () => 'CURRENT_TIMESTAMP' })
     uploaded_at: Date;
 
-    @Column({ type: 'enum', enum: ['Draft', 'FactTable', 'LookupTable'], nullable: false })
+    @Column({
+        type: process.env.NODE_ENV === 'test' ? 'text' : 'enum',
+        enum: ['Draft', 'FactTable', 'LookupTable'],
+        nullable: false
+    })
     type: string;
 
-    @Column({ type: 'enum', enum: ['BlobStorage', 'Datalake'], nullable: false })
+    @Column({
+        type: process.env.NODE_ENV === 'test' ? 'text' : 'enum',
+        enum: ['BlobStorage', 'Datalake'],
+        nullable: false
+    })
     location: string;
 
-    @OneToMany(() => Source, (source) => source.import)
-    sources: Source[];
+    @OneToMany(() => Source, (source) => source.import, {
+        cascade: true
+    })
+    sources: Promise<Source[]>;
 }

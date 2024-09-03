@@ -1,7 +1,7 @@
 import { Entity, PrimaryGeneratedColumn, Column, BaseEntity } from 'typeorm';
 
 @Entity()
-export class User extends BaseEntity {
+export class Users extends BaseEntity {
     @PrimaryGeneratedColumn('uuid')
     id: string;
 
@@ -23,7 +23,7 @@ export class User extends BaseEntity {
     @Column({ type: 'text', nullable: true })
     id_token: string;
 
-    @Column({ type: 'timestamp', nullable: true })
+    @Column({ type: process.env.NODE_ENV === 'test' ? 'datetime' : 'timestamp', nullable: true })
     token_expiry: Date;
 
     @Column({ nullable: true })
@@ -38,17 +38,21 @@ export class User extends BaseEntity {
     @Column({ nullable: true })
     profile_picture: string;
 
-    @Column({ type: 'timestamp', default: () => 'CURRENT_TIMESTAMP' })
+    @Column({ type: process.env.NODE_ENV === 'test' ? 'datetime' : 'timestamp', default: () => 'CURRENT_TIMESTAMP' })
     created_at: Date;
 
-    @Column({ type: 'timestamp', default: () => 'CURRENT_TIMESTAMP', onUpdate: 'CURRENT_TIMESTAMP' })
+    @Column({
+        type: process.env.NODE_ENV === 'test' ? 'datetime' : 'timestamp',
+        default: () => 'CURRENT_TIMESTAMP',
+        onUpdate: 'CURRENT_TIMESTAMP'
+    })
     updated_at: Date;
 
     @Column({ type: 'boolean', default: true })
     active: boolean;
 
-    public static getTestUser(): User {
-        const user = new User();
+    public static getTestUser(): Users {
+        const user = new Users();
         user.id = '12345678-1234-1234-1234-123456789012';
         user.email = 'test@test.com';
         user.oidc_subject = '';

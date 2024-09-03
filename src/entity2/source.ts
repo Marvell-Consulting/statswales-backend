@@ -4,34 +4,51 @@ import { Entity, PrimaryGeneratedColumn, Column, BaseEntity, ManyToOne, JoinColu
 import { Dimension } from './dimension';
 // eslint-disable-next-line import/no-cycle
 import { Import } from './import';
-import { RevisionEntity } from './revision';
+import { Revision } from './revision';
 
 @Entity()
 export class Source extends BaseEntity {
     @PrimaryGeneratedColumn('uuid')
     id: string;
 
-    @ManyToOne(() => Dimension)
+    @ManyToOne(() => Dimension, {
+        onDelete: 'CASCADE',
+        orphanedRowAction: 'delete'
+    })
     @JoinColumn({ name: 'dimension_id' })
-    dimension: Dimension;
+    dimension: Promise<Dimension>;
 
-    @ManyToOne(() => Import, (importEntity) => importEntity.sources, { nullable: false })
+    @ManyToOne(() => Import, (importEntity) => importEntity.sources, {
+        nullable: false,
+        onDelete: 'CASCADE',
+        orphanedRowAction: 'delete'
+    })
     @JoinColumn({ name: 'import_id' })
-    import: Import;
+    import: Promise<Import>;
 
-    @ManyToOne(() => RevisionEntity)
+    @ManyToOne(() => Revision, {
+        onDelete: 'CASCADE',
+        orphanedRowAction: 'delete'
+    })
     @JoinColumn({ name: 'revision_id' })
-    revision: RevisionEntity;
+    revision: Promise<Revision>;
 
     // Not implemented yet
     // @ManyToOne(() => LookupTableRevision)
     // @JoinColumn({ name: 'lookup_table_revision_id' })
     // lookupTableRevision: LookupTableRevision;
 
+    @Column({ type: 'int', nullable: false })
+    column_index: number;
+
     @Column({ type: 'text' })
     csv_field: string;
 
     // Replace with actual enum types
-    @Column({ type: 'enum', enum: ['action1', 'action2'], nullable: false })
+    @Column({
+        type: process.env.NODE_ENV === 'test' ? 'text' : 'enum',
+        enum: ['create', 'append', 'truncate-then-load', 'ignore'],
+        nullable: false
+    })
     action: string;
 }

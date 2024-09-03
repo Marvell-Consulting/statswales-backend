@@ -7,7 +7,7 @@ import { parse } from 'csv';
 import { ENGLISH, WELSH, logger, t } from '../app';
 import { DatasetDTO, ImportDTO } from '../dtos2/dataset-dto';
 import { Error } from '../dtos2/error';
-import { ViewDTO, ViewErrDTO } from '../dtos2/view-dto';
+import { ViewStream, ViewDTO, ViewErrDTO } from '../dtos2/view-dto';
 import { Dataset } from '../entity2/dataset';
 import { Import } from '../entity2/import';
 
@@ -153,6 +153,12 @@ export const uploadCSVToBlobStorage = async (fileStream: Readable, filetype: str
     }
 };
 
+export const uploadCSVBufferToBlobStorage = async (fileBuffer: Buffer, filetype: string): Promise<Import> => {
+    const fileStream = Readable.from(fileBuffer);
+    const importRecord: Import = await uploadCSVToBlobStorage(fileStream, filetype);
+    return importRecord;
+};
+
 function setupPagination(page: number, total_pages: number): Array<string | number> {
     const pages = [];
     if (page !== 1) pages.push('previous');
@@ -198,8 +204,8 @@ async function processCSVData(
 
     return {
         success: true,
-        dataset: DatasetDTO.fromDatasetShallow(dataset),
-        import: ImportDTO.fromImport(importObj),
+        dataset: await DatasetDTO.fromDatasetShallow(dataset),
+        import: await ImportDTO.fromImport(importObj),
         current_page: page,
         page_info: {
             total_records: dataArray.length,
@@ -213,6 +219,31 @@ async function processCSVData(
         data: csvdata
     };
 }
+
+export const getFileFromDataLake = async (dataset: Dataset, importObj: Import): Promise<ViewStream | ViewErrDTO> => {
+    const datalakeService = new DataLakeService();
+    let stream: Readable;
+    try {
+        stream = await datalakeService.downloadFileStream(importObj.filename);
+    } catch (err) {
+        logger.error(err);
+        return {
+            success: false,
+            errors: [
+                {
+                    field: 'csv',
+                    message: [
+                        { lang: ENGLISH, message: t('errors.download_from_datalake', { lng: ENGLISH }) },
+                        { lang: WELSH, message: t('errors.download_from_datalake', { lng: WELSH }) }
+                    ],
+                    tag: { name: 'errors.download_from_datalake', params: {} }
+                }
+            ],
+            dataset_id: dataset.id
+        };
+    }
+    return { success: true, stream };
+};
 
 export const processCSVFromDatalake = async (
     dataset: Dataset,
@@ -242,6 +273,34 @@ export const processCSVFromDatalake = async (
         };
     }
     return processCSVData(buff, page, size, dataset, importObj);
+};
+
+export const getFileFromBlobStorage = async (dataset: Dataset, importObj: Import): Promise<ViewStream | ViewErrDTO> => {
+    const blobStoageService = new BlobStorageService();
+    let stream: Readable;
+    try {
+        stream = await blobStoageService.getReadableStream(importObj.filename);
+    } catch (err) {
+        logger.error(err);
+        return {
+            success: false,
+            errors: [
+                {
+                    field: 'csv',
+                    message: [
+                        { lang: ENGLISH, message: t('errors.download_from_blobstorage', { lng: ENGLISH }) },
+                        { lang: WELSH, message: t('errors.download_from_blobstorage', { lng: WELSH }) }
+                    ],
+                    tag: { name: 'errors.download_from_datalake', params: {} }
+                }
+            ],
+            dataset_id: dataset.id
+        };
+    }
+    return {
+        success: true,
+        stream
+    };
 };
 
 export const processCSVFromBlobStorage = async (

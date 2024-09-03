@@ -1,23 +1,28 @@
 /* eslint-disable no-warning-comments */
 /* eslint-disable import/no-cycle */
+import { randomUUID } from 'crypto';
+import { Readable } from 'stream';
+
 import { Request, Response, Router } from 'express';
 import multer from 'multer';
 import pino from 'pino';
 
-import { ViewErrDTO, ViewDTO } from '../dtos2/view-dto';
+import { ViewErrDTO, ViewDTO, ViewStream } from '../dtos2/view-dto';
 import { ENGLISH, WELSH, t } from '../app';
 import {
     processCSVFromDatalake,
     processCSVFromBlobStorage,
-    uploadCSVToBlobStorage,
-    DEFAULT_PAGE_SIZE
+    uploadCSVBufferToBlobStorage,
+    DEFAULT_PAGE_SIZE,
+    getFileFromBlobStorage,
+    getFileFromDataLake
 } from '../controllers/csv-processor';
+import { Users } from '../entity2/users';
 import { Dataset } from '../entity2/dataset';
 import { DatasetInfo } from '../entity2/dataset_info';
 import { Dimension } from '../entity2/dimension';
-import { RevisionEntity } from '../entity2/revision';
+import { Revision } from '../entity2/revision';
 import { Import } from '../entity2/import';
-import { User } from '../entity2/user';
 import { DatasetTitle, FileDescription } from '../dtos2/filelist';
 import { DatasetDTO, DimensionDTO, RevisionDTO } from '../dtos2/dataset-dto';
 
@@ -76,9 +81,9 @@ async function validateDimension(dimensionID: string, res: Response): Promise<Di
     return dimension;
 }
 
-async function validateRevision(revisionID: string, res: Response): Promise<RevisionEntity | null> {
+async function validateRevision(revisionID: string, res: Response): Promise<Revision | null> {
     if (!validateIds(revisionID, REVISION, res)) return null;
-    const revision = await RevisionEntity.findOneBy({ id: revisionID });
+    const revision = await Revision.findOneBy({ id: revisionID });
     if (!revision) {
         res.status(404);
         res.json({ message: 'Revision not found.' });
@@ -147,7 +152,7 @@ apiRoute.post('/', upload.single('csv'), async (req: Request, res: Response) => 
     }
     let importRecord: Import;
     try {
-        importRecord = await uploadCSVToBlobStorage(req.file?.stream, req.file?.mimetype);
+        importRecord = await uploadCSVBufferToBlobStorage(req.file.buffer, req.file?.mimetype);
     } catch (err) {
         logger.error(`An error occured trying to upload the file with the following error: ${err}`);
         res.status(500);
@@ -157,25 +162,31 @@ apiRoute.post('/', upload.single('csv'), async (req: Request, res: Response) => 
 
     // Everything looks good so far, let's create the dataset and revision records
     const dataset = new Dataset();
+    dataset.id = randomUUID();
     dataset.creation_date = new Date();
+    const user = await Users.findOneBy({ id: Users.getTestUser().id });
+    if (user === null) {
+        throw new Error('Test user not found');
+    }
     // TODO change how we handle authentication to get the user on the Backend
     // We are using a stub test user for all requests at the moment
-    dataset.created_by = User.getTestUser();
+    dataset.created_by = Promise.resolve(user);
     const datasetInfo = new DatasetInfo();
     datasetInfo.language = lang;
     datasetInfo.title = title;
-    datasetInfo.dataset = dataset;
-    dataset.datasetInfos = [datasetInfo];
-    const revision = new RevisionEntity();
-    revision.dataset = dataset;
+    datasetInfo.dataset = Promise.resolve(dataset);
+    dataset.datasetInfo = Promise.resolve([datasetInfo]);
+    const revision = new Revision();
+    revision.dataset = Promise.resolve(dataset);
     revision.revision_index = 1;
     revision.creation_date = new Date();
-    // TODO change how we handle authentication to get the user on the Backend
-    revision.created_by = User.getTestUser();
-    importRecord.revision = revision;
-    revision.imports = [importRecord];
-    const savedDataset = await dataset.save();
-    const uploadDTO = DatasetDTO.fromDatasetWithImports(savedDataset);
+    revision.created_by = Promise.resolve(user);
+    dataset.revisions = Promise.resolve([revision]);
+    importRecord.revision = Promise.resolve(revision);
+    revision.imports = Promise.resolve([importRecord]);
+    await dataset.save();
+    const uploadDTO = await DatasetDTO.fromDatasetWithRevisionsAndImports(dataset);
+    res.status(201);
     res.json(uploadDTO);
 });
 
@@ -188,10 +199,11 @@ apiRoute.get('/', async (req: Request, res: Response) => {
     const fileList: FileDescription[] = [];
     for (const dataset of datasets) {
         const titles: DatasetTitle[] = [];
-        for (const datasetInfo of dataset.datasetInfos) {
+        const datasetInfo = await dataset.datasetInfo;
+        for (const info of datasetInfo) {
             titles.push({
-                title: datasetInfo.title,
-                language: datasetInfo.language
+                title: info.title,
+                language: info.language
             });
         }
         fileList.push({
@@ -208,8 +220,8 @@ apiRoute.get('/', async (req: Request, res: Response) => {
 apiRoute.get('/:dataset_id', async (req: Request, res: Response) => {
     const datasetID: string = req.params.dataset_id;
     const dataset = await validateDataset(datasetID, res);
-    if (dataset) return;
-    const dto = DatasetDTO.fromDatasetWithShallowDimensionsAndRevisions(dataset);
+    if (!dataset) return;
+    const dto = await DatasetDTO.fromDatasetComplete(dataset);
     res.json(dto);
 });
 
@@ -218,11 +230,11 @@ apiRoute.get('/:dataset_id', async (req: Request, res: Response) => {
 apiRoute.get('/:dataset_id/dimension/by-id/:dimension_id', async (req: Request, res: Response) => {
     const datasetID: string = req.params.dataset_id;
     const dataset = await validateDataset(datasetID, res);
-    if (dataset) return;
+    if (!dataset) return;
     const dimensionID: string = req.params.dimension_id;
     const dimension = await validateDimension(dimensionID, res);
     if (!dimension) return;
-    const dto = DimensionDTO.fromDimension(dimension);
+    const dto = await DimensionDTO.fromDimension(dimension);
     res.json(dto);
 });
 
@@ -231,18 +243,18 @@ apiRoute.get('/:dataset_id/dimension/by-id/:dimension_id', async (req: Request, 
 apiRoute.get('/:dataset_id/revision/by-id/:revision_id', async (req: Request, res: Response) => {
     const datasetID: string = req.params.dataset_id;
     const dataset = await validateDataset(datasetID, res);
-    if (dataset) return;
+    if (!dataset) return;
     const revisionID: string = req.params.revision_id;
     const revision = await validateRevision(revisionID, res);
     if (!revision) return;
-    const dto = RevisionDTO.fromRevision(revision);
+    const dto = await RevisionDTO.fromRevision(revision);
     res.json(dto);
 });
 
 // GET /api/dataset/:dataset_id/revision/id/:revision_id/import/id/:import_id/preview
 // Returns a view of the data file attached to the import
 apiRoute.get(
-    '/:dataset/revision/by-id/:revision_id/import/by-id/:import_id/preview',
+    '/:dataset_id/revision/by-id/:revision_id/import/by-id/:import_id/preview',
     async (req: Request, res: Response) => {
         const datasetID: string = req.params.dataset_id;
         const dataset = await validateDataset(datasetID, res);
@@ -263,14 +275,60 @@ apiRoute.get(
         } else if (importRecord.location === 'Datalake') {
             processedCSV = await processCSVFromDatalake(dataset, importRecord, page_number, page_size);
         } else {
-            res.status(500);
+            res.status(400);
             res.json({ message: 'Import location not supported.' });
             return;
         }
         if (!processedCSV.success) {
-            res.status(500);
+            res.status(400);
         }
         res.json(processedCSV);
+    }
+);
+
+// GET /api/dataset/:dataset_id/revision/id/:revision_id/import/id/:import_id/raw
+// Returns the original uploaded file back to the client
+apiRoute.get(
+    '/:dataset_id/revision/by-id/:revision_id/import/by-id/:import_id/raw',
+    async (req: Request, res: Response) => {
+        const datasetID: string = req.params.dataset_id;
+        const dataset = await validateDataset(datasetID, res);
+        if (!dataset) return;
+        const revisionID: string = req.params.revision_id;
+        const revision = await validateRevision(revisionID, res);
+        if (!revision) return;
+        const importID: string = req.params.import_id;
+        const importRecord = await validateImport(importID, res);
+        if (!importRecord) return;
+        let viewStream: ViewErrDTO | ViewStream;
+        if (importRecord.location === 'BlobStorage') {
+            viewStream = await getFileFromBlobStorage(dataset, importRecord);
+        } else if (importRecord.location === 'Datalake') {
+            viewStream = await getFileFromDataLake(dataset, importRecord);
+        } else {
+            res.status(400);
+            res.json({ message: 'Import location not supported.' });
+            return;
+        }
+        if (!viewStream.success) {
+            res.status(400);
+            res.json(viewStream);
+            return;
+        }
+        const readable: Readable = (viewStream as ViewStream).stream;
+        readable.pipe(res);
+
+        // Handle errors in the file stream
+        readable.on('error', (err) => {
+            console.error('File stream error:', err);
+            res.writeHead(500, { 'Content-Type': 'text/plain' });
+            res.end('Server Error');
+        });
+
+        // Optionally listen for the end of the stream
+        readable.on('end', () => {
+            console.log('File stream ended');
+        });
     }
 );
 

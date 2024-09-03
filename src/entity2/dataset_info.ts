@@ -5,11 +5,10 @@ import { Dataset } from './dataset';
 
 @Entity()
 export class DatasetInfo extends BaseEntity {
-    @PrimaryColumn({ name: 'dataset_id' })
+    @PrimaryColumn({ name: 'dataset_id', type: process.env.NODE_ENV === 'test' ? 'text' : 'uuid' })
     id: string;
 
-    @PrimaryColumn({ name: 'language' })
-    @Column({ type: 'varchar', length: 5, nullable: true })
+    @PrimaryColumn({ name: 'language', type: 'varchar', length: 5 })
     language: string;
 
     @Column({ type: 'text', nullable: true })
@@ -18,7 +17,10 @@ export class DatasetInfo extends BaseEntity {
     @Column({ type: 'text', nullable: true })
     description: string;
 
-    @ManyToOne(() => Dataset, (dataset) => dataset.datasetInfos)
+    @ManyToOne(() => Dataset, (dataset) => dataset.datasetInfo, {
+        onDelete: 'CASCADE',
+        orphanedRowAction: 'delete'
+    })
     @JoinColumn({ name: 'dataset_id' })
-    dataset: Dataset;
+    dataset: Promise<Dataset>;
 }

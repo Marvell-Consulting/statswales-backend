@@ -59,9 +59,14 @@ export class BlobStorageService {
 
         const blockBlobClient = this.containerClient.getBlockBlobClient(fileName);
 
+        const uploadOptions = {
+            bufferSize: 4 * 1024 * 1024, // 4MB buffer size
+            maxBuffers: 5 // Parallelism of 5
+        };
         const uploadBlobResponse: BlobUploadCommonResponse = await blockBlobClient.uploadStream(
             fileContent,
-            fileContent.readableLength
+            uploadOptions.bufferSize,
+            uploadOptions.maxBuffers
         );
         return uploadBlobResponse;
     }
@@ -100,12 +105,7 @@ export class BlobStorageService {
     public async getReadableStream(fileName: string) {
         const blockBlobClient = this.containerClient.getBlockBlobClient(fileName);
         const downloadBlockBlobResponse = await blockBlobClient.download();
-        const readableStreamBody: ReadableStream | undefined = downloadBlockBlobResponse.readableStreamBody;
-
-        if (!readableStreamBody) {
-            throw new Error('Failed to get readable stream body from download response.');
-        }
-        return readableStreamBody;
+        return downloadBlockBlobResponse.readableStreamBody as Readable;
     }
 
     public async readFileToBuffer(fileName: string) {
