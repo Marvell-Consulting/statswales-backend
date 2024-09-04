@@ -25,10 +25,12 @@ class DatabaseManager {
     }
 
     async initializeDataSource() {
-        await this.dataSource
-            .initialize()
-            .then(() => this.logger.info('Data source initialized'))
-            .catch((error) => this.logger.error(error));
+        if (!this.dataSource.isInitialized) {
+            await this.dataSource
+                .initialize()
+                .then(() => this.logger.info('Data source initialized'))
+                .catch((error) => this.logger.error(error));
+        }
 
         this.entityManager = this.dataSource.createEntityManager();
     }

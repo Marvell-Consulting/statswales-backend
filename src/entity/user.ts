@@ -20,15 +20,15 @@ export class User {
     @Column({ name: 'email_verified', default: false })
     emailVerified: boolean;
 
-    @Column({ name: 'first_name', nullable: true })
-    firstName?: string;
+    @Column({ name: 'given_name', nullable: true })
+    givenName?: string;
 
-    @Column({ name: 'last_name', nullable: true })
-    lastName?: string;
+    @Column({ name: 'family_name', nullable: true })
+    familyName?: string;
 
-    @CreateDateColumn({ name: 'created_at', type: 'time with time zone' })
+    @CreateDateColumn({ name: 'created_at', type: 'timestamp with time zone' })
     createdAt: Date;
 
-    @UpdateDateColumn({ name: 'updated_at', type: 'time with time zone' })
+    @UpdateDateColumn({ name: 'updated_at', type: 'timestamp with time zone' })
     updatedAt: Date;
 }

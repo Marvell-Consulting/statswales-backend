@@ -62,6 +62,16 @@ Rollback the most recent migration:
 npm run migration:revert
 ```
 
+Generate a new migration file after updating the entities (this does not execute the migration):
+
+```bash
+npm run migration:generate -- ./src/migration/<name>
+```
+
+e.g.
+```bash
+npm run migration:generate -- ./src/migration/create_user_table
+```
 
 ## Deploying the service
 

@@ -6,8 +6,6 @@ dotenv.config();
 
 const { DB_HOST, DB_PORT, DB_USERNAME, DB_PASSWORD, DB_DATABASE, DB_SSL } = process.env;
 
-console.log(DB_HOST);
-
 export const datasourceOptions: DataSourceOptions = {
     type: 'postgres',
     host: DB_HOST,
@@ -18,8 +16,8 @@ export const datasourceOptions: DataSourceOptions = {
     ssl: DB_SSL !== 'false' ?? true,
     synchronize: false,
     logging: false,
-    entities: [`${__dirname}/entities/*.js`],
-    migrations: [`${__dirname}/migration/*.js`],
+    entities: [`${__dirname}/entities/*{.ts,.js}`],
+    migrations: [`${__dirname}/migration/*{.ts,.js}`],
     subscribers: []
 };
 
