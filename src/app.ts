@@ -22,7 +22,7 @@ export const logger: Logger = pino({
 });
 
 // Database handling and export
-export const connectToDb = async (datasourceOptions: DataSourceOptions) => {
+export const databaseManager = async (datasourceOptions: DataSourceOptions) => {
     dbManager = new DatabaseManager(datasourceOptions, logger);
     await dbManager.initializeDataSource();
 };

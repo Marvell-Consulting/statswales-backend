@@ -1,4 +1,5 @@
 import { basename } from 'path';
+import { Readable } from 'stream';
 
 import * as dotenv from 'dotenv';
 import { DataLakeServiceClient, StorageSharedKeyCredential } from '@azure/storage-file-datalake';
@@ -110,5 +111,14 @@ export class DataLakeService {
         }
 
         return downloaded;
+    }
+
+    public async downloadFileStream(fileName: string) {
+        const fileSystemClient = this.serviceClient.getFileSystemClient(fileSystemName);
+        const directoryClient = fileSystemClient.getDirectoryClient(defaultDirectoryName);
+        const fileClient = directoryClient.getFileClient(fileName);
+
+        const downloadResponse = await fileClient.read();
+        return downloadResponse.readableStreamBody as Readable;
     }
 }

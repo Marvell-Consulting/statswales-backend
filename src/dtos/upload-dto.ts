@@ -1,6 +1,4 @@
-/* eslint-disable import/no-cycle */
-import { Error } from '../models/error';
-
+import { Error } from './error';
 import { DatasetDTO } from './dataset-dto';
 
 export interface UploadDTO {
@@ -10,6 +8,6 @@ export interface UploadDTO {
 
 export interface UploadErrDTO {
     success: boolean;
-    dataset: DatasetDTO;
+    dataset: DatasetDTO | undefined;
     errors: Error[];
 }

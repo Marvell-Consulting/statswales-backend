@@ -2,13 +2,15 @@ import 'reflect-metadata';
 import { DataSourceOptions } from 'typeorm';
 import * as dotenv from 'dotenv';
 
-import { Dataset } from '../src/entity/dataset';
-import { Datafile } from '../src/entity/datafile';
-import { LookupTable } from '../src/entity/lookuptable';
-import { DatasetTitle } from '../src/entity/dataset_title';
-import { DatasetColumn } from '../src/entity/dataset_column';
-import { DatasetDescription } from '../src/entity/dataset_description';
-import { ColumnTitle } from '../src/entity/column_title';
+import { Dataset } from '../src/entities/dataset';
+import { DatasetInfo } from '../src/entities/dataset_info';
+import { Revision } from '../src/entities/revision';
+import { Import } from '../src/entities/import';
+import { CsvInfo } from '../src/entities/csv_info';
+import { Source } from '../src/entities/source';
+import { Dimension } from '../src/entities/dimension';
+import { DimensionInfo } from '../src/entities/dimension_info';
+import { User } from '../src/entities/user';
 
 dotenv.config();
 
@@ -18,6 +20,6 @@ export const datasourceOptions: DataSourceOptions = {
     database: ':memory:',
     synchronize: true,
     logging: false,
-    entities: [Dataset, Datafile, LookupTable, DatasetTitle, DatasetDescription, DatasetColumn, ColumnTitle],
+    entities: [Dataset, DatasetInfo, Revision, Import, CsvInfo, Source, Dimension, DimensionInfo, User],
     subscribers: []
 };

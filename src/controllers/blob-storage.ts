@@ -1,4 +1,11 @@
-import { BlobServiceClient, ContainerClient, StorageSharedKeyCredential } from '@azure/storage-blob';
+import { Readable } from 'stream';
+
+import {
+    BlobServiceClient,
+    BlobUploadCommonResponse,
+    ContainerClient,
+    StorageSharedKeyCredential
+} from '@azure/storage-blob';
 import * as dotenv from 'dotenv';
 import pino from 'pino';
 
@@ -23,9 +30,6 @@ export class BlobStorageService {
     private readonly containerClient: ContainerClient;
 
     public constructor() {
-        logger.debug(
-            `Creating BlobServiceClient and ContainerClient for blob storage with account name '${accountName}' and container name '${containerName}'`
-        );
         const sharedKeyCredential = new StorageSharedKeyCredential(accountName, accountKey);
         this.blobServiceClient = new BlobServiceClient(
             `https://${accountName}.blob.core.windows.net`,
@@ -42,17 +46,26 @@ export class BlobStorageService {
         return this.containerClient;
     }
 
-    public async uploadFile(fileName: string | undefined, fileContent: Buffer) {
+    public async uploadFile(fileName: string | undefined, fileContent: Readable) {
         if (fileName === undefined) {
             throw new Error('File name is undefined');
         }
         if (fileContent === undefined) {
             throw new Error('File content is undefined');
         }
+        logger.info(`Uploading file with file '${fileName}' to blob storage`);
 
         const blockBlobClient = this.containerClient.getBlockBlobClient(fileName);
 
-        const uploadBlobResponse = await blockBlobClient.upload(fileContent, fileContent.length);
+        const uploadOptions = {
+            bufferSize: 4 * 1024 * 1024, // 4MB buffer size
+            maxBuffers: 5 // Parallelism of 5
+        };
+        const uploadBlobResponse: BlobUploadCommonResponse = await blockBlobClient.uploadStream(
+            fileContent,
+            uploadOptions.bufferSize,
+            uploadOptions.maxBuffers
+        );
         return uploadBlobResponse;
     }
 
@@ -71,6 +84,7 @@ export class BlobStorageService {
     }
 
     public async readFile(fileName: string) {
+        logger.info(`Getting file with file '${fileName}' to blob storage`);
         const blockBlobClient = this.containerClient.getBlockBlobClient(fileName);
         const downloadBlockBlobResponse = await blockBlobClient.download();
         const readableStreamBody = downloadBlockBlobResponse.readableStreamBody;
@@ -84,7 +98,13 @@ export class BlobStorageService {
             if (chunk instanceof Buffer) chunks.push(chunk);
             else chunks.push(Buffer.from(chunk));
         }
-        return Buffer.concat(chunks).toString('utf-8');
+        return Buffer.concat(chunks);
+    }
+
+    public async getReadableStream(fileName: string) {
+        const blockBlobClient = this.containerClient.getBlockBlobClient(fileName);
+        const downloadBlockBlobResponse = await blockBlobClient.download();
+        return downloadBlockBlobResponse.readableStreamBody as Readable;
     }
 
     public async readFileToBuffer(fileName: string) {
