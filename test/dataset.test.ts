@@ -6,7 +6,8 @@ import request from 'supertest';
 
 import { DataLakeService } from '../src/controllers/datalake';
 import { BlobStorageService } from '../src/controllers/blob-storage';
-import app, { ENGLISH, WELSH, t, dbManager, databaseManager } from '../src/app';
+import app from '../src/app';
+import { ENGLISH, WELSH, i18next } from '../src/middleware/translation';
 import { Dataset } from '../src/entities/dataset';
 import { DatasetInfo } from '../src/entities/dataset_info';
 import { Revision } from '../src/entities/revision';
@@ -21,7 +22,9 @@ import { DatasetDTO, DimensionDTO, RevisionDTO } from '../src/dtos/dataset-dto';
 import { ViewErrDTO } from '../src/dtos/view-dto';
 import { MAX_PAGE_SIZE, MIN_PAGE_SIZE } from '../src/controllers/csv-processor';
 
-import { datasourceOptions } from './test-data-source';
+import { testDataSource } from './test-data-source';
+
+const t = i18next.t;
 
 DataLakeService.prototype.listFiles = jest
     .fn()
@@ -38,8 +41,7 @@ const dimension1Id = '2D7ACD0B-A46A-43F7-8A88-224CE97FC8B9';
 
 describe('API Endpoints', () => {
     beforeAll(async () => {
-        await databaseManager(datasourceOptions);
-        await dbManager.initializeDataSource();
+        await testDataSource.initialize();
         const user = User.getTestUser();
         await user.save();
         // First create a dataset
@@ -489,6 +491,6 @@ describe('API Endpoints', () => {
     });
 
     afterAll(async () => {
-        await dbManager.getDataSource().dropDatabase();
+        await testDataSource.dropDatabase();
     });
 });

@@ -20,46 +20,44 @@ const sanitiseUser = (user: User): Partial<User> => {
 export const loginGoogle: RequestHandler = (req, res, next) => {
     logger.debug('attempting to authenticate with google...');
 
-    passport.authenticate(
-        'google',
-        { session: false, prompt: 'select_account' },
-        (err: Error, user: User, info: Record<string, string>) => {
-            if (err || !user) {
-                logger.error(`google auth returned an error: ${info?.message}`);
-                res.redirect(`${returnURL}?error=provider`);
-            }
-            req.login(user, { session: false }, (error) => {
-                if (error) {
-                    logger.error(`error logging in: ${error}`);
-                    res.redirect(`${returnURL}?error=login`);
-                }
-
-                logger.info('google auth successful, creating JWT and returning user to the frontend');
-
-                const payload = { user: sanitiseUser(user) };
-                const expiresIn = process.env.JWT_EXPIRES_IN || DEFAULT_TOKEN_EXPIRY;
-                const token = jwt.sign(payload, process.env.JWT_SECRET || '', { expiresIn });
-
-                res.cookie('jwt', token, {
-                    secure: process.env.NODE_ENV !== 'dev',
-                    httpOnly: true,
-                    domain
-                });
-
-                res.redirect(returnURL);
-            });
+    passport.authenticate('google', (err: Error, user: User, info: Record<string, string>) => {
+        if (err || !user) {
+            const errorMessage = err?.message || info?.message || 'unknown error';
+            logger.error(`google auth returned an error: ${errorMessage}`);
+            res.redirect(`${returnURL}?error=provider`);
+            return;
         }
-    )(req, res, next);
+        req.login(user, { session: false }, (error) => {
+            if (error) {
+                logger.error(`error logging in: ${error}`);
+                res.redirect(`${returnURL}?error=login`);
+                return;
+            }
+
+            logger.info('google auth successful, creating JWT and returning user to the frontend');
+
+            const payload = { user: sanitiseUser(user) };
+            const expiresIn = process.env.JWT_EXPIRES_IN || DEFAULT_TOKEN_EXPIRY;
+            const token = jwt.sign(payload, process.env.JWT_SECRET || '', { expiresIn });
+
+            res.cookie('jwt', token, {
+                secure: process.env.NODE_ENV !== 'dev',
+                httpOnly: true,
+                domain
+            });
+
+            res.redirect(returnURL);
+        });
+    })(req, res, next);
 };
 
 export const loginOneLogin: RequestHandler = (req, res, next) => {
     logger.debug('attempting to authenticate with one-login...');
 
-    passport.authenticate('onelogin', { session: false }, (err: Error, user: User, info: Record<string, string>) => {
-        console.log({ err, user, info });
-
+    passport.authenticate('onelogin', (err: Error, user: User, info: Record<string, string>) => {
         if (err || !user) {
-            logger.error(`onelogin auth returned an error: ${info?.message}`);
+            const errorMessage = err?.message || info?.message || 'unknown error';
+            logger.error(`onelogin auth returned an error: ${errorMessage}`);
             res.redirect(`${returnURL}?error=provider`);
             return;
         }

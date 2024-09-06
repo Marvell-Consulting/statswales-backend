@@ -22,7 +22,7 @@ export let dbManager: DatabaseManager;
 const connectToDb = async () => {
     dbManager = new DatabaseManager(dataSource, logger);
     await dbManager.initializeDataSource();
-    initPassport(dbManager.getDataSource().getRepository('User'));
+    await initPassport(dbManager.getDataSource().getRepository('User'));
 };
 
 connectToDb();

@@ -1,68 +1,72 @@
-import { randomBytes } from 'node:crypto';
+import { createPrivateKey } from 'node:crypto';
 
 import passport from 'passport';
-import { Strategy as OpenIdConnectStrategy, Profile, VerifyCallback } from 'passport-openidconnect';
+import { Issuer, Strategy as OpenIdStrategy, TokenSet, UserinfoResponse } from 'openid-client';
 import { Strategy as GoogleStrategy } from 'passport-google-oauth20';
 import { Strategy as JWTStrategy, ExtractJwt } from 'passport-jwt';
 import { Repository } from 'typeorm';
-import { first } from 'lodash';
 
 import { logger } from '../utils/logger';
 import { User } from '../entity/user';
 
-export const initPassport = (userRepository: Repository<User>): void => {
-    passport.use(
-        'jwt',
-        new JWTStrategy(
-            {
-                jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
-                secretOrKey: process.env.JWT_SECRET || ''
-            },
-            (jwtPayload, done) => {
-                logger.info('request authenticated with JWT');
-                console.log(jwtPayload);
-                const user = jwtPayload.user;
-                return done(null, user);
-            }
-        )
-    );
+const readPrivateKey = (privateKey: string) => {
+    return createPrivateKey({ key: Buffer.from(privateKey, 'base64'), type: 'pkcs8', format: 'der' });
+};
+
+export const initPassport = async (userRepository: Repository<User>): Promise<void> => {
+    const oneLoginIssuer = await Issuer.discover(`${process.env.ONELOGIN_URL}/.well-known/openid-configuration`);
+    const privateKey = process.env.ONELOGIN_PRIVATE_KEY!.replace(/\\n/g, '\n');
 
     passport.use(
         'onelogin',
-        new OpenIdConnectStrategy(
+        new OpenIdStrategy(
             {
-                issuer: 'onelogin',
-                responseMode: 'code',
-                authorizationURL: `${process.env.ONELOGIN_URL}/authorize`,
-                tokenURL: `${process.env.ONELOGIN_URL}/token`,
-                userInfoURL: `${process.env.ONELOGIN_URL}/userinfo`,
-                clientID: process.env.ONELOGIN_CLIENT_ID || '',
-                clientSecret: process.env.ONELOGIN_CLIENT_SECRET || '',
-                callbackURL: `${process.env.BACKEND_URL}/auth/onelogin/callback`,
-                scope: 'email',
-                nonce: randomBytes(32).toString('base64url')
+                client: new oneLoginIssuer.Client(
+                    {
+                        client_id: process.env.ONELOGIN_CLIENT_ID!,
+                        client_secret: process.env.ONELOGIN_CLIENT_SECRET!,
+                        redirect_uris: [`${process.env.BACKEND_URL}/auth/onelogin/callback`],
+                        token_endpoint_auth_method: 'private_key_jwt',
+                        token_endpoint_auth_signing_alg: 'PS256',
+                        id_token_signed_response_alg: 'ES256'
+                    },
+                    {
+                        keys: [readPrivateKey(privateKey).export({ format: 'jwk' })]
+                    }
+                ),
+                params: {
+                    response_type: 'code',
+                    ui_locales: 'en',
+                    scope: 'openid email'
+                    // we need to update our OneLogin config to be able to request the below claims
+                    // vtr: ['P2.Cl.Cm'],
+                    // claims: {
+                    //     userinfo: {
+                    //         'https://vocab.account.gov.uk/v1/coreIdentityJWT': null
+                    //     }
+                    // }
+                }
             },
-            async (issuer: string, profile: Profile, cb: VerifyCallback) => {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            async (tokenset: TokenSet, userInfo: UserinfoResponse, cb: any): Promise<void> => {
                 logger.debug('auth callback from onelogin received');
 
-                console.log({ issuer, profile });
-
-                const email = first(profile?.emails)?.value;
-
-                if (!email) {
+                if (userInfo.email === undefined) {
                     logger.error('onelogin auth failed: account has no email address');
-                    return cb(null, undefined, {
-                        message: 'OneLogin Account does not have an email, use another provider'
+                    cb(null, undefined, {
+                        message: 'onelogin account does not have an email, use another provider'
                     });
+                    return;
                 }
 
                 try {
                     logger.debug('checking if user has previously logged in...');
-                    const existingUser = await userRepository.findOneBy({ email });
+                    const existingUser = await userRepository.findOneBy({ email: userInfo.email });
 
                     if (existingUser && existingUser.provider !== 'onelogin') {
                         logger.error('onelogin auth failed: email was registered via another provider');
-                        return cb(null, undefined, { message: 'User is already registered via another provider' });
+                        cb(null, undefined, { message: 'User is already registered via another provider' });
+                        return;
                     }
 
                     if (!existingUser) {
@@ -70,19 +74,18 @@ export const initPassport = (userRepository: Repository<User>): void => {
 
                         const user = await userRepository.save({
                             provider: 'onelogin',
-                            providerUserId: profile.id,
-                            email,
-                            emailVerified: true,
-                            givenName: profile?.name?.givenName,
-                            familyName: profile?.name?.familyName
+                            providerUserId: userInfo.sub,
+                            email: userInfo.email,
+                            emailVerified: userInfo.email_verified
                         });
-                        return cb(null, user);
+                        cb(null, user);
+                        return;
                     }
                     logger.debug('existing user found');
-                    return cb(null, existingUser);
+                    cb(null, existingUser);
                 } catch (error) {
                     logger.error(error);
-                    return cb(null, undefined, { message: 'Unknown error' });
+                    cb(null, undefined, { message: 'Unknown error' });
                 }
             }
         )
@@ -103,7 +106,7 @@ export const initPassport = (userRepository: Repository<User>): void => {
                 if (!profile?._json?.email) {
                     logger.error('google auth failed: account has no email address');
                     cb(null, undefined, {
-                        message: 'Google Account does not have an email, use another provider'
+                        message: 'google account does not have an email, use another provider'
                     });
                     return;
                 }
@@ -138,6 +141,22 @@ export const initPassport = (userRepository: Repository<User>): void => {
                     logger.error(error);
                     cb(null, undefined, { message: 'Unknown error' });
                 }
+            }
+        )
+    );
+
+    passport.use(
+        'jwt',
+        new JWTStrategy(
+            {
+                jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
+                secretOrKey: process.env.JWT_SECRET || ''
+            },
+            (jwtPayload, done) => {
+                logger.info('request authenticated with JWT');
+                console.log(jwtPayload);
+                const user = jwtPayload.user;
+                return done(null, user);
             }
         )
     );
