@@ -58,10 +58,18 @@ export class Revision extends BaseEntity implements RevisionInterface {
     @Column({ name: 'online_cube_filename', type: 'varchar', length: 255, nullable: true })
     onlineCubeFilename: string;
 
-    @Column({ name: 'publish_date', type: process.env.NODE_ENV === 'test' ? 'datetime' : 'timestamp', nullable: true })
+    @Column({
+        name: 'publish_date',
+        type: process.env.NODE_ENV === 'test' ? 'datetime' : 'timestamptz',
+        nullable: true
+    })
     publishDate: Date;
 
-    @Column({ name: 'approval_date', type: process.env.NODE_ENV === 'test' ? 'datetime' : 'timestamp', nullable: true })
+    @Column({
+        name: 'approval_date',
+        type: process.env.NODE_ENV === 'test' ? 'datetime' : 'timestamptz',
+        nullable: true
+    })
     approvalDate: Date;
 
     @OneToMany(() => Import, (importEntity) => importEntity.revision, {

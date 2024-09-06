@@ -11,22 +11,22 @@ export class Migration1723729297617 implements MigrationInterface {
                         access_token TEXT,
                         refresh_token TEXT,
                         id_token TEXT,
-                        token_expiry TIMESTAMP,
+                        token_expiry TIMESTAMPTZ,
                         name VARCHAR(255),
                         given_name VARCHAR(255),
                         last_name VARCHAR(255),
                         profile_picture VARCHAR(255),
-                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+                        updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
                         active BOOLEAN NOT NULL DEFAULT true
                     );
 
                     CREATE TABLE dataset (
                         id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-                        creation_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        creation_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
                         created_by UUID,
-                        live TIMESTAMP,
-                        archive TIMESTAMP,
+                        live TIMESTAMPTZ,
+                        archive TIMESTAMPTZ,
                         FOREIGN KEY (created_by) REFERENCES users(id)
                     );
 
@@ -43,11 +43,11 @@ export class Migration1723729297617 implements MigrationInterface {
                         id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
                         revision_index INT,
                         dataset_id UUID,
-                        creation_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        creation_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
                         previous_revision_id UUID,
                         online_cube_filename VARCHAR(255),
-                        publish_date TIMESTAMP,
-                        approval_date TIMESTAMP,
+                        publish_date TIMESTAMPTZ,
+                        approval_date TIMESTAMPTZ,
                         approved_by UUID,
                         created_by UUID,
                         FOREIGN KEY (dataset_id) REFERENCES dataset(id) ON DELETE CASCADE,
@@ -89,7 +89,7 @@ export class Migration1723729297617 implements MigrationInterface {
                         mime_type VARCHAR(255),
                         filename VARCHAR(255),
                         hash VARCHAR(255),
-                        uploaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        uploaded_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
                         type import_type NOT NULL,
                         location location_type NOT NULL,
                         FOREIGN KEY (revision_id) REFERENCES revision(id) ON DELETE CASCADE

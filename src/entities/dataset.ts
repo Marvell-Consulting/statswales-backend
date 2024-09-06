@@ -29,10 +29,10 @@ export class Dataset extends BaseEntity {
     @JoinColumn({ name: 'created_by' })
     createdBy: Promise<User>;
 
-    @Column({ type: process.env.NODE_ENV === 'test' ? 'datetime' : 'timestamp', nullable: true })
+    @Column({ type: process.env.NODE_ENV === 'test' ? 'datetime' : 'timestamptz', nullable: true })
     live: Date;
 
-    @Column({ type: process.env.NODE_ENV === 'test' ? 'datetime' : 'timestamp', nullable: true })
+    @Column({ type: process.env.NODE_ENV === 'test' ? 'datetime' : 'timestamptz', nullable: true })
     archive: Date;
 
     @OneToMany(() => DatasetInfo, (datasetInfo) => datasetInfo.dataset, {

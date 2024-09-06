@@ -12,20 +12,21 @@ export class User extends BaseEntity {
     name: string;
 
     @Column({ nullable: true })
-    given_name: string;
+    givenName: string;
 
     @Column({ nullable: true })
-    last_name: string;
+    lastName: string;
 
     @Column({
         name: 'created_at',
-        type: process.env.NODE_ENV === 'test' ? 'datetime' : 'timestamp', default: () => 'CURRENT_TIMESTAMP'
+        type: process.env.NODE_ENV === 'test' ? 'datetime' : 'timestamptz',
+        default: () => 'CURRENT_TIMESTAMP'
     })
     createdAt: Date;
 
     @Column({
         name: 'updated_at',
-        type: process.env.NODE_ENV === 'test' ? 'datetime' : 'timestamp',
+        type: process.env.NODE_ENV === 'test' ? 'datetime' : 'timestamptz',
         default: () => 'CURRENT_TIMESTAMP',
         onUpdate: 'CURRENT_TIMESTAMP'
     })
@@ -39,8 +40,8 @@ export class User extends BaseEntity {
         user.id = '12345678-1234-1234-1234-123456789012';
         user.email = 'test@test.com';
         user.name = 'Test User';
-        user.given_name = 'Test';
-        user.last_name = 'User';
+        user.givenName = 'Test';
+        user.lastName = 'User';
         user.createdAt = new Date();
         user.updatedAt = new Date();
         user.active = true;

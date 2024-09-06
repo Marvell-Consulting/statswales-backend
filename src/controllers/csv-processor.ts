@@ -119,7 +119,7 @@ function validateParams(page_number: number, max_page_number: number, page_size:
 
 export const uploadCSVToBlobStorage = async (fileStream: Readable, filetype: string): Promise<Import> => {
     const blobStorageService = new BlobStorageService();
-    if(!fileStream) {
+    if (!fileStream) {
         logger.error('No buffer to upload to blob storage');
         throw new Error('No buffer to upload to blob storage');
     }
