@@ -38,11 +38,11 @@ export class Source extends BaseEntity {
     // @JoinColumn({ name: 'lookup_table_revision_id' })
     // lookupTableRevision: LookupTableRevision;
 
-    @Column({ type: 'int', nullable: false })
-    column_index: number;
+    @Column({ name: 'column_index', type: 'int', nullable: false })
+    columnIndex: number;
 
-    @Column({ type: 'text' })
-    csv_field: string;
+    @Column({ name: 'csv_field', type: 'text' })
+    csvField: string;
 
     // Replace with actual enum types
     @Column({

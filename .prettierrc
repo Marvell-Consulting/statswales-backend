@@ -2,8 +2,5 @@
   "semi": true,
   "trailingComma": "none",
   "singleQuote": true,
-  "printWidth": 120,
-   "rules": {
-    "no-inline-comments": "off"
-  }
+  "printWidth": 120
 }

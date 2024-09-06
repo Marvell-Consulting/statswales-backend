@@ -1,10 +1,10 @@
-import { Dataset } from '../entity2/dataset';
-import { Dimension } from '../entity2/dimension';
-import { DimensionInfo } from '../entity2/dimension_info';
-import { Source } from '../entity2/source';
-import { Import } from '../entity2/import';
-import { Revision } from '../entity2/revision';
-import { DatasetInfo } from '../entity2/dataset_info';
+import { Dataset } from '../entities/dataset';
+import { Dimension } from '../entities/dimension';
+import { DimensionInfo } from '../entities/dimension_info';
+import { Source } from '../entities/source';
+import { Import } from '../entities/import';
+import { Revision } from '../entities/revision';
+import { DatasetInfo } from '../entities/dataset_info';
 
 export class DatasetInfoDTO {
     language?: string;
@@ -43,8 +43,8 @@ export class DimensionDTO {
         const dimDto = new DimensionDTO();
         dimDto.id = dimension.id;
         dimDto.type = dimension.type;
-        dimDto.start_revision_id = (await dimension.start_revision).id;
-        dimDto.finish_revision_id = (await dimension.finish_revision)?.id || '';
+        dimDto.start_revision_id = (await dimension.startRevision).id;
+        dimDto.finish_revision_id = (await dimension.finishRevision)?.id || '';
         dimDto.validator = dimension.validator;
         dimDto.dimensionInfo = (await dimension.dimensionInfo).map((dimInfo: DimensionInfo) => {
             const infoDto = new DimensionInfoDTO();
@@ -60,7 +60,7 @@ export class DimensionDTO {
                 sourceDto.id = source.id;
                 sourceDto.import_id = (await source.import).id;
                 sourceDto.revision_id = (await source.revision).id;
-                sourceDto.csv_field = source.csv_field;
+                sourceDto.csv_field = source.csvField;
                 sourceDto.action = source.action;
                 return sourceDto;
             })
@@ -97,7 +97,7 @@ export class ImportDTO {
                 sourceDto.id = source.id;
                 sourceDto.import_id = (await source.import).id;
                 sourceDto.revision_id = (await source.revision).id;
-                sourceDto.csv_field = source.csv_field;
+                sourceDto.csv_field = source.csvField;
                 sourceDto.action = source.action;
                 return sourceDto;
             })
@@ -122,15 +122,15 @@ export class RevisionDTO {
     static async fromRevision(revision: Revision): Promise<RevisionDTO> {
         const revDto = new RevisionDTO();
         revDto.id = revision.id;
-        revDto.revision_index = revision.revision_index;
+        revDto.revision_index = revision.revisionIndex;
         revDto.dataset_id = (await revision.dataset).id;
-        revDto.creation_date = revision.creation_date.toISOString();
-        revDto.previous_revision_id = (await revision.previous_revision)?.id || '';
-        revDto.online_cube_filename = revision.online_cube_filename;
-        revDto.publish_date = revision.publish_date?.toISOString() || '';
-        revDto.approval_date = revision.approval_date?.toISOString() || '';
-        revDto.approved_by = (await revision.approved_by)?.name || undefined;
-        revDto.created_by = (await revision.created_by).name;
+        revDto.creation_date = revision.creationDate.toISOString();
+        revDto.previous_revision_id = (await revision.previousRevision)?.id || '';
+        revDto.online_cube_filename = revision.onlineCubeFilename;
+        revDto.publish_date = revision.publishDate?.toISOString() || '';
+        revDto.approval_date = revision.approvalDate?.toISOString() || '';
+        revDto.approved_by = (await revision.approvedBy)?.name || undefined;
+        revDto.created_by = (await revision.createdBy).name;
         revDto.imports = await Promise.all(
             (await revision.imports).map(async (imp: Import) => {
                 const impDto = new ImportDTO();
@@ -163,7 +163,7 @@ export class DatasetDTO {
         const dto = new DatasetDTO();
         dto.id = dataset.id;
         dto.creation_date = dataset.creation_date.toISOString();
-        dto.created_by = (await dataset.created_by).name;
+        dto.created_by = (await dataset.createdBy).name;
         dto.live = dataset.live?.toISOString() || '';
         dto.archive = dataset.archive?.toISOString() || '';
         dto.datasetInfo = (await dataset.datasetInfo).map((datasetInfo: DatasetInfo) => {
@@ -182,7 +182,7 @@ export class DatasetDTO {
         const dto = new DatasetDTO();
         dto.id = dataset.id;
         dto.creation_date = dataset.creation_date.toISOString();
-        dto.created_by = (await dataset.created_by).name;
+        dto.created_by = (await dataset.createdBy).name;
         dto.live = dataset.live?.toISOString() || '';
         dto.archive = dataset.archive?.toISOString() || '';
         dto.datasetInfo = (await dataset.datasetInfo).map((datasetInfo: DatasetInfo) => {
@@ -197,8 +197,8 @@ export class DatasetDTO {
                 const dimDto = new DimensionDTO();
                 dimDto.id = dimension.id;
                 dimDto.type = dimension.type;
-                dimDto.start_revision_id = (await dimension.start_revision).id;
-                dimDto.finish_revision_id = (await dimension.finish_revision)?.id || undefined;
+                dimDto.start_revision_id = (await dimension.startRevision).id;
+                dimDto.finish_revision_id = (await dimension.finishRevision)?.id || undefined;
                 dimDto.validator = dimension.validator;
                 dimDto.dimensionInfo = (await dimension.dimensionInfo).map((dimInfo: DimensionInfo) => {
                     const infoDto = new DimensionInfoDTO();
@@ -214,7 +214,7 @@ export class DatasetDTO {
                         sourceDto.id = source.id;
                         sourceDto.import_id = (await source.import).id;
                         sourceDto.revision_id = (await source.revision).id;
-                        sourceDto.csv_field = source.csv_field;
+                        sourceDto.csv_field = source.csvField;
                         sourceDto.action = source.action;
                         return sourceDto;
                     })
@@ -226,15 +226,15 @@ export class DatasetDTO {
             (await dataset.revisions).map(async (revision: Revision) => {
                 const revDto = new RevisionDTO();
                 revDto.id = revision.id;
-                revDto.revision_index = revision.revision_index;
+                revDto.revision_index = revision.revisionIndex;
                 revDto.dataset_id = (await revision.dataset).id;
-                revDto.creation_date = revision.creation_date.toISOString();
-                revDto.previous_revision_id = (await revision.previous_revision)?.id || undefined;
-                revDto.online_cube_filename = revision.online_cube_filename;
-                revDto.publish_date = revision.publish_date?.toISOString() || '';
-                revDto.approval_date = revision.approval_date?.toISOString() || '';
-                revDto.approved_by = (await revision.approved_by)?.name || undefined;
-                revDto.created_by = (await revision.created_by)?.name;
+                revDto.creation_date = revision.creationDate.toISOString();
+                revDto.previous_revision_id = (await revision.previousRevision)?.id || undefined;
+                revDto.online_cube_filename = revision.onlineCubeFilename;
+                revDto.publish_date = revision.publishDate?.toISOString() || '';
+                revDto.approval_date = revision.approvalDate?.toISOString() || '';
+                revDto.approved_by = (await revision.approvedBy)?.name || undefined;
+                revDto.created_by = (await revision.createdBy)?.name;
                 revDto.imports = await Promise.all(
                     (await revision.imports).map(async (imp: Import) => {
                         const impDto = new ImportDTO();
@@ -252,7 +252,7 @@ export class DatasetDTO {
                                 sourceDto.id = source.id;
                                 sourceDto.import_id = (await source.import).id;
                                 sourceDto.revision_id = (await source.revision).id;
-                                sourceDto.csv_field = source.csv_field;
+                                sourceDto.csv_field = source.csvField;
                                 sourceDto.action = source.action;
                                 return sourceDto;
                             })
@@ -270,7 +270,7 @@ export class DatasetDTO {
         const dto = new DatasetDTO();
         dto.id = dataset.id;
         dto.creation_date = dataset.creation_date.toISOString();
-        dto.created_by = (await dataset.created_by).name;
+        dto.created_by = (await dataset.createdBy).name;
         dto.live = dataset.live?.toISOString() || '';
         dto.archive = dataset.archive?.toISOString() || '';
         dto.datasetInfo = (await dataset.datasetInfo).map((datasetInfo: DatasetInfo) => {
@@ -285,15 +285,15 @@ export class DatasetDTO {
             (await dataset.revisions).map(async (revision: Revision) => {
                 const revDto = new RevisionDTO();
                 revDto.id = revision.id;
-                revDto.revision_index = revision.revision_index;
+                revDto.revision_index = revision.revisionIndex;
                 revDto.dataset_id = (await revision.dataset).id;
-                revDto.creation_date = revision.creation_date.toISOString();
-                revDto.previous_revision_id = (await revision.previous_revision).id;
-                revDto.online_cube_filename = revision.online_cube_filename;
-                revDto.publish_date = revision.publish_date?.toISOString() || '';
-                revDto.approval_date = revision.approval_date?.toISOString() || '';
-                revDto.approved_by = (await revision.approved_by)?.name || '';
-                revDto.created_by = (await revision.created_by)?.name || '';
+                revDto.creation_date = revision.creationDate.toISOString();
+                revDto.previous_revision_id = (await revision.previousRevision).id;
+                revDto.online_cube_filename = revision.onlineCubeFilename;
+                revDto.publish_date = revision.publishDate?.toISOString() || '';
+                revDto.approval_date = revision.approvalDate?.toISOString() || '';
+                revDto.approved_by = (await revision.approvedBy)?.name || '';
+                revDto.created_by = (await revision.createdBy)?.name || '';
                 revDto.imports = [];
                 return revDto;
             })
@@ -305,7 +305,7 @@ export class DatasetDTO {
         const dto = new DatasetDTO();
         dto.id = dataset.id;
         dto.creation_date = dataset.creation_date.toISOString();
-        dto.created_by = (await dataset.created_by).name;
+        dto.created_by = (await dataset.createdBy).name;
         dto.live = dataset.live?.toISOString() || '';
         dto.archive = dataset.archive?.toISOString() || '';
         dto.datasetInfo = (await dataset.datasetInfo).map((datasetInfo: DatasetInfo) => {
@@ -320,14 +320,14 @@ export class DatasetDTO {
             (await dataset.revisions).map(async (revision: Revision) => {
                 const revDto = new RevisionDTO();
                 revDto.id = revision.id;
-                revDto.revision_index = revision.revision_index;
-                revDto.creation_date = revision.creation_date.toISOString();
-                revDto.previous_revision_id = (await revision.previous_revision)?.id || undefined;
-                revDto.online_cube_filename = revision.online_cube_filename;
-                revDto.publish_date = revision.publish_date?.toISOString() || '';
-                revDto.approval_date = revision.approval_date?.toISOString() || '';
-                revDto.approved_by = (await revision.approved_by)?.name || undefined;
-                revDto.created_by = (await revision.created_by)?.name;
+                revDto.revision_index = revision.revisionIndex;
+                revDto.creation_date = revision.creationDate.toISOString();
+                revDto.previous_revision_id = (await revision.previousRevision)?.id || undefined;
+                revDto.online_cube_filename = revision.onlineCubeFilename;
+                revDto.publish_date = revision.publishDate?.toISOString() || '';
+                revDto.approval_date = revision.approvalDate?.toISOString() || '';
+                revDto.approved_by = (await revision.approvedBy)?.name || undefined;
+                revDto.created_by = (await revision.createdBy)?.name;
                 revDto.imports = await Promise.all(
                     (await revision.imports).map((imp: Import) => {
                         const impDto = new ImportDTO();
@@ -351,7 +351,7 @@ export class DatasetDTO {
         const dto = new DatasetDTO();
         dto.id = dataset.id;
         dto.creation_date = dataset.creation_date.toISOString();
-        dto.created_by = (await dataset.created_by).name;
+        dto.created_by = (await dataset.createdBy).name;
         dto.live = dataset.live?.toISOString() || '';
         dto.archive = dataset.archive?.toISOString() || '';
         dto.datasetInfo = (await dataset.datasetInfo).map((datasetInfo: DatasetInfo) => {
@@ -366,8 +366,8 @@ export class DatasetDTO {
                 const dimDto = new DimensionDTO();
                 dimDto.id = dimension.id;
                 dimDto.type = dimension.type;
-                dimDto.start_revision_id = (await dimension.start_revision).id;
-                dimDto.finish_revision_id = (await dimension.finish_revision)?.id || undefined;
+                dimDto.start_revision_id = (await dimension.startRevision).id;
+                dimDto.finish_revision_id = (await dimension.finishRevision)?.id || undefined;
                 dimDto.validator = dimension.validator;
                 dimDto.dimensionInfo = (await dimension.dimensionInfo).map((dimInfo: DimensionInfo) => {
                     const infoDto = new DimensionInfoDTO();
@@ -385,15 +385,15 @@ export class DatasetDTO {
             (await dataset.revisions).map(async (revision: Revision) => {
                 const revDto = new RevisionDTO();
                 revDto.id = revision.id;
-                revDto.revision_index = revision.revision_index;
+                revDto.revision_index = revision.revisionIndex;
                 revDto.dataset_id = (await revision.dataset).id;
-                revDto.creation_date = revision.creation_date.toISOString();
-                revDto.previous_revision_id = (await revision.previous_revision)?.id || undefined;
-                revDto.online_cube_filename = revision.online_cube_filename;
-                revDto.publish_date = revision.publish_date?.toISOString() || '';
-                revDto.approval_date = revision.approval_date?.toISOString() || '';
-                revDto.approved_by = (await revision.approved_by)?.name || '';
-                revDto.created_by = (await revision.created_by)?.name || '';
+                revDto.creation_date = revision.creationDate.toISOString();
+                revDto.previous_revision_id = (await revision.previousRevision)?.id || undefined;
+                revDto.online_cube_filename = revision.onlineCubeFilename;
+                revDto.publish_date = revision.publishDate?.toISOString() || '';
+                revDto.approval_date = revision.approvalDate?.toISOString() || '';
+                revDto.approved_by = (await revision.approvedBy)?.name || '';
+                revDto.created_by = (await revision.createdBy)?.name || '';
                 revDto.imports = []; // Imports are intentionally empty in this method as per original code
                 return revDto;
             })

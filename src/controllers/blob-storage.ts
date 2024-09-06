@@ -30,9 +30,6 @@ export class BlobStorageService {
     private readonly containerClient: ContainerClient;
 
     public constructor() {
-        logger.debug(
-            `Creating BlobServiceClient and ContainerClient for blob storage with account name '${accountName}' and container name '${containerName}'`
-        );
         const sharedKeyCredential = new StorageSharedKeyCredential(accountName, accountKey);
         this.blobServiceClient = new BlobServiceClient(
             `https://${accountName}.blob.core.windows.net`,
@@ -56,6 +53,7 @@ export class BlobStorageService {
         if (fileContent === undefined) {
             throw new Error('File content is undefined');
         }
+        logger.info(`Uploading file with file '${fileName}' to blob storage`);
 
         const blockBlobClient = this.containerClient.getBlockBlobClient(fileName);
 
@@ -86,6 +84,7 @@ export class BlobStorageService {
     }
 
     public async readFile(fileName: string) {
+        logger.info(`Getting file with file '${fileName}' to blob storage`);
         const blockBlobClient = this.containerClient.getBlockBlobClient(fileName);
         const downloadBlockBlobResponse = await blockBlobClient.download();
         const readableStreamBody = downloadBlockBlobResponse.readableStreamBody;

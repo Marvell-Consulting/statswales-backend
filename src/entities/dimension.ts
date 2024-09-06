@@ -7,7 +7,7 @@ import { Revision } from './revision';
 // eslint-disable-next-line import/no-cycle
 import { DimensionInfo } from './dimension_info';
 import { Source } from './source';
-import { DimensionType } from './dimension_types';
+import { DimensionType } from './dimension_type';
 
 @Entity()
 export class Dimension extends BaseEntity {
@@ -24,26 +24,18 @@ export class Dimension extends BaseEntity {
     // Replace with actual enum types
     @Column({
         type: process.env.NODE_ENV === 'test' ? 'text' : 'enum',
-        enum: [
-            DimensionType.RAW,
-            DimensionType.TEXT,
-            DimensionType.NUMERIC,
-            DimensionType.SYMBOL,
-            DimensionType.LOOKUP_TABLE,
-            DimensionType.TIME_PERIOD,
-            DimensionType.TIME_POINT
-        ],
+        enum: Object.keys(DimensionType),
         nullable: false
     })
     type: DimensionType;
 
     @ManyToOne(() => Revision)
     @JoinColumn({ name: 'start_revision_id' })
-    start_revision: Promise<Revision>;
+    startRevision: Promise<Revision>;
 
     @ManyToOne(() => Revision, { nullable: true })
     @JoinColumn({ name: 'finish_revision_id' })
-    finish_revision: Promise<Revision>;
+    finishRevision: Promise<Revision>;
 
     @Column({ type: 'text', nullable: true })
     validator: string;

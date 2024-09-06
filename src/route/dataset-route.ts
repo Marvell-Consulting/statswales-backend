@@ -7,7 +7,7 @@ import { Request, Response, Router } from 'express';
 import multer from 'multer';
 import pino from 'pino';
 
-import { ViewErrDTO, ViewDTO, ViewStream } from '../dtos2/view-dto';
+import { ViewErrDTO, ViewDTO, ViewStream } from '../dtos/view-dto';
 import { ENGLISH, WELSH, t } from '../app';
 import {
     processCSVFromDatalake,
@@ -17,14 +17,14 @@ import {
     getFileFromBlobStorage,
     getFileFromDataLake
 } from '../controllers/csv-processor';
-import { Users } from '../entity2/users';
-import { Dataset } from '../entity2/dataset';
-import { DatasetInfo } from '../entity2/dataset_info';
-import { Dimension } from '../entity2/dimension';
-import { Revision } from '../entity2/revision';
-import { Import } from '../entity2/import';
-import { DatasetTitle, FileDescription } from '../dtos2/filelist';
-import { DatasetDTO, DimensionDTO, RevisionDTO } from '../dtos2/dataset-dto';
+import { User } from '../entities/user';
+import { Dataset } from '../entities/dataset';
+import { DatasetInfo } from '../entities/dataset_info';
+import { Dimension } from '../entities/dimension';
+import { Revision } from '../entities/revision';
+import { Import } from '../entities/import';
+import { DatasetTitle, FileDescription } from '../dtos/filelist';
+import { DatasetDTO, DimensionDTO, RevisionDTO } from '../dtos/dataset-dto';
 
 export const logger = pino({
     name: 'StatsWales-Alpha-App: DatasetRoute',
@@ -164,13 +164,13 @@ apiRoute.post('/', upload.single('csv'), async (req: Request, res: Response) => 
     const dataset = new Dataset();
     dataset.id = randomUUID();
     dataset.creation_date = new Date();
-    const user = await Users.findOneBy({ id: Users.getTestUser().id });
+    const user = await User.findOneBy({ id: User.getTestUser().id });
     if (user === null) {
         throw new Error('Test user not found');
     }
     // TODO change how we handle authentication to get the user on the Backend
     // We are using a stub test user for all requests at the moment
-    dataset.created_by = Promise.resolve(user);
+    dataset.createdBy = Promise.resolve(user);
     const datasetInfo = new DatasetInfo();
     datasetInfo.language = lang;
     datasetInfo.title = title;
@@ -178,9 +178,9 @@ apiRoute.post('/', upload.single('csv'), async (req: Request, res: Response) => 
     dataset.datasetInfo = Promise.resolve([datasetInfo]);
     const revision = new Revision();
     revision.dataset = Promise.resolve(dataset);
-    revision.revision_index = 1;
-    revision.creation_date = new Date();
-    revision.created_by = Promise.resolve(user);
+    revision.revisionIndex = 1;
+    revision.creationDate = new Date();
+    revision.createdBy = Promise.resolve(user);
     dataset.revisions = Promise.resolve([revision]);
     importRecord.revision = Promise.resolve(revision);
     revision.imports = Promise.resolve([importRecord]);
@@ -223,6 +223,53 @@ apiRoute.get('/:dataset_id', async (req: Request, res: Response) => {
     if (!dataset) return;
     const dto = await DatasetDTO.fromDatasetComplete(dataset);
     res.json(dto);
+});
+
+// GET /api/dataset/:dataset_id/view
+// Returns a view of the data file attached to the import
+apiRoute.get('/:dataset_id/view', async (req: Request, res: Response) => {
+    const datasetID: string = req.params.dataset_id;
+    const dataset = await validateDataset(datasetID, res);
+    if (!dataset) return;
+    const latestRevision = await Revision.find({
+        where: { dataset },
+        order: { creationDate: 'DESC' },
+        take: 1
+    });
+    if (!latestRevision) {
+        logger.error('Unable to find the last revision');
+        res.status(404);
+        res.json({ message: 'No revision found for dataset' });
+        return;
+    }
+    const latestImport = await Import.findOne({
+        where: [{ revision: latestRevision[0] }],
+        order: { uploaded_at: 'DESC' }
+    });
+    if (!latestImport) {
+        logger.error('Unable to find the last import record');
+        res.status(404);
+        res.json({ message: 'No import record found for dataset' });
+        return;
+    }
+    const page_number_str: string = req.query.page_number || req.body?.page_number;
+    const page_size_str: string = req.query.page_size || req.body?.page_size;
+    const page_number: number = Number.parseInt(page_number_str, 10) || 1;
+    const page_size: number = Number.parseInt(page_size_str, 10) || DEFAULT_PAGE_SIZE;
+    let processedCSV: ViewErrDTO | ViewDTO;
+    if (latestImport.location === 'BlobStorage') {
+        processedCSV = await processCSVFromBlobStorage(dataset, latestImport, page_number, page_size);
+    } else if (latestImport.location === 'Datalake') {
+        processedCSV = await processCSVFromDatalake(dataset, latestImport, page_number, page_size);
+    } else {
+        res.status(400);
+        res.json({ message: 'Import location not supported.' });
+        return;
+    }
+    if (!processedCSV.success) {
+        res.status(400);
+    }
+    res.json(processedCSV);
 });
 
 // GET /api/dataset/:dataset_id/dimension/id/:dimension_id
@@ -331,23 +378,3 @@ apiRoute.get(
         });
     }
 );
-
-// apiRoute.get('/:dataset/view', async (req: Request, res: Response) => {
-//     const datasetID = req.params.dataset;
-//     if (!checkDatasetID(datasetID, res)) return;
-//     const dataset = await Dataset.findOneBy({ id: datasetID });
-//     if (dataset === undefined || dataset === null) {
-//         res.status(404);
-//         res.json({ message: 'Dataset not found... Dataset ID not found in Database' });
-//         return;
-//     }
-//     const page_number_str: string = req.query.page_number || req.body?.page_number;
-//     const page_size_str: string = req.query.page_size || req.body?.page_size;
-//     const page_number: number = Number.parseInt(page_number_str, 10) || 1;
-//     const page_size: number = Number.parseInt(page_size_str, 10) || DEFAULT_PAGE_SIZE;
-//     const processedCSV = await processCSVFromDatalake(dataset, page_number, page_size);
-//     if (!processedCSV.success) {
-//         res.status(500);
-//     }
-//     res.json(processedCSV);
-// });

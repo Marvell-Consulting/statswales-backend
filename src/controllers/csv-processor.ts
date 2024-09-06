@@ -5,11 +5,11 @@ import { Readable } from 'stream';
 import { parse } from 'csv';
 
 import { ENGLISH, WELSH, logger, t } from '../app';
-import { DatasetDTO, ImportDTO } from '../dtos2/dataset-dto';
-import { Error } from '../dtos2/error';
-import { ViewStream, ViewDTO, ViewErrDTO } from '../dtos2/view-dto';
-import { Dataset } from '../entity2/dataset';
-import { Import } from '../entity2/import';
+import { DatasetDTO, ImportDTO } from '../dtos/dataset-dto';
+import { Error } from '../dtos/error';
+import { ViewStream, ViewDTO, ViewErrDTO } from '../dtos/view-dto';
+import { Dataset } from '../entities/dataset';
+import { Import } from '../entities/import';
 
 import { BlobStorageService } from './blob-storage';
 import { DataLakeService } from './datalake';
@@ -119,37 +119,33 @@ function validateParams(page_number: number, max_page_number: number, page_size:
 
 export const uploadCSVToBlobStorage = async (fileStream: Readable, filetype: string): Promise<Import> => {
     const blobStorageService = new BlobStorageService();
-    if (fileStream) {
-        const importRecord = new Import();
-        importRecord.id = randomUUID();
-        importRecord.mime_type = filetype;
-        if (filetype === 'text/csv') {
-            importRecord.filename = `${importRecord.id}.csv`;
-        } else {
-            importRecord.filename = `${importRecord.id}.zip`;
-        }
-        try {
-            const promisedHash = hashReadableStream(fileStream)
-                .then((hash) => {
-                    return hash.toString();
-                })
-                .catch((error) => {
-                    throw new Error(`Error hashing stream: ${error}`);
-                });
-            await blobStorageService.uploadFile(`${importRecord.id}.csv`, fileStream);
-            const resolvedHash = await promisedHash;
-            if (resolvedHash) importRecord.hash = resolvedHash;
-            importRecord.uploaded_at = new Date(Date.now());
-            importRecord.type = 'Draft';
-            importRecord.location = 'BlobStorage';
-            return importRecord;
-        } catch (err) {
-            logger.error(err);
-            throw new Error('Error processing file upload to blob storage');
-        }
-    } else {
+    if(!fileStream) {
         logger.error('No buffer to upload to blob storage');
         throw new Error('No buffer to upload to blob storage');
+    }
+    const importRecord = new Import();
+    importRecord.id = randomUUID();
+    importRecord.mime_type = filetype;
+    const extension = filetype === 'text/csv' ? 'csv' : 'zip';
+    importRecord.filename = `${importRecord.id}.${extension}`;
+    try {
+        const promisedHash = hashReadableStream(fileStream)
+            .then((hash) => {
+                return hash.toString();
+            })
+            .catch((error) => {
+                throw new Error(`Error hashing stream: ${error}`);
+            });
+        await blobStorageService.uploadFile(`${importRecord.filename}`, fileStream);
+        const resolvedHash = await promisedHash;
+        if (resolvedHash) importRecord.hash = resolvedHash;
+        importRecord.uploaded_at = new Date(Date.now());
+        importRecord.type = 'Draft';
+        importRecord.location = 'BlobStorage';
+        return importRecord;
+    } catch (err) {
+        logger.error(err);
+        throw new Error('Error processing file upload to blob storage');
     }
 };
 
@@ -180,8 +176,8 @@ async function processCSVData(
         delimiter: ','
     }).toArray()) as string[][];
     const csvheaders = dataArray.shift();
-    const total_pages = Math.ceil(dataArray.length / size);
-    const errors = validateParams(page, total_pages, size);
+    const totalPages = Math.ceil(dataArray.length / size);
+    const errors = validateParams(page, totalPages, size);
     if (errors.length > 0) {
         return {
             success: false,
@@ -191,11 +187,11 @@ async function processCSVData(
     }
 
     const csvdata = paginate(dataArray, page, size);
-    const pages = setupPagination(page, total_pages);
+    const pages = setupPagination(page, totalPages);
     const end_record = () => {
         if (size > dataArray.length) {
             return dataArray.length;
-        } else if (page === total_pages) {
+        } else if (page === totalPages) {
             return dataArray.length;
         } else {
             return page * size;
@@ -214,7 +210,7 @@ async function processCSVData(
         },
         pages,
         page_size: size,
-        total_pages,
+        total_pages: totalPages,
         headers: csvheaders,
         data: csvdata
     };

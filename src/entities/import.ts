@@ -1,4 +1,13 @@
-import { Entity, PrimaryGeneratedColumn, Column, BaseEntity, ManyToOne, OneToMany, JoinColumn } from 'typeorm';
+import {
+    Entity,
+    PrimaryGeneratedColumn,
+    Column,
+    CreateDateColumn,
+    BaseEntity,
+    ManyToOne,
+    OneToMany,
+    JoinColumn
+} from 'typeorm';
 
 // eslint-disable-next-line import/no-cycle
 import { Revision } from './revision';
@@ -34,7 +43,7 @@ export class Import extends BaseEntity {
     @Column({ type: 'varchar', length: 255 })
     hash: string;
 
-    @Column({ type: process.env.NODE_ENV === 'test' ? 'datetime' : 'timestamp', default: () => 'CURRENT_TIMESTAMP' })
+    @CreateDateColumn()
     uploaded_at: Date;
 
     @Column({

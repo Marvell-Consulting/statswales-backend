@@ -1,6 +1,15 @@
-import { Entity, PrimaryGeneratedColumn, Column, BaseEntity, ManyToOne, OneToMany, JoinColumn } from 'typeorm';
+import {
+    Entity,
+    PrimaryGeneratedColumn,
+    Column,
+    CreateDateColumn,
+    BaseEntity,
+    ManyToOne,
+    OneToMany,
+    JoinColumn
+} from 'typeorm';
 
-import { Users } from './users';
+import { User } from './user';
 // eslint-disable-next-line import/no-cycle
 import { Revision } from './revision';
 // eslint-disable-next-line import/no-cycle
@@ -13,12 +22,12 @@ export class Dataset extends BaseEntity {
     @PrimaryGeneratedColumn('uuid')
     id: string;
 
-    @Column({ type: process.env.NODE_ENV === 'test' ? 'datetime' : 'timestamp', default: () => 'CURRENT_TIMESTAMP' })
+    @CreateDateColumn()
     creation_date: Date;
 
-    @ManyToOne(() => Users)
+    @ManyToOne(() => User)
     @JoinColumn({ name: 'created_by' })
-    created_by: Promise<Users>;
+    createdBy: Promise<User>;
 
     @Column({ type: process.env.NODE_ENV === 'test' ? 'datetime' : 'timestamp', nullable: true })
     live: Date;

@@ -7,18 +7,18 @@ import request from 'supertest';
 import { DataLakeService } from '../src/controllers/datalake';
 import { BlobStorageService } from '../src/controllers/blob-storage';
 import app, { ENGLISH, WELSH, t, dbManager, databaseManager } from '../src/app';
-import { Dataset } from '../src/entity2/dataset';
-import { DatasetInfo } from '../src/entity2/dataset_info';
-import { Revision } from '../src/entity2/revision';
-import { Import } from '../src/entity2/import';
-import { CsvInfo } from '../src/entity2/csv_info';
-import { Source } from '../src/entity2/source';
-import { Dimension } from '../src/entity2/dimension';
-import { DimensionType } from '../src/entity2/dimension_types';
-import { DimensionInfo } from '../src/entity2/dimension_info';
-import { Users } from '../src/entity2/users';
-import { DatasetDTO, DimensionDTO, RevisionDTO } from '../src/dtos2/dataset-dto';
-import { ViewErrDTO } from '../src/dtos2/view-dto';
+import { Dataset } from '../src/entities/dataset';
+import { DatasetInfo } from '../src/entities/dataset_info';
+import { Revision } from '../src/entities/revision';
+import { Import } from '../src/entities/import';
+import { CsvInfo } from '../src/entities/csv_info';
+import { Source } from '../src/entities/source';
+import { Dimension } from '../src/entities/dimension';
+import { DimensionType } from '../src/entities/dimension_type';
+import { DimensionInfo } from '../src/entities/dimension_info';
+import { User } from '../src/entities/user';
+import { DatasetDTO, DimensionDTO, RevisionDTO } from '../src/dtos/dataset-dto';
+import { ViewErrDTO } from '../src/dtos/view-dto';
 import { MAX_PAGE_SIZE, MIN_PAGE_SIZE } from '../src/controllers/csv-processor';
 
 import { datasourceOptions } from './test-data-source';
@@ -40,12 +40,12 @@ describe('API Endpoints', () => {
     beforeAll(async () => {
         await databaseManager(datasourceOptions);
         await dbManager.initializeDataSource();
-        const user = Users.getTestUser();
+        const user = User.getTestUser();
         await user.save();
         // First create a dataset
         const dataset1 = new Dataset();
         dataset1.id = dataset1Id;
-        dataset1.created_by = Promise.resolve(user);
+        dataset1.createdBy = Promise.resolve(user);
         dataset1.live = new Date(Date.now());
         // Give it some info
         const datasetInfo1 = new DatasetInfo();
@@ -58,8 +58,8 @@ describe('API Endpoints', () => {
         const revision1 = new Revision();
         revision1.id = revision1Id;
         revision1.dataset = Promise.resolve(dataset1);
-        revision1.created_by = Promise.resolve(user);
-        revision1.revision_index = 1;
+        revision1.createdBy = Promise.resolve(user);
+        revision1.revisionIndex = 1;
         dataset1.revisions = Promise.resolve([revision1]);
         // Attach an import e.g. a file to the revision
         const import1 = new Import();
@@ -88,32 +88,32 @@ describe('API Endpoints', () => {
         source1.id = '304574E6-8DD0-4654-BE67-FA055C9F7C81';
         source1.import = Promise.resolve(import1);
         source1.revision = Promise.resolve(revision1);
-        source1.csv_field = 'ID';
-        source1.column_index = 0;
+        source1.csvField = 'ID';
+        source1.columnIndex = 0;
         source1.action = 'ignore';
         sources.push(source1);
         const source2 = new Source();
         source2.id = 'D3D3D3D3-8DD0-4654-BE67-FA055C9F7C81';
         source2.import = Promise.resolve(import1);
         source2.revision = Promise.resolve(revision1);
-        source2.csv_field = 'Text';
-        source2.column_index = 1;
+        source2.csvField = 'Text';
+        source2.columnIndex = 1;
         source2.action = 'create';
         sources.push(source2);
         const source3 = new Source();
         source3.id = 'D62FA390-9AB2-496E-A6CA-0C0E2FCF206E';
         source3.import = Promise.resolve(import1);
         source3.revision = Promise.resolve(revision1);
-        source3.csv_field = 'Number';
-        source3.column_index = 2;
+        source3.csvField = 'Number';
+        source3.columnIndex = 2;
         source3.action = 'create';
         sources.push(source3);
         const source4 = new Source();
         source4.id = 'FB25D668-54F2-44EF-99FE-B4EDC4AF2911';
         source4.import = Promise.resolve(import1);
         source4.revision = Promise.resolve(revision1);
-        source4.csv_field = 'Date';
-        source4.column_index = 3;
+        source4.csvField = 'Date';
+        source4.columnIndex = 3;
         source4.action = 'create';
         sources.push(source4);
         import1.sources = Promise.resolve(sources);
@@ -123,7 +123,7 @@ describe('API Endpoints', () => {
         const dimension1 = new Dimension();
         dimension1.id = dimension1Id;
         dimension1.dataset = Promise.resolve(dataset1);
-        dimension1.start_revision = Promise.resolve(revision1);
+        dimension1.startRevision = Promise.resolve(revision1);
         dimension1.type = DimensionType.RAW;
         const dimension1Info = new DimensionInfo();
         dimension1Info.dimension = Promise.resolve(dimension1);
@@ -138,7 +138,7 @@ describe('API Endpoints', () => {
         const dimension2 = new Dimension();
         dimension2.id = '61D51F82-0771-4C90-849E-55FFA7A4D802';
         dimension2.dataset = Promise.resolve(dataset1);
-        dimension2.start_revision = Promise.resolve(revision1);
+        dimension2.startRevision = Promise.resolve(revision1);
         dimension2.type = DimensionType.TEXT;
         const dimension2Info = new DimensionInfo();
         dimension2Info.dimension = Promise.resolve(dimension2);
@@ -153,7 +153,7 @@ describe('API Endpoints', () => {
         const dimension3 = new Dimension();
         dimension3.id = 'F4D5B0F4-180E-4020-AAD5-9300B673D92B';
         dimension3.dataset = Promise.resolve(dataset1);
-        dimension3.start_revision = Promise.resolve(revision1);
+        dimension3.startRevision = Promise.resolve(revision1);
         dimension3.type = DimensionType.NUMERIC;
         const dimension3Info = new DimensionInfo();
         dimension3Info.dimension = Promise.resolve(dimension3);
@@ -168,7 +168,7 @@ describe('API Endpoints', () => {
         const dimension4 = new Dimension();
         dimension4.id = 'C24962F4-F395-40EF-B4DD-270E90E10972';
         dimension4.dataset = Promise.resolve(dataset1);
-        dimension4.start_revision = Promise.resolve(revision1);
+        dimension4.startRevision = Promise.resolve(revision1);
         dimension4.type = DimensionType.TIME_POINT;
         const dimension4Info = new DimensionInfo();
         dimension4Info.dimension = Promise.resolve(dimension4);
@@ -428,7 +428,24 @@ describe('API Endpoints', () => {
         });
     });
 
-    test('Get file rertunrs 200 and complete file data', async () => {
+    test('Get file from a dataset rertunrs 200 and complete file data', async () => {
+        const testFile2 = path.resolve(__dirname, `./test-data-2.csv`);
+        const testFile1Buffer = fs.readFileSync(testFile2);
+        BlobStorageService.prototype.readFile = jest.fn().mockReturnValue(testFile1Buffer.toString());
+
+        const res = await request(app)
+            .get(`/en-GB/dataset/${dataset1Id}/view`)
+            .query({ page_number: 2, page_size: 100 });
+        expect(res.status).toBe(200);
+        expect(res.body.current_page).toBe(2);
+        expect(res.body.total_pages).toBe(6);
+        expect(res.body.page_size).toBe(100);
+        expect(res.body.headers).toEqual(['ID', 'Text', 'Number', 'Date']);
+        expect(res.body.data[0]).toEqual(['101', 'GEYiRzLIFM', '774477', '2002-03-13']);
+        expect(res.body.data[99]).toEqual(['200', 'QhBxdmrUPb', '3256099', '2026-12-17']);
+    });
+
+    test('Get file from a revision and import rertunrs 200 and complete file data', async () => {
         const testFile2 = path.resolve(__dirname, `./test-data-2.csv`);
         const testFileStream = fs.createReadStream(testFile2);
         const testFile2Buffer = fs.readFileSync(testFile2);
