@@ -7,14 +7,10 @@ import {
     StorageSharedKeyCredential
 } from '@azure/storage-blob';
 import * as dotenv from 'dotenv';
-import pino from 'pino';
+
+import { logger } from '../utils/logger';
 
 dotenv.config();
-
-export const logger = pino({
-    name: 'StatsWales-Alpha-App: BlobStorageService',
-    level: 'debug'
-});
 
 const accountName = process.env.AZURE_BLOB_STORAGE_ACCOUNT_NAME || 'your-storage-account-name';
 const accountKey = process.env.AZURE_BLOB_STORAGE_ACCOUNT_KEY || 'your-storage';
