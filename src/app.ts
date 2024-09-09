@@ -1,4 +1,3 @@
-/* eslint-disable import/no-cycle */
 import 'reflect-metadata';
 
 import express, { Application, Request, Response } from 'express';

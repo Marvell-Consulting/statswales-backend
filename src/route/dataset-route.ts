@@ -1,10 +1,11 @@
 /* eslint-disable no-warning-comments */
-/* eslint-disable import/no-cycle */
+
 import { randomUUID } from 'crypto';
 import { Readable } from 'stream';
 
 import { Request, Response, Router } from 'express';
 import multer from 'multer';
+
 import { logger } from '../utils/logger';
 import { ViewErrDTO, ViewDTO, ViewStream } from '../dtos/view-dto';
 import { ENGLISH, WELSH, i18next } from '../middleware/translation';
