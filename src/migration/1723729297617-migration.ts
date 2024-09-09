@@ -35,6 +35,8 @@ export class Migration1723729297617 implements MigrationInterface {
                         language VARCHAR(5),
                         title TEXT,
                         description TEXT,
+                        created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+                        updated_at TIMESTAMPTZ,
                         PRIMARY KEY (dataset_id, language),
                         FOREIGN KEY (dataset_id) REFERENCES dataset(id) ON DELETE CASCADE
                     );
@@ -76,6 +78,8 @@ export class Migration1723729297617 implements MigrationInterface {
                         name TEXT,
                         description TEXT,
                         notes TEXT,
+                        created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+                        updated_at TIMESTAMPTZ,
                         PRIMARY KEY (dimension_id, language),
                         FOREIGN KEY (dimension_id) REFERENCES dimension(id) ON DELETE CASCADE
                     );
@@ -103,16 +107,18 @@ export class Migration1723729297617 implements MigrationInterface {
                         FOREIGN KEY (import_id) REFERENCES import(id) ON DELETE CASCADE
                     );
 
-                    CREATE TYPE source_action_type AS ENUM ('create', 'append', 'truncate-then-load', 'ignore');
+                    CREATE TYPE source_type as ENUM ('Unknown', 'DataValues', 'FootNotes', 'Dimension', 'IGNORE');
+                    CREATE TYPE source_action_type AS ENUM ('unknwon', 'create', 'append', 'truncate-then-load', 'ignore');
 
                     CREATE TABLE source (
                         id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
                         dimension_id UUID,
-                        import_id UUID UNIQUE,
+                        import_id UUID,
                         revision_id UUID,
                         column_index INT,
                         csv_field TEXT,
                         action source_action_type NOT NULL,
+                        type source_type DEFAULT 'Unknown',
                         FOREIGN KEY (dimension_id) REFERENCES dimension(id) ON DELETE CASCADE,
                         FOREIGN KEY (import_id) REFERENCES import(id) ON DELETE CASCADE,
                         FOREIGN KEY (revision_id) REFERENCES revision(id) ON DELETE CASCADE

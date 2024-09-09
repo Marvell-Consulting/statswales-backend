@@ -45,6 +45,12 @@
         "no_datafile": "Dim ffeil data ynghlwm wrth Set Ddata (GPT)",
         "download_from_datalake": "Gwall wrth lawrlwytho ffeil o'r llyn data (GPT)"
 	},
+    "dimensionInfo": {
+        "footnotes": {
+            "title": "Nodiadau traed (GPT)",
+            "description": "Nodiadau traed ar gyfer y data (GPT)"
+        }
+    },
     "list": {
         "title": "Dangos y Data"
     },

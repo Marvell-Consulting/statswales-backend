@@ -4,7 +4,9 @@ import { Entity, PrimaryGeneratedColumn, Column, BaseEntity, ManyToOne, JoinColu
 import { Dimension } from './dimension';
 // eslint-disable-next-line import/no-cycle
 import { Import } from './import';
+// eslint-disable-next-line import/no-cycle
 import { Revision } from './revision';
+import { SourceType } from './source_type';
 
 @Entity()
 export class Source extends BaseEntity {
@@ -47,8 +49,15 @@ export class Source extends BaseEntity {
     // Replace with actual enum types
     @Column({
         type: process.env.NODE_ENV === 'test' ? 'text' : 'enum',
-        enum: ['create', 'append', 'truncate-then-load', 'ignore'],
+        enum: ['unknown', 'create', 'append', 'truncate-then-load', 'ignore'],
         nullable: false
     })
     action: string;
+
+    @Column({
+        type: process.env.NODE_ENV === 'test' ? 'text' : 'enum',
+        enum: Object.keys(SourceType),
+        nullable: true
+    })
+    type: SourceType;
 }

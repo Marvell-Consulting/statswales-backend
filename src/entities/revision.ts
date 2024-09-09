@@ -13,6 +13,8 @@ import {
 import { Dataset } from './dataset';
 import { User } from './user';
 // eslint-disable-next-line import/no-cycle
+import { Source } from './source';
+// eslint-disable-next-line import/no-cycle
 import { Import } from './import';
 
 interface RevisionInterface {
@@ -34,7 +36,7 @@ export class Revision extends BaseEntity implements RevisionInterface {
     @PrimaryGeneratedColumn('uuid')
     id: string;
 
-    @Column({ type: 'int' })
+    @Column({ name: 'revision_index', type: 'int' })
     revisionIndex: number;
 
     @ManyToOne(() => Dataset, (dataset) => dataset.revisions, {
@@ -71,6 +73,11 @@ export class Revision extends BaseEntity implements RevisionInterface {
         nullable: true
     })
     approvalDate: Date;
+
+    @OneToMany(() => Source, (source) => source.revision, {
+        cascade: true
+    })
+    sources: Promise<Source[]>;
 
     @OneToMany(() => Import, (importEntity) => importEntity.revision, {
         cascade: true

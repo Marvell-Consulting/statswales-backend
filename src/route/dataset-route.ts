@@ -5,8 +5,10 @@ import { Readable } from 'stream';
 
 import { Request, Response, Router } from 'express';
 import multer from 'multer';
+import bodyParser from 'body-parser';
 import pino from 'pino';
 
+import { DimensionCreationDTO } from '../dtos/dimension-creation-dto';
 import { ViewErrDTO, ViewDTO, ViewStream } from '../dtos/view-dto';
 import { ENGLISH, WELSH, t } from '../app';
 import {
@@ -15,8 +17,11 @@ import {
     uploadCSVBufferToBlobStorage,
     DEFAULT_PAGE_SIZE,
     getFileFromBlobStorage,
-    getFileFromDataLake
+    getFileFromDataLake,
+    moveFileToDataLake,
+    createSources
 } from '../controllers/csv-processor';
+import { validateDimensionCreationRequest, createDimensions } from '../controllers/dimension-processor';
 import { User } from '../entities/user';
 import { Dataset } from '../entities/dataset';
 import { DatasetInfo } from '../entities/dataset_info';
@@ -24,13 +29,14 @@ import { Dimension } from '../entities/dimension';
 import { Revision } from '../entities/revision';
 import { Import } from '../entities/import';
 import { DatasetTitle, FileDescription } from '../dtos/filelist';
-import { DatasetDTO, DimensionDTO, RevisionDTO } from '../dtos/dataset-dto';
+import { DatasetDTO, DimensionDTO, RevisionDTO, ImportDTO, SourceDTO } from '../dtos/dataset-dto';
 
 export const logger = pino({
     name: 'StatsWales-Alpha-App: DatasetRoute',
     level: 'debug'
 });
 
+const jsonParser = bodyParser.json();
 const storage = multer.memoryStorage();
 const upload = multer({ storage });
 export const apiRoute = Router();
@@ -225,6 +231,19 @@ apiRoute.get('/:dataset_id', async (req: Request, res: Response) => {
     res.json(dto);
 });
 
+// DELETE /api/dataset/:dataset_id
+// Returns a shallow dto of the dataset with the given ID
+// Shallow gives the revisions and dimensions of the dataset only
+apiRoute.delete('/:dataset_id', async (req: Request, res: Response) => {
+    const datasetID: string = req.params.dataset_id;
+    const dataset = await validateDataset(datasetID, res);
+    if (!dataset) return;
+    logger.warn('Deleting dataset with ID:', datasetID);
+    await dataset.remove();
+    res.status(204);
+    res.end();
+});
+
 // GET /api/dataset/:dataset_id/view
 // Returns a view of the data file attached to the import
 apiRoute.get('/:dataset_id/view', async (req: Request, res: Response) => {
@@ -297,6 +316,48 @@ apiRoute.get('/:dataset_id/revision/by-id/:revision_id', async (req: Request, re
     const dto = await RevisionDTO.fromRevision(revision);
     res.json(dto);
 });
+
+// GET /api/dataset/:dataset_id/revision/id/:revision_id/import/id/:import_id
+// Returns details of an import with its sources
+apiRoute.get(
+    '/:dataset_id/revision/by-id/:revision_id/import/by-id/:import_id',
+    async (req: Request, res: Response) => {
+        const datasetID: string = req.params.dataset_id;
+        const dataset = await validateDataset(datasetID, res);
+        if (!dataset) return;
+        const revisionID: string = req.params.revision_id;
+        const revision = await validateRevision(revisionID, res);
+        if (!revision) return;
+        const importID: string = req.params.import_id;
+        const importRecord = await validateImport(importID, res);
+        if (!importRecord) return;
+        const dto = await ImportDTO.fromImport(importRecord);
+        res.json(dto);
+    }
+);
+
+// GET /api/dataset/:dataset_id/revision/id/:revision_id/import/id/:import_id/sources
+// Returns details of an import with its sources
+apiRoute.get(
+    '/:dataset_id/revision/by-id/:revision_id/import/by-id/:import_id/sources',
+    async (req: Request, res: Response) => {
+        const datasetID: string = req.params.dataset_id;
+        const dataset = await validateDataset(datasetID, res);
+        if (!dataset) return;
+        const revisionID: string = req.params.revision_id;
+        const revision = await validateRevision(revisionID, res);
+        if (!revision) return;
+        const importID: string = req.params.import_id;
+        const importRecord = await validateImport(importID, res);
+        if (!importRecord) return;
+        const sources = await importRecord.sources;
+        const dtos: SourceDTO[] = [];
+        for (const source of sources) {
+            dtos.push(await SourceDTO.fromSource(source));
+        }
+        res.json(dtos);
+    }
+);
 
 // GET /api/dataset/:dataset_id/revision/id/:revision_id/import/id/:import_id/preview
 // Returns a view of the data file attached to the import
@@ -376,5 +437,92 @@ apiRoute.get(
         readable.on('end', () => {
             console.log('File stream ended');
         });
+    }
+);
+
+// PATCH /api/dataset/:dataset_id/revision/id/:revision_id/import/id/:import_id/confirm
+// Moves the file from temporary blob storage to datalake and creates sources
+// returns a JSON object with the current state of the revision including the import
+// and sources created from the import.
+apiRoute.patch(
+    '/:dataset_id/revision/by-id/:revision_id/import/by-id/:import_id/confirm',
+    async (req: Request, res: Response) => {
+        const datasetID: string = req.params.dataset_id;
+        const dataset = await validateDataset(datasetID, res);
+        if (!dataset) return;
+        const revisionID: string = req.params.revision_id;
+        const revision = await validateRevision(revisionID, res);
+        if (!revision) return;
+        const importID: string = req.params.import_id;
+        const importRecord = await validateImport(importID, res);
+        if (!importRecord) return;
+        try {
+            importRecord.location = 'Datalake';
+            await moveFileToDataLake(importRecord);
+            importRecord.save();
+        } catch (err) {
+            logger.error(`An error occured trying to move the file with the following error: ${err}`);
+            res.status(500);
+            res.json({ message: 'Error moving file from tempoary blob storage to datalake.  Please try again.' });
+            return;
+        }
+        try {
+            const revisionDTO = await createSources(importRecord);
+            res.status(200);
+            res.json(revisionDTO);
+        } catch (err) {
+            logger.error(`An error occured trying to create the sources with the following error: ${err}`);
+            res.status(500);
+            res.json({ message: 'Error creating sources from the uploaded file.  Please try again.' });
+        }
+    }
+);
+
+// POST /api/dataset/:dataset_id/revision/id/:revision_id/import/id/:import_id/create
+// Creates the dimensions from relating to the import based on information provided
+// from the sources and the user.
+// Body should contain a JSON object with the following structure:
+// {
+//     "sources": [
+//         {
+//             "id": "source_id",
+//             "action": "create" || "append" || "truncate-then-load" || "ignore",
+//             "type": "DataValue || "Dimension" || "Footnotes" || "Ignore"
+//         }
+//     ]
+// }
+// Notes: There can only be one object with a type of "dataValue" and one object with a type of "footnotes"
+// Returns a JSON object with the current state of the dataset including the dimensions created.
+apiRoute.patch(
+    '/:dataset_id/revision/by-id/:revision_id/import/by-id/:import_id/sources',
+    jsonParser,
+    async (req: Request, res: Response) => {
+        const datasetID: string = req.params.dataset_id;
+        const dataset = await validateDataset(datasetID, res);
+        if (!dataset) return;
+        const revisionID: string = req.params.revision_id;
+        const revision = await validateRevision(revisionID, res);
+        if (!revision) return;
+        const importID: string = req.params.import_id;
+        const importRecord = await validateImport(importID, res);
+        if (!importRecord) return;
+
+        if (!req.body) {
+            res.status(400);
+            res.json({ message: 'No sources provided' });
+            return;
+        }
+        const dimensionCreationDTO = req.body as DimensionCreationDTO[];
+        try {
+            const validatedDTO = await validateDimensionCreationRequest(dimensionCreationDTO);
+            const savedDataset = await createDimensions(revision, validatedDTO);
+            const dto = await DatasetDTO.fromDatasetComplete(savedDataset);
+            res.status(200);
+            res.json(dto);
+        } catch (err) {
+            logger.error(`An error occured trying to create the dimensions with the following error: ${err}`);
+            res.status(500);
+            res.json({ message: 'Error creating dimensions from the uploaded file.  Please try again.' });
+        }
     }
 );

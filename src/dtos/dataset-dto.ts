@@ -27,6 +27,19 @@ export class SourceDTO {
     // lookup_table_revision_id?: string;
     csv_field: string;
     action: string;
+    type: string | undefined;
+
+    static async fromSource(source: Source): Promise<SourceDTO> {
+        const sourceDto = new SourceDTO();
+        sourceDto.id = source.id;
+        sourceDto.import_id = (await source.import).id;
+        sourceDto.revision_id = (await source.revision).id;
+        // sourceDto.lookup_table_revision_id = (await source.lookupTableRevision)?.id;
+        sourceDto.csv_field = source.csvField;
+        sourceDto.action = source.action;
+        sourceDto.type = source.type;
+        return sourceDto;
+    }
 }
 
 export class DimensionDTO {
@@ -99,6 +112,7 @@ export class ImportDTO {
                 sourceDto.revision_id = (await source.revision).id;
                 sourceDto.csv_field = source.csvField;
                 sourceDto.action = source.action;
+                sourceDto.type = source.type;
                 return sourceDto;
             })
         );
@@ -142,6 +156,18 @@ export class RevisionDTO {
                 impDto.uploaded_at = imp.uploaded_at.toISOString();
                 impDto.type = imp.type;
                 impDto.location = imp.location;
+                impDto.sources = await Promise.all(
+                    (await imp.sources).map(async (source: Source) => {
+                        const sourceDto = new SourceDTO();
+                        sourceDto.id = source.id;
+                        sourceDto.import_id = (await source.import).id;
+                        sourceDto.revision_id = (await source.revision).id;
+                        sourceDto.csv_field = source.csvField;
+                        sourceDto.action = source.action;
+                        sourceDto.type = source.type;
+                        return sourceDto;
+                    })
+                );
                 return impDto;
             })
         );
@@ -254,6 +280,7 @@ export class DatasetDTO {
                                 sourceDto.revision_id = (await source.revision).id;
                                 sourceDto.csv_field = source.csvField;
                                 sourceDto.action = source.action;
+                                sourceDto.type = source.type;
                                 return sourceDto;
                             })
                         );
