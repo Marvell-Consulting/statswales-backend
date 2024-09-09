@@ -342,7 +342,6 @@ describe('Dataset routes', () => {
             const testFile2 = path.resolve(__dirname, `./test-data-2.csv`);
             const testFile2Buffer = fs.readFileSync(testFile2);
             BlobStorageService.prototype.readFile = jest.fn().mockReturnValue(testFile2Buffer);
-
             const res = await request(app)
                 .get(`/en-GB/dataset/${dataset1Id}/revision/by-id/${revision1Id}/import/by-id/${import1Id}/preview`)
                 .set(getAuthHeader(user))
@@ -400,16 +399,19 @@ describe('Dataset routes', () => {
                 const testFile2 = path.resolve(__dirname, `./test-data-2.csv`);
                 const testFile1Buffer = fs.readFileSync(testFile2);
                 BlobStorageService.prototype.readFile = jest.fn().mockReturnValue(testFile1Buffer.toString());
-
                 const res = await request(app)
                     .get(`/en-GB/dataset/${dataset1Id}/revision/by-id/${revision1Id}/import/by-id/${import1Id}/preview`)
-                    .set(getAuthHeader(user))
                     .query({ page_number: 2, page_size: 100 });
                 expect(res.status).toBe(200);
                 expect(res.body.current_page).toBe(2);
                 expect(res.body.total_pages).toBe(6);
                 expect(res.body.page_size).toBe(100);
-                expect(res.body.headers).toEqual(['ID', 'Text', 'Number', 'Date']);
+                expect(res.body.headers).toEqual([
+                    { index: 0, name: 'ID' },
+                    { index: 1, name: 'Text' },
+                    { index: 2, name: 'Number' },
+                    { index: 3, name: 'Date' }
+                ]);
                 expect(res.body.data[0]).toEqual(['101', 'GEYiRzLIFM', '774477', '2002-03-13']);
                 expect(res.body.data[99]).toEqual(['200', 'QhBxdmrUPb', '3256099', '2026-12-17']);
             });

@@ -3,6 +3,7 @@ import { Readable } from 'stream';
 
 import { Request, Response, Router } from 'express';
 import multer from 'multer';
+import bodyParser from 'body-parser';
 
 import { logger } from '../utils/logger';
 import { DimensionCreationDTO } from '../dtos/dimension-creation-dto';
@@ -29,6 +30,7 @@ import { DatasetTitle, FileDescription } from '../dtos/filelist';
 import { DatasetDTO, DimensionDTO, RevisionDTO, ImportDTO } from '../dtos/dataset-dto';
 
 const t = i18next.t;
+
 const jsonParser = bodyParser.json();
 const storage = multer.memoryStorage();
 const upload = multer({ storage });
@@ -245,6 +247,18 @@ apiRoute.delete('/:dataset_id', async (req: Request, res: Response) => {
 
 // GET /api/dataset/:dataset_id/view
 // Returns a view of the data file attached to the import
+apiRoute.get('/:dataset_id/view', async (req: Request, res: Response) => {
+    const datasetID: string = req.params.dataset_id;
+    const dataset = await validateDataset(datasetID, res);
+    if (!dataset) return;
+    logger.warn('Deleting dataset with ID:', datasetID);
+    await dataset.remove();
+    res.status(204);
+    res.end();
+});
+
+// GET /api/dataset/:dataset_id/view
+// Returns a view of the data file attached to the import
 router.get('/:dataset_id/view', async (req: Request, res: Response) => {
     const datasetID: string = req.params.dataset_id;
     const dataset = await validateDataset(datasetID, res);
@@ -312,8 +326,24 @@ router.get('/:dataset_id/revision/by-id/:revision_id', async (req: Request, res:
 
 // GET /api/dataset/:dataset_id/revision/id/:revision_id/import/id/:import_id
 // Returns details of an import with its sources
-router.get(
-    '/:dataset_id/revision/by-id/:revision_id/import/by-id/:import_id',
+router.get('/:dataset_id/revision/by-id/:revision_id/import/by-id/:import_id', async (req: Request, res: Response) => {
+    const datasetID: string = req.params.dataset_id;
+    const dataset = await validateDataset(datasetID, res);
+    if (!dataset) return;
+    const revisionID: string = req.params.revision_id;
+    const revision = await validateRevision(revisionID, res);
+    if (!revision) return;
+    const importID: string = req.params.import_id;
+    const importRecord = await validateImport(importID, res);
+    if (!importRecord) return;
+    const dto = await ImportDTO.fromImport(importRecord);
+    res.json(dto);
+});
+
+// GET /api/dataset/:dataset_id/revision/id/:revision_id/import/id/:import_id/sources
+// Returns details of an import with its sources
+apiRoute.get(
+    '/:dataset_id/revision/by-id/:revision_id/import/by-id/:import_id/sources',
     async (req: Request, res: Response) => {
         const datasetID: string = req.params.dataset_id;
         const dataset = await validateDataset(datasetID, res);
@@ -324,8 +354,12 @@ router.get(
         const importID: string = req.params.import_id;
         const importRecord = await validateImport(importID, res);
         if (!importRecord) return;
-        const dto = await ImportDTO.fromImport(importRecord);
-        res.json(dto);
+        const sources = await importRecord.sources;
+        const dtos: SourceDTO[] = [];
+        for (const source of sources) {
+            dtos.push(await SourceDTO.fromSource(source));
+        }
+        res.json(dtos);
     }
 );
 
