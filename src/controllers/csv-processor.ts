@@ -7,8 +7,10 @@ import { i18next, ENGLISH, WELSH } from '../middleware/translation';
 import { logger as parentLogger } from '../utils/logger';
 import { DatasetDTO, ImportDTO } from '../dtos/dataset-dto';
 import { Error } from '../dtos/error';
-import { ViewStream, ViewDTO, ViewErrDTO } from '../dtos/view-dto';
+import { CSVHeader, ViewStream, ViewDTO, ViewErrDTO } from '../dtos/view-dto';
 import { Dataset } from '../entities/dataset';
+import { Revision } from '../entities/revision';
+import { Source } from '../entities/source';
 import { Import } from '../entities/import';
 
 import { BlobStorageService } from './blob-storage';
@@ -179,6 +181,29 @@ async function processCSVData(
         delimiter: ','
     }).toArray()) as string[][];
     const csvheaders = dataArray.shift();
+    if (!csvheaders) {
+        return {
+            success: false,
+            errors: [
+                {
+                    field: 'csv',
+                    message: [
+                        { lang: ENGLISH, message: t('errors.csv_headers', { lng: ENGLISH }) },
+                        { lang: WELSH, message: t('errors.csv_headers', { lng: WELSH }) }
+                    ],
+                    tag: { name: 'errors.csv_headers', params: {} }
+                }
+            ],
+            dataset_id: dataset.id
+        };
+    }
+    const headers: CSVHeader[] = [];
+    for (let i = 0; i < csvheaders.length; i++) {
+        headers.push({
+            index: i,
+            name: csvheaders[i]
+        });
+    }
     const totalPages = Math.ceil(dataArray.length / size);
     const errors = validateParams(page, totalPages, size);
     if (errors.length > 0) {
@@ -214,7 +239,7 @@ async function processCSVData(
         pages,
         page_size: size,
         total_pages: totalPages,
-        headers: csvheaders,
+        headers,
         data: csvdata
     };
 }
@@ -330,4 +355,60 @@ export const processCSVFromBlobStorage = async (
         };
     }
     return processCSVData(buff, page, size, dataset, importObj);
+};
+
+export const moveFileToDataLake = async (importObj: Import) => {
+    const blobStorageService = new BlobStorageService();
+    const datalakeService = new DataLakeService();
+    try {
+        const fileStream = await blobStorageService.getReadableStream(importObj.filename);
+        await datalakeService.uploadFileStream(importObj.filename, fileStream);
+        await blobStorageService.deleteFile(importObj.filename);
+    } catch (err) {
+        logger.error(err);
+        throw new Error('Error moving file to datalake');
+    }
+};
+
+export const createSources = async (importObj: Import): Promise<RevisionDTO> => {
+    const revision: Revision = await importObj.revision;
+    const dataset: Dataset = await revision.dataset;
+    let fileView: ViewDTO | ViewErrDTO;
+    try {
+        fileView = await processCSVFromDatalake(dataset, importObj, 1, 5);
+    } catch (err) {
+        logger.error(err);
+        throw new Error('Error moving file to datalake');
+    }
+    let fileData: ViewDTO;
+    if (fileView.success) {
+        fileData = fileView as ViewDTO;
+    } else {
+        throw new Error('Error processing file from datalake');
+    }
+    const headers = fileData.headers;
+    const sources: Source[] = [];
+    headers.forEach((header) => {
+        const source = new Source();
+        source.columnIndex = header.index;
+        source.csvField = header.name;
+        source.action = 'unknwon';
+        source.revision = Promise.resolve(revision);
+        source.import = Promise.resolve(importObj);
+        sources.push(source);
+        source.save();
+    });
+    const saveImport = await Import.findOneBy({ id: importObj.id });
+    if (!saveImport) {
+        throw new Error('Import not found');
+    }
+    saveImport.sources = Promise.resolve(sources);
+    await importObj.save();
+    const saveRevision = await Revision.findOneBy({ id: revision.id });
+    if (!saveRevision) {
+        throw new Error('Revision not found');
+    }
+    saveRevision.sources = Promise.resolve(sources);
+    await saveRevision.save();
+    return RevisionDTO.fromRevision(saveRevision);
 };

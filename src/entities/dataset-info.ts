@@ -1,4 +1,13 @@
-import { Entity, PrimaryColumn, Column, BaseEntity, ManyToOne, JoinColumn } from 'typeorm';
+import {
+    Entity,
+    PrimaryColumn,
+    Column,
+    BaseEntity,
+    ManyToOne,
+    JoinColumn,
+    CreateDateColumn,
+    UpdateDateColumn
+} from 'typeorm';
 
 // eslint-disable-next-line import/no-cycle
 import { Dataset } from './dataset';
@@ -32,4 +41,12 @@ export class DatasetInfo extends BaseEntity {
     })
     @JoinColumn({ name: 'dataset_id', foreignKeyConstraintName: 'FK_dataset_info_dataset_id' })
     dataset: Promise<Dataset>;
+
+    @CreateDateColumn({ name: 'created_at' })
+    createdAt: Date;
+
+    // This column should be the same across all languages
+    // If one is updated and the others aren't then mark as needing translation
+    @UpdateDateColumn({ name: 'updated_at', nullable: true })
+    updatedAt: Date;
 }

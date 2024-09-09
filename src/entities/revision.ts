@@ -14,6 +14,8 @@ import { RevisionInterface } from './revision.interface';
 import { Dataset } from './dataset';
 import { User } from './user';
 // eslint-disable-next-line import/no-cycle
+import { Source } from './source';
+// eslint-disable-next-line import/no-cycle
 import { Import } from './import';
 
 @Entity()
@@ -21,7 +23,7 @@ export class Revision extends BaseEntity implements RevisionInterface {
     @PrimaryGeneratedColumn('uuid', { primaryKeyConstraintName: 'PK_revision_id' })
     id: string;
 
-    @Column({ type: 'int' })
+    @Column({ name: 'revision_index', type: 'int' })
     revisionIndex: number;
 
     @ManyToOne(() => Dataset, (dataset) => dataset.revisions, {
@@ -51,7 +53,14 @@ export class Revision extends BaseEntity implements RevisionInterface {
     @Column({ name: 'approval_date', type: 'timestamptz', nullable: true })
     approvalDate: Date;
 
-    @OneToMany(() => Import, (importEntity) => importEntity.revision, { cascade: true })
+    @OneToMany(() => Source, (source) => source.revision, {
+        cascade: true
+    })
+    sources: Promise<Source[]>;
+
+    @OneToMany(() => Import, (importEntity) => importEntity.revision, {
+        cascade: true
+    })
     imports: Promise<Import[]>;
 
     @ManyToOne(() => User, { nullable: true })
