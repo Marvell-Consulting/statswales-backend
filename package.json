@@ -73,6 +73,7 @@
     "@azure/storage-blob": "^12.24.0",
     "@azure/storage-file-datalake": "^12.16.0",
     "cookie-parser": "^1.4.6",
+    "body-parser": "^1.20.2",
     "csv": "^6.3.8",
     "dotenv": "^16.4.4",
     "express": ">=4.19.2",

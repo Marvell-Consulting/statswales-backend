@@ -6,7 +6,9 @@ import { SourceAction } from '../enums/source-action';
 import { Dimension } from './dimension';
 // eslint-disable-next-line import/no-cycle
 import { Import } from './import';
+// eslint-disable-next-line import/no-cycle
 import { Revision } from './revision';
+import { SourceType } from './source_type';
 
 @Entity()
 export class Source extends BaseEntity {
@@ -48,4 +50,11 @@ export class Source extends BaseEntity {
 
     @Column({ type: 'enum', enum: Object.values(SourceAction), nullable: false })
     action: string;
+
+    @Column({
+        type: process.env.NODE_ENV === 'test' ? 'text' : 'enum',
+        enum: Object.keys(SourceType),
+        nullable: true
+    })
+    type: SourceType;
 }
