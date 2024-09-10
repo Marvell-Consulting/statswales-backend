@@ -14,9 +14,6 @@ const readPrivateKey = (privateKey: string) => {
 };
 
 export const initPassport = async (userRepository: Repository<User>): Promise<void> => {
-    const oneLoginIssuer = await Issuer.discover(`${process.env.ONELOGIN_URL}/.well-known/openid-configuration`);
-    const privateKey = process.env.ONELOGIN_PRIVATE_KEY!.replace(/\\n/g, '\n');
-
     passport.use(
         'jwt',
         new JWTStrategy(
@@ -33,6 +30,9 @@ export const initPassport = async (userRepository: Repository<User>): Promise<vo
     );
 
     if (process.env.AUTH_PROVIDERS?.includes('onelogin')) {
+        const oneLoginIssuer = await Issuer.discover(`${process.env.ONELOGIN_URL}/.well-known/openid-configuration`);
+        const privateKey = process.env.ONELOGIN_PRIVATE_KEY!.replace(/\\n/g, '\n');
+
         passport.use(
             'onelogin',
             new OpenIdStrategy(
