@@ -24,9 +24,9 @@ import { Dataset } from '../entities/dataset';
 import { DatasetInfo } from '../entities/dataset-info';
 import { Dimension } from '../entities/dimension';
 import { Revision } from '../entities/revision';
-import { Import } from '../entities/import';
+import { FileImport } from '../entities/import-file';
 import { DatasetTitle, FileDescription } from '../dtos/filelist';
-import { DatasetDTO, DimensionDTO, RevisionDTO, ImportDTO, SourceDTO } from '../dtos/dataset-dto';
+import { DatasetDTO, DimensionDTO, RevisionDTO, ImportDTO } from '../dtos/dataset-dto';
 
 const t = i18next.t;
 const jsonParser = bodyParser.json();
@@ -47,12 +47,12 @@ function isValidUUID(uuid: string): boolean {
 }
 
 function validateIds(id: string, idType: string, res: Response): boolean {
-    if (id === undefined || id === null) {
+    if (id === undefined) {
         res.status(400);
         res.json({ message: `${idType} ID is null or undefined` });
         return false;
     }
-    if (isValidUUID(id) === false) {
+    if (!isValidUUID(id)) {
         res.status(400);
         res.json({ message: `${idType} ID is not valid` });
         return false;
@@ -93,9 +93,9 @@ async function validateRevision(revisionID: string, res: Response): Promise<Revi
     return revision;
 }
 
-async function validateImport(importID: string, res: Response): Promise<Import | null> {
+async function validateImport(importID: string, res: Response): Promise<FileImport | null> {
     if (!validateIds(importID, IMPORT, res)) return null;
-    const importObj = await Import.findOneBy({ id: importID });
+    const importObj = await FileImport.findOneBy({ id: importID });
     if (!importObj) {
         res.status(404);
         res.json({ message: 'Import not found.' });
@@ -152,8 +152,7 @@ router.post('/', upload.single('csv'), async (req: Request, res: Response) => {
         res.json(errorDtoGenerator('title', 'errors.no_title'));
         return;
     }
-
-    let importRecord: Import;
+    let importRecord: FileImport;
     try {
         importRecord = await uploadCSVBufferToBlobStorage(req.file.buffer, req.file?.mimetype);
     } catch (err) {
@@ -250,24 +249,18 @@ router.get('/:dataset_id/view', async (req: Request, res: Response) => {
     const datasetID: string = req.params.dataset_id;
     const dataset = await validateDataset(datasetID, res);
     if (!dataset) return;
-    const latestRevision = await Revision.find({
-        where: { dataset },
-        order: { creationDate: 'DESC' },
-        take: 1
-    });
+    const latestRevision = (await dataset.revisions).pop();
     if (!latestRevision) {
+        console.log('latestRevision:', JSON.stringify(latestRevision));
         logger.error('Unable to find the last revision');
-        res.status(404);
+        res.status(500);
         res.json({ message: 'No revision found for dataset' });
         return;
     }
-    const latestImport = await Import.findOne({
-        where: [{ revision: latestRevision[0] }],
-        order: { uploadedAt: 'DESC' }
-    });
+    const latestImport = (await latestRevision.imports).pop();
     if (!latestImport) {
         logger.error('Unable to find the last import record');
-        res.status(404);
+        res.status(500);
         res.json({ message: 'No import record found for dataset' });
         return;
     }
@@ -281,12 +274,12 @@ router.get('/:dataset_id/view', async (req: Request, res: Response) => {
     } else if (latestImport.location === 'Datalake') {
         processedCSV = await processCSVFromDatalake(dataset, latestImport, page_number, page_size);
     } else {
-        res.status(400);
+        res.status(500);
         res.json({ message: 'Import location not supported.' });
         return;
     }
     if (!processedCSV.success) {
-        res.status(400);
+        res.status(500);
     }
     res.json(processedCSV);
 });
@@ -319,7 +312,7 @@ router.get('/:dataset_id/revision/by-id/:revision_id', async (req: Request, res:
 
 // GET /api/dataset/:dataset_id/revision/id/:revision_id/import/id/:import_id
 // Returns details of an import with its sources
-apiRoute.get(
+router.get(
     '/:dataset_id/revision/by-id/:revision_id/import/by-id/:import_id',
     async (req: Request, res: Response) => {
         const datasetID: string = req.params.dataset_id;
@@ -333,29 +326,6 @@ apiRoute.get(
         if (!importRecord) return;
         const dto = await ImportDTO.fromImport(importRecord);
         res.json(dto);
-    }
-);
-
-// GET /api/dataset/:dataset_id/revision/id/:revision_id/import/id/:import_id/sources
-// Returns details of an import with its sources
-apiRoute.get(
-    '/:dataset_id/revision/by-id/:revision_id/import/by-id/:import_id/sources',
-    async (req: Request, res: Response) => {
-        const datasetID: string = req.params.dataset_id;
-        const dataset = await validateDataset(datasetID, res);
-        if (!dataset) return;
-        const revisionID: string = req.params.revision_id;
-        const revision = await validateRevision(revisionID, res);
-        if (!revision) return;
-        const importID: string = req.params.import_id;
-        const importRecord = await validateImport(importID, res);
-        if (!importRecord) return;
-        const sources = await importRecord.sources;
-        const dtos: SourceDTO[] = [];
-        for (const source of sources) {
-            dtos.push(await SourceDTO.fromSource(source));
-        }
-        res.json(dtos);
     }
 );
 
@@ -444,7 +414,7 @@ router.get(
 // Moves the file from temporary blob storage to datalake and creates sources
 // returns a JSON object with the current state of the revision including the import
 // and sources created from the import.
-apiRoute.patch(
+router.patch(
     '/:dataset_id/revision/by-id/:revision_id/import/by-id/:import_id/confirm',
     async (req: Request, res: Response) => {
         const datasetID: string = req.params.dataset_id;
@@ -493,7 +463,7 @@ apiRoute.patch(
 // }
 // Notes: There can only be one object with a type of "dataValue" and one object with a type of "footnotes"
 // Returns a JSON object with the current state of the dataset including the dimensions created.
-apiRoute.patch(
+router.patch(
     '/:dataset_id/revision/by-id/:revision_id/import/by-id/:import_id/sources',
     jsonParser,
     async (req: Request, res: Response) => {

@@ -2,7 +2,7 @@ import { Dataset } from '../entities/dataset';
 import { Dimension } from '../entities/dimension';
 import { DimensionInfo } from '../entities/dimension-info';
 import { Source } from '../entities/source';
-import { Import } from '../entities/import';
+import { FileImport } from '../entities/import-file';
 import { Revision } from '../entities/revision';
 import { DatasetInfo } from '../entities/dataset-info';
 
@@ -93,7 +93,7 @@ export class ImportDTO {
     location: string;
     sources?: SourceDTO[];
 
-    static async fromImport(importEntity: Import): Promise<ImportDTO> {
+    static async fromImport(importEntity: FileImport): Promise<ImportDTO> {
         const dto = new ImportDTO();
         dto.id = importEntity.id;
         const revision = await importEntity.revision;
@@ -146,7 +146,7 @@ export class RevisionDTO {
         revDto.approved_by = (await revision.approvedBy)?.name || undefined;
         revDto.created_by = (await revision.createdBy).name;
         revDto.imports = await Promise.all(
-            (await revision.imports).map(async (imp: Import) => {
+            (await revision.imports).map(async (imp: FileImport) => {
                 const impDto = new ImportDTO();
                 impDto.id = imp.id;
                 impDto.revision_id = (await imp.revision).id;
@@ -262,7 +262,7 @@ export class DatasetDTO {
                 revDto.approved_by = (await revision.approvedBy)?.name || undefined;
                 revDto.created_by = (await revision.createdBy)?.name;
                 revDto.imports = await Promise.all(
-                    (await revision.imports).map(async (imp: Import) => {
+                    (await revision.imports).map(async (imp: FileImport) => {
                         const impDto = new ImportDTO();
                         impDto.id = imp.id;
                         impDto.revision_id = (await imp.revision).id;
@@ -356,7 +356,7 @@ export class DatasetDTO {
                 revDto.approved_by = (await revision.approvedBy)?.name || undefined;
                 revDto.created_by = (await revision.createdBy)?.name;
                 revDto.imports = await Promise.all(
-                    (await revision.imports).map((imp: Import) => {
+                    (await revision.imports).map((imp: FileImport) => {
                         const impDto = new ImportDTO();
                         impDto.id = imp.id;
                         impDto.mime_type = imp.mimeType;

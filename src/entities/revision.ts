@@ -16,9 +16,9 @@ import { User } from './user';
 // eslint-disable-next-line import/no-cycle
 import { Source } from './source';
 // eslint-disable-next-line import/no-cycle
-import { Import } from './import';
+import { FileImport } from './import-file';
 
-@Entity()
+@Entity({ name: 'revision', orderBy: { creationDate: 'ASC' } })
 export class Revision extends BaseEntity implements RevisionInterface {
     @PrimaryGeneratedColumn('uuid', { primaryKeyConstraintName: 'PK_revision_id' })
     id: string;
@@ -58,10 +58,10 @@ export class Revision extends BaseEntity implements RevisionInterface {
     })
     sources: Promise<Source[]>;
 
-    @OneToMany(() => Import, (importEntity) => importEntity.revision, {
+    @OneToMany(() => FileImport, (importEntity) => importEntity.revision, {
         cascade: true
     })
-    imports: Promise<Import[]>;
+    imports: Promise<FileImport[]>;
 
     @ManyToOne(() => User, { nullable: true })
     @JoinColumn({ name: 'approved_by', foreignKeyConstraintName: 'FK_revision_approved_by' })

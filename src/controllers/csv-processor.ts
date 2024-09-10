@@ -11,7 +11,7 @@ import { CSVHeader, ViewStream, ViewDTO, ViewErrDTO } from '../dtos/view-dto';
 import { Dataset } from '../entities/dataset';
 import { Revision } from '../entities/revision';
 import { Source } from '../entities/source';
-import { Import } from '../entities/import';
+import { FileImport } from '../entities/import-file';
 
 import { BlobStorageService } from './blob-storage';
 import { DataLakeService } from './datalake';
@@ -122,13 +122,13 @@ function validateParams(page_number: number, max_page_number: number, page_size:
     return errors;
 }
 
-export const uploadCSVToBlobStorage = async (fileStream: Readable, filetype: string): Promise<Import> => {
+export const uploadCSVToBlobStorage = async (fileStream: Readable, filetype: string): Promise<FileImport> => {
     const blobStorageService = new BlobStorageService();
     if (!fileStream) {
         logger.error('No buffer to upload to blob storage');
         throw new Error('No buffer to upload to blob storage');
     }
-    const importRecord = new Import();
+    const importRecord = new FileImport();
     importRecord.id = randomUUID();
     importRecord.mimeType = filetype;
     const extension = filetype === 'text/csv' ? 'csv' : 'zip';
@@ -154,9 +154,9 @@ export const uploadCSVToBlobStorage = async (fileStream: Readable, filetype: str
     }
 };
 
-export const uploadCSVBufferToBlobStorage = async (fileBuffer: Buffer, filetype: string): Promise<Import> => {
+export const uploadCSVBufferToBlobStorage = async (fileBuffer: Buffer, filetype: string): Promise<FileImport> => {
     const fileStream = Readable.from(fileBuffer);
-    const importRecord: Import = await uploadCSVToBlobStorage(fileStream, filetype);
+    const importRecord: FileImport = await uploadCSVToBlobStorage(fileStream, filetype);
     return importRecord;
 };
 
@@ -175,7 +175,7 @@ async function processCSVData(
     page: number,
     size: number,
     dataset: Dataset,
-    importObj: Import
+    importObj: FileImport
 ): Promise<ViewDTO | ViewErrDTO> {
     const dataArray: Array<Array<string>> = (await parse(buffer, {
         delimiter: ','
@@ -244,7 +244,10 @@ async function processCSVData(
     };
 }
 
-export const getFileFromDataLake = async (dataset: Dataset, importObj: Import): Promise<ViewStream | ViewErrDTO> => {
+export const getFileFromDataLake = async (
+    dataset: Dataset,
+    importObj: FileImport
+): Promise<ViewStream | ViewErrDTO> => {
     const datalakeService = new DataLakeService();
     let stream: Readable;
     try {
@@ -271,7 +274,7 @@ export const getFileFromDataLake = async (dataset: Dataset, importObj: Import): 
 
 export const processCSVFromDatalake = async (
     dataset: Dataset,
-    importObj: Import,
+    importObj: FileImport,
     page: number,
     size: number
 ): Promise<ViewErrDTO | ViewDTO> => {
@@ -299,7 +302,10 @@ export const processCSVFromDatalake = async (
     return processCSVData(buff, page, size, dataset, importObj);
 };
 
-export const getFileFromBlobStorage = async (dataset: Dataset, importObj: Import): Promise<ViewStream | ViewErrDTO> => {
+export const getFileFromBlobStorage = async (
+    dataset: Dataset,
+    importObj: FileImport
+): Promise<ViewStream | ViewErrDTO> => {
     const blobStoageService = new BlobStorageService();
     let stream: Readable;
     try {
@@ -315,7 +321,7 @@ export const getFileFromBlobStorage = async (dataset: Dataset, importObj: Import
                         { lang: ENGLISH, message: t('errors.download_from_blobstorage', { lng: ENGLISH }) },
                         { lang: WELSH, message: t('errors.download_from_blobstorage', { lng: WELSH }) }
                     ],
-                    tag: { name: 'errors.download_from_datalake', params: {} }
+                    tag: { name: 'errors.download_from_blobstorage', params: {} }
                 }
             ],
             dataset_id: dataset.id
@@ -329,7 +335,7 @@ export const getFileFromBlobStorage = async (dataset: Dataset, importObj: Import
 
 export const processCSVFromBlobStorage = async (
     dataset: Dataset,
-    importObj: Import,
+    importObj: FileImport,
     page: number,
     size: number
 ): Promise<ViewErrDTO | ViewDTO> => {
@@ -348,7 +354,7 @@ export const processCSVFromBlobStorage = async (
                         { lang: ENGLISH, message: t('errors.download_from_blobstorage', { lng: ENGLISH }) },
                         { lang: WELSH, message: t('errors.download_from_blobstorage', { lng: WELSH }) }
                     ],
-                    tag: { name: 'errors.download_from_datalake', params: {} }
+                    tag: { name: 'errors.download_from_blobstorage', params: {} }
                 }
             ],
             dataset_id: dataset.id
@@ -357,7 +363,7 @@ export const processCSVFromBlobStorage = async (
     return processCSVData(buff, page, size, dataset, importObj);
 };
 
-export const moveFileToDataLake = async (importObj: Import) => {
+export const moveFileToDataLake = async (importObj: FileImport) => {
     const blobStorageService = new BlobStorageService();
     const datalakeService = new DataLakeService();
     try {
@@ -370,7 +376,7 @@ export const moveFileToDataLake = async (importObj: Import) => {
     }
 };
 
-export const createSources = async (importObj: Import): Promise<RevisionDTO> => {
+export const createSources = async (importObj: FileImport): Promise<RevisionDTO> => {
     const revision: Revision = await importObj.revision;
     const dataset: Dataset = await revision.dataset;
     let fileView: ViewDTO | ViewErrDTO;
@@ -398,7 +404,7 @@ export const createSources = async (importObj: Import): Promise<RevisionDTO> => 
         sources.push(source);
         source.save();
     });
-    const saveImport = await Import.findOneBy({ id: importObj.id });
+    const saveImport = await FileImport.findOneBy({ id: importObj.id });
     if (!saveImport) {
         throw new Error('Import not found');
     }
