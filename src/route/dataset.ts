@@ -368,14 +368,14 @@ router.get(
 
         // Handle errors in the file stream
         readable.on('error', (err) => {
-            console.error('File stream error:', err);
+            logger.error('File stream error:', err);
             res.writeHead(500, { 'Content-Type': 'text/plain' });
             res.end('Server Error');
         });
 
         // Optionally listen for the end of the stream
         readable.on('end', () => {
-            console.log('File stream ended');
+            logger.debug('File stream ended');
         });
     }
 );

@@ -27,15 +27,6 @@ class DatabaseManager {
     }
 
     async initializeDataSource() {
-        console.log({
-            NODE_ENV: process.env.NODE_ENV,
-            TEST_DB_HOST: process.env.TEST_DB_HOST,
-            TEST_DB_PORT: process.env.TEST_DB_PORT,
-            TEST_DB_USERNAME: process.env.TEST_DB_USERNAME,
-            TEST_DB_PASSWORD: process.env.TEST_DB_PASSWORD,
-            TEST_DB_DATABASE: process.env.TEST_DB_DATABASE
-        });
-
         this.logger.debug(`DB '${this.dataSource.options.database}' initializing...`);
 
         if (!this.dataSource.isInitialized) {
