@@ -2,7 +2,7 @@ import { Dataset } from '../entities/dataset';
 import { Dimension } from '../entities/dimension';
 import { DimensionInfo } from '../entities/dimension_info';
 import { Source } from '../entities/source';
-import { Import } from '../entities/import';
+import { FileImport } from '../entities/import_file';
 import { Revision } from '../entities/revision';
 import { DatasetInfo } from '../entities/dataset_info';
 
@@ -88,12 +88,12 @@ export class ImportDTO {
     mime_type: string;
     filename: string;
     hash: string;
-    uploaded_at: string;
+    uploadedAt: string;
     type: string;
     location: string;
     sources?: SourceDTO[];
 
-    static async fromImport(importEntity: Import): Promise<ImportDTO> {
+    static async fromImport(importEntity: FileImport): Promise<ImportDTO> {
         const dto = new ImportDTO();
         dto.id = importEntity.id;
         const revision = await importEntity.revision;
@@ -101,7 +101,7 @@ export class ImportDTO {
         dto.mime_type = importEntity.mime_type;
         dto.filename = importEntity.filename;
         dto.hash = importEntity.hash;
-        dto.uploaded_at = importEntity.uploaded_at?.toISOString() || '';
+        dto.uploadedAt = importEntity.uploadedAt?.toISOString() || '';
         dto.type = importEntity.type;
         dto.location = importEntity.location;
         dto.sources = await Promise.all(
@@ -146,14 +146,14 @@ export class RevisionDTO {
         revDto.approved_by = (await revision.approvedBy)?.name || undefined;
         revDto.created_by = (await revision.createdBy).name;
         revDto.imports = await Promise.all(
-            (await revision.imports).map(async (imp: Import) => {
+            (await revision.imports).map(async (imp: FileImport) => {
                 const impDto = new ImportDTO();
                 impDto.id = imp.id;
                 impDto.revision_id = (await imp.revision).id;
                 impDto.mime_type = imp.mime_type;
                 impDto.filename = imp.filename;
                 impDto.hash = imp.hash;
-                impDto.uploaded_at = imp.uploaded_at.toISOString();
+                impDto.uploadedAt = imp.uploadedAt.toISOString();
                 impDto.type = imp.type;
                 impDto.location = imp.location;
                 impDto.sources = await Promise.all(
@@ -262,14 +262,14 @@ export class DatasetDTO {
                 revDto.approved_by = (await revision.approvedBy)?.name || undefined;
                 revDto.created_by = (await revision.createdBy)?.name;
                 revDto.imports = await Promise.all(
-                    (await revision.imports).map(async (imp: Import) => {
+                    (await revision.imports).map(async (imp: FileImport) => {
                         const impDto = new ImportDTO();
                         impDto.id = imp.id;
                         impDto.revision_id = (await imp.revision).id;
                         impDto.mime_type = imp.mime_type;
                         impDto.filename = imp.filename;
                         impDto.hash = imp.hash;
-                        impDto.uploaded_at = imp.uploaded_at.toISOString();
+                        impDto.uploadedAt = imp.uploadedAt.toISOString();
                         impDto.type = imp.type;
                         impDto.location = imp.location;
                         impDto.sources = await Promise.all(
@@ -356,13 +356,13 @@ export class DatasetDTO {
                 revDto.approved_by = (await revision.approvedBy)?.name || undefined;
                 revDto.created_by = (await revision.createdBy)?.name;
                 revDto.imports = await Promise.all(
-                    (await revision.imports).map((imp: Import) => {
+                    (await revision.imports).map((imp: FileImport) => {
                         const impDto = new ImportDTO();
                         impDto.id = imp.id;
                         impDto.mime_type = imp.mime_type;
                         impDto.filename = imp.filename;
                         impDto.hash = imp.hash;
-                        impDto.uploaded_at = imp.uploaded_at.toISOString();
+                        impDto.uploadedAt = imp.uploadedAt.toISOString();
                         impDto.type = imp.type;
                         impDto.location = imp.location;
                         return impDto;

@@ -5,7 +5,7 @@ import { Logger } from 'pino';
 import { Dataset } from './entities/dataset';
 import { DatasetInfo } from './entities/dataset_info';
 import { Revision } from './entities/revision';
-import { Import } from './entities/import';
+import { FileImport } from './entities/import_file';
 import { CsvInfo } from './entities/csv_info';
 import { Source } from './entities/source';
 import { Dimension } from './entities/dimension';
@@ -39,7 +39,7 @@ class DatabaseManager {
     async initializeDataSource() {
         this.dataSource = new DataSource({
             ...this.datasourceOptions,
-            entities: [Dataset, DatasetInfo, Revision, Import, CsvInfo, Source, Dimension, DimensionInfo, User]
+            entities: [Dataset, DatasetInfo, Revision, FileImport, CsvInfo, Source, Dimension, DimensionInfo, User]
         });
 
         await this.dataSource

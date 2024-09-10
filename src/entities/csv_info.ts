@@ -1,7 +1,7 @@
 import { Entity, PrimaryColumn, Column, BaseEntity, ManyToOne, JoinColumn } from 'typeorm';
 
 // eslint-disable-next-line import/no-cycle
-import { Import } from './import';
+import { FileImport } from './import_file';
 
 @Entity()
 export class CsvInfo extends BaseEntity {
@@ -17,10 +17,10 @@ export class CsvInfo extends BaseEntity {
     @Column({ type: 'varchar', length: 2 })
     linebreak: string;
 
-    @ManyToOne(() => Import, (importEntity) => importEntity.csvInfo, {
+    @ManyToOne(() => FileImport, (importEntity) => importEntity.csvInfo, {
         onDelete: 'CASCADE',
         orphanedRowAction: 'delete'
     })
     @JoinColumn({ name: 'import_id' })
-    import: Promise<Import>;
+    import: Promise<FileImport>;
 }

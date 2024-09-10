@@ -16,8 +16,8 @@ import { CsvInfo } from './csv_info';
 // eslint-disable-next-line import/no-cycle
 import { Source } from './source';
 
-@Entity()
-export class Import extends BaseEntity {
+@Entity({ name: 'file_import', orderBy: { uploadedAt: 'ASC' } })
+export class FileImport extends BaseEntity {
     @PrimaryGeneratedColumn('uuid')
     id: string;
 
@@ -43,8 +43,8 @@ export class Import extends BaseEntity {
     @Column({ type: 'varchar', length: 255 })
     hash: string;
 
-    @CreateDateColumn()
-    uploaded_at: Date;
+    @CreateDateColumn({ name: 'uploaded_at' })
+    uploadedAt: Date;
 
     @Column({
         type: process.env.NODE_ENV === 'test' ? 'text' : 'enum',
@@ -55,7 +55,7 @@ export class Import extends BaseEntity {
 
     @Column({
         type: process.env.NODE_ENV === 'test' ? 'text' : 'enum',
-        enum: ['BlobStorage', 'Datalake'],
+        enum: ['BlobStorage', 'Datalake', 'Unknown'],
         nullable: false
     })
     location: string;

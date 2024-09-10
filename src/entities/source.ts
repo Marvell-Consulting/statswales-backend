@@ -3,7 +3,7 @@ import { Entity, PrimaryGeneratedColumn, Column, BaseEntity, ManyToOne, JoinColu
 // eslint-disable-next-line import/no-cycle
 import { Dimension } from './dimension';
 // eslint-disable-next-line import/no-cycle
-import { Import } from './import';
+import { FileImport } from './import_file';
 // eslint-disable-next-line import/no-cycle
 import { Revision } from './revision';
 import { SourceType } from './source_type';
@@ -20,13 +20,13 @@ export class Source extends BaseEntity {
     @JoinColumn({ name: 'dimension_id' })
     dimension: Promise<Dimension>;
 
-    @ManyToOne(() => Import, (importEntity) => importEntity.sources, {
+    @ManyToOne(() => FileImport, (importEntity) => importEntity.sources, {
         nullable: false,
         onDelete: 'CASCADE',
         orphanedRowAction: 'delete'
     })
     @JoinColumn({ name: 'import_id' })
-    import: Promise<Import>;
+    import: Promise<FileImport>;
 
     @ManyToOne(() => Revision, {
         onDelete: 'CASCADE',
