@@ -23,7 +23,7 @@ const { TEST_DB_HOST, TEST_DB_PORT, TEST_DB_USERNAME, TEST_DB_PASSWORD, TEST_DB_
 const testDataSourceOpts: DataSourceOptions = {
     type: 'postgres',
     host: TEST_DB_HOST,
-    port: parseInt(TEST_DB_PORT || '5432', 10),
+    port: parseInt(TEST_DB_PORT || '5433', 10),
     username: TEST_DB_USERNAME,
     password: TEST_DB_PASSWORD,
     database: TEST_DB_DATABASE,
