@@ -5,7 +5,7 @@ import { SourceAction } from '../enums/source-action';
 // eslint-disable-next-line import/no-cycle
 import { Dimension } from './dimension';
 // eslint-disable-next-line import/no-cycle
-import { Import } from './import';
+import { FileImport } from './import-file';
 // eslint-disable-next-line import/no-cycle
 import { Revision } from './revision';
 import { SourceType } from './source_type';
@@ -22,13 +22,13 @@ export class Source extends BaseEntity {
     @JoinColumn({ name: 'dimension_id', foreignKeyConstraintName: 'FK_source_dimension_id' })
     dimension: Promise<Dimension>;
 
-    @ManyToOne(() => Import, (importEntity) => importEntity.sources, {
+    @ManyToOne(() => FileImport, (importEntity) => importEntity.sources, {
         nullable: false,
         onDelete: 'CASCADE',
         orphanedRowAction: 'delete'
     })
     @JoinColumn({ name: 'import_id', foreignKeyConstraintName: 'FK_source_import_id' })
-    import: Promise<Import>;
+    import: Promise<FileImport>;
 
     @ManyToOne(() => Revision, {
         onDelete: 'CASCADE',
@@ -51,10 +51,6 @@ export class Source extends BaseEntity {
     @Column({ type: 'enum', enum: Object.values(SourceAction), nullable: false })
     action: string;
 
-    @Column({
-        type: process.env.NODE_ENV === 'test' ? 'text' : 'enum',
-        enum: Object.keys(SourceType),
-        nullable: true
-    })
+    @Column({ type: 'enum', enum: Object.keys(SourceType), nullable: true })
     type: SourceType;
 }

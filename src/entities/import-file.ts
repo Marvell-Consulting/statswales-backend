@@ -19,8 +19,8 @@ import { CsvInfo } from './csv-info';
 // eslint-disable-next-line import/no-cycle
 import { Source } from './source';
 
-@Entity()
-export class Import extends BaseEntity {
+@Entity({ name: 'file_import', orderBy: { uploadedAt: 'ASC' } })
+export class FileImport extends BaseEntity {
     @PrimaryGeneratedColumn('uuid', { primaryKeyConstraintName: 'PK_import_id' })
     id: string;
 
