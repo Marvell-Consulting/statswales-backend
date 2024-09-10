@@ -88,7 +88,7 @@ export class ImportDTO {
     mime_type: string;
     filename: string;
     hash: string;
-    uploaded_at: string;
+    uploadedAt: string;
     type: string;
     location: string;
     sources?: SourceDTO[];

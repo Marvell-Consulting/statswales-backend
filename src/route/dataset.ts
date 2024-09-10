@@ -340,29 +340,6 @@ router.get('/:dataset_id/revision/by-id/:revision_id/import/by-id/:import_id', a
     res.json(dto);
 });
 
-// GET /api/dataset/:dataset_id/revision/id/:revision_id/import/id/:import_id/sources
-// Returns details of an import with its sources
-apiRoute.get(
-    '/:dataset_id/revision/by-id/:revision_id/import/by-id/:import_id/sources',
-    async (req: Request, res: Response) => {
-        const datasetID: string = req.params.dataset_id;
-        const dataset = await validateDataset(datasetID, res);
-        if (!dataset) return;
-        const revisionID: string = req.params.revision_id;
-        const revision = await validateRevision(revisionID, res);
-        if (!revision) return;
-        const importID: string = req.params.import_id;
-        const importRecord = await validateImport(importID, res);
-        if (!importRecord) return;
-        const sources = await importRecord.sources;
-        const dtos: SourceDTO[] = [];
-        for (const source of sources) {
-            dtos.push(await SourceDTO.fromSource(source));
-        }
-        res.json(dtos);
-    }
-);
-
 // GET /api/dataset/:dataset_id/revision/id/:revision_id/import/id/:import_id/preview
 // Returns a view of the data file attached to the import
 router.get(
