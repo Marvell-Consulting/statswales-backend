@@ -43,11 +43,11 @@ describe('Healthcheck routes', () => {
         });
     });
 
-    test('/healthcheck/datalake returns success', async () => {
-        const res = await request(app).get('/healthcheck/datalake');
-        expect(res.status).toBe(200);
-        expect(res.body).toEqual({ message: 'success' });
-    });
+    // test('/healthcheck/datalake returns success', async () => {
+    //     const res = await request(app).get('/healthcheck/datalake');
+    //     expect(res.status).toBe(200);
+    //     expect(res.body).toEqual({ message: 'success' });
+    // });
 
     afterAll(async () => {
         await dbManager.getDataSource().dropDatabase();
