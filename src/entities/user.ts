@@ -1,50 +1,38 @@
-import { Entity, PrimaryGeneratedColumn, Column, BaseEntity } from 'typeorm';
+import { BaseEntity, Column, CreateDateColumn, Entity, Index, PrimaryGeneratedColumn, UpdateDateColumn } from 'typeorm';
 
 @Entity({ name: 'users' })
+@Index('UX_user_provider_provider_user_id', ['provider', 'providerUserId'], { unique: true })
 export class User extends BaseEntity {
-    @PrimaryGeneratedColumn('uuid')
+    @PrimaryGeneratedColumn('uuid', { primaryKeyConstraintName: 'PK_user_id' })
     id: string;
 
-    @Column({ unique: true })
+    @Index('IX_user_provider')
+    @Column({ name: 'provider' })
+    provider: string;
+
+    @Column({ name: 'provider_user_id' })
+    providerUserId: string;
+
+    @Index('UX_user_email', { unique: true })
+    @Column({ name: 'email' })
     email: string;
 
-    @Column({ nullable: true })
-    name: string;
+    @Column({ name: 'email_verified', default: false })
+    emailVerified: boolean;
 
-    @Column({ nullable: true })
-    givenName: string;
+    @Column({ name: 'given_name', nullable: true })
+    givenName?: string;
 
-    @Column({ nullable: true })
-    lastName: string;
+    @Column({ name: 'family_name', nullable: true })
+    familyName?: string;
 
-    @Column({
-        name: 'created_at',
-        type: process.env.NODE_ENV === 'test' ? 'datetime' : 'timestamptz',
-        default: () => 'CURRENT_TIMESTAMP'
-    })
+    @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
     createdAt: Date;
 
-    @Column({
-        name: 'updated_at',
-        type: process.env.NODE_ENV === 'test' ? 'datetime' : 'timestamptz',
-        default: () => 'CURRENT_TIMESTAMP',
-        onUpdate: 'CURRENT_TIMESTAMP'
-    })
+    @UpdateDateColumn({ name: 'updated_at', type: 'timestamptz' })
     updatedAt: Date;
 
-    @Column({ type: 'boolean', default: true })
-    active: boolean;
-
-    public static getTestUser(): User {
-        const user = new User();
-        user.id = '12345678-1234-1234-1234-123456789012';
-        user.email = 'test@test.com';
-        user.name = 'Test User';
-        user.givenName = 'Test';
-        user.lastName = 'User';
-        user.createdAt = new Date();
-        user.updatedAt = new Date();
-        user.active = true;
-        return user;
+    get name(): string {
+        return `${this.givenName} ${this.familyName}`;
     }
 }

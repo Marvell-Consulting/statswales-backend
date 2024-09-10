@@ -3,19 +3,14 @@ import { URL } from 'node:url';
 import { RequestHandler } from 'express';
 import passport from 'passport';
 import jwt from 'jsonwebtoken';
-import { pick } from 'lodash';
 
 import { logger } from '../utils/logger';
-import { User } from '../entity/user';
+import { User } from '../entities/user';
+import { sanitiseUser } from '../utils/sanitise-user';
 
 const returnURL = `${process.env.FRONTEND_URL}/auth/callback`;
 const domain = new URL(process.env.BACKEND_URL || '').hostname;
 const DEFAULT_TOKEN_EXPIRY = '1d';
-
-// strip anything from the user object that we do not want to expose to the frontend app
-const sanitiseUser = (user: User): Partial<User> => {
-    return pick(user, ['id', 'email', 'givenName', 'familyName']);
-};
 
 export const loginGoogle: RequestHandler = (req, res, next) => {
     logger.debug('attempting to authenticate with google...');

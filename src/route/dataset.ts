@@ -1,5 +1,3 @@
-/* eslint-disable no-warning-comments */
-
 import { randomUUID } from 'crypto';
 import { Readable } from 'stream';
 
@@ -19,7 +17,7 @@ import {
 } from '../controllers/csv-processor';
 import { User } from '../entities/user';
 import { Dataset } from '../entities/dataset';
-import { DatasetInfo } from '../entities/dataset_info';
+import { DatasetInfo } from '../entities/dataset-info';
 import { Dimension } from '../entities/dimension';
 import { Revision } from '../entities/revision';
 import { Import } from '../entities/import';
@@ -29,7 +27,9 @@ import { DatasetDTO, DimensionDTO, RevisionDTO } from '../dtos/dataset-dto';
 const t = i18next.t;
 const storage = multer.memoryStorage();
 const upload = multer({ storage });
-export const apiRoute = Router();
+
+const router = Router();
+export const datasetRouter = router;
 
 const DATASET = 'Dataset';
 const REVISION = 'Revision';
@@ -129,16 +129,17 @@ function errorDtoGenerator(
     };
 }
 
-// POST /api/dataset
+// POST /dataset
 // Upload a CSV file to the server
 // Returns a JSON object with the a DTO object that represents the dataset
 // first revision and the import record.
-apiRoute.post('/', upload.single('csv'), async (req: Request, res: Response) => {
+router.post('/', upload.single('csv'), async (req: Request, res: Response) => {
     if (!req.file) {
         res.status(400);
         res.json(errorDtoGenerator('csv', 'errors.no_csv_data'));
         return;
     }
+
     const lang: string = req.body?.language || req.i18n.language;
     const title: string = req.body?.title;
     if (!title) {
@@ -146,6 +147,7 @@ apiRoute.post('/', upload.single('csv'), async (req: Request, res: Response) => 
         res.json(errorDtoGenerator('title', 'errors.no_title'));
         return;
     }
+
     let importRecord: Import;
     try {
         importRecord = await uploadCSVBufferToBlobStorage(req.file.buffer, req.file?.mimetype);
@@ -159,13 +161,15 @@ apiRoute.post('/', upload.single('csv'), async (req: Request, res: Response) => 
     // Everything looks good so far, let's create the dataset and revision records
     const dataset = new Dataset();
     dataset.id = randomUUID();
-    dataset.creation_date = new Date();
-    const user = await User.findOneBy({ id: User.getTestUser().id });
-    if (user === null) {
+    dataset.creationDate = new Date();
+
+    // req.user is set from the JWT token in the passport-auth middleware
+    const user = req.user as User;
+
+    if (!user) {
         throw new Error('Test user not found');
     }
-    // TODO change how we handle authentication to get the user on the Backend
-    // We are using a stub test user for all requests at the moment
+
     dataset.createdBy = Promise.resolve(user);
     const datasetInfo = new DatasetInfo();
     datasetInfo.language = lang;
@@ -181,16 +185,17 @@ apiRoute.post('/', upload.single('csv'), async (req: Request, res: Response) => 
     importRecord.revision = Promise.resolve(revision);
     revision.imports = Promise.resolve([importRecord]);
     await dataset.save();
+
     const uploadDTO = await DatasetDTO.fromDatasetWithRevisionsAndImports(dataset);
     res.status(201);
     res.json(uploadDTO);
 });
 
-// GET /api/dataset
+// GET /dataset
 // Returns a list of all datasets
 // Returns a JSON object with a list of all datasets
 // and their titles
-apiRoute.get('/', async (req: Request, res: Response) => {
+router.get('/', async (req: Request, res: Response) => {
     const datasets = await Dataset.find();
     const fileList: FileDescription[] = [];
     for (const dataset of datasets) {
@@ -213,7 +218,7 @@ apiRoute.get('/', async (req: Request, res: Response) => {
 // GET /api/dataset/:dataset_id
 // Returns a shallow dto of the dataset with the given ID
 // Shallow gives the revisions and dimensions of the dataset only
-apiRoute.get('/:dataset_id', async (req: Request, res: Response) => {
+router.get('/:dataset_id', async (req: Request, res: Response) => {
     const datasetID: string = req.params.dataset_id;
     const dataset = await validateDataset(datasetID, res);
     if (!dataset) return;
@@ -223,7 +228,7 @@ apiRoute.get('/:dataset_id', async (req: Request, res: Response) => {
 
 // GET /api/dataset/:dataset_id/view
 // Returns a view of the data file attached to the import
-apiRoute.get('/:dataset_id/view', async (req: Request, res: Response) => {
+router.get('/:dataset_id/view', async (req: Request, res: Response) => {
     const datasetID: string = req.params.dataset_id;
     const dataset = await validateDataset(datasetID, res);
     if (!dataset) return;
@@ -240,7 +245,7 @@ apiRoute.get('/:dataset_id/view', async (req: Request, res: Response) => {
     }
     const latestImport = await Import.findOne({
         where: [{ revision: latestRevision[0] }],
-        order: { uploaded_at: 'DESC' }
+        order: { uploadedAt: 'DESC' }
     });
     if (!latestImport) {
         logger.error('Unable to find the last import record');
@@ -270,7 +275,7 @@ apiRoute.get('/:dataset_id/view', async (req: Request, res: Response) => {
 
 // GET /api/dataset/:dataset_id/dimension/id/:dimension_id
 // Returns details of a dimension with its sources and imports
-apiRoute.get('/:dataset_id/dimension/by-id/:dimension_id', async (req: Request, res: Response) => {
+router.get('/:dataset_id/dimension/by-id/:dimension_id', async (req: Request, res: Response) => {
     const datasetID: string = req.params.dataset_id;
     const dataset = await validateDataset(datasetID, res);
     if (!dataset) return;
@@ -283,7 +288,7 @@ apiRoute.get('/:dataset_id/dimension/by-id/:dimension_id', async (req: Request, 
 
 // GET /api/dataset/:dataset_id/revision/id/:revision_id
 // Returns details of a revision with its imports
-apiRoute.get('/:dataset_id/revision/by-id/:revision_id', async (req: Request, res: Response) => {
+router.get('/:dataset_id/revision/by-id/:revision_id', async (req: Request, res: Response) => {
     const datasetID: string = req.params.dataset_id;
     const dataset = await validateDataset(datasetID, res);
     if (!dataset) return;
@@ -296,7 +301,7 @@ apiRoute.get('/:dataset_id/revision/by-id/:revision_id', async (req: Request, re
 
 // GET /api/dataset/:dataset_id/revision/id/:revision_id/import/id/:import_id/preview
 // Returns a view of the data file attached to the import
-apiRoute.get(
+router.get(
     '/:dataset_id/revision/by-id/:revision_id/import/by-id/:import_id/preview',
     async (req: Request, res: Response) => {
         const datasetID: string = req.params.dataset_id;
@@ -331,7 +336,7 @@ apiRoute.get(
 
 // GET /api/dataset/:dataset_id/revision/id/:revision_id/import/id/:import_id/raw
 // Returns the original uploaded file back to the client
-apiRoute.get(
+router.get(
     '/:dataset_id/revision/by-id/:revision_id/import/by-id/:import_id/raw',
     async (req: Request, res: Response) => {
         const datasetID: string = req.params.dataset_id;

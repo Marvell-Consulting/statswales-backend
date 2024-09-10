@@ -70,7 +70,7 @@ npm run migration:generate -- ./src/migration/<name>
 
 e.g.
 ```bash
-npm run migration:generate -- ./src/migration/create_user_table
+npm run migration:generate -- ./src/migration/initial-schema
 ```
 
 ## Deploying the service

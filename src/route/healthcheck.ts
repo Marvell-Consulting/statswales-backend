@@ -1,24 +1,31 @@
 import { Router } from 'express';
+import passport from 'passport';
 
 import { logger } from '../utils/logger';
 import { DataLakeService } from '../controllers/datalake';
+import { sanitiseUser } from '../utils/sanitise-user';
+import { User } from '../entities/user';
 
 const dataLakeService = new DataLakeService();
-export const healthcheck = Router();
+const healthcheck = Router();
 
-healthcheck.get('/', (req, res) => {
-    const lang = req.i18n.language || 'en-GB';
-    logger.info(`Healthcheck requested in ${lang}`);
-    let statusMsg = req.t('app-running');
+healthcheck.get('/basic', (req, res) => {
+    res.json({ message: 'success' });
+});
+
+healthcheck.get('/jwt', passport.authenticate('jwt', { session: false }), (req, res) => {
+    res.json({ message: 'success', user: sanitiseUser(req.user as User) });
+});
+
+healthcheck.get('/datalake', (req, res) => {
     try {
         dataLakeService.listFiles();
     } catch (err) {
-        logger.error(`Unable to connect to datalake.  Returned the following error:\n${err}`);
-        statusMsg = req.t('datalake-error');
+        logger.error(`Unable to connect to datalake: ${err}`);
+        res.status(500).json({ message: 'error' });
+        return;
     }
-
-    res.json({
-        status: statusMsg,
-        notes: req.t('health-notes')
-    });
+    res.json({ message: 'success' });
 });
+
+export const healthcheckRouter = healthcheck;

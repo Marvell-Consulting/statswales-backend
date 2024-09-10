@@ -127,7 +127,7 @@ export const uploadCSVToBlobStorage = async (fileStream: Readable, filetype: str
     }
     const importRecord = new Import();
     importRecord.id = randomUUID();
-    importRecord.mime_type = filetype;
+    importRecord.mimeType = filetype;
     const extension = filetype === 'text/csv' ? 'csv' : 'zip';
     importRecord.filename = `${importRecord.id}.${extension}`;
     try {
@@ -141,7 +141,7 @@ export const uploadCSVToBlobStorage = async (fileStream: Readable, filetype: str
         await blobStorageService.uploadFile(`${importRecord.filename}`, fileStream);
         const resolvedHash = await promisedHash;
         if (resolvedHash) importRecord.hash = resolvedHash;
-        importRecord.uploaded_at = new Date(Date.now());
+        importRecord.uploadedAt = new Date(Date.now());
         importRecord.type = 'Draft';
         importRecord.location = 'BlobStorage';
         return importRecord;

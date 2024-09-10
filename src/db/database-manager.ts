@@ -3,14 +3,16 @@ import 'reflect-metadata';
 import { Logger } from 'pino';
 import { DataSource, EntityManager } from 'typeorm';
 
+import { dataSource } from './data-source';
+
 class DatabaseManager {
     private entityManager: EntityManager;
     private dataSource: DataSource;
     private logger: Logger;
 
-    constructor(dataSource: DataSource, logger: Logger) {
-        this.dataSource = dataSource;
+    constructor(logger: Logger) {
         this.logger = logger;
+        this.dataSource = dataSource;
     }
 
     getDataSource() {
@@ -25,13 +27,13 @@ class DatabaseManager {
     }
 
     async initializeDataSource() {
+        this.logger.debug(`DB '${this.dataSource.options.database}' initializing...`);
+
         if (!this.dataSource.isInitialized) {
-            await this.dataSource
-                .initialize()
-                .then(() => this.logger.info('Data source initialized'))
-                .catch((error) => this.logger.error(error));
+            await this.dataSource.initialize().catch((error) => this.logger.error(error));
         }
 
+        this.logger.info(`DB '${this.dataSource.options.database}' initialized`);
         this.entityManager = this.dataSource.createEntityManager();
     }
 }

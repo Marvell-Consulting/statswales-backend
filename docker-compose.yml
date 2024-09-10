@@ -1,5 +1,5 @@
 services:
-  postgres:
+  db-dev:
     image: postgres:latest
     ports:
       - "5432:5432"
@@ -9,3 +9,12 @@ services:
       POSTGRES_DB: statswales-backend
     volumes:
       - .docker/postgres/data:/var/lib/postgresql/data
+
+  db-test:
+    image: postgres:latest
+    ports:
+      - "5433:5432"
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: statswales-backend-test

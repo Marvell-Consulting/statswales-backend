@@ -3,9 +3,9 @@ import { Entity, PrimaryColumn, Column, BaseEntity, ManyToOne, JoinColumn } from
 // eslint-disable-next-line import/no-cycle
 import { Import } from './import';
 
-@Entity()
+@Entity({ name: 'csv_info' })
 export class CsvInfo extends BaseEntity {
-    @PrimaryColumn({ name: 'import_id', type: process.env.NODE_ENV === 'test' ? 'text' : 'uuid' })
+    @PrimaryColumn({ name: 'import_id', type: 'uuid', primaryKeyConstraintName: 'PK_csv_info_import_id' })
     id: string;
 
     @Column({ type: 'varchar', length: 1 })
@@ -21,6 +21,6 @@ export class CsvInfo extends BaseEntity {
         onDelete: 'CASCADE',
         orphanedRowAction: 'delete'
     })
-    @JoinColumn({ name: 'import_id' })
+    @JoinColumn({ name: 'import_id', foreignKeyConstraintName: 'FK_csv_info_import_id' })
     import: Promise<Import>;
 }
