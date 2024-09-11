@@ -3,7 +3,9 @@ import { Readable } from 'stream';
 
 import { DataLakeServiceClient, StorageSharedKeyCredential } from '@azure/storage-file-datalake';
 
-import { logger } from '../utils/logger';
+import { logger as parentLogger } from '../utils/logger';
+
+const logger = parentLogger.child({ module: 'DataLakeService' });
 
 const accountName = process.env.AZURE_DATALAKE_STORAGE_ACCOUNT_NAME || 'your-storage-account-name';
 const accountKey = process.env.AZURE_DATALAKE_STORAGE_ACCOUNT_KEY || 'your-storage';
