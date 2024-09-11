@@ -3,18 +3,19 @@ import { Readable } from 'stream';
 
 import { parse } from 'csv';
 
-import { i18next, ENGLISH, WELSH } from '../middleware/translation';
+import { ENGLISH, i18next, WELSH } from '../middleware/translation';
 import { logger as parentLogger } from '../utils/logger';
-import { DatasetDTO, ImportDTO } from '../dtos/dataset-dto';
+import { DatasetDTO, ImportDTO, RevisionDTO } from '../dtos/dataset-dto';
 import { Error } from '../dtos/error';
-import { CSVHeader, ViewStream, ViewDTO, ViewErrDTO } from '../dtos/view-dto';
+import { CSVHeader, ViewDTO, ViewErrDTO, ViewStream } from '../dtos/view-dto';
 import { Dataset } from '../entities/dataset';
 import { Revision } from '../entities/revision';
 import { Source } from '../entities/source';
-import { FileImport } from '../entities/import-file';
+import { FileImport } from '../entities/file-import';
 
 import { BlobStorageService } from './blob-storage';
 import { DataLakeService } from './datalake';
+import { SourceAction } from '../enums/source-action';
 
 export const MAX_PAGE_SIZE = 500;
 export const MIN_PAGE_SIZE = 5;
@@ -398,7 +399,7 @@ export const createSources = async (importObj: FileImport): Promise<RevisionDTO>
         const source = new Source();
         source.columnIndex = header.index;
         source.csvField = header.name;
-        source.action = 'unknwon';
+        source.action = SourceAction.UNKNOWN;
         source.revision = Promise.resolve(revision);
         source.import = Promise.resolve(importObj);
         sources.push(source);

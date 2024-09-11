@@ -5,12 +5,16 @@ import request from 'supertest';
 
 import { DataLakeService } from '../src/controllers/datalake';
 import { BlobStorageService } from '../src/controllers/blob-storage';
-import app, { ENGLISH, WELSH, i18n, dbManager, databaseManager } from '../src/app';
+import app, { initDb } from '../src/app';
+import { t, ENGLISH, WELSH } from '../src/middleware/translation';
 import { Revision } from '../src/entities/revision';
-import { FileImport } from '../src/entities/import-file';
+import { FileImport } from '../src/entities/file-import';
+import DatabaseManager from '../src/db/database-manager';
 
 import { createFullDataset, createSmallDataset } from './helpers/test-helper';
-import { datasourceOptions } from './helpers/test-data-source';
+import { User } from "../src/entities/user";
+import { getTestUser } from "./helpers/get-user";
+import { getAuthHeader } from "./helpers/auth-header";
 
 DataLakeService.prototype.listFiles = jest
     .fn()
@@ -20,16 +24,17 @@ BlobStorageService.prototype.uploadFile = jest.fn();
 
 DataLakeService.prototype.uploadFile = jest.fn();
 
-const dataset1Id = 'BDC40218-AF89-424B-B86E-D21710BC92F1';
-const revision1Id = '85F0E416-8BD1-4946-9E2C-1C958897C6EF';
-const import1Id = 'FA07BE9D-3495-432D-8C1F-D0FC6DAAE359';
-const dimension1Id = '2D7ACD0B-A46A-43F7-8A88-224CE97FC8B9';
+const dataset1Id = 'BDC40218-AF89-424B-B86E-D21710BC92F1'.toLowerCase();
+const revision1Id = '85F0E416-8BD1-4946-9E2C-1C958897C6EF'.toLowerCase();
+const import1Id = 'FA07BE9D-3495-432D-8C1F-D0FC6DAAE359'.toLowerCase();
+const user: User = getTestUser('test', 'user');
 
 describe('API Endpoints for viewing the contents of a dataset', () => {
+    let dbManager: DatabaseManager;
     beforeAll(async () => {
-        await databaseManager(datasourceOptions);
-        await dbManager.initializeDataSource();
-        await createFullDataset(dataset1Id, revision1Id, import1Id, dimension1Id);
+        dbManager = await initDb();
+        await user.save();
+        await createFullDataset(dataset1Id, revision1Id, import1Id, user);
     });
 
     test('Get file from a dataset, stored in blobStorage, returns 200 and complete file data', async () => {
@@ -39,6 +44,7 @@ describe('API Endpoints for viewing the contents of a dataset', () => {
 
         const res = await request(app)
             .get(`/en-GB/dataset/${dataset1Id}/view`)
+            .set(getAuthHeader(user))
             .query({ page_number: 2, page_size: 100 });
         expect(res.status).toBe(200);
         expect(res.body.current_page).toBe(2);
@@ -67,6 +73,7 @@ describe('API Endpoints for viewing the contents of a dataset', () => {
 
         const res = await request(app)
             .get(`/en-GB/dataset/${dataset1Id}/view`)
+            .set(getAuthHeader(user))
             .query({ page_number: 2, page_size: 100 });
         expect(res.status).toBe(200);
         expect(res.body.current_page).toBe(2);
@@ -92,6 +99,7 @@ describe('API Endpoints for viewing the contents of a dataset', () => {
 
         const res = await request(app)
             .get(`/en-GB/dataset/${dataset1Id}/view`)
+            .set(getAuthHeader(user))
             .query({ page_number: 2, page_size: 100 });
         expect(res.status).toBe(500);
         expect(res.body).toEqual({ message: 'Import location not supported.' });
@@ -108,6 +116,7 @@ describe('API Endpoints for viewing the contents of a dataset', () => {
 
         const res = await request(app)
             .get(`/en-GB/dataset/${dataset1Id}/view`)
+            .set(getAuthHeader(user))
             .query({ page_number: 2, page_size: 100 });
         expect(res.status).toBe(500);
         expect(res.body).toEqual({
@@ -116,8 +125,8 @@ describe('API Endpoints for viewing the contents of a dataset', () => {
                 {
                     field: 'csv',
                     message: [
-                        { lang: ENGLISH, message: i18n.t('errors.download_from_blobstorage', { lng: ENGLISH }) },
-                        { lang: WELSH, message: i18n.t('errors.download_from_blobstorage', { lng: WELSH }) }
+                        { lang: ENGLISH, message: t('errors.download_from_blobstorage', { lng: ENGLISH }) },
+                        { lang: WELSH, message: t('errors.download_from_blobstorage', { lng: WELSH }) }
                     ],
                     tag: { name: 'errors.download_from_blobstorage', params: {} }
                 }
@@ -129,7 +138,7 @@ describe('API Endpoints for viewing the contents of a dataset', () => {
     test('Get a dataset view returns 500 if there is no revision on the dataset', async () => {
         const removeRevisionDatasetID = crypto.randomUUID();
         const revisionID = crypto.randomUUID();
-        await createSmallDataset(removeRevisionDatasetID, revisionID, crypto.randomUUID());
+        await createSmallDataset(removeRevisionDatasetID, revisionID, crypto.randomUUID(), user);
         const revision = await Revision.findOneBy({ id: revisionID });
         if (!revision) {
             throw new Error('Revision not found... Either it was not created or the test is broken');
@@ -137,6 +146,7 @@ describe('API Endpoints for viewing the contents of a dataset', () => {
         await Revision.remove(revision);
         const res = await request(app)
             .get(`/en-GB/dataset/${removeRevisionDatasetID}/view`)
+            .set(getAuthHeader(user))
             .query({ page_number: 2, page_size: 100 });
         expect(res.status).toBe(500);
         expect(res.body).toEqual({ message: 'No revision found for dataset' });
@@ -145,7 +155,7 @@ describe('API Endpoints for viewing the contents of a dataset', () => {
     test('Get a dataset view returns 500 if there is no import on the dataset', async () => {
         const removeRevisionDatasetID = crypto.randomUUID();
         const importId = crypto.randomUUID();
-        await createSmallDataset(removeRevisionDatasetID, crypto.randomUUID(), importId);
+        await createSmallDataset(removeRevisionDatasetID, crypto.randomUUID(), importId, user);
         const fileImport = await FileImport.findOneBy({ id: importId });
         if (!fileImport) {
             throw new Error('Revision not found... Either it was not created or the test is broken');
@@ -153,18 +163,20 @@ describe('API Endpoints for viewing the contents of a dataset', () => {
         await FileImport.remove(fileImport);
         const res = await request(app)
             .get(`/en-GB/dataset/${removeRevisionDatasetID}/view`)
+            .set(getAuthHeader(user))
             .query({ page_number: 2, page_size: 100 });
         expect(res.status).toBe(500);
         expect(res.body).toEqual({ message: 'No import record found for dataset' });
     });
 
     test('Get file view returns 400 when a not valid UUID is supplied', async () => {
-        const res = await request(app).get(`/en-GB/dataset/NOT-VALID-ID`);
+        const res = await request(app).get(`/en-GB/dataset/NOT-VALID-ID`).set(getAuthHeader(user));
         expect(res.status).toBe(400);
         expect(res.body).toEqual({ message: 'Dataset ID is not valid' });
     });
 
     afterAll(async () => {
         await dbManager.getDataSource().dropDatabase();
+        await dbManager.getDataSource().destroy();
     });
 });

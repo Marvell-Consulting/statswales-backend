@@ -16,7 +16,7 @@ import { User } from './user';
 // eslint-disable-next-line import/no-cycle
 import { Source } from './source';
 // eslint-disable-next-line import/no-cycle
-import { FileImport } from './import-file';
+import { FileImport } from './file-import';
 
 @Entity({ name: 'revision', orderBy: { creationDate: 'ASC' } })
 export class Revision extends BaseEntity implements RevisionInterface {

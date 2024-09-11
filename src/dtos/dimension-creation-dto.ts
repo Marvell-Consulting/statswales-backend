@@ -1,4 +1,4 @@
-import { SourceType } from '../entities/source_type';
+import { SourceType } from '../enums/source-type';
 
 export interface DimensionCreationDTO {
     sourceId: string;

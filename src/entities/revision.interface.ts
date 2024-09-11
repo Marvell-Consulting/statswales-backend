@@ -1,6 +1,6 @@
 // eslint-disable-next-line import/no-cycle
 import { Dataset } from './dataset';
-import { Import } from './import';
+import { FileImport } from './file-import';
 import { User } from './user';
 
 export interface RevisionInterface {
@@ -14,5 +14,5 @@ export interface RevisionInterface {
     approvalDate: Date;
     approvedBy: Promise<User>;
     createdBy: Promise<User>;
-    imports: Promise<Import[]>;
+    imports: Promise<FileImport[]>;
 }

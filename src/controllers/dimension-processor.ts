@@ -1,13 +1,13 @@
 import { DimensionCreationDTO } from '../dtos/dimension-creation-dto';
 import { Dataset } from '../entities/dataset';
 import { Dimension } from '../entities/dimension';
-import { DimensionInfo } from '../entities/dimension_info';
-import { DimensionType } from '../entities/dimension_type';
+import { DimensionInfo } from '../entities/dimension-info';
+import { DimensionType } from '../enums/dimension-type';
 import { Revision } from '../entities/revision';
 import { Source } from '../entities/source';
-import { SourceType } from '../entities/source_type';
-// eslint-disable-next-line import/no-cycle
-import { t, i18n } from '../app';
+import { SourceType } from '../enums/source-type';
+import { i18next, t } from '../middleware/translation';
+import { SourceAction } from '../enums/source-action';
 
 export interface ValidatedDimensionCreationRequest {
     datavalues: DimensionCreationDTO | null;
@@ -34,29 +34,29 @@ export const validateDimensionCreationRequest = async (
                     if (datavalues) {
                         throw new Error('Only one DataValues source can be specified');
                     }
-                    source.action = 'create';
+                    source.action = SourceAction.CREATE;
                     datavalues = sourceInfo;
                     break;
                 case SourceType.FOOTNOTES:
                     if (footnotes) {
                         throw new Error('Footnotes source can only be used for adding footnotes');
                     }
-                    source.action = 'create';
+                    source.action = SourceAction.CREATE;
                     footnotes = sourceInfo;
                     break;
                 case SourceType.DIMENSION:
-                    source.action = 'create';
+                    source.action = SourceAction.CREATE;
                     dimensions.push(sourceInfo);
                     break;
                 case SourceType.IGNORE:
-                    source.action = 'ignore';
+                    source.action = SourceAction.IGNORE;
                     ignore.push(sourceInfo);
                     break;
                 default:
                     throw new Error(`Invalid source type: ${sourceInfo.sourceType}`);
             }
             source.type = sourceInfo.sourceType;
-            source.save();
+            await source.save();
         })
     );
     return { datavalues, footnotes, dimensions, ignore };
@@ -71,7 +71,7 @@ export const createDimensions = async (
     if (footnotes) {
         const footnoteDimension = new Dimension();
         const footnoteDimensionInfo: DimensionInfo[] = [];
-        const langs = i18n.languages;
+        const langs = i18next.languages;
         const updateDate = new Date(Date.now());
         langs.forEach((lang) => {
             const dimensionInfo = new DimensionInfo();
@@ -99,12 +99,12 @@ export const createDimensions = async (
         const dimension = new Dimension();
         dimension.type = DimensionType.RAW;
         const dimensionInfo: DimensionInfo[] = [];
-        const langs = i18n.languages;
+        const langs = i18next.languages;
         const source = await Source.findOne({ where: { id: dimensionCreationDTO.sourceId } });
         if (!source) {
             throw new Error(`Source with id ${dimensionCreationDTO.sourceId} not found`);
         }
-        langs.forEach((lang) => {
+        langs.forEach((lang: string) => {
             const dimensionInfoEntity = new DimensionInfo();
             dimensionInfoEntity.dimension = Promise.resolve(dimension);
             dimensionInfoEntity.language = lang;
