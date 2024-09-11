@@ -1,70 +1,45 @@
-/* eslint-disable import/no-cycle */
 import 'reflect-metadata';
 
-import pino, { Logger } from 'pino';
 import express, { Application, Request, Response } from 'express';
-import i18next from 'i18next';
-import Backend from 'i18next-fs-backend';
-import i18nextMiddleware from 'i18next-http-middleware';
-import { DataSourceOptions } from 'typeorm';
+import passport from 'passport';
 
-import { apiRoute } from './route/dataset-route';
-import { healthcheck } from './route/healthcheck';
-import DatabaseManager from './database-manager';
+import { logger, httpLogger } from './utils/logger';
+import DatabaseManager from './db/database-manager';
+import { i18next, i18nextMiddleware } from './middleware/translation';
+import { initPassport } from './middleware/passport-auth';
+import { rateLimiter } from './middleware/rate-limiter';
+import { authRouter } from './route/auth';
+import { healthcheckRouter } from './route/healthcheck';
+import { datasetRouter } from './route/dataset';
+import session from './middleware/session';
 
-// eslint-disable-next-line import/no-mutable-exports
-export let dbManager: DatabaseManager;
-
-// Logger handling and export
-export const logger: Logger = pino({
-    name: 'StatsWales-Alpha-App',
-    level: 'debug'
-});
-
-// Database handling and export
-export const databaseManager = async (datasourceOptions: DataSourceOptions) => {
-    dbManager = new DatabaseManager(datasourceOptions, logger);
+export const initDb = async (): Promise<DatabaseManager> => {
+    const dbManager = new DatabaseManager(logger);
     await dbManager.initializeDataSource();
+    await initPassport(dbManager.getDataSource().getRepository('User'));
+    return dbManager;
 };
-
-// Languague handling and exports
-i18next
-    .use(Backend)
-    .use(i18nextMiddleware.LanguageDetector)
-    .init({
-        detection: {
-            order: ['path', 'header'],
-            lookupHeader: 'accept-language',
-            caches: false,
-            ignoreRoutes: ['/healthcheck', '/public', '/css', '/assets']
-        },
-        backend: {
-            loadPath: `${__dirname}/resources/locales/{{lng}}.json`
-        },
-        fallbackLng: 'en-GB',
-        preload: ['en-GB', 'cy-GB'],
-        debug: false
-    });
-
-export const i18n = i18next;
-export const t = i18next.t;
-export const ENGLISH = 'en-GB';
-export const WELSH = 'cy-GB';
 
 const app: Application = express();
 
+app.disable('x-powered-by');
+
+app.use(httpLogger);
 app.use(i18nextMiddleware.handle(i18next));
-app.use('/:lang/dataset', apiRoute);
-app.use('/:lang/healthcheck', healthcheck);
-app.use('/healthcheck', healthcheck);
+app.use(express.json());
+app.use(session);
+
+app.use('/auth', rateLimiter, authRouter);
+app.use('/healthcheck', rateLimiter, healthcheckRouter);
+app.use('/:lang/dataset', rateLimiter, passport.authenticate('jwt', { session: false }), datasetRouter);
 
 app.get('/', (req: Request, res: Response) => {
     const lang = req.headers['accept-language'] || req.headers['Accept-Language'] || req.i18n.language || 'en-GB';
     if (lang.includes('cy')) {
         res.redirect('/cy-GB/api');
-    } else {
-        res.redirect('/en-GB/api');
+        return;
     }
+    res.redirect('/en-GB/api');
 });
 
 export default app;

@@ -1,10 +1,10 @@
 import { Dataset } from '../entities/dataset';
 import { Dimension } from '../entities/dimension';
-import { DimensionInfo } from '../entities/dimension_info';
+import { DimensionInfo } from '../entities/dimension-info';
 import { Source } from '../entities/source';
 import { Import } from '../entities/import';
 import { Revision } from '../entities/revision';
-import { DatasetInfo } from '../entities/dataset_info';
+import { DatasetInfo } from '../entities/dataset-info';
 
 export class DatasetInfoDTO {
     language?: string;
@@ -85,10 +85,10 @@ export class ImportDTO {
         dto.id = importEntity.id;
         const revision = await importEntity.revision;
         dto.revision_id = revision.id;
-        dto.mime_type = importEntity.mime_type;
+        dto.mime_type = importEntity.mimeType;
         dto.filename = importEntity.filename;
         dto.hash = importEntity.hash;
-        dto.uploaded_at = importEntity.uploaded_at?.toISOString() || '';
+        dto.uploaded_at = importEntity.uploadedAt?.toISOString() || '';
         dto.type = importEntity.type;
         dto.location = importEntity.location;
         dto.sources = await Promise.all(
@@ -136,10 +136,10 @@ export class RevisionDTO {
                 const impDto = new ImportDTO();
                 impDto.id = imp.id;
                 impDto.revision_id = (await imp.revision).id;
-                impDto.mime_type = imp.mime_type;
+                impDto.mime_type = imp.mimeType;
                 impDto.filename = imp.filename;
                 impDto.hash = imp.hash;
-                impDto.uploaded_at = imp.uploaded_at.toISOString();
+                impDto.uploaded_at = imp.uploadedAt.toISOString();
                 impDto.type = imp.type;
                 impDto.location = imp.location;
                 return impDto;
@@ -162,7 +162,7 @@ export class DatasetDTO {
     static async fromDatasetShallow(dataset: Dataset): Promise<DatasetDTO> {
         const dto = new DatasetDTO();
         dto.id = dataset.id;
-        dto.creation_date = dataset.creation_date.toISOString();
+        dto.creation_date = dataset.creationDate.toISOString();
         dto.created_by = (await dataset.createdBy).name;
         dto.live = dataset.live?.toISOString() || '';
         dto.archive = dataset.archive?.toISOString() || '';
@@ -181,7 +181,7 @@ export class DatasetDTO {
     static async fromDatasetComplete(dataset: Dataset): Promise<DatasetDTO> {
         const dto = new DatasetDTO();
         dto.id = dataset.id;
-        dto.creation_date = dataset.creation_date.toISOString();
+        dto.creation_date = dataset.creationDate.toISOString();
         dto.created_by = (await dataset.createdBy).name;
         dto.live = dataset.live?.toISOString() || '';
         dto.archive = dataset.archive?.toISOString() || '';
@@ -240,10 +240,10 @@ export class DatasetDTO {
                         const impDto = new ImportDTO();
                         impDto.id = imp.id;
                         impDto.revision_id = (await imp.revision).id;
-                        impDto.mime_type = imp.mime_type;
+                        impDto.mime_type = imp.mimeType;
                         impDto.filename = imp.filename;
                         impDto.hash = imp.hash;
-                        impDto.uploaded_at = imp.uploaded_at.toISOString();
+                        impDto.uploaded_at = imp.uploadedAt.toISOString();
                         impDto.type = imp.type;
                         impDto.location = imp.location;
                         impDto.sources = await Promise.all(
@@ -269,7 +269,7 @@ export class DatasetDTO {
     static async fromDatasetWithRevisions(dataset: Dataset): Promise<DatasetDTO> {
         const dto = new DatasetDTO();
         dto.id = dataset.id;
-        dto.creation_date = dataset.creation_date.toISOString();
+        dto.creation_date = dataset.creationDate.toISOString();
         dto.created_by = (await dataset.createdBy).name;
         dto.live = dataset.live?.toISOString() || '';
         dto.archive = dataset.archive?.toISOString() || '';
@@ -304,7 +304,7 @@ export class DatasetDTO {
     static async fromDatasetWithRevisionsAndImports(dataset: Dataset): Promise<DatasetDTO> {
         const dto = new DatasetDTO();
         dto.id = dataset.id;
-        dto.creation_date = dataset.creation_date.toISOString();
+        dto.creation_date = dataset.creationDate.toISOString();
         dto.created_by = (await dataset.createdBy).name;
         dto.live = dataset.live?.toISOString() || '';
         dto.archive = dataset.archive?.toISOString() || '';
@@ -332,10 +332,10 @@ export class DatasetDTO {
                     (await revision.imports).map((imp: Import) => {
                         const impDto = new ImportDTO();
                         impDto.id = imp.id;
-                        impDto.mime_type = imp.mime_type;
+                        impDto.mime_type = imp.mimeType;
                         impDto.filename = imp.filename;
                         impDto.hash = imp.hash;
-                        impDto.uploaded_at = imp.uploaded_at.toISOString();
+                        impDto.uploaded_at = imp.uploadedAt.toISOString();
                         impDto.type = imp.type;
                         impDto.location = imp.location;
                         return impDto;
@@ -350,7 +350,7 @@ export class DatasetDTO {
     static async fromDatasetWithShallowDimensionsAndRevisions(dataset: Dataset): Promise<DatasetDTO> {
         const dto = new DatasetDTO();
         dto.id = dataset.id;
-        dto.creation_date = dataset.creation_date.toISOString();
+        dto.creation_date = dataset.creationDate.toISOString();
         dto.created_by = (await dataset.createdBy).name;
         dto.live = dataset.live?.toISOString() || '';
         dto.archive = dataset.archive?.toISOString() || '';

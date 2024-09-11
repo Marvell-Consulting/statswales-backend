@@ -5,10 +5,20 @@ import { Dimension } from './dimension';
 
 @Entity()
 export class DimensionInfo extends BaseEntity {
-    @PrimaryColumn({ name: 'dimension_id', type: process.env.NODE_ENV === 'test' ? 'text' : 'uuid' })
+    @PrimaryColumn({
+        name: 'dimension_id',
+        type: 'uuid',
+        primaryKeyConstraintName: 'PK_dimension_info_dimension_id_language'
+    })
+    @Column({ type: 'uuid' })
     id: string;
 
-    @PrimaryColumn({ name: 'language', type: 'varchar', length: 5 })
+    @PrimaryColumn({
+        name: 'language',
+        type: 'varchar',
+        length: 5,
+        primaryKeyConstraintName: 'PK_dimension_info_dimension_id_language'
+    })
     language: string;
 
     @Column({ type: 'text' })
@@ -24,6 +34,6 @@ export class DimensionInfo extends BaseEntity {
         onDelete: 'CASCADE',
         orphanedRowAction: 'delete'
     })
-    @JoinColumn({ name: 'dimension_id' })
+    @JoinColumn({ name: 'dimension_id', foreignKeyConstraintName: 'FK_dimension_info_dimension_id' })
     dimension: Promise<Dimension>;
 }

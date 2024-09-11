@@ -1,14 +1,11 @@
-import dotenv from 'dotenv';
+import 'dotenv/config';
 import 'reflect-metadata';
 
-import app, { databaseManager } from './app';
-import { datasourceOptions } from './data-source';
-
-dotenv.config();
+import app, { initDb } from './app';
 
 const PORT = process.env.BACKEND_PORT || 3000;
 
-databaseManager(datasourceOptions);
+initDb();
 
 app.listen(PORT, () => {
     console.log(`Server is running on port ${PORT}`);

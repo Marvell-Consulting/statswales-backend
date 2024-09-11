@@ -10,28 +10,15 @@ import {
 } from 'typeorm';
 
 // eslint-disable-next-line import/no-cycle
+import { RevisionInterface } from './revision.interface';
 import { Dataset } from './dataset';
 import { User } from './user';
 // eslint-disable-next-line import/no-cycle
 import { Import } from './import';
 
-interface RevisionInterface {
-    id: string;
-    revisionIndex: number;
-    dataset: Promise<Dataset>;
-    creationDate: Date;
-    previousRevision: Promise<RevisionInterface>;
-    onlineCubeFilename: string;
-    publishDate: Date;
-    approvalDate: Date;
-    approvedBy: Promise<User>;
-    createdBy: Promise<User>;
-    imports: Promise<Import[]>;
-}
-
 @Entity()
 export class Revision extends BaseEntity implements RevisionInterface {
-    @PrimaryGeneratedColumn('uuid')
+    @PrimaryGeneratedColumn('uuid', { primaryKeyConstraintName: 'PK_revision_id' })
     id: string;
 
     @Column({ type: 'int' })
@@ -41,7 +28,7 @@ export class Revision extends BaseEntity implements RevisionInterface {
         onDelete: 'CASCADE',
         orphanedRowAction: 'delete'
     })
-    @JoinColumn({ name: 'dataset_id' })
+    @JoinColumn({ name: 'dataset_id', foreignKeyConstraintName: 'FK_revision_dataset_id' })
     dataset: Promise<Dataset>;
 
     @CreateDateColumn({ name: 'creation_date' })
@@ -52,36 +39,26 @@ export class Revision extends BaseEntity implements RevisionInterface {
         onDelete: 'CASCADE',
         orphanedRowAction: 'delete'
     })
-    @JoinColumn({ name: 'previous_revision_id' })
+    @JoinColumn({ name: 'previous_revision_id', foreignKeyConstraintName: 'FK_revision_previous_revision_id' })
     previousRevision: Promise<RevisionInterface>;
 
     @Column({ name: 'online_cube_filename', type: 'varchar', length: 255, nullable: true })
     onlineCubeFilename: string;
 
-    @Column({
-        name: 'publish_date',
-        type: process.env.NODE_ENV === 'test' ? 'datetime' : 'timestamptz',
-        nullable: true
-    })
+    @Column({ name: 'publish_date', type: 'timestamptz', nullable: true })
     publishDate: Date;
 
-    @Column({
-        name: 'approval_date',
-        type: process.env.NODE_ENV === 'test' ? 'datetime' : 'timestamptz',
-        nullable: true
-    })
+    @Column({ name: 'approval_date', type: 'timestamptz', nullable: true })
     approvalDate: Date;
 
-    @OneToMany(() => Import, (importEntity) => importEntity.revision, {
-        cascade: true
-    })
+    @OneToMany(() => Import, (importEntity) => importEntity.revision, { cascade: true })
     imports: Promise<Import[]>;
 
     @ManyToOne(() => User, { nullable: true })
-    @JoinColumn({ name: 'approved_by' })
+    @JoinColumn({ name: 'approved_by', foreignKeyConstraintName: 'FK_revision_approved_by' })
     approvedBy: Promise<User>;
 
     @ManyToOne(() => User)
-    @JoinColumn({ name: 'created_by' })
+    @JoinColumn({ name: 'created_by', foreignKeyConstraintName: 'FK_revision_created_by' })
     createdBy: Promise<User>;
 }

@@ -1,16 +1,11 @@
 import { basename } from 'path';
 import { Readable } from 'stream';
 
-import * as dotenv from 'dotenv';
 import { DataLakeServiceClient, StorageSharedKeyCredential } from '@azure/storage-file-datalake';
-import pino from 'pino';
 
-dotenv.config();
+import { logger as parentLogger } from '../utils/logger';
 
-export const logger = pino({
-    name: 'StatsWales-Alpha-App: DataLakeService',
-    level: 'debug'
-});
+const logger = parentLogger.child({ module: 'DataLakeService' });
 
 const accountName = process.env.AZURE_DATALAKE_STORAGE_ACCOUNT_NAME || 'your-storage-account-name';
 const accountKey = process.env.AZURE_DATALAKE_STORAGE_ACCOUNT_KEY || 'your-storage';

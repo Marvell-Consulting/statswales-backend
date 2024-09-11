@@ -37,3 +37,6 @@ yarn.lock
 
 # Ignore local db volume
 .docker/postgres/data
+
+# Ignore certs
+certs/*
