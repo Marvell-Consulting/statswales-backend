@@ -43,7 +43,7 @@ describe('Dataset routes', () => {
     beforeAll(async () => {
         dbManager = await initDb();
         await user.save();
-        await createFullDataset(dataset1Id, revision1Id, import1Id, dimension1Id);
+        await createFullDataset(dataset1Id, revision1Id, import1Id, user);
     });
 
     test('Check fixtures loaded successfully', async () => {
@@ -119,7 +119,7 @@ describe('Dataset routes', () => {
                     }
                 ]
             };
-            const csvfile = path.resolve(__dirname, `./test-data-1.csv`);
+            const csvfile = path.resolve(__dirname, `./sample-csvs/test-data-1.csv`);
             const res = await request(app).post('/en-GB/dataset').set(getAuthHeader(user)).attach('csv', csvfile);
 
             expect(res.status).toBe(400);
@@ -127,7 +127,7 @@ describe('Dataset routes', () => {
         });
 
         test('returns 201 if a file is attached', async () => {
-            const csvfile = path.resolve(__dirname, `./test-data-1.csv`);
+            const csvfile = path.resolve(__dirname, `./sample-csvs/test-data-1.csv`);
 
             const res = await request(app)
                 .post('/en-GB/dataset')
@@ -195,7 +195,7 @@ describe('Dataset routes', () => {
         });
 
         test('returns 200 and complete file data', async () => {
-            const testFile2 = path.resolve(__dirname, `./test-data-2.csv`);
+            const testFile2 = path.resolve(__dirname, `./sample-csvs/test-data-2.csv`);
             const testFile1Buffer = fs.readFileSync(testFile2);
             BlobStorageService.prototype.readFile = jest.fn().mockReturnValue(testFile1Buffer.toString());
 
@@ -207,7 +207,12 @@ describe('Dataset routes', () => {
             expect(res.body.current_page).toBe(2);
             expect(res.body.total_pages).toBe(6);
             expect(res.body.page_size).toBe(100);
-            expect(res.body.headers).toEqual(['ID', 'Text', 'Number', 'Date']);
+            expect(res.body.headers).toEqual([
+                { index: 0, name: 'ID' },
+                { index: 1, name: 'Text' },
+                { index: 2, name: 'Number' },
+                { index: 3, name: 'Date' }
+            ]);
             expect(res.body.data[0]).toEqual(['101', 'GEYiRzLIFM', '774477', '2002-03-13']);
             expect(res.body.data[99]).toEqual(['200', 'QhBxdmrUPb', '3256099', '2026-12-17']);
         });
@@ -221,13 +226,17 @@ describe('Dataset routes', () => {
         });
 
         test('returns 200 with a shallow object', async () => {
-            const dimension = await Dimension.findOneBy({ id: dimension1Id });
-            if (!dimension) {
+            const dataset = await Dataset.findOneBy({ id: dataset1Id });
+            if (!dataset) {
                 throw new Error('Dataset not found');
+            }
+            const dimension = (await dataset.dimensions).pop();
+            if (!dimension) {
+                throw new Error('No dimensions present on dataset');
             }
             const dto = await DimensionDTO.fromDimension(dimension);
             const res = await request(app)
-                .get(`/en-GB/dataset/${dataset1Id}/dimension/by-id/${dimension1Id}`)
+                .get(`/en-GB/dataset/${dataset1Id}/dimension/by-id/${dimension.id}`)
                 .set(getAuthHeader(user));
             expect(res.status).toBe(200);
             expect(res.body).toEqual(dto);
@@ -265,7 +274,7 @@ describe('Dataset routes', () => {
         });
 
         test('returns 400 if page_number is too high', async () => {
-            const testFile2 = path.resolve(__dirname, `./test-data-2.csv`);
+            const testFile2 = path.resolve(__dirname, `./sample-csvs/test-data-2.csv`);
             const testFile2Buffer = fs.readFileSync(testFile2);
             BlobStorageService.prototype.readFile = jest.fn().mockReturnValue(testFile2Buffer);
             const res = await request(app)
@@ -296,7 +305,7 @@ describe('Dataset routes', () => {
         });
 
         test('returns 400 if page_size is too high', async () => {
-            const testFile2 = path.resolve(__dirname, `./test-data-2.csv`);
+            const testFile2 = path.resolve(__dirname, `./sample-csvs/test-data-2.csv`);
             const testFile2Buffer = fs.readFileSync(testFile2);
             BlobStorageService.prototype.readFile = jest.fn().mockReturnValue(testFile2Buffer);
 
@@ -339,7 +348,7 @@ describe('Dataset routes', () => {
         });
 
         test('returns 400 if page_size is too low', async () => {
-            const testFile2 = path.resolve(__dirname, `./test-data-2.csv`);
+            const testFile2 = path.resolve(__dirname, `./sample-csvs/test-data-2.csv`);
             const testFile2Buffer = fs.readFileSync(testFile2);
             BlobStorageService.prototype.readFile = jest.fn().mockReturnValue(testFile2Buffer);
 
@@ -383,7 +392,7 @@ describe('Dataset routes', () => {
 
         describe('raw', () => {
             test('returns 200 and complete file data', async () => {
-                const testFile2 = path.resolve(__dirname, `./test-data-2.csv`);
+                const testFile2 = path.resolve(__dirname, `./sample-csvs/test-data-2.csv`);
                 const testFileStream = fs.createReadStream(testFile2);
                 const testFile2Buffer = fs.readFileSync(testFile2);
                 BlobStorageService.prototype.getReadableStream = jest.fn().mockReturnValue(testFileStream);
@@ -397,7 +406,7 @@ describe('Dataset routes', () => {
 
         describe('preview', () => {
             test('returns 200 and correct page data', async () => {
-                const testFile2 = path.resolve(__dirname, `./test-data-2.csv`);
+                const testFile2 = path.resolve(__dirname, `./sample-csvs/test-data-2.csv`);
                 const testFile1Buffer = fs.readFileSync(testFile2);
                 BlobStorageService.prototype.readFile = jest.fn().mockReturnValue(testFile1Buffer.toString());
 
@@ -409,7 +418,12 @@ describe('Dataset routes', () => {
                 expect(res.body.current_page).toBe(2);
                 expect(res.body.total_pages).toBe(6);
                 expect(res.body.page_size).toBe(100);
-                expect(res.body.headers).toEqual(['ID', 'Text', 'Number', 'Date']);
+                expect(res.body.headers).toEqual([
+                    { index: 0, name: 'ID' },
+                    { index: 1, name: 'Text' },
+                    { index: 2, name: 'Number' },
+                    { index: 3, name: 'Date' }
+                ]);
                 expect(res.body.data[0]).toEqual(['101', 'GEYiRzLIFM', '774477', '2002-03-13']);
                 expect(res.body.data[99]).toEqual(['200', 'QhBxdmrUPb', '3256099', '2026-12-17']);
             });

@@ -1,14 +1,14 @@
 import { Entity, PrimaryGeneratedColumn, Column, BaseEntity, ManyToOne, JoinColumn } from 'typeorm';
 
 import { SourceAction } from '../enums/source-action';
+import { SourceType } from '../enums/source-type';
 
 // eslint-disable-next-line import/no-cycle
 import { Dimension } from './dimension';
 // eslint-disable-next-line import/no-cycle
-import { FileImport } from './import-file';
+import { FileImport } from './file-import';
 // eslint-disable-next-line import/no-cycle
 import { Revision } from './revision';
-import { SourceType } from './source_type';
 
 @Entity()
 export class Source extends BaseEntity {
@@ -48,9 +48,9 @@ export class Source extends BaseEntity {
     @Column({ name: 'csv_field', type: 'text' })
     csvField: string;
 
-    @Column({ type: 'enum', enum: Object.keys(SourceType), nullable: true })
-    action: string;
+    @Column({ type: 'enum', enum: Object.values(SourceAction), nullable: true })
+    action: SourceAction;
 
-    @Column({ type: 'enum', enum: Object.keys(SourceType), nullable: true })
+    @Column({ type: 'enum', enum: Object.values(SourceType), nullable: true })
     type: SourceType;
 }

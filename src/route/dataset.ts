@@ -25,7 +25,7 @@ import { Dataset } from '../entities/dataset';
 import { DatasetInfo } from '../entities/dataset-info';
 import { Dimension } from '../entities/dimension';
 import { Revision } from '../entities/revision';
-import { FileImport } from '../entities/import-file';
+import { FileImport } from '../entities/file-import';
 import { DatasetTitle, FileDescription } from '../dtos/filelist';
 import { DatasetDTO, DimensionDTO, RevisionDTO, ImportDTO } from '../dtos/dataset-dto';
 
@@ -235,7 +235,7 @@ router.get('/:dataset_id', async (req: Request, res: Response) => {
 // DELETE /api/dataset/:dataset_id
 // Returns a shallow dto of the dataset with the given ID
 // Shallow gives the revisions and dimensions of the dataset only
-apiRoute.delete('/:dataset_id', async (req: Request, res: Response) => {
+router.delete('/:dataset_id', async (req: Request, res: Response) => {
     const datasetID: string = req.params.dataset_id;
     const dataset = await validateDataset(datasetID, res);
     if (!dataset) return;

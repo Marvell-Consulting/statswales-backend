@@ -5,15 +5,19 @@ import request from 'supertest';
 
 import { DataLakeService } from '../src/controllers/datalake';
 import { BlobStorageService } from '../src/controllers/blob-storage';
-import app, { ENGLISH, WELSH, t, dbManager, databaseManager } from '../src/app';
+import app, { initDb } from '../src/app';
+import { t, ENGLISH, WELSH } from '../src/middleware/translation';
 import { Dataset } from '../src/entities/dataset';
-import { DatasetInfo } from '../src/entities/dataset_info';
+import { DatasetInfo } from '../src/entities/dataset-info';
 import { DatasetDTO } from '../src/dtos/dataset-dto';
 import { ViewErrDTO } from '../src/dtos/view-dto';
 import { MAX_PAGE_SIZE, MIN_PAGE_SIZE } from '../src/controllers/csv-processor';
+import DatabaseManager from '../src/db/database-manager';
 
 import { createFullDataset, createSmallDataset } from './helpers/test-helper';
-import { datasourceOptions } from './helpers/test-data-source';
+import { User } from "../src/entities/user";
+import { getTestUser } from "./helpers/get-user";
+import { getAuthHeader } from "./helpers/auth-header";
 
 DataLakeService.prototype.listFiles = jest
     .fn()
@@ -23,16 +27,17 @@ BlobStorageService.prototype.uploadFile = jest.fn();
 
 DataLakeService.prototype.uploadFile = jest.fn();
 
-const dataset1Id = 'BDC40218-AF89-424B-B86E-D21710BC92F1';
-const revision1Id = '85F0E416-8BD1-4946-9E2C-1C958897C6EF';
-const import1Id = 'FA07BE9D-3495-432D-8C1F-D0FC6DAAE359';
-const dimension1Id = '2D7ACD0B-A46A-43F7-8A88-224CE97FC8B9';
+const dataset1Id = 'BDC40218-AF89-424B-B86E-D21710BC92F1'.toLowerCase();
+const revision1Id = '85F0E416-8BD1-4946-9E2C-1C958897C6EF'.toLowerCase();
+const import1Id = 'FA07BE9D-3495-432D-8C1F-D0FC6DAAE359'.toLowerCase();
+const user: User = getTestUser('test', 'user');
 
 describe('API Endpoints', () => {
+    let dbManager: DatabaseManager;
     beforeAll(async () => {
-        await databaseManager(datasourceOptions);
-        await dbManager.initializeDataSource();
-        await createFullDataset(dataset1Id, revision1Id, import1Id, dimension1Id);
+        dbManager = await initDb();
+        await user.save();
+        await createFullDataset(dataset1Id, revision1Id, import1Id, user);
     });
 
     test('Return true test', async () => {
@@ -68,7 +73,7 @@ describe('API Endpoints', () => {
                 }
             ]
         };
-        const res = await request(app).post('/en-GB/dataset').query({ filename: 'test-data-1.csv' });
+        const res = await request(app).post('/en-GB/dataset').set(getAuthHeader(user)).query({ filename: 'test-data-1.csv' });
         expect(res.status).toBe(400);
         expect(res.body).toEqual(err);
     });
@@ -98,7 +103,7 @@ describe('API Endpoints', () => {
             ]
         };
         const csvfile = path.resolve(__dirname, `sample-csvs/test-data-1.csv`);
-        const res = await request(app).post('/en-GB/dataset').attach('csv', csvfile);
+        const res = await request(app).post('/en-GB/dataset').set(getAuthHeader(user)).attach('csv', csvfile);
         expect(res.status).toBe(400);
         expect(res.body).toEqual(err);
     });
@@ -108,6 +113,7 @@ describe('API Endpoints', () => {
 
         const res = await request(app)
             .post('/en-GB/dataset')
+            .set(getAuthHeader(user))
             .attach('csv', csvfile)
             .field('title', 'Test Dataset 3')
             .field('lang', 'en-GB');
@@ -130,6 +136,7 @@ describe('API Endpoints', () => {
         const csvfile = path.resolve(__dirname, `sample-csvs/test-data-1.csv`);
         const res = await request(app)
             .post('/en-GB/dataset')
+          .set(getAuthHeader(user))
             .attach('csv', csvfile)
             .field('title', 'Test Dataset 3')
             .field('lang', 'en-GB');
@@ -143,6 +150,7 @@ describe('API Endpoints', () => {
         BlobStorageService.prototype.readFile = jest.fn().mockReturnValue(testFile2Buffer);
         const res = await request(app)
             .get(`/en-GB/dataset/${dataset1Id}/revision/by-id/${revision1Id}/import/by-id/${import1Id}/preview`)
+          .set(getAuthHeader(user))
             .query({ page_number: 20 });
         expect(res.status).toBe(400);
         expect(res.body).toEqual({
@@ -171,6 +179,7 @@ describe('API Endpoints', () => {
 
         const res = await request(app)
             .get(`/en-GB/dataset/${dataset1Id}/revision/by-id/${revision1Id}/import/by-id/${import1Id}/preview`)
+          .set(getAuthHeader(user))
             .query({ page_size: 1000 });
         expect(res.status).toBe(400);
         expect(res.body).toEqual({
@@ -213,6 +222,7 @@ describe('API Endpoints', () => {
 
         const res = await request(app)
             .get(`/en-GB/dataset/${dataset1Id}/revision/by-id/${revision1Id}/import/by-id/${import1Id}/preview`)
+          .set(getAuthHeader(user))
             .query({ page_size: 1 });
         expect(res.status).toBe(400);
         expect(res.body).toEqual({
@@ -255,7 +265,7 @@ describe('API Endpoints', () => {
         BlobStorageService.prototype.getReadableStream = jest.fn().mockReturnValue(testFileStream);
         const res = await request(app).get(
             `/en-GB/dataset/${dataset1Id}/revision/by-id/${revision1Id}/import/by-id/${import1Id}/raw`
-        );
+        ).set(getAuthHeader(user));
         expect(res.status).toBe(200);
         expect(res.text).toEqual(testFile2Buffer.toString());
     });
@@ -267,6 +277,7 @@ describe('API Endpoints', () => {
 
         const res = await request(app)
             .get(`/en-GB/dataset/${dataset1Id}/revision/by-id/${revision1Id}/import/by-id/${import1Id}/preview`)
+          .set(getAuthHeader(user))
             .query({ page_number: 2, page_size: 100 });
         expect(res.status).toBe(200);
         expect(res.body.current_page).toBe(2);
@@ -285,21 +296,21 @@ describe('API Endpoints', () => {
     test('Get preview of an import returns 404 when a non-existant import is requested', async () => {
         const res = await request(app).get(
             `/en-GB/dataset/${dataset1Id}/revision/by-id/${revision1Id}/import/by-id/97C3F48F-127C-4317-B39C-87350F222310/preview`
-        );
+        ).set(getAuthHeader(user));
         expect(res.status).toBe(404);
         expect(res.body).toEqual({ message: 'Import not found.' });
     });
 
     test('Delete a dataset actaully deletes the dataset', async () => {
         const datasetID = crypto.randomUUID();
-        const testDataset = await createSmallDataset(datasetID, crypto.randomUUID(), crypto.randomUUID());
+        const testDataset = await createSmallDataset(datasetID, crypto.randomUUID(), crypto.randomUUID(), user);
         expect(testDataset).not.toBeNull();
         expect(testDataset.id).toBe(datasetID);
         const datesetFromDb = await Dataset.findOneBy({ id: datasetID });
         expect(datesetFromDb).not.toBeNull();
         expect(datesetFromDb?.id).toBe(datasetID);
 
-        const res = await request(app).delete(`/en-GB/dataset/${datasetID}`);
+        const res = await request(app).delete(`/en-GB/dataset/${datasetID}`).set(getAuthHeader(user));
         expect(res.status).toBe(204);
         const dataset = await Dataset.findOneBy({ id: datasetID });
         expect(dataset).toBeNull();
@@ -307,5 +318,6 @@ describe('API Endpoints', () => {
 
     afterAll(async () => {
         await dbManager.getDataSource().dropDatabase();
+        await dbManager.getDataSource().destroy();
     });
 });

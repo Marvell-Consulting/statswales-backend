@@ -2,7 +2,7 @@ import { Dataset } from '../entities/dataset';
 import { Dimension } from '../entities/dimension';
 import { DimensionInfo } from '../entities/dimension-info';
 import { Source } from '../entities/source';
-import { FileImport } from '../entities/import-file';
+import { FileImport } from '../entities/file-import';
 import { Revision } from '../entities/revision';
 import { DatasetInfo } from '../entities/dataset-info';
 
