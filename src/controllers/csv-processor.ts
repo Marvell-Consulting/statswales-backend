@@ -4,7 +4,7 @@ import { Readable } from 'stream';
 import { parse } from 'csv';
 
 import { i18next, ENGLISH, WELSH } from '../middleware/translation';
-import { logger } from '../utils/logger';
+import { logger as parentLogger } from '../utils/logger';
 import { DatasetDTO, ImportDTO } from '../dtos/dataset-dto';
 import { Error } from '../dtos/error';
 import { ViewStream, ViewDTO, ViewErrDTO } from '../dtos/view-dto';
@@ -19,6 +19,7 @@ export const MIN_PAGE_SIZE = 5;
 export const DEFAULT_PAGE_SIZE = 100;
 
 const t = i18next.t;
+const logger = parentLogger.child({ module: 'CSVProcessor' });
 
 function hashReadableStream(stream: Readable, algorithm: string = 'sha256'): Promise<string> {
     return new Promise((resolve, reject) => {
