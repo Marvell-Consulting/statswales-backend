@@ -5,6 +5,7 @@ import { Request, Response, Router } from 'express';
 import multer from 'multer';
 
 import { logger } from '../utils/logger';
+import bodyParser from 'body-parser';
 import { DimensionCreationDTO } from '../dtos/dimension-creation-dto';
 import { ViewErrDTO, ViewDTO, ViewStream } from '../dtos/view-dto';
 import { ENGLISH, WELSH, i18next } from '../middleware/translation';
@@ -29,6 +30,7 @@ import { DatasetTitle, FileDescription } from '../dtos/filelist';
 import { DatasetDTO, DimensionDTO, RevisionDTO, ImportDTO } from '../dtos/dataset-dto';
 
 const t = i18next.t;
+
 const jsonParser = bodyParser.json();
 const storage = multer.memoryStorage();
 const upload = multer({ storage });

@@ -10,7 +10,6 @@ import { FileImport } from '../src/entities/import-file';
 import { DatasetDTO, DimensionDTO, ImportDTO, RevisionDTO } from '../src/dtos/dataset-dto';
 
 import { createFullDataset } from './helpers/test-helper';
-import { datasourceOptions } from './helpers/test-data-source';
 
 DataLakeService.prototype.listFiles = jest
     .fn()
@@ -27,7 +26,6 @@ const dimension1Id = '2D7ACD0B-A46A-43F7-8A88-224CE97FC8B9';
 
 describe('API Endpoints for viewing dataset objects', () => {
     beforeAll(async () => {
-        await databaseManager(datasourceOptions);
         await dbManager.initializeDataSource();
         await createFullDataset(dataset1Id, revision1Id, import1Id, dimension1Id);
     });
