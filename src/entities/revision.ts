@@ -10,8 +10,7 @@ import {
 } from 'typeorm';
 
 // eslint-disable-next-line import/no-cycle
-import { RevisionInterface } from '../dtos/revision';
-
+import { RevisionInterface } from './revision.interface';
 import { Dataset } from './dataset';
 import { User } from './user';
 // eslint-disable-next-line import/no-cycle

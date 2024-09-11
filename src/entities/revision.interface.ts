@@ -1,7 +1,7 @@
 // eslint-disable-next-line import/no-cycle
-import { Dataset } from '../entities/dataset';
-import { Import } from '../entities/import';
-import { User } from '../entities/user';
+import { Dataset } from './dataset';
+import { Import } from './import';
+import { User } from './user';
 
 export interface RevisionInterface {
     id: string;
