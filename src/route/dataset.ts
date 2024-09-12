@@ -166,7 +166,7 @@ router.post('/', upload.single('csv'), async (req: Request, res: Response) => {
 
     // Everything looks good so far, let's create the dataset and revision records
     const dataset = new Dataset();
-    dataset.id = randomUUID();
+    dataset.id = randomUUID().toLowerCase();
     dataset.creationDate = new Date();
 
     // req.user is set from the JWT token in the passport-auth middleware
@@ -225,7 +225,7 @@ router.get('/', async (req: Request, res: Response) => {
 // Returns a shallow dto of the dataset with the given ID
 // Shallow gives the revisions and dimensions of the dataset only
 router.get('/:dataset_id', async (req: Request, res: Response) => {
-    const datasetID: string = req.params.dataset_id;
+    const datasetID: string = req.params.dataset_id.toLowerCase();
     const dataset = await validateDataset(datasetID, res);
     if (!dataset) return;
     const dto = await DatasetDTO.fromDatasetComplete(dataset);
@@ -236,7 +236,7 @@ router.get('/:dataset_id', async (req: Request, res: Response) => {
 // Returns a shallow dto of the dataset with the given ID
 // Shallow gives the revisions and dimensions of the dataset only
 router.delete('/:dataset_id', async (req: Request, res: Response) => {
-    const datasetID: string = req.params.dataset_id;
+    const datasetID: string = req.params.dataset_id.toLowerCase();
     const dataset = await validateDataset(datasetID, res);
     if (!dataset) return;
     logger.warn('Deleting dataset with ID:', datasetID);
@@ -260,12 +260,11 @@ apiRoute.get('/:dataset_id/view', async (req: Request, res: Response) => {
 // GET /api/dataset/:dataset_id/view
 // Returns a view of the data file attached to the import
 router.get('/:dataset_id/view', async (req: Request, res: Response) => {
-    const datasetID: string = req.params.dataset_id;
+    const datasetID: string = req.params.dataset_id.toLowerCase();
     const dataset = await validateDataset(datasetID, res);
     if (!dataset) return;
     const latestRevision = (await dataset.revisions).pop();
     if (!latestRevision) {
-        console.log('latestRevision:', JSON.stringify(latestRevision));
         logger.error('Unable to find the last revision');
         res.status(500);
         res.json({ message: 'No revision found for dataset' });
@@ -301,7 +300,7 @@ router.get('/:dataset_id/view', async (req: Request, res: Response) => {
 // GET /api/dataset/:dataset_id/dimension/id/:dimension_id
 // Returns details of a dimension with its sources and imports
 router.get('/:dataset_id/dimension/by-id/:dimension_id', async (req: Request, res: Response) => {
-    const datasetID: string = req.params.dataset_id;
+    const datasetID: string = req.params.dataset_id.toLowerCase();
     const dataset = await validateDataset(datasetID, res);
     if (!dataset) return;
     const dimensionID: string = req.params.dimension_id;
@@ -314,7 +313,7 @@ router.get('/:dataset_id/dimension/by-id/:dimension_id', async (req: Request, re
 // GET /api/dataset/:dataset_id/revision/id/:revision_id
 // Returns details of a revision with its imports
 router.get('/:dataset_id/revision/by-id/:revision_id', async (req: Request, res: Response) => {
-    const datasetID: string = req.params.dataset_id;
+    const datasetID: string = req.params.dataset_id.toLowerCase();
     const dataset = await validateDataset(datasetID, res);
     if (!dataset) return;
     const revisionID: string = req.params.revision_id;
@@ -327,7 +326,7 @@ router.get('/:dataset_id/revision/by-id/:revision_id', async (req: Request, res:
 // GET /api/dataset/:dataset_id/revision/id/:revision_id/import/id/:import_id
 // Returns details of an import with its sources
 router.get('/:dataset_id/revision/by-id/:revision_id/import/by-id/:import_id', async (req: Request, res: Response) => {
-    const datasetID: string = req.params.dataset_id;
+    const datasetID: string = req.params.dataset_id.toLowerCase();
     const dataset = await validateDataset(datasetID, res);
     if (!dataset) return;
     const revisionID: string = req.params.revision_id;
@@ -345,7 +344,7 @@ router.get('/:dataset_id/revision/by-id/:revision_id/import/by-id/:import_id', a
 router.get(
     '/:dataset_id/revision/by-id/:revision_id/import/by-id/:import_id/preview',
     async (req: Request, res: Response) => {
-        const datasetID: string = req.params.dataset_id;
+        const datasetID: string = req.params.dataset_id.toLowerCase();
         const dataset = await validateDataset(datasetID, res);
         if (!dataset) return;
         const revisionID: string = req.params.revision_id;
@@ -380,7 +379,7 @@ router.get(
 router.get(
     '/:dataset_id/revision/by-id/:revision_id/import/by-id/:import_id/raw',
     async (req: Request, res: Response) => {
-        const datasetID: string = req.params.dataset_id;
+        const datasetID: string = req.params.dataset_id.toLowerCase();
         const dataset = await validateDataset(datasetID, res);
         if (!dataset) return;
         const revisionID: string = req.params.revision_id;
@@ -428,7 +427,7 @@ router.get(
 router.patch(
     '/:dataset_id/revision/by-id/:revision_id/import/by-id/:import_id/confirm',
     async (req: Request, res: Response) => {
-        const datasetID: string = req.params.dataset_id;
+        const datasetID: string = req.params.dataset_id.toLowerCase();
         const dataset = await validateDataset(datasetID, res);
         if (!dataset) return;
         const revisionID: string = req.params.revision_id;
@@ -478,7 +477,7 @@ router.patch(
     '/:dataset_id/revision/by-id/:revision_id/import/by-id/:import_id/sources',
     jsonParser,
     async (req: Request, res: Response) => {
-        const datasetID: string = req.params.dataset_id;
+        const datasetID: string = req.params.dataset_id.toLowerCase();
         const dataset = await validateDataset(datasetID, res);
         if (!dataset) return;
         const revisionID: string = req.params.revision_id;

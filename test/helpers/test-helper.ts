@@ -212,7 +212,7 @@ async function createSource(
     revision: Revision
 ) {
     const source = new Source();
-    source.id = crypto.randomUUID();
+    source.id = crypto.randomUUID().toLowerCase();
     source.import = Promise.resolve(fileImport);
     source.revision = Promise.resolve(revision);
     source.csvField = csvField;
@@ -231,7 +231,7 @@ async function createDimension(
     source: Source
 ) {
     const dimension = new Dimension();
-    dimension.id = crypto.randomUUID();
+    dimension.id = crypto.randomUUID().toLowerCase();
     dimension.dataset = Promise.resolve(dataset);
     dimension.startRevision = Promise.resolve(revision);
     dimension.type = DimensionType.RAW;

@@ -130,7 +130,7 @@ export const uploadCSVToBlobStorage = async (fileStream: Readable, filetype: str
         throw new Error('No buffer to upload to blob storage');
     }
     const importRecord = new FileImport();
-    importRecord.id = randomUUID();
+    importRecord.id = randomUUID().toLowerCase();
     importRecord.mimeType = filetype;
     const extension = filetype === 'text/csv' ? 'csv' : 'zip';
     importRecord.filename = `${importRecord.id}.${extension}`;
