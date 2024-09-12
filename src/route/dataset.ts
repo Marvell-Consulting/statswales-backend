@@ -7,19 +7,19 @@ import bodyParser from 'body-parser';
 
 import { logger } from '../utils/logger';
 import { DimensionCreationDTO } from '../dtos/dimension-creation-dto';
-import { ViewErrDTO, ViewDTO, ViewStream } from '../dtos/view-dto';
-import { ENGLISH, WELSH, i18next } from '../middleware/translation';
+import { ViewDTO, ViewErrDTO, ViewStream } from '../dtos/view-dto';
+import { ENGLISH, i18next, WELSH } from '../middleware/translation';
 import {
-    processCSVFromDatalake,
-    processCSVFromBlobStorage,
-    uploadCSVBufferToBlobStorage,
+    createSources,
     DEFAULT_PAGE_SIZE,
     getFileFromBlobStorage,
     getFileFromDataLake,
     moveFileToDataLake,
-    createSources
+    processCSVFromBlobStorage,
+    processCSVFromDatalake,
+    uploadCSVBufferToBlobStorage
 } from '../controllers/csv-processor';
-import { validateDimensionCreationRequest, createDimensions } from '../controllers/dimension-processor';
+import { createDimensions, validateDimensionCreationRequest } from '../controllers/dimension-processor';
 import { User } from '../entities/user';
 import { Dataset } from '../entities/dataset';
 import { DatasetInfo } from '../entities/dataset-info';
@@ -27,7 +27,8 @@ import { Dimension } from '../entities/dimension';
 import { Revision } from '../entities/revision';
 import { FileImport } from '../entities/file-import';
 import { DatasetTitle, FileDescription } from '../dtos/filelist';
-import { DatasetDTO, DimensionDTO, RevisionDTO, ImportDTO } from '../dtos/dataset-dto';
+import { DatasetDTO, DimensionDTO, ImportDTO, RevisionDTO } from '../dtos/dataset-dto';
+import { DataLocation } from '../enums/data-location';
 
 const t = i18next.t;
 
@@ -108,11 +109,13 @@ async function validateImport(importID: string, res: Response): Promise<FileImpo
 
 function errorDtoGenerator(
     field: string,
+    statusCode: number,
     translationString: string,
     datasetID: string | undefined = undefined
 ): ViewErrDTO {
     return {
         success: false,
+        status: statusCode,
         dataset_id: datasetID,
         errors: [
             {
@@ -143,7 +146,7 @@ function errorDtoGenerator(
 router.post('/', upload.single('csv'), async (req: Request, res: Response) => {
     if (!req.file) {
         res.status(400);
-        res.json(errorDtoGenerator('csv', 'errors.no_csv_data'));
+        res.json(errorDtoGenerator('csv', 400, 'errors.no_csv_data'));
         return;
     }
 
@@ -151,14 +154,14 @@ router.post('/', upload.single('csv'), async (req: Request, res: Response) => {
     const title: string = req.body?.title;
     if (!title) {
         res.status(400);
-        res.json(errorDtoGenerator('title', 'errors.no_title'));
+        res.json(errorDtoGenerator('title', 400, 'errors.no_title'));
         return;
     }
     let importRecord: FileImport;
     try {
         importRecord = await uploadCSVBufferToBlobStorage(req.file.buffer, req.file?.mimetype);
     } catch (err) {
-        logger.error(`An error occured trying to upload the file with the following error: ${err}`);
+        logger.error(`An error occurred trying to upload the file with the following error: ${err}`);
         res.status(500);
         res.json({ message: 'Error uploading file' });
         return;
@@ -351,12 +354,13 @@ router.get(
         } else if (importRecord.location === 'Datalake') {
             processedCSV = await processCSVFromDatalake(dataset, importRecord, page_number, page_size);
         } else {
-            res.status(400);
+            res.status(500);
             res.json({ message: 'Import location not supported.' });
             return;
         }
         if (!processedCSV.success) {
-            res.status(400);
+            const processErr = processedCSV as ViewErrDTO;
+            res.status(processErr.status);
         }
         res.json(processedCSV);
     }
@@ -382,12 +386,12 @@ router.get(
         } else if (importRecord.location === 'Datalake') {
             viewStream = await getFileFromDataLake(dataset, importRecord);
         } else {
-            res.status(400);
+            res.status(500);
             res.json({ message: 'Import location not supported.' });
             return;
         }
         if (!viewStream.success) {
-            res.status(400);
+            res.status(500);
             res.json(viewStream);
             return;
         }
@@ -425,13 +429,13 @@ router.patch(
         const importRecord = await validateImport(importID, res);
         if (!importRecord) return;
         try {
-            importRecord.location = 'Datalake';
+            importRecord.location = DataLocation.DATA_LAKE;
             await moveFileToDataLake(importRecord);
-            importRecord.save();
+            await importRecord.save();
         } catch (err) {
-            logger.error(`An error occured trying to move the file with the following error: ${err}`);
+            logger.error(`An error occurred trying to move the file with the following error: ${err}`);
             res.status(500);
-            res.json({ message: 'Error moving file from tempoary blob storage to datalake.  Please try again.' });
+            res.json({ message: 'Error moving file from temporary blob storage to Data Lake.  Please try again.' });
             return;
         }
         try {
@@ -439,7 +443,7 @@ router.patch(
             res.status(200);
             res.json(revisionDTO);
         } catch (err) {
-            logger.error(`An error occured trying to create the sources with the following error: ${err}`);
+            logger.error(`An error occurred trying to create the sources with the following error: ${err}`);
             res.status(500);
             res.json({ message: 'Error creating sources from the uploaded file.  Please try again.' });
         }
@@ -488,7 +492,7 @@ router.patch(
             res.status(200);
             res.json(dto);
         } catch (err) {
-            logger.error(`An error occured trying to create the dimensions with the following error: ${err}`);
+            logger.error(`An error occurred trying to create the dimensions with the following error: ${err}`);
             res.status(500);
             res.json({ message: 'Error creating dimensions from the uploaded file.  Please try again.' });
         }

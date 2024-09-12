@@ -14,6 +14,8 @@ import { DimensionType } from '../../src/enums/dimension-type';
 import { DimensionInfo } from '../../src/entities/dimension-info';
 import { User } from '../../src/entities/user';
 import { SourceAction } from '../../src/enums/source-action';
+import { DataLocation } from '../../src/enums/data-location';
+import { ImportType } from '../../src/enums/import-type';
 
 export async function createSmallDataset(datasetId: string, revisionId: string, importId: string, user: User) {
     // First create a dataset
@@ -48,8 +50,8 @@ export async function createSmallDataset(datasetId: string, revisionId: string, 
     imp.hash = createHash('sha256').update(testFile2Buffer).digest('hex');
 
     // First is a draft import and a first upload so everything is in blob storage
-    imp.location = 'BlobStorage';
-    imp.type = 'Draft';
+    imp.location = DataLocation.BLOB_STORAGE;
+    imp.type = ImportType.DRAFT;
     imp.mimeType = 'text/csv';
 
     // Its a CSV file so we need to know how to parse it
