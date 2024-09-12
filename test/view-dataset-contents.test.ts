@@ -6,11 +6,12 @@ import request from 'supertest';
 import { DataLakeService } from '../src/controllers/datalake';
 import { BlobStorageService } from '../src/controllers/blob-storage';
 import app, { initDb } from '../src/app';
-import { t, ENGLISH, WELSH } from '../src/middleware/translation';
+import { ENGLISH, t, WELSH } from '../src/middleware/translation';
 import { Revision } from '../src/entities/revision';
 import { FileImport } from '../src/entities/file-import';
 import DatabaseManager from '../src/db/database-manager';
 import { User } from '../src/entities/user';
+import { DataLocation } from '../src/enums/data-location';
 
 import { createFullDataset, createSmallDataset } from './helpers/test-helper';
 import { getTestUser } from './helpers/get-user';
@@ -24,9 +25,9 @@ BlobStorageService.prototype.uploadFile = jest.fn();
 
 DataLakeService.prototype.uploadFile = jest.fn();
 
-const dataset1Id = 'BDC40218-AF89-424B-B86E-D21710BC92F1'.toLowerCase();
-const revision1Id = '85F0E416-8BD1-4946-9E2C-1C958897C6EF'.toLowerCase();
-const import1Id = 'FA07BE9D-3495-432D-8C1F-D0FC6DAAE359'.toLowerCase();
+const dataset1Id = 'bdc40218-af89-424b-b86e-d21710bc92f1';
+const revision1Id = '85f0e416-8bd1-4946-9e2c-1c958897c6ef';
+const import1Id = 'fa07be9d-3495-432d-8c1f-d0fc6daae359';
 const user: User = getTestUser('test', 'user');
 
 describe('API Endpoints for viewing the contents of a dataset', () => {
@@ -60,7 +61,7 @@ describe('API Endpoints for viewing the contents of a dataset', () => {
         expect(res.body.data[99]).toEqual(['200', 'QhBxdmrUPb', '3256099', '2026-12-17']);
     });
 
-    test('Get file from a dataset, stored in datalake, returns 200 and complete file data', async () => {
+    test('Get file from a dataset, stored in data lake, returns 200 and complete file data', async () => {
         const testFile2 = path.resolve(__dirname, `sample-csvs/test-data-2.csv`);
         const testFile1Buffer = fs.readFileSync(testFile2);
         DataLakeService.prototype.downloadFile = jest.fn().mockReturnValue(testFile1Buffer.toString());
@@ -68,7 +69,7 @@ describe('API Endpoints for viewing the contents of a dataset', () => {
         if (!fileImport) {
             throw new Error('Import not found');
         }
-        fileImport.location = 'Datalake';
+        fileImport.location = DataLocation.DATA_LAKE;
         await FileImport.save(fileImport);
 
         const res = await request(app)
@@ -94,7 +95,7 @@ describe('API Endpoints for viewing the contents of a dataset', () => {
         if (!fileImport) {
             throw new Error('Import not found');
         }
-        fileImport.location = 'Unknown';
+        fileImport.location = DataLocation.UNKNOWN;
         await FileImport.save(fileImport);
 
         const res = await request(app)
@@ -110,7 +111,7 @@ describe('API Endpoints for viewing the contents of a dataset', () => {
         if (!fileImport) {
             throw new Error('Import not found');
         }
-        fileImport.location = 'BlobStorage';
+        fileImport.location = DataLocation.BLOB_STORAGE;
         await FileImport.save(fileImport);
         BlobStorageService.prototype.readFile = jest.fn().mockRejectedValue(new Error('File is empty'));
 
@@ -121,6 +122,7 @@ describe('API Endpoints for viewing the contents of a dataset', () => {
         expect(res.status).toBe(500);
         expect(res.body).toEqual({
             success: false,
+            status: 500,
             errors: [
                 {
                     field: 'csv',
@@ -137,9 +139,14 @@ describe('API Endpoints for viewing the contents of a dataset', () => {
 
     test('Get a dataset view returns 500 if there is no revision on the dataset', async () => {
         const removeRevisionDatasetID = crypto.randomUUID().toLowerCase();
-        const revisionID = crypto.randomUUID().toLowerCase();
-        await createSmallDataset(removeRevisionDatasetID, revisionID, crypto.randomUUID(), user);
-        const revision = await Revision.findOneBy({ id: revisionID });
+        const removeRevisionRevisionID = crypto.randomUUID().toLowerCase();
+        await createSmallDataset(
+            removeRevisionDatasetID,
+            removeRevisionRevisionID,
+            crypto.randomUUID().toLowerCase(),
+            user
+        );
+        const revision = await Revision.findOneBy({ id: removeRevisionRevisionID });
         if (!revision) {
             throw new Error('Revision not found... Either it was not created or the test is broken');
         }

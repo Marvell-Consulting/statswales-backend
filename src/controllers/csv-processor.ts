@@ -13,6 +13,8 @@ import { Revision } from '../entities/revision';
 import { Source } from '../entities/source';
 import { FileImport } from '../entities/file-import';
 import { SourceAction } from '../enums/source-action';
+import { ImportType } from '../enums/import-type';
+import { DataLocation } from '../enums/data-location';
 
 import { BlobStorageService } from './blob-storage';
 import { DataLakeService } from './datalake';
@@ -146,8 +148,8 @@ export const uploadCSVToBlobStorage = async (fileStream: Readable, filetype: str
         const resolvedHash = await promisedHash;
         if (resolvedHash) importRecord.hash = resolvedHash;
         importRecord.uploadedAt = new Date(Date.now());
-        importRecord.type = 'Draft';
-        importRecord.location = 'BlobStorage';
+        importRecord.type = ImportType.DRAFT;
+        importRecord.location = DataLocation.BLOB_STORAGE;
         return importRecord;
     } catch (err) {
         logger.error(err);
@@ -185,6 +187,7 @@ async function processCSVData(
     if (!csvheaders) {
         return {
             success: false,
+            status: 400,
             errors: [
                 {
                     field: 'csv',
@@ -210,6 +213,7 @@ async function processCSVData(
     if (errors.length > 0) {
         return {
             success: false,
+            status: 400,
             errors,
             dataset_id: dataset.id
         };
@@ -257,6 +261,7 @@ export const getFileFromDataLake = async (
         logger.error(err);
         return {
             success: false,
+            status: 500,
             errors: [
                 {
                     field: 'csv',
@@ -287,6 +292,7 @@ export const processCSVFromDatalake = async (
         logger.error(err);
         return {
             success: false,
+            status: 500,
             errors: [
                 {
                     field: 'csv',
@@ -315,6 +321,7 @@ export const getFileFromBlobStorage = async (
         logger.error(err);
         return {
             success: false,
+            status: 500,
             errors: [
                 {
                     field: 'csv',
@@ -348,6 +355,7 @@ export const processCSVFromBlobStorage = async (
         logger.error(err);
         return {
             success: false,
+            status: 500,
             errors: [
                 {
                     field: 'csv',

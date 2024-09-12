@@ -48,10 +48,10 @@ export class FileImport extends BaseEntity {
     uploadedAt: Date;
 
     @Column({ type: 'enum', enum: Object.values(ImportType), nullable: false })
-    type: string;
+    type: ImportType;
 
     @Column({ type: 'enum', enum: Object.values(DataLocation), nullable: false })
-    location: string;
+    location: DataLocation;
 
     @OneToMany(() => Source, (source) => source.import, { cascade: true })
     sources: Promise<Source[]>;
