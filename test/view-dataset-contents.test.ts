@@ -136,8 +136,8 @@ describe('API Endpoints for viewing the contents of a dataset', () => {
     });
 
     test('Get a dataset view returns 500 if there is no revision on the dataset', async () => {
-        const removeRevisionDatasetID = crypto.randomUUID();
-        const revisionID = crypto.randomUUID();
+        const removeRevisionDatasetID = crypto.randomUUID().toLowerCase();
+        const revisionID = crypto.randomUUID().toLowerCase();
         await createSmallDataset(removeRevisionDatasetID, revisionID, crypto.randomUUID(), user);
         const revision = await Revision.findOneBy({ id: revisionID });
         if (!revision) {
@@ -153,8 +153,8 @@ describe('API Endpoints for viewing the contents of a dataset', () => {
     });
 
     test('Get a dataset view returns 500 if there is no import on the dataset', async () => {
-        const removeRevisionDatasetID = crypto.randomUUID();
-        const importId = crypto.randomUUID();
+        const removeRevisionDatasetID = crypto.randomUUID().toLowerCase();
+        const importId = crypto.randomUUID().toLowerCase();
         await createSmallDataset(removeRevisionDatasetID, crypto.randomUUID(), importId, user);
         const fileImport = await FileImport.findOneBy({ id: importId });
         if (!fileImport) {

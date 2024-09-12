@@ -36,7 +36,22 @@ describe('API Endpoints for viewing dataset objects', () => {
         await createFullDataset(dataset1Id, revision1Id, import1Id, user);
     });
 
+    test('Check fixtures loaded successfully', async () => {
+        const dataset1 = await Dataset.findOneBy({ id: dataset1Id });
+        if (!dataset1) {
+            throw new Error('Dataset not found');
+        }
+        const dto = await DatasetDTO.fromDatasetComplete(dataset1);
+        expect(dto).toBeInstanceOf(DatasetDTO);
+    });
+
     describe('List all datasets', () => {
+        test('returns 401 if no auth header is sent (JWT auth)', async () => {
+            const res = await request(app).get('/en-GB/dataset');
+            expect(res.status).toBe(401);
+            expect(res.body).toEqual({});
+        });
+
         test('Get a list of all datasets returns 200 with a file list', async () => {
             const res = await request(app).get('/en-GB/dataset').set(getAuthHeader(user));
             expect(res.status).toBe(200);
@@ -52,6 +67,12 @@ describe('API Endpoints for viewing dataset objects', () => {
     });
 
     describe('Display dataset object endpoints', () => {
+        test('returns 401 if no auth header is sent (JWT auth)', async () => {
+            const res = await request(app).get(`/en-GB/dataset/${dataset1Id}`);
+            expect(res.status).toBe(401);
+            expect(res.body).toEqual({});
+        });
+
         test('Get a dataset returns 200 with a shallow object', async () => {
             const dataset1 = await Dataset.findOneBy({ id: dataset1Id });
             if (!dataset1) {
@@ -78,6 +99,12 @@ describe('API Endpoints for viewing dataset objects', () => {
     });
 
     describe('Display dimension metadata endpoints', () => {
+        test('returns 401 if no auth header is sent (JWT auth)', async () => {
+            const res = await request(app).get(`/en-GB/dataset/${dataset1Id}/dimension/by-id/06b60fc5-93c9-4bd8-ac6f-3cc60ea538c4`);
+            expect(res.status).toBe(401);
+            expect(res.body).toEqual({});
+        });
+
         test('Get a dimension returns 200 with a shallow object', async () => {
             const dataset1 = await Dataset.findOneBy({ id: dataset1Id });
             if (!dataset1) {
@@ -112,6 +139,12 @@ describe('API Endpoints for viewing dataset objects', () => {
     });
 
     describe('Get revision metadata endpoints', () => {
+        test('returns 401 if no auth header is sent (JWT auth)', async () => {
+            const res = await request(app).get(`/en-GB/dataset/${dataset1Id}/revision/by-id/${revision1Id}`);
+            expect(res.status).toBe(401);
+            expect(res.body).toEqual({});
+        });
+
         test('Get a revision returns 200 with a shallow object', async () => {
             const revision = await Revision.findOneBy({ id: revision1Id });
             if (!revision) {
@@ -142,6 +175,14 @@ describe('API Endpoints for viewing dataset objects', () => {
     });
 
     describe('Get FileImport metadata endpoints', () => {
+        test('returns 401 if no auth header is sent (JWT auth)', async () => {
+            const res = await request(app).get(
+              `/en-GB/dataset/${dataset1Id}/revision/by-id/${revision1Id}/import/by-id/${import1Id}/preview`
+            );
+            expect(res.status).toBe(401);
+            expect(res.body).toEqual({});
+        });
+
         test('Get import returns 200 with object', async () => {
             const imp = await FileImport.findOneBy({ id: import1Id });
             if (!imp) {

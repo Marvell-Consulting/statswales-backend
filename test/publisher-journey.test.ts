@@ -49,6 +49,12 @@ describe('API Endpoints', () => {
         expect(dto).toBe(dto);
     });
 
+    test('returns 401 if no auth header is sent (JWT auth)', async () => {
+        const res = await request(app).post('/en-GB/dataset').query({ filename: 'test-data-1.csv' });
+        expect(res.status).toBe(401);
+        expect(res.body).toEqual({});
+    });
+
     test('Upload returns 400 if no file attached', async () => {
         const err: ViewErrDTO = {
             success: false,
@@ -302,7 +308,7 @@ describe('API Endpoints', () => {
     });
 
     test('Delete a dataset actaully deletes the dataset', async () => {
-        const datasetID = crypto.randomUUID();
+        const datasetID = crypto.randomUUID().toLowerCase();
         const testDataset = await createSmallDataset(datasetID, crypto.randomUUID(), crypto.randomUUID(), user);
         expect(testDataset).not.toBeNull();
         expect(testDataset.id).toBe(datasetID);
