@@ -5,13 +5,12 @@ import { BlobStorageService } from '../src/controllers/blob-storage';
 import app, { initDb } from '../src/app';
 import { Dataset } from '../src/entities/dataset';
 import { Revision } from '../src/entities/revision';
-import { Dimension } from '../src/entities/dimension';
 import { FileImport } from '../src/entities/file-import';
 import { User } from '../src/entities/user';
 import { DatasetDTO, DimensionDTO, ImportDTO, RevisionDTO } from '../src/dtos/dataset-dto';
 import DatabaseManager from '../src/db/database-manager';
 
-import { createFullDataset, createSmallDataset } from "./helpers/test-helper";
+import { createFullDataset } from './helpers/test-helper';
 import { getTestUser } from './helpers/get-user';
 import { getAuthHeader } from './helpers/auth-header';
 
@@ -100,7 +99,9 @@ describe('API Endpoints for viewing dataset objects', () => {
 
     describe('Display dimension metadata endpoints', () => {
         test('returns 401 if no auth header is sent (JWT auth)', async () => {
-            const res = await request(app).get(`/en-GB/dataset/${dataset1Id}/dimension/by-id/06b60fc5-93c9-4bd8-ac6f-3cc60ea538c4`);
+            const res = await request(app).get(
+                `/en-GB/dataset/${dataset1Id}/dimension/by-id/06b60fc5-93c9-4bd8-ac6f-3cc60ea538c4`
+            );
             expect(res.status).toBe(401);
             expect(res.body).toEqual({});
         });
@@ -177,7 +178,7 @@ describe('API Endpoints for viewing dataset objects', () => {
     describe('Get FileImport metadata endpoints', () => {
         test('returns 401 if no auth header is sent (JWT auth)', async () => {
             const res = await request(app).get(
-              `/en-GB/dataset/${dataset1Id}/revision/by-id/${revision1Id}/import/by-id/${import1Id}/preview`
+                `/en-GB/dataset/${dataset1Id}/revision/by-id/${revision1Id}/import/by-id/${import1Id}/preview`
             );
             expect(res.status).toBe(401);
             expect(res.body).toEqual({});

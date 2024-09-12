@@ -149,7 +149,7 @@ export async function createFullDataset(datasetId: string, revisionId: string, i
 
     // // Next create some dimensions
     const dimensions: Dimension[] = [];
-    for(let i = 0; i < sourceDescriptions.length; i++) {
+    for (let i = 0; i < sourceDescriptions.length; i++) {
         const dimesnion = await createDimension(
             sourceDescriptions[i].csvField,
             sourceDescriptions[i].description,

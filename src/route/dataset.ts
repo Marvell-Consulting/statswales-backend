@@ -3,9 +3,9 @@ import { Readable } from 'stream';
 
 import { Request, Response, Router } from 'express';
 import multer from 'multer';
+import bodyParser from 'body-parser';
 
 import { logger } from '../utils/logger';
-import bodyParser from 'body-parser';
 import { DimensionCreationDTO } from '../dtos/dimension-creation-dto';
 import { ViewErrDTO, ViewDTO, ViewStream } from '../dtos/view-dto';
 import { ENGLISH, WELSH, i18next } from '../middleware/translation';
@@ -313,22 +313,19 @@ router.get('/:dataset_id/revision/by-id/:revision_id', async (req: Request, res:
 
 // GET /api/dataset/:dataset_id/revision/id/:revision_id/import/id/:import_id
 // Returns details of an import with its sources
-router.get(
-    '/:dataset_id/revision/by-id/:revision_id/import/by-id/:import_id',
-    async (req: Request, res: Response) => {
-        const datasetID: string = req.params.dataset_id.toLowerCase();
-        const dataset = await validateDataset(datasetID, res);
-        if (!dataset) return;
-        const revisionID: string = req.params.revision_id;
-        const revision = await validateRevision(revisionID, res);
-        if (!revision) return;
-        const importID: string = req.params.import_id;
-        const importRecord = await validateImport(importID, res);
-        if (!importRecord) return;
-        const dto = await ImportDTO.fromImport(importRecord);
-        res.json(dto);
-    }
-);
+router.get('/:dataset_id/revision/by-id/:revision_id/import/by-id/:import_id', async (req: Request, res: Response) => {
+    const datasetID: string = req.params.dataset_id.toLowerCase();
+    const dataset = await validateDataset(datasetID, res);
+    if (!dataset) return;
+    const revisionID: string = req.params.revision_id;
+    const revision = await validateRevision(revisionID, res);
+    if (!revision) return;
+    const importID: string = req.params.import_id;
+    const importRecord = await validateImport(importID, res);
+    if (!importRecord) return;
+    const dto = await ImportDTO.fromImport(importRecord);
+    res.json(dto);
+});
 
 // GET /api/dataset/:dataset_id/revision/id/:revision_id/import/id/:import_id/preview
 // Returns a view of the data file attached to the import
