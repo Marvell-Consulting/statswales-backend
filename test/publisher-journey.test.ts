@@ -13,11 +13,11 @@ import { DatasetDTO } from '../src/dtos/dataset-dto';
 import { ViewErrDTO } from '../src/dtos/view-dto';
 import { MAX_PAGE_SIZE, MIN_PAGE_SIZE } from '../src/controllers/csv-processor';
 import DatabaseManager from '../src/db/database-manager';
+import { User } from '../src/entities/user';
 
 import { createFullDataset, createSmallDataset } from './helpers/test-helper';
-import { User } from "../src/entities/user";
-import { getTestUser } from "./helpers/get-user";
-import { getAuthHeader } from "./helpers/auth-header";
+import { getTestUser } from './helpers/get-user';
+import { getAuthHeader } from './helpers/auth-header';
 
 DataLakeService.prototype.listFiles = jest
     .fn()
@@ -79,7 +79,10 @@ describe('API Endpoints', () => {
                 }
             ]
         };
-        const res = await request(app).post('/en-GB/dataset').set(getAuthHeader(user)).query({ filename: 'test-data-1.csv' });
+        const res = await request(app)
+            .post('/en-GB/dataset')
+            .set(getAuthHeader(user))
+            .query({ filename: 'test-data-1.csv' });
         expect(res.status).toBe(400);
         expect(res.body).toEqual(err);
     });
@@ -142,7 +145,7 @@ describe('API Endpoints', () => {
         const csvfile = path.resolve(__dirname, `sample-csvs/test-data-1.csv`);
         const res = await request(app)
             .post('/en-GB/dataset')
-          .set(getAuthHeader(user))
+            .set(getAuthHeader(user))
             .attach('csv', csvfile)
             .field('title', 'Test Dataset 3')
             .field('lang', 'en-GB');
@@ -156,7 +159,7 @@ describe('API Endpoints', () => {
         BlobStorageService.prototype.readFile = jest.fn().mockReturnValue(testFile2Buffer);
         const res = await request(app)
             .get(`/en-GB/dataset/${dataset1Id}/revision/by-id/${revision1Id}/import/by-id/${import1Id}/preview`)
-          .set(getAuthHeader(user))
+            .set(getAuthHeader(user))
             .query({ page_number: 20 });
         expect(res.status).toBe(400);
         expect(res.body).toEqual({
@@ -185,7 +188,7 @@ describe('API Endpoints', () => {
 
         const res = await request(app)
             .get(`/en-GB/dataset/${dataset1Id}/revision/by-id/${revision1Id}/import/by-id/${import1Id}/preview`)
-          .set(getAuthHeader(user))
+            .set(getAuthHeader(user))
             .query({ page_size: 1000 });
         expect(res.status).toBe(400);
         expect(res.body).toEqual({
@@ -228,7 +231,7 @@ describe('API Endpoints', () => {
 
         const res = await request(app)
             .get(`/en-GB/dataset/${dataset1Id}/revision/by-id/${revision1Id}/import/by-id/${import1Id}/preview`)
-          .set(getAuthHeader(user))
+            .set(getAuthHeader(user))
             .query({ page_size: 1 });
         expect(res.status).toBe(400);
         expect(res.body).toEqual({
@@ -269,9 +272,9 @@ describe('API Endpoints', () => {
         const testFileStream = fs.createReadStream(testFile2);
         const testFile2Buffer = fs.readFileSync(testFile2);
         BlobStorageService.prototype.getReadableStream = jest.fn().mockReturnValue(testFileStream);
-        const res = await request(app).get(
-            `/en-GB/dataset/${dataset1Id}/revision/by-id/${revision1Id}/import/by-id/${import1Id}/raw`
-        ).set(getAuthHeader(user));
+        const res = await request(app)
+            .get(`/en-GB/dataset/${dataset1Id}/revision/by-id/${revision1Id}/import/by-id/${import1Id}/raw`)
+            .set(getAuthHeader(user));
         expect(res.status).toBe(200);
         expect(res.text).toEqual(testFile2Buffer.toString());
     });
@@ -283,7 +286,7 @@ describe('API Endpoints', () => {
 
         const res = await request(app)
             .get(`/en-GB/dataset/${dataset1Id}/revision/by-id/${revision1Id}/import/by-id/${import1Id}/preview`)
-          .set(getAuthHeader(user))
+            .set(getAuthHeader(user))
             .query({ page_number: 2, page_size: 100 });
         expect(res.status).toBe(200);
         expect(res.body.current_page).toBe(2);
@@ -300,9 +303,11 @@ describe('API Endpoints', () => {
     });
 
     test('Get preview of an import returns 404 when a non-existant import is requested', async () => {
-        const res = await request(app).get(
-            `/en-GB/dataset/${dataset1Id}/revision/by-id/${revision1Id}/import/by-id/97C3F48F-127C-4317-B39C-87350F222310/preview`
-        ).set(getAuthHeader(user));
+        const res = await request(app)
+            .get(
+                `/en-GB/dataset/${dataset1Id}/revision/by-id/${revision1Id}/import/by-id/97C3F48F-127C-4317-B39C-87350F222310/preview`
+            )
+            .set(getAuthHeader(user));
         expect(res.status).toBe(404);
         expect(res.body).toEqual({ message: 'Import not found.' });
     });

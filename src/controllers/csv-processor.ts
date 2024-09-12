@@ -12,10 +12,10 @@ import { Dataset } from '../entities/dataset';
 import { Revision } from '../entities/revision';
 import { Source } from '../entities/source';
 import { FileImport } from '../entities/file-import';
+import { SourceAction } from '../enums/source-action';
 
 import { BlobStorageService } from './blob-storage';
 import { DataLakeService } from './datalake';
-import { SourceAction } from '../enums/source-action';
 
 export const MAX_PAGE_SIZE = 500;
 export const MIN_PAGE_SIZE = 5;

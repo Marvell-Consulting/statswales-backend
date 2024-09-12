@@ -10,11 +10,11 @@ import { t, ENGLISH, WELSH } from '../src/middleware/translation';
 import { Revision } from '../src/entities/revision';
 import { FileImport } from '../src/entities/file-import';
 import DatabaseManager from '../src/db/database-manager';
+import { User } from '../src/entities/user';
 
 import { createFullDataset, createSmallDataset } from './helpers/test-helper';
-import { User } from "../src/entities/user";
-import { getTestUser } from "./helpers/get-user";
-import { getAuthHeader } from "./helpers/auth-header";
+import { getTestUser } from './helpers/get-user';
+import { getAuthHeader } from './helpers/auth-header';
 
 DataLakeService.prototype.listFiles = jest
     .fn()
