@@ -19,7 +19,11 @@ import {
     processCSVFromDatalake,
     uploadCSVBufferToBlobStorage
 } from '../controllers/csv-processor';
-import { createDimensions, validateDimensionCreationRequest } from '../controllers/dimension-processor';
+import {
+    createDimensions,
+    ValidatedDimensionCreationRequest,
+    validateDimensionCreationRequest
+} from '../controllers/dimension-processor';
 import { User } from '../entities/user';
 import { Dataset } from '../entities/dataset';
 import { DatasetInfo } from '../entities/dataset-info';
@@ -439,9 +443,9 @@ router.patch(
             return;
         }
         try {
-            const revisionDTO = await createSources(importRecord);
+            const fileImportDto = await createSources(importRecord);
             res.status(200);
-            res.json(revisionDTO);
+            res.json(fileImportDto);
         } catch (err) {
             logger.error(`An error occurred trying to create the sources with the following error: ${err}`);
             res.status(500);
@@ -478,23 +482,19 @@ router.patch(
         const importID: string = req.params.import_id;
         const importRecord = await validateImport(importID, res);
         if (!importRecord) return;
-
-        if (!req.body) {
+        const dimensionCreationDTO = req.body as DimensionCreationDTO[];
+        let validatedDTO: ValidatedDimensionCreationRequest;
+        try {
+            validatedDTO = await validateDimensionCreationRequest(dimensionCreationDTO);
+        } catch (err) {
+            logger.error(`An error occurred trying to process the user supplied JSON: ${err}`);
             res.status(400);
-            res.json({ message: 'No sources provided' });
+            res.json({ message: `Error processing the supplied JSON with the following error ${err}` });
             return;
         }
-        const dimensionCreationDTO = req.body as DimensionCreationDTO[];
-        try {
-            const validatedDTO = await validateDimensionCreationRequest(dimensionCreationDTO);
-            const savedDataset = await createDimensions(revision, validatedDTO);
-            const dto = await DatasetDTO.fromDatasetComplete(savedDataset);
-            res.status(200);
-            res.json(dto);
-        } catch (err) {
-            logger.error(`An error occurred trying to create the dimensions with the following error: ${err}`);
-            res.status(500);
-            res.json({ message: 'Error creating dimensions from the uploaded file.  Please try again.' });
-        }
+        const savedDataset = await createDimensions(revision, validatedDTO);
+        const dto = await DatasetDTO.fromDatasetComplete(savedDataset);
+        res.status(200);
+        res.json(dto);
     }
 );

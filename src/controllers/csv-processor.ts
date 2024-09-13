@@ -5,7 +5,7 @@ import { parse } from 'csv';
 
 import { ENGLISH, i18next, WELSH } from '../middleware/translation';
 import { logger as parentLogger } from '../utils/logger';
-import { DatasetDTO, ImportDTO, RevisionDTO } from '../dtos/dataset-dto';
+import { DatasetDTO, ImportDTO } from '../dtos/dataset-dto';
 import { Error } from '../dtos/error';
 import { CSVHeader, ViewDTO, ViewErrDTO, ViewStream } from '../dtos/view-dto';
 import { Dataset } from '../entities/dataset';
@@ -385,7 +385,7 @@ export const moveFileToDataLake = async (importObj: FileImport) => {
     }
 };
 
-export const createSources = async (importObj: FileImport): Promise<RevisionDTO> => {
+export const createSources = async (importObj: FileImport): Promise<ImportDTO> => {
     const revision: Revision = await importObj.revision;
     const dataset: Dataset = await revision.dataset;
     let fileView: ViewDTO | ViewErrDTO;
@@ -401,29 +401,26 @@ export const createSources = async (importObj: FileImport): Promise<RevisionDTO>
     } else {
         throw new Error('Error processing file from datalake');
     }
-    const headers = fileData.headers;
-    const sources: Source[] = [];
-    headers.forEach((header) => {
+    const sources: Source[] = fileData.headers.map((header) => {
         const source = new Source();
+        source.id = crypto.randomUUID().toLowerCase();
         source.columnIndex = header.index;
         source.csvField = header.name;
         source.action = SourceAction.UNKNOWN;
         source.revision = Promise.resolve(revision);
         source.import = Promise.resolve(importObj);
-        sources.push(source);
-        source.save();
+        return source;
     });
-    const saveImport = await FileImport.findOneBy({ id: importObj.id });
-    if (!saveImport) {
+    const freshFileImport = await FileImport.findOneBy({ id: importObj.id });
+    if (!freshFileImport) {
         throw new Error('Import not found');
     }
-    saveImport.sources = Promise.resolve(sources);
-    await importObj.save();
-    const saveRevision = await Revision.findOneBy({ id: revision.id });
-    if (!saveRevision) {
-        throw new Error('Revision not found');
+    try {
+        freshFileImport.sources = Promise.resolve(sources);
+        await freshFileImport.save();
+    } catch (err) {
+        logger.error(err);
+        throw new Error('Error saving sources to import');
     }
-    saveRevision.sources = Promise.resolve(sources);
-    await saveRevision.save();
-    return RevisionDTO.fromRevision(saveRevision);
+    return ImportDTO.fromImport(freshFileImport);
 };
