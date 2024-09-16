@@ -18,6 +18,7 @@ import { FileImport } from '../src/entities/file-import';
 import { DataLocation } from '../src/enums/data-location';
 import { DimensionCreationDTO } from '../src/dtos/dimension-creation-dto';
 import { SourceType } from '../src/enums/source-type';
+import { Revision } from '../src/entities/revision';
 
 import { createFullDataset, createSmallDataset } from './helpers/test-helper';
 import { getTestUser } from './helpers/get-user';
@@ -126,7 +127,6 @@ describe('API Endpoints', () => {
 
         test('Upload returns 201 if a file is attached', async () => {
             const csvFile = path.resolve(__dirname, `sample-csvs/test-data-1.csv`);
-
             const res = await request(app)
                 .post('/en-GB/dataset')
                 .set(getAuthHeader(user))
@@ -388,6 +388,164 @@ describe('API Endpoints', () => {
                 .set(getAuthHeader(user));
             expect(res.status).toBe(404);
             expect(res.body).toEqual({ message: 'Import not found.' });
+        });
+    });
+
+    describe('Step 2b - Unhappy path of the user uploading the wrong file', () => {
+        test('Returns 200 when the user requests to delete the import', async () => {
+            const testDatasetId = crypto.randomUUID().toLowerCase();
+            const testRevisionId = crypto.randomUUID().toLowerCase();
+            const testFileImportId = crypto.randomUUID().toLowerCase();
+            await createSmallDataset(testDatasetId, testRevisionId, testFileImportId, user);
+            BlobStorageService.prototype.deleteFile = jest.fn().mockReturnValue(true);
+            const res = await request(app)
+                .delete(
+                    `/en-GB/dataset/${testDatasetId}/revision/by-id/${testRevisionId}/import/by-id/${testFileImportId}`
+                )
+                .set(getAuthHeader(user));
+            expect(res.status).toBe(200);
+            const updatedRevision = await Revision.findOneBy({ id: testRevisionId });
+            if (!updatedRevision) {
+                throw new Error('Revision not found');
+            }
+            const imports = await updatedRevision.imports;
+            expect(imports).toBeInstanceOf(Array);
+            expect(imports.length).toBe(0);
+            const updatedDataset = await Dataset.findOneBy({ id: testDatasetId });
+            if (!updatedDataset) {
+                throw new Error('Dataset not found');
+            }
+            const dto = await DatasetDTO.fromDatasetWithRevisionsAndImports(updatedDataset);
+            expect(res.body).toEqual(dto);
+        });
+
+        test('Returns 500 when the user requests to delete the import and there is an error with BlobStorage', async () => {
+            const testDatasetId = crypto.randomUUID().toLowerCase();
+            const testRevisionId = crypto.randomUUID().toLowerCase();
+            const testFileImportId = crypto.randomUUID().toLowerCase();
+            await createSmallDataset(testDatasetId, testRevisionId, testFileImportId, user);
+            BlobStorageService.prototype.deleteFile = jest.fn().mockRejectedValue(new Error('File not found'));
+            const res = await request(app)
+                .delete(
+                    `/en-GB/dataset/${testDatasetId}/revision/by-id/${testRevisionId}/import/by-id/${testFileImportId}`
+                )
+                .set(getAuthHeader(user));
+            expect(res.status).toBe(500);
+            const updatedRevision = await Revision.findOneBy({ id: testRevisionId });
+            if (!updatedRevision) {
+                throw new Error('Revision not found');
+            }
+            const imports = await updatedRevision.imports;
+            expect(imports).toBeInstanceOf(Array);
+            expect(imports.length).toBe(1);
+            expect(res.body).toEqual({
+                message: 'Error removing file from temporary blob storage.  Please try again.'
+            });
+        });
+
+        test('Upload returns 400 if no file attached', async () => {
+            const testDatasetId = crypto.randomUUID().toLowerCase();
+            const testRevisionId = crypto.randomUUID().toLowerCase();
+            const testFileImportId = crypto.randomUUID().toLowerCase();
+            await createSmallDataset(testDatasetId, testRevisionId, testFileImportId, user);
+            const fileImport = await FileImport.findOneBy({ id: testFileImportId });
+            if (!fileImport) {
+                throw new Error('File Import not found');
+            }
+            await fileImport.remove();
+            const err: ViewErrDTO = {
+                success: false,
+                status: 400,
+                dataset_id: undefined,
+                errors: [
+                    {
+                        field: 'csv',
+                        message: [
+                            {
+                                lang: ENGLISH,
+                                message: t('errors.no_csv_data', { lng: ENGLISH })
+                            },
+                            {
+                                lang: WELSH,
+                                message: t('errors.no_csv_data', { lng: WELSH })
+                            }
+                        ],
+                        tag: {
+                            name: 'errors.no_csv_data',
+                            params: {}
+                        }
+                    }
+                ]
+            };
+            const res = await request(app)
+                .post(`/en-GB/dataset/${testDatasetId}/revision/by-id/${testRevisionId}/import`)
+                .set(getAuthHeader(user))
+                .query({ title: 'Failure Test' });
+            expect(res.status).toBe(400);
+            expect(res.body).toEqual(err);
+        });
+
+        test('Upload returns 201 if a file is attached', async () => {
+            BlobStorageService.prototype.uploadFile = jest.fn().mockReturnValue({});
+            const testDatasetId = crypto.randomUUID().toLowerCase();
+            const testRevisionId = crypto.randomUUID().toLowerCase();
+            const testFileImportId = crypto.randomUUID().toLowerCase();
+            await createSmallDataset(testDatasetId, testRevisionId, testFileImportId, user);
+            const fileImport = await FileImport.findOneBy({ id: testFileImportId });
+            if (!fileImport) {
+                throw new Error('File Import not found');
+            }
+            await fileImport.remove();
+            const revision = await Revision.findOneBy({ id: testRevisionId });
+            if (!revision) {
+                expect(revision).not.toBeNull();
+                return;
+            }
+            expect((await revision.imports).length).toBe(0);
+            const csvFile = path.resolve(__dirname, `sample-csvs/test-data-1.csv`);
+
+            const res = await request(app)
+                .post(`/en-GB/dataset/${testDatasetId}/revision/by-id/${testRevisionId}/import`)
+                .set(getAuthHeader(user))
+                .attach('csv', csvFile)
+                .field('title', 'Test Dataset 3')
+                .field('lang', 'en-GB');
+            const updatedRevision = await Revision.findOneBy({ id: testRevisionId });
+            if (!updatedRevision) {
+                expect(updatedRevision).not.toBeNull();
+                return;
+            }
+            expect((await updatedRevision.imports).length).toBe(1);
+            const dataset = await revision.dataset;
+            const datasetDTO = await DatasetDTO.fromDatasetWithRevisionsAndImports(dataset);
+            console.log(res.body);
+            expect(res.status).toBe(201);
+            expect(res.body).toEqual(datasetDTO);
+            console.log(JSON.stringify(datasetDTO));
+            await Dataset.remove(dataset);
+        });
+
+        test('Upload returns 500 if an error occurs with blob storage', async () => {
+            const testDatasetId = crypto.randomUUID().toLowerCase();
+            const testRevisionId = crypto.randomUUID().toLowerCase();
+            const testFileImportId = crypto.randomUUID().toLowerCase();
+            await createSmallDataset(testDatasetId, testRevisionId, testFileImportId, user);
+            const fileImport = await FileImport.findOneBy({ id: testFileImportId });
+            if (!fileImport) {
+                throw new Error('File Import not found');
+            }
+            await fileImport.remove();
+            BlobStorageService.prototype.uploadFile = jest.fn().mockImplementation(() => {
+                throw new Error('Test error');
+            });
+            const csvFile = path.resolve(__dirname, `sample-csvs/test-data-1.csv`);
+            const res = await request(app)
+                .post(`/en-GB/dataset/${testDatasetId}/revision/by-id/${testRevisionId}/import`)
+                .set(getAuthHeader(user))
+                .attach('csv', csvFile)
+                .field('lang', 'en-GB');
+            expect(res.status).toBe(500);
+            expect(res.body).toEqual({ message: 'Error uploading file' });
         });
     });
 

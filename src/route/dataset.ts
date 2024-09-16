@@ -17,6 +17,7 @@ import {
     moveFileToDataLake,
     processCSVFromBlobStorage,
     processCSVFromDatalake,
+    removeTempfileFromBlobStorage,
     uploadCSVBufferToBlobStorage
 } from '../controllers/csv-processor';
 import {
@@ -330,7 +331,45 @@ router.get('/:dataset_id/revision/by-id/:revision_id', async (req: Request, res:
     res.json(dto);
 });
 
-// GET /api/dataset/:dataset_id/revision/id/:revision_id/import/id/:import_id
+// POST /api/dataset/:dataset_id/revision/id/:revision_id/import
+// Creates a new import on a revision.  This typically only occurs when a user
+// decides the file they uploaded wasn't correct.
+router.post(
+    '/:dataset_id/revision/by-id/:revision_id/import',
+    upload.single('csv'),
+    async (req: Request, res: Response) => {
+        const datasetID: string = req.params.dataset_id.toLowerCase();
+        const dataset = await validateDataset(datasetID, res);
+        if (!dataset) return;
+        const revisionID: string = req.params.revision_id;
+        const revision = await validateRevision(revisionID, res);
+        if (!revision) return;
+        if (!req.file) {
+            res.status(400);
+            res.json(errorDtoGenerator('csv', 400, 'errors.no_csv_data'));
+            return;
+        }
+        let importRecord: FileImport;
+        try {
+            importRecord = await uploadCSVBufferToBlobStorage(req.file.buffer, req.file?.mimetype);
+        } catch (err) {
+            logger.error(`An error occurred trying to upload the file with the following error: ${err}`);
+            res.status(500);
+            res.json({ message: 'Error uploading file' });
+            return;
+        }
+        importRecord.revision = Promise.resolve(revision);
+        await importRecord.save();
+        const updatedDataset = await Dataset.findOneBy({ id: datasetID });
+        if (!updatedDataset) return;
+
+        const uploadDTO = await DatasetDTO.fromDatasetWithRevisionsAndImports(updatedDataset);
+        res.status(201);
+        res.json(uploadDTO);
+    }
+);
+
+// GET /api/dataset/:dataset_id/revision/id/:revision_id/import/by-id/:import_id
 // Returns details of an import with its sources
 router.get('/:dataset_id/revision/by-id/:revision_id/import/by-id/:import_id', async (req: Request, res: Response) => {
     const datasetID: string = req.params.dataset_id.toLowerCase();
@@ -463,6 +502,38 @@ router.patch(
             res.status(500);
             res.json({ message: 'Error creating sources from the uploaded file.  Please try again.' });
         }
+    }
+);
+
+// DELETE /:dataset_id/revision/by-id/:revision_id/import/by-id/:import_id
+// Removes the import record and associated file from BlobStorage clearing the way
+// for the user to upload a new file for the dataset.
+router.delete(
+    '/:dataset_id/revision/by-id/:revision_id/import/by-id/:import_id',
+    async (req: Request, res: Response) => {
+        const datasetID: string = req.params.dataset_id.toLowerCase();
+        const dataset = await validateDataset(datasetID, res);
+        if (!dataset) return;
+        const revisionID: string = req.params.revision_id;
+        const revision = await validateRevision(revisionID, res);
+        if (!revision) return;
+        const importID: string = req.params.import_id;
+        const importRecord = await validateImport(importID, res);
+        if (!importRecord) return;
+        try {
+            await removeTempfileFromBlobStorage(importRecord);
+        } catch (err) {
+            logger.error(`An error occurred trying to remove the file with the following error: ${err}`);
+            res.status(500);
+            res.json({ message: 'Error removing file from temporary blob storage.  Please try again.' });
+            return;
+        }
+        await importRecord.remove();
+        const updatedDataset = await Dataset.findOneBy({ id: datasetID });
+        if (!updatedDataset) return;
+        const dto = await DatasetDTO.fromDatasetWithRevisionsAndImports(updatedDataset);
+        res.status(200);
+        res.json(dto);
     }
 );
 
