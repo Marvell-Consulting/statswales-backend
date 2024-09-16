@@ -117,6 +117,8 @@ export async function createFullDataset(datasetId: string, revisionId: string, i
     if (!imp) {
         throw new Error('No import found for revision');
     }
+    imp.location = DataLocation.DATA_LAKE;
+    await imp.save();
     const sourceDescriptions = [
         { csvField: 'ID', description: 'unique identifier', action: SourceAction.CREATE, type: SourceType.IGNORE },
         { csvField: 'Text', description: 'Some test', action: SourceAction.CREATE, type: SourceType.DIMENSION },

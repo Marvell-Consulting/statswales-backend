@@ -221,6 +221,12 @@ describe('API Endpoints for viewing dataset objects', () => {
 
         describe('Getting a raw file out of a file import', () => {
             test('Get file from a revision and import returns 200 and complete file data if stored in BlobStorage', async () => {
+                const fileImport = await FileImport.findOneBy({ id: import1Id });
+                if (!fileImport) {
+                    throw new Error('Import not found');
+                }
+                fileImport.location = DataLocation.BLOB_STORAGE;
+                await fileImport.save();
                 const testFile2 = path.resolve(__dirname, `sample-csvs/test-data-2.csv`);
                 const testFileStream = fs.createReadStream(testFile2);
                 const testFile2Buffer = fs.readFileSync(testFile2);
@@ -230,6 +236,8 @@ describe('API Endpoints for viewing dataset objects', () => {
                     .set(getAuthHeader(user));
                 expect(res.status).toBe(200);
                 expect(res.text).toEqual(testFile2Buffer.toString());
+                fileImport.location = DataLocation.DATA_LAKE;
+                await fileImport.save();
             });
 
             test('Get file from a revision and import returns 200 and complete file data if stored in the Data Lake', async () => {
@@ -237,12 +245,6 @@ describe('API Endpoints for viewing dataset objects', () => {
                 const testFileStream = fs.createReadStream(testFile2);
                 const testFile2Buffer = fs.readFileSync(testFile2);
                 DataLakeService.prototype.downloadFileStream = jest.fn().mockReturnValue(testFileStream);
-                const fileImport = await FileImport.findOneBy({ id: import1Id });
-                if (!fileImport) {
-                    throw new Error('Import not found');
-                }
-                fileImport.location = DataLocation.DATA_LAKE;
-                await fileImport.save();
 
                 const res = await request(app)
                     .get(`/en-GB/dataset/${dataset1Id}/revision/by-id/${revision1Id}/import/by-id/${import1Id}/raw`)

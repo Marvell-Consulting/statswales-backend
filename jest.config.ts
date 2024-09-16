@@ -8,7 +8,15 @@ const config: Config = {
   coverageDirectory: './coverage',
   collectCoverage: true,
   coverageReporters: ['cobertura', 'lcov', 'html', 'text'],
-  coveragePathIgnorePatterns: ['/node_modules/', '/test/', '/src/controllers/datalake.ts'],
+  coveragePathIgnorePatterns: [
+    '/node_modules',
+    '/test/',
+    '/src/migrations',
+    '/src/controllers/auth.ts',
+    '/src/controllers/datalake.ts',
+    '/src/controllers/blob-storage.ts',
+    'src/middleware/passport-auth.ts'
+  ],
   setupFiles: ['<rootDir>/test/helpers/jest-setup.ts'],
   maxWorkers: 1 // TODO: temporary solution to test parallelism issue
 };

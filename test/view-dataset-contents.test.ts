@@ -41,7 +41,7 @@ describe('API Endpoints for viewing the contents of a dataset', () => {
     test('Get file from a dataset, stored in blobStorage, returns 200 and complete file data', async () => {
         const testFile2 = path.resolve(__dirname, `sample-csvs/test-data-2.csv`);
         const testFile1Buffer = fs.readFileSync(testFile2);
-        BlobStorageService.prototype.readFile = jest.fn().mockReturnValue(testFile1Buffer.toString());
+        DataLakeService.prototype.downloadFile = jest.fn().mockReturnValue(testFile1Buffer.toString());
 
         const res = await request(app)
             .get(`/en-GB/dataset/${dataset1Id}/view`)
