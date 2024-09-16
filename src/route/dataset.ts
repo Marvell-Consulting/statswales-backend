@@ -471,6 +471,12 @@ router.patch(
         const importID: string = req.params.import_id;
         const importRecord = await validateImport(importID, res);
         if (!importRecord) return;
+        if (importRecord.location === DataLocation.DATA_LAKE) {
+            const fileImportDto = await ImportDTO.fromImport(importRecord);
+            res.status(200);
+            res.json(fileImportDto);
+            return;
+        }
         try {
             importRecord.location = DataLocation.DATA_LAKE;
             await moveFileToDataLake(importRecord);

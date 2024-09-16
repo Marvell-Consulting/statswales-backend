@@ -163,18 +163,24 @@ describe('API Endpoints', () => {
 
     describe('Step 2 - Get a preview of the uploaded file with a View Object', () => {
         test('Get file preview returns 400 if page_number is too high', async () => {
+            const testDatasetId = crypto.randomUUID().toLowerCase();
+            const testRevisionId = crypto.randomUUID().toLowerCase();
+            const testFileImportId = crypto.randomUUID().toLowerCase();
+            await createSmallDataset(testDatasetId, testRevisionId, testFileImportId, user);
             const testFile2 = path.resolve(__dirname, `sample-csvs/test-data-2.csv`);
             const testFile2Buffer = fs.readFileSync(testFile2);
             BlobStorageService.prototype.readFile = jest.fn().mockReturnValue(testFile2Buffer);
             const res = await request(app)
-                .get(`/en-GB/dataset/${dataset1Id}/revision/by-id/${revision1Id}/import/by-id/${import1Id}/preview`)
+                .get(
+                    `/en-GB/dataset/${testDatasetId}/revision/by-id/${testRevisionId}/import/by-id/${testFileImportId}/preview`
+                )
                 .set(getAuthHeader(user))
                 .query({ page_number: 20 });
             expect(res.status).toBe(400);
             expect(res.body).toEqual({
                 success: false,
                 status: 400,
-                dataset_id: dataset1Id,
+                dataset_id: testDatasetId,
                 errors: [
                     {
                         field: 'page_number',
@@ -195,19 +201,25 @@ describe('API Endpoints', () => {
         });
 
         test('Get file preview returns 400 if page_size is too high', async () => {
+            const testDatasetId = crypto.randomUUID().toLowerCase();
+            const testRevisionId = crypto.randomUUID().toLowerCase();
+            const testFileImportId = crypto.randomUUID().toLowerCase();
+            await createSmallDataset(testDatasetId, testRevisionId, testFileImportId, user);
             const testFile2 = path.resolve(__dirname, `sample-csvs/test-data-2.csv`);
             const testFile2Buffer = fs.readFileSync(testFile2);
             BlobStorageService.prototype.readFile = jest.fn().mockReturnValue(testFile2Buffer);
 
             const res = await request(app)
-                .get(`/en-GB/dataset/${dataset1Id}/revision/by-id/${revision1Id}/import/by-id/${import1Id}/preview`)
+                .get(
+                    `/en-GB/dataset/${testDatasetId}/revision/by-id/${testRevisionId}/import/by-id/${testFileImportId}/preview`
+                )
                 .set(getAuthHeader(user))
                 .query({ page_size: 1000 });
             expect(res.status).toBe(400);
             expect(res.body).toEqual({
                 success: false,
                 status: 400,
-                dataset_id: dataset1Id,
+                dataset_id: testDatasetId,
                 errors: [
                     {
                         field: 'page_size',
@@ -239,19 +251,25 @@ describe('API Endpoints', () => {
         });
 
         test('Get file preview returns 400 if page_size is too low', async () => {
+            const testDatasetId = crypto.randomUUID().toLowerCase();
+            const testRevisionId = crypto.randomUUID().toLowerCase();
+            const testFileImportId = crypto.randomUUID().toLowerCase();
+            await createSmallDataset(testDatasetId, testRevisionId, testFileImportId, user);
             const testFile2 = path.resolve(__dirname, `sample-csvs/test-data-2.csv`);
             const testFile2Buffer = fs.readFileSync(testFile2);
             BlobStorageService.prototype.readFile = jest.fn().mockReturnValue(testFile2Buffer);
 
             const res = await request(app)
-                .get(`/en-GB/dataset/${dataset1Id}/revision/by-id/${revision1Id}/import/by-id/${import1Id}/preview`)
+                .get(
+                    `/en-GB/dataset/${testDatasetId}/revision/by-id/${testRevisionId}/import/by-id/${testFileImportId}/preview`
+                )
                 .set(getAuthHeader(user))
                 .query({ page_size: 1 });
             expect(res.status).toBe(400);
             expect(res.body).toEqual({
                 success: false,
                 status: 400,
-                dataset_id: dataset1Id,
+                dataset_id: testDatasetId,
                 errors: [
                     {
                         field: 'page_size',
@@ -282,12 +300,18 @@ describe('API Endpoints', () => {
             });
         });
         test('Get preview of an import returns 200 and correct page data if the file is stored in BlobStorage (Default)', async () => {
+            const testDatasetId = crypto.randomUUID().toLowerCase();
+            const testRevisionId = crypto.randomUUID().toLowerCase();
+            const testFileImportId = crypto.randomUUID().toLowerCase();
+            await createSmallDataset(testDatasetId, testRevisionId, testFileImportId, user);
             const testFile2 = path.resolve(__dirname, `sample-csvs/test-data-2.csv`);
             const testFile1Buffer = fs.readFileSync(testFile2);
             BlobStorageService.prototype.readFile = jest.fn().mockReturnValue(testFile1Buffer.toString());
 
             const res = await request(app)
-                .get(`/en-GB/dataset/${dataset1Id}/revision/by-id/${revision1Id}/import/by-id/${import1Id}/preview`)
+                .get(
+                    `/en-GB/dataset/${testDatasetId}/revision/by-id/${testRevisionId}/import/by-id/${testFileImportId}/preview`
+                )
                 .set(getAuthHeader(user))
                 .query({ page_number: 2, page_size: 100 });
             expect(res.status).toBe(200);
@@ -518,10 +542,8 @@ describe('API Endpoints', () => {
             expect((await updatedRevision.imports).length).toBe(1);
             const dataset = await revision.dataset;
             const datasetDTO = await DatasetDTO.fromDatasetWithRevisionsAndImports(dataset);
-            console.log(res.body);
             expect(res.status).toBe(201);
             expect(res.body).toEqual(datasetDTO);
-            console.log(JSON.stringify(datasetDTO));
             await Dataset.remove(dataset);
         });
 
@@ -573,6 +595,22 @@ describe('API Endpoints', () => {
                 )
                 .set(getAuthHeader(user));
             const postRunFileImport = await FileImport.findOneBy({ id: testFileImportId });
+            if (!postRunFileImport) {
+                throw new Error('Import not found');
+            }
+            expect(postRunFileImport.location).toBe(DataLocation.DATA_LAKE);
+            const sources = await postRunFileImport.sources;
+            expect(sources.length).toBe(4);
+            const dto = await ImportDTO.fromImport(postRunFileImport);
+            expect(res.status).toBe(200);
+            expect(res.body).toEqual(dto);
+        });
+
+        test('Returns 200 with an import dto listing the no additional sources are created if sources are already present', async () => {
+            const res = await request(app)
+                .patch(`/en-GB/dataset/${dataset1Id}/revision/by-id/${revision1Id}/import/by-id/${import1Id}/confirm`)
+                .set(getAuthHeader(user));
+            const postRunFileImport = await FileImport.findOneBy({ id: import1Id });
             if (!postRunFileImport) {
                 throw new Error('Import not found');
             }
