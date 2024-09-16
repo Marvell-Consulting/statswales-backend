@@ -385,6 +385,16 @@ export const moveFileToDataLake = async (importObj: FileImport) => {
     }
 };
 
+export const removeTempfileFromBlobStorage = async (importObj: FileImport) => {
+    const blobStorageService = new BlobStorageService();
+    try {
+        await blobStorageService.deleteFile(importObj.filename);
+    } catch (err) {
+        logger.error(err);
+        throw new Error('Unable to successfully remove file from Blob Storage');
+    }
+};
+
 export const createSources = async (importObj: FileImport): Promise<ImportDTO> => {
     const revision: Revision = await importObj.revision;
     const dataset: Dataset = await revision.dataset;
