@@ -42,7 +42,7 @@ export class DatasetInfo extends BaseEntity {
     @JoinColumn({ name: 'dataset_id', foreignKeyConstraintName: 'FK_dataset_info_dataset_id' })
     dataset: Promise<Dataset>;
 
-    @CreateDateColumn({ name: 'created_at' })
+    @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
     createdAt: Date;
 
     // This column should be the same across all languages
