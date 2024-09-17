@@ -1,8 +1,12 @@
 import rateLimit from 'express-rate-limit';
 
+import { appConfig } from '../config';
+
+const config = appConfig();
+
 export const rateLimiter = rateLimit({
-    windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS || '60000', 10),
-    max: parseInt(process.env.RATE_LIMIT_MAX_REQ || '100', 10),
+    windowMs: config.rateLimit.windowMs,
+    max: config.rateLimit.maxRequests,
     standardHeaders: true,
     legacyHeaders: false,
     handler: (req, res) => {

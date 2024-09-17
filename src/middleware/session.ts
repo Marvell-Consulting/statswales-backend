@@ -2,7 +2,10 @@ import RedisStore from 'connect-redis';
 import session, { MemoryStore } from 'express-session';
 import { createClient } from 'redis';
 
+import { appConfig } from '../config';
 import { logger } from '../utils/logger';
+
+const config = appConfig();
 
 const sessionLength = 24 * 60 * 60 * 1000; // 24 hours
 
@@ -29,14 +32,13 @@ if (process.env.SESSION_STORE === 'redis') {
 }
 
 export default session({
+    secret: config.session.secret,
     name: 'statswales.backend',
     store,
-    secret: process.env.SESSION_SECRET!,
     resave: false,
     saveUninitialized: false,
     proxy: true,
     cookie: {
-        maxAge: sessionLength,
-        secure: 'auto'
+        secure: config.session.secure
     }
 });

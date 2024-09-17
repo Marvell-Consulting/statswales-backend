@@ -2,8 +2,12 @@ import pino from 'pino';
 import pinoHttp from 'pino-http';
 import pick from 'lodash/pick';
 
+import { appConfig } from '../config';
+
+const config = appConfig();
+
 export const logger = pino({
-    level: process.env.LOG_LEVEL || 'debug'
+    level: config.logger.level
 });
 
 export const httpLogger = pinoHttp({

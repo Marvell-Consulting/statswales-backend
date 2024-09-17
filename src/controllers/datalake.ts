@@ -4,16 +4,12 @@ import { Readable } from 'stream';
 import { DataLakeServiceClient, StorageSharedKeyCredential } from '@azure/storage-file-datalake';
 
 import { logger as parentLogger } from '../utils/logger';
+import { appConfig } from '../config';
 
 const logger = parentLogger.child({ module: 'DataLakeService' });
 
-const accountName = process.env.AZURE_DATALAKE_STORAGE_ACCOUNT_NAME || 'your-storage-account-name';
-const accountKey = process.env.AZURE_DATALAKE_STORAGE_ACCOUNT_KEY || 'your-storage';
-const defaultDirectoryName = process.env.AZURE_DATALAKE_STORAGE_DIRECTORY_NAME || 'your-directory-name';
-// const fileSystemName = process.env.AZURE_STORAGE_FILESYSTEM_NAME || 'your-filesystem-name';
-// const containerName = process.env.AZURE_STORAGE_CONTAINER_NAME || 'your-container-name';
-
-const fileSystemName = 'swdlfs';
+const config = appConfig();
+const { accountName, accountKey, fileSystemName, directoryName: defaultDirectoryName } = config.storage.datalake;
 
 export class DataLakeService {
     private readonly serviceClient: DataLakeServiceClient;
