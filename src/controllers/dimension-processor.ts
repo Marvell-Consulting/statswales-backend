@@ -75,7 +75,7 @@ export const createDimensions = async (
     if (footnotes) {
         const footnoteDimension = new Dimension();
         const footnoteDimensionInfo: DimensionInfo[] = [];
-        const updateDate = new Date(Date.now());
+        const updateDate = new Date();
         footnoteDimension.dimensionInfo = Promise.resolve(footnoteDimensionInfo);
         footnoteDimension.type = DimensionType.FOOTNOTE;
         footnoteDimension.dataset = Promise.resolve(dataset);
