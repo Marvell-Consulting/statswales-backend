@@ -148,7 +148,7 @@ export const uploadCSVToBlobStorage = async (fileStream: Readable, filetype: str
         await blobStorageService.uploadFile(`${importRecord.filename}`, fileStream);
         const resolvedHash = await promisedHash;
         if (resolvedHash) importRecord.hash = resolvedHash;
-        importRecord.uploadedAt = new Date(Date.now());
+        importRecord.uploadedAt = new Date();
         importRecord.type = ImportType.DRAFT;
         importRecord.location = DataLocation.BLOB_STORAGE;
         return importRecord;
