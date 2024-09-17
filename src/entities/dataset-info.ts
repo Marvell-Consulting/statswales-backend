@@ -47,6 +47,6 @@ export class DatasetInfo extends BaseEntity {
 
     // This column should be the same across all languages
     // If one is updated and the others aren't then mark as needing translation
-    @UpdateDateColumn({ name: 'updated_at', nullable: true })
+    @UpdateDateColumn({ name: 'updated_at', type: 'timestamptz' })
     updatedAt: Date;
 }
