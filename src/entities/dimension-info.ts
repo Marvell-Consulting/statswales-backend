@@ -45,7 +45,7 @@ export class DimensionInfo extends BaseEntity {
     @JoinColumn({ name: 'dimension_id', foreignKeyConstraintName: 'FK_dimension_info_dimension_id' })
     dimension: Promise<Dimension>;
 
-    @CreateDateColumn({ name: 'created_at' })
+    @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
     createdAt: Date;
 
     // This column should be the same across all languages
