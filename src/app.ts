@@ -25,7 +25,7 @@ export const initDb = async (): Promise<DatabaseManager> => {
 const app: Application = express();
 const config = appConfig();
 
-logger.info(`App config loaded for '${config.env}' env`)
+logger.info(`App config loaded for '${config.env}' env`);
 
 app.disable('x-powered-by');
 app.set('trust proxy', 1);
