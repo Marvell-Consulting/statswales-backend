@@ -36,7 +36,8 @@ export function getLocalConfig(): AppConfig {
             jwt: {
                 secret: process.env.JWT_SECRET || 'jwtsecret',
                 expiresIn: process.env.JWT_EXPIRES_IN || '6h',
-                secure: false
+                secure: false,
+                cookieDomain: 'http://localhost'
             }
         }
     });

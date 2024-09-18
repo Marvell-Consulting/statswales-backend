@@ -31,7 +31,8 @@ export function getCIConfig(): AppConfig {
             providers: ['local'],
             jwt: {
                 secret: process.env.JWT_SECRET || 'jwtsecret',
-                expiresIn: process.env.JWT_EXPIRES_IN || '6h'
+                expiresIn: process.env.JWT_EXPIRES_IN || '6h',
+                cookieDomain: 'http://localhost'
             }
         }
     });

@@ -33,11 +33,12 @@ export const getDefaultConfig = (): AppConfig => {
             synchronize: false
         },
         auth: {
-            providers: ['google', 'onelogin'],
+            providers: [],
             jwt: {
                 secret: process.env.JWT_SECRET!,
                 expiresIn: process.env.JWT_EXPIRES_IN || '6h',
-                secure: true
+                secure: true,
+                cookieDomain: process.env.JWT_COOKIE_DOMAIN!
             },
             google: {
                 clientId: process.env.GOOGLE_CLIENT_ID!,
@@ -60,8 +61,8 @@ export const getDefaultConfig = (): AppConfig => {
             datalake: {
                 accountName: process.env.AZURE_DATALAKE_STORAGE_ACCOUNT_NAME!,
                 accountKey: process.env.AZURE_DATALAKE_STORAGE_ACCOUNT_KEY!,
-                fileSystemName: process.env.AZURE_DATALAKE_STORAGE_FILESYSTEM_NAME || 'swdlfs',
-                directoryName: process.env.AZURE_DATALAKE_STORAGE_DIRECTORY_NAME!
+                fileSystemName: process.env.AZURE_DATALAKE_STORAGE_FILESYSTEM_NAME || 'your-fs-name',
+                directoryName: process.env.AZURE_DATALAKE_STORAGE_DIRECTORY_NAME! || 'your-dir-name'
             }
         }
     };

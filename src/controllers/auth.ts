@@ -11,9 +11,8 @@ import { sanitiseUser } from '../utils/sanitise-user';
 
 const config = appConfig();
 const returnURL = `${config.frontend.url}/auth/callback`;
-const domain = new URL(config.backend.url).hostname.replace('statswales-develop-backend.', '');
-logger.debug(`cookie domain: ${domain}`);
-
+const domain = new URL(config.auth.jwt.cookieDomain).hostname;
+logger.debug(`JWT cookie domain is '${domain}'`);
 
 export const loginGoogle: RequestHandler = (req, res, next) => {
     logger.debug('attempting to authenticate with google...');

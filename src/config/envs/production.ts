@@ -12,6 +12,9 @@ export function getProductionConfig(): AppConfig {
         },
         backend: {
             url: 'https://api.example.com'
+        },
+        auth: {
+            providers: ['google', 'onelogin']
         }
     });
 }

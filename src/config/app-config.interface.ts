@@ -36,6 +36,7 @@ export interface AppConfig {
             secret: string;
             expiresIn: string;
             secure: boolean;
+            cookieDomain: string;
         };
         google: {
             clientId: string;
