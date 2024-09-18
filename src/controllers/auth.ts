@@ -9,7 +9,9 @@ import { User } from '../entities/user';
 import { sanitiseUser } from '../utils/sanitise-user';
 
 const returnURL = `${process.env.FRONTEND_URL}/auth/callback`;
-const domain = new URL(process.env.BACKEND_URL || '').hostname;
+const domain = new URL(process.env.BACKEND_URL || '').hostname.replace('statswales-develop-backend.', '');
+logger.debug(`cookie domain: ${domain}`);
+
 const DEFAULT_TOKEN_EXPIRY = '1d';
 
 export const loginGoogle: RequestHandler = (req, res, next) => {
