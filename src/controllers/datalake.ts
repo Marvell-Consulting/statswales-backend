@@ -9,7 +9,7 @@ import { appConfig } from '../config';
 const logger = parentLogger.child({ module: 'DataLakeService' });
 
 const config = appConfig();
-const { accountName, accountKey, fileSystemName, directoryName: defaultDirectoryName } = config.storage.datalake;
+const { accountName, accountKey, fileSystemName, directoryName } = config.storage.datalake;
 
 export class DataLakeService {
     private readonly serviceClient: DataLakeServiceClient;
@@ -26,9 +26,9 @@ export class DataLakeService {
         return this.serviceClient;
     }
 
-    public async createDirectory(directoryName: string) {
+    public async createDirectory(dirName: string) {
         const fileSystemClient = this.serviceClient.getFileSystemClient(fileSystemName);
-        const directoryClient = fileSystemClient.getDirectoryClient(directoryName);
+        const directoryClient = fileSystemClient.getDirectoryClient(dirName);
 
         await directoryClient.create();
     }
@@ -55,7 +55,7 @@ export class DataLakeService {
     public async uploadFile(fileName: string, fileContent: Buffer) {
         logger.debug(`Uploading file with file '${fileName}' to datalake`);
         const fileSystemClient = this.serviceClient.getFileSystemClient(fileSystemName);
-        const directoryClient = fileSystemClient.getDirectoryClient(defaultDirectoryName);
+        const directoryClient = fileSystemClient.getDirectoryClient(directoryName);
         const fileClient = directoryClient.getFileClient(fileName);
         const body = fileContent.toString();
         await fileClient.create();
@@ -65,7 +65,7 @@ export class DataLakeService {
 
     public async deleteFile(fileName: string) {
         const fileSystemClient = this.serviceClient.getFileSystemClient(fileSystemName);
-        const directoryClient = fileSystemClient.getDirectoryClient(defaultDirectoryName);
+        const directoryClient = fileSystemClient.getDirectoryClient(directoryName);
         const fileClient = directoryClient.getFileClient(fileName);
 
         await fileClient.delete();
@@ -74,7 +74,7 @@ export class DataLakeService {
     public async listFiles() {
         const fileSystemClient = this.serviceClient.getFileSystemClient(fileSystemName);
 
-        const files = await fileSystemClient.listPaths({ path: defaultDirectoryName });
+        const files = await fileSystemClient.listPaths({ path: directoryName });
         const fileList = [];
         for await (const file of files) {
             if (file.name === undefined) {
@@ -87,7 +87,7 @@ export class DataLakeService {
 
     public async downloadFile(fileName: string) {
         const fileSystemClient = this.serviceClient.getFileSystemClient(fileSystemName);
-        const directoryClient = fileSystemClient.getDirectoryClient(defaultDirectoryName);
+        const directoryClient = fileSystemClient.getDirectoryClient(directoryName);
         const fileClient = directoryClient.getFileClient(fileName);
 
         const downloadResponse = await fileClient.read();
@@ -119,7 +119,7 @@ export class DataLakeService {
 
     public async downloadFileStream(fileName: string) {
         const fileSystemClient = this.serviceClient.getFileSystemClient(fileSystemName);
-        const directoryClient = fileSystemClient.getDirectoryClient(defaultDirectoryName);
+        const directoryClient = fileSystemClient.getDirectoryClient(directoryName);
         const fileClient = directoryClient.getFileClient(fileName);
 
         const downloadResponse = await fileClient.read();

@@ -34,6 +34,19 @@ export function getCIConfig(): AppConfig {
                 expiresIn: process.env.JWT_EXPIRES_IN || '6h',
                 cookieDomain: 'http://localhost'
             }
+        },
+        storage: {
+            blob: {
+                accountName: 'accountname',
+                accountKey: 'accountkey',
+                containerName: 'containername'
+            },
+            datalake: {
+                accountName: 'accountname',
+                accountKey: 'accountkey',
+                fileSystemName: 'fsname',
+                directoryName: 'dirname'
+            }
         }
     });
 }

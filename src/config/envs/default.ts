@@ -61,8 +61,8 @@ export const getDefaultConfig = (): AppConfig => {
             datalake: {
                 accountName: process.env.AZURE_DATALAKE_STORAGE_ACCOUNT_NAME!,
                 accountKey: process.env.AZURE_DATALAKE_STORAGE_ACCOUNT_KEY!,
-                fileSystemName: process.env.AZURE_DATALAKE_STORAGE_FILESYSTEM_NAME || 'your-fs-name',
-                directoryName: process.env.AZURE_DATALAKE_STORAGE_DIRECTORY_NAME! || 'your-dir-name'
+                fileSystemName: process.env.AZURE_DATALAKE_STORAGE_FILESYSTEM_NAME!,
+                directoryName: process.env.AZURE_DATALAKE_STORAGE_DIRECTORY_NAME!
             }
         }
     };
