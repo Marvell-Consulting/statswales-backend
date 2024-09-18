@@ -1,5 +1,3 @@
-/* eslint-disable no-shadow */
-/* eslint-disable no-unused-vars */
 export enum DimensionType {
     RAW = 'RAW',
     TEXT = 'TEXT',

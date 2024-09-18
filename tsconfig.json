@@ -1,5 +1,5 @@
 {
-  "exclude": ["./coverage", "./dist", "./test", "jest.config.ts", "./tools"],
+  "exclude": ["./coverage", "./dist", "./test", "jest.config.ts", "eslint.config.mjs", "./tools"],
   "compilerOptions": {
 
     /* Projects */

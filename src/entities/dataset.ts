@@ -10,11 +10,8 @@ import {
 } from 'typeorm';
 
 import { User } from './user';
-// eslint-disable-next-line import/no-cycle
 import { Revision } from './revision';
-// eslint-disable-next-line import/no-cycle
 import { DatasetInfo } from './dataset-info';
-// eslint-disable-next-line import/no-cycle
 import { Dimension } from './dimension';
 
 @Entity()

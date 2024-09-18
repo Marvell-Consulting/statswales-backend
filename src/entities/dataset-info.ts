@@ -9,7 +9,6 @@ import {
     UpdateDateColumn
 } from 'typeorm';
 
-// eslint-disable-next-line import/no-cycle
 import { Dataset } from './dataset';
 
 @Entity()

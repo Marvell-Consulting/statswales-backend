@@ -2,11 +2,8 @@ import { Entity, PrimaryGeneratedColumn, Column, BaseEntity, ManyToOne, OneToMan
 
 import { DimensionType } from '../enums/dimension-type';
 
-// eslint-disable-next-line import/no-cycle
 import { Dataset } from './dataset';
-// eslint-disable-next-line import/no-cycle
 import { Revision } from './revision';
-// eslint-disable-next-line import/no-cycle
 import { DimensionInfo } from './dimension-info';
 import { Source } from './source';
 

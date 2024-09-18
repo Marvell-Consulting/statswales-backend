@@ -1,4 +1,3 @@
-// eslint-disable-next-line import/no-cycle
 import { Dataset } from './dataset';
 import { FileImport } from './file-import';
 import { User } from './user';

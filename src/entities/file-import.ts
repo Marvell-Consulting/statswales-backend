@@ -12,11 +12,8 @@ import {
 import { ImportType } from '../enums/import-type';
 import { DataLocation } from '../enums/data-location';
 
-// eslint-disable-next-line import/no-cycle
 import { Revision } from './revision';
-// eslint-disable-next-line import/no-cycle
 import { CsvInfo } from './csv-info';
-// eslint-disable-next-line import/no-cycle
 import { Source } from './source';
 
 @Entity({ name: 'file_import', orderBy: { uploadedAt: 'ASC' } })

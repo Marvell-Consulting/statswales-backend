@@ -1,6 +1,5 @@
 import { Entity, PrimaryColumn, Column, BaseEntity, ManyToOne, JoinColumn } from 'typeorm';
 
-// eslint-disable-next-line import/no-cycle
 import { FileImport } from './file-import';
 
 @Entity({ name: 'csv_info' })
