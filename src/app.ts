@@ -2,6 +2,7 @@ import 'reflect-metadata';
 
 import express, { Application, Request, Response } from 'express';
 import passport from 'passport';
+import cookieParser from 'cookie-parser';
 
 import { logger, httpLogger } from './utils/logger';
 import DatabaseManager from './db/database-manager';
@@ -23,9 +24,11 @@ export const initDb = async (): Promise<DatabaseManager> => {
 const app: Application = express();
 
 app.disable('x-powered-by');
+app.set('trust proxy', 1);
 
 app.use(httpLogger);
 app.use(i18nextMiddleware.handle(i18next));
+app.use(cookieParser());
 app.use(express.json());
 app.use(session);
 

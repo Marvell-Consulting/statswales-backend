@@ -16,7 +16,7 @@
     "test": "NODE_ENV=test jest --coverage",
     "test:ci": "NODE_ENV=test jest --ci --coverage --config=jest.config.ts",
     "check": "npm-run-all prettier:fix lint:fix test build",
-    "predev": "docker compose up -d db-dev",
+    "predev": "docker compose up -d db-dev redis",
     "dev:check": "npm-run-all check dev",
     "dev": "NODE_ENV=dev nodemon --watch src -e ts,ejs --exec npm run start",
     "start": "npm run build && node dist/server.js | pino-colada",
@@ -33,6 +33,7 @@
   "devDependencies": {
     "@shopify/eslint-plugin": "^44.0.0",
     "@types/better-sqlite3": "^7.6.9",
+    "@types/cookie-parser": "^1.4.7",
     "@types/cors": "^2.8.17",
     "@types/express": ">=4.17.21",
     "@types/express-session": "^1.18.0",
@@ -72,6 +73,7 @@
     "@azure/identity": "^4.4.1",
     "@azure/storage-blob": "^12.24.0",
     "@azure/storage-file-datalake": "^12.16.0",
+    "connect-redis": "^7.1.1",
     "cookie-parser": "^1.4.6",
     "csv": "^6.3.8",
     "dotenv": "^16.4.4",
@@ -91,6 +93,7 @@
     "pg": "^8.11.5",
     "pino": "^8.19.0",
     "pino-http": "^10.2.0",
+    "redis": "^4.7.0",
     "reflect-metadata": "^0.2.2",
     "typeorm": "^0.3.20"
   }
