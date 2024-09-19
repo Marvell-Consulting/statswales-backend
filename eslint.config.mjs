@@ -1,12 +1,9 @@
 // @ts-check
-import tseslint from 'typescript-eslint';
-import globals from 'globals';
-import eslint from '@eslint/js';
-import eslintConfigPrettier from 'eslint-config-prettier';
+import shopifyEslintPlugin from '@shopify/eslint-plugin';
 
-export default tseslint.config(
+export default [
   {
-    // global ignores need to be in their own config block otherwise they don't seem to work
+    // global ignores need to be in their own block otherwise they don't seem to work
     ignores: [
       '.docker/**',
       '.github/**',
@@ -14,23 +11,30 @@ export default tseslint.config(
       'coverage/**',
       'dist/**',
       'node_modules/**',
+      '**/*.config.{mjs,ts}'
     ],
   },
+  ...shopifyEslintPlugin.configs.typescript,
+  ...shopifyEslintPlugin.configs.prettier,
   {
-    files: ['**/*.ts'],
-    languageOptions: {
-      ecmaVersion: 6,
-      globals: {
-        ...globals.node,
-      }
-    },
-    extends: [
-      eslint.configs.recommended,
-      ...tseslint.configs.recommended,
-      eslintConfigPrettier,
-    ],
+    files: ['**/entities/*.ts'],
     rules: {
-      'no-console': 'error'
+      'import/no-cycle': 'off',
     }
-  }
-);
+  },
+  {
+    rules: {
+      'line-comment-position': 'off',
+      'no-process-env': 'warn',
+      'no-warning-comments': 'warn',
+      '@typescript-eslint/member-ordering': 'warn',
+      '@typescript-eslint/naming-convention': [
+        'error',
+        {
+          selector: 'default',
+          format: ['camelCase', 'PascalCase', 'UPPER_CASE', 'snake_case'],
+        }
+      ],
+    }
+  },
+];

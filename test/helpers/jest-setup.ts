@@ -1,3 +1,4 @@
+/* eslint-disable no-process-env */
 // environment vars for jest
 process.env.FRONTEND_URL = 'http://example.com:3000';
 process.env.BACKEND_URL = 'http://example.com:3001';
