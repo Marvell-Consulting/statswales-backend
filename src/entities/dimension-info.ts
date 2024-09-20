@@ -10,7 +10,6 @@ export class DimensionInfo extends BaseEntity {
         type: 'uuid',
         primaryKeyConstraintName: 'PK_dimension_info_dimension_id_language'
     })
-    @Column({ type: 'uuid' })
     id: string;
 
     @PrimaryColumn({

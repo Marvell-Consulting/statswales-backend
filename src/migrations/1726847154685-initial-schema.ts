@@ -1,7 +1,7 @@
 import { MigrationInterface, QueryRunner } from 'typeorm';
 
-export class InitialSchema1725962477957 implements MigrationInterface {
-    name = 'InitialSchema1725962477957';
+export class InitialSchema1726847154685 implements MigrationInterface {
+    name = 'InitialSchema1726847154685';
 
     public async up(queryRunner: QueryRunner): Promise<void> {
         await queryRunner.query(
@@ -16,7 +16,9 @@ export class InitialSchema1725962477957 implements MigrationInterface {
             `CREATE TABLE "csv_info" ("import_id" uuid NOT NULL, "delimiter" character varying(1) NOT NULL, "quote" character varying(1) NOT NULL, "linebreak" character varying(2) NOT NULL, CONSTRAINT "PK_csv_info_import_id" PRIMARY KEY ("import_id"))`
         );
         await queryRunner.query(`CREATE TYPE "public"."import_type_enum" AS ENUM('Draft', 'FactTable', 'LookupTable')`);
-        await queryRunner.query(`CREATE TYPE "public"."import_location_enum" AS ENUM('BlobStorage', 'Datalake')`);
+        await queryRunner.query(
+            `CREATE TYPE "public"."import_location_enum" AS ENUM('BlobStorage', 'Datalake', 'Unknown')`
+        );
         await queryRunner.query(
             `CREATE TABLE "import" ("id" uuid NOT NULL DEFAULT uuid_generate_v4(), "mime_type" character varying(255) NOT NULL, "filename" character varying(255) NOT NULL, "hash" character varying(255) NOT NULL, "uploaded_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), "type" "public"."import_type_enum" NOT NULL, "location" "public"."import_location_enum" NOT NULL, "revision_id" uuid, CONSTRAINT "PK_import_id" PRIMARY KEY ("id"))`
         );
@@ -30,7 +32,7 @@ export class InitialSchema1725962477957 implements MigrationInterface {
             `CREATE TABLE "dataset" ("id" uuid NOT NULL DEFAULT uuid_generate_v4(), "creation_date" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), "live" TIMESTAMP WITH TIME ZONE, "archive" TIMESTAMP WITH TIME ZONE, "created_by" uuid, CONSTRAINT "PK_dataset_id" PRIMARY KEY ("id"))`
         );
         await queryRunner.query(
-            `CREATE TABLE "dimension_info" ("id" uuid NOT NULL, "language" character varying(5) NOT NULL, "name" text NOT NULL, "description" text, "notes" text, "dimension_id" uuid, CONSTRAINT "PK_dimension_info_dimension_id_language" PRIMARY KEY ("language"))`
+            `CREATE TABLE "dimension_info" ("dimension_id" uuid NOT NULL, "language" character varying(5) NOT NULL, "name" text NOT NULL, "description" text, "notes" text, CONSTRAINT "PK_dimension_info_dimension_id_language" PRIMARY KEY ("dimension_id", "language"))`
         );
         await queryRunner.query(
             `CREATE TYPE "public"."dimension_type_enum" AS ENUM('RAW', 'TEXT', 'NUMERIC', 'SYMBOL', 'LOOKUP_TABLE', 'TIME_PERIOD', 'TIME_POINT')`
