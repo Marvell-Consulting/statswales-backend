@@ -4,28 +4,24 @@ import { createClient } from 'redis';
 
 import { appConfig } from '../config';
 import { logger } from '../utils/logger';
+import { SessionStore } from '../config/session-store.enum';
 
 const config = appConfig();
-
 const sessionLength = 24 * 60 * 60 * 1000; // 24 hours
 
 let store: RedisStore | MemoryStore;
 
-if (process.env.SESSION_STORE === 'redis') {
+if (config.session.store === SessionStore.REDIS) {
     logger.debug('Initializing Redis session store...');
 
-    const url = process.env.REDIS_URL;
-    const password = process.env.REDIS_ACCESS_KEY;
-    const prefix = 'sw3b:';
-
-    const redisClient = createClient({ url, password });
+    const redisClient = createClient({ url: config.session.redisUrl, password: config.session.redisPassword });
 
     redisClient
         .connect()
         .then(() => logger.info('Redis session store initialized'))
         .catch((err) => logger.error(err));
 
-    store = new RedisStore({ client: redisClient, prefix });
+    store = new RedisStore({ client: redisClient, prefix: 'sw3b:' });
 } else {
     logger.info('In-memory session store initialized');
     store = new MemoryStore({});
@@ -39,6 +35,7 @@ export default session({
     saveUninitialized: false,
     proxy: true,
     cookie: {
-        secure: config.session.secure
+        secure: config.session.secure,
+        maxAge: sessionLength
     }
 });

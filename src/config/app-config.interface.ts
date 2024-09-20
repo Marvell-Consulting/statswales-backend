@@ -1,4 +1,5 @@
 import { AppEnv } from './env.enum';
+import { SessionStore } from './session-store.enum';
 
 export interface AppConfig {
     env: AppEnv;
@@ -11,8 +12,11 @@ export interface AppConfig {
         url: string;
     };
     session: {
+        store: SessionStore;
         secret: string;
         secure: boolean;
+        redisUrl?: string;
+        redisPassword?: string;
     };
     logger: {
         level: string;

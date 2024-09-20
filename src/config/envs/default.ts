@@ -1,5 +1,6 @@
 import { AppConfig } from '../app-config.interface';
 import { AppEnv } from '../env.enum';
+import { SessionStore } from '../session-store.enum';
 
 export const getDefaultConfig = (): AppConfig => {
     return {
@@ -13,8 +14,11 @@ export const getDefaultConfig = (): AppConfig => {
             url: process.env.FRONTEND_URL!
         },
         session: {
+            store: process.env.SESSION_STORE! as SessionStore,
             secret: process.env.SESSION_SECRET!,
-            secure: true
+            secure: true,
+            redisUrl: process.env.REDIS_URL,
+            redisPassword: process.env.REDIS_ACCESS_KEY
         },
         logger: {
             level: process.env.LOGGER_LEVEL || 'info'
