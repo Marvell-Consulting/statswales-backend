@@ -32,7 +32,10 @@ import { Dimension } from '../entities/dimension';
 import { Revision } from '../entities/revision';
 import { FileImport } from '../entities/file-import';
 import { DatasetTitle, FileDescription } from '../dtos/filelist';
-import { DatasetDTO, DimensionDTO, ImportDTO, RevisionDTO } from '../dtos/dataset-dto';
+import { DatasetDTO } from '../dtos/dataset-dto';
+import { ImportDTO } from '../dtos/fileimport-dto';
+import { DimensionDTO } from '../dtos/dimension-dto';
+import { RevisionDTO } from '../dtos/revision-dto';
 import { DataLocation } from '../enums/data-location';
 
 const t = i18next.t;
@@ -205,7 +208,7 @@ router.post('/', upload.single('csv'), async (req: Request, res: Response) => {
     res.json(uploadDTO);
 });
 
-// GET /dataset
+// GET /dataset/
 // Returns a list of all datasets
 // Returns a JSON object with a list of all datasets
 // and their titles
@@ -214,6 +217,45 @@ router.get('/', async (req: Request, res: Response) => {
     const fileList: FileDescription[] = [];
     for (const dataset of datasets) {
         const titles: DatasetTitle[] = [];
+        const datasetInfo = await dataset.datasetInfo;
+        for (const info of datasetInfo) {
+            titles.push({
+                title: info.title,
+                language: info.language
+            });
+        }
+        fileList.push({
+            titles,
+            dataset_id: dataset.id
+        });
+    }
+    res.json({ datasets: fileList });
+});
+
+// GET /dataset/active
+// Returns a list of all active datasets e.g. ones with imports
+// Returns a JSON object with a list of all datasets
+// and their titles
+router.get('/active', async (req: Request, res: Response) => {
+    const datasets = await Dataset.find();
+    const fileList: FileDescription[] = [];
+    for (const dataset of datasets) {
+        const titles: DatasetTitle[] = [];
+        const revisions = await dataset.revisions;
+        if (!revisions) {
+            continue;
+        }
+        const latestRevision = revisions.pop();
+        if (!latestRevision) {
+            continue;
+        }
+        const fileImports: FileImport[] = await latestRevision.imports;
+        if (!fileImports) {
+            continue;
+        }
+        if (fileImports?.length === 0) {
+            continue;
+        }
         const datasetInfo = await dataset.datasetInfo;
         for (const info of datasetInfo) {
             titles.push({
@@ -560,6 +602,7 @@ router.patch(
         const importRecord = await validateImport(importID, res);
         if (!importRecord) return;
         const dimensionCreationDTO = req.body as DimensionCreationDTO[];
+        logger.info(`Received patch request with the following payload: ${JSON.stringify(dimensionCreationDTO)}`);
         let validatedDTO: ValidatedDimensionCreationRequest;
         try {
             validatedDTO = await validateDimensionCreationRequest(dimensionCreationDTO);

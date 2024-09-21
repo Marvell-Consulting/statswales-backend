@@ -74,20 +74,8 @@ export const createDimensions = async (
     const { footnotes, dimensions } = validatedDimensionCreationRequest;
     if (footnotes) {
         const footnoteDimension = new Dimension();
-        footnoteDimension.id = crypto.randomUUID().toLowerCase();
         const footnoteDimensionInfo: DimensionInfo[] = [];
         const updateDate = new Date(Date.now());
-        footnoteDimension.dimensionInfo = Promise.resolve(
-            languages.map((lang) => {
-                const dimensionInfo = new DimensionInfo();
-                dimensionInfo.dimension = Promise.resolve(footnoteDimension);
-                dimensionInfo.language = lang;
-                dimensionInfo.name = t('dimension_info.footnotes.name', { lng: lang });
-                dimensionInfo.description = t('dimension_info.footnotes.description', { lng: lang });
-                dimensionInfo.updatedAt = updateDate;
-                return dimensionInfo;
-            })
-        );
         footnoteDimension.dimensionInfo = Promise.resolve(footnoteDimensionInfo);
         footnoteDimension.type = DimensionType.FOOTNOTE;
         footnoteDimension.dataset = Promise.resolve(dataset);
@@ -98,34 +86,33 @@ export const createDimensions = async (
         }
         footnoteDimension.sources = Promise.resolve([source]);
         await footnoteDimension.save();
+        languages.map(async (lang) => {
+            const dimensionInfo = new DimensionInfo();
+            dimensionInfo.dimension = Promise.resolve(footnoteDimension);
+            dimensionInfo.language = lang;
+            dimensionInfo.name = t('dimension_info.footnotes.name', { lng: lang });
+            dimensionInfo.description = t('dimension_info.footnotes.description', { lng: lang });
+            dimensionInfo.updatedAt = updateDate;
+            await dimensionInfo.save();
+        });
         await source.save();
     }
 
     await Promise.all(
         dimensions.map(async (dimensionCreationDTO: DimensionCreationDTO) => {
             const dimension = new Dimension();
-            dimension.id = crypto.randomUUID().toLowerCase();
             dimension.type = DimensionType.RAW;
             const source = await Source.findOne({ where: { id: dimensionCreationDTO.sourceId } });
             if (!source) {
                 throw new Error(`Source with id ${dimensionCreationDTO.sourceId} not found`);
             }
-            dimension.dimensionInfo = Promise.resolve(
-                languages.map((lang: string) => {
-                    const dimensionInfo = new DimensionInfo();
-                    dimensionInfo.dimension = Promise.resolve(dimension);
-                    dimensionInfo.language = lang;
-                    dimensionInfo.name = source.csvField;
-                    return dimensionInfo;
-                })
-            );
             dimension.dataset = Promise.resolve(dataset);
             dimension.startRevision = Promise.resolve(revision);
             dimension.sources = Promise.resolve([source]);
             source.dimension = Promise.resolve(dimension);
-            await dimension.save();
+            const savedDimension = await dimension.save();
             await source.save();
-            return dimension;
+            return savedDimension;
         })
     );
 
