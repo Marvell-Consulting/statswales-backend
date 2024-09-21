@@ -5,7 +5,8 @@ import { parse } from 'csv';
 
 import { ENGLISH, i18next, WELSH } from '../middleware/translation';
 import { logger as parentLogger } from '../utils/logger';
-import { DatasetDTO, ImportDTO } from '../dtos/dataset-dto';
+import { DatasetDTO } from '../dtos/dataset-dto';
+import { ImportDTO } from '../dtos/fileimport-dto';
 import { Error } from '../dtos/error';
 import { CSVHeader, ViewDTO, ViewErrDTO, ViewStream } from '../dtos/view-dto';
 import { Dataset } from '../entities/dataset';
@@ -230,11 +231,12 @@ async function processCSVData(
             return page * size;
         }
     };
-
+    const currentDataset = await Dataset.findOneByOrFail({ id: dataset.id });
+    const currentImport = await FileImport.findOneByOrFail({ id: importObj.id });
     return {
         success: true,
-        dataset: await DatasetDTO.fromDatasetShallow(dataset),
-        import: await ImportDTO.fromImport(importObj),
+        dataset: await DatasetDTO.fromDatasetComplete(currentDataset),
+        import: await ImportDTO.fromImport(currentImport),
         current_page: page,
         page_info: {
             total_records: dataArray.length,

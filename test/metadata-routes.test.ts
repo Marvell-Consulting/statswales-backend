@@ -11,7 +11,10 @@ import { Dataset } from '../src/entities/dataset';
 import { Revision } from '../src/entities/revision';
 import { FileImport } from '../src/entities/file-import';
 import { User } from '../src/entities/user';
-import { DatasetDTO, DimensionDTO, ImportDTO, RevisionDTO } from '../src/dtos/dataset-dto';
+import { DatasetDTO } from '../src/dtos/dataset-dto';
+import { DimensionDTO } from '../src/dtos/dimension-dto';
+import { RevisionDTO } from '../src/dtos/revision-dto';
+import { ImportDTO } from '../src/dtos/fileimport-dto';
 import DatabaseManager from '../src/db/database-manager';
 import { DataLocation } from '../src/enums/data-location';
 
@@ -60,7 +63,7 @@ describe('API Endpoints for viewing dataset objects', () => {
             const res = await request(app).get('/en-GB/dataset').set(getAuthHeader(user));
             expect(res.status).toBe(200);
             expect(res.body).toEqual({
-                filelist: [
+                datasets: [
                     {
                         titles: [{ language: 'en-GB', title: 'Test Dataset 1' }],
                         dataset_id: dataset1Id

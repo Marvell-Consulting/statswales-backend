@@ -1,8 +1,8 @@
 /* eslint-disable no-shadow */
 /* eslint-disable no-unused-vars */
 export enum SourceType {
-    DATAVALUES = 'DataValues',
-    FOOTNOTES = 'Footnotes',
-    DIMENSION = 'Dimension',
+    DATAVALUES = 'DATAVALUES',
+    FOOTNOTES = 'FOOTNOTES',
+    DIMENSION = 'DIMENSION',
     IGNORE = 'IGNORE'
 }

@@ -9,7 +9,8 @@ import app, { initDb } from '../src/app';
 import { ENGLISH, t, WELSH } from '../src/middleware/translation';
 import { Dataset } from '../src/entities/dataset';
 import { DatasetInfo } from '../src/entities/dataset-info';
-import { DatasetDTO, ImportDTO } from '../src/dtos/dataset-dto';
+import { DatasetDTO } from '../src/dtos/dataset-dto';
+import { ImportDTO } from '../src/dtos/fileimport-dto';
 import { ViewErrDTO } from '../src/dtos/view-dto';
 import { MAX_PAGE_SIZE, MIN_PAGE_SIZE } from '../src/controllers/csv-processor';
 import DatabaseManager from '../src/db/database-manager';
@@ -738,7 +739,7 @@ describe('API Endpoints', () => {
             const dimensions = await updatedDataset.dimensions;
             expect(dimensions.length).toBe(3);
             const dto = await DatasetDTO.fromDatasetComplete(updatedDataset);
-            expect(res.body).toEqual(dto);
+            expect(res.body).toEqual(JSON.parse(JSON.stringify(dto)));
         });
 
         test('Create dimensions from user supplied JSON returns 400 if the body is empty', async () => {

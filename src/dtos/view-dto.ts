@@ -1,7 +1,8 @@
 import { Readable } from 'stream';
 
 import { Error } from './error';
-import { DatasetDTO, ImportDTO } from './dataset-dto';
+import { DatasetDTO } from './dataset-dto';
+import { ImportDTO } from './fileimport-dto';
 
 export interface CSVHeader {
     index: number;

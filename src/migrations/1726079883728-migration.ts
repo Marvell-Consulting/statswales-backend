@@ -16,7 +16,7 @@ export class Migration1726079883728 implements MigrationInterface {
             `CREATE TABLE "dataset_info" ("dataset_id" uuid NOT NULL, "language" character varying(5) NOT NULL, "title" text, "description" text, "created_at" TIMESTAMP NOT NULL DEFAULT now(), "updated_at" TIMESTAMP DEFAULT now(), CONSTRAINT "PK_dataset_info_dataset_id_language" PRIMARY KEY ("dataset_id", "language"))`
         );
         await queryRunner.query(
-            `CREATE TABLE "dimension_info" ("id" uuid NOT NULL, "language" character varying(5) NOT NULL, "name" text NOT NULL, "description" text, "notes" text, "created_at" TIMESTAMP NOT NULL DEFAULT now(), "updated_at" TIMESTAMP DEFAULT now(), "dimension_id" uuid, CONSTRAINT "PK_dimension_info_dimension_id_language" PRIMARY KEY ("language"))`
+            `CREATE TABLE "dimension_info" ("dimension_id" uuid NOT NULL, "language" character varying(5) NOT NULL, "name" text, "description" text, "notes" text, "created_at" TIMESTAMP NOT NULL DEFAULT now(), "updated_at" TIMESTAMP DEFAULT now(), CONSTRAINT "PK_dimension_info_dimension_id_language" PRIMARY KEY ("dimension_id", "language"))`
         );
         await queryRunner.query(
             `CREATE TABLE "csv_info" ("import_id" uuid NOT NULL, "delimiter" character varying(1) NOT NULL, "quote" character varying(1) NOT NULL, "linebreak" character varying(2) NOT NULL, CONSTRAINT "PK_csv_info_import_id" PRIMARY KEY ("import_id"))`
