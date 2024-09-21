@@ -22,7 +22,7 @@ export async function createSmallDataset(datasetId: string, revisionId: string, 
     const dataset = new Dataset();
     dataset.id = datasetId.toLowerCase();
     dataset.createdBy = Promise.resolve(user);
-    dataset.live = new Date(Date.now());
+    dataset.live = new Date();
 
     // Give it some info
     const datasetInfo = new DatasetInfo();
