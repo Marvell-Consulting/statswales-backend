@@ -20,7 +20,7 @@ import { ImportType } from '../../src/enums/import-type';
 export async function createSmallDataset(datasetId: string, revisionId: string, importId: string, user: User) {
     // First create a dataset
     const dataset = new Dataset();
-    dataset.id = datasetId;
+    dataset.id = datasetId.toLowerCase();
     dataset.createdBy = Promise.resolve(user);
     dataset.live = new Date();
 
@@ -28,24 +28,27 @@ export async function createSmallDataset(datasetId: string, revisionId: string, 
     const datasetInfo = new DatasetInfo();
     datasetInfo.dataset = Promise.resolve(dataset);
     datasetInfo.title = 'Test Dataset 1';
-    datasetInfo.description = 'I am the first test dataset';
+    datasetInfo.description = 'I am a small incomplete test dataset';
     datasetInfo.language = 'en-GB';
     dataset.datasetInfo = Promise.resolve([datasetInfo]);
+
     // At the sametime we also always create a first revision
     const revision = new Revision();
-    revision.id = revisionId;
+    revision.id = revisionId.toLowerCase();
     revision.dataset = Promise.resolve(dataset);
     revision.createdBy = Promise.resolve(user);
     revision.revisionIndex = 1;
     dataset.revisions = Promise.resolve([revision]);
+
     // Attach an import e.g. a file to the revision
     const imp = new FileImport();
     imp.revision = Promise.resolve(revision);
-    imp.id = importId;
-    imp.filename = 'FA07BE9D-3495-432D-8C1F-D0FC6DAAE359.csv';
+    imp.id = importId.toLowerCase();
+    imp.filename = `${importId.toLowerCase()}.csv`;
     const testFile1 = path.resolve(__dirname, `../sample-csvs/test-data-2.csv`);
     const testFile2Buffer = fs.readFileSync(testFile1);
     imp.hash = createHash('sha256').update(testFile2Buffer).digest('hex');
+
     // First is a draft import and a first upload so everything is in blob storage
     imp.location = DataLocation.BLOB_STORAGE;
     imp.type = ImportType.DRAFT;
@@ -59,6 +62,7 @@ export async function createSmallDataset(datasetId: string, revisionId: string, 
     csvInfo.linebreak = '\n';
     imp.csvInfo = Promise.resolve([csvInfo]);
     revision.imports = Promise.resolve([imp]);
+    // Save and return the result
     await dataset.save();
     return dataset;
 }

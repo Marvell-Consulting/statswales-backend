@@ -87,6 +87,9 @@ export const createDimensions = async (
         footnoteDimension.sources = Promise.resolve([source]);
         await footnoteDimension.save();
         languages.map(async (lang) => {
+            if (lang.length !== 5) {
+                return;
+            }
             const dimensionInfo = new DimensionInfo();
             dimensionInfo.dimension = Promise.resolve(footnoteDimension);
             dimensionInfo.language = lang;
@@ -111,6 +114,17 @@ export const createDimensions = async (
             dimension.sources = Promise.resolve([source]);
             source.dimension = Promise.resolve(dimension);
             const savedDimension = await dimension.save();
+            languages.map(async (lang) => {
+                if (lang.length !== 5) {
+                    return;
+                }
+                const dimensionInfo = new DimensionInfo();
+                dimensionInfo.id = savedDimension.id;
+                dimensionInfo.dimension = Promise.resolve(savedDimension);
+                dimensionInfo.language = lang;
+                dimensionInfo.name = source.csvField;
+                await dimensionInfo.save();
+            });
             await source.save();
             return savedDimension;
         })

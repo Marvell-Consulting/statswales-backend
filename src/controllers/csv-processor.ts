@@ -405,7 +405,7 @@ export const createSources = async (importObj: FileImport): Promise<ImportDTO> =
         fileView = await processCSVFromDatalake(dataset, importObj, 1, 5);
     } catch (err) {
         logger.error(err);
-        throw new Error('Error moving file to datalake');
+        throw new Error('Error getting file from datalake');
     }
     let fileData: ViewDTO;
     if (fileView.success) {
@@ -434,5 +434,5 @@ export const createSources = async (importObj: FileImport): Promise<ImportDTO> =
         logger.error(err);
         throw new Error('Error saving sources to import');
     }
-    return ImportDTO.fromImport(freshFileImport);
+    return ImportDTO.fromImportWithSources(freshFileImport);
 };

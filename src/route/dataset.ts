@@ -297,18 +297,6 @@ router.delete('/:dataset_id', async (req: Request, res: Response) => {
 
 // GET /api/dataset/:dataset_id/view
 // Returns a view of the data file attached to the import
-apiRoute.get('/:dataset_id/view', async (req: Request, res: Response) => {
-    const datasetID: string = req.params.dataset_id;
-    const dataset = await validateDataset(datasetID, res);
-    if (!dataset) return;
-    logger.warn('Deleting dataset with ID:', datasetID);
-    await dataset.remove();
-    res.status(204);
-    res.end();
-});
-
-// GET /api/dataset/:dataset_id/view
-// Returns a view of the data file attached to the import
 router.get('/:dataset_id/view', async (req: Request, res: Response) => {
     const datasetID: string = req.params.dataset_id.toLowerCase();
     const dataset = await validateDataset(datasetID, res);
