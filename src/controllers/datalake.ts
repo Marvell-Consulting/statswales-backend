@@ -37,7 +37,7 @@ export class DataLakeService {
         logger.debug(`Uploading file with name '${fileName}' to datalake`);
 
         const fileSystemClient = this.serviceClient.getFileSystemClient(fileSystemName);
-        const directoryClient = fileSystemClient.getDirectoryClient(defaultDirectoryName);
+        const directoryClient = fileSystemClient.getDirectoryClient(directoryName);
         const fileClient = directoryClient.getFileClient(fileName);
         // Create the file in the Data Lake
         await fileClient.create();
