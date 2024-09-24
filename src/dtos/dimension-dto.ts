@@ -35,7 +35,7 @@ export class DimensionDTO {
         dimDto.id = dimension.id;
         dimDto.type = dimension.type;
         dimDto.start_revision_id = (await dimension.startRevision).id;
-        dimDto.finish_revision_id = (await dimension.finishRevision)?.id || '';
+        dimDto.finish_revision_id = (await dimension.finishRevision)?.id;
         dimDto.validator = dimension.validator;
         dimDto.dimensionInfo = (await dimension.dimensionInfo).map((dimInfo: DimensionInfo) => {
             const infoDto = DimensionInfoDTO.fromDimensionInfo(dimInfo);

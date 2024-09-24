@@ -49,8 +49,8 @@ export class Source extends BaseEntity {
     csvField: string;
 
     @Column({ type: 'enum', enum: Object.values(SourceAction), nullable: true })
-    action: SourceAction;
+    action?: SourceAction;
 
     @Column({ type: 'enum', enum: Object.values(SourceType), nullable: true })
-    type: SourceType;
+    type?: SourceType;
 }

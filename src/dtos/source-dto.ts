@@ -8,8 +8,8 @@ export class SourceDTO {
     // lookup_table_revision_id?: string;
     column_index: number;
     csv_field: string;
-    action: string;
-    type: string | undefined;
+    action?: string;
+    type?: string | undefined;
 
     static async fromSource(source: Source): Promise<SourceDTO> {
         const sourceDto = new SourceDTO();

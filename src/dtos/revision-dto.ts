@@ -22,10 +22,10 @@ export class RevisionDTO {
         revDto.revision_index = revision.revisionIndex;
         revDto.dataset_id = (await revision.dataset).id;
         revDto.creation_date = revision.creationDate.toISOString();
-        revDto.previous_revision_id = (await revision.previousRevision)?.id || '';
+        revDto.previous_revision_id = (await revision.previousRevision)?.id;
         revDto.online_cube_filename = revision.onlineCubeFilename;
-        revDto.publish_date = revision.publishDate?.toISOString() || '';
-        revDto.approval_date = revision.approvalDate?.toISOString() || '';
+        revDto.publish_date = revision.publishDate?.toISOString();
+        revDto.approval_date = revision.approvalDate?.toISOString();
         revDto.approved_by = (await revision.approvedBy)?.name || undefined;
         revDto.created_by = (await revision.createdBy).name;
         return revDto;

@@ -4,5 +4,6 @@ export enum SourceType {
     DATAVALUES = 'DATAVALUES',
     FOOTNOTES = 'FOOTNOTES',
     DIMENSION = 'DIMENSION',
-    IGNORE = 'IGNORE'
+    IGNORE = 'IGNORE',
+    UNKNOWN = 'UNKNOWN'
 }

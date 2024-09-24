@@ -35,8 +35,8 @@ export class DatasetDTO {
         dto.id = dataset.id;
         dto.creation_date = dataset.creationDate.toISOString();
         dto.created_by = (await dataset.createdBy).name;
-        dto.live = dataset.live?.toISOString() || '';
-        dto.archive = dataset.archive?.toISOString() || '';
+        dto.live = dataset.live?.toISOString();
+        dto.archive = dataset.archive?.toISOString();
         dto.datasetInfo = (await dataset.datasetInfo).map((datasetInfo: DatasetInfo) => {
             const infoDto = DatasetInfoDTO.fromDatasetInfo(datasetInfo);
             return infoDto;

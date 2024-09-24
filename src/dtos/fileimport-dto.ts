@@ -9,7 +9,7 @@ export class ImportDTO {
     mime_type: string;
     filename: string;
     hash: string;
-    uploaded_at: string;
+    uploaded_at?: string;
     type: string;
     location: string;
     sources?: SourceDTO[];
@@ -22,7 +22,7 @@ export class ImportDTO {
         dto.mime_type = importEntity.mimeType;
         dto.filename = importEntity.filename;
         dto.hash = importEntity.hash;
-        dto.uploaded_at = importEntity.uploadedAt?.toISOString() || '';
+        dto.uploaded_at = importEntity.uploadedAt?.toISOString();
         dto.type = importEntity.type;
         dto.location = importEntity.location;
         dto.sources = [];
