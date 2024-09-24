@@ -2,6 +2,8 @@ import { AppConfig } from '../app-config.interface';
 import { AppEnv } from '../env.enum';
 import { SessionStore } from '../session-store.enum';
 
+const ONE_DAY = 24 * 60 * 60 * 1000;
+
 export const getDefaultConfig = (): AppConfig => {
     return {
         env: AppEnv.DEFAULT, // MUST be overridden by other configs
@@ -17,6 +19,7 @@ export const getDefaultConfig = (): AppConfig => {
             store: process.env.SESSION_STORE! as SessionStore,
             secret: process.env.SESSION_SECRET!,
             secure: true,
+            maxAge: parseInt(process.env.SESSION_MAX_AGE || ONE_DAY.toString(), 10),
             redisUrl: process.env.REDIS_URL,
             redisPassword: process.env.REDIS_ACCESS_KEY
         },

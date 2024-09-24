@@ -7,7 +7,6 @@ import { logger } from '../utils/logger';
 import { SessionStore } from '../config/session-store.enum';
 
 const config = appConfig();
-const sessionLength = 24 * 60 * 60 * 1000; // 24 hours
 
 let store: RedisStore | MemoryStore;
 
@@ -36,6 +35,6 @@ export default session({
     proxy: true,
     cookie: {
         secure: config.session.secure,
-        maxAge: sessionLength
+        maxAge: config.session.maxAge
     }
 });

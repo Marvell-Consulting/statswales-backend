@@ -15,6 +15,7 @@ export interface AppConfig {
         store: SessionStore;
         secret: string;
         secure: boolean;
+        maxAge: number;
         redisUrl?: string;
         redisPassword?: string;
     };
