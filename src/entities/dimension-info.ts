@@ -1,4 +1,13 @@
-import { Entity, PrimaryColumn, Column, BaseEntity, ManyToOne, JoinColumn } from 'typeorm';
+import {
+    Entity,
+    PrimaryColumn,
+    Column,
+    BaseEntity,
+    ManyToOne,
+    JoinColumn,
+    CreateDateColumn,
+    UpdateDateColumn
+} from 'typeorm';
 
 // eslint-disable-next-line import/no-cycle
 import { Dimension } from './dimension';
@@ -10,7 +19,6 @@ export class DimensionInfo extends BaseEntity {
         type: 'uuid',
         primaryKeyConstraintName: 'PK_dimension_info_dimension_id_language'
     })
-    @Column({ type: 'uuid' })
     id: string;
 
     @PrimaryColumn({
@@ -36,4 +44,12 @@ export class DimensionInfo extends BaseEntity {
     })
     @JoinColumn({ name: 'dimension_id', foreignKeyConstraintName: 'FK_dimension_info_dimension_id' })
     dimension: Promise<Dimension>;
+
+    @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
+    createdAt: Date;
+
+    // This column should be the same across all languages
+    // If one is updated and the others aren't then mark as needing translation
+    @UpdateDateColumn({ name: 'updated_at', type: 'timestamptz' })
+    updatedAt: Date;
 }

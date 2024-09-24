@@ -38,6 +38,7 @@
         "page_number_to_low": "Page number must be greater than 0",
         "no_datafile": "No datafile attached to Dataset",
         "download_from_datalake": "Error downloading file from datalake",
+        "download_from_blobstorage": "Error downloading file from blob storage",
         "upload": {
             "no_title": "No title for the dataset has been provided",
             "no-internal-name": "No internal name for the dataset has been provided",
@@ -46,6 +47,12 @@
             "upload_to_datalake": "Error uploading the file to the datalake"
         }
 	},
+    "dimensionInfo": {
+        "footnotes": {
+            "title": "Footnotes",
+            "description": "Footnotes for the data"
+        }
+    },
     "list": {
         "title": "Display Data"
     },

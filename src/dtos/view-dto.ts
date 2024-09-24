@@ -1,7 +1,13 @@
 import { Readable } from 'stream';
 
 import { Error } from './error';
-import { DatasetDTO, ImportDTO } from './dataset-dto';
+import { DatasetDTO } from './dataset-dto';
+import { ImportDTO } from './fileimport-dto';
+
+export interface CSVHeader {
+    index: number;
+    name: string;
+}
 
 export interface PageInfo {
     total_records: number | undefined;
@@ -11,6 +17,7 @@ export interface PageInfo {
 
 export interface ViewErrDTO {
     success: boolean;
+    status: number;
     errors: Error[];
     dataset_id: string | undefined;
 }
@@ -24,7 +31,7 @@ export interface ViewDTO {
     pages: Array<string | number>;
     page_size: number;
     total_pages: number;
-    headers: Array<string> | undefined;
+    headers: Array<CSVHeader>;
     data: Array<Array<string>>;
 }
 

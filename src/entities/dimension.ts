@@ -25,11 +25,11 @@ export class Dimension extends BaseEntity {
     @Column({ type: 'enum', enum: Object.keys(DimensionType), nullable: false })
     type: DimensionType;
 
-    @ManyToOne(() => Revision)
+    @ManyToOne(() => Revision, { cascade: true, onDelete: 'CASCADE' })
     @JoinColumn({ name: 'start_revision_id', foreignKeyConstraintName: 'FK_dimension_start_revision_id' })
     startRevision: Promise<Revision>;
 
-    @ManyToOne(() => Revision, { nullable: true })
+    @ManyToOne(() => Revision, { cascade: true, onDelete: 'CASCADE', nullable: true })
     @JoinColumn({ name: 'finish_revision_id', foreignKeyConstraintName: 'FK_dimension_finish_revision_id' })
     finishRevision: Promise<Revision>;
 

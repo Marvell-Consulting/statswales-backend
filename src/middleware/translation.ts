@@ -23,4 +23,6 @@ i18next
         debug: false
     });
 
-export { i18next, i18nextMiddleware, ENGLISH, WELSH };
+const t = i18next.t;
+
+export { t, i18next, i18nextMiddleware, ENGLISH, WELSH };

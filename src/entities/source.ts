@@ -1,11 +1,13 @@
 import { Entity, PrimaryGeneratedColumn, Column, BaseEntity, ManyToOne, JoinColumn } from 'typeorm';
 
 import { SourceAction } from '../enums/source-action';
+import { SourceType } from '../enums/source-type';
 
 // eslint-disable-next-line import/no-cycle
 import { Dimension } from './dimension';
 // eslint-disable-next-line import/no-cycle
-import { Import } from './import';
+import { FileImport } from './file-import';
+// eslint-disable-next-line import/no-cycle
 import { Revision } from './revision';
 
 @Entity()
@@ -20,13 +22,13 @@ export class Source extends BaseEntity {
     @JoinColumn({ name: 'dimension_id', foreignKeyConstraintName: 'FK_source_dimension_id' })
     dimension: Promise<Dimension>;
 
-    @ManyToOne(() => Import, (importEntity) => importEntity.sources, {
+    @ManyToOne(() => FileImport, (importEntity) => importEntity.sources, {
         nullable: false,
         onDelete: 'CASCADE',
         orphanedRowAction: 'delete'
     })
     @JoinColumn({ name: 'import_id', foreignKeyConstraintName: 'FK_source_import_id' })
-    import: Promise<Import>;
+    import: Promise<FileImport>;
 
     @ManyToOne(() => Revision, {
         onDelete: 'CASCADE',
@@ -46,6 +48,9 @@ export class Source extends BaseEntity {
     @Column({ name: 'csv_field', type: 'text' })
     csvField: string;
 
-    @Column({ type: 'enum', enum: Object.values(SourceAction), nullable: false })
-    action: string;
+    @Column({ type: 'enum', enum: Object.values(SourceAction), nullable: true })
+    action?: SourceAction;
+
+    @Column({ type: 'enum', enum: Object.values(SourceType), nullable: true })
+    type?: SourceType;
 }

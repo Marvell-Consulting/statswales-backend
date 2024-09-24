@@ -43,8 +43,15 @@
         "page_number_to_high": "Rhaid i rif y dudalen fod yn llai na neu'n hafal i {{page_number}} (GPT)",
         "page_number_to_low": "Rhaid i rif y dudalen fod yn fwy na 0 (GPT)",
         "no_datafile": "Dim ffeil data ynghlwm wrth Set Ddata (GPT)",
-        "download_from_datalake": "Gwall wrth lawrlwytho ffeil o'r llyn data (GPT)"
+        "download_from_datalake": "Gwall wrth lawrlwytho ffeil o'r llyn data (GPT)",
+        "download_from_blobstorage": "Gwall wrth lawrlwytho ffeil o’r storfa blob (GPT)"
 	},
+    "dimensionInfo": {
+        "footnotes": {
+            "title": "Nodiadau traed (GPT)",
+            "description": "Nodiadau traed ar gyfer y data (GPT)"
+        }
+    },
     "list": {
         "title": "Dangos y Data"
     },

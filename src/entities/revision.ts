@@ -14,14 +14,16 @@ import { RevisionInterface } from './revision.interface';
 import { Dataset } from './dataset';
 import { User } from './user';
 // eslint-disable-next-line import/no-cycle
-import { Import } from './import';
+import { Source } from './source';
+// eslint-disable-next-line import/no-cycle
+import { FileImport } from './file-import';
 
-@Entity()
+@Entity({ name: 'revision', orderBy: { creationDate: 'ASC' } })
 export class Revision extends BaseEntity implements RevisionInterface {
     @PrimaryGeneratedColumn('uuid', { primaryKeyConstraintName: 'PK_revision_id' })
     id: string;
 
-    @Column({ type: 'int' })
+    @Column({ name: 'revision_index', type: 'int' })
     revisionIndex: number;
 
     @ManyToOne(() => Dataset, (dataset) => dataset.revisions, {
@@ -51,8 +53,15 @@ export class Revision extends BaseEntity implements RevisionInterface {
     @Column({ name: 'approval_date', type: 'timestamptz', nullable: true })
     approvalDate: Date;
 
-    @OneToMany(() => Import, (importEntity) => importEntity.revision, { cascade: true })
-    imports: Promise<Import[]>;
+    @OneToMany(() => Source, (source) => source.revision, {
+        cascade: true
+    })
+    sources: Promise<Source[]>;
+
+    @OneToMany(() => FileImport, (importEntity) => importEntity.revision, {
+        cascade: true
+    })
+    imports: Promise<FileImport[]>;
 
     @ManyToOne(() => User, { nullable: true })
     @JoinColumn({ name: 'approved_by', foreignKeyConstraintName: 'FK_revision_approved_by' })

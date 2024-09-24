@@ -19,8 +19,8 @@ import { CsvInfo } from './csv-info';
 // eslint-disable-next-line import/no-cycle
 import { Source } from './source';
 
-@Entity()
-export class Import extends BaseEntity {
+@Entity({ name: 'file_import', orderBy: { uploadedAt: 'ASC' } })
+export class FileImport extends BaseEntity {
     @PrimaryGeneratedColumn('uuid', { primaryKeyConstraintName: 'PK_import_id' })
     id: string;
 
@@ -48,10 +48,10 @@ export class Import extends BaseEntity {
     uploadedAt: Date;
 
     @Column({ type: 'enum', enum: Object.values(ImportType), nullable: false })
-    type: string;
+    type: ImportType;
 
     @Column({ type: 'enum', enum: Object.values(DataLocation), nullable: false })
-    location: string;
+    location: DataLocation;
 
     @OneToMany(() => Source, (source) => source.import, { cascade: true })
     sources: Promise<Source[]>;

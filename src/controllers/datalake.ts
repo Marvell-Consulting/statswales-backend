@@ -37,13 +37,26 @@ export class DataLakeService {
         await directoryClient.create();
     }
 
-    public async uploadFile(fileName: string | undefined, fileContent: Buffer) {
-        if (fileName === undefined) {
-            throw new Error('File name is undefined');
+    public async uploadFileStream(fileName: string, fileContent: Readable) {
+        logger.debug(`Uploading file with name '${fileName}' to datalake`);
+
+        const fileSystemClient = this.serviceClient.getFileSystemClient(fileSystemName);
+        const directoryClient = fileSystemClient.getDirectoryClient(defaultDirectoryName);
+        const fileClient = directoryClient.getFileClient(fileName);
+        // Create the file in the Data Lake
+        await fileClient.create();
+        let position = 0;
+        for await (const chunk of fileContent) {
+            const chunkSize = chunk.length;
+            // Append the chunk at the current position
+            await fileClient.append(chunk, position, chunkSize);
+            position += chunkSize;
         }
-        if (fileContent === undefined) {
-            throw new Error('File name is undefined');
-        }
+        // Flush and commit the file
+        await fileClient.flush(position);
+    }
+
+    public async uploadFile(fileName: string, fileContent: Buffer) {
         logger.debug(`Uploading file with file '${fileName}' to datalake`);
         const fileSystemClient = this.serviceClient.getFileSystemClient(fileSystemName);
         const directoryClient = fileSystemClient.getDirectoryClient(defaultDirectoryName);
