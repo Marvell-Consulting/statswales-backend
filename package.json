@@ -21,7 +21,7 @@
     "dev:check": "npm-run-all check dev",
     "dev": "APP_ENV=local nodemon --watch src -e ts,ejs --exec npm run start",
     "start": "npm run build && node dist/server.js | pino-colada",
-    "start:container": "APP_ENV=staging node dist/server.js",
+    "start:container": "node dist/server.js",
     "typeorm": "typeorm-ts-node-commonjs",
     "migration:show": "npm run typeorm migration:show -- --dataSource=./src/db/data-source.ts",
     "migration:run": "npm run typeorm migration:run -- --dataSource=./src/db/data-source.ts",
