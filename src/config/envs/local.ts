@@ -14,7 +14,7 @@ export function getLocalConfig(): AppConfig {
         },
         backend: {
             port: parseInt(process.env.BACKEND_PORT || '3001', 10),
-            url: process.env.FRONTEND_URL || 'http://localhost:3001'
+            url: process.env.BACKEND_URL || 'http://localhost:3001'
         },
         session: {
             store: SessionStore.REDIS,

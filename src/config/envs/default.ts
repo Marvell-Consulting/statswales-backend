@@ -13,7 +13,7 @@ export const getDefaultConfig = (): AppConfig => {
         },
         backend: {
             port: parseInt(process.env.BACKEND_PORT!, 10),
-            url: process.env.FRONTEND_URL!
+            url: process.env.BACKEND_URL!
         },
         session: {
             store: process.env.SESSION_STORE! as SessionStore,
