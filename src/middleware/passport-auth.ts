@@ -8,6 +8,9 @@ import { Repository } from 'typeorm';
 
 import { logger } from '../utils/logger';
 import { User } from '../entities/user';
+import { appConfig } from '../config';
+
+const config = appConfig();
 
 const readPrivateKey = (privateKey: string) => {
     return createPrivateKey({ key: Buffer.from(privateKey, 'base64'), type: 'pkcs8', format: 'der' });
@@ -19,7 +22,7 @@ export const initPassport = async (userRepository: Repository<User>): Promise<vo
         new JWTStrategy(
             {
                 jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
-                secretOrKey: process.env.JWT_SECRET!
+                secretOrKey: config.auth.jwt.secret
             },
             async (jwtPayload, done) => {
                 logger.info('request authenticated with JWT');
@@ -29,9 +32,9 @@ export const initPassport = async (userRepository: Repository<User>): Promise<vo
         )
     );
 
-    if (process.env.AUTH_PROVIDERS?.includes('onelogin')) {
-        const oneLoginIssuer = await Issuer.discover(`${process.env.ONELOGIN_URL}/.well-known/openid-configuration`);
-        const privateKey = process.env.ONELOGIN_PRIVATE_KEY!.replace(/\\n/g, '\n');
+    if (config.auth.providers.includes('onelogin')) {
+        const oneLoginIssuer = await Issuer.discover(`${config.auth.oneLogin.url}/.well-known/openid-configuration`);
+        const privateKey = config.auth.oneLogin.privateKey.replace(/\\n/g, '\n');
 
         passport.use(
             'onelogin',
@@ -39,9 +42,9 @@ export const initPassport = async (userRepository: Repository<User>): Promise<vo
                 {
                     client: new oneLoginIssuer.Client(
                         {
-                            client_id: process.env.ONELOGIN_CLIENT_ID!,
-                            client_secret: process.env.ONELOGIN_CLIENT_SECRET!,
-                            redirect_uris: [`${process.env.BACKEND_URL}/auth/onelogin/callback`],
+                            client_id: config.auth.oneLogin.clientId,
+                            client_secret: config.auth.oneLogin.clientSecret,
+                            redirect_uris: [`${config.backend.url}/auth/onelogin/callback`],
                             token_endpoint_auth_method: 'private_key_jwt',
                             token_endpoint_auth_signing_alg: 'PS256',
                             id_token_signed_response_alg: 'ES256'
@@ -108,14 +111,14 @@ export const initPassport = async (userRepository: Repository<User>): Promise<vo
         );
     }
 
-    if (process.env.AUTH_PROVIDERS?.includes('google')) {
+    if (config.auth.providers.includes('google')) {
         passport.use(
             'google',
             new GoogleStrategy(
                 {
-                    clientID: process.env.GOOGLE_CLIENT_ID || '',
-                    clientSecret: process.env.GOOGLE_CLIENT_SECRET || '',
-                    callbackURL: `${process.env.BACKEND_URL}/auth/google/callback`,
+                    clientID: config.auth.google.clientId,
+                    clientSecret: config.auth.google.clientSecret,
+                    callbackURL: `${config.backend.url}/auth/google/callback`,
                     scope: ['openid', 'profile', 'email']
                 },
                 async (accessToken, refreshToken, profile, cb): Promise<void> => {

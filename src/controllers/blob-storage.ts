@@ -8,12 +8,12 @@ import {
 } from '@azure/storage-blob';
 
 import { logger as parentLogger } from '../utils/logger';
+import { appConfig } from '../config';
 
 const logger = parentLogger.child({ module: 'BlobStorageService' });
 
-const accountName = process.env.AZURE_BLOB_STORAGE_ACCOUNT_NAME || 'your-storage-account-name';
-const accountKey = process.env.AZURE_BLOB_STORAGE_ACCOUNT_KEY || 'your-storage';
-const containerName = process.env.AZURE_BLOB_STORAGE_CONTAINER_NAME || 'your-container-name';
+const config = appConfig();
+const { accountName, accountKey, containerName } = config.storage.blob;
 
 /*
   Wrapper Class around the Azure Blob Storage API.

@@ -13,6 +13,7 @@ import { authRouter } from './route/auth';
 import { healthcheckRouter } from './route/healthcheck';
 import { datasetRouter } from './route/dataset';
 import session from './middleware/session';
+import { appConfig } from './config';
 
 export const initDb = async (): Promise<DatabaseManager> => {
     const dbManager = new DatabaseManager(logger);
@@ -22,6 +23,9 @@ export const initDb = async (): Promise<DatabaseManager> => {
 };
 
 const app: Application = express();
+const config = appConfig();
+
+logger.info(`App config loaded for '${config.env}' env`);
 
 app.disable('x-powered-by');
 app.set('trust proxy', 1);
