@@ -6,15 +6,6 @@ import { AppEnv } from '../env.enum';
 
 export function getProductionConfig(): AppConfig {
     return defineConfig({
-        env: AppEnv.PROD,
-        frontend: {
-            url: 'https://www.example.com'
-        },
-        backend: {
-            url: 'https://api.example.com'
-        },
-        auth: {
-            providers: ['google', 'onelogin']
-        }
+        env: AppEnv.PROD
     });
 }
