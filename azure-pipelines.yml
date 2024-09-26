@@ -19,6 +19,9 @@ variables:
   # Agent VM image name
   vmImageName: 'ubuntu-latest'
 
+  # Resource Group variable to avoid repetition
+  resourceGroup: 'statswales-container-app-rg'
+
 stages:
 - stage: Build
   displayName: Build and push stage
@@ -28,6 +31,7 @@ stages:
     pool:
       vmImage: $(vmImageName)
     steps:
+    # Step 1: Build and push an image to container registry
     - task: Docker@2
       displayName: Build and push an image to container registry
       inputs:
@@ -36,14 +40,17 @@ stages:
         command: 'buildAndPush'
         Dockerfile: '**/Dockerfile'
         tags: '$(tag)'
+
+    # Step 2: Deploy with AzureContainerApps task
     - task: AzureContainerApps@1
+      displayName: 'Deploy to Azure Container Apps'
       inputs:
         azureSubscription: 'Marvell Consulting(3f7a282e-96dc-4706-9b9e-65609c29b2c8)'
         acrName: 'StatsWalesRegistry'
         acrUsername: 'StatsWalesRegistry'
         acrPassword: '$(acr_password)'
         dockerfilePath: 'Dockerfile'
-        resourceGroup: 'statswales-container-app-rg'
+        resourceGroup: '$(resourceGroup)'
         containerAppName: 'statswales-develop-backend'
         containerAppEnvironment: 'statswales-container-app-environment'
         targetPort: '3000'
@@ -81,3 +88,34 @@ stages:
           ONELOGIN_PRIVATE_KEY=$(onelogin_private_key)
           REDIS_URL=$(redis_url)
           REDIS_ACCESS_KEY=$(redis_access_key)
+
+    # Step 3: Check deployment success and health check
+    - task: Bash@3
+      displayName: 'Health Check on New Revision'
+      inputs:
+        targetType: 'inline'
+        script: |
+          # Fetch the new revision URL
+          new_revision_url=$(az containerapp ingress show --name statswales-develop-backend --resource-group $(resourceGroup) --query 'fqdn' -o tsv)
+
+          # Perform a health check (check if the app returns HTTP 200)
+          status=$(curl -s -o /dev/null -w "%{http_code}" $new_revision_url)
+
+          if [ "$status" -ne 200 ]; then
+            echo "New app revision is not healthy. Status code: $status"
+            exit 1  # Fail the build if health check fails
+          else
+            echo "New app revision is healthy."
+          fi
+
+    # Step 4: Rollback to previous revision if needed
+    - task: AzureCLI@2
+      displayName: 'Rollback to Previous Stable Revision'
+      condition: failed()  # Run this rollback step only if the previous step fails
+      inputs:
+        azureSubscription: 'Marvell Consulting(3f7a282e-96dc-4706-9b9e-65609c29b2c8)'
+        scriptType: 'bash'
+        scriptLocation: 'inlineScript'
+        inlineScript: |
+          echo "Rolling back to previous stable revision..."
+          az containerapp revision list --name statswales-develop-backend --resource-group $(resourceGroup) --query "[?properties.active].name" -o tsv | head -n 1 | xargs -I {} az containerapp update --name statswales-develop-backend --resource-group $(resourceGroup) --traffic-revisions "{}=100"
