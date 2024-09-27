@@ -21,7 +21,7 @@ export default [
       'line-comment-position': 'off',
       'no-process-env': 'warn',
       'no-warning-comments': 'warn',
-      '@typescript-eslint/member-ordering': 'warn',
+      '@typescript-eslint/member-ordering': 'off',
       '@typescript-eslint/naming-convention': [
         'error',
         {

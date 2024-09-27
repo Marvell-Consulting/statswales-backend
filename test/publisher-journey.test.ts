@@ -10,7 +10,7 @@ import { ENGLISH, t, WELSH } from '../src/middleware/translation';
 import { Dataset } from '../src/entities/dataset';
 import { DatasetInfo } from '../src/entities/dataset-info';
 import { DatasetDTO } from '../src/dtos/dataset-dto';
-import { ImportDTO } from '../src/dtos/fileimport-dto';
+import { FileImportDTO } from '../src/dtos/file-import-dto';
 import { ViewErrDTO } from '../src/dtos/view-dto';
 import { MAX_PAGE_SIZE, MIN_PAGE_SIZE } from '../src/controllers/csv-processor';
 import DatabaseManager from '../src/db/database-manager';
@@ -632,7 +632,7 @@ describe('API Endpoints', () => {
             expect(postRunFileImport.location).toBe(DataLocation.DataLake);
             const sources = await postRunFileImport.sources;
             expect(sources.length).toBe(4);
-            const dto = await ImportDTO.fromImportWithSources(postRunFileImport);
+            const dto = await FileImportDTO.fromImportWithSources(postRunFileImport);
             expect(res.status).toBe(200);
             expect(res.body).toEqual(dto);
         });
@@ -648,7 +648,7 @@ describe('API Endpoints', () => {
             expect(postRunFileImport.location).toBe(DataLocation.DataLake);
             const sources = await postRunFileImport.sources;
             expect(sources.length).toBe(4);
-            const dto = await ImportDTO.fromImportWithSources(postRunFileImport);
+            const dto = await FileImportDTO.fromImportWithSources(postRunFileImport);
             expect(res.status).toBe(200);
             expect(res.body).toEqual(dto);
         });

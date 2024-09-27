@@ -6,7 +6,7 @@ import { parse } from 'csv';
 import { ENGLISH, i18next, WELSH } from '../middleware/translation';
 import { logger as parentLogger } from '../utils/logger';
 import { DatasetDTO } from '../dtos/dataset-dto';
-import { ImportDTO } from '../dtos/fileimport-dto';
+import { FileImportDTO } from '../dtos/file-import-dto';
 import { Error } from '../dtos/error';
 import { CSVHeader, ViewDTO, ViewErrDTO, ViewStream } from '../dtos/view-dto';
 import { Dataset } from '../entities/dataset';
@@ -236,7 +236,7 @@ async function processCSVData(
     return {
         success: true,
         dataset: await DatasetDTO.fromDatasetComplete(currentDataset),
-        import: await ImportDTO.fromImport(currentImport),
+        import: await FileImportDTO.fromImport(currentImport),
         current_page: page,
         page_info: {
             total_records: dataArray.length,
@@ -407,7 +407,7 @@ export const removeFileFromDatalake = async (importObj: FileImport) => {
     }
 };
 
-export const createSources = async (importObj: FileImport): Promise<ImportDTO> => {
+export const createSources = async (importObj: FileImport): Promise<FileImportDTO> => {
     const revision: Revision = await importObj.revision;
     const dataset: Dataset = await revision.dataset;
     let fileView: ViewDTO | ViewErrDTO;
@@ -444,5 +444,5 @@ export const createSources = async (importObj: FileImport): Promise<ImportDTO> =
         logger.error(err);
         throw new Error('Error saving sources to import');
     }
-    return ImportDTO.fromImportWithSources(freshFileImport);
+    return FileImportDTO.fromImportWithSources(freshFileImport);
 };

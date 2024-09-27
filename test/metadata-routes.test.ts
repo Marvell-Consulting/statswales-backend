@@ -14,7 +14,7 @@ import { User } from '../src/entities/user';
 import { DatasetDTO } from '../src/dtos/dataset-dto';
 import { DimensionDTO } from '../src/dtos/dimension-dto';
 import { RevisionDTO } from '../src/dtos/revision-dto';
-import { ImportDTO } from '../src/dtos/fileimport-dto';
+import { FileImportDTO } from '../src/dtos/file-import-dto';
 import DatabaseManager from '../src/db/database-manager';
 import { DataLocation } from '../src/enums/data-location.enum';
 
@@ -200,7 +200,7 @@ describe('API Endpoints for viewing dataset objects', () => {
             const res = await request(app)
                 .get(`/en-GB/dataset/${dataset1Id}/revision/by-id/${revision1Id}/import/by-id/${import1Id}`)
                 .set(getAuthHeader(user));
-            const expectedDTO = await ImportDTO.fromImport(imp);
+            const expectedDTO = await FileImportDTO.fromImport(imp);
             expect(res.status).toBe(200);
             expect(res.body).toEqual(expectedDTO);
         });

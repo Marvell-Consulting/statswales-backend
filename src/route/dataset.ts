@@ -32,9 +32,9 @@ import { DatasetInfo } from '../entities/dataset-info';
 import { Dimension } from '../entities/dimension';
 import { Revision } from '../entities/revision';
 import { FileImport } from '../entities/file-import';
-import { DatasetTitle, FileDescription } from '../dtos/filelist';
+import { DatasetTitle, FileDescription } from '../dtos/file-list';
 import { DatasetDTO } from '../dtos/dataset-dto';
-import { ImportDTO } from '../dtos/fileimport-dto';
+import { FileImportDTO } from '../dtos/file-import-dto';
 import { DimensionDTO } from '../dtos/dimension-dto';
 import { RevisionDTO } from '../dtos/revision-dto';
 import { DataLocation } from '../enums/data-location.enum';
@@ -412,7 +412,7 @@ router.get('/:dataset_id/revision/by-id/:revision_id/import/by-id/:import_id', a
     const importID: string = req.params.import_id;
     const importRecord = await validateImport(importID, res);
     if (!importRecord) return;
-    const dto = await ImportDTO.fromImport(importRecord);
+    const dto = await FileImportDTO.fromImport(importRecord);
     res.json(dto);
 });
 
@@ -516,7 +516,7 @@ router.patch(
         const importRecord = await validateImport(importID, res);
         if (!importRecord) return;
         if (importRecord.location === DataLocation.DataLake) {
-            const fileImportDto = await ImportDTO.fromImportWithSources(importRecord);
+            const fileImportDto = await FileImportDTO.fromImportWithSources(importRecord);
             res.status(200);
             res.json(fileImportDto);
             return;
