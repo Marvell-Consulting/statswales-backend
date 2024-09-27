@@ -19,7 +19,6 @@ export default [
   {
     rules: {
       'line-comment-position': 'off',
-      'no-process-env': 'warn',
       'no-warning-comments': 'warn',
       '@typescript-eslint/member-ordering': 'off',
       '@typescript-eslint/naming-convention': [
