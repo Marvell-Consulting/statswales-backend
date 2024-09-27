@@ -11,7 +11,7 @@ import {
 
 import { Dimension } from './dimension';
 
-@Entity()
+@Entity({ name: 'dimension_info' })
 export class DimensionInfo extends BaseEntity {
     @PrimaryColumn({
         name: 'dimension_id',

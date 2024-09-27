@@ -7,7 +7,7 @@ import { SessionStore } from '../session-store.enum';
 
 export function getLocalConfig(): AppConfig {
     return defineConfig({
-        env: AppEnv.LOCAL,
+        env: AppEnv.Local,
         frontend: {
             port: parseInt(process.env.FRONTEND_PORT || '3000', 10),
             url: process.env.FRONTEND_URL || 'http://localhost:3000'
@@ -17,7 +17,7 @@ export function getLocalConfig(): AppConfig {
             url: process.env.BACKEND_URL || 'http://localhost:3001'
         },
         session: {
-            store: SessionStore.REDIS,
+            store: SessionStore.Redis,
             secret: process.env.SESSION_SECRET || 'mysecret',
             secure: false,
             redisUrl: process.env.REDIS_URL || 'redis://localhost'

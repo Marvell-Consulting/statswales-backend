@@ -6,12 +6,12 @@ export interface RevisionInterface {
     id: string;
     revisionIndex: number;
     dataset: Promise<Dataset>;
-    creationDate: Date;
     previousRevision: Promise<RevisionInterface>;
     onlineCubeFilename: string;
-    publishDate: Date;
-    approvalDate: Date;
-    approvedBy: Promise<User>;
-    createdBy: Promise<User>;
     imports: Promise<FileImport[]>;
+    createdAt: Date;
+    createdBy: Promise<User>;
+    approvedAt: Date;
+    approvedBy: Promise<User>;
+    publishAt: Date;
 }

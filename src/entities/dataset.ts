@@ -14,13 +14,13 @@ import { Revision } from './revision';
 import { DatasetInfo } from './dataset-info';
 import { Dimension } from './dimension';
 
-@Entity()
+@Entity({ name: 'dataset' })
 export class Dataset extends BaseEntity {
     @PrimaryGeneratedColumn('uuid', { primaryKeyConstraintName: 'PK_dataset_id' })
     id: string;
 
-    @CreateDateColumn({ name: 'creation_date', type: 'timestamptz' })
-    creationDate: Date;
+    @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
+    createdAt: Date;
 
     @ManyToOne(() => User)
     @JoinColumn({ name: 'created_by', foreignKeyConstraintName: 'FK_dataset_created_by' })

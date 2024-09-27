@@ -12,10 +12,10 @@ export interface ProcessedCSV {
     dataset: DatasetDTO | undefined;
     current_page: number | undefined;
     page_info: PageInfo | undefined;
-    pages: Array<string | number> | undefined;
+    pages: (string | number)[] | undefined;
     page_size: number | undefined;
     total_pages: number | undefined;
-    headers: Array<string> | undefined;
-    data: Array<Array<string>> | undefined;
-    errors: Array<Error> | undefined;
+    headers: string[] | undefined;
+    data: string[][] | undefined;
+    errors: Error[] | undefined;
 }

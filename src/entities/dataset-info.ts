@@ -11,7 +11,7 @@ import {
 
 import { Dataset } from './dataset';
 
-@Entity()
+@Entity({ name: 'dataset_info' })
 export class DatasetInfo extends BaseEntity {
     @PrimaryColumn({
         name: 'dataset_id',

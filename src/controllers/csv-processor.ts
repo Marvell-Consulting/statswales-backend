@@ -13,9 +13,9 @@ import { Dataset } from '../entities/dataset';
 import { Revision } from '../entities/revision';
 import { Source } from '../entities/source';
 import { FileImport } from '../entities/file-import';
-import { SourceAction } from '../enums/source-action';
-import { ImportType } from '../enums/import-type';
-import { DataLocation } from '../enums/data-location';
+import { SourceAction } from '../enums/source-action.enum';
+import { ImportType } from '../enums/import-type.enum';
+import { DataLocation } from '../enums/data-location.enum';
 
 import { BlobStorageService } from './blob-storage';
 import { DataLakeService } from './datalake';
@@ -27,7 +27,7 @@ export const DEFAULT_PAGE_SIZE = 100;
 const t = i18next.t;
 const logger = parentLogger.child({ module: 'CSVProcessor' });
 
-function hashReadableStream(stream: Readable, algorithm: string = 'sha256'): Promise<string> {
+function hashReadableStream(stream: Readable, algorithm = 'sha256'): Promise<string> {
     return new Promise((resolve, reject) => {
         const hash = createHash(algorithm);
         stream.on('data', (chunk) => {
@@ -42,7 +42,7 @@ function hashReadableStream(stream: Readable, algorithm: string = 'sha256'): Pro
     });
 }
 
-function paginate<T>(array: Array<T>, page_number: number, page_size: number): Array<T> {
+function paginate<T>(array: T[], page_number: number, page_size: number): T[] {
     const page = array.slice((page_number - 1) * page_size, page_number * page_size);
     return page;
 }
@@ -68,8 +68,8 @@ function validatMaxPageNumber(page_number: number, max_page_number: number): boo
     return true;
 }
 
-function validateParams(page_number: number, max_page_number: number, page_size: number): Array<Error> {
-    const errors: Array<Error> = [];
+function validateParams(page_number: number, max_page_number: number, page_size: number): Error[] {
+    const errors: Error[] = [];
     if (!validatePageSize(page_size)) {
         errors.push({
             field: 'page_size',
@@ -149,8 +149,8 @@ export const uploadCSVToBlobStorage = async (fileStream: Readable, filetype: str
         const resolvedHash = await promisedHash;
         if (resolvedHash) importRecord.hash = resolvedHash;
         importRecord.uploadedAt = new Date();
-        importRecord.type = ImportType.DRAFT;
-        importRecord.location = DataLocation.BLOB_STORAGE;
+        importRecord.type = ImportType.Draft;
+        importRecord.location = DataLocation.BlobStorage;
         return importRecord;
     } catch (err) {
         logger.error(err);
@@ -164,7 +164,7 @@ export const uploadCSVBufferToBlobStorage = async (fileBuffer: Buffer, filetype:
     return importRecord;
 };
 
-function setupPagination(page: number, total_pages: number): Array<string | number> {
+function setupPagination(page: number, total_pages: number): (string | number)[] {
     const pages = [];
     if (page !== 1) pages.push('previous');
     if (page - 1 > 0) pages.push(page - 1);
@@ -181,7 +181,7 @@ async function processCSVData(
     dataset: Dataset,
     importObj: FileImport
 ): Promise<ViewDTO | ViewErrDTO> {
-    const dataArray: Array<Array<string>> = (await parse(buffer, {
+    const dataArray: string[][] = (await parse(buffer, {
         delimiter: ','
     }).toArray()) as string[][];
     const csvheaders = dataArray.shift();
@@ -428,7 +428,7 @@ export const createSources = async (importObj: FileImport): Promise<ImportDTO> =
         source.id = crypto.randomUUID().toLowerCase();
         source.columnIndex = header.index;
         source.csvField = header.name;
-        source.action = SourceAction.UNKNOWN;
+        source.action = SourceAction.Unknown;
         source.revision = Promise.resolve(revision);
         source.import = Promise.resolve(importObj);
         return source;

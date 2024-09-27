@@ -6,7 +6,7 @@ import { AppEnv } from '../env.enum';
 
 export function getStagingConfig(): AppConfig {
     return defineConfig({
-        env: AppEnv.STAGING,
+        env: AppEnv.Staging,
         auth: {
             providers: ['google', 'onelogin'],
             jwt: {

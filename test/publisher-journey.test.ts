@@ -16,9 +16,9 @@ import { MAX_PAGE_SIZE, MIN_PAGE_SIZE } from '../src/controllers/csv-processor';
 import DatabaseManager from '../src/db/database-manager';
 import { User } from '../src/entities/user';
 import { FileImport } from '../src/entities/file-import';
-import { DataLocation } from '../src/enums/data-location';
+import { DataLocation } from '../src/enums/data-location.enum';
 import { DimensionCreationDTO } from '../src/dtos/dimension-creation-dto';
-import { SourceType } from '../src/enums/source-type';
+import { SourceType } from '../src/enums/source-type.enum';
 import { Revision } from '../src/entities/revision';
 
 import { createFullDataset, createSmallDataset } from './helpers/test-helper';
@@ -337,7 +337,7 @@ describe('API Endpoints', () => {
             if (!fileImport) {
                 throw new Error('Import not found');
             }
-            fileImport.location = DataLocation.DATA_LAKE;
+            fileImport.location = DataLocation.DataLake;
             await fileImport.save();
 
             const res = await request(app)
@@ -363,7 +363,7 @@ describe('API Endpoints', () => {
             if (!fileImport) {
                 throw new Error('Import not found');
             }
-            fileImport.location = DataLocation.UNKNOWN;
+            fileImport.location = DataLocation.Unknown;
             await fileImport.save();
 
             const res = await request(app)
@@ -380,7 +380,7 @@ describe('API Endpoints', () => {
             if (!fileImport) {
                 throw new Error('Import not found');
             }
-            fileImport.location = DataLocation.DATA_LAKE;
+            fileImport.location = DataLocation.DataLake;
             await fileImport.save();
 
             const res = await request(app)
@@ -612,7 +612,7 @@ describe('API Endpoints', () => {
             if (!preRunFilImport) {
                 throw new Error('Import not found');
             }
-            preRunFilImport.location = DataLocation.BLOB_STORAGE;
+            preRunFilImport.location = DataLocation.BlobStorage;
             await preRunFilImport.save();
             const testFile2 = path.resolve(__dirname, `sample-csvs/test-data-2.csv`);
             const testFile1Buffer = fs.readFileSync(testFile2);
@@ -629,7 +629,7 @@ describe('API Endpoints', () => {
             if (!postRunFileImport) {
                 throw new Error('Import not found');
             }
-            expect(postRunFileImport.location).toBe(DataLocation.DATA_LAKE);
+            expect(postRunFileImport.location).toBe(DataLocation.DataLake);
             const sources = await postRunFileImport.sources;
             expect(sources.length).toBe(4);
             const dto = await ImportDTO.fromImportWithSources(postRunFileImport);
@@ -645,7 +645,7 @@ describe('API Endpoints', () => {
             if (!postRunFileImport) {
                 throw new Error('Import not found');
             }
-            expect(postRunFileImport.location).toBe(DataLocation.DATA_LAKE);
+            expect(postRunFileImport.location).toBe(DataLocation.DataLake);
             const sources = await postRunFileImport.sources;
             expect(sources.length).toBe(4);
             const dto = await ImportDTO.fromImportWithSources(postRunFileImport);
@@ -662,7 +662,7 @@ describe('API Endpoints', () => {
             if (!preRunFilImport) {
                 throw new Error('Import not found');
             }
-            preRunFilImport.location = DataLocation.BLOB_STORAGE;
+            preRunFilImport.location = DataLocation.BlobStorage;
             await preRunFilImport.save();
             BlobStorageService.prototype.getReadableStream = jest.fn().mockRejectedValue(new Error('File not found'));
             const res = await request(app)
@@ -674,7 +674,7 @@ describe('API Endpoints', () => {
             if (!postRunFileImport) {
                 throw new Error('Import not found');
             }
-            expect(postRunFileImport.location).toBe(DataLocation.BLOB_STORAGE);
+            expect(postRunFileImport.location).toBe(DataLocation.BlobStorage);
             expect(res.status).toBe(500);
             expect(res.body).toEqual({
                 message: 'Error moving file from temporary blob storage to Data Lake.  Please try again.'
@@ -690,7 +690,7 @@ describe('API Endpoints', () => {
             if (!preRunFilImport) {
                 throw new Error('Import not found');
             }
-            preRunFilImport.location = DataLocation.BLOB_STORAGE;
+            preRunFilImport.location = DataLocation.BlobStorage;
             await preRunFilImport.save();
             BlobStorageService.prototype.getReadableStream = jest.fn();
             DataLakeService.prototype.uploadFileStream = jest.fn();
@@ -705,7 +705,7 @@ describe('API Endpoints', () => {
             if (!postRunFileImport) {
                 throw new Error('Import not found');
             }
-            expect(postRunFileImport.location).toBe(DataLocation.DATA_LAKE);
+            expect(postRunFileImport.location).toBe(DataLocation.DataLake);
             expect(res.status).toBe(500);
             expect(res.body).toEqual({ message: 'Error creating sources from the uploaded file.  Please try again.' });
         });
@@ -750,11 +750,11 @@ describe('API Endpoints', () => {
             const dimensionCreationJson: DimensionCreationDTO[] = sources.map((source) => {
                 return {
                     sourceId: source.id,
-                    sourceType: SourceType.DIMENSION
+                    sourceType: SourceType.Dimension
                 };
             });
-            dimensionCreationJson[0].sourceType = SourceType.DATAVALUES;
-            dimensionCreationJson[1].sourceType = SourceType.FOOTNOTES;
+            dimensionCreationJson[0].sourceType = SourceType.DataValues;
+            dimensionCreationJson[1].sourceType = SourceType.FootNotes;
             const res = await request(app)
                 .patch(
                     `/en-GB/dataset/${testDatasetId}/revision/by-id/${testRevisionId}/import/by-id/${testFileImportId}/sources`
@@ -803,11 +803,11 @@ describe('API Endpoints', () => {
             const dimensionCreationJson: DimensionCreationDTO[] = sources.map((source) => {
                 return {
                     sourceId: source.id,
-                    sourceType: SourceType.DIMENSION
+                    sourceType: SourceType.Dimension
                 };
             });
-            dimensionCreationJson[0].sourceType = SourceType.DATAVALUES;
-            dimensionCreationJson[1].sourceType = SourceType.DATAVALUES;
+            dimensionCreationJson[0].sourceType = SourceType.DataValues;
+            dimensionCreationJson[1].sourceType = SourceType.DataValues;
             const res = await request(app)
                 .patch(
                     `/en-GB/dataset/${testDatasetId}/revision/by-id/${testRevisionId}/import/by-id/${testFileImportId}/sources`
@@ -840,11 +840,11 @@ describe('API Endpoints', () => {
             const dimensionCreationJson: DimensionCreationDTO[] = sources.map((source) => {
                 return {
                     sourceId: source.id,
-                    sourceType: SourceType.DIMENSION
+                    sourceType: SourceType.Dimension
                 };
             });
-            dimensionCreationJson[0].sourceType = SourceType.FOOTNOTES;
-            dimensionCreationJson[1].sourceType = SourceType.FOOTNOTES;
+            dimensionCreationJson[0].sourceType = SourceType.FootNotes;
+            dimensionCreationJson[1].sourceType = SourceType.FootNotes;
             const res = await request(app)
                 .patch(
                     `/en-GB/dataset/${testDatasetId}/revision/by-id/${testRevisionId}/import/by-id/${testFileImportId}/sources`

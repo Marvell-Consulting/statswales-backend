@@ -16,7 +16,7 @@ import { DimensionDTO } from '../src/dtos/dimension-dto';
 import { RevisionDTO } from '../src/dtos/revision-dto';
 import { ImportDTO } from '../src/dtos/fileimport-dto';
 import DatabaseManager from '../src/db/database-manager';
-import { DataLocation } from '../src/enums/data-location';
+import { DataLocation } from '../src/enums/data-location.enum';
 
 import { createFullDataset } from './helpers/test-helper';
 import { getTestUser } from './helpers/get-user';
@@ -228,7 +228,7 @@ describe('API Endpoints for viewing dataset objects', () => {
                 if (!fileImport) {
                     throw new Error('Import not found');
                 }
-                fileImport.location = DataLocation.BLOB_STORAGE;
+                fileImport.location = DataLocation.BlobStorage;
                 await fileImport.save();
                 const testFile2 = path.resolve(__dirname, `sample-csvs/test-data-2.csv`);
                 const testFileStream = fs.createReadStream(testFile2);
@@ -239,7 +239,7 @@ describe('API Endpoints for viewing dataset objects', () => {
                     .set(getAuthHeader(user));
                 expect(res.status).toBe(200);
                 expect(res.text).toEqual(testFile2Buffer.toString());
-                fileImport.location = DataLocation.DATA_LAKE;
+                fileImport.location = DataLocation.DataLake;
                 await fileImport.save();
             });
 
@@ -261,7 +261,7 @@ describe('API Endpoints for viewing dataset objects', () => {
                 if (!fileImport) {
                     throw new Error('Import not found');
                 }
-                fileImport.location = DataLocation.UNKNOWN;
+                fileImport.location = DataLocation.Unknown;
                 await fileImport.save();
 
                 const res = await request(app)
@@ -279,7 +279,7 @@ describe('API Endpoints for viewing dataset objects', () => {
                 if (!fileImport) {
                     throw new Error('Import not found');
                 }
-                fileImport.location = DataLocation.DATA_LAKE;
+                fileImport.location = DataLocation.DataLake;
                 await fileImport.save();
 
                 const res = await request(app)

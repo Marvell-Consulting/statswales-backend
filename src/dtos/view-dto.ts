@@ -28,11 +28,11 @@ export interface ViewDTO {
     import: ImportDTO;
     current_page: number;
     page_info: PageInfo;
-    pages: Array<string | number>;
+    pages: (string | number)[];
     page_size: number;
     total_pages: number;
-    headers: Array<CSVHeader>;
-    data: Array<Array<string>>;
+    headers: CSVHeader[];
+    data: string[][];
 }
 
 export interface ViewStream {

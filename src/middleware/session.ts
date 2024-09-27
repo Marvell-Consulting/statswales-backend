@@ -10,7 +10,7 @@ const config = appConfig();
 
 let store: RedisStore | MemoryStore;
 
-if (config.session.store === SessionStore.REDIS) {
+if (config.session.store === SessionStore.Redis) {
     logger.debug('Initializing Redis session store...');
 
     const redisClient = createClient({ url: config.session.redisUrl, password: config.session.redisPassword });

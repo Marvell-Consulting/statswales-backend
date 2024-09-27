@@ -1,13 +1,13 @@
 import { Entity, PrimaryGeneratedColumn, Column, BaseEntity, ManyToOne, JoinColumn } from 'typeorm';
 
-import { SourceAction } from '../enums/source-action';
-import { SourceType } from '../enums/source-type';
+import { SourceAction } from '../enums/source-action.enum';
+import { SourceType } from '../enums/source-type.enum';
 
 import { Dimension } from './dimension';
 import { FileImport } from './file-import';
 import { Revision } from './revision';
 
-@Entity()
+@Entity({ name: 'source' })
 export class Source extends BaseEntity {
     @PrimaryGeneratedColumn('uuid', { primaryKeyConstraintName: 'PK_source_id' })
     id: string;

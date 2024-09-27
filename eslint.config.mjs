@@ -17,12 +17,6 @@ export default [
   ...shopifyEslintPlugin.configs.typescript,
   ...shopifyEslintPlugin.configs.prettier,
   {
-    files: ['**/entities/*.ts'],
-    rules: {
-      'import/no-cycle': 'off',
-    }
-  },
-  {
     rules: {
       'line-comment-position': 'off',
       'no-process-env': 'warn',
@@ -35,6 +29,18 @@ export default [
           format: ['camelCase', 'PascalCase', 'UPPER_CASE', 'snake_case'],
         }
       ],
+    }
+  },
+  {
+    files: ['**/entities/*.ts'],
+    rules: {
+      'import/no-cycle': 'off',
+    }
+  },
+  {
+    files: ['src/config/**/*.ts', 'test/helpers/jest-setup.ts'],
+    rules: {
+      'no-process-env': 'off',
     }
   },
 ];

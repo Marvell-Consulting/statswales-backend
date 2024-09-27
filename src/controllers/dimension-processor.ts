@@ -2,12 +2,12 @@ import { DimensionCreationDTO } from '../dtos/dimension-creation-dto';
 import { Dataset } from '../entities/dataset';
 import { Dimension } from '../entities/dimension';
 import { DimensionInfo } from '../entities/dimension-info';
-import { DimensionType } from '../enums/dimension-type';
+import { DimensionType } from '../enums/dimension-type.enum';
 import { Revision } from '../entities/revision';
 import { Source } from '../entities/source';
-import { SourceType } from '../enums/source-type';
+import { SourceType } from '../enums/source-type.enum';
 import { AVAILABLE_LANGUAGES, i18next } from '../middleware/translation';
-import { SourceAction } from '../enums/source-action';
+import { SourceAction } from '../enums/source-action.enum';
 import { logger } from '../utils/logger';
 
 export interface ValidatedDimensionCreationRequest {
@@ -31,13 +31,13 @@ export const validateDimensionCreationRequest = async (
                 throw new Error(`Source with id ${sourceInfo.sourceId} not found`);
             }
             switch (sourceInfo.sourceType) {
-                case SourceType.DATAVALUES:
+                case SourceType.DataValues:
                     if (datavalues) {
                         throw new Error('Only one DataValues source can be specified');
                     }
                     datavalues = sourceInfo;
                     break;
-                case SourceType.FOOTNOTES:
+                case SourceType.FootNotes:
                     if (footnotes) {
                         throw new Error('Only one FootNote source can be specified');
                     }
@@ -94,7 +94,7 @@ async function createUpdateFootnotesDimension(
         const footnoteDimensionInfo: DimensionInfo[] = [];
         const updateDate = new Date();
         footnoteDimension.dimensionInfo = Promise.resolve(footnoteDimensionInfo);
-        footnoteDimension.type = DimensionType.FOOTNOTE;
+        footnoteDimension.type = DimensionType.FootNote;
         footnoteDimension.dataset = Promise.resolve(dataset);
         footnoteDimension.startRevision = Promise.resolve(revision);
         footnoteDimension.sources = Promise.resolve([footnoteSource]);
@@ -126,11 +126,11 @@ async function createDimension(
     }
     logger.debug("The existing dimension is either a footnotes dimension or we don't have one... So lets create one");
     const source = await Source.findOneByOrFail({ id: sourceDescriptor.sourceId });
-    source.type = SourceType.DIMENSION;
-    source.action = SourceAction.CREATE;
+    source.type = SourceType.Dimension;
+    source.action = SourceAction.Create;
     await source.save();
     const dimension = new Dimension();
-    dimension.type = DimensionType.RAW;
+    dimension.type = DimensionType.Raw;
     dimension.dataset = Promise.resolve(dataset);
     dimension.startRevision = Promise.resolve(revision);
     dimension.sources = Promise.resolve([source]);

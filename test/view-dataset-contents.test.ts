@@ -11,7 +11,7 @@ import { Revision } from '../src/entities/revision';
 import { FileImport } from '../src/entities/file-import';
 import DatabaseManager from '../src/db/database-manager';
 import { User } from '../src/entities/user';
-import { DataLocation } from '../src/enums/data-location';
+import { DataLocation } from '../src/enums/data-location.enum';
 
 import { createFullDataset, createSmallDataset } from './helpers/test-helper';
 import { getTestUser } from './helpers/get-user';
@@ -69,7 +69,7 @@ describe('API Endpoints for viewing the contents of a dataset', () => {
         if (!fileImport) {
             throw new Error('Import not found');
         }
-        fileImport.location = DataLocation.DATA_LAKE;
+        fileImport.location = DataLocation.DataLake;
         await FileImport.save(fileImport);
 
         const res = await request(app)
@@ -95,7 +95,7 @@ describe('API Endpoints for viewing the contents of a dataset', () => {
         if (!fileImport) {
             throw new Error('Import not found');
         }
-        fileImport.location = DataLocation.UNKNOWN;
+        fileImport.location = DataLocation.Unknown;
         await FileImport.save(fileImport);
 
         const res = await request(app)
@@ -111,7 +111,7 @@ describe('API Endpoints for viewing the contents of a dataset', () => {
         if (!fileImport) {
             throw new Error('Import not found');
         }
-        fileImport.location = DataLocation.BLOB_STORAGE;
+        fileImport.location = DataLocation.BlobStorage;
         await FileImport.save(fileImport);
         BlobStorageService.prototype.readFile = jest.fn().mockRejectedValue(new Error('File is empty'));
 

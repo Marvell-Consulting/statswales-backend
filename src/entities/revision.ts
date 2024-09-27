@@ -15,7 +15,7 @@ import { User } from './user';
 import { Source } from './source';
 import { FileImport } from './file-import';
 
-@Entity({ name: 'revision', orderBy: { creationDate: 'ASC' } })
+@Entity({ name: 'revision', orderBy: { createdAt: 'ASC' } })
 export class Revision extends BaseEntity implements RevisionInterface {
     @PrimaryGeneratedColumn('uuid', { primaryKeyConstraintName: 'PK_revision_id' })
     id: string;
@@ -30,9 +30,6 @@ export class Revision extends BaseEntity implements RevisionInterface {
     @JoinColumn({ name: 'dataset_id', foreignKeyConstraintName: 'FK_revision_dataset_id' })
     dataset: Promise<Dataset>;
 
-    @CreateDateColumn({ name: 'creation_date' })
-    creationDate: Date;
-
     @ManyToOne(() => Revision, {
         nullable: true,
         onDelete: 'CASCADE',
@@ -44,12 +41,6 @@ export class Revision extends BaseEntity implements RevisionInterface {
     @Column({ name: 'online_cube_filename', type: 'varchar', length: 255, nullable: true })
     onlineCubeFilename: string;
 
-    @Column({ name: 'publish_date', type: 'timestamptz', nullable: true })
-    publishDate: Date;
-
-    @Column({ name: 'approval_date', type: 'timestamptz', nullable: true })
-    approvalDate: Date;
-
     @OneToMany(() => Source, (source) => source.revision, {
         cascade: true
     })
@@ -60,11 +51,20 @@ export class Revision extends BaseEntity implements RevisionInterface {
     })
     imports: Promise<FileImport[]>;
 
-    @ManyToOne(() => User, { nullable: true })
-    @JoinColumn({ name: 'approved_by', foreignKeyConstraintName: 'FK_revision_approved_by' })
-    approvedBy: Promise<User>;
+    @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
+    createdAt: Date;
 
     @ManyToOne(() => User)
     @JoinColumn({ name: 'created_by', foreignKeyConstraintName: 'FK_revision_created_by' })
     createdBy: Promise<User>;
+
+    @Column({ name: 'approved_at', type: 'timestamptz', nullable: true })
+    approvedAt: Date;
+
+    @ManyToOne(() => User, { nullable: true })
+    @JoinColumn({ name: 'approved_by', foreignKeyConstraintName: 'FK_revision_approved_by' })
+    approvedBy: Promise<User>;
+
+    @Column({ name: 'publish_at', type: 'timestamptz', nullable: true })
+    publishAt: Date;
 }

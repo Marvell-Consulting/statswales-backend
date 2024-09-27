@@ -6,6 +6,6 @@ import { AppEnv } from '../env.enum';
 
 export function getProductionConfig(): AppConfig {
     return defineConfig({
-        env: AppEnv.PROD
+        env: AppEnv.Prod
     });
 }

@@ -33,7 +33,7 @@ export class DatasetDTO {
     static async fromDatasetShallow(dataset: Dataset): Promise<DatasetDTO> {
         const dto = new DatasetDTO();
         dto.id = dataset.id;
-        dto.creation_date = dataset.creationDate.toISOString();
+        dto.creation_date = dataset.createdAt.toISOString();
         dto.created_by = (await dataset.createdBy).name;
         dto.live = dataset.live?.toISOString();
         dto.archive = dataset.archive?.toISOString();
