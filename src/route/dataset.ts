@@ -17,6 +17,7 @@ import {
     moveFileToDataLake,
     processCSVFromBlobStorage,
     processCSVFromDatalake,
+    removeFileFromDatalake,
     removeTempfileFromBlobStorage,
     uploadCSVBufferToBlobStorage
 } from '../controllers/csv-processor';
@@ -514,7 +515,7 @@ router.patch(
         const importRecord = await validateImport(importID, res);
         if (!importRecord) return;
         if (importRecord.location === DataLocation.DATA_LAKE) {
-            const fileImportDto = await ImportDTO.fromImport(importRecord);
+            const fileImportDto = await ImportDTO.fromImportWithSources(importRecord);
             res.status(200);
             res.json(fileImportDto);
             return;
@@ -557,7 +558,14 @@ router.delete(
         const importRecord = await validateImport(importID, res);
         if (!importRecord) return;
         try {
-            await removeTempfileFromBlobStorage(importRecord);
+            if (importRecord.location === DataLocation.DATA_LAKE) {
+                logger.warn('User has requested to remove a fact table from the datalake.  This is unusual.');
+                await removeFileFromDatalake(importRecord);
+                const sources = await importRecord.sources;
+                sources.forEach((source) => source.remove());
+            } else {
+                await removeTempfileFromBlobStorage(importRecord);
+            }
         } catch (err) {
             logger.error(`An error occurred trying to remove the file with the following error: ${err}`);
             res.status(500);

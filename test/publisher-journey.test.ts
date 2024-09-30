@@ -417,12 +417,42 @@ describe('API Endpoints', () => {
     });
 
     describe('Step 2b - Unhappy path of the user uploading the wrong file', () => {
-        test('Returns 200 when the user requests to delete the import', async () => {
+        test('Returns 200 when the user requests to delete the import stored in blobstorage', async () => {
             const testDatasetId = crypto.randomUUID().toLowerCase();
             const testRevisionId = crypto.randomUUID().toLowerCase();
             const testFileImportId = crypto.randomUUID().toLowerCase();
             await createSmallDataset(testDatasetId, testRevisionId, testFileImportId, user);
             BlobStorageService.prototype.deleteFile = jest.fn().mockReturnValue(true);
+            const res = await request(app)
+                .delete(
+                    `/en-GB/dataset/${testDatasetId}/revision/by-id/${testRevisionId}/import/by-id/${testFileImportId}`
+                )
+                .set(getAuthHeader(user));
+            expect(res.status).toBe(200);
+            const updatedRevision = await Revision.findOneBy({ id: testRevisionId });
+            if (!updatedRevision) {
+                throw new Error('Revision not found');
+            }
+            const imports = await updatedRevision.imports;
+            expect(imports).toBeInstanceOf(Array);
+            expect(imports.length).toBe(0);
+            const updatedDataset = await Dataset.findOneBy({ id: testDatasetId });
+            if (!updatedDataset) {
+                throw new Error('Dataset not found');
+            }
+            const dto = await DatasetDTO.fromDatasetWithRevisionsAndImports(updatedDataset);
+            expect(res.body).toEqual(dto);
+        });
+
+        test('Returns 200 when the user requests to delete the import stored in the datalake', async () => {
+            const testDatasetId = crypto.randomUUID().toLowerCase();
+            const testRevisionId = crypto.randomUUID().toLowerCase();
+            const testFileImportId = crypto.randomUUID().toLowerCase();
+            await createSmallDataset(testDatasetId, testRevisionId, testFileImportId, user);
+            const importRecord = await FileImport.findOneByOrFail({ id: testFileImportId });
+            importRecord.location = DataLocation.DATA_LAKE;
+            await importRecord.save();
+            DataLakeService.prototype.deleteFile = jest.fn().mockReturnValue(true);
             const res = await request(app)
                 .delete(
                     `/en-GB/dataset/${testDatasetId}/revision/by-id/${testRevisionId}/import/by-id/${testFileImportId}`
@@ -618,7 +648,7 @@ describe('API Endpoints', () => {
             expect(postRunFileImport.location).toBe(DataLocation.DATA_LAKE);
             const sources = await postRunFileImport.sources;
             expect(sources.length).toBe(4);
-            const dto = await ImportDTO.fromImport(postRunFileImport);
+            const dto = await ImportDTO.fromImportWithSources(postRunFileImport);
             expect(res.status).toBe(200);
             expect(res.body).toEqual(dto);
         });
