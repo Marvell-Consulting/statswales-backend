@@ -4,6 +4,7 @@ import i18nextMiddleware from 'i18next-http-middleware';
 
 const ENGLISH = 'en-GB';
 const WELSH = 'cy-GB';
+const AVAILABLE_LANGUAGES = [ENGLISH, WELSH];
 
 i18next
     .use(Backend)
@@ -19,10 +20,10 @@ i18next
             loadPath: `${__dirname}/../resources/locales/{{lng}}.json`
         },
         fallbackLng: ENGLISH,
-        preload: [ENGLISH, WELSH],
+        preload: AVAILABLE_LANGUAGES,
         debug: false
     });
 
 const t = i18next.t;
 
-export { t, i18next, i18nextMiddleware, ENGLISH, WELSH };
+export { t, i18next, i18nextMiddleware, ENGLISH, WELSH, AVAILABLE_LANGUAGES };

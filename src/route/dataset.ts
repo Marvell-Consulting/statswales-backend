@@ -22,7 +22,7 @@ import {
     uploadCSVBufferToBlobStorage
 } from '../controllers/csv-processor';
 import {
-    createDimensions,
+    createDimensionsFromValidatedDimensionRequest,
     ValidatedDimensionCreationRequest,
     validateDimensionCreationRequest
 } from '../controllers/dimension-processor';
@@ -620,8 +620,8 @@ router.patch(
             res.json({ message: `Error processing the supplied JSON with the following error ${err}` });
             return;
         }
-        const savedDataset = await createDimensions(revision, validatedDTO);
-        const dto = await DatasetDTO.fromDatasetComplete(savedDataset);
+        await createDimensionsFromValidatedDimensionRequest(revision, validatedDTO);
+        const dto = await DatasetDTO.fromDatasetComplete(await Dataset.findOneByOrFail({ id: datasetID }));
         res.status(200);
         res.json(dto);
     }

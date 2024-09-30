@@ -16,6 +16,7 @@ export class Source extends BaseEntity {
     id: string;
 
     @ManyToOne(() => Dimension, {
+        nullable: true,
         onDelete: 'CASCADE',
         orphanedRowAction: 'delete'
     })

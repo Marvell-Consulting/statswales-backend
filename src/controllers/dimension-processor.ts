@@ -6,8 +6,9 @@ import { DimensionType } from '../enums/dimension-type';
 import { Revision } from '../entities/revision';
 import { Source } from '../entities/source';
 import { SourceType } from '../enums/source-type';
-import { i18next, t } from '../middleware/translation';
+import { AVAILABLE_LANGUAGES, i18next } from '../middleware/translation';
 import { SourceAction } from '../enums/source-action';
+import { logger } from '../utils/logger';
 
 export interface ValidatedDimensionCreationRequest {
     datavalues: DimensionCreationDTO | null;
@@ -34,45 +35,61 @@ export const validateDimensionCreationRequest = async (
                     if (datavalues) {
                         throw new Error('Only one DataValues source can be specified');
                     }
-                    source.action = SourceAction.CREATE;
                     datavalues = sourceInfo;
                     break;
                 case SourceType.FOOTNOTES:
                     if (footnotes) {
                         throw new Error('Only one FootNote source can be specified');
                     }
-                    source.action = SourceAction.CREATE;
                     footnotes = sourceInfo;
                     break;
                 case SourceType.DIMENSION:
-                    source.action = SourceAction.CREATE;
                     dimensions.push(sourceInfo);
                     break;
                 case SourceType.IGNORE:
-                    source.action = SourceAction.IGNORE;
                     ignore.push(sourceInfo);
                     break;
                 default:
                     throw new Error(`Invalid source type: ${sourceInfo.sourceType}`);
             }
-            source.type = sourceInfo.sourceType;
-            await source.save();
         })
     );
     return { datavalues, footnotes, dimensions, ignore };
 };
 
-export const createDimensions = async (
+async function createUpdateDatavalues(sourceDescriptor: DimensionCreationDTO) {
+    const dataValuesSource = await Source.findOneByOrFail({ id: sourceDescriptor.sourceId });
+    dataValuesSource.action = SourceAction.CREATE;
+    dataValuesSource.type = SourceType.DATAVALUES;
+    await Source.createQueryBuilder().relation(Source, 'dimension').of(dataValuesSource).set(null);
+    await dataValuesSource.save();
+}
+
+async function createUpdateIngoredSources(sourceDescriptor: DimensionCreationDTO) {
+    const ignoreSource = await Source.findOneByOrFail({ id: sourceDescriptor.sourceId });
+    ignoreSource.action = SourceAction.IGNORE;
+    ignoreSource.type = SourceType.IGNORE;
+    await Source.createQueryBuilder().relation(Source, 'dimension').of(ignoreSource).set(null);
+    await ignoreSource.save();
+}
+
+async function createUpdateFootnotesDimension(
+    dataset: Dataset,
     revision: Revision,
-    validatedDimensionCreationRequest: ValidatedDimensionCreationRequest
-): Promise<Dataset> => {
-    const dataset = await revision.dataset;
-    if (!dataset) {
-        throw new Error('No dataset is attached to this revision');
+    existingDimensions: Dimension[],
+    sourceDescriptor: DimensionCreationDTO
+) {
+    const footnoteSource = await Source.findOneByOrFail({ id: sourceDescriptor.sourceId });
+    if (footnoteSource.type !== SourceType.FOOTNOTES) {
+        footnoteSource.type = SourceType.FOOTNOTES;
     }
-    const languages = i18next.languages;
-    const { footnotes, dimensions } = validatedDimensionCreationRequest;
-    if (footnotes) {
+    const existingFootnotesDimension = existingDimensions.find(
+        (dimension) => dimension.type === DimensionType.FOOTNOTE
+    );
+    if (existingFootnotesDimension) {
+        footnoteSource.dimension = Promise.resolve(existingFootnotesDimension);
+        await footnoteSource.save();
+    } else {
         const footnoteDimension = new Dimension();
         const footnoteDimensionInfo: DimensionInfo[] = [];
         const updateDate = new Date();
@@ -80,59 +97,96 @@ export const createDimensions = async (
         footnoteDimension.type = DimensionType.FOOTNOTE;
         footnoteDimension.dataset = Promise.resolve(dataset);
         footnoteDimension.startRevision = Promise.resolve(revision);
-        const source = await Source.findOne({ where: { id: footnotes.sourceId } });
-        if (!source) {
-            throw new Error(`Source with id ${footnotes.sourceId} not found`);
-        }
-        footnoteDimension.sources = Promise.resolve([source]);
+        footnoteDimension.sources = Promise.resolve([footnoteSource]);
         await footnoteDimension.save();
-        languages.map(async (lang) => {
-            if (lang.length !== 5) {
-                return;
-            }
+        AVAILABLE_LANGUAGES.map(async (lang) => {
             const dimensionInfo = new DimensionInfo();
             dimensionInfo.dimension = Promise.resolve(footnoteDimension);
             dimensionInfo.language = lang;
-            dimensionInfo.name = t('dimension_info.footnotes.name', { lng: lang });
-            dimensionInfo.description = t('dimension_info.footnotes.description', { lng: lang });
+            dimensionInfo.name = i18next.t('dimension_info.footnotes.title', { lng: lang });
+            dimensionInfo.description = i18next.t('dimension_info.footnotes.description', { lng: lang });
             dimensionInfo.updatedAt = updateDate;
             await dimensionInfo.save();
         });
-        await source.save();
+        await footnoteSource.save();
+    }
+}
+
+async function createDimension(
+    dataset: Dataset,
+    revision: Revision,
+    existingDimensions: Dimension[],
+    sourceDescriptor: DimensionCreationDTO
+) {
+    const checkSource = await Source.findOneByOrFail({ id: sourceDescriptor.sourceId });
+    const existingDimension = await checkSource.dimension;
+    if (existingDimension && checkSource.type === SourceType.DIMENSION) {
+        logger.debug(`No Dimension to create as Source for column ${checkSource.csvField} is already attached to one`);
+        return;
+    }
+    logger.debug("The existing dimension is either a footnotes dimension or we don't have one... So lets create one");
+    const source = await Source.findOneByOrFail({ id: sourceDescriptor.sourceId });
+    source.type = SourceType.DIMENSION;
+    source.action = SourceAction.CREATE;
+    await source.save();
+    const dimension = new Dimension();
+    dimension.type = DimensionType.RAW;
+    dimension.dataset = Promise.resolve(dataset);
+    dimension.startRevision = Promise.resolve(revision);
+    dimension.sources = Promise.resolve([source]);
+    source.dimension = Promise.resolve(dimension);
+    const savedDimension = await dimension.save();
+    AVAILABLE_LANGUAGES.map(async (lang) => {
+        const dimensionInfo = new DimensionInfo();
+        dimensionInfo.id = savedDimension.id;
+        dimensionInfo.dimension = Promise.resolve(savedDimension);
+        dimensionInfo.language = lang;
+        dimensionInfo.name = source.csvField;
+        await dimensionInfo.save();
+    });
+    await source.save();
+}
+
+async function cleanupDimension(dataset: Dataset) {
+    const updateDataset = await Dataset.findOneByOrFail({ id: dataset.id });
+    const revisedDimensions = await updateDataset.dimensions;
+    for (const dimension of revisedDimensions) {
+        const dimensionSources = await dimension.sources;
+        if (dimensionSources.length === 0) {
+            await dimension.remove();
+        }
+    }
+}
+
+export const createDimensionsFromValidatedDimensionRequest = async (
+    revision: Revision,
+    validatedDimensionCreationRequest: ValidatedDimensionCreationRequest
+) => {
+    const dataset = await revision.dataset;
+    if (!dataset) {
+        throw new Error('No dataset is attached to this revision');
+    }
+    const existingDimensions = await dataset.dimensions;
+
+    const { datavalues, ignore, footnotes, dimensions } = validatedDimensionCreationRequest;
+    if (datavalues) {
+        await createUpdateDatavalues(datavalues);
+    }
+
+    if (footnotes) {
+        await createUpdateFootnotesDimension(dataset, revision, existingDimensions, footnotes);
     }
 
     await Promise.all(
         dimensions.map(async (dimensionCreationDTO: DimensionCreationDTO) => {
-            const dimension = new Dimension();
-            dimension.type = DimensionType.RAW;
-            const source = await Source.findOne({ where: { id: dimensionCreationDTO.sourceId } });
-            if (!source) {
-                throw new Error(`Source with id ${dimensionCreationDTO.sourceId} not found`);
-            }
-            dimension.dataset = Promise.resolve(dataset);
-            dimension.startRevision = Promise.resolve(revision);
-            dimension.sources = Promise.resolve([source]);
-            source.dimension = Promise.resolve(dimension);
-            const savedDimension = await dimension.save();
-            languages.map(async (lang) => {
-                if (lang.length !== 5) {
-                    return;
-                }
-                const dimensionInfo = new DimensionInfo();
-                dimensionInfo.id = savedDimension.id;
-                dimensionInfo.dimension = Promise.resolve(savedDimension);
-                dimensionInfo.language = lang;
-                dimensionInfo.name = source.csvField;
-                await dimensionInfo.save();
-            });
-            await source.save();
-            return savedDimension;
+            await createDimension(dataset, revision, existingDimensions, dimensionCreationDTO);
         })
     );
 
-    const updateDataset = await Dataset.findOneBy({ id: dataset.id });
-    if (!updateDataset) {
-        throw new Error(`Dataset with id ${dataset.id} not found`);
-    }
-    return updateDataset;
+    await Promise.all(
+        ignore.map(async (dimensionCreationDTO: DimensionCreationDTO) => {
+            await createUpdateIngoredSources(dimensionCreationDTO);
+        })
+    );
+    await cleanupDimension(dataset);
 };
