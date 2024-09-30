@@ -618,7 +618,7 @@ describe('API Endpoints', () => {
             expect(postRunFileImport.location).toBe(DataLocation.DATA_LAKE);
             const sources = await postRunFileImport.sources;
             expect(sources.length).toBe(4);
-            const dto = await ImportDTO.fromImport(postRunFileImport);
+            const dto = await ImportDTO.fromImportWithSources(postRunFileImport);
             expect(res.status).toBe(200);
             expect(res.body).toEqual(dto);
         });
