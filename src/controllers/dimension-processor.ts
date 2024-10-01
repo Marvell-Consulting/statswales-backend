@@ -2,12 +2,12 @@ import { DimensionCreationDTO } from '../dtos/dimension-creation-dto';
 import { Dataset } from '../entities/dataset';
 import { Dimension } from '../entities/dimension';
 import { DimensionInfo } from '../entities/dimension-info';
-import { DimensionType } from '../enums/dimension-type.enum';
+import { DimensionType } from '../enums/dimension-type';
 import { Revision } from '../entities/revision';
 import { Source } from '../entities/source';
-import { SourceType } from '../enums/source-type.enum';
+import { SourceType } from '../enums/source-type';
 import { AVAILABLE_LANGUAGES, i18next } from '../middleware/translation';
-import { SourceAction } from '../enums/source-action.enum';
+import { SourceAction } from '../enums/source-action';
 import { logger } from '../utils/logger';
 
 export interface ValidatedDimensionCreationRequest {

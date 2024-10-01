@@ -13,9 +13,9 @@ import { Dataset } from '../entities/dataset';
 import { Revision } from '../entities/revision';
 import { Source } from '../entities/source';
 import { FileImport } from '../entities/file-import';
-import { SourceAction } from '../enums/source-action.enum';
-import { ImportType } from '../enums/import-type.enum';
-import { DataLocation } from '../enums/data-location.enum';
+import { SourceAction } from '../enums/source-action';
+import { ImportType } from '../enums/import-type';
+import { DataLocation } from '../enums/data-location';
 
 import { BlobStorageService } from './blob-storage';
 import { DataLakeService } from './datalake';

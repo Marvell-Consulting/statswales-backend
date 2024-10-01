@@ -37,7 +37,7 @@ import { DatasetDTO } from '../dtos/dataset-dto';
 import { FileImportDTO } from '../dtos/file-import-dto';
 import { DimensionDTO } from '../dtos/dimension-dto';
 import { RevisionDTO } from '../dtos/revision-dto';
-import { DataLocation } from '../enums/data-location.enum';
+import { DataLocation } from '../enums/data-location';
 
 const t = i18next.t;
 
