@@ -11,7 +11,7 @@ import { Revision } from '../src/entities/revision';
 import { FileImport } from '../src/entities/file-import';
 import DatabaseManager from '../src/db/database-manager';
 import { User } from '../src/entities/user';
-import { DataLocation } from '../src/enums/data-location.enum';
+import { DataLocation } from '../src/enums/data-location';
 
 import { createFullDataset, createSmallDataset } from './helpers/test-helper';
 import { getTestUser } from './helpers/get-user';

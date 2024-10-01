@@ -16,9 +16,9 @@ import { MAX_PAGE_SIZE, MIN_PAGE_SIZE } from '../src/controllers/csv-processor';
 import DatabaseManager from '../src/db/database-manager';
 import { User } from '../src/entities/user';
 import { FileImport } from '../src/entities/file-import';
-import { DataLocation } from '../src/enums/data-location.enum';
+import { DataLocation } from '../src/enums/data-location';
 import { DimensionCreationDTO } from '../src/dtos/dimension-creation-dto';
-import { SourceType } from '../src/enums/source-type.enum';
+import { SourceType } from '../src/enums/source-type';
 import { Revision } from '../src/entities/revision';
 
 import { createFullDataset, createSmallDataset } from './helpers/test-helper';
