@@ -8,6 +8,9 @@ import { SessionStore } from '../session-store.enum';
 export function getCIConfig(): AppConfig {
     return defineConfig({
         env: AppEnv.Ci,
+        logger: {
+            level: 'error'
+        },
         frontend: {
             port: parseInt(process.env.FRONTEND_PORT || '3000', 10),
             url: process.env.FRONTEND_URL || 'http://localhost:3000'

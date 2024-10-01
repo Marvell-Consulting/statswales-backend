@@ -1,3 +1,5 @@
+import { Level } from 'pino';
+
 import { AppConfig } from '../app-config.interface';
 import { AppEnv } from '../env.enum';
 import { SessionStore } from '../session-store.enum';
@@ -24,7 +26,7 @@ export const getDefaultConfig = (): AppConfig => {
             redisPassword: process.env.REDIS_ACCESS_KEY
         },
         logger: {
-            level: process.env.LOGGER_LEVEL || 'info'
+            level: (process.env.LOGGER_LEVEL as Level) || 'info'
         },
         rateLimit: {
             windowMs: 60000,
