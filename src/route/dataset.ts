@@ -559,7 +559,7 @@ router.delete(
         const importRecord = await validateImport(importID, res);
         if (!importRecord) return;
         try {
-            if (importRecord.location === DataLocation.DATA_LAKE) {
+            if (importRecord.location === DataLocation.DataLake) {
                 logger.warn('User has requested to remove a fact table from the datalake.  This is unusual.');
                 await removeFileFromDatalake(importRecord);
                 const sources = await importRecord.sources;

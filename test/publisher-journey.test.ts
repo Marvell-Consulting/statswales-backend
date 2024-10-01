@@ -450,7 +450,7 @@ describe('API Endpoints', () => {
             const testFileImportId = crypto.randomUUID().toLowerCase();
             await createSmallDataset(testDatasetId, testRevisionId, testFileImportId, user);
             const importRecord = await FileImport.findOneByOrFail({ id: testFileImportId });
-            importRecord.location = DataLocation.DATA_LAKE;
+            importRecord.location = DataLocation.DataLake;
             await importRecord.save();
             DataLakeService.prototype.deleteFile = jest.fn().mockReturnValue(true);
             const res = await request(app)
