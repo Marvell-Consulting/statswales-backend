@@ -47,7 +47,7 @@
             "upload_to_datalake": "Error uploading the file to the datalake"
         }
 	},
-    "dimensionInfo": {
+    "dimension_info": {
         "footnotes": {
             "title": "Footnotes",
             "description": "Footnotes for the data"
