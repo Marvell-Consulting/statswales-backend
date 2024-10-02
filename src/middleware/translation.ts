@@ -2,24 +2,27 @@ import i18next from 'i18next';
 import Backend from 'i18next-fs-backend';
 import i18nextMiddleware from 'i18next-http-middleware';
 
-const ENGLISH = 'en-GB';
-const WELSH = 'cy-GB';
-const AVAILABLE_LANGUAGES = [ENGLISH, WELSH];
+const ENGLISH = 'en';
+const WELSH = 'cy';
+const AVAILABLE_LANGUAGES = [WELSH, ENGLISH];
 
 i18next
     .use(Backend)
     .use(i18nextMiddleware.LanguageDetector)
     .init({
         detection: {
-            order: ['path', 'header'],
+            order: ['header'],
             lookupHeader: 'accept-language',
+            ignoreCase: true,
             caches: false,
-            ignoreRoutes: ['/healthcheck', '/public', '/css', '/assets']
+            ignoreRoutes: []
         },
         backend: {
             loadPath: `${__dirname}/../resources/locales/{{lng}}.json`
         },
-        fallbackLng: ENGLISH,
+        fallbackLng: WELSH,
+        supportedLngs: AVAILABLE_LANGUAGES,
+        nonExplicitSupportedLngs: true,
         preload: AVAILABLE_LANGUAGES,
         debug: false
     });

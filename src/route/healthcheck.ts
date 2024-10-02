@@ -5,11 +5,20 @@ import passport from 'passport';
 // import { DataLakeService } from '../controllers/datalake';
 import { sanitiseUser } from '../utils/sanitise-user';
 import { User } from '../entities/user';
+import { AVAILABLE_LANGUAGES } from '../middleware/translation';
 
 const healthcheck = Router();
 
+healthcheck.get('/', (req, res) => {
+    res.json({ message: 'success' });
+});
+
 healthcheck.get('/basic', (req, res) => {
     res.json({ message: 'success' });
+});
+
+healthcheck.get('/language', (req, res) => {
+    res.json({ lang: req.language, supported: AVAILABLE_LANGUAGES });
 });
 
 healthcheck.get('/jwt', passport.authenticate('jwt', { session: false }), (req, res) => {

@@ -159,14 +159,16 @@ router.post('/', upload.single('csv'), async (req: Request, res: Response) => {
         return;
     }
 
-    const lang: string = req.body?.language || req.i18n.language;
     const title: string = req.body?.title;
+
     if (!title) {
         res.status(400);
         res.json(errorDtoGenerator('title', 400, 'errors.no_title'));
         return;
     }
+
     let importRecord: FileImport;
+
     try {
         importRecord = await uploadCSVBufferToBlobStorage(req.file.buffer, req.file?.mimetype);
     } catch (err) {
@@ -190,7 +192,7 @@ router.post('/', upload.single('csv'), async (req: Request, res: Response) => {
 
     dataset.createdBy = Promise.resolve(user);
     const datasetInfo = new DatasetInfo();
-    datasetInfo.language = lang;
+    datasetInfo.language = req.language;
     datasetInfo.title = title;
     datasetInfo.dataset = Promise.resolve(dataset);
     dataset.datasetInfo = Promise.resolve([datasetInfo]);

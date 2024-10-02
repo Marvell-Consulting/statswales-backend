@@ -38,15 +38,6 @@ app.use(session);
 
 app.use('/auth', rateLimiter, authRouter);
 app.use('/healthcheck', rateLimiter, healthcheckRouter);
-app.use('/:lang/dataset', rateLimiter, passport.authenticate('jwt', { session: false }), datasetRouter);
-
-app.get('/', (req: Request, res: Response) => {
-    const lang = req.headers['accept-language'] || req.headers['Accept-Language'] || req.i18n.language || 'en-GB';
-    if (lang.includes('cy')) {
-        res.redirect('/cy-GB/api');
-        return;
-    }
-    res.redirect('/en-GB/api');
-});
+app.use('/dataset', rateLimiter, passport.authenticate('jwt', { session: false }), datasetRouter);
 
 export default app;
