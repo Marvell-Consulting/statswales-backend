@@ -1,5 +1,5 @@
 import RedisStore from 'connect-redis';
-import session, { MemoryStore } from 'express-session';
+import session, { MemoryStore, Store } from 'express-session';
 import { createClient } from 'redis';
 
 import { appConfig } from '../config';
@@ -8,12 +8,15 @@ import { SessionStore } from '../config/session-store.enum';
 
 const config = appConfig();
 
-let store: RedisStore | MemoryStore;
+let store: Store;
 
 if (config.session.store === SessionStore.Redis) {
     logger.debug('Initializing Redis session store...');
 
-    const redisClient = createClient({ url: config.session.redisUrl, password: config.session.redisPassword });
+    const redisClient = createClient({
+        url: config.session.redisUrl,
+        password: config.session.redisPassword
+    });
 
     redisClient
         .connect()
