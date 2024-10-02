@@ -1,6 +1,14 @@
-import { Entity, PrimaryColumn, Column, BaseEntity, ManyToOne, JoinColumn } from 'typeorm';
+import {
+    Entity,
+    PrimaryColumn,
+    Column,
+    BaseEntity,
+    ManyToOne,
+    JoinColumn,
+    CreateDateColumn,
+    UpdateDateColumn
+} from 'typeorm';
 
-// eslint-disable-next-line import/no-cycle
 import { FileImport } from './file-import';
 
 @Entity({ name: 'csv_info' })
@@ -23,4 +31,10 @@ export class CsvInfo extends BaseEntity {
     })
     @JoinColumn({ name: 'import_id', foreignKeyConstraintName: 'FK_csv_info_import_id' })
     import: Promise<FileImport>;
+
+    @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
+    createdAt: Date;
+
+    @UpdateDateColumn({ name: 'updated_at', type: 'timestamptz' })
+    updatedAt: Date;
 }

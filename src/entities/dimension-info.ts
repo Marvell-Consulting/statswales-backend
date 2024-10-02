@@ -9,10 +9,9 @@ import {
     UpdateDateColumn
 } from 'typeorm';
 
-// eslint-disable-next-line import/no-cycle
 import { Dimension } from './dimension';
 
-@Entity()
+@Entity({ name: 'dimension_info' })
 export class DimensionInfo extends BaseEntity {
     @PrimaryColumn({
         name: 'dimension_id',

@@ -1,9 +1,7 @@
-/* eslint-disable no-shadow */
-/* eslint-disable no-unused-vars */
 export enum SourceAction {
-    CREATE = 'CREATE',
-    APPEND = 'APPEND',
-    TRUNCATE = 'TRUNCATE-THEN-LOAD',
-    IGNORE = 'IGNORE',
-    UNKNOWN = 'UNKNOWN'
+    Create = 'create',
+    Append = 'append',
+    Truncate = 'truncate_then_load',
+    Ignore = 'ignore',
+    Unknown = 'unknown'
 }

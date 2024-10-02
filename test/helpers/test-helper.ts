@@ -9,13 +9,13 @@ import { FileImport } from '../../src/entities/file-import';
 import { CsvInfo } from '../../src/entities/csv-info';
 import { Source } from '../../src/entities/source';
 import { SourceType } from '../../src/enums/source-type';
-import { Dimension } from '../../src/entities/dimension';
 import { DimensionType } from '../../src/enums/dimension-type';
-import { DimensionInfo } from '../../src/entities/dimension-info';
-import { User } from '../../src/entities/user';
 import { SourceAction } from '../../src/enums/source-action';
 import { DataLocation } from '../../src/enums/data-location';
 import { ImportType } from '../../src/enums/import-type';
+import { Dimension } from '../../src/entities/dimension';
+import { DimensionInfo } from '../../src/entities/dimension-info';
+import { User } from '../../src/entities/user';
 
 export async function createSmallDataset(datasetId: string, revisionId: string, importId: string, user: User) {
     // First create a dataset
@@ -50,8 +50,8 @@ export async function createSmallDataset(datasetId: string, revisionId: string, 
     imp.hash = createHash('sha256').update(testFile2Buffer).digest('hex');
 
     // First is a draft import and a first upload so everything is in blob storage
-    imp.location = DataLocation.BLOB_STORAGE;
-    imp.type = ImportType.DRAFT;
+    imp.location = DataLocation.BlobStorage;
+    imp.type = ImportType.Draft;
     imp.mimeType = 'text/csv';
 
     // Its a CSV file so we need to know how to parse it
@@ -98,7 +98,7 @@ async function createDimension(
     dimension.id = crypto.randomUUID().toLowerCase();
     dimension.dataset = Promise.resolve(dataset);
     dimension.startRevision = Promise.resolve(revision);
-    dimension.type = DimensionType.RAW;
+    dimension.type = DimensionType.Raw;
     const dimensionInfo = new DimensionInfo();
     dimensionInfo.dimension = Promise.resolve(dimension);
     dimensionInfo.name = csvField;
@@ -122,18 +122,18 @@ export async function createFullDataset(datasetId: string, revisionId: string, i
     if (!imp) {
         throw new Error('No import found for revision');
     }
-    imp.location = DataLocation.DATA_LAKE;
+    imp.location = DataLocation.DataLake;
     await imp.save();
     const sourceDescriptions = [
-        { csvField: 'ID', description: 'unique identifier', action: SourceAction.CREATE, type: SourceType.IGNORE },
-        { csvField: 'Text', description: 'Some test', action: SourceAction.CREATE, type: SourceType.DIMENSION },
+        { csvField: 'ID', description: 'unique identifier', action: SourceAction.Create, type: SourceType.Ignore },
+        { csvField: 'Text', description: 'Some test', action: SourceAction.Create, type: SourceType.Dimension },
         {
             csvField: 'Number',
             description: 'some data values',
-            action: SourceAction.CREATE,
-            type: SourceType.DATAVALUES
+            action: SourceAction.Create,
+            type: SourceType.DataValues
         },
-        { csvField: 'Date', description: 'some dimensions', action: SourceAction.CREATE, type: SourceType.DIMENSION }
+        { csvField: 'Date', description: 'some dimensions', action: SourceAction.Create, type: SourceType.Dimension }
     ];
     // Create some sources for each of the columns in the CSV
     const sources: Source[] = [];

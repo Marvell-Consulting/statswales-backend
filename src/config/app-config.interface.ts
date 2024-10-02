@@ -1,3 +1,5 @@
+import { Level } from 'pino';
+
 import { AppEnv } from './env.enum';
 import { SessionStore } from './session-store.enum';
 
@@ -20,7 +22,7 @@ export interface AppConfig {
         redisPassword?: string;
     };
     logger: {
-        level: string;
+        level: Level;
     };
     rateLimit: {
         windowMs: number;

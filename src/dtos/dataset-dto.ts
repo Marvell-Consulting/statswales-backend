@@ -22,7 +22,7 @@ export class DatasetInfoDTO {
 
 export class DatasetDTO {
     id: string;
-    creation_date: string;
+    created_at: string;
     created_by: string;
     live?: string;
     archive?: string;
@@ -33,7 +33,7 @@ export class DatasetDTO {
     static async fromDatasetShallow(dataset: Dataset): Promise<DatasetDTO> {
         const dto = new DatasetDTO();
         dto.id = dataset.id;
-        dto.creation_date = dataset.creationDate.toISOString();
+        dto.created_at = dataset.createdAt.toISOString();
         dto.created_by = (await dataset.createdBy).name;
         dto.live = dataset.live?.toISOString();
         dto.archive = dataset.archive?.toISOString();

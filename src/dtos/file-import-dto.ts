@@ -3,7 +3,7 @@ import { Source } from '../entities/source';
 
 import { SourceDTO } from './source-dto';
 
-export class ImportDTO {
+export class FileImportDTO {
     id: string;
     revision_id: string;
     mime_type: string;
@@ -14,8 +14,8 @@ export class ImportDTO {
     location: string;
     sources?: SourceDTO[];
 
-    static async fromImport(importEntity: FileImport): Promise<ImportDTO> {
-        const dto = new ImportDTO();
+    static async fromImport(importEntity: FileImport): Promise<FileImportDTO> {
+        const dto = new FileImportDTO();
         dto.id = importEntity.id;
         const revision = await importEntity.revision;
         dto.revision_id = revision.id;
@@ -29,8 +29,8 @@ export class ImportDTO {
         return dto;
     }
 
-    static async fromImportWithSources(importEntity: FileImport): Promise<ImportDTO> {
-        const dto = await ImportDTO.fromImport(importEntity);
+    static async fromImportWithSources(importEntity: FileImport): Promise<FileImportDTO> {
+        const dto = await FileImportDTO.fromImport(importEntity);
         dto.sources = await Promise.all(
             (await importEntity.sources).map(async (source: Source) => {
                 const sourceDto = await SourceDTO.fromSource(source);

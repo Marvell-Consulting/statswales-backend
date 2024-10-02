@@ -14,7 +14,7 @@ import { User } from '../src/entities/user';
 import { DatasetDTO } from '../src/dtos/dataset-dto';
 import { DimensionDTO } from '../src/dtos/dimension-dto';
 import { RevisionDTO } from '../src/dtos/revision-dto';
-import { ImportDTO } from '../src/dtos/fileimport-dto';
+import { FileImportDTO } from '../src/dtos/file-import-dto';
 import DatabaseManager from '../src/db/database-manager';
 import { DataLocation } from '../src/enums/data-location';
 
@@ -200,7 +200,7 @@ describe('API Endpoints for viewing dataset objects', () => {
             const res = await request(app)
                 .get(`/en-GB/dataset/${dataset1Id}/revision/by-id/${revision1Id}/import/by-id/${import1Id}`)
                 .set(getAuthHeader(user));
-            const expectedDTO = await ImportDTO.fromImport(imp);
+            const expectedDTO = await FileImportDTO.fromImport(imp);
             expect(res.status).toBe(200);
             expect(res.body).toEqual(expectedDTO);
         });
@@ -228,7 +228,7 @@ describe('API Endpoints for viewing dataset objects', () => {
                 if (!fileImport) {
                     throw new Error('Import not found');
                 }
-                fileImport.location = DataLocation.BLOB_STORAGE;
+                fileImport.location = DataLocation.BlobStorage;
                 await fileImport.save();
                 const testFile2 = path.resolve(__dirname, `sample-csvs/test-data-2.csv`);
                 const testFileStream = fs.createReadStream(testFile2);
@@ -239,7 +239,7 @@ describe('API Endpoints for viewing dataset objects', () => {
                     .set(getAuthHeader(user));
                 expect(res.status).toBe(200);
                 expect(res.text).toEqual(testFile2Buffer.toString());
-                fileImport.location = DataLocation.DATA_LAKE;
+                fileImport.location = DataLocation.DataLake;
                 await fileImport.save();
             });
 
@@ -261,7 +261,7 @@ describe('API Endpoints for viewing dataset objects', () => {
                 if (!fileImport) {
                     throw new Error('Import not found');
                 }
-                fileImport.location = DataLocation.UNKNOWN;
+                fileImport.location = DataLocation.Unknown;
                 await fileImport.save();
 
                 const res = await request(app)
@@ -279,7 +279,7 @@ describe('API Endpoints for viewing dataset objects', () => {
                 if (!fileImport) {
                     throw new Error('Import not found');
                 }
-                fileImport.location = DataLocation.DATA_LAKE;
+                fileImport.location = DataLocation.DataLake;
                 await fileImport.save();
 
                 const res = await request(app)

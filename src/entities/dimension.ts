@@ -2,15 +2,12 @@ import { Entity, PrimaryGeneratedColumn, Column, BaseEntity, ManyToOne, OneToMan
 
 import { DimensionType } from '../enums/dimension-type';
 
-// eslint-disable-next-line import/no-cycle
 import { Dataset } from './dataset';
-// eslint-disable-next-line import/no-cycle
 import { Revision } from './revision';
-// eslint-disable-next-line import/no-cycle
 import { DimensionInfo } from './dimension-info';
 import { Source } from './source';
 
-@Entity()
+@Entity({ name: 'dimension' })
 export class Dimension extends BaseEntity {
     @PrimaryGeneratedColumn('uuid', { primaryKeyConstraintName: 'PK_dimension_id' })
     id: string;
@@ -22,7 +19,7 @@ export class Dimension extends BaseEntity {
     @JoinColumn({ name: 'dataset_id', foreignKeyConstraintName: 'FK_dimension_dataset_id' })
     dataset: Promise<Dataset>;
 
-    @Column({ type: 'enum', enum: Object.keys(DimensionType), nullable: false })
+    @Column({ type: 'enum', enum: Object.values(DimensionType), nullable: false })
     type: DimensionType;
 
     @ManyToOne(() => Revision, { cascade: true, onDelete: 'CASCADE' })

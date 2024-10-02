@@ -1,3 +1,5 @@
+import { Level } from 'pino';
+
 import { AppConfig } from '../app-config.interface';
 import { AppEnv } from '../env.enum';
 import { SessionStore } from '../session-store.enum';
@@ -6,7 +8,7 @@ const ONE_DAY = 24 * 60 * 60 * 1000;
 
 export const getDefaultConfig = (): AppConfig => {
     return {
-        env: AppEnv.DEFAULT, // MUST be overridden by other configs
+        env: AppEnv.Default, // MUST be overridden by other configs
         frontend: {
             port: parseInt(process.env.FRONTEND_PORT!, 10),
             url: process.env.FRONTEND_URL!
@@ -24,7 +26,7 @@ export const getDefaultConfig = (): AppConfig => {
             redisPassword: process.env.REDIS_ACCESS_KEY
         },
         logger: {
-            level: process.env.LOGGER_LEVEL || 'info'
+            level: (process.env.LOGGER_LEVEL as Level) || 'info'
         },
         rateLimit: {
             windowMs: 60000,

@@ -12,19 +12,19 @@ export const appConfig = (): AppConfig => {
     const currentEnv = process.env.APP_ENV as AppEnv;
 
     switch (currentEnv) {
-        case AppEnv.LOCAL:
+        case AppEnv.Local:
             return getLocalConfig();
 
-        case AppEnv.CI:
+        case AppEnv.Ci:
             return getCIConfig();
 
-        case AppEnv.STAGING:
+        case AppEnv.Staging:
             return getStagingConfig();
 
-        case AppEnv.PROD:
+        case AppEnv.Prod:
             return getProductionConfig();
 
-        case AppEnv.DEFAULT:
+        case AppEnv.Default:
         default:
             throw new Error(`Invalid APP_ENV "${currentEnv}"`);
     }

@@ -2,9 +2,12 @@ import jwt from 'jsonwebtoken';
 
 import { User } from '../../src/entities/user';
 import { sanitiseUser } from '../../src/utils/sanitise-user';
+import { appConfig } from '../../src/config';
+
+const config = appConfig();
 
 export const getAuthHeader = (user: User) => {
     const payload = { user: sanitiseUser(user) };
-    const token = jwt.sign(payload, process.env.JWT_SECRET!);
+    const token = jwt.sign(payload, config.auth.jwt.secret);
     return { Authorization: `Bearer ${token}` };
 };

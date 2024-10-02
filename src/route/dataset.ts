@@ -32,9 +32,9 @@ import { DatasetInfo } from '../entities/dataset-info';
 import { Dimension } from '../entities/dimension';
 import { Revision } from '../entities/revision';
 import { FileImport } from '../entities/file-import';
-import { DatasetTitle, FileDescription } from '../dtos/filelist';
+import { DatasetTitle, FileDescription } from '../dtos/file-list';
 import { DatasetDTO } from '../dtos/dataset-dto';
-import { ImportDTO } from '../dtos/fileimport-dto';
+import { FileImportDTO } from '../dtos/file-import-dto';
 import { DimensionDTO } from '../dtos/dimension-dto';
 import { RevisionDTO } from '../dtos/revision-dto';
 import { DataLocation } from '../enums/data-location';
@@ -179,7 +179,7 @@ router.post('/', upload.single('csv'), async (req: Request, res: Response) => {
     // Everything looks good so far, let's create the dataset and revision records
     const dataset = new Dataset();
     dataset.id = randomUUID().toLowerCase();
-    dataset.creationDate = new Date();
+    dataset.createdAt = new Date();
 
     // req.user is set from the JWT token in the passport-auth middleware
     const user = req.user as User;
@@ -197,7 +197,7 @@ router.post('/', upload.single('csv'), async (req: Request, res: Response) => {
     const revision = new Revision();
     revision.dataset = Promise.resolve(dataset);
     revision.revisionIndex = 1;
-    revision.creationDate = new Date();
+    revision.createdAt = new Date();
     revision.createdBy = Promise.resolve(user);
     dataset.revisions = Promise.resolve([revision]);
     importRecord.revision = Promise.resolve(revision);
@@ -321,9 +321,9 @@ router.get('/:dataset_id/view', async (req: Request, res: Response) => {
     const page_number: number = Number.parseInt(page_number_str, 10) || 1;
     const page_size: number = Number.parseInt(page_size_str, 10) || DEFAULT_PAGE_SIZE;
     let processedCSV: ViewErrDTO | ViewDTO;
-    if (latestImport.location === 'BlobStorage') {
+    if (latestImport.location === DataLocation.BlobStorage) {
         processedCSV = await processCSVFromBlobStorage(dataset, latestImport, page_number, page_size);
-    } else if (latestImport.location === 'Datalake') {
+    } else if (latestImport.location === DataLocation.DataLake) {
         processedCSV = await processCSVFromDatalake(dataset, latestImport, page_number, page_size);
     } else {
         res.status(500);
@@ -412,7 +412,7 @@ router.get('/:dataset_id/revision/by-id/:revision_id/import/by-id/:import_id', a
     const importID: string = req.params.import_id;
     const importRecord = await validateImport(importID, res);
     if (!importRecord) return;
-    const dto = await ImportDTO.fromImport(importRecord);
+    const dto = await FileImportDTO.fromImport(importRecord);
     res.json(dto);
 });
 
@@ -435,9 +435,9 @@ router.get(
         const page_number: number = Number.parseInt(page_number_str, 10) || 1;
         const page_size: number = Number.parseInt(page_size_str, 10) || DEFAULT_PAGE_SIZE;
         let processedCSV: ViewErrDTO | ViewDTO;
-        if (importRecord.location === 'BlobStorage') {
+        if (importRecord.location === DataLocation.BlobStorage) {
             processedCSV = await processCSVFromBlobStorage(dataset, importRecord, page_number, page_size);
-        } else if (importRecord.location === 'Datalake') {
+        } else if (importRecord.location === DataLocation.DataLake) {
             processedCSV = await processCSVFromDatalake(dataset, importRecord, page_number, page_size);
         } else {
             res.status(500);
@@ -467,9 +467,9 @@ router.get(
         const importRecord = await validateImport(importID, res);
         if (!importRecord) return;
         let viewStream: ViewErrDTO | ViewStream;
-        if (importRecord.location === 'BlobStorage') {
+        if (importRecord.location === DataLocation.BlobStorage) {
             viewStream = await getFileFromBlobStorage(dataset, importRecord);
-        } else if (importRecord.location === 'Datalake') {
+        } else if (importRecord.location === DataLocation.DataLake) {
             viewStream = await getFileFromDataLake(dataset, importRecord);
         } else {
             res.status(500);
@@ -487,6 +487,7 @@ router.get(
         // Handle errors in the file stream
         readable.on('error', (err) => {
             logger.error('File stream error:', err);
+            // eslint-disable-next-line @typescript-eslint/naming-convention
             res.writeHead(500, { 'Content-Type': 'text/plain' });
             res.end('Server Error');
         });
@@ -514,14 +515,14 @@ router.patch(
         const importID: string = req.params.import_id;
         const importRecord = await validateImport(importID, res);
         if (!importRecord) return;
-        if (importRecord.location === DataLocation.DATA_LAKE) {
-            const fileImportDto = await ImportDTO.fromImportWithSources(importRecord);
+        if (importRecord.location === DataLocation.DataLake) {
+            const fileImportDto = await FileImportDTO.fromImportWithSources(importRecord);
             res.status(200);
             res.json(fileImportDto);
             return;
         }
         try {
-            importRecord.location = DataLocation.DATA_LAKE;
+            importRecord.location = DataLocation.DataLake;
             await moveFileToDataLake(importRecord);
             await importRecord.save();
         } catch (err) {
@@ -558,7 +559,7 @@ router.delete(
         const importRecord = await validateImport(importID, res);
         if (!importRecord) return;
         try {
-            if (importRecord.location === DataLocation.DATA_LAKE) {
+            if (importRecord.location === DataLocation.DataLake) {
                 logger.warn('User has requested to remove a fact table from the datalake.  This is unusual.');
                 await removeFileFromDatalake(importRecord);
                 const sources = await importRecord.sources;

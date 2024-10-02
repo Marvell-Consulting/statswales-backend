@@ -2,7 +2,7 @@ import { Readable } from 'stream';
 
 import { Error } from './error';
 import { DatasetDTO } from './dataset-dto';
-import { ImportDTO } from './fileimport-dto';
+import { FileImportDTO } from './file-import-dto';
 
 export interface CSVHeader {
     index: number;
@@ -25,14 +25,14 @@ export interface ViewErrDTO {
 export interface ViewDTO {
     success: boolean;
     dataset: DatasetDTO;
-    import: ImportDTO;
+    import: FileImportDTO;
     current_page: number;
     page_info: PageInfo;
-    pages: Array<string | number>;
+    pages: (string | number)[];
     page_size: number;
     total_pages: number;
-    headers: Array<CSVHeader>;
-    data: Array<Array<string>>;
+    headers: CSVHeader[];
+    data: string[][];
 }
 
 export interface ViewStream {

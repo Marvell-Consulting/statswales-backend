@@ -9,10 +9,9 @@ import {
     UpdateDateColumn
 } from 'typeorm';
 
-// eslint-disable-next-line import/no-cycle
 import { Dataset } from './dataset';
 
-@Entity()
+@Entity({ name: 'dataset_info' })
 export class DatasetInfo extends BaseEntity {
     @PrimaryColumn({
         name: 'dataset_id',

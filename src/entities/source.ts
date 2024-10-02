@@ -3,14 +3,11 @@ import { Entity, PrimaryGeneratedColumn, Column, BaseEntity, ManyToOne, JoinColu
 import { SourceAction } from '../enums/source-action';
 import { SourceType } from '../enums/source-type';
 
-// eslint-disable-next-line import/no-cycle
 import { Dimension } from './dimension';
-// eslint-disable-next-line import/no-cycle
 import { FileImport } from './file-import';
-// eslint-disable-next-line import/no-cycle
 import { Revision } from './revision';
 
-@Entity()
+@Entity({ name: 'source' })
 export class Source extends BaseEntity {
     @PrimaryGeneratedColumn('uuid', { primaryKeyConstraintName: 'PK_source_id' })
     id: string;
