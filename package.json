@@ -92,6 +92,7 @@
     "pino-http": "^10.2.0",
     "redis": "^4.7.0",
     "reflect-metadata": "^0.2.2",
-    "typeorm": "^0.3.20"
+    "typeorm": "^0.3.20",
+    "uuid": "^10.0.0"
   }
 }

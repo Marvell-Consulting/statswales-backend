@@ -57,7 +57,7 @@ describe('API Endpoints', () => {
 
     describe('Step 1 - initial title and file upload', () => {
         test('returns 401 if no auth header is sent (JWT auth)', async () => {
-            const res = await request(app).post('/en-GB/dataset').query({ filename: 'test-data-1.csv' });
+            const res = await request(app).post('/dataset').query({ filename: 'test-data-1.csv' });
             expect(res.status).toBe(401);
             expect(res.body).toEqual({});
         });
@@ -88,7 +88,7 @@ describe('API Endpoints', () => {
                 ]
             };
             const res = await request(app)
-                .post('/en-GB/dataset')
+                .post('/dataset')
                 .set(getAuthHeader(user))
                 .query({ filename: 'test-data-1.csv' });
             expect(res.status).toBe(400);
@@ -121,7 +121,7 @@ describe('API Endpoints', () => {
                 ]
             };
             const csvFile = path.resolve(__dirname, `sample-csvs/test-data-1.csv`);
-            const res = await request(app).post('/en-GB/dataset').set(getAuthHeader(user)).attach('csv', csvFile);
+            const res = await request(app).post('/dataset').set(getAuthHeader(user)).attach('csv', csvFile);
             expect(res.status).toBe(400);
             expect(res.body).toEqual(err);
         });
@@ -129,7 +129,7 @@ describe('API Endpoints', () => {
         test('Upload returns 201 if a file is attached', async () => {
             const csvFile = path.resolve(__dirname, `sample-csvs/test-data-1.csv`);
             const res = await request(app)
-                .post('/en-GB/dataset')
+                .post('/dataset')
                 .set(getAuthHeader(user))
                 .attach('csv', csvFile)
                 .field('title', 'Test Dataset 3')
@@ -152,7 +152,7 @@ describe('API Endpoints', () => {
             });
             const csvFile = path.resolve(__dirname, `sample-csvs/test-data-1.csv`);
             const res = await request(app)
-                .post('/en-GB/dataset')
+                .post('/dataset')
                 .set(getAuthHeader(user))
                 .attach('csv', csvFile)
                 .field('title', 'Test Dataset 3')
@@ -173,7 +173,7 @@ describe('API Endpoints', () => {
             BlobStorageService.prototype.readFile = jest.fn().mockReturnValue(testFile2Buffer);
             const res = await request(app)
                 .get(
-                    `/en-GB/dataset/${testDatasetId}/revision/by-id/${testRevisionId}/import/by-id/${testFileImportId}/preview`
+                    `/dataset/${testDatasetId}/revision/by-id/${testRevisionId}/import/by-id/${testFileImportId}/preview`
                 )
                 .set(getAuthHeader(user))
                 .query({ page_number: 20 });
@@ -212,7 +212,7 @@ describe('API Endpoints', () => {
 
             const res = await request(app)
                 .get(
-                    `/en-GB/dataset/${testDatasetId}/revision/by-id/${testRevisionId}/import/by-id/${testFileImportId}/preview`
+                    `/dataset/${testDatasetId}/revision/by-id/${testRevisionId}/import/by-id/${testFileImportId}/preview`
                 )
                 .set(getAuthHeader(user))
                 .query({ page_size: 1000 });
@@ -262,7 +262,7 @@ describe('API Endpoints', () => {
 
             const res = await request(app)
                 .get(
-                    `/en-GB/dataset/${testDatasetId}/revision/by-id/${testRevisionId}/import/by-id/${testFileImportId}/preview`
+                    `/dataset/${testDatasetId}/revision/by-id/${testRevisionId}/import/by-id/${testFileImportId}/preview`
                 )
                 .set(getAuthHeader(user))
                 .query({ page_size: 1 });
@@ -311,7 +311,7 @@ describe('API Endpoints', () => {
 
             const res = await request(app)
                 .get(
-                    `/en-GB/dataset/${testDatasetId}/revision/by-id/${testRevisionId}/import/by-id/${testFileImportId}/preview`
+                    `/dataset/${testDatasetId}/revision/by-id/${testRevisionId}/import/by-id/${testFileImportId}/preview`
                 )
                 .set(getAuthHeader(user))
                 .query({ page_number: 2, page_size: 100 });
@@ -341,7 +341,7 @@ describe('API Endpoints', () => {
             await fileImport.save();
 
             const res = await request(app)
-                .get(`/en-GB/dataset/${dataset1Id}/revision/by-id/${revision1Id}/import/by-id/${import1Id}/preview`)
+                .get(`/dataset/${dataset1Id}/revision/by-id/${revision1Id}/import/by-id/${import1Id}/preview`)
                 .set(getAuthHeader(user))
                 .query({ page_number: 2, page_size: 100 });
             expect(res.status).toBe(200);
@@ -367,7 +367,7 @@ describe('API Endpoints', () => {
             await fileImport.save();
 
             const res = await request(app)
-                .get(`/en-GB/dataset/${dataset1Id}/revision/by-id/${revision1Id}/import/by-id/${import1Id}/preview`)
+                .get(`/dataset/${dataset1Id}/revision/by-id/${revision1Id}/import/by-id/${import1Id}/preview`)
                 .set(getAuthHeader(user))
                 .query({ page_number: 2, page_size: 100 });
             expect(res.status).toBe(500);
@@ -384,7 +384,7 @@ describe('API Endpoints', () => {
             await fileImport.save();
 
             const res = await request(app)
-                .get(`/en-GB/dataset/${dataset1Id}/revision/by-id/${revision1Id}/import/by-id/${import1Id}/preview`)
+                .get(`/dataset/${dataset1Id}/revision/by-id/${revision1Id}/import/by-id/${import1Id}/preview`)
                 .set(getAuthHeader(user))
                 .query({ page_number: 2, page_size: 100 });
             expect(res.status).toBe(500);
@@ -408,7 +408,7 @@ describe('API Endpoints', () => {
         test('Get preview of an import returns 404 when a non-existant import is requested', async () => {
             const res = await request(app)
                 .get(
-                    `/en-GB/dataset/${dataset1Id}/revision/by-id/${revision1Id}/import/by-id/97C3F48F-127C-4317-B39C-87350F222310/preview`
+                    `/dataset/${dataset1Id}/revision/by-id/${revision1Id}/import/by-id/97C3F48F-127C-4317-B39C-87350F222310/preview`
                 )
                 .set(getAuthHeader(user));
             expect(res.status).toBe(404);
@@ -424,9 +424,7 @@ describe('API Endpoints', () => {
             await createSmallDataset(testDatasetId, testRevisionId, testFileImportId, user);
             BlobStorageService.prototype.deleteFile = jest.fn().mockReturnValue(true);
             const res = await request(app)
-                .delete(
-                    `/en-GB/dataset/${testDatasetId}/revision/by-id/${testRevisionId}/import/by-id/${testFileImportId}`
-                )
+                .delete(`/dataset/${testDatasetId}/revision/by-id/${testRevisionId}/import/by-id/${testFileImportId}`)
                 .set(getAuthHeader(user));
             expect(res.status).toBe(200);
             const updatedRevision = await Revision.findOneBy({ id: testRevisionId });
@@ -454,9 +452,7 @@ describe('API Endpoints', () => {
             await importRecord.save();
             DataLakeService.prototype.deleteFile = jest.fn().mockReturnValue(true);
             const res = await request(app)
-                .delete(
-                    `/en-GB/dataset/${testDatasetId}/revision/by-id/${testRevisionId}/import/by-id/${testFileImportId}`
-                )
+                .delete(`/dataset/${testDatasetId}/revision/by-id/${testRevisionId}/import/by-id/${testFileImportId}`)
                 .set(getAuthHeader(user));
             expect(res.status).toBe(200);
             const updatedRevision = await Revision.findOneBy({ id: testRevisionId });
@@ -481,9 +477,7 @@ describe('API Endpoints', () => {
             await createSmallDataset(testDatasetId, testRevisionId, testFileImportId, user);
             BlobStorageService.prototype.deleteFile = jest.fn().mockRejectedValue(new Error('File not found'));
             const res = await request(app)
-                .delete(
-                    `/en-GB/dataset/${testDatasetId}/revision/by-id/${testRevisionId}/import/by-id/${testFileImportId}`
-                )
+                .delete(`/dataset/${testDatasetId}/revision/by-id/${testRevisionId}/import/by-id/${testFileImportId}`)
                 .set(getAuthHeader(user));
             expect(res.status).toBe(500);
             const updatedRevision = await Revision.findOneBy({ id: testRevisionId });
@@ -533,7 +527,7 @@ describe('API Endpoints', () => {
                 ]
             };
             const res = await request(app)
-                .post(`/en-GB/dataset/${testDatasetId}/revision/by-id/${testRevisionId}/import`)
+                .post(`/dataset/${testDatasetId}/revision/by-id/${testRevisionId}/import`)
                 .set(getAuthHeader(user))
                 .query({ title: 'Failure Test' });
             expect(res.status).toBe(400);
@@ -560,7 +554,7 @@ describe('API Endpoints', () => {
             const csvFile = path.resolve(__dirname, `sample-csvs/test-data-1.csv`);
 
             const res = await request(app)
-                .post(`/en-GB/dataset/${testDatasetId}/revision/by-id/${testRevisionId}/import`)
+                .post(`/dataset/${testDatasetId}/revision/by-id/${testRevisionId}/import`)
                 .set(getAuthHeader(user))
                 .attach('csv', csvFile)
                 .field('title', 'Test Dataset 3')
@@ -593,7 +587,7 @@ describe('API Endpoints', () => {
             });
             const csvFile = path.resolve(__dirname, `sample-csvs/test-data-1.csv`);
             const res = await request(app)
-                .post(`/en-GB/dataset/${testDatasetId}/revision/by-id/${testRevisionId}/import`)
+                .post(`/dataset/${testDatasetId}/revision/by-id/${testRevisionId}/import`)
                 .set(getAuthHeader(user))
                 .attach('csv', csvFile)
                 .field('lang', 'en-GB');
@@ -622,7 +616,7 @@ describe('API Endpoints', () => {
             BlobStorageService.prototype.deleteFile = jest.fn().mockReturnValue(true);
             const res = await request(app)
                 .patch(
-                    `/en-GB/dataset/${testDatasetId}/revision/by-id/${testRevisionId}/import/by-id/${testFileImportId}/confirm`
+                    `/dataset/${testDatasetId}/revision/by-id/${testRevisionId}/import/by-id/${testFileImportId}/confirm`
                 )
                 .set(getAuthHeader(user));
             const postRunFileImport = await FileImport.findOneBy({ id: testFileImportId });
@@ -639,7 +633,7 @@ describe('API Endpoints', () => {
 
         test('Returns 200 with an import dto listing the no additional sources are created if sources are already present', async () => {
             const res = await request(app)
-                .patch(`/en-GB/dataset/${dataset1Id}/revision/by-id/${revision1Id}/import/by-id/${import1Id}/confirm`)
+                .patch(`/dataset/${dataset1Id}/revision/by-id/${revision1Id}/import/by-id/${import1Id}/confirm`)
                 .set(getAuthHeader(user));
             const postRunFileImport = await FileImport.findOneBy({ id: import1Id });
             if (!postRunFileImport) {
@@ -667,7 +661,7 @@ describe('API Endpoints', () => {
             BlobStorageService.prototype.getReadableStream = jest.fn().mockRejectedValue(new Error('File not found'));
             const res = await request(app)
                 .patch(
-                    `/en-GB/dataset/${testDatasetId}/revision/by-id/${testRevisionId}/import/by-id/${testFileImportId}/confirm`
+                    `/dataset/${testDatasetId}/revision/by-id/${testRevisionId}/import/by-id/${testFileImportId}/confirm`
                 )
                 .set(getAuthHeader(user));
             const postRunFileImport = await FileImport.findOneBy({ id: testFileImportId });
@@ -698,7 +692,7 @@ describe('API Endpoints', () => {
             DataLakeService.prototype.downloadFile = jest.fn().mockRejectedValue(new Error('File not found'));
             const res = await request(app)
                 .patch(
-                    `/en-GB/dataset/${testDatasetId}/revision/by-id/${testRevisionId}/import/by-id/${testFileImportId}/confirm`
+                    `/dataset/${testDatasetId}/revision/by-id/${testRevisionId}/import/by-id/${testFileImportId}/confirm`
                 )
                 .set(getAuthHeader(user));
             const postRunFileImport = await FileImport.findOneBy({ id: testFileImportId });
@@ -727,7 +721,7 @@ describe('API Endpoints', () => {
             // Create sources in the database
             await request(app)
                 .patch(
-                    `/en-GB/dataset/${testDatasetId}/revision/by-id/${testRevisionId}/import/by-id/${testFileImportId}/confirm`
+                    `/dataset/${testDatasetId}/revision/by-id/${testRevisionId}/import/by-id/${testFileImportId}/confirm`
                 )
                 .set(getAuthHeader(user));
             const updatedDataset = await Dataset.findOneBy({ id: testDatasetId });
@@ -757,7 +751,7 @@ describe('API Endpoints', () => {
             dimensionCreationJson[1].sourceType = SourceType.FootNotes;
             const res = await request(app)
                 .patch(
-                    `/en-GB/dataset/${testDatasetId}/revision/by-id/${testRevisionId}/import/by-id/${testFileImportId}/sources`
+                    `/dataset/${testDatasetId}/revision/by-id/${testRevisionId}/import/by-id/${testFileImportId}/sources`
                 )
                 .send(dimensionCreationJson)
                 .set(getAuthHeader(user));
@@ -779,7 +773,7 @@ describe('API Endpoints', () => {
             await createDatasetWithSources(testDatasetId, testRevisionId, testFileImportId);
             const res = await request(app)
                 .patch(
-                    `/en-GB/dataset/${testDatasetId}/revision/by-id/${testRevisionId}/import/by-id/${testFileImportId}/sources`
+                    `/dataset/${testDatasetId}/revision/by-id/${testRevisionId}/import/by-id/${testFileImportId}/sources`
                 )
                 .send()
                 .set(getAuthHeader(user));
@@ -810,7 +804,7 @@ describe('API Endpoints', () => {
             dimensionCreationJson[1].sourceType = SourceType.DataValues;
             const res = await request(app)
                 .patch(
-                    `/en-GB/dataset/${testDatasetId}/revision/by-id/${testRevisionId}/import/by-id/${testFileImportId}/sources`
+                    `/dataset/${testDatasetId}/revision/by-id/${testRevisionId}/import/by-id/${testFileImportId}/sources`
                 )
                 .send(dimensionCreationJson)
                 .set(getAuthHeader(user));
@@ -847,7 +841,7 @@ describe('API Endpoints', () => {
             dimensionCreationJson[1].sourceType = SourceType.FootNotes;
             const res = await request(app)
                 .patch(
-                    `/en-GB/dataset/${testDatasetId}/revision/by-id/${testRevisionId}/import/by-id/${testFileImportId}/sources`
+                    `/dataset/${testDatasetId}/revision/by-id/${testRevisionId}/import/by-id/${testFileImportId}/sources`
                 )
                 .send(dimensionCreationJson)
                 .set(getAuthHeader(user));
@@ -874,7 +868,7 @@ describe('API Endpoints', () => {
         expect(datesetFromDb).not.toBeNull();
         expect(datesetFromDb?.id).toBe(datasetID);
 
-        const res = await request(app).delete(`/en-GB/dataset/${datasetID}`).set(getAuthHeader(user));
+        const res = await request(app).delete(`/dataset/${datasetID}`).set(getAuthHeader(user));
         expect(res.status).toBe(204);
         const dataset = await Dataset.findOneBy({ id: datasetID });
         expect(dataset).toBeNull();

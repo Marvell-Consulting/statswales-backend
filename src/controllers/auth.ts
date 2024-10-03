@@ -10,12 +10,13 @@ import { User } from '../entities/user';
 import { sanitiseUser } from '../utils/sanitise-user';
 
 const config = appConfig();
-const returnURL = `${config.frontend.url}/auth/callback`;
 const domain = new URL(config.auth.jwt.cookieDomain).hostname;
 logger.debug(`JWT cookie domain is '${domain}'`);
 
 export const loginGoogle: RequestHandler = (req, res, next) => {
     logger.debug('attempting to authenticate with google...');
+
+    const returnURL = `${config.frontend.url}/${req.language}/auth/callback`;
 
     passport.authenticate('google', (err: Error, user: User, info: Record<string, string>) => {
         if (err || !user) {
@@ -45,6 +46,8 @@ export const loginGoogle: RequestHandler = (req, res, next) => {
 
 export const loginOneLogin: RequestHandler = (req, res, next) => {
     logger.debug('attempting to authenticate with one-login...');
+
+    const returnURL = `${config.frontend.url}/${req.language}/auth/callback`;
 
     passport.authenticate('onelogin', (err: Error, user: User, info: Record<string, string>) => {
         if (err || !user) {

@@ -10,8 +10,7 @@ export function getStagingConfig(): AppConfig {
         auth: {
             providers: ['google', 'onelogin'],
             jwt: {
-                cookieDomain:
-                    process.env.JWT_COOKIE_DOMAIN || process.env.BACKEND_URL!.replace('statswales-develop-backend.', '')
+                cookieDomain: process.env.BACKEND_URL!.replace('statswales-develop-backend.', '')
             }
         }
     });

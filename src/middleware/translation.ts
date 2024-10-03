@@ -20,9 +20,7 @@ i18next
         backend: {
             loadPath: `${__dirname}/../resources/locales/{{lng}}.json`
         },
-        fallbackLng: WELSH,
-        supportedLngs: AVAILABLE_LANGUAGES,
-        nonExplicitSupportedLngs: true,
+        fallbackLng: ENGLISH,
         preload: AVAILABLE_LANGUAGES,
         debug: false
     });
