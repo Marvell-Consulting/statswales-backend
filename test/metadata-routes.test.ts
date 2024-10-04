@@ -54,13 +54,13 @@ describe('API Endpoints for viewing dataset objects', () => {
 
     describe('List all datasets', () => {
         test('returns 401 if no auth header is sent (JWT auth)', async () => {
-            const res = await request(app).get('/en-GB/dataset');
+            const res = await request(app).get('/dataset');
             expect(res.status).toBe(401);
             expect(res.body).toEqual({});
         });
 
         test('Get a list of all datasets returns 200 with a file list', async () => {
-            const res = await request(app).get('/en-GB/dataset').set(getAuthHeader(user));
+            const res = await request(app).get('/dataset').set(getAuthHeader(user));
             expect(res.status).toBe(200);
             expect(res.body).toEqual({
                 datasets: [
@@ -75,7 +75,7 @@ describe('API Endpoints for viewing dataset objects', () => {
 
     describe('Display dataset object endpoints', () => {
         test('returns 401 if no auth header is sent (JWT auth)', async () => {
-            const res = await request(app).get(`/en-GB/dataset/${dataset1Id}`);
+            const res = await request(app).get(`/dataset/${dataset1Id}`);
             expect(res.status).toBe(401);
             expect(res.body).toEqual({});
         });
@@ -86,20 +86,20 @@ describe('API Endpoints for viewing dataset objects', () => {
                 throw new Error('Dataset not found');
             }
             const dto = await DatasetDTO.fromDatasetComplete(dataset1);
-            const res = await request(app).get(`/en-GB/dataset/${dataset1Id}`).set(getAuthHeader(user));
+            const res = await request(app).get(`/dataset/${dataset1Id}`).set(getAuthHeader(user));
             expect(res.status).toBe(200);
             expect(res.body).toEqual(dto);
         });
 
         test('Get a dataset returns 400 if an invalid ID is given', async () => {
-            const res = await request(app).get(`/en-GB/dataset/INVALID-ID`).set(getAuthHeader(user));
+            const res = await request(app).get(`/dataset/INVALID-ID`).set(getAuthHeader(user));
             expect(res.status).toBe(400);
             expect(res.body).toEqual({ message: 'Dataset ID is not valid' });
         });
 
         test('Get a dataset returns 404 if a non-existant ID is given', async () => {
             const res = await request(app)
-                .get(`/en-GB/dataset/8B9434D1-4807-41CD-8E81-228769671A07`)
+                .get(`/dataset/8B9434D1-4807-41CD-8E81-228769671A07`)
                 .set(getAuthHeader(user));
             expect(res.status).toBe(404);
         });
@@ -108,7 +108,7 @@ describe('API Endpoints for viewing dataset objects', () => {
     describe('Display dimension metadata endpoints', () => {
         test('returns 401 if no auth header is sent (JWT auth)', async () => {
             const res = await request(app).get(
-                `/en-GB/dataset/${dataset1Id}/dimension/by-id/06b60fc5-93c9-4bd8-ac6f-3cc60ea538c4`
+                `/dataset/${dataset1Id}/dimension/by-id/06b60fc5-93c9-4bd8-ac6f-3cc60ea538c4`
             );
             expect(res.status).toBe(401);
             expect(res.body).toEqual({});
@@ -125,7 +125,7 @@ describe('API Endpoints for viewing dataset objects', () => {
             }
             const dto = await DimensionDTO.fromDimension(dimension);
             const res = await request(app)
-                .get(`/en-GB/dataset/${dataset1Id}/dimension/by-id/${dimension.id}`)
+                .get(`/dataset/${dataset1Id}/dimension/by-id/${dimension.id}`)
                 .set(getAuthHeader(user));
             expect(res.status).toBe(200);
             expect(res.body).toEqual(dto);
@@ -133,7 +133,7 @@ describe('API Endpoints for viewing dataset objects', () => {
 
         test('Get a dimension returns 400 if an invalid ID is given', async () => {
             const res = await request(app)
-                .get(`/en-GB/dataset/${dataset1Id}/dimension/by-id/INVALID-ID`)
+                .get(`/dataset/${dataset1Id}/dimension/by-id/INVALID-ID`)
                 .set(getAuthHeader(user));
             expect(res.status).toBe(400);
             expect(res.body).toEqual({ message: 'Dimension ID is not valid' });
@@ -141,7 +141,7 @@ describe('API Endpoints for viewing dataset objects', () => {
 
         test('Get a dimension returns 404 if a non-existant ID is given', async () => {
             const res = await request(app)
-                .get(`/en-GB/dataset/${dataset1Id}/dimension/by-id/8B9434D1-4807-41CD-8E81-228769671A07`)
+                .get(`/dataset/${dataset1Id}/dimension/by-id/8B9434D1-4807-41CD-8E81-228769671A07`)
                 .set(getAuthHeader(user));
             expect(res.status).toBe(404);
         });
@@ -149,7 +149,7 @@ describe('API Endpoints for viewing dataset objects', () => {
 
     describe('Get revision metadata endpoints', () => {
         test('returns 401 if no auth header is sent (JWT auth)', async () => {
-            const res = await request(app).get(`/en-GB/dataset/${dataset1Id}/revision/by-id/${revision1Id}`);
+            const res = await request(app).get(`/dataset/${dataset1Id}/revision/by-id/${revision1Id}`);
             expect(res.status).toBe(401);
             expect(res.body).toEqual({});
         });
@@ -161,7 +161,7 @@ describe('API Endpoints for viewing dataset objects', () => {
             }
             const dto = await RevisionDTO.fromRevision(revision);
             const res = await request(app)
-                .get(`/en-GB/dataset/${dataset1Id}/revision/by-id/${revision1Id}`)
+                .get(`/dataset/${dataset1Id}/revision/by-id/${revision1Id}`)
                 .set(getAuthHeader(user));
             expect(res.status).toBe(200);
             expect(res.body).toEqual(dto);
@@ -169,7 +169,7 @@ describe('API Endpoints for viewing dataset objects', () => {
 
         test('Get revision returns 400 if an invalid ID is given', async () => {
             const res = await request(app)
-                .get(`/en-GB/dataset/${dataset1Id}/revision/by-id/INVALID-ID`)
+                .get(`/dataset/${dataset1Id}/revision/by-id/INVALID-ID`)
                 .set(getAuthHeader(user));
             expect(res.status).toBe(400);
             expect(res.body).toEqual({ message: 'Revision ID is not valid' });
@@ -177,7 +177,7 @@ describe('API Endpoints for viewing dataset objects', () => {
 
         test('Get revision returns 404 if a ID is given', async () => {
             const res = await request(app)
-                .get(`/en-GB/dataset/${dataset1Id}/revision/by-id/8B9434D1-4807-41CD-8E81-228769671A07`)
+                .get(`/dataset/${dataset1Id}/revision/by-id/8B9434D1-4807-41CD-8E81-228769671A07`)
                 .set(getAuthHeader(user));
             expect(res.status).toBe(404);
         });
@@ -186,7 +186,7 @@ describe('API Endpoints for viewing dataset objects', () => {
     describe('Get FileImport metadata endpoints', () => {
         test('returns 401 if no auth header is sent (JWT auth)', async () => {
             const res = await request(app).get(
-                `/en-GB/dataset/${dataset1Id}/revision/by-id/${revision1Id}/import/by-id/${import1Id}/preview`
+                `/dataset/${dataset1Id}/revision/by-id/${revision1Id}/import/by-id/${import1Id}/preview`
             );
             expect(res.status).toBe(401);
             expect(res.body).toEqual({});
@@ -198,7 +198,7 @@ describe('API Endpoints for viewing dataset objects', () => {
                 throw new Error('Import not found');
             }
             const res = await request(app)
-                .get(`/en-GB/dataset/${dataset1Id}/revision/by-id/${revision1Id}/import/by-id/${import1Id}`)
+                .get(`/dataset/${dataset1Id}/revision/by-id/${revision1Id}/import/by-id/${import1Id}`)
                 .set(getAuthHeader(user));
             const expectedDTO = await FileImportDTO.fromImport(imp);
             expect(res.status).toBe(200);
@@ -207,7 +207,7 @@ describe('API Endpoints for viewing dataset objects', () => {
 
         test('Get import returns 400 if given an invalid ID', async () => {
             const res = await request(app)
-                .get(`/en-GB/dataset/${dataset1Id}/revision/by-id/${revision1Id}/import/by-id/IN-VALID-ID`)
+                .get(`/dataset/${dataset1Id}/revision/by-id/${revision1Id}/import/by-id/IN-VALID-ID`)
                 .set(getAuthHeader(user));
             expect(res.status).toBe(400);
             expect(res.body).toEqual({ message: 'Import ID is not valid' });
@@ -216,7 +216,7 @@ describe('API Endpoints for viewing dataset objects', () => {
         test('Get import returns 404 if given a missing ID', async () => {
             const res = await request(app)
                 .get(
-                    `/en-GB/dataset/${dataset1Id}/revision/by-id/${revision1Id}/import/by-id/8B9434D1-4807-41CD-8E81-228769671A07`
+                    `/dataset/${dataset1Id}/revision/by-id/${revision1Id}/import/by-id/8B9434D1-4807-41CD-8E81-228769671A07`
                 )
                 .set(getAuthHeader(user));
             expect(res.status).toBe(404);
@@ -235,7 +235,7 @@ describe('API Endpoints for viewing dataset objects', () => {
                 const testFile2Buffer = fs.readFileSync(testFile2);
                 BlobStorageService.prototype.getReadableStream = jest.fn().mockReturnValue(testFileStream);
                 const res = await request(app)
-                    .get(`/en-GB/dataset/${dataset1Id}/revision/by-id/${revision1Id}/import/by-id/${import1Id}/raw`)
+                    .get(`/dataset/${dataset1Id}/revision/by-id/${revision1Id}/import/by-id/${import1Id}/raw`)
                     .set(getAuthHeader(user));
                 expect(res.status).toBe(200);
                 expect(res.text).toEqual(testFile2Buffer.toString());
@@ -250,7 +250,7 @@ describe('API Endpoints for viewing dataset objects', () => {
                 DataLakeService.prototype.downloadFileStream = jest.fn().mockReturnValue(testFileStream);
 
                 const res = await request(app)
-                    .get(`/en-GB/dataset/${dataset1Id}/revision/by-id/${revision1Id}/import/by-id/${import1Id}/raw`)
+                    .get(`/dataset/${dataset1Id}/revision/by-id/${revision1Id}/import/by-id/${import1Id}/raw`)
                     .set(getAuthHeader(user));
                 expect(res.status).toBe(200);
                 expect(res.text).toEqual(testFile2Buffer.toString());
@@ -265,7 +265,7 @@ describe('API Endpoints for viewing dataset objects', () => {
                 await fileImport.save();
 
                 const res = await request(app)
-                    .get(`/en-GB/dataset/${dataset1Id}/revision/by-id/${revision1Id}/import/by-id/${import1Id}/raw`)
+                    .get(`/dataset/${dataset1Id}/revision/by-id/${revision1Id}/import/by-id/${import1Id}/raw`)
                     .set(getAuthHeader(user));
                 expect(res.status).toBe(500);
                 expect(res.body).toEqual({ message: 'Import location not supported.' });
@@ -283,7 +283,7 @@ describe('API Endpoints for viewing dataset objects', () => {
                 await fileImport.save();
 
                 const res = await request(app)
-                    .get(`/en-GB/dataset/${dataset1Id}/revision/by-id/${revision1Id}/import/by-id/${import1Id}/raw`)
+                    .get(`/dataset/${dataset1Id}/revision/by-id/${revision1Id}/import/by-id/${import1Id}/raw`)
                     .set(getAuthHeader(user));
                 expect(res.status).toBe(500);
                 expect(res.body).toEqual({

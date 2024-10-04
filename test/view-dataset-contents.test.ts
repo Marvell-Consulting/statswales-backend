@@ -44,7 +44,7 @@ describe('API Endpoints for viewing the contents of a dataset', () => {
         DataLakeService.prototype.downloadFile = jest.fn().mockReturnValue(testFile1Buffer.toString());
 
         const res = await request(app)
-            .get(`/en-GB/dataset/${dataset1Id}/view`)
+            .get(`/dataset/${dataset1Id}/view`)
             .set(getAuthHeader(user))
             .query({ page_number: 2, page_size: 100 });
         expect(res.status).toBe(200);
@@ -73,7 +73,7 @@ describe('API Endpoints for viewing the contents of a dataset', () => {
         await FileImport.save(fileImport);
 
         const res = await request(app)
-            .get(`/en-GB/dataset/${dataset1Id}/view`)
+            .get(`/dataset/${dataset1Id}/view`)
             .set(getAuthHeader(user))
             .query({ page_number: 2, page_size: 100 });
         expect(res.status).toBe(200);
@@ -99,7 +99,7 @@ describe('API Endpoints for viewing the contents of a dataset', () => {
         await FileImport.save(fileImport);
 
         const res = await request(app)
-            .get(`/en-GB/dataset/${dataset1Id}/view`)
+            .get(`/dataset/${dataset1Id}/view`)
             .set(getAuthHeader(user))
             .query({ page_number: 2, page_size: 100 });
         expect(res.status).toBe(500);
@@ -116,7 +116,7 @@ describe('API Endpoints for viewing the contents of a dataset', () => {
         BlobStorageService.prototype.readFile = jest.fn().mockRejectedValue(new Error('File is empty'));
 
         const res = await request(app)
-            .get(`/en-GB/dataset/${dataset1Id}/view`)
+            .get(`/dataset/${dataset1Id}/view`)
             .set(getAuthHeader(user))
             .query({ page_number: 2, page_size: 100 });
         expect(res.status).toBe(500);
@@ -152,7 +152,7 @@ describe('API Endpoints for viewing the contents of a dataset', () => {
         }
         await Revision.remove(revision);
         const res = await request(app)
-            .get(`/en-GB/dataset/${removeRevisionDatasetID}/view`)
+            .get(`/dataset/${removeRevisionDatasetID}/view`)
             .set(getAuthHeader(user))
             .query({ page_number: 2, page_size: 100 });
         expect(res.status).toBe(500);
@@ -169,7 +169,7 @@ describe('API Endpoints for viewing the contents of a dataset', () => {
         }
         await FileImport.remove(fileImport);
         const res = await request(app)
-            .get(`/en-GB/dataset/${removeRevisionDatasetID}/view`)
+            .get(`/dataset/${removeRevisionDatasetID}/view`)
             .set(getAuthHeader(user))
             .query({ page_number: 2, page_size: 100 });
         expect(res.status).toBe(500);
@@ -177,7 +177,7 @@ describe('API Endpoints for viewing the contents of a dataset', () => {
     });
 
     test('Get file view returns 400 when a not valid UUID is supplied', async () => {
-        const res = await request(app).get(`/en-GB/dataset/NOT-VALID-ID`).set(getAuthHeader(user));
+        const res = await request(app).get(`/dataset/NOT-VALID-ID`).set(getAuthHeader(user));
         expect(res.status).toBe(400);
         expect(res.body).toEqual({ message: 'Dataset ID is not valid' });
     });
