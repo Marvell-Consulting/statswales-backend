@@ -4,6 +4,7 @@ import app, { initDb } from '../src/app';
 import DatabaseManager from '../src/db/database-manager';
 import { sanitiseUser } from '../src/utils/sanitise-user';
 import { SUPPORTED_LOCALES } from '../src/middleware/translation';
+import { Locale } from '../src/enums/locale';
 
 import { getTestUser } from './helpers/get-user';
 import { getAuthHeader } from './helpers/auth-header';
@@ -31,35 +32,35 @@ describe('Healthcheck', () => {
         test('/healthcheck/language detects language as en if no header sent', async () => {
             const res = await request(app).get('/healthcheck/language');
             expect(res.status).toBe(200);
-            expect(res.body).toEqual({ lang: 'en', supported: SUPPORTED_LOCALES });
+            expect(res.body).toEqual({ lang: Locale.English, supported: SUPPORTED_LOCALES });
         });
 
         test('/healthcheck/language detects language as en if en header sent', async () => {
             // eslint-disable-next-line @typescript-eslint/naming-convention
-            const res = await request(app).get('/healthcheck/language').set({ 'accept-language': 'en' });
+            const res = await request(app).get('/healthcheck/language').set({ 'accept-language': Locale.English });
             expect(res.status).toBe(200);
-            expect(res.body).toEqual({ lang: 'en', supported: SUPPORTED_LOCALES });
+            expect(res.body).toEqual({ lang: Locale.English, supported: SUPPORTED_LOCALES });
         });
 
         test('/healthcheck/language detects language as en-gb if en-gb header sent', async () => {
             // eslint-disable-next-line @typescript-eslint/naming-convention
-            const res = await request(app).get('/healthcheck/language').set({ 'accept-language': 'en-gb' });
+            const res = await request(app).get('/healthcheck/language').set({ 'accept-language': Locale.EnglishGb });
             expect(res.status).toBe(200);
-            expect(res.body).toEqual({ lang: 'en-GB', supported: SUPPORTED_LOCALES });
+            expect(res.body).toEqual({ lang: Locale.EnglishGb, supported: SUPPORTED_LOCALES });
         });
 
         test('/healthcheck/language detects language as cy if cy header sent', async () => {
             // eslint-disable-next-line @typescript-eslint/naming-convention
-            const res = await request(app).get('/healthcheck/language').set({ 'accept-language': 'cy' });
+            const res = await request(app).get('/healthcheck/language').set({ 'accept-language': Locale.Welsh });
             expect(res.status).toBe(200);
-            expect(res.body).toEqual({ lang: 'cy', supported: SUPPORTED_LOCALES });
+            expect(res.body).toEqual({ lang: Locale.Welsh, supported: SUPPORTED_LOCALES });
         });
 
         test('/healthcheck/language detects language as cy-gb if CY-GB header sent', async () => {
             // eslint-disable-next-line @typescript-eslint/naming-convention
-            const res = await request(app).get('/healthcheck/language').set({ 'accept-language': 'cy-GB' });
+            const res = await request(app).get('/healthcheck/language').set({ 'accept-language': Locale.WelshGb });
             expect(res.status).toBe(200);
-            expect(res.body).toEqual({ lang: 'cy-GB', supported: SUPPORTED_LOCALES });
+            expect(res.body).toEqual({ lang: Locale.WelshGb, supported: SUPPORTED_LOCALES });
         });
     });
 
