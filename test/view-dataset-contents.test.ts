@@ -6,12 +6,13 @@ import request from 'supertest';
 import { DataLakeService } from '../src/controllers/datalake';
 import { BlobStorageService } from '../src/controllers/blob-storage';
 import app, { initDb } from '../src/app';
-import { ENGLISH, t, WELSH } from '../src/middleware/translation';
+import { t } from '../src/middleware/translation';
 import { Revision } from '../src/entities/revision';
 import { FileImport } from '../src/entities/file-import';
 import DatabaseManager from '../src/db/database-manager';
 import { User } from '../src/entities/user';
 import { DataLocation } from '../src/enums/data-location';
+import { Locale } from '../src/enums/locale';
 
 import { createFullDataset, createSmallDataset } from './helpers/test-helper';
 import { getTestUser } from './helpers/get-user';
@@ -127,8 +128,11 @@ describe('API Endpoints for viewing the contents of a dataset', () => {
                 {
                     field: 'csv',
                     message: [
-                        { lang: ENGLISH, message: t('errors.download_from_blobstorage', { lng: ENGLISH }) },
-                        { lang: WELSH, message: t('errors.download_from_blobstorage', { lng: WELSH }) }
+                        {
+                            lang: Locale.English,
+                            message: t('errors.download_from_blobstorage', { lng: Locale.English })
+                        },
+                        { lang: Locale.Welsh, message: t('errors.download_from_blobstorage', { lng: Locale.Welsh }) }
                     ],
                     tag: { name: 'errors.download_from_blobstorage', params: {} }
                 }
