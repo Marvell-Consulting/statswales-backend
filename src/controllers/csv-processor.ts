@@ -3,7 +3,7 @@ import { Readable } from 'stream';
 
 import { parse } from 'csv';
 
-import { ENGLISH, i18next, WELSH } from '../middleware/translation';
+import { i18next } from '../middleware/translation';
 import { logger as parentLogger } from '../utils/logger';
 import { DatasetDTO } from '../dtos/dataset-dto';
 import { FileImportDTO } from '../dtos/file-import-dto';
@@ -16,6 +16,7 @@ import { FileImport } from '../entities/file-import';
 import { SourceAction } from '../enums/source-action';
 import { ImportType } from '../enums/import-type';
 import { DataLocation } from '../enums/data-location';
+import { Locale } from '../enums/locale';
 
 import { BlobStorageService } from './blob-storage';
 import { DataLakeService } from './datalake';
@@ -75,17 +76,17 @@ function validateParams(page_number: number, max_page_number: number, page_size:
             field: 'page_size',
             message: [
                 {
-                    lang: ENGLISH,
+                    lang: Locale.English,
                     message: t('errors.page_size', {
-                        lng: ENGLISH,
+                        lng: Locale.English,
                         max_page_size: MAX_PAGE_SIZE,
                         min_page_size: MIN_PAGE_SIZE
                     })
                 },
                 {
-                    lang: WELSH,
+                    lang: Locale.Welsh,
                     message: t('errors.page_size', {
-                        lng: WELSH,
+                        lng: Locale.Welsh,
                         max_page_size: MAX_PAGE_SIZE,
                         min_page_size: MIN_PAGE_SIZE
                     })
@@ -102,10 +103,13 @@ function validateParams(page_number: number, max_page_number: number, page_size:
             field: 'page_number',
             message: [
                 {
-                    lang: ENGLISH,
-                    message: t('errors.page_number_to_high', { lng: ENGLISH, page_number: max_page_number })
+                    lang: Locale.English,
+                    message: t('errors.page_number_to_high', { lng: Locale.English, page_number: max_page_number })
                 },
-                { lang: WELSH, message: t('errors.page_number_to_high', { lng: WELSH, page_number: max_page_number }) }
+                {
+                    lang: Locale.Welsh,
+                    message: t('errors.page_number_to_high', { lng: Locale.Welsh, page_number: max_page_number })
+                }
             ],
             tag: {
                 name: 'errors.page_number_to_high',
@@ -117,8 +121,8 @@ function validateParams(page_number: number, max_page_number: number, page_size:
         errors.push({
             field: 'page_number',
             message: [
-                { lang: ENGLISH, message: t('errors.page_number_to_low', { lng: ENGLISH }) },
-                { lang: WELSH, message: t('errors.page_number_to_low', { lng: WELSH }) }
+                { lang: Locale.English, message: t('errors.page_number_to_low', { lng: Locale.English }) },
+                { lang: Locale.Welsh, message: t('errors.page_number_to_low', { lng: Locale.Welsh }) }
             ],
             tag: { name: 'errors.page_number_to_low', params: {} }
         });
@@ -193,8 +197,8 @@ async function processCSVData(
                 {
                     field: 'csv',
                     message: [
-                        { lang: ENGLISH, message: t('errors.csv_headers', { lng: ENGLISH }) },
-                        { lang: WELSH, message: t('errors.csv_headers', { lng: WELSH }) }
+                        { lang: Locale.English, message: t('errors.csv_headers', { lng: Locale.English }) },
+                        { lang: Locale.Welsh, message: t('errors.csv_headers', { lng: Locale.Welsh }) }
                     ],
                     tag: { name: 'errors.csv_headers', params: {} }
                 }
@@ -268,8 +272,8 @@ export const getFileFromDataLake = async (
                 {
                     field: 'csv',
                     message: [
-                        { lang: ENGLISH, message: t('errors.download_from_datalake', { lng: ENGLISH }) },
-                        { lang: WELSH, message: t('errors.download_from_datalake', { lng: WELSH }) }
+                        { lang: Locale.English, message: t('errors.download_from_datalake', { lng: Locale.English }) },
+                        { lang: Locale.Welsh, message: t('errors.download_from_datalake', { lng: Locale.Welsh }) }
                     ],
                     tag: { name: 'errors.download_from_datalake', params: {} }
                 }
@@ -299,8 +303,8 @@ export const processCSVFromDatalake = async (
                 {
                     field: 'csv',
                     message: [
-                        { lang: ENGLISH, message: t('errors.download_from_datalake', { lng: ENGLISH }) },
-                        { lang: WELSH, message: t('errors.download_from_datalake', { lng: WELSH }) }
+                        { lang: Locale.English, message: t('errors.download_from_datalake', { lng: Locale.English }) },
+                        { lang: Locale.Welsh, message: t('errors.download_from_datalake', { lng: Locale.Welsh }) }
                     ],
                     tag: { name: 'errors.download_from_datalake', params: {} }
                 }
@@ -328,8 +332,11 @@ export const getFileFromBlobStorage = async (
                 {
                     field: 'csv',
                     message: [
-                        { lang: ENGLISH, message: t('errors.download_from_blobstorage', { lng: ENGLISH }) },
-                        { lang: WELSH, message: t('errors.download_from_blobstorage', { lng: WELSH }) }
+                        {
+                            lang: Locale.English,
+                            message: t('errors.download_from_blobstorage', { lng: Locale.English })
+                        },
+                        { lang: Locale.Welsh, message: t('errors.download_from_blobstorage', { lng: Locale.Welsh }) }
                     ],
                     tag: { name: 'errors.download_from_blobstorage', params: {} }
                 }
@@ -362,8 +369,11 @@ export const processCSVFromBlobStorage = async (
                 {
                     field: 'csv',
                     message: [
-                        { lang: ENGLISH, message: t('errors.download_from_blobstorage', { lng: ENGLISH }) },
-                        { lang: WELSH, message: t('errors.download_from_blobstorage', { lng: WELSH }) }
+                        {
+                            lang: Locale.English,
+                            message: t('errors.download_from_blobstorage', { lng: Locale.English })
+                        },
+                        { lang: Locale.Welsh, message: t('errors.download_from_blobstorage', { lng: Locale.Welsh }) }
                     ],
                     tag: { name: 'errors.download_from_blobstorage', params: {} }
                 }
