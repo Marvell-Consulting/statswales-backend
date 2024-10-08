@@ -136,7 +136,7 @@ async function createDimension(
     dimension.sources = Promise.resolve([source]);
     source.dimension = Promise.resolve(dimension);
     const savedDimension = await dimension.save();
-    AVAILABLE_LANGUAGES.map(async (lang) => {
+    AVAILABLE_LANGUAGES.map(async (lang: string) => {
         const dimensionInfo = new DimensionInfo();
         dimensionInfo.id = savedDimension.id;
         dimensionInfo.dimension = Promise.resolve(savedDimension);
