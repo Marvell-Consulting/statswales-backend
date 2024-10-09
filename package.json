@@ -22,10 +22,13 @@
     "start": "npm run build && node dist/server.js | pino-colada",
     "start:container": "node dist/server.js",
     "typeorm": "APP_ENV=local typeorm-ts-node-commonjs",
+    "typeorm-seeding": "ts-node ./node_modules/@jorgebodega/typeorm-seeding/dist/cli.js",
     "migration:show": "APP_ENV=local npm run typeorm migration:show -- --dataSource=./src/db/data-source.ts",
     "migration:run": "APP_ENV=local npm run typeorm migration:run -- --dataSource=./src/db/data-source.ts",
+    "migration:drop": "npm run typeorm schema:drop -- --dataSource=./src/db/data-source.ts",
     "migration:revert": "APP_ENV=local npm run typeorm migration:revert -- --dataSource=./src/db/data-source.ts",
-    "migration:generate": "APP_ENV=local npm run typeorm migration:generate -- --dataSource=./src/db/data-source.ts"
+    "migration:generate": "APP_ENV=local npm run typeorm migration:generate -- --dataSource=./src/db/data-source.ts",
+    "seed:run": "APP_ENV=local npm run typeorm-seeding -- -d ./src/db/data-source.ts ./src/seeders/*.ts"
   },
   "keywords": [],
   "author": "",
@@ -69,6 +72,7 @@
     "@azure/identity": "^4.4.1",
     "@azure/storage-blob": "^12.24.0",
     "@azure/storage-file-datalake": "^12.16.0",
+    "@jorgebodega/typeorm-seeding": "^7.1.0",
     "body-parser": "^1.20.2",
     "connect-redis": "^7.1.1",
     "cookie-parser": "^1.4.6",

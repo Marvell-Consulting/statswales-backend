@@ -16,7 +16,7 @@ const dataSourceOpts: DataSourceOptions = {
     ssl: config.database.ssl,
     synchronize: config.database.synchronize,
     logging: false,
-    entities: [`${__dirname}/../entities/*.{ts,js}`],
+    entities: [`${__dirname}/../entities/*.{ts,js}`, `${__dirname}/../reference-data-entities/*.{ts,js}`],
     migrations: [`${__dirname}/../migrations/*.{ts,js}`]
 };
 
