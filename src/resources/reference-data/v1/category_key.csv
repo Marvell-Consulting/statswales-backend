@@ -1,4 +1,4 @@
-﻿category_key,category
+category_key,category
 Geog/AgriReg,Geog
 Geog/BuiltUp,Geog
 Geog/CFA,Geog
@@ -28,3 +28,11 @@ Gen/Gen,Gen
 Rlgn/Rlgn,Rlgn
 ServProv/HlthAuth,ServProv
 ServProv/Hospital,ServProv
+Age/All,Age
+Age/Broad,Age
+Age/SYA,Age
+Age/5YR,Age
+Age/10Y,Age
+Age/Educ,Age
+Age/NSW7,Age
+Age/NSW3,Age
