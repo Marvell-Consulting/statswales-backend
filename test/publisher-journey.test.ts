@@ -6,9 +6,9 @@ import request from 'supertest';
 import { DataLakeService } from '../src/controllers/datalake';
 import { BlobStorageService } from '../src/controllers/blob-storage';
 import app, { initDb } from '../src/app';
-import { ENGLISH, t, WELSH } from '../src/middleware/translation';
 import { Dataset } from '../src/entities/dataset/dataset';
 import { DatasetInfo } from '../src/entities/dataset/dataset-info';
+import { t } from '../src/middleware/translation';
 import { DatasetDTO } from '../src/dtos/dataset-dto';
 import { FileImportDTO } from '../src/dtos/file-import-dto';
 import { ViewErrDTO } from '../src/dtos/view-dto';
@@ -20,6 +20,7 @@ import { DataLocation } from '../src/enums/data-location';
 import { DimensionCreationDTO } from '../src/dtos/dimension-creation-dto';
 import { SourceType } from '../src/enums/source-type';
 import { Revision } from '../src/entities/dataset/revision';
+import { Locale } from '../src/enums/locale';
 
 import { createFullDataset, createSmallDataset } from './helpers/test-helper';
 import { getTestUser } from './helpers/get-user';
@@ -72,12 +73,12 @@ describe('API Endpoints', () => {
                         field: 'csv',
                         message: [
                             {
-                                lang: ENGLISH,
-                                message: t('errors.no_csv_data', { lng: ENGLISH })
+                                lang: Locale.English,
+                                message: t('errors.no_csv_data', { lng: Locale.English })
                             },
                             {
-                                lang: WELSH,
-                                message: t('errors.no_csv_data', { lng: WELSH })
+                                lang: Locale.Welsh,
+                                message: t('errors.no_csv_data', { lng: Locale.Welsh })
                             }
                         ],
                         tag: {
@@ -105,12 +106,12 @@ describe('API Endpoints', () => {
                         field: 'title',
                         message: [
                             {
-                                lang: ENGLISH,
-                                message: t('errors.no_title', { lng: ENGLISH })
+                                lang: Locale.English,
+                                message: t('errors.no_title', { lng: Locale.English })
                             },
                             {
-                                lang: WELSH,
-                                message: t('errors.no_title', { lng: WELSH })
+                                lang: Locale.Welsh,
+                                message: t('errors.no_title', { lng: Locale.Welsh })
                             }
                         ],
                         tag: {
@@ -187,10 +188,13 @@ describe('API Endpoints', () => {
                         field: 'page_number',
                         message: [
                             {
-                                lang: ENGLISH,
-                                message: t('errors.page_number_to_high', { lng: ENGLISH, page_number: 6 })
+                                lang: Locale.English,
+                                message: t('errors.page_number_to_high', { lng: Locale.English, page_number: 6 })
                             },
-                            { lang: WELSH, message: t('errors.page_number_to_high', { lng: WELSH, page_number: 6 }) }
+                            {
+                                lang: Locale.Welsh,
+                                message: t('errors.page_number_to_high', { lng: Locale.Welsh, page_number: 6 })
+                            }
                         ],
                         tag: {
                             name: 'errors.page_number_to_high',
@@ -226,17 +230,17 @@ describe('API Endpoints', () => {
                         field: 'page_size',
                         message: [
                             {
-                                lang: ENGLISH,
+                                lang: Locale.English,
                                 message: t('errors.page_size', {
-                                    lng: ENGLISH,
+                                    lng: Locale.English,
                                     max_page_size: MAX_PAGE_SIZE,
                                     min_page_size: MIN_PAGE_SIZE
                                 })
                             },
                             {
-                                lang: WELSH,
+                                lang: Locale.Welsh,
                                 message: t('errors.page_size', {
-                                    lng: WELSH,
+                                    lng: Locale.Welsh,
                                     max_page_size: MAX_PAGE_SIZE,
                                     min_page_size: MIN_PAGE_SIZE
                                 })
@@ -276,17 +280,17 @@ describe('API Endpoints', () => {
                         field: 'page_size',
                         message: [
                             {
-                                lang: ENGLISH,
+                                lang: Locale.English,
                                 message: t('errors.page_size', {
-                                    lng: ENGLISH,
+                                    lng: Locale.English,
                                     max_page_size: MAX_PAGE_SIZE,
                                     min_page_size: MIN_PAGE_SIZE
                                 })
                             },
                             {
-                                lang: WELSH,
+                                lang: Locale.Welsh,
                                 message: t('errors.page_size', {
-                                    lng: WELSH,
+                                    lng: Locale.Welsh,
                                     max_page_size: MAX_PAGE_SIZE,
                                     min_page_size: MIN_PAGE_SIZE
                                 })
@@ -395,8 +399,11 @@ describe('API Endpoints', () => {
                     {
                         field: 'csv',
                         message: [
-                            { lang: ENGLISH, message: t('errors.download_from_datalake', { lng: ENGLISH }) },
-                            { lang: WELSH, message: t('errors.download_from_datalake', { lng: WELSH }) }
+                            {
+                                lang: Locale.English,
+                                message: t('errors.download_from_datalake', { lng: Locale.English })
+                            },
+                            { lang: Locale.Welsh, message: t('errors.download_from_datalake', { lng: Locale.Welsh }) }
                         ],
                         tag: { name: 'errors.download_from_datalake', params: {} }
                     }
@@ -511,12 +518,12 @@ describe('API Endpoints', () => {
                         field: 'csv',
                         message: [
                             {
-                                lang: ENGLISH,
-                                message: t('errors.no_csv_data', { lng: ENGLISH })
+                                lang: Locale.English,
+                                message: t('errors.no_csv_data', { lng: Locale.English })
                             },
                             {
-                                lang: WELSH,
-                                message: t('errors.no_csv_data', { lng: WELSH })
+                                lang: Locale.Welsh,
+                                message: t('errors.no_csv_data', { lng: Locale.Welsh })
                             }
                         ],
                         tag: {

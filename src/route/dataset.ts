@@ -8,7 +8,7 @@ import bodyParser from 'body-parser';
 import { logger } from '../utils/logger';
 import { DimensionCreationDTO } from '../dtos/dimension-creation-dto';
 import { ViewDTO, ViewErrDTO, ViewStream } from '../dtos/view-dto';
-import { ENGLISH, i18next, WELSH } from '../middleware/translation';
+import { i18next } from '../middleware/translation';
 import {
     createSources,
     DEFAULT_PAGE_SIZE,
@@ -38,6 +38,7 @@ import { FileImportDTO } from '../dtos/file-import-dto';
 import { DimensionDTO } from '../dtos/dimension-dto';
 import { RevisionDTO } from '../dtos/revision-dto';
 import { DataLocation } from '../enums/data-location';
+import { Locale } from '../enums/locale';
 
 const t = i18next.t;
 
@@ -131,12 +132,12 @@ function errorDtoGenerator(
                 field,
                 message: [
                     {
-                        lang: ENGLISH,
-                        message: t(translationString, { lng: ENGLISH })
+                        lang: Locale.English,
+                        message: t(translationString, { lng: Locale.English })
                     },
                     {
-                        lang: WELSH,
-                        message: t(translationString, { lng: WELSH })
+                        lang: Locale.Welsh,
+                        message: t(translationString, { lng: Locale.Welsh })
                     }
                 ],
                 tag: {

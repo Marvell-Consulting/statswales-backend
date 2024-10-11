@@ -3,6 +3,7 @@ import { Level } from 'pino';
 import { AppConfig } from '../app-config.interface';
 import { AppEnv } from '../env.enum';
 import { SessionStore } from '../session-store.enum';
+import { Locale } from '../../enums/locale';
 
 const ONE_DAY = 24 * 60 * 60 * 1000;
 
@@ -16,6 +17,11 @@ export const getDefaultConfig = (): AppConfig => {
         backend: {
             port: parseInt(process.env.BACKEND_PORT!, 10),
             url: process.env.BACKEND_URL!
+        },
+        language: {
+            availableTranslations: [Locale.English, Locale.Welsh],
+            supportedLocales: [Locale.English, Locale.EnglishGb, Locale.Welsh, Locale.WelshGb],
+            fallback: Locale.English
         },
         session: {
             store: process.env.SESSION_STORE! as SessionStore,

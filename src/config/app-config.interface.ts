@@ -1,5 +1,7 @@
 import { Level } from 'pino';
 
+import { Locale } from '../enums/locale';
+
 import { AppEnv } from './env.enum';
 import { SessionStore } from './session-store.enum';
 
@@ -12,6 +14,11 @@ export interface AppConfig {
     backend: {
         port: number;
         url: string;
+    };
+    language: {
+        availableTranslations: Locale[];
+        supportedLocales: Locale[];
+        fallback: Locale;
     };
     session: {
         store: SessionStore;

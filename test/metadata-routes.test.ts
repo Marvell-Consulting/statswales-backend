@@ -3,7 +3,7 @@ import fs from 'fs';
 
 import request from 'supertest';
 
-import { t, ENGLISH, WELSH } from '../src/middleware/translation';
+import { t } from '../src/middleware/translation';
 import { DataLakeService } from '../src/controllers/datalake';
 import { BlobStorageService } from '../src/controllers/blob-storage';
 import app, { initDb } from '../src/app';
@@ -17,6 +17,7 @@ import { RevisionDTO } from '../src/dtos/revision-dto';
 import { FileImportDTO } from '../src/dtos/file-import-dto';
 import DatabaseManager from '../src/db/database-manager';
 import { DataLocation } from '../src/enums/data-location';
+import { Locale } from '../src/enums/locale';
 
 import { createFullDataset } from './helpers/test-helper';
 import { getTestUser } from './helpers/get-user';
@@ -293,8 +294,14 @@ describe('API Endpoints for viewing dataset objects', () => {
                         {
                             field: 'csv',
                             message: [
-                                { lang: ENGLISH, message: t('errors.download_from_datalake', { lng: ENGLISH }) },
-                                { lang: WELSH, message: t('errors.download_from_datalake', { lng: WELSH }) }
+                                {
+                                    lang: Locale.English,
+                                    message: t('errors.download_from_datalake', { lng: Locale.English })
+                                },
+                                {
+                                    lang: Locale.Welsh,
+                                    message: t('errors.download_from_datalake', { lng: Locale.Welsh })
+                                }
                             ],
                             tag: { name: 'errors.download_from_datalake', params: {} }
                         }

@@ -3,7 +3,7 @@ import passport from 'passport';
 
 import { sanitiseUser } from '../utils/sanitise-user';
 import { User } from '../entities/dataset/user';
-import { AVAILABLE_LANGUAGES } from '../middleware/translation';
+import { SUPPORTED_LOCALES } from '../middleware/translation';
 import { appConfig } from '../config';
 import { AppEnv } from '../config/env.enum';
 import { DataLakeService } from '../controllers/datalake';
@@ -22,7 +22,7 @@ healthcheck.get('/basic', (req, res) => {
 });
 
 healthcheck.get('/language', (req, res) => {
-    res.json({ lang: req.language, supported: AVAILABLE_LANGUAGES });
+    res.json({ lang: req.language, supported: SUPPORTED_LOCALES });
 });
 
 healthcheck.get('/jwt', passport.authenticate('jwt', { session: false }), (req, res) => {

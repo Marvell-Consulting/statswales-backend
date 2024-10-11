@@ -55,7 +55,6 @@ export const initPassport = async (userRepository: Repository<User>): Promise<vo
                     ),
                     params: {
                         response_type: 'code',
-                        ui_locales: 'en',
                         scope: 'openid email'
                         // TODO: we need to update our OneLogin config to be able to request the below claims
                         // vtr: ['P2.Cl.Cm'],
