@@ -29,7 +29,7 @@ export interface AppConfig {
         redisPassword?: string;
     };
     logger: {
-        level: Level;
+        level: Level | 'silent';
     };
     rateLimit: {
         windowMs: number;
