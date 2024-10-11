@@ -31,7 +31,7 @@ export default [
     }
   },
   {
-    files: ['**/entities/*.ts'],
+    files: ['**/entities/**/*.ts'],
     rules: {
       'import/no-cycle': 'off',
     }
