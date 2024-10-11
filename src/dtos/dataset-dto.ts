@@ -1,7 +1,7 @@
-import { Dataset } from '../entities/dataset';
-import { Dimension } from '../entities/dimension';
-import { Revision } from '../entities/revision';
-import { DatasetInfo } from '../entities/dataset-info';
+import { Dataset } from '../entities/dataset/dataset';
+import { Dimension } from '../entities/dataset/dimension';
+import { Revision } from '../entities/dataset/revision';
+import { DatasetInfo } from '../entities/dataset/dataset-info';
 
 import { DimensionDTO } from './dimension-dto';
 import { RevisionDTO } from './revision-dto';

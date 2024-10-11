@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 
 import { capitalize } from 'lodash';
 
-import { User } from '../../src/entities/user';
+import { User } from '../../src/entities/dataset/user';
 
 export const getTestUser = (givenName = 'test', familyName = 'user'): User => {
     const user = new User();

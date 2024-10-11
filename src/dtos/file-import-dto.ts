@@ -1,5 +1,5 @@
-import { FileImport } from '../entities/file-import';
-import { Source } from '../entities/source';
+import { FileImport } from '../entities/dataset/file-import';
+import { Source } from '../entities/dataset/source';
 
 import { SourceDTO } from './source-dto';
 

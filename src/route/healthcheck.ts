@@ -2,7 +2,7 @@ import { Router } from 'express';
 import passport from 'passport';
 
 import { sanitiseUser } from '../utils/sanitise-user';
-import { User } from '../entities/user';
+import { User } from '../entities/dataset/user';
 import { SUPPORTED_LOCALES } from '../middleware/translation';
 import { appConfig } from '../config';
 import { AppEnv } from '../config/env.enum';

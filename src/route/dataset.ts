@@ -26,12 +26,12 @@ import {
     ValidatedDimensionCreationRequest,
     validateDimensionCreationRequest
 } from '../controllers/dimension-processor';
-import { User } from '../entities/user';
-import { Dataset } from '../entities/dataset';
-import { DatasetInfo } from '../entities/dataset-info';
-import { Dimension } from '../entities/dimension';
-import { Revision } from '../entities/revision';
-import { FileImport } from '../entities/file-import';
+import { User } from '../entities/dataset/user';
+import { Dataset } from '../entities/dataset/dataset';
+import { DatasetInfo } from '../entities/dataset/dataset-info';
+import { Dimension } from '../entities/dataset/dimension';
+import { Revision } from '../entities/dataset/revision';
+import { FileImport } from '../entities/dataset/file-import';
 import { DatasetTitle, FileDescription } from '../dtos/file-list';
 import { DatasetDTO } from '../dtos/dataset-dto';
 import { FileImportDTO } from '../dtos/file-import-dto';

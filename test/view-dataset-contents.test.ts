@@ -6,11 +6,11 @@ import request from 'supertest';
 import { DataLakeService } from '../src/controllers/datalake';
 import { BlobStorageService } from '../src/controllers/blob-storage';
 import app, { initDb } from '../src/app';
+import { Revision } from '../src/entities/dataset/revision';
+import { FileImport } from '../src/entities/dataset/file-import';
 import { t } from '../src/middleware/translation';
-import { Revision } from '../src/entities/revision';
-import { FileImport } from '../src/entities/file-import';
 import DatabaseManager from '../src/db/database-manager';
-import { User } from '../src/entities/user';
+import { User } from '../src/entities/dataset/user';
 import { DataLocation } from '../src/enums/data-location';
 import { Locale } from '../src/enums/locale';
 

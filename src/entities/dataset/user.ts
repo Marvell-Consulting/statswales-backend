@@ -1,6 +1,6 @@
 import { BaseEntity, Column, CreateDateColumn, Entity, Index, PrimaryGeneratedColumn, UpdateDateColumn } from 'typeorm';
 
-@Entity({ name: 'users' })
+@Entity({ name: 'user' })
 @Index('UX_user_provider_provider_user_id', ['provider', 'providerUserId'], { unique: true })
 export class User extends BaseEntity {
     @PrimaryGeneratedColumn('uuid', { primaryKeyConstraintName: 'PK_user_id' })

@@ -2,20 +2,20 @@ import path from 'path';
 import * as fs from 'fs';
 import { createHash } from 'crypto';
 
-import { Dataset } from '../../src/entities/dataset';
-import { DatasetInfo } from '../../src/entities/dataset-info';
-import { Revision } from '../../src/entities/revision';
-import { FileImport } from '../../src/entities/file-import';
-import { CsvInfo } from '../../src/entities/csv-info';
-import { Source } from '../../src/entities/source';
+import { Dataset } from '../../src/entities/dataset/dataset';
+import { DatasetInfo } from '../../src/entities/dataset/dataset-info';
+import { Revision } from '../../src/entities/dataset/revision';
+import { FileImport } from '../../src/entities/dataset/file-import';
+import { CsvInfo } from '../../src/entities/dataset/csv-info';
+import { Source } from '../../src/entities/dataset/source';
 import { SourceType } from '../../src/enums/source-type';
 import { DimensionType } from '../../src/enums/dimension-type';
 import { SourceAction } from '../../src/enums/source-action';
 import { DataLocation } from '../../src/enums/data-location';
 import { ImportType } from '../../src/enums/import-type';
-import { Dimension } from '../../src/entities/dimension';
-import { DimensionInfo } from '../../src/entities/dimension-info';
-import { User } from '../../src/entities/user';
+import { Dimension } from '../../src/entities/dataset/dimension';
+import { DimensionInfo } from '../../src/entities/dataset/dimension-info';
+import { User } from '../../src/entities/dataset/user';
 
 export async function createSmallDataset(datasetId: string, revisionId: string, importId: string, user: User) {
     // First create a dataset
