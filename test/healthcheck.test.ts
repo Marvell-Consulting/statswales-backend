@@ -75,6 +75,12 @@ describe('Healthcheck', () => {
             expect(res.status).toBe(401);
         });
 
+        test('/heathcheck/jwt returns 401 with a valid bearer token but inactive user', async () => {
+            const inactiveUser = getTestUser('Inactive', 'User');
+            const res = await request(app).get('/healthcheck/jwt').set(getAuthHeader(inactiveUser));
+            expect(res.status).toBe(401);
+        });
+
         test('/heathcheck/jwt returns 200 with a valid bearer token', async () => {
             const testUser = getTestUser();
             await testUser.save();
