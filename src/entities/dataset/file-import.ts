@@ -9,8 +9,8 @@ import {
     JoinColumn
 } from 'typeorm';
 
-import { ImportType } from '../enums/import-type';
-import { DataLocation } from '../enums/data-location';
+import { ImportType } from '../../enums/import-type';
+import { DataLocation } from '../../enums/data-location';
 
 import { Revision } from './revision';
 import { CsvInfo } from './csv-info';

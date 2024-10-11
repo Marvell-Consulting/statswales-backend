@@ -1,7 +1,7 @@
 import { Entity, PrimaryGeneratedColumn, Column, BaseEntity, ManyToOne, JoinColumn } from 'typeorm';
 
-import { SourceAction } from '../enums/source-action';
-import { SourceType } from '../enums/source-type';
+import { SourceAction } from '../../enums/source-action';
+import { SourceType } from '../../enums/source-type';
 
 import { Dimension } from './dimension';
 import { FileImport } from './file-import';

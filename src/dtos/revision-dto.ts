@@ -1,5 +1,5 @@
-import { Revision } from '../entities/revision';
-import { FileImport } from '../entities/file-import';
+import { Revision } from '../entities/dataset/revision';
+import { FileImport } from '../entities/dataset/file-import';
 
 import { FileImportDTO } from './file-import-dto';
 

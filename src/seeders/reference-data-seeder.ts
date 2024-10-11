@@ -4,13 +4,13 @@ import { parse } from 'csv';
 import { Seeder } from '@jorgebodega/typeorm-seeding';
 import { DataSource } from 'typeorm';
 
-import { Category } from '../reference-data-entities/category';
-import { CategoryInfo } from '../reference-data-entities/category-info';
-import { CategoryKey } from '../reference-data-entities/category-key';
-import { CategoryKeyInfo } from '../reference-data-entities/category-key-info';
-import { Hierarchy } from '../reference-data-entities/hierarchy';
-import { ReferenceData } from '../reference-data-entities/reference-data';
-import { ReferenceDataInfo } from '../reference-data-entities/reference-data-info';
+import { Category } from '../entities/reference-data/category';
+import { CategoryInfo } from '../entities/reference-data/category-info';
+import { CategoryKey } from '../entities/reference-data/category-key';
+import { CategoryKeyInfo } from '../entities/reference-data/category-key-info';
+import { Hierarchy } from '../entities/reference-data/hierarchy';
+import { ReferenceData } from '../entities/reference-data/reference-data';
+import { ReferenceDataInfo } from '../entities/reference-data/reference-data-info';
 
 export default class ReferenceDataSeeder extends Seeder {
     private async loadCategoriesIntoDatabase(dataSource: DataSource) {

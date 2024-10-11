@@ -1,6 +1,6 @@
-import { DimensionInfo } from '../entities/dimension-info';
-import { Dimension } from '../entities/dimension';
-import { Source } from '../entities/source';
+import { DimensionInfo } from '../entities/dataset/dimension-info';
+import { Dimension } from '../entities/dataset/dimension';
+import { Source } from '../entities/dataset/source';
 
 import { SourceDTO } from './source-dto';
 

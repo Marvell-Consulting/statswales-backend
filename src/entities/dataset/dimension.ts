@@ -1,6 +1,6 @@
 import { Entity, PrimaryGeneratedColumn, Column, BaseEntity, ManyToOne, OneToMany, JoinColumn } from 'typeorm';
 
-import { DimensionType } from '../enums/dimension-type';
+import { DimensionType } from '../../enums/dimension-type';
 
 import { Dataset } from './dataset';
 import { Revision } from './revision';

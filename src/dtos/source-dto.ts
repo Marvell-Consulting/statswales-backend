@@ -1,4 +1,4 @@
-import { Source } from '../entities/source';
+import { Source } from '../entities/dataset/source';
 
 export class SourceDTO {
     id: string;

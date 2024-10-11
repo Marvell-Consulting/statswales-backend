@@ -2,7 +2,7 @@ import { Entity, BaseEntity, Column, PrimaryColumn, ManyToOne, JoinColumn } from
 
 import { Category } from './category';
 
-@Entity('category_keys')
+@Entity('category_key')
 export class CategoryKey extends BaseEntity {
     @PrimaryColumn({ name: 'category_key', type: 'text' })
     categoryKey: string;

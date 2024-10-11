@@ -1,10 +1,10 @@
 import { DimensionCreationDTO } from '../dtos/dimension-creation-dto';
-import { Dataset } from '../entities/dataset';
-import { Dimension } from '../entities/dimension';
-import { DimensionInfo } from '../entities/dimension-info';
+import { Dataset } from '../entities/dataset/dataset';
+import { Dimension } from '../entities/dataset/dimension';
+import { DimensionInfo } from '../entities/dataset/dimension-info';
 import { DimensionType } from '../enums/dimension-type';
-import { Revision } from '../entities/revision';
-import { Source } from '../entities/source';
+import { Revision } from '../entities/dataset/revision';
+import { Source } from '../entities/dataset/source';
 import { SourceType } from '../enums/source-type';
 import { AVAILABLE_LANGUAGES, i18next } from '../middleware/translation';
 import { SourceAction } from '../enums/source-action';
