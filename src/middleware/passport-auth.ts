@@ -24,10 +24,23 @@ export const initPassport = async (userRepository: Repository<User>): Promise<vo
                 jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
                 secretOrKey: config.auth.jwt.secret
             },
-            async (jwtPayload, done) => {
-                logger.info('request authenticated with JWT');
-                const user = await userRepository.findOneBy({ id: jwtPayload?.user?.id });
-                return done(null, user);
+            async (jwtPayload, cb) => {
+                logger.debug('authenticating request with JWT...');
+
+                try {
+                    const user = await userRepository.findOneBy({ id: jwtPayload?.user?.id });
+
+                    if (!user) {
+                        logger.error('jwt auth failed: user account could not be found');
+                        cb(null, undefined, { message: 'User not recognised' });
+                        return;
+                    }
+
+                    cb(null, user);
+                } catch (err: any) {
+                    logger.error(err);
+                    cb(null, undefined, { message: 'Unknown error' });
+                }
             }
         )
     );
