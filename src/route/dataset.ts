@@ -34,6 +34,7 @@ import { Revision } from '../entities/dataset/revision';
 import { FileImport } from '../entities/dataset/file-import';
 import { DatasetTitle, FileDescription } from '../dtos/file-list';
 import { DatasetDTO } from '../dtos/dataset-dto';
+import { DatasetInfoDTO } from '../dtos/dataset-info-dto';
 import { FileImportDTO } from '../dtos/file-import-dto';
 import { DimensionDTO } from '../dtos/dimension-dto';
 import { RevisionDTO } from '../dtos/revision-dto';
@@ -337,6 +338,34 @@ router.get('/:dataset_id/view', async (req: Request, res: Response) => {
         res.status(500);
     }
     res.json(processedCSV);
+});
+
+router.patch('/:dataset_id/info', jsonParser, async (req: Request, res: Response) => {
+    const datasetID: string = req.params.dataset_id.toLowerCase();
+    const infoDTO = req.body as DatasetInfoDTO;
+    const dataset = await validateDataset(datasetID, res);
+    if (!dataset) return;
+    const lang = req.language;
+    let infoEntity: DatasetInfo | null;
+    let status = 200;
+    infoEntity = await DatasetInfo.findOneBy({ id: dataset.id, language: infoDTO.language });
+    if (!infoEntity) {
+        status = 201;
+        infoEntity = new DatasetInfo();
+        infoEntity.language = infoDTO.language;
+        infoEntity.dataset = Promise.resolve(dataset);
+    }
+    if (infoDTO.title) {
+        infoEntity.title = infoDTO.title;
+    }
+    if (infoDTO.description) {
+        infoEntity.description = infoDTO.description;
+    }
+    await infoEntity.save();
+    await dataset.reload();
+    const dto = await DatasetDTO.fromDatasetComplete(dataset);
+    res.status(status);
+    res.json(dto);
 });
 
 // GET /api/dataset/:dataset_id/dimension/id/:dimension_id
