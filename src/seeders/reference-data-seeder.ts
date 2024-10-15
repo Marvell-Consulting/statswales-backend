@@ -112,7 +112,11 @@ export default class ReferenceDataSeeder extends Seeder {
                     const endDay = Number(row.validity_end.split('/')[0]);
                     referenceDataPoint.validityEnd = new Date(endYear, endMonth, endDay);
                 }
-                await referenceDataPoint.save();
+                try {
+                    await referenceDataPoint.save();
+                } catch (error) {
+                    /* empty */
+                }
             }
         };
         await processReferenceDataFile();
@@ -132,7 +136,11 @@ export default class ReferenceDataSeeder extends Seeder {
                 referenceDataInfo.lang = row.lang;
                 referenceDataInfo.description = row.description;
                 referenceDataInfo.notes = row.notes;
-                await referenceDataInfo.save();
+                try {
+                    await referenceDataInfo.save();
+                } catch (error) {
+                    /* empty */
+                }
             }
         };
         await processReferenceDataInfosFile();
@@ -153,11 +161,14 @@ export default class ReferenceDataSeeder extends Seeder {
                 hierarchy.parentId = row.parent_id;
                 hierarchy.parentVersion = row.parent_version;
                 hierarchy.parentCategory = row.parent_category;
-                hierarchies.push(hierarchy);
+                try {
+                    await hierarchy.save();
+                } catch (error) {
+                    /* empty */
+                }
             }
         };
         await processHierarchyFile();
-        await dataSource.createEntityManager().save<Hierarchy>(hierarchies);
     }
 
     async run(dataSource: DataSource) {
