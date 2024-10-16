@@ -5,20 +5,7 @@ import { DatasetInfo } from '../entities/dataset/dataset-info';
 
 import { DimensionDTO } from './dimension-dto';
 import { RevisionDTO } from './revision-dto';
-
-export class DatasetInfoDTO {
-    language?: string;
-    title?: string;
-    description?: string;
-
-    static fromDatasetInfo(datasetInfo: DatasetInfo): DatasetInfoDTO {
-        const dto = new DatasetInfoDTO();
-        dto.language = datasetInfo.language;
-        dto.title = datasetInfo.title;
-        dto.description = datasetInfo.description;
-        return dto;
-    }
-}
+import { DatasetInfoDTO } from './dataset-info-dto';
 
 export class DatasetDTO {
     id: string;

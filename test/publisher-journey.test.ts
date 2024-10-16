@@ -10,6 +10,7 @@ import { Dataset } from '../src/entities/dataset/dataset';
 import { DatasetInfo } from '../src/entities/dataset/dataset-info';
 import { t } from '../src/middleware/translation';
 import { DatasetDTO } from '../src/dtos/dataset-dto';
+import { DatasetInfoDTO } from '../src/dtos/dataset-info-dto';
 import { FileImportDTO } from '../src/dtos/file-import-dto';
 import { ViewErrDTO } from '../src/dtos/view-dto';
 import { MAX_PAGE_SIZE, MIN_PAGE_SIZE } from '../src/controllers/csv-processor';
@@ -862,6 +863,48 @@ describe('API Endpoints', () => {
             expect(res.body).toEqual({
                 message:
                     'Error processing the supplied JSON with the following error Error: Only one FootNote source can be specified'
+            });
+        });
+    });
+
+    describe('Metadata handling routes', () => {
+        describe('Update title/description endpoint', () => {
+            test('Returns 200 when updating existing dataset info', async () => {
+                const testDatasetId = crypto.randomUUID().toLowerCase();
+                const testRevisionId = crypto.randomUUID().toLowerCase();
+                const testFileImportId = crypto.randomUUID().toLowerCase();
+                const dataset = await createSmallDataset(testDatasetId, testRevisionId, testFileImportId, user);
+                const datasetDto = await DatasetDTO.fromDatasetComplete(dataset);
+                const updatedInfo = new DatasetInfoDTO();
+                updatedInfo.language = 'en-GB';
+                updatedInfo.description = 'This description has been updated';
+                updatedInfo.title = 'Updated dataset title';
+                datasetDto.datasetInfo = [updatedInfo];
+                const res = await request(app)
+                    .patch(`/dataset/${testDatasetId}/info`)
+                    .send(updatedInfo)
+                    .set(getAuthHeader(user));
+                expect(res.status).toBe(200);
+                expect(res.body).toEqual(datasetDto);
+            });
+
+            test('Returns 201 when adding new dataset info', async () => {
+                const testDatasetId = crypto.randomUUID().toLowerCase();
+                const testRevisionId = crypto.randomUUID().toLowerCase();
+                const testFileImportId = crypto.randomUUID().toLowerCase();
+                const dataset = await createSmallDataset(testDatasetId, testRevisionId, testFileImportId, user);
+                const datasetDto = await DatasetDTO.fromDatasetComplete(dataset);
+                const updatedInfo = new DatasetInfoDTO();
+                updatedInfo.language = 'cy-GB';
+                updatedInfo.description = 'This should be a welsh description';
+                updatedInfo.title = 'This should be a welsh title';
+                datasetDto.datasetInfo.push(updatedInfo);
+                const res = await request(app)
+                    .patch(`/dataset/${testDatasetId}/info`)
+                    .send(updatedInfo)
+                    .set(getAuthHeader(user));
+                expect(res.status).toBe(201);
+                expect(res.body).toEqual(datasetDto);
             });
         });
     });
