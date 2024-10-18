@@ -17,9 +17,8 @@ import { SourceAction } from '../enums/source-action';
 import { ImportType } from '../enums/import-type';
 import { DataLocation } from '../enums/data-location';
 import { Locale } from '../enums/locale';
-
-import { BlobStorageService } from './blob-storage';
-import { DataLakeService } from './datalake';
+import { BlobStorageService } from '../services/blob-storage';
+import { DataLakeService } from '../services/datalake';
 
 export const MAX_PAGE_SIZE = 500;
 export const MIN_PAGE_SIZE = 5;

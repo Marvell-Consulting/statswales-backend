@@ -9,9 +9,10 @@ import {
     ManyToOne
 } from 'typeorm';
 
+import { User } from '../user/user';
+
 import { RevisionInterface } from './revision.interface';
 import { Dataset } from './dataset';
-import { User } from './user';
 import { Source } from './source';
 import { FileImport } from './file-import';
 

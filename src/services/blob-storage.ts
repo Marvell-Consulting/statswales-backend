@@ -48,7 +48,7 @@ export class BlobStorageService {
         if (fileContent === undefined) {
             throw new Error('File content is undefined');
         }
-        logger.info(`Uploading file with file '${fileName}' to blob storage`);
+        logger.info(`Uploading file '${fileName}' to blob storage`);
 
         const blockBlobClient = this.containerClient.getBlockBlobClient(fileName);
 
@@ -65,7 +65,7 @@ export class BlobStorageService {
     }
 
     public async deleteFile(fileName: string) {
-        logger.warn(`Deleting file with file '${fileName}' from blob storage`);
+        logger.warn(`Deleting file '${fileName}' from blob storage`);
         const blockBlobClient = this.containerClient.getBlockBlobClient(fileName);
         await blockBlobClient.delete();
     }
@@ -79,7 +79,7 @@ export class BlobStorageService {
     }
 
     public async readFile(fileName: string) {
-        logger.info(`Getting file with file '${fileName}' to blob storage`);
+        logger.info(`Fetching file '${fileName}' from blob storage`);
         const blockBlobClient = this.containerClient.getBlockBlobClient(fileName);
         const downloadBlockBlobResponse = await blockBlobClient.download();
         const readableStreamBody = downloadBlockBlobResponse.readableStreamBody;

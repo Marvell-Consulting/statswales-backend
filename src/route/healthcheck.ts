@@ -2,11 +2,11 @@ import { Router } from 'express';
 import passport from 'passport';
 
 import { sanitiseUser } from '../utils/sanitise-user';
-import { User } from '../entities/dataset/user';
+import { User } from '../entities/user/user';
 import { SUPPORTED_LOCALES } from '../middleware/translation';
 import { appConfig } from '../config';
 import { AppEnv } from '../config/env.enum';
-import { DataLakeService } from '../controllers/datalake';
+import { DataLakeService } from '../services/datalake';
 import { logger } from '../utils/logger';
 
 const config = appConfig();

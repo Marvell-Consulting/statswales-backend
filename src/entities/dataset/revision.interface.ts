@@ -1,6 +1,7 @@
+import { User } from '../user/user';
+
 import { Dataset } from './dataset';
 import { FileImport } from './file-import';
-import { User } from './user';
 
 export interface RevisionInterface {
     id: string;

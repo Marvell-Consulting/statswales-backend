@@ -7,7 +7,7 @@ import { Strategy as JWTStrategy, ExtractJwt } from 'passport-jwt';
 import { Repository } from 'typeorm';
 
 import { logger } from '../utils/logger';
-import { User } from '../entities/dataset/user';
+import { User } from '../entities/user/user';
 import { appConfig } from '../config';
 
 const config = appConfig();

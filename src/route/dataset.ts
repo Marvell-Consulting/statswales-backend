@@ -26,7 +26,7 @@ import {
     ValidatedDimensionCreationRequest,
     validateDimensionCreationRequest
 } from '../controllers/dimension-processor';
-import { User } from '../entities/dataset/user';
+import { User } from '../entities/user/user';
 import { Dataset } from '../entities/dataset/dataset';
 import { DatasetInfo } from '../entities/dataset/dataset-info';
 import { Dimension } from '../entities/dataset/dimension';
