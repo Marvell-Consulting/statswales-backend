@@ -20,6 +20,8 @@ import { Locale } from '../enums/locale';
 
 import { BlobStorageService } from './blob-storage';
 import { DataLakeService } from './datalake';
+import Database from 'better-sqlite3';
+import { ColumnPreview } from '../dtos/column-preview';
 
 export const MAX_PAGE_SIZE = 500;
 export const MIN_PAGE_SIZE = 5;
@@ -43,9 +45,40 @@ function hashReadableStream(stream: Readable, algorithm = 'sha256'): Promise<str
     });
 }
 
-function paginate<T>(array: T[], page_number: number, page_size: number): T[] {
-    const page = array.slice((page_number - 1) * page_size, page_number * page_size);
-    return page;
+function csvToSQLite(stream: Readable): Promise<Readable> {
+    const database = new Database(':memory:');
+    const parser = stream.pipe(parse({ delimiter: ',', bom: true, skip_empty_lines: true, columns: true }));
+    try {
+        return new Promise(async (resolve, reject) => {
+            parser.on('readable', function(){
+                let createTable = true;
+                let record;
+                let fields: string = "";
+                let valueHolder: string = ""
+                while ((record = parser.read()) !== null) {
+                    if (createTable) {
+                        fields = `"${Object.keys(record).join('", "')}"`
+                        valueHolder = `@${Object.keys(record).join(', @')}`
+                        const createStatement = `CREATE TABLE original_facts ("${Object.keys(record).join('" TEXT,"')}" TEXT);`
+                        database.prepare(createStatement).run();
+                        createTable = false;
+                    }
+                    const values = `"${Object.values(record).join('", "')}"`
+                    const statement = database.prepare(`INSERT INTO original_facts (${fields}) VALUES (${valueHolder});`);
+                    statement.run(record);
+                }
+            });
+            parser.on('end', () => {
+                resolve(Readable.from(database.serialize()));
+            })
+            stream.on('error', (err) => {
+                reject(err);
+            })
+        })
+    } catch (error) {
+        logger.error(`An error occurred trying to process the CSV into an SQLite Database with the following error: ${error}`);
+        throw error;
+    }
 }
 
 function validatePageSize(page_size: number): boolean {
@@ -139,7 +172,7 @@ export const uploadCSVToBlobStorage = async (fileStream: Readable, filetype: str
     const importRecord = new FileImport();
     importRecord.id = randomUUID().toLowerCase();
     importRecord.mimeType = filetype;
-    const extension = filetype === 'text/csv' ? 'csv' : 'zip';
+    const extension = filetype === 'text/csv' ? 'csv' : 'bin';
     importRecord.filename = `${importRecord.id}.${extension}`;
     try {
         const promisedHash = hashReadableStream(fileStream)
@@ -149,8 +182,13 @@ export const uploadCSVToBlobStorage = async (fileStream: Readable, filetype: str
             .catch((error) => {
                 throw new Error(`Error hashing stream: ${error}`);
             });
+        const databasePromise = csvToSQLite(fileStream);
         await blobStorageService.uploadFile(`${importRecord.filename}`, fileStream);
         const resolvedHash = await promisedHash;
+        const database = await databasePromise;
+        if (database) {
+            await blobStorageService.uploadFile(`${importRecord.id}.db3`, database);
+        }
         if (resolvedHash) importRecord.hash = resolvedHash;
         importRecord.uploadedAt = new Date();
         importRecord.type = ImportType.Draft;
@@ -163,8 +201,7 @@ export const uploadCSVToBlobStorage = async (fileStream: Readable, filetype: str
 };
 
 export const uploadCSVBufferToBlobStorage = async (fileBuffer: Buffer, filetype: string): Promise<FileImport> => {
-    const fileStream = Readable.from(fileBuffer);
-    const importRecord: FileImport = await uploadCSVToBlobStorage(fileStream, filetype);
+    const importRecord: FileImport = await uploadCSVToBlobStorage(Readable.from(fileBuffer), filetype);
     return importRecord;
 };
 
@@ -178,43 +215,23 @@ function setupPagination(page: number, total_pages: number): (string | number)[]
     return pages;
 }
 
-async function processCSVData(
+interface TableTotals {
+    total_pages: number;
+    total_records: number;
+}
+
+async function processSQLiteData(
     buffer: Buffer,
     page: number,
     size: number,
     dataset: Dataset,
     importObj: FileImport
-): Promise<ViewDTO | ViewErrDTO> {
-    const dataArray: string[][] = (await parse(buffer, {
-        delimiter: ','
-    }).toArray()) as string[][];
-    const csvheaders = dataArray.shift();
-    if (!csvheaders) {
-        return {
-            success: false,
-            status: 400,
-            errors: [
-                {
-                    field: 'csv',
-                    message: [
-                        { lang: Locale.English, message: t('errors.csv_headers', { lng: Locale.English }) },
-                        { lang: Locale.Welsh, message: t('errors.csv_headers', { lng: Locale.Welsh }) }
-                    ],
-                    tag: { name: 'errors.csv_headers', params: {} }
-                }
-            ],
-            dataset_id: dataset.id
-        };
-    }
-    const headers: CSVHeader[] = [];
-    for (let i = 0; i < csvheaders.length; i++) {
-        headers.push({
-            index: i,
-            name: csvheaders[i]
-        });
-    }
-    const totalPages = Math.ceil(dataArray.length / size);
-    const errors = validateParams(page, totalPages, size);
+): Promise<ViewErrDTO | ViewDTO> {
+    const database = new Database(buffer)
+    const totalsStatement = database.prepare('select (count(*) / ?)  as total_pages, count(*) as total_records from original_facts;');
+    const totals = totalsStatement.get(size) as TableTotals;
+
+    const errors = validateParams(page, Math.ceil(totals.total_pages), size);
     if (errors.length > 0) {
         return {
             success: false,
@@ -224,35 +241,67 @@ async function processCSVData(
         };
     }
 
-    const csvdata = paginate(dataArray, page, size);
-    const pages = setupPagination(page, totalPages);
-    const end_record = () => {
-        if (size > dataArray.length) {
-            return dataArray.length;
-        } else if (page === totalPages) {
-            return dataArray.length;
-        } else {
-            return page * size;
-        }
-    };
+    const startRow = (page - 1) * size;
+    const getRowsStmt = database.prepare('select * from original_facts limit ?,?;');
+    const data = getRowsStmt.all(startRow, size) as Object[];
+    if (!data.length) {
+        logger.error('Something went wrong querying the database');
+    }
+    const headers: CSVHeader[] = [];
+    for(let i =0; i < Object.keys(data[0]).length; i++) {
+        headers.push({
+            index: i,
+            name: Object.keys(data[0])[i]
+        });
+    }
+    const values: string[][] = [];
+    data.forEach((row) => {
+        values.push(Object.values(row));
+    })
     const currentDataset = await Dataset.findOneByOrFail({ id: dataset.id });
     const currentImport = await FileImport.findOneByOrFail({ id: importObj.id });
+    const pages = setupPagination(page, totals.total_pages);
     return {
         success: true,
         dataset: await DatasetDTO.fromDatasetComplete(currentDataset),
         import: await FileImportDTO.fromImport(currentImport),
         current_page: page,
         page_info: {
-            total_records: dataArray.length,
-            start_record: (page - 1) * size + 1,
-            end_record: end_record()
+            total_records: totals.total_records,
+            start_record: startRow+1,
+            end_record: (startRow + size)
         },
         pages,
         page_size: size,
-        total_pages: totalPages,
+        total_pages: Math.ceil(totals.total_pages),
         headers,
-        data: csvdata
+        data: values
     };
+}
+
+export const getColumnPreview = async (
+    source: Source
+): Promise<ColumnPreview> => {
+    let databaseBuffer: Buffer;
+    const importObj = await source.import;
+    if (importObj.location === DataLocation.DataLake) {
+        const datalakeService = new DataLakeService();
+        databaseBuffer = await datalakeService.downloadFile(`${importObj.id}.db3`);
+    } else {
+        const blobStorageService = new BlobStorageService();
+        databaseBuffer = await blobStorageService.readFile(`${importObj.id}.db3`);
+    }
+    const database = new Database(databaseBuffer);
+    const selectStmt = database.prepare('select ? from original_facts limit 10;');
+    const data = selectStmt.all(source.csvField);
+    const values: string[] = [];
+    data.forEach((row) => {
+        values.push(Object.values(row as Object)[0]);
+    })
+    return {
+        header: source.csvField,
+        data: values
+    }
 }
 
 export const getFileFromDataLake = async (
@@ -293,7 +342,7 @@ export const processCSVFromDatalake = async (
     const datalakeService = new DataLakeService();
     let buff: Buffer;
     try {
-        buff = await datalakeService.downloadFile(importObj.filename);
+        buff = await datalakeService.downloadFile(`${importObj.id}.db3`);
     } catch (err) {
         logger.error(err);
         return {
@@ -312,7 +361,7 @@ export const processCSVFromDatalake = async (
             dataset_id: dataset.id
         };
     }
-    return processCSVData(buff, page, size, dataset, importObj);
+    return processSQLiteData(buff, page, size, dataset, importObj);
 };
 
 export const getFileFromBlobStorage = async (
@@ -359,7 +408,7 @@ export const processCSVFromBlobStorage = async (
     const blobStoageService = new BlobStorageService();
     let buff: Buffer;
     try {
-        buff = await blobStoageService.readFile(importObj.filename);
+        buff = await blobStoageService.readFile(`${importObj.id}.db3`);
     } catch (err) {
         logger.error(err);
         return {
@@ -381,15 +430,17 @@ export const processCSVFromBlobStorage = async (
             dataset_id: dataset.id
         };
     }
-    return processCSVData(buff, page, size, dataset, importObj);
+    return processSQLiteData(buff, page, size, dataset, importObj);
 };
 
 export const moveFileToDataLake = async (importObj: FileImport) => {
     const blobStorageService = new BlobStorageService();
     const datalakeService = new DataLakeService();
     try {
-        const fileStream = await blobStorageService.getReadableStream(importObj.filename);
-        await datalakeService.uploadFileStream(importObj.filename, fileStream);
+        const csvFileStream = await blobStorageService.getReadableStream(importObj.filename);
+        await datalakeService.uploadFileStream(importObj.filename, csvFileStream);
+        const db3FileStream = await blobStorageService.getReadableStream(`${importObj.id}.db3`);
+        await datalakeService.uploadFileStream(`${importObj.id}.db3`, db3FileStream);
         await blobStorageService.deleteFile(importObj.filename);
     } catch (err) {
         logger.error(err);
@@ -401,6 +452,7 @@ export const removeTempfileFromBlobStorage = async (importObj: FileImport) => {
     const blobStorageService = new BlobStorageService();
     try {
         await blobStorageService.deleteFile(importObj.filename);
+        await blobStorageService.deleteFile(`${importObj.id}.db3`);
     } catch (err) {
         logger.error(err);
         throw new Error('Unable to successfully remove file from Blob Storage');
@@ -411,6 +463,7 @@ export const removeFileFromDatalake = async (importObj: FileImport) => {
     const datalakeService = new DataLakeService();
     try {
         await datalakeService.deleteFile(importObj.filename);
+        await datalakeService.deleteFile(`${importObj.id}.db3`);
     } catch (err) {
         logger.error(err);
         throw new Error('Unable to successfully remove from from Datalake');

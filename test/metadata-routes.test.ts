@@ -92,10 +92,10 @@ describe('API Endpoints for viewing dataset objects', () => {
             expect(res.body).toEqual(dto);
         });
 
-        test('Get a dataset returns 400 if an invalid ID is given', async () => {
+        test('Get a dataset returns 404 if an invalid ID is given', async () => {
             const res = await request(app).get(`/dataset/INVALID-ID`).set(getAuthHeader(user));
-            expect(res.status).toBe(400);
-            expect(res.body).toEqual({ message: 'Dataset ID is not valid' });
+            expect(res.status).toBe(404);
+            expect(res.body).toEqual({ message: 'Dataset not found.' });
         });
 
         test('Get a dataset returns 404 if a non-existant ID is given', async () => {
@@ -132,12 +132,12 @@ describe('API Endpoints for viewing dataset objects', () => {
             expect(res.body).toEqual(dto);
         });
 
-        test('Get a dimension returns 400 if an invalid ID is given', async () => {
+        test('Get a dimension returns 404 if an invalid ID is given', async () => {
             const res = await request(app)
                 .get(`/dataset/${dataset1Id}/dimension/by-id/INVALID-ID`)
                 .set(getAuthHeader(user));
-            expect(res.status).toBe(400);
-            expect(res.body).toEqual({ message: 'Dimension ID is not valid' });
+            expect(res.status).toBe(404);
+            expect(res.body).toEqual({ message: 'Dimension not found.' });
         });
 
         test('Get a dimension returns 404 if a non-existant ID is given', async () => {
@@ -168,12 +168,12 @@ describe('API Endpoints for viewing dataset objects', () => {
             expect(res.body).toEqual(dto);
         });
 
-        test('Get revision returns 400 if an invalid ID is given', async () => {
+        test('Get revision returns 404 if an invalid ID is given', async () => {
             const res = await request(app)
                 .get(`/dataset/${dataset1Id}/revision/by-id/INVALID-ID`)
                 .set(getAuthHeader(user));
-            expect(res.status).toBe(400);
-            expect(res.body).toEqual({ message: 'Revision ID is not valid' });
+            expect(res.status).toBe(404);
+            expect(res.body).toEqual({ message: 'Revision not found.' });
         });
 
         test('Get revision returns 404 if a ID is given', async () => {
@@ -206,12 +206,12 @@ describe('API Endpoints for viewing dataset objects', () => {
             expect(res.body).toEqual(expectedDTO);
         });
 
-        test('Get import returns 400 if given an invalid ID', async () => {
+        test('Get import returns 404 if given an invalid ID', async () => {
             const res = await request(app)
                 .get(`/dataset/${dataset1Id}/revision/by-id/${revision1Id}/import/by-id/IN-VALID-ID`)
                 .set(getAuthHeader(user));
-            expect(res.status).toBe(400);
-            expect(res.body).toEqual({ message: 'Import ID is not valid' });
+            expect(res.status).toBe(404);
+            expect(res.body).toEqual({ message: 'Import not found.' });
         });
 
         test('Get import returns 404 if given a missing ID', async () => {

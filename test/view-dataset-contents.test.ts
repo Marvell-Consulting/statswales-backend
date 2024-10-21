@@ -40,32 +40,35 @@ describe('API Endpoints for viewing the contents of a dataset', () => {
     });
 
     test('Get file from a dataset, stored in blobStorage, returns 200 and complete file data', async () => {
-        const testFile2 = path.resolve(__dirname, `sample-csvs/test-data-2.csv`);
+        const testFile2 = path.resolve(__dirname, `sample-sqlite-dbs/nicoles-preped-data-with-id-short.db3`);
         const testFile1Buffer = fs.readFileSync(testFile2);
-        DataLakeService.prototype.downloadFile = jest.fn().mockReturnValue(testFile1Buffer.toString());
+        DataLakeService.prototype.downloadFile = jest.fn().mockReturnValue(testFile1Buffer);
 
         const res = await request(app)
             .get(`/dataset/${dataset1Id}/view`)
             .set(getAuthHeader(user))
-            .query({ page_number: 2, page_size: 100 });
+            .query({ page_number: 1, page_size: 5 });
         expect(res.status).toBe(200);
-        expect(res.body.current_page).toBe(2);
-        expect(res.body.total_pages).toBe(6);
-        expect(res.body.page_size).toBe(100);
+        expect(res.body.current_page).toBe(1);
+        expect(res.body.total_pages).toBe(1);
+        expect(res.body.page_size).toBe(5);
         expect(res.body.headers).toEqual([
-            { index: 0, name: 'ID' },
-            { index: 1, name: 'Text' },
-            { index: 2, name: 'Number' },
-            { index: 3, name: 'Date' }
+            { index: 0, name: 'RowID' },
+            { index: 1, name: 'YearCode' },
+            { index: 2, name: 'AreaCode' },
+            { index: 3, name: 'Data' },
+            { index: 4, name: 'RowRef' },
+            { index: 5, name: 'Measure' },
+            { index: 6, name: 'NoteCodes' }
         ]);
-        expect(res.body.data[0]).toEqual(['101', 'GEYiRzLIFM', '774477', '2002-03-13']);
-        expect(res.body.data[99]).toEqual(['200', 'QhBxdmrUPb', '3256099', '2026-12-17']);
+        expect(res.body.data[0]).toEqual([ '1276', '202223', '596', '1.635044737', '2', '2', 't' ]);
+        expect(res.body.data[4]).toEqual([ '1280', '202223', '596', '125092', '1', '1', 't' ]);
     });
 
     test('Get file from a dataset, stored in data lake, returns 200 and complete file data', async () => {
-        const testFile2 = path.resolve(__dirname, `sample-csvs/test-data-2.csv`);
+        const testFile2 = path.resolve(__dirname, `sample-sqlite-dbs/nicoles-preped-data-with-id-short.db3`);
         const testFile1Buffer = fs.readFileSync(testFile2);
-        DataLakeService.prototype.downloadFile = jest.fn().mockReturnValue(testFile1Buffer.toString());
+        DataLakeService.prototype.downloadFile = jest.fn().mockReturnValue(testFile1Buffer);
         const fileImport = await FileImport.findOneBy({ id: import1Id });
         if (!fileImport) {
             throw new Error('Import not found');
@@ -76,19 +79,22 @@ describe('API Endpoints for viewing the contents of a dataset', () => {
         const res = await request(app)
             .get(`/dataset/${dataset1Id}/view`)
             .set(getAuthHeader(user))
-            .query({ page_number: 2, page_size: 100 });
-        expect(res.status).toBe(200);
-        expect(res.body.current_page).toBe(2);
-        expect(res.body.total_pages).toBe(6);
-        expect(res.body.page_size).toBe(100);
-        expect(res.body.headers).toEqual([
-            { index: 0, name: 'ID' },
-            { index: 1, name: 'Text' },
-            { index: 2, name: 'Number' },
-            { index: 3, name: 'Date' }
-        ]);
-        expect(res.body.data[0]).toEqual(['101', 'GEYiRzLIFM', '774477', '2002-03-13']);
-        expect(res.body.data[99]).toEqual(['200', 'QhBxdmrUPb', '3256099', '2026-12-17']);
+            .query({ page_number: 1, page_size: 5 });
+            expect(res.status).toBe(200);
+            expect(res.body.current_page).toBe(1);
+            expect(res.body.total_pages).toBe(1);
+            expect(res.body.page_size).toBe(5);
+            expect(res.body.headers).toEqual([
+                { index: 0, name: 'RowID' },
+                { index: 1, name: 'YearCode' },
+                { index: 2, name: 'AreaCode' },
+                { index: 3, name: 'Data' },
+                { index: 4, name: 'RowRef' },
+                { index: 5, name: 'Measure' },
+                { index: 6, name: 'NoteCodes' }
+            ]);
+        expect(res.body.data[0]).toEqual([ '1276', '202223', '596', '1.635044737', '2', '2', 't' ]);
+        expect(res.body.data[4]).toEqual([ '1280', '202223', '596', '125092', '1', '1', 't' ]);
     });
 
     test('Get file from a dataset, stored in an unknown location, returns 500 and an error message', async () => {
@@ -180,10 +186,10 @@ describe('API Endpoints for viewing the contents of a dataset', () => {
         expect(res.body).toEqual({ message: 'No import record found for dataset' });
     });
 
-    test('Get file view returns 400 when a not valid UUID is supplied', async () => {
+    test('Get file view returns 404 when a not valid UUID is supplied', async () => {
         const res = await request(app).get(`/dataset/NOT-VALID-ID`).set(getAuthHeader(user));
-        expect(res.status).toBe(400);
-        expect(res.body).toEqual({ message: 'Dataset ID is not valid' });
+        expect(res.status).toBe(404);
+        expect(res.body).toEqual({ message: 'Dataset not found.' });
     });
 
     afterAll(async () => {

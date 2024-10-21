@@ -11,7 +11,7 @@ import { ViewDTO, ViewErrDTO, ViewStream } from '../dtos/view-dto';
 import { i18next } from '../middleware/translation';
 import {
     createSources,
-    DEFAULT_PAGE_SIZE,
+    DEFAULT_PAGE_SIZE, getColumnPreview,
     getFileFromBlobStorage,
     getFileFromDataLake,
     moveFileToDataLake,
@@ -40,6 +40,8 @@ import { DimensionDTO } from '../dtos/dimension-dto';
 import { RevisionDTO } from '../dtos/revision-dto';
 import { DataLocation } from '../enums/data-location';
 import { Locale } from '../enums/locale';
+import { Source } from '../entities/dataset/source';
+import { SourceDTO } from '../dtos/source-dto';
 
 const t = i18next.t;
 
@@ -50,72 +52,54 @@ const upload = multer({ storage });
 const router = Router();
 export const datasetRouter = router;
 
-const DATASET = 'Dataset';
-const REVISION = 'Revision';
-const DIMENSION = 'Dimension';
-const IMPORT = 'Import';
-
-function isValidUUID(uuid: string): boolean {
-    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-    return uuid.length === 36 && uuidRegex.test(uuid);
-}
-
-function validateIds(id: string, idType: string, res: Response): boolean {
-    if (id === undefined) {
-        res.status(400);
-        res.json({ message: `${idType} ID is null or undefined` });
-        return false;
-    }
-    if (!isValidUUID(id)) {
-        res.status(400);
-        res.json({ message: `${idType} ID is not valid` });
-        return false;
-    }
-    return true;
-}
-
 async function validateDataset(datasetID: string, res: Response): Promise<Dataset | null> {
-    if (!validateIds(datasetID, DATASET, res)) return null;
-    const dataset = await Dataset.findOneBy({ id: datasetID });
-    if (!dataset) {
+    try {
+        return await Dataset.findOneByOrFail({ id: datasetID });
+    } catch (err) {
         res.status(404);
         res.json({ message: 'Dataset not found.' });
         return null;
     }
-    return dataset;
 }
 
 async function validateDimension(dimensionID: string, res: Response): Promise<Dimension | null> {
-    if (!validateIds(dimensionID, DIMENSION, res)) return null;
-    const dimension = await Dimension.findOneBy({ id: dimensionID });
-    if (!dimension) {
+    try {
+        return await Dimension.findOneByOrFail({ id: dimensionID });
+    } catch (error) {
         res.status(404);
         res.json({ message: 'Dimension not found.' });
         return null;
     }
-    return dimension;
 }
 
 async function validateRevision(revisionID: string, res: Response): Promise<Revision | null> {
-    if (!validateIds(revisionID, REVISION, res)) return null;
-    const revision = await Revision.findOneBy({ id: revisionID });
-    if (!revision) {
+    try {
+        return await Revision.findOneByOrFail({ id: revisionID });
+    } catch (error) {
         res.status(404);
         res.json({ message: 'Revision not found.' });
         return null;
     }
-    return revision;
+}
+
+async function validateSource(sourceId: string, res: Response): Promise<Source | null> {
+    try {
+        return await Source.findOneByOrFail({ id: sourceId });
+    } catch (error) {
+        res.status(404);
+        res.json({ message: 'Source not found.' });
+        return null;
+    }
 }
 
 async function validateImport(importID: string, res: Response): Promise<FileImport | null> {
-    if (!validateIds(importID, IMPORT, res)) return null;
-    const importObj = await FileImport.findOneBy({ id: importID });
-    if (!importObj) {
+    try {
+        return await FileImport.findOneByOrFail({ id: importID });
+    } catch (error) {
         res.status(404);
         res.json({ message: 'Import not found.' });
         return null;
     }
-    return importObj;
 }
 
 function errorDtoGenerator(
@@ -659,3 +643,31 @@ router.patch(
         res.json(dto);
     }
 );
+
+router.get('/:dataset_id/revision/by-id/:revision_id/source/by-id/:source_id/', async (req: Request, res: Response) => {
+    const datasetID: string = req.params.dataset_id.toLowerCase();
+    const dataset = await validateDataset(datasetID, res);
+    if (!dataset) return;
+    const revisionID: string = req.params.revision_id;
+    const revision = await validateRevision(revisionID, res);
+    if (!revision) return;
+    const source = await validateSource(revisionID, res);
+    if (!source) return;
+    const sourceDto = SourceDTO.fromSource(source);
+    res.status(200);
+    res.json(sourceDto);
+});
+
+router.get('/:dataset_id/revision/by-id/:revision_id/source/by-id/:source_id/preview', async (req: Request, res: Response) => {
+    const datasetID: string = req.params.dataset_id.toLowerCase();
+    const dataset = await validateDataset(datasetID, res);
+    if (!dataset) return;
+    const revisionID: string = req.params.revision_id;
+    const revision = await validateRevision(revisionID, res);
+    if (!revision) return;
+    const source = await validateSource(revisionID, res);
+    if (!source) return;
+    res.status(200);
+    const dto = getColumnPreview(source);
+    res.json(dto);
+});

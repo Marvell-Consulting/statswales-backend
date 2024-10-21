@@ -40,7 +40,7 @@ const revision1Id = '85f0e416-8bd1-4946-9e2c-1c958897c6ef';
 const import1Id = 'fa07be9d-3495-432d-8c1f-d0fc6daae359';
 const user: User = getTestUser('test', 'user');
 
-describe('API Endpoints', () => {
+describe('Publisher Journey', () => {
     let dbManager: DatabaseManager;
     beforeAll(async () => {
         dbManager = await initDb();
@@ -170,7 +170,7 @@ describe('API Endpoints', () => {
             const testRevisionId = crypto.randomUUID().toLowerCase();
             const testFileImportId = crypto.randomUUID().toLowerCase();
             await createSmallDataset(testDatasetId, testRevisionId, testFileImportId, user);
-            const testFile2 = path.resolve(__dirname, `sample-csvs/test-data-2.csv`);
+            const testFile2 = path.resolve(__dirname, `sample-sqlite-dbs/nicoles-preped-data-with-id.db3`);
             const testFile2Buffer = fs.readFileSync(testFile2);
             BlobStorageService.prototype.readFile = jest.fn().mockReturnValue(testFile2Buffer);
             const res = await request(app)
@@ -190,16 +190,16 @@ describe('API Endpoints', () => {
                         message: [
                             {
                                 lang: Locale.English,
-                                message: t('errors.page_number_to_high', { lng: Locale.English, page_number: 6 })
+                                message: t('errors.page_number_to_high', { lng: Locale.English, page_number: 13 })
                             },
                             {
                                 lang: Locale.Welsh,
-                                message: t('errors.page_number_to_high', { lng: Locale.Welsh, page_number: 6 })
+                                message: t('errors.page_number_to_high', { lng: Locale.Welsh, page_number: 13 })
                             }
                         ],
                         tag: {
                             name: 'errors.page_number_to_high',
-                            params: { page_number: 6 }
+                            params: { page_number: 13 }
                         }
                     }
                 ]
@@ -211,7 +211,7 @@ describe('API Endpoints', () => {
             const testRevisionId = crypto.randomUUID().toLowerCase();
             const testFileImportId = crypto.randomUUID().toLowerCase();
             await createSmallDataset(testDatasetId, testRevisionId, testFileImportId, user);
-            const testFile2 = path.resolve(__dirname, `sample-csvs/test-data-2.csv`);
+            const testFile2 = path.resolve(__dirname, `sample-sqlite-dbs/nicoles-preped-data-with-id-short.db3`);
             const testFile2Buffer = fs.readFileSync(testFile2);
             BlobStorageService.prototype.readFile = jest.fn().mockReturnValue(testFile2Buffer);
 
@@ -261,7 +261,7 @@ describe('API Endpoints', () => {
             const testRevisionId = crypto.randomUUID().toLowerCase();
             const testFileImportId = crypto.randomUUID().toLowerCase();
             await createSmallDataset(testDatasetId, testRevisionId, testFileImportId, user);
-            const testFile2 = path.resolve(__dirname, `sample-csvs/test-data-2.csv`);
+            const testFile2 = path.resolve(__dirname, `sample-sqlite-dbs/nicoles-preped-data-with-id-short.db3`);
             const testFile2Buffer = fs.readFileSync(testFile2);
             BlobStorageService.prototype.readFile = jest.fn().mockReturnValue(testFile2Buffer);
 
@@ -310,34 +310,37 @@ describe('API Endpoints', () => {
             const testRevisionId = crypto.randomUUID().toLowerCase();
             const testFileImportId = crypto.randomUUID().toLowerCase();
             await createSmallDataset(testDatasetId, testRevisionId, testFileImportId, user);
-            const testFile2 = path.resolve(__dirname, `sample-csvs/test-data-2.csv`);
+            const testFile2 = path.resolve(__dirname, `sample-sqlite-dbs/nicoles-preped-data-with-id-short.db3`);
             const testFile1Buffer = fs.readFileSync(testFile2);
-            BlobStorageService.prototype.readFile = jest.fn().mockReturnValue(testFile1Buffer.toString());
+            BlobStorageService.prototype.readFile = jest.fn().mockReturnValue(testFile1Buffer);
 
             const res = await request(app)
                 .get(
                     `/dataset/${testDatasetId}/revision/by-id/${testRevisionId}/import/by-id/${testFileImportId}/preview`
                 )
                 .set(getAuthHeader(user))
-                .query({ page_number: 2, page_size: 100 });
+                .query({ page_number: 1, page_size: 5 });
             expect(res.status).toBe(200);
-            expect(res.body.current_page).toBe(2);
-            expect(res.body.total_pages).toBe(6);
-            expect(res.body.page_size).toBe(100);
+            expect(res.body.current_page).toBe(1);
+            expect(res.body.total_pages).toBe(1);
+            expect(res.body.page_size).toBe(5);
             expect(res.body.headers).toEqual([
-                { index: 0, name: 'ID' },
-                { index: 1, name: 'Text' },
-                { index: 2, name: 'Number' },
-                { index: 3, name: 'Date' }
+                { index: 0, name: 'RowID' },
+                { index: 1, name: 'YearCode' },
+                { index: 2, name: 'AreaCode' },
+                { index: 3, name: 'Data' },
+                { index: 4, name: 'RowRef' },
+                { index: 5, name: 'Measure' },
+                { index: 6, name: 'NoteCodes' }
             ]);
-            expect(res.body.data[0]).toEqual(['101', 'GEYiRzLIFM', '774477', '2002-03-13']);
-            expect(res.body.data[99]).toEqual(['200', 'QhBxdmrUPb', '3256099', '2026-12-17']);
+            expect(res.body.data[0]).toEqual([ '1276', '202223', '596', '1.635044737', '2', '2', 't' ]);
+            expect(res.body.data[4]).toEqual([ '1280', '202223', '596', '125092', '1', '1', 't' ]);
         });
 
         test('Get preview of an import returns 200 and correct page data if the file is stored in a Datalake', async () => {
-            const testFile2 = path.resolve(__dirname, `sample-csvs/test-data-2.csv`);
+            const testFile2 = path.resolve(__dirname, `sample-sqlite-dbs/nicoles-preped-data-with-id-short.db3`);
             const testFile1Buffer = fs.readFileSync(testFile2);
-            DataLakeService.prototype.downloadFile = jest.fn().mockReturnValue(testFile1Buffer.toString());
+            DataLakeService.prototype.downloadFile = jest.fn().mockReturnValue(testFile1Buffer);
             const fileImport = await FileImport.findOneBy({ id: import1Id });
             if (!fileImport) {
                 throw new Error('Import not found');
@@ -348,19 +351,22 @@ describe('API Endpoints', () => {
             const res = await request(app)
                 .get(`/dataset/${dataset1Id}/revision/by-id/${revision1Id}/import/by-id/${import1Id}/preview`)
                 .set(getAuthHeader(user))
-                .query({ page_number: 2, page_size: 100 });
+                .query({ page_number: 1, page_size: 5 });
             expect(res.status).toBe(200);
-            expect(res.body.current_page).toBe(2);
-            expect(res.body.total_pages).toBe(6);
-            expect(res.body.page_size).toBe(100);
+            expect(res.body.current_page).toBe(1);
+            expect(res.body.total_pages).toBe(1);
+            expect(res.body.page_size).toBe(5);
             expect(res.body.headers).toEqual([
-                { index: 0, name: 'ID' },
-                { index: 1, name: 'Text' },
-                { index: 2, name: 'Number' },
-                { index: 3, name: 'Date' }
+                { index: 0, name: 'RowID' },
+                { index: 1, name: 'YearCode' },
+                { index: 2, name: 'AreaCode' },
+                { index: 3, name: 'Data' },
+                { index: 4, name: 'RowRef' },
+                { index: 5, name: 'Measure' },
+                { index: 6, name: 'NoteCodes' }
             ]);
-            expect(res.body.data[0]).toEqual(['101', 'GEYiRzLIFM', '774477', '2002-03-13']);
-            expect(res.body.data[99]).toEqual(['200', 'QhBxdmrUPb', '3256099', '2026-12-17']);
+            expect(res.body.data[0]).toEqual([ '1276', '202223', '596', '1.635044737', '2', '2', 't' ]);
+            expect(res.body.data[4]).toEqual([ '1280', '202223', '596', '125092', '1', '1', 't' ]);
         });
 
         test('Get preview of an import returns 500 if the import location is not supported', async () => {
@@ -616,11 +622,11 @@ describe('API Endpoints', () => {
             }
             preRunFilImport.location = DataLocation.BlobStorage;
             await preRunFilImport.save();
-            const testFile2 = path.resolve(__dirname, `sample-csvs/test-data-2.csv`);
+            const testFile2 = path.resolve(__dirname, `sample-sqlite-dbs/nicoles-preped-data-with-id-short.db3`);
             const testFile1Buffer = fs.readFileSync(testFile2);
             BlobStorageService.prototype.getReadableStream = jest.fn();
             DataLakeService.prototype.uploadFileStream = jest.fn();
-            DataLakeService.prototype.downloadFile = jest.fn().mockReturnValue(testFile1Buffer.toString());
+            DataLakeService.prototype.downloadFile = jest.fn().mockReturnValue(testFile1Buffer);
             BlobStorageService.prototype.deleteFile = jest.fn().mockReturnValue(true);
             const res = await request(app)
                 .patch(
@@ -633,7 +639,7 @@ describe('API Endpoints', () => {
             }
             expect(postRunFileImport.location).toBe(DataLocation.DataLake);
             const sources = await postRunFileImport.sources;
-            expect(sources.length).toBe(4);
+            expect(sources.length).toBe(7);
             const dto = await FileImportDTO.fromImportWithSources(postRunFileImport);
             expect(res.status).toBe(200);
             expect(res.body).toEqual(dto);
@@ -720,11 +726,11 @@ describe('API Endpoints', () => {
             testFileImportId: string
         ): Promise<Dataset> {
             await createSmallDataset(testDatasetId, testRevisionId, testFileImportId, user);
-            const testFile2 = path.resolve(__dirname, `sample-csvs/test-data-2.csv`);
+            const testFile2 = path.resolve(__dirname, `sample-sqlite-dbs/nicoles-preped-data-with-id-short.db3`);
             const testFile1Buffer = fs.readFileSync(testFile2);
             BlobStorageService.prototype.getReadableStream = jest.fn();
             DataLakeService.prototype.uploadFileStream = jest.fn();
-            DataLakeService.prototype.downloadFile = jest.fn().mockReturnValue(testFile1Buffer.toString());
+            DataLakeService.prototype.downloadFile = jest.fn().mockReturnValue(testFile1Buffer);
             BlobStorageService.prototype.deleteFile = jest.fn().mockReturnValue(true);
             // Create sources in the database
             await request(app)
@@ -769,7 +775,7 @@ describe('API Endpoints', () => {
                 throw new Error('Dataset not found');
             }
             const dimensions = await updatedDataset.dimensions;
-            expect(dimensions.length).toBe(3);
+            expect(dimensions.length).toBe(6);
             const dto = await DatasetDTO.fromDatasetComplete(updatedDataset);
             expect(res.body).toEqual(JSON.parse(JSON.stringify(dto)));
         });
