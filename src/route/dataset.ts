@@ -11,7 +11,8 @@ import { ViewDTO, ViewErrDTO, ViewStream } from '../dtos/view-dto';
 import { i18next } from '../middleware/translation';
 import {
     createSources,
-    DEFAULT_PAGE_SIZE, getColumnPreview,
+    DEFAULT_PAGE_SIZE,
+    getColumnPreview,
     getFileFromBlobStorage,
     getFileFromDataLake,
     moveFileToDataLake,
@@ -658,16 +659,19 @@ router.get('/:dataset_id/revision/by-id/:revision_id/source/by-id/:source_id/', 
     res.json(sourceDto);
 });
 
-router.get('/:dataset_id/revision/by-id/:revision_id/source/by-id/:source_id/preview', async (req: Request, res: Response) => {
-    const datasetID: string = req.params.dataset_id.toLowerCase();
-    const dataset = await validateDataset(datasetID, res);
-    if (!dataset) return;
-    const revisionID: string = req.params.revision_id;
-    const revision = await validateRevision(revisionID, res);
-    if (!revision) return;
-    const source = await validateSource(revisionID, res);
-    if (!source) return;
-    res.status(200);
-    const dto = getColumnPreview(source);
-    res.json(dto);
-});
+router.get(
+    '/:dataset_id/revision/by-id/:revision_id/source/by-id/:source_id/preview',
+    async (req: Request, res: Response) => {
+        const datasetID: string = req.params.dataset_id.toLowerCase();
+        const dataset = await validateDataset(datasetID, res);
+        if (!dataset) return;
+        const revisionID: string = req.params.revision_id;
+        const revision = await validateRevision(revisionID, res);
+        if (!revision) return;
+        const source = await validateSource(revisionID, res);
+        if (!source) return;
+        res.status(200);
+        const dto = getColumnPreview(source);
+        res.json(dto);
+    }
+);

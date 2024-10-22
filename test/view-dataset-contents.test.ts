@@ -61,8 +61,8 @@ describe('API Endpoints for viewing the contents of a dataset', () => {
             { index: 5, name: 'Measure' },
             { index: 6, name: 'NoteCodes' }
         ]);
-        expect(res.body.data[0]).toEqual([ '1276', '202223', '596', '1.635044737', '2', '2', 't' ]);
-        expect(res.body.data[4]).toEqual([ '1280', '202223', '596', '125092', '1', '1', 't' ]);
+        expect(res.body.data[0]).toEqual(['1276', '202223', '596', '1.635044737', '2', '2', 't']);
+        expect(res.body.data[4]).toEqual(['1280', '202223', '596', '125092', '1', '1', 't']);
     });
 
     test('Get file from a dataset, stored in data lake, returns 200 and complete file data', async () => {
@@ -80,21 +80,21 @@ describe('API Endpoints for viewing the contents of a dataset', () => {
             .get(`/dataset/${dataset1Id}/view`)
             .set(getAuthHeader(user))
             .query({ page_number: 1, page_size: 5 });
-            expect(res.status).toBe(200);
-            expect(res.body.current_page).toBe(1);
-            expect(res.body.total_pages).toBe(1);
-            expect(res.body.page_size).toBe(5);
-            expect(res.body.headers).toEqual([
-                { index: 0, name: 'RowID' },
-                { index: 1, name: 'YearCode' },
-                { index: 2, name: 'AreaCode' },
-                { index: 3, name: 'Data' },
-                { index: 4, name: 'RowRef' },
-                { index: 5, name: 'Measure' },
-                { index: 6, name: 'NoteCodes' }
-            ]);
-        expect(res.body.data[0]).toEqual([ '1276', '202223', '596', '1.635044737', '2', '2', 't' ]);
-        expect(res.body.data[4]).toEqual([ '1280', '202223', '596', '125092', '1', '1', 't' ]);
+        expect(res.status).toBe(200);
+        expect(res.body.current_page).toBe(1);
+        expect(res.body.total_pages).toBe(1);
+        expect(res.body.page_size).toBe(5);
+        expect(res.body.headers).toEqual([
+            { index: 0, name: 'RowID' },
+            { index: 1, name: 'YearCode' },
+            { index: 2, name: 'AreaCode' },
+            { index: 3, name: 'Data' },
+            { index: 4, name: 'RowRef' },
+            { index: 5, name: 'Measure' },
+            { index: 6, name: 'NoteCodes' }
+        ]);
+        expect(res.body.data[0]).toEqual(['1276', '202223', '596', '1.635044737', '2', '2', 't']);
+        expect(res.body.data[4]).toEqual(['1280', '202223', '596', '125092', '1', '1', 't']);
     });
 
     test('Get file from a dataset, stored in an unknown location, returns 500 and an error message', async () => {

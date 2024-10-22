@@ -1,5 +1,6 @@
 import path from 'path';
 import * as fs from 'fs';
+import { Readable } from 'stream';
 
 import request from 'supertest';
 
@@ -122,20 +123,36 @@ describe('Publisher Journey', () => {
                     }
                 ]
             };
-            const csvFile = path.resolve(__dirname, `sample-csvs/test-data-1.csv`);
+            const csvFile = path.resolve(__dirname, `sample-csvs/nicoles-preped-data.csv`);
             const res = await request(app).post('/dataset').set(getAuthHeader(user)).attach('csv', csvFile);
             expect(res.status).toBe(400);
             expect(res.body).toEqual(err);
         });
 
         test('Upload returns 201 if a file is attached', async () => {
-            const csvFile = path.resolve(__dirname, `sample-csvs/test-data-1.csv`);
+            const csvFile = path.resolve(__dirname, `sample-csvs/nicoles-preped-data.csv`);
+            const dbFile = path.resolve(__dirname, `sample-sqlite-dbs/nicoles-preped-data.db3`);
+            const expectedDBBuffer = fs.readFileSync(dbFile);
+            let fileStream: Readable;
+            BlobStorageService.prototype.uploadFile = jest
+                .fn()
+                .mockImplementation(async (fileName: string | undefined, fileContent: Readable) => {
+                    fileStream = fileContent;
+                });
             const res = await request(app)
                 .post('/dataset')
                 .set(getAuthHeader(user))
                 .attach('csv', csvFile)
                 .field('title', 'Test Dataset 3')
                 .field('lang', 'en-GB');
+            const bufferPromise = new Promise<Buffer>((resolve, reject) => {
+                const buffy: any[] = [];
+                fileStream.on('data', (chunk) => buffy.push(chunk));
+                fileStream.on('end', () => resolve(Buffer.concat(buffy)));
+                fileStream.on('error', (err) => reject(err));
+            });
+            const buffer: Buffer = await bufferPromise;
+            expect(buffer.length).toEqual(expectedDBBuffer.length);
             const datasetInfo = await DatasetInfo.findOneBy({ title: 'Test Dataset 3' });
             if (!datasetInfo) {
                 expect(datasetInfo).not.toBeNull();
@@ -333,8 +350,8 @@ describe('Publisher Journey', () => {
                 { index: 5, name: 'Measure' },
                 { index: 6, name: 'NoteCodes' }
             ]);
-            expect(res.body.data[0]).toEqual([ '1276', '202223', '596', '1.635044737', '2', '2', 't' ]);
-            expect(res.body.data[4]).toEqual([ '1280', '202223', '596', '125092', '1', '1', 't' ]);
+            expect(res.body.data[0]).toEqual(['1276', '202223', '596', '1.635044737', '2', '2', 't']);
+            expect(res.body.data[4]).toEqual(['1280', '202223', '596', '125092', '1', '1', 't']);
         });
 
         test('Get preview of an import returns 200 and correct page data if the file is stored in a Datalake', async () => {
@@ -365,8 +382,8 @@ describe('Publisher Journey', () => {
                 { index: 5, name: 'Measure' },
                 { index: 6, name: 'NoteCodes' }
             ]);
-            expect(res.body.data[0]).toEqual([ '1276', '202223', '596', '1.635044737', '2', '2', 't' ]);
-            expect(res.body.data[4]).toEqual([ '1280', '202223', '596', '125092', '1', '1', 't' ]);
+            expect(res.body.data[0]).toEqual(['1276', '202223', '596', '1.635044737', '2', '2', 't']);
+            expect(res.body.data[4]).toEqual(['1280', '202223', '596', '125092', '1', '1', 't']);
         });
 
         test('Get preview of an import returns 500 if the import location is not supported', async () => {

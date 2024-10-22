@@ -2,6 +2,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import { Readable } from 'stream';
 
 import { parse } from 'csv';
+import Database from 'better-sqlite3';
 
 import { i18next } from '../middleware/translation';
 import { logger as parentLogger } from '../utils/logger';
@@ -17,11 +18,10 @@ import { SourceAction } from '../enums/source-action';
 import { ImportType } from '../enums/import-type';
 import { DataLocation } from '../enums/data-location';
 import { Locale } from '../enums/locale';
+import { ColumnPreview } from '../dtos/column-preview';
 
 import { BlobStorageService } from './blob-storage';
 import { DataLakeService } from './datalake';
-import Database from 'better-sqlite3';
-import { ColumnPreview } from '../dtos/column-preview';
 
 export const MAX_PAGE_SIZE = 500;
 export const MIN_PAGE_SIZE = 5;
@@ -49,34 +49,38 @@ function csvToSQLite(stream: Readable): Promise<Readable> {
     const database = new Database(':memory:');
     const parser = stream.pipe(parse({ delimiter: ',', bom: true, skip_empty_lines: true, columns: true }));
     try {
-        return new Promise(async (resolve, reject) => {
-            parser.on('readable', function(){
+        return new Promise((resolve, reject) => {
+            parser.on('readable', function () {
                 let createTable = true;
                 let record;
-                let fields: string = "";
-                let valueHolder: string = ""
+                let fields = '';
+                let valueHolder = '';
                 while ((record = parser.read()) !== null) {
                     if (createTable) {
-                        fields = `"${Object.keys(record).join('", "')}"`
-                        valueHolder = `@${Object.keys(record).join(', @')}`
-                        const createStatement = `CREATE TABLE original_facts ("${Object.keys(record).join('" TEXT,"')}" TEXT);`
+                        fields = `"${Object.keys(record).join('", "')}"`;
+                        valueHolder = `@${Object.keys(record).join(', @')}`;
+                        const createStatement = `CREATE TABLE original_facts ("${Object.keys(record).join('" TEXT,"')}" TEXT);`;
                         database.prepare(createStatement).run();
                         createTable = false;
                     }
-                    const values = `"${Object.values(record).join('", "')}"`
-                    const statement = database.prepare(`INSERT INTO original_facts (${fields}) VALUES (${valueHolder});`);
+                    const values = `"${Object.values(record).join('", "')}"`;
+                    const statement = database.prepare(
+                        `INSERT INTO original_facts (${fields}) VALUES (${valueHolder});`
+                    );
                     statement.run(record);
                 }
             });
             parser.on('end', () => {
                 resolve(Readable.from(database.serialize()));
-            })
+            });
             stream.on('error', (err) => {
                 reject(err);
-            })
-        })
+            });
+        });
     } catch (error) {
-        logger.error(`An error occurred trying to process the CSV into an SQLite Database with the following error: ${error}`);
+        logger.error(
+            `An error occurred trying to process the CSV into an SQLite Database with the following error: ${error}`
+        );
         throw error;
     }
 }
@@ -227,8 +231,10 @@ async function processSQLiteData(
     dataset: Dataset,
     importObj: FileImport
 ): Promise<ViewErrDTO | ViewDTO> {
-    const database = new Database(buffer)
-    const totalsStatement = database.prepare('select (count(*) / ?)  as total_pages, count(*) as total_records from original_facts;');
+    const database = new Database(buffer);
+    const totalsStatement = database.prepare(
+        'select (count(*) / ?)  as total_pages, count(*) as total_records from original_facts;'
+    );
     const totals = totalsStatement.get(size) as TableTotals;
 
     const errors = validateParams(page, Math.ceil(totals.total_pages), size);
@@ -243,12 +249,12 @@ async function processSQLiteData(
 
     const startRow = (page - 1) * size;
     const getRowsStmt = database.prepare('select * from original_facts limit ?,?;');
-    const data = getRowsStmt.all(startRow, size) as Object[];
+    const data = getRowsStmt.all(startRow, size) as object[];
     if (!data.length) {
         logger.error('Something went wrong querying the database');
     }
     const headers: CSVHeader[] = [];
-    for(let i =0; i < Object.keys(data[0]).length; i++) {
+    for (let i = 0; i < Object.keys(data[0]).length; i++) {
         headers.push({
             index: i,
             name: Object.keys(data[0])[i]
@@ -257,7 +263,7 @@ async function processSQLiteData(
     const values: string[][] = [];
     data.forEach((row) => {
         values.push(Object.values(row));
-    })
+    });
     const currentDataset = await Dataset.findOneByOrFail({ id: dataset.id });
     const currentImport = await FileImport.findOneByOrFail({ id: importObj.id });
     const pages = setupPagination(page, totals.total_pages);
@@ -268,8 +274,8 @@ async function processSQLiteData(
         current_page: page,
         page_info: {
             total_records: totals.total_records,
-            start_record: startRow+1,
-            end_record: (startRow + size)
+            start_record: startRow + 1,
+            end_record: startRow + size
         },
         pages,
         page_size: size,
@@ -279,9 +285,7 @@ async function processSQLiteData(
     };
 }
 
-export const getColumnPreview = async (
-    source: Source
-): Promise<ColumnPreview> => {
+export const getColumnPreview = async (source: Source): Promise<ColumnPreview> => {
     let databaseBuffer: Buffer;
     const importObj = await source.import;
     if (importObj.location === DataLocation.DataLake) {
@@ -296,13 +300,13 @@ export const getColumnPreview = async (
     const data = selectStmt.all(source.csvField);
     const values: string[] = [];
     data.forEach((row) => {
-        values.push(Object.values(row as Object)[0]);
-    })
+        values.push(Object.values(row as object)[0]);
+    });
     return {
         header: source.csvField,
         data: values
-    }
-}
+    };
+};
 
 export const getFileFromDataLake = async (
     dataset: Dataset,
