@@ -1,39 +1,120 @@
-# Docker
-# Build and push an image to Azure Container Registry
-# https://docs.microsoft.com/azure/devops/pipelines/languages/docker
-
 trigger:
-- main
+  - main
 
 resources:
-- repo: self
+  - repo: self
 
 variables:
-  # Container registry service connection established during pipeline creation
-  dockerRegistryServiceConnection: '7943cddd-0f7a-4387-a14b-1426eb02546f'
-  imageRepository: 'frontend'
-  containerRegistry: 'statswalesregistry.azurecr.io'
+  imageRepository: 'statswales-backend'
   dockerfilePath: '$(Build.SourcesDirectory)/Dockerfile'
   tag: '$(Build.BuildId)'
-
-  # Agent VM image name
   vmImageName: 'ubuntu-latest'
 
+  # Reference these securely from the Azure DevOps pipeline or variable group
+  container_registry: '$(containerRegistryFromAzureDevOps)'
+  acr_name: '$(acrNameFromAzureDevOps)'
+  resourceGroup: '$(resourceGroupFromAzureDevOps)'
+  azureSubscription: 'StatsWales-Dev-Test'
+
 stages:
-- stage: Build
-  displayName: Build and push stage
-  jobs:
-  - job: Build
-    displayName: Build
-    pool:
-      vmImage: $(vmImageName)
-    steps:
-    - task: Docker@2
-      displayName: Build and push an image to container registry
-      inputs:
-        command: buildAndPush
-        repository: $(imageRepository)
-        dockerfile: $(dockerfilePath)
-        containerRegistry: $(dockerRegistryServiceConnection)
-        tags: |
-          $(tag)
+  - stage: Build
+    displayName: Build and push stage
+    jobs:
+    - job: Build
+      displayName: Build
+      pool:
+        vmImage: $(vmImageName)
+      steps:
+      # Step 1: Login to Azure Container Registry
+      - task: AzureCLI@2
+        displayName: Login to Azure Container Registry
+        inputs:
+          azureSubscription: '$(azureSubscription)'
+          scriptType: 'bash'
+          scriptLocation: 'inlineScript'
+          inlineScript: |
+            az acr login --name $(acr_name)
+
+      # Step 2: Build and push an image to container registry
+      - task: Docker@2
+        displayName: Build and push an image to container registry
+        inputs:
+          containerRegistry: 'StatsWales-ACR'
+          repository: '$(imageRepository)'
+          command: 'buildAndPush'
+          Dockerfile: '$(dockerfilePath)'
+          tags: '$(tag)'
+
+      # Step 3: Deploy with AzureContainerApps task
+      - task: AzureContainerApps@1
+        displayName: 'Deploy to Azure Container Apps'
+        inputs:
+          azureSubscription: '$(azureSubscription)'
+          acrName: '$(acr_name)'
+          resourceGroup: '$(resourceGroup)'
+          containerAppName: 'statswales-develop-backend'
+          containerAppEnvironment: 'statswales-container-app-environment'
+          location: 'UK West'
+          targetPort: '3000'
+          ingress: 'external'
+          imageToDeploy: '$(container_registry)/$(imageRepository):$(tag)'
+          environmentVariables: >
+            APP_ENV=$(app_env)
+            DB_HOST=$(db_host)
+            DB_PORT=5432
+            DB_USERNAME=$(db_username)
+            DB_PASSWORD=$(db_password)
+            DB_DATABASE=$(db_database)
+            AZURE_DATALAKE_STORAGE_ACCOUNT_NAME=$(azure_datalake_storage_account_name)
+            AZURE_DATALAKE_STORAGE_ACCOUNT_KEY=$(azure_datalake_storage_account_key)
+            AZURE_DATALAKE_STORAGE_DIRECTORY_NAME=$(azure_datalake_storage_directory_name)
+            AZURE_DATALAKE_STORAGE_FILESYSTEM_NAME=$(azure_datalake_storage_filesystem_name)
+            AZURE_BLOB_STORAGE_ACCOUNT_NAME=$(azure_blob_storage_account_name)
+            AZURE_BLOB_STORAGE_ACCOUNT_KEY=$(azure_blob_storage_account_key)
+            AZURE_BLOB_STORAGE_CONTAINER_NAME=$(azure_blob_storage_container_name)
+            BACKEND_URL=$(backend_url)
+            BACKEND_PORT=$(backend_port)
+            FRONTEND_URL=$(frontend_url)
+            FRONTEND_PORT=$(frontend_port)
+            SESSION_SECRET=$(session_secret)
+            SESSION_STORE=$(session_store)
+            JWT_SECRET=$(jwt_secret)
+            JWT_EXPIRES_IN=$(jwt_expires_in)
+            AUTH_PROVIDERS=$(auth_providers)
+            GOOGLE_CLIENT_ID=$(google_client_id)
+            GOOGLE_CLIENT_SECRET=$(google_client_secret)
+            ONELOGIN_URL=$(onelogin_url)
+            ONELOGIN_CLIENT_ID=$(onelogin_client_id)
+            ONELOGIN_CLIENT_SECRET=$(onelogin_client_secret)
+            ONELOGIN_PUBLIC_KEY=$(onelogin_public_key)
+            ONELOGIN_PRIVATE_KEY=$(onelogin_private_key)
+            REDIS_URL=$(redis_url)
+            REDIS_ACCESS_KEY=$(redis_access_key)
+
+      # Step 4: Health check
+      - task: Bash@3
+        displayName: 'Health Check on New Revision'
+        inputs:
+          targetType: 'inline'
+          script: |
+            new_revision_url=$(az containerapp ingress show --name statswales-develop-backend --resource-group $(resourceGroup) --location "UK West" --query 'fqdn' -o tsv)
+            status=$(curl -s -o /dev/null -w "%{http_code}" $new_revision_url)
+
+            if [ "$status" -ne 200 ]; then
+              echo "New app revision is not healthy. Status code: $status"
+              exit 1
+            else
+              echo "New app revision is healthy."
+            fi
+
+      # Step 5: Rollback
+      - task: AzureCLI@2
+        displayName: 'Rollback to Previous Stable Revision'
+        condition: failed()
+        inputs:
+          azureSubscription: '$(azureSubscription)'
+          scriptType: 'bash'
+          scriptLocation: 'inlineScript'
+          inlineScript: |
+            echo "Rolling back to previous stable revision..."
+            az containerapp revision list --name statswales-develop-backend --resource-group $(resourceGroup) --location "UK West" --query "[?properties.active].name" -o tsv | head -n 1 | xargs -I {} az containerapp update --name statswales-develop-backend --resource-group $(resourceGroup) --location "UK West" --traffic-revisions "{}=100"
