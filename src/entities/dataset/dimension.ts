@@ -12,34 +12,27 @@ export class Dimension extends BaseEntity {
     @PrimaryGeneratedColumn('uuid', { primaryKeyConstraintName: 'PK_dimension_id' })
     id: string;
 
-    @ManyToOne(() => Dataset, {
-        onDelete: 'CASCADE',
-        orphanedRowAction: 'delete'
-    })
+    @ManyToOne(() => Dataset, { onDelete: 'CASCADE', orphanedRowAction: 'delete' })
     @JoinColumn({ name: 'dataset_id', foreignKeyConstraintName: 'FK_dimension_dataset_id' })
-    dataset: Promise<Dataset>;
+    dataset: Dataset;
 
     @Column({ type: 'enum', enum: Object.values(DimensionType), nullable: false })
     type: DimensionType;
 
     @ManyToOne(() => Revision, { cascade: true, onDelete: 'CASCADE' })
     @JoinColumn({ name: 'start_revision_id', foreignKeyConstraintName: 'FK_dimension_start_revision_id' })
-    startRevision: Promise<Revision>;
+    startRevision: Revision;
 
     @ManyToOne(() => Revision, { cascade: true, onDelete: 'CASCADE', nullable: true })
     @JoinColumn({ name: 'finish_revision_id', foreignKeyConstraintName: 'FK_dimension_finish_revision_id' })
-    finishRevision: Promise<Revision>;
+    finishRevision: Revision;
 
     @Column({ type: 'text', nullable: true })
     validator: string;
 
-    @OneToMany(() => DimensionInfo, (dimensionInfo) => dimensionInfo.dimension, {
-        cascade: true
-    })
-    dimensionInfo: Promise<DimensionInfo[]>;
+    @OneToMany(() => DimensionInfo, (dimensionInfo) => dimensionInfo.dimension, { cascade: true })
+    dimensionInfo: DimensionInfo[];
 
-    @OneToMany(() => Source, (source) => source.dimension, {
-        cascade: true
-    })
-    sources: Promise<Source[]>;
+    @OneToMany(() => Source, (source) => source.dimension, { cascade: true })
+    sources: Source[];
 }

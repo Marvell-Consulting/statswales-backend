@@ -1,4 +1,4 @@
-import { Entity, PrimaryGeneratedColumn, Column, BaseEntity, ManyToOne, JoinColumn } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, BaseEntity, ManyToOne, JoinColumn, RelationId } from 'typeorm';
 
 import { SourceAction } from '../../enums/source-action';
 import { SourceType } from '../../enums/source-type';
@@ -12,13 +12,12 @@ export class Source extends BaseEntity {
     @PrimaryGeneratedColumn('uuid', { primaryKeyConstraintName: 'PK_source_id' })
     id: string;
 
-    @ManyToOne(() => Dimension, {
-        nullable: true,
-        onDelete: 'CASCADE',
-        orphanedRowAction: 'delete'
-    })
+    @ManyToOne(() => Dimension, { nullable: true, onDelete: 'CASCADE', orphanedRowAction: 'delete' })
     @JoinColumn({ name: 'dimension_id', foreignKeyConstraintName: 'FK_source_dimension_id' })
-    dimension: Promise<Dimension>;
+    dimension: Dimension;
+
+    @Column({ name: 'dimension_id' })
+    dimensionId: string;
 
     @ManyToOne(() => FileImport, (importEntity) => importEntity.sources, {
         nullable: false,
@@ -26,14 +25,17 @@ export class Source extends BaseEntity {
         orphanedRowAction: 'delete'
     })
     @JoinColumn({ name: 'import_id', foreignKeyConstraintName: 'FK_source_import_id' })
-    import: Promise<FileImport>;
+    import: FileImport;
 
-    @ManyToOne(() => Revision, {
-        onDelete: 'CASCADE',
-        orphanedRowAction: 'delete'
-    })
+    @Column({ name: 'import_id' })
+    importId: string;
+
+    @ManyToOne(() => Revision, { onDelete: 'CASCADE', orphanedRowAction: 'delete' })
     @JoinColumn({ name: 'revision_id', foreignKeyConstraintName: 'FK_source_revision_id' })
-    revision: Promise<Revision>;
+    revision: Revision;
+
+    @Column({ name: 'revision_id' })
+    revisionId: string;
 
     // Not implemented yet
     // @ManyToOne(() => LookupTableRevision)

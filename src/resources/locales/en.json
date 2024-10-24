@@ -45,7 +45,14 @@
             "no-csv:": "No CSV data provided",
             "no-csv-data": "No CSV data available",
             "upload_to_datalake": "Error uploading the file to the datalake"
-        }
+        },
+        "dataset_id_invalid": "Dataset id is invalid or missing",
+        "revision_id_invalid": "Revision id is invalid or missing",
+        "import_id_invalid": "Import id is invalid or missing",
+        "no_dataset": "Dataset could not be found",
+        "no_file_import": "File import could not be found",
+        "move_file_error": "Error moving file from temporary blob storage to Data Lake. Please try again.",
+        "invalid_source_assignment": "Could not assign source types to import"
 	},
     "dimension_info": {
         "footnotes": {

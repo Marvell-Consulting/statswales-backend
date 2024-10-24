@@ -34,12 +34,9 @@ export class DatasetInfo extends BaseEntity {
     @Column({ type: 'text', nullable: true })
     description: string;
 
-    @ManyToOne(() => Dataset, (dataset) => dataset.datasetInfo, {
-        onDelete: 'CASCADE',
-        orphanedRowAction: 'delete'
-    })
+    @ManyToOne(() => Dataset, (dataset) => dataset.datasetInfo, { onDelete: 'CASCADE', orphanedRowAction: 'delete' })
     @JoinColumn({ name: 'dataset_id', foreignKeyConstraintName: 'FK_dataset_info_dataset_id' })
-    dataset: Promise<Dataset>;
+    dataset: Dataset;
 
     @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
     createdAt: Date;

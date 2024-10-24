@@ -19,6 +19,7 @@ import { DataLocation } from '../enums/data-location';
 import { Locale } from '../enums/locale';
 import { BlobStorageService } from '../services/blob-storage';
 import { DataLakeService } from '../services/datalake';
+import { DatasetRepository } from '../repositories/dataset';
 
 export const MAX_PAGE_SIZE = 500;
 export const MIN_PAGE_SIZE = 5;
@@ -234,12 +235,12 @@ async function processCSVData(
             return page * size;
         }
     };
-    const currentDataset = await Dataset.findOneByOrFail({ id: dataset.id });
+    const currentDataset = await DatasetRepository.getById(dataset.id);
     const currentImport = await FileImport.findOneByOrFail({ id: importObj.id });
     return {
         success: true,
-        dataset: await DatasetDTO.fromDatasetComplete(currentDataset),
-        import: await FileImportDTO.fromImport(currentImport),
+        dataset: DatasetDTO.fromDataset(currentDataset),
+        import: FileImportDTO.fromImport(currentImport),
         current_page: page,
         page_info: {
             total_records: dataArray.length,
@@ -387,9 +388,11 @@ export const moveFileToDataLake = async (importObj: FileImport) => {
     const blobStorageService = new BlobStorageService();
     const datalakeService = new DataLakeService();
     try {
+        importObj.location = DataLocation.DataLake;
         const fileStream = await blobStorageService.getReadableStream(importObj.filename);
         await datalakeService.uploadFileStream(importObj.filename, fileStream);
         await blobStorageService.deleteFile(importObj.filename);
+        await importObj.save();
     } catch (err) {
         logger.error(err);
         throw new Error('Error moving file to datalake');
@@ -417,8 +420,8 @@ export const removeFileFromDatalake = async (importObj: FileImport) => {
 };
 
 export const createSources = async (importObj: FileImport): Promise<FileImportDTO> => {
-    const revision: Revision = await importObj.revision;
-    const dataset: Dataset = await revision.dataset;
+    const revision: Revision = importObj.revision;
+    const dataset: Dataset = revision.dataset;
     let fileView: ViewDTO | ViewErrDTO;
     try {
         fileView = await processCSVFromDatalake(dataset, importObj, 1, 5);
@@ -438,8 +441,8 @@ export const createSources = async (importObj: FileImport): Promise<FileImportDT
         source.columnIndex = header.index;
         source.csvField = header.name;
         source.action = SourceAction.Unknown;
-        source.revision = Promise.resolve(revision);
-        source.import = Promise.resolve(importObj);
+        source.revision = revision;
+        source.import = importObj;
         return source;
     });
     const freshFileImport = await FileImport.findOneBy({ id: importObj.id });
@@ -447,11 +450,11 @@ export const createSources = async (importObj: FileImport): Promise<FileImportDT
         throw new Error('Import not found');
     }
     try {
-        freshFileImport.sources = Promise.resolve(sources);
+        freshFileImport.sources = sources;
         await freshFileImport.save();
     } catch (err) {
         logger.error(err);
         throw new Error('Error saving sources to import');
     }
-    return FileImportDTO.fromImportWithSources(freshFileImport);
+    return FileImportDTO.fromImport(freshFileImport);
 };

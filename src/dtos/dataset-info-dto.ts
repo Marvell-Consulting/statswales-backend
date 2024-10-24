@@ -10,6 +10,7 @@ export class DatasetInfoDTO {
         dto.language = datasetInfo.language;
         dto.title = datasetInfo.title;
         dto.description = datasetInfo.description;
+
         return dto;
     }
 }

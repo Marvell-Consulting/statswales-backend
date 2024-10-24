@@ -42,7 +42,7 @@ export class DimensionInfo extends BaseEntity {
         orphanedRowAction: 'delete'
     })
     @JoinColumn({ name: 'dimension_id', foreignKeyConstraintName: 'FK_dimension_info_dimension_id' })
-    dimension: Promise<Dimension>;
+    dimension: Dimension;
 
     @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
     createdAt: Date;

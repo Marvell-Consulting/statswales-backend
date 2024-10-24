@@ -30,7 +30,7 @@ export class CsvInfo extends BaseEntity {
         orphanedRowAction: 'delete'
     })
     @JoinColumn({ name: 'import_id', foreignKeyConstraintName: 'FK_csv_info_import_id' })
-    import: Promise<FileImport>;
+    import: FileImport;
 
     @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
     createdAt: Date;

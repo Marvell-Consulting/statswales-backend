@@ -26,11 +26,11 @@ export class FileImport extends BaseEntity {
         orphanedRowAction: 'delete'
     })
     @JoinColumn({ name: 'revision_id', foreignKeyConstraintName: 'FK_import_revision_id' })
-    revision: Promise<Revision>;
+    revision: Revision;
 
     @OneToMany(() => CsvInfo, (csvInfo) => csvInfo.import, { cascade: true })
     @JoinColumn({ name: 'csv_info', foreignKeyConstraintName: 'FK_import_csv_info' })
-    csvInfo: Promise<CsvInfo[]>;
+    csvInfo: CsvInfo[];
 
     @Column({ name: 'mime_type', type: 'varchar', length: 255 })
     mimeType: string;
@@ -51,5 +51,5 @@ export class FileImport extends BaseEntity {
     location: DataLocation;
 
     @OneToMany(() => Source, (source) => source.import, { cascade: true })
-    sources: Promise<Source[]>;
+    sources: Source[];
 }

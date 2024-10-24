@@ -16,40 +16,21 @@ export class RevisionDTO {
     approved_by?: string;
     publish_at?: string;
 
-    static async fromRevision(revision: Revision): Promise<RevisionDTO> {
+    static fromRevision(revision: Revision): RevisionDTO {
         const revDto = new RevisionDTO();
         revDto.id = revision.id;
         revDto.revision_index = revision.revisionIndex;
-        revDto.dataset_id = (await revision.dataset).id;
+        revDto.dataset_id = revision.dataset?.id;
         revDto.created_at = revision.createdAt.toISOString();
-        revDto.previous_revision_id = (await revision.previousRevision)?.id;
+        revDto.previous_revision_id = revision.previousRevision?.id;
         revDto.online_cube_filename = revision.onlineCubeFilename;
         revDto.publish_at = revision.publishAt?.toISOString();
         revDto.approved_at = revision.approvedAt?.toISOString();
-        revDto.approved_by = (await revision.approvedBy)?.name || undefined;
-        revDto.created_by = (await revision.createdBy).name;
-        return revDto;
-    }
+        revDto.approved_by = revision.approvedBy?.name;
+        revDto.created_by = revision.createdBy?.name;
 
-    static async fromRevisionWithImports(revision: Revision): Promise<RevisionDTO> {
-        const revDto = await RevisionDTO.fromRevision(revision);
-        revDto.imports = await Promise.all(
-            (await revision.imports).map(async (imp: FileImport) => {
-                const impDto = await FileImportDTO.fromImport(imp);
-                return impDto;
-            })
-        );
-        return revDto;
-    }
+        revDto.imports = revision.imports?.map((fileImport: FileImport) => FileImportDTO.fromImport(fileImport));
 
-    static async fromRevisionWithImportsAndSources(revision: Revision): Promise<RevisionDTO> {
-        const revDto = await RevisionDTO.fromRevision(revision);
-        revDto.imports = await Promise.all(
-            (await revision.imports).map(async (imp: FileImport) => {
-                const impDto = await FileImportDTO.fromImportWithSources(imp);
-                return impDto;
-            })
-        );
         return revDto;
     }
 }

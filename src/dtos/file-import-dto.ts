@@ -14,11 +14,10 @@ export class FileImportDTO {
     location: string;
     sources?: SourceDTO[];
 
-    static async fromImport(importEntity: FileImport): Promise<FileImportDTO> {
+    static fromImport(importEntity: FileImport): FileImportDTO {
         const dto = new FileImportDTO();
         dto.id = importEntity.id;
-        const revision = await importEntity.revision;
-        dto.revision_id = revision.id;
+        dto.revision_id = importEntity.revision?.id;
         dto.mime_type = importEntity.mimeType;
         dto.filename = importEntity.filename;
         dto.hash = importEntity.hash;
@@ -26,17 +25,9 @@ export class FileImportDTO {
         dto.type = importEntity.type;
         dto.location = importEntity.location;
         dto.sources = [];
-        return dto;
-    }
 
-    static async fromImportWithSources(importEntity: FileImport): Promise<FileImportDTO> {
-        const dto = await FileImportDTO.fromImport(importEntity);
-        dto.sources = await Promise.all(
-            (await importEntity.sources).map(async (source: Source) => {
-                const sourceDto = await SourceDTO.fromSource(source);
-                return sourceDto;
-            })
-        );
+        dto.sources = importEntity.sources.map((source: Source) => SourceDTO.fromSource(source));
+
         return dto;
     }
 }
