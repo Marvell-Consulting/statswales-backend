@@ -52,7 +52,8 @@
         "no_dataset": "Dataset could not be found",
         "no_file_import": "File import could not be found",
         "move_file_error": "Error moving file from temporary blob storage to Data Lake. Please try again.",
-        "invalid_source_assignment": "Could not assign source types to import"
+        "invalid_source_assignment": "Could not assign source types to import",
+        "tasklist_error": "There was a problem generating the tasklist state"
 	},
     "dimension_info": {
         "footnotes": {

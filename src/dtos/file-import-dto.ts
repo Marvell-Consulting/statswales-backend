@@ -14,19 +14,19 @@ export class FileImportDTO {
     location: string;
     sources?: SourceDTO[];
 
-    static fromImport(importEntity: FileImport): FileImportDTO {
+    static fromImport(fileImport: FileImport): FileImportDTO {
         const dto = new FileImportDTO();
-        dto.id = importEntity.id;
-        dto.revision_id = importEntity.revision?.id;
-        dto.mime_type = importEntity.mimeType;
-        dto.filename = importEntity.filename;
-        dto.hash = importEntity.hash;
-        dto.uploaded_at = importEntity.uploadedAt?.toISOString();
-        dto.type = importEntity.type;
-        dto.location = importEntity.location;
+        dto.id = fileImport.id;
+        dto.revision_id = fileImport.revision?.id;
+        dto.mime_type = fileImport.mimeType;
+        dto.filename = fileImport.filename;
+        dto.hash = fileImport.hash;
+        dto.uploaded_at = fileImport.uploadedAt?.toISOString();
+        dto.type = fileImport.type;
+        dto.location = fileImport.location;
         dto.sources = [];
 
-        dto.sources = importEntity.sources.map((source: Source) => SourceDTO.fromSource(source));
+        dto.sources = fileImport.sources?.map((source: Source) => SourceDTO.fromSource(source));
 
         return dto;
     }

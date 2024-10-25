@@ -18,9 +18,9 @@ import {
     uploadCSVBufferToBlobStorage
 } from '../controllers/csv-processor';
 import {
-    createDimensionsFromValidatedDimensionRequest,
-    ValidatedDimensionCreationRequest,
-    validateDimensionCreationRequest
+    createDimensionsFromSourceAssignment,
+    ValidatedSourceAssignment,
+    validateSourceAssignment
 } from '../controllers/dimension-processor';
 import { User } from '../entities/user/user';
 import { DatasetInfo } from '../entities/dataset/dataset-info';
@@ -38,6 +38,9 @@ import { UnknownException } from '../exceptions/unknown.exception';
 import { getLatestImport, getLatestRevision } from '../utils/latest';
 import { Dimension } from '../entities/dataset/dimension';
 import { DimensionDTO } from '../dtos/dimension-dto';
+import { TasklistStateDTO } from '../dtos/tasklist-state-dto';
+import { Revision } from '../entities/dataset/revision';
+import { RevisionDTO } from '../dtos/revision-dto';
 
 const t = i18next.t;
 
@@ -379,21 +382,29 @@ router.patch(
     jsonParser,
     loadFileImport,
     async (req: Request, res: Response, next: NextFunction) => {
-        const { revision, fileImport } = res.locals;
+        const { dataset, revision, fileImport } = res.locals;
         const sourceAssignment = req.body;
-        let validatedDTO: ValidatedDimensionCreationRequest;
 
         try {
-            validatedDTO = await validateDimensionCreationRequest(fileImport, sourceAssignment);
-            await createDimensionsFromValidatedDimensionRequest(revision, validatedDTO);
-            const dataset = await DatasetRepository.getById(revision.dataset.id);
-            res.json(DatasetDTO.fromDataset(dataset));
+            const validatedSourceAssignment = await validateSourceAssignment(fileImport, sourceAssignment);
+            await createDimensionsFromSourceAssignment(dataset, revision, validatedSourceAssignment);
+            const updatedDataset = await DatasetRepository.getById(revision.dataset.id);
+            res.json(DatasetDTO.fromDataset(updatedDataset));
         } catch (err) {
             logger.error(`An error occurred trying to process the user supplied JSON: ${err}`);
             next(new BadRequestException('errors.invalid_source_assignment'));
         }
     }
 );
+
+router.get('/:dataset_id/tasklist', loadDataset, async (req: Request, res: Response, next: NextFunction) => {
+    try {
+        const tasklistState = TasklistStateDTO.fromDataset(res.locals.dataset, req.language as Locale);
+        res.json(tasklistState);
+    } catch (err) {
+        next(new UnknownException('errors.tasklist_error'));
+    }
+});
 
 // GET /dataset/:dataset_id/dimension/id/:dimension_id
 // Returns details of a dimension with its sources and imports
@@ -413,18 +424,23 @@ router.get(
     }
 );
 
-// // GET /dataset/:dataset_id/revision/id/:revision_id
-// // Returns details of a revision with its imports
-// router.get('/:dataset_id/revision/by-id/:revision_id', async (req: Request, res: Response) => {
-//     const datasetID: string = req.params.dataset_id.toLowerCase();
-//     const dataset = await validateDataset(datasetID, res);
-//     if (!dataset) return;
-//     const revisionID: string = req.params.revision_id;
-//     const revision = await validateRevision(revisionID, res);
-//     if (!revision) return;
-//     const dto = await RevisionDTO.fromRevision(revision);
-//     res.json(dto);
-// });
+// GET /dataset/:dataset_id/revision/id/:revision_id
+// Returns details of a revision with its imports
+router.get(
+    '/:dataset_id/revision/by-id/:revision_id',
+    loadDataset,
+    async (req: Request, res: Response, next: NextFunction) => {
+        const dataset = res.locals.dataset;
+        const revision = dataset.revisions.find((revision: Revision) => revision.id === req.params.revision_id);
+
+        if (!revision) {
+            next(new NotFoundException('errors.no_revision'));
+            return;
+        }
+
+        res.json(RevisionDTO.fromRevision(revision));
+    }
+);
 
 // // POST /dataset/:dataset_id/revision/id/:revision_id/import
 // // Creates a new import on a revision.  This typically only occurs when a user

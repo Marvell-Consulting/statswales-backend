@@ -11,17 +11,17 @@ import { AVAILABLE_LANGUAGES, i18next } from '../middleware/translation';
 import { SourceAction } from '../enums/source-action';
 import { logger } from '../utils/logger';
 
-export interface ValidatedDimensionCreationRequest {
+export interface ValidatedSourceAssignment {
     datavalues: SourceAssignmentDTO | null;
     footnotes: SourceAssignmentDTO | null;
     dimensions: SourceAssignmentDTO[];
     ignore: SourceAssignmentDTO[];
 }
 
-export const validateDimensionCreationRequest = (
+export const validateSourceAssignment = (
     fileImport: FileImport,
     sourceAssignment: SourceAssignmentDTO[]
-): ValidatedDimensionCreationRequest => {
+): ValidatedSourceAssignment => {
     let datavalues: SourceAssignmentDTO | null = null;
     let footnotes: SourceAssignmentDTO | null = null;
     const dimensions: SourceAssignmentDTO[] = [];
@@ -59,7 +59,7 @@ export const validateDimensionCreationRequest = (
     return { datavalues, footnotes, dimensions, ignore };
 };
 
-async function createUpdateDatavalues(sourceDescriptor: SourceAssignmentDTO) {
+async function updateDataValueSource(sourceDescriptor: SourceAssignmentDTO) {
     const dataValuesSource = await Source.findOneByOrFail({ id: sourceDescriptor.sourceId });
     dataValuesSource.action = SourceAction.Create;
     dataValuesSource.type = SourceType.DataValues;
@@ -67,12 +67,12 @@ async function createUpdateDatavalues(sourceDescriptor: SourceAssignmentDTO) {
     await dataValuesSource.save();
 }
 
-async function createUpdateIngoredSources(sourceDescriptor: SourceAssignmentDTO) {
-    const ignoreSource = await Source.findOneByOrFail({ id: sourceDescriptor.sourceId });
-    ignoreSource.action = SourceAction.Ignore;
-    ignoreSource.type = SourceType.Ignore;
-    await Source.createQueryBuilder().relation(Source, 'dimension').of(ignoreSource).set(null);
-    await ignoreSource.save();
+async function updateIgnoredSource(sourceDescriptor: SourceAssignmentDTO) {
+    const ignoredSource = await Source.findOneByOrFail({ id: sourceDescriptor.sourceId });
+    ignoredSource.action = SourceAction.Ignore;
+    ignoredSource.type = SourceType.Ignore;
+    await Source.createQueryBuilder().relation(Source, 'dimension').of(ignoredSource).set(null);
+    await ignoredSource.save();
 }
 
 async function createUpdateFootnotesDimension(
@@ -114,16 +114,19 @@ async function createUpdateFootnotesDimension(
     }
 }
 
-async function createDimension(dataset: Dataset, revision: Revision, sourceDescriptor: SourceAssignmentDTO) {
-    const source = await Source.findOneOrFail({
-        where: { id: sourceDescriptor.sourceId },
-        relations: ['dimension']
-    });
+async function createDimension(
+    dataset: Dataset,
+    revision: Revision,
+    sourceDescriptor: SourceAssignmentDTO
+): Promise<void> {
+    const source = await Source.findOneOrFail({ where: { id: sourceDescriptor.sourceId }, relations: ['dimension'] });
     const existingDimension = source.dimension;
+
     if (existingDimension && source.type === SourceType.Dimension) {
         logger.debug(`No Dimension to create as Source for column ${source.csvField} is already attached to one`);
         return;
     }
+
     logger.debug("The existing dimension is either a footnotes dimension or we don't have one... So lets create one");
     source.type = SourceType.Dimension;
     source.action = SourceAction.Create;
@@ -136,6 +139,7 @@ async function createDimension(dataset: Dataset, revision: Revision, sourceDescr
     dimension.sources = [source];
     source.dimension = dimension;
     const savedDimension = await dimension.save();
+
     AVAILABLE_LANGUAGES.map(async (lang: string) => {
         const dimensionInfo = new DimensionInfo();
         dimensionInfo.id = savedDimension.id;
@@ -148,7 +152,7 @@ async function createDimension(dataset: Dataset, revision: Revision, sourceDescr
     await source.save();
 }
 
-async function cleanupDimensions(datasetId: string) {
+async function cleanupDimensions(datasetId: string): Promise<void> {
     const dataset = await Dataset.findOneOrFail({
         where: { id: datasetId },
         relations: ['dimensions', 'dimensions.sources']
@@ -164,19 +168,16 @@ async function cleanupDimensions(datasetId: string) {
     }
 }
 
-export const createDimensionsFromValidatedDimensionRequest = async (
+export const createDimensionsFromSourceAssignment = async (
+    dataset: Dataset,
     revision: Revision,
-    validatedDimensionCreationRequest: ValidatedDimensionCreationRequest
-) => {
-    const dataset = revision.dataset;
-    if (!dataset) {
-        throw new Error('No dataset is attached to this revision');
-    }
+    sourceAssignment: ValidatedSourceAssignment
+): Promise<void> => {
     const existingDimensions = dataset.dimensions;
+    const { datavalues, ignore, footnotes, dimensions } = sourceAssignment;
 
-    const { datavalues, ignore, footnotes, dimensions } = validatedDimensionCreationRequest;
     if (datavalues) {
-        await createUpdateDatavalues(datavalues);
+        await updateDataValueSource(datavalues);
     }
 
     if (footnotes) {
@@ -191,8 +192,9 @@ export const createDimensionsFromValidatedDimensionRequest = async (
 
     await Promise.all(
         ignore.map(async (dimensionCreationDTO: SourceAssignmentDTO) => {
-            await createUpdateIngoredSources(dimensionCreationDTO);
+            await updateIgnoredSource(dimensionCreationDTO);
         })
     );
+
     await cleanupDimensions(dataset.id);
 };
