@@ -3,25 +3,24 @@ import * as fs from 'fs';
 
 import request from 'supertest';
 
-import { DataLakeService } from '../src/controllers/datalake';
-import { BlobStorageService } from '../src/controllers/blob-storage';
+import { DataLakeService } from '../src/services/datalake';
+import { BlobStorageService } from '../src/services/blob-storage';
 import app, { initDb } from '../src/app';
 import { Dataset } from '../src/entities/dataset/dataset';
-import { DatasetInfo } from '../src/entities/dataset/dataset-info';
 import { t } from '../src/middleware/translation';
 import { DatasetDTO } from '../src/dtos/dataset-dto';
 import { DatasetInfoDTO } from '../src/dtos/dataset-info-dto';
 import { FileImportDTO } from '../src/dtos/file-import-dto';
-import { ViewErrDTO } from '../src/dtos/view-dto';
 import { MAX_PAGE_SIZE, MIN_PAGE_SIZE } from '../src/controllers/csv-processor';
 import DatabaseManager from '../src/db/database-manager';
-import { User } from '../src/entities/dataset/user';
+import { User } from '../src/entities/user/user';
 import { FileImport } from '../src/entities/dataset/file-import';
 import { DataLocation } from '../src/enums/data-location';
-import { DimensionCreationDTO } from '../src/dtos/dimension-creation-dto';
+import { SourceAssignmentDTO } from '../src/dtos/source-assignment-dto';
 import { SourceType } from '../src/enums/source-type';
 import { Revision } from '../src/entities/dataset/revision';
 import { Locale } from '../src/enums/locale';
+import { DatasetRepository } from '../src/repositories/dataset';
 
 import { createFullDataset, createSmallDataset } from './helpers/test-helper';
 import { getTestUser } from './helpers/get-user';
@@ -43,9 +42,13 @@ const user: User = getTestUser('test', 'user');
 describe('API Endpoints', () => {
     let dbManager: DatabaseManager;
     beforeAll(async () => {
-        dbManager = await initDb();
-        await user.save();
-        await createFullDataset(dataset1Id, revision1Id, import1Id, user);
+        try {
+            dbManager = await initDb();
+            await user.save();
+            await createFullDataset(dataset1Id, revision1Id, import1Id, user);
+        } catch (err) {
+            process.exit(1);
+        }
     });
 
     test('Return true test', async () => {
@@ -53,114 +56,63 @@ describe('API Endpoints', () => {
         if (!dataset1) {
             throw new Error('Dataset not found');
         }
-        const dto = await DatasetDTO.fromDatasetComplete(dataset1);
-        expect(dto).toBe(dto);
+        const dto = DatasetDTO.fromDataset(dataset1);
+        expect(dto).toBeInstanceOf(DatasetDTO);
     });
 
     describe('Step 1 - initial title and file upload', () => {
         test('returns 401 if no auth header is sent (JWT auth)', async () => {
-            const res = await request(app).post('/dataset').query({ filename: 'test-data-1.csv' });
+            const res = await request(app).post('/dataset').query({ title: 'My test datatset' });
             expect(res.status).toBe(401);
             expect(res.body).toEqual({});
         });
 
-        test('Upload returns 400 if no file attached', async () => {
-            const err: ViewErrDTO = {
-                success: false,
-                status: 400,
-                dataset_id: undefined,
-                errors: [
-                    {
-                        field: 'csv',
-                        message: [
-                            {
-                                lang: Locale.English,
-                                message: t('errors.no_csv_data', { lng: Locale.English })
-                            },
-                            {
-                                lang: Locale.Welsh,
-                                message: t('errors.no_csv_data', { lng: Locale.Welsh })
-                            }
-                        ],
-                        tag: {
-                            name: 'errors.no_csv_data',
-                            params: {}
-                        }
-                    }
-                ]
-            };
-            const res = await request(app)
-                .post('/dataset')
-                .set(getAuthHeader(user))
-                .query({ filename: 'test-data-1.csv' });
-            expect(res.status).toBe(400);
-            expect(res.body).toEqual(err);
+        test('Creates and returns a dataset with a title', async () => {
+            const data = { title: 'My test datatset' };
+            const res = await request(app).post('/dataset').set(getAuthHeader(user)).send(data);
+            expect(res.status).toBe(201);
+            const dataset = await DatasetRepository.getById(res.body.id);
+            expect(res.body).toEqual(DatasetDTO.fromDataset(dataset));
         });
 
-        test('Upload returns 400 if no title is given', async () => {
-            const err: ViewErrDTO = {
-                success: false,
-                status: 400,
-                dataset_id: undefined,
-                errors: [
-                    {
-                        field: 'title',
-                        message: [
-                            {
-                                lang: Locale.English,
-                                message: t('errors.no_title', { lng: Locale.English })
-                            },
-                            {
-                                lang: Locale.Welsh,
-                                message: t('errors.no_title', { lng: Locale.Welsh })
-                            }
-                        ],
-                        tag: {
-                            name: 'errors.no_title',
-                            params: {}
-                        }
-                    }
-                ]
-            };
-            const csvFile = path.resolve(__dirname, `sample-csvs/test-data-1.csv`);
-            const res = await request(app).post('/dataset').set(getAuthHeader(user)).attach('csv', csvFile);
+        test('Upload returns 400 if no file attached', async () => {
+            const dataset = await DatasetRepository.createWithTitle(user, 'en-GB', 'Test Dataset 1');
+            const res = await request(app).post(`/dataset/${dataset.id}/data`).set(getAuthHeader(user));
             expect(res.status).toBe(400);
-            expect(res.body).toEqual(err);
+            expect(res.body).toEqual({ error: 'No CSV data provided' });
+            await Dataset.remove(dataset);
         });
 
         test('Upload returns 201 if a file is attached', async () => {
+            const dataset = await DatasetRepository.createWithTitle(user, 'en-GB', 'Test Dataset 2');
             const csvFile = path.resolve(__dirname, `sample-csvs/test-data-1.csv`);
             const res = await request(app)
-                .post('/dataset')
+                .post(`/dataset/${dataset.id}/data`)
                 .set(getAuthHeader(user))
-                .attach('csv', csvFile)
-                .field('title', 'Test Dataset 3')
-                .field('lang', 'en-GB');
-            const datasetInfo = await DatasetInfo.findOneBy({ title: 'Test Dataset 3' });
-            if (!datasetInfo) {
-                expect(datasetInfo).not.toBeNull();
-                return;
-            }
-            const dataset = await datasetInfo.dataset;
-            const datasetDTO = await DatasetDTO.fromDatasetWithRevisionsAndImports(dataset);
+                .attach('csv', csvFile);
+
+            const datasetWithUpload = await DatasetRepository.getById(dataset.id);
+            const datasetDTO = DatasetDTO.fromDataset(datasetWithUpload);
             expect(res.status).toBe(201);
             expect(res.body).toEqual(datasetDTO);
             await Dataset.remove(dataset);
         });
 
         test('Upload returns 500 if an error occurs with blob storage', async () => {
+            const dataset = await DatasetRepository.createWithTitle(user, 'en-GB', 'Test Dataset 3');
+
             BlobStorageService.prototype.uploadFile = jest.fn().mockImplementation(() => {
                 throw new Error('Test error');
             });
+
             const csvFile = path.resolve(__dirname, `sample-csvs/test-data-1.csv`);
             const res = await request(app)
-                .post('/dataset')
+                .post(`/dataset/${dataset.id}/data`)
                 .set(getAuthHeader(user))
-                .attach('csv', csvFile)
-                .field('title', 'Test Dataset 3')
-                .field('lang', 'en-GB');
+                .attach('csv', csvFile);
+
             expect(res.status).toBe(500);
-            expect(res.body).toEqual({ message: 'Error uploading file' });
+            expect(res.body).toEqual({ error: 'Error uploading the file' });
         });
     });
 
@@ -376,7 +328,7 @@ describe('API Endpoints', () => {
                 .set(getAuthHeader(user))
                 .query({ page_number: 2, page_size: 100 });
             expect(res.status).toBe(500);
-            expect(res.body).toEqual({ message: 'Import location not supported.' });
+            expect(res.body).toEqual({ error: 'Import location not supported' });
         });
 
         test('Get preview of an import returns 500 if a Datalake error occurs', async () => {
@@ -420,7 +372,7 @@ describe('API Endpoints', () => {
                 )
                 .set(getAuthHeader(user));
             expect(res.status).toBe(404);
-            expect(res.body).toEqual({ message: 'Import not found.' });
+            expect(res.body).toEqual({ error: 'File import could not be found' });
         });
     });
 
@@ -430,24 +382,34 @@ describe('API Endpoints', () => {
             const testRevisionId = crypto.randomUUID().toLowerCase();
             const testFileImportId = crypto.randomUUID().toLowerCase();
             await createSmallDataset(testDatasetId, testRevisionId, testFileImportId, user);
+
             BlobStorageService.prototype.deleteFile = jest.fn().mockReturnValue(true);
+
             const res = await request(app)
                 .delete(`/dataset/${testDatasetId}/revision/by-id/${testRevisionId}/import/by-id/${testFileImportId}`)
                 .set(getAuthHeader(user));
+
             expect(res.status).toBe(200);
-            const updatedRevision = await Revision.findOneBy({ id: testRevisionId });
-            if (!updatedRevision) {
-                throw new Error('Revision not found');
-            }
-            const imports = await updatedRevision.imports;
-            expect(imports).toBeInstanceOf(Array);
-            expect(imports.length).toBe(0);
-            const updatedDataset = await Dataset.findOneBy({ id: testDatasetId });
+
+            const updatedDataset = await DatasetRepository.getById(testDatasetId);
+
             if (!updatedDataset) {
                 throw new Error('Dataset not found');
             }
-            const dto = await DatasetDTO.fromDatasetWithRevisionsAndImports(updatedDataset);
+
+            const dto = await DatasetDTO.fromDataset(updatedDataset);
             expect(res.body).toEqual(dto);
+
+            const revision = updatedDataset.revisions.find((rev: Revision) => rev.id === testRevisionId);
+
+            if (!revision) {
+                throw new Error('Revision not found');
+            }
+
+            const imports = revision.imports;
+
+            expect(imports).toBeInstanceOf(Array);
+            expect(imports.length).toBe(0);
         });
 
         test('Returns 200 when the user requests to delete the import stored in the datalake', async () => {
@@ -455,27 +417,38 @@ describe('API Endpoints', () => {
             const testRevisionId = crypto.randomUUID().toLowerCase();
             const testFileImportId = crypto.randomUUID().toLowerCase();
             await createSmallDataset(testDatasetId, testRevisionId, testFileImportId, user);
+
             const importRecord = await FileImport.findOneByOrFail({ id: testFileImportId });
             importRecord.location = DataLocation.DataLake;
             await importRecord.save();
+
             DataLakeService.prototype.deleteFile = jest.fn().mockReturnValue(true);
+
             const res = await request(app)
                 .delete(`/dataset/${testDatasetId}/revision/by-id/${testRevisionId}/import/by-id/${testFileImportId}`)
                 .set(getAuthHeader(user));
+
             expect(res.status).toBe(200);
-            const updatedRevision = await Revision.findOneBy({ id: testRevisionId });
-            if (!updatedRevision) {
-                throw new Error('Revision not found');
-            }
-            const imports = await updatedRevision.imports;
-            expect(imports).toBeInstanceOf(Array);
-            expect(imports.length).toBe(0);
-            const updatedDataset = await Dataset.findOneBy({ id: testDatasetId });
+
+            const updatedDataset = await DatasetRepository.getById(testDatasetId);
+
             if (!updatedDataset) {
                 throw new Error('Dataset not found');
             }
-            const dto = await DatasetDTO.fromDatasetWithRevisionsAndImports(updatedDataset);
+
+            const dto = await DatasetDTO.fromDataset(updatedDataset);
             expect(res.body).toEqual(dto);
+
+            const revision = updatedDataset.revisions.find((rev: Revision) => rev.id === testRevisionId);
+
+            if (!revision) {
+                throw new Error('Revision not found');
+            }
+
+            const imports = revision.imports;
+
+            expect(imports).toBeInstanceOf(Array);
+            expect(imports.length).toBe(0);
         });
 
         test('Returns 500 when the user requests to delete the import and there is an error with BlobStorage', async () => {
@@ -483,21 +456,22 @@ describe('API Endpoints', () => {
             const testRevisionId = crypto.randomUUID().toLowerCase();
             const testFileImportId = crypto.randomUUID().toLowerCase();
             await createSmallDataset(testDatasetId, testRevisionId, testFileImportId, user);
+
             BlobStorageService.prototype.deleteFile = jest.fn().mockRejectedValue(new Error('File not found'));
+
             const res = await request(app)
                 .delete(`/dataset/${testDatasetId}/revision/by-id/${testRevisionId}/import/by-id/${testFileImportId}`)
                 .set(getAuthHeader(user));
+
             expect(res.status).toBe(500);
-            const updatedRevision = await Revision.findOneBy({ id: testRevisionId });
+            const updatedRevision = await Revision.findOne({ where: { id: testRevisionId }, relations: ['imports'] });
             if (!updatedRevision) {
                 throw new Error('Revision not found');
             }
-            const imports = await updatedRevision.imports;
+            const imports = updatedRevision.imports;
             expect(imports).toBeInstanceOf(Array);
             expect(imports.length).toBe(1);
-            expect(res.body).toEqual({
-                message: 'Error removing file from temporary blob storage.  Please try again.'
-            });
+            expect(res.body).toEqual({ error: 'Error removing file from temporary blob storage' });
         });
 
         test('Upload returns 400 if no file attached', async () => {
@@ -505,41 +479,19 @@ describe('API Endpoints', () => {
             const testRevisionId = crypto.randomUUID().toLowerCase();
             const testFileImportId = crypto.randomUUID().toLowerCase();
             await createSmallDataset(testDatasetId, testRevisionId, testFileImportId, user);
+
             const fileImport = await FileImport.findOneBy({ id: testFileImportId });
             if (!fileImport) {
                 throw new Error('File Import not found');
             }
             await fileImport.remove();
-            const err: ViewErrDTO = {
-                success: false,
-                status: 400,
-                dataset_id: undefined,
-                errors: [
-                    {
-                        field: 'csv',
-                        message: [
-                            {
-                                lang: Locale.English,
-                                message: t('errors.no_csv_data', { lng: Locale.English })
-                            },
-                            {
-                                lang: Locale.Welsh,
-                                message: t('errors.no_csv_data', { lng: Locale.Welsh })
-                            }
-                        ],
-                        tag: {
-                            name: 'errors.no_csv_data',
-                            params: {}
-                        }
-                    }
-                ]
-            };
+
             const res = await request(app)
                 .post(`/dataset/${testDatasetId}/revision/by-id/${testRevisionId}/import`)
-                .set(getAuthHeader(user))
-                .query({ title: 'Failure Test' });
+                .set(getAuthHeader(user));
+
             expect(res.status).toBe(400);
-            expect(res.body).toEqual(err);
+            expect(res.body).toEqual({ error: 'No CSV data provided' });
         });
 
         test('Upload returns 201 if a file is attached', async () => {
@@ -548,33 +500,41 @@ describe('API Endpoints', () => {
             const testRevisionId = crypto.randomUUID().toLowerCase();
             const testFileImportId = crypto.randomUUID().toLowerCase();
             await createSmallDataset(testDatasetId, testRevisionId, testFileImportId, user);
+
             const fileImport = await FileImport.findOneBy({ id: testFileImportId });
             if (!fileImport) {
                 throw new Error('File Import not found');
             }
             await fileImport.remove();
-            const revision = await Revision.findOneBy({ id: testRevisionId });
+
+            const revision = await Revision.findOne({ where: { id: testRevisionId }, relations: ['imports'] });
             if (!revision) {
                 expect(revision).not.toBeNull();
                 return;
             }
-            expect((await revision.imports).length).toBe(0);
+
+            expect(revision.imports.length).toBe(0);
             const csvFile = path.resolve(__dirname, `sample-csvs/test-data-1.csv`);
 
             const res = await request(app)
                 .post(`/dataset/${testDatasetId}/revision/by-id/${testRevisionId}/import`)
                 .set(getAuthHeader(user))
-                .attach('csv', csvFile)
-                .field('title', 'Test Dataset 3')
-                .field('lang', 'en-GB');
-            const updatedRevision = await Revision.findOneBy({ id: testRevisionId });
+                .attach('csv', csvFile);
+
+            const updatedRevision = await Revision.findOne({
+                where: { id: testRevisionId },
+                relations: ['dataset', 'imports']
+            });
+
             if (!updatedRevision) {
                 expect(updatedRevision).not.toBeNull();
                 return;
             }
-            expect((await updatedRevision.imports).length).toBe(1);
-            const dataset = await revision.dataset;
-            const datasetDTO = await DatasetDTO.fromDatasetWithRevisionsAndImports(dataset);
+
+            expect(updatedRevision.imports.length).toBe(1);
+
+            const dataset = await DatasetRepository.getById(testDatasetId);
+            const datasetDTO = DatasetDTO.fromDataset(dataset);
             expect(res.status).toBe(201);
             expect(res.body).toEqual(datasetDTO);
             await Dataset.remove(dataset);
@@ -585,22 +545,25 @@ describe('API Endpoints', () => {
             const testRevisionId = crypto.randomUUID().toLowerCase();
             const testFileImportId = crypto.randomUUID().toLowerCase();
             await createSmallDataset(testDatasetId, testRevisionId, testFileImportId, user);
+
             const fileImport = await FileImport.findOneBy({ id: testFileImportId });
             if (!fileImport) {
                 throw new Error('File Import not found');
             }
+
             await fileImport.remove();
+
             BlobStorageService.prototype.uploadFile = jest.fn().mockImplementation(() => {
                 throw new Error('Test error');
             });
+
             const csvFile = path.resolve(__dirname, `sample-csvs/test-data-1.csv`);
             const res = await request(app)
                 .post(`/dataset/${testDatasetId}/revision/by-id/${testRevisionId}/import`)
                 .set(getAuthHeader(user))
-                .attach('csv', csvFile)
-                .field('lang', 'en-GB');
+                .attach('csv', csvFile);
             expect(res.status).toBe(500);
-            expect(res.body).toEqual({ message: 'Error uploading file' });
+            expect(res.body).toEqual({ error: 'Error uploading the file' });
         });
     });
 
@@ -610,12 +573,14 @@ describe('API Endpoints', () => {
             const testRevisionId = crypto.randomUUID().toLowerCase();
             const testFileImportId = crypto.randomUUID().toLowerCase();
             await createSmallDataset(testDatasetId, testRevisionId, testFileImportId, user);
-            const preRunFilImport = await FileImport.findOneBy({ id: testFileImportId });
-            if (!preRunFilImport) {
+
+            const preRunFileImport = await FileImport.findOneBy({ id: testFileImportId });
+            if (!preRunFileImport) {
                 throw new Error('Import not found');
             }
-            preRunFilImport.location = DataLocation.BlobStorage;
-            await preRunFilImport.save();
+            preRunFileImport.location = DataLocation.BlobStorage;
+            await preRunFileImport.save();
+
             const testFile2 = path.resolve(__dirname, `sample-csvs/test-data-2.csv`);
             const testFile1Buffer = fs.readFileSync(testFile2);
             BlobStorageService.prototype.getReadableStream = jest.fn();
@@ -627,14 +592,16 @@ describe('API Endpoints', () => {
                     `/dataset/${testDatasetId}/revision/by-id/${testRevisionId}/import/by-id/${testFileImportId}/confirm`
                 )
                 .set(getAuthHeader(user));
-            const postRunFileImport = await FileImport.findOneBy({ id: testFileImportId });
+            const postRunFileImport = await FileImport.findOne({
+                where: { id: testFileImportId },
+                relations: ['sources']
+            });
             if (!postRunFileImport) {
                 throw new Error('Import not found');
             }
             expect(postRunFileImport.location).toBe(DataLocation.DataLake);
-            const sources = await postRunFileImport.sources;
-            expect(sources.length).toBe(4);
-            const dto = await FileImportDTO.fromImportWithSources(postRunFileImport);
+            expect(postRunFileImport.sources.length).toBe(4);
+            const dto = await FileImportDTO.fromImport(postRunFileImport);
             expect(res.status).toBe(200);
             expect(res.body).toEqual(dto);
         });
@@ -643,14 +610,16 @@ describe('API Endpoints', () => {
             const res = await request(app)
                 .patch(`/dataset/${dataset1Id}/revision/by-id/${revision1Id}/import/by-id/${import1Id}/confirm`)
                 .set(getAuthHeader(user));
-            const postRunFileImport = await FileImport.findOneBy({ id: import1Id });
+            const postRunFileImport = await FileImport.findOne({
+                where: { id: import1Id },
+                relations: ['sources', 'revision']
+            });
             if (!postRunFileImport) {
                 throw new Error('Import not found');
             }
             expect(postRunFileImport.location).toBe(DataLocation.DataLake);
-            const sources = await postRunFileImport.sources;
-            expect(sources.length).toBe(4);
-            const dto = await FileImportDTO.fromImportWithSources(postRunFileImport);
+            expect(postRunFileImport.sources.length).toBe(4);
+            const dto = await FileImportDTO.fromImport(postRunFileImport);
             expect(res.status).toBe(200);
             expect(res.body).toEqual(dto);
         });
@@ -660,18 +629,21 @@ describe('API Endpoints', () => {
             const testRevisionId = crypto.randomUUID().toLowerCase();
             const testFileImportId = crypto.randomUUID().toLowerCase();
             await createSmallDataset(testDatasetId, testRevisionId, testFileImportId, user);
+
             const preRunFilImport = await FileImport.findOneBy({ id: testFileImportId });
             if (!preRunFilImport) {
                 throw new Error('Import not found');
             }
             preRunFilImport.location = DataLocation.BlobStorage;
             await preRunFilImport.save();
+
             BlobStorageService.prototype.getReadableStream = jest.fn().mockRejectedValue(new Error('File not found'));
             const res = await request(app)
                 .patch(
                     `/dataset/${testDatasetId}/revision/by-id/${testRevisionId}/import/by-id/${testFileImportId}/confirm`
                 )
                 .set(getAuthHeader(user));
+
             const postRunFileImport = await FileImport.findOneBy({ id: testFileImportId });
             if (!postRunFileImport) {
                 throw new Error('Import not found');
@@ -679,7 +651,7 @@ describe('API Endpoints', () => {
             expect(postRunFileImport.location).toBe(DataLocation.BlobStorage);
             expect(res.status).toBe(500);
             expect(res.body).toEqual({
-                message: 'Error moving file from temporary blob storage to Data Lake.  Please try again.'
+                error: 'Error moving file from temporary blob storage to Data Lake. Please try again.'
             });
         });
 
@@ -744,34 +716,38 @@ describe('API Endpoints', () => {
             const testRevisionId = crypto.randomUUID().toLowerCase();
             const testFileImportId = crypto.randomUUID().toLowerCase();
             await createDatasetWithSources(testDatasetId, testRevisionId, testFileImportId);
-            const postProcessedImport = await FileImport.findOneBy({ id: testFileImportId });
+
+            const postProcessedImport = await FileImport.findOne({
+                where: { id: testFileImportId },
+                relations: ['sources']
+            });
             if (!postProcessedImport) {
                 throw new Error('Import not found');
             }
-            const sources = await postProcessedImport.sources;
-            const dimensionCreationJson: DimensionCreationDTO[] = sources.map((source) => {
+            const sources = postProcessedImport.sources;
+            const sourceAssignment: SourceAssignmentDTO[] = sources.map((source) => {
                 return {
                     sourceId: source.id,
                     sourceType: SourceType.Dimension
                 };
             });
-            dimensionCreationJson[0].sourceType = SourceType.DataValues;
-            dimensionCreationJson[1].sourceType = SourceType.FootNotes;
+            sourceAssignment[0].sourceType = SourceType.DataValues;
+            sourceAssignment[1].sourceType = SourceType.FootNotes;
             const res = await request(app)
                 .patch(
                     `/dataset/${testDatasetId}/revision/by-id/${testRevisionId}/import/by-id/${testFileImportId}/sources`
                 )
-                .send(dimensionCreationJson)
+                .send(sourceAssignment)
                 .set(getAuthHeader(user));
             expect(res.status).toBe(200);
-            const updatedDataset = await Dataset.findOneBy({ id: testDatasetId });
+            const updatedDataset = await DatasetRepository.getById(testDatasetId);
             if (!updatedDataset) {
                 throw new Error('Dataset not found');
             }
-            const dimensions = await updatedDataset.dimensions;
+            const dimensions = updatedDataset.dimensions;
             expect(dimensions.length).toBe(3);
-            const dto = await DatasetDTO.fromDatasetComplete(updatedDataset);
-            expect(res.body).toEqual(JSON.parse(JSON.stringify(dto)));
+            const dto = DatasetDTO.fromDataset(updatedDataset);
+            expect(res.body).toEqual(dto);
         });
 
         test('Create dimensions from user supplied JSON returns 400 if the body is empty', async () => {
@@ -779,6 +755,7 @@ describe('API Endpoints', () => {
             const testRevisionId = crypto.randomUUID().toLowerCase();
             const testFileImportId = crypto.randomUUID().toLowerCase();
             await createDatasetWithSources(testDatasetId, testRevisionId, testFileImportId);
+
             const res = await request(app)
                 .patch(
                     `/dataset/${testDatasetId}/revision/by-id/${testRevisionId}/import/by-id/${testFileImportId}/sources`
@@ -786,10 +763,7 @@ describe('API Endpoints', () => {
                 .send()
                 .set(getAuthHeader(user));
             expect(res.status).toBe(400);
-            expect(res.body).toEqual({
-                message:
-                    'Error processing the supplied JSON with the following error TypeError: dimensionCreationDTO.map is not a function'
-            });
+            expect(res.body).toEqual({ error: 'Could not assign source types to import' });
         });
 
         test('Create dimensions from user supplied JSON returns 400 if there is more than one set of Data Values', async () => {
@@ -797,36 +771,35 @@ describe('API Endpoints', () => {
             const testRevisionId = crypto.randomUUID().toLowerCase();
             const testFileImportId = crypto.randomUUID().toLowerCase();
             await createDatasetWithSources(testDatasetId, testRevisionId, testFileImportId);
-            const postProcessedImport = await FileImport.findOneBy({ id: testFileImportId });
+            const postProcessedImport = await FileImport.findOne({
+                where: { id: testFileImportId },
+                relations: ['sources']
+            });
             if (!postProcessedImport) {
                 throw new Error('Import not found');
             }
-            const sources = await postProcessedImport.sources;
-            const dimensionCreationJson: DimensionCreationDTO[] = sources.map((source) => {
+            const sourceAssignment: SourceAssignmentDTO[] = postProcessedImport.sources.map((source) => {
                 return {
                     sourceId: source.id,
                     sourceType: SourceType.Dimension
                 };
             });
-            dimensionCreationJson[0].sourceType = SourceType.DataValues;
-            dimensionCreationJson[1].sourceType = SourceType.DataValues;
+            sourceAssignment[0].sourceType = SourceType.DataValues;
+            sourceAssignment[1].sourceType = SourceType.DataValues;
             const res = await request(app)
                 .patch(
                     `/dataset/${testDatasetId}/revision/by-id/${testRevisionId}/import/by-id/${testFileImportId}/sources`
                 )
-                .send(dimensionCreationJson)
+                .send(sourceAssignment)
                 .set(getAuthHeader(user));
             expect(res.status).toBe(400);
-            const updatedDataset = await Dataset.findOneBy({ id: testDatasetId });
+
+            const updatedDataset = await DatasetRepository.getById(testDatasetId);
             if (!updatedDataset) {
                 throw new Error('Dataset not found');
             }
-            const dimensions = await updatedDataset.dimensions;
-            expect(dimensions.length).toBe(0);
-            expect(res.body).toEqual({
-                message:
-                    'Error processing the supplied JSON with the following error Error: Only one DataValues source can be specified'
-            });
+            expect(updatedDataset.dimensions.length).toBe(0);
+            expect(res.body).toEqual({ error: 'Only one DataValues source can be specified' });
         });
 
         test('Create dimensions from user supplied JSON returns 400 if there is more than one set of Footnotes', async () => {
@@ -834,36 +807,37 @@ describe('API Endpoints', () => {
             const testRevisionId = crypto.randomUUID().toLowerCase();
             const testFileImportId = crypto.randomUUID().toLowerCase();
             await createDatasetWithSources(testDatasetId, testRevisionId, testFileImportId);
-            const postProcessedImport = await FileImport.findOneBy({ id: testFileImportId });
+
+            const postProcessedImport = await FileImport.findOne({
+                where: { id: testFileImportId },
+                relations: ['sources']
+            });
             if (!postProcessedImport) {
                 throw new Error('Import not found');
             }
-            const sources = await postProcessedImport.sources;
-            const dimensionCreationJson: DimensionCreationDTO[] = sources.map((source) => {
+            const sourceAssignment: SourceAssignmentDTO[] = postProcessedImport.sources.map((source) => {
                 return {
                     sourceId: source.id,
                     sourceType: SourceType.Dimension
                 };
             });
-            dimensionCreationJson[0].sourceType = SourceType.FootNotes;
-            dimensionCreationJson[1].sourceType = SourceType.FootNotes;
+            sourceAssignment[0].sourceType = SourceType.FootNotes;
+            sourceAssignment[1].sourceType = SourceType.FootNotes;
             const res = await request(app)
                 .patch(
                     `/dataset/${testDatasetId}/revision/by-id/${testRevisionId}/import/by-id/${testFileImportId}/sources`
                 )
-                .send(dimensionCreationJson)
+                .send(sourceAssignment)
                 .set(getAuthHeader(user));
+
             expect(res.status).toBe(400);
-            const updatedDataset = await Dataset.findOneBy({ id: testDatasetId });
+
+            const updatedDataset = await DatasetRepository.getById(testDatasetId);
             if (!updatedDataset) {
                 throw new Error('Dataset not found');
             }
-            const dimensions = await updatedDataset.dimensions;
-            expect(dimensions.length).toBe(0);
-            expect(res.body).toEqual({
-                message:
-                    'Error processing the supplied JSON with the following error Error: Only one FootNote source can be specified'
-            });
+            expect(updatedDataset.dimensions.length).toBe(0);
+            expect(res.body).toEqual({ error: 'Only one Footnote source can be specified' });
         });
     });
 
@@ -873,18 +847,21 @@ describe('API Endpoints', () => {
                 const testDatasetId = crypto.randomUUID().toLowerCase();
                 const testRevisionId = crypto.randomUUID().toLowerCase();
                 const testFileImportId = crypto.randomUUID().toLowerCase();
-                const dataset = await createSmallDataset(testDatasetId, testRevisionId, testFileImportId, user);
-                const datasetDto = await DatasetDTO.fromDatasetComplete(dataset);
+                await createSmallDataset(testDatasetId, testRevisionId, testFileImportId, user);
+
                 const updatedInfo = new DatasetInfoDTO();
                 updatedInfo.language = 'en-GB';
                 updatedInfo.description = 'This description has been updated';
                 updatedInfo.title = 'Updated dataset title';
-                datasetDto.datasetInfo = [updatedInfo];
+
                 const res = await request(app)
                     .patch(`/dataset/${testDatasetId}/info`)
                     .send(updatedInfo)
                     .set(getAuthHeader(user));
                 expect(res.status).toBe(200);
+
+                const updatedDataset = await DatasetRepository.getById(testDatasetId);
+                const datasetDto = DatasetDTO.fromDataset(updatedDataset);
                 expect(res.body).toEqual(datasetDto);
             });
 
@@ -892,18 +869,21 @@ describe('API Endpoints', () => {
                 const testDatasetId = crypto.randomUUID().toLowerCase();
                 const testRevisionId = crypto.randomUUID().toLowerCase();
                 const testFileImportId = crypto.randomUUID().toLowerCase();
-                const dataset = await createSmallDataset(testDatasetId, testRevisionId, testFileImportId, user);
-                const datasetDto = await DatasetDTO.fromDatasetComplete(dataset);
+                await createSmallDataset(testDatasetId, testRevisionId, testFileImportId, user);
+
                 const updatedInfo = new DatasetInfoDTO();
                 updatedInfo.language = 'cy-GB';
                 updatedInfo.description = 'This should be a welsh description';
                 updatedInfo.title = 'This should be a welsh title';
-                datasetDto.datasetInfo.push(updatedInfo);
+
                 const res = await request(app)
                     .patch(`/dataset/${testDatasetId}/info`)
                     .send(updatedInfo)
                     .set(getAuthHeader(user));
                 expect(res.status).toBe(201);
+
+                const updatedDataset = await DatasetRepository.getById(testDatasetId);
+                const datasetDto = DatasetDTO.fromDataset(updatedDataset);
                 expect(res.body).toEqual(datasetDto);
             });
         });

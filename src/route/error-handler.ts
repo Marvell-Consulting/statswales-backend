@@ -5,6 +5,11 @@ import { t } from '../middleware/translation';
 
 export const errorHandler: ErrorRequestHandler = (err: any, req: Request, res: Response, next: NextFunction) => {
     switch (err.status) {
+        case 400:
+            logger.error(`400 error detected for ${req.originalUrl}, message: ${err.message}`);
+            res.status(400);
+            break;
+
         case 401:
             logger.error(`401 error detected for ${req.originalUrl}, message: ${err.message}`);
             res.status(401);

@@ -3,14 +3,14 @@ import * as fs from 'fs';
 
 import request from 'supertest';
 
-import { DataLakeService } from '../src/controllers/datalake';
-import { BlobStorageService } from '../src/controllers/blob-storage';
+import { DataLakeService } from '../src/services/datalake';
+import { BlobStorageService } from '../src/services/blob-storage';
 import app, { initDb } from '../src/app';
 import { Revision } from '../src/entities/dataset/revision';
 import { FileImport } from '../src/entities/dataset/file-import';
 import { t } from '../src/middleware/translation';
 import DatabaseManager from '../src/db/database-manager';
-import { User } from '../src/entities/dataset/user';
+import { User } from '../src/entities/user/user';
 import { DataLocation } from '../src/enums/data-location';
 import { Locale } from '../src/enums/locale';
 

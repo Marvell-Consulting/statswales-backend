@@ -40,7 +40,7 @@ export const DatasetRepository = dataSource.getRepository(Dataset).extend({
             dataset.datasetInfo = [datasetInfo];
         }
 
-        return dataset;
+        return this.getById(dataset.id);
     },
 
     async createRevisionFromImport(dataset: Dataset, fileImport: FileImport, user: User): Promise<Dataset> {

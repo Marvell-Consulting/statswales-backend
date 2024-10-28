@@ -15,55 +15,58 @@ import { DataLocation } from '../../src/enums/data-location';
 import { ImportType } from '../../src/enums/import-type';
 import { Dimension } from '../../src/entities/dataset/dimension';
 import { DimensionInfo } from '../../src/entities/dataset/dimension-info';
-import { User } from '../../src/entities/dataset/user';
+import { User } from '../../src/entities/user/user';
 
 export async function createSmallDataset(datasetId: string, revisionId: string, importId: string, user: User) {
     // First create a dataset
     const dataset = new Dataset();
     dataset.id = datasetId.toLowerCase();
-    dataset.createdBy = Promise.resolve(user);
+    dataset.createdBy = user;
     dataset.live = new Date();
+    await dataset.save();
 
     // Give it some info
     const datasetInfo = new DatasetInfo();
-    datasetInfo.dataset = Promise.resolve(dataset);
+    datasetInfo.dataset = dataset;
     datasetInfo.title = 'Test Dataset 1';
     datasetInfo.description = 'I am a small incomplete test dataset';
     datasetInfo.language = 'en-GB';
-    dataset.datasetInfo = Promise.resolve([datasetInfo]);
+    await datasetInfo.save();
+    dataset.datasetInfo = [datasetInfo];
 
     // At the sametime we also always create a first revision
     const revision = new Revision();
     revision.id = revisionId.toLowerCase();
-    revision.dataset = Promise.resolve(dataset);
-    revision.createdBy = Promise.resolve(user);
+    revision.dataset = dataset;
+    revision.createdBy = user;
     revision.revisionIndex = 1;
-    dataset.revisions = Promise.resolve([revision]);
+    await revision.save();
+    dataset.revisions = [revision];
 
     // Attach an import e.g. a file to the revision
     const imp = new FileImport();
-    imp.revision = Promise.resolve(revision);
+    imp.revision = revision;
     imp.id = importId.toLowerCase();
     imp.filename = `${importId.toLowerCase()}.csv`;
     const testFile1 = path.resolve(__dirname, `../sample-csvs/test-data-2.csv`);
     const testFile2Buffer = fs.readFileSync(testFile1);
     imp.hash = createHash('sha256').update(testFile2Buffer).digest('hex');
-
-    // First is a draft import and a first upload so everything is in blob storage
-    imp.location = DataLocation.BlobStorage;
+    imp.location = DataLocation.BlobStorage; // First is draft import and first upload so everything is in blob storage
     imp.type = ImportType.Draft;
     imp.mimeType = 'text/csv';
+    await imp.save();
+    revision.imports = [imp];
 
     // Its a CSV file so we need to know how to parse it
     const csvInfo = new CsvInfo();
-    csvInfo.import = Promise.resolve(imp);
+    csvInfo.import = imp;
     csvInfo.delimiter = ',';
     csvInfo.quote = '"';
     csvInfo.linebreak = '\n';
-    imp.csvInfo = Promise.resolve([csvInfo]);
-    revision.imports = Promise.resolve([imp]);
-    // Save and return the result
-    await dataset.save();
+    imp.csvInfo = [csvInfo];
+    await csvInfo.save();
+    imp.csvInfo = [csvInfo];
+
     return dataset;
 }
 
@@ -76,14 +79,14 @@ async function createSource(
     revision: Revision
 ) {
     const source = new Source();
-    source.id = crypto.randomUUID().toLowerCase();
-    source.import = Promise.resolve(fileImport);
-    source.revision = Promise.resolve(revision);
+    source.import = fileImport;
+    source.revision = revision;
     source.csvField = csvField;
     source.columnIndex = csvIndex;
     source.action = action;
     source.type = type;
     await source.save();
+
     return source;
 }
 
@@ -95,20 +98,24 @@ async function createDimension(
     source: Source
 ) {
     const dimension = new Dimension();
-    dimension.id = crypto.randomUUID().toLowerCase();
-    dimension.dataset = Promise.resolve(dataset);
-    dimension.startRevision = Promise.resolve(revision);
+    dimension.dataset = dataset;
+    dimension.startRevision = revision;
     dimension.type = DimensionType.Raw;
+    await dimension.save();
+
     const dimensionInfo = new DimensionInfo();
-    dimensionInfo.dimension = Promise.resolve(dimension);
+    dimensionInfo.dimension = dimension;
     dimensionInfo.name = csvField;
     dimensionInfo.description = description;
     dimensionInfo.language = 'en-GB';
-    dimension.dimensionInfo = Promise.resolve([dimensionInfo]);
+    await dimensionInfo.save();
+    dimension.dimensionInfo = [dimensionInfo];
     await dimension.save();
-    dimension.sources = Promise.resolve([source]);
-    source.dimension = Promise.resolve(dimension);
+
+    dimension.sources = [source];
+    source.dimension = dimension;
     await source.save();
+
     return dimension;
 }
 
@@ -148,7 +155,7 @@ export async function createFullDataset(datasetId: string, revisionId: string, i
         );
         sources.push(source);
     }
-    imp.sources = Promise.resolve(sources);
+    imp.sources = sources;
     await imp.save();
 
     // // Next create some dimensions
@@ -163,5 +170,5 @@ export async function createFullDataset(datasetId: string, revisionId: string, i
         );
         dimensions.push(dimesnion);
     }
-    dataset.dimensions = Promise.resolve(dimensions);
+    dataset.dimensions = dimensions;
 }

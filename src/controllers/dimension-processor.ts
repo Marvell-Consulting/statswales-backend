@@ -10,6 +10,7 @@ import { SourceType } from '../enums/source-type';
 import { AVAILABLE_LANGUAGES, i18next } from '../middleware/translation';
 import { SourceAction } from '../enums/source-action';
 import { logger } from '../utils/logger';
+import { SourceAssignmentException } from '../exceptions/source-assignment.exception';
 
 export interface ValidatedSourceAssignment {
     datavalues: SourceAssignmentDTO | null;
@@ -35,13 +36,13 @@ export const validateSourceAssignment = (
         switch (sourceInfo.sourceType) {
             case SourceType.DataValues:
                 if (datavalues) {
-                    throw new Error('Only one DataValues source can be specified');
+                    throw new SourceAssignmentException('errors.too_many_data_values');
                 }
                 datavalues = sourceInfo;
                 break;
             case SourceType.FootNotes:
                 if (footnotes) {
-                    throw new Error('Only one FootNote source can be specified');
+                    throw new SourceAssignmentException('errors.too_many_footnotes');
                 }
                 footnotes = sourceInfo;
                 break;
@@ -52,7 +53,7 @@ export const validateSourceAssignment = (
                 ignore.push(sourceInfo);
                 break;
             default:
-                throw new Error(`Invalid source type: ${sourceInfo.sourceType}`);
+                throw new SourceAssignmentException(`errors.invalid_source_type`);
         }
     });
 

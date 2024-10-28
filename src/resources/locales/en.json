@@ -41,19 +41,24 @@
         "download_from_blobstorage": "Error downloading file from blob storage",
         "upload": {
             "no_title": "No title for the dataset has been provided",
-            "no-internal-name": "No internal name for the dataset has been provided",
-            "no-csv:": "No CSV data provided",
-            "no-csv-data": "No CSV data available",
+            "no_csv": "No CSV data provided",
             "upload_to_datalake": "Error uploading the file to the datalake"
         },
         "dataset_id_invalid": "Dataset id is invalid or missing",
         "revision_id_invalid": "Revision id is invalid or missing",
         "import_id_invalid": "Import id is invalid or missing",
+        "dimension_id_invalid": "Dimension id is invalid or missing",
         "no_dataset": "Dataset could not be found",
         "no_file_import": "File import could not be found",
+        "upload_error": "Error uploading the file",
         "move_file_error": "Error moving file from temporary blob storage to Data Lake. Please try again.",
+        "too_many_data_values": "Only one DataValues source can be specified",
+        "too_many_footnotes": "Only one Footnote source can be specified",
+        "invalid_source_type": "Invalid source type",
         "invalid_source_assignment": "Could not assign source types to import",
-        "tasklist_error": "There was a problem generating the tasklist state"
+        "tasklist_error": "There was a problem generating the tasklist state",
+        "import_location_not_supported": "Import location not supported",
+        "remove_file": "Error removing file from temporary blob storage"
 	},
     "dimension_info": {
         "footnotes": {
