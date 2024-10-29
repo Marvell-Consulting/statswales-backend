@@ -277,10 +277,10 @@ describe('API Endpoints', () => {
             expect(res.body.total_pages).toBe(6);
             expect(res.body.page_size).toBe(100);
             expect(res.body.headers).toEqual([
-                { index: 0, name: 'ID' },
-                { index: 1, name: 'Text' },
-                { index: 2, name: 'Number' },
-                { index: 3, name: 'Date' }
+                { index: 0, name: 'ID', source_type: 'unknown' },
+                { index: 1, name: 'Text', source_type: 'unknown' },
+                { index: 2, name: 'Number', source_type: 'unknown' },
+                { index: 3, name: 'Date', source_type: 'unknown' }
             ]);
             expect(res.body.data[0]).toEqual(['101', 'GEYiRzLIFM', '774477', '2002-03-13']);
             expect(res.body.data[99]).toEqual(['200', 'QhBxdmrUPb', '3256099', '2026-12-17']);
@@ -306,10 +306,10 @@ describe('API Endpoints', () => {
             expect(res.body.total_pages).toBe(6);
             expect(res.body.page_size).toBe(100);
             expect(res.body.headers).toEqual([
-                { index: 0, name: 'ID' },
-                { index: 1, name: 'Text' },
-                { index: 2, name: 'Number' },
-                { index: 3, name: 'Date' }
+                { index: 0, name: 'ID', source_type: 'ignore' },
+                { index: 1, name: 'Text', source_type: 'dimension' },
+                { index: 2, name: 'Number', source_type: 'data_values' },
+                { index: 3, name: 'Date', source_type: 'dimension' }
             ]);
             expect(res.body.data[0]).toEqual(['101', 'GEYiRzLIFM', '774477', '2002-03-13']);
             expect(res.body.data[99]).toEqual(['200', 'QhBxdmrUPb', '3256099', '2026-12-17']);

@@ -19,7 +19,7 @@ export class Source extends BaseEntity {
     @Column({ name: 'dimension_id', nullable: true })
     dimensionId: string;
 
-    @ManyToOne(() => FileImport, (importEntity) => importEntity.sources, {
+    @ManyToOne(() => FileImport, (fileImport) => fileImport.sources, {
         nullable: false,
         onDelete: 'CASCADE',
         orphanedRowAction: 'delete'
@@ -27,14 +27,14 @@ export class Source extends BaseEntity {
     @JoinColumn({ name: 'import_id', foreignKeyConstraintName: 'FK_source_import_id' })
     import: FileImport;
 
-    @Column({ name: 'import_id', nullable: true })
+    @Column({ name: 'import_id' })
     importId: string;
 
-    @ManyToOne(() => Revision, { onDelete: 'CASCADE', orphanedRowAction: 'delete' })
+    @ManyToOne(() => Revision, { nullable: false, onDelete: 'CASCADE', orphanedRowAction: 'delete' })
     @JoinColumn({ name: 'revision_id', foreignKeyConstraintName: 'FK_source_revision_id' })
     revision: Revision;
 
-    @Column({ name: 'revision_id', nullable: true })
+    @Column({ name: 'revision_id' })
     revisionId: string;
 
     // Not implemented yet

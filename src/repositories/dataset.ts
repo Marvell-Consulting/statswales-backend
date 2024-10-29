@@ -87,7 +87,8 @@ export const DatasetRepository = dataSource.getRepository(Dataset).extend({
         const qb = this.createQueryBuilder('d')
             .select(['d.id as id', 'di.title as title'])
             .innerJoin('d.datasetInfo', 'di')
-            .where('di.language LIKE :lang', { lang: `${lang}%` });
+            .where('di.language LIKE :lang', { lang: `${lang}%` })
+            .groupBy('d.id, di.title');
 
         return qb.getRawMany();
     },
@@ -98,7 +99,8 @@ export const DatasetRepository = dataSource.getRepository(Dataset).extend({
             .innerJoin('d.datasetInfo', 'di')
             .innerJoin('d.revisions', 'r')
             .innerJoin('r.imports', 'i')
-            .where('di.language LIKE :lang', { lang: `${lang}%` });
+            .where('di.language LIKE :lang', { lang: `${lang}%` })
+            .groupBy('d.id, di.title');
 
         return qb.getRawMany();
     }

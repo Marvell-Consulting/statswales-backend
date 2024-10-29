@@ -17,6 +17,7 @@ import { SourceAction } from '../enums/source-action';
 import { ImportType } from '../enums/import-type';
 import { DataLocation } from '../enums/data-location';
 import { Locale } from '../enums/locale';
+import { SourceType } from '../enums/source-type';
 import { BlobStorageService } from '../services/blob-storage';
 import { DataLakeService } from '../services/datalake';
 import { DatasetRepository } from '../repositories/dataset';
@@ -210,7 +211,8 @@ async function processCSVData(
     for (let i = 0; i < csvheaders.length; i++) {
         headers.push({
             index: i,
-            name: csvheaders[i]
+            name: csvheaders[i],
+            source_type: importObj.sources.find((source) => source.columnIndex === i)?.type ?? SourceType.Unknown
         });
     }
     const totalPages = Math.ceil(dataArray.length / size);
@@ -419,42 +421,47 @@ export const removeFileFromDatalake = async (importObj: FileImport) => {
     }
 };
 
-export const createSources = async (importObj: FileImport): Promise<FileImportDTO> => {
-    const revision: Revision = importObj.revision;
+export const createSources = async (fileImport: FileImport): Promise<FileImportDTO> => {
+    const revision: Revision = fileImport.revision;
     const dataset: Dataset = revision.dataset;
     let fileView: ViewDTO | ViewErrDTO;
+
     try {
-        fileView = await processCSVFromDatalake(dataset, importObj, 1, 5);
+        fileView = await processCSVFromDatalake(dataset, fileImport, 1, 5);
     } catch (err) {
         logger.error(err);
         throw new Error('Error getting file from datalake');
     }
+
     let fileData: ViewDTO;
     if (fileView.success) {
         fileData = fileView as ViewDTO;
     } else {
         throw new Error('Error processing file from datalake');
     }
+
     const sources: Source[] = fileData.headers.map((header) => {
         const source = new Source();
-        source.id = crypto.randomUUID().toLowerCase();
         source.columnIndex = header.index;
         source.csvField = header.name;
         source.action = SourceAction.Unknown;
         source.revision = revision;
-        source.import = importObj;
+        source.import = fileImport;
         return source;
     });
-    const freshFileImport = await FileImport.findOneBy({ id: importObj.id });
-    if (!freshFileImport) {
+
+    const updatedImport = await FileImport.findOneBy({ id: fileImport.id });
+
+    if (!updatedImport) {
         throw new Error('Import not found');
     }
     try {
-        freshFileImport.sources = sources;
-        await freshFileImport.save();
+        updatedImport.sources = sources;
+        await updatedImport.save();
     } catch (err) {
         logger.error(err);
         throw new Error('Error saving sources to import');
     }
-    return FileImportDTO.fromImport(freshFileImport);
+
+    return FileImportDTO.fromImport(updatedImport);
 };

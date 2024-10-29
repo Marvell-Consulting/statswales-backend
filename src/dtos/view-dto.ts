@@ -1,5 +1,7 @@
 import { Readable } from 'stream';
 
+import { SourceType } from '../enums/source-type';
+
 import { Error } from './error';
 import { DatasetDTO } from './dataset-dto';
 import { FileImportDTO } from './file-import-dto';
@@ -7,6 +9,7 @@ import { FileImportDTO } from './file-import-dto';
 export interface CSVHeader {
     index: number;
     name: string;
+    source_type?: SourceType;
 }
 
 export interface PageInfo {
