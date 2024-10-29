@@ -74,7 +74,6 @@
     "@azure/storage-file-datalake": "^12.16.0",
     "@jorgebodega/typeorm-seeding": "^7.1.0",
     "body-parser": "^1.20.2",
-    "class-validator": "^0.14.1",
     "connect-redis": "^7.1.1",
     "cookie-parser": "^1.4.6",
     "csv": "^6.3.8",
