@@ -104,7 +104,7 @@ describe('API Endpoints for viewing the contents of a dataset', () => {
             .set(getAuthHeader(user))
             .query({ page_number: 2, page_size: 100 });
         expect(res.status).toBe(500);
-        expect(res.body).toEqual({ message: 'Import location not supported.' });
+        expect(res.body).toEqual({ error: 'Import location not supported' });
     });
 
     test('Get file from a dataset, stored in blob storage, returns 500 if the file is empty and an error message', async () => {
@@ -160,7 +160,7 @@ describe('API Endpoints for viewing the contents of a dataset', () => {
             .set(getAuthHeader(user))
             .query({ page_number: 2, page_size: 100 });
         expect(res.status).toBe(500);
-        expect(res.body).toEqual({ message: 'No revision found for dataset' });
+        expect(res.body).toEqual({ error: 'No revision found for dataset' });
     });
 
     test('Get a dataset view returns 500 if there is no import on the dataset', async () => {
@@ -177,13 +177,13 @@ describe('API Endpoints for viewing the contents of a dataset', () => {
             .set(getAuthHeader(user))
             .query({ page_number: 2, page_size: 100 });
         expect(res.status).toBe(500);
-        expect(res.body).toEqual({ message: 'No import record found for dataset' });
+        expect(res.body).toEqual({ error: 'No import found for dataset' });
     });
 
-    test('Get file view returns 400 when a not valid UUID is supplied', async () => {
+    test('Get file view returns 404 when a not valid UUID is supplied', async () => {
         const res = await request(app).get(`/dataset/NOT-VALID-ID`).set(getAuthHeader(user));
-        expect(res.status).toBe(400);
-        expect(res.body).toEqual({ message: 'Dataset ID is not valid' });
+        expect(res.status).toBe(404);
+        expect(res.body).toEqual({ error: 'Dataset id is invalid or missing' });
     });
 
     afterAll(async () => {

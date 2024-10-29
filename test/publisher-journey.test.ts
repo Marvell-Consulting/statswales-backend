@@ -372,7 +372,7 @@ describe('API Endpoints', () => {
                 )
                 .set(getAuthHeader(user));
             expect(res.status).toBe(404);
-            expect(res.body).toEqual({ error: 'File import could not be found' });
+            expect(res.body).toEqual({ error: 'No import found for dataset' });
         });
     });
 

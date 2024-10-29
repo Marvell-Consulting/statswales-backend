@@ -201,7 +201,19 @@ router.post(
 router.get('/:dataset_id/view', loadDataset, async (req: Request, res: Response, next: NextFunction) => {
     const dataset = res.locals.dataset;
     const latestRevision = getLatestRevision(dataset);
+
+    if (!latestRevision) {
+        next(new UnknownException('errors.no_revision'));
+        return;
+    }
+
     const latestImport = getLatestImport(latestRevision);
+
+    if (!latestImport) {
+        next(new UnknownException('errors.no_file_import'));
+        return;
+    }
+
     const page_number: number = Number.parseInt(req.query.page_number as string, 10) || 1;
     const page_size: number = Number.parseInt(req.query.page_size as string, 10) || DEFAULT_PAGE_SIZE;
     let processedCSV: ViewErrDTO | ViewDTO;
