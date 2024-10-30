@@ -858,7 +858,7 @@ describe('API Endpoints', () => {
                     .patch(`/dataset/${testDatasetId}/info`)
                     .send(updatedInfo)
                     .set(getAuthHeader(user));
-                expect(res.status).toBe(200);
+                expect(res.status).toBe(201);
 
                 const updatedDataset = await DatasetRepository.getById(testDatasetId);
                 const datasetDto = DatasetDTO.fromDataset(updatedDataset);
