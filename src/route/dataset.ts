@@ -1,8 +1,12 @@
+import 'reflect-metadata';
+
 import { Readable } from 'stream';
 
 import express, { NextFunction, Request, Response, Router } from 'express';
 import multer from 'multer';
 import { FieldValidationError } from 'express-validator';
+import { plainToInstance } from 'class-transformer';
+import { validate, validateOrReject } from 'class-validator';
 
 import { logger } from '../utils/logger';
 import { ViewDTO, ViewErrDTO, ViewStream } from '../dtos/view-dto';
@@ -40,6 +44,7 @@ import { Revision } from '../entities/dataset/revision';
 import { RevisionDTO } from '../dtos/revision-dto';
 import { Source } from '../entities/dataset/source';
 import { SourceAssignmentException } from '../exceptions/source-assignment.exception';
+import { dtoValidator } from '../validators/dto-validator';
 
 const jsonParser = express.json();
 const upload = multer({ storage: multer.memoryStorage() });
@@ -235,31 +240,20 @@ router.get('/:dataset_id/view', loadDataset, async (req: Request, res: Response,
 });
 
 router.patch('/:dataset_id/info', jsonParser, loadDataset, async (req: Request, res: Response, next: NextFunction) => {
-    const dataset = res.locals.dataset;
-    const infoDTO = req.body as DatasetInfoDTO;
-
     try {
-        let infoEntity: DatasetInfo | null;
-        let status = 200;
-        infoEntity = await DatasetInfo.findOneBy({ id: dataset.id, language: infoDTO.language });
-
-        if (!infoEntity) {
-            status = 201;
-            infoEntity = new DatasetInfo();
-            infoEntity.language = infoDTO.language;
-            infoEntity.dataset = dataset;
-        }
-        if (infoDTO.title) {
-            infoEntity.title = infoDTO.title;
-        }
-        if (infoDTO.description) {
-            infoEntity.description = infoDTO.description;
-        }
-        await infoEntity.save();
-        const updatedDataset = await DatasetRepository.getById(dataset.id);
-        res.status(status);
+        const infoDto = await dtoValidator(DatasetInfoDTO, req.body);
+        const updatedDataset = await DatasetRepository.patchInfoById(res.locals.datasetId, infoDto);
+        res.status(201);
         res.json(DatasetDTO.fromDataset(updatedDataset));
     } catch (err) {
+        if (err instanceof BadRequestException) {
+            err.validationErrors?.forEach((error) => {
+                if (!error.constraints) return;
+                Object.values(error.constraints).forEach((message) => logger.error(message));
+            });
+            next(err);
+            return;
+        }
         next(new UnknownException('errors.info_update_error'));
     }
 });

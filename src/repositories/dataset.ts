@@ -10,6 +10,7 @@ import { User } from '../entities/user/user';
 import { logger } from '../utils/logger';
 import { DatasetListItemDTO } from '../dtos/dataset-list-item-dto';
 import { Locale } from '../enums/locale';
+import { DatasetInfoDTO } from '../dtos/dataset-info-dto';
 
 const defaultRelations: FindOptionsRelations<Dataset> = {
     createdBy: true,
@@ -49,6 +50,16 @@ export const DatasetRepository = dataSource.getRepository(Dataset).extend({
         }
 
         return this.getById(dataset.id);
+    },
+
+    async patchInfoById(datasetId: string, infoDto: DatasetInfoDTO): Promise<Dataset> {
+        const existingInfo = await dataSource
+            .getRepository(DatasetInfo)
+            .findOneOrFail({ where: { id: datasetId, language: infoDto.language } });
+
+        await dataSource.getRepository(DatasetInfo).merge(existingInfo, infoDto).save();
+
+        return this.getById(datasetId);
     },
 
     async createRevisionFromImport(dataset: Dataset, fileImport: FileImport, user: User): Promise<Dataset> {

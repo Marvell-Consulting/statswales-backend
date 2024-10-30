@@ -34,6 +34,12 @@ export class DatasetInfo extends BaseEntity {
     @Column({ type: 'text', nullable: true })
     description: string;
 
+    @Column({ type: 'text', nullable: true })
+    collection: string;
+
+    @Column({ type: 'text', nullable: true })
+    quality: string;
+
     @ManyToOne(() => Dataset, (dataset) => dataset.datasetInfo, { onDelete: 'CASCADE', orphanedRowAction: 'delete' })
     @JoinColumn({ name: 'dataset_id', foreignKeyConstraintName: 'FK_dataset_info_dataset_id' })
     dataset: Dataset;
