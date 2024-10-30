@@ -7,7 +7,7 @@ import { Dimension } from './dimension';
 import { FileImport } from './file-import';
 import { Revision } from './revision';
 
-@Entity({ name: 'source' })
+@Entity({ name: 'source', orderBy: { columnIndex: 'ASC' } })
 export class Source extends BaseEntity {
     @PrimaryGeneratedColumn('uuid', { primaryKeyConstraintName: 'PK_source_id' })
     id: string;

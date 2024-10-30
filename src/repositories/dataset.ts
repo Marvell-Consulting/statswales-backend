@@ -1,4 +1,5 @@
 import { last } from 'lodash';
+import { FindOptionsRelations } from 'typeorm';
 
 import { dataSource } from '../db/data-source';
 import { Dataset } from '../entities/dataset/dataset';
@@ -10,20 +11,27 @@ import { logger } from '../utils/logger';
 import { DatasetListItemDTO } from '../dtos/dataset-list-item-dto';
 import { Locale } from '../enums/locale';
 
-const allRelations = [
-    'createdBy',
-    'datasetInfo',
-    'dimensions',
-    'dimensions.dimensionInfo',
-    'revisions',
-    'revisions.createdBy',
-    'revisions.imports',
-    'revisions.imports.sources'
-];
+const defaultRelations: FindOptionsRelations<Dataset> = {
+    createdBy: true,
+    datasetInfo: true,
+    dimensions: {
+        dimensionInfo: true
+    },
+    revisions: {
+        createdBy: true,
+        imports: {
+            sources: true
+        }
+    }
+};
 
 export const DatasetRepository = dataSource.getRepository(Dataset).extend({
     async getById(id: string): Promise<Dataset> {
-        return this.findOneOrFail({ where: { id }, relations: allRelations });
+        return this.findOneOrFail({
+            where: { id },
+            relations: defaultRelations,
+            order: { revisions: { imports: { sources: { columnIndex: 'ASC' } } } }
+        });
     },
 
     async deleteById(id: string): Promise<void> {
@@ -77,7 +85,15 @@ export const DatasetRepository = dataSource.getRepository(Dataset).extend({
                     }
                 }
             },
-            relations: ['revision', 'revision.createdBy', 'revision.dataset', 'revision.dataset.dimensions', 'sources']
+            relations: {
+                revision: {
+                    createdBy: true,
+                    dataset: {
+                        dimensions: true
+                    }
+                },
+                sources: true
+            }
         });
 
         return fileImport;
