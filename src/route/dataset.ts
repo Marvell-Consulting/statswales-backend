@@ -1,12 +1,11 @@
 import 'reflect-metadata';
 
-import { Readable } from 'stream';
+import { Readable } from 'node:stream';
+// import util from 'node:util';
 
 import express, { NextFunction, Request, Response, Router } from 'express';
 import multer from 'multer';
 import { FieldValidationError } from 'express-validator';
-import { plainToInstance } from 'class-transformer';
-import { validate, validateOrReject } from 'class-validator';
 
 import { logger } from '../utils/logger';
 import { ViewDTO, ViewErrDTO, ViewStream } from '../dtos/view-dto';
@@ -24,7 +23,6 @@ import {
 } from '../controllers/csv-processor';
 import { createDimensionsFromSourceAssignment, validateSourceAssignment } from '../controllers/dimension-processor';
 import { User } from '../entities/user/user';
-import { DatasetInfo } from '../entities/dataset/dataset-info';
 import { FileImport } from '../entities/dataset/file-import';
 import { DatasetDTO } from '../dtos/dataset-dto';
 import { DatasetInfoDTO } from '../dtos/dataset-info-dto';
@@ -66,6 +64,7 @@ export const loadDataset = async (req: Request, res: Response, next: NextFunctio
     try {
         logger.debug(`Loading dataset ${req.params.dataset_id}...`);
         const dataset = await DatasetRepository.getById(req.params.dataset_id);
+        // console.log(util.inspect(dataset, false, null, true));
         res.locals.datasetId = dataset.id;
         res.locals.dataset = dataset;
     } catch (err) {
@@ -239,6 +238,8 @@ router.get('/:dataset_id/view', loadDataset, async (req: Request, res: Response,
     res.json(processedCSV);
 });
 
+// PATCH /dataset/:dataset_id/info
+// Updates the dataset info with the provided data
 router.patch('/:dataset_id/info', jsonParser, loadDataset, async (req: Request, res: Response, next: NextFunction) => {
     try {
         const infoDto = await dtoValidator(DatasetInfoDTO, req.body);

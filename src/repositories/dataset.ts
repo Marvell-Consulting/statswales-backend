@@ -11,6 +11,7 @@ import { logger } from '../utils/logger';
 import { DatasetListItemDTO } from '../dtos/dataset-list-item-dto';
 import { Locale } from '../enums/locale';
 import { DatasetInfoDTO } from '../dtos/dataset-info-dto';
+import { Dimension } from '../entities/dataset/dimension';
 
 const defaultRelations: FindOptionsRelations<Dataset> = {
     createdBy: true,
@@ -82,6 +83,9 @@ export const DatasetRepository = dataSource.getRepository(Dataset).extend({
             imports: [fileImport],
             createdBy: user
         }).save();
+
+        // purge existing dimensions for dataset - revisit this logic once we are updating published datasets
+        await dataSource.getRepository(Dimension).delete({ dataset: { id: dataset.id } });
 
         return this.getById(dataset.id);
     },
