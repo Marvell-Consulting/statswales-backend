@@ -19,6 +19,7 @@ import DatabaseManager from '../src/db/database-manager';
 import { DataLocation } from '../src/enums/data-location';
 import { Locale } from '../src/enums/locale';
 import { DatasetRepository } from '../src/repositories/dataset';
+import { FileImportRepository } from '../src/repositories/file-import';
 
 import { createFullDataset } from './helpers/test-helper';
 import { getTestUser } from './helpers/get-user';
@@ -197,7 +198,7 @@ describe('API Endpoints for viewing dataset objects', () => {
         });
 
         test('Get import returns 200 with object', async () => {
-            const imp = await DatasetRepository.getFileImportById(dataset1Id, revision1Id, import1Id);
+            const imp = await FileImportRepository.getFileImportById(dataset1Id, revision1Id, import1Id);
             if (!imp) {
                 throw new Error('Import not found');
             }

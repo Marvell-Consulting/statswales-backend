@@ -1,4 +1,5 @@
-import { FindOptionsRelations } from 'typeorm';
+import { FindOneOptions, FindOptionsRelations } from 'typeorm';
+import { has } from 'lodash';
 
 import { dataSource } from '../db/data-source';
 import { Dataset } from '../entities/dataset/dataset';
@@ -25,11 +26,13 @@ const defaultRelations: FindOptionsRelations<Dataset> = {
 
 export const DatasetRepository = dataSource.getRepository(Dataset).extend({
     async getById(id: string, relations: FindOptionsRelations<Dataset> = defaultRelations): Promise<Dataset> {
-        return this.findOneOrFail({
-            where: { id },
-            relations,
-            order: { revisions: { imports: { sources: { columnIndex: 'ASC' } } } }
-        });
+        const findOptions: FindOneOptions<Dataset> = { where: { id }, relations };
+
+        if (has(relations, 'revisions.imports.sources')) {
+            findOptions.order = { revisions: { imports: { sources: { columnIndex: 'ASC' } } } };
+        }
+
+        return this.findOneOrFail(findOptions);
     },
 
     async deleteById(id: string): Promise<void> {
