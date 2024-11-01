@@ -29,6 +29,7 @@ export const DatasetRepository = dataSource.getRepository(Dataset).extend({
         const findOptions: FindOneOptions<Dataset> = { where: { id }, relations };
 
         if (has(relations, 'revisions.imports.sources')) {
+            // sort sources by column index if they're requested
             findOptions.order = { revisions: { imports: { sources: { columnIndex: 'ASC' } } } };
         }
 
