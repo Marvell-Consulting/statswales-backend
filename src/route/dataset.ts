@@ -6,6 +6,7 @@ import { Readable } from 'node:stream';
 import express, { NextFunction, Request, Response, Router } from 'express';
 import multer from 'multer';
 import { FieldValidationError } from 'express-validator';
+import { FindOptionsRelations } from 'typeorm';
 
 import { logger } from '../utils/logger';
 import { ViewDTO, ViewErrDTO, ViewStream } from '../dtos/view-dto';
@@ -43,6 +44,9 @@ import { RevisionDTO } from '../dtos/revision-dto';
 import { Source } from '../entities/dataset/source';
 import { SourceAssignmentException } from '../exceptions/source-assignment.exception';
 import { dtoValidator } from '../validators/dto-validator';
+import { RevisionRepository } from '../repositories/revision';
+import { FileImportRepository } from '../repositories/file-import';
+import { Dataset } from '../entities/dataset/dataset';
 
 const jsonParser = express.json();
 const upload = multer({ storage: multer.memoryStorage() });
@@ -51,29 +55,33 @@ const router = Router();
 export const datasetRouter = router;
 
 // middleware that loads the dataset (with nested relations) and stores it in res.locals
-export const loadDataset = async (req: Request, res: Response, next: NextFunction) => {
-    const datasetIdError = await hasError(datasetIdValidator(), req);
-    if (datasetIdError) {
-        logger.error(datasetIdError);
-        next(new NotFoundException('errors.dataset_id_invalid'));
-        return;
-    }
+// leave relations undefined to load the default relations
+// pass an empty object to load no relations
+export const loadDataset = (relations?: FindOptionsRelations<Dataset>) => {
+    return async (req: Request, res: Response, next: NextFunction) => {
+        const datasetIdError = await hasError(datasetIdValidator(), req);
+        if (datasetIdError) {
+            logger.error(datasetIdError);
+            next(new NotFoundException('errors.dataset_id_invalid'));
+            return;
+        }
 
-    // TODO: include user in query to prevent unauthorized access
+        // TODO: include user in query to prevent unauthorized access
 
-    try {
-        logger.debug(`Loading dataset ${req.params.dataset_id}...`);
-        const dataset = await DatasetRepository.getById(req.params.dataset_id);
-        // console.log(util.inspect(dataset, false, null, true));
-        res.locals.datasetId = dataset.id;
-        res.locals.dataset = dataset;
-    } catch (err) {
-        logger.error(`Failed to load dataset, error: ${err}`);
-        next(new NotFoundException('errors.no_dataset'));
-        return;
-    }
+        try {
+            logger.debug(`Loading dataset ${req.params.dataset_id}...`);
+            const dataset = await DatasetRepository.getById(req.params.dataset_id, relations);
+            // console.log(util.inspect(dataset, false, null, true));
+            res.locals.datasetId = dataset.id;
+            res.locals.dataset = dataset;
+        } catch (err) {
+            logger.error(`Failed to load dataset, error: ${err}`);
+            next(new NotFoundException('errors.no_dataset'));
+            return;
+        }
 
-    next();
+        next();
+    };
 };
 
 // middleware that loads a specific file import of a dataset and stores it in res.locals
@@ -92,7 +100,7 @@ export const loadFileImport = async (req: Request, res: Response, next: NextFunc
 
     try {
         const { dataset_id, revision_id, import_id } = req.params;
-        const fileImport: FileImport = await DatasetRepository.getFileImportById(dataset_id, revision_id, import_id);
+        const fileImport: FileImport = await FileImportRepository.getFileImportById(dataset_id, revision_id, import_id);
         res.locals.fileImport = fileImport;
         res.locals.revision = fileImport.revision;
         res.locals.dataset = fileImport.revision.dataset;
@@ -132,13 +140,13 @@ router.get('/active', async (req: Request, res: Response, next: NextFunction) =>
 
 // GET /dataset/:dataset_id
 // Returns the dataset with the given ID with all available relations hydrated
-router.get('/:dataset_id', loadDataset, async (req: Request, res: Response) => {
+router.get('/:dataset_id', loadDataset(), async (req: Request, res: Response) => {
     res.json(DatasetDTO.fromDataset(res.locals.dataset));
 });
 
 // DELETE /dataset/:dataset_id
 // Deletes the dataset with the given ID
-router.delete('/:dataset_id', loadDataset, async (req: Request, res: Response) => {
+router.delete('/:dataset_id', loadDataset({}), async (req: Request, res: Response) => {
     await DatasetRepository.deleteById(res.locals.datasetId);
     res.status(204);
     res.end();
@@ -171,7 +179,7 @@ router.post('/', jsonParser, async (req: Request, res: Response, next: NextFunct
 router.post(
     '/:dataset_id/data',
     upload.single('csv'),
-    loadDataset,
+    loadDataset(),
     async (req: Request, res: Response, next: NextFunction) => {
         if (!req.file) {
             next(new BadRequestException('errors.upload.no_csv'));
@@ -190,7 +198,8 @@ router.post(
 
         try {
             const user = req.user as User;
-            const dataset = await DatasetRepository.createRevisionFromImport(res.locals.dataset, fileImport, user);
+            await RevisionRepository.createFromImport(res.locals.dataset, fileImport, user);
+            const dataset = await DatasetRepository.getById(res.locals.datasetId);
             res.status(201);
             res.json(DatasetDTO.fromDataset(dataset));
         } catch (err) {
@@ -202,7 +211,7 @@ router.post(
 
 // GET /dataset/:dataset_id/view
 // Returns a view of the data file attached to the import
-router.get('/:dataset_id/view', loadDataset, async (req: Request, res: Response, next: NextFunction) => {
+router.get('/:dataset_id/view', loadDataset(), async (req: Request, res: Response, next: NextFunction) => {
     const dataset = res.locals.dataset;
     const latestRevision = getLatestRevision(dataset);
 
@@ -240,24 +249,29 @@ router.get('/:dataset_id/view', loadDataset, async (req: Request, res: Response,
 
 // PATCH /dataset/:dataset_id/info
 // Updates the dataset info with the provided data
-router.patch('/:dataset_id/info', jsonParser, loadDataset, async (req: Request, res: Response, next: NextFunction) => {
-    try {
-        const infoDto = await dtoValidator(DatasetInfoDTO, req.body);
-        const updatedDataset = await DatasetRepository.patchInfoById(res.locals.datasetId, infoDto);
-        res.status(201);
-        res.json(DatasetDTO.fromDataset(updatedDataset));
-    } catch (err) {
-        if (err instanceof BadRequestException) {
-            err.validationErrors?.forEach((error) => {
-                if (!error.constraints) return;
-                Object.values(error.constraints).forEach((message) => logger.error(message));
-            });
-            next(err);
-            return;
+router.patch(
+    '/:dataset_id/info',
+    jsonParser,
+    loadDataset(),
+    async (req: Request, res: Response, next: NextFunction) => {
+        try {
+            const infoDto = await dtoValidator(DatasetInfoDTO, req.body);
+            const updatedDataset = await DatasetRepository.patchInfoById(res.locals.datasetId, infoDto);
+            res.status(201);
+            res.json(DatasetDTO.fromDataset(updatedDataset));
+        } catch (err) {
+            if (err instanceof BadRequestException) {
+                err.validationErrors?.forEach((error) => {
+                    if (!error.constraints) return;
+                    Object.values(error.constraints).forEach((message) => logger.error(message));
+                });
+                next(err);
+                return;
+            }
+            next(new UnknownException('errors.info_update_error'));
         }
-        next(new UnknownException('errors.info_update_error'));
     }
-});
+);
 
 // GET /dataset/:dataset_id/revision/by-id/:revision_id/import/by-id/:import_id
 // Returns details of an import with its sources
@@ -423,7 +437,7 @@ router.patch(
 
 // GET /dataset/:dataset_id/tasklist
 // Returns a JSON object with info on what parts of the dataset have been created
-router.get('/:dataset_id/tasklist', loadDataset, async (req: Request, res: Response, next: NextFunction) => {
+router.get('/:dataset_id/tasklist', loadDataset(), async (req: Request, res: Response, next: NextFunction) => {
     try {
         const tasklistState = TasklistStateDTO.fromDataset(res.locals.dataset, req.language as Locale);
         res.json(tasklistState);
@@ -436,7 +450,7 @@ router.get('/:dataset_id/tasklist', loadDataset, async (req: Request, res: Respo
 // Returns details of a dimension with its sources and imports
 router.get(
     '/:dataset_id/dimension/by-id/:dimension_id',
-    loadDataset,
+    loadDataset(),
     async (req: Request, res: Response, next: NextFunction) => {
         const dataset = res.locals.dataset;
         const dimension = dataset.dimensions.find((dim: Dimension) => dim.id === req.params.dimension_id);
@@ -454,7 +468,7 @@ router.get(
 // Returns details of a revision with its imports
 router.get(
     '/:dataset_id/revision/by-id/:revision_id',
-    loadDataset,
+    loadDataset(),
     async (req: Request, res: Response, next: NextFunction) => {
         const dataset = res.locals.dataset;
         const revision = dataset.revisions.find((revision: Revision) => revision.id === req.params.revision_id);
@@ -474,7 +488,7 @@ router.get(
 router.post(
     '/:dataset_id/revision/by-id/:revision_id/import',
     upload.single('csv'),
-    loadDataset,
+    loadDataset(),
     async (req: Request, res: Response, next: NextFunction) => {
         const dataset = res.locals.dataset;
         const revision = dataset.revisions?.find((revision: Revision) => revision.id === req.params.revision_id);
