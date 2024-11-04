@@ -9,7 +9,7 @@ import {
     UpdateDateColumn
 } from 'typeorm';
 
-import { RelatedLink } from '../../dtos/related-link';
+import { RelatedLinkDTO } from '../../dtos/related-link-dto';
 import { Designation } from '../../enums/designation';
 
 import { Dataset } from './dataset';
@@ -36,31 +36,31 @@ export class DatasetInfo extends BaseEntity {
     language: string;
 
     @Column({ type: 'text', nullable: true })
-    title: string;
+    title?: string;
 
     @Column({ type: 'text', nullable: true })
-    description: string;
+    description?: string;
 
     @Column({ type: 'text', nullable: true })
-    collection: string;
+    collection?: string;
 
     @Column({ type: 'text', nullable: true })
-    quality: string;
+    quality?: string;
 
     @Column({ type: 'boolean', name: 'rounding_applied', nullable: true })
-    roundingApplied: boolean;
+    roundingApplied?: boolean;
 
     @Column({ type: 'text', name: 'rounding_description', nullable: true })
-    roundingDescription: string;
+    roundingDescription?: string;
 
     @Column({ type: 'jsonb', name: 'related_links', nullable: true })
-    relatedLinks: RelatedLink[];
+    relatedLinks?: RelatedLinkDTO[];
 
     @Column({ type: 'text', name: 'update_frequency', nullable: true })
-    updateFrequency: string; // in ISO 8601 duration format, e.g. P1Y = every year
+    updateFrequency?: string; // in ISO 8601 duration format, e.g. P1Y = every year
 
     @Column({ type: 'enum', enum: Object.values(Designation), nullable: true })
-    designation: Designation;
+    designation?: Designation;
 
     @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
     createdAt: Date;

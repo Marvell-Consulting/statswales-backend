@@ -56,11 +56,12 @@ export const DatasetRepository = dataSource.getRepository(Dataset).extend({
     async patchInfoById(datasetId: string, infoDto: DatasetInfoDTO): Promise<Dataset> {
         const infoRepo = dataSource.getRepository(DatasetInfo);
         const existingInfo = await infoRepo.findOne({ where: { id: datasetId, language: infoDto.language } });
+        const updatedInfo = DatasetInfoDTO.toDatasetInfo(infoDto);
 
         if (existingInfo) {
-            await infoRepo.merge(existingInfo, infoDto).save();
+            await infoRepo.merge(existingInfo, updatedInfo).save();
         } else {
-            await infoRepo.create({ dataset: { id: datasetId }, ...infoDto }).save();
+            await infoRepo.create({ dataset: { id: datasetId }, ...updatedInfo }).save();
         }
 
         return this.getById(datasetId);
