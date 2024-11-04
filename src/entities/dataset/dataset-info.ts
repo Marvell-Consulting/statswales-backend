@@ -9,6 +9,9 @@ import {
     UpdateDateColumn
 } from 'typeorm';
 
+import { RelatedLink } from '../../dtos/related-link';
+import { Designation } from '../../enums/designation';
+
 import { Dataset } from './dataset';
 
 @Entity({ name: 'dataset_info' })
@@ -19,6 +22,10 @@ export class DatasetInfo extends BaseEntity {
         primaryKeyConstraintName: 'PK_dataset_info_dataset_id_language'
     })
     id: string;
+
+    @ManyToOne(() => Dataset, (dataset) => dataset.datasetInfo, { onDelete: 'CASCADE', orphanedRowAction: 'delete' })
+    @JoinColumn({ name: 'dataset_id', foreignKeyConstraintName: 'FK_dataset_info_dataset_id' })
+    dataset: Dataset;
 
     @PrimaryColumn({
         name: 'language',
@@ -40,9 +47,20 @@ export class DatasetInfo extends BaseEntity {
     @Column({ type: 'text', nullable: true })
     quality: string;
 
-    @ManyToOne(() => Dataset, (dataset) => dataset.datasetInfo, { onDelete: 'CASCADE', orphanedRowAction: 'delete' })
-    @JoinColumn({ name: 'dataset_id', foreignKeyConstraintName: 'FK_dataset_info_dataset_id' })
-    dataset: Dataset;
+    @Column({ type: 'boolean', name: 'rounding_applied', nullable: true })
+    roundingApplied: boolean;
+
+    @Column({ type: 'text', name: 'rounding_description', nullable: true })
+    roundingDescription: string;
+
+    @Column({ type: 'jsonb', name: 'related_links', nullable: true })
+    relatedLinks: RelatedLink[];
+
+    @Column({ type: 'text', name: 'update_frequency', nullable: true })
+    updateFrequency: string; // in ISO 8601 duration format, e.g. P1Y = every year
+
+    @Column({ type: 'enum', enum: Object.values(Designation), nullable: true })
+    designation: Designation;
 
     @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
     createdAt: Date;
