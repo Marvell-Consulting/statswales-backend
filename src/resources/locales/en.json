@@ -30,6 +30,7 @@
         "uploadBtn": "Upload CSV"
     },
 	"errors": {
+        "unknown_error": "An unknown error occurred",
         "missing": "Filename Missing",
 		"problem": "There is a problem",
         "name_missing": "Dataset Name Missing",
@@ -48,6 +49,7 @@
         "revision_id_invalid": "Revision id is invalid or missing",
         "import_id_invalid": "Import id is invalid or missing",
         "dimension_id_invalid": "Dimension id is invalid or missing",
+        "info_update_error": "Could not update the dataset info",
         "no_dataset": "Dataset could not be found",
         "no_revision": "No revision found for dataset",
         "no_file_import": "No import found for dataset",
@@ -59,7 +61,8 @@
         "invalid_source_assignment": "Could not assign source types to import",
         "tasklist_error": "There was a problem generating the tasklist state",
         "import_location_not_supported": "Import location not supported",
-        "remove_file": "Error removing file from temporary blob storage"
+        "remove_file": "Error removing file from temporary blob storage",
+        "invalid_dto": "Invalid request object"
 	},
     "dimension_info": {
         "footnotes": {

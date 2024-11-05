@@ -35,11 +35,11 @@ export class TasklistStateDTO {
         const dimensions = dataset.dimensions?.reduce((dimensionStatus: DimensionStatus[], dimension) => {
             if (dimension.type === DimensionType.FootNote) return dimensionStatus;
 
-            const info: DimensionInfo | undefined = dimension.dimensionInfo.find((i) => lang.includes(i.language));
+            const dimInfo: DimensionInfo | undefined = dimension.dimensionInfo.find((i) => lang.includes(i.language));
             const csvColName = dimension.sources?.find((source) => source.dimension.id === dimension.id)?.csvField;
 
             dimensionStatus.push({
-                name: info?.name || csvColName || 'unknown',
+                name: dimInfo?.name || csvColName || 'unknown',
                 status: dimension.type === DimensionType.Raw ? TaskStatus.NotStarted : TaskStatus.Completed
             });
 
@@ -53,13 +53,13 @@ export class TasklistStateDTO {
 
         dto.metadata = {
             title: info?.title ? TaskStatus.Completed : TaskStatus.NotStarted,
-            summary: TaskStatus.NotImplemented,
-            statistical_quality: TaskStatus.NotImplemented,
+            summary: info?.description ? TaskStatus.Completed : TaskStatus.NotStarted,
+            statistical_quality: info?.quality ? TaskStatus.Completed : TaskStatus.NotStarted,
+            data_collection: info?.collection ? TaskStatus.Completed : TaskStatus.NotStarted,
             data_sources: TaskStatus.NotImplemented,
-            related_reports: TaskStatus.NotImplemented,
-            update_frequency: TaskStatus.NotImplemented,
-            designation: TaskStatus.NotImplemented,
-            data_collection: TaskStatus.NotImplemented,
+            related_reports: info?.relatedLinks ? TaskStatus.Completed : TaskStatus.NotStarted,
+            update_frequency: info?.updateFrequency ? TaskStatus.Completed : TaskStatus.NotStarted,
+            designation: info?.designation ? TaskStatus.Completed : TaskStatus.NotStarted,
             relevant_topics: TaskStatus.NotImplemented
         };
 
