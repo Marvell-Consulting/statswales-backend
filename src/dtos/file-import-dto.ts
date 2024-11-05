@@ -14,29 +14,20 @@ export class FileImportDTO {
     location: string;
     sources?: SourceDTO[];
 
-    static async fromImport(importEntity: FileImport): Promise<FileImportDTO> {
+    static fromImport(fileImport: FileImport): FileImportDTO {
         const dto = new FileImportDTO();
-        dto.id = importEntity.id;
-        const revision = await importEntity.revision;
-        dto.revision_id = revision.id;
-        dto.mime_type = importEntity.mimeType;
-        dto.filename = importEntity.filename;
-        dto.hash = importEntity.hash;
-        dto.uploaded_at = importEntity.uploadedAt?.toISOString();
-        dto.type = importEntity.type;
-        dto.location = importEntity.location;
+        dto.id = fileImport.id;
+        dto.revision_id = fileImport.revision?.id;
+        dto.mime_type = fileImport.mimeType;
+        dto.filename = fileImport.filename;
+        dto.hash = fileImport.hash;
+        dto.uploaded_at = fileImport.uploadedAt?.toISOString();
+        dto.type = fileImport.type;
+        dto.location = fileImport.location;
         dto.sources = [];
-        return dto;
-    }
 
-    static async fromImportWithSources(importEntity: FileImport): Promise<FileImportDTO> {
-        const dto = await FileImportDTO.fromImport(importEntity);
-        dto.sources = await Promise.all(
-            (await importEntity.sources).map(async (source: Source) => {
-                const sourceDto = await SourceDTO.fromSource(source);
-                return sourceDto;
-            })
-        );
+        dto.sources = fileImport.sources?.map((source: Source) => SourceDTO.fromSource(source));
+
         return dto;
     }
 }

@@ -9,7 +9,8 @@ import {
     JoinColumn
 } from 'typeorm';
 
-import { User } from './user';
+import { User } from '../user/user';
+
 import { Revision } from './revision';
 import { DatasetInfo } from './dataset-info';
 import { Dimension } from './dimension';
@@ -24,7 +25,7 @@ export class Dataset extends BaseEntity {
 
     @ManyToOne(() => User)
     @JoinColumn({ name: 'created_by', foreignKeyConstraintName: 'FK_dataset_created_by' })
-    createdBy: Promise<User>;
+    createdBy: User;
 
     @Column({ type: 'timestamptz', nullable: true })
     live: Date;
@@ -32,18 +33,12 @@ export class Dataset extends BaseEntity {
     @Column({ type: 'timestamptz', nullable: true })
     archive: Date;
 
-    @OneToMany(() => DatasetInfo, (datasetInfo) => datasetInfo.dataset, {
-        cascade: true
-    })
-    datasetInfo: Promise<DatasetInfo[]>;
+    @OneToMany(() => DatasetInfo, (datasetInfo) => datasetInfo.dataset, { cascade: true })
+    datasetInfo: DatasetInfo[];
 
-    @OneToMany(() => Dimension, (dimension) => dimension.dataset, {
-        cascade: true
-    })
-    dimensions: Promise<Dimension[]>;
+    @OneToMany(() => Dimension, (dimension) => dimension.dataset, { cascade: true })
+    dimensions: Dimension[];
 
-    @OneToMany(() => Revision, (revision) => revision.dataset, {
-        cascade: true
-    })
-    revisions: Promise<Revision[]>;
+    @OneToMany(() => Revision, (revision) => revision.dataset, { cascade: true })
+    revisions: Revision[];
 }

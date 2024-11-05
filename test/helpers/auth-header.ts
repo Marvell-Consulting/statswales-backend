@@ -1,6 +1,6 @@
 import jwt from 'jsonwebtoken';
 
-import { User } from '../../src/entities/dataset/user';
+import { User } from '../../src/entities/user/user';
 import { sanitiseUser } from '../../src/utils/sanitise-user';
 import { appConfig } from '../../src/config';
 

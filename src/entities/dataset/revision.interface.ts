@@ -1,17 +1,18 @@
+import { User } from '../user/user';
+
 import { Dataset } from './dataset';
 import { FileImport } from './file-import';
-import { User } from './user';
 
 export interface RevisionInterface {
     id: string;
     revisionIndex: number;
-    dataset: Promise<Dataset>;
-    previousRevision: Promise<RevisionInterface>;
+    dataset: Dataset;
+    previousRevision: RevisionInterface;
     onlineCubeFilename: string;
-    imports: Promise<FileImport[]>;
+    imports: FileImport[];
     createdAt: Date;
-    createdBy: Promise<User>;
+    createdBy: User;
     approvedAt: Date;
-    approvedBy: Promise<User>;
+    approvedBy: User;
     publishAt: Date;
 }

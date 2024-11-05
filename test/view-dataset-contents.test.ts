@@ -3,14 +3,14 @@ import * as fs from 'fs';
 
 import request from 'supertest';
 
-import { DataLakeService } from '../src/controllers/datalake';
-import { BlobStorageService } from '../src/controllers/blob-storage';
+import { DataLakeService } from '../src/services/datalake';
+import { BlobStorageService } from '../src/services/blob-storage';
 import app, { initDb } from '../src/app';
 import { Revision } from '../src/entities/dataset/revision';
 import { FileImport } from '../src/entities/dataset/file-import';
 import { t } from '../src/middleware/translation';
 import DatabaseManager from '../src/db/database-manager';
-import { User } from '../src/entities/dataset/user';
+import { User } from '../src/entities/user/user';
 import { DataLocation } from '../src/enums/data-location';
 import { Locale } from '../src/enums/locale';
 
@@ -53,10 +53,10 @@ describe('API Endpoints for viewing the contents of a dataset', () => {
         expect(res.body.total_pages).toBe(6);
         expect(res.body.page_size).toBe(100);
         expect(res.body.headers).toEqual([
-            { index: 0, name: 'ID' },
-            { index: 1, name: 'Text' },
-            { index: 2, name: 'Number' },
-            { index: 3, name: 'Date' }
+            { index: 0, name: 'ID', source_type: 'ignore' },
+            { index: 1, name: 'Text', source_type: 'dimension' },
+            { index: 2, name: 'Number', source_type: 'data_values' },
+            { index: 3, name: 'Date', source_type: 'dimension' }
         ]);
         expect(res.body.data[0]).toEqual(['101', 'GEYiRzLIFM', '774477', '2002-03-13']);
         expect(res.body.data[99]).toEqual(['200', 'QhBxdmrUPb', '3256099', '2026-12-17']);
@@ -82,10 +82,10 @@ describe('API Endpoints for viewing the contents of a dataset', () => {
         expect(res.body.total_pages).toBe(6);
         expect(res.body.page_size).toBe(100);
         expect(res.body.headers).toEqual([
-            { index: 0, name: 'ID' },
-            { index: 1, name: 'Text' },
-            { index: 2, name: 'Number' },
-            { index: 3, name: 'Date' }
+            { index: 0, name: 'ID', source_type: 'ignore' },
+            { index: 1, name: 'Text', source_type: 'dimension' },
+            { index: 2, name: 'Number', source_type: 'data_values' },
+            { index: 3, name: 'Date', source_type: 'dimension' }
         ]);
         expect(res.body.data[0]).toEqual(['101', 'GEYiRzLIFM', '774477', '2002-03-13']);
         expect(res.body.data[99]).toEqual(['200', 'QhBxdmrUPb', '3256099', '2026-12-17']);
@@ -104,7 +104,7 @@ describe('API Endpoints for viewing the contents of a dataset', () => {
             .set(getAuthHeader(user))
             .query({ page_number: 2, page_size: 100 });
         expect(res.status).toBe(500);
-        expect(res.body).toEqual({ message: 'Import location not supported.' });
+        expect(res.body).toEqual({ error: 'Import location not supported' });
     });
 
     test('Get file from a dataset, stored in blob storage, returns 500 if the file is empty and an error message', async () => {
@@ -160,7 +160,7 @@ describe('API Endpoints for viewing the contents of a dataset', () => {
             .set(getAuthHeader(user))
             .query({ page_number: 2, page_size: 100 });
         expect(res.status).toBe(500);
-        expect(res.body).toEqual({ message: 'No revision found for dataset' });
+        expect(res.body).toEqual({ error: 'No revision found for dataset' });
     });
 
     test('Get a dataset view returns 500 if there is no import on the dataset', async () => {
@@ -177,13 +177,13 @@ describe('API Endpoints for viewing the contents of a dataset', () => {
             .set(getAuthHeader(user))
             .query({ page_number: 2, page_size: 100 });
         expect(res.status).toBe(500);
-        expect(res.body).toEqual({ message: 'No import record found for dataset' });
+        expect(res.body).toEqual({ error: 'No import found for dataset' });
     });
 
-    test('Get file view returns 400 when a not valid UUID is supplied', async () => {
+    test('Get file view returns 404 when a not valid UUID is supplied', async () => {
         const res = await request(app).get(`/dataset/NOT-VALID-ID`).set(getAuthHeader(user));
-        expect(res.status).toBe(400);
-        expect(res.body).toEqual({ message: 'Dataset ID is not valid' });
+        expect(res.status).toBe(404);
+        expect(res.body).toEqual({ error: 'Dataset id is invalid or missing' });
     });
 
     afterAll(async () => {

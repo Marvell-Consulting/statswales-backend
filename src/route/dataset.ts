@@ -1,14 +1,11 @@
-import { randomUUID } from 'crypto';
 import { Readable } from 'stream';
 
-import { Request, Response, Router } from 'express';
+import express, { NextFunction, Request, Response, Router } from 'express';
 import multer from 'multer';
-import bodyParser from 'body-parser';
+import { FieldValidationError } from 'express-validator';
 
 import { logger } from '../utils/logger';
-import { DimensionCreationDTO } from '../dtos/dimension-creation-dto';
 import { ViewDTO, ViewErrDTO, ViewStream } from '../dtos/view-dto';
-import { i18next } from '../middleware/translation';
 import {
     createSources,
     DEFAULT_PAGE_SIZE,
@@ -21,491 +18,352 @@ import {
     removeTempfileFromBlobStorage,
     uploadCSVBufferToBlobStorage
 } from '../controllers/csv-processor';
-import {
-    createDimensionsFromValidatedDimensionRequest,
-    ValidatedDimensionCreationRequest,
-    validateDimensionCreationRequest
-} from '../controllers/dimension-processor';
-import { User } from '../entities/dataset/user';
-import { Dataset } from '../entities/dataset/dataset';
+import { createDimensionsFromSourceAssignment, validateSourceAssignment } from '../controllers/dimension-processor';
+import { User } from '../entities/user/user';
 import { DatasetInfo } from '../entities/dataset/dataset-info';
-import { Dimension } from '../entities/dataset/dimension';
-import { Revision } from '../entities/dataset/revision';
 import { FileImport } from '../entities/dataset/file-import';
-import { DatasetTitle, FileDescription } from '../dtos/file-list';
 import { DatasetDTO } from '../dtos/dataset-dto';
 import { DatasetInfoDTO } from '../dtos/dataset-info-dto';
 import { FileImportDTO } from '../dtos/file-import-dto';
-import { DimensionDTO } from '../dtos/dimension-dto';
-import { RevisionDTO } from '../dtos/revision-dto';
 import { DataLocation } from '../enums/data-location';
 import { Locale } from '../enums/locale';
+import { DatasetRepository } from '../repositories/dataset';
+import { hasError, datasetIdValidator, titleValidator, revisionIdValidator, importIdValidator } from '../validators';
+import { NotFoundException } from '../exceptions/not-found.exception';
+import { BadRequestException } from '../exceptions/bad-request.exception';
+import { UnknownException } from '../exceptions/unknown.exception';
+import { getLatestImport, getLatestRevision } from '../utils/latest';
+import { Dimension } from '../entities/dataset/dimension';
+import { DimensionDTO } from '../dtos/dimension-dto';
+import { TasklistStateDTO } from '../dtos/tasklist-state-dto';
+import { Revision } from '../entities/dataset/revision';
+import { RevisionDTO } from '../dtos/revision-dto';
+import { Source } from '../entities/dataset/source';
+import { SourceAssignmentException } from '../exceptions/source-assignment.exception';
 
-const t = i18next.t;
-
-const jsonParser = bodyParser.json();
-const storage = multer.memoryStorage();
-const upload = multer({ storage });
+const jsonParser = express.json();
+const upload = multer({ storage: multer.memoryStorage() });
 
 const router = Router();
 export const datasetRouter = router;
 
-const DATASET = 'Dataset';
-const REVISION = 'Revision';
-const DIMENSION = 'Dimension';
-const IMPORT = 'Import';
-
-function isValidUUID(uuid: string): boolean {
-    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-    return uuid.length === 36 && uuidRegex.test(uuid);
-}
-
-function validateIds(id: string, idType: string, res: Response): boolean {
-    if (id === undefined) {
-        res.status(400);
-        res.json({ message: `${idType} ID is null or undefined` });
-        return false;
-    }
-    if (!isValidUUID(id)) {
-        res.status(400);
-        res.json({ message: `${idType} ID is not valid` });
-        return false;
-    }
-    return true;
-}
-
-async function validateDataset(datasetID: string, res: Response): Promise<Dataset | null> {
-    if (!validateIds(datasetID, DATASET, res)) return null;
-    const dataset = await Dataset.findOneBy({ id: datasetID });
-    if (!dataset) {
-        res.status(404);
-        res.json({ message: 'Dataset not found.' });
-        return null;
-    }
-    return dataset;
-}
-
-async function validateDimension(dimensionID: string, res: Response): Promise<Dimension | null> {
-    if (!validateIds(dimensionID, DIMENSION, res)) return null;
-    const dimension = await Dimension.findOneBy({ id: dimensionID });
-    if (!dimension) {
-        res.status(404);
-        res.json({ message: 'Dimension not found.' });
-        return null;
-    }
-    return dimension;
-}
-
-async function validateRevision(revisionID: string, res: Response): Promise<Revision | null> {
-    if (!validateIds(revisionID, REVISION, res)) return null;
-    const revision = await Revision.findOneBy({ id: revisionID });
-    if (!revision) {
-        res.status(404);
-        res.json({ message: 'Revision not found.' });
-        return null;
-    }
-    return revision;
-}
-
-async function validateImport(importID: string, res: Response): Promise<FileImport | null> {
-    if (!validateIds(importID, IMPORT, res)) return null;
-    const importObj = await FileImport.findOneBy({ id: importID });
-    if (!importObj) {
-        res.status(404);
-        res.json({ message: 'Import not found.' });
-        return null;
-    }
-    return importObj;
-}
-
-function errorDtoGenerator(
-    field: string,
-    statusCode: number,
-    translationString: string,
-    datasetID: string | undefined = undefined
-): ViewErrDTO {
-    return {
-        success: false,
-        status: statusCode,
-        dataset_id: datasetID,
-        errors: [
-            {
-                field,
-                message: [
-                    {
-                        lang: Locale.English,
-                        message: t(translationString, { lng: Locale.English })
-                    },
-                    {
-                        lang: Locale.Welsh,
-                        message: t(translationString, { lng: Locale.Welsh })
-                    }
-                ],
-                tag: {
-                    name: translationString,
-                    params: {}
-                }
-            }
-        ]
-    };
-}
-
-// POST /dataset
-// Upload a CSV file to the server
-// Returns a JSON object with the a DTO object that represents the dataset
-// first revision and the import record.
-router.post('/', upload.single('csv'), async (req: Request, res: Response) => {
-    if (!req.file) {
-        res.status(400);
-        res.json(errorDtoGenerator('csv', 400, 'errors.no_csv_data'));
+// middleware that loads the dataset (with nested relations) and stores it in res.locals
+export const loadDataset = async (req: Request, res: Response, next: NextFunction) => {
+    const datasetIdError = await hasError(datasetIdValidator(), req);
+    if (datasetIdError) {
+        logger.error(datasetIdError);
+        next(new NotFoundException('errors.dataset_id_invalid'));
         return;
     }
 
-    const title: string = req.body?.title;
-
-    if (!title) {
-        res.status(400);
-        res.json(errorDtoGenerator('title', 400, 'errors.no_title'));
-        return;
-    }
-
-    let importRecord: FileImport;
+    // TODO: include user in query to prevent unauthorized access
 
     try {
-        importRecord = await uploadCSVBufferToBlobStorage(req.file.buffer, req.file?.mimetype);
+        logger.debug(`Loading dataset ${req.params.dataset_id}...`);
+        const dataset = await DatasetRepository.getById(req.params.dataset_id);
+        res.locals.datasetId = dataset.id;
+        res.locals.dataset = dataset;
     } catch (err) {
-        logger.error(`An error occurred trying to upload the file with the following error: ${err}`);
-        res.status(500);
-        res.json({ message: 'Error uploading file' });
+        logger.error(`Failed to load dataset, error: ${err}`);
+        next(new NotFoundException('errors.no_dataset'));
         return;
     }
 
-    // Everything looks good so far, let's create the dataset and revision records
-    const dataset = new Dataset();
-    dataset.id = randomUUID().toLowerCase();
-    dataset.createdAt = new Date();
+    next();
+};
 
-    // req.user is set from the JWT token in the passport-auth middleware
-    const user = req.user as User;
-
-    if (!user) {
-        throw new Error('Test user not found');
-    }
-
-    dataset.createdBy = Promise.resolve(user);
-    const datasetInfo = new DatasetInfo();
-    datasetInfo.language = req.language;
-    datasetInfo.title = title;
-    datasetInfo.dataset = Promise.resolve(dataset);
-    dataset.datasetInfo = Promise.resolve([datasetInfo]);
-    const revision = new Revision();
-    revision.dataset = Promise.resolve(dataset);
-    revision.revisionIndex = 1;
-    revision.createdAt = new Date();
-    revision.createdBy = Promise.resolve(user);
-    dataset.revisions = Promise.resolve([revision]);
-    importRecord.revision = Promise.resolve(revision);
-    revision.imports = Promise.resolve([importRecord]);
-    await dataset.save();
-
-    const uploadDTO = await DatasetDTO.fromDatasetWithRevisionsAndImports(dataset);
-    res.status(201);
-    res.json(uploadDTO);
-});
-
-// GET /dataset/
-// Returns a list of all datasets
-// Returns a JSON object with a list of all datasets
-// and their titles
-router.get('/', async (req: Request, res: Response) => {
-    const datasets = await Dataset.find();
-    const fileList: FileDescription[] = [];
-    for (const dataset of datasets) {
-        const titles: DatasetTitle[] = [];
-        const datasetInfo = await dataset.datasetInfo;
-        for (const info of datasetInfo) {
-            titles.push({
-                title: info.title,
-                language: info.language
-            });
+// middleware that loads a specific file import of a dataset and stores it in res.locals
+// requires :dataset_id, :revision_id and :import_id in the path
+export const loadFileImport = async (req: Request, res: Response, next: NextFunction) => {
+    for (const validator of [datasetIdValidator(), revisionIdValidator(), importIdValidator()]) {
+        const result = await validator.run(req);
+        if (!result.isEmpty()) {
+            const error = result.array()[0] as FieldValidationError;
+            next(new NotFoundException(`errors.${error.path}_invalid`));
+            return;
         }
-        fileList.push({
-            titles,
-            dataset_id: dataset.id
-        });
     }
-    res.json({ datasets: fileList });
+
+    // TODO: include user in query to prevent unauthorized access
+
+    try {
+        const { dataset_id, revision_id, import_id } = req.params;
+        const fileImport: FileImport = await DatasetRepository.getFileImportById(dataset_id, revision_id, import_id);
+        res.locals.fileImport = fileImport;
+        res.locals.revision = fileImport.revision;
+        res.locals.dataset = fileImport.revision.dataset;
+        res.locals.datasetId = dataset_id;
+    } catch (err) {
+        logger.error(`Failed to load file import, error: ${err}`);
+        next(new NotFoundException('errors.no_file_import'));
+        return;
+    }
+
+    next();
+};
+
+// GET /dataset
+// Returns a JSON object with a list of all datasets and their titles
+router.get('/', async (req: Request, res: Response, next: NextFunction) => {
+    try {
+        const datasets = await DatasetRepository.listAllByLanguage(req.language as Locale);
+        res.json({ datasets });
+    } catch (err) {
+        logger.error('Failed to fetch dataset list:', err);
+        next(new UnknownException());
+    }
 });
 
 // GET /dataset/active
 // Returns a list of all active datasets e.g. ones with imports
-// Returns a JSON object with a list of all datasets
-// and their titles
-router.get('/active', async (req: Request, res: Response) => {
-    const datasets = await Dataset.find();
-    const fileList: FileDescription[] = [];
-    for (const dataset of datasets) {
-        const titles: DatasetTitle[] = [];
-        const revisions = await dataset.revisions;
-        if (!revisions) {
-            continue;
-        }
-        const latestRevision = revisions.pop();
-        if (!latestRevision) {
-            continue;
-        }
-        const fileImports: FileImport[] = await latestRevision.imports;
-        if (!fileImports) {
-            continue;
-        }
-        if (fileImports?.length === 0) {
-            continue;
-        }
-        const datasetInfo = await dataset.datasetInfo;
-        for (const info of datasetInfo) {
-            titles.push({
-                title: info.title,
-                language: info.language
-            });
-        }
-        fileList.push({
-            titles,
-            dataset_id: dataset.id
-        });
+router.get('/active', async (req: Request, res: Response, next: NextFunction) => {
+    try {
+        const datasets = await DatasetRepository.listActiveByLanguage(req.language as Locale);
+        res.json({ datasets });
+    } catch (err) {
+        logger.error('Failed to fetch active dataset list:', err);
+        next(new UnknownException());
     }
-    res.json({ filelist: fileList });
 });
 
-// GET /api/dataset/:dataset_id
-// Returns a shallow dto of the dataset with the given ID
-// Shallow gives the revisions and dimensions of the dataset only
-router.get('/:dataset_id', async (req: Request, res: Response) => {
-    const datasetID: string = req.params.dataset_id.toLowerCase();
-    const dataset = await validateDataset(datasetID, res);
-    if (!dataset) return;
-    const dto = await DatasetDTO.fromDatasetComplete(dataset);
-    res.json(dto);
+// GET /dataset/:dataset_id
+// Returns the dataset with the given ID with all available relations hydrated
+router.get('/:dataset_id', loadDataset, async (req: Request, res: Response) => {
+    res.json(DatasetDTO.fromDataset(res.locals.dataset));
 });
 
-// DELETE /api/dataset/:dataset_id
-// Returns a shallow dto of the dataset with the given ID
-// Shallow gives the revisions and dimensions of the dataset only
-router.delete('/:dataset_id', async (req: Request, res: Response) => {
-    const datasetID: string = req.params.dataset_id.toLowerCase();
-    const dataset = await validateDataset(datasetID, res);
-    if (!dataset) return;
-    logger.warn('Deleting dataset with ID:', datasetID);
-    await dataset.remove();
+// DELETE /dataset/:dataset_id
+// Deletes the dataset with the given ID
+router.delete('/:dataset_id', loadDataset, async (req: Request, res: Response) => {
+    await DatasetRepository.deleteById(res.locals.datasetId);
     res.status(204);
     res.end();
 });
 
-// GET /api/dataset/:dataset_id/view
+// POST /dataset
+// Creates a new dataset with a title
+// Returns a DatasetDTO object
+router.post('/', jsonParser, async (req: Request, res: Response, next: NextFunction) => {
+    const titleError = await hasError(titleValidator(), req);
+    if (titleError) {
+        next(new BadRequestException('errors.no_title'));
+        return;
+    }
+
+    try {
+        const dataset = await DatasetRepository.createWithTitle(req.user as User, req.language, req.body.title);
+        logger.info(`Dataset created with id: ${dataset.id}`);
+        res.status(201);
+        res.json(DatasetDTO.fromDataset(dataset));
+    } catch (err) {
+        logger.error(`An error occurred trying to create a dataset: ${err}`);
+        next(new UnknownException());
+    }
+});
+
+// POST /dataset
+// Upload a CSV file to a dataset
+// Returns a DTO object that includes the revisions and import records
+router.post(
+    '/:dataset_id/data',
+    upload.single('csv'),
+    loadDataset,
+    async (req: Request, res: Response, next: NextFunction) => {
+        if (!req.file) {
+            next(new BadRequestException('errors.upload.no_csv'));
+            return;
+        }
+
+        let fileImport: FileImport;
+
+        try {
+            fileImport = await uploadCSVBufferToBlobStorage(req.file.buffer, req.file?.mimetype);
+        } catch (err) {
+            logger.error(`An error occurred trying to upload the file: ${err}`);
+            next(new UnknownException('errors.upload_error'));
+            return;
+        }
+
+        try {
+            const user = req.user as User;
+            const dataset = await DatasetRepository.createRevisionFromImport(res.locals.dataset, fileImport, user);
+            res.status(201);
+            res.json(DatasetDTO.fromDataset(dataset));
+        } catch (err) {
+            logger.error(`An error occurred trying to create a revision: ${err}`);
+            next(new UnknownException('errors.upload_error'));
+        }
+    }
+);
+
+// GET /dataset/:dataset_id/view
 // Returns a view of the data file attached to the import
-router.get('/:dataset_id/view', async (req: Request, res: Response) => {
-    const datasetID: string = req.params.dataset_id.toLowerCase();
-    const dataset = await validateDataset(datasetID, res);
-    if (!dataset) return;
-    const latestRevision = (await dataset.revisions).pop();
+router.get('/:dataset_id/view', loadDataset, async (req: Request, res: Response, next: NextFunction) => {
+    const dataset = res.locals.dataset;
+    const latestRevision = getLatestRevision(dataset);
+
     if (!latestRevision) {
-        logger.error('Unable to find the last revision');
-        res.status(500);
-        res.json({ message: 'No revision found for dataset' });
+        next(new UnknownException('errors.no_revision'));
         return;
     }
-    const latestImport = (await latestRevision.imports).pop();
+
+    const latestImport = getLatestImport(latestRevision);
+
     if (!latestImport) {
-        logger.error('Unable to find the last import record');
-        res.status(500);
-        res.json({ message: 'No import record found for dataset' });
+        next(new UnknownException('errors.no_file_import'));
         return;
     }
-    const page_number_str: string = req.query.page_number || req.body?.page_number;
-    const page_size_str: string = req.query.page_size || req.body?.page_size;
-    const page_number: number = Number.parseInt(page_number_str, 10) || 1;
-    const page_size: number = Number.parseInt(page_size_str, 10) || DEFAULT_PAGE_SIZE;
+
+    const page_number: number = Number.parseInt(req.query.page_number as string, 10) || 1;
+    const page_size: number = Number.parseInt(req.query.page_size as string, 10) || DEFAULT_PAGE_SIZE;
     let processedCSV: ViewErrDTO | ViewDTO;
-    if (latestImport.location === DataLocation.BlobStorage) {
+
+    if (latestImport?.location === DataLocation.BlobStorage) {
         processedCSV = await processCSVFromBlobStorage(dataset, latestImport, page_number, page_size);
-    } else if (latestImport.location === DataLocation.DataLake) {
+    } else if (latestImport?.location === DataLocation.DataLake) {
         processedCSV = await processCSVFromDatalake(dataset, latestImport, page_number, page_size);
     } else {
-        res.status(500);
-        res.json({ message: 'Import location not supported.' });
+        logger.error('Import location not supported');
+        next(new UnknownException('errors.import_location_not_supported'));
         return;
     }
+
     if (!processedCSV.success) {
         res.status(500);
     }
     res.json(processedCSV);
 });
 
-router.patch('/:dataset_id/info', jsonParser, async (req: Request, res: Response) => {
-    const datasetID: string = req.params.dataset_id.toLowerCase();
+router.patch('/:dataset_id/info', jsonParser, loadDataset, async (req: Request, res: Response, next: NextFunction) => {
+    const dataset = res.locals.dataset;
     const infoDTO = req.body as DatasetInfoDTO;
-    const dataset = await validateDataset(datasetID, res);
-    if (!dataset) return;
-    const lang = req.language;
-    let infoEntity: DatasetInfo | null;
-    let status = 200;
-    infoEntity = await DatasetInfo.findOneBy({ id: dataset.id, language: infoDTO.language });
-    if (!infoEntity) {
-        status = 201;
-        infoEntity = new DatasetInfo();
-        infoEntity.language = infoDTO.language;
-        infoEntity.dataset = Promise.resolve(dataset);
-    }
-    if (infoDTO.title) {
-        infoEntity.title = infoDTO.title;
-    }
-    if (infoDTO.description) {
-        infoEntity.description = infoDTO.description;
-    }
-    await infoEntity.save();
-    await dataset.reload();
-    const dto = await DatasetDTO.fromDatasetComplete(dataset);
-    res.status(status);
-    res.json(dto);
-});
 
-// GET /api/dataset/:dataset_id/dimension/id/:dimension_id
-// Returns details of a dimension with its sources and imports
-router.get('/:dataset_id/dimension/by-id/:dimension_id', async (req: Request, res: Response) => {
-    const datasetID: string = req.params.dataset_id.toLowerCase();
-    const dataset = await validateDataset(datasetID, res);
-    if (!dataset) return;
-    const dimensionID: string = req.params.dimension_id;
-    const dimension = await validateDimension(dimensionID, res);
-    if (!dimension) return;
-    const dto = await DimensionDTO.fromDimension(dimension);
-    res.json(dto);
-});
+    try {
+        let infoEntity: DatasetInfo | null;
+        let status = 200;
+        infoEntity = await DatasetInfo.findOneBy({ id: dataset.id, language: infoDTO.language });
 
-// GET /api/dataset/:dataset_id/revision/id/:revision_id
-// Returns details of a revision with its imports
-router.get('/:dataset_id/revision/by-id/:revision_id', async (req: Request, res: Response) => {
-    const datasetID: string = req.params.dataset_id.toLowerCase();
-    const dataset = await validateDataset(datasetID, res);
-    if (!dataset) return;
-    const revisionID: string = req.params.revision_id;
-    const revision = await validateRevision(revisionID, res);
-    if (!revision) return;
-    const dto = await RevisionDTO.fromRevision(revision);
-    res.json(dto);
-});
-
-// POST /api/dataset/:dataset_id/revision/id/:revision_id/import
-// Creates a new import on a revision.  This typically only occurs when a user
-// decides the file they uploaded wasn't correct.
-router.post(
-    '/:dataset_id/revision/by-id/:revision_id/import',
-    upload.single('csv'),
-    async (req: Request, res: Response) => {
-        const datasetID: string = req.params.dataset_id.toLowerCase();
-        const dataset = await validateDataset(datasetID, res);
-        if (!dataset) return;
-        const revisionID: string = req.params.revision_id;
-        const revision = await validateRevision(revisionID, res);
-        if (!revision) return;
-        if (!req.file) {
-            res.status(400);
-            res.json(errorDtoGenerator('csv', 400, 'errors.no_csv_data'));
-            return;
+        if (!infoEntity) {
+            status = 201;
+            infoEntity = new DatasetInfo();
+            infoEntity.language = infoDTO.language;
+            infoEntity.dataset = dataset;
         }
-        let importRecord: FileImport;
+        if (infoDTO.title) {
+            infoEntity.title = infoDTO.title;
+        }
+        if (infoDTO.description) {
+            infoEntity.description = infoDTO.description;
+        }
+        await infoEntity.save();
+        const updatedDataset = await DatasetRepository.getById(dataset.id);
+        res.status(status);
+        res.json(DatasetDTO.fromDataset(updatedDataset));
+    } catch (err) {
+        next(new UnknownException('errors.info_update_error'));
+    }
+});
+
+// GET /dataset/:dataset_id/revision/by-id/:revision_id/import/by-id/:import_id
+// Returns details of an import with its sources
+router.get(
+    '/:dataset_id/revision/by-id/:revision_id/import/by-id/:import_id',
+    loadFileImport,
+    async (req: Request, res: Response, next: NextFunction) => {
         try {
-            importRecord = await uploadCSVBufferToBlobStorage(req.file.buffer, req.file?.mimetype);
+            const fileImport = res.locals.fileImport;
+            const dto = await FileImportDTO.fromImport(fileImport);
+            res.json(dto);
         } catch (err) {
-            logger.error(`An error occurred trying to upload the file with the following error: ${err}`);
-            res.status(500);
-            res.json({ message: 'Error uploading file' });
-            return;
+            next(new UnknownException());
         }
-        importRecord.revision = Promise.resolve(revision);
-        await importRecord.save();
-        const updatedDataset = await Dataset.findOneBy({ id: datasetID });
-        if (!updatedDataset) return;
-
-        const uploadDTO = await DatasetDTO.fromDatasetWithRevisionsAndImports(updatedDataset);
-        res.status(201);
-        res.json(uploadDTO);
     }
 );
 
-// GET /api/dataset/:dataset_id/revision/id/:revision_id/import/by-id/:import_id
-// Returns details of an import with its sources
-router.get('/:dataset_id/revision/by-id/:revision_id/import/by-id/:import_id', async (req: Request, res: Response) => {
-    const datasetID: string = req.params.dataset_id.toLowerCase();
-    const dataset = await validateDataset(datasetID, res);
-    if (!dataset) return;
-    const revisionID: string = req.params.revision_id;
-    const revision = await validateRevision(revisionID, res);
-    if (!revision) return;
-    const importID: string = req.params.import_id;
-    const importRecord = await validateImport(importID, res);
-    if (!importRecord) return;
-    const dto = await FileImportDTO.fromImport(importRecord);
-    res.json(dto);
-});
-
-// GET /api/dataset/:dataset_id/revision/id/:revision_id/import/id/:import_id/preview
+// GET /dataset/:dataset_id/revision/by-id/:revision_id/import/by-id/:import_id/preview
 // Returns a view of the data file attached to the import
 router.get(
     '/:dataset_id/revision/by-id/:revision_id/import/by-id/:import_id/preview',
-    async (req: Request, res: Response) => {
-        const datasetID: string = req.params.dataset_id.toLowerCase();
-        const dataset = await validateDataset(datasetID, res);
-        if (!dataset) return;
-        const revisionID: string = req.params.revision_id;
-        const revision = await validateRevision(revisionID, res);
-        if (!revision) return;
-        const importID: string = req.params.import_id;
-        const importRecord = await validateImport(importID, res);
-        if (!importRecord) return;
-        const page_number_str: string = req.query.page_number || req.body?.page_number;
-        const page_size_str: string = req.query.page_size || req.body?.page_size;
-        const page_number: number = Number.parseInt(page_number_str, 10) || 1;
-        const page_size: number = Number.parseInt(page_size_str, 10) || DEFAULT_PAGE_SIZE;
+    loadFileImport,
+    async (req: Request, res: Response, next: NextFunction) => {
+        const { dataset, fileImport } = res.locals;
+
+        const page_number: number = Number.parseInt(req.query.page_number as string, 10) || 1;
+        const page_size: number = Number.parseInt(req.query.page_size as string, 10) || DEFAULT_PAGE_SIZE;
+
         let processedCSV: ViewErrDTO | ViewDTO;
-        if (importRecord.location === DataLocation.BlobStorage) {
-            processedCSV = await processCSVFromBlobStorage(dataset, importRecord, page_number, page_size);
-        } else if (importRecord.location === DataLocation.DataLake) {
-            processedCSV = await processCSVFromDatalake(dataset, importRecord, page_number, page_size);
+
+        if (fileImport.location === DataLocation.BlobStorage) {
+            processedCSV = await processCSVFromBlobStorage(dataset, fileImport, page_number, page_size);
+        } else if (fileImport.location === DataLocation.DataLake) {
+            processedCSV = await processCSVFromDatalake(dataset, fileImport, page_number, page_size);
         } else {
-            res.status(500);
-            res.json({ message: 'Import location not supported.' });
+            logger.error('Import location not supported');
+            next(new UnknownException('errors.import_location_not_supported'));
             return;
         }
+
         if (!processedCSV.success) {
             const processErr = processedCSV as ViewErrDTO;
             res.status(processErr.status);
         }
+
         res.json(processedCSV);
     }
 );
 
-// GET /api/dataset/:dataset_id/revision/id/:revision_id/import/id/:import_id/raw
+// PATCH /dataset/:dataset_id/revision/by-id/:revision_id/import/by-id/:import_id/confirm
+// Moves the file from temporary blob storage to datalake and creates sources
+// returns a JSON object with the current state of the revision including the import
+// and sources created from the import.
+router.patch(
+    '/:dataset_id/revision/by-id/:revision_id/import/by-id/:import_id/confirm',
+    loadFileImport,
+    async (req: Request, res: Response, next: NextFunction) => {
+        const fileImport: FileImport = res.locals.fileImport;
+
+        if (fileImport.location === DataLocation.DataLake) {
+            const fileImportDto = FileImportDTO.fromImport(fileImport);
+            res.status(200);
+            res.json(fileImportDto);
+            return;
+        }
+
+        try {
+            await moveFileToDataLake(fileImport);
+        } catch (err) {
+            logger.error(`An error occurred trying to move the file with the following error: ${err}`);
+            next(new UnknownException('errors.move_file_error'));
+            return;
+        }
+        try {
+            const fileImportDto = await createSources(fileImport);
+            res.status(200);
+            res.json(fileImportDto);
+        } catch (err) {
+            logger.error(`An error occurred trying to create the sources with the following error: ${err}`);
+            res.status(500);
+            res.json({ message: 'Error creating sources from the uploaded file.  Please try again.' });
+        }
+    }
+);
+
+// GET /dataset/:dataset_id/revision/id/:revision_id/import/id/:import_id/raw
 // Returns the original uploaded file back to the client
 router.get(
     '/:dataset_id/revision/by-id/:revision_id/import/by-id/:import_id/raw',
-    async (req: Request, res: Response) => {
-        const datasetID: string = req.params.dataset_id.toLowerCase();
-        const dataset = await validateDataset(datasetID, res);
-        if (!dataset) return;
-        const revisionID: string = req.params.revision_id;
-        const revision = await validateRevision(revisionID, res);
-        if (!revision) return;
-        const importID: string = req.params.import_id;
-        const importRecord = await validateImport(importID, res);
-        if (!importRecord) return;
+    loadFileImport,
+    async (req: Request, res: Response, next: NextFunction) => {
+        const { dataset, fileImport } = res.locals;
+
         let viewStream: ViewErrDTO | ViewStream;
-        if (importRecord.location === DataLocation.BlobStorage) {
-            viewStream = await getFileFromBlobStorage(dataset, importRecord);
-        } else if (importRecord.location === DataLocation.DataLake) {
-            viewStream = await getFileFromDataLake(dataset, importRecord);
+        if (fileImport.location === DataLocation.BlobStorage) {
+            viewStream = await getFileFromBlobStorage(dataset, fileImport);
+        } else if (fileImport.location === DataLocation.DataLake) {
+            viewStream = await getFileFromDataLake(dataset, fileImport);
         } else {
-            res.status(500);
-            res.json({ message: 'Import location not supported.' });
+            logger.error('Import location not supported');
+            next(new UnknownException('errors.import_location_not_supported'));
             return;
         }
         if (!viewStream.success) {
@@ -531,46 +389,123 @@ router.get(
     }
 );
 
-// PATCH /api/dataset/:dataset_id/revision/id/:revision_id/import/id/:import_id/confirm
-// Moves the file from temporary blob storage to datalake and creates sources
-// returns a JSON object with the current state of the revision including the import
-// and sources created from the import.
+// PATCH /dataset/:dataset_id/revision/by-id/:revision_id/import/by-id/:import_id/sources
+// Creates the dimensions from relating to the import based on information provided
+// from the sources and the user.
+// Body should contain the following structure:
+// [
+//     {
+//         "sourceId": "<source_id>",
+//         "sourceType": "data_values || "dimension" || "foot_notes" || "ignore"
+//     }
+// ]
+// Notes: There can only be one object with a type of "dataValue" and one object with a type of "footnotes"
+// Returns a JSON object with the current state of the dataset including the dimensions created.
 router.patch(
-    '/:dataset_id/revision/by-id/:revision_id/import/by-id/:import_id/confirm',
-    async (req: Request, res: Response) => {
-        const datasetID: string = req.params.dataset_id.toLowerCase();
-        const dataset = await validateDataset(datasetID, res);
-        if (!dataset) return;
-        const revisionID: string = req.params.revision_id;
-        const revision = await validateRevision(revisionID, res);
-        if (!revision) return;
-        const importID: string = req.params.import_id;
-        const importRecord = await validateImport(importID, res);
-        if (!importRecord) return;
-        if (importRecord.location === DataLocation.DataLake) {
-            const fileImportDto = await FileImportDTO.fromImportWithSources(importRecord);
-            res.status(200);
-            res.json(fileImportDto);
+    '/:dataset_id/revision/by-id/:revision_id/import/by-id/:import_id/sources',
+    jsonParser,
+    loadFileImport,
+    async (req: Request, res: Response, next: NextFunction) => {
+        const { dataset, revision, fileImport } = res.locals;
+        const sourceAssignment = req.body;
+
+        try {
+            const validatedSourceAssignment = await validateSourceAssignment(fileImport, sourceAssignment);
+            await createDimensionsFromSourceAssignment(dataset, revision, validatedSourceAssignment);
+            const updatedDataset = await DatasetRepository.getById(revision.dataset.id);
+            res.json(DatasetDTO.fromDataset(updatedDataset));
+        } catch (err) {
+            logger.error(`An error occurred trying to process the source assignments: ${err}`);
+
+            if (err instanceof SourceAssignmentException) {
+                next(new BadRequestException(err.message));
+            } else {
+                next(new BadRequestException('errors.invalid_source_assignment'));
+            }
+        }
+    }
+);
+
+// GET /dataset/:dataset_id/tasklist
+// Returns a JSON object with info on what parts of the dataset have been created
+router.get('/:dataset_id/tasklist', loadDataset, async (req: Request, res: Response, next: NextFunction) => {
+    try {
+        const tasklistState = TasklistStateDTO.fromDataset(res.locals.dataset, req.language as Locale);
+        res.json(tasklistState);
+    } catch (err) {
+        next(new UnknownException('errors.tasklist_error'));
+    }
+});
+
+// GET /dataset/:dataset_id/dimension/id/:dimension_id
+// Returns details of a dimension with its sources and imports
+router.get(
+    '/:dataset_id/dimension/by-id/:dimension_id',
+    loadDataset,
+    async (req: Request, res: Response, next: NextFunction) => {
+        const dataset = res.locals.dataset;
+        const dimension = dataset.dimensions.find((dim: Dimension) => dim.id === req.params.dimension_id);
+
+        if (!dimension) {
+            next(new NotFoundException('errors.dimension_id_invalid'));
             return;
         }
-        try {
-            importRecord.location = DataLocation.DataLake;
-            await moveFileToDataLake(importRecord);
-            await importRecord.save();
-        } catch (err) {
-            logger.error(`An error occurred trying to move the file with the following error: ${err}`);
-            res.status(500);
-            res.json({ message: 'Error moving file from temporary blob storage to Data Lake.  Please try again.' });
+
+        res.json(DimensionDTO.fromDimension(dimension));
+    }
+);
+
+// GET /dataset/:dataset_id/revision/id/:revision_id
+// Returns details of a revision with its imports
+router.get(
+    '/:dataset_id/revision/by-id/:revision_id',
+    loadDataset,
+    async (req: Request, res: Response, next: NextFunction) => {
+        const dataset = res.locals.dataset;
+        const revision = dataset.revisions.find((revision: Revision) => revision.id === req.params.revision_id);
+
+        if (!revision) {
+            next(new NotFoundException('errors.revision_id_invalid'));
             return;
         }
+
+        res.json(RevisionDTO.fromRevision(revision));
+    }
+);
+
+// POST /dataset/:dataset_id/revision/id/:revision_id/import
+// Creates a new import on a revision.  This typically only occurs when a user
+// decides the file they uploaded wasn't correct.
+router.post(
+    '/:dataset_id/revision/by-id/:revision_id/import',
+    upload.single('csv'),
+    loadDataset,
+    async (req: Request, res: Response, next: NextFunction) => {
+        const dataset = res.locals.dataset;
+        const revision = dataset.revisions?.find((revision: Revision) => revision.id === req.params.revision_id);
+
+        if (!revision) {
+            next(new NotFoundException('errors.revision_id_invalid'));
+            return;
+        }
+
+        if (!req.file) {
+            next(new BadRequestException('errors.upload.no_csv'));
+            return;
+        }
+
+        let fileImport: FileImport;
+
         try {
-            const fileImportDto = await createSources(importRecord);
-            res.status(200);
-            res.json(fileImportDto);
+            fileImport = await uploadCSVBufferToBlobStorage(req.file.buffer, req.file?.mimetype);
+            fileImport.revision = revision;
+            await fileImport.save();
+            const updatedDataset = await DatasetRepository.getById(dataset.id);
+            res.status(201);
+            res.json(DatasetDTO.fromDataset(updatedDataset));
         } catch (err) {
-            logger.error(`An error occurred trying to create the sources with the following error: ${err}`);
-            res.status(500);
-            res.json({ message: 'Error creating sources from the uploaded file.  Please try again.' });
+            logger.error(`An error occurred trying to upload the file with the following error: ${err}`);
+            next(new UnknownException('errors.upload_error'));
         }
     }
 );
@@ -580,82 +515,24 @@ router.patch(
 // for the user to upload a new file for the dataset.
 router.delete(
     '/:dataset_id/revision/by-id/:revision_id/import/by-id/:import_id',
-    async (req: Request, res: Response) => {
-        const datasetID: string = req.params.dataset_id.toLowerCase();
-        const dataset = await validateDataset(datasetID, res);
-        if (!dataset) return;
-        const revisionID: string = req.params.revision_id;
-        const revision = await validateRevision(revisionID, res);
-        if (!revision) return;
-        const importID: string = req.params.import_id;
-        const importRecord = await validateImport(importID, res);
-        if (!importRecord) return;
+    loadFileImport,
+    async (req: Request, res: Response, next: NextFunction) => {
+        const { dataset, fileImport } = res.locals;
         try {
-            if (importRecord.location === DataLocation.DataLake) {
-                logger.warn('User has requested to remove a fact table from the datalake.  This is unusual.');
-                await removeFileFromDatalake(importRecord);
-                const sources = await importRecord.sources;
-                sources.forEach((source) => source.remove());
+            if (fileImport.location === DataLocation.DataLake) {
+                logger.warn('User has requested to remove a fact table from the datalake');
+                await removeFileFromDatalake(fileImport);
+                fileImport.sources?.forEach((source: Source) => source.remove());
             } else {
-                await removeTempfileFromBlobStorage(importRecord);
+                await removeTempfileFromBlobStorage(fileImport);
             }
+            await fileImport.remove();
+            const updatedDataset = await DatasetRepository.getById(dataset.id);
+            const dto = DatasetDTO.fromDataset(updatedDataset);
+            res.json(dto);
         } catch (err) {
             logger.error(`An error occurred trying to remove the file with the following error: ${err}`);
-            res.status(500);
-            res.json({ message: 'Error removing file from temporary blob storage.  Please try again.' });
-            return;
+            next(new UnknownException('errors.remove_file'));
         }
-        await importRecord.remove();
-        const updatedDataset = await Dataset.findOneBy({ id: datasetID });
-        if (!updatedDataset) return;
-        const dto = await DatasetDTO.fromDatasetWithRevisionsAndImports(updatedDataset);
-        res.status(200);
-        res.json(dto);
-    }
-);
-
-// POST /api/dataset/:dataset_id/revision/id/:revision_id/import/id/:import_id/create
-// Creates the dimensions from relating to the import based on information provided
-// from the sources and the user.
-// Body should contain a JSON object with the following structure:
-// {
-//     "sources": [
-//         {
-//             "id": "source_id",
-//             "action": "create" || "append" || "truncate-then-load" || "ignore",
-//             "type": "DataValue || "Dimension" || "Footnotes" || "Ignore"
-//         }
-//     ]
-// }
-// Notes: There can only be one object with a type of "dataValue" and one object with a type of "footnotes"
-// Returns a JSON object with the current state of the dataset including the dimensions created.
-router.patch(
-    '/:dataset_id/revision/by-id/:revision_id/import/by-id/:import_id/sources',
-    jsonParser,
-    async (req: Request, res: Response) => {
-        const datasetID: string = req.params.dataset_id.toLowerCase();
-        const dataset = await validateDataset(datasetID, res);
-        if (!dataset) return;
-        const revisionID: string = req.params.revision_id;
-        const revision = await validateRevision(revisionID, res);
-        if (!revision) return;
-        const importID: string = req.params.import_id;
-        const importRecord = await validateImport(importID, res);
-        if (!importRecord) return;
-        const dimensionCreationDTO = req.body as DimensionCreationDTO[];
-        logger.info(`Received patch request with the following payload: ${JSON.stringify(dimensionCreationDTO)}`);
-        let validatedDTO: ValidatedDimensionCreationRequest;
-        try {
-            validatedDTO = await validateDimensionCreationRequest(dimensionCreationDTO);
-        } catch (err) {
-            logger.error(`An error occurred trying to process the user supplied JSON: ${err}`);
-            res.status(400);
-            res.json({ message: `Error processing the supplied JSON with the following error ${err}` });
-            return;
-        }
-        await createDimensionsFromValidatedDimensionRequest(revision, validatedDTO);
-        const dto = await DatasetDTO.fromDatasetComplete(await Dataset.findOneByOrFail({ id: datasetID }));
-        res.status(200);
-        res.json(dto);
     }
 );

@@ -4,13 +4,13 @@ import fs from 'fs';
 import request from 'supertest';
 
 import { t } from '../src/middleware/translation';
-import { DataLakeService } from '../src/controllers/datalake';
-import { BlobStorageService } from '../src/controllers/blob-storage';
+import { DataLakeService } from '../src/services/datalake';
+import { BlobStorageService } from '../src/services/blob-storage';
 import app, { initDb } from '../src/app';
 import { Dataset } from '../src/entities/dataset/dataset';
 import { Revision } from '../src/entities/dataset/revision';
 import { FileImport } from '../src/entities/dataset/file-import';
-import { User } from '../src/entities/dataset/user';
+import { User } from '../src/entities/user/user';
 import { DatasetDTO } from '../src/dtos/dataset-dto';
 import { DimensionDTO } from '../src/dtos/dimension-dto';
 import { RevisionDTO } from '../src/dtos/revision-dto';
@@ -18,6 +18,7 @@ import { FileImportDTO } from '../src/dtos/file-import-dto';
 import DatabaseManager from '../src/db/database-manager';
 import { DataLocation } from '../src/enums/data-location';
 import { Locale } from '../src/enums/locale';
+import { DatasetRepository } from '../src/repositories/dataset';
 
 import { createFullDataset } from './helpers/test-helper';
 import { getTestUser } from './helpers/get-user';
@@ -39,9 +40,15 @@ const user: User = getTestUser('test', 'user');
 describe('API Endpoints for viewing dataset objects', () => {
     let dbManager: DatabaseManager;
     beforeAll(async () => {
-        dbManager = await initDb();
-        await user.save();
-        await createFullDataset(dataset1Id, revision1Id, import1Id, user);
+        try {
+            dbManager = await initDb();
+            await user.save();
+            await createFullDataset(dataset1Id, revision1Id, import1Id, user);
+        } catch (error) {
+            await dbManager.getDataSource().dropDatabase();
+            await dbManager.getDataSource().destroy();
+            process.exit(1);
+        }
     });
 
     test('Check fixtures loaded successfully', async () => {
@@ -49,7 +56,7 @@ describe('API Endpoints for viewing dataset objects', () => {
         if (!dataset1) {
             throw new Error('Dataset not found');
         }
-        const dto = await DatasetDTO.fromDatasetComplete(dataset1);
+        const dto = await DatasetDTO.fromDataset(dataset1);
         expect(dto).toBeInstanceOf(DatasetDTO);
     });
 
@@ -63,14 +70,7 @@ describe('API Endpoints for viewing dataset objects', () => {
         test('Get a list of all datasets returns 200 with a file list', async () => {
             const res = await request(app).get('/dataset').set(getAuthHeader(user));
             expect(res.status).toBe(200);
-            expect(res.body).toEqual({
-                datasets: [
-                    {
-                        titles: [{ language: 'en-GB', title: 'Test Dataset 1' }],
-                        dataset_id: dataset1Id
-                    }
-                ]
-            });
+            expect(res.body).toEqual({ datasets: [{ id: dataset1Id, title: 'Test Dataset 1' }] });
         });
     });
 
@@ -81,21 +81,21 @@ describe('API Endpoints for viewing dataset objects', () => {
             expect(res.body).toEqual({});
         });
 
-        test('Get a dataset returns 200 with a shallow object', async () => {
-            const dataset1 = await Dataset.findOneBy({ id: dataset1Id });
+        test('Get a dataset returns 200', async () => {
+            const dataset1 = await DatasetRepository.getById(dataset1Id);
             if (!dataset1) {
                 throw new Error('Dataset not found');
             }
-            const dto = await DatasetDTO.fromDatasetComplete(dataset1);
+            const dto = await DatasetDTO.fromDataset(dataset1);
             const res = await request(app).get(`/dataset/${dataset1Id}`).set(getAuthHeader(user));
             expect(res.status).toBe(200);
             expect(res.body).toEqual(dto);
         });
 
-        test('Get a dataset returns 400 if an invalid ID is given', async () => {
+        test('Get a dataset returns 404 if an invalid ID is given', async () => {
             const res = await request(app).get(`/dataset/INVALID-ID`).set(getAuthHeader(user));
-            expect(res.status).toBe(400);
-            expect(res.body).toEqual({ message: 'Dataset ID is not valid' });
+            expect(res.status).toBe(404);
+            expect(res.body).toEqual({ error: 'Dataset id is invalid or missing' });
         });
 
         test('Get a dataset returns 404 if a non-existant ID is given', async () => {
@@ -116,11 +116,11 @@ describe('API Endpoints for viewing dataset objects', () => {
         });
 
         test('Get a dimension returns 200 with a shallow object', async () => {
-            const dataset1 = await Dataset.findOneBy({ id: dataset1Id });
+            const dataset1 = await DatasetRepository.getById(dataset1Id);
             if (!dataset1) {
                 throw new Error('Dataset not found');
             }
-            const dimension = (await dataset1.dimensions).pop();
+            const dimension = dataset1.dimensions.pop();
             if (!dimension) {
                 throw new Error('No dimension found on test dataset');
             }
@@ -132,12 +132,12 @@ describe('API Endpoints for viewing dataset objects', () => {
             expect(res.body).toEqual(dto);
         });
 
-        test('Get a dimension returns 400 if an invalid ID is given', async () => {
+        test('Get a dimension returns 404 if an invalid ID is given', async () => {
             const res = await request(app)
                 .get(`/dataset/${dataset1Id}/dimension/by-id/INVALID-ID`)
                 .set(getAuthHeader(user));
-            expect(res.status).toBe(400);
-            expect(res.body).toEqual({ message: 'Dimension ID is not valid' });
+            expect(res.status).toBe(404);
+            expect(res.body).toEqual({ error: 'Dimension id is invalid or missing' });
         });
 
         test('Get a dimension returns 404 if a non-existant ID is given', async () => {
@@ -155,8 +155,11 @@ describe('API Endpoints for viewing dataset objects', () => {
             expect(res.body).toEqual({});
         });
 
-        test('Get a revision returns 200 with a shallow object', async () => {
-            const revision = await Revision.findOneBy({ id: revision1Id });
+        test('Get a revision returns 200', async () => {
+            const revision = await Revision.findOne({
+                where: { id: revision1Id },
+                relations: ['createdBy', 'imports', 'imports.sources']
+            });
             if (!revision) {
                 throw new Error('Dataset not found');
             }
@@ -168,12 +171,12 @@ describe('API Endpoints for viewing dataset objects', () => {
             expect(res.body).toEqual(dto);
         });
 
-        test('Get revision returns 400 if an invalid ID is given', async () => {
+        test('Get revision returns 404 if an invalid ID is given', async () => {
             const res = await request(app)
                 .get(`/dataset/${dataset1Id}/revision/by-id/INVALID-ID`)
                 .set(getAuthHeader(user));
-            expect(res.status).toBe(400);
-            expect(res.body).toEqual({ message: 'Revision ID is not valid' });
+            expect(res.status).toBe(404);
+            expect(res.body).toEqual({ error: 'Revision id is invalid or missing' });
         });
 
         test('Get revision returns 404 if a ID is given', async () => {
@@ -194,7 +197,7 @@ describe('API Endpoints for viewing dataset objects', () => {
         });
 
         test('Get import returns 200 with object', async () => {
-            const imp = await FileImport.findOneBy({ id: import1Id });
+            const imp = await DatasetRepository.getFileImportById(dataset1Id, revision1Id, import1Id);
             if (!imp) {
                 throw new Error('Import not found');
             }
@@ -206,12 +209,12 @@ describe('API Endpoints for viewing dataset objects', () => {
             expect(res.body).toEqual(expectedDTO);
         });
 
-        test('Get import returns 400 if given an invalid ID', async () => {
+        test('Get import returns 404 if given an invalid ID', async () => {
             const res = await request(app)
                 .get(`/dataset/${dataset1Id}/revision/by-id/${revision1Id}/import/by-id/IN-VALID-ID`)
                 .set(getAuthHeader(user));
-            expect(res.status).toBe(400);
-            expect(res.body).toEqual({ message: 'Import ID is not valid' });
+            expect(res.status).toBe(404);
+            expect(res.body).toEqual({ error: 'Import id is invalid or missing' });
         });
 
         test('Get import returns 404 if given a missing ID', async () => {
@@ -269,7 +272,7 @@ describe('API Endpoints for viewing dataset objects', () => {
                     .get(`/dataset/${dataset1Id}/revision/by-id/${revision1Id}/import/by-id/${import1Id}/raw`)
                     .set(getAuthHeader(user));
                 expect(res.status).toBe(500);
-                expect(res.body).toEqual({ message: 'Import location not supported.' });
+                expect(res.body).toEqual({ error: 'Import location not supported' });
             });
 
             test('Get file from a revision and import returns 500 if an error with the Data Lake occurs', async () => {

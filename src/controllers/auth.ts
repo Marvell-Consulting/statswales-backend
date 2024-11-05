@@ -6,7 +6,7 @@ import jwt from 'jsonwebtoken';
 
 import { appConfig } from '../config';
 import { logger } from '../utils/logger';
-import { User } from '../entities/dataset/user';
+import { User } from '../entities/user/user';
 import { sanitiseUser } from '../utils/sanitise-user';
 
 const config = appConfig();
