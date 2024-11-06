@@ -259,7 +259,7 @@ router.patch(
             const updatedDataset = await DatasetRepository.patchInfoById(res.locals.datasetId, infoDto);
             res.status(201);
             res.json(DatasetDTO.fromDataset(updatedDataset));
-        } catch (err) {
+        } catch (err: any) {
             if (err instanceof BadRequestException) {
                 err.validationErrors?.forEach((error) => {
                     if (!error.constraints) return;
