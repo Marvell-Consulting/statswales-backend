@@ -1,10 +1,10 @@
 import { IsBoolean, IsEnum, IsNotEmpty, IsOptional, IsString, ValidateNested } from 'class-validator';
 
-import { IsISO8601Duration } from '../validators/is-iso8601-duration';
 import { DatasetInfo } from '../entities/dataset/dataset-info';
 import { Designation } from '../enums/designation';
 
 import { RelatedLinkDTO } from './related-link-dto';
+import { UpdateFrequencyDTO } from './update-frequency-dto';
 
 export class DatasetInfoDTO {
     @IsString()
@@ -39,9 +39,9 @@ export class DatasetInfoDTO {
     @IsOptional()
     related_links?: RelatedLinkDTO[];
 
-    @IsISO8601Duration()
+    @ValidateNested()
     @IsOptional()
-    update_frequency?: string; // in ISO 8601 duration format, e.g. P1Y = every year
+    update_frequency?: UpdateFrequencyDTO;
 
     @IsEnum(Designation)
     @IsOptional()
@@ -57,7 +57,7 @@ export class DatasetInfoDTO {
         dto.rounding_applied = datasetInfo.roundingApplied;
         dto.rounding_description = datasetInfo.roundingDescription;
         dto.related_links = datasetInfo.relatedLinks;
-        dto.update_frequency = datasetInfo.updateFrequency;
+        dto.update_frequency = UpdateFrequencyDTO.fromDuration(datasetInfo.updateFrequency);
         dto.designation = datasetInfo.designation;
 
         return dto;
@@ -73,7 +73,7 @@ export class DatasetInfoDTO {
         datasetInfo.roundingApplied = dto.rounding_applied;
         datasetInfo.roundingDescription = dto.rounding_description;
         datasetInfo.relatedLinks = dto.related_links;
-        datasetInfo.updateFrequency = dto.update_frequency;
+        datasetInfo.updateFrequency = UpdateFrequencyDTO.toDuration(dto.update_frequency);
         datasetInfo.designation = dto.designation;
 
         return datasetInfo;
