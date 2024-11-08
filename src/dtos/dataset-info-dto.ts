@@ -1,4 +1,5 @@
-import { IsBoolean, IsEnum, IsNotEmpty, IsOptional, IsString, ValidateNested } from 'class-validator';
+import { IsArray, IsBoolean, IsEnum, IsNotEmpty, IsOptional, IsString, ValidateNested } from 'class-validator';
+import { Type } from 'class-transformer';
 
 import { DatasetInfo } from '../entities/dataset/dataset-info';
 import { Designation } from '../enums/designation';
@@ -35,11 +36,14 @@ export class DatasetInfoDTO {
     @IsOptional()
     rounding_description?: string;
 
-    @ValidateNested()
+    @IsArray()
+    @ValidateNested({ each: true })
+    @Type(() => RelatedLinkDTO)
     @IsOptional()
     related_links?: RelatedLinkDTO[];
 
     @ValidateNested()
+    @Type(() => UpdateFrequencyDTO)
     @IsOptional()
     update_frequency?: UpdateFrequencyDTO;
 
