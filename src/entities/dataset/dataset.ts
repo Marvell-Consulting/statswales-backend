@@ -14,6 +14,7 @@ import { User } from '../user/user';
 import { Revision } from './revision';
 import { DatasetInfo } from './dataset-info';
 import { Dimension } from './dimension';
+import { DatasetProvider } from './dataset-provider';
 
 @Entity({ name: 'dataset' })
 export class Dataset extends BaseEntity {
@@ -41,4 +42,7 @@ export class Dataset extends BaseEntity {
 
     @OneToMany(() => Revision, (revision) => revision.dataset, { cascade: true })
     revisions: Revision[];
+
+    @OneToMany(() => DatasetProvider, (datasetProvider) => datasetProvider.dataset, { cascade: true })
+    datasetProviders: DatasetProvider[];
 }
