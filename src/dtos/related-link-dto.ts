@@ -1,7 +1,7 @@
-import { IsString, IsUrl, IsUUID } from 'class-validator';
+import { IsDateString, IsString, IsUrl } from 'class-validator';
 
 export class RelatedLinkDTO {
-    @IsUUID(4)
+    @IsString()
     id: string;
 
     @IsUrl()
@@ -9,4 +9,8 @@ export class RelatedLinkDTO {
 
     @IsString()
     label: string;
+
+    @IsString()
+    @IsDateString()
+    created_at: string;
 }
