@@ -1,4 +1,4 @@
-import { BaseEntity, Column, Entity, JoinColumn, ManyToOne, PrimaryColumn } from 'typeorm';
+import { BaseEntity, Column, CreateDateColumn, Entity, JoinColumn, ManyToOne, PrimaryColumn } from 'typeorm';
 
 import { Provider } from './provider';
 import { Dataset } from './dataset';
@@ -16,6 +16,7 @@ export class DatasetProvider extends BaseEntity {
     language: string;
 
     @ManyToOne(() => Dataset, (dataset) => dataset.datasetProviders)
+    @JoinColumn({ name: 'dataset_id', foreignKeyConstraintName: 'FK_dataset_provider_dataset_id' })
     dataset: Dataset;
 
     @Column({ type: 'uuid', name: 'provider_id' })
@@ -53,4 +54,7 @@ export class DatasetProvider extends BaseEntity {
         }
     ])
     providerSource: ProviderSource;
+
+    @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
+    createdAt: Date;
 }
