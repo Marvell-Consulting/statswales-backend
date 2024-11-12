@@ -1,4 +1,4 @@
-import { BaseEntity, Column, CreateDateColumn, Entity, JoinColumn, ManyToOne, PrimaryColumn } from 'typeorm';
+import { BaseEntity, Column, CreateDateColumn, Entity, JoinColumn, ManyToOne, PrimaryGeneratedColumn } from 'typeorm';
 
 import { Provider } from './provider';
 import { Dataset } from './dataset';
@@ -6,7 +6,7 @@ import { ProviderSource } from './provider-source';
 
 @Entity({ name: 'dataset_provider' })
 export class DatasetProvider extends BaseEntity {
-    @PrimaryColumn('uuid', { name: 'id', primaryKeyConstraintName: 'PK_dataset_provider_id' })
+    @PrimaryGeneratedColumn('uuid', { name: 'id', primaryKeyConstraintName: 'PK_dataset_provider_id' })
     id: string;
 
     @Column({ type: 'uuid', name: 'dataset_id' })
@@ -38,7 +38,7 @@ export class DatasetProvider extends BaseEntity {
     provider: Provider;
 
     @Column({ type: 'uuid', name: 'provider_source_id', nullable: true })
-    providerSourceId: string;
+    providerSourceId?: string;
 
     @ManyToOne(() => ProviderSource, (providerSource) => providerSource.datasetProviders)
     @JoinColumn([

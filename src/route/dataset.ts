@@ -47,6 +47,7 @@ import { dtoValidator } from '../validators/dto-validator';
 import { RevisionRepository } from '../repositories/revision';
 import { FileImportRepository } from '../repositories/file-import';
 import { Dataset } from '../entities/dataset/dataset';
+import { DatasetProviderDTO } from '../dtos/dataset-provider-dto';
 
 const jsonParser = express.json();
 const upload = multer({ storage: multer.memoryStorage() });
@@ -542,6 +543,33 @@ router.delete(
         } catch (err) {
             logger.error(`An error occurred trying to remove the file with the following error: ${err}`);
             next(new UnknownException('errors.remove_file'));
+        }
+    }
+);
+
+// PATCH /dataset/:dataset_id/providers
+// Updates the data providers for the dataset
+router.patch(
+    '/:dataset_id/providers',
+    jsonParser,
+    loadDataset(),
+    async (req: Request, res: Response, next: NextFunction) => {
+        try {
+            const providersDto = await dtoValidator(DatasetProviderDTO, req.body);
+            const updatedDataset = await DatasetRepository.updateDatasetProviders(res.locals.datasetId, providersDto);
+            res.status(201);
+            res.json(DatasetDTO.fromDataset(updatedDataset));
+        } catch (err: any) {
+            console.log(err);
+            if (err instanceof BadRequestException) {
+                err.validationErrors?.forEach((error) => {
+                    if (!error.constraints) return;
+                    Object.values(error.constraints).forEach((message) => logger.error(message));
+                });
+                next(err);
+                return;
+            }
+            next(new UnknownException('errors.provider_update_error'));
         }
     }
 );

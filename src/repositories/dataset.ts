@@ -9,6 +9,8 @@ import { logger } from '../utils/logger';
 import { DatasetListItemDTO } from '../dtos/dataset-list-item-dto';
 import { Locale } from '../enums/locale';
 import { DatasetInfoDTO } from '../dtos/dataset-info-dto';
+import { DatasetProviderDTO } from '../dtos/dataset-provider-dto';
+import { DatasetProvider } from '../entities/dataset/dataset-provider';
 
 const defaultRelations: FindOptionsRelations<Dataset> = {
     createdBy: true,
@@ -21,6 +23,10 @@ const defaultRelations: FindOptionsRelations<Dataset> = {
         imports: {
             sources: true
         }
+    },
+    datasetProviders: {
+        provider: true,
+        providerSource: true
     }
 };
 
@@ -89,5 +95,30 @@ export const DatasetRepository = dataSource.getRepository(Dataset).extend({
             .orderBy('d.createdAt', 'ASC');
 
         return qb.getRawMany();
+    },
+
+    async updateDatasetProviders(datasetId: string, providers: DatasetProviderDTO[]): Promise<Dataset> {
+        const datasetProviderRepo = dataSource.getRepository(DatasetProvider);
+
+        // remove any existing providers that aren't still in the list
+        const existingProviders = await datasetProviderRepo.find({ where: { datasetId } });
+        const toRemove = existingProviders.filter((ep) => !providers.some((provider) => provider.id === ep.id));
+        await datasetProviderRepo.remove(toRemove);
+
+        // add any new providers that weren't already in the list
+        const newProviders: Partial<DatasetProvider>[] = providers
+            .filter((provider) => provider.id === undefined)
+            .map((provider: DatasetProviderDTO) => {
+                return {
+                    datasetId,
+                    providerId: provider.provider_id,
+                    language: provider.language.toLowerCase(),
+                    providerSourceId: provider.source_id
+                };
+            });
+
+        await datasetProviderRepo.save(newProviders);
+
+        return this.getById(datasetId);
     }
 });

@@ -15,6 +15,7 @@ import { authRouter } from './route/auth';
 import { healthcheckRouter } from './route/healthcheck';
 import { datasetRouter } from './route/dataset';
 import { errorHandler } from './route/error-handler';
+import { providerRouter } from './route/provider';
 
 export const initDb = async (): Promise<DatabaseManager> => {
     const dbManager = new DatabaseManager(logger);
@@ -39,6 +40,7 @@ app.use(session);
 app.use('/auth', rateLimiter, authRouter);
 app.use('/healthcheck', rateLimiter, healthcheckRouter);
 app.use('/dataset', rateLimiter, passport.authenticate('jwt', { session: false }), datasetRouter);
+app.use('/provider', rateLimiter, passport.authenticate('jwt', { session: false }), providerRouter);
 
 app.use(errorHandler);
 

@@ -1,7 +1,7 @@
 import { MigrationInterface, QueryRunner } from 'typeorm';
 
-export class DataProviders1731425199403 implements MigrationInterface {
-    name = 'DataProviders1731425199403';
+export class DataProviders1731432884200 implements MigrationInterface {
+    name = 'DataProviders1731432884200';
 
     public async up(queryRunner: QueryRunner): Promise<void> {
         await queryRunner.query(
@@ -11,7 +11,7 @@ export class DataProviders1731425199403 implements MigrationInterface {
             `CREATE TABLE "provider" ("id" uuid NOT NULL, "language" character varying(5) NOT NULL, "name" text NOT NULL, CONSTRAINT "PK_provider_id_language" PRIMARY KEY ("id", "language"))`
         );
         await queryRunner.query(
-            `CREATE TABLE "dataset_provider" ("id" uuid NOT NULL, "dataset_id" uuid NOT NULL, "language" character varying(5) NOT NULL, "provider_id" uuid NOT NULL, "provider_source_id" uuid, "created_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), CONSTRAINT "PK_dataset_provider_id" PRIMARY KEY ("id"))`
+            `CREATE TABLE "dataset_provider" ("id" uuid NOT NULL DEFAULT uuid_generate_v4(), "dataset_id" uuid NOT NULL, "language" character varying(5) NOT NULL, "provider_id" uuid NOT NULL, "provider_source_id" uuid, "created_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), CONSTRAINT "PK_dataset_provider_id" PRIMARY KEY ("id"))`
         );
         await queryRunner.query(
             `ALTER TABLE "provider_source" ADD CONSTRAINT "FK_provider_source_provider_id" FOREIGN KEY ("provider_id", "language") REFERENCES "provider"("id","language") ON DELETE CASCADE ON UPDATE NO ACTION`
