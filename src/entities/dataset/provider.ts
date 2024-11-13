@@ -20,8 +20,8 @@ export class Provider extends BaseEntity {
     name: string;
 
     @OneToMany(() => ProviderSource, (source) => source.provider, { cascade: true })
-    sources: ProviderSource[];
+    sources?: ProviderSource[];
 
     @OneToMany(() => DatasetProvider, (datasetProvider) => datasetProvider.dataset, { cascade: true })
-    datasetProviders: DatasetProvider[];
+    datasetProviders?: DatasetProvider[];
 }
