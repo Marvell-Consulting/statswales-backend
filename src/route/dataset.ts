@@ -43,7 +43,7 @@ import { Revision } from '../entities/dataset/revision';
 import { RevisionDTO } from '../dtos/revision-dto';
 import { Source } from '../entities/dataset/source';
 import { SourceAssignmentException } from '../exceptions/source-assignment.exception';
-import { dtoValidator } from '../validators/dto-validator';
+import { arrayValidator, dtoValidator } from '../validators/dto-validator';
 import { RevisionRepository } from '../repositories/revision';
 import { FileImportRepository } from '../repositories/file-import';
 import { Dataset } from '../entities/dataset/dataset';
@@ -555,12 +555,13 @@ router.patch(
     loadDataset(),
     async (req: Request, res: Response, next: NextFunction) => {
         try {
-            const providersDto = await dtoValidator(DatasetProviderDTO, req.body);
-            const updatedDataset = await DatasetRepository.updateDatasetProviders(res.locals.datasetId, providersDto);
+            const datasetId = res.locals.datasetId;
+            const language = req.language as Locale;
+            const providers = await arrayValidator(DatasetProviderDTO, req.body);
+            const updatedDataset = await DatasetRepository.updateDatasetProviders(datasetId, providers, language);
             res.status(201);
             res.json(DatasetDTO.fromDataset(updatedDataset));
         } catch (err: any) {
-            console.log(err);
             if (err instanceof BadRequestException) {
                 err.validationErrors?.forEach((error) => {
                     if (!error.constraints) return;

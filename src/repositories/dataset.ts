@@ -1,5 +1,5 @@
 import { FindOneOptions, FindOptionsRelations } from 'typeorm';
-import { has } from 'lodash';
+import { differenceBy, has } from 'lodash';
 
 import { dataSource } from '../db/data-source';
 import { Dataset } from '../entities/dataset/dataset';
@@ -77,7 +77,7 @@ export const DatasetRepository = dataSource.getRepository(Dataset).extend({
         const qb = this.createQueryBuilder('d')
             .select(['d.id as id', 'di.title as title'])
             .innerJoin('d.datasetInfo', 'di')
-            .where('di.language LIKE :lang', { lang: `${lang}%` })
+            .where('di.language ILIKE :lang', { lang: `${lang}%` })
             .groupBy('d.id, di.title')
             .orderBy('d.createdAt', 'ASC');
 
@@ -90,34 +90,32 @@ export const DatasetRepository = dataSource.getRepository(Dataset).extend({
             .innerJoin('d.datasetInfo', 'di')
             .innerJoin('d.revisions', 'r')
             .innerJoin('r.imports', 'i')
-            .where('di.language LIKE :lang', { lang: `${lang}%` })
+            .where('di.language ILIKE :lang', { lang: `${lang}%` })
             .groupBy('d.id, di.title')
             .orderBy('d.createdAt', 'ASC');
 
         return qb.getRawMany();
     },
 
-    async updateDatasetProviders(datasetId: string, providers: DatasetProviderDTO[]): Promise<Dataset> {
+    async updateDatasetProviders(datasetId: string, providers: DatasetProviderDTO[], lang: Locale): Promise<Dataset> {
         const datasetProviderRepo = dataSource.getRepository(DatasetProvider);
 
         // remove any existing providers that aren't still in the list
-        const existingProviders = await datasetProviderRepo.find({ where: { datasetId } });
+        const existingProviders = await datasetProviderRepo.find({
+            where: { datasetId, language: lang.toLowerCase() }
+        });
         const toRemove = existingProviders.filter((ep) => !providers.some((provider) => provider.id === ep.id));
         await datasetProviderRepo.remove(toRemove);
 
         // add any new providers that weren't already in the list
-        const newProviders: Partial<DatasetProvider>[] = providers
-            .filter((provider) => provider.id === undefined)
-            .map((provider: DatasetProviderDTO) => {
-                return {
-                    datasetId,
-                    providerId: provider.provider_id,
-                    language: provider.language.toLowerCase(),
-                    providerSourceId: provider.source_id
-                };
-            });
+        const datasetProviders = providers.map((provider) => DatasetProviderDTO.toDatsetProvider(provider));
+        const toAdd = differenceBy(datasetProviders, existingProviders, 'id');
+        await datasetProviderRepo.save(datasetProviders);
 
-        await datasetProviderRepo.save(newProviders);
+        logger.debug(
+            `Removed ${toRemove.length} providers, added ${toAdd.length} providers,
+            and updated ${datasetProviders.length - toAdd.length} providers for dataset ${datasetId}`
+        );
 
         return this.getById(datasetId);
     }

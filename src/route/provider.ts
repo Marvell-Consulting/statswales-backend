@@ -33,8 +33,7 @@ provider.get('/:provider_id/sources', async (req: Request, res: Response, next: 
 
     try {
         logger.info('List provider sources');
-        const providerId = req.params.providerId;
-        const providerSources = await ProviderRepository.listAllSourcesByProvider(providerId);
+        const providerSources = await ProviderRepository.listAllSourcesByProvider(req.params.provider_id);
         const providerSourceDTOs = providerSources.map((pSource) => ProviderSourceDTO.fromProviderSource(pSource));
         res.json(providerSourceDTOs);
     } catch (error) {
