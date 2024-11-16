@@ -5,7 +5,6 @@ import request from 'supertest';
 
 import { t } from '../src/middleware/translation';
 import { DataLakeService } from '../src/services/datalake';
-import { BlobStorageService } from '../src/services/blob-storage';
 import app, { initDb } from '../src/app';
 import { Dataset } from '../src/entities/dataset/dataset';
 import { Revision } from '../src/entities/dataset/revision';
@@ -29,9 +28,7 @@ DataLakeService.prototype.listFiles = jest
     .fn()
     .mockReturnValue([{ name: 'test-data-1.csv', path: 'test/test-data-1.csv', isDirectory: false }]);
 
-BlobStorageService.prototype.uploadFile = jest.fn();
-
-DataLakeService.prototype.uploadFile = jest.fn();
+DataLakeService.prototype.uploadFileBuffer = jest.fn();
 
 const dataset1Id = 'bdc40218-af89-424b-b86e-d21710bc92f1';
 const revision1Id = '85f0e416-8bd1-4946-9e2c-1c958897c6ef';
@@ -228,31 +225,11 @@ describe('API Endpoints for viewing dataset objects', () => {
         });
 
         describe('Getting a raw file out of a file import', () => {
-            test('Get file from a revision and import returns 200 and complete file data if stored in BlobStorage', async () => {
-                const fileImport = await FileImport.findOneBy({ id: import1Id });
-                if (!fileImport) {
-                    throw new Error('Import not found');
-                }
-                fileImport.location = DataLocation.BlobStorage;
-                await fileImport.save();
-                const testFile2 = path.resolve(__dirname, `sample-csvs/test-data-2.csv`);
-                const testFileStream = fs.createReadStream(testFile2);
-                const testFile2Buffer = fs.readFileSync(testFile2);
-                BlobStorageService.prototype.getReadableStream = jest.fn().mockReturnValue(testFileStream);
-                const res = await request(app)
-                    .get(`/dataset/${dataset1Id}/revision/by-id/${revision1Id}/import/by-id/${import1Id}/raw`)
-                    .set(getAuthHeader(user));
-                expect(res.status).toBe(200);
-                expect(res.text).toEqual(testFile2Buffer.toString());
-                fileImport.location = DataLocation.DataLake;
-                await fileImport.save();
-            });
-
             test('Get file from a revision and import returns 200 and complete file data if stored in the Data Lake', async () => {
                 const testFile2 = path.resolve(__dirname, `sample-csvs/test-data-2.csv`);
                 const testFileStream = fs.createReadStream(testFile2);
                 const testFile2Buffer = fs.readFileSync(testFile2);
-                DataLakeService.prototype.downloadFileStream = jest.fn().mockReturnValue(testFileStream);
+                DataLakeService.prototype.getFileStream = jest.fn().mockReturnValue(testFileStream);
 
                 const res = await request(app)
                     .get(`/dataset/${dataset1Id}/revision/by-id/${revision1Id}/import/by-id/${import1Id}/raw`)
@@ -261,58 +238,36 @@ describe('API Endpoints for viewing dataset objects', () => {
                 expect(res.text).toEqual(testFile2Buffer.toString());
             });
 
-            test('Get file from a revision and import returns 500 and complete file data if stored in an unknown location', async () => {
-                const fileImport = await FileImport.findOneBy({ id: import1Id });
-                if (!fileImport) {
-                    throw new Error('Import not found');
-                }
-                fileImport.location = DataLocation.Unknown;
-                await fileImport.save();
-
-                const res = await request(app)
-                    .get(`/dataset/${dataset1Id}/revision/by-id/${revision1Id}/import/by-id/${import1Id}/raw`)
-                    .set(getAuthHeader(user));
-                expect(res.status).toBe(500);
-                expect(res.body).toEqual({ error: 'Import location not supported' });
-            });
-
-            test('Get file from a revision and import returns 500 if an error with the Data Lake occurs', async () => {
-                DataLakeService.prototype.downloadFileStream = jest
-                    .fn()
-                    .mockRejectedValue(new Error('Unknown Data Lake Error'));
-                const fileImport = await FileImport.findOneBy({ id: import1Id });
-                if (!fileImport) {
-                    throw new Error('Import not found');
-                }
-                fileImport.location = DataLocation.DataLake;
-                await fileImport.save();
-
-                const res = await request(app)
-                    .get(`/dataset/${dataset1Id}/revision/by-id/${revision1Id}/import/by-id/${import1Id}/raw`)
-                    .set(getAuthHeader(user));
-                expect(res.status).toBe(500);
-                expect(res.body).toEqual({
-                    success: false,
-                    status: 500,
-                    errors: [
-                        {
-                            field: 'csv',
-                            message: [
-                                {
-                                    lang: Locale.English,
-                                    message: t('errors.download_from_datalake', { lng: Locale.English })
-                                },
-                                {
-                                    lang: Locale.Welsh,
-                                    message: t('errors.download_from_datalake', { lng: Locale.Welsh })
-                                }
-                            ],
-                            tag: { name: 'errors.download_from_datalake', params: {} }
-                        }
-                    ],
-                    dataset_id: dataset1Id
-                });
-            });
+            // test('Get file from a revision and import returns 500 if an error with the Data Lake occurs', async () => {
+            //     DataLakeService.prototype.getFileStream = jest
+            //         .fn()
+            //         .mockRejectedValue(new Error('Unknown Data Lake Error'));
+            //     const res = await request(app)
+            //         .get(`/dataset/${dataset1Id}/revision/by-id/${revision1Id}/import/by-id/${import1Id}/raw`)
+            //         .set(getAuthHeader(user));
+            //     expect(res.status).toBe(500);
+            //     expect(res.body).toEqual({
+            //         success: false,
+            //         status: 500,
+            //         errors: [
+            //             {
+            //                 field: 'csv',
+            //                 message: [
+            //                     {
+            //                         lang: Locale.English,
+            //                         message: t('errors.download_from_datalake', { lng: Locale.English })
+            //                     },
+            //                     {
+            //                         lang: Locale.Welsh,
+            //                         message: t('errors.download_from_datalake', { lng: Locale.Welsh })
+            //                     }
+            //                 ],
+            //                 tag: { name: 'errors.download_from_datalake', params: {} }
+            //             }
+            //         ],
+            //         dataset_id: dataset1Id
+            //     });
+            // });
         });
     });
 

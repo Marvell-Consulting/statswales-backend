@@ -48,10 +48,9 @@ export async function createSmallDataset(datasetId: string, revisionId: string, 
     imp.revision = revision;
     imp.id = importId.toLowerCase();
     imp.filename = `${importId.toLowerCase()}.csv`;
-    const testFile1 = path.resolve(__dirname, `../sample-csvs/test-data-2.csv`);
-    const testFile2Buffer = fs.readFileSync(testFile1);
-    imp.hash = createHash('sha256').update(testFile2Buffer).digest('hex');
-    imp.location = DataLocation.BlobStorage; // First is draft import and first upload so everything is in blob storage
+    const testFile = path.resolve(__dirname, `../sample-csvs/test-data-2.csv`);
+    const testFileBuffer = fs.readFileSync(testFile);
+    imp.hash = createHash('sha256').update(testFileBuffer).digest('hex');
     imp.type = ImportType.Draft;
     imp.mimeType = 'text/csv';
     await imp.save();
@@ -129,8 +128,6 @@ export async function createFullDataset(datasetId: string, revisionId: string, i
     if (!imp) {
         throw new Error('No import found for revision');
     }
-    imp.location = DataLocation.DataLake;
-    await imp.save();
     const sourceDescriptions = [
         { csvField: 'ID', description: 'unique identifier', action: SourceAction.Create, type: SourceType.Ignore },
         { csvField: 'Text', description: 'Some test', action: SourceAction.Create, type: SourceType.Dimension },

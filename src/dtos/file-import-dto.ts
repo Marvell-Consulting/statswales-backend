@@ -11,7 +11,6 @@ export class FileImportDTO {
     hash: string;
     uploaded_at?: string;
     type: string;
-    location: string;
     sources?: SourceDTO[];
 
     static fromImport(fileImport: FileImport): FileImportDTO {
@@ -23,7 +22,6 @@ export class FileImportDTO {
         dto.hash = fileImport.hash;
         dto.uploaded_at = fileImport.uploadedAt?.toISOString();
         dto.type = fileImport.type;
-        dto.location = fileImport.location;
         dto.sources = [];
 
         dto.sources = fileImport.sources?.map((source: Source) => SourceDTO.fromSource(source));

@@ -13,14 +13,9 @@ import { ViewDTO, ViewErrDTO, ViewStream } from '../dtos/view-dto';
 import {
     createSources,
     DEFAULT_PAGE_SIZE,
-    getFileFromBlobStorage,
-    getFileFromDataLake,
-    moveFileToDataLake,
-    processCSVFromBlobStorage,
-    processCSVFromDatalake,
+    getCSVPreview,
     removeFileFromDatalake,
-    removeTempfileFromBlobStorage,
-    uploadCSVBufferToBlobStorage
+    uploadCSV
 } from '../controllers/csv-processor';
 import { createDimensionsFromSourceAssignment, validateSourceAssignment } from '../controllers/dimension-processor';
 import { User } from '../entities/user/user';
@@ -48,6 +43,7 @@ import { RevisionRepository } from '../repositories/revision';
 import { FileImportRepository } from '../repositories/file-import';
 import { Dataset } from '../entities/dataset/dataset';
 import { DatasetProviderDTO } from '../dtos/dataset-provider-dto';
+import { DataLakeService } from '../services/datalake';
 
 const jsonParser = express.json();
 const upload = multer({ storage: multer.memoryStorage() });
@@ -190,7 +186,7 @@ router.post(
         let fileImport: FileImport;
 
         try {
-            fileImport = await uploadCSVBufferToBlobStorage(req.file.buffer, req.file?.mimetype);
+            fileImport = await uploadCSV(req.file.buffer, req.file?.mimetype, res.locals.datasetId);
         } catch (err) {
             logger.error(`An error occurred trying to upload the file: ${err}`);
             next(new UnknownException('errors.upload_error'));
@@ -230,19 +226,9 @@ router.get('/:dataset_id/view', loadDataset(), async (req: Request, res: Respons
 
     const page_number: number = Number.parseInt(req.query.page_number as string, 10) || 1;
     const page_size: number = Number.parseInt(req.query.page_size as string, 10) || DEFAULT_PAGE_SIZE;
-    let processedCSV: ViewErrDTO | ViewDTO;
+    const processedCSV = await getCSVPreview(dataset, latestImport, page_number, page_size);
 
-    if (latestImport?.location === DataLocation.BlobStorage) {
-        processedCSV = await processCSVFromBlobStorage(dataset, latestImport, page_number, page_size);
-    } else if (latestImport?.location === DataLocation.DataLake) {
-        processedCSV = await processCSVFromDatalake(dataset, latestImport, page_number, page_size);
-    } else {
-        logger.error('Import location not supported');
-        next(new UnknownException('errors.import_location_not_supported'));
-        return;
-    }
-
-    if (!processedCSV.success) {
+    if ((processedCSV as ViewErrDTO).errors) {
         res.status(500);
     }
     res.json(processedCSV);
@@ -301,19 +287,9 @@ router.get(
         const page_number: number = Number.parseInt(req.query.page_number as string, 10) || 1;
         const page_size: number = Number.parseInt(req.query.page_size as string, 10) || DEFAULT_PAGE_SIZE;
 
-        let processedCSV: ViewErrDTO | ViewDTO;
+        const processedCSV = await getCSVPreview(dataset, fileImport, page_number, page_size);
 
-        if (fileImport.location === DataLocation.BlobStorage) {
-            processedCSV = await processCSVFromBlobStorage(dataset, fileImport, page_number, page_size);
-        } else if (fileImport.location === DataLocation.DataLake) {
-            processedCSV = await processCSVFromDatalake(dataset, fileImport, page_number, page_size);
-        } else {
-            logger.error('Import location not supported');
-            next(new UnknownException('errors.import_location_not_supported'));
-            return;
-        }
-
-        if (!processedCSV.success) {
+        if ((processedCSV as ViewErrDTO).errors) {
             const processErr = processedCSV as ViewErrDTO;
             res.status(processErr.status);
         }
@@ -332,20 +308,6 @@ router.patch(
     async (req: Request, res: Response, next: NextFunction) => {
         const fileImport: FileImport = res.locals.fileImport;
 
-        if (fileImport.location === DataLocation.DataLake) {
-            const fileImportDto = FileImportDTO.fromImport(fileImport);
-            res.status(200);
-            res.json(fileImportDto);
-            return;
-        }
-
-        try {
-            await moveFileToDataLake(fileImport);
-        } catch (err) {
-            logger.error(`An error occurred trying to move the file with the following error: ${err}`);
-            next(new UnknownException('errors.move_file_error'));
-            return;
-        }
         try {
             const fileImportDto = await createSources(fileImport);
             res.status(200);
@@ -366,36 +328,28 @@ router.get(
     async (req: Request, res: Response, next: NextFunction) => {
         const { dataset, fileImport } = res.locals;
 
-        let viewStream: ViewErrDTO | ViewStream;
-        if (fileImport.location === DataLocation.BlobStorage) {
-            viewStream = await getFileFromBlobStorage(dataset, fileImport);
-        } else if (fileImport.location === DataLocation.DataLake) {
-            viewStream = await getFileFromDataLake(dataset, fileImport);
-        } else {
-            logger.error('Import location not supported');
-            next(new UnknownException('errors.import_location_not_supported'));
-            return;
-        }
-        if (!viewStream.success) {
-            res.status(500);
-            res.json(viewStream);
-            return;
-        }
-        const readable: Readable = (viewStream as ViewStream).stream;
-        readable.pipe(res);
-
-        // Handle errors in the file stream
-        readable.on('error', (err) => {
-            logger.error('File stream error:', err);
+        const dataLakeService = new DataLakeService();
+        try {
+            const readable = await dataLakeService.getFileStream(fileImport.id, dataset.id);
             // eslint-disable-next-line @typescript-eslint/naming-convention
-            res.writeHead(500, { 'Content-Type': 'text/plain' });
-            res.end('Server Error');
-        });
+            res.writeHead(200, { 'Content-Type': 'text/csv' });
+            readable.pipe(res);
 
-        // Optionally listen for the end of the stream
-        readable.on('end', () => {
-            logger.debug('File stream ended');
-        });
+            // Handle errors in the file stream
+            readable.on('error', (err) => {
+                logger.error('File stream error:', err);
+                // eslint-disable-next-line @typescript-eslint/naming-convention
+                res.writeHead(500, { 'Content-Type': 'text/plain' });
+                res.end('Server Error');
+            });
+
+            // Optionally listen for the end of the stream
+            readable.on('end', () => {
+                logger.debug('File stream ended');
+            });
+        } catch (error) {
+            res.status(500);
+        }
     }
 );
 
@@ -507,7 +461,7 @@ router.post(
         let fileImport: FileImport;
 
         try {
-            fileImport = await uploadCSVBufferToBlobStorage(req.file.buffer, req.file?.mimetype);
+            fileImport = await uploadCSV(req.file.buffer, req.file?.mimetype, dataset.id);
             fileImport.revision = revision;
             await fileImport.save();
             const updatedDataset = await DatasetRepository.getById(dataset.id);
@@ -529,13 +483,9 @@ router.delete(
     async (req: Request, res: Response, next: NextFunction) => {
         const { dataset, fileImport } = res.locals;
         try {
-            if (fileImport.location === DataLocation.DataLake) {
-                logger.warn('User has requested to remove a fact table from the datalake');
-                await removeFileFromDatalake(fileImport);
-                fileImport.sources?.forEach((source: Source) => source.remove());
-            } else {
-                await removeTempfileFromBlobStorage(fileImport);
-            }
+            logger.warn('User has requested to remove a fact table from the datalake');
+            await removeFileFromDatalake(fileImport, dataset);
+            fileImport.sources?.forEach((source: Source) => source.remove());
             await fileImport.remove();
             const updatedDataset = await DatasetRepository.getById(dataset.id);
             const dto = DatasetDTO.fromDataset(updatedDataset);

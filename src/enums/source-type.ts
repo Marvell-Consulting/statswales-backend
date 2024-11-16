@@ -3,5 +3,6 @@ export enum SourceType {
     FootNotes = 'foot_notes',
     Dimension = 'dimension',
     Ignore = 'ignore',
-    Unknown = 'unknown'
+    Unknown = 'unknown',
+    LineNumber = 'line_number'
 }

@@ -19,19 +19,16 @@ export interface PageInfo {
 }
 
 export interface ViewErrDTO {
-    success: boolean;
     status: number;
     errors: Error[];
     dataset_id: string | undefined;
 }
 
 export interface ViewDTO {
-    success: boolean;
     dataset: DatasetDTO;
     import: FileImportDTO;
     current_page: number;
     page_info: PageInfo;
-    pages: (string | number)[];
     page_size: number;
     total_pages: number;
     headers: CSVHeader[];

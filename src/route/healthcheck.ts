@@ -33,7 +33,7 @@ if (config.env !== AppEnv.Ci) {
     healthcheck.get('/datalake', (req, res) => {
         try {
             const dataLakeService = new DataLakeService();
-            dataLakeService.listFiles();
+            dataLakeService.listFiles('/');
             res.json({ message: 'success' });
         } catch (err) {
             logger.error(`Unable to connect to datalake: ${err}`);

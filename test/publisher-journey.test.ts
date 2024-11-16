@@ -4,7 +4,6 @@ import * as fs from 'fs';
 import request from 'supertest';
 
 import { DataLakeService } from '../src/services/datalake';
-import { BlobStorageService } from '../src/services/blob-storage';
 import app, { initDb } from '../src/app';
 import { Dataset } from '../src/entities/dataset/dataset';
 import { t } from '../src/middleware/translation';
@@ -30,9 +29,8 @@ DataLakeService.prototype.listFiles = jest
     .fn()
     .mockReturnValue([{ name: 'test-data-1.csv', path: 'test/test-data-1.csv', isDirectory: false }]);
 
-BlobStorageService.prototype.uploadFile = jest.fn();
-
-DataLakeService.prototype.uploadFile = jest.fn();
+DataLakeService.prototype.uploadFileBuffer = jest.fn();
+DataLakeService.prototype.createDirectory = jest.fn();
 
 const dataset1Id = 'bdc40218-af89-424b-b86e-d21710bc92f1';
 const revision1Id = '85f0e416-8bd1-4946-9e2c-1c958897c6ef';
@@ -97,23 +95,6 @@ describe('API Endpoints', () => {
             expect(res.body).toEqual(datasetDTO);
             await Dataset.remove(dataset);
         });
-
-        test('Upload returns 500 if an error occurs with blob storage', async () => {
-            const dataset = await DatasetRepository.createWithTitle(user, 'en-GB', 'Test Dataset 3');
-
-            BlobStorageService.prototype.uploadFile = jest.fn().mockImplementation(() => {
-                throw new Error('Test error');
-            });
-
-            const csvFile = path.resolve(__dirname, `sample-csvs/test-data-1.csv`);
-            const res = await request(app)
-                .post(`/dataset/${dataset.id}/data`)
-                .set(getAuthHeader(user))
-                .attach('csv', csvFile);
-
-            expect(res.status).toBe(500);
-            expect(res.body).toEqual({ error: 'Error uploading the file' });
-        });
     });
 
     describe('Step 2 - Get a preview of the uploaded file with a View Object', () => {
@@ -124,7 +105,7 @@ describe('API Endpoints', () => {
             await createSmallDataset(testDatasetId, testRevisionId, testFileImportId, user);
             const testFile2 = path.resolve(__dirname, `sample-csvs/test-data-2.csv`);
             const testFile2Buffer = fs.readFileSync(testFile2);
-            BlobStorageService.prototype.readFile = jest.fn().mockReturnValue(testFile2Buffer);
+            DataLakeService.prototype.getFileBuffer = jest.fn().mockReturnValue(testFile2Buffer);
             const res = await request(app)
                 .get(
                     `/dataset/${testDatasetId}/revision/by-id/${testRevisionId}/import/by-id/${testFileImportId}/preview`
@@ -133,7 +114,6 @@ describe('API Endpoints', () => {
                 .query({ page_number: 20 });
             expect(res.status).toBe(400);
             expect(res.body).toEqual({
-                success: false,
                 status: 400,
                 dataset_id: testDatasetId,
                 errors: [
@@ -165,7 +145,7 @@ describe('API Endpoints', () => {
             await createSmallDataset(testDatasetId, testRevisionId, testFileImportId, user);
             const testFile2 = path.resolve(__dirname, `sample-csvs/test-data-2.csv`);
             const testFile2Buffer = fs.readFileSync(testFile2);
-            BlobStorageService.prototype.readFile = jest.fn().mockReturnValue(testFile2Buffer);
+            DataLakeService.prototype.getFileBuffer = jest.fn().mockReturnValue(testFile2Buffer);
 
             const res = await request(app)
                 .get(
@@ -175,7 +155,6 @@ describe('API Endpoints', () => {
                 .query({ page_size: 1000 });
             expect(res.status).toBe(400);
             expect(res.body).toEqual({
-                success: false,
                 status: 400,
                 dataset_id: testDatasetId,
                 errors: [
@@ -215,7 +194,7 @@ describe('API Endpoints', () => {
             await createSmallDataset(testDatasetId, testRevisionId, testFileImportId, user);
             const testFile2 = path.resolve(__dirname, `sample-csvs/test-data-2.csv`);
             const testFile2Buffer = fs.readFileSync(testFile2);
-            BlobStorageService.prototype.readFile = jest.fn().mockReturnValue(testFile2Buffer);
+            DataLakeService.prototype.getFileBuffer = jest.fn().mockReturnValue(testFile2Buffer);
 
             const res = await request(app)
                 .get(
@@ -225,7 +204,6 @@ describe('API Endpoints', () => {
                 .query({ page_size: 1 });
             expect(res.status).toBe(400);
             expect(res.body).toEqual({
-                success: false,
                 status: 400,
                 dataset_id: testDatasetId,
                 errors: [
@@ -264,7 +242,7 @@ describe('API Endpoints', () => {
             await createSmallDataset(testDatasetId, testRevisionId, testFileImportId, user);
             const testFile2 = path.resolve(__dirname, `sample-csvs/test-data-2.csv`);
             const testFile1Buffer = fs.readFileSync(testFile2);
-            BlobStorageService.prototype.readFile = jest.fn().mockReturnValue(testFile1Buffer.toString());
+            DataLakeService.prototype.getFileBuffer = jest.fn().mockReturnValue(testFile1Buffer.toString());
 
             const res = await request(app)
                 .get(
@@ -277,25 +255,20 @@ describe('API Endpoints', () => {
             expect(res.body.total_pages).toBe(6);
             expect(res.body.page_size).toBe(100);
             expect(res.body.headers).toEqual([
+                { index: -1, name: 'int_line_number', source_type: 'line_number' },
                 { index: 0, name: 'ID', source_type: 'unknown' },
                 { index: 1, name: 'Text', source_type: 'unknown' },
                 { index: 2, name: 'Number', source_type: 'unknown' },
                 { index: 3, name: 'Date', source_type: 'unknown' }
             ]);
-            expect(res.body.data[0]).toEqual(['101', 'GEYiRzLIFM', '774477', '2002-03-13']);
-            expect(res.body.data[99]).toEqual(['200', 'QhBxdmrUPb', '3256099', '2026-12-17']);
+            expect(res.body.data[0]).toEqual([101, 101, 'GEYiRzLIFM', 774477, '2002-03-13']);
+            expect(res.body.data[99]).toEqual([200, 200, 'QhBxdmrUPb', 3256099, '2026-12-17']);
         });
 
         test('Get preview of an import returns 200 and correct page data if the file is stored in a Datalake', async () => {
             const testFile2 = path.resolve(__dirname, `sample-csvs/test-data-2.csv`);
             const testFile1Buffer = fs.readFileSync(testFile2);
-            DataLakeService.prototype.downloadFile = jest.fn().mockReturnValue(testFile1Buffer.toString());
-            const fileImport = await FileImport.findOneBy({ id: import1Id });
-            if (!fileImport) {
-                throw new Error('Import not found');
-            }
-            fileImport.location = DataLocation.DataLake;
-            await fileImport.save();
+            DataLakeService.prototype.getFileBuffer = jest.fn().mockReturnValue(testFile1Buffer.toString());
 
             const res = await request(app)
                 .get(`/dataset/${dataset1Id}/revision/by-id/${revision1Id}/import/by-id/${import1Id}/preview`)
@@ -306,39 +279,20 @@ describe('API Endpoints', () => {
             expect(res.body.total_pages).toBe(6);
             expect(res.body.page_size).toBe(100);
             expect(res.body.headers).toEqual([
+                { index: -1, name: 'int_line_number', source_type: 'line_number' },
                 { index: 0, name: 'ID', source_type: 'ignore' },
                 { index: 1, name: 'Text', source_type: 'dimension' },
                 { index: 2, name: 'Number', source_type: 'data_values' },
                 { index: 3, name: 'Date', source_type: 'dimension' }
             ]);
-            expect(res.body.data[0]).toEqual(['101', 'GEYiRzLIFM', '774477', '2002-03-13']);
-            expect(res.body.data[99]).toEqual(['200', 'QhBxdmrUPb', '3256099', '2026-12-17']);
-        });
-
-        test('Get preview of an import returns 500 if the import location is not supported', async () => {
-            const fileImport = await FileImport.findOneBy({ id: import1Id });
-            if (!fileImport) {
-                throw new Error('Import not found');
-            }
-            fileImport.location = DataLocation.Unknown;
-            await fileImport.save();
-
-            const res = await request(app)
-                .get(`/dataset/${dataset1Id}/revision/by-id/${revision1Id}/import/by-id/${import1Id}/preview`)
-                .set(getAuthHeader(user))
-                .query({ page_number: 2, page_size: 100 });
-            expect(res.status).toBe(500);
-            expect(res.body).toEqual({ error: 'Import location not supported' });
+            expect(res.body.data[0]).toEqual([101, 101, 'GEYiRzLIFM', 774477, '2002-03-13']);
+            expect(res.body.data[99]).toEqual([200, 200, 'QhBxdmrUPb', 3256099, '2026-12-17']);
         });
 
         test('Get preview of an import returns 500 if a Datalake error occurs', async () => {
-            DataLakeService.prototype.downloadFile = jest.fn().mockRejectedValue(new Error('A datalake error occured'));
-            const fileImport = await FileImport.findOneBy({ id: import1Id });
-            if (!fileImport) {
-                throw new Error('Import not found');
-            }
-            fileImport.location = DataLocation.DataLake;
-            await fileImport.save();
+            DataLakeService.prototype.getFileBuffer = jest
+                .fn()
+                .mockRejectedValue(new Error('A Data Lake error occurred'));
 
             const res = await request(app)
                 .get(`/dataset/${dataset1Id}/revision/by-id/${revision1Id}/import/by-id/${import1Id}/preview`)
@@ -346,7 +300,6 @@ describe('API Endpoints', () => {
                 .query({ page_number: 2, page_size: 100 });
             expect(res.status).toBe(500);
             expect(res.body).toEqual({
-                success: false,
                 status: 500,
                 errors: [
                     {
@@ -377,51 +330,11 @@ describe('API Endpoints', () => {
     });
 
     describe('Step 2b - Unhappy path of the user uploading the wrong file', () => {
-        test('Returns 200 when the user requests to delete the import stored in blobstorage', async () => {
-            const testDatasetId = crypto.randomUUID().toLowerCase();
-            const testRevisionId = crypto.randomUUID().toLowerCase();
-            const testFileImportId = crypto.randomUUID().toLowerCase();
-            await createSmallDataset(testDatasetId, testRevisionId, testFileImportId, user);
-
-            BlobStorageService.prototype.deleteFile = jest.fn().mockReturnValue(true);
-
-            const res = await request(app)
-                .delete(`/dataset/${testDatasetId}/revision/by-id/${testRevisionId}/import/by-id/${testFileImportId}`)
-                .set(getAuthHeader(user));
-
-            expect(res.status).toBe(200);
-
-            const updatedDataset = await DatasetRepository.getById(testDatasetId);
-
-            if (!updatedDataset) {
-                throw new Error('Dataset not found');
-            }
-
-            const dto = await DatasetDTO.fromDataset(updatedDataset);
-            expect(res.body).toEqual(dto);
-
-            const revision = updatedDataset.revisions.find((rev: Revision) => rev.id === testRevisionId);
-
-            if (!revision) {
-                throw new Error('Revision not found');
-            }
-
-            const imports = revision.imports;
-
-            expect(imports).toBeInstanceOf(Array);
-            expect(imports.length).toBe(0);
-        });
-
         test('Returns 200 when the user requests to delete the import stored in the datalake', async () => {
             const testDatasetId = crypto.randomUUID().toLowerCase();
             const testRevisionId = crypto.randomUUID().toLowerCase();
             const testFileImportId = crypto.randomUUID().toLowerCase();
             await createSmallDataset(testDatasetId, testRevisionId, testFileImportId, user);
-
-            const importRecord = await FileImport.findOneByOrFail({ id: testFileImportId });
-            importRecord.location = DataLocation.DataLake;
-            await importRecord.save();
-
             DataLakeService.prototype.deleteFile = jest.fn().mockReturnValue(true);
 
             const res = await request(app)
@@ -451,29 +364,6 @@ describe('API Endpoints', () => {
             expect(imports.length).toBe(0);
         });
 
-        test('Returns 500 when the user requests to delete the import and there is an error with BlobStorage', async () => {
-            const testDatasetId = crypto.randomUUID().toLowerCase();
-            const testRevisionId = crypto.randomUUID().toLowerCase();
-            const testFileImportId = crypto.randomUUID().toLowerCase();
-            await createSmallDataset(testDatasetId, testRevisionId, testFileImportId, user);
-
-            BlobStorageService.prototype.deleteFile = jest.fn().mockRejectedValue(new Error('File not found'));
-
-            const res = await request(app)
-                .delete(`/dataset/${testDatasetId}/revision/by-id/${testRevisionId}/import/by-id/${testFileImportId}`)
-                .set(getAuthHeader(user));
-
-            expect(res.status).toBe(500);
-            const updatedRevision = await Revision.findOne({ where: { id: testRevisionId }, relations: ['imports'] });
-            if (!updatedRevision) {
-                throw new Error('Revision not found');
-            }
-            const imports = updatedRevision.imports;
-            expect(imports).toBeInstanceOf(Array);
-            expect(imports.length).toBe(1);
-            expect(res.body).toEqual({ error: 'Error removing file from temporary blob storage' });
-        });
-
         test('Upload returns 400 if no file attached', async () => {
             const testDatasetId = crypto.randomUUID().toLowerCase();
             const testRevisionId = crypto.randomUUID().toLowerCase();
@@ -495,7 +385,7 @@ describe('API Endpoints', () => {
         });
 
         test('Upload returns 201 if a file is attached', async () => {
-            BlobStorageService.prototype.uploadFile = jest.fn().mockReturnValue({});
+            DataLakeService.prototype.uploadFileBuffer = jest.fn().mockReturnValue({});
             const testDatasetId = crypto.randomUUID().toLowerCase();
             const testRevisionId = crypto.randomUUID().toLowerCase();
             const testFileImportId = crypto.randomUUID().toLowerCase();
@@ -540,7 +430,7 @@ describe('API Endpoints', () => {
             await Dataset.remove(dataset);
         });
 
-        test('Upload returns 500 if an error occurs with blob storage', async () => {
+        test('Upload returns 500 if an error occurs with Datalake Storage', async () => {
             const testDatasetId = crypto.randomUUID().toLowerCase();
             const testRevisionId = crypto.randomUUID().toLowerCase();
             const testFileImportId = crypto.randomUUID().toLowerCase();
@@ -553,7 +443,7 @@ describe('API Endpoints', () => {
 
             await fileImport.remove();
 
-            BlobStorageService.prototype.uploadFile = jest.fn().mockImplementation(() => {
+            DataLakeService.prototype.uploadFileBuffer = jest.fn().mockImplementation(() => {
                 throw new Error('Test error');
             });
 
@@ -574,19 +464,9 @@ describe('API Endpoints', () => {
             const testFileImportId = crypto.randomUUID().toLowerCase();
             await createSmallDataset(testDatasetId, testRevisionId, testFileImportId, user);
 
-            const preRunFileImport = await FileImport.findOneBy({ id: testFileImportId });
-            if (!preRunFileImport) {
-                throw new Error('Import not found');
-            }
-            preRunFileImport.location = DataLocation.BlobStorage;
-            await preRunFileImport.save();
-
             const testFile2 = path.resolve(__dirname, `sample-csvs/test-data-2.csv`);
             const testFile1Buffer = fs.readFileSync(testFile2);
-            BlobStorageService.prototype.getReadableStream = jest.fn();
-            DataLakeService.prototype.uploadFileStream = jest.fn();
-            DataLakeService.prototype.downloadFile = jest.fn().mockReturnValue(testFile1Buffer.toString());
-            BlobStorageService.prototype.deleteFile = jest.fn().mockReturnValue(true);
+            DataLakeService.prototype.getFileBuffer = jest.fn().mockReturnValue(testFile1Buffer.toString());
             const res = await request(app)
                 .patch(
                     `/dataset/${testDatasetId}/revision/by-id/${testRevisionId}/import/by-id/${testFileImportId}/confirm`
@@ -594,12 +474,11 @@ describe('API Endpoints', () => {
                 .set(getAuthHeader(user));
             const postRunFileImport = await FileImport.findOne({
                 where: { id: testFileImportId },
-                relations: ['sources']
+                relations: ['sources', 'revision']
             });
             if (!postRunFileImport) {
                 throw new Error('Import not found');
             }
-            expect(postRunFileImport.location).toBe(DataLocation.DataLake);
             expect(postRunFileImport.sources.length).toBe(4);
             const dto = await FileImportDTO.fromImport(postRunFileImport);
             expect(res.status).toBe(200);
@@ -617,42 +496,10 @@ describe('API Endpoints', () => {
             if (!postRunFileImport) {
                 throw new Error('Import not found');
             }
-            expect(postRunFileImport.location).toBe(DataLocation.DataLake);
             expect(postRunFileImport.sources.length).toBe(4);
-            const dto = await FileImportDTO.fromImport(postRunFileImport);
+            const dto = FileImportDTO.fromImport(postRunFileImport);
             expect(res.status).toBe(200);
             expect(res.body).toEqual(dto);
-        });
-
-        test('Returns 500 if an error occurs moving the file between BlobStorage and the Datalake', async () => {
-            const testDatasetId = crypto.randomUUID().toLowerCase();
-            const testRevisionId = crypto.randomUUID().toLowerCase();
-            const testFileImportId = crypto.randomUUID().toLowerCase();
-            await createSmallDataset(testDatasetId, testRevisionId, testFileImportId, user);
-
-            const preRunFilImport = await FileImport.findOneBy({ id: testFileImportId });
-            if (!preRunFilImport) {
-                throw new Error('Import not found');
-            }
-            preRunFilImport.location = DataLocation.BlobStorage;
-            await preRunFilImport.save();
-
-            BlobStorageService.prototype.getReadableStream = jest.fn().mockRejectedValue(new Error('File not found'));
-            const res = await request(app)
-                .patch(
-                    `/dataset/${testDatasetId}/revision/by-id/${testRevisionId}/import/by-id/${testFileImportId}/confirm`
-                )
-                .set(getAuthHeader(user));
-
-            const postRunFileImport = await FileImport.findOneBy({ id: testFileImportId });
-            if (!postRunFileImport) {
-                throw new Error('Import not found');
-            }
-            expect(postRunFileImport.location).toBe(DataLocation.BlobStorage);
-            expect(res.status).toBe(500);
-            expect(res.body).toEqual({
-                error: 'Error moving file from temporary blob storage to Data Lake. Please try again.'
-            });
         });
 
         test('Returns 500 if an error occurs processing sources from Datalake', async () => {
@@ -660,16 +507,7 @@ describe('API Endpoints', () => {
             const testRevisionId = crypto.randomUUID().toLowerCase();
             const testFileImportId = crypto.randomUUID().toLowerCase();
             await createSmallDataset(testDatasetId, testRevisionId, testFileImportId, user);
-            const preRunFilImport = await FileImport.findOneBy({ id: testFileImportId });
-            if (!preRunFilImport) {
-                throw new Error('Import not found');
-            }
-            preRunFilImport.location = DataLocation.BlobStorage;
-            await preRunFilImport.save();
-            BlobStorageService.prototype.getReadableStream = jest.fn();
-            DataLakeService.prototype.uploadFileStream = jest.fn();
-            BlobStorageService.prototype.deleteFile = jest.fn().mockReturnValue(true);
-            DataLakeService.prototype.downloadFile = jest.fn().mockRejectedValue(new Error('File not found'));
+            DataLakeService.prototype.getFileBuffer = jest.fn().mockRejectedValue(new Error('File not found'));
             const res = await request(app)
                 .patch(
                     `/dataset/${testDatasetId}/revision/by-id/${testRevisionId}/import/by-id/${testFileImportId}/confirm`
@@ -679,7 +517,6 @@ describe('API Endpoints', () => {
             if (!postRunFileImport) {
                 throw new Error('Import not found');
             }
-            expect(postRunFileImport.location).toBe(DataLocation.DataLake);
             expect(res.status).toBe(500);
             expect(res.body).toEqual({ message: 'Error creating sources from the uploaded file.  Please try again.' });
         });
@@ -694,10 +531,7 @@ describe('API Endpoints', () => {
             await createSmallDataset(testDatasetId, testRevisionId, testFileImportId, user);
             const testFile2 = path.resolve(__dirname, `sample-csvs/test-data-2.csv`);
             const testFile1Buffer = fs.readFileSync(testFile2);
-            BlobStorageService.prototype.getReadableStream = jest.fn();
-            DataLakeService.prototype.uploadFileStream = jest.fn();
-            DataLakeService.prototype.downloadFile = jest.fn().mockReturnValue(testFile1Buffer.toString());
-            BlobStorageService.prototype.deleteFile = jest.fn().mockReturnValue(true);
+            DataLakeService.prototype.getFileBuffer = jest.fn().mockReturnValue(testFile1Buffer.toString());
             // Create sources in the database
             await request(app)
                 .patch(
