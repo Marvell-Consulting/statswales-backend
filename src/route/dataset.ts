@@ -547,6 +547,33 @@ router.delete(
     }
 );
 
+// POST /dataset/:dataset_id/providers
+// Adds a new data provider for the dataset
+router.post(
+    '/:dataset_id/providers',
+    jsonParser,
+    loadDataset(),
+    async (req: Request, res: Response, next: NextFunction) => {
+        try {
+            const datasetId = res.locals.datasetId;
+            const provider = await dtoValidator(DatasetProviderDTO, req.body);
+            const updatedDataset = await DatasetRepository.addDatasetProvider(datasetId, provider);
+            res.status(201);
+            res.json(DatasetDTO.fromDataset(updatedDataset));
+        } catch (err: any) {
+            if (err instanceof BadRequestException) {
+                err.validationErrors?.forEach((error) => {
+                    if (!error.constraints) return;
+                    Object.values(error.constraints).forEach((message) => logger.error(message));
+                });
+                next(err);
+                return;
+            }
+            next(new UnknownException('errors.provider_update_error'));
+        }
+    }
+);
+
 // PATCH /dataset/:dataset_id/providers
 // Updates the data providers for the dataset
 router.patch(
@@ -556,9 +583,8 @@ router.patch(
     async (req: Request, res: Response, next: NextFunction) => {
         try {
             const datasetId = res.locals.datasetId;
-            const language = req.language as Locale;
             const providers = await arrayValidator(DatasetProviderDTO, req.body);
-            const updatedDataset = await DatasetRepository.updateDatasetProviders(datasetId, providers, language);
+            const updatedDataset = await DatasetRepository.updateDatasetProviders(datasetId, providers);
             res.status(201);
             res.json(DatasetDTO.fromDataset(updatedDataset));
         } catch (err: any) {

@@ -16,13 +16,20 @@ export class ProviderSource extends BaseEntity {
     })
     language: string;
 
+    @Column({ type: 'int', name: 'sw2_id', nullable: true })
+    sw2_id?: number; // provider id from SW2 - might need this for migration but otherwise unused
+
     @Column({ type: 'text', nullable: false })
     name: string;
 
     @Column({ type: 'uuid', name: 'provider_id' })
     providerId: string;
 
-    @ManyToOne(() => Provider, (provider) => provider.sources, { onDelete: 'CASCADE', orphanedRowAction: 'delete' })
+    @ManyToOne(() => Provider, (provider) => provider.sources, {
+        onDelete: 'CASCADE',
+        orphanedRowAction: 'delete',
+        cascade: true
+    })
     @JoinColumn([
         {
             name: 'provider_id',

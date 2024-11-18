@@ -1,284 +1,283 @@
-provider_name,name,language
-British Transport Police,Computerised crime reporting system (CRIME),en-gb
-Cardiff University,Welsh Oral Health Information Unit (WOHIU),en-gb
-Care Inspectorate Wales,Registration and regulatory business system,en-gb
-Chartered Institute for Public Finance and Accountancy (CIPFA),Council tax survey,en-gb
-Civil Aviation Authority,Administrative data,en-gb
-Civil Aviation Authority,Airport data,en-gb
-Community Dental Services,Community dental activity returns (CDSWR),en-gb
-Department for Education,Employer skills survey,en-gb
-Department for Education,Pupil attainment and absence,en-gb
-Department for Education,Support staff pay data,en-gb
-Department for Education,Vocational qualifications data,en-gb
-"Department for Environment, Food and Rural Affairs",Air concentration,en-gb
-"Department for Environment, Food and Rural Affairs",Bovine TB monitoring information,en-gb
-"Department for Environment, Food and Rural Affairs",Cattle tracing system,en-gb
-Department for Transport,Automated traffic counts,en-gb
-Department for Transport,Concessionary fares smartcard database,en-gb
-Department for Transport,Coroners court data,en-gb
-Department for Transport,Local authority concessionary fares claim forms,en-gb
-Department for Transport,Manual traffic survey,en-gb
-Department for Transport,Maritime and shipping statistics,en-gb
-Department for Transport,National roads maintenance condition survey (NRMCS),en-gb
-Department for Transport,Ports survey,en-gb
-Department for Transport,Public service vehicle survey,en-gb
-Department for Transport,Road speed and congestion data,en-gb
-Department for Transport,Survey of road freight,en-gb
-Department for Transport,Taxi licences,en-gb
-Department for Transport,Transport research laboratory,en-gb
-Department for Work and Pensions (DWP),"Households below average income, Family resources survey",en-gb
-Department for Work and Pensions (DWP),Information Exploitation and Security Directorate,en-gb
-Department for Work and Pensions (DWP),Jobcentre Plus administrative system,en-gb
-Department of Health & Social Care,Abortion statistics,en-gb
-Diabetic Eye Screening Wales (DESW),Administrative data,en-gb
-Digital Health and Care Wales (DHCW),Diagnostic and Therapy Services Waiting Times (DATS),en-gb
-Digital Health and Care Wales (DHCW),Emergency Department Data Set (EDDS),en-gb
-Digital Health and Care Wales (DHCW),GP Quality and Outcomes Framework,en-gb
-Digital Health and Care Wales (DHCW),Health Maps Wales,en-gb
-Digital Health and Care Wales (DHCW),"Maternity data, Patient Episode Database for Wales (PEDW)",en-gb
-Digital Health and Care Wales (DHCW),Maternity Indicators Dataset (MIDS),en-gb
-Digital Health and Care Wales (DHCW),National Community Child Health Database (NCCHD),en-gb
-Digital Health and Care Wales (DHCW),Outpatient Activity Minimum Dataset (OP MDS),en-gb
-Digital Health and Care Wales (DHCW),Outpatient Referral Dataset (OPR),en-gb
-Digital Health and Care Wales (DHCW),Patient Episode Database for Wales (PEDW),en-gb
-Digital Health and Care Wales (DHCW),Psychiatric Census,en-gb
-Digital Health and Care Wales (DHCW),QueSt1 return,en-gb
-Digital Health and Care Wales (DHCW),Referral to Treatment Times (RTT),en-gb
-Digital Health and Care Wales (DHCW),Suspected Cancer Pathway (SCP),en-gb
-Digital Health and Care Wales (DHCW),Welsh Immunisation System (WIS),en-gb
-Digital Health and Care Wales (DHCW),Welsh National Database for Substance Misuse (WNDSM),en-gb
-Forestry Commission,Forestry statistics,en-gb
-Forestry Commission,National Forest Inventory (NFI),en-gb
-Forestry Commission,Public Opinion of Forestry Survey,en-gb
-Further Education Institutions,Finance records,en-gb
-Health and Social Care Information Centre (HSCIC),General Medical Services (GMS) census,en-gb
-Health Behaviours in School-aged Children (HBSC),No specific data source,en-gb
-Help to Buy Wales,Transactions record,en-gb
-Higher Education Statistics Agency,Finance record,en-gb
-Higher Education Statistics Agency,Staff record,en-gb
-Higher Education Statistics Agency,Student record,en-gb
-HM Land Registry,House prices data,en-gb
-HM Revenue and Customs (HMRC),Survey of Personal Incomes (SPI),en-gb
-HM Revenue and Customs (HMRC),Tax records,en-gb
-HM Treasury,Public Expenditure Statistical Analysis (PESA),en-gb
-Home Office,Breath test statistics for England and Wales,en-gb
-Home Office,Fire incident recording system,en-gb
-Home Office,Fixed penalty notices for motoring offences statistics in England and Wales,en-gb
-Home Office,Police service strength,en-gb
-Iron and Steel Statistics Bureau,No specific data source,en-gb
-Low Vision Service Wales,Administrative data,en-gb
-Ministry of Justice,Mortgage and landlord possesion statistics,en-gb
-Ministry of Justice,"Motoring offenders, Criminal justice statistics",en-gb
-Moorfields Eye Hospital,Administrative data,en-gb
-National Atmospheric Emissions Inventory,No specific data source,en-gb
-Natural Resources Wales,Construction and Demolition Waste Survey,en-gb
-Natural Resources Wales,Forestry Resource Study,en-gb
-Natural Resources Wales,Industrial and Commercial Waste Survey,en-gb
-Natural Resources Wales,National Flood Risk Assessment data,en-gb
-Natural Resources Wales,Proximity to Waste Disposal and Industrial Sites data,en-gb
-Natural Resources Wales,Special Areas of Conservation data,en-gb
-Natural Resources Wales,Survey of Community Woodland Groups,en-gb
-Natural Resources Wales,Survey of Farmers with Woodland on their Farms,en-gb
-Natural Resources Wales,Survey of Woodland Enterprises,en-gb
-Natural Resources Wales,WasteDataFlow,en-gb
-Natural Resources Wales,Welsh Outdoor Recreation Survey,en-gb
-NHS Blood and Transplant Service,Administrative data,en-gb
-NHS Business Services Authority,Angiography data collection,en-gb
-NHS Business Services Authority,Cataract surgery waiting times data collection,en-gb
-NHS Business Services Authority,Dental services,en-gb
-NHS Delivery Unit,Pathways of Care Delays,en-gb
-NHS Digital,No specific data source,en-gb
-NHS Direct Wales,No specific data source,en-gb
-NHS Organisations,No specific data source,en-gb
-NHS Staff,NHS electronic staff record,en-gb
-NHS Trusts and Local Health Boards,Community contraception service returns (KT31),en-gb
-NHS Trusts and Local Health Boards,Complaints returns (KO41),en-gb
-NHS Trusts and Local Health Boards,Programme budget returns from local health boards,en-gb
-NHS Wales Directory,Geographical information,en-gb
-NHS Wales Shared Services Partnership,Contractor Services,en-gb
-NHS Wales Shared Services Partnership,Medical Performers List (MPL),en-gb
-NHS Wales Shared Services Partnership,Prescribing Services,en-gb
-NHS Wales Shared Services Partnership,Primary Care Services,en-gb
-NHS Wales Shared Services Partnership,Wales National Workforce Reporting System (WNWRS),en-gb
-NHS Wales Shared Services Partnership,Workforce Services,en-gb
-Office for National Statistics (ONS),"1871, 1901, 1931, 1961-1991 Censuses",en-gb
-Office for National Statistics (ONS),2001 Census,en-gb
-Office for National Statistics (ONS),2011 Census,en-gb
-Office for National Statistics (ONS),2021 Census,en-gb
-Office for National Statistics (ONS),Annual Business Survey (ABS),en-gb
-Office for National Statistics (ONS),Annual Population Survey (APS),en-gb
-Office for National Statistics (ONS),Annual Survey of Hours and Earnings (ASHE),en-gb
-Office for National Statistics (ONS),Births registrations,en-gb
-Office for National Statistics (ONS),Business demography,en-gb
-Office for National Statistics (ONS),Business Register Employment Survey (BRES),en-gb
-Office for National Statistics (ONS),Conception statistics,en-gb
-Office for National Statistics (ONS),Consumer price inflation,en-gb
-Office for National Statistics (ONS),Deaths registrations,en-gb
-Office for National Statistics (ONS),Excess winter deaths,en-gb
-Office for National Statistics (ONS),Hospital Mortality,en-gb
-Office for National Statistics (ONS),Integrated Household Survey (IHS),en-gb
-Office for National Statistics (ONS),Inter-Departmental Business Register (IDBR),en-gb
-Office for National Statistics (ONS),Internal migration statistics,en-gb
-Office for National Statistics (ONS),Labour disputes statistics,en-gb
-Office for National Statistics (ONS),Labour Force Survey (LFS),en-gb
-Office for National Statistics (ONS),Labour market statistics,en-gb
-Office for National Statistics (ONS),Life expectancy statistics,en-gb
-Office for National Statistics (ONS),Long-term international migration statistics,en-gb
-Office for National Statistics (ONS),Mid-year population estimates,en-gb
-Office for National Statistics (ONS),Mid-year population estimates for National Park areas,en-gb
-Office for National Statistics (ONS),National population projections for Wales,en-gb
-Office for National Statistics (ONS),Perinatal deaths,en-gb
-Office for National Statistics (ONS),Population estimates by ethnic group,en-gb
-Office for National Statistics (ONS),Quarterly regional gross domestic product,en-gb
-Office for National Statistics (ONS),Regional accounts,en-gb
-Office for National Statistics (ONS),Research and development statistics,en-gb
-Office for National Statistics (ONS),Retail prices,en-gb
-Office for National Statistics (ONS),Short term output indicators,en-gb
-Office for National Statistics (ONS),Small Area Population Estimates (SAPE),en-gb
-Office for National Statistics (ONS),Standard area measurements,en-gb
-Office for National Statistics (ONS),UK electoral statistics,en-gb
-Office for National Statistics (ONS),UK Innovation Survey (UKIS),en-gb
-Office for National Statistics (ONS),UK Tourism Survey (UKTS),en-gb
-Office for National Statistics (ONS),Wealth and Assets Survey (WAS),en-gb
-Office of Rail and Road,National rail trends,en-gb
-Ordnance Survey,Dwelling counts,en-gb
-Organisation for Economic Co-operation and Development (OECD),Programme for International Student Assessment (PISA),en-gb
-Public Health Wales,Communicable Disease Surveillance Centre,en-gb
-Public Health Wales,"Life expectancy, health expectancy and inequality gap",en-gb
-Public Health Wales,Observatory Analytical Team,en-gb
-Public Health Wales,Screening Services,en-gb
-Public Health Wales,Welsh Cancer Intelligence and Surveillance Unit (WCISU),en-gb
-Schools Health Research Network,No specific data source,en-gb
-Sport Wales,Geographical information,en-gb
-Student Loans Company,Administrative data,en-gb
-Transport Focus,National Rail Passenger Survey,en-gb
-Understanding Society (USOC),UK Household Longitudinal Study,en-gb
-Universities and Colleges Admissions Service (UCAS),Under-graduate student admissions data,en-gb
-Visit Britain,Great Britain Day Visits Survey (GBDVS),en-gb
-Visit Britain,Great Britain Tourism Survey (GBTS),en-gb
-Visit Wales,Wales Accommodation Occupancy Survey,en-gb
-Visit Wales,Wales Tourism Business Barometer,en-gb
-Welsh Ambulance Services NHS Trust,No specific data source,en-gb
-Welsh Government,Access to adoption intermediary services (AA1) data collection,en-gb
-Welsh Government,Accommodation in secure units (SSDA912) data collection,en-gb
-Welsh Government,Administrative financial data,en-gb
-Welsh Government,Adoptions of looked after children (AD1) data collection,en-gb
-Welsh Government,Adult safeguarding,en-gb
-Welsh Government,Adults receiving care and support,en-gb
-Welsh Government,Affordable housing provision data collection,en-gb
-Welsh Government,Bedstock surveys,en-gb
-Welsh Government,Budget requirement (BR1) data collection,en-gb
-Welsh Government,Budget requirement (Police) (BR2) data collection,en-gb
-Welsh Government,Capital forecast (CFR) data collection,en-gb
-Welsh Government,Capital outturn (COR) data collection,en-gb
-Welsh Government,Care leavers on their 19th birthday (OC3) data collection,en-gb
-Welsh Government,Changes in status and detentions under the Mental Health Act 1983 data collection (KP90),en-gb
-Welsh Government,Child poverty indicators,en-gb
-Welsh Government,Children in need census (CiN) data collection,en-gb
-Welsh Government,Children looked after (SSDA903) data collection,en-gb
-Welsh Government,Children Receiving Care and Support (CRCS) (aggregate),en-gb
-Welsh Government,Children Receiving Care and Support (CRCS) Census,en-gb
-Welsh Government,Council tax collection (CTC) data collection,en-gb
-Welsh Government,Council tax dwellings (CT1) data collection,en-gb
-Welsh Government,December Census of Agriculture and Horticulture,en-gb
-Welsh Government,Demolitions data collection,en-gb
-Welsh Government,Disabled facilities grant data collection,en-gb
-Welsh Government,Dwelling stock estimates,en-gb
-Welsh Government,Educational qualifications of care leavers (OC1) data collection,en-gb
-Welsh Government,Energy Generation in Wales,en-gb
-Welsh Government,"Eye care outcome measures, Monthly submission proforma",en-gb
-Welsh Government,Farm Business Survey (FBS),en-gb
-Welsh Government,Financial Contingency Funds (FCF) collection,en-gb
-Welsh Government,Fire service operational data collection,en-gb
-Welsh Government,Fire service performance indicators data collection,en-gb
-Welsh Government,Flying Start data monitoring returns,en-gb
-Welsh Government,Flying Start management information,en-gb
-Welsh Government,Fostering services (SSDA904) data collection,en-gb
-Welsh Government,Geographical information,en-gb
-Welsh Government,GP Access Survey,en-gb
-Welsh Government,Grants information,en-gb
-Welsh Government,Gypsy and traveller caravan count,en-gb
-Welsh Government,Hazards and licences data collection,en-gb
-Welsh Government,Healthy Child Wales,en-gb
-Welsh Government,Help to Buy Wales data,en-gb
-Welsh Government,Homelessness data collection,en-gb
-Welsh Government,Household estimates for Wales,en-gb
-Welsh Government,Household projections for National Park areas in Wales,en-gb
-Welsh Government,Household projections for Spatial Plan areas in Wales,en-gb
-Welsh Government,Household projections for Wales,en-gb
-Welsh Government,Housing Revenue Account Subsidy (HRAS) collection,en-gb
-Welsh Government,HR staff data,en-gb
-Welsh Government,June Census of Agriculture and Horticulture,en-gb
-Welsh Government,Land Parcel Identification System (LPIS),en-gb
-Welsh Government,Lifelong Learning Wales Record (LLWR),en-gb
-Welsh Government,Local authority register of persons with learning disabilities (SSDA901) data collection,en-gb
-Welsh Government,Local authority register of persons with physical or sensory disabilities (SSDA900) data collection,en-gb
-Welsh Government,Local Authority School Counselling Services collection,en-gb
-Welsh Government,Local government settlement,en-gb
-Welsh Government,Looked After Children Census,en-gb
-Welsh Government,Low Carbon Energy Survey,en-gb
-Welsh Government,Mental Health (Wales) Measure data collection,en-gb
-Welsh Government,National Reading and Numeracy Tests data collection,en-gb
-Welsh Government,National rough sleeper count,en-gb
-Welsh Government,National Strategic Indicators (NSI) data collection,en-gb
-Welsh Government,National Survey for Wales,en-gb
-Welsh Government,National teacher assessment data collection,en-gb
-Welsh Government,New house building data collection,en-gb
-Welsh Government,Non-domestic rates estimates (NDR1) data collection,en-gb
-Welsh Government,Non-domestic rates outturn (NDR3) data collection,en-gb
-Welsh Government,Payroll data,en-gb
-Welsh Government,Performance and improvement framework for social services,en-gb
-Welsh Government,Performance management of adult's social services (PM2) data collection,en-gb
-Welsh Government,Performance management of children's social services (PM1) data collection,en-gb
-Welsh Government,Population projections for local authorities in Wales,en-gb
-Welsh Government,Population projections for National Park areas in Wales,en-gb
-Welsh Government,Population projections for Spatial Plan areas in Wales,en-gb
-Welsh Government,Possessions and evictions data collection,en-gb
-Welsh Government,Post-16 Pupil Level Annual School Census (PLASC),en-gb
-Welsh Government,Private sector renewal data collection,en-gb
-Welsh Government,Projections for local authorities in Wales,en-gb
-Welsh Government,Protection of vulnerable adults (PVA2) data collection,en-gb
-Welsh Government,Pupil Level Annual School Census (PLASC),en-gb
-Welsh Government,Pupils Educated Other Than At School (EOTAS),en-gb
-Welsh Government,Pupils leaving education with no qualifications collection,en-gb
-Welsh Government,Pupils with statements of special educational needs collection,en-gb
-Welsh Government,Pupils' attendance record,en-gb
-Welsh Government,Pupils' exclusions record,en-gb
-Welsh Government,Removal of a suspected mentally disordered person to a place of safety (s.135 and s.136 Mental Health Act) data collection,en-gb
-Welsh Government,Renewal areas data collection,en-gb
-Welsh Government,Rent Officers Wales,en-gb
-Welsh Government,Reported road accidents system,en-gb
-Welsh Government,Revenue budget (RA) data collection,en-gb
-Welsh Government,Revenue outturn (RO) data collection,en-gb
-Welsh Government,Road condition data collection,en-gb
-Welsh Government,Road conditions of motorways and A trunk roads,en-gb
-Welsh Government,Road lengths data collection,en-gb
-Welsh Government,Rural Payment Wales payment records,en-gb
-Welsh Government,School Workforce Annual Census (SWAC),en-gb
-Welsh Government,Sheep and Goat Inventory,en-gb
-Welsh Government,Short term output indicators,en-gb
-Welsh Government,Smoking cessation services data collection,en-gb
-Welsh Government,Social housing lettings data collection,en-gb
-Welsh Government,Social housing quality data collection,en-gb
-Welsh Government,Social housing rent arrears data collection,en-gb
-Welsh Government,Social housing sales data collection,en-gb
-Welsh Government,Social housing vacancies data collection,en-gb
-Welsh Government,Social landlord stock and rents data collection,en-gb
-Welsh Government,"Specialist Child and Adolescent Mental Health Services (sCAMHS), First appointment waiting times data collection",en-gb
-Welsh Government,Staffing of local authority social services (STF) data collection,en-gb
-Welsh Government,Standard Assessment Procedure (SAP) ratings data from largest social housing providers,en-gb
-Welsh Government,State of the Environment Report,en-gb
-Welsh Government,Sub-national housing projections for Wales,en-gb
-Welsh Government,Sustainable Development Indicators for Wales,en-gb
-Welsh Government,Teacher sickness absence annual returns,en-gb
-Welsh Government,Welsh Examinations Database,en-gb
-Welsh Government,Welsh Health Survey,en-gb
-Welsh Government,Welsh Housing Conditions Survey,en-gb
-Welsh Government,Welsh Index of Multiple Deprivation (WIMD),en-gb
-Welsh Government,Welsh language skills needs in eight sectors,en-gb
-Welsh Government,Welsh Language Strategy,en-gb
-Welsh Government,Youth Service data collection,en-gb
-Welsh Joint Education Committee,Annual Report,en-gb
-Welsh Revenue Authority,Land transaction tax returns,en-gb
-Welsh Revenue Authority,Landfill disposals tax returns,en-gb
-Woodland Trust,Space for People report,en-gb
+original_id,provider_name_en,provider_name_cy,source_name_en,source_name_cy
+10250,British Transport Police,Heddlu Trafnidiaeth Prydeinig,Computerised crime reporting system (CRIME),System adrodd troseddau cyfrifiadurol (CRIME)
+10137,Cardiff University,Prifysgol Caerdydd,Welsh Oral Health Information Unit (WOHIU),Uned Gwybodaeth Iechyd Geneuol Cymru (WOHIU)
+10078,Care Inspectorate Wales,Arolygiaeth Gofal Cymru,Registration and regulatory business system,System busnes cofrestru a rheoleiddio
+10296,Chartered Institute for Public Finance and Accountancy (CIPFA),Sefydliad Siartredig Cyllid Cyhoeddus a Chyfrifyddiaeth (CIPFA),Council tax survey,Arolwg dreth gyngor
+10257,Civil Aviation Authority,Awdurdod Hedfan Sifil,Administrative data,Data gweinyddol
+10336,Civil Aviation Authority,Awdurdod Hedfan Sifil,Airport data,Data maes awyr
+10143,Community Dental Services,Wasanaethau Deintyddol Cymunedol,Community dental activity returns (CDSWR),Ffurflenni gweithgarwch deintyddol cymunedol (CDSWR)
+10228,Department for Education,Yr Adran Addysg,Employer skills survey,Arolwg sgiliau cyflogwyr
+10331,Department for Education,Yr Adran Addysg,Pupil attainment and absence,Absenoliaeth a chyrhaeddiad disgyblion
+10277,Department for Education,Yr Adran Addysg,Support staff pay data,Data ar gyflogau staff cymorth
+10099,Department for Education,Yr Adran Addysg,Vocational qualifications data,Data am gymwysterau galwedigaethol
+10273,"Department for Environment, Food and Rural Affairs","Adran yr Amgylchedd, Bwyd a Materion Gwledig",Air concentration,Crynodiad aer
+10285,"Department for Environment, Food and Rural Affairs","Adran yr Amgylchedd, Bwyd a Materion Gwledig",Bovine TB monitoring information,Gwybodaeth fonitro TB buchol
+10284,"Department for Environment, Food and Rural Affairs","Adran yr Amgylchedd, Bwyd a Materion Gwledig",Cattle tracing system,System olrhain gwartheg
+10307,Department for Transport,Adran Drafnidiaeth,Automated traffic counts,Cyfrifon traffic awtomatig
+10239,Department for Transport,Adran Drafnidiaeth,Concessionary fares smartcard database,Cronfa ddata tocynnau teithio rhatach smartcard
+10311,Department for Transport,Adran Drafnidiaeth,Coroners court data,Data cwrt crwneriaid
+10109,Department for Transport,Adran Drafnidiaeth,Local authority concessionary fares claim forms,Ffurflenni hawlio tocynnau teithio am ddim awdurdodau lleol
+10252,Department for Transport,Adran Drafnidiaeth,Manual traffic survey,Arolwg traffig ar sail data â gesglir â llaw
+10345,Department for Transport,Adran Drafnidiaeth,Maritime and shipping statistics,Ystadegau morol a llongau
+10308,Department for Transport,Adran Drafnidiaeth,National roads maintenance condition survey (NRMCS),Arolwg cenedlaethol cyflwr cynnal a chadw heolydd (NRCMS)
+10234,Department for Transport,Adran Drafnidiaeth,Ports survey,Arolwg o borthladdoedd
+10249,Department for Transport,Adran Drafnidiaeth,Public service vehicle survey,Arolwg o gerbydau gwasanaethau cyhoeddus
+10283,Department for Transport,Adran Drafnidiaeth,Road speed and congestion data,Data ar gyflymder a thagfeydd
+10235,Department for Transport,Adran Drafnidiaeth,Survey of road freight,Arolwg o gludo nwyddau
+10315,Department for Transport,Adran Drafnidiaeth,Taxi licences,Trwyddedau tacsi
+10236,Department for Transport,Adran Drafnidiaeth,Transport research laboratory,Labordy ymchwil drafnidiaeth
+10087,Department for Work and Pensions (DWP),Adran Gwaith a Phensiynau (DWP),"Households below average income, Family resources survey","Aelwydydd islaw'r incwm cyfartalog, Arolwg adnoddau teuluol"
+10159,Department for Work and Pensions (DWP),Adran Gwaith a Phensiynau (DWP),Information Exploitation and Security Directorate,Gyfarwyddiaeth Diogelu a Manteisio ar Wybodaeth
+10092,Department for Work and Pensions (DWP),Adran Gwaith a Phensiynau (DWP),Jobcentre Plus administrative system,System weinyddu'r Ganolfan Byd Gwaith
+10186,Department of Health & Social Care,Yr Adran Iechyd a Gofal Cymdeithasol,Abortion statistics,Ystadegau erthylu
+10189,Diabetic Eye Screening Wales (DESW),Sgrinio Llygaid Diabetig Cymru (DESW),Administrative data,Data gweinyddol
+10181,Digital Health and Care Wales (DHCW),Iechyd a Gofal Digidol Cymru (DHCW),Diagnostic and Therapy Services Waiting Times (DATS),Gwasanaethau Diagnostig a Therapi Amseroedd Aros (DATS)
+10180,Digital Health and Care Wales (DHCW),Iechyd a Gofal Digidol Cymru (DHCW),Emergency Department Data Set (EDDS),Set Ddata Adran Achosion Brys (EDDS)
+10147,Digital Health and Care Wales (DHCW),Iechyd a Gofal Digidol Cymru (DHCW),GP Quality and Outcomes Framework,Fframwaith Canlyniadau Ansawdd
+10160,Digital Health and Care Wales (DHCW),Iechyd a Gofal Digidol Cymru (DHCW),Health Maps Wales,Mapiau Iechyd Cymru
+10103,Digital Health and Care Wales (DHCW),Iechyd a Gofal Digidol Cymru (DHCW),"Maternity data, Patient Episode Database for Wales (PEDW)","Data mamolaeth, Cronfa Ddata Cyfnodau Gofal Cleifion Cymru (PEDW)"
+10321,Digital Health and Care Wales (DHCW),Iechyd a Gofal Digidol Cymru (DHCW),Maternity Indicators Dataset (MIDS),Set Ddata Dangosyddion Mamolaeth (MIDS)
+10098,Digital Health and Care Wales (DHCW),Iechyd a Gofal Digidol Cymru (DHCW),National Community Child Health Database (NCCHD),Cronfa Ddata Genedlaethol ar Iechyd Plant Cymunedol (NCCHD)
+10300,Digital Health and Care Wales (DHCW),Iechyd a Gofal Digidol Cymru (DHCW),Outpatient Activity Minimum Dataset (OP MDS),Set Ddata Gweithgaredd Sylfaenol Cleifion Allanol (OP MDS)
+10177,Digital Health and Care Wales (DHCW),Iechyd a Gofal Digidol Cymru (DHCW),Outpatient Referral Dataset (OPR),Set Ddata Atgyfeiriad Cleifion Allanol (OPR)
+10106,Digital Health and Care Wales (DHCW),Iechyd a Gofal Digidol Cymru (DHCW),Patient Episode Database for Wales (PEDW),Cronfa Ddata Cyfnodau Gofal Cleifion Cymru (PEDW)
+10150,Digital Health and Care Wales (DHCW),Iechyd a Gofal Digidol Cymru (DHCW),Psychiatric Census,Cyfrifiad Seiciatrig
+10153,Digital Health and Care Wales (DHCW),Iechyd a Gofal Digidol Cymru (DHCW),QueSt1 return,Ffurflen QueSt1
+10182,Digital Health and Care Wales (DHCW),Iechyd a Gofal Digidol Cymru (DHCW),Referral to Treatment Times (RTT),Atgyfeiriad am driniaeth (RTT)
+10366,Digital Health and Care Wales (DHCW),Iechyd a Gofal Digidol Cymru (DHCW),Suspected Cancer Pathway (SCP),Lwybr Canser a Amheuir (SCP)
+10371,Digital Health and Care Wales (DHCW),Iechyd a Gofal Digidol Cymru (DHCW),Welsh Immunisation System (WIS),System Imiwneiddio Cymru (WIS)
+10194,Digital Health and Care Wales (DHCW),Iechyd a Gofal Digidol Cymru (DHCW),Welsh National Database for Substance Misuse (WNDSM),Cronfa Ddata Genedlaethol Cymru ar Gamddefnyddio Sylweddau (WNDSM)
+10213,Forestry Commission,Comisiwn Coedwigaeth,Forestry statistics,Ystadegau coedwigaeth
+10212,Forestry Commission,Comisiwn Coedwigaeth,National Forest Inventory (NFI),Rhestr Genedlaethol o Goedwigoedd (NFI)
+10211,Forestry Commission,Comisiwn Coedwigaeth,Public Opinion of Forestry Survey,Barn y Cyhoedd am yr Arolwg Coedwigaeth
+10198,Further Education Institutions,Sefydliadau Addysg Bellach,Finance records,Cofnodion cyllid
+10145,Health and Social Care Information Centre (HSCIC),Iechyd a Gofal Cymdeithasol a Canolfan Gwybodaeth (HSCIC),General Medical Services (GMS) census,Cyfrifiad y Gwasanaethau Meddygol Cyffredinol (GMS)
+10313,Health Behaviours in School-aged Children (HBSC),Ymddygiadau Iechyd mewn Plant Oedran Ysgol (HBSC),No specific data source,Dim ffynhonnell ddata benodol
+10289,Higher Education Statistics Agency,Yr Asiantaeth Ystadegau Addysg Uwch,Finance record,Cofnod cyllid
+10288,Higher Education Statistics Agency,Yr Asiantaeth Ystadegau Addysg Uwch,Staff record,Cofnod staff
+10139,Higher Education Statistics Agency,Yr Asiantaeth Ystadegau Addysg Uwch,Student record,Cofnod myfyrwyr
+10262,HM Land Registry,Cofrestrfa Tir EF,House prices data,Data ar brisiau tai
+10119,HM Revenue and Customs (HMRC),Cyllid a Thollau EF,Survey of Personal Incomes (SPI),Arolwg o Incwm Personol (SPI)
+10265,HM Revenue and Customs (HMRC),Cyllid a Thollau EF,Tax records,Cofnodion treth
+10221,HM Treasury,Trysorlys EF,Public Expenditure Statistical Analysis (PESA),Diweddariad Dadansoddiadau Ystadegol o Wariant Cyhoeddus (PESA)
+10310,Home Office,Swyddfa Gartref,Breath test statistics for England and Wales,Ystadegau prawf anadl ar gyfer Lloegr a Chymru
+10088,Home Office,Swyddfa Gartref,Fire incident recording system,System cofnodi achosion o dân
+10309,Home Office,Swyddfa Gartref,Fixed penalty notices for motoring offences statistics in England and Wales,Ystadegau hysbysiadau cosb benodedig ar gyfer troseddau moduro yn Lloegr a Chymru
+10108,Home Office,Swyddfa Gartref,Police service strength,Cryfder y gwasanaeth heddlu
+10091,Iron and Steel Statistics Bureau,Biwro Ystadegau Haearn a Dur,No specific data source,Dim ffynhonnell ddata benodol
+10190,Low Vision Service Wales,Gwasanaeth Golwg Gwan Cymru,Administrative data,Data gweinyddol
+10282,Ministry of Justice,Weinyddiaeth Gyfiawnder,Mortgage and landlord possesion statistics,Ystadegau ar forgeisiau a meddiannaeth landlordiaid
+10364,Ministry of Justice,Weinyddiaeth Gyfiawnder,"Motoring offenders, Criminal justice statistics","Troseddwyr moduron, Ystadegau cyfiawnder troseddol"
+10191,Moorfields Eye Hospital,Ysbyty Llygaid Moorfields,Administrative data,Data gweinyddol
+10238,National Atmospheric Emissions Inventory,Rhestr Allyriadau Atmosfferig Genedlaethol,No specific data source,Dim ffynhonnell ddata benodol
+10170,Natural Resources Wales,Cyfoeth Naturiol Cymru,Construction and Demolition Waste Survey,Arolwg o Wastraff Adeiladu a Dymchwel
+10219,Natural Resources Wales,Cyfoeth Naturiol Cymru,Forestry Resource Study,Astudiaeth o Adnoddau Coedwigaeth
+10100,Natural Resources Wales,Cyfoeth Naturiol Cymru,Industrial and Commercial Waste Survey,Arolwg o Wastraff Diwydiannol a Masnachol
+10268,Natural Resources Wales,Cyfoeth Naturiol Cymru,National Flood Risk Assessment data,Data Cenedlaethol ar Asesu Risg Llifogydd
+10274,Natural Resources Wales,Cyfoeth Naturiol Cymru,Proximity to Waste Disposal and Industrial Sites data,Data ar Agosrwydd at Safleoedd Gwaredu Gwastraff a Diwydiannol
+10218,Natural Resources Wales,Cyfoeth Naturiol Cymru,Special Areas of Conservation data,Data ar Ardaloedd Cadwraeth Arbennig
+10202,Natural Resources Wales,Cyfoeth Naturiol Cymru,Survey of Community Woodland Groups,Arolwg o Grwpiau Coetiroedd Cymunedol
+10216,Natural Resources Wales,Cyfoeth Naturiol Cymru,Survey of Farmers with Woodland on their Farms,Arolwg o Ffermwyr â Choetiroedd ar eu Ffermydd
+10230,Natural Resources Wales,Cyfoeth Naturiol Cymru,Survey of Woodland Enterprises,Arolwg o Fusnesau Coetir
+10124,Natural Resources Wales,Cyfoeth Naturiol Cymru,WasteDataFlow,WasteDataFlow
+10214,Natural Resources Wales,Cyfoeth Naturiol Cymru,Welsh Outdoor Recreation Survey,Arolwg Hamdden Awyr Agored Cymru
+10244,NHS Blood and Transplant Service,Gwaed a Thrawsblaniadau’r GIG,Administrative data,Data gweinyddol
+10149,NHS Business Services Authority,Awdurdod Gwasanaethau Busnes y GIG,Angiography data collection,Casgliad data am angiograffeg
+10148,NHS Business Services Authority,Awdurdod Gwasanaethau Busnes y GIG,Cataract surgery waiting times data collection,Casgliad data am amseroedd aros ar gyfer llawdriniaeth cataractau
+10146,NHS Business Services Authority,Awdurdod Gwasanaethau Busnes y GIG,Dental services,Gwasanaethau deintyddol
+10379,NHS Delivery Unit,Uned Gyflawni’r GIG,Pathways of Care Delays,Oedi yn achos Llwybrau Gofal
+10372,NHS Digital,Digidol GIG,No specific data source,Dim ffynhonnell ddata benodol
+10101,NHS Direct Wales,Galw Iechyd Cymru,No specific data source,Dim ffynhonnell ddata benodol
+10342,NHS Organisations,Sefydliadau’r GIG,No specific data source,Dim ffynhonnell ddata benodol
+10144,NHS Staff,Staff GIG,NHS electronic staff record,Cofnod staff electronig y GIG
+10075,NHS Trusts and Local Health Boards,Ymddiriedolaethau GIG a Byrddau Iechyd Lleol,Community contraception service returns (KT31),Ffurflenni gwasanaethau atal cenhedlu cymunedol (KT31)
+10076,NHS Trusts and Local Health Boards,Ymddiriedolaethau GIG a Byrddau Iechyd Lleol,Complaints returns (KO41),Ffurflenni cwynion (KO41)
+10256,NHS Trusts and Local Health Boards,Ymddiriedolaethau GIG a Byrddau Iechyd Lleol,Programme budget returns from local health boards,Datganiadau cyllideb rhaglenni gan y byrddau iechyd lleol
+10272,NHS Wales Directory,Cyfeiriadur GIG Cymru,Geographical information,Gwybodaeth ddaearyddol
+10188,NHS Wales Shared Services Partnership,Partneriaeth Cydwasanaethau GIG Cymru,Contractor Services,Gwasanaethau Contractwyr
+10348,NHS Wales Shared Services Partnership,Partneriaeth Cydwasanaethau GIG Cymru,Medical Performers List (MPL),Rhestr o Gyflawnwyr Meddygol (MPL)
+10187,NHS Wales Shared Services Partnership,Partneriaeth Cydwasanaethau GIG Cymru,Prescribing Services,Gwasanaethau Presgripsiwn
+10293,NHS Wales Shared Services Partnership,Partneriaeth Cydwasanaethau GIG Cymru,Primary Care Services,Gwasanaethau Gofal Sylfaenol
+10346,NHS Wales Shared Services Partnership,Partneriaeth Cydwasanaethau GIG Cymru,Wales National Workforce Reporting System (WNWRS),System Adrodd Genedlaethol ar gyfer Gweithlu Cymru (WNWRS)
+10279,NHS Wales Shared Services Partnership,Partneriaeth Cydwasanaethau GIG Cymru,Workforce Services,Gwasanaethau’r Gweithlu
+10155,Office for National Statistics (ONS),Swyddfa Ystadegau Gwladol (SYG),"1871, 1901, 1931, 1961-1991 Censuses","Cyfrifiad 1871, 1901, 1931, 1961-1991"
+10050,Office for National Statistics (ONS),Swyddfa Ystadegau Gwladol (SYG),2001 Census,Cyfrifiad 2001
+10065,Office for National Statistics (ONS),Swyddfa Ystadegau Gwladol (SYG),2011 Census,Cyfrifiad 2011
+10375,Office for National Statistics (ONS),Swyddfa Ystadegau Gwladol (SYG),2021 Census,Cyfrifiad 2021
+10220,Office for National Statistics (ONS),Swyddfa Ystadegau Gwladol (SYG),Annual Business Survey (ABS),Arolwg Busnes Blynyddol (ABS)
+10047,Office for National Statistics (ONS),Swyddfa Ystadegau Gwladol (SYG),Annual Population Survey (APS),Arolwg Blynyddol o’r Boblogaeth (APS)
+10070,Office for National Statistics (ONS),Swyddfa Ystadegau Gwladol (SYG),Annual Survey of Hours and Earnings (ASHE),Arolwg Blynyddol o Oriau ac Enillion (ASHE)
+10104,Office for National Statistics (ONS),Swyddfa Ystadegau Gwladol (SYG),Births registrations,Cofrestriadau genedigaeth
+10071,Office for National Statistics (ONS),Swyddfa Ystadegau Gwladol (SYG),Business demography,Demograffeg busnes
+10072,Office for National Statistics (ONS),Swyddfa Ystadegau Gwladol (SYG),Business Register Employment Survey (BRES),Arolwg Cyflogaeth y Gofrestr Fusnes (BRES)
+10195,Office for National Statistics (ONS),Swyddfa Ystadegau Gwladol (SYG),Conception statistics,Ystadegau beichiogi
+10240,Office for National Statistics (ONS),Swyddfa Ystadegau Gwladol (SYG),Consumer price inflation,Chwyddiant ym mhrisiau defnyddwyr
+10178,Office for National Statistics (ONS),Swyddfa Ystadegau Gwladol (SYG),Deaths registrations,Cofrestriadau marwolaethau
+10242,Office for National Statistics (ONS),Swyddfa Ystadegau Gwladol (SYG),Excess winter deaths,Marwolaethau ychwanegol y gaeaf
+10206,Office for National Statistics (ONS),Swyddfa Ystadegau Gwladol (SYG),Hospital Mortality,Marwolaethau yn yr ysbyty
+10048,Office for National Statistics (ONS),Swyddfa Ystadegau Gwladol (SYG),Integrated Household Survey (IHS),Arolwg Aelwydydd Integredig (IHS)
+10175,Office for National Statistics (ONS),Swyddfa Ystadegau Gwladol (SYG),Inter-Departmental Business Register (IDBR),Cofrestr Busnes Rhyngadrannol (IDBR)
+10089,Office for National Statistics (ONS),Swyddfa Ystadegau Gwladol (SYG),Internal migration statistics,Ystadegau ymfudo mewnol
+10174,Office for National Statistics (ONS),Swyddfa Ystadegau Gwladol (SYG),Labour disputes statistics,Ystadegau anghydfodau llafur
+10093,Office for National Statistics (ONS),Swyddfa Ystadegau Gwladol (SYG),Labour Force Survey (LFS),Arolwg o'r Llafurlu (LFS)
+10179,Office for National Statistics (ONS),Swyddfa Ystadegau Gwladol (SYG),Labour market statistics,Ystadegau y farchnad lafur
+10217,Office for National Statistics (ONS),Swyddfa Ystadegau Gwladol (SYG),Life expectancy statistics,Ystadegau disgwyliad oes
+10095,Office for National Statistics (ONS),Swyddfa Ystadegau Gwladol (SYG),Long-term international migration statistics,Ystadegau ymfudo rhyngwladol hirdymor
+10097,Office for National Statistics (ONS),Swyddfa Ystadegau Gwladol (SYG),Mid-year population estimates,Amcangyfrifon poblogaeth canol-blwyddyn
+10096,Office for National Statistics (ONS),Swyddfa Ystadegau Gwladol (SYG),Mid-year population estimates for National Park areas,Amcanestyniadau poblogaeth canol y flwyddyn ar gyfer ardaloedd Parciau Cenedlaethol
+10381,Office for National Statistics (ONS),Swyddfa Ystadegau Gwladol (SYG),National population projections for Wales,Amcanestyniadau poblogaeth cenedlaethol ar gyfer Cymru
+10243,Office for National Statistics (ONS),Swyddfa Ystadegau Gwladol (SYG),Perinatal deaths,Marwolaethau amenedigol
+10126,Office for National Statistics (ONS),Swyddfa Ystadegau Gwladol (SYG),Population estimates by ethnic group,Amcanestyniadau poblogaeth fesul grŵp ethnig
+10359,Office for National Statistics (ONS),Swyddfa Ystadegau Gwladol (SYG),Quarterly regional gross domestic product,Cynnyrch domestig gros rhanbarthol chwarterol
+10114,Office for National Statistics (ONS),Swyddfa Ystadegau Gwladol (SYG),Regional accounts,Cyfrifon Rhanbarthol
+10173,Office for National Statistics (ONS),Swyddfa Ystadegau Gwladol (SYG),Research and development statistics,Ystadegau ymchwil a datblygu
+10172,Office for National Statistics (ONS),Swyddfa Ystadegau Gwladol (SYG),Retail prices,Prisiau manwerthu
+10171,Office for National Statistics (ONS),Swyddfa Ystadegau Gwladol (SYG),Short term output indicators,Dangosyddion allbynnau tymor byr
+10115,Office for National Statistics (ONS),Swyddfa Ystadegau Gwladol (SYG),Small Area Population Estimates (SAPE),Amcangyfrifon Poblogaeth Ardaloedd Bach (SAPE)
+10156,Office for National Statistics (ONS),Swyddfa Ystadegau Gwladol (SYG),Standard area measurements,Mesuriadau arwynebedd safonol
+10122,Office for National Statistics (ONS),Swyddfa Ystadegau Gwladol (SYG),UK electoral statistics,Ystadegau Etholiadol y DU
+10317,Office for National Statistics (ONS),Swyddfa Ystadegau Gwladol (SYG),UK Innovation Survey (UKIS),Arolwg Arloesedd y DU (UKIS)
+10123,Office for National Statistics (ONS),Swyddfa Ystadegau Gwladol (SYG),UK Tourism Survey (UKTS),Arolwg Twristiaeth y DU (UKTS)
+10292,Office for National Statistics (ONS),Swyddfa Ystadegau Gwladol (SYG),Wealth and Assets Survey (WAS),Arolwg Cyfoeth ac Asedau (WAS)
+10197,Office of Rail and Road,Swyddfa Rheilffyrdd a Ffyrdd,National rail trends,Tueddiadau rheilffyrdd cenedlaethol
+10304,Ordnance Survey,Arolwg Ordnans,Dwelling counts,Niferoedd anheddau
+10222,Organisation for Economic Co-operation and Development (OECD),Sefydliad ar gyfer Cydweithrediad a Datblygiad Economaidd (OECD),Programme for International Student Assessment (PISA),Rhaglen Ryngwladol Asesu Myfyrwyr (PISA)
+10192,Public Health Wales,Iechyd Cyhoeddus Cymru,Communicable Disease Surveillance Centre,Canolfan Arolygu Clefydau Trosglwyddadwy
+10341,Public Health Wales,Iechyd Cyhoeddus Cymru,"Life expectancy, health expectancy and inequality gap","Disgwyliad oes, disgwyliad oes iach a bwlch anghydraddoldeb"
+10110,Public Health Wales,Iechyd Cyhoeddus Cymru,Observatory Analytical Team,Tîm Dadansoddi’r Arsyllfa
+10196,Public Health Wales,Iechyd Cyhoeddus Cymru,Screening Services,Gwasanaethau Sgrinio
+10276,Public Health Wales,Iechyd Cyhoeddus Cymru,Welsh Cancer Intelligence and Surveillance Unit (WCISU),Uned Gwybodaeth ac Arolygaeth Canser Cymru (WCISU)
+10361,Schools Health Research Network,Rhwydwaith Ymchwil Iechyd mewn Ysgolion,No specific data source,Dim ffynhonnell ddata benodol
+10271,Sport Wales,Chwaraeon Cymru,Geographical information,Gwybodaeth ddaearyddol
+10140,Student Loans Company,Cwmni Benthyciadau Myfyrwyr,Administrative data,Data gweinyddol
+10246,Transport Focus,Ffocws ar Drafnidiaeth,National Rail Passenger Survey,Arolwg Teithwyr Rheilffordd Cenedlaethol
+10312,Understanding Society (USOC),Arolwg Deall Cymdeithas (USOC),UK Household Longitudinal Study,Astudiaeth Hydredol o Aelwydydd y DU
+10287,Universities and Colleges Admissions Service (UCAS),Gwasanaeth Derbyn y Prifysgolion a’r Colegau (UCAS),Under-graduate student admissions data,Data ar dderbyn myfyrwyr israddedig
+10203,Visit Britain,Visit Britain,Great Britain Day Visits Survey (GBDVS),Arolwg Ymweliadau Undydd Prydain Fawr (GBDVS)
+10215,Visit Britain,Visit Britain,Great Britain Tourism Survey (GBTS),Arolwg Twristiaeth Prydain Fawr (GBTS)
+10253,Visit Wales,Croeso Cymru,Wales Accommodation Occupancy Survey,Arolygon Deiliadaeth Llety Cymru
+10347,Visit Wales,Croeso Cymru,Wales Tourism Business Barometer,Baromedr Busnes Twristiaeth Cymru
+10125,Welsh Ambulance Services NHS Trust,Ymddiriedolaeth GIG Gwasanaethau Ambiwlans Cymru,No specific data source,Dim ffynhonnell ddata benodol
+10016,Welsh Government,Llywodraeth Cymru,Access to adoption intermediary services (AA1) data collection,Casgliad data am y gallu i ddefnyddio gwasanaethau cyfryngol mabwysiadu (AA1)
+10030,Welsh Government,Llywodraeth Cymru,Accommodation in secure units (SSDA912) data collection,Casgliad data am lety mewn unedau diogel (SSDA912)
+10233,Welsh Government,Llywodraeth Cymru,Administrative financial data,Data ariannol gweinyddol
+10008,Welsh Government,Llywodraeth Cymru,Adoptions of looked after children (AD1) data collection,Casgliad data am fabwysiadu plant sy'n derbyn gofal (AD1)
+10324,Welsh Government,Llywodraeth Cymru,Adult safeguarding,Diogelu oedolion
+10328,Welsh Government,Llywodraeth Cymru,Adults receiving care and support,Oedolion sy'n derbyn gofal a chymorth
+10001,Welsh Government,Llywodraeth Cymru,Affordable housing provision data collection,Casgliad data am ddarpariaeth tai fforddiadwy
+10205,Welsh Government,Llywodraeth Cymru,Bedstock surveys,Arolygon o’r stoc llety
+10027,Welsh Government,Llywodraeth Cymru,Budget requirement (BR1) data collection,Casgliad data Gofynion Cyllideb (BR1)
+10028,Welsh Government,Llywodraeth Cymru,Budget requirement (Police) (BR2) data collection,Casgliad data Gofynion Cyllideb (Heddlu) (BR2)
+10020,Welsh Government,Llywodraeth Cymru,Capital forecast (CFR) data collection,Casgliad data rhagolygon cyfalaf (CFR)
+10019,Welsh Government,Llywodraeth Cymru,Capital outturn (COR) data collection,Casgliad data alldro cyfalaf (COR)
+10010,Welsh Government,Llywodraeth Cymru,Care leavers on their 19th birthday (OC3) data collection,Casgliad data am bobl ifanc sy'n gadael gofal ar eu pen-blwydd yn 19 oed (OC3)
+10151,Welsh Government,Llywodraeth Cymru,Changes in status and detentions under the Mental Health Act 1983 data collection (KP90),"Achosion o dderbyn, newid mewn statws a chadw o dan Ddeddf Iechyd Meddwl 1983 (KP90)"
+10074,Welsh Government,Llywodraeth Cymru,Child poverty indicators,Dangosyddion tlodi plant
+10006,Welsh Government,Llywodraeth Cymru,Children in need census (CiN) data collection,Casgliad data am gyfrifiad plant mewn angen (CiN)
+10007,Welsh Government,Llywodraeth Cymru,Children looked after (SSDA903) data collection,Casgliad data am blant sy'n derbyn gofal (SSDA903)
+10329,Welsh Government,Llywodraeth Cymru,Children Receiving Care and Support (CRCS) (aggregate),Plant sy'n Derbyn Gofal a Chymorth (CRCS) (cyfanredol)
+10327,Welsh Government,Llywodraeth Cymru,Children Receiving Care and Support (CRCS) Census,Plant sy'n Derbyn Gofal a Chymorth (CRCS) Cyfrifiad
+10023,Welsh Government,Llywodraeth Cymru,Council tax collection (CTC) data collection,Casgliad data am gasglu'r dreth gyngor (CTC)
+10024,Welsh Government,Llywodraeth Cymru,Council tax dwellings (CT1) data collection,Casgliad data am anheddau'r dreth gyngor (CT1)
+10290,Welsh Government,Llywodraeth Cymru,December Census of Agriculture and Horticulture,Rhagfyr Cyfrifiad Amaethyddol a Garddwrol
+10044,Welsh Government,Llywodraeth Cymru,Demolitions data collection,Casgliad data am ddymchwel adeiladau
+10043,Welsh Government,Llywodraeth Cymru,Disabled facilities grant data collection,Casgliad data am grant cyfleusterau i bobl anabl
+10080,Welsh Government,Llywodraeth Cymru,Dwelling stock estimates,Amcangyfrifon o'r Stoc Anheddau
+10009,Welsh Government,Llywodraeth Cymru,Educational qualifications of care leavers (OC1) data collection,Casgliad data am gymwysterau addysgol pobl ifanc sy'n gadael gofal (OC1)
+10350,Welsh Government,Llywodraeth Cymru,Energy Generation in Wales,Cynhyrchu Ynni yng Nghymru
+10353,Welsh Government,Llywodraeth Cymru,"Eye care outcome measures, Monthly submission proforma","Mesurau canlyniadau gofal llygaid, Profforma cyflwyno misol"
+10320,Welsh Government,Llywodraeth Cymru,Farm Business Survey (FBS),Arolwg Busnes Fferm (FBS)
+10226,Welsh Government,Llywodraeth Cymru,Financial Contingency Funds (FCF) collection,Casgliad Cronfeydd Ariannol Wrth Gefn (FCF)
+10082,Welsh Government,Llywodraeth Cymru,Fire service operational data collection,Casgliad data gweithredol y gwasanaeth tân
+10034,Welsh Government,Llywodraeth Cymru,Fire service performance indicators data collection,Casglu data dangosyddion perfformiad y gwasanaeth tân
+10380,Welsh Government,Llywodraeth Cymru,Flying Start data monitoring returns,Ffurflenni monitro data Dechrau’n Deg
+10193,Welsh Government,Llywodraeth Cymru,Flying Start management information,Gwybodaeth rheoli Dechrau'n Deg
+10014,Welsh Government,Llywodraeth Cymru,Fostering services (SSDA904) data collection,Casgliad data am wasanaethau maethu (SSDA904)
+10270,Welsh Government,Llywodraeth Cymru,Geographical information,Gwybodaeth ddaearyddol
+10204,Welsh Government,Llywodraeth Cymru,GP Access Survey,Arolwg Mynediad i Feddyg Teulu
+10209,Welsh Government,Llywodraeth Cymru,Grants information,Gwybodaeth am grantiau
+10085,Welsh Government,Llywodraeth Cymru,Gypsy and traveller caravan count,Cyfrifiad carafannau sipsiwn a theithwyr
+10040,Welsh Government,Llywodraeth Cymru,Hazards and licences data collection,Casgliad data am beryglon a thrwyddedau
+10351,Welsh Government,Llywodraeth Cymru,Healthy Child Wales,Plant Iach Cymru
+10360,Welsh Government,Llywodraeth Cymru,Help to Buy Wales data,Data Cymorth i Brynu Cymru
+10039,Welsh Government,Llywodraeth Cymru,Homelessness data collection,Casgliad data am ddigartrefedd
+10086,Welsh Government,Llywodraeth Cymru,Household estimates for Wales,Amcanestyniadau aelwydydd Cymru
+10333,Welsh Government,Llywodraeth Cymru,Household projections for National Park areas in Wales,Amcanestyniadau aelwydydd ar gyfer ardaloedd Parciau Cenedlaethol yng Nghymru
+10058,Welsh Government,Llywodraeth Cymru,Household projections for Spatial Plan areas in Wales,Amcanestyniadau aelwydydd ar gyfer ardaloedd Cynllunio Gofodol yng Nghymru
+10339,Welsh Government,Llywodraeth Cymru,Household projections for Wales,Amcanestyniadau aelwydydd ar gyfer Cymru
+10254,Welsh Government,Llywodraeth Cymru,Housing Revenue Account Subsidy (HRAS) collection,Casglu data ar y Cymhorthdal Cyfrif Refeniw Tai (HRAS)
+10263,Welsh Government,Llywodraeth Cymru,HR staff data,Data ar staff gan Adnoddau Dynol
+10046,Welsh Government,Llywodraeth Cymru,June Census of Agriculture and Horticulture,Mehefin Cyfrifiad Amaethyddol a Garddwrol
+10281,Welsh Government,Llywodraeth Cymru,Land Parcel Identification System (LPIS),System Adnabod Parseli Tir (LPIS)
+10094,Welsh Government,Llywodraeth Cymru,Lifelong Learning Wales Record (LLWR),Cofnod Dysgu Gydol Oes Cymru (LLWR)
+10013,Welsh Government,Llywodraeth Cymru,Local authority register of persons with learning disabilities (SSDA901) data collection,Casgliad data am gofrestr awdurdodau lleol o bobl ag anableddau dysgu (SSDA901)
+10012,Welsh Government,Llywodraeth Cymru,Local authority register of persons with physical or sensory disabilities (SSDA900) data collection,Casgliad data am gofrestr awdurdodau lleol o bobl ag anableddau corfforol neu ar eu synhwyrau (SSDA900)
+10298,Welsh Government,Llywodraeth Cymru,Local Authority School Counselling Services collection,Casglu data Gwasanaethau Cwnsela mewn Ysgolion
+10029,Welsh Government,Llywodraeth Cymru,Local government settlement,Setliad llywodraeth leol
+10326,Welsh Government,Llywodraeth Cymru,Looked After Children Census,Cyfrifiad Plant sy'n Derbyn Gofal
+10314,Welsh Government,Llywodraeth Cymru,Low Carbon Energy Survey,Arolwg o Ynni Carbon Isel
+10306,Welsh Government,Llywodraeth Cymru,Mental Health (Wales) Measure data collection,Casglu data Mesur Iechyd Meddwl (Cymru)
+10299,Welsh Government,Llywodraeth Cymru,National Reading and Numeracy Tests data collection,Casglu data Canlyniadau Profion Darllen a Rhifedd Cenedlaethol
+10297,Welsh Government,Llywodraeth Cymru,National rough sleeper count,Cyfrif cenedlaethol o gysgu allan
+10015,Welsh Government,Llywodraeth Cymru,National Strategic Indicators (NSI) data collection,Casgliad data am Ddangosyddion Strategol Cenedlaethol (NSI)
+10225,Welsh Government,Llywodraeth Cymru,National Survey for Wales,Arolwg Cenedlaethol Cymru
+10121,Welsh Government,Llywodraeth Cymru,National teacher assessment data collection,Casgliad data asesiadau athrawon cenedlaethol
+10038,Welsh Government,Llywodraeth Cymru,New house building data collection,Casgliad data am adeiladu tai newydd
+10026,Welsh Government,Llywodraeth Cymru,Non-domestic rates estimates (NDR1) data collection,Casgliad data am amcangyfrifon ardrethi annomestig (NDR1)
+10025,Welsh Government,Llywodraeth Cymru,Non-domestic rates outturn (NDR3) data collection,Casgliad data alldro ardrethi annomestig (NDR3)
+10255,Welsh Government,Llywodraeth Cymru,Payroll data,Data y gyflogres
+10373,Welsh Government,Llywodraeth Cymru,Performance and improvement framework for social services,Fframwaith perfformiad a gwella gwasanaethau cymdeithasol
+10005,Welsh Government,Llywodraeth Cymru,Performance management of adult's social services (PM2) data collection,Casgliad data am reoli perfformiad gwasanaethau cymdeithasol i oedolion (PM2)
+10004,Welsh Government,Llywodraeth Cymru,Performance management of children's social services (PM1) data collection,Casgliad data am reoli perfformiad gwasanaethau cymdeithasol i blant (PM1)
+10060,Welsh Government,Llywodraeth Cymru,Population projections for local authorities in Wales,Amcanestyniadau poblogaeth ar gyfer awdurdodau lleol yng Nghymru
+10369,Welsh Government,Llywodraeth Cymru,Population projections for National Park areas in Wales,Amcanestyniadau poblogaeth ar gyfer ardaloedd Parciau Cenedlaethol yng Nghymru
+10063,Welsh Government,Llywodraeth Cymru,Population projections for Spatial Plan areas in Wales,Amcanestyniadau poblogaeth ar gyfer ardaloedd Cynllunio Gofodol yng Nghymru
+10045,Welsh Government,Llywodraeth Cymru,Possessions and evictions data collection,Casgliad data am gymryd meddiant a throi allan
+10184,Welsh Government,Llywodraeth Cymru,Post-16 Pupil Level Annual School Census (PLASC),Ôl-16 Cyfrifiad Ysgolion Blynyddol ar Lefel Disgyblion (PLASC)
+10042,Welsh Government,Llywodraeth Cymru,Private sector renewal data collection,Casgliad data am adfywio sector preifat
+10340,Welsh Government,Llywodraeth Cymru,Projections for local authorities in Wales,Amcanestyniadau poblogaeth ar gyfer awdurdodau lleol yng Nghymru
+10031,Welsh Government,Llywodraeth Cymru,Protection of vulnerable adults (PVA2) data collection,Casgliad data am amddiffyn oedolion sy'n agored i niwed (PVA2)
+10111,Welsh Government,Llywodraeth Cymru,Pupil Level Annual School Census (PLASC),Cyfrifiad Ysgolion Blynyddol ar Lefel Disgyblion (PLASC)
+10291,Welsh Government,Llywodraeth Cymru,Pupils Educated Other Than At School (EOTAS),Disgyblion Sy'n Derbyn Addysg Heblaw Yn Yr Ysgol (EOTAS)
+10199,Welsh Government,Llywodraeth Cymru,Pupils leaving education with no qualifications collection,Disgyblion sy'n ymadael ag addysg heb gymhwysterau casgliad
+10200,Welsh Government,Llywodraeth Cymru,Pupils with statements of special educational needs collection,Disgyblion â datganiad o gasgliad anghenion addysgol arbennig
+10112,Welsh Government,Llywodraeth Cymru,Pupils' attendance record,Cofnod presenoldeb disgyblion
+10113,Welsh Government,Llywodraeth Cymru,Pupils' exclusions record,Cofnod gwaharddiadau disgyblion
+10357,Welsh Government,Llywodraeth Cymru,Removal of a suspected mentally disordered person to a place of safety (s.135 and s.136 Mental Health Act) data collection,Tynnu person dan amheuaeth o anhwylder meddwl i le diogel (a.135 ac a.136 Deddf Iechyd Meddwl) casglu data
+10154,Welsh Government,Llywodraeth Cymru,Renewal areas data collection,Casgliad data am ardaloedd adfywio
+10207,Welsh Government,Llywodraeth Cymru,Rent Officers Wales,Swyddogion Rhenti Cymru
+10163,Welsh Government,Llywodraeth Cymru,Reported road accidents system,System adroddiadau damweiniau ffyrdd
+10018,Welsh Government,Llywodraeth Cymru,Revenue budget (RA) data collection,Casgliad data cyllideb refeniw (RA)
+10017,Welsh Government,Llywodraeth Cymru,Revenue outturn (RO) data collection,Casgliad data alldro refeniw (RO)
+10258,Welsh Government,Llywodraeth Cymru,Road condition data collection,Casglu data ar gyflwr y ffyrdd
+10338,Welsh Government,Llywodraeth Cymru,Road conditions of motorways and A trunk roads,Cyflwr ffyrdd traffyrdd a chefnffyrdd A
+10237,Welsh Government,Llywodraeth Cymru,Road lengths data collection,Casglu data ar hydoedd ffyrdd
+10280,Welsh Government,Llywodraeth Cymru,Rural Payment Wales payment records,Cofnodion taliadau Taliadau Gwledig Cymru
+10358,Welsh Government,Llywodraeth Cymru,School Workforce Annual Census (SWAC),Cyfrifiad Blynyddol o'r Gweithlu Ysgol (SWAC)
+10286,Welsh Government,Llywodraeth Cymru,Sheep and Goat Inventory,Stocrestr o Ddefaid a Geifr
+10319,Welsh Government,Llywodraeth Cymru,Short term output indicators,Dangosyddion allbynnau tymor byr
+10318,Welsh Government,Llywodraeth Cymru,Smoking cessation services data collection,Casgliad data gwasanaethau rhoi’r gorau i ysmygu
+10036,Welsh Government,Llywodraeth Cymru,Social housing lettings data collection,Casgliad data am dai cymdeithasol ar osod
+10041,Welsh Government,Llywodraeth Cymru,Social housing quality data collection,Casgliad data am ansawdd tai cymdeithasol
+10037,Welsh Government,Llywodraeth Cymru,Social housing rent arrears data collection,Casgliad data am ôl-ddyledion rhent tai cymdeithasol
+10003,Welsh Government,Llywodraeth Cymru,Social housing sales data collection,Casgliad data am werthiant tai cymdeithasol
+10035,Welsh Government,Llywodraeth Cymru,Social housing vacancies data collection,Casgliad data am leoedd gwag mewn tai cymdeithasol
+10002,Welsh Government,Llywodraeth Cymru,Social landlord stock and rents data collection,Casgliad data am stoc a rhenti landlordiaid cymdeithasol
+10368,Welsh Government,Llywodraeth Cymru,"Specialist Child and Adolescent Mental Health Services (sCAMHS), First appointment waiting times data collection","Gwasanaethau Iechyd Meddwl Plant a'r Glasoed Arbenigol (sCAMHS), Penodiad cyntaf amseroedd aros casglu data"
+10011,Welsh Government,Llywodraeth Cymru,Staffing of local authority social services (STF) data collection,Casgliad data am staffio gwasanaethau cymdeithasol awdurdodau lleol (STF)
+10259,Welsh Government,Llywodraeth Cymru,Standard Assessment Procedure (SAP) ratings data from largest social housing providers,Data ar raddfeydd y Weithdrefn Asesu Safonol (SAP) gan y prif ddarparwyr tai cymdeithasol
+10117,Welsh Government,Llywodraeth Cymru,State of the Environment Report,Adroddiad ar Gyflwr yr Amgylchedd
+10051,Welsh Government,Llywodraeth Cymru,Sub-national housing projections for Wales,Amcanestyniadau tai is-genedlaethol ar gyfer Cymru
+10120,Welsh Government,Llywodraeth Cymru,Sustainable Development Indicators for Wales,Adroddiad Dangosyddion Datblygiad Cynaliadwy ar gyfer Cymru
+10201,Welsh Government,Llywodraeth Cymru,Teacher sickness absence annual returns,Casgliad blynyddol absenoldeb athrawon drwy salwch
+10127,Welsh Government,Llywodraeth Cymru,Welsh Examinations Database,Cronfa Ddata Arholiadau Cymru
+10129,Welsh Government,Llywodraeth Cymru,Welsh Health Survey,Arolwg Iechyd Cymru
+10337,Welsh Government,Llywodraeth Cymru,Welsh Housing Conditions Survey,Arolwg Cyflwr Tai Cymru
+10135,Welsh Government,Llywodraeth Cymru,Welsh Index of Multiple Deprivation (WIMD),Mynegai Amddifadedd Lluosog Cymru (MALIC)
+10229,Welsh Government,Llywodraeth Cymru,Welsh language skills needs in eight sectors,Anghenion o ran sgiliau Cymraeg mewn wyth sector
+10245,Welsh Government,Llywodraeth Cymru,Welsh Language Strategy,Strategaeth yr Iaith Gymraeg
+10152,Welsh Government,Llywodraeth Cymru,Youth Service data collection,Casgliad data am y Gwasanaeth Ieuenctid
+10136,Welsh Joint Education Committee,Cydbwyllgor Addysg Cymru,Annual Report,Adroddiad Blynyddol
+,Welsh Revenue Authority,Awdurdod Cyllid Cymru,Land transaction tax returns,Ffurflenni treth trafodiadau tir
+,Welsh Revenue Authority,Awdurdod Cyllid Cymru,Landfill disposals tax returns,Ffurflenni treth gwarediadau tirlenwi
+10210,Woodland Trust,Coed Cadw,Space for People report,Adroddiad Space for People

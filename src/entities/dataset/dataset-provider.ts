@@ -9,6 +9,9 @@ export class DatasetProvider extends BaseEntity {
     @PrimaryGeneratedColumn('uuid', { name: 'id', primaryKeyConstraintName: 'PK_dataset_provider_id' })
     id: string;
 
+    @Column({ type: 'uuid', name: 'group_id' })
+    groupId: string; // dataset providers can be in multiple languages - use this id to group them
+
     @Column({ type: 'uuid', name: 'dataset_id' })
     datasetId: string;
 

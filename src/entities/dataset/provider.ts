@@ -19,7 +19,7 @@ export class Provider extends BaseEntity {
     @Column({ type: 'text', nullable: false })
     name: string;
 
-    @OneToMany(() => ProviderSource, (source) => source.provider, { cascade: true })
+    @OneToMany(() => ProviderSource, (source) => source.provider)
     sources?: ProviderSource[];
 
     @OneToMany(() => DatasetProvider, (datasetProvider) => datasetProvider.dataset, { cascade: true })

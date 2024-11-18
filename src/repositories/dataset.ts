@@ -1,5 +1,5 @@
 import { FindOneOptions, FindOptionsRelations } from 'typeorm';
-import { differenceBy, has } from 'lodash';
+import { has } from 'lodash';
 
 import { dataSource } from '../db/data-source';
 import { Dataset } from '../entities/dataset/dataset';
@@ -97,24 +97,51 @@ export const DatasetRepository = dataSource.getRepository(Dataset).extend({
         return qb.getRawMany();
     },
 
-    async updateDatasetProviders(datasetId: string, providers: DatasetProviderDTO[], lang: Locale): Promise<Dataset> {
-        const datasetProviderRepo = dataSource.getRepository(DatasetProvider);
+    async addDatasetProvider(datasetId: string, dataProvider: DatasetProviderDTO): Promise<Dataset> {
+        const newProvider = DatasetProviderDTO.toDatsetProvider(dataProvider);
+        const altLang = newProvider.language.includes(Locale.English) ? Locale.WelshGb : Locale.EnglishGb;
 
-        // remove any existing providers that aren't still in the list
-        const existingProviders = await datasetProviderRepo.find({
-            where: { datasetId, language: lang.toLowerCase() }
+        // ad new data provider for both languages
+        const newProviderAltLang: Partial<DatasetProvider> = {
+            ...newProvider,
+            id: undefined,
+            language: altLang.toLowerCase()
+        };
+
+        await dataSource.getRepository(DatasetProvider).save([newProvider, newProviderAltLang]);
+
+        return this.getById(datasetId);
+    },
+
+    async updateDatasetProviders(datasetId: string, dataProviders: DatasetProviderDTO[]): Promise<Dataset> {
+        const existing = await dataSource.getRepository(DatasetProvider).findBy({ datasetId });
+
+        // we only receive updates in a single language, but we need to update the relations for both languages
+        // provider id will be the same for both languages, so we can filter on provider id
+        const submitted = dataProviders.map((provider) => DatasetProviderDTO.toDatsetProvider(provider));
+
+        // work out what providers have been removed and remove for both languages
+        const toRemove = existing.filter((existing) => {
+            // if the group id is still present in the submitted data then don't remove those providers
+            return !submitted.some((submitted) => submitted.groupId === existing.groupId);
         });
-        const toRemove = existingProviders.filter((ep) => !providers.some((provider) => provider.id === ep.id));
-        await datasetProviderRepo.remove(toRemove);
 
-        // add any new providers that weren't already in the list
-        const datasetProviders = providers.map((provider) => DatasetProviderDTO.toDatsetProvider(provider));
-        const toAdd = differenceBy(datasetProviders, existingProviders, 'id');
-        await datasetProviderRepo.save(datasetProviders);
+        await dataSource.getRepository(DatasetProvider).remove(toRemove);
+
+        // update the data providers for both languages
+        const toUpdate = existing
+            .filter((existing) => submitted.some((submitted) => submitted.groupId === existing.groupId))
+            .map((updating) => {
+                const updated = submitted.find((submitted) => submitted.groupId === updating.groupId)!;
+                updating.providerId = updated.providerId;
+                updating.providerSourceId = updated.providerSourceId;
+                return updating;
+            });
+
+        await dataSource.getRepository(DatasetProvider).save(toUpdate);
 
         logger.debug(
-            `Removed ${toRemove.length} providers, added ${toAdd.length} providers,
-            and updated ${datasetProviders.length - toAdd.length} providers for dataset ${datasetId}`
+            `Removed ${toRemove.length} providers and updated ${toUpdate.length} providers for dataset ${datasetId}`
         );
 
         return this.getById(datasetId);

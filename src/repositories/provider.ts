@@ -10,7 +10,12 @@ export const ProviderRepository = dataSource.getRepository(Provider).extend({
         return this.find({ where: { language: ILike(`${lang}%`) } });
     },
 
-    async listAllSourcesByProvider(providerId: string): Promise<ProviderSource[]> {
-        return dataSource.getRepository(ProviderSource).find({ where: { providerId } });
+    async listAllSourcesByProvider(providerId: string, lang: Locale): Promise<ProviderSource[]> {
+        return dataSource.getRepository(ProviderSource).find({
+            where: {
+                providerId,
+                language: ILike(`${lang}%`)
+            }
+        });
     }
 });

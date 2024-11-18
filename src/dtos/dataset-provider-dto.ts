@@ -9,6 +9,10 @@ export class DatasetProviderDTO {
     id?: string;
 
     @IsUUID(4)
+    @IsOptional()
+    group_id?: string;
+
+    @IsUUID(4)
     @IsNotEmpty()
     dataset_id: string;
 
@@ -35,6 +39,7 @@ export class DatasetProviderDTO {
     static fromDatasetProvider(datasetProvider: DatasetProvider): DatasetProviderDTO {
         const dto = new DatasetProviderDTO();
         dto.id = datasetProvider.id;
+        dto.group_id = datasetProvider.groupId;
         dto.dataset_id = datasetProvider.datasetId;
         dto.language = datasetProvider.language;
         dto.provider_id = datasetProvider.providerId;
@@ -49,6 +54,7 @@ export class DatasetProviderDTO {
     static toDatsetProvider(dto: DatasetProviderDTO): DatasetProvider {
         const datasetProvider = new DatasetProvider();
         datasetProvider.id = dto.id || uuid();
+        datasetProvider.groupId = dto.group_id || uuid();
         datasetProvider.datasetId = dto.dataset_id;
         datasetProvider.language = dto.language?.toLowerCase();
         datasetProvider.providerId = dto.provider_id;
