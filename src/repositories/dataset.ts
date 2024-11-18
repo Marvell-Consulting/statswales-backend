@@ -99,9 +99,10 @@ export const DatasetRepository = dataSource.getRepository(Dataset).extend({
 
     async addDatasetProvider(datasetId: string, dataProvider: DatasetProviderDTO): Promise<Dataset> {
         const newProvider = DatasetProviderDTO.toDatsetProvider(dataProvider);
+
+        // add new data provider for both languages
         const altLang = newProvider.language.includes(Locale.English) ? Locale.WelshGb : Locale.EnglishGb;
 
-        // ad new data provider for both languages
         const newProviderAltLang: Partial<DatasetProvider> = {
             ...newProvider,
             id: undefined,
@@ -110,15 +111,16 @@ export const DatasetRepository = dataSource.getRepository(Dataset).extend({
 
         await dataSource.getRepository(DatasetProvider).save([newProvider, newProviderAltLang]);
 
+        logger.debug(`Added new provider for dataset ${datasetId}`);
+
         return this.getById(datasetId);
     },
 
     async updateDatasetProviders(datasetId: string, dataProviders: DatasetProviderDTO[]): Promise<Dataset> {
         const existing = await dataSource.getRepository(DatasetProvider).findBy({ datasetId });
-
-        // we only receive updates in a single language, but we need to update the relations for both languages
-        // provider id will be the same for both languages, so we can filter on provider id
         const submitted = dataProviders.map((provider) => DatasetProviderDTO.toDatsetProvider(provider));
+
+        // we can receive updates in a single language, but we need to update the relations for both languages
 
         // work out what providers have been removed and remove for both languages
         const toRemove = existing.filter((existing) => {
