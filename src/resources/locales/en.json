@@ -48,6 +48,7 @@
         "dataset_id_invalid": "Dataset id is invalid or missing",
         "revision_id_invalid": "Revision id is invalid or missing",
         "import_id_invalid": "Import id is invalid or missing",
+        "provider_id_invalid": "Provider id is invalid or missing",
         "dimension_id_invalid": "Dimension id is invalid or missing",
         "info_update_error": "Could not update the dataset info",
         "no_dataset": "Dataset could not be found",

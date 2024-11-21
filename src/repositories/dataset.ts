@@ -9,6 +9,8 @@ import { logger } from '../utils/logger';
 import { DatasetListItemDTO } from '../dtos/dataset-list-item-dto';
 import { Locale } from '../enums/locale';
 import { DatasetInfoDTO } from '../dtos/dataset-info-dto';
+import { DatasetProviderDTO } from '../dtos/dataset-provider-dto';
+import { DatasetProvider } from '../entities/dataset/dataset-provider';
 
 const defaultRelations: FindOptionsRelations<Dataset> = {
     createdBy: true,
@@ -21,6 +23,10 @@ const defaultRelations: FindOptionsRelations<Dataset> = {
         imports: {
             sources: true
         }
+    },
+    datasetProviders: {
+        provider: true,
+        providerSource: true
     }
 };
 
@@ -71,7 +77,7 @@ export const DatasetRepository = dataSource.getRepository(Dataset).extend({
         const qb = this.createQueryBuilder('d')
             .select(['d.id as id', 'di.title as title'])
             .innerJoin('d.datasetInfo', 'di')
-            .where('di.language LIKE :lang', { lang: `${lang}%` })
+            .where('di.language ILIKE :lang', { lang: `${lang}%` })
             .groupBy('d.id, di.title')
             .orderBy('d.createdAt', 'ASC');
 
@@ -84,10 +90,62 @@ export const DatasetRepository = dataSource.getRepository(Dataset).extend({
             .innerJoin('d.datasetInfo', 'di')
             .innerJoin('d.revisions', 'r')
             .innerJoin('r.imports', 'i')
-            .where('di.language LIKE :lang', { lang: `${lang}%` })
+            .where('di.language ILIKE :lang', { lang: `${lang}%` })
             .groupBy('d.id, di.title')
             .orderBy('d.createdAt', 'ASC');
 
         return qb.getRawMany();
+    },
+
+    async addDatasetProvider(datasetId: string, dataProvider: DatasetProviderDTO): Promise<Dataset> {
+        const newProvider = DatasetProviderDTO.toDatsetProvider(dataProvider);
+
+        // add new data provider for both languages
+        const altLang = newProvider.language.includes(Locale.English) ? Locale.WelshGb : Locale.EnglishGb;
+
+        const newProviderAltLang: Partial<DatasetProvider> = {
+            ...newProvider,
+            id: undefined,
+            language: altLang.toLowerCase()
+        };
+
+        await dataSource.getRepository(DatasetProvider).save([newProvider, newProviderAltLang]);
+
+        logger.debug(`Added new provider for dataset ${datasetId}`);
+
+        return this.getById(datasetId);
+    },
+
+    async updateDatasetProviders(datasetId: string, dataProviders: DatasetProviderDTO[]): Promise<Dataset> {
+        const existing = await dataSource.getRepository(DatasetProvider).findBy({ datasetId });
+        const submitted = dataProviders.map((provider) => DatasetProviderDTO.toDatsetProvider(provider));
+
+        // we can receive updates in a single language, but we need to update the relations for both languages
+
+        // work out what providers have been removed and remove for both languages
+        const toRemove = existing.filter((existing) => {
+            // if the group id is still present in the submitted data then don't remove those providers
+            return !submitted.some((submitted) => submitted.groupId === existing.groupId);
+        });
+
+        await dataSource.getRepository(DatasetProvider).remove(toRemove);
+
+        // update the data providers for both languages
+        const toUpdate = existing
+            .filter((existing) => submitted.some((submitted) => submitted.groupId === existing.groupId))
+            .map((updating) => {
+                const updated = submitted.find((submitted) => submitted.groupId === updating.groupId)!;
+                updating.providerId = updated.providerId;
+                updating.providerSourceId = updated.providerSourceId;
+                return updating;
+            });
+
+        await dataSource.getRepository(DatasetProvider).save(toUpdate);
+
+        logger.debug(
+            `Removed ${toRemove.length} providers and updated ${toUpdate.length} providers for dataset ${datasetId}`
+        );
+
+        return this.getById(datasetId);
     }
 });

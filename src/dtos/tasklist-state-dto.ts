@@ -56,7 +56,7 @@ export class TasklistStateDTO {
             summary: info?.description ? TaskStatus.Completed : TaskStatus.NotStarted,
             statistical_quality: info?.quality ? TaskStatus.Completed : TaskStatus.NotStarted,
             data_collection: info?.collection ? TaskStatus.Completed : TaskStatus.NotStarted,
-            data_sources: TaskStatus.NotImplemented,
+            data_sources: dataset.datasetProviders?.length > 0 ? TaskStatus.Completed : TaskStatus.NotStarted,
             related_reports: info?.relatedLinks ? TaskStatus.Completed : TaskStatus.NotStarted,
             update_frequency: info?.updateFrequency ? TaskStatus.Completed : TaskStatus.NotStarted,
             designation: info?.designation ? TaskStatus.Completed : TaskStatus.NotStarted,
