@@ -7,8 +7,8 @@ services:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
       POSTGRES_DB: statswales-backend
-    #    volumes:
-#      - .docker/postgres/data:/var/lib/postgresql/data
+    # volumes:
+    #   - .docker/postgres/data:/var/lib/postgresql/data
 
   db-test:
     image: postgres:latest
@@ -23,3 +23,10 @@ services:
     image: redis:latest
     ports:
       - "6379:6379"
+
+  # blob storage emulator
+  blobstorage:
+    image: mcr.microsoft.com/azure-storage/azurite
+    command: "azurite-blob --blobHost 127.0.0.1 --blobPort 10000"
+    ports:
+      - "10000:10000"

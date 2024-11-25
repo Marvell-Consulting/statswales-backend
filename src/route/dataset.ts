@@ -147,7 +147,7 @@ router.delete('/:dataset_id', loadDataset({}), deleteDatasetById);
 // Returns a DatasetDTO object
 router.post('/', jsonParser, createDataset);
 
-// POST /dataset
+// POST /dataset/:dataset_id/data
 // Upload a CSV file to a dataset
 // Returns a DTO object that includes the revisions and import records
 router.post('/:dataset_id/data', upload.single('csv'), loadDataset(), createFirstRevision);
