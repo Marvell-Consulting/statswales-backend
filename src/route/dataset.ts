@@ -188,7 +188,7 @@ router.post('/', jsonParser, async (req: Request, res: Response, next: NextFunct
     }
 });
 
-// POST /dataset
+// POST /dataset/:dataset_id/data
 // Upload a CSV file to a dataset
 // Returns a DTO object that includes the revisions and import records
 router.post(
