@@ -1,9 +1,6 @@
 import { Revision } from '../entities/dataset/revision';
-import { Source } from '../entities/dataset/source';
-import { FileImport } from '../entities/dataset/file-import';
-
-import { SourceDTO } from './source-dto';
-import { FileImportDTO } from './file-import-dto';
+import { FactTable } from '../entities/dataset/fact-table';
+import { FactTableDTO } from './fact-table-dto';
 
 export class RevisionDTO {
     id: string;
@@ -11,8 +8,7 @@ export class RevisionDTO {
     revision_index: number;
     previous_revision_id?: string;
     online_cube_filename?: string;
-    sources: SourceDTO[];
-    imports: FileImportDTO[];
+    factTables: FactTableDTO[];
     created_at: string;
     created_by: string;
     approved_at?: string;
@@ -31,10 +27,7 @@ export class RevisionDTO {
         revDto.approved_at = revision.approvedAt?.toISOString();
         revDto.approved_by = revision.approvedBy?.name;
         revDto.created_by = revision.createdBy?.name;
-
-        revDto.sources = revision.sources?.map((source: Source) => SourceDTO.fromSource(source));
-        revDto.imports = revision.imports?.map((fileImport: FileImport) => FileImportDTO.fromImport(fileImport));
-
+        revDto.factTables = revision.factTables?.map((factTable: FactTable) => FactTableDTO.fromFactTable(factTable));
         return revDto;
     }
 }

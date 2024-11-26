@@ -3,48 +3,55 @@ import { Dataset } from '../entities/dataset/dataset';
 import { Dimension } from '../entities/dataset/dimension';
 import { DimensionInfo } from '../entities/dataset/dimension-info';
 import { DimensionType } from '../enums/dimension-type';
-import { Revision } from '../entities/dataset/revision';
-import { Source } from '../entities/dataset/source';
-import { FileImport } from '../entities/dataset/file-import';
+import { FactTable } from '../entities/dataset/fact-table';
 import { SourceType } from '../enums/source-type';
-import { AVAILABLE_LANGUAGES, i18next } from '../middleware/translation';
-import { SourceAction } from '../enums/source-action';
+import { AVAILABLE_LANGUAGES } from '../middleware/translation';
 import { logger } from '../utils/logger';
 import { SourceAssignmentException } from '../exceptions/source-assignment.exception';
+import { FactTableInfo } from '../entities/dataset/fact-table-info';
+import { Measure } from '../entities/dataset/measure';
 
 export interface ValidatedSourceAssignment {
-    datavalues: SourceAssignmentDTO | null;
-    footnotes: SourceAssignmentDTO | null;
+    dataValues: SourceAssignmentDTO | null;
+    noteCodes: SourceAssignmentDTO | null;
+    measure: SourceAssignmentDTO | null;
     dimensions: SourceAssignmentDTO[];
     ignore: SourceAssignmentDTO[];
 }
 
 export const validateSourceAssignment = (
-    fileImport: FileImport,
+    fileImport: FactTable,
     sourceAssignment: SourceAssignmentDTO[]
 ): ValidatedSourceAssignment => {
-    let datavalues: SourceAssignmentDTO | null = null;
-    let footnotes: SourceAssignmentDTO | null = null;
+    let dataValues: SourceAssignmentDTO | null = null;
+    let noteCodes: SourceAssignmentDTO | null = null;
+    let measure: SourceAssignmentDTO | null = null;
     const dimensions: SourceAssignmentDTO[] = [];
     const ignore: SourceAssignmentDTO[] = [];
 
     sourceAssignment.map((sourceInfo) => {
-        if (!fileImport.sources?.find((source: Source) => source.id === sourceInfo.sourceId)) {
-            throw new Error(`Source with id ${sourceInfo.sourceId} not found`);
+        if (!fileImport.factTableInfo?.find((info: FactTableInfo) => info.columnName === sourceInfo.columnName)) {
+            throw new Error(`Source with id ${sourceInfo.columnName} not found`);
         }
 
         switch (sourceInfo.sourceType) {
             case SourceType.DataValues:
-                if (datavalues) {
+                if (dataValues) {
                     throw new SourceAssignmentException('errors.too_many_data_values');
                 }
-                datavalues = sourceInfo;
+                dataValues = sourceInfo;
                 break;
-            case SourceType.FootNotes:
-                if (footnotes) {
+            case SourceType.Measure:
+                if (measure) {
+                    throw new SourceAssignmentException('errors.too_many_measure');
+                }
+                measure = sourceInfo;
+                break;
+            case SourceType.NoteCodes:
+                if (noteCodes) {
                     throw new SourceAssignmentException('errors.too_many_footnotes');
                 }
-                footnotes = sourceInfo;
+                noteCodes = sourceInfo;
                 break;
             case SourceType.Dimension:
                 dimensions.push(sourceInfo);
@@ -57,88 +64,30 @@ export const validateSourceAssignment = (
         }
     });
 
-    return { datavalues, footnotes, dimensions, ignore };
+    return { dataValues, measure, noteCodes, dimensions, ignore };
 };
 
-async function updateDataValueSource(sourceDescriptor: SourceAssignmentDTO) {
-    const dataValuesSource = await Source.findOneByOrFail({ id: sourceDescriptor.sourceId });
-    dataValuesSource.action = SourceAction.Create;
-    dataValuesSource.type = SourceType.DataValues;
-    await Source.createQueryBuilder().relation(Source, 'dimension').of(dataValuesSource).set(null);
-    await dataValuesSource.save();
-}
-
-async function updateIgnoredSource(sourceDescriptor: SourceAssignmentDTO) {
-    const ignoredSource = await Source.findOneByOrFail({ id: sourceDescriptor.sourceId });
-    ignoredSource.action = SourceAction.Ignore;
-    ignoredSource.type = SourceType.Ignore;
-    await Source.createQueryBuilder().relation(Source, 'dimension').of(ignoredSource).set(null);
-    await ignoredSource.save();
-}
-
-async function createUpdateFootnotesDimension(
+async function createUpdateDimension(
     dataset: Dataset,
-    revision: Revision,
-    existingDimensions: Dimension[],
-    sourceDescriptor: SourceAssignmentDTO
-) {
-    const footnoteSource = await Source.findOneByOrFail({ id: sourceDescriptor.sourceId });
-    if (footnoteSource.type !== SourceType.FootNotes) {
-        footnoteSource.type = SourceType.FootNotes;
-    }
-    const existingFootnotesDimension = existingDimensions.find(
-        (dimension) => dimension.type === DimensionType.FootNote
-    );
-    if (existingFootnotesDimension) {
-        footnoteSource.dimension = existingFootnotesDimension;
-        await footnoteSource.save();
-    } else {
-        const footnoteDimension = new Dimension();
-        const footnoteDimensionInfo: DimensionInfo[] = [];
-        const updateDate = new Date();
-        footnoteDimension.dimensionInfo = footnoteDimensionInfo;
-        footnoteDimension.type = DimensionType.FootNote;
-        footnoteDimension.dataset = dataset;
-        footnoteDimension.startRevision = revision;
-        footnoteDimension.sources = [footnoteSource];
-        await footnoteDimension.save();
-        AVAILABLE_LANGUAGES.map(async (lang) => {
-            const dimensionInfo = new DimensionInfo();
-            dimensionInfo.dimension = footnoteDimension;
-            dimensionInfo.language = lang;
-            dimensionInfo.name = i18next.t('dimension_info.footnotes.title', { lng: lang });
-            dimensionInfo.description = i18next.t('dimension_info.footnotes.description', { lng: lang });
-            dimensionInfo.updatedAt = updateDate;
-            await dimensionInfo.save();
-        });
-        await footnoteSource.save();
-    }
-}
-
-async function createDimension(
-    dataset: Dataset,
-    revision: Revision,
-    sourceDescriptor: SourceAssignmentDTO
+    factTable: FactTable,
+    columnDescriptor: SourceAssignmentDTO
 ): Promise<void> {
-    const source = await Source.findOneOrFail({ where: { id: sourceDescriptor.sourceId }, relations: ['dimension'] });
-    const existingDimension = source.dimension;
+    const columnInfo = await FactTableInfo.findOneByOrFail({columnName: columnDescriptor.columnName, id: factTable.id });
+    const existingDimension = await Dimension.findOneBy({dataset: dataset, factTableColumn: columnDescriptor.columnName});
 
-    if (existingDimension && source.type === SourceType.Dimension) {
-        logger.debug(`No Dimension to create as Source for column ${source.csvField} is already attached to one`);
+    if (existingDimension) {
+        logger.debug(`No Dimension to create as fact table for column ${existingDimension.factTableColumn} is already attached to one`);
         return;
     }
 
     logger.debug("The existing dimension is either a footnotes dimension or we don't have one... So lets create one");
-    source.type = SourceType.Dimension;
-    source.action = SourceAction.Create;
-    await source.save();
+    columnInfo.columnType = SourceType.Dimension;
+    await columnInfo.save();
 
     const dimension = new Dimension();
     dimension.type = DimensionType.Raw;
     dimension.dataset = dataset;
-    dimension.startRevision = revision;
-    dimension.sources = [source];
-    source.dimension = dimension;
+    dimension.factTableColumn = columnInfo.columnName;
     const savedDimension = await dimension.save();
 
     AVAILABLE_LANGUAGES.map(async (lang: string) => {
@@ -146,56 +95,135 @@ async function createDimension(
         dimensionInfo.id = savedDimension.id;
         dimensionInfo.dimension = savedDimension;
         dimensionInfo.language = lang;
-        dimensionInfo.name = source.csvField;
+        dimensionInfo.name = columnInfo.columnName;
         await dimensionInfo.save();
     });
-
-    await source.save();
 }
 
-async function cleanupDimensions(datasetId: string): Promise<void> {
+async function cleanupDimensions(datasetId: string, factTableInfo: FactTableInfo[]): Promise<void> {
     const dataset = await Dataset.findOneOrFail({
         where: { id: datasetId },
-        relations: ['dimensions', 'dimensions.sources']
+        relations: ['dimensions']
     });
 
     const revisedDimensions = dataset.dimensions;
 
     for (const dimension of revisedDimensions) {
-        const dimensionSources = dimension.sources;
-        if (dimensionSources.length === 0) {
+        if (!factTableInfo.find((factTableInfo) => factTableInfo.columnName === dimension.factTableColumn)) {
             await dimension.remove();
         }
     }
 }
 
-export const createDimensionsFromSourceAssignment = async (
-    dataset: Dataset,
-    revision: Revision,
-    sourceAssignment: ValidatedSourceAssignment
-): Promise<void> => {
-    const existingDimensions = dataset.dimensions;
-    const { datavalues, ignore, footnotes, dimensions } = sourceAssignment;
+async function updateFactTableInfo(factTable: FactTable, updateColumnDto: SourceAssignmentDTO) {
+    const info = factTable.factTableInfo.find((factTableInfo) => factTableInfo.columnName === updateColumnDto.columnName);
+    if (!info) {
+        throw new Error('No such column');
+    }
+    info.columnType = updateColumnDto.sourceType;
+    await info.save();
+}
 
-    if (datavalues) {
-        await updateDataValueSource(datavalues);
+async function createUpdateMeasure(dataset: Dataset, factTable: FactTable, columnAssignment: SourceAssignmentDTO): Promise<void> {
+    const columnInfo = await FactTableInfo.findOneByOrFail({
+        columnName: columnAssignment.columnName,
+        id: factTable.id
+    });
+    const existingMeasure = await Measure.findOneBy({ dataset });
+
+    if (existingMeasure && existingMeasure.factTableColumn === columnAssignment.columnName) {
+        logger.debug(
+            `No measure to create as fact table for column ${existingMeasure.factTableColumn} is already attached to one`
+        );
+        return;
     }
 
-    if (footnotes) {
-        await createUpdateFootnotesDimension(dataset, revision, existingDimensions, footnotes);
+    columnInfo.columnType = SourceType.Measure;
+    await columnInfo.save();
+
+    if (existingMeasure && existingMeasure.factTableColumn !== columnAssignment.columnName) {
+        existingMeasure.factTableColumn = columnAssignment.columnName;
+        await existingMeasure.save();
+        return;
+    }
+
+    const measure = new Measure();
+    measure.factTableColumn = columnAssignment.columnName;
+    measure.dataset = dataset;
+    await measure.save();
+    await dataset.save();
+}
+
+async function createUpdateNoteCodes(dataset: Dataset, factTable: FactTable, columnAssignment: SourceAssignmentDTO) {
+    const columnInfo = await FactTableInfo.findOneByOrFail({
+        columnName: columnAssignment.columnName,
+        id: factTable.id
+    });
+    const existingDimension = await Dimension.findOneBy({ dataset, type: DimensionType.NoteCodes });
+
+    if (existingDimension && existingDimension.factTableColumn === columnAssignment.columnName) {
+        logger.debug(
+            `No NotesCode Dimension to create as fact table for column ${existingDimension.factTableColumn} is already attached to one`
+        );
+        return;
+    }
+
+    columnInfo.columnType = SourceType.NoteCodes;
+    await columnInfo.save();
+
+    if (existingDimension && existingDimension.factTableColumn !== columnAssignment.columnName) {
+        existingDimension.factTableColumn = columnAssignment.columnName;
+        await existingDimension.save();
+        return;
+    }
+
+    const dimension = new Dimension();
+    dimension.type = DimensionType.NoteCodes;
+    dimension.dataset = dataset;
+    dimension.factTableColumn = columnInfo.columnName;
+    dimension.joinColumn = 'NoteCode';
+    const savedDimension = await dimension.save();
+
+    AVAILABLE_LANGUAGES.map(async (lang: string) => {
+        const dimensionInfo = new DimensionInfo();
+        dimensionInfo.id = savedDimension.id;
+        dimensionInfo.dimension = savedDimension;
+        dimensionInfo.language = lang;
+        dimensionInfo.name = columnInfo.columnName;
+        await dimensionInfo.save();
+    });
+}
+
+export const createDimensionsFromSourceAssignment = async (
+    dataset: Dataset,
+    factTable: FactTable,
+    sourceAssignment: ValidatedSourceAssignment
+): Promise<void> => {
+    const { dataValues, measure, ignore, noteCodes, dimensions } = sourceAssignment;
+
+    if (dataValues) {
+        await updateFactTableInfo(factTable, dataValues);
+    }
+
+    if (noteCodes) {
+        await createUpdateNoteCodes(dataset, factTable, noteCodes);
+    }
+
+    if (measure) {
+        await createUpdateMeasure(dataset, factTable, measure);
     }
 
     await Promise.all(
         dimensions.map(async (dimensionCreationDTO: SourceAssignmentDTO) => {
-            await createDimension(dataset, revision, dimensionCreationDTO);
+            await createUpdateDimension(dataset, factTable, dimensionCreationDTO);
         })
     );
 
     await Promise.all(
         ignore.map(async (dimensionCreationDTO: SourceAssignmentDTO) => {
-            await updateIgnoredSource(dimensionCreationDTO);
+            await updateFactTableInfo(factTable, dimensionCreationDTO);
         })
     );
 
-    await cleanupDimensions(dataset.id);
+    await cleanupDimensions(dataset.id, factTable.factTableInfo);
 };

@@ -13,8 +13,7 @@ import { User } from '../user/user';
 
 import { RevisionInterface } from './revision.interface';
 import { Dataset } from './dataset';
-import { Source } from './source';
-import { FileImport } from './file-import';
+import { FactTable } from './fact-table';
 
 @Entity({ name: 'revision', orderBy: { createdAt: 'ASC' } })
 export class Revision extends BaseEntity implements RevisionInterface {
@@ -35,11 +34,8 @@ export class Revision extends BaseEntity implements RevisionInterface {
     @Column({ name: 'online_cube_filename', type: 'varchar', length: 255, nullable: true })
     onlineCubeFilename: string;
 
-    @OneToMany(() => Source, (source) => source.revision, { cascade: true })
-    sources: Source[];
-
-    @OneToMany(() => FileImport, (importEntity) => importEntity.revision, { cascade: true })
-    imports: FileImport[];
+    @OneToMany(() => FactTable, (factTable) => factTable.revision, { cascade: true })
+    factTables: FactTable[];
 
     @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
     createdAt: Date;

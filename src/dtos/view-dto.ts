@@ -4,7 +4,7 @@ import { SourceType } from '../enums/source-type';
 
 import { Error } from './error';
 import { DatasetDTO } from './dataset-dto';
-import { FileImportDTO } from './file-import-dto';
+import { FactTableDTO } from './fact-table-dto';
 
 export interface CSVHeader {
     index: number;
@@ -26,7 +26,7 @@ export interface ViewErrDTO {
 
 export interface ViewDTO {
     dataset: DatasetDTO;
-    import: FileImportDTO;
+    fact_table: FactTableDTO;
     current_page: number;
     page_info: PageInfo;
     page_size: number;

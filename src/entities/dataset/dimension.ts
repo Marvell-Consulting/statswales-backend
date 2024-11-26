@@ -1,11 +1,19 @@
-import { Entity, PrimaryGeneratedColumn, Column, BaseEntity, ManyToOne, OneToMany, JoinColumn } from 'typeorm';
+import {
+    Entity,
+    PrimaryGeneratedColumn,
+    Column,
+    BaseEntity,
+    ManyToOne,
+    OneToMany,
+    JoinColumn,
+    OneToOne
+} from 'typeorm';
 
 import { DimensionType } from '../../enums/dimension-type';
 
 import { Dataset } from './dataset';
-import { Revision } from './revision';
 import { DimensionInfo } from './dimension-info';
-import { Source } from './source';
+import { LookupTable } from './lookup-table';
 
 @Entity({ name: 'dimension' })
 export class Dimension extends BaseEntity {
@@ -19,20 +27,21 @@ export class Dimension extends BaseEntity {
     @Column({ type: 'enum', enum: Object.values(DimensionType), nullable: false })
     type: DimensionType;
 
-    @ManyToOne(() => Revision, { cascade: true, onDelete: 'CASCADE' })
-    @JoinColumn({ name: 'start_revision_id', foreignKeyConstraintName: 'FK_dimension_start_revision_id' })
-    startRevision: Revision;
+    @Column({ type: 'json', nullable: true })
+    extractor: Object;
 
-    @ManyToOne(() => Revision, { cascade: true, onDelete: 'CASCADE', nullable: true })
-    @JoinColumn({ name: 'finish_revision_id', foreignKeyConstraintName: 'FK_dimension_finish_revision_id' })
-    finishRevision: Revision;
+    @Column({ name: 'join_column', type: 'varchar', nullable: true })
+    joinColumn: string; // <-- Tells you have to join the dimension to the fact_table
 
-    @Column({ type: 'text', nullable: true })
-    validator: string;
+    @Column({ name: 'fact_table_column', type: 'varchar', nullable: false })
+    factTableColumn: string; // <-- Tells you which column in the fact table you're joining to
+
+    @Column({ name: 'is_slice_dimension', type: 'boolean', default: false })
+    isSliceDimension: boolean;
+
+    @OneToOne(() => LookupTable, (lookupTable) => lookupTable.dimension)
+    lookupTable: LookupTable;
 
     @OneToMany(() => DimensionInfo, (dimensionInfo) => dimensionInfo.dimension, { cascade: true })
     dimensionInfo: DimensionInfo[];
-
-    @OneToMany(() => Source, (source) => source.dimension, { cascade: true })
-    sources: Source[];
 }

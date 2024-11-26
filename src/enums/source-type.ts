@@ -1,7 +1,9 @@
 export enum SourceType {
     DataValues = 'data_values',
-    FootNotes = 'foot_notes',
+    NoteCodes = 'note_codes',
     Dimension = 'dimension',
+    Measure = 'measure',
+    Time = 'time',
     Ignore = 'ignore',
     Unknown = 'unknown',
     LineNumber = 'line_number'

@@ -10,23 +10,15 @@ import { FindOptionsRelations } from 'typeorm';
 
 import { logger } from '../utils/logger';
 import { ViewDTO, ViewErrDTO, ViewStream } from '../dtos/view-dto';
-import {
-    createSources,
-    DEFAULT_PAGE_SIZE,
-    getCSVPreview,
-    removeFileFromDatalake,
-    uploadCSV
-} from '../controllers/csv-processor';
+import { DEFAULT_PAGE_SIZE, getCSVPreview, removeFileFromDataLake, uploadCSV } from '../controllers/csv-processor';
 import { createDimensionsFromSourceAssignment, validateSourceAssignment } from '../controllers/dimension-processor';
 import { User } from '../entities/user/user';
-import { FileImport } from '../entities/dataset/file-import';
 import { DatasetDTO } from '../dtos/dataset-dto';
 import { DatasetInfoDTO } from '../dtos/dataset-info-dto';
-import { FileImportDTO } from '../dtos/file-import-dto';
-import { DataLocation } from '../enums/data-location';
+import { FactTableDTO } from '../dtos/fact-table-dto';
 import { Locale } from '../enums/locale';
 import { DatasetRepository } from '../repositories/dataset';
-import { hasError, datasetIdValidator, titleValidator, revisionIdValidator, importIdValidator } from '../validators';
+import { hasError, datasetIdValidator, titleValidator, revisionIdValidator, factTableIdValidator } from '../validators';
 import { NotFoundException } from '../exceptions/not-found.exception';
 import { BadRequestException } from '../exceptions/bad-request.exception';
 import { UnknownException } from '../exceptions/unknown.exception';
@@ -36,14 +28,14 @@ import { DimensionDTO } from '../dtos/dimension-dto';
 import { TasklistStateDTO } from '../dtos/tasklist-state-dto';
 import { Revision } from '../entities/dataset/revision';
 import { RevisionDTO } from '../dtos/revision-dto';
-import { Source } from '../entities/dataset/source';
 import { SourceAssignmentException } from '../exceptions/source-assignment.exception';
 import { arrayValidator, dtoValidator } from '../validators/dto-validator';
 import { RevisionRepository } from '../repositories/revision';
-import { FileImportRepository } from '../repositories/file-import';
+import { FactTableRepository } from '../repositories/fact-table';
 import { Dataset } from '../entities/dataset/dataset';
 import { DatasetProviderDTO } from '../dtos/dataset-provider-dto';
 import { DataLakeService } from '../services/datalake';
+import { FactTable } from '../entities/dataset/fact-table';
 
 const jsonParser = express.json();
 const upload = multer({ storage: multer.memoryStorage() });
@@ -68,7 +60,6 @@ export const loadDataset = (relations?: FindOptionsRelations<Dataset>) => {
         try {
             logger.debug(`Loading dataset ${req.params.dataset_id}...`);
             const dataset = await DatasetRepository.getById(req.params.dataset_id, relations);
-            // console.log(util.inspect(dataset, false, null, true));
             res.locals.datasetId = dataset.id;
             res.locals.dataset = dataset;
         } catch (err) {
@@ -82,9 +73,9 @@ export const loadDataset = (relations?: FindOptionsRelations<Dataset>) => {
 };
 
 // middleware that loads a specific file import of a dataset and stores it in res.locals
-// requires :dataset_id, :revision_id and :import_id in the path
-export const loadFileImport = async (req: Request, res: Response, next: NextFunction) => {
-    for (const validator of [datasetIdValidator(), revisionIdValidator(), importIdValidator()]) {
+// requires :dataset_id, :revision_id and :fact_table_id in the path
+export const loadFactTable = async (req: Request, res: Response, next: NextFunction) => {
+    for (const validator of [datasetIdValidator(), revisionIdValidator(), factTableIdValidator()]) {
         const result = await validator.run(req);
         if (!result.isEmpty()) {
             const error = result.array()[0] as FieldValidationError;
@@ -96,14 +87,14 @@ export const loadFileImport = async (req: Request, res: Response, next: NextFunc
     // TODO: include user in query to prevent unauthorized access
 
     try {
-        const { dataset_id, revision_id, import_id } = req.params;
-        const fileImport: FileImport = await FileImportRepository.getFileImportById(dataset_id, revision_id, import_id);
-        res.locals.fileImport = fileImport;
-        res.locals.revision = fileImport.revision;
-        res.locals.dataset = fileImport.revision.dataset;
+        const { dataset_id, revision_id, fact_table_id } = req.params;
+        const factTable: FactTable = await FactTableRepository.getFactTableById(dataset_id, revision_id, fact_table_id)
+        res.locals.factTable = factTable;
+        res.locals.revision = factTable.revision;
+        res.locals.dataset = factTable.revision.dataset;
         res.locals.datasetId = dataset_id;
     } catch (err) {
-        logger.error(`Failed to load file import, error: ${err}`);
+        logger.error(`Failed to load requested fact table, error: ${err}`);
         next(new NotFoundException('errors.no_file_import'));
         return;
     }
@@ -183,7 +174,7 @@ router.post(
             return;
         }
 
-        let fileImport: FileImport;
+        let fileImport: FactTable;
 
         try {
             fileImport = await uploadCSV(req.file.buffer, req.file?.mimetype, res.locals.datasetId);
@@ -260,15 +251,15 @@ router.patch(
     }
 );
 
-// GET /dataset/:dataset_id/revision/by-id/:revision_id/import/by-id/:import_id
-// Returns details of an import with its sources
+// GET /dataset/:dataset_id/revision/by-id/:revision_id/fact-table/by-id/:fact_table_id
+// Returns details of an fact-table with its sources
 router.get(
-    '/:dataset_id/revision/by-id/:revision_id/import/by-id/:import_id',
-    loadFileImport,
+    '/:dataset_id/revision/by-id/:revision_id/fact-table/by-id/:fact_table_id',
+    loadFactTable,
     async (req: Request, res: Response, next: NextFunction) => {
         try {
-            const fileImport = res.locals.fileImport;
-            const dto = await FileImportDTO.fromImport(fileImport);
+            const fileImport = res.locals.factTable;
+            const dto = FactTableDTO.fromFactTable(fileImport);
             res.json(dto);
         } catch (err) {
             next(new UnknownException());
@@ -276,18 +267,18 @@ router.get(
     }
 );
 
-// GET /dataset/:dataset_id/revision/by-id/:revision_id/import/by-id/:import_id/preview
-// Returns a view of the data file attached to the import
+// GET /dataset/:dataset_id/revision/by-id/:revision_id/fact-table/by-id/:fact_table_id/preview
+// Returns a view of the data file attached to the fact-table
 router.get(
-    '/:dataset_id/revision/by-id/:revision_id/import/by-id/:import_id/preview',
-    loadFileImport,
+    '/:dataset_id/revision/by-id/:revision_id/fact-table/by-id/:fact_table_id/preview',
+    loadFactTable,
     async (req: Request, res: Response, next: NextFunction) => {
-        const { dataset, fileImport } = res.locals;
+        const { dataset, factTable } = res.locals;
 
         const page_number: number = Number.parseInt(req.query.page_number as string, 10) || 1;
         const page_size: number = Number.parseInt(req.query.page_size as string, 10) || DEFAULT_PAGE_SIZE;
 
-        const processedCSV = await getCSVPreview(dataset, fileImport, page_number, page_size);
+        const processedCSV = await getCSVPreview(dataset, factTable, page_number, page_size);
 
         if ((processedCSV as ViewErrDTO).errors) {
             const processErr = processedCSV as ViewErrDTO;
@@ -298,39 +289,31 @@ router.get(
     }
 );
 
-// PATCH /dataset/:dataset_id/revision/by-id/:revision_id/import/by-id/:import_id/confirm
+// PATCH /dataset/:dataset_id/revision/by-id/:revision_id/fact-table/by-id/:fact_table_id/confirm
 // Moves the file from temporary blob storage to datalake and creates sources
-// returns a JSON object with the current state of the revision including the import
-// and sources created from the import.
+// returns a JSON object with the current state of the revision including the fact-table
+// and sources created from the fact-table.
 router.patch(
-    '/:dataset_id/revision/by-id/:revision_id/import/by-id/:import_id/confirm',
-    loadFileImport,
+    '/:dataset_id/revision/by-id/:revision_id/fact-table/by-id/:fact_table_id/confirm',
+    loadFactTable,
     async (req: Request, res: Response, next: NextFunction) => {
-        const fileImport: FileImport = res.locals.fileImport;
-
-        try {
-            const fileImportDto = await createSources(fileImport);
-            res.status(200);
-            res.json(fileImportDto);
-        } catch (err) {
-            logger.error(`An error occurred trying to create the sources with the following error: ${err}`);
-            res.status(500);
-            res.json({ message: 'Error creating sources from the uploaded file.  Please try again.' });
-        }
+        const factTable: FactTable = res.locals.factTable;
+        const dto = FactTableDTO.fromFactTable(factTable);
+        return res.json(dto);
     }
 );
 
-// GET /dataset/:dataset_id/revision/id/:revision_id/import/id/:import_id/raw
+// GET /dataset/:dataset_id/revision/id/:revision_id/fact-table/id/:fact_table_id/raw
 // Returns the original uploaded file back to the client
 router.get(
-    '/:dataset_id/revision/by-id/:revision_id/import/by-id/:import_id/raw',
-    loadFileImport,
+    '/:dataset_id/revision/by-id/:revision_id/fact-table/by-id/:fact_table_id/raw',
+    loadFactTable,
     async (req: Request, res: Response, next: NextFunction) => {
-        const { dataset, fileImport } = res.locals;
+        const { dataset, factTable } = res.locals;
 
         const dataLakeService = new DataLakeService();
         try {
-            const readable = await dataLakeService.getFileStream(fileImport.id, dataset.id);
+            const readable = await dataLakeService.getFileStream(factTable.id, dataset.id);
             // eslint-disable-next-line @typescript-eslint/naming-convention
             res.writeHead(200, { 'Content-Type': 'text/csv' });
             readable.pipe(res);
@@ -353,29 +336,29 @@ router.get(
     }
 );
 
-// PATCH /dataset/:dataset_id/revision/by-id/:revision_id/import/by-id/:import_id/sources
-// Creates the dimensions from relating to the import based on information provided
-// from the sources and the user.
+// PATCH /dataset/:dataset_id/sources
+// Creates the dimensions and measures from the first import based on user input via JSON
 // Body should contain the following structure:
 // [
 //     {
-//         "sourceId": "<source_id>",
+//         "csvField": "<csv-field>",
 //         "sourceType": "data_values || "dimension" || "foot_notes" || "ignore"
 //     }
 // ]
-// Notes: There can only be one object with a type of "dataValue" and one object with a type of "footnotes"
+// Notes: There can only be one object with a type of "dataValue" and one object with a type of "noteCodes"
+// and one object with a value of "measure"
 // Returns a JSON object with the current state of the dataset including the dimensions created.
 router.patch(
-    '/:dataset_id/revision/by-id/:revision_id/import/by-id/:import_id/sources',
+    '/:dataset_id/revision/by-id/:revision_id/fact-table/by-id/:fact_table_id/sources',
     jsonParser,
-    loadFileImport,
+    loadFactTable,
     async (req: Request, res: Response, next: NextFunction) => {
-        const { dataset, revision, fileImport } = res.locals;
+        const { dataset, revision, factTable } = res.locals;
         const sourceAssignment = req.body;
 
         try {
-            const validatedSourceAssignment = await validateSourceAssignment(fileImport, sourceAssignment);
-            await createDimensionsFromSourceAssignment(dataset, revision, validatedSourceAssignment);
+            const validatedSourceAssignment = validateSourceAssignment(factTable, sourceAssignment);
+            await createDimensionsFromSourceAssignment(dataset, factTable, validatedSourceAssignment);
             const updatedDataset = await DatasetRepository.getById(revision.dataset.id);
             res.json(DatasetDTO.fromDataset(updatedDataset));
         } catch (err) {
@@ -437,11 +420,11 @@ router.get(
     }
 );
 
-// POST /dataset/:dataset_id/revision/id/:revision_id/import
+// POST /dataset/:dataset_id/revision/id/:revision_id/fact-table
 // Creates a new import on a revision.  This typically only occurs when a user
 // decides the file they uploaded wasn't correct.
 router.post(
-    '/:dataset_id/revision/by-id/:revision_id/import',
+    '/:dataset_id/revision/by-id/:revision_id/fact-table',
     upload.single('csv'),
     loadDataset(),
     async (req: Request, res: Response, next: NextFunction) => {
@@ -458,7 +441,7 @@ router.post(
             return;
         }
 
-        let fileImport: FileImport;
+        let fileImport: FactTable;
 
         try {
             fileImport = await uploadCSV(req.file.buffer, req.file?.mimetype, dataset.id);
@@ -474,19 +457,18 @@ router.post(
     }
 );
 
-// DELETE /:dataset_id/revision/by-id/:revision_id/import/by-id/:import_id
+// DELETE /:dataset_id/revision/by-id/:revision_id/fact-table/by-id/:import_id
 // Removes the import record and associated file from BlobStorage clearing the way
 // for the user to upload a new file for the dataset.
 router.delete(
-    '/:dataset_id/revision/by-id/:revision_id/import/by-id/:import_id',
-    loadFileImport,
+    '/:dataset_id/revision/by-id/:revision_id/fact-table/by-id/:fact_table_id',
+    loadFactTable,
     async (req: Request, res: Response, next: NextFunction) => {
-        const { dataset, fileImport } = res.locals;
+        const { dataset, factTable } = res.locals;
         try {
             logger.warn('User has requested to remove a fact table from the datalake');
-            await removeFileFromDatalake(fileImport, dataset);
-            fileImport.sources?.forEach((source: Source) => source.remove());
-            await fileImport.remove();
+            await removeFileFromDataLake(factTable, dataset);
+            await factTable.remove();
             const updatedDataset = await DatasetRepository.getById(dataset.id);
             const dto = DatasetDTO.fromDataset(updatedDataset);
             res.json(dto);
