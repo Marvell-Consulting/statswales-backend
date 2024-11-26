@@ -18,7 +18,9 @@ const config: Config = {
     'src/middleware/passport-auth.ts'
   ],
   setupFiles: ['<rootDir>/test/helpers/jest-setup.ts'],
-  maxWorkers: 1 // TODO: temporary solution to test parallelism issue
+  maxWorkers: 1, // TODO: temporary solution to test parallelism issue
+  roots: ['<rootDir>/test'],
+  testMatch: ['**/*.test.ts'],
 };
 
 export default config;

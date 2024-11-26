@@ -5,19 +5,24 @@ import { createHash } from 'crypto';
 import { Dataset } from '../../src/entities/dataset/dataset';
 import { DatasetInfo } from '../../src/entities/dataset/dataset-info';
 import { Revision } from '../../src/entities/dataset/revision';
-import { FileImport } from '../../src/entities/dataset/file-import';
-import { CsvInfo } from '../../src/entities/dataset/csv-info';
-import { Source } from '../../src/entities/dataset/source';
 import { SourceType } from '../../src/enums/source-type';
 import { DimensionType } from '../../src/enums/dimension-type';
-import { SourceAction } from '../../src/enums/source-action';
-import { DataLocation } from '../../src/enums/data-location';
-import { ImportType } from '../../src/enums/import-type';
 import { Dimension } from '../../src/entities/dataset/dimension';
 import { DimensionInfo } from '../../src/entities/dataset/dimension-info';
 import { User } from '../../src/entities/user/user';
+import { FactTable } from '../../src/entities/dataset/fact-table';
+import { Filetype } from '../../src/enums/filetype';
+import { FactTableInfo } from '../../src/entities/dataset/fact-table-info';
+import { extractTableInformation } from '../../src/controllers/csv-processor';
 
-export async function createSmallDataset(datasetId: string, revisionId: string, importId: string, user: User) {
+export async function createSmallDataset(
+    datasetId: string,
+    revisionId: string,
+    importId: string,
+    user: User,
+    testFilePath = '../sample-files/csv/sure-start-short.csv',
+    fileType = Filetype.Csv
+) {
     // First create a dataset
     const dataset = new Dataset();
     dataset.id = datasetId.toLowerCase();
@@ -43,129 +48,93 @@ export async function createSmallDataset(datasetId: string, revisionId: string, 
     await revision.save();
     dataset.revisions = [revision];
 
-    // Attach an import e.g. a file to the revision
-    const imp = new FileImport();
-    imp.revision = revision;
-    imp.id = importId.toLowerCase();
-    imp.filename = `${importId.toLowerCase()}.csv`;
-    const testFile = path.resolve(__dirname, `../sample-csvs/test-data-2.csv`);
+    // Attach a fact table e.g. a file to the revision
+    const factTable = new FactTable();
+    factTable.revision = revision;
+    factTable.id = importId.toLowerCase();
+    factTable.filename = `${importId.toLowerCase()}.csv`;
+    const testFile = path.resolve(__dirname, testFilePath);
     const testFileBuffer = fs.readFileSync(testFile);
-    imp.hash = createHash('sha256').update(testFileBuffer).digest('hex');
-    imp.type = ImportType.Draft;
-    imp.mimeType = 'text/csv';
-    await imp.save();
-    revision.imports = [imp];
-
-    // Its a CSV file so we need to know how to parse it
-    const csvInfo = new CsvInfo();
-    csvInfo.import = imp;
-    csvInfo.delimiter = ',';
-    csvInfo.quote = '"';
-    csvInfo.linebreak = '\n';
-    imp.csvInfo = [csvInfo];
-    await csvInfo.save();
-    imp.csvInfo = [csvInfo];
-
+    factTable.hash = createHash('sha256').update(testFileBuffer).digest('hex');
+    factTable.fileType = fileType;
+    switch (fileType) {
+        case Filetype.Csv:
+            factTable.linebreak = '\n';
+            factTable.delimiter = ',';
+            factTable.quote = '"';
+            factTable.mimeType = 'text/csv';
+            break;
+        case Filetype.Excel:
+            factTable.mimeType = 'application/vnd.ms-excel';
+            break;
+        case Filetype.Parquet:
+            factTable.mimeType = 'application/vnd.apache.parquet';
+            break;
+        case Filetype.Json:
+            factTable.mimeType = 'application/json';
+            break;
+    }
+    await factTable.save();
+    factTable.factTableInfo = await extractTableInformation(testFileBuffer, fileType);
+    await factTable.save();
+    revision.factTables = [factTable];
+    await dataset.save();
     return dataset;
 }
 
-async function createSource(
-    csvField: string,
-    csvIndex: number,
-    action: SourceAction,
-    type: SourceType,
-    fileImport: FileImport,
-    revision: Revision
+const sureStartShortDimensionDescriptor = [
+    {
+        columnName: 'YearCode',
+        dimensionType: DimensionType.TimePeriod,
+        extractor: { type: 'financial', yearFormat: 'yyyyyy' }
+    },
+    {
+        columnName: 'AreaCode',
+        dimensionType: DimensionType.ReferenceData
+    },
+    {
+        columnName: 'RowRef',
+        dimensionType: DimensionType.LookupTable
+    }
+];
+
+export async function createFullDataset(
+    datasetId: string,
+    revisionId: string,
+    factTableId: string,
+    user: User,
+    testFilePath = '../sample-files/csv/sure-start-short.csv',
+    fileType = Filetype.Csv,
+    dimensionDescriptorJson = sureStartShortDimensionDescriptor
 ) {
-    const source = new Source();
-    source.import = fileImport;
-    source.revision = revision;
-    source.csvField = csvField;
-    source.columnIndex = csvIndex;
-    source.action = action;
-    source.type = type;
-    await source.save();
-
-    return source;
-}
-
-async function createDimension(
-    csvField: string,
-    description: string,
-    dataset: Dataset,
-    revision: Revision,
-    source: Source
-) {
-    const dimension = new Dimension();
-    dimension.dataset = dataset;
-    dimension.startRevision = revision;
-    dimension.type = DimensionType.Raw;
-    await dimension.save();
-
-    const dimensionInfo = new DimensionInfo();
-    dimensionInfo.dimension = dimension;
-    dimensionInfo.name = csvField;
-    dimensionInfo.description = description;
-    dimensionInfo.language = 'en-GB';
-    await dimensionInfo.save();
-    dimension.dimensionInfo = [dimensionInfo];
-    await dimension.save();
-
-    dimension.sources = [source];
-    source.dimension = dimension;
-    await source.save();
-
-    return dimension;
-}
-
-export async function createFullDataset(datasetId: string, revisionId: string, importId: string, user: User) {
-    const dataset = await createSmallDataset(datasetId, revisionId, importId, user);
+    const dataset = await createSmallDataset(datasetId, revisionId, factTableId, user, testFilePath, fileType);
     const revision = await Revision.findOneBy({ id: revisionId });
     if (!revision) {
         throw new Error('No revision found for dataset');
     }
-    const imp = await FileImport.findOneBy({ id: importId });
-    if (!imp) {
+    const factTable = await FactTable.findOneBy({ id: factTableId });
+    if (!factTable) {
         throw new Error('No import found for revision');
     }
-    const sourceDescriptions = [
-        { csvField: 'ID', description: 'unique identifier', action: SourceAction.Create, type: SourceType.Ignore },
-        { csvField: 'Text', description: 'Some test', action: SourceAction.Create, type: SourceType.Dimension },
-        {
-            csvField: 'Number',
-            description: 'some data values',
-            action: SourceAction.Create,
-            type: SourceType.DataValues
-        },
-        { csvField: 'Date', description: 'some dimensions', action: SourceAction.Create, type: SourceType.Dimension }
-    ];
-    // Create some sources for each of the columns in the CSV
-    const sources: Source[] = [];
-    for (let i = 0; i < sourceDescriptions.length; i++) {
-        const source = await createSource(
-            sourceDescriptions[i].csvField,
-            i,
-            sourceDescriptions[i].action,
-            sourceDescriptions[i].type,
-            imp,
-            revision
-        );
-        sources.push(source);
-    }
-    imp.sources = sources;
-    await imp.save();
-
-    // // Next create some dimensions
-    const dimensions: Dimension[] = [];
-    for (let i = 0; i < sourceDescriptions.length; i++) {
-        const dimesnion = await createDimension(
-            sourceDescriptions[i].csvField,
-            sourceDescriptions[i].description,
-            dataset,
-            revision,
-            sources[i]
-        );
-        dimensions.push(dimesnion);
-    }
-    dataset.dimensions = dimensions;
+    // Create some dimensions
+    dataset.dimensions = await Promise.all(
+        dimensionDescriptorJson.map(async (descriptor) => {
+            const dimension = new Dimension();
+            dimension.dataset = dataset;
+            dimension.type = DimensionType.Raw;
+            dimension.factTableColumn = descriptor.columnName;
+            dimension.type = descriptor.dimensionType || DimensionType.Raw;
+            dimension.extractor = descriptor.extractor || {};
+            await dimension.save();
+            const dimensionInfo = new DimensionInfo();
+            dimensionInfo.dimension = dimension;
+            dimensionInfo.name = descriptor.columnName;
+            dimensionInfo.language = 'en-GB';
+            dimension.dimensionInfo = [dimensionInfo];
+            await dimensionInfo.save();
+            await dimension.save();
+            return dimension;
+        })
+    );
+    await dataset.save();
 }

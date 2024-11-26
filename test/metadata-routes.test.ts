@@ -3,22 +3,18 @@ import fs from 'fs';
 
 import request from 'supertest';
 
-import { t } from '../src/middleware/translation';
 import { DataLakeService } from '../src/services/datalake';
 import app, { initDb } from '../src/app';
 import { Dataset } from '../src/entities/dataset/dataset';
 import { Revision } from '../src/entities/dataset/revision';
-import { FileImport } from '../src/entities/dataset/file-import';
 import { User } from '../src/entities/user/user';
 import { DatasetDTO } from '../src/dtos/dataset-dto';
 import { DimensionDTO } from '../src/dtos/dimension-dto';
 import { RevisionDTO } from '../src/dtos/revision-dto';
-import { FileImportDTO } from '../src/dtos/file-import-dto';
 import DatabaseManager from '../src/db/database-manager';
-import { DataLocation } from '../src/enums/data-location';
-import { Locale } from '../src/enums/locale';
 import { DatasetRepository } from '../src/repositories/dataset';
-import { FileImportRepository } from '../src/repositories/file-import';
+import { FactTableRepository } from '../src/repositories/fact-table';
+import { FactTableDTO } from '../src/dtos/fact-table-dto';
 
 import { createFullDataset } from './helpers/test-helper';
 import { getTestUser } from './helpers/get-user';
@@ -54,7 +50,7 @@ describe('API Endpoints for viewing dataset objects', () => {
         if (!dataset1) {
             throw new Error('Dataset not found');
         }
-        const dto = await DatasetDTO.fromDataset(dataset1);
+        const dto = DatasetDTO.fromDataset(dataset1);
         expect(dto).toBeInstanceOf(DatasetDTO);
     });
 
@@ -156,16 +152,16 @@ describe('API Endpoints for viewing dataset objects', () => {
         test('Get a revision returns 200', async () => {
             const revision = await Revision.findOne({
                 where: { id: revision1Id },
-                relations: ['createdBy', 'imports', 'imports.sources']
+                relations: ['createdBy', 'factTables', 'factTables.factTableInfo']
             });
             if (!revision) {
                 throw new Error('Dataset not found');
             }
-            const dto = await RevisionDTO.fromRevision(revision);
             const res = await request(app)
                 .get(`/dataset/${dataset1Id}/revision/by-id/${revision1Id}`)
                 .set(getAuthHeader(user));
             expect(res.status).toBe(200);
+            const dto = await RevisionDTO.fromRevision(revision);
             expect(res.body).toEqual(dto);
         });
 
@@ -188,28 +184,28 @@ describe('API Endpoints for viewing dataset objects', () => {
     describe('Get FileImport metadata endpoints', () => {
         test('returns 401 if no auth header is sent (JWT auth)', async () => {
             const res = await request(app).get(
-                `/dataset/${dataset1Id}/revision/by-id/${revision1Id}/import/by-id/${import1Id}/preview`
+                `/dataset/${dataset1Id}/revision/by-id/${revision1Id}/fact-table/by-id/${import1Id}/preview`
             );
             expect(res.status).toBe(401);
             expect(res.body).toEqual({});
         });
 
         test('Get import returns 200 with object', async () => {
-            const imp = await FileImportRepository.getFileImportById(dataset1Id, revision1Id, import1Id);
-            if (!imp) {
+            const factTable = await FactTableRepository.getFactTableById(dataset1Id, revision1Id, import1Id);
+            if (!factTable) {
                 throw new Error('Import not found');
             }
             const res = await request(app)
-                .get(`/dataset/${dataset1Id}/revision/by-id/${revision1Id}/import/by-id/${import1Id}`)
+                .get(`/dataset/${dataset1Id}/revision/by-id/${revision1Id}/fact-table/by-id/${import1Id}`)
                 .set(getAuthHeader(user));
-            const expectedDTO = await FileImportDTO.fromImport(imp);
+            const expectedDTO = FactTableDTO.fromFactTable(factTable);
             expect(res.status).toBe(200);
             expect(res.body).toEqual(expectedDTO);
         });
 
         test('Get import returns 404 if given an invalid ID', async () => {
             const res = await request(app)
-                .get(`/dataset/${dataset1Id}/revision/by-id/${revision1Id}/import/by-id/IN-VALID-ID`)
+                .get(`/dataset/${dataset1Id}/revision/by-id/${revision1Id}/fact-table/by-id/IN-VALID-ID`)
                 .set(getAuthHeader(user));
             expect(res.status).toBe(404);
             expect(res.body).toEqual({ error: 'Import id is invalid or missing' });
@@ -218,7 +214,7 @@ describe('API Endpoints for viewing dataset objects', () => {
         test('Get import returns 404 if given a missing ID', async () => {
             const res = await request(app)
                 .get(
-                    `/dataset/${dataset1Id}/revision/by-id/${revision1Id}/import/by-id/8B9434D1-4807-41CD-8E81-228769671A07`
+                    `/dataset/${dataset1Id}/revision/by-id/${revision1Id}/fact-table/by-id/8B9434D1-4807-41CD-8E81-228769671A07`
                 )
                 .set(getAuthHeader(user));
             expect(res.status).toBe(404);
@@ -226,13 +222,13 @@ describe('API Endpoints for viewing dataset objects', () => {
 
         describe('Getting a raw file out of a file import', () => {
             test('Get file from a revision and import returns 200 and complete file data if stored in the Data Lake', async () => {
-                const testFile2 = path.resolve(__dirname, `sample-csvs/test-data-2.csv`);
+                const testFile2 = path.resolve(__dirname, `sample-files/csv/test-data-2.csv`);
                 const testFileStream = fs.createReadStream(testFile2);
                 const testFile2Buffer = fs.readFileSync(testFile2);
-                DataLakeService.prototype.getFileStream = jest.fn().mockReturnValue(testFileStream);
+                DataLakeService.prototype.getFileStream = jest.fn().mockReturnValue(Promise.resolve(testFileStream));
 
                 const res = await request(app)
-                    .get(`/dataset/${dataset1Id}/revision/by-id/${revision1Id}/import/by-id/${import1Id}/raw`)
+                    .get(`/dataset/${dataset1Id}/revision/by-id/${revision1Id}/fact-table/by-id/${import1Id}/raw`)
                     .set(getAuthHeader(user));
                 expect(res.status).toBe(200);
                 expect(res.text).toEqual(testFile2Buffer.toString());
@@ -243,7 +239,7 @@ describe('API Endpoints for viewing dataset objects', () => {
             //         .fn()
             //         .mockRejectedValue(new Error('Unknown Data Lake Error'));
             //     const res = await request(app)
-            //         .get(`/dataset/${dataset1Id}/revision/by-id/${revision1Id}/import/by-id/${import1Id}/raw`)
+            //         .get(`/dataset/${dataset1Id}/revision/by-id/${revision1Id}/fact-table/by-id/${import1Id}/raw`)
             //         .set(getAuthHeader(user));
             //     expect(res.status).toBe(500);
             //     expect(res.body).toEqual({
