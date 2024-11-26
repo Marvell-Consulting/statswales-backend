@@ -6,7 +6,8 @@ import {
     BaseEntity,
     ManyToOne,
     OneToMany,
-    JoinColumn
+    JoinColumn,
+    ManyToMany
 } from 'typeorm';
 
 import { User } from '../user/user';
@@ -15,6 +16,7 @@ import { Revision } from './revision';
 import { DatasetInfo } from './dataset-info';
 import { Dimension } from './dimension';
 import { DatasetProvider } from './dataset-provider';
+import { DatasetTopic } from './dataset-topic';
 
 @Entity({ name: 'dataset' })
 export class Dataset extends BaseEntity {
@@ -45,4 +47,7 @@ export class Dataset extends BaseEntity {
 
     @OneToMany(() => DatasetProvider, (datasetProvider) => datasetProvider.dataset, { cascade: true })
     datasetProviders: DatasetProvider[];
+
+    @OneToMany(() => DatasetTopic, (datasetTopic) => datasetTopic.dataset, { cascade: true })
+    datasetTopics: DatasetTopic[];
 }

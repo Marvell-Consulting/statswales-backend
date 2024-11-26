@@ -48,6 +48,7 @@ import { RevisionRepository } from '../repositories/revision';
 import { FileImportRepository } from '../repositories/file-import';
 import { Dataset } from '../entities/dataset/dataset';
 import { DatasetProviderDTO } from '../dtos/dataset-provider-dto';
+import { TopicSelectionDTO } from '../dtos/topic-selection-dto';
 
 const jsonParser = express.json();
 const upload = multer({ storage: multer.memoryStorage() });
@@ -597,6 +598,33 @@ router.patch(
                 return;
             }
             next(new UnknownException('errors.provider_update_error'));
+        }
+    }
+);
+
+// PATCH /dataset/:dataset_id/topics
+// Updates the topics for the dataset
+router.patch(
+    '/:dataset_id/topics',
+    jsonParser,
+    loadDataset(),
+    async (req: Request, res: Response, next: NextFunction) => {
+        try {
+            const datasetId = res.locals.datasetId;
+            const datasetTopics = await dtoValidator(TopicSelectionDTO, req.body);
+            const updatedDataset = await DatasetRepository.updateDatasetTopics(datasetId, datasetTopics.topics);
+            res.status(201);
+            res.json(DatasetDTO.fromDataset(updatedDataset));
+        } catch (err: any) {
+            if (err instanceof BadRequestException) {
+                err.validationErrors?.forEach((error) => {
+                    if (!error.constraints) return;
+                    Object.values(error.constraints).forEach((message) => logger.error(message));
+                });
+                next(err);
+                return;
+            }
+            next(new UnknownException('errors.topic_update_error'));
         }
     }
 );

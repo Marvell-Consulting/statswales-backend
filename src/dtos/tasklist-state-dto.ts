@@ -60,7 +60,7 @@ export class TasklistStateDTO {
             related_reports: info?.relatedLinks ? TaskStatus.Completed : TaskStatus.NotStarted,
             update_frequency: info?.updateFrequency ? TaskStatus.Completed : TaskStatus.NotStarted,
             designation: info?.designation ? TaskStatus.Completed : TaskStatus.NotStarted,
-            relevant_topics: TaskStatus.NotImplemented
+            relevant_topics: dataset.datasetTopics?.length > 0 ? TaskStatus.Completed : TaskStatus.NotStarted
         };
 
         dto.publishing = {
