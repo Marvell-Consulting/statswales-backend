@@ -1,14 +1,8 @@
-import {
-    Entity,
-    PrimaryColumn,
-    Column,
-    BaseEntity,
-    ManyToOne,
-    JoinColumn
-} from 'typeorm';
+import { Entity, PrimaryColumn, Column, BaseEntity, ManyToOne, JoinColumn } from 'typeorm';
+
+import { SourceType } from '../../enums/source-type';
 
 import { FactTable } from './fact-table';
-import { SourceType } from '../../enums/source-type';
 
 @Entity({ name: 'fact_table_info' })
 export class FactTableInfo extends BaseEntity {

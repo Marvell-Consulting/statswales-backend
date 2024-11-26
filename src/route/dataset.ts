@@ -88,7 +88,7 @@ export const loadFactTable = async (req: Request, res: Response, next: NextFunct
 
     try {
         const { dataset_id, revision_id, fact_table_id } = req.params;
-        const factTable: FactTable = await FactTableRepository.getFactTableById(dataset_id, revision_id, fact_table_id)
+        const factTable: FactTable = await FactTableRepository.getFactTableById(dataset_id, revision_id, fact_table_id);
         res.locals.factTable = factTable;
         res.locals.revision = factTable.revision;
         res.locals.dataset = factTable.revision.dataset;

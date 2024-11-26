@@ -114,7 +114,7 @@ export async function extractTableInformation(fileBuffer: Buffer, fileType: File
             createTableQuery = `CREATE TABLE ${tableName} AS SELECT * FROM '${tempFile.name}';`;
             break;
         case Filetype.Json:
-            createTableQuery = `CREATE TABLE new_tbl AS SELECT * FROM read_json_auto('${tempFile.name}');`
+            createTableQuery = `CREATE TABLE new_tbl AS SELECT * FROM read_json_auto('${tempFile.name}');`;
             break;
         case Filetype.Excel:
             await quack.exec('INSTALL spatial;');
@@ -126,7 +126,9 @@ export async function extractTableInformation(fileBuffer: Buffer, fileType: File
     }
     try {
         await quack.exec(createTableQuery);
-        tableHeaders = await quack.all(`SELECT (row_number() OVER ())-1 as index, column_name FROM (DESCRIBE ${tableName});`);
+        tableHeaders = await quack.all(
+            `SELECT (row_number() OVER ())-1 as index, column_name FROM (DESCRIBE ${tableName});`
+        );
     } catch (error) {
         logger.error(`Something went wrong trying to read the users file with the following error: ${error}`);
         throw error;
@@ -208,7 +210,9 @@ export const uploadCSV = async (fileBuffer: Buffer, filetype: string, datasetId:
         await dataLakeService.createDirectory(datasetId);
         await dataLakeService.uploadFileBuffer(factTable.filename, datasetId, fileBuffer);
     } catch (err) {
-        logger.error(`Something went wrong trying to upload the file to the Data Lake with the following error: ${err}`);
+        logger.error(
+            `Something went wrong trying to upload the file to the Data Lake with the following error: ${err}`
+        );
         throw new Error('Error processing file upload to Data Lake');
     }
     factTable.hash = hash.digest('hex');
@@ -238,7 +242,7 @@ export const getCSVPreview = async (
                 createTableQuery = `CREATE TABLE ${tableName} AS SELECT * FROM '${tempFile.name}';`;
                 break;
             case Filetype.Json:
-                createTableQuery = `CREATE TABLE new_tbl AS SELECT * FROM read_json_auto('${tempFile.name}');`
+                createTableQuery = `CREATE TABLE new_tbl AS SELECT * FROM read_json_auto('${tempFile.name}');`;
                 break;
             case Filetype.Excel:
                 await quack.exec('INSTALL spatial;');
@@ -275,7 +279,8 @@ export const getCSVPreview = async (
             if (tableHeaders[i] === 'int_line_number') sourceType = SourceType.LineNumber;
             else
                 sourceType =
-                    importObj.factTableInfo.find((info) => info.columnName === tableHeaders[i])?.columnType ?? SourceType.Unknown;
+                    importObj.factTableInfo.find((info) => info.columnName === tableHeaders[i])?.columnType ??
+                    SourceType.Unknown;
             headers.push({
                 index: i - 1,
                 name: tableHeaders[i],

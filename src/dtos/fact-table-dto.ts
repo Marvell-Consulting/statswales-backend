@@ -1,6 +1,7 @@
 import { FactTable } from '../entities/dataset/fact-table';
-import { FactTableInfoDto } from './fact-table-info-dto';
 import { FactTableInfo } from '../entities/dataset/fact-table-info';
+
+import { FactTableInfoDto } from './fact-table-info-dto';
 
 export class FactTableDTO {
     id: string;
@@ -29,7 +30,9 @@ export class FactTableDTO {
         dto.delimiter = fileImport.delimiter;
         dto.info = [];
 
-        dto.info = fileImport.factTableInfo?.map((factTableInfo: FactTableInfo) => FactTableInfoDto.fromFactTableInfo(factTableInfo));
+        dto.info = fileImport.factTableInfo?.map((factTableInfo: FactTableInfo) =>
+            FactTableInfoDto.fromFactTableInfo(factTableInfo)
+        );
         return dto;
     }
 }

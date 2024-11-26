@@ -28,7 +28,7 @@ export class Dimension extends BaseEntity {
     type: DimensionType;
 
     @Column({ type: 'json', nullable: true })
-    extractor: Object;
+    extractor: object;
 
     @Column({ name: 'join_column', type: 'varchar', nullable: true })
     joinColumn: string; // <-- Tells you have to join the dimension to the fact_table

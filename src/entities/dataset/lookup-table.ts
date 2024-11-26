@@ -1,13 +1,7 @@
-import {
-    Entity,
-    PrimaryGeneratedColumn,
-    Column,
-    CreateDateColumn,
-    BaseEntity,
-    JoinColumn, OneToOne
-} from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, BaseEntity, JoinColumn, OneToOne } from 'typeorm';
 
 import { Filetype } from '../../enums/filetype';
+
 import { Dimension } from './dimension';
 import { Measure } from './measure';
 

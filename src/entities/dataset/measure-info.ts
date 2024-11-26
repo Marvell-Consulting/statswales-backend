@@ -1,14 +1,8 @@
-import {
-    Entity,
-    PrimaryColumn,
-    Column,
-    BaseEntity,
-    ManyToOne,
-    JoinColumn
-} from 'typeorm';
+import { Entity, PrimaryColumn, Column, BaseEntity, ManyToOne, JoinColumn } from 'typeorm';
+
+import { DisplayType } from '../../enums/display-type';
 
 import { Measure } from './measure';
-import { DisplayType } from '../../enums/display-type';
 
 @Entity({ name: 'measure_info' })
 export class MeasureInfo extends BaseEntity {

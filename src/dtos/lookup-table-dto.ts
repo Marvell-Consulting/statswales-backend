@@ -20,7 +20,7 @@ export class LookupTableDTO {
         dto.measure_id = lookupTable.measure?.id || undefined;
         dto.mime_type = lookupTable.mimeType;
         dto.filename = lookupTable.filename;
-        dto.file_type = lookupTable.fileType
+        dto.file_type = lookupTable.fileType;
         dto.hash = lookupTable.hash;
         dto.uploaded_at = lookupTable.uploadedAt?.toISOString();
         dto.quote = lookupTable.quote;

@@ -7,5 +7,5 @@ export enum Filetype {
     Parquet = 'parquet',
     Json = 'json',
     Excel = 'xlsx',
-    Unknown ='unknown'
+    Unknown = 'unknown'
 }

@@ -72,11 +72,16 @@ async function createUpdateDimension(
     factTable: FactTable,
     columnDescriptor: SourceAssignmentDTO
 ): Promise<void> {
-    const columnInfo = await FactTableInfo.findOneByOrFail({columnName: columnDescriptor.columnName, id: factTable.id });
-    const existingDimension = await Dimension.findOneBy({dataset: dataset, factTableColumn: columnDescriptor.columnName});
+    const columnInfo = await FactTableInfo.findOneByOrFail({
+        columnName: columnDescriptor.columnName,
+        id: factTable.id
+    });
+    const existingDimension = await Dimension.findOneBy({ dataset, factTableColumn: columnDescriptor.columnName });
 
     if (existingDimension) {
-        logger.debug(`No Dimension to create as fact table for column ${existingDimension.factTableColumn} is already attached to one`);
+        logger.debug(
+            `No Dimension to create as fact table for column ${existingDimension.factTableColumn} is already attached to one`
+        );
         return;
     }
 
@@ -116,7 +121,9 @@ async function cleanupDimensions(datasetId: string, factTableInfo: FactTableInfo
 }
 
 async function updateFactTableInfo(factTable: FactTable, updateColumnDto: SourceAssignmentDTO) {
-    const info = factTable.factTableInfo.find((factTableInfo) => factTableInfo.columnName === updateColumnDto.columnName);
+    const info = factTable.factTableInfo.find(
+        (factTableInfo) => factTableInfo.columnName === updateColumnDto.columnName
+    );
     if (!info) {
         throw new Error('No such column');
     }
@@ -124,7 +131,11 @@ async function updateFactTableInfo(factTable: FactTable, updateColumnDto: Source
     await info.save();
 }
 
-async function createUpdateMeasure(dataset: Dataset, factTable: FactTable, columnAssignment: SourceAssignmentDTO): Promise<void> {
+async function createUpdateMeasure(
+    dataset: Dataset,
+    factTable: FactTable,
+    columnAssignment: SourceAssignmentDTO
+): Promise<void> {
     const columnInfo = await FactTableInfo.findOneByOrFail({
         columnName: columnAssignment.columnName,
         id: factTable.id

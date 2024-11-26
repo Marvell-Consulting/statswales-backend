@@ -1,5 +1,6 @@
 import { Revision } from '../entities/dataset/revision';
 import { FactTable } from '../entities/dataset/fact-table';
+
 import { FactTableDTO } from './fact-table-dto';
 
 export class RevisionDTO {

@@ -1,5 +1,6 @@
-import { LookupTableDTO } from './lookup-table-dto';
 import { Measure } from '../entities/dataset/measure';
+
+import { LookupTableDTO } from './lookup-table-dto';
 
 export class MeasureDTO {
     id: string;

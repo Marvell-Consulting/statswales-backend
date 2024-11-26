@@ -1,4 +1,13 @@
-import { Entity, PrimaryGeneratedColumn, Column, BaseEntity, ManyToOne, OneToOne, JoinColumn, OneToMany } from 'typeorm';
+import {
+    Entity,
+    PrimaryGeneratedColumn,
+    Column,
+    BaseEntity,
+    ManyToOne,
+    OneToOne,
+    JoinColumn,
+    OneToMany
+} from 'typeorm';
 
 import { Dataset } from './dataset';
 import { LookupTable } from './lookup-table';
