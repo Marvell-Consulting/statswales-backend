@@ -10,13 +10,13 @@ import { DataLakeService } from '../services/datalake';
 import { FactTable } from '../entities/dataset/fact-table';
 import { Dataset } from '../entities/dataset/dataset';
 import { CSVHeader, ViewDTO, ViewErrDTO } from '../dtos/view-dto';
-import { SourceType } from '../enums/source-type';
+import { FactTableColumnType } from '../enums/fact-table-column-type';
 import { DatasetRepository } from '../repositories/dataset';
 import { DatasetDTO } from '../dtos/dataset-dto';
 import { FactTableDTO } from '../dtos/fact-table-dto';
 import { Error } from '../dtos/error';
 import { Locale } from '../enums/locale';
-import { Filetype } from '../enums/filetype';
+import { FileType } from '../enums/file-type';
 import { FactTableInfo } from '../entities/dataset/fact-table-info';
 
 export const MAX_PAGE_SIZE = 500;
@@ -99,27 +99,29 @@ function validateParams(page_number: number, max_page_number: number, page_size:
     return errors;
 }
 
-export async function extractTableInformation(fileBuffer: Buffer, fileType: Filetype): Promise<FactTableInfo[]> {
+export async function extractTableInformation(fileBuffer: Buffer, fileType: FileType): Promise<FactTableInfo[]> {
     const tableName = 'preview_table';
     const quack = await Database.create(':memory:');
-    const tempFile = tmp.fileSync({ postfix: `.${Filetype}` });
+    const tempFile = tmp.fileSync({ postfix: `.${fileType}` });
     let tableHeaders: TableData;
     let createTableQuery: string;
     fs.writeFileSync(tempFile.name, fileBuffer);
     switch (fileType) {
-        case Filetype.Csv:
+        case FileType.Csv:
+        case FileType.GzipCsv:
             createTableQuery = `CREATE TABLE ${tableName} AS SELECT * FROM read_csv('${tempFile.name}', auto_type_candidates = ['BOOLEAN', 'BIGINT', 'DOUBLE', 'VARCHAR']);`;
             break;
-        case Filetype.Parquet:
+        case FileType.Parquet:
             createTableQuery = `CREATE TABLE ${tableName} AS SELECT * FROM '${tempFile.name}';`;
             break;
-        case Filetype.Json:
-            createTableQuery = `CREATE TABLE new_tbl AS SELECT * FROM read_json_auto('${tempFile.name}');`;
+        case FileType.Json:
+        case FileType.GzipJson:
+            createTableQuery = `CREATE TABLE ${tableName} AS SELECT * FROM read_json_auto('${tempFile.name}');`;
             break;
-        case Filetype.Excel:
+        case FileType.Excel:
             await quack.exec('INSTALL spatial;');
             await quack.exec('LOAD spatial;');
-            createTableQuery = `CREATE TABLE ${tableName} AS SELECT * FROM st_read('${tempFile.name}');'`;
+            createTableQuery = `CREATE TABLE ${tableName} AS SELECT * FROM st_read('${tempFile.name}');`;
             break;
         default:
             throw new Error('Unknown file type');
@@ -139,20 +141,20 @@ export async function extractTableInformation(fileBuffer: Buffer, fileType: File
     if (tableHeaders.length === 0) {
         throw new Error('This file does not appear to contain any tabular data');
     }
-    if (tableHeaders.length === 1 && fileType === Filetype.Csv) {
+    if (tableHeaders.length === 1 && fileType === FileType.Csv) {
         throw new Error('Unable to process CSV... The resulting read resulted in only one column');
     }
     return tableHeaders.map((header) => {
         const info = new FactTableInfo();
         info.columnName = header.column_name;
         info.columnIndex = header.index;
-        info.columnType = SourceType.Unknown;
+        info.columnType = FactTableColumnType.Unknown;
         return info;
     });
 }
 
 // Required Methods for refactor
-export const uploadCSV = async (fileBuffer: Buffer, filetype: string, datasetId: string): Promise<FactTable> => {
+export const uploadCSV = async (fileBuffer: Buffer, filetype: string, originalName: string, datasetId: string): Promise<FactTable> => {
     const dataLakeService = new DataLakeService();
     if (!fileBuffer) {
         logger.error('No buffer to upload to blob storage');
@@ -161,11 +163,13 @@ export const uploadCSV = async (fileBuffer: Buffer, filetype: string, datasetId:
     const factTable = new FactTable();
     factTable.id = randomUUID().toLowerCase();
     factTable.mimeType = filetype;
+    factTable.originalFilename = originalName;
     let extension: string;
     switch (filetype) {
+        case 'application/csv':
         case 'text/csv':
             extension = 'csv';
-            factTable.fileType = Filetype.Csv;
+            factTable.fileType = FileType.Csv;
             factTable.delimiter = ',';
             factTable.quote = '"';
             factTable.linebreak = '\n';
@@ -173,11 +177,11 @@ export const uploadCSV = async (fileBuffer: Buffer, filetype: string, datasetId:
         case 'application/vnd.apache.parquet':
         case 'application/parquet':
             extension = 'parquet';
-            factTable.fileType = Filetype.Parquet;
+            factTable.fileType = FileType.Parquet;
             break;
         case 'application/json':
             extension = 'json';
-            factTable.fileType = Filetype.Json;
+            factTable.fileType = FileType.Json;
             break;
         case 'application/vnd.ms-excel':
         case 'application/msexcel':
@@ -189,7 +193,25 @@ export const uploadCSV = async (fileBuffer: Buffer, filetype: string, datasetId:
         case 'application/x-xls':
         case 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet':
             extension = 'xlsx';
-            factTable.fileType = Filetype.Excel;
+            factTable.fileType = FileType.Excel;
+            break;
+        case 'application/x-gzip':
+            const ext = originalName.split('.').reverse()[1];
+            switch (ext) {
+                case 'json':
+                    extension = 'json.gz';
+                    factTable.fileType = FileType.GzipJson;
+                    break;
+                case 'csv':
+                    extension = 'csv.gz';
+                    factTable.delimiter = ',';
+                    factTable.quote = '"';
+                    factTable.linebreak = '\n';
+                    factTable.fileType = FileType.GzipCsv;
+                    break;
+                default:
+                    throw new Error(`unsupported format ${ext}`);
+            }
             break;
         default:
             logger.error(`A user uploaded a file with a mimetype of ${filetype} which is known.`);
@@ -235,19 +257,21 @@ export const getCSVPreview = async (
         fs.writeFileSync(tempFile.name, fileBuffer);
         let createTableQuery: string;
         switch (importObj.fileType) {
-            case Filetype.Csv:
+            case FileType.Csv:
+            case FileType.GzipCsv:
                 createTableQuery = `CREATE TABLE ${tableName} AS SELECT * FROM read_csv('${tempFile.name}', auto_type_candidates = ['BOOLEAN', 'BIGINT', 'DOUBLE', 'VARCHAR']);`;
                 break;
-            case Filetype.Parquet:
+            case FileType.Parquet:
                 createTableQuery = `CREATE TABLE ${tableName} AS SELECT * FROM '${tempFile.name}';`;
                 break;
-            case Filetype.Json:
-                createTableQuery = `CREATE TABLE new_tbl AS SELECT * FROM read_json_auto('${tempFile.name}');`;
+            case FileType.Json:
+            case FileType.GzipJson:
+                createTableQuery = `CREATE TABLE ${tableName} AS SELECT * FROM read_json_auto('${tempFile.name}');`;
                 break;
-            case Filetype.Excel:
+            case FileType.Excel:
                 await quack.exec('INSTALL spatial;');
                 await quack.exec('LOAD spatial;');
-                createTableQuery = `CREATE TABLE ${tableName} AS SELECT * FROM st_read('${tempFile.name}');'`;
+                createTableQuery = `CREATE TABLE ${tableName} AS SELECT * FROM st_read('${tempFile.name}');`;
                 break;
             default:
                 throw new Error('Unknown file type');
@@ -267,20 +291,20 @@ export const getCSVPreview = async (
         }
         const previewQuery = `SELECT int_line_number, * from (SELECT row_number() OVER () as int_line_number, * FROM ${tableName}) LIMIT ${size} OFFSET ${(page - 1) * size}`;
         const preview = await quack.all(previewQuery);
-        const startLine = Number(preview[0].line);
-        const lastLine = Number(preview[preview.length - 1].line);
+        const startLine = Number(preview[0].int_line_number);
+        const lastLine = Number(preview[preview.length - 1].int_line_number);
         const tableHeaders = Object.keys(preview[0]);
         const dataArray = preview.map((row) => Object.values(row));
         const currentDataset = await DatasetRepository.getById(dataset.id);
         const currentImport = await FactTable.findOneByOrFail({ id: importObj.id });
         const headers: CSVHeader[] = [];
         for (let i = 0; i < tableHeaders.length; i++) {
-            let sourceType: SourceType;
-            if (tableHeaders[i] === 'int_line_number') sourceType = SourceType.LineNumber;
+            let sourceType: FactTableColumnType;
+            if (tableHeaders[i] === 'int_line_number') sourceType = FactTableColumnType.LineNumber;
             else
                 sourceType =
                     importObj.factTableInfo.find((info) => info.columnName === tableHeaders[i])?.columnType ??
-                    SourceType.Unknown;
+                    FactTableColumnType.Unknown;
             headers.push({
                 index: i - 1,
                 name: tableHeaders[i],

@@ -1,6 +1,6 @@
 import { Entity, PrimaryColumn, Column, BaseEntity, ManyToOne, JoinColumn } from 'typeorm';
 
-import { SourceType } from '../../enums/source-type';
+import { FactTableColumnType } from '../../enums/fact-table-column-type';
 
 import { FactTable } from './fact-table';
 
@@ -23,13 +23,13 @@ export class FactTableInfo extends BaseEntity {
     @Column({ name: 'column_index', type: 'integer' })
     columnIndex: number;
 
-    @Column({ name: 'column_type', type: 'enum', enum: Object.values(SourceType), nullable: false })
-    columnType: SourceType;
+    @Column({ name: 'column_type', type: 'enum', enum: Object.values(FactTableColumnType), nullable: false })
+    columnType: FactTableColumnType;
 
     @ManyToOne(() => FactTable, (factTable) => factTable.factTableInfo, {
         onDelete: 'CASCADE',
         orphanedRowAction: 'delete'
     })
-    @JoinColumn({ name: 'fact_table_id', foreignKeyConstraintName: 'FK_fact_table_info_fact_table_id_id' })
+    @JoinColumn({ name: 'fact_table_id', foreignKeyConstraintName: 'FK_fact_table_info_fact_table_id' })
     factTable: FactTable;
 }

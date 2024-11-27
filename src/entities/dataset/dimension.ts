@@ -27,7 +27,7 @@ export class Dimension extends BaseEntity {
     @Column({ type: 'enum', enum: Object.values(DimensionType), nullable: false })
     type: DimensionType;
 
-    @Column({ type: 'json', nullable: true })
+    @Column({ type: 'jsonb', nullable: true })
     extractor: object;
 
     @Column({ name: 'join_column', type: 'varchar', nullable: true })

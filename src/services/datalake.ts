@@ -57,9 +57,8 @@ export class DataLakeService {
         const fileSystemClient = this.serviceClient.getFileSystemClient(fileSystemName);
         const directoryClient = fileSystemClient.getDirectoryClient(directory);
         const fileClient = directoryClient.getFileClient(fileName);
-        const body = fileContent.toString();
         await fileClient.create();
-        await fileClient.append(body, 0, fileContent.length);
+        await fileClient.append(fileContent, 0, fileContent.length);
         await fileClient.flush(fileContent.length);
     }
 

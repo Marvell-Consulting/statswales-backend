@@ -177,7 +177,7 @@ router.post(
         let fileImport: FactTable;
 
         try {
-            fileImport = await uploadCSV(req.file.buffer, req.file?.mimetype, res.locals.datasetId);
+            fileImport = await uploadCSV(req.file.buffer, req.file?.mimetype, req.file?.originalname, res.locals.datasetId);
         } catch (err) {
             logger.error(`An error occurred trying to upload the file: ${err}`);
             next(new UnknownException('errors.upload_error'));
@@ -444,7 +444,7 @@ router.post(
         let fileImport: FactTable;
 
         try {
-            fileImport = await uploadCSV(req.file.buffer, req.file?.mimetype, dataset.id);
+            fileImport = await uploadCSV(req.file.buffer, req.file?.mimetype, req.file?.originalname, dataset.id);
             fileImport.revision = revision;
             await fileImport.save();
             const updatedDataset = await DatasetRepository.getById(dataset.id);

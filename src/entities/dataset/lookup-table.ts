@@ -1,6 +1,6 @@
 import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, BaseEntity, JoinColumn, OneToOne } from 'typeorm';
 
-import { Filetype } from '../../enums/filetype';
+import { FileType } from '../../enums/file-type';
 
 import { Dimension } from './dimension';
 import { Measure } from './measure';
@@ -27,8 +27,8 @@ export class LookupTable extends BaseEntity {
     @Column({ name: 'mime_type', type: 'varchar', length: 255 })
     mimeType: string;
 
-    @Column({ name: 'filetype', type: 'enum', enum: Object.values(Filetype), nullable: false })
-    fileType: Filetype;
+    @Column({ name: 'filetype', type: 'enum', enum: Object.values(FileType), nullable: false })
+    fileType: FileType;
 
     @Column({ type: 'varchar', length: 255 })
     filename: string;

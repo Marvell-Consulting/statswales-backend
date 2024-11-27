@@ -1,6 +1,6 @@
 import { Readable } from 'stream';
 
-import { SourceType } from '../enums/source-type';
+import { FactTableColumnType } from '../enums/fact-table-column-type';
 
 import { Error } from './error';
 import { DatasetDTO } from './dataset-dto';
@@ -9,7 +9,7 @@ import { FactTableDTO } from './fact-table-dto';
 export interface CSVHeader {
     index: number;
     name: string;
-    source_type?: SourceType;
+    source_type?: FactTableColumnType;
 }
 
 export interface PageInfo {

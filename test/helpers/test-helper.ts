@@ -5,13 +5,13 @@ import { createHash } from 'crypto';
 import { Dataset } from '../../src/entities/dataset/dataset';
 import { DatasetInfo } from '../../src/entities/dataset/dataset-info';
 import { Revision } from '../../src/entities/dataset/revision';
-import { SourceType } from '../../src/enums/source-type';
+import { FactTableColumnType } from '../../src/enums/fact-table-column-type';
 import { DimensionType } from '../../src/enums/dimension-type';
 import { Dimension } from '../../src/entities/dataset/dimension';
 import { DimensionInfo } from '../../src/entities/dataset/dimension-info';
 import { User } from '../../src/entities/user/user';
 import { FactTable } from '../../src/entities/dataset/fact-table';
-import { Filetype } from '../../src/enums/filetype';
+import { FileType } from '../../src/enums/file-type';
 import { FactTableInfo } from '../../src/entities/dataset/fact-table-info';
 import { extractTableInformation } from '../../src/controllers/csv-processor';
 
@@ -21,7 +21,7 @@ export async function createSmallDataset(
     importId: string,
     user: User,
     testFilePath = '../sample-files/csv/sure-start-short.csv',
-    fileType = Filetype.Csv
+    fileType = FileType.Csv
 ) {
     // First create a dataset
     const dataset = new Dataset();
@@ -54,23 +54,24 @@ export async function createSmallDataset(
     factTable.id = importId.toLowerCase();
     factTable.filename = `${importId.toLowerCase()}.csv`;
     const testFile = path.resolve(__dirname, testFilePath);
+    factTable.originalFilename = path.basename(testFile);
     const testFileBuffer = fs.readFileSync(testFile);
     factTable.hash = createHash('sha256').update(testFileBuffer).digest('hex');
     factTable.fileType = fileType;
     switch (fileType) {
-        case Filetype.Csv:
+        case FileType.Csv:
             factTable.linebreak = '\n';
             factTable.delimiter = ',';
             factTable.quote = '"';
             factTable.mimeType = 'text/csv';
             break;
-        case Filetype.Excel:
+        case FileType.Excel:
             factTable.mimeType = 'application/vnd.ms-excel';
             break;
-        case Filetype.Parquet:
+        case FileType.Parquet:
             factTable.mimeType = 'application/vnd.apache.parquet';
             break;
-        case Filetype.Json:
+        case FileType.Json:
             factTable.mimeType = 'application/json';
             break;
     }
@@ -104,7 +105,7 @@ export async function createFullDataset(
     factTableId: string,
     user: User,
     testFilePath = '../sample-files/csv/sure-start-short.csv',
-    fileType = Filetype.Csv,
+    fileType = FileType.Csv,
     dimensionDescriptorJson = sureStartShortDimensionDescriptor
 ) {
     const dataset = await createSmallDataset(datasetId, revisionId, factTableId, user, testFilePath, fileType);

@@ -4,7 +4,7 @@ import { Dimension } from '../entities/dataset/dimension';
 import { DimensionInfo } from '../entities/dataset/dimension-info';
 import { DimensionType } from '../enums/dimension-type';
 import { FactTable } from '../entities/dataset/fact-table';
-import { SourceType } from '../enums/source-type';
+import { FactTableColumnType } from '../enums/fact-table-column-type';
 import { AVAILABLE_LANGUAGES } from '../middleware/translation';
 import { logger } from '../utils/logger';
 import { SourceAssignmentException } from '../exceptions/source-assignment.exception';
@@ -27,6 +27,7 @@ export const validateSourceAssignment = (
     let noteCodes: SourceAssignmentDTO | null = null;
     let measure: SourceAssignmentDTO | null = null;
     const dimensions: SourceAssignmentDTO[] = [];
+    const dateDimensions: SourceAssignmentDTO[] = [];
     const ignore: SourceAssignmentDTO[] = [];
 
     sourceAssignment.map((sourceInfo) => {
@@ -34,29 +35,30 @@ export const validateSourceAssignment = (
             throw new Error(`Source with id ${sourceInfo.columnName} not found`);
         }
 
-        switch (sourceInfo.sourceType) {
-            case SourceType.DataValues:
+        switch (sourceInfo.columnType) {
+            case FactTableColumnType.DataValues:
                 if (dataValues) {
                     throw new SourceAssignmentException('errors.too_many_data_values');
                 }
                 dataValues = sourceInfo;
                 break;
-            case SourceType.Measure:
+            case FactTableColumnType.Measure:
                 if (measure) {
                     throw new SourceAssignmentException('errors.too_many_measure');
                 }
                 measure = sourceInfo;
                 break;
-            case SourceType.NoteCodes:
+            case FactTableColumnType.NoteCodes:
                 if (noteCodes) {
                     throw new SourceAssignmentException('errors.too_many_footnotes');
                 }
                 noteCodes = sourceInfo;
                 break;
-            case SourceType.Dimension:
+            case FactTableColumnType.Time:
+            case FactTableColumnType.Dimension:
                 dimensions.push(sourceInfo);
                 break;
-            case SourceType.Ignore:
+            case FactTableColumnType.Ignore:
                 ignore.push(sourceInfo);
                 break;
             default:
@@ -86,7 +88,7 @@ async function createUpdateDimension(
     }
 
     logger.debug("The existing dimension is either a footnotes dimension or we don't have one... So lets create one");
-    columnInfo.columnType = SourceType.Dimension;
+    columnInfo.columnType = FactTableColumnType.Dimension;
     await columnInfo.save();
 
     const dimension = new Dimension();
@@ -127,7 +129,7 @@ async function updateFactTableInfo(factTable: FactTable, updateColumnDto: Source
     if (!info) {
         throw new Error('No such column');
     }
-    info.columnType = updateColumnDto.sourceType;
+    info.columnType = updateColumnDto.columnType;
     await info.save();
 }
 
@@ -149,7 +151,7 @@ async function createUpdateMeasure(
         return;
     }
 
-    columnInfo.columnType = SourceType.Measure;
+    columnInfo.columnType = FactTableColumnType.Measure;
     await columnInfo.save();
 
     if (existingMeasure && existingMeasure.factTableColumn !== columnAssignment.columnName) {
@@ -179,7 +181,7 @@ async function createUpdateNoteCodes(dataset: Dataset, factTable: FactTable, col
         return;
     }
 
-    columnInfo.columnType = SourceType.NoteCodes;
+    columnInfo.columnType = FactTableColumnType.NoteCodes;
     await columnInfo.save();
 
     if (existingDimension && existingDimension.factTableColumn !== columnAssignment.columnName) {

@@ -1,4 +1,4 @@
-export enum SourceType {
+export enum FactTableColumnType {
     DataValues = 'data_values',
     NoteCodes = 'note_codes',
     Dimension = 'dimension',

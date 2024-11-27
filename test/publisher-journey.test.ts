@@ -14,7 +14,7 @@ import { MAX_PAGE_SIZE, MIN_PAGE_SIZE } from '../src/controllers/csv-processor';
 import DatabaseManager from '../src/db/database-manager';
 import { User } from '../src/entities/user/user';
 import { SourceAssignmentDTO } from '../src/dtos/source-assignment-dto';
-import { SourceType } from '../src/enums/source-type';
+import { FactTableColumnType } from '../src/enums/fact-table-column-type';
 import { Revision } from '../src/entities/dataset/revision';
 import { Locale } from '../src/enums/locale';
 import { DatasetRepository } from '../src/repositories/dataset';
@@ -493,34 +493,49 @@ describe('API Endpoints', () => {
                 throw new Error('Import not found');
             }
             const sources = postProcessedImport.factTableInfo;
-            const sourceAssignment: SourceAssignmentDTO[] = sources.map((source) => {
+            const sourceAssignment: SourceAssignmentDTO[] = sources.map((source, index) => {
                 switch (source.columnName) {
                     case 'YearCode':
-                    case 'AreaCode':
-                    case 'RowRef':
                         return {
+                            columnIndex: index,
                             columnName: source.columnName,
-                            sourceType: SourceType.Dimension
+                            columnType: FactTableColumnType.Dimension
+                        };
+                    case 'AreaCode':
+                        return {
+                            columnIndex: index,
+                            columnName: source.columnName,
+                            columnType: FactTableColumnType.Dimension
                         };
                     case 'Data':
                         return {
+                            columnIndex: index,
                             columnName: source.columnName,
-                            sourceType: SourceType.DataValues
+                            columnType: FactTableColumnType.DataValues
                         };
-                    case 'NoteCodes':
+                    case 'RowRef':
                         return {
+                            columnIndex: index,
                             columnName: source.columnName,
-                            sourceType: SourceType.NoteCodes
+                            columnType: FactTableColumnType.Dimension
                         };
                     case 'Measure':
                         return {
+                            columnIndex: index,
                             columnName: source.columnName,
-                            sourceType: SourceType.Measure
+                            columnType: FactTableColumnType.Measure
+                        };
+                    case 'NoteCodes':
+                        return {
+                            columnIndex: index,
+                            columnName: source.columnName,
+                            columnType: FactTableColumnType.NoteCodes
                         };
                     default:
                         return {
+                            columnIndex: index,
                             columnName: source.columnName,
-                            sourceType: SourceType.Ignore
+                            columnType: FactTableColumnType.Ignore
                         };
                 }
             });
@@ -568,14 +583,15 @@ describe('API Endpoints', () => {
             if (!postProcessedImport) {
                 throw new Error('Import not found');
             }
-            const sourceAssignment: SourceAssignmentDTO[] = postProcessedImport.factTableInfo.map((factTableInfo) => {
+            const sourceAssignment: SourceAssignmentDTO[] = postProcessedImport.factTableInfo.map((factTableInfo, index) => {
                 return {
+                    columnIndex: index,
                     columnName: factTableInfo.columnName,
-                    sourceType: SourceType.Dimension
+                    columnType: FactTableColumnType.Dimension
                 };
             });
-            sourceAssignment[0].sourceType = SourceType.DataValues;
-            sourceAssignment[1].sourceType = SourceType.DataValues;
+            sourceAssignment[0].columnType = FactTableColumnType.DataValues;
+            sourceAssignment[1].columnType = FactTableColumnType.DataValues;
             const res = await request(app)
                 .patch(
                     `/dataset/${testDatasetId}/revision/by-id/${testRevisionId}/fact-table/by-id/${testFileImportId}/sources`
@@ -604,14 +620,15 @@ describe('API Endpoints', () => {
             if (!postProcessedImport) {
                 throw new Error('Import not found');
             }
-            const sourceAssignment: SourceAssignmentDTO[] = postProcessedImport.factTableInfo.map((factTableInfo) => {
+            const sourceAssignment: SourceAssignmentDTO[] = postProcessedImport.factTableInfo.map((factTableInfo, index) => {
                 return {
+                    columnIndex: index,
                     columnName: factTableInfo.columnName,
-                    sourceType: SourceType.Dimension
+                    columnType: FactTableColumnType.Dimension
                 };
             });
-            sourceAssignment[0].sourceType = SourceType.NoteCodes;
-            sourceAssignment[1].sourceType = SourceType.NoteCodes;
+            sourceAssignment[0].columnType = FactTableColumnType.NoteCodes;
+            sourceAssignment[1].columnType = FactTableColumnType.NoteCodes;
             const res = await request(app)
                 .patch(
                     `/dataset/${testDatasetId}/revision/by-id/${testRevisionId}/fact-table/by-id/${testFileImportId}/sources`

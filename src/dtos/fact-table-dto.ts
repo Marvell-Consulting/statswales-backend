@@ -14,7 +14,7 @@ export class FactTableDTO {
     delimiter: string;
     quote: string;
     linebreak: string;
-    info?: FactTableInfoDto[];
+    factTableInfo?: FactTableInfoDto[];
 
     static fromFactTable(fileImport: FactTable): FactTableDTO {
         const dto = new FactTableDTO();
@@ -28,9 +28,9 @@ export class FactTableDTO {
         dto.quote = fileImport.quote;
         dto.linebreak = fileImport.linebreak;
         dto.delimiter = fileImport.delimiter;
-        dto.info = [];
+        dto.factTableInfo = [];
 
-        dto.info = fileImport.factTableInfo?.map((factTableInfo: FactTableInfo) =>
+        dto.factTableInfo = fileImport.factTableInfo?.map((factTableInfo: FactTableInfo) =>
             FactTableInfoDto.fromFactTableInfo(factTableInfo)
         );
         return dto;

@@ -9,7 +9,7 @@ export class RevisionDTO {
     revision_index: number;
     previous_revision_id?: string;
     online_cube_filename?: string;
-    factTables: FactTableDTO[];
+    fact_tables: FactTableDTO[];
     created_at: string;
     created_by: string;
     approved_at?: string;
@@ -28,7 +28,7 @@ export class RevisionDTO {
         revDto.approved_at = revision.approvedAt?.toISOString();
         revDto.approved_by = revision.approvedBy?.name;
         revDto.created_by = revision.createdBy?.name;
-        revDto.factTables = revision.factTables?.map((factTable: FactTable) => FactTableDTO.fromFactTable(factTable));
+        revDto.fact_tables = revision.factTables?.map((factTable: FactTable) => FactTableDTO.fromFactTable(factTable));
         return revDto;
     }
 }
