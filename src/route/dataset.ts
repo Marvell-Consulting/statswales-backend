@@ -135,6 +135,8 @@ router.get('/:dataset_id', loadDataset(), async (req: Request, res: Response) =>
 // DELETE /dataset/:dataset_id
 // Deletes the dataset with the given ID
 router.delete('/:dataset_id', loadDataset({}), async (req: Request, res: Response) => {
+    const dataLakeService = new DataLakeService();
+    await dataLakeService.deleteDirectoryAndFiles(req.params.dataset_id);
     await DatasetRepository.deleteById(res.locals.datasetId);
     res.status(204);
     res.end();
@@ -177,7 +179,12 @@ router.post(
         let fileImport: FactTable;
 
         try {
-            fileImport = await uploadCSV(req.file.buffer, req.file?.mimetype, req.file?.originalname, res.locals.datasetId);
+            fileImport = await uploadCSV(
+                req.file.buffer,
+                req.file?.mimetype,
+                req.file?.originalname,
+                res.locals.datasetId
+            );
         } catch (err) {
             logger.error(`An error occurred trying to upload the file: ${err}`);
             next(new UnknownException('errors.upload_error'));
@@ -457,7 +464,7 @@ router.post(
     }
 );
 
-// DELETE /:dataset_id/revision/by-id/:revision_id/fact-table/by-id/:import_id
+// DELETE /:dataset_id/revision/by-id/:revision_id/fact-table/by-id/:fact_table_id
 // Removes the import record and associated file from BlobStorage clearing the way
 // for the user to upload a new file for the dataset.
 router.delete(

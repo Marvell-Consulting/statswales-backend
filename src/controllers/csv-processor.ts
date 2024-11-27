@@ -154,7 +154,12 @@ export async function extractTableInformation(fileBuffer: Buffer, fileType: File
 }
 
 // Required Methods for refactor
-export const uploadCSV = async (fileBuffer: Buffer, filetype: string, originalName: string, datasetId: string): Promise<FactTable> => {
+export const uploadCSV = async (
+    fileBuffer: Buffer,
+    filetype: string,
+    originalName: string,
+    datasetId: string
+): Promise<FactTable> => {
     const dataLakeService = new DataLakeService();
     if (!fileBuffer) {
         logger.error('No buffer to upload to blob storage');
@@ -196,8 +201,7 @@ export const uploadCSV = async (fileBuffer: Buffer, filetype: string, originalNa
             factTable.fileType = FileType.Excel;
             break;
         case 'application/x-gzip':
-            const ext = originalName.split('.').reverse()[1];
-            switch (ext) {
+            switch (originalName.split('.').reverse()[1]) {
                 case 'json':
                     extension = 'json.gz';
                     factTable.fileType = FileType.GzipJson;
@@ -210,7 +214,7 @@ export const uploadCSV = async (fileBuffer: Buffer, filetype: string, originalNa
                     factTable.fileType = FileType.GzipCsv;
                     break;
                 default:
-                    throw new Error(`unsupported format ${ext}`);
+                    throw new Error(`unsupported format ${originalName.split('.').reverse()[1]}`);
             }
             break;
         default:

@@ -583,13 +583,15 @@ describe('API Endpoints', () => {
             if (!postProcessedImport) {
                 throw new Error('Import not found');
             }
-            const sourceAssignment: SourceAssignmentDTO[] = postProcessedImport.factTableInfo.map((factTableInfo, index) => {
-                return {
-                    columnIndex: index,
-                    columnName: factTableInfo.columnName,
-                    columnType: FactTableColumnType.Dimension
-                };
-            });
+            const sourceAssignment: SourceAssignmentDTO[] = postProcessedImport.factTableInfo.map(
+                (factTableInfo, index) => {
+                    return {
+                        columnIndex: index,
+                        columnName: factTableInfo.columnName,
+                        columnType: FactTableColumnType.Dimension
+                    };
+                }
+            );
             sourceAssignment[0].columnType = FactTableColumnType.DataValues;
             sourceAssignment[1].columnType = FactTableColumnType.DataValues;
             const res = await request(app)
@@ -620,13 +622,15 @@ describe('API Endpoints', () => {
             if (!postProcessedImport) {
                 throw new Error('Import not found');
             }
-            const sourceAssignment: SourceAssignmentDTO[] = postProcessedImport.factTableInfo.map((factTableInfo, index) => {
-                return {
-                    columnIndex: index,
-                    columnName: factTableInfo.columnName,
-                    columnType: FactTableColumnType.Dimension
-                };
-            });
+            const sourceAssignment: SourceAssignmentDTO[] = postProcessedImport.factTableInfo.map(
+                (factTableInfo, index) => {
+                    return {
+                        columnIndex: index,
+                        columnName: factTableInfo.columnName,
+                        columnType: FactTableColumnType.Dimension
+                    };
+                }
+            );
             sourceAssignment[0].columnType = FactTableColumnType.NoteCodes;
             sourceAssignment[1].columnType = FactTableColumnType.NoteCodes;
             const res = await request(app)
@@ -703,7 +707,7 @@ describe('API Endpoints', () => {
         const datesetFromDb = await Dataset.findOneBy({ id: datasetID });
         expect(datesetFromDb).not.toBeNull();
         expect(datesetFromDb?.id).toBe(datasetID);
-
+        DataLakeService.prototype.deleteDirectoryAndFiles = jest.fn();
         const res = await request(app).delete(`/dataset/${datasetID}`).set(getAuthHeader(user));
         expect(res.status).toBe(204);
         const dataset = await Dataset.findOneBy({ id: datasetID });

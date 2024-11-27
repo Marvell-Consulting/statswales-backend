@@ -9,5 +9,5 @@ export enum FileType {
     Excel = 'xlsx',
     GzipCsv = 'csv.gz',
     GzipJson = 'json.gz',
-    Unknown = 'unknown',
+    Unknown = 'unknown'
 }

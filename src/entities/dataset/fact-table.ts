@@ -10,6 +10,7 @@ import {
 } from 'typeorm';
 
 import { FileType } from '../../enums/file-type';
+
 import { Revision } from './revision';
 import { FactTableInfo } from './fact-table-info';
 

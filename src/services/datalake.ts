@@ -70,6 +70,18 @@ export class DataLakeService {
         await fileClient.delete();
     }
 
+    public async deleteDirectoryAndFiles(directory: string) {
+        const fileSystemClient = this.serviceClient.getFileSystemClient(fileSystemName);
+        const directoryClient = fileSystemClient.getDirectoryClient(directory);
+        await directoryClient.delete(true);
+    }
+
+    public async deleteDirectory(directory: string) {
+        const fileSystemClient = this.serviceClient.getFileSystemClient(fileSystemName);
+        const directoryClient = fileSystemClient.getDirectoryClient(directory);
+        await directoryClient.delete(false);
+    }
+
     public async listFiles(directory: string) {
         const fileSystemClient = this.serviceClient.getFileSystemClient(fileSystemName);
 
