@@ -362,7 +362,6 @@ router.patch(
     async (req: Request, res: Response, next: NextFunction) => {
         const { dataset, revision, factTable } = res.locals;
         const sourceAssignment = req.body;
-
         try {
             const validatedSourceAssignment = validateSourceAssignment(factTable, sourceAssignment);
             await createDimensionsFromSourceAssignment(dataset, factTable, validatedSourceAssignment);

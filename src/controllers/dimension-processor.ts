@@ -31,11 +31,11 @@ export const validateSourceAssignment = (
     const ignore: SourceAssignmentDTO[] = [];
 
     sourceAssignment.map((sourceInfo) => {
-        if (!fileImport.factTableInfo?.find((info: FactTableInfo) => info.columnName === sourceInfo.columnName)) {
-            throw new Error(`Source with id ${sourceInfo.columnName} not found`);
+        if (!fileImport.factTableInfo?.find((info: FactTableInfo) => info.columnName === sourceInfo.column_name)) {
+            throw new Error(`Source with id ${sourceInfo.column_name} not found`);
         }
 
-        switch (sourceInfo.columnType) {
+        switch (sourceInfo.column_type) {
             case FactTableColumnType.DataValues:
                 if (dataValues) {
                     throw new SourceAssignmentException('errors.too_many_data_values');
@@ -75,10 +75,10 @@ async function createUpdateDimension(
     columnDescriptor: SourceAssignmentDTO
 ): Promise<void> {
     const columnInfo = await FactTableInfo.findOneByOrFail({
-        columnName: columnDescriptor.columnName,
+        columnName: columnDescriptor.column_name,
         id: factTable.id
     });
-    const existingDimension = await Dimension.findOneBy({ dataset, factTableColumn: columnDescriptor.columnName });
+    const existingDimension = await Dimension.findOneBy({ dataset, factTableColumn: columnDescriptor.column_name });
 
     if (existingDimension) {
         logger.debug(
@@ -124,12 +124,12 @@ async function cleanupDimensions(datasetId: string, factTableInfo: FactTableInfo
 
 async function updateFactTableInfo(factTable: FactTable, updateColumnDto: SourceAssignmentDTO) {
     const info = factTable.factTableInfo.find(
-        (factTableInfo) => factTableInfo.columnName === updateColumnDto.columnName
+        (factTableInfo) => factTableInfo.columnName === updateColumnDto.column_name
     );
     if (!info) {
         throw new Error('No such column');
     }
-    info.columnType = updateColumnDto.columnType;
+    info.columnType = updateColumnDto.column_type;
     await info.save();
 }
 
@@ -139,12 +139,12 @@ async function createUpdateMeasure(
     columnAssignment: SourceAssignmentDTO
 ): Promise<void> {
     const columnInfo = await FactTableInfo.findOneByOrFail({
-        columnName: columnAssignment.columnName,
+        columnName: columnAssignment.column_name,
         id: factTable.id
     });
     const existingMeasure = await Measure.findOneBy({ dataset });
 
-    if (existingMeasure && existingMeasure.factTableColumn === columnAssignment.columnName) {
+    if (existingMeasure && existingMeasure.factTableColumn === columnAssignment.column_name) {
         logger.debug(
             `No measure to create as fact table for column ${existingMeasure.factTableColumn} is already attached to one`
         );
@@ -154,14 +154,14 @@ async function createUpdateMeasure(
     columnInfo.columnType = FactTableColumnType.Measure;
     await columnInfo.save();
 
-    if (existingMeasure && existingMeasure.factTableColumn !== columnAssignment.columnName) {
-        existingMeasure.factTableColumn = columnAssignment.columnName;
+    if (existingMeasure && existingMeasure.factTableColumn !== columnAssignment.column_name) {
+        existingMeasure.factTableColumn = columnAssignment.column_name;
         await existingMeasure.save();
         return;
     }
 
     const measure = new Measure();
-    measure.factTableColumn = columnAssignment.columnName;
+    measure.factTableColumn = columnAssignment.column_name;
     measure.dataset = dataset;
     await measure.save();
     await dataset.save();
@@ -169,12 +169,12 @@ async function createUpdateMeasure(
 
 async function createUpdateNoteCodes(dataset: Dataset, factTable: FactTable, columnAssignment: SourceAssignmentDTO) {
     const columnInfo = await FactTableInfo.findOneByOrFail({
-        columnName: columnAssignment.columnName,
+        columnName: columnAssignment.column_name,
         id: factTable.id
     });
     const existingDimension = await Dimension.findOneBy({ dataset, type: DimensionType.NoteCodes });
 
-    if (existingDimension && existingDimension.factTableColumn === columnAssignment.columnName) {
+    if (existingDimension && existingDimension.factTableColumn === columnAssignment.column_name) {
         logger.debug(
             `No NotesCode Dimension to create as fact table for column ${existingDimension.factTableColumn} is already attached to one`
         );
@@ -184,8 +184,8 @@ async function createUpdateNoteCodes(dataset: Dataset, factTable: FactTable, col
     columnInfo.columnType = FactTableColumnType.NoteCodes;
     await columnInfo.save();
 
-    if (existingDimension && existingDimension.factTableColumn !== columnAssignment.columnName) {
-        existingDimension.factTableColumn = columnAssignment.columnName;
+    if (existingDimension && existingDimension.factTableColumn !== columnAssignment.column_name) {
+        existingDimension.factTableColumn = columnAssignment.column_name;
         await existingDimension.save();
         return;
     }

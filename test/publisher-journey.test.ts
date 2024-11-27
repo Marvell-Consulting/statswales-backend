@@ -497,45 +497,45 @@ describe('API Endpoints', () => {
                 switch (source.columnName) {
                     case 'YearCode':
                         return {
-                            columnIndex: index,
-                            columnName: source.columnName,
-                            columnType: FactTableColumnType.Dimension
+                            column_index: index,
+                            column_name: source.columnName,
+                            column_type: FactTableColumnType.Dimension
                         };
                     case 'AreaCode':
                         return {
-                            columnIndex: index,
-                            columnName: source.columnName,
-                            columnType: FactTableColumnType.Dimension
+                            column_index: index,
+                            column_name: source.columnName,
+                            column_type: FactTableColumnType.Dimension
                         };
                     case 'Data':
                         return {
-                            columnIndex: index,
-                            columnName: source.columnName,
-                            columnType: FactTableColumnType.DataValues
+                            column_index: index,
+                            column_name: source.columnName,
+                            column_type: FactTableColumnType.DataValues
                         };
                     case 'RowRef':
                         return {
-                            columnIndex: index,
-                            columnName: source.columnName,
-                            columnType: FactTableColumnType.Dimension
+                            column_index: index,
+                            column_name: source.columnName,
+                            column_type: FactTableColumnType.Dimension
                         };
                     case 'Measure':
                         return {
-                            columnIndex: index,
-                            columnName: source.columnName,
-                            columnType: FactTableColumnType.Measure
+                            column_index: index,
+                            column_name: source.columnName,
+                            column_type: FactTableColumnType.Measure
                         };
                     case 'NoteCodes':
                         return {
-                            columnIndex: index,
-                            columnName: source.columnName,
-                            columnType: FactTableColumnType.NoteCodes
+                            column_index: index,
+                            column_name: source.columnName,
+                            column_type: FactTableColumnType.NoteCodes
                         };
                     default:
                         return {
-                            columnIndex: index,
-                            columnName: source.columnName,
-                            columnType: FactTableColumnType.Ignore
+                            column_index: index,
+                            column_name: source.columnName,
+                            column_type: FactTableColumnType.Ignore
                         };
                 }
             });
@@ -586,14 +586,14 @@ describe('API Endpoints', () => {
             const sourceAssignment: SourceAssignmentDTO[] = postProcessedImport.factTableInfo.map(
                 (factTableInfo, index) => {
                     return {
-                        columnIndex: index,
-                        columnName: factTableInfo.columnName,
-                        columnType: FactTableColumnType.Dimension
+                        column_index: index,
+                        column_name: factTableInfo.columnName,
+                        column_type: FactTableColumnType.Dimension
                     };
                 }
             );
-            sourceAssignment[0].columnType = FactTableColumnType.DataValues;
-            sourceAssignment[1].columnType = FactTableColumnType.DataValues;
+            sourceAssignment[0].column_type = FactTableColumnType.DataValues;
+            sourceAssignment[1].column_type = FactTableColumnType.DataValues;
             const res = await request(app)
                 .patch(
                     `/dataset/${testDatasetId}/revision/by-id/${testRevisionId}/fact-table/by-id/${testFileImportId}/sources`
@@ -625,14 +625,14 @@ describe('API Endpoints', () => {
             const sourceAssignment: SourceAssignmentDTO[] = postProcessedImport.factTableInfo.map(
                 (factTableInfo, index) => {
                     return {
-                        columnIndex: index,
-                        columnName: factTableInfo.columnName,
-                        columnType: FactTableColumnType.Dimension
+                        column_index: index,
+                        column_name: factTableInfo.columnName,
+                        column_type: FactTableColumnType.Dimension
                     };
                 }
             );
-            sourceAssignment[0].columnType = FactTableColumnType.NoteCodes;
-            sourceAssignment[1].columnType = FactTableColumnType.NoteCodes;
+            sourceAssignment[0].column_type = FactTableColumnType.NoteCodes;
+            sourceAssignment[1].column_type = FactTableColumnType.NoteCodes;
             const res = await request(app)
                 .patch(
                     `/dataset/${testDatasetId}/revision/by-id/${testRevisionId}/fact-table/by-id/${testFileImportId}/sources`
