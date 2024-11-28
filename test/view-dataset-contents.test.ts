@@ -4,15 +4,11 @@ import * as fs from 'fs';
 import request from 'supertest';
 
 import { DataLakeService } from '../src/services/datalake';
-import { BlobStorageService } from '../src/services/blob-storage';
 import app, { initDb } from '../src/app';
 import { Revision } from '../src/entities/dataset/revision';
-import { FileImport } from '../src/entities/dataset/file-import';
-import { t } from '../src/middleware/translation';
 import DatabaseManager from '../src/db/database-manager';
 import { User } from '../src/entities/user/user';
-import { DataLocation } from '../src/enums/data-location';
-import { Locale } from '../src/enums/locale';
+import { FactTable } from '../src/entities/dataset/fact-table';
 
 import { createFullDataset, createSmallDataset } from './helpers/test-helper';
 import { getTestUser } from './helpers/get-user';
@@ -22,9 +18,7 @@ DataLakeService.prototype.listFiles = jest
     .fn()
     .mockReturnValue([{ name: 'test-data-1.csv', path: 'test/test-data-1.csv', isDirectory: false }]);
 
-BlobStorageService.prototype.uploadFile = jest.fn();
-
-DataLakeService.prototype.uploadFile = jest.fn();
+DataLakeService.prototype.getFileBuffer = jest.fn();
 
 const dataset1Id = 'bdc40218-af89-424b-b86e-d21710bc92f1';
 const revision1Id = '85f0e416-8bd1-4946-9e2c-1c958897c6ef';
@@ -39,106 +33,30 @@ describe('API Endpoints for viewing the contents of a dataset', () => {
         await createFullDataset(dataset1Id, revision1Id, import1Id, user);
     });
 
-    test('Get file from a dataset, stored in blobStorage, returns 200 and complete file data', async () => {
-        const testFile2 = path.resolve(__dirname, `sample-csvs/test-data-2.csv`);
-        const testFile1Buffer = fs.readFileSync(testFile2);
-        DataLakeService.prototype.downloadFile = jest.fn().mockReturnValue(testFile1Buffer.toString());
-
-        const res = await request(app)
-            .get(`/dataset/${dataset1Id}/view`)
-            .set(getAuthHeader(user))
-            .query({ page_number: 2, page_size: 100 });
-        expect(res.status).toBe(200);
-        expect(res.body.current_page).toBe(2);
-        expect(res.body.total_pages).toBe(6);
-        expect(res.body.page_size).toBe(100);
-        expect(res.body.headers).toEqual([
-            { index: 0, name: 'ID', source_type: 'ignore' },
-            { index: 1, name: 'Text', source_type: 'dimension' },
-            { index: 2, name: 'Number', source_type: 'data_values' },
-            { index: 3, name: 'Date', source_type: 'dimension' }
-        ]);
-        expect(res.body.data[0]).toEqual(['101', 'GEYiRzLIFM', '774477', '2002-03-13']);
-        expect(res.body.data[99]).toEqual(['200', 'QhBxdmrUPb', '3256099', '2026-12-17']);
-    });
-
     test('Get file from a dataset, stored in data lake, returns 200 and complete file data', async () => {
-        const testFile2 = path.resolve(__dirname, `sample-csvs/test-data-2.csv`);
+        const testFile2 = path.resolve(__dirname, `sample-files/csv/sure-start-short.csv`);
         const testFile1Buffer = fs.readFileSync(testFile2);
-        DataLakeService.prototype.downloadFile = jest.fn().mockReturnValue(testFile1Buffer.toString());
-        const fileImport = await FileImport.findOneBy({ id: import1Id });
-        if (!fileImport) {
-            throw new Error('Import not found');
-        }
-        fileImport.location = DataLocation.DataLake;
-        await FileImport.save(fileImport);
+        DataLakeService.prototype.getFileBuffer = jest.fn().mockReturnValue(testFile1Buffer.toString());
 
         const res = await request(app)
             .get(`/dataset/${dataset1Id}/view`)
             .set(getAuthHeader(user))
-            .query({ page_number: 2, page_size: 100 });
+            .query({ page_number: 1, page_size: 100 });
         expect(res.status).toBe(200);
-        expect(res.body.current_page).toBe(2);
-        expect(res.body.total_pages).toBe(6);
+        expect(res.body.current_page).toBe(1);
+        expect(res.body.total_pages).toBe(1);
         expect(res.body.page_size).toBe(100);
         expect(res.body.headers).toEqual([
-            { index: 0, name: 'ID', source_type: 'ignore' },
-            { index: 1, name: 'Text', source_type: 'dimension' },
-            { index: 2, name: 'Number', source_type: 'data_values' },
-            { index: 3, name: 'Date', source_type: 'dimension' }
+            { index: -1, name: 'int_line_number', source_type: 'line_number' },
+            { index: 0, name: 'YearCode', source_type: 'unknown' },
+            { index: 1, name: 'AreaCode', source_type: 'unknown' },
+            { index: 2, name: 'Data', source_type: 'unknown' },
+            { index: 3, name: 'RowRef', source_type: 'unknown' },
+            { index: 4, name: 'Measure', source_type: 'unknown' },
+            { index: 5, name: 'NoteCodes', source_type: 'unknown' }
         ]);
-        expect(res.body.data[0]).toEqual(['101', 'GEYiRzLIFM', '774477', '2002-03-13']);
-        expect(res.body.data[99]).toEqual(['200', 'QhBxdmrUPb', '3256099', '2026-12-17']);
-    });
-
-    test('Get file from a dataset, stored in an unknown location, returns 500 and an error message', async () => {
-        const fileImport = await FileImport.findOneBy({ id: import1Id });
-        if (!fileImport) {
-            throw new Error('Import not found');
-        }
-        fileImport.location = DataLocation.Unknown;
-        await FileImport.save(fileImport);
-
-        const res = await request(app)
-            .get(`/dataset/${dataset1Id}/view`)
-            .set(getAuthHeader(user))
-            .query({ page_number: 2, page_size: 100 });
-        expect(res.status).toBe(500);
-        expect(res.body).toEqual({ error: 'Import location not supported' });
-    });
-
-    test('Get file from a dataset, stored in blob storage, returns 500 if the file is empty and an error message', async () => {
-        const fileImport = await FileImport.findOneBy({ id: import1Id });
-        if (!fileImport) {
-            throw new Error('Import not found');
-        }
-        fileImport.location = DataLocation.BlobStorage;
-        await FileImport.save(fileImport);
-        BlobStorageService.prototype.readFile = jest.fn().mockRejectedValue(new Error('File is empty'));
-
-        const res = await request(app)
-            .get(`/dataset/${dataset1Id}/view`)
-            .set(getAuthHeader(user))
-            .query({ page_number: 2, page_size: 100 });
-        expect(res.status).toBe(500);
-        expect(res.body).toEqual({
-            success: false,
-            status: 500,
-            errors: [
-                {
-                    field: 'csv',
-                    message: [
-                        {
-                            lang: Locale.English,
-                            message: t('errors.download_from_blobstorage', { lng: Locale.English })
-                        },
-                        { lang: Locale.Welsh, message: t('errors.download_from_blobstorage', { lng: Locale.Welsh }) }
-                    ],
-                    tag: { name: 'errors.download_from_blobstorage', params: {} }
-                }
-            ],
-            dataset_id: dataset1Id
-        });
+        expect(res.body.data[0]).toEqual([1, 202223, 512, 1.442546584, 2, 2, null]);
+        expect(res.body.data[23]).toEqual([24, 202122, 596, 137527, 1, 1, 't']);
     });
 
     test('Get a dataset view returns 500 if there is no revision on the dataset', async () => {
@@ -163,15 +81,15 @@ describe('API Endpoints for viewing the contents of a dataset', () => {
         expect(res.body).toEqual({ error: 'No revision found for dataset' });
     });
 
-    test('Get a dataset view returns 500 if there is no import on the dataset', async () => {
+    test('Get a dataset view returns 500 if there is no fact table on the dataset', async () => {
         const removeRevisionDatasetID = crypto.randomUUID().toLowerCase();
         const importId = crypto.randomUUID().toLowerCase();
         await createSmallDataset(removeRevisionDatasetID, crypto.randomUUID(), importId, user);
-        const fileImport = await FileImport.findOneBy({ id: importId });
+        const fileImport = await FactTable.findOneBy({ id: importId });
         if (!fileImport) {
             throw new Error('Revision not found... Either it was not created or the test is broken');
         }
-        await FileImport.remove(fileImport);
+        await FactTable.remove(fileImport);
         const res = await request(app)
             .get(`/dataset/${removeRevisionDatasetID}/view`)
             .set(getAuthHeader(user))

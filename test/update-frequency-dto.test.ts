@@ -1,6 +1,5 @@
-import { DurationUnit } from '../enums/duration-unit';
-
-import { UpdateFrequencyDTO } from './update-frequency-dto';
+import { DurationUnit } from '../src/enums/duration-unit';
+import { UpdateFrequencyDTO } from '../src/dtos/update-frequency-dto';
 
 describe('UpdateFrequencyDto', () => {
     describe('toDuration', () => {

@@ -1,15 +1,15 @@
 import { Readable } from 'stream';
 
-import { SourceType } from '../enums/source-type';
+import { FactTableColumnType } from '../enums/fact-table-column-type';
 
 import { Error } from './error';
 import { DatasetDTO } from './dataset-dto';
-import { FileImportDTO } from './file-import-dto';
+import { FactTableDTO } from './fact-table-dto';
 
 export interface CSVHeader {
     index: number;
     name: string;
-    source_type?: SourceType;
+    source_type?: FactTableColumnType;
 }
 
 export interface PageInfo {
@@ -19,19 +19,16 @@ export interface PageInfo {
 }
 
 export interface ViewErrDTO {
-    success: boolean;
     status: number;
     errors: Error[];
     dataset_id: string | undefined;
 }
 
 export interface ViewDTO {
-    success: boolean;
     dataset: DatasetDTO;
-    import: FileImportDTO;
+    fact_table: FactTableDTO;
     current_page: number;
     page_info: PageInfo;
-    pages: (string | number)[];
     page_size: number;
     total_pages: number;
     headers: CSVHeader[];

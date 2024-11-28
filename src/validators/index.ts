@@ -9,7 +9,7 @@ export const datasetIdValidator = () => param('dataset_id').trim().notEmpty().is
 
 export const revisionIdValidator = () => param('revision_id').trim().notEmpty().isUUID(4);
 
-export const importIdValidator = () => param('import_id').trim().notEmpty().isUUID(4);
+export const factTableIdValidator = () => param('fact_table_id').trim().notEmpty().isUUID(4);
 
 export const providerIdValidator = () => param('provider_id').trim().notEmpty().isUUID(4);
 

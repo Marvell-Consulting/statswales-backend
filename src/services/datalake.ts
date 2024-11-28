@@ -9,7 +9,7 @@ import { appConfig } from '../config';
 const logger = parentLogger.child({ module: 'DataLakeService' });
 
 const config = appConfig();
-const { accountName, accountKey, fileSystemName, directoryName } = config.storage.datalake;
+const { accountName, accountKey, fileSystemName } = config.storage.datalake;
 
 export class DataLakeService {
     private readonly serviceClient: DataLakeServiceClient;
@@ -33,11 +33,11 @@ export class DataLakeService {
         await directoryClient.create();
     }
 
-    public async uploadFileStream(fileName: string, fileContent: Readable) {
+    public async uploadFileStream(fileName: string, directory: string, fileContent: Readable) {
         logger.debug(`Uploading file with name '${fileName}' to datalake`);
 
         const fileSystemClient = this.serviceClient.getFileSystemClient(fileSystemName);
-        const directoryClient = fileSystemClient.getDirectoryClient(directoryName);
+        const directoryClient = fileSystemClient.getDirectoryClient(directory);
         const fileClient = directoryClient.getFileClient(fileName);
         // Create the file in the Data Lake
         await fileClient.create();
@@ -52,29 +52,40 @@ export class DataLakeService {
         await fileClient.flush(position);
     }
 
-    public async uploadFile(fileName: string, fileContent: Buffer) {
+    public async uploadFileBuffer(fileName: string, directory: string, fileContent: Buffer) {
         logger.debug(`Uploading file with file '${fileName}' to datalake`);
         const fileSystemClient = this.serviceClient.getFileSystemClient(fileSystemName);
-        const directoryClient = fileSystemClient.getDirectoryClient(directoryName);
+        const directoryClient = fileSystemClient.getDirectoryClient(directory);
         const fileClient = directoryClient.getFileClient(fileName);
-        const body = fileContent.toString();
         await fileClient.create();
-        await fileClient.append(body, 0, fileContent.length);
+        await fileClient.append(fileContent, 0, fileContent.length);
         await fileClient.flush(fileContent.length);
     }
 
-    public async deleteFile(fileName: string) {
+    public async deleteFile(fileName: string, directory: string) {
         const fileSystemClient = this.serviceClient.getFileSystemClient(fileSystemName);
-        const directoryClient = fileSystemClient.getDirectoryClient(directoryName);
+        const directoryClient = fileSystemClient.getDirectoryClient(directory);
         const fileClient = directoryClient.getFileClient(fileName);
 
         await fileClient.delete();
     }
 
-    public async listFiles() {
+    public async deleteDirectoryAndFiles(directory: string) {
+        const fileSystemClient = this.serviceClient.getFileSystemClient(fileSystemName);
+        const directoryClient = fileSystemClient.getDirectoryClient(directory);
+        await directoryClient.delete(true);
+    }
+
+    public async deleteDirectory(directory: string) {
+        const fileSystemClient = this.serviceClient.getFileSystemClient(fileSystemName);
+        const directoryClient = fileSystemClient.getDirectoryClient(directory);
+        await directoryClient.delete(false);
+    }
+
+    public async listFiles(directory: string) {
         const fileSystemClient = this.serviceClient.getFileSystemClient(fileSystemName);
 
-        const files = await fileSystemClient.listPaths({ path: directoryName });
+        const files = await fileSystemClient.listPaths({ path: directory });
         const fileList = [];
         for await (const file of files) {
             if (file.name === undefined) {
@@ -85,9 +96,9 @@ export class DataLakeService {
         return fileList;
     }
 
-    public async downloadFile(fileName: string) {
+    public async getFileBuffer(fileName: string, directory: string) {
         const fileSystemClient = this.serviceClient.getFileSystemClient(fileSystemName);
-        const directoryClient = fileSystemClient.getDirectoryClient(directoryName);
+        const directoryClient = fileSystemClient.getDirectoryClient(directory);
         const fileClient = directoryClient.getFileClient(fileName);
 
         const downloadResponse = await fileClient.read();
@@ -117,12 +128,17 @@ export class DataLakeService {
         return downloaded;
     }
 
-    public async downloadFileStream(fileName: string) {
-        const fileSystemClient = this.serviceClient.getFileSystemClient(fileSystemName);
-        const directoryClient = fileSystemClient.getDirectoryClient(directoryName);
-        const fileClient = directoryClient.getFileClient(fileName);
+    public async getFileStream(fileName: string, directory: string) {
+        try {
+            const fileSystemClient = this.serviceClient.getFileSystemClient(fileSystemName);
+            const directoryClient = fileSystemClient.getDirectoryClient(directory);
+            const fileClient = directoryClient.getFileClient(fileName);
 
-        const downloadResponse = await fileClient.read();
-        return downloadResponse.readableStreamBody as Readable;
+            const downloadResponse = await fileClient.read();
+            return downloadResponse.readableStreamBody as Readable;
+        } catch (error) {
+            logger.error('getFileStream', error);
+            throw error;
+        }
     }
 }

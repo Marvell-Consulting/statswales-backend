@@ -4,7 +4,8 @@ export enum DimensionType {
     Numeric = 'numeric',
     Symbol = 'symbol',
     LookupTable = 'lookup_table',
+    ReferenceData = 'reference_data',
     TimePeriod = 'time_period',
     TimePoint = 'time_point',
-    FootNote = 'footnote'
+    NoteCodes = 'note_codes'
 }

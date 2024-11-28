@@ -33,13 +33,12 @@ export class TasklistStateDTO {
         const info = dataset.datasetInfo?.find((info) => info.language === lang);
 
         const dimensions = dataset.dimensions?.reduce((dimensionStatus: DimensionStatus[], dimension) => {
-            if (dimension.type === DimensionType.FootNote) return dimensionStatus;
+            if (dimension.type === DimensionType.NoteCodes) return dimensionStatus;
 
             const dimInfo: DimensionInfo | undefined = dimension.dimensionInfo.find((i) => lang.includes(i.language));
-            const csvColName = dimension.sources?.find((source) => source.dimension.id === dimension.id)?.csvField;
 
             dimensionStatus.push({
-                name: dimInfo?.name || csvColName || 'unknown',
+                name: dimInfo?.name || 'unknown',
                 status: dimension.type === DimensionType.Raw ? TaskStatus.NotStarted : TaskStatus.Completed
             });
 

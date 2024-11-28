@@ -1,15 +1,13 @@
 import { dataSource } from '../db/data-source';
 import { logger } from '../utils/logger';
-import { FileImport } from '../entities/dataset/file-import';
+import { FactTable } from '../entities/dataset/fact-table';
 import { Revision } from '../entities/dataset/revision';
 
-export const FileImportRepository = dataSource.getRepository(Revision).extend({
-    async getFileImportById(datasetId: string, revisionId: string, importId: string): Promise<FileImport> {
-        logger.debug('Loading FileImport by datasetId, revisionId and importId...');
-
-        const fileImport = await dataSource.getRepository(FileImport).findOneOrFail({
+export const FactTableRepository = dataSource.getRepository(Revision).extend({
+    async getFactTableById(datasetId: string, revisionId: string, factTableId: string): Promise<FactTable> {
+        return dataSource.getRepository(FactTable).findOneOrFail({
             where: {
-                id: importId,
+                id: factTableId,
                 revision: {
                     id: revisionId,
                     dataset: {
@@ -24,10 +22,8 @@ export const FileImportRepository = dataSource.getRepository(Revision).extend({
                         dimensions: true
                     }
                 },
-                sources: true
+                factTableInfo: true
             }
         });
-
-        return fileImport;
     }
 });
