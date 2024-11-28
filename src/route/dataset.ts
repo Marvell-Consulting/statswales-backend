@@ -317,10 +317,10 @@ router.get(
     loadFactTable,
     async (req: Request, res: Response, next: NextFunction) => {
         const { dataset, factTable } = res.locals;
-
+        logger.info('User requested to down files...');
         const dataLakeService = new DataLakeService();
         try {
-            const readable = await dataLakeService.getFileStream(factTable.id, dataset.id);
+            const readable = await dataLakeService.getFileStream(factTable.filename, dataset.id);
             // eslint-disable-next-line @typescript-eslint/naming-convention
             res.writeHead(200, { 'Content-Type': 'text/csv' });
             readable.pipe(res);

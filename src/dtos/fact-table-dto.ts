@@ -8,13 +8,14 @@ export class FactTableDTO {
     revision_id: string;
     mime_type: string;
     filename: string;
+    original_filename: string;
     file_type: string;
     hash: string;
     uploaded_at?: string;
     delimiter: string;
     quote: string;
     linebreak: string;
-    fact_table_info?: FactTableInfoDto[];
+    fact_table_info: FactTableInfoDto[];
 
     static fromFactTable(fileImport: FactTable): FactTableDTO {
         const dto = new FactTableDTO();
@@ -22,6 +23,7 @@ export class FactTableDTO {
         dto.revision_id = fileImport.revision?.id;
         dto.mime_type = fileImport.mimeType;
         dto.filename = fileImport.filename;
+        dto.original_filename = fileImport.originalFilename;
         dto.file_type = fileImport.fileType;
         dto.hash = fileImport.hash;
         dto.uploaded_at = fileImport.uploadedAt?.toISOString();

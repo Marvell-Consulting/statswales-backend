@@ -129,11 +129,16 @@ export class DataLakeService {
     }
 
     public async getFileStream(fileName: string, directory: string) {
-        const fileSystemClient = this.serviceClient.getFileSystemClient(fileSystemName);
-        const directoryClient = fileSystemClient.getDirectoryClient(directory);
-        const fileClient = directoryClient.getFileClient(fileName);
+        try {
+            const fileSystemClient = this.serviceClient.getFileSystemClient(fileSystemName);
+            const directoryClient = fileSystemClient.getDirectoryClient(directory);
+            const fileClient = directoryClient.getFileClient(fileName);
 
-        const downloadResponse = await fileClient.read();
-        return downloadResponse.readableStreamBody as Readable;
+            const downloadResponse = await fileClient.read();
+            return downloadResponse.readableStreamBody as Readable;
+        } catch (error) {
+            logger.error('getFileStream', error);
+            throw error;
+        }
     }
 }
