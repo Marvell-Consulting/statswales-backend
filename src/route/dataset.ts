@@ -7,6 +7,7 @@ import express, { NextFunction, Request, Response, Router } from 'express';
 import multer from 'multer';
 import { FieldValidationError } from 'express-validator';
 import { FindOptionsRelations } from 'typeorm';
+import { t } from 'i18next';
 
 import { logger } from '../utils/logger';
 import { ViewDTO, ViewErrDTO, ViewStream } from '../dtos/view-dto';
@@ -319,27 +320,49 @@ router.get(
         const { dataset, factTable } = res.locals;
         logger.info('User requested to down files...');
         const dataLakeService = new DataLakeService();
+        let readable: Readable;
         try {
-            const readable = await dataLakeService.getFileStream(factTable.filename, dataset.id);
-            // eslint-disable-next-line @typescript-eslint/naming-convention
-            res.writeHead(200, { 'Content-Type': 'text/csv' });
-            readable.pipe(res);
-
-            // Handle errors in the file stream
-            readable.on('error', (err) => {
-                logger.error('File stream error:', err);
-                // eslint-disable-next-line @typescript-eslint/naming-convention
-                res.writeHead(500, { 'Content-Type': 'text/plain' });
-                res.end('Server Error');
-            });
-
-            // Optionally listen for the end of the stream
-            readable.on('end', () => {
-                logger.debug('File stream ended');
-            });
+            readable = await dataLakeService.getFileStream(factTable.filename, dataset.id);
         } catch (error) {
             res.status(500);
+            res.json({
+                status: 500,
+                errors: [
+                    {
+                        field: 'csv',
+                        message: [
+                            {
+                                lang: Locale.English,
+                                message: t('errors.download_from_datalake', { lng: Locale.English })
+                            },
+                            {
+                                lang: Locale.Welsh,
+                                message: t('errors.download_from_datalake', { lng: Locale.Welsh })
+                            }
+                        ],
+                        tag: { name: 'errors.download_from_datalake', params: {} }
+                    }
+                ],
+                dataset_id: dataset.id
+            });
+            return;
         }
+        // eslint-disable-next-line @typescript-eslint/naming-convention
+        res.writeHead(200, { 'Content-Type': 'text/csv' });
+        readable.pipe(res);
+
+        // Handle errors in the file stream
+        readable.on('error', (err) => {
+            logger.error('File stream error:', err);
+            // eslint-disable-next-line @typescript-eslint/naming-convention
+            res.writeHead(500, { 'Content-Type': 'text/plain' });
+            res.end('Server Error');
+        });
+
+        // Optionally listen for the end of the stream
+        readable.on('end', () => {
+            logger.debug('File stream ended');
+        });
     }
 );
 

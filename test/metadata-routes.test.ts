@@ -2,6 +2,8 @@ import path from 'path';
 import fs from 'fs';
 
 import request from 'supertest';
+import { t } from 'i18next';
+import { DataLakeDirectoryClient } from '@azure/storage-file-datalake';
 
 import { DataLakeService } from '../src/services/datalake';
 import app, { initDb } from '../src/app';
@@ -15,6 +17,7 @@ import DatabaseManager from '../src/db/database-manager';
 import { DatasetRepository } from '../src/repositories/dataset';
 import { FactTableRepository } from '../src/repositories/fact-table';
 import { FactTableDTO } from '../src/dtos/fact-table-dto';
+import { Locale } from '../src/enums/locale';
 
 import { createFullDataset } from './helpers/test-helper';
 import { getTestUser } from './helpers/get-user';
@@ -234,36 +237,33 @@ describe('API Endpoints for viewing dataset objects', () => {
                 expect(res.text).toEqual(testFile2Buffer.toString());
             });
 
-            // test('Get file from a revision and import returns 500 if an error with the Data Lake occurs', async () => {
-            //     DataLakeService.prototype.getFileStream = jest
-            //         .fn()
-            //         .mockRejectedValue(new Error('Unknown Data Lake Error'));
-            //     const res = await request(app)
-            //         .get(`/dataset/${dataset1Id}/revision/by-id/${revision1Id}/fact-table/by-id/${import1Id}/raw`)
-            //         .set(getAuthHeader(user));
-            //     expect(res.status).toBe(500);
-            //     expect(res.body).toEqual({
-            //         success: false,
-            //         status: 500,
-            //         errors: [
-            //             {
-            //                 field: 'csv',
-            //                 message: [
-            //                     {
-            //                         lang: Locale.English,
-            //                         message: t('errors.download_from_datalake', { lng: Locale.English })
-            //                     },
-            //                     {
-            //                         lang: Locale.Welsh,
-            //                         message: t('errors.download_from_datalake', { lng: Locale.Welsh })
-            //                     }
-            //                 ],
-            //                 tag: { name: 'errors.download_from_datalake', params: {} }
-            //             }
-            //         ],
-            //         dataset_id: dataset1Id
-            //     });
-            // });
+            test('Get file from a revision and import returns 500 if an error with the Data Lake occurs', async () => {
+                DataLakeService.prototype.getFileStream = jest.fn().mockRejectedValue(Error('Unknown Data Lake Error'));
+                const res = await request(app)
+                    .get(`/dataset/${dataset1Id}/revision/by-id/${revision1Id}/fact-table/by-id/${import1Id}/raw`)
+                    .set(getAuthHeader(user));
+                expect(res.status).toBe(500);
+                expect(res.body).toEqual({
+                    status: 500,
+                    errors: [
+                        {
+                            field: 'csv',
+                            message: [
+                                {
+                                    lang: Locale.English,
+                                    message: t('errors.download_from_datalake', { lng: Locale.English })
+                                },
+                                {
+                                    lang: Locale.Welsh,
+                                    message: t('errors.download_from_datalake', { lng: Locale.Welsh })
+                                }
+                            ],
+                            tag: { name: 'errors.download_from_datalake', params: {} }
+                        }
+                    ],
+                    dataset_id: dataset1Id
+                });
+            });
         });
     });
 
