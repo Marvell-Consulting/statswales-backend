@@ -11,10 +11,7 @@ export class Topic extends BaseEntity {
     // For root topics, the path is just the id, e.g. if id = 1, then the path is '1'
     // For child topics, the path contains the parent topic ids, e.g. for a topic with
     // grandparent id 1, parent id of 12 and an id of 57, then the path is '1.12.57'
-    // This uses the ltree type in PostgreSQL, but we could just use text if we don't need the extra features
-    // See https://www.postgresql.org/docs/current/ltree.html
-    // and https://patshaughnessy.net/2017/12/13/saving-a-tree-in-postgres-using-ltree
-    @Column({ name: 'path', type: 'ltree', nullable: false })
+    @Column({ name: 'path', type: 'text', nullable: false })
     path: string;
 
     @Column({ name: 'name_en', type: 'text', nullable: true })
