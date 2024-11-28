@@ -1,4 +1,4 @@
-import { FindOneOptions, FindOptionsRelations } from 'typeorm';
+import { DeepPartial, FindOneOptions, FindOptionsRelations } from 'typeorm';
 import { has } from 'lodash';
 
 import { dataSource } from '../db/data-source';
@@ -11,6 +11,7 @@ import { Locale } from '../enums/locale';
 import { DatasetInfoDTO } from '../dtos/dataset-info-dto';
 import { DatasetProviderDTO } from '../dtos/dataset-provider-dto';
 import { DatasetProvider } from '../entities/dataset/dataset-provider';
+import { DatasetTopic } from '../entities/dataset/dataset-topic';
 
 const defaultRelations: FindOptionsRelations<Dataset> = {
     createdBy: true,
@@ -27,6 +28,9 @@ const defaultRelations: FindOptionsRelations<Dataset> = {
     datasetProviders: {
         provider: true,
         providerSource: true
+    },
+    datasetTopics: {
+        topic: true
     }
 };
 
@@ -145,6 +149,21 @@ export const DatasetRepository = dataSource.getRepository(Dataset).extend({
         logger.debug(
             `Removed ${toRemove.length} providers and updated ${toUpdate.length} providers for dataset ${datasetId}`
         );
+
+        return this.getById(datasetId);
+    },
+
+    async updateDatasetTopics(datasetId: string, topics: string[]): Promise<Dataset> {
+        // remove any existing topic relations
+        const existing = await dataSource.getRepository(DatasetTopic).findBy({ datasetId });
+        await dataSource.getRepository(DatasetTopic).remove(existing);
+
+        // save the new topic relations
+        const datasetTopics = topics.map((topicId: string) => {
+            return dataSource.getRepository(DatasetTopic).create({ datasetId, topicId: parseInt(topicId, 10) });
+        });
+
+        await dataSource.getRepository(DatasetTopic).save(datasetTopics);
 
         return this.getById(datasetId);
     }

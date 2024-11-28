@@ -3,11 +3,13 @@ import { Dimension } from '../entities/dataset/dimension';
 import { Revision } from '../entities/dataset/revision';
 import { DatasetInfo } from '../entities/dataset/dataset-info';
 import { DatasetProvider } from '../entities/dataset/dataset-provider';
+import { DatasetTopic } from '../entities/dataset/dataset-topic';
 
 import { DimensionDTO } from './dimension-dto';
 import { RevisionDTO } from './revision-dto';
 import { DatasetInfoDTO } from './dataset-info-dto';
 import { DatasetProviderDTO } from './dataset-provider-dto';
+import { DatasetTopicDTO } from './dataset-topic-dto';
 
 export class DatasetDTO {
     id: string;
@@ -19,6 +21,7 @@ export class DatasetDTO {
     revisions: RevisionDTO[];
     datasetInfo: DatasetInfoDTO[];
     providers: DatasetProviderDTO[];
+    topics: DatasetTopicDTO[];
 
     static fromDataset(dataset: Dataset): DatasetDTO {
         const dto = new DatasetDTO();
@@ -34,6 +37,10 @@ export class DatasetDTO {
 
         dto.providers = dataset.datasetProviders?.map((datasetProvider: DatasetProvider) =>
             DatasetProviderDTO.fromDatasetProvider(datasetProvider)
+        );
+
+        dto.topics = dataset.datasetTopics?.map((datasetTopic: DatasetTopic) =>
+            DatasetTopicDTO.fromDatasetTopic(datasetTopic)
         );
 
         return dto;
