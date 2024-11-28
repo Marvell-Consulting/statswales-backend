@@ -1,7 +1,7 @@
 import { DimensionInfo } from '../entities/dataset/dimension-info';
 
 export class DimensionInfoDTO {
-    language?: string;
+    language: string;
     name: string;
     description?: string;
     notes?: string;

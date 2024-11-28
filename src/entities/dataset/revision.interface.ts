@@ -1,7 +1,7 @@
 import { User } from '../user/user';
 
 import { Dataset } from './dataset';
-import { FileImport } from './file-import';
+import { FactTable } from './fact-table';
 
 export interface RevisionInterface {
     id: string;
@@ -9,7 +9,7 @@ export interface RevisionInterface {
     dataset: Dataset;
     previousRevision: RevisionInterface;
     onlineCubeFilename: string;
-    imports: FileImport[];
+    factTables: FactTable[];
     createdAt: Date;
     createdBy: User;
     approvedAt: Date;

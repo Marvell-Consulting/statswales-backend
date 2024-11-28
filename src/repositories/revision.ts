@@ -3,13 +3,13 @@ import { Not, IsNull } from 'typeorm';
 import { dataSource } from '../db/data-source';
 import { logger } from '../utils/logger';
 import { Dataset } from '../entities/dataset/dataset';
-import { FileImport } from '../entities/dataset/file-import';
+import { FactTable } from '../entities/dataset/fact-table';
 import { Revision } from '../entities/dataset/revision';
 import { User } from '../entities/user/user';
 
 export const RevisionRepository = dataSource.getRepository(Revision).extend({
-    async createFromImport(dataset: Dataset, fileImport: FileImport, user: User): Promise<Revision> {
-        logger.debug(`Creating new Revision for Dataset "${dataset.id}" from Import "${fileImport.id}"...`);
+    async createFromImport(dataset: Dataset, fileImport: FactTable, user: User): Promise<Revision> {
+        logger.debug(`Creating new Revision for Dataset "${dataset.id}" from FactTable "${fileImport.id}"...`);
 
         const unpublishedRevisions = await dataSource
             .getRepository(Revision)
@@ -32,7 +32,7 @@ export const RevisionRepository = dataSource.getRepository(Revision).extend({
                 dataset,
                 previousRevision: lastPublishedRevision || undefined,
                 revisionIndex: (lastPublishedRevision?.revisionIndex || 0) + 1,
-                imports: [fileImport],
+                factTables: [fileImport],
                 createdBy: user
             })
             .save();

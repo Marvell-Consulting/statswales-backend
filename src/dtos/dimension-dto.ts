@@ -1,34 +1,36 @@
 import { DimensionInfo } from '../entities/dataset/dimension-info';
 import { Dimension } from '../entities/dataset/dimension';
-import { Source } from '../entities/dataset/source';
+import { DimensionType } from '../enums/dimension-type';
 
-import { SourceDTO } from './source-dto';
 import { DimensionInfoDTO } from './dimension-info-dto';
+import { LookupTableDTO } from './lookup-table-dto';
 
 export class DimensionDTO {
     id: string;
-    type: string;
-    start_revision_id: string;
-    finish_revision_id?: string;
-    validator?: string;
-    sources?: SourceDTO[];
+    dataset_id: string;
+    type: DimensionType;
+    extractor?: object;
+    joinColumn?: string; // <-- Tells you have to join the dimension to the fact_table
+    factTableColumn: string; // <-- Tells you which column in the fact table you're joining to
+    isSliceDimension: boolean;
+    lookupTable?: LookupTableDTO;
     dimensionInfo?: DimensionInfoDTO[];
-    dataset_id?: string;
 
     static fromDimension(dimension: Dimension): DimensionDTO {
         const dimDto = new DimensionDTO();
         dimDto.id = dimension.id;
         dimDto.type = dimension.type;
-        dimDto.start_revision_id = dimension.startRevision?.id;
-        dimDto.finish_revision_id = dimension.finishRevision?.id;
-        dimDto.validator = dimension.validator;
+        dimDto.extractor = dimension.extractor;
+        dimDto.lookupTable = dimension?.lookupTable
+            ? LookupTableDTO.fromLookupTable(dimension?.lookupTable)
+            : undefined;
+        dimDto.joinColumn = dimension.joinColumn;
+        dimDto.factTableColumn = dimension.factTableColumn;
+        dimDto.isSliceDimension = dimension.isSliceDimension;
 
         dimDto.dimensionInfo = dimension.dimensionInfo?.map((dimInfo: DimensionInfo) => {
             return DimensionInfoDTO.fromDimensionInfo(dimInfo);
         });
-
-        dimDto.sources = dimension.sources?.map((source: Source) => SourceDTO.fromSource(source));
-
         return dimDto;
     }
 }

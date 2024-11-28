@@ -21,8 +21,8 @@ const defaultRelations: FindOptionsRelations<Dataset> = {
     },
     revisions: {
         createdBy: true,
-        imports: {
-            sources: true
+        factTables: {
+            factTableInfo: true
         }
     },
     datasetProviders: {
@@ -38,9 +38,9 @@ export const DatasetRepository = dataSource.getRepository(Dataset).extend({
     async getById(id: string, relations: FindOptionsRelations<Dataset> = defaultRelations): Promise<Dataset> {
         const findOptions: FindOneOptions<Dataset> = { where: { id }, relations };
 
-        if (has(relations, 'revisions.imports.sources')) {
+        if (has(relations, 'revisions.factTables.factTableInfo')) {
             // sort sources by column index if they're requested
-            findOptions.order = { revisions: { imports: { sources: { columnIndex: 'ASC' } } } };
+            findOptions.order = { revisions: { factTables: { factTableInfo: { columnIndex: 'ASC' } } } };
         }
 
         return this.findOneOrFail(findOptions);
@@ -93,8 +93,8 @@ export const DatasetRepository = dataSource.getRepository(Dataset).extend({
             .select(['d.id as id', 'di.title as title'])
             .innerJoin('d.datasetInfo', 'di')
             .innerJoin('d.revisions', 'r')
-            .innerJoin('r.imports', 'i')
-            .where('di.language ILIKE :lang', { lang: `${lang}%` })
+            .innerJoin('r.factTables', 'i')
+            .where('di.language LIKE :lang', { lang: `${lang}%` })
             .groupBy('d.id, di.title')
             .orderBy('d.createdAt', 'ASC');
 

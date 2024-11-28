@@ -1,26 +1,23 @@
 import { createHash, randomUUID } from 'node:crypto';
-import { Readable } from 'stream';
+import fs from 'fs';
 
-import { parse } from 'csv';
+import { Database, TableData } from 'duckdb-async';
+import tmp from 'tmp';
 
 import { i18next } from '../middleware/translation';
 import { logger as parentLogger } from '../utils/logger';
-import { DatasetDTO } from '../dtos/dataset-dto';
-import { FileImportDTO } from '../dtos/file-import-dto';
-import { Error } from '../dtos/error';
-import { CSVHeader, ViewDTO, ViewErrDTO, ViewStream } from '../dtos/view-dto';
-import { Dataset } from '../entities/dataset/dataset';
-import { Revision } from '../entities/dataset/revision';
-import { Source } from '../entities/dataset/source';
-import { FileImport } from '../entities/dataset/file-import';
-import { SourceAction } from '../enums/source-action';
-import { ImportType } from '../enums/import-type';
-import { DataLocation } from '../enums/data-location';
-import { Locale } from '../enums/locale';
-import { SourceType } from '../enums/source-type';
-import { BlobStorageService } from '../services/blob-storage';
 import { DataLakeService } from '../services/datalake';
+import { FactTable } from '../entities/dataset/fact-table';
+import { Dataset } from '../entities/dataset/dataset';
+import { CSVHeader, ViewDTO, ViewErrDTO } from '../dtos/view-dto';
+import { FactTableColumnType } from '../enums/fact-table-column-type';
 import { DatasetRepository } from '../repositories/dataset';
+import { DatasetDTO } from '../dtos/dataset-dto';
+import { FactTableDTO } from '../dtos/fact-table-dto';
+import { Error } from '../dtos/error';
+import { Locale } from '../enums/locale';
+import { FileType } from '../enums/file-type';
+import { FactTableInfo } from '../entities/dataset/fact-table-info';
 
 export const MAX_PAGE_SIZE = 500;
 export const MIN_PAGE_SIZE = 5;
@@ -29,45 +26,16 @@ export const DEFAULT_PAGE_SIZE = 100;
 const t = i18next.t;
 const logger = parentLogger.child({ module: 'CSVProcessor' });
 
-function hashReadableStream(stream: Readable, algorithm = 'sha256'): Promise<string> {
-    return new Promise((resolve, reject) => {
-        const hash = createHash(algorithm);
-        stream.on('data', (chunk) => {
-            hash.update(chunk);
-        });
-        stream.on('end', () => {
-            resolve(hash.digest('hex'));
-        });
-        stream.on('error', (err) => {
-            reject(err);
-        });
-    });
-}
-
-function paginate<T>(array: T[], page_number: number, page_size: number): T[] {
-    const page = array.slice((page_number - 1) * page_size, page_number * page_size);
-    return page;
-}
-
 function validatePageSize(page_size: number): boolean {
-    if (page_size > MAX_PAGE_SIZE || page_size < MIN_PAGE_SIZE) {
-        return false;
-    }
-    return true;
+    return !(page_size > MAX_PAGE_SIZE || page_size < MIN_PAGE_SIZE);
 }
 
 function validatePageNumber(page_number: number): boolean {
-    if (page_number < 1) {
-        return false;
-    }
-    return true;
+    return page_number >= 1;
 }
 
 function validatMaxPageNumber(page_number: number, max_page_number: number): boolean {
-    if (page_number > max_page_number) {
-        return false;
-    }
-    return true;
+    return page_number <= max_page_number;
 }
 
 function validateParams(page_number: number, max_page_number: number, page_size: number): Error[] {
@@ -131,204 +99,239 @@ function validateParams(page_number: number, max_page_number: number, page_size:
     return errors;
 }
 
-export const uploadCSVToBlobStorage = async (fileStream: Readable, filetype: string): Promise<FileImport> => {
-    const blobStorageService = new BlobStorageService();
-    if (!fileStream) {
+export async function extractTableInformation(fileBuffer: Buffer, fileType: FileType): Promise<FactTableInfo[]> {
+    const tableName = 'preview_table';
+    const quack = await Database.create(':memory:');
+    const tempFile = tmp.fileSync({ postfix: `.${fileType}` });
+    let tableHeaders: TableData;
+    let createTableQuery: string;
+    fs.writeFileSync(tempFile.name, fileBuffer);
+    switch (fileType) {
+        case FileType.Csv:
+        case FileType.GzipCsv:
+            createTableQuery = `CREATE TABLE ${tableName} AS SELECT * FROM read_csv('${tempFile.name}', auto_type_candidates = ['BOOLEAN', 'BIGINT', 'DOUBLE', 'VARCHAR']);`;
+            break;
+        case FileType.Parquet:
+            createTableQuery = `CREATE TABLE ${tableName} AS SELECT * FROM '${tempFile.name}';`;
+            break;
+        case FileType.Json:
+        case FileType.GzipJson:
+            createTableQuery = `CREATE TABLE ${tableName} AS SELECT * FROM read_json_auto('${tempFile.name}');`;
+            break;
+        case FileType.Excel:
+            await quack.exec('INSTALL spatial;');
+            await quack.exec('LOAD spatial;');
+            createTableQuery = `CREATE TABLE ${tableName} AS SELECT * FROM st_read('${tempFile.name}');`;
+            break;
+        default:
+            throw new Error('Unknown file type');
+    }
+    try {
+        await quack.exec(createTableQuery);
+        tableHeaders = await quack.all(
+            `SELECT (row_number() OVER ())-1 as index, column_name FROM (DESCRIBE ${tableName});`
+        );
+    } catch (error) {
+        logger.error(`Something went wrong trying to read the users file with the following error: ${error}`);
+        throw error;
+    } finally {
+        await quack.close();
+        tempFile.removeCallback();
+    }
+    if (tableHeaders.length === 0) {
+        throw new Error('This file does not appear to contain any tabular data');
+    }
+    if (tableHeaders.length === 1 && fileType === FileType.Csv) {
+        throw new Error('Unable to process CSV... The resulting read resulted in only one column');
+    }
+    return tableHeaders.map((header) => {
+        const info = new FactTableInfo();
+        info.columnName = header.column_name;
+        info.columnIndex = header.index;
+        info.columnType = FactTableColumnType.Unknown;
+        return info;
+    });
+}
+
+// Required Methods for refactor
+export const uploadCSV = async (
+    fileBuffer: Buffer,
+    filetype: string,
+    originalName: string,
+    datasetId: string
+): Promise<FactTable> => {
+    const dataLakeService = new DataLakeService();
+    if (!fileBuffer) {
         logger.error('No buffer to upload to blob storage');
         throw new Error('No buffer to upload to blob storage');
     }
-    const importRecord = new FileImport();
-    importRecord.id = randomUUID().toLowerCase();
-    importRecord.mimeType = filetype;
-    const extension = filetype === 'text/csv' ? 'csv' : 'zip';
-    importRecord.filename = `${importRecord.id}.${extension}`;
+    const factTable = new FactTable();
+    factTable.id = randomUUID().toLowerCase();
+    factTable.mimeType = filetype;
+    factTable.originalFilename = originalName;
+    let extension: string;
+    switch (filetype) {
+        case 'application/csv':
+        case 'text/csv':
+            extension = 'csv';
+            factTable.fileType = FileType.Csv;
+            factTable.delimiter = ',';
+            factTable.quote = '"';
+            factTable.linebreak = '\n';
+            break;
+        case 'application/vnd.apache.parquet':
+        case 'application/parquet':
+            extension = 'parquet';
+            factTable.fileType = FileType.Parquet;
+            break;
+        case 'application/json':
+            extension = 'json';
+            factTable.fileType = FileType.Json;
+            break;
+        case 'application/vnd.ms-excel':
+        case 'application/msexcel':
+        case 'application/x-msexcel':
+        case 'application/x-ms-excel':
+        case 'application/x-excel':
+        case 'application/x-dos_ms_excel':
+        case 'application/xls':
+        case 'application/x-xls':
+        case 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet':
+            extension = 'xlsx';
+            factTable.fileType = FileType.Excel;
+            break;
+        case 'application/x-gzip':
+            switch (originalName.split('.').reverse()[1]) {
+                case 'json':
+                    extension = 'json.gz';
+                    factTable.fileType = FileType.GzipJson;
+                    break;
+                case 'csv':
+                    extension = 'csv.gz';
+                    factTable.delimiter = ',';
+                    factTable.quote = '"';
+                    factTable.linebreak = '\n';
+                    factTable.fileType = FileType.GzipCsv;
+                    break;
+                default:
+                    throw new Error(`unsupported format ${originalName.split('.').reverse()[1]}`);
+            }
+            break;
+        default:
+            logger.error(`A user uploaded a file with a mimetype of ${filetype} which is known.`);
+            throw new Error('File type has not been recognised.');
+    }
+    let factTableDescriptions: FactTableInfo[];
     try {
-        const promisedHash = hashReadableStream(fileStream)
-            .then((hash) => {
-                return hash.toString();
-            })
-            .catch((error) => {
-                throw new Error(`Error hashing stream: ${error}`);
-            });
-        await blobStorageService.uploadFile(`${importRecord.filename}`, fileStream);
-        const resolvedHash = await promisedHash;
-        if (resolvedHash) importRecord.hash = resolvedHash;
-        importRecord.uploadedAt = new Date();
-        importRecord.type = ImportType.Draft;
-        importRecord.location = DataLocation.BlobStorage;
-        return importRecord;
+        factTableDescriptions = await extractTableInformation(fileBuffer, factTable.fileType);
+    } catch (error) {
+        logger.error(`Something went wrong trying to read the users file with the following error: ${error}`);
+        throw error;
+    }
+    factTable.factTableInfo = factTableDescriptions;
+    factTable.filename = `${factTable.id}.${extension}`;
+    const hash = createHash('sha256');
+    hash.update(fileBuffer);
+    try {
+        await dataLakeService.createDirectory(datasetId);
+        await dataLakeService.uploadFileBuffer(factTable.filename, datasetId, fileBuffer);
     } catch (err) {
-        logger.error(err);
-        throw new Error('Error processing file upload to blob storage');
+        logger.error(
+            `Something went wrong trying to upload the file to the Data Lake with the following error: ${err}`
+        );
+        throw new Error('Error processing file upload to Data Lake');
     }
+    factTable.hash = hash.digest('hex');
+    factTable.uploadedAt = new Date();
+    return factTable;
 };
 
-export const uploadCSVBufferToBlobStorage = async (fileBuffer: Buffer, filetype: string): Promise<FileImport> => {
-    const fileStream = Readable.from(fileBuffer);
-    const importRecord: FileImport = await uploadCSVToBlobStorage(fileStream, filetype);
-    return importRecord;
-};
-
-function setupPagination(page: number, total_pages: number): (string | number)[] {
-    const pages = [];
-    if (page !== 1) pages.push('previous');
-    if (page - 1 > 0) pages.push(page - 1);
-    pages.push(page);
-    if (page + 1 <= total_pages) pages.push(page + 1);
-    if (page < total_pages) pages.push('next');
-    return pages;
-}
-
-async function processCSVData(
-    buffer: Buffer,
-    page: number,
-    size: number,
+export const getCSVPreview = async (
     dataset: Dataset,
-    importObj: FileImport
-): Promise<ViewDTO | ViewErrDTO> {
-    const dataArray: string[][] = (await parse(buffer, {
-        delimiter: ','
-    }).toArray()) as string[][];
-    const csvheaders = dataArray.shift();
-    if (!csvheaders) {
-        return {
-            success: false,
-            status: 400,
-            errors: [
-                {
-                    field: 'csv',
-                    message: [
-                        { lang: Locale.English, message: t('errors.csv_headers', { lng: Locale.English }) },
-                        { lang: Locale.Welsh, message: t('errors.csv_headers', { lng: Locale.Welsh }) }
-                    ],
-                    tag: { name: 'errors.csv_headers', params: {} }
-                }
-            ],
-            dataset_id: dataset.id
-        };
-    }
-    const headers: CSVHeader[] = [];
-    for (let i = 0; i < csvheaders.length; i++) {
-        headers.push({
-            index: i,
-            name: csvheaders[i],
-            source_type: importObj.sources.find((source) => source.columnIndex === i)?.type ?? SourceType.Unknown
-        });
-    }
-    const totalPages = Math.ceil(dataArray.length / size);
-    const errors = validateParams(page, totalPages, size);
-    if (errors.length > 0) {
-        return {
-            success: false,
-            status: 400,
-            errors,
-            dataset_id: dataset.id
-        };
-    }
-
-    const csvdata = paginate(dataArray, page, size);
-    const pages = setupPagination(page, totalPages);
-    const end_record = () => {
-        if (size > dataArray.length) {
-            return dataArray.length;
-        } else if (page === totalPages) {
-            return dataArray.length;
-        } else {
-            return page * size;
+    importObj: FactTable,
+    page: number,
+    size: number
+): Promise<ViewDTO | ViewErrDTO> => {
+    const tableName = 'preview_table';
+    const quack = await Database.create(':memory:');
+    const tempFile = tmp.fileSync({ postfix: `.${importObj.fileType}` });
+    try {
+        const dataLakeService = new DataLakeService();
+        const fileBuffer = await dataLakeService.getFileBuffer(importObj.filename, dataset.id);
+        fs.writeFileSync(tempFile.name, fileBuffer);
+        let createTableQuery: string;
+        switch (importObj.fileType) {
+            case FileType.Csv:
+            case FileType.GzipCsv:
+                createTableQuery = `CREATE TABLE ${tableName} AS SELECT * FROM read_csv('${tempFile.name}', auto_type_candidates = ['BOOLEAN', 'BIGINT', 'DOUBLE', 'VARCHAR']);`;
+                break;
+            case FileType.Parquet:
+                createTableQuery = `CREATE TABLE ${tableName} AS SELECT * FROM '${tempFile.name}';`;
+                break;
+            case FileType.Json:
+            case FileType.GzipJson:
+                createTableQuery = `CREATE TABLE ${tableName} AS SELECT * FROM read_json_auto('${tempFile.name}');`;
+                break;
+            case FileType.Excel:
+                await quack.exec('INSTALL spatial;');
+                await quack.exec('LOAD spatial;');
+                createTableQuery = `CREATE TABLE ${tableName} AS SELECT * FROM st_read('${tempFile.name}');`;
+                break;
+            default:
+                throw new Error('Unknown file type');
         }
-    };
-    const currentDataset = await DatasetRepository.getById(dataset.id);
-    const currentImport = await FileImport.findOneByOrFail({ id: importObj.id });
-    return {
-        success: true,
-        dataset: DatasetDTO.fromDataset(currentDataset),
-        import: FileImportDTO.fromImport(currentImport),
-        current_page: page,
-        page_info: {
-            total_records: dataArray.length,
-            start_record: (page - 1) * size + 1,
-            end_record: end_record()
-        },
-        pages,
-        page_size: size,
-        total_pages: totalPages,
-        headers,
-        data: csvdata
-    };
-}
-
-export const getFileFromDataLake = async (
-    dataset: Dataset,
-    importObj: FileImport
-): Promise<ViewStream | ViewErrDTO> => {
-    const datalakeService = new DataLakeService();
-    let stream: Readable;
-    try {
-        stream = await datalakeService.downloadFileStream(importObj.filename);
-    } catch (err) {
-        logger.error(err);
+        await quack.exec(createTableQuery);
+        const totalsQuery = `SELECT count(*) as totalLines, ceil(count(*)/${size}) as totalPages from ${tableName};`;
+        const totals = await quack.all(totalsQuery);
+        const totalPages = Number(totals[0].totalPages);
+        const totalLines = Number(totals[0].totalLines);
+        const errors = validateParams(page, totalPages, size);
+        if (errors.length > 0) {
+            return {
+                status: 400,
+                errors,
+                dataset_id: dataset.id
+            };
+        }
+        const previewQuery = `SELECT int_line_number, * from (SELECT row_number() OVER () as int_line_number, * FROM ${tableName}) LIMIT ${size} OFFSET ${(page - 1) * size}`;
+        const preview = await quack.all(previewQuery);
+        const startLine = Number(preview[0].int_line_number);
+        const lastLine = Number(preview[preview.length - 1].int_line_number);
+        const tableHeaders = Object.keys(preview[0]);
+        const dataArray = preview.map((row) => Object.values(row));
+        const currentDataset = await DatasetRepository.getById(dataset.id);
+        const currentImport = await FactTable.findOneByOrFail({ id: importObj.id });
+        const headers: CSVHeader[] = [];
+        for (let i = 0; i < tableHeaders.length; i++) {
+            let sourceType: FactTableColumnType;
+            if (tableHeaders[i] === 'int_line_number') sourceType = FactTableColumnType.LineNumber;
+            else
+                sourceType =
+                    importObj.factTableInfo.find((info) => info.columnName === tableHeaders[i])?.columnType ??
+                    FactTableColumnType.Unknown;
+            headers.push({
+                index: i - 1,
+                name: tableHeaders[i],
+                source_type: sourceType
+            });
+        }
         return {
-            success: false,
-            status: 500,
-            errors: [
-                {
-                    field: 'csv',
-                    message: [
-                        { lang: Locale.English, message: t('errors.download_from_datalake', { lng: Locale.English }) },
-                        { lang: Locale.Welsh, message: t('errors.download_from_datalake', { lng: Locale.Welsh }) }
-                    ],
-                    tag: { name: 'errors.download_from_datalake', params: {} }
-                }
-            ],
-            dataset_id: dataset.id
+            dataset: DatasetDTO.fromDataset(currentDataset),
+            fact_table: FactTableDTO.fromFactTable(currentImport),
+            current_page: page,
+            page_info: {
+                total_records: totalLines,
+                start_record: startLine,
+                end_record: lastLine
+            },
+            page_size: size,
+            total_pages: totalPages,
+            headers,
+            data: dataArray
         };
-    }
-    return { success: true, stream };
-};
-
-export const processCSVFromDatalake = async (
-    dataset: Dataset,
-    importObj: FileImport,
-    page: number,
-    size: number
-): Promise<ViewErrDTO | ViewDTO> => {
-    const datalakeService = new DataLakeService();
-    let buff: Buffer;
-    try {
-        buff = await datalakeService.downloadFile(importObj.filename);
-    } catch (err) {
-        logger.error(err);
+    } catch (error) {
+        logger.error(error);
         return {
-            success: false,
-            status: 500,
-            errors: [
-                {
-                    field: 'csv',
-                    message: [
-                        { lang: Locale.English, message: t('errors.download_from_datalake', { lng: Locale.English }) },
-                        { lang: Locale.Welsh, message: t('errors.download_from_datalake', { lng: Locale.Welsh }) }
-                    ],
-                    tag: { name: 'errors.download_from_datalake', params: {} }
-                }
-            ],
-            dataset_id: dataset.id
-        };
-    }
-    return processCSVData(buff, page, size, dataset, importObj);
-};
-
-export const getFileFromBlobStorage = async (
-    dataset: Dataset,
-    importObj: FileImport
-): Promise<ViewStream | ViewErrDTO> => {
-    const blobStoageService = new BlobStorageService();
-    let stream: Readable;
-    try {
-        stream = await blobStoageService.getReadableStream(importObj.filename);
-    } catch (err) {
-        logger.error(err);
-        return {
-            success: false,
             status: 500,
             errors: [
                 {
@@ -336,132 +339,27 @@ export const getFileFromBlobStorage = async (
                     message: [
                         {
                             lang: Locale.English,
-                            message: t('errors.download_from_blobstorage', { lng: Locale.English })
+                            message: t('errors.download_from_datalake', { lng: Locale.English })
                         },
-                        { lang: Locale.Welsh, message: t('errors.download_from_blobstorage', { lng: Locale.Welsh }) }
+                        { lang: Locale.Welsh, message: t('errors.download_from_datalake', { lng: Locale.Welsh }) }
                     ],
-                    tag: { name: 'errors.download_from_blobstorage', params: {} }
+                    tag: { name: 'errors.download_from_datalake', params: {} }
                 }
             ],
             dataset_id: dataset.id
         };
+    } finally {
+        await quack.close();
+        tempFile.removeCallback();
     }
-    return {
-        success: true,
-        stream
-    };
 };
 
-export const processCSVFromBlobStorage = async (
-    dataset: Dataset,
-    importObj: FileImport,
-    page: number,
-    size: number
-): Promise<ViewErrDTO | ViewDTO> => {
-    const blobStoageService = new BlobStorageService();
-    let buff: Buffer;
-    try {
-        buff = await blobStoageService.readFile(importObj.filename);
-    } catch (err) {
-        logger.error(err);
-        return {
-            success: false,
-            status: 500,
-            errors: [
-                {
-                    field: 'csv',
-                    message: [
-                        {
-                            lang: Locale.English,
-                            message: t('errors.download_from_blobstorage', { lng: Locale.English })
-                        },
-                        { lang: Locale.Welsh, message: t('errors.download_from_blobstorage', { lng: Locale.Welsh }) }
-                    ],
-                    tag: { name: 'errors.download_from_blobstorage', params: {} }
-                }
-            ],
-            dataset_id: dataset.id
-        };
-    }
-    return processCSVData(buff, page, size, dataset, importObj);
-};
-
-export const moveFileToDataLake = async (importObj: FileImport) => {
-    const blobStorageService = new BlobStorageService();
+export const removeFileFromDataLake = async (importObj: FactTable, dataset: Dataset) => {
     const datalakeService = new DataLakeService();
     try {
-        importObj.location = DataLocation.DataLake;
-        const fileStream = await blobStorageService.getReadableStream(importObj.filename);
-        await datalakeService.uploadFileStream(importObj.filename, fileStream);
-        await blobStorageService.deleteFile(importObj.filename);
-        await importObj.save();
-    } catch (err) {
-        logger.error(err);
-        throw new Error('Error moving file to datalake');
-    }
-};
-
-export const removeTempfileFromBlobStorage = async (importObj: FileImport) => {
-    const blobStorageService = new BlobStorageService();
-    try {
-        await blobStorageService.deleteFile(importObj.filename);
-    } catch (err) {
-        logger.error(err);
-        throw new Error('Unable to successfully remove file from Blob Storage');
-    }
-};
-
-export const removeFileFromDatalake = async (importObj: FileImport) => {
-    const datalakeService = new DataLakeService();
-    try {
-        await datalakeService.deleteFile(importObj.filename);
+        await datalakeService.deleteFile(importObj.filename, dataset.id);
     } catch (err) {
         logger.error(err);
         throw new Error('Unable to successfully remove from from Datalake');
     }
-};
-
-export const createSources = async (fileImport: FileImport): Promise<FileImportDTO> => {
-    const revision: Revision = fileImport.revision;
-    const dataset: Dataset = revision.dataset;
-    let fileView: ViewDTO | ViewErrDTO;
-
-    try {
-        fileView = await processCSVFromDatalake(dataset, fileImport, 1, 5);
-    } catch (err) {
-        logger.error(err);
-        throw new Error('Error getting file from datalake');
-    }
-
-    let fileData: ViewDTO;
-    if (fileView.success) {
-        fileData = fileView as ViewDTO;
-    } else {
-        throw new Error('Error processing file from datalake');
-    }
-
-    const sources: Source[] = fileData.headers.map((header) => {
-        const source = new Source();
-        source.columnIndex = header.index;
-        source.csvField = header.name;
-        source.action = SourceAction.Unknown;
-        source.revision = revision;
-        source.import = fileImport;
-        return source;
-    });
-
-    const updatedImport = await FileImport.findOneBy({ id: fileImport.id });
-
-    if (!updatedImport) {
-        throw new Error('Import not found');
-    }
-    try {
-        updatedImport.sources = sources;
-        await updatedImport.save();
-    } catch (err) {
-        logger.error(err);
-        throw new Error('Error saving sources to import');
-    }
-
-    return FileImportDTO.fromImport(updatedImport);
 };

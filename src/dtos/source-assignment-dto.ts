@@ -1,6 +1,7 @@
-import { SourceType } from '../enums/source-type';
+import { FactTableColumnType } from '../enums/fact-table-column-type';
 
 export class SourceAssignmentDTO {
-    sourceId: string;
-    sourceType: SourceType;
+    column_index: number;
+    column_name: string;
+    column_type: FactTableColumnType;
 }
