@@ -38,5 +38,11 @@ export const RevisionRepository = dataSource.getRepository(Revision).extend({
             .save();
 
         return newRevision;
+    },
+
+    async updatePublishDate(revision: Revision, publishAt: Date): Promise<Revision> {
+        logger.debug(`Updating Publish Date for Revision "${revision.id}"...`);
+        revision.publishAt = publishAt;
+        return dataSource.getRepository(Revision).save(revision);
     }
 });

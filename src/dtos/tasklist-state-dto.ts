@@ -22,15 +22,19 @@ export class TasklistStateDTO {
         relevant_topics: TaskStatus;
     };
 
-    publishing: {
-        when: TaskStatus;
+    translation: {
         export: TaskStatus;
         import: TaskStatus;
-        submit: TaskStatus;
+    };
+
+    publishing: {
+        organisation: TaskStatus;
+        when: TaskStatus;
     };
 
     public static fromDataset(dataset: Dataset, lang: string): TasklistStateDTO {
         const info = dataset.datasetInfo?.find((info) => info.language === lang);
+        const latestRevision = dataset.revisions[dataset.revisions.length - 1];
 
         const dimensions = dataset.dimensions?.reduce((dimensionStatus: DimensionStatus[], dimension) => {
             if (dimension.type === DimensionType.NoteCodes) return dimensionStatus;
@@ -62,11 +66,14 @@ export class TasklistStateDTO {
             relevant_topics: dataset.datasetTopics?.length > 0 ? TaskStatus.Completed : TaskStatus.NotStarted
         };
 
-        dto.publishing = {
-            when: TaskStatus.NotImplemented,
+        dto.translation = {
             export: TaskStatus.NotImplemented,
-            import: TaskStatus.NotImplemented,
-            submit: TaskStatus.NotImplemented
+            import: TaskStatus.NotImplemented
+        };
+
+        dto.publishing = {
+            organisation: TaskStatus.NotImplemented,
+            when: latestRevision.publishAt ? TaskStatus.Completed : TaskStatus.NotStarted
         };
 
         return dto;
