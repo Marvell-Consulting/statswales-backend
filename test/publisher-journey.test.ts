@@ -2,6 +2,7 @@ import path from 'path';
 import * as fs from 'fs';
 
 import request from 'supertest';
+import { addYears, subYears } from 'date-fns';
 
 import { DataLakeService } from '../src/services/datalake';
 import app, { initDb } from '../src/app';
@@ -712,6 +713,65 @@ describe('API Endpoints', () => {
         expect(res.status).toBe(204);
         const dataset = await Dataset.findOneBy({ id: datasetID });
         expect(dataset).toBeNull();
+    });
+
+    describe('Publishing', () => {
+        describe('Schedule', () => {
+            let datasetId: string;
+            let revisionId: string;
+
+            beforeEach(async () => {
+                datasetId = crypto.randomUUID().toLowerCase();
+                revisionId = crypto.randomUUID().toLowerCase();
+                const factTableId = crypto.randomUUID().toLowerCase();
+                await createSmallDataset(datasetId, revisionId, factTableId, user);
+            });
+
+            test('Set publish_at fails with 404 if revision id invalid', async () => {
+                const invalidId = crypto.randomUUID().toLowerCase();
+                const res = await request(app)
+                    .patch(`/dataset/${datasetId}/revision/by-id/${invalidId}/publish-at`)
+                    .send({ publish_at: addYears(new Date(), 1).toISOString() })
+                    .set(getAuthHeader(user));
+                expect(res.status).toBe(404);
+            });
+
+            test('Set publish_at fails with 400 if revision is already approved', async () => {
+                const revision = await Revision.findOneByOrFail({ id: revisionId });
+                revision.approvedAt = new Date();
+                await revision.save();
+
+                const res = await request(app)
+                    .patch(`/dataset/${datasetId}/revision/by-id/${revisionId}/publish-at`)
+                    .send({ publish_at: addYears(new Date(), 1).toISOString() })
+                    .set(getAuthHeader(user));
+                expect(res.status).toBe(400);
+            });
+
+            test('Set publish_at fails with 400 if date is invalid', async () => {
+                const res = await request(app)
+                    .patch(`/dataset/${datasetId}/revision/by-id/${revisionId}/publish-at`)
+                    .send({ publish_at: 'not-a-date' })
+                    .set(getAuthHeader(user));
+                expect(res.status).toBe(400);
+            });
+
+            test('Set publish_at fails with 400 if date is in the past', async () => {
+                const res = await request(app)
+                    .patch(`/dataset/${datasetId}/revision/by-id/${revisionId}/publish-at`)
+                    .send({ publish_at: subYears(new Date(), 1).toISOString() })
+                    .set(getAuthHeader(user));
+                expect(res.status).toBe(400);
+            });
+
+            test('Set publish_at succeeds if date is valid and in the future', async () => {
+                const res = await request(app)
+                    .patch(`/dataset/${datasetId}/revision/by-id/${revisionId}/publish-at`)
+                    .send({ publish_at: addYears(new Date(), 1).toISOString() })
+                    .set(getAuthHeader(user));
+                expect(res.status).toBe(201);
+            });
+        });
     });
 
     afterAll(async () => {
