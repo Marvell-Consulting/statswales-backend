@@ -41,14 +41,16 @@ export default class TopicSeeder extends Seeder {
                     logger.info(`Seeded root topic '${rootTopic.nameEN}'`);
                 }
 
-                const childTopic = Topic.create();
-                childTopic.id = topicId;
-                childTopic.path = `${rootTopic.path}.${topicId}`;
-                childTopic.nameEN = row.L2.trim();
-                childTopics.push(childTopic);
-                topicId++;
-                await em.save<Topic>(childTopic);
-                logger.info(`Seeded child topic '${childTopic.nameEN}'`);
+                if (row.L2) {
+                    const childTopic = Topic.create();
+                    childTopic.id = topicId;
+                    childTopic.path = `${rootTopic.path}.${topicId}`;
+                    childTopic.nameEN = row.L2.trim();
+                    childTopics.push(childTopic);
+                    topicId++;
+                    await em.save<Topic>(childTopic);
+                    logger.info(`Seeded child topic '${childTopic.nameEN}'`);
+                }
             }
         };
 
