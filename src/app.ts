@@ -17,6 +17,8 @@ import { datasetRouter } from './route/dataset';
 import { errorHandler } from './route/error-handler';
 import { providerRouter } from './route/provider';
 import { topicRouter } from './route/topic';
+import { organisationRouter } from './route/organisation';
+import { teamRouter } from './route/team';
 
 export const initDb = async (): Promise<DatabaseManager> => {
     const dbManager = new DatabaseManager(logger);
@@ -53,6 +55,8 @@ app.use('/healthcheck', rateLimiter, healthcheckRouter);
 app.use('/dataset', rateLimiter, passport.authenticate('jwt', { session: false }), datasetRouter);
 app.use('/provider', rateLimiter, passport.authenticate('jwt', { session: false }), providerRouter);
 app.use('/topic', rateLimiter, passport.authenticate('jwt', { session: false }), topicRouter);
+app.use('/organisation', rateLimiter, passport.authenticate('jwt', { session: false }), organisationRouter);
+app.use('/team', rateLimiter, passport.authenticate('jwt', { session: false }), teamRouter);
 
 app.use(errorHandler);
 

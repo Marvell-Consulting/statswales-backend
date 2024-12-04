@@ -22,6 +22,7 @@ export class DatasetDTO {
     datasetInfo: DatasetInfoDTO[];
     providers: DatasetProviderDTO[];
     topics: DatasetTopicDTO[];
+    team_id?: string;
 
     static fromDataset(dataset: Dataset): DatasetDTO {
         const dto = new DatasetDTO();
@@ -42,6 +43,8 @@ export class DatasetDTO {
         dto.topics = dataset.datasetTopics?.map((datasetTopic: DatasetTopic) =>
             DatasetTopicDTO.fromDatasetTopic(datasetTopic)
         );
+
+        dto.team_id = dataset.team?.id;
 
         return dto;
     }
