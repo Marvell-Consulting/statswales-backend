@@ -171,7 +171,7 @@ export const DatasetRepository = dataSource.getRepository(Dataset).extend({
     },
 
     async updateDatasetTeam(datasetId: string, teamId: string): Promise<Dataset> {
-        const dataset = await this.getById(datasetId, {});
+        const dataset = await this.findOneOrFail({ where: { id: datasetId } });
         const team = await dataSource.getRepository(Team).findOneByOrFail({ id: teamId });
         dataset.team = team;
         await dataset.save();

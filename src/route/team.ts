@@ -1,4 +1,5 @@
 import { Request, Response, NextFunction, Router } from 'express';
+import { sortBy } from 'lodash';
 
 import { logger } from '../utils/logger';
 import { Locale } from '../enums/locale';
@@ -13,8 +14,9 @@ export const teamRouter = Router();
 teamRouter.get('/', async (req: Request, res: Response, next: NextFunction) => {
     try {
         logger.info('List teams');
-        const teams = await TeamRepository.listAll(req.language as Locale);
-        const teamDTOs = teams.map((team) => TeamDTO.fromTeam(team, req.language as Locale));
+        const teams = await TeamRepository.listAll();
+        let teamDTOs = teams.map((team) => TeamDTO.fromTeam(team, req.language as Locale));
+        teamDTOs = sortBy(teamDTOs, 'name');
         res.json(teamDTOs);
     } catch (error) {
         logger.error('Error listing teams', error);

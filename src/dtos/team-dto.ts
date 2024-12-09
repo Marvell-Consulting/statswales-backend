@@ -12,10 +12,11 @@ export class TeamDTO {
     organisation?: OrganisationDTO;
 
     static fromTeam(team: Team, lang: Locale): TeamDTO {
+        const info = team.info?.find((i) => lang.includes(i.language));
         const dto = new TeamDTO();
         dto.id = team.id;
-        dto.name = lang.includes('en') ? team.nameEN : team.nameCY;
-        dto.email = lang.includes('en') ? team.emailEN : team.emailCY;
+        dto.name = info?.name;
+        dto.email = info?.email;
         dto.organisation_id = team.organisation?.id;
         dto.organisation = team.organisation ? OrganisationDTO.fromOrganisation(team.organisation, lang) : undefined;
         return dto;

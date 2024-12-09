@@ -51,7 +51,7 @@ export class Dataset extends BaseEntity {
     @OneToMany(() => DatasetTopic, (datasetTopic) => datasetTopic.dataset, { cascade: true })
     datasetTopics: DatasetTopic[];
 
-    @ManyToOne(() => Team, (team) => team.datasets, { nullable: true, onDelete: 'SET NULL' })
+    @ManyToOne(() => Team, (team) => team.datasets, { nullable: true })
     @JoinColumn({ name: 'team_id', foreignKeyConstraintName: 'FK_dataset_team_id' })
     team: Team;
 }
