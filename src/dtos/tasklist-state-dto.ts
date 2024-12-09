@@ -72,7 +72,7 @@ export class TasklistStateDTO {
         };
 
         dto.publishing = {
-            organisation: TaskStatus.NotImplemented,
+            organisation: dataset.team ? TaskStatus.Completed : TaskStatus.NotStarted,
             when: latestRevision.publishAt ? TaskStatus.Completed : TaskStatus.NotStarted
         };
 

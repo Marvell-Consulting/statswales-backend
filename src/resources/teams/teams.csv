@@ -1,0 +1,26 @@
+id,name_en,name_cy,prefix,email_en,email_cy,organisation_en,organisation_cy
+24039402-9f90-44e8-822c-6dce26962938,"Agriculture, fishing and forestry","Amaethyddiaeth, pysgota a choedwigaeth",AGRI,stats.agric@gov.wales ,ystadegau.amaeth@llyw.cymru ,Welsh Government,Llywodraeth Cymru
+9beae37d-e659-4e5e-b49a-7e6bae323a86,Care Inspectorate,Arolygiaeth Gofal,CSIW,ciwinformation@gov.wales,ciwinformation@llyw.cymru,Welsh Government,Llywodraeth Cymru
+3ba4decb-c8fe-462b-8535-5184bf649d4d,Economy,Yr economi a'r fachnad lafur,ECON,economic.stats@gov.wales,ystadegau.economi@llyw.cymru,Welsh Government,Llywodraeth Cymru
+e4b0ccb8-ed76-4ed1-b63c-dbdad4755a18,Environment,Yr amgylchedd,ENVI,stats.environment@gov.wales,ystadegau.amgylchedd@llyw.cymru ,Welsh Government,Llywodraeth Cymru
+a27754fc-d30e-498c-b87f-62fc6b7df889,Equality,Cydraddoldeb,EQU,stats.inclusion@gov.wales,ystadegau.cynhwysiant@llyw.cymru ,Welsh Government,Llywodraeth Cymru
+51abe113-79a0-4de0-b139-7cf1031b4ab4,Fire and crime,Tân a throsedd,CSAF,stats.inclusion@gov.wales,ystadegau.cynhwysiant@llyw.cymru ,Welsh Government,Llywodraeth Cymru
+e223eb48-8cb5-45cc-81fd-eae36646a071,Health,Iechyd,HLTH,stats.healthinfo@gov.wales,ystadegau.iechyd@llyw.cymru ,Welsh Government,Llywodraeth Cymru
+45b86d46-511d-40b4-91d4-b6b78de95405,Higher education and student finance,Addysg uwch a chyllid myfyrwyr,EDUC,highereducationandstudentfinance.stats@gov.wales,addysguwchachyllidmyfyrwyr.yst@llyw.cymru,Welsh Government,Llywodraeth Cymru
+aa2acdf5-a227-44f4-96b9-2f9915be4b25,Housing,Tai,HOUS,stats.housing@gov.wales,ystadegau.tai@llyw.cymru ,Welsh Government,Llywodraeth Cymru
+6b7cff91-fbca-4f71-b305-b8b1db99e4a1,Labour market,Farchnad lafur,ECON,labourmarket.stats@gov.wales,ystadegau.marchnadlafur@llyw.cymru,Welsh Government,Llywodraeth Cymru
+d6195ac6-e487-4077-971d-ffcdbcb32098,Local government finance,Cyllid llywodraeth leol,LGFS,stats.finance@gov.wales,ystadegau.cyllid@llyw.cymru,Welsh Government,Llywodraeth Cymru
+1a358ca7-f59b-4c9e-907b-0594185eb2dc,National Survey for Wales,Arolwg Cenedlaethol Cymru,NSFW,surveys@gov.wales,arolygon@llyw.cymru,Welsh Government,Llywodraeth Cymru
+f6d32065-18f3-4dcb-9084-c7a07ec0a816,Population,Poblogaeth,POPU,stats.popcensus@gov.wales,ystadegau.poblogaeth@llyw.cymru,Welsh Government,Llywodraeth Cymru
+16a16930-8688-4cb6-aa20-cf1de4633303,Post 16 education,Addysg a hyfforddiant ôl-16 oed,EDUC,statistics@medr.cymru,ystadegau@medr.cymru,Welsh Government,Llywodraeth Cymru
+091c453d-262d-4d2d-9693-b5ecb4297198,School Workforce Annual Census,Cyfrifiad Blynyddol o'r Gweithlu Ysgolion,SCHW,educationworkforcedata@gov.wales,educationworkforcedata@llyw.cymru,Welsh Government,Llywodraeth Cymru
+f9801d81-6536-4ae5-a0b1-4e1466080e38,Schools and teachers,Ysgolion ac athrawon,SCHS,school.stats@gov.wales,ystadegau.ysgolion@llyw.cymru ,Welsh Government,Llywodraeth Cymru
+a5698fc2-586d-4382-8417-ff4129ca412f,Social justice,Cyfiawnder cymdeithasol,SIEQ,stats.inclusion@gov.wales,ystadegau.cynhwysiant@llyw.cymru ,Welsh Government,Llywodraeth Cymru
+f5dc3d8b-c175-4c3e-8237-f0c243821cda,Social services,Gwasanaethau cymdeithasol,CARE,stats.pss@gov.wales,ystadegau.gwascymdeithasol@llyw.cymru,Welsh Government,Llywodraeth Cymru
+f0045f06-a782-4a6f-a7e6-a054d795a063,Tourism,Twristiaeth,TOUR,tourismresearch@gov.wales,ymchwiltwristiaeth@llyw.cymru,Welsh Government,Llywodraeth Cymru
+cc1d9a70-3ca9-4f29-bc8a-6c0ead9c23f6,Transport,Trafnidiaeth,TRAN,stats.transport@gov.wales,ystadegau.trafnidiaeth@llyw.cymru,Welsh Government,Llywodraeth Cymru
+821b2614-6fba-4d28-a84a-a559fbaabd29,Welsh government workforce,Gweithlu Llywodraeth Cymru,WGOV,economic.stats@gov.wales,ystadegau.economi@llyw.cymru,Welsh Government,Llywodraeth Cymru
+49078943-6e95-4a3f-b78d-3ad54277de09,Welsh Index of Mass Deprivation,Mynegai Amddifadedd Lluosog Cymru,WIMD,stats.inclusion@gov.wales,ystadegau.cynhwysiant@llyw.cymru ,Welsh Government,Llywodraeth Cymru
+f0ec9f31-41db-4efd-8d3f-e6d29ba72cfe,Welsh language,Iaith Gymraeg,WLSH,welshlanguagedata@gov.wales,dataiaithgymraeg@llyw.cymru,Welsh Government,Llywodraeth Cymru
+b2f2f9f1-6058-4a25-b42d-02de1ed05623,Welsh Revenue Authority,Awdurdod Cyllid Cymru,WRAX,data@wra.gov.wales,data@acc.llyw.cymru,Welsh Revenue Authority,Awdurdod Cyllid Cymru
+9e658e01-867e-4601-ad32-ecca6061ac59,Youth service,Gwasanaeth ieuenctid,YTHS,school.stats@gov.wales,ystadegau.ysgolion@llyw.cymru ,Welsh Government,Llywodraeth Cymru
