@@ -44,7 +44,7 @@ export class Team extends BaseEntity {
 
     @ManyToOne(() => Organisation)
     @JoinColumn({ name: 'organisation_id', foreignKeyConstraintName: 'FK_team_organisation_id' })
-    organisation: Organisation;
+    organisation?: Organisation;
 
     @OneToMany(() => Dataset, (dataset) => dataset.team)
     datasets: Dataset[];

@@ -12,6 +12,7 @@ import { DatasetInfoDTO } from '../dtos/dataset-info-dto';
 import { DatasetProviderDTO } from '../dtos/dataset-provider-dto';
 import { DatasetProvider } from '../entities/dataset/dataset-provider';
 import { DatasetTopic } from '../entities/dataset/dataset-topic';
+import { Team } from '../entities/user/team';
 
 const defaultRelations: FindOptionsRelations<Dataset> = {
     createdBy: true,
@@ -166,6 +167,14 @@ export const DatasetRepository = dataSource.getRepository(Dataset).extend({
 
         await dataSource.getRepository(DatasetTopic).save(datasetTopics);
 
+        return this.getById(datasetId);
+    },
+
+    async updateDatasetTeam(datasetId: string, teamId: string): Promise<Dataset> {
+        const dataset = await this.getById(datasetId, {});
+        const team = await dataSource.getRepository(Team).findOneByOrFail({ id: teamId });
+        dataset.team = team;
+        await dataset.save();
         return this.getById(datasetId);
     }
 });
