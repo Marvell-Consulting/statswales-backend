@@ -19,7 +19,8 @@ export const FactTableRepository = dataSource.getRepository(Revision).extend({
                 revision: {
                     createdBy: true,
                     dataset: {
-                        dimensions: true
+                        dimensions: true,
+                        measure: true
                     }
                 },
                 factTableInfo: true

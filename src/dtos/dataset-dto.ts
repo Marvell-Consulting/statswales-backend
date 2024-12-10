@@ -10,6 +10,7 @@ import { RevisionDTO } from './revision-dto';
 import { DatasetInfoDTO } from './dataset-info-dto';
 import { DatasetProviderDTO } from './dataset-provider-dto';
 import { DatasetTopicDTO } from './dataset-topic-dto';
+import { MeasureDTO } from './measure-dto';
 
 export class DatasetDTO {
     id: string;
@@ -19,6 +20,7 @@ export class DatasetDTO {
     archive?: string;
     dimensions?: DimensionDTO[];
     revisions: RevisionDTO[];
+    measure?: MeasureDTO;
     datasetInfo: DatasetInfoDTO[];
     providers: DatasetProviderDTO[];
     topics: DatasetTopicDTO[];
@@ -34,7 +36,7 @@ export class DatasetDTO {
         dto.datasetInfo = dataset.datasetInfo?.map((info: DatasetInfo) => DatasetInfoDTO.fromDatasetInfo(info));
         dto.dimensions = dataset.dimensions?.map((dimension: Dimension) => DimensionDTO.fromDimension(dimension));
         dto.revisions = dataset.revisions?.map((revision: Revision) => RevisionDTO.fromRevision(revision));
-
+        dto.measure = dataset.measure ? MeasureDTO.fromMeasure(dataset.measure) : undefined;
         dto.providers = dataset.datasetProviders?.map((datasetProvider: DatasetProvider) =>
             DatasetProviderDTO.fromDatasetProvider(datasetProvider)
         );

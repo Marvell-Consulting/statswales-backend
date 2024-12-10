@@ -12,10 +12,9 @@ export class MeasureDTO {
     static fromMeasure(measure: Measure): MeasureDTO {
         const dto = new MeasureDTO();
         dto.id = measure.id;
-        dto.dataset_id = measure.dataset.id;
         dto.join_column = measure.joinColumn;
         dto.fact_table_column = measure.factTableColumn;
-        dto.lookup_table = LookupTableDTO.fromLookupTable(measure.lookupTable) || undefined;
+        dto.lookup_table = measure.lookupTable ? LookupTableDTO.fromLookupTable(measure.lookupTable) : undefined;
         return dto;
     }
 }

@@ -14,14 +14,12 @@ export class LookupTable extends BaseEntity {
         onDelete: 'CASCADE',
         orphanedRowAction: 'delete'
     })
-    @JoinColumn({ name: 'dimension_id', foreignKeyConstraintName: 'FK_lookup_dimension_id' })
     dimension: Dimension;
 
     @OneToOne(() => Measure, {
         onDelete: 'CASCADE',
         orphanedRowAction: 'delete'
     })
-    @JoinColumn({ name: 'measure_id', foreignKeyConstraintName: 'FK_lookup_measure_id' })
     measure: Measure;
 
     @Column({ name: 'mime_type', type: 'varchar', length: 255 })
