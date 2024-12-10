@@ -43,10 +43,11 @@ export class TasklistStateDTO {
             if (dataset.measure.joinColumn) {
                 return {
                     name: dataset.measure.factTableColumn,
-                    status: TaskStatus.Completed
+                    status: TaskStatus.Completed,
+                    type: 'measure'
                 };
             }
-            return { name: dataset.measure.factTableColumn, status: TaskStatus.NotStarted };
+            return { name: dataset.measure.factTableColumn, status: TaskStatus.NotStarted, type: 'measure' };
         };
 
         const latestRevision = dataset.revisions[dataset.revisions.length - 1];
@@ -58,7 +59,8 @@ export class TasklistStateDTO {
 
             dimensionStatus.push({
                 name: dimInfo?.name || 'unknown',
-                status: dimension.type === DimensionType.Raw ? TaskStatus.NotStarted : TaskStatus.Completed
+                status: dimension.extractor === null ? TaskStatus.NotStarted : TaskStatus.Completed,
+                type: dimension.type
             });
 
             return dimensionStatus;

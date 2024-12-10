@@ -1,60 +1,9 @@
 import { MigrationInterface, QueryRunner } from 'typeorm';
 
-export class InitialSchema1732832523588 implements MigrationInterface {
-    name = 'InitialSchema1732832523588';
+export class InitialSchema1733849625476 implements MigrationInterface {
+    name = 'InitialSchema1733849625476';
 
     public async up(queryRunner: QueryRunner): Promise<void> {
-        await queryRunner.query(`
-            CREATE TABLE "category" (
-                "category" text NOT NULL,
-                CONSTRAINT "PK_dab3b9cd30b5940f3a808316991" PRIMARY KEY ("category")
-            )
-        `);
-        await queryRunner.query(`
-            CREATE TABLE "category_key" (
-                "category_key" text NOT NULL,
-                "category" text NOT NULL,
-                CONSTRAINT "PK_b305284188b72bbeb54babee1c8" PRIMARY KEY ("category_key")
-            )
-        `);
-        await queryRunner.query(`
-            CREATE TABLE "category_key_info" (
-                "category_key" text NOT NULL,
-                "lang" text NOT NULL,
-                "description" text NOT NULL,
-                "notes" text,
-                CONSTRAINT "PK_845dcc2857b4a2d31252e03f8d5" PRIMARY KEY ("category_key", "lang")
-            )
-        `);
-        await queryRunner.query(`
-            CREATE TABLE "reference_data" (
-                "item_id" text NOT NULL,
-                "version_no" integer NOT NULL,
-                "category_key" text NOT NULL,
-                "sort_order" integer,
-                "validity_start" date NOT NULL,
-                "validity_end" date,
-                CONSTRAINT "PK_1c127907e0b334cd1cc15afc1bb" PRIMARY KEY ("item_id", "version_no", "category_key")
-            )
-        `);
-        await queryRunner.query(`
-            CREATE TABLE "hierarchy" (
-                "item_id" text NOT NULL,
-                "version_no" integer NOT NULL,
-                "category_key" text NOT NULL,
-                "parent_id" text NOT NULL,
-                "parent_version" integer NOT NULL,
-                "parent_category" text NOT NULL,
-                CONSTRAINT "PK_229e83ef14da2fd389c20a881c9" PRIMARY KEY (
-                    "item_id",
-                    "version_no",
-                    "category_key",
-                    "parent_id",
-                    "parent_version",
-                    "parent_category"
-                )
-            )
-        `);
         await queryRunner.query(`
             CREATE TABLE "user" (
                 "id" uuid NOT NULL DEFAULT uuid_generate_v4(),
@@ -77,6 +26,69 @@ export class InitialSchema1732832523588 implements MigrationInterface {
         `);
         await queryRunner.query(`
             CREATE UNIQUE INDEX "UX_user_provider_provider_user_id" ON "user" ("provider", "provider_user_id")
+        `);
+        await queryRunner.query(`
+            CREATE TYPE "public"."fact_table_info_column_type_enum" AS ENUM(
+                'data_values',
+                'note_codes',
+                'dimension',
+                'measure',
+                'time',
+                'ignore',
+                'unknown',
+                'line_number'
+            )
+        `);
+        await queryRunner.query(`
+            CREATE TABLE "fact_table_info" (
+                "fact_table_id" uuid NOT NULL,
+                "column_name" character varying NOT NULL,
+                "column_index" integer NOT NULL,
+                "column_type" "public"."fact_table_info_column_type_enum" NOT NULL,
+                CONSTRAINT "PK_fact_table_info_id_language" PRIMARY KEY ("fact_table_id", "column_name")
+            )
+        `);
+        await queryRunner.query(`
+            CREATE TYPE "public"."fact_table_filetype_enum" AS ENUM(
+                'csv',
+                'parquet',
+                'json',
+                'xlsx',
+                'csv.gz',
+                'json.gz',
+                'unknown'
+            )
+        `);
+        await queryRunner.query(`
+            CREATE TABLE "fact_table" (
+                "id" uuid NOT NULL DEFAULT uuid_generate_v4(),
+                "mime_type" character varying(255) NOT NULL,
+                "filetype" "public"."fact_table_filetype_enum" NOT NULL,
+                "filename" character varying(255) NOT NULL,
+                "original_filename" character varying(255) NOT NULL,
+                "hash" character varying(255) NOT NULL,
+                "uploaded_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
+                "delimiter" character,
+                "quote" character,
+                "linebreak" character varying,
+                "revision_id" uuid,
+                CONSTRAINT "PK_fact_table_id" PRIMARY KEY ("id")
+            )
+        `);
+        await queryRunner.query(`
+            CREATE TABLE "revision" (
+                "id" uuid NOT NULL DEFAULT uuid_generate_v4(),
+                "revision_index" integer NOT NULL,
+                "online_cube_filename" character varying(255),
+                "created_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
+                "approved_at" TIMESTAMP WITH TIME ZONE,
+                "publish_at" TIMESTAMP WITH TIME ZONE,
+                "dataset_id" uuid,
+                "previous_revision_id" uuid,
+                "created_by" uuid,
+                "approved_by" uuid,
+                CONSTRAINT "PK_revision_id" PRIMARY KEY ("id")
+            )
         `);
         await queryRunner.query(`
             CREATE TYPE "public"."dataset_info_designation_enum" AS ENUM(
@@ -260,79 +272,80 @@ export class InitialSchema1732832523588 implements MigrationInterface {
                 "live" TIMESTAMP WITH TIME ZONE,
                 "archive" TIMESTAMP WITH TIME ZONE,
                 "created_by" uuid,
+                "team_id" uuid,
                 CONSTRAINT "PK_dataset_id" PRIMARY KEY ("id")
             )
         `);
         await queryRunner.query(`
-            CREATE TYPE "public"."fact_table_info_column_type_enum" AS ENUM(
-                'data_values',
-                'note_codes',
-                'dimension',
-                'measure',
-                'time',
-                'ignore',
-                'unknown',
-                'line_number'
-            )
-        `);
-        await queryRunner.query(`
-            CREATE TABLE "fact_table_info" (
-                "fact_table_id" uuid NOT NULL,
-                "column_name" character varying NOT NULL,
-                "column_index" integer NOT NULL,
-                "column_type" "public"."fact_table_info_column_type_enum" NOT NULL,
-                CONSTRAINT "PK_fact_table_info_id_language" PRIMARY KEY ("fact_table_id", "column_name")
-            )
-        `);
-        await queryRunner.query(`
-            CREATE TYPE "public"."fact_table_filetype_enum" AS ENUM(
-                'csv',
-                'parquet',
-                'json',
-                'xlsx',
-                'csv.gz',
-                'json.gz',
-                'unknown'
-            )
-        `);
-        await queryRunner.query(`
-            CREATE TABLE "fact_table" (
-                "id" uuid NOT NULL DEFAULT uuid_generate_v4(),
-                "mime_type" character varying(255) NOT NULL,
-                "filetype" "public"."fact_table_filetype_enum" NOT NULL,
-                "filename" character varying(255) NOT NULL,
-                "original_filename" character varying(255) NOT NULL,
-                "hash" character varying(255) NOT NULL,
-                "uploaded_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
-                "delimiter" character,
-                "quote" character,
-                "linebreak" character varying,
-                "revision_id" uuid,
-                CONSTRAINT "PK_fact_table_id" PRIMARY KEY ("id")
-            )
-        `);
-        await queryRunner.query(`
-            CREATE TABLE "revision" (
-                "id" uuid NOT NULL DEFAULT uuid_generate_v4(),
-                "revision_index" integer NOT NULL,
-                "online_cube_filename" character varying(255),
+            CREATE TABLE "organisation_info" (
+                "organisation_id" uuid NOT NULL,
+                "language" character varying(5) NOT NULL,
+                "name" text NOT NULL,
                 "created_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
-                "approved_at" TIMESTAMP WITH TIME ZONE,
-                "publish_at" TIMESTAMP WITH TIME ZONE,
-                "dataset_id" uuid,
-                "previous_revision_id" uuid,
-                "created_by" uuid,
-                "approved_by" uuid,
-                CONSTRAINT "PK_revision_id" PRIMARY KEY ("id")
+                "updated_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
+                CONSTRAINT "PK_organisation_info_organisation_id_language" PRIMARY KEY ("organisation_id", "language")
             )
         `);
         await queryRunner.query(`
-            CREATE TABLE "category_info" (
+            CREATE TABLE "organisation" (
+                "id" uuid NOT NULL DEFAULT uuid_generate_v4(),
+                "created_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
+                "updated_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
+                CONSTRAINT "PK_organisation_id" PRIMARY KEY ("id")
+            )
+        `);
+        await queryRunner.query(`
+            CREATE TABLE "team_info" (
+                "team_id" uuid NOT NULL,
+                "language" character varying(5) NOT NULL,
+                "name" text,
+                "email" text NOT NULL,
+                "created_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
+                "updated_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
+                CONSTRAINT "PK_team_info_team_id_language" PRIMARY KEY ("team_id", "language")
+            )
+        `);
+        await queryRunner.query(`
+            CREATE TABLE "team" (
+                "id" uuid NOT NULL DEFAULT uuid_generate_v4(),
+                "prefix" text NOT NULL,
+                "created_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
+                "updated_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
+                "organisation_id" uuid,
+                CONSTRAINT "PK_team_id" PRIMARY KEY ("id")
+            )
+        `);
+        await queryRunner.query(`
+            CREATE TABLE "category" (
                 "category" text NOT NULL,
+                CONSTRAINT "PK_dab3b9cd30b5940f3a808316991" PRIMARY KEY ("category")
+            )
+        `);
+        await queryRunner.query(`
+            CREATE TABLE "category_key" (
+                "category_key" text NOT NULL,
+                "category" text NOT NULL,
+                CONSTRAINT "PK_b305284188b72bbeb54babee1c8" PRIMARY KEY ("category_key")
+            )
+        `);
+        await queryRunner.query(`
+            CREATE TABLE "reference_data" (
+                "item_id" text NOT NULL,
+                "version_no" integer NOT NULL,
+                "category_key" text NOT NULL,
+                "sort_order" integer,
+                "validity_start" date NOT NULL,
+                "validity_end" date,
+                CONSTRAINT "PK_1c127907e0b334cd1cc15afc1bb" PRIMARY KEY ("item_id", "version_no", "category_key")
+            )
+        `);
+        await queryRunner.query(`
+            CREATE TABLE "category_key_info" (
+                "category_key" text NOT NULL,
                 "lang" text NOT NULL,
                 "description" text NOT NULL,
                 "notes" text,
-                CONSTRAINT "PK_b352b1990fc76e4cb4c7c9e0c9d" PRIMARY KEY ("category", "lang")
+                CONSTRAINT "PK_845dcc2857b4a2d31252e03f8d5" PRIMARY KEY ("category_key", "lang")
             )
         `);
         await queryRunner.query(`
@@ -347,24 +360,55 @@ export class InitialSchema1732832523588 implements MigrationInterface {
             )
         `);
         await queryRunner.query(`
-            ALTER TABLE "category_key"
-            ADD CONSTRAINT "FK_087b36846d67092609821a62756" FOREIGN KEY ("category") REFERENCES "category"("category") ON DELETE NO ACTION ON UPDATE NO ACTION
+            CREATE TABLE "hierarchy" (
+                "item_id" text NOT NULL,
+                "version_no" integer NOT NULL,
+                "category_key" text NOT NULL,
+                "parent_id" text NOT NULL,
+                "parent_version" integer NOT NULL,
+                "parent_category" text NOT NULL,
+                CONSTRAINT "PK_229e83ef14da2fd389c20a881c9" PRIMARY KEY (
+                    "item_id",
+                    "version_no",
+                    "category_key",
+                    "parent_id",
+                    "parent_version",
+                    "parent_category"
+                )
+            )
         `);
         await queryRunner.query(`
-            ALTER TABLE "category_key_info"
-            ADD CONSTRAINT "FK_ec0b41bafd5605fff51fc0c8e47" FOREIGN KEY ("category_key") REFERENCES "category_key"("category_key") ON DELETE NO ACTION ON UPDATE NO ACTION
+            CREATE TABLE "category_info" (
+                "category" text NOT NULL,
+                "lang" text NOT NULL,
+                "description" text NOT NULL,
+                "notes" text,
+                CONSTRAINT "PK_b352b1990fc76e4cb4c7c9e0c9d" PRIMARY KEY ("category", "lang")
+            )
         `);
         await queryRunner.query(`
-            ALTER TABLE "reference_data"
-            ADD CONSTRAINT "FK_dd4ff535904e339641b0b0d52c2" FOREIGN KEY ("category_key") REFERENCES "category_key"("category_key") ON DELETE NO ACTION ON UPDATE NO ACTION
+            ALTER TABLE "fact_table_info"
+            ADD CONSTRAINT "FK_fact_table_info_fact_table_id" FOREIGN KEY ("fact_table_id") REFERENCES "fact_table"("id") ON DELETE CASCADE ON UPDATE NO ACTION
         `);
         await queryRunner.query(`
-            ALTER TABLE "hierarchy"
-            ADD CONSTRAINT "FK_aaba494e02eaa91111d549e5763" FOREIGN KEY ("item_id", "version_no", "category_key") REFERENCES "reference_data"("item_id", "version_no", "category_key") ON DELETE NO ACTION ON UPDATE NO ACTION
+            ALTER TABLE "fact_table"
+            ADD CONSTRAINT "FK_fact_table_revision_id" FOREIGN KEY ("revision_id") REFERENCES "revision"("id") ON DELETE CASCADE ON UPDATE NO ACTION
         `);
         await queryRunner.query(`
-            ALTER TABLE "hierarchy"
-            ADD CONSTRAINT "FK_6ca6a866371cdd67a638df8a74c" FOREIGN KEY ("parent_id", "parent_version", "parent_category") REFERENCES "reference_data"("item_id", "version_no", "category_key") ON DELETE NO ACTION ON UPDATE NO ACTION
+            ALTER TABLE "revision"
+            ADD CONSTRAINT "FK_revision_dataset_id" FOREIGN KEY ("dataset_id") REFERENCES "dataset"("id") ON DELETE CASCADE ON UPDATE NO ACTION
+        `);
+        await queryRunner.query(`
+            ALTER TABLE "revision"
+            ADD CONSTRAINT "FK_revision_previous_revision_id" FOREIGN KEY ("previous_revision_id") REFERENCES "revision"("id") ON DELETE CASCADE ON UPDATE NO ACTION
+        `);
+        await queryRunner.query(`
+            ALTER TABLE "revision"
+            ADD CONSTRAINT "FK_revision_created_by" FOREIGN KEY ("created_by") REFERENCES "user"("id") ON DELETE NO ACTION ON UPDATE NO ACTION
+        `);
+        await queryRunner.query(`
+            ALTER TABLE "revision"
+            ADD CONSTRAINT "FK_revision_approved_by" FOREIGN KEY ("approved_by") REFERENCES "user"("id") ON DELETE NO ACTION ON UPDATE NO ACTION
         `);
         await queryRunner.query(`
             ALTER TABLE "dataset_info"
@@ -423,63 +467,84 @@ export class InitialSchema1732832523588 implements MigrationInterface {
             ADD CONSTRAINT "FK_dataset_created_by" FOREIGN KEY ("created_by") REFERENCES "user"("id") ON DELETE NO ACTION ON UPDATE NO ACTION
         `);
         await queryRunner.query(`
-            ALTER TABLE "fact_table_info"
-            ADD CONSTRAINT "FK_fact_table_info_fact_table_id" FOREIGN KEY ("fact_table_id") REFERENCES "fact_table"("id") ON DELETE CASCADE ON UPDATE NO ACTION
+            ALTER TABLE "dataset"
+            ADD CONSTRAINT "FK_dataset_team_id" FOREIGN KEY ("team_id") REFERENCES "team"("id") ON DELETE NO ACTION ON UPDATE NO ACTION
         `);
         await queryRunner.query(`
-            ALTER TABLE "fact_table"
-            ADD CONSTRAINT "FK_fact_table_revision_id" FOREIGN KEY ("revision_id") REFERENCES "revision"("id") ON DELETE CASCADE ON UPDATE NO ACTION
+            ALTER TABLE "organisation_info"
+            ADD CONSTRAINT "FK_organisation_info_organisation_id" FOREIGN KEY ("organisation_id") REFERENCES "organisation"("id") ON DELETE CASCADE ON UPDATE NO ACTION
         `);
         await queryRunner.query(`
-            ALTER TABLE "revision"
-            ADD CONSTRAINT "FK_revision_dataset_id" FOREIGN KEY ("dataset_id") REFERENCES "dataset"("id") ON DELETE CASCADE ON UPDATE NO ACTION
+            ALTER TABLE "team_info"
+            ADD CONSTRAINT "FK_team_info_team_id" FOREIGN KEY ("team_id") REFERENCES "team"("id") ON DELETE CASCADE ON UPDATE NO ACTION
         `);
         await queryRunner.query(`
-            ALTER TABLE "revision"
-            ADD CONSTRAINT "FK_revision_previous_revision_id" FOREIGN KEY ("previous_revision_id") REFERENCES "revision"("id") ON DELETE CASCADE ON UPDATE NO ACTION
+            ALTER TABLE "team"
+            ADD CONSTRAINT "FK_team_organisation_id" FOREIGN KEY ("organisation_id") REFERENCES "organisation"("id") ON DELETE NO ACTION ON UPDATE NO ACTION
         `);
         await queryRunner.query(`
-            ALTER TABLE "revision"
-            ADD CONSTRAINT "FK_revision_created_by" FOREIGN KEY ("created_by") REFERENCES "user"("id") ON DELETE NO ACTION ON UPDATE NO ACTION
+            ALTER TABLE "category_key"
+            ADD CONSTRAINT "FK_087b36846d67092609821a62756" FOREIGN KEY ("category") REFERENCES "category"("category") ON DELETE NO ACTION ON UPDATE NO ACTION
         `);
         await queryRunner.query(`
-            ALTER TABLE "revision"
-            ADD CONSTRAINT "FK_revision_approved_by" FOREIGN KEY ("approved_by") REFERENCES "user"("id") ON DELETE NO ACTION ON UPDATE NO ACTION
+            ALTER TABLE "reference_data"
+            ADD CONSTRAINT "FK_dd4ff535904e339641b0b0d52c2" FOREIGN KEY ("category_key") REFERENCES "category_key"("category_key") ON DELETE NO ACTION ON UPDATE NO ACTION
         `);
         await queryRunner.query(`
-            ALTER TABLE "category_info"
-            ADD CONSTRAINT "FK_68028565126809c1e925e6f9334" FOREIGN KEY ("category") REFERENCES "category"("category") ON DELETE NO ACTION ON UPDATE NO ACTION
+            ALTER TABLE "category_key_info"
+            ADD CONSTRAINT "FK_ec0b41bafd5605fff51fc0c8e47" FOREIGN KEY ("category_key") REFERENCES "category_key"("category_key") ON DELETE NO ACTION ON UPDATE NO ACTION
         `);
         await queryRunner.query(`
             ALTER TABLE "reference_data_info"
             ADD CONSTRAINT "FK_f671fde9c769286ba971485ba09" FOREIGN KEY ("item_id", "version_no", "category_key") REFERENCES "reference_data"("item_id", "version_no", "category_key") ON DELETE NO ACTION ON UPDATE NO ACTION
         `);
+        await queryRunner.query(`
+            ALTER TABLE "hierarchy"
+            ADD CONSTRAINT "FK_aaba494e02eaa91111d549e5763" FOREIGN KEY ("item_id", "version_no", "category_key") REFERENCES "reference_data"("item_id", "version_no", "category_key") ON DELETE NO ACTION ON UPDATE NO ACTION
+        `);
+        await queryRunner.query(`
+            ALTER TABLE "hierarchy"
+            ADD CONSTRAINT "FK_6ca6a866371cdd67a638df8a74c" FOREIGN KEY ("parent_id", "parent_version", "parent_category") REFERENCES "reference_data"("item_id", "version_no", "category_key") ON DELETE NO ACTION ON UPDATE NO ACTION
+        `);
+        await queryRunner.query(`
+            ALTER TABLE "category_info"
+            ADD CONSTRAINT "FK_68028565126809c1e925e6f9334" FOREIGN KEY ("category") REFERENCES "category"("category") ON DELETE NO ACTION ON UPDATE NO ACTION
+        `);
     }
 
     public async down(queryRunner: QueryRunner): Promise<void> {
         await queryRunner.query(`
-            ALTER TABLE "reference_data_info" DROP CONSTRAINT "FK_f671fde9c769286ba971485ba09"
-        `);
-        await queryRunner.query(`
             ALTER TABLE "category_info" DROP CONSTRAINT "FK_68028565126809c1e925e6f9334"
         `);
         await queryRunner.query(`
-            ALTER TABLE "revision" DROP CONSTRAINT "FK_revision_approved_by"
+            ALTER TABLE "hierarchy" DROP CONSTRAINT "FK_6ca6a866371cdd67a638df8a74c"
         `);
         await queryRunner.query(`
-            ALTER TABLE "revision" DROP CONSTRAINT "FK_revision_created_by"
+            ALTER TABLE "hierarchy" DROP CONSTRAINT "FK_aaba494e02eaa91111d549e5763"
         `);
         await queryRunner.query(`
-            ALTER TABLE "revision" DROP CONSTRAINT "FK_revision_previous_revision_id"
+            ALTER TABLE "reference_data_info" DROP CONSTRAINT "FK_f671fde9c769286ba971485ba09"
         `);
         await queryRunner.query(`
-            ALTER TABLE "revision" DROP CONSTRAINT "FK_revision_dataset_id"
+            ALTER TABLE "category_key_info" DROP CONSTRAINT "FK_ec0b41bafd5605fff51fc0c8e47"
         `);
         await queryRunner.query(`
-            ALTER TABLE "fact_table" DROP CONSTRAINT "FK_fact_table_revision_id"
+            ALTER TABLE "reference_data" DROP CONSTRAINT "FK_dd4ff535904e339641b0b0d52c2"
         `);
         await queryRunner.query(`
-            ALTER TABLE "fact_table_info" DROP CONSTRAINT "FK_fact_table_info_fact_table_id"
+            ALTER TABLE "category_key" DROP CONSTRAINT "FK_087b36846d67092609821a62756"
+        `);
+        await queryRunner.query(`
+            ALTER TABLE "team" DROP CONSTRAINT "FK_team_organisation_id"
+        `);
+        await queryRunner.query(`
+            ALTER TABLE "team_info" DROP CONSTRAINT "FK_team_info_team_id"
+        `);
+        await queryRunner.query(`
+            ALTER TABLE "organisation_info" DROP CONSTRAINT "FK_organisation_info_organisation_id"
+        `);
+        await queryRunner.query(`
+            ALTER TABLE "dataset" DROP CONSTRAINT "FK_dataset_team_id"
         `);
         await queryRunner.query(`
             ALTER TABLE "dataset" DROP CONSTRAINT "FK_dataset_created_by"
@@ -524,40 +589,55 @@ export class InitialSchema1732832523588 implements MigrationInterface {
             ALTER TABLE "dataset_info" DROP CONSTRAINT "FK_dataset_info_dataset_id"
         `);
         await queryRunner.query(`
-            ALTER TABLE "hierarchy" DROP CONSTRAINT "FK_6ca6a866371cdd67a638df8a74c"
+            ALTER TABLE "revision" DROP CONSTRAINT "FK_revision_approved_by"
         `);
         await queryRunner.query(`
-            ALTER TABLE "hierarchy" DROP CONSTRAINT "FK_aaba494e02eaa91111d549e5763"
+            ALTER TABLE "revision" DROP CONSTRAINT "FK_revision_created_by"
         `);
         await queryRunner.query(`
-            ALTER TABLE "reference_data" DROP CONSTRAINT "FK_dd4ff535904e339641b0b0d52c2"
+            ALTER TABLE "revision" DROP CONSTRAINT "FK_revision_previous_revision_id"
         `);
         await queryRunner.query(`
-            ALTER TABLE "category_key_info" DROP CONSTRAINT "FK_ec0b41bafd5605fff51fc0c8e47"
+            ALTER TABLE "revision" DROP CONSTRAINT "FK_revision_dataset_id"
         `);
         await queryRunner.query(`
-            ALTER TABLE "category_key" DROP CONSTRAINT "FK_087b36846d67092609821a62756"
+            ALTER TABLE "fact_table" DROP CONSTRAINT "FK_fact_table_revision_id"
         `);
         await queryRunner.query(`
-            DROP TABLE "reference_data_info"
+            ALTER TABLE "fact_table_info" DROP CONSTRAINT "FK_fact_table_info_fact_table_id"
         `);
         await queryRunner.query(`
             DROP TABLE "category_info"
         `);
         await queryRunner.query(`
-            DROP TABLE "revision"
+            DROP TABLE "hierarchy"
         `);
         await queryRunner.query(`
-            DROP TABLE "fact_table"
+            DROP TABLE "reference_data_info"
         `);
         await queryRunner.query(`
-            DROP TYPE "public"."fact_table_filetype_enum"
+            DROP TABLE "category_key_info"
         `);
         await queryRunner.query(`
-            DROP TABLE "fact_table_info"
+            DROP TABLE "reference_data"
         `);
         await queryRunner.query(`
-            DROP TYPE "public"."fact_table_info_column_type_enum"
+            DROP TABLE "category_key"
+        `);
+        await queryRunner.query(`
+            DROP TABLE "category"
+        `);
+        await queryRunner.query(`
+            DROP TABLE "team"
+        `);
+        await queryRunner.query(`
+            DROP TABLE "team_info"
+        `);
+        await queryRunner.query(`
+            DROP TABLE "organisation"
+        `);
+        await queryRunner.query(`
+            DROP TABLE "organisation_info"
         `);
         await queryRunner.query(`
             DROP TABLE "dataset"
@@ -608,6 +688,21 @@ export class InitialSchema1732832523588 implements MigrationInterface {
             DROP TYPE "public"."dataset_info_designation_enum"
         `);
         await queryRunner.query(`
+            DROP TABLE "revision"
+        `);
+        await queryRunner.query(`
+            DROP TABLE "fact_table"
+        `);
+        await queryRunner.query(`
+            DROP TYPE "public"."fact_table_filetype_enum"
+        `);
+        await queryRunner.query(`
+            DROP TABLE "fact_table_info"
+        `);
+        await queryRunner.query(`
+            DROP TYPE "public"."fact_table_info_column_type_enum"
+        `);
+        await queryRunner.query(`
             DROP INDEX "public"."UX_user_provider_provider_user_id"
         `);
         await queryRunner.query(`
@@ -618,21 +713,6 @@ export class InitialSchema1732832523588 implements MigrationInterface {
         `);
         await queryRunner.query(`
             DROP TABLE "user"
-        `);
-        await queryRunner.query(`
-            DROP TABLE "hierarchy"
-        `);
-        await queryRunner.query(`
-            DROP TABLE "reference_data"
-        `);
-        await queryRunner.query(`
-            DROP TABLE "category_key_info"
-        `);
-        await queryRunner.query(`
-            DROP TABLE "category_key"
-        `);
-        await queryRunner.query(`
-            DROP TABLE "category"
         `);
     }
 }

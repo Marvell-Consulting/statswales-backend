@@ -191,6 +191,8 @@ async function createUpdateMeasure(
     measure.factTableColumn = columnAssignment.column_name;
     measure.dataset = dataset;
     await measure.save();
+    // eslint-disable-next-line require-atomic-updates
+    dataset.measure = measure;
     await dataset.save();
 }
 
