@@ -35,7 +35,7 @@ export class TasklistStateDTO {
 
     public static fromDataset(dataset: Dataset, lang: string): TasklistStateDTO {
         const info = dataset.datasetInfo?.find((info) => info.language === lang);
-      
+
         const measure = () => {
             if (!dataset.measure) {
                 return undefined;
@@ -87,7 +87,7 @@ export class TasklistStateDTO {
         };
 
         dto.publishing = {
-            organisation: TaskStatus.NotImplemented,
+            organisation: dataset.team ? TaskStatus.Completed : TaskStatus.NotStarted,
             when: latestRevision.publishAt ? TaskStatus.Completed : TaskStatus.NotStarted
         };
 

@@ -55,6 +55,7 @@ import { DimensionType } from '../enums/dimension-type';
 import { LookupTable } from '../entities/dataset/lookup-table';
 import { DimensionInfoDTO } from '../dtos/dimension-info-dto';
 import { DimensionInfo } from '../entities/dataset/dimension-info';
+import { TeamSelectionDTO } from '../dtos/team-selection-dto';
 
 const jsonParser = express.json();
 const upload = multer({ storage: multer.memoryStorage() });
@@ -731,6 +732,33 @@ router.patch(
             const datasetId = res.locals.datasetId;
             const datasetTopics = await dtoValidator(TopicSelectionDTO, req.body);
             const updatedDataset = await DatasetRepository.updateDatasetTopics(datasetId, datasetTopics.topics);
+            res.status(201);
+            res.json(DatasetDTO.fromDataset(updatedDataset));
+        } catch (err: any) {
+            if (err instanceof BadRequestException) {
+                err.validationErrors?.forEach((error) => {
+                    if (!error.constraints) return;
+                    Object.values(error.constraints).forEach((message) => logger.error(message));
+                });
+                next(err);
+                return;
+            }
+            next(new UnknownException('errors.topic_update_error'));
+        }
+    }
+);
+
+// PATCH /dataset/:dataset_id/team
+// Updates the team for the dataset
+router.patch(
+    '/:dataset_id/team',
+    jsonParser,
+    loadDataset(),
+    async (req: Request, res: Response, next: NextFunction) => {
+        try {
+            const datasetId = res.locals.datasetId;
+            const datasetTeam = await dtoValidator(TeamSelectionDTO, req.body);
+            const updatedDataset = await DatasetRepository.updateDatasetTeam(datasetId, datasetTeam.team_id);
             res.status(201);
             res.json(DatasetDTO.fromDataset(updatedDataset));
         } catch (err: any) {
