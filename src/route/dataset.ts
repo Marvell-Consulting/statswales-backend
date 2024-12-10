@@ -8,6 +8,7 @@ import multer from 'multer';
 import { FieldValidationError } from 'express-validator';
 import { FindOptionsRelations } from 'typeorm';
 import { t } from 'i18next';
+import { isBefore, isValid } from 'date-fns';
 
 import { logger } from '../utils/logger';
 import { ViewDTO, ViewErrDTO } from '../dtos/view-dto';
@@ -742,6 +743,50 @@ router.patch(
                 return;
             }
             next(new UnknownException('errors.topic_update_error'));
+        }
+    }
+);
+
+// PATCH /dataset/:dataset_id/revision/by-id/:revision_id/publish-at
+// Updates the publishAt date for the specified revision
+router.patch(
+    '/:dataset_id/revision/by-id/:revision_id/publish-at',
+    jsonParser,
+    loadDataset(),
+    async (req: Request, res: Response, next: NextFunction) => {
+        const dataset = res.locals.dataset;
+        const revision = dataset.revisions.find((revision: Revision) => revision.id === req.params.revision_id);
+
+        if (!revision) {
+            next(new NotFoundException('errors.revision_id_invalid'));
+            return;
+        }
+
+        if (revision.approvedAt) {
+            next(new BadRequestException('errors.revision_already_approved'));
+            return;
+        }
+
+        try {
+            const publishAt = req.body.publish_at;
+
+            if (!publishAt || !isValid(new Date(publishAt))) {
+                next(new BadRequestException('errors.publish_at.invalid'));
+                return;
+            }
+
+            if (isBefore(publishAt, new Date())) {
+                next(new BadRequestException('errors.publish_at.in_past'));
+                return;
+            }
+
+            await RevisionRepository.updatePublishDate(revision, publishAt);
+            const updatedDataset = await DatasetRepository.getById(req.params.dataset_id);
+
+            res.status(201);
+            res.json(DatasetDTO.fromDataset(updatedDataset));
+        } catch (err) {
+            next(new UnknownException());
         }
     }
 );

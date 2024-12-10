@@ -64,7 +64,12 @@
         "tasklist_error": "There was a problem generating the tasklist state",
         "import_location_not_supported": "Import location not supported",
         "remove_file": "Error removing file from temporary blob storage",
-        "invalid_dto": "Invalid request object"
+        "invalid_dto": "Invalid request object",
+        "revision_already_approved": "Cannot change the publish date for a revision which has already been approved",
+        "publish_at": {
+            "invalid": "Publish at is missing or invalid",
+            "in_past": "Publish at cannot be in the past"
+        }
 	},
     "dimension_info": {
         "footnotes": {
