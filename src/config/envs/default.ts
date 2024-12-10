@@ -20,7 +20,7 @@ export const getDefaultConfig = (): AppConfig => {
         },
         language: {
             availableTranslations: [Locale.English, Locale.Welsh],
-            supportedLocales: [Locale.English, Locale.EnglishGb, Locale.Welsh, Locale.WelshGb],
+            supportedLocales: [Locale.EnglishGb, Locale.WelshGb],
             fallback: Locale.English
         },
         session: {

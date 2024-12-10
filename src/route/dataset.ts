@@ -1,8 +1,8 @@
 import 'reflect-metadata';
 
 import { Readable } from 'node:stream';
-// import util from 'node:util';
 
+// import util from 'node:util';
 import express, { NextFunction, Request, Response, Router } from 'express';
 import multer from 'multer';
 import { FieldValidationError } from 'express-validator';
@@ -11,16 +11,27 @@ import { t } from 'i18next';
 import { isBefore, isValid } from 'date-fns';
 
 import { logger } from '../utils/logger';
-import { ViewErrDTO } from '../dtos/view-dto';
-import { DEFAULT_PAGE_SIZE, getCSVPreview, removeFileFromDataLake, uploadCSV } from '../controllers/csv-processor';
-import { createDimensionsFromSourceAssignment, validateSourceAssignment } from '../controllers/dimension-processor';
+import { ViewDTO, ViewErrDTO } from '../dtos/view-dto';
+import {
+    DEFAULT_PAGE_SIZE,
+    getCSVPreview,
+    getFactTableColumnPreview,
+    removeFileFromDataLake,
+    uploadCSV
+} from '../controllers/csv-processor';
+import {
+    createDimensionsFromSourceAssignment,
+    getDateDimensionColumnPreview,
+    validateDateTypeDimension,
+    validateSourceAssignment
+} from '../controllers/dimension-processor';
 import { User } from '../entities/user/user';
 import { DatasetDTO } from '../dtos/dataset-dto';
 import { DatasetInfoDTO } from '../dtos/dataset-info-dto';
 import { FactTableDTO } from '../dtos/fact-table-dto';
 import { Locale } from '../enums/locale';
 import { DatasetRepository } from '../repositories/dataset';
-import { hasError, datasetIdValidator, titleValidator, revisionIdValidator, factTableIdValidator } from '../validators';
+import { datasetIdValidator, factTableIdValidator, hasError, revisionIdValidator, titleValidator } from '../validators';
 import { NotFoundException } from '../exceptions/not-found.exception';
 import { BadRequestException } from '../exceptions/bad-request.exception';
 import { UnknownException } from '../exceptions/unknown.exception';
@@ -39,6 +50,11 @@ import { DatasetProviderDTO } from '../dtos/dataset-provider-dto';
 import { TopicSelectionDTO } from '../dtos/topic-selection-dto';
 import { DataLakeService } from '../services/datalake';
 import { FactTable } from '../entities/dataset/fact-table';
+import { DimensionPatchDto } from '../dtos/dimension-partch-dto';
+import { DimensionType } from '../enums/dimension-type';
+import { LookupTable } from '../entities/dataset/lookup-table';
+import { DimensionInfoDTO } from '../dtos/dimension-info-dto';
+import { DimensionInfo } from '../entities/dataset/dimension-info';
 import { TeamSelectionDTO } from '../dtos/team-selection-dto';
 
 const jsonParser = express.json();
@@ -431,6 +447,146 @@ router.get(
         }
 
         res.json(DimensionDTO.fromDimension(dimension));
+    }
+);
+
+// DELETE /dataset/:dataset_id/dimension/id/:dimension_id/reset
+// Resets the dimensions type back to "Raw" and removes the extractor
+router.delete(
+    '/:dataset_id/dimension/by-id/:dimension_id/reset',
+    loadDataset(),
+    async (req: Request, res: Response, next: NextFunction) => {
+        const dataset = res.locals.dataset;
+        const dimension = dataset.dimensions.find((dim: Dimension) => dim.id === req.params.dimension_id);
+
+        if (!dimension) {
+            next(new NotFoundException('errors.dimension_id_invalid'));
+            return;
+        }
+        dimension.type = DimensionType.Raw;
+        dimension.extractor = null;
+        if (dimension.lookuptable) {
+            const lookupTable: LookupTable = dimension.lookupTable;
+            await lookupTable.remove();
+            dimension.lookuptable = null;
+        }
+        await dimension.save();
+        const updatedDimension = await Dimension.findOneByOrFail({ id: dimension.id });
+        res.status(202);
+        res.json(DimensionDTO.fromDimension(updatedDimension));
+    }
+);
+
+// GET /dataset/:dataset_id/dimension/id/:dimension_id/preview
+// Returns details of a dimension and a preview of the data
+// It should be noted that this returns the raw values in the
+// preview as opposed to view which returns interpreted values.
+router.get(
+    '/:dataset_id/dimension/by-id/:dimension_id/preview',
+    loadDataset(),
+    async (req: Request, res: Response, next: NextFunction) => {
+        const dataset = res.locals.dataset;
+        const dimension: Dimension = dataset.dimensions.find((dim: Dimension) => dim.id === req.params.dimension_id);
+        const factTable = getLatestRevision(dataset)?.factTables[0];
+        if (!dimension) {
+            next(new NotFoundException('errors.dimension_id_invalid'));
+            return;
+        }
+        if (!factTable) {
+            next(new NotFoundException('errors.fact_table_invalid'));
+            return;
+        }
+        let preview: ViewDTO | ViewErrDTO;
+        switch (dimension.type) {
+            case DimensionType.TimePoint:
+            case DimensionType.TimePeriod:
+                preview = await getDateDimensionColumnPreview(dataset, dimension, factTable);
+                break;
+            default:
+                preview = await getFactTableColumnPreview(dataset, factTable, dimension.factTableColumn);
+                break;
+        }
+        if ((preview as ViewErrDTO).errors) {
+            res.status(500);
+            res.json(preview);
+        }
+        res.status(200);
+        res.json(preview);
+    }
+);
+
+// PATCH /dataset/:dataset_id/dimension/id/:dimension_id/
+// Takes a patch request and validates the request against the fact table
+// If it fails it sends back an error
+router.patch(
+    '/:dataset_id/dimension/by-id/:dimension_id',
+    jsonParser,
+    loadDataset(),
+    async (req: Request, res: Response, next: NextFunction) => {
+        const dataset = res.locals.dataset;
+        const dimension = dataset.dimensions.find((dim: Dimension) => dim.id === req.params.dimension_id);
+        const factTable = getLatestRevision(dataset)?.factTables[0];
+        if (!dimension) {
+            next(new NotFoundException('errors.dimension_id_invalid'));
+            return;
+        }
+        if (!factTable) {
+            next(new NotFoundException('errors.fact_table_invalid'));
+            return;
+        }
+        const dimensionPatchRequest = req.body as DimensionPatchDto;
+        let preview: ViewDTO | ViewErrDTO;
+        try {
+            switch (dimensionPatchRequest.dimension_type) {
+                case DimensionType.TimePeriod:
+                case DimensionType.TimePoint:
+                    preview = await validateDateTypeDimension(dimensionPatchRequest, dataset, dimension, factTable);
+                    break;
+                default:
+                    throw new Error('Not Implemented Yet!');
+            }
+        } catch (error) {
+            res.status(500);
+            res.json({ message: 'Unable to validate or match dimension against patch' });
+            return;
+        }
+
+        if ((preview as ViewErrDTO).errors) {
+            res.status((preview as ViewErrDTO).status);
+            res.json(preview);
+            return;
+        }
+        res.status(200);
+        res.json(preview);
+    }
+);
+
+// PATCH /:dataset_id/dimension/by-id/:dimension_id/info
+// Updates the dimension info
+router.patch(
+    '/:dataset_id/dimension/by-id/:dimension_id/info',
+    jsonParser,
+    loadDataset(),
+    async (req: Request, res: Response, next: NextFunction) => {
+        const dataset = res.locals.dataset;
+        const dimension: Dimension = dataset.dimensions.find((dim: Dimension) => dim.id === req.params.dimension_id);
+        const updatedInfo = req.body as DimensionInfoDTO;
+        let info = dimension.dimensionInfo.find((info) => info.language === updatedInfo.language);
+        if (!info) {
+            info = new DimensionInfo();
+            info.dimension = dimension;
+            info.language = updatedInfo.language;
+        }
+        if (updatedInfo.name) {
+            info.name = updatedInfo.name;
+        }
+        if (updatedInfo.notes) {
+            info.notes = updatedInfo.notes;
+        }
+        await info.save();
+        const updatedDimension = await Dimension.findOneByOrFail({ id: dimension.id });
+        res.status(202);
+        res.json(DimensionDTO.fromDimension(updatedDimension));
     }
 );
 

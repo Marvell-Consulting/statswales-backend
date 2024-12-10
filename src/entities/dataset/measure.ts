@@ -21,12 +21,15 @@ export class Measure extends BaseEntity {
     @PrimaryGeneratedColumn('uuid', { primaryKeyConstraintName: 'PK_measure_id' })
     id: string;
 
-    @ManyToOne(() => Dataset, { onDelete: 'CASCADE', orphanedRowAction: 'delete' })
+    @OneToOne(() => Dataset, (dataset) => dataset.measure, { onDelete: 'CASCADE', orphanedRowAction: 'delete' })
     @JoinColumn({ name: 'dataset_id', foreignKeyConstraintName: 'FK_measure_dataset_id' })
     dataset: Dataset;
 
     @OneToOne(() => LookupTable, { cascade: true, onDelete: 'CASCADE' })
-    @JoinColumn({ name: 'lookup_table_id', foreignKeyConstraintName: 'FK_measure_lookup_table_id' })
+    @JoinColumn({
+        name: 'lookup_table_id',
+        foreignKeyConstraintName: 'FK_measure_lookup_table_id_lookup_table_measure_id'
+    })
     lookupTable: LookupTable;
 
     @Column({ name: 'fact_table_column', type: 'varchar' })

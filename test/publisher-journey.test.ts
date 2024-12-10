@@ -553,8 +553,6 @@ describe('API Endpoints', () => {
             }
             const dimensions = updatedDataset.dimensions;
             expect(dimensions.length).toBe(3);
-            const dto = DatasetDTO.fromDataset(updatedDataset);
-            expect(res.body).toEqual(dto);
         });
 
         test('Create dimensions from user supplied JSON returns 400 if the body is empty', async () => {

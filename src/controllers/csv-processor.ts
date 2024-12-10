@@ -354,6 +354,99 @@ export const getCSVPreview = async (
     }
 };
 
+export const getFactTableColumnPreview = async (
+    dataset: Dataset,
+    factTable: FactTable,
+    columnName: string
+): Promise<ViewDTO | ViewErrDTO> => {
+    const tableName = 'preview_table';
+    const quack = await Database.create(':memory:');
+    const tempFile = tmp.fileSync({ postfix: `.${factTable.fileType}` });
+    try {
+        const dataLakeService = new DataLakeService();
+        const fileBuffer = await dataLakeService.getFileBuffer(factTable.filename, dataset.id);
+        fs.writeFileSync(tempFile.name, fileBuffer);
+        let createTableQuery: string;
+        switch (factTable.fileType) {
+            case FileType.Csv:
+            case FileType.GzipCsv:
+                createTableQuery = `CREATE TABLE ${tableName} AS SELECT * FROM read_csv('${tempFile.name}', auto_type_candidates = ['BOOLEAN', 'BIGINT', 'DOUBLE', 'VARCHAR']);`;
+                break;
+            case FileType.Parquet:
+                createTableQuery = `CREATE TABLE ${tableName} AS SELECT * FROM '${tempFile.name}';`;
+                break;
+            case FileType.Json:
+            case FileType.GzipJson:
+                createTableQuery = `CREATE TABLE ${tableName} AS SELECT * FROM read_json_auto('${tempFile.name}');`;
+                break;
+            case FileType.Excel:
+                await quack.exec('INSTALL spatial;');
+                await quack.exec('LOAD spatial;');
+                createTableQuery = `CREATE TABLE ${tableName} AS SELECT * FROM st_read('${tempFile.name}');`;
+                break;
+            default:
+                throw new Error('Unknown file type');
+        }
+        await quack.exec(createTableQuery);
+        const previewQuery = `SELECT DISTINCT ${columnName} FROM ${tableName} LIMIT 5`;
+        const preview = await quack.all(previewQuery);
+        const tableHeaders = Object.keys(preview[0]);
+        const dataArray = preview.map((row) => Object.values(row));
+        const currentDataset = await DatasetRepository.getById(dataset.id);
+        const currentImport = await FactTable.findOneByOrFail({ id: factTable.id });
+        const headers: CSVHeader[] = [];
+        for (let i = 0; i < tableHeaders.length; i++) {
+            let sourceType: FactTableColumnType;
+            if (tableHeaders[i] === 'int_line_number') sourceType = FactTableColumnType.LineNumber;
+            else
+                sourceType =
+                    factTable.factTableInfo.find((info) => info.columnName === tableHeaders[i])?.columnType ??
+                    FactTableColumnType.Unknown;
+            headers.push({
+                index: i - 1,
+                name: tableHeaders[i],
+                source_type: sourceType
+            });
+        }
+        return {
+            dataset: DatasetDTO.fromDataset(currentDataset),
+            fact_table: FactTableDTO.fromFactTable(currentImport),
+            current_page: 1,
+            page_info: {
+                total_records: 1,
+                start_record: 1,
+                end_record: 10
+            },
+            page_size: 10,
+            total_pages: 1,
+            headers,
+            data: dataArray
+        };
+    } catch (error) {
+        logger.error(error);
+        return {
+            status: 500,
+            errors: [
+                {
+                    field: 'csv',
+                    message: [
+                        {
+                            lang: Locale.English,
+                            message: t('errors.download_from_datalake', { lng: Locale.English })
+                        },
+                        { lang: Locale.Welsh, message: t('errors.download_from_datalake', { lng: Locale.Welsh }) }
+                    ],
+                    tag: { name: 'errors.download_from_datalake', params: {} }
+                }
+            ],
+            dataset_id: dataset.id
+        };
+    } finally {
+        await quack.close();
+        tempFile.removeCallback();
+    }
+};
+
 export const removeFileFromDataLake = async (importObj: FactTable, dataset: Dataset) => {
     const datalakeService = new DataLakeService();
     try {

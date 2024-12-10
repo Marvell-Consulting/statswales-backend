@@ -22,6 +22,9 @@ export interface ViewErrDTO {
     status: number;
     errors: Error[];
     dataset_id: string | undefined;
+    headers?: CSVHeader[];
+    data?: string[][];
+    extension?: object;
 }
 
 export interface ViewDTO {
@@ -33,6 +36,7 @@ export interface ViewDTO {
     total_pages: number;
     headers: CSVHeader[];
     data: string[][];
+    extension?: object;
 }
 
 export interface ViewStream {

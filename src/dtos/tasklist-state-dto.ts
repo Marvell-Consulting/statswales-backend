@@ -4,10 +4,11 @@ import { DimensionType } from '../enums/dimension-type';
 import { TaskStatus } from '../enums/task-status';
 
 import { DimensionStatus } from './dimension-status';
+import { MeasureDTO } from './measure-dto';
 
 export class TasklistStateDTO {
     datatable: TaskStatus;
-
+    measure?: DimensionStatus;
     dimensions: DimensionStatus[];
 
     metadata: {
@@ -34,6 +35,21 @@ export class TasklistStateDTO {
 
     public static fromDataset(dataset: Dataset, lang: string): TasklistStateDTO {
         const info = dataset.datasetInfo?.find((info) => info.language === lang);
+
+        const measure = () => {
+            if (!dataset.measure) {
+                return undefined;
+            }
+            if (dataset.measure.joinColumn) {
+                return {
+                    name: dataset.measure.factTableColumn,
+                    status: TaskStatus.Completed,
+                    type: 'measure'
+                };
+            }
+            return { name: dataset.measure.factTableColumn, status: TaskStatus.NotStarted, type: 'measure' };
+        };
+
         const latestRevision = dataset.revisions[dataset.revisions.length - 1];
 
         const dimensions = dataset.dimensions?.reduce((dimensionStatus: DimensionStatus[], dimension) => {
@@ -43,7 +59,8 @@ export class TasklistStateDTO {
 
             dimensionStatus.push({
                 name: dimInfo?.name || 'unknown',
-                status: dimension.type === DimensionType.Raw ? TaskStatus.NotStarted : TaskStatus.Completed
+                status: dimension.extractor === null ? TaskStatus.NotStarted : TaskStatus.Completed,
+                type: dimension.type
             });
 
             return dimensionStatus;
@@ -51,7 +68,7 @@ export class TasklistStateDTO {
 
         const dto = new TasklistStateDTO();
         dto.datatable = dataset.revisions.length > 0 ? TaskStatus.Completed : TaskStatus.NotStarted;
-
+        dto.measure = measure();
         dto.dimensions = dimensions;
 
         dto.metadata = {

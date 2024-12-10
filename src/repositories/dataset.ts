@@ -20,6 +20,10 @@ const defaultRelations: FindOptionsRelations<Dataset> = {
     dimensions: {
         dimensionInfo: true
     },
+    measure: {
+        lookupTable: true,
+        measureInfo: true
+    },
     revisions: {
         createdBy: true,
         factTables: {
@@ -42,7 +46,10 @@ export const DatasetRepository = dataSource.getRepository(Dataset).extend({
 
         if (has(relations, 'revisions.factTables.factTableInfo')) {
             // sort sources by column index if they're requested
-            findOptions.order = { revisions: { factTables: { factTableInfo: { columnIndex: 'ASC' } } } };
+            findOptions.order = {
+                dimensions: { dimensionInfo: { language: 'ASC' } },
+                revisions: { factTables: { factTableInfo: { columnIndex: 'ASC' } } }
+            };
         }
 
         return this.findOneOrFail(findOptions);
