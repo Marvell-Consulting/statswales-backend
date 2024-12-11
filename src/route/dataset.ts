@@ -554,6 +554,7 @@ router.patch(
                     throw new Error('Not Implemented Yet!');
             }
         } catch (error) {
+            logger.error(`Something went wrong trying to validate the dimension with the following error: ${error}`);
             res.status(500);
             res.json({ message: 'Unable to validate or match dimension against patch' });
             return;
