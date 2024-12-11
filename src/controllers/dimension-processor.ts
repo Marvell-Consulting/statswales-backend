@@ -377,7 +377,7 @@ export const validateDateTypeDimension = async (
 
         // Now validate everything matches
         const nonMatchedRows = await quack.all(
-            `SELECT line_number, fact_table_date, date_dimension.date_code FROM (SELECT row_number() OVER () as line_number, ${dimension.factTableColumn} as fact_table_date FROM ${tableName}) as fact_table LEFT JOIN date_dimension ON fact_table.fact_table_date=date_dimension.date_code where date_code IS NULL;`
+            `SELECT line_number, fact_table_date, date_dimension.date_code FROM (SELECT row_number() OVER () as line_number, "${dimension.factTableColumn}" as fact_table_date FROM ${tableName}) as fact_table LEFT JOIN date_dimension ON fact_table.fact_table_date=date_dimension.date_code where date_code IS NULL;`
         );
         if (nonMatchedRows.length > 0) {
             if (nonMatchedRows.length === preview.length) {
@@ -410,7 +410,7 @@ export const validateDateTypeDimension = async (
                     `There were ${nonMatchedRows.length} row(s) which didn't match based on the information given to us by the user`
                 );
                 const nonMatchedRowSample = await quack.all(
-                    `SELECT DISTINCT fact_table_date, FROM (SELECT row_number() OVER () as line_number, ${dimension.factTableColumn} as fact_table_date FROM ${tableName}) as fact_table LEFT JOIN date_dimension ON fact_table.fact_table_date=date_dimension.date_code where date_code IS NULL;`
+                    `SELECT DISTINCT fact_table_date, FROM (SELECT row_number() OVER () as line_number, "${dimension.factTableColumn}" as fact_table_date FROM ${tableName}) as fact_table LEFT JOIN date_dimension ON fact_table.fact_table_date=date_dimension.date_code where date_code IS NULL;`
                 );
                 const nonMatchingValues = nonMatchedRowSample
                     .map((item) => item.fact_table_date)
@@ -498,7 +498,7 @@ async function getDatePreviewWithExtractor(
     quack: Database,
     tableName: string
 ): Promise<ViewDTO> {
-    const columnData = await quack.all(`SELECT DISTINCT ${dimension.factTableColumn} FROM ${tableName}`);
+    const columnData = await quack.all(`SELECT DISTINCT "${dimension.factTableColumn}" FROM ${tableName}`);
     const dateDimensionTable = dateDimensionReferenceTableCreator(dimension.extractor, columnData);
     await quack.exec(createDateDimensionTable);
     // Create the date_dimension table
@@ -546,7 +546,7 @@ async function getDatePreviewWithoutExtractor(
     tableName: string
 ): Promise<ViewDTO> {
     const preview = await quack.all(
-        `SELECT DISTINCT ${dimension.factTableColumn} FROM ${tableName} USING SAMPLE ${sampleSize};`
+        `SELECT DISTINCT "${dimension.factTableColumn}" FROM ${tableName} USING SAMPLE ${sampleSize};`
     );
     const tableHeaders = Object.keys(preview[0]);
     const dataArray = preview.map((row) => Object.values(row));

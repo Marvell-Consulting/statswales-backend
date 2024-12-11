@@ -496,22 +496,30 @@ router.get(
             next(new NotFoundException('errors.fact_table_invalid'));
             return;
         }
-        let preview: ViewDTO | ViewErrDTO;
-        switch (dimension.type) {
-            case DimensionType.TimePoint:
-            case DimensionType.TimePeriod:
-                preview = await getDateDimensionColumnPreview(dataset, dimension, factTable);
-                break;
-            default:
-                preview = await getFactTableColumnPreview(dataset, factTable, dimension.factTableColumn);
-                break;
-        }
-        if ((preview as ViewErrDTO).errors) {
-            res.status(500);
+        try {
+            let preview: ViewDTO | ViewErrDTO;
+            switch (dimension.type) {
+                case DimensionType.TimePoint:
+                case DimensionType.TimePeriod:
+                    preview = await getDateDimensionColumnPreview(dataset, dimension, factTable);
+                    break;
+                default:
+                    preview = await getFactTableColumnPreview(dataset, factTable, dimension.factTableColumn);
+                    break;
+            }
+            if ((preview as ViewErrDTO).errors) {
+                res.status(500);
+                res.json(preview);
+            }
+            res.status(200);
             res.json(preview);
+        } catch (err) {
+            logger.error(
+                `Something went wrong trying to get a preview of the dimension with the following error: ${err}`
+            );
+            res.status(500);
+            res.json({ message: 'Something went wrong trying to generate a preview of the dimension' });
         }
-        res.status(200);
-        res.json(preview);
     }
 );
 
