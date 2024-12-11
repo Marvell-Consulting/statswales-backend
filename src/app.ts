@@ -19,6 +19,7 @@ import { providerRouter } from './route/provider';
 import { topicRouter } from './route/topic';
 import { organisationRouter } from './route/organisation';
 import { teamRouter } from './route/team';
+import { translationRouter } from './route/translation';
 
 export const initDb = async (): Promise<DatabaseManager> => {
     const dbManager = new DatabaseManager(logger);
@@ -57,6 +58,7 @@ app.use('/provider', rateLimiter, passport.authenticate('jwt', { session: false 
 app.use('/topic', rateLimiter, passport.authenticate('jwt', { session: false }), topicRouter);
 app.use('/organisation', rateLimiter, passport.authenticate('jwt', { session: false }), organisationRouter);
 app.use('/team', rateLimiter, passport.authenticate('jwt', { session: false }), teamRouter);
+app.use('/translation', rateLimiter, passport.authenticate('jwt', { session: false }), translationRouter);
 
 app.use(errorHandler);
 
