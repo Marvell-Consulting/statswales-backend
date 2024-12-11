@@ -215,7 +215,7 @@ function periodTableCreator(dateFormat: DateExtractor, dataColumn: TableData) {
                 .replace('[full-start]', format(displayYear, 'yyyy'))
                 .replace('[full-end]', format(add(displayYear, { years: 1 }), 'yyyy'))
                 .replace('[end-year]', format(add(displayYear, { years: 1 }), 'yy'))
-                .replace('[quarterNo]', (quarterIndex+1).toString())
+                .replace('[quarterNo]', (quarterIndex + 1).toString())
                 .replace('[monthStr]', format(year, 'MMM'))
                 .replace('[monthNo]', String(monthNo).padStart(2, '0'));
             referenceTable.push({
