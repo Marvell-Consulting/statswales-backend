@@ -331,9 +331,10 @@ export const validateDateTypeDimension = async (
         dateFormat: dimensionPatchRequest.date_format
     };
     logger.debug(`Extractor created with the following JSON: ${JSON.stringify(extractor)}`);
-    const previewQuery = `SELECT DISTINCT ${dimension.factTableColumn} FROM ${tableName}`;
+    const previewQuery = `SELECT DISTINCT "${dimension.factTableColumn}" FROM ${tableName}`;
     const preview = await quack.all(previewQuery);
     try {
+        logger.debug(`Extractor created with ${JSON.stringify(extractor)}`);
         dateDimensionTable = dateDimensionReferenceTableCreator(extractor, preview);
     } catch (error) {
         logger.error(
@@ -444,7 +445,7 @@ export const validateDateTypeDimension = async (
             }
         }
     } catch (error) {
-        logger.error(error);
+        logger.error(`Something went wrong trying to validate the data with the following error: ${error}`);
         await quack.close();
         tempFile.removeCallback();
         throw error;
@@ -527,11 +528,11 @@ async function getDatePreviewWithExtractor(
         fact_table: FactTableDTO.fromFactTable(currentImport),
         current_page: 1,
         page_info: {
-            total_records: columnData.length,
+            total_records: dimensionTable.length,
             start_record: 1,
-            end_record: sampleSize
+            end_record: dimensionTable.length < sampleSize ? dimensionTable.length : sampleSize
         },
-        page_size: sampleSize,
+        page_size: dimensionTable.length < sampleSize ? dimensionTable.length : sampleSize,
         total_pages: 1,
         headers,
         data: dataArray
@@ -546,7 +547,7 @@ async function getDatePreviewWithoutExtractor(
     tableName: string
 ): Promise<ViewDTO> {
     const preview = await quack.all(
-        `SELECT DISTINCT "${dimension.factTableColumn}" FROM ${tableName} USING SAMPLE ${sampleSize};`
+        `SELECT DISTINCT "${dimension.factTableColumn}" FROM ${tableName} ORDER BY "${dimension.factTableColumn}" ASC LIMIT ${sampleSize};`
     );
     const tableHeaders = Object.keys(preview[0]);
     const dataArray = preview.map((row) => Object.values(row));
@@ -567,9 +568,9 @@ async function getDatePreviewWithoutExtractor(
         page_info: {
             total_records: preview.length,
             start_record: 1,
-            end_record: sampleSize
+            end_record: preview.length
         },
-        page_size: sampleSize,
+        page_size: preview.length < sampleSize ? preview.length : sampleSize,
         total_pages: 1,
         headers,
         data: dataArray

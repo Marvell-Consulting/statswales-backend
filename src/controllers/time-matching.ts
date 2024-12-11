@@ -104,7 +104,7 @@ function createAllTypesOfPeriod(dateFormat: DateExtractor, dataColumn: TableData
     logger.debug(`date extractor = ${JSON.stringify(dateFormat)}`);
     if (dateFormat.quarterFormat && dateFormat.quarterTotalIsFifthQuart) {
         logger.debug('5th quarter used to represent whole year totals');
-        referenceTable = referenceTable.concat(periodTableCreator(dateFormat, dataColumn));
+        return periodTableCreator(dateFormat, dataColumn);
     } else {
         // We always need years generate those first
         logger.debug('Creating table for year');
@@ -162,9 +162,8 @@ function periodTableCreator(dateFormat: DateExtractor, dataColumn: TableData) {
     const endYear = Math.max(...dataYears);
     const type = yearType(dateFormat.type);
 
-    // We want 1 year before our earliest date and 1 year after to cope with Financial, Tax and Meteorological years
-    let year = sub(parseISO(`${startYear}-${type.start}`), { years: 1 });
-    const end = add(parseISO(`${endYear}-${type.start}`), { years: 2 });
+    let year = parseISO(`${startYear}-${type.start}`);
+    const end = add(parseISO(`${endYear}-${type.start}`), { years: 1 });
 
     // Quarters and month numbers are different depending on the type of year
     let quarterIndex = 1;
@@ -202,26 +201,36 @@ function periodTableCreator(dateFormat: DateExtractor, dataColumn: TableData) {
             dateFormat.type === YearType.Calendar
                 ? format(displayYear, 'yyyy')
                 : `${format(displayYear, 'yyyy')}-${format(add(displayYear, { years: 1 }), 'yy')}`;
-        if (dateFormat.quarterTotalIsFifthQuart && quarterIndex === 5) {
+
+        referenceTable.push({
+            dateCode: dateStr,
+            description,
+            start: year,
+            end: sub(add(year, { months: formatObj.increment }), { seconds: 1 }),
+            type: `${dateFormat.type}_${subType}`
+        });
+
+        if (dateFormat.quarterTotalIsFifthQuart && quarterIndex === 4) {
+            const yearStr = formatObj.formatStr
+                .replace('[full-start]', format(displayYear, 'yyyy'))
+                .replace('[full-end]', format(add(displayYear, { years: 1 }), 'yyyy'))
+                .replace('[end-year]', format(add(displayYear, { years: 1 }), 'yy'))
+                .replace('[quarterNo]', (quarterIndex+1).toString())
+                .replace('[monthStr]', format(year, 'MMM'))
+                .replace('[monthNo]', String(monthNo).padStart(2, '0'));
             referenceTable.push({
-                dateCode: dateStr,
+                dateCode: yearStr,
                 description,
                 start: year,
                 end: sub(add(year, { months: 12 }), { seconds: 1 }),
                 type: `${dateFormat.type}_year`
             });
-        } else {
-            referenceTable.push({
-                dateCode: dateStr,
-                description,
-                start: year,
-                end: sub(add(year, { months: formatObj.increment }), { seconds: 1 }),
-                type: `${dateFormat.type}_${subType}`
-            });
-            year = add(year, { months: formatObj.increment });
         }
+
+        year = add(year, { months: formatObj.increment });
+
         // This is needed because quarters aren't really things
-        if (quarterIndex < (dateFormat.quarterTotalIsFifthQuart ? 5 : 4)) {
+        if (quarterIndex < 4) {
             quarterIndex++;
         } else {
             quarterIndex = 1;

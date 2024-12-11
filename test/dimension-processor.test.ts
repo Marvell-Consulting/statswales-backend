@@ -168,8 +168,8 @@ describe('Date matching table generation', () => {
             };
             const dateColumn: any[] = [{ yearCode: 2023 }];
             const refTable = dateDimensionReferenceTableCreator(extractor, dateColumn);
-            expect(refTable.length).toBe(3);
-            expect(refTable[1].dateCode).toBe('202324');
+            expect(refTable.length).toBe(1);
+            expect(refTable[0].dateCode).toBe('202324');
         });
 
         test('Given a correct year and quarter format it returns a valid table', async () => {
@@ -180,15 +180,12 @@ describe('Date matching table generation', () => {
             };
             const dateColumn: any[] = [{ yearCode: 2023 }];
             const refTable = dateDimensionReferenceTableCreator(extractor, dateColumn);
-            expect(refTable.length).toBe(15);
-            expect(refTable[0].dateCode).toBe('202223');
-            expect(refTable[1].dateCode).toBe('202324');
-            expect(refTable[2].dateCode).toBe('202425');
-            expect(refTable[3].dateCode).toBe('202223Q1');
-            expect(refTable[4].dateCode).toBe('202223Q2');
-            expect(refTable[5].dateCode).toBe('202223Q3');
-            expect(refTable[6].dateCode).toBe('202223Q4');
-            expect(refTable[7].dateCode).toBe('202324Q1');
+            expect(refTable.length).toBe(5);
+            expect(refTable[0].dateCode).toBe('202324');
+            expect(refTable[1].dateCode).toBe('202324Q1');
+            expect(refTable[2].dateCode).toBe('202324Q2');
+            expect(refTable[3].dateCode).toBe('202324Q3');
+            expect(refTable[4].dateCode).toBe('202324Q4');
         });
 
         test('Given a the magic 5th setting and correct year and quarter format it returns a valid table', async () => {
@@ -200,13 +197,12 @@ describe('Date matching table generation', () => {
             };
             const dateColumn: any[] = [{ yearCode: 2023 }];
             const refTable = dateDimensionReferenceTableCreator(extractor, dateColumn);
-            expect(refTable.length).toBe(14);
-            expect(refTable[0].dateCode).toBe('202223Q1');
-            expect(refTable[1].dateCode).toBe('202223Q2');
-            expect(refTable[2].dateCode).toBe('202223Q3');
-            expect(refTable[3].dateCode).toBe('202223Q4');
-            expect(refTable[4].dateCode).toBe('202223Q5');
-            expect(refTable[5].dateCode).toBe('202324Q1');
+            expect(refTable.length).toBe(5);
+            expect(refTable[0].dateCode).toBe('202324Q1');
+            expect(refTable[1].dateCode).toBe('202324Q2');
+            expect(refTable[2].dateCode).toBe('202324Q3');
+            expect(refTable[3].dateCode).toBe('202324Q4');
+            expect(refTable[4].dateCode).toBe('202324Q5');
         });
 
         test('Given a correct year and month format it returns a valid table', async () => {
@@ -217,23 +213,20 @@ describe('Date matching table generation', () => {
             };
             const dateColumn: any[] = [{ yearCode: 2023 }];
             const refTable = dateDimensionReferenceTableCreator(extractor, dateColumn);
-            expect(refTable.length).toBe(39);
-            expect(refTable[0].dateCode).toBe('202223');
-            expect(refTable[1].dateCode).toBe('202324');
-            expect(refTable[2].dateCode).toBe('202425');
-            expect(refTable[3].dateCode).toBe('202223Apr');
-            expect(refTable[4].dateCode).toBe('202223May');
-            expect(refTable[5].dateCode).toBe('202223Jun');
-            expect(refTable[6].dateCode).toBe('202223Jul');
-            expect(refTable[7].dateCode).toBe('202223Aug');
-            expect(refTable[8].dateCode).toBe('202223Sep');
-            expect(refTable[9].dateCode).toBe('202223Oct');
-            expect(refTable[10].dateCode).toBe('202223Nov');
-            expect(refTable[11].dateCode).toBe('202223Dec');
-            expect(refTable[12].dateCode).toBe('202223Jan');
-            expect(refTable[13].dateCode).toBe('202223Feb');
-            expect(refTable[14].dateCode).toBe('202223Mar');
-            expect(refTable[15].dateCode).toBe('202324Apr');
+            expect(refTable.length).toBe(13);
+            expect(refTable[0].dateCode).toBe('202324');
+            expect(refTable[1].dateCode).toBe('202324Apr');
+            expect(refTable[2].dateCode).toBe('202324May');
+            expect(refTable[3].dateCode).toBe('202324Jun');
+            expect(refTable[4].dateCode).toBe('202324Jul');
+            expect(refTable[5].dateCode).toBe('202324Aug');
+            expect(refTable[6].dateCode).toBe('202324Sep');
+            expect(refTable[7].dateCode).toBe('202324Oct');
+            expect(refTable[8].dateCode).toBe('202324Nov');
+            expect(refTable[9].dateCode).toBe('202324Dec');
+            expect(refTable[10].dateCode).toBe('202324Jan');
+            expect(refTable[11].dateCode).toBe('202324Feb');
+            expect(refTable[12].dateCode).toBe('202324Mar');
         });
 
         test('If given an unknown year format it errors', async () => {
