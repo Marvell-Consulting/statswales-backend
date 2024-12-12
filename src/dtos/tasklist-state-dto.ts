@@ -1,10 +1,11 @@
+import { every } from 'lodash';
+
 import { Dataset } from '../entities/dataset/dataset';
 import { DimensionInfo } from '../entities/dataset/dimension-info';
 import { DimensionType } from '../enums/dimension-type';
 import { TaskStatus } from '../enums/task-status';
 
 import { DimensionStatus } from './dimension-status';
-import { MeasureDTO } from './measure-dto';
 
 export class TasklistStateDTO {
     datatable: TaskStatus;
@@ -83,9 +84,14 @@ export class TasklistStateDTO {
             relevant_topics: dataset.datasetTopics?.length > 0 ? TaskStatus.Completed : TaskStatus.NotStarted
         };
 
+        const dimensionsComplete = every(dimensions, (dim) => dim.status === TaskStatus.Completed);
+        const metadataComplete = every(dto.metadata, (status) => status === TaskStatus.Completed);
+
+        // TODO: export should check for dimensionsComplete as well
+        // TODO: import should check export complete and nothing was updated since the export (needs audit table)
         dto.translation = {
-            export: TaskStatus.NotImplemented,
-            import: TaskStatus.NotImplemented
+            export: metadataComplete ? TaskStatus.NotStarted : TaskStatus.CannotStart,
+            import: metadataComplete ? TaskStatus.NotStarted : TaskStatus.CannotStart
         };
 
         dto.publishing = {
