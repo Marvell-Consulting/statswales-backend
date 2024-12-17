@@ -255,16 +255,20 @@ function specificDateTableCreator(dateFormat: DateExtractor, dataColumn: TableDa
         let dateStr: string;
         switch (dateFormat.dateFormat) {
             case 'dd/MM/yyyy':
+            case 'DD/MM/YYYY':
                 parsedDate = parse(value.toString(), 'dd/MM/yyyy', new Date());
                 break;
             case 'dd-MM-yyyy':
+            case 'DD-MM-YYYY':
                 parsedDate = parse(value.toString(), 'dd-MM-yyyy', new Date());
                 break;
             case 'yyyy-MM-dd':
+            case 'YYYY-MM-DD':
                 dateStr = `${value}T00:00:00Z`;
                 parsedDate = parseISO(dateStr);
                 break;
             case 'yyyyMMdd':
+            case 'YYYYMMDD':
                 year = value.substring(0, 4);
                 month = value.substring(4, 6);
                 day = value.substring(6, 8);
@@ -275,6 +279,7 @@ function specificDateTableCreator(dateFormat: DateExtractor, dataColumn: TableDa
                 throw new Error(`Unknown Date Format.  Format given: ${dateFormat.dateFormat}`);
         }
         if (!isDate(parsedDate) || !isValid(parsedDate)) {
+            logger.error(`Date is invalid... ${parsedDate}`);
             throw Error(`Unable to parse date based on supplied format of ${dateFormat.dateFormat}.`);
         }
 
