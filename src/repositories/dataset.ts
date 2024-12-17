@@ -1,4 +1,4 @@
-import { DeepPartial, FindOneOptions, FindOptionsRelations } from 'typeorm';
+import { FindOneOptions, FindOptionsRelations } from 'typeorm';
 import { has } from 'lodash';
 
 import { dataSource } from '../db/data-source';
@@ -13,6 +13,8 @@ import { DatasetProviderDTO } from '../dtos/dataset-provider-dto';
 import { DatasetProvider } from '../entities/dataset/dataset-provider';
 import { DatasetTopic } from '../entities/dataset/dataset-topic';
 import { Team } from '../entities/user/team';
+import { TranslationDTO } from '../dtos/translations-dto';
+import { DimensionInfo } from '../entities/dataset/dimension-info';
 
 const defaultRelations: FindOptionsRelations<Dataset> = {
     createdBy: true,
@@ -60,15 +62,19 @@ export const DatasetRepository = dataSource.getRepository(Dataset).extend({
         await this.delete({ id });
     },
 
-    async createWithTitle(user: User, language?: string, title?: string): Promise<Dataset> {
+    async createWithTitle(user: User, language: Locale, title: string): Promise<Dataset> {
         logger.debug(`Creating new Dataset...`);
         const dataset = await this.create({ createdBy: user }).save();
+        const altLang = language.includes('en') ? Locale.WelshGb : Locale.EnglishGb;
 
-        if (language && title) {
-            logger.debug(`Creating new DatasetInfo with language "${language}" and title "${title}"...`);
-            const datasetInfo = await dataSource.getRepository(DatasetInfo).create({ dataset, language, title }).save();
-            dataset.datasetInfo = [datasetInfo];
-        }
+        logger.debug(`Creating new DatasetInfo with language "${language}" and title "${title}"...`);
+        const datasetInfo = await dataSource.getRepository(DatasetInfo).create({ dataset, language, title }).save();
+        const altLangDatasetInfo = await dataSource
+            .getRepository(DatasetInfo)
+            .create({ dataset, language: altLang })
+            .save();
+
+        dataset.datasetInfo = [datasetInfo, altLangDatasetInfo];
 
         return this.getById(dataset.id);
     },
@@ -183,6 +189,49 @@ export const DatasetRepository = dataSource.getRepository(Dataset).extend({
         const team = await dataSource.getRepository(Team).findOneByOrFail({ id: teamId });
         dataset.team = team;
         await dataset.save();
+        return this.getById(datasetId);
+    },
+
+    async updateTranslations(datasetId: string, translations: TranslationDTO[]): Promise<Dataset> {
+        const dataset = await this.findOneOrFail({ where: { id: datasetId } });
+        const dimensionInfoRepo = dataSource.getRepository(DimensionInfo);
+        const infoRepo = dataSource.getRepository(DatasetInfo);
+
+        const dimensionTranslations = translations.filter((t) => t.type === 'dimension');
+
+        logger.debug(`Updating dimension names...`);
+
+        for (const row of dimensionTranslations) {
+            const englishDimInfo = await dimensionInfoRepo.findOneByOrFail({ id: row.id, language: Locale.EnglishGb });
+            englishDimInfo.name = row.english || '';
+            await englishDimInfo.save();
+
+            const welshDimInfo = await dimensionInfoRepo.findOneByOrFail({ id: row.id, language: Locale.WelshGb });
+            welshDimInfo.name = row.cymraeg || '';
+            await welshDimInfo.save();
+        }
+
+        const metaTranslations = translations.filter((t) => t.type === 'metadata');
+
+        logger.debug(`Updating metadata...`);
+
+        const englishInfo =
+            (await infoRepo.findOneBy({ dataset, language: Locale.EnglishGb })) ||
+            infoRepo.create({ dataset, language: Locale.EnglishGb });
+
+        const welshInfo =
+            (await infoRepo.findOneBy({ dataset, language: Locale.WelshGb })) ||
+            infoRepo.create({ ...englishInfo, language: Locale.WelshGb });
+
+        metaTranslations.forEach((row) => {
+            const metaKey = row.key as 'title' | 'description' | 'collection' | 'quality' | 'roundingDescription';
+            englishInfo[metaKey] = row.english || '';
+            welshInfo[metaKey] = row.cymraeg || '';
+        });
+
+        await englishInfo.save();
+        await welshInfo.save();
+
         return this.getById(datasetId);
     }
 });

@@ -4,6 +4,7 @@ import { Dataset } from '../entities/dataset/dataset';
 import { DimensionInfo } from '../entities/dataset/dimension-info';
 import { DimensionType } from '../enums/dimension-type';
 import { TaskStatus } from '../enums/task-status';
+import { translatableMetadataKeys } from '../types/translatable-metadata';
 
 import { DimensionStatus } from './dimension-status';
 
@@ -33,6 +34,14 @@ export class TasklistStateDTO {
         organisation: TaskStatus;
         when: TaskStatus;
     };
+
+    public static translationStatus(dataset: Dataset): TaskStatus {
+        const metaFullyTranslated = dataset.datasetInfo?.every((info) => {
+            return every(translatableMetadataKeys, (prop) => info[prop]);
+        });
+
+        return metaFullyTranslated ? TaskStatus.Completed : TaskStatus.Incomplete;
+    }
 
     public static fromDataset(dataset: Dataset, lang: string): TasklistStateDTO {
         const info = dataset.datasetInfo?.find((info) => info.language === lang);
@@ -90,8 +99,8 @@ export class TasklistStateDTO {
         // TODO: export should check for dimensionsComplete as well
         // TODO: import should check export complete and nothing was updated since the export (needs audit table)
         dto.translation = {
-            export: metadataComplete ? TaskStatus.NotStarted : TaskStatus.CannotStart,
-            import: metadataComplete ? TaskStatus.NotStarted : TaskStatus.CannotStart
+            export: metadataComplete ? TaskStatus.Available : TaskStatus.CannotStart,
+            import: metadataComplete ? TasklistStateDTO.translationStatus(dataset) : TaskStatus.CannotStart
         };
 
         dto.publishing = {
