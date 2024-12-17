@@ -26,6 +26,9 @@ export class FactTableInfo extends BaseEntity {
     @Column({ name: 'column_type', type: 'enum', enum: Object.values(FactTableColumnType), nullable: false })
     columnType: FactTableColumnType;
 
+    @Column({ name: 'column_datatype', type: 'varchar', nullable: false })
+    columnDatatype: string;
+
     @ManyToOne(() => FactTable, (factTable) => factTable.factTableInfo, {
         onDelete: 'CASCADE',
         orphanedRowAction: 'delete'

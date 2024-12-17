@@ -4,9 +4,10 @@ import { FileType } from '../../enums/file-type';
 
 import { Dimension } from './dimension';
 import { Measure } from './measure';
+import { FileImport } from './file-import';
 
 @Entity({ name: 'lookup_table', orderBy: { uploadedAt: 'ASC' } })
-export class LookupTable extends BaseEntity {
+export class LookupTable extends BaseEntity implements FileImport {
     @PrimaryGeneratedColumn('uuid', { primaryKeyConstraintName: 'PK_lookup_table_id' })
     id: string;
 
@@ -14,12 +15,14 @@ export class LookupTable extends BaseEntity {
         onDelete: 'CASCADE',
         orphanedRowAction: 'delete'
     })
+    @JoinColumn({ name: 'dimension_id' })
     dimension: Dimension;
 
     @OneToOne(() => Measure, {
         onDelete: 'CASCADE',
         orphanedRowAction: 'delete'
     })
+    @JoinColumn({ name: 'measure_id' })
     measure: Measure;
 
     @Column({ name: 'mime_type', type: 'varchar', length: 255 })
@@ -45,4 +48,7 @@ export class LookupTable extends BaseEntity {
 
     @Column({ name: 'linebreak', type: 'varchar' })
     linebreak: string;
+
+    @Column({ name: 'is_statswales2_format', type: 'boolean' })
+    isStatsWales2Format: boolean;
 }

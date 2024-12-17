@@ -5,15 +5,14 @@ import { createHash } from 'crypto';
 import { Dataset } from '../../src/entities/dataset/dataset';
 import { DatasetInfo } from '../../src/entities/dataset/dataset-info';
 import { Revision } from '../../src/entities/dataset/revision';
-import { FactTableColumnType } from '../../src/enums/fact-table-column-type';
 import { DimensionType } from '../../src/enums/dimension-type';
 import { Dimension } from '../../src/entities/dataset/dimension';
 import { DimensionInfo } from '../../src/entities/dataset/dimension-info';
 import { User } from '../../src/entities/user/user';
 import { FactTable } from '../../src/entities/dataset/fact-table';
 import { FileType } from '../../src/enums/file-type';
-import { FactTableInfo } from '../../src/entities/dataset/fact-table-info';
 import { extractTableInformation } from '../../src/controllers/csv-processor';
+import { FactTableAction } from '../../src/enums/fact-table-action';
 
 export async function createSmallDataset(
     datasetId: string,
@@ -57,6 +56,7 @@ export async function createSmallDataset(
     factTable.originalFilename = path.basename(testFile);
     const testFileBuffer = fs.readFileSync(testFile);
     factTable.hash = createHash('sha256').update(testFileBuffer).digest('hex');
+    factTable.action = FactTableAction.Add;
     factTable.fileType = fileType;
     switch (fileType) {
         case FileType.Csv:

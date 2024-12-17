@@ -203,6 +203,7 @@ async function createUpdateNoteCodes(dataset: Dataset, factTable: FactTable, col
     });
 
     columnInfo.columnType = FactTableColumnType.NoteCodes;
+    columnInfo.columnDatatype = 'VARCHAR';
     await columnInfo.save();
 
     const existingDimension = dataset.dimensions.find((dim) => dim.type === DimensionType.NoteCodes);
@@ -494,13 +495,14 @@ export const validateDateTypeDimension = async (
 
 async function getDatePreviewWithExtractor(
     dataset: Dataset,
-    dimension: Dimension,
+    extractor: object,
+    factTableColumn: string,
     factTable: FactTable,
     quack: Database,
     tableName: string
 ): Promise<ViewDTO> {
-    const columnData = await quack.all(`SELECT DISTINCT "${dimension.factTableColumn}" FROM ${tableName}`);
-    const dateDimensionTable = dateDimensionReferenceTableCreator(dimension.extractor, columnData);
+    const columnData = await quack.all(`SELECT DISTINCT "${factTableColumn}" FROM ${tableName}`);
+    const dateDimensionTable = dateDimensionReferenceTableCreator(extractor, columnData);
     await quack.exec(createDateDimensionTable);
     // Create the date_dimension table
     const stmt = await quack.prepare('INSERT INTO date_dimension VALUES (?,?,?,?,?);');
@@ -600,7 +602,14 @@ export const getDateDimensionColumnPreview = async (dataset: Dataset, dimension:
     try {
         if (dimension.extractor) {
             logger.debug('Using extractor');
-            viewDto = await getDatePreviewWithExtractor(dataset, dimension, factTable, quack, tableName);
+            viewDto = await getDatePreviewWithExtractor(
+                dataset,
+                dimension.extractor,
+                dimension.factTableColumn,
+                factTable,
+                quack,
+                tableName
+            );
         } else {
             logger.debug('Straight column preview');
             viewDto = await getDatePreviewWithoutExtractor(dataset, dimension, factTable, quack, tableName);

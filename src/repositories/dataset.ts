@@ -18,7 +18,8 @@ const defaultRelations: FindOptionsRelations<Dataset> = {
     createdBy: true,
     datasetInfo: true,
     dimensions: {
-        dimensionInfo: true
+        dimensionInfo: true,
+        lookupTable: true
     },
     measure: {
         lookupTable: true,

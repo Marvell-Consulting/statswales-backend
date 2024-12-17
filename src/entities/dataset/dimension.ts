@@ -28,10 +28,10 @@ export class Dimension extends BaseEntity {
     type: DimensionType;
 
     @Column({ type: 'jsonb', nullable: true })
-    extractor: object;
+    extractor: object | null;
 
     @Column({ name: 'join_column', type: 'varchar', nullable: true })
-    joinColumn: string; // <-- Tells you have to join the dimension to the fact_table
+    joinColumn: string | null; // <-- Tells you have to join the dimension to the fact_table
 
     @Column({ name: 'fact_table_column', type: 'varchar', nullable: false })
     factTableColumn: string; // <-- Tells you which column in the fact table you're joining to
@@ -44,7 +44,7 @@ export class Dimension extends BaseEntity {
         name: 'lookup_table_id',
         foreignKeyConstraintName: 'FK_dimension_lookup_table_id_lookup_table_dimension_id'
     })
-    lookupTable: LookupTable;
+    lookupTable: LookupTable | null;
 
     @OneToMany(() => DimensionInfo, (dimensionInfo) => dimensionInfo.dimension, { cascade: true })
     dimensionInfo: DimensionInfo[];
