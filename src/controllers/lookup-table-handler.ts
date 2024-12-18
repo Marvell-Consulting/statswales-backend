@@ -91,7 +91,11 @@ export const validateLookupTable = async (
 
     try {
         const nonMatchedRows = await quack.all(
-            `SELECT line_number, fact_table_column, ${lookupTableName}.${confirmedJoinColumn} as lookup_table_column FROM (SELECT row_number() OVER () as line_number, "${dimension.factTableColumn}" as fact_table_column FROM ${factTableName}) as fact_table LEFT JOIN ${lookupTableName} ON CAST(fact_table.fact_table_column AS VARCHAR)=CAST(${lookupTableName}."${confirmedJoinColumn}" AS VARCHAR) where lookup_table_column IS NULL;`
+            `SELECT line_number, fact_table_column, ${lookupTableName}.${confirmedJoinColumn} as lookup_table_column
+            FROM (SELECT row_number() OVER () as line_number, "${dimension.factTableColumn}" as fact_table_column FROM
+            ${factTableName}) as fact_table LEFT JOIN ${lookupTableName} ON
+            CAST(fact_table.fact_table_column AS VARCHAR)=CAST(${lookupTableName}."${confirmedJoinColumn}" AS VARCHAR)
+            WHERE lookup_table_column IS NULL;`
         );
         const rows = await quack.all(`SELECT COUNT(*) as total_rows FROM ${factTableName}`);
         if (nonMatchedRows.length === rows[0].total_rows) {
@@ -181,15 +185,14 @@ export const validateLookupTable = async (
             }
         };
     }
-
     // Clean up previously uploaded dimensions
     if (dimension.lookupTable) {
         logger.info(`Cleaning up previous lookup table`);
         try {
-            const dataLakeServuce = new DataLakeService();
-            await dataLakeServuce.deleteFile(dimension.lookupTable.filename, dataset.id);
+            const dataLakeService = new DataLakeService();
+            await dataLakeService.deleteFile(dimension.lookupTable.filename, dataset.id);
         } catch (err) {
-            logger.error(`Something went wrong trying to remove previously uploaded lookup table with error: ${err}`);
+            logger.warn(`Something went wrong trying to remove previously uploaded lookup table with error: ${err}`);
         }
 
         try {
@@ -203,7 +206,7 @@ export const validateLookupTable = async (
             await oldLookupTable?.remove();
         } catch (err) {
             logger.error(
-                `Something has gone wrong trying to unlike the previous lookup table from the dimension with the following error: ${err}`
+                `Something has gone wrong trying to unlink the previous lookup table from the dimension with the following error: ${err}`
             );
             throw err;
         }
@@ -236,6 +239,7 @@ export const validateLookupTable = async (
                 };
             })
     };
+
     updateDimension.extractor = extractor;
     logger.debug('Saving the lookup table');
     await lookupTable.save();
@@ -243,6 +247,7 @@ export const validateLookupTable = async (
     updateDimension.lookupTable = lookupTable;
     updateDimension.type = DimensionType.LookupTable;
     await updateDimension.save();
+
     try {
         const dimensionTable = await quack.all(`SELECT * FROM ${lookupTableName};`);
         await quack.close();

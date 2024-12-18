@@ -362,6 +362,7 @@ export const getFactTableColumnPreview = async (
     factTable: FactTable,
     columnName: string
 ): Promise<ViewDTO | ViewErrDTO> => {
+    logger.debug(`Getting fact table column preview for ${columnName}`);
     const tableName = 'preview_table';
     const quack = await Database.create(':memory:');
     const tempFile = tmp.fileSync({ postfix: `.${factTable.fileType}` });

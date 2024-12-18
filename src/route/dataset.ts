@@ -21,7 +21,7 @@ import {
 } from '../controllers/csv-processor';
 import {
     createDimensionsFromSourceAssignment,
-    getDateDimensionColumnPreview,
+    getDimensionPreview,
     validateDateTypeDimension,
     validateSourceAssignment
 } from '../controllers/dimension-processor';
@@ -58,7 +58,7 @@ import { DimensionInfo } from '../entities/dataset/dimension-info';
 import { TeamSelectionDTO } from '../dtos/team-selection-dto';
 import { validateLookupTable } from '../controllers/lookup-table-handler';
 import { FactTableAction } from '../enums/fact-table-action';
-import { createBaseCube, outputCube } from '../controllers/cube-handler';
+import { createBaseCube, getCubePreview, outputCube } from '../controllers/cube-handler';
 import { DuckdbOutputType } from '../enums/duckdb-outputs';
 
 const jsonParser = express.json();
@@ -201,7 +201,7 @@ router.post(
         }
 
         let fileImport: FactTable;
-
+        logger.debug('Uploading dataset to datalake');
         try {
             fileImport = await uploadCSV(
                 req.file.buffer,
@@ -216,6 +216,7 @@ router.post(
             return;
         }
 
+        logger.debug('Updating dataset records');
         try {
             const user = req.user as User;
             await RevisionRepository.createFromImport(res.locals.dataset, fileImport, user);
@@ -261,7 +262,6 @@ router.get('/:dataset_id/view', loadDataset(), async (req: Request, res: Respons
 // Returns the latest revision of the dataset as a DuckDB File
 router.get('/:dataset_id/cube', loadDataset(), async (req: Request, res: Response, next: NextFunction) => {
     const dataset = res.locals.dataset;
-    const lang = req.language.split('-')[0];
     const latestRevision = getLatestRevision(dataset);
     if (!latestRevision) {
         next(new UnknownException('errors.no_revision'));
@@ -553,6 +553,39 @@ router.get(
     }
 );
 
+router.get(
+    '/:dataset_id/revision/by-id/:revision_id/preview',
+    loadDataset(),
+    async (req: Request, res: Response, next: NextFunction) => {
+        const dataset = res.locals.dataset;
+        const revision = dataset.revisions.find((revision: Revision) => revision.id === req.params.revision_id);
+        const lang = req.language;
+
+        const page_number: number = Number.parseInt(req.query.page_number as string, 10) || 1;
+        const page_size: number = Number.parseInt(req.query.page_size as string, 10) || DEFAULT_PAGE_SIZE;
+
+        let cubeFile: string;
+        if (revision.onlineCubeFilename) {
+            logger.debug('Loading cube from datalake for preview');
+            const datalakeService = new DataLakeService();
+            cubeFile = tmp.tmpNameSync({ postfix: '.duckdb' });
+            const cubeBuffer = await datalakeService.getFileBuffer(revision.onlineCubeFilename, dataset.id);
+            fs.writeFileSync(cubeFile, cubeBuffer);
+        } else {
+            logger.debug('Creating fresh cube for preview');
+            cubeFile = await createBaseCube(dataset, revision);
+        }
+        const cubePreview = await getCubePreview(cubeFile, lang, dataset, page_number, page_size);
+        fs.unlinkSync(cubeFile);
+        if ((cubePreview as ViewErrDTO).errors) {
+            const processErr = cubePreview as ViewErrDTO;
+            res.status(processErr.status);
+        }
+
+        res.json(cubePreview);
+    }
+);
+
 // PATCH /dataset/:dataset_id/revision/by-id/:revision_id/fact-table/by-id/:fact_table_id/confirm
 // Moves the file from temporary blob storage to datalake and creates sources
 // returns a JSON object with the current state of the revision including the fact-table
@@ -735,14 +768,10 @@ router.get(
         }
         try {
             let preview: ViewDTO | ViewErrDTO;
-            switch (dimension.type) {
-                case DimensionType.TimePoint:
-                case DimensionType.TimePeriod:
-                    preview = await getDateDimensionColumnPreview(dataset, dimension, factTable);
-                    break;
-                default:
-                    preview = await getFactTableColumnPreview(dataset, factTable, dimension.factTableColumn);
-                    break;
+            if (dimension.type === DimensionType.Raw) {
+                preview = await getFactTableColumnPreview(dataset, factTable, dimension.factTableColumn);
+            } else {
+                preview = await getDimensionPreview(dataset, dimension, factTable);
             }
             if ((preview as ViewErrDTO).errors) {
                 res.status(500);
@@ -772,12 +801,10 @@ router.post(
             next(new BadRequestException('errors.upload.no_csv'));
             return;
         }
-        const dataset = res.locals.dataset;
-        if (!dataset) {
-            next(new NotFoundException('errors.dataset_id_invalid'));
-            return;
-        }
-        const dimension: Dimension = dataset.dimensions.find((dim: Dimension) => dim.id === req.params.dimension_id);
+        const dataset: Dataset = res.locals.dataset;
+        const dimension: Dimension | undefined = dataset.dimensions.find(
+            (dim: Dimension) => dim.id === req.params.dimension_id
+        );
         if (!dimension) {
             next(new NotFoundException('errors.dimension_id_invalid'));
             return;
