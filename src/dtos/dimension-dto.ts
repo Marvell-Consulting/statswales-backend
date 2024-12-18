@@ -20,11 +20,11 @@ export class DimensionDTO {
         const dimDto = new DimensionDTO();
         dimDto.id = dimension.id;
         dimDto.type = dimension.type;
-        dimDto.extractor = dimension.extractor;
+        dimDto.extractor = dimension.extractor || undefined;
         dimDto.lookupTable = dimension?.lookupTable
             ? LookupTableDTO.fromLookupTable(dimension?.lookupTable)
             : undefined;
-        dimDto.joinColumn = dimension.joinColumn;
+        dimDto.joinColumn = dimension.joinColumn || undefined;
         dimDto.factTableColumn = dimension.factTableColumn;
         dimDto.isSliceDimension = dimension.isSliceDimension;
 

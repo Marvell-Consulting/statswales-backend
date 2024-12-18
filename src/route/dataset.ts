@@ -1,14 +1,14 @@
 import 'reflect-metadata';
-
 import { Readable } from 'node:stream';
+import fs from 'fs';
 
-// import util from 'node:util';
 import express, { NextFunction, Request, Response, Router } from 'express';
 import multer from 'multer';
 import { FieldValidationError } from 'express-validator';
 import { FindOptionsRelations } from 'typeorm';
 import { t } from 'i18next';
 import { isBefore, isValid } from 'date-fns';
+import tmp from 'tmp';
 
 import { logger } from '../utils/logger';
 import { ViewDTO, ViewErrDTO } from '../dtos/view-dto';
@@ -21,7 +21,7 @@ import {
 } from '../controllers/csv-processor';
 import {
     createDimensionsFromSourceAssignment,
-    getDateDimensionColumnPreview,
+    getDimensionPreview,
     validateDateTypeDimension,
     validateSourceAssignment
 } from '../controllers/dimension-processor';
@@ -56,6 +56,10 @@ import { LookupTable } from '../entities/dataset/lookup-table';
 import { DimensionInfoDTO } from '../dtos/dimension-info-dto';
 import { DimensionInfo } from '../entities/dataset/dimension-info';
 import { TeamSelectionDTO } from '../dtos/team-selection-dto';
+import { validateLookupTable } from '../controllers/lookup-table-handler';
+import { FactTableAction } from '../enums/fact-table-action';
+import { createBaseCube, getCubePreview, outputCube } from '../controllers/cube-handler';
+import { DuckdbOutputType } from '../enums/duckdb-outputs';
 
 const jsonParser = express.json();
 const upload = multer({ storage: multer.memoryStorage() });
@@ -197,7 +201,7 @@ router.post(
         }
 
         let fileImport: FactTable;
-
+        logger.debug('Uploading dataset to datalake');
         try {
             fileImport = await uploadCSV(
                 req.file.buffer,
@@ -205,12 +209,14 @@ router.post(
                 req.file?.originalname,
                 res.locals.datasetId
             );
+            fileImport.action = FactTableAction.Add;
         } catch (err) {
             logger.error(`An error occurred trying to upload the file: ${err}`);
             next(new UnknownException('errors.upload_error'));
             return;
         }
 
+        logger.debug('Updating dataset records');
         try {
             const user = req.user as User;
             await RevisionRepository.createFromImport(res.locals.dataset, fileImport, user);
@@ -250,6 +256,237 @@ router.get('/:dataset_id/view', loadDataset(), async (req: Request, res: Respons
         res.status(500);
     }
     res.json(processedCSV);
+});
+
+// GET /dataset/:dataset_id/cube
+// Returns the latest revision of the dataset as a DuckDB File
+router.get('/:dataset_id/cube', loadDataset(), async (req: Request, res: Response, next: NextFunction) => {
+    const dataset = res.locals.dataset;
+    const latestRevision = getLatestRevision(dataset);
+    if (!latestRevision) {
+        next(new UnknownException('errors.no_revision'));
+        return;
+    }
+    let cubeFile: string;
+    if (latestRevision.onlineCubeFilename) {
+        const dataLakeService = new DataLakeService();
+        const fileBuffer = await dataLakeService.getFileBuffer(latestRevision.onlineCubeFilename, dataset.id);
+        cubeFile = tmp.tmpNameSync({ postfix: '.duckdb' });
+        fs.writeFileSync(cubeFile, fileBuffer);
+    } else {
+        try {
+            cubeFile = await createBaseCube(dataset, latestRevision);
+        } catch (err) {
+            logger.error(`Something went wrong trying to create the cube with the error: ${err}`);
+            next(new UnknownException('errors.cube_create_error'));
+            return;
+        }
+    }
+    const fileBuffer = Buffer.from(fs.readFileSync(cubeFile));
+    logger.info(`Sending original cube file (size: ${fileBuffer.length}) from: ${cubeFile}`);
+    res.writeHead(200, {
+        // eslint-disable-next-line @typescript-eslint/naming-convention
+        'Content-Type': 'application/octet-stream',
+        // eslint-disable-next-line @typescript-eslint/naming-convention
+        'Content-disposition': `attachment;filename=${dataset.id}.duckdb`,
+        // eslint-disable-next-line @typescript-eslint/naming-convention
+        'Content-Length': fileBuffer.length
+    });
+    res.end(fileBuffer);
+});
+
+// GET /dataset/:dataset_id/cube/json
+// Returns a JSON file representation of the default view of the cube
+router.get('/:dataset_id/cube/json', loadDataset(), async (req: Request, res: Response, next: NextFunction) => {
+    const dataset = res.locals.dataset;
+    const lang = req.language.split('-')[0];
+    const latestRevision = getLatestRevision(dataset);
+    if (!latestRevision) {
+        next(new UnknownException('errors.no_revision'));
+        return;
+    }
+    let cubeFile: string;
+    if (latestRevision.onlineCubeFilename) {
+        const dataLakeService = new DataLakeService();
+        const fileBuffer = await dataLakeService.getFileBuffer(latestRevision.onlineCubeFilename, dataset.id);
+        cubeFile = tmp.tmpNameSync({ postfix: '.duckdb' });
+        fs.writeFileSync(cubeFile, fileBuffer);
+    } else {
+        try {
+            logger.info('Creating fresh cube file.');
+            cubeFile = await createBaseCube(dataset, latestRevision);
+        } catch (err) {
+            logger.error(`Something went wrong trying to create the cube with the error: ${err}`);
+            next(new UnknownException('errors.cube_create_error'));
+            return;
+        }
+    }
+    const downloadFile = await outputCube(cubeFile, lang, DuckdbOutputType.Json);
+    fs.unlinkSync(cubeFile);
+    const downloadStream = fs.createReadStream(downloadFile);
+    // eslint-disable-next-line @typescript-eslint/naming-convention
+    res.writeHead(200, { 'Content-Type': '\tapplication/json' });
+    downloadStream.pipe(res);
+
+    // Handle errors in the file stream
+    downloadStream.on('error', (err) => {
+        logger.error('File stream error:', err);
+        // eslint-disable-next-line @typescript-eslint/naming-convention
+        res.writeHead(500, { 'Content-Type': 'text/plain' });
+        fs.unlinkSync(downloadFile);
+        res.end('Server Error');
+    });
+
+    // Optionally listen for the end of the stream
+    downloadStream.on('end', () => {
+        fs.unlinkSync(downloadFile);
+        logger.debug('File stream ended');
+    });
+});
+
+// GET /dataset/:dataset_id/cube/csv
+// Returns a CSV file representation of the default view of the cube
+router.get('/:dataset_id/cube/csv', loadDataset(), async (req: Request, res: Response, next: NextFunction) => {
+    const dataset = res.locals.dataset;
+    const lang = req.language.split('-')[0];
+    const latestRevision = getLatestRevision(dataset);
+    if (!latestRevision) {
+        next(new UnknownException('errors.no_revision'));
+        return;
+    }
+    let cubeFile: string;
+    if (latestRevision.onlineCubeFilename) {
+        const dataLakeService = new DataLakeService();
+        const fileBuffer = await dataLakeService.getFileBuffer(latestRevision.onlineCubeFilename, dataset.id);
+        cubeFile = tmp.tmpNameSync({ postfix: '.duckdb' });
+        fs.writeFileSync(cubeFile, fileBuffer);
+    } else {
+        try {
+            cubeFile = await createBaseCube(dataset, latestRevision);
+        } catch (err) {
+            logger.error(`Something went wrong trying to create the cube with the error: ${err}`);
+            next(new UnknownException('errors.cube_create_error'));
+            return;
+        }
+    }
+    const downloadFile = await outputCube(cubeFile, lang, DuckdbOutputType.Csv);
+    fs.unlinkSync(cubeFile);
+    const downloadStream = fs.createReadStream(downloadFile);
+    // eslint-disable-next-line @typescript-eslint/naming-convention
+    res.writeHead(200, { 'Content-Type': '\ttext/csv' });
+    downloadStream.pipe(res);
+
+    // Handle errors in the file stream
+    downloadStream.on('error', (err) => {
+        logger.error('File stream error:', err);
+        // eslint-disable-next-line @typescript-eslint/naming-convention
+        res.writeHead(500, { 'Content-Type': 'text/plain' });
+        fs.unlinkSync(downloadFile);
+        res.end('Server Error');
+    });
+
+    // Optionally listen for the end of the stream
+    downloadStream.on('end', () => {
+        fs.unlinkSync(downloadFile);
+        logger.debug('File stream ended');
+    });
+});
+
+// GET /dataset/:dataset_id/cube/parquet
+// Returns a CSV file representation of the default view of the cube
+router.get('/:dataset_id/cube/parquet', loadDataset(), async (req: Request, res: Response, next: NextFunction) => {
+    const dataset = res.locals.dataset;
+    const lang = req.language.split('-')[0];
+    const latestRevision = getLatestRevision(dataset);
+    if (!latestRevision) {
+        next(new UnknownException('errors.no_revision'));
+        return;
+    }
+    let cubeFile: string;
+    if (latestRevision.onlineCubeFilename) {
+        const dataLakeService = new DataLakeService();
+        const fileBuffer = await dataLakeService.getFileBuffer(latestRevision.onlineCubeFilename, dataset.id);
+        cubeFile = tmp.tmpNameSync({ postfix: '.duckdb' });
+        fs.writeFileSync(cubeFile, fileBuffer);
+    } else {
+        try {
+            cubeFile = await createBaseCube(dataset, latestRevision);
+        } catch (err) {
+            logger.error(`Something went wrong trying to create the cube with the error: ${err}`);
+            next(new UnknownException('errors.cube_create_error'));
+            return;
+        }
+    }
+    const downloadFile = await outputCube(cubeFile, lang, DuckdbOutputType.Parquet);
+    fs.unlinkSync(cubeFile);
+    const downloadStream = fs.createReadStream(downloadFile);
+    // eslint-disable-next-line @typescript-eslint/naming-convention
+    res.writeHead(200, { 'Content-Type': '\tapplication/vnd.apache.parquet' });
+    downloadStream.pipe(res);
+
+    // Handle errors in the file stream
+    downloadStream.on('error', (err) => {
+        logger.error('File stream error:', err);
+        // eslint-disable-next-line @typescript-eslint/naming-convention
+        res.writeHead(500, { 'Content-Type': 'text/plain' });
+        fs.unlinkSync(downloadFile);
+        res.end('Server Error');
+    });
+
+    // Optionally listen for the end of the stream
+    downloadStream.on('end', () => {
+        fs.unlinkSync(downloadFile);
+        logger.debug('File stream ended');
+    });
+});
+
+// GET /dataset/:dataset_id/cube/excel
+// Returns a CSV file representation of the default view of the cube
+router.get('/:dataset_id/cube/excel', loadDataset(), async (req: Request, res: Response, next: NextFunction) => {
+    const dataset = res.locals.dataset;
+    const lang = req.language.split('-')[0];
+    const latestRevision = getLatestRevision(dataset);
+    if (!latestRevision) {
+        next(new UnknownException('errors.no_revision'));
+        return;
+    }
+    let cubeFile: string;
+    if (latestRevision.onlineCubeFilename) {
+        const dataLakeService = new DataLakeService();
+        const fileBuffer = await dataLakeService.getFileBuffer(latestRevision.onlineCubeFilename, dataset.id);
+        cubeFile = tmp.tmpNameSync({ postfix: '.duckdb' });
+        fs.writeFileSync(cubeFile, fileBuffer);
+    } else {
+        try {
+            cubeFile = await createBaseCube(dataset, latestRevision);
+        } catch (err) {
+            logger.error(`Something went wrong trying to create the cube with the error: ${err}`);
+            next(new UnknownException('errors.cube_create_error'));
+            return;
+        }
+    }
+    const downloadFile = await outputCube(cubeFile, lang, DuckdbOutputType.Excel);
+    logger.info(`Cube file located at: ${cubeFile}`);
+    // fs.unlinkSync(cubeFile);
+    const downloadStream = fs.createReadStream(downloadFile);
+    // eslint-disable-next-line @typescript-eslint/naming-convention
+    res.writeHead(200, { 'Content-Type': '\tapplication/vnd.ms-excel' });
+    downloadStream.pipe(res);
+
+    // Handle errors in the file stream
+    downloadStream.on('error', (err) => {
+        logger.error('File stream error:', err);
+        // eslint-disable-next-line @typescript-eslint/naming-convention
+        res.writeHead(500, { 'Content-Type': 'text/plain' });
+        fs.unlinkSync(downloadFile);
+        res.end('Server Error');
+    });
+
+    // Optionally listen for the end of the stream
+    downloadStream.on('end', () => {
+        fs.unlinkSync(downloadFile);
+        logger.debug('File stream ended');
+    });
 });
 
 // PATCH /dataset/:dataset_id/info
@@ -313,6 +550,39 @@ router.get(
         }
 
         res.json(processedCSV);
+    }
+);
+
+router.get(
+    '/:dataset_id/revision/by-id/:revision_id/preview',
+    loadDataset(),
+    async (req: Request, res: Response, next: NextFunction) => {
+        const dataset = res.locals.dataset;
+        const revision = dataset.revisions.find((revision: Revision) => revision.id === req.params.revision_id);
+        const lang = req.language;
+
+        const page_number: number = Number.parseInt(req.query.page_number as string, 10) || 1;
+        const page_size: number = Number.parseInt(req.query.page_size as string, 10) || DEFAULT_PAGE_SIZE;
+
+        let cubeFile: string;
+        if (revision.onlineCubeFilename) {
+            logger.debug('Loading cube from datalake for preview');
+            const datalakeService = new DataLakeService();
+            cubeFile = tmp.tmpNameSync({ postfix: '.duckdb' });
+            const cubeBuffer = await datalakeService.getFileBuffer(revision.onlineCubeFilename, dataset.id);
+            fs.writeFileSync(cubeFile, cubeBuffer);
+        } else {
+            logger.debug('Creating fresh cube for preview');
+            cubeFile = await createBaseCube(dataset, revision);
+        }
+        const cubePreview = await getCubePreview(cubeFile, lang, dataset, page_number, page_size);
+        fs.unlinkSync(cubeFile);
+        if ((cubePreview as ViewErrDTO).errors) {
+            const processErr = cubePreview as ViewErrDTO;
+            res.status(processErr.status);
+        }
+
+        res.json(cubePreview);
     }
 );
 
@@ -498,14 +768,10 @@ router.get(
         }
         try {
             let preview: ViewDTO | ViewErrDTO;
-            switch (dimension.type) {
-                case DimensionType.TimePoint:
-                case DimensionType.TimePeriod:
-                    preview = await getDateDimensionColumnPreview(dataset, dimension, factTable);
-                    break;
-                default:
-                    preview = await getFactTableColumnPreview(dataset, factTable, dimension.factTableColumn);
-                    break;
+            if (dimension.type === DimensionType.Raw) {
+                preview = await getFactTableColumnPreview(dataset, factTable, dimension.factTableColumn);
+            } else {
+                preview = await getDimensionPreview(dataset, dimension, factTable);
             }
             if ((preview as ViewErrDTO).errors) {
                 res.status(500);
@@ -519,6 +785,73 @@ router.get(
             );
             res.status(500);
             res.json({ message: 'Something went wrong trying to generate a preview of the dimension' });
+        }
+    }
+);
+
+// POST /:dataset_id/dimension/by-id/:dimension_id/lookup
+// Attaches a lookup table to do a dimension and validates
+// the lookup table.
+router.post(
+    '/:dataset_id/dimension/by-id/:dimension_id/lookup',
+    upload.single('csv'),
+    loadDataset(),
+    async (req: Request, res: Response, next: NextFunction) => {
+        if (!req.file) {
+            next(new BadRequestException('errors.upload.no_csv'));
+            return;
+        }
+        const dataset: Dataset = res.locals.dataset;
+        const dimension: Dimension | undefined = dataset.dimensions.find(
+            (dim: Dimension) => dim.id === req.params.dimension_id
+        );
+        if (!dimension) {
+            next(new NotFoundException('errors.dimension_id_invalid'));
+            return;
+        }
+        const factTable = getLatestRevision(dataset)?.factTables[0];
+        if (!factTable) {
+            next(new NotFoundException('errors.fact_table_invalid'));
+            return;
+        }
+        let fileImport: FactTable;
+        try {
+            fileImport = await uploadCSV(
+                req.file.buffer,
+                req.file?.mimetype,
+                req.file?.originalname,
+                res.locals.datasetId
+            );
+        } catch (err) {
+            logger.error(`An error occurred trying to upload the file: ${err}`);
+            next(new UnknownException('errors.upload_error'));
+            return;
+        }
+
+        if (req.body.joinColumn) {
+            dimension.joinColumn = req.body.joinColumn;
+        }
+
+        try {
+            const result = await validateLookupTable(
+                fileImport,
+                factTable,
+                dataset,
+                dimension,
+                req.file.buffer,
+                req.body.join_column
+            );
+            if ((result as ViewErrDTO).status) {
+                const error = result as ViewErrDTO;
+                res.status(error.status);
+                res.json(result);
+                return;
+            }
+            res.status(200);
+            res.json(result);
+        } catch (err) {
+            logger.error(`An error occurred trying to handle the lookup table: ${err}`);
+            next(new UnknownException('errors.upload_error'));
         }
     }
 );

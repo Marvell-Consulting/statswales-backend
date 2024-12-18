@@ -107,5 +107,11 @@
         "upload": "upload",
         "list": "list",
         "data": "data"
+    },
+    "column_headers": {
+        "data_values": "Data Values",
+        "note_codes": "Note Codes",
+        "start_date": "Start Date",
+        "end_date": "End Date"
     }
 }

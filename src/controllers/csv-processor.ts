@@ -18,6 +18,7 @@ import { Error } from '../dtos/error';
 import { Locale } from '../enums/locale';
 import { FileType } from '../enums/file-type';
 import { FactTableInfo } from '../entities/dataset/fact-table-info';
+import { FactTableAction } from '../enums/fact-table-action';
 
 export const MAX_PAGE_SIZE = 500;
 export const MIN_PAGE_SIZE = 5;
@@ -129,7 +130,7 @@ export async function extractTableInformation(fileBuffer: Buffer, fileType: File
     try {
         await quack.exec(createTableQuery);
         tableHeaders = await quack.all(
-            `SELECT (row_number() OVER ())-1 as index, column_name FROM (DESCRIBE ${tableName});`
+            `SELECT (row_number() OVER ())-1 as index, column_name, column_type FROM (DESCRIBE ${tableName});`
         );
     } catch (error) {
         logger.error(`Something went wrong trying to read the users file with the following error: ${error}`);
@@ -149,6 +150,7 @@ export async function extractTableInformation(fileBuffer: Buffer, fileType: File
         info.columnName = header.column_name;
         info.columnIndex = header.index;
         info.columnType = FactTableColumnType.Unknown;
+        info.columnDatatype = header.column_type;
         return info;
     });
 }
@@ -230,6 +232,7 @@ export const uploadCSV = async (
     }
     factTable.factTableInfo = factTableDescriptions;
     factTable.filename = `${factTable.id}.${extension}`;
+    factTable.action = FactTableAction.ReplaceAll;
     const hash = createHash('sha256');
     hash.update(fileBuffer);
     try {
@@ -359,6 +362,7 @@ export const getFactTableColumnPreview = async (
     factTable: FactTable,
     columnName: string
 ): Promise<ViewDTO | ViewErrDTO> => {
+    logger.debug(`Getting fact table column preview for ${columnName}`);
     const tableName = 'preview_table';
     const quack = await Database.create(':memory:');
     const tempFile = tmp.fileSync({ postfix: `.${factTable.fileType}` });

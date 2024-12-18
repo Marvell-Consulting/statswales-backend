@@ -3,7 +3,6 @@ import fs from 'fs';
 import { Database } from 'duckdb-async';
 import tmp from 'tmp';
 import { t } from 'i18next';
-import { View } from 'typeorm';
 
 import { SourceAssignmentDTO } from '../dtos/source-assignment-dto';
 import { Dataset } from '../entities/dataset/dataset';
@@ -26,7 +25,9 @@ import { DatasetRepository } from '../repositories/dataset';
 import { DatasetDTO } from '../dtos/dataset-dto';
 import { FactTableDTO } from '../dtos/fact-table-dto';
 
-import { DateExtractor, DateReferenceDataItem, dateDimensionReferenceTableCreator } from './time-matching';
+import { dateDimensionReferenceTableCreator, DateExtractor, DateReferenceDataItem } from './time-matching';
+import { getFileImportAndSaveToDisk, loadFileIntoDatabase } from './cube-handler';
+import { LookupTableExtractor } from './lookup-table-handler';
 
 const createDateDimensionTable = `CREATE TABLE date_dimension (date_code VARCHAR, description VARCHAR, start_date datetime, end_date datetime, date_type varchar);`;
 const sampleSize = 5;
@@ -203,6 +204,7 @@ async function createUpdateNoteCodes(dataset: Dataset, factTable: FactTable, col
     });
 
     columnInfo.columnType = FactTableColumnType.NoteCodes;
+    columnInfo.columnDatatype = 'VARCHAR';
     await columnInfo.save();
 
     const existingDimension = dataset.dimensions.find((dim) => dim.type === DimensionType.NoteCodes);
@@ -494,13 +496,14 @@ export const validateDateTypeDimension = async (
 
 async function getDatePreviewWithExtractor(
     dataset: Dataset,
-    dimension: Dimension,
+    extractor: object,
+    factTableColumn: string,
     factTable: FactTable,
     quack: Database,
     tableName: string
 ): Promise<ViewDTO> {
-    const columnData = await quack.all(`SELECT DISTINCT "${dimension.factTableColumn}" FROM ${tableName}`);
-    const dateDimensionTable = dateDimensionReferenceTableCreator(dimension.extractor, columnData);
+    const columnData = await quack.all(`SELECT DISTINCT "${factTableColumn}" FROM ${tableName}`);
+    const dateDimensionTable = dateDimensionReferenceTableCreator(extractor, columnData);
     await quack.exec(createDateDimensionTable);
     // Create the date_dimension table
     const stmt = await quack.prepare('INSERT INTO date_dimension VALUES (?,?,?,?,?);');
@@ -508,9 +511,7 @@ async function getDatePreviewWithExtractor(
         await stmt.run(row.dateCode, row.description, row.start, row.end, row.type);
     });
     await stmt.finalize();
-    const dimensionTable = await quack.all(
-        `SELECT * FROM date_dimension USING SAMPLE ${sampleSize} ORDER BY end_date;`
-    );
+    const dimensionTable = await quack.all(`SELECT * FROM date_dimension ORDER BY end_date ASC LIMIT ${sampleSize};`);
     const tableHeaders = Object.keys(dimensionTable[0]);
     const dataArray = dimensionTable.map((row) => Object.values(row));
     const currentDataset = await DatasetRepository.getById(dataset.id);
@@ -539,7 +540,7 @@ async function getDatePreviewWithExtractor(
     };
 }
 
-async function getDatePreviewWithoutExtractor(
+async function getPreviewWithoutExtractor(
     dataset: Dataset,
     dimension: Dimension,
     factTable: FactTable,
@@ -577,7 +578,54 @@ async function getDatePreviewWithoutExtractor(
     };
 }
 
-export const getDateDimensionColumnPreview = async (dataset: Dataset, dimension: Dimension, factTable: FactTable) => {
+async function getLookupPreviewWithExtractor(
+    dataset: Dataset,
+    dimension: Dimension,
+    factTable: FactTable,
+    quack: Database,
+    tableName: string
+) {
+    if (!dimension.lookupTable) {
+        throw new Error(`Lookup table does does not exist on dimension ${dimension.id}`);
+    }
+    logger.debug(`Generating lookup table preview for dimension ${dimension.id}`);
+    const lookupTmpFile = await getFileImportAndSaveToDisk(dataset, dimension.lookupTable);
+    const lookupTableName = `lookup_table`;
+    await loadFileIntoDatabase(quack, dimension.lookupTable, lookupTmpFile, lookupTableName);
+    const sortColumn = (dimension.extractor as LookupTableExtractor).sortColumn || dimension.joinColumn;
+    const query = `SELECT * FROM ${lookupTableName} ORDER BY ${sortColumn} LIMIT ${sampleSize};`;
+    logger.debug(`Querying the cube to get the preview using query ${query}`);
+    const dimensionTable = await quack.all(query);
+    const tableHeaders = Object.keys(dimensionTable[0]);
+    const dataArray = dimensionTable.map((row) => Object.values(row));
+    const currentDataset = await DatasetRepository.getById(dataset.id);
+    const currentImport = await FactTable.findOneByOrFail({ id: factTable.id });
+    const headers: CSVHeader[] = [];
+    for (let i = 0; i < tableHeaders.length; i++) {
+        headers.push({
+            index: i,
+            name: tableHeaders[i],
+            source_type: FactTableColumnType.Unknown
+        });
+    }
+    return {
+        dataset: DatasetDTO.fromDataset(currentDataset),
+        fact_table: FactTableDTO.fromFactTable(currentImport),
+        current_page: 1,
+        page_info: {
+            total_records: dimensionTable.length,
+            start_record: 1,
+            end_record: dimensionTable.length < sampleSize ? dimensionTable.length : sampleSize
+        },
+        page_size: dimensionTable.length < sampleSize ? dimensionTable.length : sampleSize,
+        total_pages: 1,
+        headers,
+        data: dataArray
+    };
+}
+
+export const getDimensionPreview = async (dataset: Dataset, dimension: Dimension, factTable: FactTable) => {
+    logger.debug(`Getting dimension preview for ${dimension.id}`);
     const tableName = 'fact_table';
     const quack = await Database.create(':memory:');
     const tempFile = tmp.fileSync({ postfix: `.${factTable.fileType}` });
@@ -599,19 +647,36 @@ export const getDateDimensionColumnPreview = async (dataset: Dataset, dimension:
     let viewDto: ViewDTO;
     try {
         if (dimension.extractor) {
-            logger.debug('Using extractor');
-            viewDto = await getDatePreviewWithExtractor(dataset, dimension, factTable, quack, tableName);
+            switch (dimension.type) {
+                case DimensionType.TimePoint:
+                case DimensionType.TimePeriod:
+                    logger.debug('Previewing a date type dimension');
+                    viewDto = await getDatePreviewWithExtractor(
+                        dataset,
+                        dimension.extractor,
+                        dimension.factTableColumn,
+                        factTable,
+                        quack,
+                        tableName
+                    );
+                    break;
+                case DimensionType.LookupTable:
+                    logger.debug('Previewing a lookup table');
+                    viewDto = await getLookupPreviewWithExtractor(dataset, dimension, factTable, quack, tableName);
+                    break;
+                default:
+                    logger.debug(`Previewing a dimension of an unknown type.  Type supplied is ${dimension.type}`);
+                    viewDto = await getPreviewWithoutExtractor(dataset, dimension, factTable, quack, tableName);
+            }
         } else {
             logger.debug('Straight column preview');
-            viewDto = await getDatePreviewWithoutExtractor(dataset, dimension, factTable, quack, tableName);
+            viewDto = await getPreviewWithoutExtractor(dataset, dimension, factTable, quack, tableName);
         }
         await quack.close();
         tempFile.removeCallback();
         return viewDto;
     } catch (error) {
-        logger.error(
-            `Something went wrong trying to create the date reference table with the following error: ${error}`
-        );
+        logger.error(`Something went wrong trying to create dimension preview with the following error: ${error}`);
         await quack.close();
         tempFile.removeCallback();
         throw error;

@@ -10,12 +10,14 @@ import {
 } from 'typeorm';
 
 import { FileType } from '../../enums/file-type';
+import { FactTableAction } from '../../enums/fact-table-action';
 
 import { Revision } from './revision';
 import { FactTableInfo } from './fact-table-info';
+import { FileImport } from './file-import';
 
 @Entity({ name: 'fact_table', orderBy: { uploadedAt: 'ASC' } })
-export class FactTable extends BaseEntity {
+export class FactTable extends BaseEntity implements FileImport {
     @PrimaryGeneratedColumn('uuid', { primaryKeyConstraintName: 'PK_fact_table_id' })
     id: string;
 
@@ -52,6 +54,9 @@ export class FactTable extends BaseEntity {
 
     @Column({ name: 'linebreak', type: 'varchar', nullable: true })
     linebreak: string;
+
+    @Column({ type: 'enum', enum: Object.values(FactTableAction), nullable: false })
+    action: FactTableAction;
 
     @OneToMany(() => FactTableInfo, (factTableInfo) => factTableInfo.factTable, { cascade: true })
     factTableInfo: FactTableInfo[];
