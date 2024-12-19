@@ -573,7 +573,13 @@ router.get(
             fs.writeFileSync(cubeFile, cubeBuffer);
         } else {
             logger.debug('Creating fresh cube for preview');
-            cubeFile = await createBaseCube(dataset, revision);
+            try {
+                cubeFile = await createBaseCube(dataset, revision);
+            } catch (error) {
+                logger.error(`Something went wrong trying to create the cube with the error: ${error}`);
+                next(new UnknownException('errors.cube_create_error'));
+                return;
+            }
         }
         const cubePreview = await getCubePreview(cubeFile, lang, dataset, page_number, page_size);
         fs.unlinkSync(cubeFile);

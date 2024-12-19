@@ -6,7 +6,6 @@ import { t } from 'i18next';
 
 import { Dataset } from '../entities/dataset/dataset';
 import { FactTableAction } from '../enums/fact-table-action';
-import { DataLakeService } from '../services/datalake';
 import { FactTableColumnType } from '../enums/fact-table-column-type';
 import { FactTableInfo } from '../entities/dataset/fact-table-info';
 import { FileImport } from '../entities/dataset/file-import';
@@ -19,17 +18,14 @@ import { Locale } from '../enums/locale';
 import { Revision } from '../entities/dataset/revision';
 import { FactTable } from '../entities/dataset/fact-table';
 import { DuckdbOutputType } from '../enums/duckdb-outputs';
-// eslint-disable-next-line import/no-cycle
 import { DatasetRepository } from '../repositories/dataset';
 import { CSVHeader, ViewDTO, ViewErrDTO } from '../dtos/view-dto';
 import { DatasetDTO } from '../dtos/dataset-dto';
-import { FactTableDTO } from '../dtos/fact-table-dto';
-import { Error } from '../dtos/error';
+import { validateParams } from '../utils/paging-validation';
+import { getFileImportAndSaveToDisk, loadFileIntoDatabase } from '../utils/file-utils';
+import { LookupTableExtractor } from '../extractors/lookup-table-extractor';
 
-// eslint-disable-next-line import/no-cycle
-import { LookupTableExtractor } from './lookup-table-handler';
 import { dateDimensionReferenceTableCreator } from './time-matching';
-import { MAX_PAGE_SIZE, MIN_PAGE_SIZE } from './csv-processor';
 
 export const FACT_TABLE_NAME = 'fact_table';
 
@@ -38,45 +34,6 @@ export const makeCubeSafeString = (str: string): string => {
         .toLowerCase()
         .replace(/[ ]/g, '_')
         .replace(/[^a-zA-Z_]/g, '');
-};
-
-export const getFileImportAndSaveToDisk = async (dataset: Dataset, importFile: FileImport): Promise<FileResult> => {
-    const dataLakeService = new DataLakeService();
-    const importTmpFile = tmp.fileSync({ postfix: `.${importFile.fileType}` });
-    const buffer = await dataLakeService.getFileBuffer(importFile.filename, dataset.id);
-    fs.writeFileSync(importTmpFile.name, buffer);
-    return importTmpFile;
-};
-
-// This function creates a table in a duckdb database based on a file and loads the files contents directly into the table
-export const loadFileIntoDatabase = async (
-    quack: Database,
-    fileImport: FileImport,
-    tempFile: FileResult,
-    tableName: string
-) => {
-    let createTableQuery: string;
-    switch (fileImport.fileType) {
-        case FileType.Csv:
-        case FileType.GzipCsv:
-            createTableQuery = `CREATE TABLE ${tableName} AS SELECT * FROM read_csv('${tempFile.name}', auto_type_candidates = ['BOOLEAN', 'BIGINT', 'DOUBLE', 'VARCHAR']);`;
-            break;
-        case FileType.Parquet:
-            createTableQuery = `CREATE TABLE ${tableName} AS SELECT * FROM '${tempFile.name}';`;
-            break;
-        case FileType.Json:
-        case FileType.GzipJson:
-            createTableQuery = `CREATE TABLE ${tableName} AS SELECT * FROM read_json_auto('${tempFile.name}');`;
-            break;
-        case FileType.Excel:
-            await quack.exec('INSTALL spatial;');
-            await quack.exec('LOAD spatial;');
-            createTableQuery = `CREATE TABLE ${tableName} AS SELECT * FROM st_read('${tempFile.name}');`;
-            break;
-        default:
-            throw new Error('Unknown file type');
-    }
-    await quack.exec(createTableQuery);
 };
 
 // This function differs from loadFileIntoDatabase in that it only loads a file into an existing table
@@ -153,16 +110,18 @@ async function createAndValidateLookupTableDimension(quack: Database, dataset: D
             sortOrderCol = `${extractor.sortColumn}, `;
         }
         const viewParts: string[] = SUPPORTED_LOCALES.map((locale) => {
-            const descriptionCol = extractor.descriptionColumns.find((col) => col.lang === locale.split('-')[0]);
+            const descriptionCol = extractor.descriptionColumns.find(
+                (col) => col.lang.toLowerCase() === locale.split('-')[0]
+            );
             const descriptionColStr = descriptionCol ? `${descriptionCol.name} as description, ` : '';
-            const notesCol = extractor.notesColumns.find((col) => col.lang === locale.split('-')[0]);
+            const notesCol = extractor.notesColumns?.find((col) => col.lang.toLowerCase() === locale.split('-')[0]);
             const notesColStr = notesCol ? `${notesCol.name} as notes, ` : '';
             return (
                 `SELECT "${dimension.joinColumn}", ${sortOrderCol} '${locale.toLowerCase()}' as language,\n` +
                 `${descriptionColStr} ${notesColStr} from ${makeCubeSafeString(dimension.factTableColumn)}_lookup_sw2`
             );
         });
-        await quack.exec(`CREATE VIEW ${dimension.factTableColumn}_lookup AS ${viewParts.join('\nUNION\n')};`);
+        await quack.exec(`CREATE VIEW "${dimension.factTableColumn}_lookup" AS ${viewParts.join('\nUNION\n')};`);
     } else {
         await loadFileIntoDatabase(
             quack,
@@ -183,62 +142,16 @@ function setupFactTableUpdateJoins(factTableInfos: FactTableInfo[]): string {
     return factTableInfos.map((info) => `update_table."${info.columnName}"="${info.columnName}"`).join(' AND ');
 }
 
-// Builds a fresh cube based on all revisions and returns the file pointer
-// to the duckdb file on disk.  This is based on the recipe in our cube miro
-// board and our candidate cube format repo.  It is limited to building a
-// simple default view based on the available locales.
-export const createBaseCube = async (dataset: Dataset, endRevision: Revision): Promise<string> => {
-    const firstRevision = dataset.revisions.find((rev) => rev.revisionIndex === 1);
-    if (!firstRevision) {
-        throw new Error(`Unable to find first revision for dataset ${dataset.id}`);
-    }
-    const firstFactTable = firstRevision.factTables[0];
-    const quack = await Database.create(':memory:');
-    const compositeKey: string[] = [];
-    const factIdentifiers: FactTableInfo[] = [];
-    let notesCodeColumn: FactTableInfo | undefined;
-    let dataValuesColumn: FactTableInfo | undefined;
-    let measureColumn: FactTableInfo | undefined;
-    const factTableDef = firstFactTable.factTableInfo.map((field) => {
-        switch (field.columnType) {
-            case FactTableColumnType.Dimension:
-            case FactTableColumnType.Time:
-                compositeKey.push(`"${field.columnName}"`);
-                factIdentifiers.push(field);
-                break;
-            case FactTableColumnType.Measure:
-                compositeKey.push(`"${field.columnName}"`);
-                factIdentifiers.push(field);
-                measureColumn = field;
-                break;
-            case FactTableColumnType.NoteCodes:
-                notesCodeColumn = field;
-                break;
-            case FactTableColumnType.DataValues:
-                dataValuesColumn = field;
-                break;
-        }
-        return `"${field.columnName}" ${field.columnDatatype}`;
-    });
-
-    if (!notesCodeColumn) {
-        throw Error(`No column representing notes codes was found`);
-    }
-    if (!dataValuesColumn) {
-        throw Error(`No column representing data was found`);
-    }
-    logger.info('Creating fact table in cube');
-    try {
-        await quack.exec(
-            `CREATE TABLE ${FACT_TABLE_NAME} (${factTableDef.join(', ')}, PRIMARY KEY (${compositeKey.join(', ')}));`
-        );
-    } catch (err) {
-        logger.error(`Failed to create fact table in cube: ${err}`);
-        await quack.close();
-        throw new Error(`Failed to create fact table in cube: ${err}`);
-    }
-
+async function loadFactTables(
+    quack: Database,
+    dataset: Dataset,
+    endRevision: Revision,
+    dataValuesColumn: FactTableInfo,
+    notesCodeColumn: FactTableInfo,
+    factIdentifiers: FactTableInfo[]
+): Promise<void> {
     // Find all the fact tables for the given revision
+    logger.debug('Finding all fact tables for this revision and those that came before');
     let allFactTables: FactTable[] = [];
     if (endRevision.revisionIndex > 0) {
         // If we have a revision index we start here
@@ -294,19 +207,24 @@ export const createBaseCube = async (dataset: Dataset, endRevision: Revision): P
         await quack.close();
         throw error;
     }
+}
 
-    const selectStatementsMap = new Map<Locale, string[]>();
-    SUPPORTED_LOCALES.map((locale) => selectStatementsMap.set(locale, []));
-    const joinStatements: string[] = [];
-    const orderByStatements: string[] = [];
-
+async function setupMeasures(
+    quack: Database,
+    dataset: Dataset,
+    dataValuesColumn: FactTableInfo,
+    selectStatementsMap: Map<Locale, string[]>,
+    joinStatements: string[],
+    orderByStatements: string[],
+    measureColumn?: FactTableInfo
+) {
     logger.info('Setting up measure table if present...');
     // Process the column that represents the measure
     if (measureColumn && dataset.measure && dataset.measure.joinColumn) {
         // If we parsed the lookup table or the user
         // has used a user journey to define measures
         // use this first
-        if (dataset.measure.measureInfo.length > 0) {
+        if (dataset.measure.measureInfo && dataset.measure.measureInfo.length > 0) {
             try {
                 await quack.exec(
                     `CREATE TABLE measure (measure_id ${measureColumn.columnType}, sort_order INT, language VARCHAR(5), description VARCHAR, notes VARCHAR, data_type VARCHAR, display_type VARCHAR);`
@@ -357,7 +275,7 @@ export const createBaseCube = async (dataset: Dataset, endRevision: Revision): P
             selectStatementsMap
                 .get(locale)
                 ?.push(
-                    `measure_id as ${dataset.measure.measureInfo.find((info) => info.language === locale.toLowerCase())?.description || dataset.measure.factTableColumn}`
+                    `measure_id as ${dataset.measure.measureInfo?.find((info) => info.language === locale.toLowerCase())?.description || dataset.measure.factTableColumn}`
                 );
             // UPDATE THIS TO SUPPORT SPECIFIC DISPLAY TYPES
             if (dataValuesColumn)
@@ -381,7 +299,16 @@ export const createBaseCube = async (dataset: Dataset, endRevision: Revision): P
                     );
         });
     }
+}
 
+async function setupDimensions(
+    quack: Database,
+    dataset: Dataset,
+    selectStatementsMap: Map<Locale, string[]>,
+    joinStatements: string[],
+    orderByStatements: string[]
+) {
+    logger.info('Setting up dimension tables...');
     for (const dimension of dataset.dimensions) {
         logger.info(`Setting up dimension ${dimension.id} for fact table column ${dimension.factTableColumn}`);
         const dimTable = `${makeCubeSafeString(dimension.factTableColumn)}_lookup`;
@@ -460,7 +387,92 @@ export const createBaseCube = async (dataset: Dataset, endRevision: Revision): P
             );
         }
     }
+}
 
+// Builds a fresh cube based on all revisions and returns the file pointer
+// to the duckdb file on disk.  This is based on the recipe in our cube miro
+// board and our candidate cube format repo.  It is limited to building a
+// simple default view based on the available locales.
+export const createBaseCube = async (dataset: Dataset, endRevision: Revision): Promise<string> => {
+    const selectStatementsMap = new Map<Locale, string[]>();
+    SUPPORTED_LOCALES.map((locale) => selectStatementsMap.set(locale, []));
+    const joinStatements: string[] = [];
+    const orderByStatements: string[] = [];
+    let notesCodeColumn: FactTableInfo | undefined;
+    let dataValuesColumn: FactTableInfo | undefined;
+    let measureColumn: FactTableInfo | undefined;
+
+    const firstRevision = dataset.revisions.find((rev) => rev.revisionIndex === 1);
+    if (!firstRevision) {
+        throw new Error(`Unable to find first revision for dataset ${dataset.id}`);
+    }
+    const firstFactTable = firstRevision.factTables[0];
+    const compositeKey: string[] = [];
+    const factIdentifiers: FactTableInfo[] = [];
+
+    const factTableDef = firstFactTable.factTableInfo.map((field) => {
+        switch (field.columnType) {
+            case FactTableColumnType.Dimension:
+            case FactTableColumnType.Time:
+                compositeKey.push(`"${field.columnName}"`);
+                factIdentifiers.push(field);
+                break;
+            case FactTableColumnType.Measure:
+                compositeKey.push(`"${field.columnName}"`);
+                factIdentifiers.push(field);
+                measureColumn = field;
+                break;
+            case FactTableColumnType.NoteCodes:
+                notesCodeColumn = field;
+                break;
+            case FactTableColumnType.DataValues:
+                dataValuesColumn = field;
+                break;
+        }
+        return `"${field.columnName}" ${field.columnDatatype}`;
+    });
+
+    if (!notesCodeColumn) {
+        throw Error(`No column representing notes codes was found`);
+    }
+    if (!dataValuesColumn) {
+        throw Error(`No column representing data was found`);
+    }
+
+    /*
+        If additional cube rules such as requiring geography or date
+        are defined then we'll want to add them here and throw an error
+    */
+
+    logger.debug('Creating an in-memory database to hold the cube using DuckDB 🐤');
+    const quack = await Database.create(':memory:');
+
+    logger.info('Creating initial fact table in cube');
+    try {
+        await quack.exec(
+            `CREATE TABLE ${FACT_TABLE_NAME} (${factTableDef.join(', ')}, PRIMARY KEY (${compositeKey.join(', ')}));`
+        );
+    } catch (err) {
+        logger.error(`Failed to create fact table in cube: ${err}`);
+        await quack.close();
+        throw new Error(`Failed to create fact table in cube: ${err}`);
+    }
+
+    await loadFactTables(quack, dataset, endRevision, dataValuesColumn, notesCodeColumn, factIdentifiers);
+
+    await setupMeasures(
+        quack,
+        dataset,
+        dataValuesColumn,
+        selectStatementsMap,
+        joinStatements,
+        orderByStatements,
+        measureColumn
+    );
+
+    await setupDimensions(quack, dataset, selectStatementsMap, joinStatements, orderByStatements);
+
+    logger.debug('Adding notes code column to the select statement.');
     SUPPORTED_LOCALES.map((locale) => {
         if (notesCodeColumn)
             selectStatementsMap
@@ -500,79 +512,6 @@ export const getCubeDataTable = async (cubeFile: string, lang: string) => {
     await quack.close();
     return defaultView;
 };
-
-function validatePageSize(page_size: number): boolean {
-    return !(page_size > MAX_PAGE_SIZE || page_size < MIN_PAGE_SIZE);
-}
-
-function validatePageNumber(page_number: number): boolean {
-    return page_number >= 1;
-}
-
-function validatMaxPageNumber(page_number: number, max_page_number: number): boolean {
-    return page_number <= max_page_number;
-}
-
-function validateParams(page_number: number, max_page_number: number, page_size: number): Error[] {
-    const errors: Error[] = [];
-    if (!validatePageSize(page_size)) {
-        errors.push({
-            field: 'page_size',
-            message: [
-                {
-                    lang: Locale.English,
-                    message: t('errors.page_size', {
-                        lng: Locale.English,
-                        max_page_size: MAX_PAGE_SIZE,
-                        min_page_size: MIN_PAGE_SIZE
-                    })
-                },
-                {
-                    lang: Locale.Welsh,
-                    message: t('errors.page_size', {
-                        lng: Locale.Welsh,
-                        max_page_size: MAX_PAGE_SIZE,
-                        min_page_size: MIN_PAGE_SIZE
-                    })
-                }
-            ],
-            tag: {
-                name: 'errors.page_size',
-                params: { max_page_size: MAX_PAGE_SIZE, min_page_size: MIN_PAGE_SIZE }
-            }
-        });
-    }
-    if (!validatMaxPageNumber(page_number, max_page_number)) {
-        errors.push({
-            field: 'page_number',
-            message: [
-                {
-                    lang: Locale.English,
-                    message: t('errors.page_number_to_high', { lng: Locale.English, page_number: max_page_number })
-                },
-                {
-                    lang: Locale.Welsh,
-                    message: t('errors.page_number_to_high', { lng: Locale.Welsh, page_number: max_page_number })
-                }
-            ],
-            tag: {
-                name: 'errors.page_number_to_high',
-                params: { page_number: max_page_number }
-            }
-        });
-    }
-    if (!validatePageNumber(page_number)) {
-        errors.push({
-            field: 'page_number',
-            message: [
-                { lang: Locale.English, message: t('errors.page_number_to_low', { lng: Locale.English }) },
-                { lang: Locale.Welsh, message: t('errors.page_number_to_low', { lng: Locale.Welsh }) }
-            ],
-            tag: { name: 'errors.page_number_to_low', params: {} }
-        });
-    }
-    return errors;
-}
 
 export const getCubePreview = async (
     cubeFile: string,

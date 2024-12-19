@@ -24,10 +24,11 @@ import { CSVHeader, ViewDTO, ViewErrDTO } from '../dtos/view-dto';
 import { DatasetRepository } from '../repositories/dataset';
 import { DatasetDTO } from '../dtos/dataset-dto';
 import { FactTableDTO } from '../dtos/fact-table-dto';
+import { getFileImportAndSaveToDisk, loadFileIntoDatabase } from '../utils/file-utils';
+import { LookupTableExtractor } from '../extractors/lookup-table-extractor';
+import { DateExtractor } from '../extractors/date-extractor';
 
-import { dateDimensionReferenceTableCreator, DateExtractor, DateReferenceDataItem } from './time-matching';
-import { getFileImportAndSaveToDisk, loadFileIntoDatabase } from './cube-handler';
-import { LookupTableExtractor } from './lookup-table-handler';
+import { dateDimensionReferenceTableCreator, DateReferenceDataItem } from './time-matching';
 
 const createDateDimensionTable = `CREATE TABLE date_dimension (date_code VARCHAR, description VARCHAR, start_date datetime, end_date datetime, date_type varchar);`;
 const sampleSize = 5;
