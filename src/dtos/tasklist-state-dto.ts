@@ -37,7 +37,10 @@ export class TasklistStateDTO {
 
     public static translationStatus(dataset: Dataset): TaskStatus {
         const metaFullyTranslated = dataset.datasetInfo?.every((info) => {
-            return every(translatableMetadataKeys, (prop) => info[prop]);
+            return every(translatableMetadataKeys, (key) => {
+                // ignore roundingDescription if rounding isn't applied, otherwise check some data exists
+                return key === 'roundingDescription' && !info.roundingApplied ? true : Boolean(info[key]);
+            });
         });
 
         return metaFullyTranslated ? TaskStatus.Completed : TaskStatus.Incomplete;
