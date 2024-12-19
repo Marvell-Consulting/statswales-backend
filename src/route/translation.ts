@@ -36,9 +36,9 @@ const collectTranslations = (dataset: Dataset): TranslationDTO[] => {
         ...dataset.dimensions?.map((dim) => ({
             type: 'dimension',
             key: dim.factTableColumn,
-            id: dim.id,
             english: dim.dimensionInfo?.find((info) => info.language.includes('en'))?.name,
-            cymraeg: dim.dimensionInfo?.find((info) => info.language.includes('cy'))?.name
+            cymraeg: dim.dimensionInfo?.find((info) => info.language.includes('cy'))?.name,
+            id: dim.id
         })),
         ...metadataKeys.map((prop) => ({
             type: 'metadata',
