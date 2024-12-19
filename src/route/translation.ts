@@ -126,6 +126,10 @@ translationRouter.post(
                 if (!newTranslation) {
                     throw new BadRequestException('errors.translation_file.invalid.keys');
                 }
+
+                if (!newTranslation.english?.trim() || !newTranslation.cymraeg?.trim()) {
+                    throw new BadRequestException('errors.translation_file.invalid.values');
+                }
             });
 
             // store the translation import in the datalake so we can use it once it's confirmed as correct
