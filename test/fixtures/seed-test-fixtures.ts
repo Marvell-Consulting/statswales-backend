@@ -1,6 +1,4 @@
 /* eslint-disable no-console */
-import fs from 'node:fs/promises';
-
 import { Seeder } from '@jorgebodega/typeorm-seeding';
 import { DataSource } from 'typeorm';
 
@@ -8,19 +6,14 @@ import { User } from '../../src/entities/user/user';
 import { Dataset } from '../../src/entities/dataset/dataset';
 import { appConfig } from '../../src/config';
 import { AppEnv } from '../../src/config/env.enum';
-import { createSources, moveFileToDataLake, uploadCSVBufferToBlobStorage } from '../../src/controllers/csv-processor';
-import {
-    validateSourceAssignment,
-    createDimensionsFromSourceAssignment
-} from '../../src/controllers/dimension-processor';
-import { RevisionRepository } from '../../src/repositories/revision';
-import { SourceAssignmentDTO } from '../../src/dtos/source-assignment-dto';
 
 import { testUsers } from './users';
 import { testDatasets } from './datasets';
 
 const config = appConfig();
 
+// This seeder loads test fixtures used by the e2e tests on the frontend. This needs to be run before the frontend tests
+// so that the test users and starting datasets are available in the database.
 export default class SeedTestFixtures extends Seeder {
     async run(dataSource: DataSource): Promise<void> {
         if (![AppEnv.Local, AppEnv.Ci].includes(config.env)) {
@@ -52,23 +45,3 @@ export default class SeedTestFixtures extends Seeder {
         }
     }
 }
-
-// const seedDataFile = async (testDataset, dataset) => {
-//     const csvBuffer = await fs.readFile(testDataset.csvPath);
-//     const fileImport = await uploadCSVBufferToBlobStorage(csvBuffer, 'text/csv');
-//     const revision = await RevisionRepository.createFromImport(dataset, fileImport, dataset.createdBy);
-//     fileImport.revision = revision;
-//     await fileImport.save();
-//     await moveFileToDataLake(fileImport);
-//     await createSources(fileImport);
-
-//     const sourceAssignment: SourceAssignmentDTO[] = fileImport.sources.map((source, idx) => ({
-//         sourceId: source.id,
-//         sourceType: testDataset.sourceTypes[idx]
-//     }));
-
-//     const validatedSourceAssignment = await validateSourceAssignment(fileImport, sourceAssignment);
-//     await createDimensionsFromSourceAssignment(dataset, revision, validatedSourceAssignment);
-
-//     console.log(`Uploaded ${testDataset.csvPath} to create revision ${revision.id} for dataset ${dataset.id}`);
-// };
