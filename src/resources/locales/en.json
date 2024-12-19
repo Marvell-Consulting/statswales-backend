@@ -69,6 +69,9 @@
         "publish_at": {
             "invalid": "Publish at is missing or invalid",
             "in_past": "Publish at cannot be in the past"
+        },
+        "translation_file": {
+            "invalid": "Uploaded translation file keys do not match the exported file"
         }
 	},
     "dimension_info": {

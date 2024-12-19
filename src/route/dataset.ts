@@ -177,7 +177,8 @@ router.post('/', jsonParser, async (req: Request, res: Response, next: NextFunct
     }
 
     try {
-        const dataset = await DatasetRepository.createWithTitle(req.user as User, req.language, req.body.title);
+        const language = req.language as Locale;
+        const dataset = await DatasetRepository.createWithTitle(req.user as User, language, req.body.title);
         logger.info(`Dataset created with id: ${dataset.id}`);
         res.status(201);
         res.json(DatasetDTO.fromDataset(dataset));
