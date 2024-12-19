@@ -6,7 +6,7 @@ export class MeasureDTO {
     id: string;
     dataset_id: string;
     fact_table_column: string;
-    join_column: string;
+    join_column: string | null;
     lookup_table?: LookupTableDTO;
 
     static fromMeasure(measure: Measure): MeasureDTO {

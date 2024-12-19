@@ -1,13 +1,4 @@
-import {
-    Entity,
-    PrimaryGeneratedColumn,
-    Column,
-    BaseEntity,
-    ManyToOne,
-    OneToOne,
-    JoinColumn,
-    OneToMany
-} from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, BaseEntity, OneToOne, JoinColumn, OneToMany } from 'typeorm';
 
 import { Dataset } from './dataset';
 import { LookupTable } from './lookup-table';
@@ -30,14 +21,17 @@ export class Measure extends BaseEntity {
         name: 'lookup_table_id',
         foreignKeyConstraintName: 'FK_measure_lookup_table_id_lookup_table_measure_id'
     })
-    lookupTable: LookupTable;
+    lookupTable: LookupTable | null;
 
     @Column({ name: 'fact_table_column', type: 'varchar' })
     factTableColumn: string;
 
     @Column({ name: 'join_column', type: 'varchar', nullable: true })
-    joinColumn: string; // <-- Tells you how to join measure to the fact table
+    joinColumn: string | null; // <-- Tells you how to join measure to the fact table
+
+    @Column({ name: 'extractor', type: 'jsonb', nullable: true })
+    extractor: object | null;
 
     @OneToMany(() => MeasureInfo, (measureInfo) => measureInfo.measure, { cascade: true })
-    measureInfo: MeasureInfo[];
+    measureInfo: MeasureInfo[] | null;
 }
