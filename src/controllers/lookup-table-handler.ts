@@ -20,6 +20,7 @@ import { LookupTablePatchDTO } from '../dtos/lookup-patch-dto';
 import { columnIdentification, convertFactTableToLookupTable } from '../utils/lookup-table-utils';
 import { viewErrorGenerator } from '../utils/view-error-generator';
 import { getFileImportAndSaveToDisk, loadFileIntoDatabase } from '../utils/file-utils';
+import { ColumnDescriptor } from '../extractors/column-descriptor';
 
 async function cleanUpDimension(dimension: Dimension) {
     if (!dimension.lookupTable) return;
@@ -64,6 +65,7 @@ async function setupDimension(
     updateDimension.type = DimensionType.LookupTable;
     updateDimension.joinColumn = confirmedJoinColumn;
     updateDimension.lookupTable = lookupTable;
+    logger.debug(`Creating extractor...`);
     updateDimension.extractor = createExtractor(protoLookupTable, tableMatcher);
     logger.debug('Saving the lookup table');
     await lookupTable.save();
@@ -74,7 +76,8 @@ async function setupDimension(
 }
 
 function createExtractor(protoLookupTable: FactTable, tableMatcher?: LookupTablePatchDTO): LookupTableExtractor {
-    if (tableMatcher) {
+    if (tableMatcher?.description_columns) {
+        logger.debug(`Table matcher is supplied using user supplied information to create extractor...`);
         return {
             sortColumn: tableMatcher.sort_column,
             hierarchyColumn: tableMatcher.hierarchy,
@@ -92,18 +95,32 @@ function createExtractor(protoLookupTable: FactTable, tableMatcher?: LookupTable
             )
         };
     } else {
+        logger.debug(`Using lookup table to try try to generate the extractor...`);
+        const sortColumn = protoLookupTable.factTableInfo.find((info) =>
+            info.columnName.toLowerCase().startsWith('sort')
+        )?.columnName;
+        const hierarchyColumn = protoLookupTable.factTableInfo.find((info) =>
+            info.columnName.toLowerCase().startsWith('hierarchy')
+        )?.columnName;
+        const filteredDescriptionColumns = protoLookupTable.factTableInfo.filter((info) =>
+            info.columnName.toLowerCase().startsWith('description')
+        );
+        if (filteredDescriptionColumns.length < 1) {
+            throw new Error('Could not identify description columns in lookup table');
+        }
+        const descriptionColumns = filteredDescriptionColumns.map((info) => columnIdentification(info));
+        const filteredNotesColumns = protoLookupTable.factTableInfo.filter((info) =>
+            info.columnName.toLowerCase().startsWith('note')
+        );
+        let notesColumns: ColumnDescriptor[] | undefined;
+        if (filteredNotesColumns.length > 0) {
+            notesColumns = filteredNotesColumns.map((info) => columnIdentification(info));
+        }
         return {
-            sortColumn: protoLookupTable.factTableInfo.find((info) => info.columnName.toLowerCase().startsWith('sort'))
-                ?.columnName,
-            hierarchyColumn: protoLookupTable.factTableInfo.find((info) =>
-                info.columnName.toLowerCase().startsWith('hierarchy')
-            )?.columnName,
-            descriptionColumns: protoLookupTable.factTableInfo
-                .filter((info) => info.columnName.toLowerCase().startsWith('description'))
-                .map((info) => columnIdentification(info)),
-            notesColumns: protoLookupTable.factTableInfo
-                .filter((info) => info.columnName.toLowerCase().startsWith('note'))
-                .map((info) => columnIdentification(info))
+            sortColumn,
+            hierarchyColumn,
+            descriptionColumns,
+            notesColumns
         };
     }
 }
@@ -122,9 +139,12 @@ export const validateLookupTable = async (
     const quack = await Database.create(':memory:');
     const lookupTableTmpFile = tmp.fileSync({ postfix: `.${lookupTable.fileType}` });
     try {
+        logger.debug(`Writing the lookup table to disk: ${lookupTableTmpFile.name}`);
         fs.writeFileSync(lookupTableTmpFile.name, buffer);
         const factTableTmpFile = await getFileImportAndSaveToDisk(dataset, factTable);
+        logger.debug(`Loading fact table in to DuckDB`);
         await loadFileIntoDatabase(quack, factTable, factTableTmpFile, factTableName);
+        logger.debug(`Loading lookup table in to DuckDB`);
         await loadFileIntoDatabase(quack, lookupTable, lookupTableTmpFile, lookupTableName);
         lookupTableTmpFile.removeCallback();
         factTableTmpFile.removeCallback();
@@ -135,24 +155,30 @@ export const validateLookupTable = async (
 
     let confirmedJoinColumn: string;
     if (tableMatcher?.join_column) {
+        logger.debug(`Table matcher is supplied using user supplied information`);
         confirmedJoinColumn = tableMatcher.join_column;
     } else {
+        logger.debug(`Looking for the join column in uploaded fact table`);
         const possibleJoinColumns = protoLookupTable.factTableInfo.filter((info) => {
-            if (info.columnName.toLowerCase().startsWith('description')) return false;
-            if (info.columnName.toLowerCase().startsWith('sort')) return false;
-            if (info.columnName.toLowerCase().startsWith('note')) return false;
+            if (info.columnName.toLowerCase().indexOf('description') > -1) return false;
+            if (info.columnName.toLowerCase().indexOf('sort') > -1) return false;
+            if (info.columnName.toLowerCase().indexOf('hierarchy') > -1) return false;
+            if (info.columnName.toLowerCase().indexOf('note') > -1) return false;
             return true;
         });
         if (possibleJoinColumns.length > 1) {
+            logger.error(`There are to many possible join columns.  Ask user for more information.  Join Columns found: ${JSON.stringify(possibleJoinColumns)}`);
             throw new Error('There are to many possible join columns.  Ask user for more information');
         }
         if (possibleJoinColumns.length === 0) {
+            logger.error('Could not find a column to join against the fact table.');
             throw new Error('Could not find a column to join against the fact table.');
         }
         confirmedJoinColumn = possibleJoinColumns[0].columnName;
     }
 
     try {
+        logger.debug(`Validating the lookup table`);
         const nonMatchedRows = await quack.all(
             `SELECT line_number, fact_table_column, ${lookupTableName}.${confirmedJoinColumn} as lookup_table_column
             FROM (SELECT row_number() OVER () as line_number, "${dimension.factTableColumn}" as fact_table_column FROM
@@ -160,6 +186,7 @@ export const validateLookupTable = async (
             CAST(fact_table.fact_table_column AS VARCHAR)=CAST(${lookupTableName}."${confirmedJoinColumn}" AS VARCHAR)
             WHERE lookup_table_column IS NULL;`
         );
+        logger.debug(`Number of rows from non matched rows query: ${nonMatchedRows.length}`);
         const rows = await quack.all(`SELECT COUNT(*) as total_rows FROM ${factTableName}`);
         if (nonMatchedRows.length === rows[0].total_rows) {
             logger.error(`The user supplied an incorrect lookup table and none of the rows matched`);
@@ -195,9 +222,11 @@ export const validateLookupTable = async (
         });
     }
 
+    logger.debug(`Lookup table passed validation.  Setting up dimension.`);
     await setupDimension(dimension, lookupTable, protoLookupTable, confirmedJoinColumn, tableMatcher);
 
     try {
+        logger.debug('Passed validation preparing to send back the preview');
         const dimensionTable = await quack.all(`SELECT * FROM ${lookupTableName};`);
         await quack.close();
         const tableHeaders = Object.keys(dimensionTable[0]);

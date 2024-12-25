@@ -19,6 +19,11 @@ import { getFileImportAndSaveToDisk, loadFileIntoDatabase } from '../utils/file-
 import { viewErrorGenerator } from '../utils/view-error-generator';
 import { Measure } from '../entities/dataset/measure';
 import { MeasureLookupTableExtractor } from '../extractors/measure-lookup-extractor';
+import { DataValueFormat } from '../enums/data-value-format';
+import { ColumnDescriptor } from '../extractors/column-descriptor';
+import { LookupTableExtractor } from '../extractors/lookup-table-extractor';
+
+import { createFactTableQuery } from './cube-handler';
 
 async function cleanUpMeasure(measure: Measure) {
     if (!measure.lookupTable) return;
@@ -35,7 +40,9 @@ async function cleanUpMeasure(measure: Measure) {
         measure.measureInfo = null;
         measure.joinColumn = null;
         measure.extractor = null;
+        measure.lookupTable = null;
         await measure.save();
+        logger.debug(`Removing orphaned measure lookup table`);
         const oldLookupTable = await LookupTable.findOneBy({ id: lookupTableId });
         await oldLookupTable?.remove();
     } catch (err) {
@@ -50,11 +57,12 @@ function createExtractor(
     protoLookupTable: FactTable,
     tableMatcher?: MeasureLookupPatchDTO
 ): MeasureLookupTableExtractor {
-    if (tableMatcher) {
+    if (tableMatcher?.description_columns) {
+        logger.debug('Using user supplied table matcher to match columns');
         return {
-            sortColumn: tableMatcher.sort_column,
-            formatColumn: tableMatcher.format_column,
-            measureTypeColumn: tableMatcher.measure_type_column,
+            sortColumn: tableMatcher?.sort_column,
+            formatColumn: tableMatcher?.format_column,
+            measureTypeColumn: tableMatcher?.measure_type_column,
             descriptionColumns: tableMatcher.description_columns.map(
                 (desc) =>
                     protoLookupTable.factTableInfo
@@ -69,26 +77,53 @@ function createExtractor(
             )
         };
     } else {
-        const formatColumn: string | undefined = protoLookupTable.factTableInfo.find((info) =>
-            info.columnName.toLowerCase().startsWith('format')
-        )?.columnName;
-        const measureTypeColumn: string | undefined = protoLookupTable.factTableInfo.find((info) =>
-            info.columnName.toLowerCase().startsWith('measure')
-        )?.columnName;
-        if (!formatColumn) throw new Error('Could not find a format column in the lookup table');
-        if (!measureTypeColumn) throw new Error('Could not find a measure type column in the lookup table');
+        logger.debug('Detecting column types from column names');
+        let notesColumns: ColumnDescriptor[] | undefined;
+        if (protoLookupTable.factTableInfo.filter((info) => info.columnName.toLowerCase().startsWith('note')))
+            notesColumns = protoLookupTable.factTableInfo
+                .filter((info) => info.columnName.toLowerCase().startsWith('note'))
+                .map((info) => columnIdentification(info));
         return {
             sortColumn: protoLookupTable.factTableInfo.find((info) => info.columnName.toLowerCase().startsWith('sort'))
                 ?.columnName,
-            formatColumn,
-            measureTypeColumn,
+            formatColumn: protoLookupTable.factTableInfo.find(
+                (info) =>
+                    info.columnName.toLowerCase().startsWith('format') ||
+                    info.columnName.toLowerCase().startsWith('decimal')
+            )?.columnName,
+            measureTypeColumn: protoLookupTable.factTableInfo.find(
+                (info) =>
+                    info.columnName.toLowerCase().indexOf('measure') > -1 &&
+                    info.columnName.toLowerCase().indexOf('type') > -1
+            )?.columnName,
             descriptionColumns: protoLookupTable.factTableInfo
                 .filter((info) => info.columnName.toLowerCase().startsWith('description'))
                 .map((info) => columnIdentification(info)),
-            notesColumns: protoLookupTable.factTableInfo
-                .filter((info) => info.columnName.toLowerCase().startsWith('note'))
-                .map((info) => columnIdentification(info))
+            notesColumns
         };
+    }
+}
+
+function lookForJoinColumn(protoLookupTable: FactTable, tableMatcher?: MeasureLookupPatchDTO): string {
+    if (tableMatcher?.join_column) {
+        return tableMatcher.join_column;
+    } else {
+        const possibleJoinColumns = protoLookupTable.factTableInfo.filter((info) => {
+            if (info.columnName.toLowerCase().startsWith('decimal')) return false;
+            if (info.columnName.toLowerCase().startsWith('format')) return false;
+            if (info.columnName.toLowerCase().startsWith('description')) return false;
+            if (info.columnName.toLowerCase().startsWith('sort')) return false;
+            if (info.columnName.toLowerCase().startsWith('note')) return false;
+            return true;
+        });
+        if (possibleJoinColumns.length > 1) {
+            throw new Error('There are to many possible join columns.  Ask user for more information');
+        }
+        if (possibleJoinColumns.length === 0) {
+            throw new Error('Could not find a column to join against the fact table.');
+        }
+        logger.debug(`Found the following join column ${JSON.stringify(possibleJoinColumns)}`);
+        return possibleJoinColumns[0].columnName;
     }
 }
 
@@ -113,6 +148,114 @@ async function setupMeasure(
     logger.debug('Saving the dimension');
     updateMeasure.lookupTable = lookupTable;
     await updateMeasure.save();
+}
+
+async function rowMatcher(
+    quack: Database,
+    measure: Measure,
+    datasetId: string,
+    lookupTableName: string,
+    factTableName: string,
+    confirmedJoinColumn: string
+): Promise<ViewErrDTO | undefined> {
+    try {
+        const nonMatchedRows =
+            await quack.all(`SELECT line_number, fact_table_column, ${lookupTableName}.${confirmedJoinColumn} as lookup_table_column
+            FROM (SELECT row_number() OVER () as line_number, "${measure.factTableColumn}" as fact_table_column FROM
+            ${factTableName}) as fact_table LEFT JOIN ${lookupTableName} ON
+            CAST(fact_table.fact_table_column AS VARCHAR)=CAST(${lookupTableName}."${confirmedJoinColumn}" AS VARCHAR)
+            WHERE lookup_table_column IS NULL;`);
+        const rows = await quack.all(`SELECT COUNT(*) as total_rows FROM ${factTableName}`);
+        if (nonMatchedRows.length === rows[0].total_rows) {
+            logger.error(`The user supplied an incorrect lookup table and none of the rows matched`);
+            const nonMatchedValues = await quack.all(
+                `SELECT DISTINCT ${measure.factTableColumn} FROM ${factTableName};`
+            );
+            return viewErrorGenerator(400, datasetId, 'patch', 'errors.dimensionValidation.invalid_lookup_table', {
+                totalNonMatching: rows[0].total_rows,
+                nonMatchingValues: nonMatchedValues.map((row) => Object.values(row)[0])
+            });
+        }
+        if (nonMatchedRows.length > 0) {
+            const nonMatchedValues = await quack.all(
+                `SELECT DISTINCT fact_table_column FROM (SELECT "${measure.factTableColumn}" as fact_table_column FROM ${factTableName}) as fact_table LEFT JOIN ${lookupTableName} ON CAST(fact_table.fact_table_column AS VARCHAR)=CAST(${lookupTableName}."${confirmedJoinColumn}" AS VARCHAR) where lookup_table_column IS NULL;`
+            );
+            logger.error(
+                `The user supplied an incorrect or incomplete lookup table and ${nonMatchedRows.length} rows didn't match`
+            );
+            return viewErrorGenerator(400, datasetId, 'patch', 'errors.dimensionValidation.invalid_lookup_table', {
+                totalNonMatching: nonMatchedRows.length,
+                nonMatchingValues: nonMatchedValues.map((row) => Object.values(row)[0])
+            });
+        }
+    } catch (error) {
+        logger.error(
+            `Something went wrong, most likely an incorrect join column name, while trying to validate the lookup table with error: ${error}`
+        );
+        const nonMatchedRows = await quack.all(`SELECT COUNT(*) AS total_rows FROM ${factTableName};`);
+        const nonMatchedValues = await quack.all(`SELECT DISTINCT ${measure.factTableColumn} FROM ${factTableName};`);
+        return viewErrorGenerator(400, datasetId, 'patch', 'errors.dimensionValidation.invalid_lookup_table', {
+            totalNonMatching: nonMatchedRows[0].total_rows,
+            nonMatchingValues: nonMatchedValues.map((row) => Object.values(row)[0])
+        });
+    }
+    logger.debug('The measure lookup table passed row matching.');
+    return undefined;
+}
+
+async function validateTableContent(
+    quack: Database,
+    datasetId: string,
+    lookupTableName: string,
+    extractor: MeasureLookupTableExtractor
+): Promise<ViewErrDTO | undefined> {
+    const unmatchedFormats: string[] = [];
+    if (extractor.formatColumn && extractor.formatColumn.toLowerCase().indexOf('format') !== -1) {
+        logger.debug('Formats column is present.  Validating all formats present are valid.');
+        const formats = await quack.all(
+            `SELECT DISTINCT "${extractor.formatColumn}" as formats FROM ${lookupTableName};`
+        );
+        for (const format of Object.values(formats.map((format) => format.formats))) {
+            if (Object.values(DataValueFormat).indexOf(format) === -1) unmatchedFormats.push(format);
+        }
+    } else if (extractor.formatColumn && extractor.formatColumn.toLowerCase().indexOf('decimal') !== -1) {
+        logger.debug('Decimal column is present.  Validating contains only 1 or 0.');
+        const formats = await quack.all(
+            `SELECT DISTINCT "${extractor.formatColumn}" as formats FROM ${lookupTableName};`
+        );
+        for (const format of Object.values(formats.map((format) => format.formats))) {
+            if (format < 0 && format > 1) unmatchedFormats.push(format);
+        }
+    }
+    if (unmatchedFormats.length > 0) {
+        logger.debug(
+            `Found invalid formats while validating format column.  Formats found: ${JSON.stringify(unmatchedFormats)}`
+        );
+        return viewErrorGenerator(400, datasetId, 'patch', 'errors.dimensionValidation.invalid_lookup_table', {
+            totalNonMatching: unmatchedFormats.length,
+            nonMatchingValues: unmatchedFormats
+        });
+    }
+    if (extractor.measureTypeColumn) {
+        logger.debug(
+            `Measure type column (${extractor.measureTypeColumn}) is present, validating all type present are valid`
+        );
+        const unmatchedMeasureTypes: string[] = [];
+        const measureTypes = await quack.all(
+            `SELECT DISTINCT "${extractor.measureTypeColumn}" as formats FROM ${lookupTableName};`
+        );
+        for (const measureType of Object.values(measureTypes.map((measureType) => measureType.formats))) {
+            if (Object.values(DataValueFormat).indexOf(measureType) === -1) unmatchedMeasureTypes.push(measureType);
+        }
+        if (unmatchedMeasureTypes.length > 0) {
+            return viewErrorGenerator(400, datasetId, 'patch', 'errors.dimensionValidation.invalid_lookup_table', {
+                totalNonMatching: unmatchedMeasureTypes.length,
+                nonMatchingValues: unmatchedMeasureTypes
+            });
+        }
+    }
+    logger.debug('Validating column contents complete.');
+    return undefined;
 }
 
 export const validateMeasureLookupTable = async (
@@ -140,69 +283,20 @@ export const validateMeasureLookupTable = async (
         throw err;
     }
 
-    let confirmedJoinColumn: string;
-    if (tableMatcher?.join_column) {
-        confirmedJoinColumn = tableMatcher.join_column;
-    } else {
-        const possibleJoinColumns = protoLookupTable.factTableInfo.filter((info) => {
-            if (info.columnName.toLowerCase().startsWith('measure')) return false;
-            if (info.columnName.toLowerCase().startsWith('format')) return false;
-            if (info.columnName.toLowerCase().startsWith('description')) return false;
-            if (info.columnName.toLowerCase().startsWith('sort')) return false;
-            if (info.columnName.toLowerCase().startsWith('note')) return false;
-            return true;
-        });
-        if (possibleJoinColumns.length > 1) {
-            throw new Error('There are to many possible join columns.  Ask user for more information');
-        }
-        if (possibleJoinColumns.length === 0) {
-            throw new Error('Could not find a column to join against the fact table.');
-        }
-        confirmedJoinColumn = possibleJoinColumns[0].columnName;
-    }
+    const confirmedJoinColumn: string = lookForJoinColumn(protoLookupTable, tableMatcher);
 
-    try {
-        const nonMatchedRows = await quack.all(
-            `SELECT line_number, fact_table_column, ${lookupTableName}.${confirmedJoinColumn} as lookup_table_column
-            FROM (SELECT row_number() OVER () as line_number, "${measure.factTableColumn}" as fact_table_column FROM
-            ${factTableName}) as fact_table LEFT JOIN ${lookupTableName} ON
-            CAST(fact_table.fact_table_column AS VARCHAR)=CAST(${lookupTableName}."${confirmedJoinColumn}" AS VARCHAR)
-            WHERE lookup_table_column IS NULL;`
-        );
-        const rows = await quack.all(`SELECT COUNT(*) as total_rows FROM ${factTableName}`);
-        if (nonMatchedRows.length === rows[0].total_rows) {
-            logger.error(`The user supplied an incorrect lookup table and none of the rows matched`);
-            const nonMatchedValues = await quack.all(
-                `SELECT DISTINCT ${measure.factTableColumn} FROM ${factTableName};`
-            );
-            return viewErrorGenerator(400, dataset.id, 'patch', 'errors.dimensionValidation.invalid_lookup_table', {
-                totalNonMatching: rows[0].total_rows,
-                nonMatchingValues: nonMatchedValues.map((row) => Object.values(row)[0])
-            });
-        }
-        if (nonMatchedRows.length > 0) {
-            const nonMatchedValues = await quack.all(
-                `SELECT DISTINCT fact_table_column FROM (SELECT "${measure.factTableColumn}" as fact_table_column FROM ${factTableName}) as fact_table LEFT JOIN ${lookupTableName} ON CAST(fact_table.fact_table_column AS VARCHAR)=CAST(${lookupTableName}."${confirmedJoinColumn}" AS VARCHAR) where lookup_table_column IS NULL;`
-            );
-            logger.error(
-                `The user supplied an incorrect or incomplete lookup table and ${nonMatchedRows.length} rows didn't match`
-            );
-            return viewErrorGenerator(400, dataset.id, 'patch', 'errors.dimensionValidation.invalid_lookup_table', {
-                totalNonMatching: nonMatchedRows.length,
-                nonMatchingValues: nonMatchedValues.map((row) => Object.values(row)[0])
-            });
-        }
-    } catch (error) {
-        logger.error(
-            `Something went wrong, most likely an incorrect join column name, while trying to validate the lookup table with error: ${error}`
-        );
-        const nonMatchedRows = await quack.all(`SELECT COUNT(*) AS total_rows FROM ${factTableName};`);
-        const nonMatchedValues = await quack.all(`SELECT DISTINCT ${measure.factTableColumn} FROM ${factTableName};`);
-        return viewErrorGenerator(400, dataset.id, 'patch', 'errors.dimensionValidation.invalid_lookup_table', {
-            totalNonMatching: nonMatchedRows[0].total_rows,
-            nonMatchingValues: nonMatchedValues.map((row) => Object.values(row)[0])
-        });
-    }
+    const rowMatchingErrors = await rowMatcher(
+        quack,
+        measure,
+        dataset.id,
+        lookupTableName,
+        factTableName,
+        confirmedJoinColumn
+    );
+    if (rowMatchingErrors) return rowMatchingErrors;
+    const extractor = createExtractor(protoLookupTable, tableMatcher);
+    const tableValidationErrors = await validateTableContent(quack, dataset.id, lookupTableName, extractor);
+    if (tableValidationErrors) return tableValidationErrors;
 
     await setupMeasure(dataset, lookupTable, protoLookupTable, confirmedJoinColumn, tableMatcher);
 
@@ -243,6 +337,137 @@ export const validateMeasureLookupTable = async (
         };
     } catch (error) {
         logger.error(`Something went wrong trying to generate the preview of the lookup table with error: ${error}`);
+        throw error;
+    }
+};
+
+const sampleSize = 5;
+
+async function getMeasurePreviewWithoutExtractor(
+    dataset: Dataset,
+    measure: Measure,
+    factTable: FactTable,
+    quack: Database,
+    tableName: string
+): Promise<ViewDTO> {
+    const preview = await quack.all(
+        `SELECT DISTINCT "${measure.factTableColumn}" FROM ${tableName} ORDER BY "${measure.factTableColumn}" ASC LIMIT ${sampleSize};`
+    );
+    const tableHeaders = Object.keys(preview[0]);
+    const dataArray = preview.map((row) => Object.values(row));
+    const currentDataset = await DatasetRepository.getById(dataset.id);
+    const currentImport = await FactTable.findOneByOrFail({ id: factTable.id });
+    const headers: CSVHeader[] = [];
+    for (let i = 0; i < tableHeaders.length; i++) {
+        headers.push({
+            index: i,
+            name: tableHeaders[i],
+            source_type: FactTableColumnType.Unknown
+        });
+    }
+    return {
+        dataset: DatasetDTO.fromDataset(currentDataset),
+        fact_table: FactTableDTO.fromFactTable(currentImport),
+        current_page: 1,
+        page_info: {
+            total_records: preview.length,
+            start_record: 1,
+            end_record: preview.length
+        },
+        page_size: preview.length < sampleSize ? preview.length : sampleSize,
+        total_pages: 1,
+        headers,
+        data: dataArray
+    };
+}
+
+async function getMeasurePreviewWithExtractor(
+    dataset: Dataset,
+    measure: Measure,
+    factTable: FactTable,
+    quack: Database,
+    tableName: string
+) {
+    if (!measure.lookupTable) {
+        throw new Error(`Lookup table does does not exist on measure ${measure.id}`);
+    }
+    logger.debug(`Generating lookup table preview for measure ${measure.id}`);
+    const lookupTmpFile = await getFileImportAndSaveToDisk(dataset, measure.lookupTable);
+    const lookupTableName = `lookup_table`;
+    await loadFileIntoDatabase(quack, measure.lookupTable, lookupTmpFile, lookupTableName);
+    const sortColumn = (measure.extractor as LookupTableExtractor).sortColumn || measure.joinColumn;
+    const query = `SELECT * FROM ${lookupTableName} ORDER BY ${sortColumn} LIMIT ${sampleSize};`;
+    logger.debug(`Querying the cube to get the preview using query ${query}`);
+    const measureTable = await quack.all(query);
+    const tableHeaders = Object.keys(measureTable[0]);
+    const dataArray = measureTable.map((row) => Object.values(row));
+    const currentDataset = await DatasetRepository.getById(dataset.id);
+    const currentImport = await FactTable.findOneByOrFail({ id: factTable.id });
+    const headers: CSVHeader[] = [];
+    for (let i = 0; i < tableHeaders.length; i++) {
+        headers.push({
+            index: i,
+            name: tableHeaders[i],
+            source_type: FactTableColumnType.Unknown
+        });
+    }
+    return {
+        dataset: DatasetDTO.fromDataset(currentDataset),
+        fact_table: FactTableDTO.fromFactTable(currentImport),
+        current_page: 1,
+        page_info: {
+            total_records: measureTable.length,
+            start_record: 1,
+            end_record: measureTable.length < sampleSize ? measureTable.length : sampleSize
+        },
+        page_size: measureTable.length < sampleSize ? measureTable.length : sampleSize,
+        total_pages: 1,
+        headers,
+        data: dataArray
+    };
+}
+
+export const getMeasurePreview = async (dataset: Dataset, factTable: FactTable) => {
+    logger.debug(`Getting measure preview for ${dataset.measure.id}`);
+    const tableName = 'fact_table';
+    const quack = await Database.create(':memory:');
+    const tempFile = tmp.fileSync({ postfix: `.${factTable.fileType}` });
+    const measure = dataset.measure;
+    if (!measure) {
+        throw new Error('No measure present on the dataset.');
+    }
+    // extract the data from the fact table
+    try {
+        const dataLakeService = new DataLakeService();
+        const fileBuffer = await dataLakeService.getFileBuffer(factTable.filename, dataset.id);
+        fs.writeFileSync(tempFile.name, fileBuffer);
+        const createTableQuery = await createFactTableQuery(tableName, tempFile.name, factTable.fileType, quack);
+        await quack.exec(createTableQuery);
+    } catch (error) {
+        logger.error(
+            `Something went wrong trying to create ${tableName} in DuckDB.  Unable to do matching and validation`
+        );
+        await quack.close();
+        tempFile.removeCallback();
+        throw error;
+    }
+    let viewDto: ViewDTO;
+    try {
+        if (measure.measureInfo && measure.measureInfo.length > 0) {
+            throw new Error(`Measure tables from measure info are not yet supported`);
+        } else if (dataset.measure.extractor) {
+            viewDto = await getMeasurePreviewWithExtractor(dataset, measure, factTable, quack, tableName);
+        } else {
+            logger.debug('Straight column preview');
+            viewDto = await getMeasurePreviewWithoutExtractor(dataset, measure, factTable, quack, tableName);
+        }
+        await quack.close();
+        tempFile.removeCallback();
+        return viewDto;
+    } catch (error) {
+        logger.error(`Something went wrong trying to create measure preview with the following error: ${error}`);
+        await quack.close();
+        tempFile.removeCallback();
         throw error;
     }
 };

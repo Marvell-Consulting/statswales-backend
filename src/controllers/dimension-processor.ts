@@ -29,6 +29,7 @@ import { LookupTableExtractor } from '../extractors/lookup-table-extractor';
 import { DateExtractor } from '../extractors/date-extractor';
 
 import { dateDimensionReferenceTableCreator, DateReferenceDataItem } from './time-matching';
+import { createFactTableQuery } from './cube-handler';
 
 const createDateDimensionTable = `CREATE TABLE date_dimension (date_code VARCHAR, description VARCHAR, start_date datetime, end_date datetime, date_type varchar);`;
 const sampleSize = 5;
@@ -273,30 +274,6 @@ export const createDimensionsFromSourceAssignment = async (
 
     await cleanupDimensions(dataset.id, factTable.factTableInfo);
 };
-
-async function createFactTableQuery(
-    tableName: string,
-    tempFileName: string,
-    fileType: FileType,
-    quack: Database
-): Promise<string> {
-    switch (fileType) {
-        case FileType.Csv:
-        case FileType.GzipCsv:
-            return `CREATE TABLE ${tableName} AS SELECT * FROM read_csv('${tempFileName}', auto_type_candidates = ['BOOLEAN', 'BIGINT', 'DOUBLE', 'VARCHAR']);`;
-        case FileType.Parquet:
-            return `CREATE TABLE ${tableName} AS SELECT * FROM '${tempFileName}';`;
-        case FileType.Json:
-        case FileType.GzipJson:
-            return `CREATE TABLE ${tableName} AS SELECT * FROM read_json_auto('${tempFileName}');`;
-        case FileType.Excel:
-            await quack.exec('INSTALL spatial;');
-            await quack.exec('LOAD spatial;');
-            return `CREATE TABLE ${tableName} AS SELECT * FROM st_read('${tempFileName}');`;
-        default:
-            throw new Error('Unknown file type');
-    }
-}
 
 export const validateDateTypeDimension = async (
     dimensionPatchRequest: DimensionPatchDto,

@@ -24,6 +24,7 @@ import { DatasetDTO } from '../dtos/dataset-dto';
 import { validateParams } from '../utils/paging-validation';
 import { getFileImportAndSaveToDisk, loadFileIntoDatabase } from '../utils/file-utils';
 import { LookupTableExtractor } from '../extractors/lookup-table-extractor';
+import { MeasureLookupTableExtractor } from '../extractors/measure-lookup-extractor';
 
 import { dateDimensionReferenceTableCreator } from './time-matching';
 
@@ -34,6 +35,47 @@ export const makeCubeSafeString = (str: string): string => {
         .toLowerCase()
         .replace(/[ ]/g, '_')
         .replace(/[^a-zA-Z_]/g, '');
+};
+
+export const createFactTableQuery = async (
+    tableName: string,
+    tempFileName: string,
+    fileType: FileType,
+    quack: Database
+): Promise<string> => {
+    switch (fileType) {
+        case FileType.Csv:
+        case FileType.GzipCsv:
+            return `CREATE TABLE ${tableName} AS SELECT * FROM read_csv('${tempFileName}', auto_type_candidates = ['BOOLEAN', 'BIGINT', 'DOUBLE', 'VARCHAR']);`;
+        case FileType.Parquet:
+            return `CREATE TABLE ${tableName} AS SELECT * FROM '${tempFileName}';`;
+        case FileType.Json:
+        case FileType.GzipJson:
+            return `CREATE TABLE ${tableName} AS SELECT * FROM read_json_auto('${tempFileName}');`;
+        case FileType.Excel:
+            await quack.exec('INSTALL spatial;');
+            await quack.exec('LOAD spatial;');
+            return `CREATE TABLE ${tableName} AS SELECT * FROM st_read('${tempFileName}');`;
+        default:
+            throw new Error('Unknown file type');
+    }
+};
+
+export const loadFileIntoCube = async (
+    quack: Database,
+    fileImport: FileImport,
+    tempFile: FileResult,
+    tableName: string
+) => {
+    const insertQuery = await createFactTableQuery(tableName, tempFile.name, fileImport.fileType, quack);
+    try {
+        await quack.exec(insertQuery);
+    } catch (error) {
+        logger.error(
+            `Failed to load file in to the cube using query ${insertQuery} with the following error: ${error}`
+        );
+        throw error;
+    }
 };
 
 // This function differs from loadFileIntoDatabase in that it only loads a file into an existing table
@@ -62,7 +104,12 @@ export const loadFileDataIntoTable = async (
         default:
             throw new Error('Unknown file type');
     }
-    await quack.exec(insertQuery);
+    try {
+        await quack.exec(insertQuery);
+    } catch (error) {
+        logger.error(`Failed to load file into table using query ${insertQuery} with the following error: ${error}`);
+        throw error;
+    }
 };
 
 // This is a short version of validate date dimension code found in the dimension processor.
@@ -99,7 +146,7 @@ async function createAndValidateLookupTableDimension(quack: Database, dataset: D
     const extractor = dimension.extractor as LookupTableExtractor;
     const lookupTableFile = await getFileImportAndSaveToDisk(dataset, dimension.lookupTable);
     if (dimension.lookupTable.isStatsWales2Format) {
-        await loadFileIntoDatabase(
+        await loadFileIntoCube(
             quack,
             dimension.lookupTable,
             lookupTableFile,
@@ -107,7 +154,7 @@ async function createAndValidateLookupTableDimension(quack: Database, dataset: D
         );
         let sortOrderCol = '';
         if (extractor.sortColumn) {
-            sortOrderCol = `${extractor.sortColumn}, `;
+            sortOrderCol = `"${extractor.sortColumn}", `;
         }
         const viewParts: string[] = SUPPORTED_LOCALES.map((locale) => {
             const descriptionCol = extractor.descriptionColumns.find(
@@ -123,7 +170,7 @@ async function createAndValidateLookupTableDimension(quack: Database, dataset: D
         });
         await quack.exec(`CREATE VIEW "${dimension.factTableColumn}_lookup" AS ${viewParts.join('\nUNION\n')};`);
     } else {
-        await loadFileIntoDatabase(
+        await loadFileIntoCube(
             quack,
             dimension.lookupTable,
             lookupTableFile,
@@ -208,6 +255,116 @@ async function loadFactTables(
         throw error;
     }
 }
+interface NoteCodeItem {
+    code: string;
+    tag: string;
+}
+
+const NoteCodes: NoteCodeItem[] = [
+    { code: 'a', tag: 'average' },
+    { code: 'c', tag: 'confidential' },
+    { code: 'e', tag: 'estimated' },
+    { code: 'f', tag: 'forecast' },
+    { code: 'k', tag: 'low_figure' },
+    { code: 'p', tag: 'provisional' },
+    { code: 'r', tag: 'revised' },
+    { code: 't', tag: 'total' },
+    { code: 'u', tag: 'low_reliability' },
+    { code: 'x', tag: 'missing_data' },
+    { code: 'z', tag: 'not_applicable' }
+];
+
+async function createNotesTable(
+    quack: Database,
+    notesColumn: FactTableInfo,
+    selectStatementsMap: Map<Locale, string[]>,
+    joinStatements: string[]
+): Promise<void> {
+    logger.info('Creating notes table...');
+    try {
+        await quack.exec(
+            `CREATE TABLE note_codes (code VARCHAR, language VARCHAR, tag VARCHAR, description VARCHAR, notes VARCHAR);`
+        );
+        const insertStmt = await quack.prepare(
+            `INSERT INTO note_codes (code, language, tag, description, notes) VALUES (?,?,?,?,?);`
+        );
+        for (const locale of SUPPORTED_LOCALES) {
+            for (const noteCode of NoteCodes) {
+                await insertStmt.run(
+                    noteCode.code,
+                    locale.toLowerCase(),
+                    noteCode.tag,
+                    t(`note_codes.${noteCode.tag}`, { lng: locale }),
+                    null
+                );
+            }
+        }
+        await insertStmt.finalize();
+        logger.info('Creating notes table view...');
+        // We perform join operations to this view as we want to turn a csv such as `a,r` in to `Average, Revised`.
+        await quack.exec(
+            `CREATE VIEW all_notes AS SELECT fact_table."${notesColumn.columnName}" as code, note_codes.language as language, string_agg(DISTINCT note_codes.description, ', ') as description
+            from fact_table JOIN note_codes ON LIST_CONTAINS(string_split(fact_table."${notesColumn.columnName}", ','), note_codes.code)
+            GROUP BY fact_table."${notesColumn.columnName}", note_codes.language;`
+        );
+    } catch (error) {
+        logger.error(`Something went wrong trying to create the notes table with error: ${error}`);
+        throw new Error(
+            `Something went wrong trying to create the notes code table with the following error: ${error}`
+        );
+    }
+    for (const locale of SUPPORTED_LOCALES) {
+        selectStatementsMap.get(locale)?.push(`all_notes.description as "${t('column_headers.notes', { lng: locale })}"`);
+    }
+    joinStatements.push(`LEFT JOIN all_notes on all_notes.code=fact_table."${notesColumn.columnName}" AND all_notes.language='#LANG#'`);
+}
+
+interface MeasureFormat {
+    name: string;
+    method: string;
+}
+
+function measureFormats(): Map<string, MeasureFormat> {
+    const measureFormats: Map<string, MeasureFormat> = new Map();
+    measureFormats.set('decimal', {
+        name: 'Decimal',
+        method: "WHEN measure.display_type = 'Decimal' THEN printf('%f', |COL|)"
+    });
+    measureFormats.set('float', {
+        name: 'Float',
+        method: "WHEN measure.display_type = 'Float' THEN printf('%f', |COL|)"
+    });
+    measureFormats.set('integer', {
+        name: 'Integer',
+        method: "WHEN measure.display_type = 'Integer' THEN printf('%,d', CAST(|COL| AS INTEGER))"
+    });
+    measureFormats.set('long', { name: 'Long', method: "WHEN measure.display_type = 'Long' THEN printf('%f', |COL|)" });
+    measureFormats.set('percentage', {
+        name: 'Percentage',
+        method: "WHEN measure.display_type = 'Long' THEN printf('%f', |COL|)"
+    });
+    measureFormats.set('string', {
+        name: 'String',
+        method: "WHEN measure.display_type = 'String' THEN printf('%s', CAST(|COL| AS VARCHAR))"
+    });
+    measureFormats.set('text', {
+        name: 'Text',
+        method: "WHEN measure.display_type = 'Text' THEN printf('%s', CAST(|COL| AS VARCHAR))"
+    });
+    measureFormats.set('date', {
+        name: 'Date',
+        method: "WHEN measure.display_type = 'Date' THEN printf('%s', CAST(|COL| AS VARCHAR))"
+    });
+    measureFormats.set('datetime', {
+        name: 'DateTime',
+        method: "WHEN measure.display_type = 'DateTime' THEN printf('%s', CAST(|COL| AS VARCHAR))"
+    });
+    measureFormats.set('time', {
+        name: 'Time',
+        method: "WHEN measure.display_type = 'Time' THEN printf('%s', CAST(|COL| AS VARCHAR))"
+    });
+    return measureFormats;
+}
 
 async function setupMeasures(
     quack: Database,
@@ -225,6 +382,7 @@ async function setupMeasures(
         // has used a user journey to define measures
         // use this first
         if (dataset.measure.measureInfo && dataset.measure.measureInfo.length > 0) {
+            logger.debug('Using measure info to build measure table');
             try {
                 await quack.exec(
                     `CREATE TABLE measure (measure_id ${measureColumn.columnType}, sort_order INT, language VARCHAR(5), description VARCHAR, notes VARCHAR, data_type VARCHAR, display_type VARCHAR);`
@@ -247,20 +405,49 @@ async function setupMeasures(
                 throw error;
             }
         } else if (dataset.measure && dataset.measure.lookupTable) {
+            logger.debug('Measure lookup table present using this to build measure table');
+            const measure = dataset.measure;
+            const extractor = measure.extractor as MeasureLookupTableExtractor;
             const measureFile = await getFileImportAndSaveToDisk(dataset, dataset.measure.lookupTable);
             if (dataset.measure.lookupTable.isStatsWales2Format) {
+                logger.debug('Lookup table is marked as in StatsWales 2 format building view...');
                 try {
-                    await quack.exec(`INSERT INTO measure_sw2 SELECT * FROM '${measureFile.name}`);
+                    await loadFileIntoCube(quack, dataset.measure.lookupTable, measureFile, 'measure_sw2');
                     const viewComponents: string[] = [];
                     for (const locale of SUPPORTED_LOCALES) {
+                        let formatColumn = `"${extractor.formatColumn}"`;
+                        if (!formatColumn) {
+                            formatColumn = `'Text'`;
+                        } else if (formatColumn.toLowerCase().indexOf('decimal') > -1) {
+                            formatColumn = `CASE WHEN "${extractor.formatColumn}" = 1 THEN 'Decimal' ELSE 'Integer' END`;
+                        }
+                        let measureTypeColumn = `"${extractor.formatColumn}"`;
+                        if (!extractor.measureTypeColumn) {
+                            measureTypeColumn = `'Unknown'`;
+                        }
                         viewComponents.push(
-                            `SELECT MeasureCode as measure_id, sort_order, '${locale.toLowerCase()}' AS language, "Description_${locale.split('-')[0]}" AS description, "Format" AS format, data_type AS data_type FROM measure_sw2\n`
+                            `SELECT
+                            "${measure.joinColumn}" as measure_id,
+                            "${extractor.sortColumn}" as sort_order,
+                            '${locale.toLowerCase()}' AS language,
+                            "${extractor.descriptionColumns.find((col) => col.lang === locale.split('-')[0])?.name}" AS description,
+                            ${formatColumn} AS display_type,
+                            ${measureTypeColumn} AS data_type FROM measure_sw2\n`
                         );
                     }
-                    const buildMeasureViewQuery = `CREATE VIEW measure AS SELECT * FROM ${measureFile.name}\n${viewComponents.join('\nUNION\n')};`;
+                    const buildMeasureViewQuery = `CREATE VIEW measure AS ${viewComponents.join('\nUNION\n')};`;
                     await quack.exec(buildMeasureViewQuery);
                 } catch (error) {
                     logger.error(`Unable to create or load measure table in to the cube with error: ${error}`);
+                    await quack.close();
+                    throw error;
+                }
+            } else {
+                try {
+                    logger.debug('Lookup table in preferred format... loading straight in to cube');
+                    await loadFileIntoCube(quack, dataset.measure.lookupTable, measureFile, 'measure');
+                } catch (error) {
+                    logger.error(`Unable to load measure table in to the cube with error: ${error}`);
                     await quack.close();
                     throw error;
                 }
@@ -271,19 +458,23 @@ async function setupMeasures(
             await quack.close();
             throw new Error('No measure definitions found');
         }
+        logger.debug('Creating query part to format the data value correctly');
+        const caseStatement: string[] = ['CASE'];
+        const presentFormats = await quack.all('SELECT DISTINCT display_type FROM measure');
+        for (const dataFormat of presentFormats.map((type) => type.display_type)) {
+            caseStatement.push(
+                measureFormats()
+                    .get(dataFormat.toLowerCase())
+                    ?.method.replace('|COL|', `${FACT_TABLE_NAME}."${dataValuesColumn?.columnName}"`) || ''
+            );
+        }
+        caseStatement.push('END');
+        logger.debug(`Data view case statement ended up as: ${caseStatement.join('\n')}`);
         SUPPORTED_LOCALES.map((locale) => {
-            selectStatementsMap
-                .get(locale)
-                ?.push(
-                    `measure_id as ${dataset.measure.measureInfo?.find((info) => info.language === locale.toLowerCase())?.description || dataset.measure.factTableColumn}`
-                );
-            // UPDATE THIS TO SUPPORT SPECIFIC DISPLAY TYPES
             if (dataValuesColumn)
                 selectStatementsMap
                     .get(locale)
-                    ?.push(
-                        `${FACT_TABLE_NAME}."${dataValuesColumn?.columnName}" as "${t('column_headers.data_values', { lng: locale })}"`
-                    );
+                    ?.push(`${caseStatement.join('\n')} as "${t('column_headers.data_values', { lng: locale })}"`);
         });
         joinStatements.push(
             `LEFT JOIN measure on measure.measure_id=${FACT_TABLE_NAME}.${dataset.measure.factTableColumn} AND measure.language='#LANG#'`
@@ -356,7 +547,11 @@ async function setupDimensions(
                     joinStatements.push(
                         `LEFT JOIN ${dimTable} on ${dimTable}."${dimension.joinColumn}"=${FACT_TABLE_NAME}."${dimension.factTableColumn}" AND ${dimTable}.language='#LANG#'`
                     );
-                    orderByStatements.push(`${dimTable}.sort_order`);
+                    if ((dimension.extractor as LookupTableExtractor).sortColumn) {
+                        orderByStatements.push(
+                            `${dimTable}."${(dimension.extractor as LookupTableExtractor).sortColumn}"`
+                        );
+                    }
                     break;
                 case DimensionType.ReferenceData:
                     logger.error(`Reference data dimensions not implemented`);
@@ -473,14 +668,9 @@ export const createBaseCube = async (dataset: Dataset, endRevision: Revision): P
     await setupDimensions(quack, dataset, selectStatementsMap, joinStatements, orderByStatements);
 
     logger.debug('Adding notes code column to the select statement.');
-    SUPPORTED_LOCALES.map((locale) => {
-        if (notesCodeColumn)
-            selectStatementsMap
-                .get(locale)
-                ?.push(
-                    `${FACT_TABLE_NAME}."${notesCodeColumn?.columnName}" as "${t('column_headers.note_codes', { lng: locale })}"`
-                );
-    });
+    if (notesCodeColumn) {
+        await createNotesTable(quack, notesCodeColumn, selectStatementsMap, joinStatements);
+    }
 
     logger.info(`Creating default views...`);
     // Build the default views
@@ -489,7 +679,7 @@ export const createBaseCube = async (dataset: Dataset, endRevision: Revision): P
             .get(locale)
             ?.join(
                 ',\n'
-            )} FROM ${FACT_TABLE_NAME}\n${joinStatements.join('\n').replace('#LANG#', locale.toLowerCase())}\n ${orderByStatements.length > 0 ? `ORDER BY ${orderByStatements.join(', ')}` : ''};`;
+            )} FROM ${FACT_TABLE_NAME}\n${joinStatements.join('\n').replace(/#LANG#/g, locale.toLowerCase())}\n ${orderByStatements.length > 0 ? `ORDER BY ${orderByStatements.join(', ')}` : ''};`;
         await quack.exec(defaultViewSQL);
     }
     logger.debug(`Writing memory database to disk`);

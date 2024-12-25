@@ -12,14 +12,12 @@ export class LookupTable extends BaseEntity implements FileImport {
     id: string;
 
     @OneToOne(() => Dimension, {
-        onDelete: 'CASCADE',
         orphanedRowAction: 'delete'
     })
     @JoinColumn({ name: 'dimension_id' })
     dimension: Dimension;
 
     @OneToOne(() => Measure, {
-        onDelete: 'CASCADE',
         orphanedRowAction: 'delete'
     })
     @JoinColumn({ name: 'measure_id' })

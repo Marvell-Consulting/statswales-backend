@@ -2,7 +2,9 @@ import { createHash, randomUUID } from 'node:crypto';
 import fs from 'fs';
 
 import { Database, TableData } from 'duckdb-async';
-import tmp from 'tmp';
+import tmp, { file } from 'tmp';
+import detectCharacterEncoding from 'detect-character-encoding';
+import iconv from 'iconv-lite';
 
 import { i18next } from '../middleware/translation';
 import { logger as parentLogger } from '../utils/logger';
@@ -155,6 +157,20 @@ export async function extractTableInformation(fileBuffer: Buffer, fileType: File
     });
 }
 
+function convertBufferToUTF8(buffer: Buffer): Buffer {
+    const fileEncoding = detectCharacterEncoding(buffer)?.encoding;
+    if (!fileEncoding) {
+        logger.warn('Could not detect file encoding for the file');
+        throw new Error('errors.csv.invalid');
+    }
+    if (fileEncoding !== 'UTF-8') {
+        logger.warn(`File is not UTF-8 encoded... File appears to be ${fileEncoding}... Going to try to recode it`);
+        const decodedString = iconv.decode(buffer, fileEncoding);
+        return iconv.encode(decodedString, 'utf-8');
+    }
+    return buffer;
+}
+
 // Required Methods for refactor
 export const uploadCSV = async (
     fileBuffer: Buffer,
@@ -167,6 +183,7 @@ export const uploadCSV = async (
         logger.error('No buffer to upload to blob storage');
         throw new Error('No buffer to upload to blob storage');
     }
+    let uploadBuffer= fileBuffer;
     const factTable = new FactTable();
     factTable.id = randomUUID().toLowerCase();
     factTable.mimeType = filetype;
@@ -180,6 +197,7 @@ export const uploadCSV = async (
             factTable.delimiter = ',';
             factTable.quote = '"';
             factTable.linebreak = '\n';
+            uploadBuffer = convertBufferToUTF8(fileBuffer);
             break;
         case 'application/vnd.apache.parquet':
         case 'application/parquet':
@@ -225,7 +243,7 @@ export const uploadCSV = async (
     }
     let factTableDescriptions: FactTableInfo[];
     try {
-        factTableDescriptions = await extractTableInformation(fileBuffer, factTable.fileType);
+        factTableDescriptions = await extractTableInformation(uploadBuffer, factTable.fileType);
     } catch (error) {
         logger.error(`Something went wrong trying to read the users file with the following error: ${error}`);
         throw error;
@@ -234,10 +252,10 @@ export const uploadCSV = async (
     factTable.filename = `${factTable.id}.${extension}`;
     factTable.action = FactTableAction.ReplaceAll;
     const hash = createHash('sha256');
-    hash.update(fileBuffer);
+    hash.update(uploadBuffer);
     try {
         await dataLakeService.createDirectory(datasetId);
-        await dataLakeService.uploadFileBuffer(factTable.filename, datasetId, fileBuffer);
+        await dataLakeService.uploadFileBuffer(factTable.filename, datasetId, uploadBuffer);
     } catch (err) {
         logger.error(
             `Something went wrong trying to upload the file to the Data Lake with the following error: ${err}`
