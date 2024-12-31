@@ -1,4 +1,6 @@
 /* eslint-disable no-console */
+import fs from 'node:fs';
+
 import { Seeder } from '@jorgebodega/typeorm-seeding';
 import { DataSource } from 'typeorm';
 
@@ -6,6 +8,10 @@ import { User } from '../../src/entities/user/user';
 import { Dataset } from '../../src/entities/dataset/dataset';
 import { appConfig } from '../../src/config';
 import { AppEnv } from '../../src/config/env.enum';
+import { uploadCSV } from '../../src/controllers/csv-processor';
+import { FactTable } from '../../src/entities/dataset/fact-table';
+import { DatasetRepository } from '../../src/repositories/dataset';
+import { RevisionRepository } from '../../src/repositories/revision';
 
 import { testUsers } from './users';
 import { testDatasets } from './datasets';
@@ -38,7 +44,14 @@ export default class SeedTestFixtures extends Seeder {
         for (const testDataset of testDatasets) {
             try {
                 const entity = await entityManager.create(Dataset, testDataset.dataset);
-                const dataset = await dataSource.getRepository(Dataset).save(entity);
+                let dataset = await dataSource.getRepository(Dataset).save(entity);
+
+                if (testDataset.csvPath) {
+                    const buffer = fs.readFileSync(testDataset.csvPath);
+                    const fileImport: FactTable = await uploadCSV(buffer, 'text/csv', `test-fixture.csv`, dataset.id);
+                    await RevisionRepository.createFromImport(dataset, fileImport, dataset.createdBy);
+                    dataset = await DatasetRepository.getById(dataset.id);
+                }
             } catch (err) {
                 console.error(`Error seeding dataset ${testDataset.dataset.id}`, err);
             }
