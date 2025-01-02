@@ -42,12 +42,21 @@ export const sourcesPageTest: DeepPartial<Dataset> = {
     ]
 };
 
-export const metadataTest: DeepPartial<Dataset> = {
+export const metadataTestA: DeepPartial<Dataset> = {
     id: '47dcdd38-57d4-405f-93ac-9db20bebcfc6',
     createdBy: publisher1,
     datasetInfo: [
-        { language: 'en-GB', title: 'Test - Metadata' },
-        { language: 'en-CY', title: 'Test - Metadata' }
+        { language: 'en-GB', title: 'Test - Metadata A' },
+        { language: 'en-CY', title: 'Test - Metadata A' }
+    ]
+};
+
+export const metadataTestB: DeepPartial<Dataset> = {
+    id: '3837564c-a901-42be-9aa6-e62232150ff6',
+    createdBy: publisher1,
+    datasetInfo: [
+        { language: 'en-GB', title: 'Test - Metadata B' },
+        { language: 'en-CY', title: 'Test - Metadata B' }
     ]
 };
 
@@ -56,5 +65,6 @@ export const testDatasets = [
     { dataset: previewPageTestA, csvPath: path.join(__dirname, `../sample-files/csv/cheeses.csv`) },
     { dataset: previewPageTestB, csvPath: path.join(__dirname, `../sample-files/csv/cheeses.csv`) },
     { dataset: sourcesPageTest, csvPath: path.join(__dirname, `../sample-files/csv/sure-start-short.csv`) },
-    { dataset: metadataTest, csvPath: path.join(__dirname, `../sample-files/csv/sure-start-short.csv`) }
+    { dataset: metadataTestA, csvPath: path.join(__dirname, `../sample-files/csv/sure-start-short.csv`) },
+    { dataset: metadataTestA, csvPath: path.join(__dirname, `../sample-files/csv/sure-start-short.csv`) }
 ];
