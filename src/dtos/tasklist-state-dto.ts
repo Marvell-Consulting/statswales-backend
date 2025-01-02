@@ -1,10 +1,12 @@
+import { every } from 'lodash';
+
 import { Dataset } from '../entities/dataset/dataset';
 import { DimensionInfo } from '../entities/dataset/dimension-info';
 import { DimensionType } from '../enums/dimension-type';
 import { TaskStatus } from '../enums/task-status';
+import { translatableMetadataKeys } from '../types/translatable-metadata';
 
 import { DimensionStatus } from './dimension-status';
-import { MeasureDTO } from './measure-dto';
 
 export class TasklistStateDTO {
     datatable: TaskStatus;
@@ -32,6 +34,17 @@ export class TasklistStateDTO {
         organisation: TaskStatus;
         when: TaskStatus;
     };
+
+    public static translationStatus(dataset: Dataset): TaskStatus {
+        const metaFullyTranslated = dataset.datasetInfo?.every((info) => {
+            return every(translatableMetadataKeys, (key) => {
+                // ignore roundingDescription if rounding isn't applied, otherwise check some data exists
+                return key === 'roundingDescription' && !info.roundingApplied ? true : Boolean(info[key]);
+            });
+        });
+
+        return metaFullyTranslated ? TaskStatus.Completed : TaskStatus.Incomplete;
+    }
 
     public static fromDataset(dataset: Dataset, lang: string): TasklistStateDTO {
         const info = dataset.datasetInfo?.find((info) => info.language === lang);
@@ -83,9 +96,14 @@ export class TasklistStateDTO {
             relevant_topics: dataset.datasetTopics?.length > 0 ? TaskStatus.Completed : TaskStatus.NotStarted
         };
 
+        const dimensionsComplete = every(dimensions, (dim) => dim.status === TaskStatus.Completed);
+        const metadataComplete = every(dto.metadata, (status) => status === TaskStatus.Completed);
+
+        // TODO: export should check for dimensionsComplete as well
+        // TODO: import should check export complete and nothing was updated since the export (needs audit table)
         dto.translation = {
-            export: TaskStatus.NotImplemented,
-            import: TaskStatus.NotImplemented
+            export: metadataComplete ? TaskStatus.Available : TaskStatus.CannotStart,
+            import: metadataComplete ? TasklistStateDTO.translationStatus(dataset) : TaskStatus.CannotStart
         };
 
         dto.publishing = {
