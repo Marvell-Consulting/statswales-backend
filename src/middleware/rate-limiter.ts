@@ -1,10 +1,13 @@
+import { Request, Response, NextFunction } from 'express';
 import rateLimit from 'express-rate-limit';
 
 import { appConfig } from '../config';
 
 const config = appConfig();
 
-export const rateLimiter = rateLimit({
+const bypass = (re: Request, res: Response, next: NextFunction) => next();
+
+const limit = rateLimit({
     windowMs: config.rateLimit.windowMs,
     max: config.rateLimit.maxRequests,
     standardHeaders: true,
@@ -15,3 +18,5 @@ export const rateLimiter = rateLimit({
         });
     }
 });
+
+export const rateLimiter = config.rateLimit.windowMs === -1 ? bypass : limit;
