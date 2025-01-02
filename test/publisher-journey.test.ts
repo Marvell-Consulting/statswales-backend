@@ -259,10 +259,10 @@ describe('API Endpoints', () => {
                 { index: -1, name: 'int_line_number', source_type: 'line_number' },
                 { index: 0, name: 'YearCode', source_type: 'unknown' },
                 { index: 1, name: 'AreaCode', source_type: 'unknown' },
-                { index: 2, name: 'Data', source_type: 'unknown' },
+                { index: 2, name: 'Data', source_type: 'data_values' },
                 { index: 3, name: 'RowRef', source_type: 'unknown' },
                 { index: 4, name: 'Measure', source_type: 'unknown' },
-                { index: 5, name: 'NoteCodes', source_type: 'unknown' }
+                { index: 5, name: 'NoteCodes', source_type: 'note_codes' }
             ]);
             expect(res.body.data[0]).toEqual([1, 202223, 512, 1.442546584, 2, 2, null]);
             expect(res.body.data[23]).toEqual([24, 202122, 596, 137527, 1, 1, 't']);

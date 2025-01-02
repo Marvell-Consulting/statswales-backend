@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import tmp, { FileResult } from 'tmp';
 import { Database } from 'duckdb-async';
 import { t } from 'i18next';
+import { NextFunction, Request, Response } from 'express';
 
 import { Dataset } from '../entities/dataset/dataset';
 import { FactTableAction } from '../enums/fact-table-action';
@@ -22,9 +23,12 @@ import { DatasetRepository } from '../repositories/dataset';
 import { CSVHeader, ViewDTO, ViewErrDTO } from '../dtos/view-dto';
 import { DatasetDTO } from '../dtos/dataset-dto';
 import { validateParams } from '../utils/paging-validation';
-import { getFileImportAndSaveToDisk, loadFileIntoDatabase } from '../utils/file-utils';
+import { getFileImportAndSaveToDisk } from '../utils/file-utils';
 import { LookupTableExtractor } from '../extractors/lookup-table-extractor';
 import { MeasureLookupTableExtractor } from '../extractors/measure-lookup-extractor';
+import { getLatestRevision } from '../utils/latest';
+import { UnknownException } from '../exceptions/unknown.exception';
+import { DataLakeService } from '../services/datalake';
 
 import { dateDimensionReferenceTableCreator } from './time-matching';
 
@@ -168,7 +172,7 @@ async function createAndValidateLookupTableDimension(quack: Database, dataset: D
                 `${descriptionColStr} ${notesColStr} from ${makeCubeSafeString(dimension.factTableColumn)}_lookup_sw2`
             );
         });
-        await quack.exec(`CREATE VIEW "${dimension.factTableColumn}_lookup" AS ${viewParts.join('\nUNION\n')};`);
+        await quack.exec(`CREATE TABLE "${dimension.factTableColumn}_lookup" AS ${viewParts.join('\nUNION\n')};`);
     } else {
         await loadFileIntoCube(
             quack,
@@ -189,12 +193,73 @@ function setupFactTableUpdateJoins(factTableInfos: FactTableInfo[]): string {
     return factTableInfos.map((info) => `update_table."${info.columnName}"="${info.columnName}"`).join(' AND ');
 }
 
+async function loadFactTablesWithUpdates(
+    quack: Database,
+    dataset: Dataset,
+    allFactTables: FactTable[],
+    dataValuesColumn: FactTableInfo,
+    notesCodeColumn: FactTableInfo,
+    factIdentifiers: FactTableInfo[]
+) {
+    for (const factTable of allFactTables.sort((ftA, ftB) => ftA.uploadedAt.getTime() - ftB.uploadedAt.getTime())) {
+        logger.info(`Loading fact table data for fact table ${factTable.id}`);
+        const factTableFile = await getFileImportAndSaveToDisk(dataset, factTable);
+        const updateQuery =
+            `UPDATE ${FACT_TABLE_NAME} SET "${dataValuesColumn.columnName}"=update_table."${dataValuesColumn.columnName}", ` +
+            `"${notesCodeColumn.columnName}"=(CASE ${FACT_TABLE_NAME}."${notesCodeColumn.columnName}" = NULL THEN 'r' ELSE concat(${FACT_TABLE_NAME}."${notesCodeColumn.columnName}"', ',r') END) ` +
+            `FROM update_table WHERE ${setupFactTableUpdateJoins(factIdentifiers)} ` +
+            `AND update_table."${notesCodeColumn.columnName}" LIKE '%r';`;
+        switch (factTable.action) {
+            case FactTableAction.ReplaceAll:
+                await quack.exec(`DELETE FROM ${FACT_TABLE_NAME};`);
+                await loadFileDataIntoTable(quack, factTable, factTableFile, FACT_TABLE_NAME);
+                break;
+            case FactTableAction.Add:
+                await loadFileDataIntoTable(quack, factTable, factTableFile, FACT_TABLE_NAME);
+                break;
+            case FactTableAction.Revise:
+                await loadFileDataIntoTable(quack, factTable, factTableFile, 'update_table');
+                await quack.exec(updateQuery);
+                await quack.exec(`DROP TABLE update_table;`);
+                break;
+            case FactTableAction.AddRevise:
+                await loadFileDataIntoTable(quack, factTable, factTableFile, 'update_table');
+                await quack.exec(updateQuery);
+                await quack.exec(`DELETE FROM update_table WHERE ${notesCodeColumn.columnName} LIKE '%r';`);
+                await quack.exec(`INSERT INTO ${FACT_TABLE_NAME} (SELECT * FROM update_table);`);
+                await quack.exec(`DROP TABLE update_table;`);
+                break;
+        }
+        factTableFile.removeCallback();
+    }
+}
+
+async function loadFactTablesWithoutUpdates(quack: Database, dataset: Dataset, allFactTables: FactTable[]) {
+    logger.warn(
+        'There is no notes column present in this dataset.  Action allowed are limited to adding data and replacing all data'
+    );
+    for (const factTable of allFactTables.sort((ftA, ftB) => ftA.uploadedAt.getTime() - ftB.uploadedAt.getTime())) {
+        logger.info(`Loading fact table data for fact table ${factTable.id}`);
+        const factTableFile = await getFileImportAndSaveToDisk(dataset, factTable);
+        switch (factTable.action) {
+            case FactTableAction.ReplaceAll:
+                await quack.exec(`DELETE FROM ${FACT_TABLE_NAME};`);
+                await loadFileDataIntoTable(quack, factTable, factTableFile, FACT_TABLE_NAME);
+                break;
+            case FactTableAction.Add:
+                await loadFileDataIntoTable(quack, factTable, factTableFile, FACT_TABLE_NAME);
+                break;
+        }
+        factTableFile.removeCallback();
+    }
+}
+
 async function loadFactTables(
     quack: Database,
     dataset: Dataset,
     endRevision: Revision,
-    dataValuesColumn: FactTableInfo,
-    notesCodeColumn: FactTableInfo,
+    dataValuesColumn: FactTableInfo | undefined,
+    notesCodeColumn: FactTableInfo | undefined,
     factIdentifiers: FactTableInfo[]
 ): Promise<void> {
     // Find all the fact tables for the given revision
@@ -215,39 +280,25 @@ async function loadFactTables(
         allFactTables = validRevisions.flatMap((revision) => revision.factTables);
     }
 
+    if (allFactTables.length === 0) {
+        logger.error(`No fact tables found in this dataset to revision ${endRevision.id}`);
+        throw new Error(`No fact tables found in this dataset to revision ${endRevision.id}`);
+    }
+
     // Process all the fact tables
     logger.debug('Loading all fact tables in to database');
     try {
-        for (const factTable of allFactTables.sort((ftA, ftB) => ftA.uploadedAt.getTime() - ftB.uploadedAt.getTime())) {
-            logger.info(`Loading fact table data for fact table ${factTable.id}`);
-            const factTableFile = await getFileImportAndSaveToDisk(dataset, factTable);
-            const updateQuery =
-                `UPDATE ${FACT_TABLE_NAME} SET "${dataValuesColumn.columnName}"=update_table."${dataValuesColumn.columnName}", ` +
-                `"${notesCodeColumn.columnName}"=(CASE ${FACT_TABLE_NAME}."${notesCodeColumn.columnName}" = NULL THEN 'r' ELSE concat(${FACT_TABLE_NAME}."${notesCodeColumn.columnName}"', ',r') END) ` +
-                `FROM update_table WHERE ${setupFactTableUpdateJoins(factIdentifiers)} ` +
-                `AND update_table."${notesCodeColumn.columnName}" LIKE '%r';`;
-            switch (factTable.action) {
-                case FactTableAction.ReplaceAll:
-                    await quack.exec(`DELETE FROM ${FACT_TABLE_NAME};`);
-                    await loadFileDataIntoTable(quack, factTable, factTableFile, FACT_TABLE_NAME);
-                    break;
-                case FactTableAction.Add:
-                    await loadFileDataIntoTable(quack, factTable, factTableFile, FACT_TABLE_NAME);
-                    break;
-                case FactTableAction.Revise:
-                    await loadFileDataIntoTable(quack, factTable, factTableFile, 'update_table');
-                    await quack.exec(updateQuery);
-                    await quack.exec(`DROP TABLE update_table;`);
-                    break;
-                case FactTableAction.AddRevise:
-                    await loadFileDataIntoTable(quack, factTable, factTableFile, 'update_table');
-                    await quack.exec(updateQuery);
-                    await quack.exec(`DELETE FROM update_table WHERE ${notesCodeColumn.columnName} LIKE '%r';`);
-                    await quack.exec(`INSERT INTO ${FACT_TABLE_NAME} (SELECT * FROM update_table);`);
-                    await quack.exec(`DROP TABLE update_table;`);
-                    break;
-            }
-            factTableFile.removeCallback();
+        if (dataValuesColumn && notesCodeColumn) {
+            await loadFactTablesWithUpdates(
+                quack,
+                dataset,
+                allFactTables,
+                dataValuesColumn,
+                notesCodeColumn,
+                factIdentifiers
+            );
+        } else {
+            await loadFactTablesWithoutUpdates(quack, dataset, allFactTables);
         }
     } catch (error) {
         logger.error(`Something went wrong trying to create the core fact table with error: ${error}`);
@@ -255,6 +306,7 @@ async function loadFactTables(
         throw error;
     }
 }
+
 interface NoteCodeItem {
     code: string;
     tag: string;
@@ -303,7 +355,7 @@ async function createNotesTable(
         logger.info('Creating notes table view...');
         // We perform join operations to this view as we want to turn a csv such as `a,r` in to `Average, Revised`.
         await quack.exec(
-            `CREATE VIEW all_notes AS SELECT fact_table."${notesColumn.columnName}" as code, note_codes.language as language, string_agg(DISTINCT note_codes.description, ', ') as description
+            `CREATE TABLE all_notes AS SELECT fact_table."${notesColumn.columnName}" as code, note_codes.language as language, string_agg(DISTINCT note_codes.description, ', ') as description
             from fact_table JOIN note_codes ON LIST_CONTAINS(string_split(fact_table."${notesColumn.columnName}", ','), note_codes.code)
             GROUP BY fact_table."${notesColumn.columnName}", note_codes.language;`
         );
@@ -314,9 +366,13 @@ async function createNotesTable(
         );
     }
     for (const locale of SUPPORTED_LOCALES) {
-        selectStatementsMap.get(locale)?.push(`all_notes.description as "${t('column_headers.notes', { lng: locale })}"`);
+        selectStatementsMap
+            .get(locale)
+            ?.push(`all_notes.description as "${t('column_headers.notes', { lng: locale })}"`);
     }
-    joinStatements.push(`LEFT JOIN all_notes on all_notes.code=fact_table."${notesColumn.columnName}" AND all_notes.language='#LANG#'`);
+    joinStatements.push(
+        `LEFT JOIN all_notes on all_notes.code=fact_table."${notesColumn.columnName}" AND all_notes.language='#LANG#'`
+    );
 }
 
 interface MeasureFormat {
@@ -328,11 +384,11 @@ function measureFormats(): Map<string, MeasureFormat> {
     const measureFormats: Map<string, MeasureFormat> = new Map();
     measureFormats.set('decimal', {
         name: 'Decimal',
-        method: "WHEN measure.display_type = 'Decimal' THEN printf('%f', |COL|)"
+        method: "WHEN measure.display_type = 'Decimal' THEN printf('%,.2fd', |COL|)"
     });
     measureFormats.set('float', {
         name: 'Float',
-        method: "WHEN measure.display_type = 'Float' THEN printf('%f', |COL|)"
+        method: "WHEN measure.display_type = 'Float' THEN printf('%,.2fd', |COL|)"
     });
     measureFormats.set('integer', {
         name: 'Integer',
@@ -369,7 +425,7 @@ function measureFormats(): Map<string, MeasureFormat> {
 async function setupMeasures(
     quack: Database,
     dataset: Dataset,
-    dataValuesColumn: FactTableInfo,
+    dataValuesColumn: FactTableInfo | undefined,
     selectStatementsMap: Map<Locale, string[]>,
     joinStatements: string[],
     orderByStatements: string[],
@@ -435,7 +491,7 @@ async function setupMeasures(
                             ${measureTypeColumn} AS data_type FROM measure_sw2\n`
                         );
                     }
-                    const buildMeasureViewQuery = `CREATE VIEW measure AS ${viewComponents.join('\nUNION\n')};`;
+                    const buildMeasureViewQuery = `CREATE TABLE measure AS ${viewComponents.join('\nUNION\n')};`;
                     await quack.exec(buildMeasureViewQuery);
                 } catch (error) {
                     logger.error(`Unable to create or load measure table in to the cube with error: ${error}`);
@@ -475,6 +531,9 @@ async function setupMeasures(
                 selectStatementsMap
                     .get(locale)
                     ?.push(`${caseStatement.join('\n')} as "${t('column_headers.data_values', { lng: locale })}"`);
+            selectStatementsMap
+                .get(locale)
+                ?.push(`measure.description as "${t('column_headers.measure', { lng: locale })}"`);
         });
         joinStatements.push(
             `LEFT JOIN measure on measure.measure_id=${FACT_TABLE_NAME}.${dataset.measure.factTableColumn} AND measure.language='#LANG#'`
@@ -517,11 +576,13 @@ async function setupDimensions(
                             selectStatementsMap
                                 .get(locale)
                                 ?.push(
-                                    `${dimTable}.start_date as "${t('column_headers.start_date', { lng: locale })}"`
+                                    `strftime(${dimTable}.start_date, '%d/%m/%Y') as "${t('column_headers.start_date', { lng: locale })}"`
                                 );
                             selectStatementsMap
                                 .get(locale)
-                                ?.push(`${dimTable}.end_date as "${t('column_headers.end_date', { lng: locale })}"`);
+                                ?.push(
+                                    `strftime(${dimTable}.end_date, '%d/%m/%Y') as "${t('column_headers.end_date', { lng: locale })}"`
+                                );
                         });
                         joinStatements.push(
                             `LEFT JOIN ${dimTable} on ${dimTable}."${dimension.joinColumn}"=${FACT_TABLE_NAME}."${dimension.factTableColumn}"`
@@ -588,6 +649,10 @@ async function setupDimensions(
 // to the duckdb file on disk.  This is based on the recipe in our cube miro
 // board and our candidate cube format repo.  It is limited to building a
 // simple default view based on the available locales.
+//
+// DO NOT put validation against columns which should be present here.
+// Function should be able to generate a cube just from a fact table or collection
+// of fact tables.
 export const createBaseCube = async (dataset: Dataset, endRevision: Revision): Promise<string> => {
     const selectStatementsMap = new Map<Locale, string[]>();
     SUPPORTED_LOCALES.map((locale) => selectStatementsMap.set(locale, []));
@@ -627,26 +692,16 @@ export const createBaseCube = async (dataset: Dataset, endRevision: Revision): P
         return `"${field.columnName}" ${field.columnDatatype}`;
     });
 
-    if (!notesCodeColumn) {
-        throw Error(`No column representing notes codes was found`);
-    }
-    if (!dataValuesColumn) {
-        throw Error(`No column representing data was found`);
-    }
-
-    /*
-        If additional cube rules such as requiring geography or date
-        are defined then we'll want to add them here and throw an error
-    */
-
     logger.debug('Creating an in-memory database to hold the cube using DuckDB 🐤');
     const quack = await Database.create(':memory:');
 
     logger.info('Creating initial fact table in cube');
     try {
-        await quack.exec(
-            `CREATE TABLE ${FACT_TABLE_NAME} (${factTableDef.join(', ')}, PRIMARY KEY (${compositeKey.join(', ')}));`
-        );
+        let key = '';
+        if (compositeKey.length > 0) {
+            key = `, PRIMARY KEY (${compositeKey.join(', ')})`;
+        }
+        await quack.exec(`CREATE TABLE ${FACT_TABLE_NAME} (${factTableDef.join(', ')}${key});`);
     } catch (err) {
         logger.error(`Failed to create fact table in cube: ${err}`);
         await quack.close();
@@ -724,7 +779,7 @@ export const getCubePreview = async (
             dataset_id: dataset.id
         };
     }
-    const previewQuery = `SELECT * FROM default_view_${lang} LIMIT ${size} OFFSET ${(page - 1) * size}`;
+    const previewQuery = `SELECT int_line_number, * FROM (SELECT row_number() OVER () as int_line_number, * FROM default_view_${lang}) LIMIT ${size} OFFSET ${(page - 1) * size}`;
     const preview = await quack.all(previewQuery);
     const startLine = Number(preview[0].int_line_number);
     const lastLine = Number(preview[preview.length - 1].int_line_number);
@@ -736,7 +791,8 @@ export const getCubePreview = async (
         headers.push({
             index: i - 1,
             name: tableHeaders[i],
-            source_type: FactTableColumnType.Unknown
+            source_type:
+                tableHeaders[i] === 'int_line_number' ? FactTableColumnType.LineNumber : FactTableColumnType.Unknown
         });
     }
     return {
@@ -782,4 +838,225 @@ export const outputCube = async (cubeFile: string, lang: string, mode: DuckdbOut
 
 export const cleanUpCube = async (tmpFile: string) => {
     fs.unlinkSync(tmpFile);
+};
+
+export const downloadCubeFile = async (req: Request, res: Response, next: NextFunction) => {
+    const dataset = res.locals.dataset;
+    const latestRevision = getLatestRevision(dataset);
+    if (!latestRevision) {
+        next(new UnknownException('errors.no_revision'));
+        return;
+    }
+    let cubeFile: string;
+    if (latestRevision.onlineCubeFilename) {
+        const dataLakeService = new DataLakeService();
+        const fileBuffer = await dataLakeService.getFileBuffer(latestRevision.onlineCubeFilename, dataset.id);
+        cubeFile = tmp.tmpNameSync({ postfix: '.duckdb' });
+        fs.writeFileSync(cubeFile, fileBuffer);
+    } else {
+        try {
+            cubeFile = await createBaseCube(dataset, latestRevision);
+        } catch (err) {
+            logger.error(`Something went wrong trying to create the cube with the error: ${err}`);
+            next(new UnknownException('errors.cube_create_error'));
+            return;
+        }
+    }
+    const fileBuffer = Buffer.from(fs.readFileSync(cubeFile));
+    logger.info(`Sending original cube file (size: ${fileBuffer.length}) from: ${cubeFile}`);
+    res.writeHead(200, {
+        // eslint-disable-next-line @typescript-eslint/naming-convention
+        'Content-Type': 'application/octet-stream',
+        // eslint-disable-next-line @typescript-eslint/naming-convention
+        'Content-disposition': `attachment;filename=${dataset.id}.duckdb`,
+        // eslint-disable-next-line @typescript-eslint/naming-convention
+        'Content-Length': fileBuffer.length
+    });
+    res.end(fileBuffer);
+};
+
+export const downloadCubeAsJSON = async (req: Request, res: Response, next: NextFunction) => {
+    const dataset = res.locals.dataset;
+    const lang = req.language.split('-')[0];
+    const latestRevision = getLatestRevision(dataset);
+    if (!latestRevision) {
+        next(new UnknownException('errors.no_revision'));
+        return;
+    }
+    let cubeFile: string;
+    if (latestRevision.onlineCubeFilename) {
+        const dataLakeService = new DataLakeService();
+        const fileBuffer = await dataLakeService.getFileBuffer(latestRevision.onlineCubeFilename, dataset.id);
+        cubeFile = tmp.tmpNameSync({ postfix: '.duckdb' });
+        fs.writeFileSync(cubeFile, fileBuffer);
+    } else {
+        try {
+            logger.info('Creating fresh cube file.');
+            cubeFile = await createBaseCube(dataset, latestRevision);
+        } catch (err) {
+            logger.error(`Something went wrong trying to create the cube with the error: ${err}`);
+            next(new UnknownException('errors.cube_create_error'));
+            return;
+        }
+    }
+    const downloadFile = await outputCube(cubeFile, lang, DuckdbOutputType.Json);
+    fs.unlinkSync(cubeFile);
+    const downloadStream = fs.createReadStream(downloadFile);
+    // eslint-disable-next-line @typescript-eslint/naming-convention
+    res.writeHead(200, { 'Content-Type': '\tapplication/json' });
+    downloadStream.pipe(res);
+
+    // Handle errors in the file stream
+    downloadStream.on('error', (err) => {
+        logger.error('File stream error:', err);
+        // eslint-disable-next-line @typescript-eslint/naming-convention
+        res.writeHead(500, { 'Content-Type': 'text/plain' });
+        fs.unlinkSync(downloadFile);
+        res.end('Server Error');
+    });
+
+    // Optionally listen for the end of the stream
+    downloadStream.on('end', () => {
+        fs.unlinkSync(downloadFile);
+        logger.debug('File stream ended');
+    });
+};
+
+export const downloadCubeAsCSV = async (req: Request, res: Response, next: NextFunction) => {
+    const dataset = res.locals.dataset;
+    const lang = req.language.split('-')[0];
+    const latestRevision = getLatestRevision(dataset);
+    if (!latestRevision) {
+        next(new UnknownException('errors.no_revision'));
+        return;
+    }
+    let cubeFile: string;
+    if (latestRevision.onlineCubeFilename) {
+        const dataLakeService = new DataLakeService();
+        const fileBuffer = await dataLakeService.getFileBuffer(latestRevision.onlineCubeFilename, dataset.id);
+        cubeFile = tmp.tmpNameSync({ postfix: '.duckdb' });
+        fs.writeFileSync(cubeFile, fileBuffer);
+    } else {
+        try {
+            cubeFile = await createBaseCube(dataset, latestRevision);
+        } catch (err) {
+            logger.error(`Something went wrong trying to create the cube with the error: ${err}`);
+            next(new UnknownException('errors.cube_create_error'));
+            return;
+        }
+    }
+    const downloadFile = await outputCube(cubeFile, lang, DuckdbOutputType.Csv);
+    fs.unlinkSync(cubeFile);
+    const downloadStream = fs.createReadStream(downloadFile);
+    // eslint-disable-next-line @typescript-eslint/naming-convention
+    res.writeHead(200, { 'Content-Type': '\ttext/csv' });
+    downloadStream.pipe(res);
+
+    // Handle errors in the file stream
+    downloadStream.on('error', (err) => {
+        logger.error('File stream error:', err);
+        // eslint-disable-next-line @typescript-eslint/naming-convention
+        res.writeHead(500, { 'Content-Type': 'text/plain' });
+        fs.unlinkSync(downloadFile);
+        res.end('Server Error');
+    });
+
+    // Optionally listen for the end of the stream
+    downloadStream.on('end', () => {
+        fs.unlinkSync(downloadFile);
+        logger.debug('File stream ended');
+    });
+};
+
+export const downloadCubeAsParquet = async (req: Request, res: Response, next: NextFunction) => {
+    const dataset = res.locals.dataset;
+    const lang = req.language.split('-')[0];
+    const latestRevision = getLatestRevision(dataset);
+    if (!latestRevision) {
+        next(new UnknownException('errors.no_revision'));
+        return;
+    }
+    let cubeFile: string;
+    if (latestRevision.onlineCubeFilename) {
+        const dataLakeService = new DataLakeService();
+        const fileBuffer = await dataLakeService.getFileBuffer(latestRevision.onlineCubeFilename, dataset.id);
+        cubeFile = tmp.tmpNameSync({ postfix: '.duckdb' });
+        fs.writeFileSync(cubeFile, fileBuffer);
+    } else {
+        try {
+            cubeFile = await createBaseCube(dataset, latestRevision);
+        } catch (err) {
+            logger.error(`Something went wrong trying to create the cube with the error: ${err}`);
+            next(new UnknownException('errors.cube_create_error'));
+            return;
+        }
+    }
+    const downloadFile = await outputCube(cubeFile, lang, DuckdbOutputType.Parquet);
+    fs.unlinkSync(cubeFile);
+    const downloadStream = fs.createReadStream(downloadFile);
+    // eslint-disable-next-line @typescript-eslint/naming-convention
+    res.writeHead(200, { 'Content-Type': '\tapplication/vnd.apache.parquet' });
+    downloadStream.pipe(res);
+
+    // Handle errors in the file stream
+    downloadStream.on('error', (err) => {
+        logger.error('File stream error:', err);
+        // eslint-disable-next-line @typescript-eslint/naming-convention
+        res.writeHead(500, { 'Content-Type': 'text/plain' });
+        fs.unlinkSync(downloadFile);
+        res.end('Server Error');
+    });
+
+    // Optionally listen for the end of the stream
+    downloadStream.on('end', () => {
+        fs.unlinkSync(downloadFile);
+        logger.debug('File stream ended');
+    });
+};
+
+export const downloadCubeAsExcel = async (req: Request, res: Response, next: NextFunction) => {
+    const dataset = res.locals.dataset;
+    const lang = req.language.split('-')[0];
+    const latestRevision = getLatestRevision(dataset);
+    if (!latestRevision) {
+        next(new UnknownException('errors.no_revision'));
+        return;
+    }
+    let cubeFile: string;
+    if (latestRevision.onlineCubeFilename) {
+        const dataLakeService = new DataLakeService();
+        const fileBuffer = await dataLakeService.getFileBuffer(latestRevision.onlineCubeFilename, dataset.id);
+        cubeFile = tmp.tmpNameSync({ postfix: '.duckdb' });
+        fs.writeFileSync(cubeFile, fileBuffer);
+    } else {
+        try {
+            cubeFile = await createBaseCube(dataset, latestRevision);
+        } catch (err) {
+            logger.error(`Something went wrong trying to create the cube with the error: ${err}`);
+            next(new UnknownException('errors.cube_create_error'));
+            return;
+        }
+    }
+    const downloadFile = await outputCube(cubeFile, lang, DuckdbOutputType.Excel);
+    logger.info(`Cube file located at: ${cubeFile}`);
+    // fs.unlinkSync(cubeFile);
+    const downloadStream = fs.createReadStream(downloadFile);
+    // eslint-disable-next-line @typescript-eslint/naming-convention
+    res.writeHead(200, { 'Content-Type': '\tapplication/vnd.ms-excel' });
+    downloadStream.pipe(res);
+
+    // Handle errors in the file stream
+    downloadStream.on('error', (err) => {
+        logger.error('File stream error:', err);
+        // eslint-disable-next-line @typescript-eslint/naming-convention
+        res.writeHead(500, { 'Content-Type': 'text/plain' });
+        fs.unlinkSync(downloadFile);
+        res.end('Server Error');
+    });
+
+    // Optionally listen for the end of the stream
+    downloadStream.on('end', () => {
+        fs.unlinkSync(downloadFile);
+        logger.debug('File stream ended');
+    });
 };

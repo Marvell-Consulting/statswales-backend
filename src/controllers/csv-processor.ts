@@ -183,7 +183,7 @@ export const uploadCSV = async (
         logger.error('No buffer to upload to blob storage');
         throw new Error('No buffer to upload to blob storage');
     }
-    let uploadBuffer= fileBuffer;
+    let uploadBuffer = fileBuffer;
     const factTable = new FactTable();
     factTable.id = randomUUID().toLowerCase();
     factTable.mimeType = filetype;

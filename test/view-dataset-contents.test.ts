@@ -35,8 +35,15 @@ describe('API Endpoints for viewing the contents of a dataset', () => {
 
     test('Get file from a dataset, stored in data lake, returns 200 and complete file data', async () => {
         const testFile2 = path.resolve(__dirname, `sample-files/csv/sure-start-short.csv`);
+        const lookupTable = path.resolve(__dirname, `sample-files/csv/rowref-sw2-lookup.csv`);
         const testFile1Buffer = fs.readFileSync(testFile2);
-        DataLakeService.prototype.getFileBuffer = jest.fn().mockReturnValue(testFile1Buffer.toString());
+        const lookupTableBuffer = fs.readFileSync(lookupTable);
+        DataLakeService.prototype.getFileBuffer = jest
+            .fn()
+            .mockImplementation((filename: string, directory: string) => {
+                if (filename === 'RowRefLookupTable.csv') return lookupTableBuffer;
+                else return testFile1Buffer;
+            });
 
         const res = await request(app)
             .get(`/dataset/${dataset1Id}/view`)
@@ -48,15 +55,25 @@ describe('API Endpoints for viewing the contents of a dataset', () => {
         expect(res.body.page_size).toBe(100);
         expect(res.body.headers).toEqual([
             { index: -1, name: 'int_line_number', source_type: 'line_number' },
-            { index: 0, name: 'YearCode', source_type: 'unknown' },
-            { index: 1, name: 'AreaCode', source_type: 'unknown' },
-            { index: 2, name: 'Data', source_type: 'unknown' },
-            { index: 3, name: 'RowRef', source_type: 'unknown' },
-            { index: 4, name: 'Measure', source_type: 'unknown' },
-            { index: 5, name: 'NoteCodes', source_type: 'unknown' }
+            { index: 0, name: 'Data Values', source_type: 'unknown' },
+            { index: 1, name: 'YearCode', source_type: 'unknown' },
+            { index: 2, name: 'Start Date', source_type: 'unknown' },
+            { index: 3, name: 'End Date', source_type: 'unknown' },
+            { index: 4, name: 'RowRef', source_type: 'unknown' },
+            { index: 5, name: 'AreaCode', source_type: 'unknown' },
+            { index: 6, name: 'Notes', source_type: 'unknown' }
         ]);
-        expect(res.body.data[0]).toEqual([1, 202223, 512, 1.442546584, 2, 2, null]);
-        expect(res.body.data[23]).toEqual([24, 202122, 596, 137527, 1, 1, 't']);
+        expect(res.body.data[0]).toEqual([
+            1,
+            4.030567686,
+            '2021-22',
+            '01/04/2021',
+            '31/03/2022',
+            'Health Visitor',
+            596,
+            'Average'
+        ]);
+        expect(res.body.data[23]).toEqual([24, 1007, '2022-23', '01/04/2022', '31/03/2023', 'Other Staff', 512, null]);
     });
 
     test('Get a dataset view returns 500 if there is no revision on the dataset', async () => {
@@ -95,7 +112,7 @@ describe('API Endpoints for viewing the contents of a dataset', () => {
             .set(getAuthHeader(user))
             .query({ page_number: 2, page_size: 100 });
         expect(res.status).toBe(500);
-        expect(res.body).toEqual({ error: 'No import found for dataset' });
+        expect(res.body).toEqual({ error: 'errors.cube_create_error' });
     });
 
     test('Get file view returns 404 when a not valid UUID is supplied', async () => {

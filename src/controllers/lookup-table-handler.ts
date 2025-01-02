@@ -167,7 +167,9 @@ export const validateLookupTable = async (
             return true;
         });
         if (possibleJoinColumns.length > 1) {
-            logger.error(`There are to many possible join columns.  Ask user for more information.  Join Columns found: ${JSON.stringify(possibleJoinColumns)}`);
+            logger.error(
+                `There are to many possible join columns.  Ask user for more information.  Join Columns found: ${JSON.stringify(possibleJoinColumns)}`
+            );
             throw new Error('There are to many possible join columns.  Ask user for more information');
         }
         if (possibleJoinColumns.length === 0) {
