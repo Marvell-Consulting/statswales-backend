@@ -5,7 +5,7 @@ export enum DataValueFormat {
     Long = 'Long',
     Percentage = 'Percentage',
     String = 'String',
-    Boolean = 'Boolean',
+    Text = 'Text',
     Date = 'Date',
     DateTime = 'DateTime',
     Time = 'Time'

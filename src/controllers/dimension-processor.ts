@@ -3,6 +3,7 @@ import fs from 'fs';
 import { Database } from 'duckdb-async';
 import tmp from 'tmp';
 import { t } from 'i18next';
+import { NextFunction, Request, Response } from 'express';
 
 import { SourceAssignmentDTO } from '../dtos/source-assignment-dto';
 import { Dataset } from '../entities/dataset/dataset';
@@ -24,10 +25,22 @@ import { CSVHeader, ViewDTO, ViewErrDTO } from '../dtos/view-dto';
 import { DatasetRepository } from '../repositories/dataset';
 import { DatasetDTO } from '../dtos/dataset-dto';
 import { FactTableDTO } from '../dtos/fact-table-dto';
+import { getFileImportAndSaveToDisk, loadFileIntoDatabase } from '../utils/file-utils';
+import { LookupTableExtractor } from '../extractors/lookup-table-extractor';
+import { DateExtractor } from '../extractors/date-extractor';
+import { NotFoundException } from '../exceptions/not-found.exception';
+import { DimensionDTO } from '../dtos/dimension-dto';
+import { LookupTable } from '../entities/dataset/lookup-table';
+import { getLatestRevision } from '../utils/latest';
+import { BadRequestException } from '../exceptions/bad-request.exception';
+import { UnknownException } from '../exceptions/unknown.exception';
+import { LookupTablePatchDTO } from '../dtos/lookup-patch-dto';
+import { DimensionInfoDTO } from '../dtos/dimension-info-dto';
 
-import { dateDimensionReferenceTableCreator, DateExtractor, DateReferenceDataItem } from './time-matching';
-import { getFileImportAndSaveToDisk, loadFileIntoDatabase } from './cube-handler';
-import { LookupTableExtractor } from './lookup-table-handler';
+import { validateLookupTable } from './lookup-table-handler';
+import { getFactTableColumnPreview, uploadCSV } from './csv-processor';
+import { createFactTableQuery } from './cube-handler';
+import { dateDimensionReferenceTableCreator, DateReferenceDataItem } from './time-matching';
 
 const createDateDimensionTable = `CREATE TABLE date_dimension (date_code VARCHAR, description VARCHAR, start_date datetime, end_date datetime, date_type varchar);`;
 const sampleSize = 5;
@@ -273,30 +286,6 @@ export const createDimensionsFromSourceAssignment = async (
     await cleanupDimensions(dataset.id, factTable.factTableInfo);
 };
 
-async function createFactTableQuery(
-    tableName: string,
-    tempFileName: string,
-    fileType: FileType,
-    quack: Database
-): Promise<string> {
-    switch (fileType) {
-        case FileType.Csv:
-        case FileType.GzipCsv:
-            return `CREATE TABLE ${tableName} AS SELECT * FROM read_csv('${tempFileName}', auto_type_candidates = ['BOOLEAN', 'BIGINT', 'DOUBLE', 'VARCHAR']);`;
-        case FileType.Parquet:
-            return `CREATE TABLE ${tableName} AS SELECT * FROM '${tempFileName}';`;
-        case FileType.Json:
-        case FileType.GzipJson:
-            return `CREATE TABLE ${tableName} AS SELECT * FROM read_json_auto('${tempFileName}');`;
-        case FileType.Excel:
-            await quack.exec('INSTALL spatial;');
-            await quack.exec('LOAD spatial;');
-            return `CREATE TABLE ${tableName} AS SELECT * FROM st_read('${tempFileName}');`;
-        default:
-            throw new Error('Unknown file type');
-    }
-}
-
 export const validateDateTypeDimension = async (
     dimensionPatchRequest: DimensionPatchDto,
     dataset: Dataset,
@@ -452,6 +441,13 @@ export const validateDateTypeDimension = async (
         tempFile.removeCallback();
         throw error;
     }
+    const coverage = await quack.all(
+        `SELECT MIN(start_date) as start_date, MAX(end_date) AS end_date FROM date_dimension;`
+    );
+    const updateDataset = await Dataset.findOneByOrFail({ id: dataset.id });
+    updateDataset.startDate = coverage[0].start_date;
+    updateDataset.endDate = coverage[0].end_date;
+    await updateDataset.save();
     const updateDimension = await Dimension.findOneByOrFail({ id: dimension.id });
     updateDimension.extractor = extractor;
     updateDimension.joinColumn = 'date_code';
@@ -681,4 +677,182 @@ export const getDimensionPreview = async (dataset: Dataset, dimension: Dimension
         tempFile.removeCallback();
         throw error;
     }
+};
+
+export const getDimensionInfo = async (req: Request, res: Response, next: NextFunction) => {
+    const dataset = res.locals.dataset;
+    const dimension = dataset.dimensions.find((dim: Dimension) => dim.id === req.params.dimension_id);
+
+    if (!dimension) {
+        next(new NotFoundException('errors.dimension_id_invalid'));
+        return;
+    }
+
+    res.json(DimensionDTO.fromDimension(dimension));
+};
+
+export const resetDimension = async (req: Request, res: Response, next: NextFunction) => {
+    const dataset = res.locals.dataset;
+    const dimension = dataset.dimensions.find((dim: Dimension) => dim.id === req.params.dimension_id);
+
+    if (!dimension) {
+        next(new NotFoundException('errors.dimension_id_invalid'));
+        return;
+    }
+    dimension.type = DimensionType.Raw;
+    dimension.extractor = null;
+    if (dimension.lookuptable) {
+        const lookupTable: LookupTable = dimension.lookupTable;
+        await lookupTable.remove();
+        dimension.lookuptable = null;
+    }
+    await dimension.save();
+    const updatedDimension = await Dimension.findOneByOrFail({ id: dimension.id });
+    res.status(202);
+    res.json(DimensionDTO.fromDimension(updatedDimension));
+};
+
+export const sendDimensionPreview = async (req: Request, res: Response, next: NextFunction) => {
+    const dataset = res.locals.dataset;
+    const dimension: Dimension = dataset.dimensions.find((dim: Dimension) => dim.id === req.params.dimension_id);
+    const factTable = getLatestRevision(dataset)?.factTables[0];
+    if (!dimension) {
+        next(new NotFoundException('errors.dimension_id_invalid'));
+        return;
+    }
+    if (!factTable) {
+        next(new NotFoundException('errors.fact_table_invalid'));
+        return;
+    }
+    try {
+        let preview: ViewDTO | ViewErrDTO;
+        if (dimension.type === DimensionType.Raw) {
+            preview = await getFactTableColumnPreview(dataset, factTable, dimension.factTableColumn);
+        } else {
+            preview = await getDimensionPreview(dataset, dimension, factTable);
+        }
+        if ((preview as ViewErrDTO).errors) {
+            res.status(500);
+            res.json(preview);
+        }
+        res.status(200);
+        res.json(preview);
+    } catch (err) {
+        logger.error(`Something went wrong trying to get a preview of the dimension with the following error: ${err}`);
+        res.status(500);
+        res.json({ message: 'Something went wrong trying to generate a preview of the dimension' });
+    }
+};
+
+export const attachLookupTableToDimension = async (req: Request, res: Response, next: NextFunction) => {
+    if (!req.file) {
+        next(new BadRequestException('errors.upload.no_csv'));
+        return;
+    }
+    const dataset: Dataset = res.locals.dataset;
+    const dimension: Dimension | undefined = dataset.dimensions.find(
+        (dim: Dimension) => dim.id === req.params.dimension_id
+    );
+    if (!dimension) {
+        next(new NotFoundException('errors.dimension_id_invalid'));
+        return;
+    }
+    const factTable = getLatestRevision(dataset)?.factTables[0];
+    if (!factTable) {
+        next(new NotFoundException('errors.fact_table_invalid'));
+        return;
+    }
+    let fileImport: FactTable;
+    try {
+        fileImport = await uploadCSV(req.file.buffer, req.file?.mimetype, req.file?.originalname, res.locals.datasetId);
+    } catch (err) {
+        logger.error(`An error occurred trying to upload the file: ${err}`);
+        next(new UnknownException('errors.upload_error'));
+        return;
+    }
+
+    const tableMatcher = req.body as LookupTablePatchDTO;
+
+    try {
+        const result = await validateLookupTable(
+            fileImport,
+            factTable,
+            dataset,
+            dimension,
+            req.file.buffer,
+            tableMatcher
+        );
+        if ((result as ViewErrDTO).status) {
+            const error = result as ViewErrDTO;
+            res.status(error.status);
+            res.json(result);
+            return;
+        }
+        res.status(200);
+        res.json(result);
+    } catch (err) {
+        logger.error(`An error occurred trying to handle the lookup table: ${err}`);
+        next(new UnknownException('errors.upload_error'));
+    }
+};
+
+export const updateDimension = async (req: Request, res: Response, next: NextFunction) => {
+    const dataset = res.locals.dataset;
+    const dimension = dataset.dimensions.find((dim: Dimension) => dim.id === req.params.dimension_id);
+    const factTable = getLatestRevision(dataset)?.factTables[0];
+    if (!dimension) {
+        next(new NotFoundException('errors.dimension_id_invalid'));
+        return;
+    }
+    if (!factTable) {
+        next(new NotFoundException('errors.fact_table_invalid'));
+        return;
+    }
+    const dimensionPatchRequest = req.body as DimensionPatchDto;
+    let preview: ViewDTO | ViewErrDTO;
+    try {
+        switch (dimensionPatchRequest.dimension_type) {
+            case DimensionType.TimePeriod:
+            case DimensionType.TimePoint:
+                preview = await validateDateTypeDimension(dimensionPatchRequest, dataset, dimension, factTable);
+                break;
+            default:
+                throw new Error('Not Implemented Yet!');
+        }
+    } catch (error) {
+        logger.error(`Something went wrong trying to validate the dimension with the following error: ${error}`);
+        res.status(500);
+        res.json({ message: 'Unable to validate or match dimension against patch' });
+        return;
+    }
+
+    if ((preview as ViewErrDTO).errors) {
+        res.status((preview as ViewErrDTO).status);
+        res.json(preview);
+        return;
+    }
+    res.status(200);
+    res.json(preview);
+};
+
+export const updateDimensionInfo = async (req: Request, res: Response, next: NextFunction) => {
+    const dataset = res.locals.dataset;
+    const dimension: Dimension = dataset.dimensions.find((dim: Dimension) => dim.id === req.params.dimension_id);
+    const updatedInfo = req.body as DimensionInfoDTO;
+    let info = dimension.dimensionInfo.find((info) => info.language === updatedInfo.language);
+    if (!info) {
+        info = new DimensionInfo();
+        info.dimension = dimension;
+        info.language = updatedInfo.language;
+    }
+    if (updatedInfo.name) {
+        info.name = updatedInfo.name;
+    }
+    if (updatedInfo.notes) {
+        info.notes = updatedInfo.notes;
+    }
+    await info.save();
+    const updatedDimension = await Dimension.findOneByOrFail({ id: dimension.id });
+    res.status(202);
+    res.json(DimensionDTO.fromDimension(updatedDimension));
 };

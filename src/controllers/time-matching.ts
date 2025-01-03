@@ -3,15 +3,7 @@ import { TableData } from 'duckdb-async';
 
 import { logger } from '../utils/logger';
 import { YearType } from '../enums/year-type';
-
-export interface DateExtractor {
-    type?: YearType;
-    yearFormat?: string;
-    quarterFormat?: string;
-    quarterTotalIsFifthQuart?: boolean;
-    monthFormat?: string;
-    dateFormat?: string;
-}
+import { DateExtractor } from '../extractors/date-extractor';
 
 export interface SnifferResult {
     extractor: DateExtractor;

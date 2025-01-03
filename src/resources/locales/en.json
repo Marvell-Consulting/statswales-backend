@@ -115,6 +115,21 @@
         "data_values": "Data Values",
         "note_codes": "Note Codes",
         "start_date": "Start Date",
-        "end_date": "End Date"
+        "end_date": "End Date",
+        "notes": "Notes",
+        "measure": "Measure"
+    },
+    "note_codes": {
+        "average": "Average",
+        "confidential": "Confidential",
+        "estimated": "Estimated",
+        "forecast": "Forecast",
+        "low_figure": "Low Figure",
+        "provisional": "Provisional",
+        "revised": "Revised",
+        "total": "Total",
+        "low_reliability": "Low Reliability",
+        "missing_data": "Missing Data",
+        "not_applicable": "Not Applicable"
     }
 }

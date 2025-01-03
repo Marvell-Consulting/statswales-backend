@@ -13,6 +13,8 @@ import { FactTable } from '../../src/entities/dataset/fact-table';
 import { FileType } from '../../src/enums/file-type';
 import { extractTableInformation } from '../../src/controllers/csv-processor';
 import { FactTableAction } from '../../src/enums/fact-table-action';
+import { FactTableColumnType } from '../../src/enums/fact-table-column-type';
+import { LookupTable } from '../../src/entities/dataset/lookup-table';
 
 export async function createSmallDataset(
     datasetId: string,
@@ -76,7 +78,16 @@ export async function createSmallDataset(
             break;
     }
     await factTable.save();
-    factTable.factTableInfo = await extractTableInformation(testFileBuffer, fileType);
+    const factTableInfo = await extractTableInformation(testFileBuffer, fileType);
+    factTable.factTableInfo = factTableInfo.map((info) => {
+        if (info.columnName.toLowerCase().indexOf('note') >= 0) {
+            info.columnType = FactTableColumnType.NoteCodes;
+        }
+        if (info.columnName.toLowerCase().indexOf('data') >= 0) {
+            info.columnType = FactTableColumnType.DataValues;
+        }
+        return info;
+    });
     await factTable.save();
     revision.factTables = [factTable];
     await dataset.save();
@@ -87,7 +98,8 @@ const sureStartShortDimensionDescriptor = [
     {
         columnName: 'YearCode',
         dimensionType: DimensionType.TimePeriod,
-        extractor: { type: 'financial', yearFormat: 'yyyyyy' }
+        extractor: { type: 'financial', yearFormat: 'yyyyyy' },
+        joinColumn: 'date_code'
     },
     {
         columnName: 'AreaCode',
@@ -95,9 +107,35 @@ const sureStartShortDimensionDescriptor = [
     },
     {
         columnName: 'RowRef',
-        dimensionType: DimensionType.LookupTable
+        dimensionType: DimensionType.LookupTable,
+        extractor: {
+            sortColumn: 'sort_order',
+            notesColumns: [
+                { lang: 'en', name: 'Notes_en' },
+                { lang: 'cy', name: 'Notes_cy' }
+            ],
+            descriptionColumns: [
+                { lang: 'en', name: 'Description_en' },
+                { lang: 'cy', name: 'Description_cy' }
+            ]
+        },
+        joinColumn: 'RowRefAlt'
     }
 ];
+
+const rowRefLookupTable = () => {
+    const lookupTable = new LookupTable();
+    lookupTable.id = crypto.randomUUID().toLowerCase();
+    lookupTable.filename = 'RowRefLookupTable.csv';
+    lookupTable.fileType = FileType.Csv;
+    lookupTable.isStatsWales2Format = true;
+    lookupTable.linebreak = '\n';
+    lookupTable.delimiter = ',';
+    lookupTable.quote = '"';
+    lookupTable.mimeType = 'text/csv';
+    lookupTable.hash = '89d43754ce067c9af20e06dcfa0f49297c4ed02de5a5e3c8a3a1119ecdd8f38f';
+    return lookupTable;
+};
 
 export async function createFullDataset(
     datasetId: string,
@@ -122,10 +160,15 @@ export async function createFullDataset(
         dimensionDescriptorJson.map(async (descriptor) => {
             const dimension = new Dimension();
             dimension.dataset = dataset;
-            dimension.type = DimensionType.Raw;
             dimension.factTableColumn = descriptor.columnName;
             dimension.type = descriptor.dimensionType || DimensionType.Raw;
+            if (descriptor.dimensionType === DimensionType.LookupTable) {
+                const lookupTable = rowRefLookupTable();
+                const savedLookup = await lookupTable.save();
+                dimension.lookupTable = savedLookup;
+            }
             dimension.extractor = descriptor.extractor || {};
+            dimension.joinColumn = descriptor.joinColumn || null;
             await dimension.save();
             const dimensionInfo = new DimensionInfo();
             dimensionInfo.dimension = dimension;

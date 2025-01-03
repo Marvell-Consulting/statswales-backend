@@ -39,6 +39,12 @@ export class Dataset extends BaseEntity {
     @Column({ type: 'timestamptz', nullable: true })
     archive: Date;
 
+    @Column({ name: 'start_date', type: 'date', nullable: true })
+    startDate: Date | null;
+
+    @Column({ name: 'end_date', type: 'date', nullable: true })
+    endDate: Date | null;
+
     @OneToMany(() => DatasetInfo, (datasetInfo) => datasetInfo.dataset, { cascade: true })
     datasetInfo: DatasetInfo[];
 
