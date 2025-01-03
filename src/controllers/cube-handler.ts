@@ -745,7 +745,6 @@ export const createBaseCube = async (dataset: Dataset, endRevision: Revision): P
     }
     const tmpFile = tmp.tmpNameSync({ postfix: '.db' });
     try {
-        logger.debug(`Writing memory database to disk`);
         logger.debug(`Writing memory database to disk at ${tmpFile}`);
         await quack.exec(`ATTACH '${tmpFile}' as outDB;`);
         await quack.exec(`COPY FROM DATABASE memory TO outDB;`);
@@ -857,32 +856,30 @@ export const downloadCubeFile = async (req: Request, res: Response, next: NextFu
         next(new UnknownException('errors.no_revision'));
         return;
     }
-    let cubeFile: string;
+    let cubeBuffer: Buffer;
     if (latestRevision.onlineCubeFilename) {
         const dataLakeService = new DataLakeService();
-        const fileBuffer = await dataLakeService.getFileBuffer(latestRevision.onlineCubeFilename, dataset.id);
-        cubeFile = tmp.tmpNameSync({ postfix: '.duckdb' });
-        fs.writeFileSync(cubeFile, fileBuffer);
+        cubeBuffer = await dataLakeService.getFileBuffer(latestRevision.onlineCubeFilename, dataset.id);
     } else {
         try {
-            cubeFile = await createBaseCube(dataset, latestRevision);
+            const cubeFile = await createBaseCube(dataset, latestRevision);
+            cubeBuffer = Buffer.from(fs.readFileSync(cubeFile));
         } catch (err) {
             logger.error(`Something went wrong trying to create the cube with the error: ${err}`);
             next(new UnknownException('errors.cube_create_error'));
             return;
         }
     }
-    const fileBuffer = Buffer.from(fs.readFileSync(cubeFile));
-    logger.info(`Sending original cube file (size: ${fileBuffer.length}) from: ${cubeFile}`);
+    logger.info(`Sending original cube file (size: ${cubeBuffer.length})`);
     res.writeHead(200, {
         // eslint-disable-next-line @typescript-eslint/naming-convention
         'Content-Type': 'application/octet-stream',
         // eslint-disable-next-line @typescript-eslint/naming-convention
         'Content-disposition': `attachment;filename=${dataset.id}.duckdb`,
         // eslint-disable-next-line @typescript-eslint/naming-convention
-        'Content-Length': fileBuffer.length
+        'Content-Length': cubeBuffer.length
     });
-    res.end(fileBuffer);
+    res.end(cubeBuffer);
 };
 
 export const downloadCubeAsJSON = async (req: Request, res: Response, next: NextFunction) => {

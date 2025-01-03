@@ -12,7 +12,7 @@ function validatePageNumber(page_number: number): boolean {
     return page_number >= 1;
 }
 
-function validatMaxPageNumber(page_number: number, max_page_number: number): boolean {
+function validateMaxPageNumber(page_number: number, max_page_number: number): boolean {
     return page_number <= max_page_number;
 }
 
@@ -45,7 +45,7 @@ export function validateParams(page_number: number, max_page_number: number, pag
             }
         });
     }
-    if (!validatMaxPageNumber(page_number, max_page_number)) {
+    if (!validateMaxPageNumber(page_number, max_page_number)) {
         errors.push({
             field: 'page_number',
             message: [

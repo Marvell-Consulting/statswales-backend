@@ -417,14 +417,11 @@ async function getMeasurePreviewWithExtractor(
     const dataArray = measureTable.map((row) => Object.values(row));
     const currentDataset = await DatasetRepository.getById(dataset.id);
     const currentImport = await FactTable.findOneByOrFail({ id: factTable.id });
-    const headers: CSVHeader[] = [];
-    for (let i = 0; i < tableHeaders.length; i++) {
-        headers.push({
-            index: i,
-            name: tableHeaders[i],
-            source_type: FactTableColumnType.Unknown
-        });
-    }
+    const headers: CSVHeader[] = tableHeaders.map((name, idx) => ({
+        name,
+        index: idx,
+        source_type: FactTableColumnType.Unknown
+    }));
     return {
         dataset: DatasetDTO.fromDataset(currentDataset),
         fact_table: FactTableDTO.fromFactTable(currentImport),
@@ -576,7 +573,6 @@ export const getPreviewOfMeasure = async (req: Request, res: Response, next: Nex
         res.json(preview);
     } catch (err) {
         logger.error(`Something went wrong trying to get a preview of the dimension with the following error: ${err}`);
-        res.status(500);
-        res.json({ message: 'Something went wrong trying to generate a preview of the dimension' });
+        next(new UnknownException('errors.upload_error'));
     }
 };

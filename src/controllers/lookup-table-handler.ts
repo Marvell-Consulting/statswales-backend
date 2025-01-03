@@ -170,7 +170,7 @@ export const validateLookupTable = async (
             logger.error(
                 `There are to many possible join columns.  Ask user for more information.  Join Columns found: ${JSON.stringify(possibleJoinColumns)}`
             );
-            throw new Error('There are to many possible join columns.  Ask user for more information');
+            throw new Error('There are too many possible join columns.  Ask user for more information');
         }
         if (possibleJoinColumns.length === 0) {
             logger.error('Could not find a column to join against the fact table.');
