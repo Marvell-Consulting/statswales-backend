@@ -99,8 +99,9 @@ function createExtractor(
             )?.columnName,
             measureTypeColumn: protoLookupTable.factTableInfo.find(
                 (info) =>
-                    info.columnName.toLowerCase().indexOf('measure') > -1 &&
-                    info.columnName.toLowerCase().indexOf('type') > -1
+                    (info.columnName.toLowerCase().indexOf('measure') > -1 &&
+                        info.columnName.toLowerCase().indexOf('type') > -1) ||
+                    info.columnName.toLowerCase().endsWith('measure')
             )?.columnName,
             descriptionColumns: protoLookupTable.factTableInfo
                 .filter((info) => info.columnName.toLowerCase().startsWith('description'))
@@ -116,12 +117,12 @@ function lookForJoinColumn(protoLookupTable: FactTable, tableMatcher?: MeasureLo
     } else {
         const possibleJoinColumns = protoLookupTable.factTableInfo.filter((info) => {
             if (info.columnName.toLowerCase().indexOf('decimal') >= 0) return false;
-            if (info.columnName.toLowerCase().indexOf('measure') >= 0) return false;
             if (info.columnName.toLowerCase().indexOf('hierarchy') >= 0) return false;
             if (info.columnName.toLowerCase().indexOf('format') >= 0) return false;
             if (info.columnName.toLowerCase().indexOf('description') >= 0) return false;
             if (info.columnName.toLowerCase().indexOf('sort') >= 0) return false;
             if (info.columnName.toLowerCase().indexOf('note') >= 0) return false;
+            if (info.columnName.toLowerCase().endsWith('measure')) return false;
             logger.debug(`Looks like column ${info.columnName.toLowerCase()} is a join column`);
             return true;
         });
