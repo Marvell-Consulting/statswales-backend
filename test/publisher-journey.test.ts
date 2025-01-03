@@ -75,7 +75,7 @@ describe('API Endpoints', () => {
         });
 
         test('Upload returns 400 if no file attached', async () => {
-            const dataset = await DatasetRepository.createWithTitle(user, 'en-GB', 'Test Dataset 1');
+            const dataset = await DatasetRepository.createWithTitle(user, Locale.EnglishGb, 'Test Dataset 1');
             const res = await request(app).post(`/dataset/${dataset.id}/data`).set(getAuthHeader(user));
             expect(res.status).toBe(400);
             expect(res.body).toEqual({ error: 'No CSV data provided' });
@@ -83,7 +83,7 @@ describe('API Endpoints', () => {
         });
 
         test('Upload returns 201 if a file is attached', async () => {
-            const dataset = await DatasetRepository.createWithTitle(user, 'en-GB', 'Test Dataset 2');
+            const dataset = await DatasetRepository.createWithTitle(user, Locale.EnglishGb, 'Test Dataset 2');
             const csvFile = path.resolve(__dirname, `sample-files/csv/sure-start-short.csv`);
             const res = await request(app)
                 .post(`/dataset/${dataset.id}/data`)
