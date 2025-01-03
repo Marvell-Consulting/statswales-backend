@@ -115,11 +115,14 @@ function lookForJoinColumn(protoLookupTable: FactTable, tableMatcher?: MeasureLo
         return tableMatcher.join_column;
     } else {
         const possibleJoinColumns = protoLookupTable.factTableInfo.filter((info) => {
-            if (info.columnName.toLowerCase().startsWith('decimal')) return false;
-            if (info.columnName.toLowerCase().startsWith('format')) return false;
-            if (info.columnName.toLowerCase().startsWith('description')) return false;
-            if (info.columnName.toLowerCase().startsWith('sort')) return false;
-            if (info.columnName.toLowerCase().startsWith('note')) return false;
+            if (info.columnName.toLowerCase().indexOf('decimal') >= 0) return false;
+            if (info.columnName.toLowerCase().indexOf('measure') >= 0) return false;
+            if (info.columnName.toLowerCase().indexOf('hierarchy') >= 0) return false;
+            if (info.columnName.toLowerCase().indexOf('format') >= 0) return false;
+            if (info.columnName.toLowerCase().indexOf('description') >= 0) return false;
+            if (info.columnName.toLowerCase().indexOf('sort') >= 0) return false;
+            if (info.columnName.toLowerCase().indexOf('note') >= 0) return false;
+            logger.debug(`Looks like column ${info.columnName.toLowerCase()} is a join column`);
             return true;
         });
         if (possibleJoinColumns.length > 1) {
@@ -165,12 +168,13 @@ async function rowMatcher(
     confirmedJoinColumn: string
 ): Promise<ViewErrDTO | undefined> {
     try {
-        const nonMatchedRows =
-            await quack.all(`SELECT line_number, fact_table_column, ${lookupTableName}.${confirmedJoinColumn} as lookup_table_column
+        const nonMatchedRowQuery = `SELECT line_number, fact_table_column, ${lookupTableName}."${confirmedJoinColumn}" as lookup_table_column
             FROM (SELECT row_number() OVER () as line_number, "${measure.factTableColumn}" as fact_table_column FROM
             ${factTableName}) as fact_table LEFT JOIN ${lookupTableName} ON
             CAST(fact_table.fact_table_column AS VARCHAR)=CAST(${lookupTableName}."${confirmedJoinColumn}" AS VARCHAR)
-            WHERE lookup_table_column IS NULL;`);
+            WHERE ${lookupTableName}."${confirmedJoinColumn}" IS NULL;`;
+        logger.debug(`Running row matching query: ${nonMatchedRowQuery}`);
+        const nonMatchedRows = await quack.all(nonMatchedRowQuery);
         const rows = await quack.all(`SELECT COUNT(*) as total_rows FROM ${factTableName}`);
         if (nonMatchedRows.length === rows[0].total_rows) {
             logger.error(`The user supplied an incorrect lookup table and none of the rows matched`);
@@ -183,8 +187,12 @@ async function rowMatcher(
             });
         }
         if (nonMatchedRows.length > 0) {
+            logger.error(`Seems some of the rows didn't match.`);
             const nonMatchedValues = await quack.all(
-                `SELECT DISTINCT fact_table_column FROM (SELECT "${measure.factTableColumn}" as fact_table_column FROM ${factTableName}) as fact_table LEFT JOIN ${lookupTableName} ON CAST(fact_table.fact_table_column AS VARCHAR)=CAST(${lookupTableName}."${confirmedJoinColumn}" AS VARCHAR) where lookup_table_column IS NULL;`
+                `SELECT DISTINCT fact_table_column FROM (SELECT "${measure.factTableColumn}" as fact_table_column
+                FROM ${factTableName}) as fact_table
+                LEFT JOIN ${lookupTableName} ON CAST(fact_table.fact_table_column AS VARCHAR)=CAST(${lookupTableName}."${confirmedJoinColumn}" AS VARCHAR)
+                where ${lookupTableName}."${confirmedJoinColumn}" IS NULL;`
             );
             logger.error(
                 `The user supplied an incorrect or incomplete lookup table and ${nonMatchedRows.length} rows didn't match`
@@ -242,7 +250,7 @@ async function validateTableContent(
             nonMatchingValues: unmatchedFormats
         });
     }
-    if (extractor.measureTypeColumn) {
+    if (extractor.formatColumn && extractor.formatColumn.toLowerCase().indexOf('format') !== -1) {
         logger.debug(
             `Measure type column (${extractor.measureTypeColumn}) is present, validating all type present are valid`
         );

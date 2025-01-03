@@ -384,11 +384,11 @@ function measureFormats(): Map<string, MeasureFormat> {
     const measureFormats: Map<string, MeasureFormat> = new Map();
     measureFormats.set('decimal', {
         name: 'Decimal',
-        method: "WHEN measure.display_type = 'Decimal' THEN printf('%,.2fd', |COL|)"
+        method: "WHEN measure.display_type = 'Decimal' THEN printf('%,.2f', |COL|)"
     });
     measureFormats.set('float', {
         name: 'Float',
-        method: "WHEN measure.display_type = 'Float' THEN printf('%,.2fd', |COL|)"
+        method: "WHEN measure.display_type = 'Float' THEN printf('%,.2f', |COL|)"
     });
     measureFormats.set('integer', {
         name: 'Integer',

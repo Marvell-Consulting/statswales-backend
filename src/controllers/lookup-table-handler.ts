@@ -202,7 +202,11 @@ export const validateLookupTable = async (
         }
         if (nonMatchedRows.length > 0) {
             const nonMatchedValues = await quack.all(
-                `SELECT DISTINCT fact_table_column FROM (SELECT "${dimension.factTableColumn}" as fact_table_column FROM ${factTableName}) as fact_table LEFT JOIN ${lookupTableName} ON CAST(fact_table.fact_table_column AS VARCHAR)=CAST(${lookupTableName}."${confirmedJoinColumn}" AS VARCHAR) where lookup_table_column IS NULL;`
+                `SELECT DISTINCT fact_table_column FROM (SELECT "${dimension.factTableColumn}" as fact_table_column
+                FROM ${factTableName})as fact_table
+                LEFT JOIN ${lookupTableName}
+                ON CAST(fact_table.fact_table_column AS VARCHAR)=CAST(${lookupTableName}."${confirmedJoinColumn}" AS VARCHAR)
+                WHERE ${lookupTableName}."${confirmedJoinColumn}" IS NULL;`
             );
             logger.error(
                 `The user supplied an incorrect or incomplete lookup table and ${nonMatchedRows.length} rows didn't match`
