@@ -34,6 +34,9 @@ export function getLocalConfig(): AppConfig {
             ssl: process.env.DB_SSL === 'true' || false,
             synchronize: false
         },
+        rateLimit: {
+            windowMs: -1 // disable rate limiting on local
+        },
         auth: {
             providers: ['google', 'onelogin'],
             jwt: {
