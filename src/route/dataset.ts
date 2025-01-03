@@ -47,6 +47,11 @@ import {
     attachFactTableToRevision,
     confirmFactTable,
     downloadRawFactTable,
+    downloadRevisionCubeAsCSV,
+    downloadRevisionCubeAsExcel,
+    downloadRevisionCubeAsJSON,
+    downloadRevisionCubeAsParquet,
+    downloadRevisionCubeFile,
     getFactTableInfo,
     getFactTablePreview,
     getRevisionInfo,
@@ -170,6 +175,30 @@ router.get('/:dataset_id/cube/parquet', loadDataset(), downloadCubeAsParquet);
 // GET /dataset/:dataset_id/cube/excel
 // Returns a CSV file representation of the default view of the cube
 router.get('/:dataset_id/cube/excel', loadDataset(), downloadCubeAsExcel);
+
+// PATCH /dataset/:dataset_id/info
+// Updates the dataset info with the provided data
+router.patch('/:dataset_id/info', jsonParser, loadDataset(), updateDatasetInfo);
+
+// GET /dataset/:dataset_id/revision/by-id/:revision_id/cube
+// Returns the specific revision of the dataset as a DuckDB File
+router.get('/:dataset_id/revision/by-id/:revision_id/cube', loadDataset(), downloadRevisionCubeFile);
+
+// GET /dataset/:dataset_id/revision/by-id/:revision_id/cube/json
+// Returns the specific revision of the dataset as a JSON file
+router.get('/:dataset_id/revision/by-id/:revision_id/cube/json', loadDataset(), downloadRevisionCubeAsJSON);
+
+// GET /dataset/:dataset_id/revision/by-id/:revision_id/cube/csv
+// Returns the specific revision of the dataset as a CSV file
+router.get('/:dataset_id/revision/by-id/:revision_id/cube/csv', loadDataset(), downloadRevisionCubeAsCSV);
+
+// GET /dataset/:dataset_id/revision/by-id/:revision_id/cube/parquet
+// Returns the specific revision of the dataset as a Parquet file
+router.get('/:dataset_id/revision/by-id/:revision_id/cube/parquet', loadDataset(), downloadRevisionCubeAsParquet);
+
+// GET /dataset/:dataset_id/revision/by-id/:revision_id/cube/excel
+// Returns the specific revision of the dataset as an Excel file
+router.get('/:dataset_id/revision/by-id/:revision_id/cube/excel', loadDataset(), downloadRevisionCubeAsExcel);
 
 // PATCH /dataset/:dataset_id/info
 // Updates the dataset info with the provided data

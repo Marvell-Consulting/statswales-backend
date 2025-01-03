@@ -4,6 +4,7 @@ import { Revision } from '../entities/dataset/revision';
 import { DatasetInfo } from '../entities/dataset/dataset-info';
 import { DatasetProvider } from '../entities/dataset/dataset-provider';
 import { DatasetTopic } from '../entities/dataset/dataset-topic';
+import { SUPPORTED_LOCALES } from '../middleware/translation';
 
 import { DimensionDTO } from './dimension-dto';
 import { RevisionDTO } from './revision-dto';
@@ -11,6 +12,7 @@ import { DatasetInfoDTO } from './dataset-info-dto';
 import { DatasetProviderDTO } from './dataset-provider-dto';
 import { DatasetTopicDTO } from './dataset-topic-dto';
 import { MeasureDTO } from './measure-dto';
+import { TeamDTO } from './team-dto';
 
 export class DatasetDTO {
     id: string;
@@ -24,7 +26,9 @@ export class DatasetDTO {
     datasetInfo: DatasetInfoDTO[];
     providers: DatasetProviderDTO[];
     topics: DatasetTopicDTO[];
-    team_id?: string;
+    team?: TeamDTO[];
+    start_date?: Date | null;
+    end_date?: Date | null;
 
     static fromDataset(dataset: Dataset): DatasetDTO {
         const dto = new DatasetDTO();
@@ -46,7 +50,14 @@ export class DatasetDTO {
             DatasetTopicDTO.fromDatasetTopic(datasetTopic)
         );
 
-        dto.team_id = dataset.team?.id;
+        if (dataset.team) {
+            dto.team = SUPPORTED_LOCALES.map((locale) => {
+                return TeamDTO.fromTeam(dataset.team, locale);
+            });
+        }
+
+        dto.start_date = dataset.startDate;
+        dto.end_date = dataset.endDate;
 
         return dto;
     }

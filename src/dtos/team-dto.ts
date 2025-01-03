@@ -10,6 +10,7 @@ export class TeamDTO {
     email?: string;
     organisation_id?: string;
     organisation?: OrganisationDTO;
+    language?: string;
 
     static fromTeam(team: Team, lang: Locale): TeamDTO {
         const info = team.info?.find((i) => lang.includes(i.language));
@@ -19,6 +20,7 @@ export class TeamDTO {
         dto.email = info?.email;
         dto.organisation_id = team.organisation?.id;
         dto.organisation = team.organisation ? OrganisationDTO.fromOrganisation(team.organisation, lang) : undefined;
+        dto.language = lang;
         return dto;
     }
 }

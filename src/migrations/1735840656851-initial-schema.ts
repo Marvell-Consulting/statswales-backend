@@ -1,7 +1,7 @@
 import { MigrationInterface, QueryRunner } from 'typeorm';
 
-export class InitialSchema1735125189854 implements MigrationInterface {
-    name = 'InitialSchema1735125189854';
+export class InitialSchema1735840656851 implements MigrationInterface {
+    name = 'InitialSchema1735840656851';
 
     public async up(queryRunner: QueryRunner): Promise<void> {
         await queryRunner.query(`
@@ -283,6 +283,8 @@ export class InitialSchema1735125189854 implements MigrationInterface {
                 "created_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
                 "live" TIMESTAMP WITH TIME ZONE,
                 "archive" TIMESTAMP WITH TIME ZONE,
+                "start_date" date,
+                "end_date" date,
                 "created_by" uuid,
                 "team_id" uuid,
                 CONSTRAINT "PK_dataset_id" PRIMARY KEY ("id")
@@ -352,6 +354,17 @@ export class InitialSchema1735125189854 implements MigrationInterface {
             )
         `);
         await queryRunner.query(`
+            CREATE TABLE "reference_data_info" (
+                "item_id" text NOT NULL,
+                "version_no" integer NOT NULL,
+                "category_key" text NOT NULL,
+                "lang" text NOT NULL,
+                "description" text NOT NULL,
+                "notes" text,
+                CONSTRAINT "PK_bc5f1f5cf97870b0d373f7edae7" PRIMARY KEY ("item_id", "version_no", "category_key", "lang")
+            )
+        `);
+        await queryRunner.query(`
             CREATE TABLE "hierarchy" (
                 "item_id" text NOT NULL,
                 "version_no" integer NOT NULL,
@@ -385,17 +398,6 @@ export class InitialSchema1735125189854 implements MigrationInterface {
                 "description" text NOT NULL,
                 "notes" text,
                 CONSTRAINT "PK_b352b1990fc76e4cb4c7c9e0c9d" PRIMARY KEY ("category", "lang")
-            )
-        `);
-        await queryRunner.query(`
-            CREATE TABLE "reference_data_info" (
-                "item_id" text NOT NULL,
-                "version_no" integer NOT NULL,
-                "category_key" text NOT NULL,
-                "lang" text NOT NULL,
-                "description" text NOT NULL,
-                "notes" text,
-                CONSTRAINT "PK_bc5f1f5cf97870b0d373f7edae7" PRIMARY KEY ("item_id", "version_no", "category_key", "lang")
             )
         `);
         await queryRunner.query(`
@@ -511,6 +513,10 @@ export class InitialSchema1735125189854 implements MigrationInterface {
             ADD CONSTRAINT "FK_dd4ff535904e339641b0b0d52c2" FOREIGN KEY ("category_key") REFERENCES "category_key"("category_key") ON DELETE NO ACTION ON UPDATE NO ACTION
         `);
         await queryRunner.query(`
+            ALTER TABLE "reference_data_info"
+            ADD CONSTRAINT "FK_f671fde9c769286ba971485ba09" FOREIGN KEY ("item_id", "version_no", "category_key") REFERENCES "reference_data"("item_id", "version_no", "category_key") ON DELETE NO ACTION ON UPDATE NO ACTION
+        `);
+        await queryRunner.query(`
             ALTER TABLE "hierarchy"
             ADD CONSTRAINT "FK_aaba494e02eaa91111d549e5763" FOREIGN KEY ("item_id", "version_no", "category_key") REFERENCES "reference_data"("item_id", "version_no", "category_key") ON DELETE NO ACTION ON UPDATE NO ACTION
         `);
@@ -526,16 +532,9 @@ export class InitialSchema1735125189854 implements MigrationInterface {
             ALTER TABLE "category_info"
             ADD CONSTRAINT "FK_68028565126809c1e925e6f9334" FOREIGN KEY ("category") REFERENCES "category"("category") ON DELETE NO ACTION ON UPDATE NO ACTION
         `);
-        await queryRunner.query(`
-            ALTER TABLE "reference_data_info"
-            ADD CONSTRAINT "FK_f671fde9c769286ba971485ba09" FOREIGN KEY ("item_id", "version_no", "category_key") REFERENCES "reference_data"("item_id", "version_no", "category_key") ON DELETE NO ACTION ON UPDATE NO ACTION
-        `);
     }
 
     public async down(queryRunner: QueryRunner): Promise<void> {
-        await queryRunner.query(`
-            ALTER TABLE "reference_data_info" DROP CONSTRAINT "FK_f671fde9c769286ba971485ba09"
-        `);
         await queryRunner.query(`
             ALTER TABLE "category_info" DROP CONSTRAINT "FK_68028565126809c1e925e6f9334"
         `);
@@ -547,6 +546,9 @@ export class InitialSchema1735125189854 implements MigrationInterface {
         `);
         await queryRunner.query(`
             ALTER TABLE "hierarchy" DROP CONSTRAINT "FK_aaba494e02eaa91111d549e5763"
+        `);
+        await queryRunner.query(`
+            ALTER TABLE "reference_data_info" DROP CONSTRAINT "FK_f671fde9c769286ba971485ba09"
         `);
         await queryRunner.query(`
             ALTER TABLE "reference_data" DROP CONSTRAINT "FK_dd4ff535904e339641b0b0d52c2"
@@ -633,9 +635,6 @@ export class InitialSchema1735125189854 implements MigrationInterface {
             ALTER TABLE "fact_table_info" DROP CONSTRAINT "FK_fact_table_info_fact_table_id"
         `);
         await queryRunner.query(`
-            DROP TABLE "reference_data_info"
-        `);
-        await queryRunner.query(`
             DROP TABLE "category_info"
         `);
         await queryRunner.query(`
@@ -643,6 +642,9 @@ export class InitialSchema1735125189854 implements MigrationInterface {
         `);
         await queryRunner.query(`
             DROP TABLE "hierarchy"
+        `);
+        await queryRunner.query(`
+            DROP TABLE "reference_data_info"
         `);
         await queryRunner.query(`
             DROP TABLE "reference_data"

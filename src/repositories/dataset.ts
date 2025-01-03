@@ -38,7 +38,12 @@ const defaultRelations: FindOptionsRelations<Dataset> = {
     datasetTopics: {
         topic: true
     },
-    team: true
+    team: {
+        info: true,
+        organisation: {
+            info: true
+        }
+    }
 };
 
 export const DatasetRepository = dataSource.getRepository(Dataset).extend({

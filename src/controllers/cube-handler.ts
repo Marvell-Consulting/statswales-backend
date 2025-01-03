@@ -547,6 +547,12 @@ async function setupMeasures(
                     ?.push(
                         `${FACT_TABLE_NAME}."${dataValuesColumn?.columnName}" as "${t('column_headers.data_values', { lng: locale })}"`
                     );
+            if (measureColumn)
+                selectStatementsMap
+                    .get(locale)
+                    ?.push(
+                        `${FACT_TABLE_NAME}."${measureColumn.columnName}" as "${t('column_headers.measure', { lng: locale })}"`
+                    );
         });
     }
 }
@@ -737,12 +743,17 @@ export const createBaseCube = async (dataset: Dataset, endRevision: Revision): P
             )} FROM ${FACT_TABLE_NAME}\n${joinStatements.join('\n').replace(/#LANG#/g, locale.toLowerCase())}\n ${orderByStatements.length > 0 ? `ORDER BY ${orderByStatements.join(', ')}` : ''};`;
         await quack.exec(defaultViewSQL);
     }
-    logger.debug(`Writing memory database to disk`);
     const tmpFile = tmp.tmpNameSync({ postfix: '.db' });
-    logger.debug(`Writing memory database to disk at ${tmpFile}`);
-    await quack.exec(`ATTACH '${tmpFile}' as outDB;`);
-    await quack.exec(`COPY FROM DATABASE memory TO outDB;`);
-    await quack.exec('DETACH outDB;');
+    try {
+        logger.debug(`Writing memory database to disk`);
+        logger.debug(`Writing memory database to disk at ${tmpFile}`);
+        await quack.exec(`ATTACH '${tmpFile}' as outDB;`);
+        await quack.exec(`COPY FROM DATABASE memory TO outDB;`);
+        await quack.exec('DETACH outDB;');
+    } catch (err) {
+        logger.error(`Failed to write memory database to disk with error: ${err}`);
+        throw err;
+    }
     await quack.close();
     // Pass the file handle to the calling method
     // If used for preview you just want the file
@@ -766,7 +777,6 @@ export const getCubePreview = async (
     size: number
 ): Promise<ViewDTO | ViewErrDTO> => {
     const quack = await Database.create(cubeFile);
-    const defaultView = await quack.all(`SELECT * FROM default_view_${lang};`);
     const totalsQuery = `SELECT count(*) as totalLines, ceil(count(*)/${size}) as totalPages from default_view_${lang};`;
     const totals = await quack.all(totalsQuery);
     const totalPages = Number(totals[0].totalPages);

@@ -441,6 +441,13 @@ export const validateDateTypeDimension = async (
         tempFile.removeCallback();
         throw error;
     }
+    const coverage = await quack.all(
+        `SELECT MIN(start_date) as start_date, MAX(end_date) AS end_date FROM date_dimension;`
+    );
+    const updateDataset = await Dataset.findOneByOrFail({ id: dataset.id });
+    updateDataset.startDate = coverage[0].start_date;
+    updateDataset.endDate = coverage[0].end_date;
+    await updateDataset.save();
     const updateDimension = await Dimension.findOneByOrFail({ id: dimension.id });
     updateDimension.extractor = extractor;
     updateDimension.joinColumn = 'date_code';
