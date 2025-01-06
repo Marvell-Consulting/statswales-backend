@@ -66,5 +66,5 @@ export const testDatasets = [
     { dataset: previewPageTestB, csvPath: path.join(__dirname, `../sample-files/csv/cheeses.csv`) },
     { dataset: sourcesPageTest, csvPath: path.join(__dirname, `../sample-files/csv/sure-start-short.csv`) },
     { dataset: metadataTestA, csvPath: path.join(__dirname, `../sample-files/csv/sure-start-short.csv`) },
-    { dataset: metadataTestA, csvPath: path.join(__dirname, `../sample-files/csv/sure-start-short.csv`) }
+    { dataset: metadataTestB, csvPath: path.join(__dirname, `../sample-files/csv/sure-start-short.csv`) }
 ];

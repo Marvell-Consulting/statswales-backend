@@ -7,8 +7,6 @@ services:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
       POSTGRES_DB: statswales-backend
-    # volumes:
-    #   - .docker/postgres/data:/var/lib/postgresql/data
 
   db-test:
     image: postgres:latest
