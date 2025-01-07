@@ -5,8 +5,9 @@ import { FactTableInfo } from '../entities/dataset/fact-table-info';
 import { SupportedLanguagues } from '../enums/locale';
 import { Measure } from '../entities/dataset/measure';
 import { MeasureLookupPatchDTO } from '../dtos/measure-lookup-patch-dto';
-import { logger } from './logger';
 import { LookupTablePatchDTO } from '../dtos/lookup-patch-dto';
+
+import { logger } from './logger';
 
 export function convertFactTableToLookupTable(factTable: FactTable, dimension?: Dimension, measure?: Measure) {
     const lookupTable = new LookupTable();
@@ -49,7 +50,7 @@ export const lookForJoinColumn = (
     factTableColumn: string,
     tableMatcher?: MeasureLookupPatchDTO | LookupTablePatchDTO
 ): string => {
-    const refCol = protoLookupTable.factTableInfo.find((col) => col.columnName.toLowerCase().startsWith("ref"))
+    const refCol = protoLookupTable.factTableInfo.find((col) => col.columnName.toLowerCase().startsWith('ref'));
     if (tableMatcher?.join_column) {
         return tableMatcher.join_column;
     } else if (protoLookupTable.factTableInfo.find((col) => col.columnName === factTableColumn)) {

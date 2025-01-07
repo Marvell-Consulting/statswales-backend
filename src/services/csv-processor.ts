@@ -20,9 +20,9 @@ import { Locale } from '../enums/locale';
 import { FileType } from '../enums/file-type';
 import { FactTableInfo } from '../entities/dataset/fact-table-info';
 import { FactTableAction } from '../enums/fact-table-action';
+import { convertBufferToUTF8 } from '../utils/file-utils';
 
 import { DataLakeService } from './datalake';
-import { convertBufferToUTF8 } from '../utils/file-utils';
 
 export const MAX_PAGE_SIZE = 500;
 export const MIN_PAGE_SIZE = 5;

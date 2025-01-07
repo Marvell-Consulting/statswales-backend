@@ -30,6 +30,7 @@ import { LookupTable } from '../entities/dataset/lookup-table';
 import { DateReferenceDataItem, dateDimensionReferenceTableCreator } from './time-matching';
 import { createFactTableQuery } from './cube-handler';
 import { DataLakeService } from './datalake';
+// eslint-disable-next-line import/no-cycle
 import { getReferenceDataDimensionPreview } from './reference-data-handler';
 
 const createDateDimensionTable = `CREATE TABLE date_dimension (date_code VARCHAR, description VARCHAR, start_date datetime, end_date datetime, date_type varchar);`;

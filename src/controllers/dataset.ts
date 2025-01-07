@@ -25,9 +25,9 @@ import { TopicSelectionDTO } from '../dtos/topic-selection-dto';
 import { TeamSelectionDTO } from '../dtos/team-selection-dto';
 import { createBaseCube } from '../services/cube-handler';
 import { DEFAULT_PAGE_SIZE, uploadCSV } from '../services/csv-processor';
+import { convertBufferToUTF8 } from '../utils/file-utils';
 
 import { getCubePreview } from './cube-controller';
-import { convertBufferToUTF8 } from '../utils/file-utils';
 
 export const listAllDatasets = async (req: Request, res: Response, next: NextFunction) => {
     try {

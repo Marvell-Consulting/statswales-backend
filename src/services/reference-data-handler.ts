@@ -14,13 +14,13 @@ import { FactTableDTO } from '../dtos/fact-table-dto';
 import { ReferenceType } from '../enums/reference-type';
 import { DimensionType } from '../enums/dimension-type';
 
+// eslint-disable-next-line import/no-cycle
 import { cleanUpDimension } from './dimension-processor';
 import {
     cleanUpReferenceDataTables,
     loadCorrectReferenceDataIntoReferenceDataTable,
     loadReferenceDataIntoCube
 } from './cube-handler';
-import { ReferenceDataExtractor } from '../extractors/reference-data-extractor';
 
 async function setupDimension(dimension: Dimension, categories: string[]) {
     // Clean up previously uploaded dimensions

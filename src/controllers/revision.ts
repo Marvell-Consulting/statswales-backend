@@ -25,9 +25,9 @@ import { DuckdbOutputType } from '../enums/duckdb-outputs';
 import { createDimensionsFromSourceAssignment, validateSourceAssignment } from '../services/dimension-processor';
 import { createBaseCube } from '../services/cube-handler';
 import { DEFAULT_PAGE_SIZE, getCSVPreview, removeFileFromDataLake, uploadCSV } from '../services/csv-processor';
+import { convertBufferToUTF8 } from '../utils/file-utils';
 
 import { getCubePreview, outputCube } from './cube-controller';
-import { convertBufferToUTF8 } from '../utils/file-utils';
 
 export const getFactTableInfo = async (req: Request, res: Response, next: NextFunction) => {
     try {

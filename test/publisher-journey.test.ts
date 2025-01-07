@@ -11,7 +11,7 @@ import { t } from '../src/middleware/translation';
 import { DatasetDTO } from '../src/dtos/dataset-dto';
 import { DatasetInfoDTO } from '../src/dtos/dataset-info-dto';
 import { FactTableDTO } from '../src/dtos/fact-table-dto';
-import { MAX_PAGE_SIZE, MIN_PAGE_SIZE } from '../src/controllers/csv-processor';
+import { MAX_PAGE_SIZE, MIN_PAGE_SIZE } from '../src/services/csv-processor';
 import DatabaseManager from '../src/db/database-manager';
 import { User } from '../src/entities/user/user';
 import { SourceAssignmentDTO } from '../src/dtos/source-assignment-dto';

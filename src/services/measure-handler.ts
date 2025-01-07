@@ -2,6 +2,7 @@ import fs from 'fs';
 
 import { Database } from 'duckdb-async';
 import tmp from 'tmp';
+import { join } from 'lodash';
 
 import { LookupTable } from '../entities/dataset/lookup-table';
 import { FactTable } from '../entities/dataset/fact-table';
@@ -24,7 +25,6 @@ import { LookupTableExtractor } from '../extractors/lookup-table-extractor';
 
 import { createFactTableQuery } from './cube-handler';
 import { DataLakeService } from './datalake';
-import { join } from 'lodash';
 
 async function cleanUpMeasure(measure: Measure) {
     if (!measure.lookupTable) return;

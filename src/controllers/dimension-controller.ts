@@ -118,14 +118,7 @@ export const attachLookupTableToDimension = async (req: Request, res: Response, 
     const tableMatcher = req.body as LookupTablePatchDTO;
 
     try {
-        const result = await validateLookupTable(
-            fileImport,
-            factTable,
-            dataset,
-            dimension,
-            utf8Buffer,
-            tableMatcher
-        );
+        const result = await validateLookupTable(fileImport, factTable, dataset, dimension, utf8Buffer, tableMatcher);
         if ((result as ViewErrDTO).status) {
             const error = result as ViewErrDTO;
             res.status(error.status);

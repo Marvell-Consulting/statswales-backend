@@ -2,13 +2,14 @@ import fs from 'node:fs';
 
 import tmp, { FileResult } from 'tmp';
 import { Database } from 'duckdb-async';
+import detectCharacterEncoding from 'detect-character-encoding';
+import iconv from 'iconv-lite';
 
 import { Dataset } from '../entities/dataset/dataset';
 import { FileImport } from '../entities/dataset/file-import';
 import { DataLakeService } from '../services/datalake';
 import { FileType } from '../enums/file-type';
-import detectCharacterEncoding from 'detect-character-encoding';
-import iconv from 'iconv-lite';
+
 import { logger } from './logger';
 
 export const convertBufferToUTF8 = (buffer: Buffer): Buffer => {
