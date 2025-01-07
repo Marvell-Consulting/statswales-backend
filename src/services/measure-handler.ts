@@ -2,34 +2,29 @@ import fs from 'fs';
 
 import { Database } from 'duckdb-async';
 import tmp from 'tmp';
-import { NextFunction, Request, Response } from 'express';
 
 import { LookupTable } from '../entities/dataset/lookup-table';
 import { FactTable } from '../entities/dataset/fact-table';
-import { logger } from '../utils/logger';
+import { MeasureLookupPatchDTO } from '../dtos/measure-lookup-patch-dto';
+import { MeasureLookupTableExtractor } from '../extractors/measure-lookup-extractor';
+import { columnIdentification, convertFactTableToLookupTable, lookForJoinColumn } from '../utils/lookup-table-utils';
+import { ColumnDescriptor } from '../extractors/column-descriptor';
 import { Dataset } from '../entities/dataset/dataset';
 import { CSVHeader, ViewDTO, ViewErrDTO } from '../dtos/view-dto';
+import { viewErrorGenerator } from '../utils/view-error-generator';
+import { DataValueFormat } from '../enums/data-value-format';
+import { logger } from '../utils/logger';
+import { Measure } from '../entities/dataset/measure';
+import { getFileImportAndSaveToDisk, loadFileIntoDatabase } from '../utils/file-utils';
 import { DatasetRepository } from '../repositories/dataset';
 import { FactTableColumnType } from '../enums/fact-table-column-type';
 import { DatasetDTO } from '../dtos/dataset-dto';
 import { FactTableDTO } from '../dtos/fact-table-dto';
-import { DataLakeService } from '../services/datalake';
-import { columnIdentification, convertFactTableToLookupTable } from '../utils/lookup-table-utils';
-import { MeasureLookupPatchDTO } from '../dtos/measure-lookup-patch-dto';
-import { getFileImportAndSaveToDisk, loadFileIntoDatabase } from '../utils/file-utils';
-import { viewErrorGenerator } from '../utils/view-error-generator';
-import { Measure } from '../entities/dataset/measure';
-import { MeasureLookupTableExtractor } from '../extractors/measure-lookup-extractor';
-import { DataValueFormat } from '../enums/data-value-format';
-import { ColumnDescriptor } from '../extractors/column-descriptor';
 import { LookupTableExtractor } from '../extractors/lookup-table-extractor';
-import { NotFoundException } from '../exceptions/not-found.exception';
-import { BadRequestException } from '../exceptions/bad-request.exception';
-import { getLatestRevision } from '../utils/latest';
-import { UnknownException } from '../exceptions/unknown.exception';
 
-import { uploadCSV } from './csv-processor';
 import { createFactTableQuery } from './cube-handler';
+import { DataLakeService } from './datalake';
+import { join } from 'lodash';
 
 async function cleanUpMeasure(measure: Measure) {
     if (!measure.lookupTable) return;
@@ -94,46 +89,17 @@ function createExtractor(
                 ?.columnName,
             formatColumn: protoLookupTable.factTableInfo.find(
                 (info) =>
-                    info.columnName.toLowerCase().startsWith('format') ||
-                    info.columnName.toLowerCase().startsWith('decimal')
+                    info.columnName.toLowerCase().indexOf('format') > -1 ||
+                    info.columnName.toLowerCase().indexOf('decimal') > -1
             )?.columnName,
             measureTypeColumn: protoLookupTable.factTableInfo.find(
-                (info) =>
-                    (info.columnName.toLowerCase().indexOf('measure') > -1 &&
-                        info.columnName.toLowerCase().indexOf('type') > -1) ||
-                    info.columnName.toLowerCase().endsWith('measure')
+                (info) => info.columnName.toLowerCase().indexOf('type') > -1
             )?.columnName,
             descriptionColumns: protoLookupTable.factTableInfo
                 .filter((info) => info.columnName.toLowerCase().startsWith('description'))
                 .map((info) => columnIdentification(info)),
             notesColumns
         };
-    }
-}
-
-function lookForJoinColumn(protoLookupTable: FactTable, tableMatcher?: MeasureLookupPatchDTO): string {
-    if (tableMatcher?.join_column) {
-        return tableMatcher.join_column;
-    } else {
-        const possibleJoinColumns = protoLookupTable.factTableInfo.filter((info) => {
-            if (info.columnName.toLowerCase().indexOf('decimal') >= 0) return false;
-            if (info.columnName.toLowerCase().indexOf('hierarchy') >= 0) return false;
-            if (info.columnName.toLowerCase().indexOf('format') >= 0) return false;
-            if (info.columnName.toLowerCase().indexOf('description') >= 0) return false;
-            if (info.columnName.toLowerCase().indexOf('sort') >= 0) return false;
-            if (info.columnName.toLowerCase().indexOf('note') >= 0) return false;
-            if (info.columnName.toLowerCase().endsWith('measure')) return false;
-            logger.debug(`Looks like column ${info.columnName.toLowerCase()} is a join column`);
-            return true;
-        });
-        if (possibleJoinColumns.length > 1) {
-            throw new Error('There are to many possible join columns.  Ask user for more information');
-        }
-        if (possibleJoinColumns.length === 0) {
-            throw new Error('Could not find a column to join against the fact table.');
-        }
-        logger.debug(`Found the following join column ${JSON.stringify(possibleJoinColumns)}`);
-        return possibleJoinColumns[0].columnName;
     }
 }
 
@@ -225,7 +191,7 @@ async function validateTableContent(
     extractor: MeasureLookupTableExtractor
 ): Promise<ViewErrDTO | undefined> {
     const unmatchedFormats: string[] = [];
-    if (extractor.formatColumn && extractor.formatColumn.toLowerCase().indexOf('format') !== -1) {
+    if (extractor.formatColumn && extractor.formatColumn.toLowerCase().indexOf('format') > -1) {
         logger.debug('Formats column is present.  Validating all formats present are valid.');
         const formats = await quack.all(
             `SELECT DISTINCT "${extractor.formatColumn}" as formats FROM ${lookupTableName};`
@@ -250,24 +216,6 @@ async function validateTableContent(
             totalNonMatching: unmatchedFormats.length,
             nonMatchingValues: unmatchedFormats
         });
-    }
-    if (extractor.formatColumn && extractor.formatColumn.toLowerCase().indexOf('format') !== -1) {
-        logger.debug(
-            `Measure type column (${extractor.measureTypeColumn}) is present, validating all type present are valid`
-        );
-        const unmatchedMeasureTypes: string[] = [];
-        const measureTypes = await quack.all(
-            `SELECT DISTINCT "${extractor.measureTypeColumn}" as formats FROM ${lookupTableName};`
-        );
-        for (const measureType of Object.values(measureTypes.map((measureType) => measureType.formats))) {
-            if (Object.values(DataValueFormat).indexOf(measureType) === -1) unmatchedMeasureTypes.push(measureType);
-        }
-        if (unmatchedMeasureTypes.length > 0) {
-            return viewErrorGenerator(400, datasetId, 'patch', 'errors.dimensionValidation.invalid_lookup_table', {
-                totalNonMatching: unmatchedMeasureTypes.length,
-                nonMatchingValues: unmatchedMeasureTypes
-            });
-        }
     }
     logger.debug('Validating column contents complete.');
     return undefined;
@@ -298,7 +246,16 @@ export const validateMeasureLookupTable = async (
         throw err;
     }
 
-    const confirmedJoinColumn: string = lookForJoinColumn(protoLookupTable, tableMatcher);
+    let confirmedJoinColumn: string | undefined;
+    try {
+        confirmedJoinColumn = lookForJoinColumn(protoLookupTable, measure.factTableColumn, tableMatcher);
+    } catch (err) {
+        return viewErrorGenerator(400, dataset.id, 'patch', 'errors.dimensionValidation.no_join_column', {});
+    }
+
+    if (!confirmedJoinColumn) {
+        return viewErrorGenerator(400, dataset.id, 'patch', 'errors.dimensionValidation.no_join_column', {});
+    }
 
     const rowMatchingErrors = await rowMatcher(
         quack,
@@ -481,99 +438,5 @@ export const getMeasurePreview = async (dataset: Dataset, factTable: FactTable) 
         await quack.close();
         tempFile.removeCallback();
         throw error;
-    }
-};
-
-export const resetMeasure = async (req: Request, res: Response, next: NextFunction) => {
-    const dataset = res.locals.dataset;
-    const measure = dataset.measure;
-    if (!measure) {
-        next(new NotFoundException('errors.measure_missing'));
-        return;
-    }
-    logger.debug('Resetting measure by removing extractor, lookup table, info and join column');
-    measure.extractor = null;
-    if (measure.lookup) {
-        const measureLookupFilename = measure.lookup.filename;
-        const lookupTable: LookupTable = measure.lookupTable;
-        await lookupTable.remove();
-        measure.lookupTable = null;
-        logger.debug(`Removing file ${dataset.id}/${measureLookupFilename} from data lake`);
-        const datalakeService = new DataLakeService();
-        await datalakeService.deleteFile(measureLookupFilename, dataset.id);
-    }
-    if (measure.measureInfo) {
-        logger.debug('Removing all measure info');
-        for (const info of measure.measureInfo) {
-            await info.remove();
-        }
-    }
-    measure.joinColumn = null;
-    logger.debug('Saving measure and returning dataset');
-    await measure.save();
-    const updateDataset = await Dataset.findOneByOrFail({ id: dataset.id });
-    res.status(200);
-    const dto = DatasetDTO.fromDataset(updateDataset);
-    res.json(dto);
-};
-
-export const attachLookupTableToMeasure = async (req: Request, res: Response, next: NextFunction) => {
-    if (!req.file) {
-        next(new BadRequestException('errors.upload.no_csv'));
-        return;
-    }
-    const dataset: Dataset = res.locals.dataset;
-
-    // Replace calls that require this to calls that get a single factTable for all revisions to "present"
-    const factTable = getLatestRevision(dataset)?.factTables[0];
-    if (!factTable) {
-        next(new NotFoundException('errors.fact_table_invalid'));
-        return;
-    }
-    let fileImport: FactTable;
-    try {
-        fileImport = await uploadCSV(req.file.buffer, req.file?.mimetype, req.file?.originalname, res.locals.datasetId);
-    } catch (err) {
-        logger.error(`An error occurred trying to upload the file: ${err}`);
-        next(new UnknownException('errors.upload_error'));
-        return;
-    }
-
-    const tableMatcher = req.body as MeasureLookupPatchDTO;
-
-    try {
-        const result = await validateMeasureLookupTable(fileImport, factTable, dataset, req.file.buffer, tableMatcher);
-        if ((result as ViewErrDTO).status) {
-            const error = result as ViewErrDTO;
-            res.status(error.status);
-            res.json(result);
-            return;
-        }
-        res.status(200);
-        res.json(result);
-    } catch (err) {
-        logger.error(`An error occurred trying to handle measure lookup table with error: ${err}`);
-        next(new UnknownException('errors.upload_error'));
-    }
-};
-
-export const getPreviewOfMeasure = async (req: Request, res: Response, next: NextFunction) => {
-    const dataset = res.locals.dataset;
-    const factTable = getLatestRevision(dataset)?.factTables[0];
-    if (!dataset.measure) {
-        next(new NotFoundException('errors.measure_invalid'));
-        return;
-    }
-    if (!factTable) {
-        next(new NotFoundException('errors.fact_table_invalid'));
-        return;
-    }
-    try {
-        const preview = await getMeasurePreview(dataset, factTable);
-        res.status(200);
-        res.json(preview);
-    } catch (err) {
-        logger.error(`Something went wrong trying to get a preview of the dimension with the following error: ${err}`);
-        next(new UnknownException('errors.upload_error'));
     }
 };

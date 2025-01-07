@@ -1,6 +1,6 @@
 import { t } from 'i18next';
 
-import { MAX_PAGE_SIZE, MIN_PAGE_SIZE } from '../controllers/csv-processor';
+import { MAX_PAGE_SIZE, MIN_PAGE_SIZE } from '../services/csv-processor';
 import { Error } from '../dtos/error';
 import { Locale } from '../enums/locale';
 

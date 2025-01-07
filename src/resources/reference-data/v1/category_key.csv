@@ -21,7 +21,7 @@ Geog/WestConst,Geog
 Geog/CityReg,Geog
 Geog/LSOA,Geog
 Geog/MSOA,Geog
-ItnlGeog/Country,IntlGeog
+Geog/Country,Geog
 Eth/Broad,Eth
 Eth/Detailed,Eth
 Gen/Gen,Gen

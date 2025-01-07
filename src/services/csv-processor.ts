@@ -8,7 +8,6 @@ import iconv from 'iconv-lite';
 
 import { i18next } from '../middleware/translation';
 import { logger as parentLogger } from '../utils/logger';
-import { DataLakeService } from '../services/datalake';
 import { FactTable } from '../entities/dataset/fact-table';
 import { Dataset } from '../entities/dataset/dataset';
 import { CSVHeader, ViewDTO, ViewErrDTO } from '../dtos/view-dto';
@@ -21,6 +20,9 @@ import { Locale } from '../enums/locale';
 import { FileType } from '../enums/file-type';
 import { FactTableInfo } from '../entities/dataset/fact-table-info';
 import { FactTableAction } from '../enums/fact-table-action';
+
+import { DataLakeService } from './datalake';
+import { convertBufferToUTF8 } from '../utils/file-utils';
 
 export const MAX_PAGE_SIZE = 500;
 export const MIN_PAGE_SIZE = 5;
@@ -155,20 +157,6 @@ export async function extractTableInformation(fileBuffer: Buffer, fileType: File
         info.columnDatatype = header.column_type;
         return info;
     });
-}
-
-function convertBufferToUTF8(buffer: Buffer): Buffer {
-    const fileEncoding = detectCharacterEncoding(buffer)?.encoding;
-    if (!fileEncoding) {
-        logger.warn('Could not detect file encoding for the file');
-        throw new Error('errors.csv.invalid');
-    }
-    if (fileEncoding !== 'UTF-8') {
-        logger.warn(`File is not UTF-8 encoded... File appears to be ${fileEncoding}... Going to try to recode it`);
-        const decodedString = iconv.decode(buffer, fileEncoding);
-        return iconv.encode(decodedString, 'utf-8');
-    }
-    return buffer;
 }
 
 // Required Methods for refactor
