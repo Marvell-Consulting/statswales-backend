@@ -3,51 +3,25 @@ import fs from 'fs';
 import { Database } from 'duckdb-async';
 import tmp from 'tmp';
 
+import { DimensionType } from '../enums/dimension-type';
 import { LookupTable } from '../entities/dataset/lookup-table';
 import { FactTable } from '../entities/dataset/fact-table';
-import { Dimension } from '../entities/dataset/dimension';
-import { logger } from '../utils/logger';
+import { LookupTablePatchDTO } from '../dtos/lookup-patch-dto';
+import { LookupTableExtractor } from '../extractors/lookup-table-extractor';
+import { columnIdentification, convertFactTableToLookupTable, lookForJoinColumn } from '../utils/lookup-table-utils';
+import { ColumnDescriptor } from '../extractors/column-descriptor';
 import { Dataset } from '../entities/dataset/dataset';
 import { CSVHeader, ViewDTO, ViewErrDTO } from '../dtos/view-dto';
-import { DimensionType } from '../enums/dimension-type';
+import { logger } from '../utils/logger';
+import { Dimension } from '../entities/dataset/dimension';
+import { getFileImportAndSaveToDisk, loadFileIntoDatabase } from '../utils/file-utils';
+import { viewErrorGenerator } from '../utils/view-error-generator';
 import { DatasetRepository } from '../repositories/dataset';
 import { FactTableColumnType } from '../enums/fact-table-column-type';
 import { DatasetDTO } from '../dtos/dataset-dto';
 import { FactTableDTO } from '../dtos/fact-table-dto';
-import { DataLakeService } from '../services/datalake';
-import { LookupTableExtractor } from '../extractors/lookup-table-extractor';
-import { LookupTablePatchDTO } from '../dtos/lookup-patch-dto';
-import { columnIdentification, convertFactTableToLookupTable } from '../utils/lookup-table-utils';
-import { viewErrorGenerator } from '../utils/view-error-generator';
-import { getFileImportAndSaveToDisk, loadFileIntoDatabase } from '../utils/file-utils';
-import { ColumnDescriptor } from '../extractors/column-descriptor';
 
-async function cleanUpDimension(dimension: Dimension) {
-    if (!dimension.lookupTable) return;
-    logger.info(`Cleaning up previous lookup table`);
-    try {
-        const dataLakeService = new DataLakeService();
-        await dataLakeService.deleteFile(dimension.lookupTable.filename, dimension.dataset.id);
-    } catch (err) {
-        logger.warn(`Something went wrong trying to remove previously uploaded lookup table with error: ${err}`);
-    }
-
-    try {
-        const lookupTableId = dimension.lookupTable.id;
-        dimension.lookupTable = null;
-        dimension.extractor = null;
-        dimension.type = DimensionType.Raw;
-        dimension.joinColumn = null;
-        await dimension.save();
-        const oldLookupTable = await LookupTable.findOneBy({ id: lookupTableId });
-        await oldLookupTable?.remove();
-    } catch (err) {
-        logger.error(
-            `Something has gone wrong trying to unlink the previous lookup table from the dimension with the following error: ${err}`
-        );
-        throw err;
-    }
-}
+import { cleanUpDimension } from './dimension-processor';
 
 async function setupDimension(
     dimension: Dimension,
@@ -153,30 +127,15 @@ export const validateLookupTable = async (
         throw err;
     }
 
-    let confirmedJoinColumn: string;
-    if (tableMatcher?.join_column) {
-        logger.debug(`Table matcher is supplied using user supplied information`);
-        confirmedJoinColumn = tableMatcher.join_column;
-    } else {
-        logger.debug(`Looking for the join column in uploaded fact table`);
-        const possibleJoinColumns = protoLookupTable.factTableInfo.filter((info) => {
-            if (info.columnName.toLowerCase().indexOf('description') > -1) return false;
-            if (info.columnName.toLowerCase().indexOf('sort') > -1) return false;
-            if (info.columnName.toLowerCase().indexOf('hierarchy') > -1) return false;
-            if (info.columnName.toLowerCase().indexOf('note') > -1) return false;
-            return true;
-        });
-        if (possibleJoinColumns.length > 1) {
-            logger.error(
-                `There are to many possible join columns.  Ask user for more information.  Join Columns found: ${JSON.stringify(possibleJoinColumns)}`
-            );
-            throw new Error('There are too many possible join columns.  Ask user for more information');
-        }
-        if (possibleJoinColumns.length === 0) {
-            logger.error('Could not find a column to join against the fact table.');
-            throw new Error('Could not find a column to join against the fact table.');
-        }
-        confirmedJoinColumn = possibleJoinColumns[0].columnName;
+    let confirmedJoinColumn: string | undefined;
+    try {
+        confirmedJoinColumn = lookForJoinColumn(protoLookupTable, dimension.factTableColumn, tableMatcher);
+    } catch (err) {
+        return viewErrorGenerator(400, dataset.id, 'patch', 'errors.dimensionValidation.no_join_column', {});
+    }
+
+    if (!confirmedJoinColumn) {
+        return viewErrorGenerator(400, dataset.id, 'patch', 'errors.dimensionValidation.no_join_column', {});
     }
 
     try {

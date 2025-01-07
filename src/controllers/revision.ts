@@ -21,12 +21,13 @@ import { BadRequestException } from '../exceptions/bad-request.exception';
 import { NotFoundException } from '../exceptions/not-found.exception';
 import { RevisionDTO } from '../dtos/revision-dto';
 import { RevisionRepository } from '../repositories/revision';
-import { getLatestRevision } from '../utils/latest';
 import { DuckdbOutputType } from '../enums/duckdb-outputs';
+import { createDimensionsFromSourceAssignment, validateSourceAssignment } from '../services/dimension-processor';
+import { createBaseCube } from '../services/cube-handler';
+import { DEFAULT_PAGE_SIZE, getCSVPreview, removeFileFromDataLake, uploadCSV } from '../services/csv-processor';
+import { convertBufferToUTF8 } from '../utils/file-utils';
 
-import { createDimensionsFromSourceAssignment, validateSourceAssignment } from './dimension-processor';
-import { createBaseCube, getCubePreview, outputCube } from './cube-handler';
-import { DEFAULT_PAGE_SIZE, getCSVPreview, removeFileFromDataLake, uploadCSV } from './csv-processor';
+import { getCubePreview, outputCube } from './cube-controller';
 
 export const getFactTableInfo = async (req: Request, res: Response, next: NextFunction) => {
     try {
@@ -190,9 +191,9 @@ export const attachFactTableToRevision = async (req: Request, res: Response, nex
     }
 
     let fileImport: FactTable;
-
+    const utf8Buffer = convertBufferToUTF8(req.file.buffer);
     try {
-        fileImport = await uploadCSV(req.file.buffer, req.file?.mimetype, req.file?.originalname, dataset.id);
+        fileImport = await uploadCSV(utf8Buffer, req.file?.mimetype, req.file?.originalname, dataset.id);
         fileImport.revision = revision;
         await fileImport.save();
         const updatedDataset = await DatasetRepository.getById(dataset.id);

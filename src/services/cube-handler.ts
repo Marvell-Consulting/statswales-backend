@@ -1,34 +1,27 @@
 import fs from 'node:fs';
+import path from 'path';
 
-import tmp, { FileResult } from 'tmp';
 import { Database } from 'duckdb-async';
+import tmp, { FileResult } from 'tmp';
 import { t } from 'i18next';
-import { NextFunction, Request, Response } from 'express';
 
-import { Dataset } from '../entities/dataset/dataset';
-import { FactTableAction } from '../enums/fact-table-action';
-import { FactTableColumnType } from '../enums/fact-table-column-type';
-import { FactTableInfo } from '../entities/dataset/fact-table-info';
-import { FileImport } from '../entities/dataset/file-import';
-import { SUPPORTED_LOCALES } from '../middleware/translation';
-import { DimensionType } from '../enums/dimension-type';
-import { Dimension } from '../entities/dataset/dimension';
 import { FileType } from '../enums/file-type';
+import { FileImport } from '../entities/dataset/file-import';
 import { logger } from '../utils/logger';
-import { Locale } from '../enums/locale';
-import { Revision } from '../entities/dataset/revision';
-import { FactTable } from '../entities/dataset/fact-table';
-import { DuckdbOutputType } from '../enums/duckdb-outputs';
-import { DatasetRepository } from '../repositories/dataset';
-import { CSVHeader, ViewDTO, ViewErrDTO } from '../dtos/view-dto';
-import { DatasetDTO } from '../dtos/dataset-dto';
-import { validateParams } from '../utils/paging-validation';
-import { getFileImportAndSaveToDisk } from '../utils/file-utils';
+import { Dataset } from '../entities/dataset/dataset';
+import { Dimension } from '../entities/dataset/dimension';
 import { LookupTableExtractor } from '../extractors/lookup-table-extractor';
+import { getFileImportAndSaveToDisk } from '../utils/file-utils';
+import { SUPPORTED_LOCALES } from '../middleware/translation';
+import { FactTableInfo } from '../entities/dataset/fact-table-info';
+import { FactTable } from '../entities/dataset/fact-table';
+import { FactTableAction } from '../enums/fact-table-action';
+import { Revision } from '../entities/dataset/revision';
+import { Locale } from '../enums/locale';
 import { MeasureLookupTableExtractor } from '../extractors/measure-lookup-extractor';
-import { getLatestRevision } from '../utils/latest';
-import { UnknownException } from '../exceptions/unknown.exception';
-import { DataLakeService } from '../services/datalake';
+import { DimensionType } from '../enums/dimension-type';
+import { FactTableColumnType } from '../enums/fact-table-column-type';
+import { ReferenceDataExtractor } from '../extractors/reference-data-extractor';
 
 import { dateDimensionReferenceTableCreator } from './time-matching';
 
@@ -113,6 +106,144 @@ export const loadFileDataIntoTable = async (
     } catch (error) {
         logger.error(`Failed to load file into table using query ${insertQuery} with the following error: ${error}`);
         throw error;
+    }
+};
+
+async function createReferenceDataTablesInCube(quack: Database) {
+    logger.debug('Creating empty reference data tables');
+    try {
+        logger.debug('Creating categories tables');
+        await quack.exec(`CREATE TABLE "categories" ("category" TEXT PRIMARY KEY);`);
+        logger.debug('Creating category_keys table');
+        await quack.exec(`CREATE TABLE "category_keys" (
+                            "category_key" TEXT PRIMARY KEY,
+                            "category" TEXT NOT NULL,
+                            );`);
+        logger.debug('Creating reference_data table');
+        await quack.exec(`CREATE TABLE "reference_data" (
+                            "item_id" TEXT NOT NULL,
+                            "version_no" INTEGER NOT NULL,
+                            "sort_order" INTEGER,
+                            "category_key" TEXT NOT NULL,
+                            "validity_start" TEXT NOT NULL,
+                            "validity_end" TEXT,
+                            PRIMARY KEY("item_id","version_no","category_key"),
+                            );`);
+        logger.debug('Creating reference_data_all table');
+        await quack.exec(`CREATE TABLE "reference_data_all" (
+                            "item_id" TEXT NOT NULL,
+                            "version_no" INTEGER NOT NULL,
+                            "sort_order" INTEGER,
+                            "category_key" TEXT NOT NULL,
+                            "validity_start" TEXT NOT NULL,
+                            "validity_end" TEXT,
+                            PRIMARY KEY("item_id","version_no","category_key"),
+                            );`);
+        logger.debug('Creating reference_data_info table');
+        await quack.exec(`CREATE TABLE "reference_data_info" (
+                            "item_id" TEXT NOT NULL,
+                            "version_no" INTEGER NOT NULL,
+                            "category_key" TEXT NOT NULL,
+                            "lang" TEXT NOT NULL,
+                            "description" TEXT NOT NULL,
+                            "notes" TEXT,
+                            PRIMARY KEY("item_id","version_no","category_key","lang"),
+                            );`);
+        logger.debug('Creating category_key_info table');
+        await quack.exec(`CREATE TABLE "category_key_info" (
+                            "category_key" TEXT NOT NULL,
+                            "lang" TEXT NOT NULL,
+                            "description" TEXT NOT NULL,
+                            "notes" TEXT,
+                            PRIMARY KEY("category_key","lang"),
+                            );`);
+        logger.debug('Creating category_info table');
+        await quack.exec(`CREATE TABLE "category_info" (
+                            "category" TEXT NOT NULL,
+                            "lang" TEXT NOT NULL,
+                            "description" TEXT NOT NULL,
+                            "notes" TEXT,
+                            PRIMARY KEY("category","lang"),
+                            );`);
+        logger.debug('Creating hierarchy table');
+        await quack.exec(`CREATE TABLE "hierarchy" (
+                            "item_id" TEXT NOT NULL,
+                            "version_no" INTEGER NOT NULL,
+                            "category_key" TEXT NOT NULL,
+                            "parent_id" TEXT NOT NULL,
+                            "parent_version" INTEGER NOT NULL,
+                            "parent_category" TEXT NOT NULL,
+                            PRIMARY KEY("item_id","version_no","category_key","parent_id","parent_version","parent_category")
+                            );`);
+    } catch (error) {
+        logger.error(`Something went wrong trying to create the initial reference data tables with error: ${error}`);
+        throw new Error(`Something went wrong trying to create the initial reference data tables with error: ${error}`);
+    }
+}
+
+async function loadReferenceDataFromCSV(quack: Database) {
+    logger.debug(`Loading reference data from CSV`);
+    logger.debug(`Loading categories from CSV`);
+    await quack.exec(
+        `COPY categories FROM '${path.resolve(__dirname, `../resources/reference-data/v1/categories.csv`)}';`
+    );
+    logger.debug(`Loading category_keys from CSV`);
+    await quack.exec(
+        `COPY category_keys FROM '${path.resolve(__dirname, `../resources/reference-data/v1/category_key.csv`)}';`
+    );
+    logger.debug(`Loading reference_data_all from CSV`);
+    await quack.exec(
+        `COPY reference_data_all FROM '${path.resolve(__dirname, `../resources/reference-data/v1/reference_data.csv`)}';`
+    );
+    logger.debug(`Loading reference_data_info from CSV`);
+    await quack.exec(
+        `COPY reference_data_info FROM '${path.resolve(__dirname, `../resources/reference-data/v1/reference_data_info.csv`)}';`
+    );
+    logger.debug(`Loading category_key_info from CSV`);
+    await quack.exec(
+        `COPY category_key_info FROM '${path.resolve(__dirname, `../resources/reference-data/v1/category_key_info.csv`)}';`
+    );
+    logger.debug(`Loading category_info from CSV`);
+    await quack.exec(
+        `COPY category_info FROM '${path.resolve(__dirname, `../resources/reference-data/v1/category_info.csv`)}';`
+    );
+    logger.debug(`Loading hierarchy from CSV`);
+    await quack.exec(
+        `COPY hierarchy FROM '${path.resolve(__dirname, `../resources/reference-data/v1/hierarchy.csv`)}';`
+    );
+}
+
+export const loadReferenceDataIntoCube = async (quack: Database) => {
+    await createReferenceDataTablesInCube(quack);
+    await loadReferenceDataFromCSV(quack);
+    logger.debug(`Reference data tables created and populated successfully.`);
+};
+
+export const cleanUpReferenceDataTables = async (quack: Database) => {
+    await quack.exec('DROP TABLE reference_data_all;');
+    await quack.exec('DELETE FROM reference_data_info WHERE item_id NOT IN (SELECT item_id FROM reference_data);');
+    await quack.exec('DELETE FROM category_keys WHERE category_key NOT IN (SELECT category_key FROM reference_data);');
+    await quack.exec(
+        'DELETE FROM category_Key_info WHERE category_key NOT IN (select category_key FROM category_keys);'
+    );
+    await quack.exec('DELETE FROM categories where category NOT IN (SELECT category FROM category_keys);');
+    await quack.exec('DELETE FROM category_info WHERE category NOT IN (SELECT category FROM categories);');
+    await quack.exec('DELETE FROM hierarchy WHERE item_id NOT IN (SELECT item_id FROM reference_data);');
+};
+
+export const loadCorrectReferenceDataIntoReferenceDataTable = async (quack: Database, dimension: Dimension) => {
+    const extractor = dimension.extractor as ReferenceDataExtractor;
+    for (const category of extractor.categories) {
+        const categoryPresent = await quack.all(
+            `SELECT DISTINCT category_key FROM reference_data WHERE category_key='${category}';`
+        );
+        if (categoryPresent.length > 0) {
+            continue;
+        }
+        logger.debug(`Copying ${category} reference data in to reference_data table`);
+        await quack.exec(
+            `INSERT INTO reference_data (SELECT * FROM reference_data_all WHERE category_key='${category}');`
+        );
     }
 };
 
@@ -621,13 +752,16 @@ async function setupDimensions(
                     }
                     break;
                 case DimensionType.ReferenceData:
-                    logger.error(`Reference data dimensions not implemented`);
+                    await loadCorrectReferenceDataIntoReferenceDataTable(quack, dimension);
                     SUPPORTED_LOCALES.map((locale) => {
                         const columnName =
                             dimension.dimensionInfo.find((info) => info.language === locale)?.name ||
                             dimension.factTableColumn;
-                        selectStatementsMap.get(locale)?.push(`${dimension.factTableColumn} as "${columnName}"`);
+                        selectStatementsMap.get(locale)?.push(`reference_data_info.description as "${columnName}"`);
                     });
+                    joinStatements.push(
+                        `LEFT JOIN reference_data on CAST(${FACT_TABLE_NAME}."${dimension.factTableColumn}" AS VARCHAR)=reference_data.item_id`
+                    );
                     break;
                 case DimensionType.Raw:
                 case DimensionType.Numeric:
@@ -649,6 +783,13 @@ async function setupDimensions(
             );
         }
     }
+}
+
+function referenceDataPresent(dataset: Dataset) {
+    if (dataset.dimensions.find((dim) => dim.type === DimensionType.ReferenceData)) {
+        return true;
+    }
+    return false;
 }
 
 // Builds a fresh cube based on all revisions and returns the file pointer
@@ -726,7 +867,19 @@ export const createBaseCube = async (dataset: Dataset, endRevision: Revision): P
         measureColumn
     );
 
+    if (referenceDataPresent(dataset)) {
+        await loadReferenceDataIntoCube(quack);
+    }
+
     await setupDimensions(quack, dataset, selectStatementsMap, joinStatements, orderByStatements);
+
+    if (referenceDataPresent(dataset)) {
+        await cleanUpReferenceDataTables(quack);
+        joinStatements.push(`JOIN reference_data_info ON reference_data.item_id=reference_data_info.item_id`);
+        joinStatements.push(`    AND reference_data.category_key=reference_data_info.category_key`);
+        joinStatements.push(`    AND reference_data.version_no=reference_data_info.version_no`);
+        joinStatements.push(`    AND reference_data_info.lang='#LANG#'`);
+    }
 
     logger.debug('Adding notes code column to the select statement.');
     if (notesCodeColumn) {
@@ -741,6 +894,7 @@ export const createBaseCube = async (dataset: Dataset, endRevision: Revision): P
             ?.join(
                 ',\n'
             )} FROM ${FACT_TABLE_NAME}\n${joinStatements.join('\n').replace(/#LANG#/g, locale.toLowerCase())}\n ${orderByStatements.length > 0 ? `ORDER BY ${orderByStatements.join(', ')}` : ''};`;
+        logger.debug(defaultViewSQL);
         await quack.exec(defaultViewSQL);
     }
     const tmpFile = tmp.tmpNameSync({ postfix: '.db' });
@@ -761,309 +915,13 @@ export const createBaseCube = async (dataset: Dataset, endRevision: Revision): P
     return tmpFile;
 };
 
+export const cleanUpCube = async (tmpFile: string) => {
+    fs.unlinkSync(tmpFile);
+};
+
 export const getCubeDataTable = async (cubeFile: string, lang: string) => {
     const quack = await Database.create(cubeFile);
     const defaultView = await quack.all(`SELECT * FROM default_view_${lang};`);
     await quack.close();
     return defaultView;
-};
-
-export const getCubePreview = async (
-    cubeFile: string,
-    lang: string,
-    dataset: Dataset,
-    page: number,
-    size: number
-): Promise<ViewDTO | ViewErrDTO> => {
-    const quack = await Database.create(cubeFile);
-    const totalsQuery = `SELECT count(*) as totalLines, ceil(count(*)/${size}) as totalPages from default_view_${lang};`;
-    const totals = await quack.all(totalsQuery);
-    const totalPages = Number(totals[0].totalPages);
-    const totalLines = Number(totals[0].totalLines);
-    const errors = validateParams(page, totalPages, size);
-    if (errors.length > 0) {
-        return {
-            status: 400,
-            errors,
-            dataset_id: dataset.id
-        };
-    }
-    const previewQuery = `SELECT int_line_number, * FROM (SELECT row_number() OVER () as int_line_number, * FROM default_view_${lang}) LIMIT ${size} OFFSET ${(page - 1) * size}`;
-    const preview = await quack.all(previewQuery);
-    const startLine = Number(preview[0].int_line_number);
-    const lastLine = Number(preview[preview.length - 1].int_line_number);
-    const tableHeaders = Object.keys(preview[0]);
-    const dataArray = preview.map((row) => Object.values(row));
-    const currentDataset = await DatasetRepository.getById(dataset.id);
-    const headers: CSVHeader[] = [];
-    for (let i = 0; i < tableHeaders.length; i++) {
-        headers.push({
-            index: i - 1,
-            name: tableHeaders[i],
-            source_type:
-                tableHeaders[i] === 'int_line_number' ? FactTableColumnType.LineNumber : FactTableColumnType.Unknown
-        });
-    }
-    return {
-        dataset: DatasetDTO.fromDataset(currentDataset),
-        current_page: page,
-        page_info: {
-            total_records: totalLines,
-            start_record: startLine,
-            end_record: lastLine
-        },
-        page_size: size,
-        total_pages: totalPages,
-        headers,
-        data: dataArray
-    };
-};
-
-export const outputCube = async (cubeFile: string, lang: string, mode: DuckdbOutputType) => {
-    const quack = await Database.create(cubeFile);
-    const outputFile: FileResult = tmp.fileSync({ postfix: `.${mode}` });
-    switch (mode) {
-        case DuckdbOutputType.Csv:
-            await quack.exec(`COPY default_view_${lang} TO '${outputFile.name}' (HEADER, DELIMITER ',');`);
-            break;
-        case DuckdbOutputType.Parquet:
-            await quack.exec(`COPY default_view_${lang} TO '${outputFile.name}' (FORMAT PARQUET);`);
-            break;
-        case DuckdbOutputType.Excel:
-            await quack.exec(`INSTALL spatial;`);
-            await quack.exec('LOAD spatial;');
-            await quack.exec(`COPY default_view_${lang} TO '${outputFile.name}' WITH (FORMAT GDAL, DRIVER 'xlsx');`);
-            break;
-        case DuckdbOutputType.Json:
-            await quack.exec(`COPY default_view_${lang} TO '${outputFile.name}' (FORMAT JSON);`);
-            break;
-        case DuckdbOutputType.DuckDb:
-            return cubeFile;
-        default:
-            throw new Error(`Format ${mode} not supported`);
-    }
-    return outputFile.name;
-};
-
-export const cleanUpCube = async (tmpFile: string) => {
-    fs.unlinkSync(tmpFile);
-};
-
-export const downloadCubeFile = async (req: Request, res: Response, next: NextFunction) => {
-    const dataset = res.locals.dataset;
-    const latestRevision = getLatestRevision(dataset);
-    if (!latestRevision) {
-        next(new UnknownException('errors.no_revision'));
-        return;
-    }
-    let cubeBuffer: Buffer;
-    if (latestRevision.onlineCubeFilename) {
-        const dataLakeService = new DataLakeService();
-        cubeBuffer = await dataLakeService.getFileBuffer(latestRevision.onlineCubeFilename, dataset.id);
-    } else {
-        try {
-            const cubeFile = await createBaseCube(dataset, latestRevision);
-            cubeBuffer = Buffer.from(fs.readFileSync(cubeFile));
-        } catch (err) {
-            logger.error(`Something went wrong trying to create the cube with the error: ${err}`);
-            next(new UnknownException('errors.cube_create_error'));
-            return;
-        }
-    }
-    logger.info(`Sending original cube file (size: ${cubeBuffer.length})`);
-    res.writeHead(200, {
-        // eslint-disable-next-line @typescript-eslint/naming-convention
-        'Content-Type': 'application/octet-stream',
-        // eslint-disable-next-line @typescript-eslint/naming-convention
-        'Content-disposition': `attachment;filename=${dataset.id}.duckdb`,
-        // eslint-disable-next-line @typescript-eslint/naming-convention
-        'Content-Length': cubeBuffer.length
-    });
-    res.end(cubeBuffer);
-};
-
-export const downloadCubeAsJSON = async (req: Request, res: Response, next: NextFunction) => {
-    const dataset = res.locals.dataset;
-    const lang = req.language.split('-')[0];
-    const latestRevision = getLatestRevision(dataset);
-    if (!latestRevision) {
-        next(new UnknownException('errors.no_revision'));
-        return;
-    }
-    let cubeFile: string;
-    if (latestRevision.onlineCubeFilename) {
-        const dataLakeService = new DataLakeService();
-        const fileBuffer = await dataLakeService.getFileBuffer(latestRevision.onlineCubeFilename, dataset.id);
-        cubeFile = tmp.tmpNameSync({ postfix: '.duckdb' });
-        fs.writeFileSync(cubeFile, fileBuffer);
-    } else {
-        try {
-            logger.info('Creating fresh cube file.');
-            cubeFile = await createBaseCube(dataset, latestRevision);
-        } catch (err) {
-            logger.error(`Something went wrong trying to create the cube with the error: ${err}`);
-            next(new UnknownException('errors.cube_create_error'));
-            return;
-        }
-    }
-    const downloadFile = await outputCube(cubeFile, lang, DuckdbOutputType.Json);
-    fs.unlinkSync(cubeFile);
-    const downloadStream = fs.createReadStream(downloadFile);
-    // eslint-disable-next-line @typescript-eslint/naming-convention
-    res.writeHead(200, { 'Content-Type': '\tapplication/json' });
-    downloadStream.pipe(res);
-
-    // Handle errors in the file stream
-    downloadStream.on('error', (err) => {
-        logger.error('File stream error:', err);
-        // eslint-disable-next-line @typescript-eslint/naming-convention
-        res.writeHead(500, { 'Content-Type': 'text/plain' });
-        fs.unlinkSync(downloadFile);
-        res.end('Server Error');
-    });
-
-    // Optionally listen for the end of the stream
-    downloadStream.on('end', () => {
-        fs.unlinkSync(downloadFile);
-        logger.debug('File stream ended');
-    });
-};
-
-export const downloadCubeAsCSV = async (req: Request, res: Response, next: NextFunction) => {
-    const dataset = res.locals.dataset;
-    const lang = req.language.split('-')[0];
-    const latestRevision = getLatestRevision(dataset);
-    if (!latestRevision) {
-        next(new UnknownException('errors.no_revision'));
-        return;
-    }
-    let cubeFile: string;
-    if (latestRevision.onlineCubeFilename) {
-        const dataLakeService = new DataLakeService();
-        const fileBuffer = await dataLakeService.getFileBuffer(latestRevision.onlineCubeFilename, dataset.id);
-        cubeFile = tmp.tmpNameSync({ postfix: '.duckdb' });
-        fs.writeFileSync(cubeFile, fileBuffer);
-    } else {
-        try {
-            cubeFile = await createBaseCube(dataset, latestRevision);
-        } catch (err) {
-            logger.error(`Something went wrong trying to create the cube with the error: ${err}`);
-            next(new UnknownException('errors.cube_create_error'));
-            return;
-        }
-    }
-    const downloadFile = await outputCube(cubeFile, lang, DuckdbOutputType.Csv);
-    fs.unlinkSync(cubeFile);
-    const downloadStream = fs.createReadStream(downloadFile);
-    // eslint-disable-next-line @typescript-eslint/naming-convention
-    res.writeHead(200, { 'Content-Type': '\ttext/csv' });
-    downloadStream.pipe(res);
-
-    // Handle errors in the file stream
-    downloadStream.on('error', (err) => {
-        logger.error('File stream error:', err);
-        // eslint-disable-next-line @typescript-eslint/naming-convention
-        res.writeHead(500, { 'Content-Type': 'text/plain' });
-        fs.unlinkSync(downloadFile);
-        res.end('Server Error');
-    });
-
-    // Optionally listen for the end of the stream
-    downloadStream.on('end', () => {
-        fs.unlinkSync(downloadFile);
-        logger.debug('File stream ended');
-    });
-};
-
-export const downloadCubeAsParquet = async (req: Request, res: Response, next: NextFunction) => {
-    const dataset = res.locals.dataset;
-    const lang = req.language.split('-')[0];
-    const latestRevision = getLatestRevision(dataset);
-    if (!latestRevision) {
-        next(new UnknownException('errors.no_revision'));
-        return;
-    }
-    let cubeFile: string;
-    if (latestRevision.onlineCubeFilename) {
-        const dataLakeService = new DataLakeService();
-        const fileBuffer = await dataLakeService.getFileBuffer(latestRevision.onlineCubeFilename, dataset.id);
-        cubeFile = tmp.tmpNameSync({ postfix: '.duckdb' });
-        fs.writeFileSync(cubeFile, fileBuffer);
-    } else {
-        try {
-            cubeFile = await createBaseCube(dataset, latestRevision);
-        } catch (err) {
-            logger.error(`Something went wrong trying to create the cube with the error: ${err}`);
-            next(new UnknownException('errors.cube_create_error'));
-            return;
-        }
-    }
-    const downloadFile = await outputCube(cubeFile, lang, DuckdbOutputType.Parquet);
-    fs.unlinkSync(cubeFile);
-    const downloadStream = fs.createReadStream(downloadFile);
-    // eslint-disable-next-line @typescript-eslint/naming-convention
-    res.writeHead(200, { 'Content-Type': '\tapplication/vnd.apache.parquet' });
-    downloadStream.pipe(res);
-
-    // Handle errors in the file stream
-    downloadStream.on('error', (err) => {
-        logger.error('File stream error:', err);
-        // eslint-disable-next-line @typescript-eslint/naming-convention
-        res.writeHead(500, { 'Content-Type': 'text/plain' });
-        fs.unlinkSync(downloadFile);
-        res.end('Server Error');
-    });
-
-    // Optionally listen for the end of the stream
-    downloadStream.on('end', () => {
-        fs.unlinkSync(downloadFile);
-        logger.debug('File stream ended');
-    });
-};
-
-export const downloadCubeAsExcel = async (req: Request, res: Response, next: NextFunction) => {
-    const dataset = res.locals.dataset;
-    const lang = req.language.split('-')[0];
-    const latestRevision = getLatestRevision(dataset);
-    if (!latestRevision) {
-        next(new UnknownException('errors.no_revision'));
-        return;
-    }
-    let cubeFile: string;
-    if (latestRevision.onlineCubeFilename) {
-        const dataLakeService = new DataLakeService();
-        const fileBuffer = await dataLakeService.getFileBuffer(latestRevision.onlineCubeFilename, dataset.id);
-        cubeFile = tmp.tmpNameSync({ postfix: '.duckdb' });
-        fs.writeFileSync(cubeFile, fileBuffer);
-    } else {
-        try {
-            cubeFile = await createBaseCube(dataset, latestRevision);
-        } catch (err) {
-            logger.error(`Something went wrong trying to create the cube with the error: ${err}`);
-            next(new UnknownException('errors.cube_create_error'));
-            return;
-        }
-    }
-    const downloadFile = await outputCube(cubeFile, lang, DuckdbOutputType.Excel);
-    logger.info(`Cube file located at: ${cubeFile}`);
-    // fs.unlinkSync(cubeFile);
-    const downloadStream = fs.createReadStream(downloadFile);
-    // eslint-disable-next-line @typescript-eslint/naming-convention
-    res.writeHead(200, { 'Content-Type': '\tapplication/vnd.ms-excel' });
-    downloadStream.pipe(res);
-
-    // Handle errors in the file stream
-    downloadStream.on('error', (err) => {
-        logger.error('File stream error:', err);
-        // eslint-disable-next-line @typescript-eslint/naming-convention
-        res.writeHead(500, { 'Content-Type': 'text/plain' });
-        fs.unlinkSync(downloadFile);
-        res.end('Server Error');
-    });
-
-    // Optionally listen for the end of the stream
-    downloadStream.on('end', () => {
-        fs.unlinkSync(downloadFile);
-        logger.debug('File stream ended');
-    });
 };

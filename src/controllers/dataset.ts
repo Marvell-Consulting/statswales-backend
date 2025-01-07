@@ -23,9 +23,11 @@ import { TasklistStateDTO } from '../dtos/tasklist-state-dto';
 import { DatasetProviderDTO } from '../dtos/dataset-provider-dto';
 import { TopicSelectionDTO } from '../dtos/topic-selection-dto';
 import { TeamSelectionDTO } from '../dtos/team-selection-dto';
+import { createBaseCube } from '../services/cube-handler';
+import { DEFAULT_PAGE_SIZE, uploadCSV } from '../services/csv-processor';
+import { convertBufferToUTF8 } from '../utils/file-utils';
 
-import { createBaseCube, getCubePreview } from './cube-handler';
-import { DEFAULT_PAGE_SIZE, uploadCSV } from './csv-processor';
+import { getCubePreview } from './cube-controller';
 
 export const listAllDatasets = async (req: Request, res: Response, next: NextFunction) => {
     try {
@@ -84,10 +86,12 @@ export const createFirstRevision = async (req: Request, res: Response, next: Nex
         return;
     }
 
+    const utf8Buffer = convertBufferToUTF8(req.file.buffer);
+
     let fileImport: FactTable;
     logger.debug('Uploading dataset to datalake');
     try {
-        fileImport = await uploadCSV(req.file.buffer, req.file?.mimetype, req.file?.originalname, res.locals.datasetId);
+        fileImport = await uploadCSV(utf8Buffer, req.file?.mimetype, req.file?.originalname, res.locals.datasetId);
         fileImport.action = FactTableAction.Add;
     } catch (err) {
         logger.error(`An error occurred trying to upload the file: ${err}`);

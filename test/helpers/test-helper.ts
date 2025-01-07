@@ -11,7 +11,7 @@ import { DimensionInfo } from '../../src/entities/dataset/dimension-info';
 import { User } from '../../src/entities/user/user';
 import { FactTable } from '../../src/entities/dataset/fact-table';
 import { FileType } from '../../src/enums/file-type';
-import { extractTableInformation } from '../../src/controllers/csv-processor';
+import { extractTableInformation } from '../../src/services/csv-processor';
 import { FactTableAction } from '../../src/enums/fact-table-action';
 import { FactTableColumnType } from '../../src/enums/fact-table-column-type';
 import { LookupTable } from '../../src/entities/dataset/lookup-table';
@@ -103,7 +103,8 @@ const sureStartShortDimensionDescriptor = [
     },
     {
         columnName: 'AreaCode',
-        dimensionType: DimensionType.ReferenceData
+        dimensionType: DimensionType.ReferenceData,
+        extractor: { categories: ['Geog/ITL1', 'Geog/LA'] }
     },
     {
         columnName: 'RowRef',

@@ -65,15 +65,24 @@ describe('API Endpoints for viewing the contents of a dataset', () => {
         ]);
         expect(res.body.data[0]).toEqual([
             1,
-            4.030567686,
+            137527,
             '2021-22',
             '01/04/2021',
             '31/03/2022',
             'Health Visitor',
-            596,
-            'Average'
+            'Wales',
+            'Total'
         ]);
-        expect(res.body.data[23]).toEqual([24, 1007, '2022-23', '01/04/2022', '31/03/2023', 'Other Staff', 512, null]);
+        expect(res.body.data[23]).toEqual([
+            24,
+            1.563664596,
+            '2022-23',
+            '01/04/2022',
+            '31/03/2023',
+            'Other Staff',
+            'Isle of Anglesey',
+            null
+        ]);
     });
 
     test('Get a dataset view returns 500 if there is no revision on the dataset', async () => {

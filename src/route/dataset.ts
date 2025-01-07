@@ -13,7 +13,7 @@ import {
     sendDimensionPreview,
     updateDimension,
     updateDimensionInfo
-} from '../controllers/dimension-processor';
+} from '../controllers/dimension-controller';
 import { DatasetRepository } from '../repositories/dataset';
 import { datasetIdValidator, factTableIdValidator, hasError, revisionIdValidator, titleValidator } from '../validators';
 import { NotFoundException } from '../exceptions/not-found.exception';
@@ -26,8 +26,8 @@ import {
     downloadCubeAsJSON,
     downloadCubeAsParquet,
     downloadCubeFile
-} from '../controllers/cube-handler';
-import { attachLookupTableToMeasure, getPreviewOfMeasure, resetMeasure } from '../controllers/measure-handler';
+} from '../controllers/cube-controller';
+import { attachLookupTableToMeasure, getPreviewOfMeasure, resetMeasure } from '../controllers/measure-controller';
 import {
     addProvidersToDataset,
     createDataset,
