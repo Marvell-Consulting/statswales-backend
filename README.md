@@ -37,7 +37,7 @@ Once the database is populated, you can start the app:
 npm run dev
 ```
 
-This will start the DB container in the background and run the app. The service should then be available on port 3000
+This will start the DB container in the background and run the app. The service should then be available on port 3001
 by default (or whatever you specified for `BACKEND_PORT`).
 
 ## Testing the service

@@ -8,7 +8,7 @@ import { User } from '../../src/entities/user/user';
 import { Dataset } from '../../src/entities/dataset/dataset';
 import { appConfig } from '../../src/config';
 import { AppEnv } from '../../src/config/env.enum';
-import { uploadCSV } from '../../src/controllers/csv-processor';
+import { uploadCSV } from '../../src/services/csv-processor';
 import { FactTable } from '../../src/entities/dataset/fact-table';
 import { DatasetRepository } from '../../src/repositories/dataset';
 import { RevisionRepository } from '../../src/repositories/revision';
