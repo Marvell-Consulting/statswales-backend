@@ -1,6 +1,6 @@
 services:
   db-dev:
-    image: postgres:latest
+    image: postgres:17
     ports:
       - "5432:5432"
     environment:
@@ -9,7 +9,7 @@ services:
       POSTGRES_DB: statswales-backend
 
   db-test:
-    image: postgres:latest
+    image: postgres:17
     ports:
       - "5433:5432"
     environment:
@@ -23,8 +23,8 @@ services:
       - "6379:6379"
 
   # blob storage emulator
-  blobstorage:
-    image: mcr.microsoft.com/azure-storage/azurite
-    command: "azurite-blob --blobHost 127.0.0.1 --blobPort 10000"
-    ports:
-      - "10000:10000"
+  # blobstorage:
+  #   image: mcr.microsoft.com/azure-storage/azurite
+  #   command: "azurite-blob --blobHost 127.0.0.1 --blobPort 10000"
+  #   ports:
+  #     - "10000:10000"

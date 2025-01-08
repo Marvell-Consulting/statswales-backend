@@ -12,14 +12,28 @@ This service is currently in beta and under active development, some features ma
 ## Configuration
 
 Copy the [.env-example](.env-example) file to `.env` and provide the missing values. The default dev setup uses Postgres
-running in a Docker container for the datastore. The data volume is persisted in `.docker/postgres/data`.
+running in a Docker container for the datastore. Before running the service for the first time, the database schema must
+be created and the initial data fixtures for the service need to be loaded.
+
+```bash
+# install dependencies
+npm install
+
+# start the database container
+docker compose up -d db-dev
+
+# run the migration(s)
+npm run migration:run
+
+# seed the db
+npm run seed:required
+```
 
 ## Running the service
 
-Once you've created the configuration, run:
+Once the database is populated, you can start the app:
 
 ```bash
-npm install
 npm run dev
 ```
 
@@ -28,16 +42,33 @@ by default (or whatever you specified for `BACKEND_PORT`).
 
 ## Testing the service
 
-You can run the checks individually (`prettier`, `lint`, `test`, `build`) or all of them with one command:
+You can run the code checks and tests individually:
+
+```bash
+npm run prettier:fix
+npm run lint:fix
+npm run test
+```
+
+or all of them with one command:
 
 ```bash
 npm run check
 ```
 
-You can run the checks and the service with:
+You can run the checks and then start the service with:
 
 ```bash
 npm run dev:check
+```
+
+### Seeds for the frontend e2e tests
+
+There are a number of fixtures (e.g. test users and sample datasets) used by the frontend e2e tests stored in
+`/test/fixtures`. These must be loaded into the dev or test database before the e2e tests are run:
+
+```bash
+npm run seed:e2e
 ```
 
 ## Data migrations
