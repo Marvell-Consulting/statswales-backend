@@ -33,6 +33,9 @@ export function getCIConfig(): AppConfig {
             ssl: false,
             synchronize: true
         },
+        rateLimit: {
+            windowMs: -1 // disable rate limiting in CI
+        },
         auth: {
             providers: ['local'],
             jwt: {
