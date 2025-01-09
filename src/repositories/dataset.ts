@@ -15,6 +15,7 @@ import { DatasetTopic } from '../entities/dataset/dataset-topic';
 import { Team } from '../entities/user/team';
 import { TranslationDTO } from '../dtos/translations-dto';
 import { DimensionInfo } from '../entities/dataset/dimension-info';
+import { Revision } from '../entities/dataset/revision';
 
 const defaultRelations: FindOptionsRelations<Dataset> = {
     createdBy: true,
@@ -110,13 +111,36 @@ export const DatasetRepository = dataSource.getRepository(Dataset).extend({
     },
 
     async listActiveByLanguage(lang: Locale): Promise<DatasetListItemDTO[]> {
+        // TODO: statuses are a best approximation for a first pass
+        // they will almost certainly need to be revisited
         const qb = this.createQueryBuilder('d')
-            .select(['d.id as id', 'di.title as title'])
+            .select(['d.id as id', 'di.title as title', 'di.updatedAt as last_updated'])
+            .addSelect("CASE WHEN d.live IS NOT NULL THEN 'live' ELSE 'new' END", 'status')
+            .addSelect(
+                `
+                CASE
+                    WHEN r.publish_at IS NULL THEN 'incomplete'
+                    WHEN r.publish_at > NOW() THEN 'scheduled'
+                    WHEN d.live IS NOT NULL AND r.publish_at <= NOW() THEN 'published'
+                END
+            `,
+                'publishing_status'
+            )
             .innerJoin('d.datasetInfo', 'di')
-            .innerJoin('d.revisions', 'r')
-            .innerJoin('r.factTables', 'i')
+            .innerJoin(
+                (subQuery) => {
+                    // only join the latest revision for each dataset
+                    return subQuery
+                        .select('DISTINCT ON (dataset_id) *')
+                        .from(Revision, 'rev')
+                        .orderBy('dataset_id')
+                        .addOrderBy('created_at', 'DESC');
+                },
+                'r',
+                'r.dataset_id = d.id'
+            )
             .where('di.language LIKE :lang', { lang: `${lang}%` })
-            .groupBy('d.id, di.title')
+            .groupBy('d.id, di.title, di.updatedAt, r.publish_at')
             .orderBy('d.createdAt', 'ASC');
 
         return qb.getRawMany();

@@ -26,25 +26,26 @@ import { TeamSelectionDTO } from '../dtos/team-selection-dto';
 import { createBaseCube } from '../services/cube-handler';
 import { DEFAULT_PAGE_SIZE, uploadCSV } from '../services/csv-processor';
 import { convertBufferToUTF8 } from '../utils/file-utils';
+import { DatasetListItemDTO } from '../dtos/dataset-list-item-dto';
 
 import { getCubePreview } from './cube-controller';
 
 export const listAllDatasets = async (req: Request, res: Response, next: NextFunction) => {
     try {
-        const datasets = await DatasetRepository.listAllByLanguage(req.language as Locale);
-        res.json({ datasets });
+        const datasets: DatasetListItemDTO[] = await DatasetRepository.listAllByLanguage(req.language as Locale);
+        res.json(datasets);
     } catch (err) {
-        logger.error('Failed to fetch dataset list:', err);
+        logger.error(err, 'Failed to fetch dataset list');
         next(new UnknownException());
     }
 };
 
 export const listActiveDatasets = async (req: Request, res: Response, next: NextFunction) => {
     try {
-        const datasets = await DatasetRepository.listActiveByLanguage(req.language as Locale);
-        res.json({ datasets });
+        const datasets: DatasetListItemDTO[] = await DatasetRepository.listActiveByLanguage(req.language as Locale);
+        res.json(datasets);
     } catch (err) {
-        logger.error('Failed to fetch active dataset list:', err);
+        logger.error(err, 'Failed to fetch active dataset list');
         next(new UnknownException());
     }
 };
