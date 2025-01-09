@@ -3,7 +3,6 @@ import fs from 'fs';
 
 import request from 'supertest';
 import { t } from 'i18next';
-import { DataLakeDirectoryClient } from '@azure/storage-file-datalake';
 
 import { DataLakeService } from '../src/services/datalake';
 import app, { initDb } from '../src/app';
@@ -67,7 +66,30 @@ describe('API Endpoints for viewing dataset objects', () => {
         test('Get a list of all datasets returns 200 with a file list', async () => {
             const res = await request(app).get('/dataset').set(getAuthHeader(user));
             expect(res.status).toBe(200);
-            expect(res.body).toEqual({ datasets: [{ id: dataset1Id, title: 'Test Dataset 1' }] });
+            expect(res.body).toEqual([{ id: dataset1Id, title: 'Test Dataset 1' }]);
+        });
+    });
+
+    describe('List all active datasets', () => {
+        test('returns 401 if no auth header is sent (JWT auth)', async () => {
+            const res = await request(app).get('/dataset/active');
+            expect(res.status).toBe(401);
+            expect(res.body).toEqual({});
+        });
+
+        test('Get a list of all active datasets returns 200 with a file list', async () => {
+            const res = await request(app).get('/dataset/active').set(getAuthHeader(user));
+            const today = new Date().toISOString().split('T')[0];
+            expect(res.status).toBe(200);
+            expect(res.body).toEqual([
+                {
+                    id: dataset1Id,
+                    title: 'Test Dataset 1',
+                    last_updated: expect.stringContaining(today),
+                    status: 'live',
+                    publishing_status: 'incomplete'
+                }
+            ]);
         });
     });
 
