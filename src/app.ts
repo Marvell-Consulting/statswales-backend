@@ -4,6 +4,7 @@ import express, { Application } from 'express';
 import passport from 'passport';
 import cookieParser from 'cookie-parser';
 
+import './utils/bigint-patcher';
 import { logger, httpLogger } from './utils/logger';
 import { appConfig } from './config';
 import DatabaseManager from './db/database-manager';
@@ -20,6 +21,7 @@ import { topicRouter } from './route/topic';
 import { organisationRouter } from './route/organisation';
 import { teamRouter } from './route/team';
 import { translationRouter } from './route/translation';
+import { consumerRouter } from './route/consumer';
 
 export const initDb = async (): Promise<DatabaseManager> => {
     const dbManager = new DatabaseManager(logger);
@@ -31,16 +33,6 @@ export const initDb = async (): Promise<DatabaseManager> => {
 const app: Application = express();
 const config = appConfig();
 
-// DO NOT REMOVE!
-// DuckDB handles numbers as bigints.  BigInts don't serialise
-// toJSON easily.  This monkypatches BigInt so that if the number
-// is less than the max safe interger we return a number otherwise
-// we return a string
-(BigInt.prototype as any).toJSON = function () {
-    if (this < Number.MAX_SAFE_INTEGER) return Number(this);
-    return this.toString();
-};
-
 logger.info(`App config loaded for '${config.env}' env`);
 
 app.disable('x-powered-by');
@@ -51,8 +43,12 @@ app.use(i18nextMiddleware.handle(i18next));
 app.use(cookieParser());
 app.use(session);
 
+// public routes
 app.use('/auth', rateLimiter, authRouter);
 app.use('/healthcheck', rateLimiter, healthcheckRouter);
+app.use('/published', rateLimiter, consumerRouter);
+
+// authenticated routes
 app.use('/dataset', rateLimiter, passport.authenticate('jwt', { session: false }), datasetRouter);
 app.use('/provider', rateLimiter, passport.authenticate('jwt', { session: false }), providerRouter);
 app.use('/topic', rateLimiter, passport.authenticate('jwt', { session: false }), topicRouter);

@@ -156,6 +156,25 @@ export const DatasetRepository = dataSource.getRepository(Dataset).extend({
         return { data, count };
     },
 
+    async listPublishedByLanguage(
+        lang: Locale,
+        offset: number,
+        limit: number
+    ): Promise<ResultsetWithCount<DatasetListItemDTO>> {
+        const qb = this.createQueryBuilder('d')
+            .select(['d.id as id', 'di.title as title', 'd.live as published_date'])
+            .innerJoin('d.datasetInfo', 'di')
+            .where('di.language LIKE :lang', { lang: `${lang}%` })
+            .andWhere('d.live IS NOT NULL')
+            .groupBy('d.id, di.title, d.live');
+
+        const countQuery = qb.clone();
+        const resultQuery = qb.orderBy('d.live', 'DESC').offset(offset).limit(limit);
+        const [data, count] = await Promise.all([resultQuery.getRawMany(), countQuery.getCount()]);
+
+        return { data, count };
+    },
+
     async addDatasetProvider(datasetId: string, dataProvider: DatasetProviderDTO): Promise<Dataset> {
         const newProvider = DatasetProviderDTO.toDatsetProvider(dataProvider);
 
