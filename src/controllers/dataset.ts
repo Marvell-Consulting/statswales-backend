@@ -27,6 +27,7 @@ import { createBaseCube } from '../services/cube-handler';
 import { DEFAULT_PAGE_SIZE, uploadCSV } from '../services/csv-processor';
 import { convertBufferToUTF8 } from '../utils/file-utils';
 import { DatasetListItemDTO } from '../dtos/dataset-list-item-dto';
+import { ResultsetWithCount } from '../interfaces/resultset-with-count';
 
 import { getCubePreview } from './cube-controller';
 
@@ -42,8 +43,17 @@ export const listAllDatasets = async (req: Request, res: Response, next: NextFun
 
 export const listActiveDatasets = async (req: Request, res: Response, next: NextFunction) => {
     try {
-        const datasets: DatasetListItemDTO[] = await DatasetRepository.listActiveByLanguage(req.language as Locale);
-        res.json(datasets);
+        const lang = req.language as Locale;
+        const offset = (parseInt(req.query.page as string, 10) || 1) - 1;
+        const limit = parseInt(req.query.limit as string, 10) || 20;
+
+        const results: ResultsetWithCount<DatasetListItemDTO> = await DatasetRepository.listActiveByLanguage(
+            lang,
+            offset,
+            limit
+        );
+
+        res.json(results);
     } catch (err) {
         logger.error(err, 'Failed to fetch active dataset list');
         next(new UnknownException());

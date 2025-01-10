@@ -16,6 +16,7 @@ import { Team } from '../entities/user/team';
 import { TranslationDTO } from '../dtos/translations-dto';
 import { DimensionInfo } from '../entities/dataset/dimension-info';
 import { Revision } from '../entities/dataset/revision';
+import { ResultsetWithCount } from '../interfaces/resultset-with-count';
 
 const defaultRelations: FindOptionsRelations<Dataset> = {
     createdBy: true,
@@ -110,9 +111,13 @@ export const DatasetRepository = dataSource.getRepository(Dataset).extend({
         return qb.getRawMany();
     },
 
-    async listActiveByLanguage(lang: Locale): Promise<DatasetListItemDTO[]> {
+    async listActiveByLanguage(
+        lang: Locale,
+        offset: number,
+        limit: number
+    ): Promise<ResultsetWithCount<DatasetListItemDTO>> {
         // TODO: statuses are a best approximation for a first pass
-        // they will almost certainly need to be revisited
+        // they will need to be revisited once updates are a thing
         const qb = this.createQueryBuilder('d')
             .select(['d.id as id', 'di.title as title', 'di.updatedAt as last_updated'])
             .addSelect("CASE WHEN d.live IS NOT NULL THEN 'live' ELSE 'new' END", 'status')
@@ -140,10 +145,13 @@ export const DatasetRepository = dataSource.getRepository(Dataset).extend({
                 'r.dataset_id = d.id'
             )
             .where('di.language LIKE :lang', { lang: `${lang}%` })
-            .groupBy('d.id, di.title, di.updatedAt, r.publish_at')
-            .orderBy('d.createdAt', 'ASC');
+            .groupBy('d.id, di.title, di.updatedAt, r.publish_at');
 
-        return qb.getRawMany();
+        const countQuery = qb.clone();
+        const resultQuery = qb.orderBy('di.updatedAt', 'DESC').offset(offset).limit(limit);
+        const [data, count] = await Promise.all([resultQuery.getRawMany(), countQuery.getCount()]);
+
+        return { data, count };
     },
 
     async addDatasetProvider(datasetId: string, dataProvider: DatasetProviderDTO): Promise<Dataset> {
