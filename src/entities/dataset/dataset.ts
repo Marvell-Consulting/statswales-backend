@@ -19,7 +19,6 @@ import { Dimension } from './dimension';
 import { DatasetProvider } from './dataset-provider';
 import { DatasetTopic } from './dataset-topic';
 import { Measure } from './measure';
-import { LookupTable } from './lookup-table';
 
 @Entity({ name: 'dataset' })
 export class Dataset extends BaseEntity {
