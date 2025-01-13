@@ -158,7 +158,7 @@ export const DatasetRepository = dataSource.getRepository(Dataset).extend({
 
     async listPublishedByLanguage(
         lang: Locale,
-        offset: number,
+        page: number,
         limit: number
     ): Promise<ResultsetWithCount<DatasetListItemDTO>> {
         const qb = this.createQueryBuilder('d')
@@ -168,6 +168,7 @@ export const DatasetRepository = dataSource.getRepository(Dataset).extend({
             .andWhere('d.live IS NOT NULL')
             .groupBy('d.id, di.title, d.live');
 
+        const offset = (page - 1) * limit;
         const countQuery = qb.clone();
         const resultQuery = qb.orderBy('d.live', 'DESC').offset(offset).limit(limit);
         const [data, count] = await Promise.all([resultQuery.getRawMany(), countQuery.getCount()]);

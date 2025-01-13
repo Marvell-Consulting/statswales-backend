@@ -11,12 +11,12 @@ export const listPublishedDatasets = async (req: Request, res: Response, next: N
     logger.info('Listing published datasets...');
     try {
         const lang = req.language as Locale;
-        const offset = (parseInt(req.query.page as string, 10) || 1) - 1;
+        const page = parseInt(req.query.page as string, 10) || 1;
         const limit = parseInt(req.query.limit as string, 10) || 10;
 
         const results: ResultsetWithCount<DatasetListItemDTO> = await DatasetRepository.listPublishedByLanguage(
             lang,
-            offset,
+            page,
             limit
         );
 
