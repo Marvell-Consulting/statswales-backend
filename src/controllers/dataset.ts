@@ -44,12 +44,12 @@ export const listAllDatasets = async (req: Request, res: Response, next: NextFun
 export const listActiveDatasets = async (req: Request, res: Response, next: NextFunction) => {
     try {
         const lang = req.language as Locale;
-        const offset = (parseInt(req.query.page as string, 10) || 1) - 1;
+        const page = parseInt(req.query.page as string, 10) || 1;
         const limit = parseInt(req.query.limit as string, 10) || 20;
 
         const results: ResultsetWithCount<DatasetListItemDTO> = await DatasetRepository.listActiveByLanguage(
             lang,
-            offset,
+            page,
             limit
         );
 
