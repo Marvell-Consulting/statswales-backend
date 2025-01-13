@@ -113,7 +113,7 @@ export const DatasetRepository = dataSource.getRepository(Dataset).extend({
 
     async listActiveByLanguage(
         lang: Locale,
-        offset: number,
+        page: number,
         limit: number
     ): Promise<ResultsetWithCount<DatasetListItemDTO>> {
         // TODO: statuses are a best approximation for a first pass
@@ -146,6 +146,8 @@ export const DatasetRepository = dataSource.getRepository(Dataset).extend({
             )
             .where('di.language LIKE :lang', { lang: `${lang}%` })
             .groupBy('d.id, di.title, di.updatedAt, r.publish_at');
+
+        const offset = (page - 1) * limit;
 
         const countQuery = qb.clone();
         const resultQuery = qb.orderBy('di.updatedAt', 'DESC').offset(offset).limit(limit);
