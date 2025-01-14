@@ -10,9 +10,9 @@ import { DimensionDTO } from './dimension-dto';
 import { RevisionDTO } from './revision-dto';
 import { DatasetInfoDTO } from './dataset-info-dto';
 import { DatasetProviderDTO } from './dataset-provider-dto';
-import { DatasetTopicDTO } from './dataset-topic-dto';
 import { MeasureDTO } from './measure-dto';
 import { TeamDTO } from './team-dto';
+import { TopicDTO } from './topic-dto';
 
 export class DatasetDTO {
     id: string;
@@ -25,7 +25,7 @@ export class DatasetDTO {
     measure?: MeasureDTO;
     datasetInfo: DatasetInfoDTO[];
     providers: DatasetProviderDTO[];
-    topics: DatasetTopicDTO[];
+    topics: TopicDTO[];
     team?: TeamDTO[];
     start_date?: Date | null;
     end_date?: Date | null;
@@ -46,9 +46,7 @@ export class DatasetDTO {
             DatasetProviderDTO.fromDatasetProvider(datasetProvider)
         );
 
-        dto.topics = dataset.datasetTopics?.map((datasetTopic: DatasetTopic) =>
-            DatasetTopicDTO.fromDatasetTopic(datasetTopic)
-        );
+        dto.topics = dataset.datasetTopics?.map((datasetTopic: DatasetTopic) => TopicDTO.fromTopic(datasetTopic.topic));
 
         if (dataset.team) {
             dto.team = SUPPORTED_LOCALES.map((locale) => {
