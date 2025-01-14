@@ -43,20 +43,16 @@ async function copyAllReferenceDataIntoTable(quack: Database) {
 
 async function validateUnknownReferenceDataItems(quack: Database, dataset: Dataset, dimension: Dimension) {
     const nonMatchedRows = await quack.all(`
-              SELECT fact_table."${dimension.factTableColumn}", reference_data.item_id, reference_data.category_key FROM fact_table
+              SELECT fact_table."${dimension.factTableColumn}", reference_data.item_id FROM fact_table
               LEFT JOIN reference_data on reference_data.item_id=CAST(fact_table."${dimension.factTableColumn}" AS VARCHAR)
-              JOIN category_keys ON reference_data.category_key=category_keys.category_key
-              JOIN categories ON categories.category=category_keys.category
-              WHERE reference_data.item_id=NULL;
+              WHERE item_id IS NULL;
     `);
     if (nonMatchedRows.length > 0) {
         logger.error('The user has unknown items in their reference data column');
         const nonMatchedValues = await quack.all(`
-              SELECT DISTINCT reference_data.item_id, reference_data.category_key FROM fact_table
+              SELECT DISTINCT fact_table."${dimension.factTableColumn}", reference_data.item_id FROM fact_table
               LEFT JOIN reference_data on reference_data.item_id=CAST(fact_table."${dimension.factTableColumn}" AS VARCHAR)
-              JOIN category_keys ON reference_data.category_key=category_keys.category_key
-              JOIN categories ON categories.category=category_keys.category
-              WHERE reference_data.item_id=NULL;
+              WHERE reference_data.item_id IS NULL;
         `);
         return viewErrorGenerator(400, dataset.id, 'patch', 'errors.dimensionValidation.invalid_lookup_table', {
             totalNonMatching: nonMatchedRows.length,
@@ -90,7 +86,7 @@ async function validateAllItemsAreInCategory(
             WHERE categories.category!='${referenceDataType}' GROUP BY fact_table."${dimension.factTableColumn}", item_id;
         `);
         return viewErrorGenerator(400, dataset.id, 'patch', 'errors.dimensionValidation.invalid_lookup_table', {
-            totalNonMatching: nonMatchedRows.length,
+            totalNonMatching: nonMatchedValues.length,
             nonMatchingValues: nonMatchedValues.map((row) => Object.values(row)[0])
         });
     }
