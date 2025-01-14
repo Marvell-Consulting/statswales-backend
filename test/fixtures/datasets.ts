@@ -1,6 +1,8 @@
 import path from 'node:path';
 
+import { v4 as uuid } from 'uuid';
 import { DeepPartial } from 'typeorm';
+import { faker } from '@faker-js/faker';
 
 import { Dataset } from '../../src/entities/dataset/dataset';
 
@@ -60,11 +62,25 @@ export const metadataTestB: DeepPartial<Dataset> = {
     ]
 };
 
+const generatePublishedDataset = (): DeepPartial<Dataset> => ({
+    id: uuid(),
+    createdBy: publisher1,
+    datasetInfo: [
+        { language: 'en-GB', title: faker.book.title() },
+        { language: 'en-CY', title: faker.book.title() }
+    ],
+    live: faker.date.recent({ days: 180 })
+});
+
 export const testDatasets = [
     { dataset: uploadPageTest },
     { dataset: previewPageTestA, csvPath: path.join(__dirname, `../sample-files/csv/cheeses.csv`) },
     { dataset: previewPageTestB, csvPath: path.join(__dirname, `../sample-files/csv/cheeses.csv`) },
     { dataset: sourcesPageTest, csvPath: path.join(__dirname, `../sample-files/csv/sure-start-short.csv`) },
     { dataset: metadataTestA, csvPath: path.join(__dirname, `../sample-files/csv/sure-start-short.csv`) },
-    { dataset: metadataTestB, csvPath: path.join(__dirname, `../sample-files/csv/sure-start-short.csv`) }
+    { dataset: metadataTestB, csvPath: path.join(__dirname, `../sample-files/csv/sure-start-short.csv`) },
+    ...Array.from({ length: 42 }, () => ({
+        dataset: generatePublishedDataset(),
+        csvPath: path.join(__dirname, `../sample-files/csv/cheeses.csv`)
+    }))
 ];

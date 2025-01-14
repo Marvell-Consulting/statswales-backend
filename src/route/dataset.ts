@@ -15,7 +15,7 @@ import {
     updateDimensionInfo
 } from '../controllers/dimension-controller';
 import { DatasetRepository } from '../repositories/dataset';
-import { datasetIdValidator, factTableIdValidator, hasError, revisionIdValidator, titleValidator } from '../validators';
+import { datasetIdValidator, factTableIdValidator, hasError, revisionIdValidator } from '../validators';
 import { NotFoundException } from '../exceptions/not-found.exception';
 import { FactTableRepository } from '../repositories/fact-table';
 import { Dataset } from '../entities/dataset/dataset';

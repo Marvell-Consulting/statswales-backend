@@ -90,7 +90,8 @@ export class TasklistStateDTO {
             statistical_quality: info?.quality ? TaskStatus.Completed : TaskStatus.NotStarted,
             data_collection: info?.collection ? TaskStatus.Completed : TaskStatus.NotStarted,
             data_sources: dataset.datasetProviders?.length > 0 ? TaskStatus.Completed : TaskStatus.NotStarted,
-            related_reports: info?.relatedLinks ? TaskStatus.Completed : TaskStatus.NotStarted,
+            related_reports:
+                info?.relatedLinks && info.relatedLinks?.length > 0 ? TaskStatus.Completed : TaskStatus.NotStarted,
             update_frequency: info?.updateFrequency ? TaskStatus.Completed : TaskStatus.NotStarted,
             designation: info?.designation ? TaskStatus.Completed : TaskStatus.NotStarted,
             relevant_topics: dataset.datasetTopics?.length > 0 ? TaskStatus.Completed : TaskStatus.NotStarted

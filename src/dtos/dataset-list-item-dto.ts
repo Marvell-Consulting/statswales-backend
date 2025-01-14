@@ -8,4 +8,5 @@ export interface DatasetListItemDTO {
     last_updated?: string;
     status?: DatasetStatus;
     publishing_status?: PublishingStatus;
+    published_date?: string;
 }
