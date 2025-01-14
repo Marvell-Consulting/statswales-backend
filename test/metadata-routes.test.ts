@@ -17,6 +17,7 @@ import { DatasetRepository } from '../src/repositories/dataset';
 import { FactTableRepository } from '../src/repositories/fact-table';
 import { FactTableDTO } from '../src/dtos/fact-table-dto';
 import { Locale } from '../src/enums/locale';
+import { logger } from '../src/utils/logger';
 
 import { createFullDataset } from './helpers/test-helper';
 import { getTestUser } from './helpers/get-user';
@@ -41,6 +42,7 @@ describe('API Endpoints for viewing dataset objects', () => {
             await user.save();
             await createFullDataset(dataset1Id, revision1Id, import1Id, user);
         } catch (error) {
+            logger.error(error, 'Could not initialise test database');
             await dbManager.getDataSource().dropDatabase();
             await dbManager.getDataSource().destroy();
             process.exit(1);
