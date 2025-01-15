@@ -93,7 +93,7 @@ export const getRevisionPreview = async (req: Request, res: Response, next: Next
 export const confirmFactTable = async (req: Request, res: Response, next: NextFunction) => {
     const factTable: FactTable = res.locals.factTable;
     const dto = FactTableDTO.fromFactTable(factTable);
-    return res.json(dto);
+    res.json(dto);
 };
 
 export const downloadRawFactTable = async (req: Request, res: Response, next: NextFunction) => {
