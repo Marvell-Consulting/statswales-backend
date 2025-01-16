@@ -114,7 +114,7 @@ export async function extractTableInformation(fileBuffer: Buffer, fileType: File
     switch (fileType) {
         case FileType.Csv:
         case FileType.GzipCsv:
-            createTableQuery = `CREATE TABLE ${tableName} AS SELECT * FROM read_csv('${tempFile.name}', auto_type_candidates = ['SQLNULL', 'BIGINT', 'DOUBLE', 'VARCHAR']);`;
+            createTableQuery = `CREATE TABLE ${tableName} AS SELECT * FROM read_csv('${tempFile.name}', auto_type_candidates = ['BIGINT', 'DOUBLE', 'VARCHAR']);`;
             break;
         case FileType.Parquet:
             createTableQuery = `CREATE TABLE ${tableName} AS SELECT * FROM '${tempFile.name}';`;

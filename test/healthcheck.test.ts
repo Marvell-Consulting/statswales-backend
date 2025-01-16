@@ -5,6 +5,7 @@ import DatabaseManager from '../src/db/database-manager';
 import { sanitiseUser } from '../src/utils/sanitise-user';
 import { SUPPORTED_LOCALES } from '../src/middleware/translation';
 import { Locale } from '../src/enums/locale';
+import { logger } from '../src/utils/logger';
 
 import { getTestUser } from './helpers/get-user';
 import { getAuthHeader } from './helpers/auth-header';
@@ -13,7 +14,14 @@ describe('Healthcheck', () => {
     let dbManager: DatabaseManager;
 
     beforeAll(async () => {
-        dbManager = await initDb();
+        try {
+            dbManager = await initDb();
+        } catch (error) {
+            logger.error(error, 'Could not initialise test database');
+            await dbManager.getDataSource().dropDatabase();
+            await dbManager.getDataSource().destroy();
+            process.exit(1);
+        }
     });
 
     test('/healthcheck/ returns success', async () => {
