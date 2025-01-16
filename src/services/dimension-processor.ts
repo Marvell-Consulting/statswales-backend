@@ -529,7 +529,11 @@ async function getDatePreviewWithExtractor(
         await stmt.run(row.dateCode, row.description, row.start, row.end, row.type);
     });
     await stmt.finalize();
-    const dimensionTable = await quack.all(`SELECT * FROM date_dimension ORDER BY end_date ASC LIMIT ${sampleSize};`);
+    const dimensionTable = await quack.all(
+        `SELECT date_dimension.* FROM date_dimension
+        RIGHT JOIN "${tableName}" ON CAST("${tableName}"."${factTableColumn}" AS VARCHAR)=CAST(date_dimension.date_code AS VARCHAR)
+        ORDER BY end_date ASC LIMIT ${sampleSize};`
+    );
     const tableHeaders = Object.keys(dimensionTable[0]);
     const dataArray = dimensionTable.map((row) => Object.values(row));
     const currentDataset = await DatasetRepository.getById(dataset.id);

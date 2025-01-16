@@ -667,7 +667,7 @@ async function setupMeasures(
                 ?.push(`measure.description as "${t('column_headers.measure', { lng: locale })}"`);
         });
         joinStatements.push(
-            `LEFT JOIN measure on measure.measure_id=${FACT_TABLE_NAME}.${dataset.measure.factTableColumn} AND measure.language='#LANG#'`
+            `LEFT JOIN measure on CAST (measure.measure_id AS VARCHAR)=CAST(${FACT_TABLE_NAME}.${dataset.measure.factTableColumn} AS VARCHAR) AND measure.language='#LANG#'`
         );
         orderByStatements.push(`measure.measure_id`);
     } else {
@@ -722,7 +722,7 @@ async function setupDimensions(
                                 );
                         });
                         joinStatements.push(
-                            `LEFT JOIN ${dimTable} on ${dimTable}."${dimension.joinColumn}"=${FACT_TABLE_NAME}."${dimension.factTableColumn}"`
+                            `LEFT JOIN ${dimTable} on CAST(${dimTable}."${dimension.joinColumn}" AS VARCHAR)=CAST(${FACT_TABLE_NAME}."${dimension.factTableColumn}" AS VARCHAR)`
                         );
                         orderByStatements.push(`${dimTable}.end_date`);
                     } else {
@@ -743,7 +743,7 @@ async function setupDimensions(
                         selectStatementsMap.get(locale)?.push(`${dimTable}.description as "${columnName}"`);
                     });
                     joinStatements.push(
-                        `LEFT JOIN ${dimTable} on ${dimTable}."${dimension.joinColumn}"=${FACT_TABLE_NAME}."${dimension.factTableColumn}" AND ${dimTable}.language='#LANG#'`
+                        `LEFT JOIN ${dimTable} on CAST(${dimTable}."${dimension.joinColumn}" AS VARCHAR)=CAST(${FACT_TABLE_NAME}."${dimension.factTableColumn}" AS VARCHAR) AND ${dimTable}.language='#LANG#'`
                     );
                     if ((dimension.extractor as LookupTableExtractor).sortColumn) {
                         orderByStatements.push(
