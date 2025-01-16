@@ -655,7 +655,7 @@ async function setupMeasures(
                     ?.method.replace('|COL|', `${FACT_TABLE_NAME}."${dataValuesColumn?.columnName}"`) || ''
             );
         }
-        caseStatement.push('END');
+        caseStatement.push(`ELSE CAST(${FACT_TABLE_NAME}."${dataValuesColumn?.columnName}" AS VARCHAR) END`);
         logger.debug(`Data view case statement ended up as: ${caseStatement.join('\n')}`);
         SUPPORTED_LOCALES.map((locale) => {
             if (dataValuesColumn)

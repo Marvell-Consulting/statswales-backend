@@ -9,6 +9,7 @@ import { Revision } from '../src/entities/dataset/revision';
 import DatabaseManager from '../src/db/database-manager';
 import { User } from '../src/entities/user/user';
 import { FactTable } from '../src/entities/dataset/fact-table';
+import { logger } from '../src/utils/logger';
 
 import { createFullDataset, createSmallDataset } from './helpers/test-helper';
 import { getTestUser } from './helpers/get-user';
@@ -28,9 +29,16 @@ const user: User = getTestUser('test', 'user');
 describe('API Endpoints for viewing the contents of a dataset', () => {
     let dbManager: DatabaseManager;
     beforeAll(async () => {
-        dbManager = await initDb();
-        await user.save();
-        await createFullDataset(dataset1Id, revision1Id, import1Id, user);
+        try {
+            dbManager = await initDb();
+            await user.save();
+            await createFullDataset(dataset1Id, revision1Id, import1Id, user);
+        } catch (error) {
+            logger.error(error, 'Could not initialise test database');
+            await dbManager.getDataSource().dropDatabase();
+            await dbManager.getDataSource().destroy();
+            process.exit(1);
+        }
     });
 
     test('Get file from a dataset, stored in data lake, returns 200 and complete file data', async () => {

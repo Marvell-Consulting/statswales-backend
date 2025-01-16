@@ -20,6 +20,7 @@ import { Revision } from '../src/entities/dataset/revision';
 import { Locale } from '../src/enums/locale';
 import { DatasetRepository } from '../src/repositories/dataset';
 import { FactTable } from '../src/entities/dataset/fact-table';
+import { logger } from '../src/utils/logger';
 
 import { createFullDataset, createSmallDataset } from './helpers/test-helper';
 import { getTestUser } from './helpers/get-user';
@@ -42,10 +43,12 @@ describe('API Endpoints', () => {
     beforeAll(async () => {
         try {
             dbManager = await initDb();
-            // await dbManager.getDataSource().dropDatabase();
             await user.save();
             await createFullDataset(dataset1Id, revision1Id, import1Id, user);
-        } catch (err) {
+        } catch (error) {
+            logger.error(error, 'Could not initialise test database');
+            await dbManager.getDataSource().dropDatabase();
+            await dbManager.getDataSource().destroy();
             process.exit(1);
         }
     });

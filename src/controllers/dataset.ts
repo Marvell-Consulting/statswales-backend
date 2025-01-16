@@ -23,7 +23,7 @@ import { TasklistStateDTO } from '../dtos/tasklist-state-dto';
 import { DatasetProviderDTO } from '../dtos/dataset-provider-dto';
 import { TopicSelectionDTO } from '../dtos/topic-selection-dto';
 import { TeamSelectionDTO } from '../dtos/team-selection-dto';
-import { createBaseCube } from '../services/cube-handler';
+import { cleanUpCube, createBaseCube } from '../services/cube-handler';
 import { DEFAULT_PAGE_SIZE, uploadCSV } from '../services/csv-processor';
 import { convertBufferToUTF8 } from '../utils/file-utils';
 import { DatasetListItemDTO } from '../dtos/dataset-list-item-dto';
@@ -149,7 +149,7 @@ export const cubePreview = async (req: Request, res: Response, next: NextFunctio
     const page_number: number = Number.parseInt(req.query.page_number as string, 10) || 1;
     const page_size: number = Number.parseInt(req.query.page_size as string, 10) || DEFAULT_PAGE_SIZE;
     const cubePreview = await getCubePreview(cubeFile, req.language.split('-')[0], dataset, page_number, page_size);
-
+    await cleanUpCube(cubeFile);
     if ((cubePreview as ViewErrDTO).errors) {
         res.status(500);
     }

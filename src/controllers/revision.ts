@@ -23,7 +23,7 @@ import { RevisionDTO } from '../dtos/revision-dto';
 import { RevisionRepository } from '../repositories/revision';
 import { DuckdbOutputType } from '../enums/duckdb-outputs';
 import { createDimensionsFromSourceAssignment, validateSourceAssignment } from '../services/dimension-processor';
-import { createBaseCube } from '../services/cube-handler';
+import { cleanUpCube, createBaseCube } from '../services/cube-handler';
 import { DEFAULT_PAGE_SIZE, getCSVPreview, removeFileFromDataLake, uploadCSV } from '../services/csv-processor';
 import { convertBufferToUTF8 } from '../utils/file-utils';
 
@@ -81,7 +81,7 @@ export const getRevisionPreview = async (req: Request, res: Response, next: Next
         }
     }
     const cubePreview = await getCubePreview(cubeFile, lang, dataset, page_number, page_size);
-    fs.unlinkSync(cubeFile);
+    await cleanUpCube(cubeFile);
     if ((cubePreview as ViewErrDTO).errors) {
         const processErr = cubePreview as ViewErrDTO;
         res.status(processErr.status);
@@ -290,6 +290,7 @@ export const downloadRevisionCubeFile = async (req: Request, res: Response, next
         'Content-Length': fileBuffer.length
     });
     res.end(fileBuffer);
+    await cleanUpCube(cubeFile);
 };
 
 export const downloadRevisionCubeAsJSON = async (req: Request, res: Response, next: NextFunction) => {
@@ -317,7 +318,7 @@ export const downloadRevisionCubeAsJSON = async (req: Request, res: Response, ne
         }
     }
     const downloadFile = await outputCube(cubeFile, lang, DuckdbOutputType.Json);
-    fs.unlinkSync(cubeFile);
+    await cleanUpCube(cubeFile);
     const downloadStream = fs.createReadStream(downloadFile);
     // eslint-disable-next-line @typescript-eslint/naming-convention
     res.writeHead(200, { 'Content-Type': '\tapplication/json' });
@@ -363,7 +364,7 @@ export const downloadRevisionCubeAsCSV = async (req: Request, res: Response, nex
         }
     }
     const downloadFile = await outputCube(cubeFile, lang, DuckdbOutputType.Csv);
-    fs.unlinkSync(cubeFile);
+    await cleanUpCube(cubeFile);
     const downloadStream = fs.createReadStream(downloadFile);
     // eslint-disable-next-line @typescript-eslint/naming-convention
     res.writeHead(200, { 'Content-Type': '\ttext/csv' });
@@ -409,7 +410,7 @@ export const downloadRevisionCubeAsParquet = async (req: Request, res: Response,
         }
     }
     const downloadFile = await outputCube(cubeFile, lang, DuckdbOutputType.Parquet);
-    fs.unlinkSync(cubeFile);
+    await cleanUpCube(cubeFile);
     const downloadStream = fs.createReadStream(downloadFile);
     // eslint-disable-next-line @typescript-eslint/naming-convention
     res.writeHead(200, { 'Content-Type': '\tapplication/vnd.apache.parquet' });
@@ -456,7 +457,7 @@ export const downloadRevisionCubeAsExcel = async (req: Request, res: Response, n
     }
     const downloadFile = await outputCube(cubeFile, lang, DuckdbOutputType.Excel);
     logger.info(`Cube file located at: ${cubeFile}`);
-    // fs.unlinkSync(cubeFile);
+    await cleanUpCube(cubeFile);
     const downloadStream = fs.createReadStream(downloadFile);
     // eslint-disable-next-line @typescript-eslint/naming-convention
     res.writeHead(200, { 'Content-Type': '\tapplication/vnd.ms-excel' });
