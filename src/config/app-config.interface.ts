@@ -1,6 +1,7 @@
 import { Level } from 'pino';
 
 import { Locale } from '../enums/locale';
+import { AuthProvider } from '../enums/auth-providers';
 
 import { AppEnv } from './env.enum';
 import { SessionStore } from './session-store.enum';
@@ -45,7 +46,7 @@ export interface AppConfig {
         synchronize?: boolean;
     };
     auth: {
-        providers: string[];
+        providers: AuthProvider[];
         jwt: {
             secret: string;
             expiresIn: string;
@@ -56,12 +57,10 @@ export interface AppConfig {
             clientId: string;
             clientSecret: string;
         };
-        oneLogin: {
+        entraid: {
             url: string;
             clientId: string;
             clientSecret: string;
-            publicKey: string;
-            privateKey: string;
         };
     };
     storage: {

@@ -1,3 +1,4 @@
+import { AuthProvider } from '../../enums/auth-providers';
 import { AppConfig } from '../app-config.interface';
 import { defineConfig } from '../define-config';
 import { AppEnv } from '../env.enum';
@@ -8,7 +9,7 @@ export function getStagingConfig(): AppConfig {
     return defineConfig({
         env: AppEnv.Staging,
         auth: {
-            providers: ['google', 'onelogin'],
+            providers: [AuthProvider.Google, AuthProvider.EntraId],
             jwt: {
                 cookieDomain: process.env.BACKEND_URL!.replace('statswales-develop-backend.', '')
             }

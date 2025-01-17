@@ -59,12 +59,10 @@ export const getDefaultConfig = (): AppConfig => {
                 clientId: process.env.GOOGLE_CLIENT_ID!,
                 clientSecret: process.env.GOOGLE_CLIENT_SECRET!
             },
-            oneLogin: {
-                url: process.env.ONELOGIN_URL!,
-                clientId: process.env.ONELOGIN_CLIENT_ID!,
-                clientSecret: process.env.ONELOGIN_CLIENT_SECRET!,
-                publicKey: process.env.ONELOGIN_PUBLIC_KEY!,
-                privateKey: process.env.ONELOGIN_PRIVATE_KEY!
+            entraid: {
+                url: process.env.ENTRAID_URL!,
+                clientId: process.env.ENTRAID_CLIENT_ID!,
+                clientSecret: process.env.ENTRAID_CLIENT_SECRET!
             }
         },
         storage: {

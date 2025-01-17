@@ -1,3 +1,4 @@
+import { AuthProvider } from '../../enums/auth-providers';
 import { AppConfig } from '../app-config.interface';
 import { defineConfig } from '../define-config';
 import { AppEnv } from '../env.enum';
@@ -37,7 +38,7 @@ export function getCIConfig(): AppConfig {
             windowMs: -1 // disable rate limiting in CI
         },
         auth: {
-            providers: ['local'],
+            providers: [AuthProvider.Local],
             jwt: {
                 secret: process.env.JWT_SECRET || 'jwtsecret',
                 expiresIn: process.env.JWT_EXPIRES_IN || '6h',
