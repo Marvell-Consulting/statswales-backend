@@ -8,17 +8,18 @@ import { appConfig } from '../config';
 import { logger } from '../utils/logger';
 import { User } from '../entities/user/user';
 import { sanitiseUser } from '../utils/sanitise-user';
+import { AuthProvider } from '../enums/auth-providers';
 
 const config = appConfig();
 const domain = new URL(config.auth.jwt.cookieDomain).hostname;
 logger.debug(`JWT cookie domain is '${domain}'`);
 
 export const loginGoogle: RequestHandler = (req, res, next) => {
-    logger.debug('attempting to authenticate with google...');
+    logger.debug('attempting to authenticate with Google...');
 
     const returnURL = `${config.frontend.url}/auth/callback`;
 
-    passport.authenticate('google', (err: Error, user: User, info: Record<string, string>) => {
+    passport.authenticate(AuthProvider.Google, (err: Error, user: User, info: Record<string, string>) => {
         if (err || !user) {
             const errorMessage = err?.message || info?.message || 'unknown error';
             logger.error(`google auth returned an error: ${errorMessage}`);
@@ -44,15 +45,15 @@ export const loginGoogle: RequestHandler = (req, res, next) => {
     })(req, res, next);
 };
 
-export const loginOneLogin: RequestHandler = (req, res, next) => {
-    logger.debug('attempting to authenticate with one-login...');
+export const loginEntraID: RequestHandler = (req, res, next) => {
+    logger.debug('attempting to authenticate with EntraID...');
 
     const returnURL = `${config.frontend.url}/auth/callback`;
 
-    passport.authenticate('onelogin', (err: Error, user: User, info: Record<string, string>) => {
+    passport.authenticate(AuthProvider.EntraId, (err: Error, user: User, info: Record<string, string>) => {
         if (err || !user) {
             const errorMessage = err?.message || info?.message || 'unknown error';
-            logger.error(`onelogin auth returned an error: ${errorMessage}`);
+            logger.error(`entraid auth returned an error: ${errorMessage}`);
             res.redirect(`${returnURL}?error=provider`);
             return;
         }
@@ -63,7 +64,7 @@ export const loginOneLogin: RequestHandler = (req, res, next) => {
                 return;
             }
 
-            logger.info('onelogin auth successful, creating JWT and returning user to the frontend');
+            logger.info('entraid auth successful, creating JWT and returning user to the frontend');
 
             const payload = { user: sanitiseUser(user) };
             const { secret, expiresIn, secure } = config.auth.jwt;

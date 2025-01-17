@@ -37,7 +37,7 @@ export function getCIConfig(): AppConfig {
             windowMs: -1 // disable rate limiting in CI
         },
         auth: {
-            providers: ['local'],
+            providers: [],
             jwt: {
                 secret: process.env.JWT_SECRET || 'jwtsecret',
                 expiresIn: process.env.JWT_EXPIRES_IN || '6h',

@@ -1,5 +1,3 @@
-import { createPrivateKey } from 'node:crypto';
-
 import passport from 'passport';
 import { Issuer, Strategy as OpenIdStrategy, TokenSet, UserinfoResponse } from 'openid-client';
 import { Strategy as GoogleStrategy } from 'passport-google-oauth20';
@@ -9,22 +7,19 @@ import { Repository } from 'typeorm';
 import { logger } from '../utils/logger';
 import { User } from '../entities/user/user';
 import { appConfig } from '../config';
+import { AuthProvider } from '../enums/auth-providers';
 
 const config = appConfig();
 
-const readPrivateKey = (privateKey: string) => {
-    return createPrivateKey({ key: Buffer.from(privateKey, 'base64'), type: 'pkcs8', format: 'der' });
-};
-
 export const initPassport = async (userRepository: Repository<User>): Promise<void> => {
     passport.use(
-        'jwt',
+        AuthProvider.Jwt,
         new JWTStrategy(
             {
                 jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
                 secretOrKey: config.auth.jwt.secret
             },
-            async (jwtPayload, cb) => {
+            async (jwtPayload, done): Promise<void> => {
                 logger.debug('authenticating request with JWT...');
 
                 try {
@@ -32,60 +27,43 @@ export const initPassport = async (userRepository: Repository<User>): Promise<vo
 
                     if (!user) {
                         logger.error('jwt auth failed: user account could not be found');
-                        cb(null, undefined, { message: 'User not recognised' });
+                        done(null, undefined, { message: 'User not recognised' });
                         return;
                     }
 
-                    cb(null, user);
+                    done(null, user);
                 } catch (err: any) {
                     logger.error(err);
-                    cb(null, undefined, { message: 'Unknown error' });
+                    done(null, undefined, { message: 'Unknown error' });
                 }
             }
         )
     );
 
-    if (config.auth.providers.includes('onelogin')) {
-        const oneLoginIssuer = await Issuer.discover(`${config.auth.oneLogin.url}/.well-known/openid-configuration`);
-        const privateKey = config.auth.oneLogin.privateKey.replace(/\\n/g, '\n');
+    if (config.auth.providers.includes(AuthProvider.EntraId)) {
+        const issuer = await Issuer.discover(`${config.auth.entraid.url}/.well-known/openid-configuration`);
 
         passport.use(
-            'onelogin',
+            AuthProvider.EntraId,
             new OpenIdStrategy(
                 {
-                    client: new oneLoginIssuer.Client(
-                        {
-                            client_id: config.auth.oneLogin.clientId,
-                            client_secret: config.auth.oneLogin.clientSecret,
-                            redirect_uris: [`${config.backend.url}/auth/onelogin/callback`],
-                            token_endpoint_auth_method: 'private_key_jwt',
-                            token_endpoint_auth_signing_alg: 'PS256',
-                            id_token_signed_response_alg: 'ES256'
-                        },
-                        {
-                            keys: [readPrivateKey(privateKey).export({ format: 'jwk' })]
-                        }
-                    ),
+                    client: new issuer.Client({
+                        client_id: config.auth.entraid.clientId,
+                        client_secret: config.auth.entraid.clientSecret,
+                        redirect_uris: [`${config.backend.url}/auth/entraid/callback`]
+                    }),
                     params: {
-                        response_type: 'code',
-                        scope: 'openid email'
-                        // TODO: we need to update our OneLogin config to be able to request the below claims
-                        // vtr: ['P2.Cl.Cm'],
-                        // claims: {
-                        //     userinfo: {
-                        //         'https://vocab.account.gov.uk/v1/coreIdentityJWT': null
-                        //     }
-                        // }
+                        scope: 'openid profile email'
                     }
                 },
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                async (tokenset: TokenSet, userInfo: UserinfoResponse, cb: any): Promise<void> => {
-                    logger.debug('auth callback from onelogin received');
+                async (tokenset: TokenSet, userInfo: UserinfoResponse, done: any): Promise<void> => {
+                    logger.debug('auth callback from entraid received');
 
                     if (userInfo.email === undefined) {
-                        logger.error('onelogin auth failed: account has no email address');
-                        cb(null, undefined, {
-                            message: 'onelogin account does not have an email, use another provider'
+                        logger.error('entraid auth failed: account has no email address');
+                        done(null, undefined, {
+                            message: 'entraid account does not have an email, use another provider'
                         });
                         return;
                     }
@@ -94,38 +72,45 @@ export const initPassport = async (userRepository: Repository<User>): Promise<vo
                         logger.debug('checking if user has previously logged in...');
                         const existingUser = await userRepository.findOneBy({ email: userInfo.email });
 
-                        if (existingUser && existingUser.provider !== 'onelogin') {
-                            logger.error('onelogin auth failed: email was registered via another provider');
-                            cb(null, undefined, { message: 'User is already registered via another provider' });
+                        if (existingUser && existingUser.provider !== 'entraid') {
+                            logger.error('entraid auth failed: email was registered via another provider');
+                            done(null, undefined, { message: 'User is already registered via another provider' });
                             return;
                         }
 
                         if (!existingUser) {
                             logger.debug('no previous login found, creating new user');
 
+                            // TODO: EntraID only provides full name, we might want to avoid splitting it
+                            const [givenName, familyName] = userInfo.name
+                                ? userInfo.name.split(' ')
+                                : [undefined, undefined];
+
                             const user = await userRepository.save({
-                                provider: 'onelogin',
+                                provider: 'entraid',
                                 providerUserId: userInfo.sub,
                                 email: userInfo.email,
-                                emailVerified: userInfo.email_verified
+                                emailVerified: undefined,
+                                givenName,
+                                familyName
                             });
-                            cb(null, user);
+                            done(null, user);
                             return;
                         }
                         logger.debug('existing user found');
-                        cb(null, existingUser);
+                        done(null, existingUser);
                     } catch (error) {
                         logger.error(error);
-                        cb(null, undefined, { message: 'Unknown error' });
+                        done(null, undefined, { message: 'Unknown error' });
                     }
                 }
             )
         );
     }
 
-    if (config.auth.providers.includes('google')) {
+    if (config.auth.providers.includes(AuthProvider.Google)) {
         passport.use(
-            'google',
+            AuthProvider.Google,
             new GoogleStrategy(
                 {
                     clientID: config.auth.google.clientId,
@@ -133,12 +118,12 @@ export const initPassport = async (userRepository: Repository<User>): Promise<vo
                     callbackURL: `${config.backend.url}/auth/google/callback`,
                     scope: ['openid', 'profile', 'email']
                 },
-                async (accessToken, refreshToken, profile, cb): Promise<void> => {
+                async (accessToken, refreshToken, profile, done): Promise<void> => {
                     logger.debug('auth callback from google received');
 
                     if (!profile?._json?.email) {
                         logger.error('google auth failed: account has no email address');
-                        cb(null, undefined, {
+                        done(null, undefined, {
                             message: 'google account does not have an email, use another provider'
                         });
                         return;
@@ -150,7 +135,7 @@ export const initPassport = async (userRepository: Repository<User>): Promise<vo
 
                         if (existingUser && existingUser.provider !== 'google') {
                             logger.error('google auth failed: email was registered via another provider');
-                            cb(null, undefined, { message: 'User is already registered via another provider' });
+                            done(null, undefined, { message: 'User is already registered via another provider' });
                             return;
                         }
 
@@ -165,14 +150,14 @@ export const initPassport = async (userRepository: Repository<User>): Promise<vo
                                 givenName: profile.name?.givenName,
                                 familyName: profile.name?.familyName
                             });
-                            cb(null, user);
+                            done(null, user);
                             return;
                         }
                         logger.debug('existing user found');
-                        cb(null, existingUser);
+                        done(null, existingUser);
                     } catch (error) {
                         logger.error(error);
-                        cb(null, undefined, { message: 'Unknown error' });
+                        done(null, undefined, { message: 'Unknown error' });
                     }
                 }
             )
