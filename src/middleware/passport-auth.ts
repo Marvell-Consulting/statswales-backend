@@ -73,8 +73,16 @@ export const initPassport = async (userRepository: Repository<User>): Promise<vo
                         const existingUser = await userRepository.findOneBy({ email: userInfo.email });
 
                         if (existingUser && existingUser.provider !== 'entraid') {
-                            logger.error('entraid auth failed: email was registered via another provider');
-                            done(null, undefined, { message: 'User is already registered via another provider' });
+                            logger.warn(
+                                `entraid: email was previously used via another provider (${existingUser.provider})`
+                            );
+
+                            // TODO: find a better way to merge providers rather than overwriting
+                            existingUser.provider = 'entraid';
+                            existingUser.providerUserId = userInfo.sub;
+                            await existingUser.save();
+
+                            done(null, existingUser);
                             return;
                         }
 
@@ -134,8 +142,16 @@ export const initPassport = async (userRepository: Repository<User>): Promise<vo
                         const existingUser = await userRepository.findOneBy({ email: profile._json.email });
 
                         if (existingUser && existingUser.provider !== 'google') {
-                            logger.error('google auth failed: email was registered via another provider');
-                            done(null, undefined, { message: 'User is already registered via another provider' });
+                            logger.warn(
+                                `google: email was previously used via another provider (${existingUser.provider})`
+                            );
+
+                            // TODO: find a better way to merge providers rather than overwriting
+                            existingUser.provider = 'google';
+                            existingUser.providerUserId = profile.id;
+                            await existingUser.save();
+
+                            done(null, existingUser);
                             return;
                         }
 
