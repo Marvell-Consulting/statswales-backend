@@ -53,7 +53,8 @@ export const initPassport = async (userRepository: Repository<User>): Promise<vo
                         redirect_uris: [`${config.backend.url}/auth/entraid/callback`]
                     }),
                     params: {
-                        scope: 'openid profile email'
+                        scope: 'openid profile email',
+                        prompt: 'select_account'
                     }
                 },
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
