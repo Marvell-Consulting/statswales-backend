@@ -68,8 +68,13 @@ export const getRevisionPreview = async (req: Request, res: Response, next: Next
         logger.debug('Loading cube from datalake for preview');
         const datalakeService = new DataLakeService();
         cubeFile = tmp.tmpNameSync({ postfix: '.duckdb' });
-        const cubeBuffer = await datalakeService.getFileBuffer(revision.onlineCubeFilename, dataset.id);
-        fs.writeFileSync(cubeFile, cubeBuffer);
+        try {
+            const cubeBuffer = await datalakeService.getFileBuffer(revision.onlineCubeFilename, dataset.id);
+            fs.writeFileSync(cubeFile, cubeBuffer);
+        } catch (err) {
+            logger.error('Something went wrong trying to download file from data lake');
+            throw err;
+        }
     } else {
         logger.debug('Creating fresh cube for preview');
         try {

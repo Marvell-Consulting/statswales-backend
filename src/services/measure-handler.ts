@@ -233,14 +233,14 @@ export const validateMeasureLookupTable = async (
     const lookupTableName = 'preview_lookup';
     const measure = dataset.measure;
     const quack = await Database.create(':memory:');
-    const lookupTableTmpFile = tmp.fileSync({ postfix: `.${lookupTable.fileType}` });
+    const lookupTableTmpFile = tmp.tmpNameSync({ postfix: `.${lookupTable.fileType}` });
     try {
-        fs.writeFileSync(lookupTableTmpFile.name, buffer);
+        fs.writeFileSync(lookupTableTmpFile, buffer);
         const factTableTmpFile = await getFileImportAndSaveToDisk(dataset, factTable);
         await loadFileIntoDatabase(quack, factTable, factTableTmpFile, factTableName);
         await loadFileIntoDatabase(quack, lookupTable, lookupTableTmpFile, lookupTableName);
-        lookupTableTmpFile.removeCallback();
-        factTableTmpFile.removeCallback();
+        fs.unlinkSync(lookupTableTmpFile);
+        fs.unlinkSync(factTableTmpFile);
     } catch (err) {
         logger.error(`Something went wrong trying to load data in to DuckDB with the following error: ${err}`);
         throw err;
@@ -400,7 +400,7 @@ export const getMeasurePreview = async (dataset: Dataset, factTable: FactTable) 
     logger.debug(`Getting measure preview for ${dataset.measure.id}`);
     const tableName = 'fact_table';
     const quack = await Database.create(':memory:');
-    const tempFile = tmp.fileSync({ postfix: `.${factTable.fileType}` });
+    const tempFile = tmp.tmpNameSync({ postfix: `.${factTable.fileType}` });
     const measure = dataset.measure;
     if (!measure) {
         throw new Error('No measure present on the dataset.');
@@ -409,15 +409,15 @@ export const getMeasurePreview = async (dataset: Dataset, factTable: FactTable) 
     try {
         const dataLakeService = new DataLakeService();
         const fileBuffer = await dataLakeService.getFileBuffer(factTable.filename, dataset.id);
-        fs.writeFileSync(tempFile.name, fileBuffer);
-        const createTableQuery = await createFactTableQuery(tableName, tempFile.name, factTable.fileType, quack);
+        fs.writeFileSync(tempFile, fileBuffer);
+        const createTableQuery = await createFactTableQuery(tableName, tempFile, factTable.fileType, quack);
         await quack.exec(createTableQuery);
     } catch (error) {
         logger.error(
             `Something went wrong trying to create ${tableName} in DuckDB.  Unable to do matching and validation`
         );
         await quack.close();
-        tempFile.removeCallback();
+        fs.unlinkSync(tempFile);
         throw error;
     }
     let viewDto: ViewDTO;
@@ -431,12 +431,12 @@ export const getMeasurePreview = async (dataset: Dataset, factTable: FactTable) 
             viewDto = await getMeasurePreviewWithoutExtractor(dataset, measure, factTable, quack, tableName);
         }
         await quack.close();
-        tempFile.removeCallback();
+        fs.unlinkSync(tempFile);
         return viewDto;
     } catch (error) {
         logger.error(`Something went wrong trying to create measure preview with the following error: ${error}`);
         await quack.close();
-        tempFile.removeCallback();
+        fs.unlinkSync(tempFile);
         throw error;
     }
 };

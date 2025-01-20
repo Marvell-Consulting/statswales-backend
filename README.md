@@ -9,6 +9,10 @@ This service is currently in beta and under active development, some features ma
 -   Azure Datalake
 -   Docker
 
+### Special requirements for windows
+
+- Git bash
+
 ## Configuration
 
 Copy the [.env-example](.env-example) file to `.env` and provide the missing values. The default dev setup uses Postgres
@@ -39,6 +43,11 @@ npm run dev
 
 This will start the DB container in the background and run the app. The service should then be available on port 3001
 by default (or whatever you specified for `BACKEND_PORT`).
+
+### Special notes for windows
+
+On occasion the redis connection will timeout on start up.  When this happens kill the instance of the backend and
+try again.  This behaviour has not been seen on Mac or Linux systems.
 
 ## Testing the service
 

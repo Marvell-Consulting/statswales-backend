@@ -316,20 +316,20 @@ export const validateDateTypeDimension = async (
 ): Promise<ViewDTO | ViewErrDTO> => {
     const tableName = 'fact_table';
     const quack = await Database.create(':memory:');
-    const tempFile = tmp.fileSync({ postfix: `.${factTable.fileType}` });
+    const tempFile = tmp.tmpNameSync({ postfix: `.${factTable.fileType}` });
     // extract the data from the fact table
     try {
         const dataLakeService = new DataLakeService();
         const fileBuffer = await dataLakeService.getFileBuffer(factTable.filename, dataset.id);
-        fs.writeFileSync(tempFile.name, fileBuffer);
-        const createTableQuery = await createFactTableQuery(tableName, tempFile.name, factTable.fileType, quack);
+        fs.writeFileSync(tempFile, fileBuffer);
+        const createTableQuery = await createFactTableQuery(tableName, tempFile, factTable.fileType, quack);
         await quack.exec(createTableQuery);
     } catch (error) {
         logger.error(
             `Something went wrong trying to create ${tableName} in DuckDB.  Unable to do matching and validation`
         );
         await quack.close();
-        tempFile.removeCallback();
+        fs.unlinkSync(tempFile);
         throw error;
     }
     // Use the extracted data to try to create a reference table based on the user supplied information
@@ -354,7 +354,7 @@ export const validateDateTypeDimension = async (
             `Something went wrong trying to create the date reference table with the following error: ${error}`
         );
         await quack.close();
-        tempFile.removeCallback();
+        fs.unlinkSync(tempFile);
         return {
             status: 400,
             dataset_id: dataset.id,
@@ -460,7 +460,7 @@ export const validateDateTypeDimension = async (
     } catch (error) {
         logger.error(`Something went wrong trying to validate the data with the following error: ${error}`);
         await quack.close();
-        tempFile.removeCallback();
+        fs.unlinkSync(tempFile);
         throw error;
     }
     const coverage = await quack.all(
@@ -477,7 +477,7 @@ export const validateDateTypeDimension = async (
     await updateDimension.save();
     const dimensionTable = await quack.all('SELECT * FROM date_dimension;');
     await quack.close();
-    tempFile.removeCallback();
+    fs.unlinkSync(tempFile);
     const tableHeaders = Object.keys(dimensionTable[0]);
     const dataArray = dimensionTable.map((row) => Object.values(row));
     const currentDataset = await DatasetRepository.getById(dataset.id);
@@ -655,20 +655,20 @@ export const getDimensionPreview = async (
     logger.debug(`Getting dimension preview for ${dimension.id}`);
     const tableName = 'fact_table';
     const quack = await Database.create(':memory:');
-    const tempFile = tmp.fileSync({ postfix: `.${factTable.fileType}` });
+    const tempFile = tmp.tmpNameSync({ postfix: `.${factTable.fileType}` });
     // extract the data from the fact table
     try {
         const dataLakeService = new DataLakeService();
         const fileBuffer = await dataLakeService.getFileBuffer(factTable.filename, dataset.id);
-        fs.writeFileSync(tempFile.name, fileBuffer);
-        const createTableQuery = await createFactTableQuery(tableName, tempFile.name, factTable.fileType, quack);
+        fs.writeFileSync(tempFile, fileBuffer);
+        const createTableQuery = await createFactTableQuery(tableName, tempFile, factTable.fileType, quack);
         await quack.exec(createTableQuery);
     } catch (error) {
         logger.error(
             `Something went wrong trying to create ${tableName} in DuckDB.  Unable to do matching and validation`
         );
         await quack.close();
-        tempFile.removeCallback();
+        fs.unlinkSync(tempFile);
         throw error;
     }
     let viewDto: ViewDTO;
@@ -711,12 +711,12 @@ export const getDimensionPreview = async (
             viewDto = await getPreviewWithoutExtractor(dataset, dimension, factTable, quack, tableName);
         }
         await quack.close();
-        tempFile.removeCallback();
+        fs.unlinkSync(tempFile);
         return viewDto;
     } catch (error) {
         logger.error(`Something went wrong trying to create dimension preview with the following error: ${error}`);
         await quack.close();
-        tempFile.removeCallback();
+        fs.unlinkSync(tempFile);
         throw error;
     }
 };

@@ -111,17 +111,17 @@ export const validateLookupTable = async (
     const factTableName = 'fact_table';
     const lookupTableName = 'preview_lookup';
     const quack = await Database.create(':memory:');
-    const lookupTableTmpFile = tmp.fileSync({ postfix: `.${lookupTable.fileType}` });
+    const lookupTableTmpFile = tmp.tmpNameSync({ postfix: `.${lookupTable.fileType}` });
     try {
-        logger.debug(`Writing the lookup table to disk: ${lookupTableTmpFile.name}`);
-        fs.writeFileSync(lookupTableTmpFile.name, buffer);
+        logger.debug(`Writing the lookup table to disk: ${lookupTableTmpFile}`);
+        fs.writeFileSync(lookupTableTmpFile, buffer);
         const factTableTmpFile = await getFileImportAndSaveToDisk(dataset, factTable);
         logger.debug(`Loading fact table in to DuckDB`);
         await loadFileIntoDatabase(quack, factTable, factTableTmpFile, factTableName);
         logger.debug(`Loading lookup table in to DuckDB`);
         await loadFileIntoDatabase(quack, lookupTable, lookupTableTmpFile, lookupTableName);
-        lookupTableTmpFile.removeCallback();
-        factTableTmpFile.removeCallback();
+        fs.unlinkSync(lookupTableTmpFile);
+        fs.unlinkSync(factTableTmpFile);
     } catch (err) {
         logger.error(`Something went wrong trying to load data in to DuckDB with the following error: ${err}`);
         throw err;

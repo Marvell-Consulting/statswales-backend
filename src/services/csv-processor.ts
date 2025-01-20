@@ -2,9 +2,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import fs from 'fs';
 
 import { Database, TableData } from 'duckdb-async';
-import tmp, { file } from 'tmp';
-import detectCharacterEncoding from 'detect-character-encoding';
-import iconv from 'iconv-lite';
+import tmp from 'tmp';
 
 import { i18next } from '../middleware/translation';
 import { logger as parentLogger } from '../utils/logger';
@@ -107,41 +105,44 @@ function validateParams(page_number: number, max_page_number: number, page_size:
 export async function extractTableInformation(fileBuffer: Buffer, fileType: FileType): Promise<FactTableInfo[]> {
     const tableName = 'preview_table';
     const quack = await Database.create(':memory:');
-    const tempFile = tmp.fileSync({ postfix: `.${fileType}` });
+    const tempFile = tmp.tmpNameSync({ postfix: `.${fileType}` });
     let tableHeaders: TableData;
     let createTableQuery: string;
-    fs.writeFileSync(tempFile.name, fileBuffer);
+    fs.writeFileSync(tempFile, fileBuffer);
     switch (fileType) {
         case FileType.Csv:
         case FileType.GzipCsv:
-            createTableQuery = `CREATE TABLE ${tableName} AS SELECT * FROM read_csv('${tempFile.name}', auto_type_candidates = ['BIGINT', 'DOUBLE', 'VARCHAR']);`;
+            createTableQuery = `CREATE TABLE ${tableName} AS SELECT * FROM read_csv('${tempFile}', auto_type_candidates = ['BIGINT', 'DOUBLE', 'VARCHAR']);`;
             break;
         case FileType.Parquet:
-            createTableQuery = `CREATE TABLE ${tableName} AS SELECT * FROM '${tempFile.name}';`;
+            createTableQuery = `CREATE TABLE ${tableName} AS SELECT * FROM '${tempFile}';`;
             break;
         case FileType.Json:
         case FileType.GzipJson:
-            createTableQuery = `CREATE TABLE ${tableName} AS SELECT * FROM read_json_auto('${tempFile.name}');`;
+            createTableQuery = `CREATE TABLE ${tableName} AS SELECT * FROM read_json_auto('${tempFile}');`;
             break;
         case FileType.Excel:
             await quack.exec('INSTALL spatial;');
             await quack.exec('LOAD spatial;');
-            createTableQuery = `CREATE TABLE ${tableName} AS SELECT * FROM st_read('${tempFile.name}');`;
+            createTableQuery = `CREATE TABLE ${tableName} AS SELECT * FROM st_read('${tempFile}');`;
             break;
         default:
             throw new Error('Unknown file type');
     }
     try {
+        logger.debug(`Executing query to create base fact table: ${createTableQuery}`);
         await quack.exec(createTableQuery);
         tableHeaders = await quack.all(
             `SELECT (row_number() OVER ())-1 as index, column_name, column_type FROM (DESCRIBE ${tableName});`
         );
     } catch (error) {
-        logger.error(`Something went wrong trying to read the users file with the following error: ${error}`);
+        logger.error(`Something went wrong trying to extract table information with the following error: ${error}`);
         throw error;
     } finally {
+        logger.debug('Closing DuckDB Memory Database');
         await quack.close();
-        tempFile.removeCallback();
+        logger.debug(`Removing temp file ${tempFile} from disk`);
+        fs.unlinkSync(tempFile);
     }
     if (tableHeaders.length === 0) {
         throw new Error('This file does not appear to contain any tabular data');
@@ -263,28 +264,34 @@ export const getCSVPreview = async (
 ): Promise<ViewDTO | ViewErrDTO> => {
     const tableName = 'preview_table';
     const quack = await Database.create(':memory:');
-    const tempFile = tmp.fileSync({ postfix: `.${importObj.fileType}` });
+    const tempFile = tmp.tmpNameSync({ postfix: `.${importObj.fileType}` });
     try {
         const dataLakeService = new DataLakeService();
-        const fileBuffer = await dataLakeService.getFileBuffer(importObj.filename, dataset.id);
-        fs.writeFileSync(tempFile.name, fileBuffer);
+        let fileBuffer: Buffer;
+        try {
+            fileBuffer = await dataLakeService.getFileBuffer(importObj.filename, dataset.id);
+        } catch (err) {
+            logger.error(`Something went wrong trying to get file from datalake with error: ${err}`);
+            throw err;
+        }
+        fs.writeFileSync(tempFile, fileBuffer);
         let createTableQuery: string;
         switch (importObj.fileType) {
             case FileType.Csv:
             case FileType.GzipCsv:
-                createTableQuery = `CREATE TABLE ${tableName} AS SELECT * FROM read_csv('${tempFile.name}', auto_type_candidates = ['BOOLEAN', 'BIGINT', 'DOUBLE', 'VARCHAR']);`;
+                createTableQuery = `CREATE TABLE ${tableName} AS SELECT * FROM read_csv('${tempFile}', auto_type_candidates = ['BOOLEAN', 'BIGINT', 'DOUBLE', 'VARCHAR']);`;
                 break;
             case FileType.Parquet:
-                createTableQuery = `CREATE TABLE ${tableName} AS SELECT * FROM '${tempFile.name}';`;
+                createTableQuery = `CREATE TABLE ${tableName} AS SELECT * FROM '${tempFile}';`;
                 break;
             case FileType.Json:
             case FileType.GzipJson:
-                createTableQuery = `CREATE TABLE ${tableName} AS SELECT * FROM read_json_auto('${tempFile.name}');`;
+                createTableQuery = `CREATE TABLE ${tableName} AS SELECT * FROM read_json_auto('${tempFile}');`;
                 break;
             case FileType.Excel:
                 await quack.exec('INSTALL spatial;');
                 await quack.exec('LOAD spatial;');
-                createTableQuery = `CREATE TABLE ${tableName} AS SELECT * FROM st_read('${tempFile.name}');`;
+                createTableQuery = `CREATE TABLE ${tableName} AS SELECT * FROM st_read('${tempFile}');`;
                 break;
             default:
                 throw new Error('Unknown file type');
@@ -359,7 +366,7 @@ export const getCSVPreview = async (
         };
     } finally {
         await quack.close();
-        tempFile.removeCallback();
+        if (fs.existsSync(tempFile)) fs.unlinkSync(tempFile);
     }
 };
 
@@ -371,28 +378,28 @@ export const getFactTableColumnPreview = async (
     logger.debug(`Getting fact table column preview for ${columnName}`);
     const tableName = 'preview_table';
     const quack = await Database.create(':memory:');
-    const tempFile = tmp.fileSync({ postfix: `.${factTable.fileType}` });
+    const tempFile = tmp.tmpNameSync({ postfix: `.${factTable.fileType}` });
     try {
         const dataLakeService = new DataLakeService();
         const fileBuffer = await dataLakeService.getFileBuffer(factTable.filename, dataset.id);
-        fs.writeFileSync(tempFile.name, fileBuffer);
+        fs.writeFileSync(tempFile, fileBuffer);
         let createTableQuery: string;
         switch (factTable.fileType) {
             case FileType.Csv:
             case FileType.GzipCsv:
-                createTableQuery = `CREATE TABLE ${tableName} AS SELECT * FROM read_csv('${tempFile.name}', auto_type_candidates = ['BOOLEAN', 'BIGINT', 'DOUBLE', 'VARCHAR']);`;
+                createTableQuery = `CREATE TABLE ${tableName} AS SELECT * FROM read_csv('${tempFile}', auto_type_candidates = ['BOOLEAN', 'BIGINT', 'DOUBLE', 'VARCHAR']);`;
                 break;
             case FileType.Parquet:
-                createTableQuery = `CREATE TABLE ${tableName} AS SELECT * FROM '${tempFile.name}';`;
+                createTableQuery = `CREATE TABLE ${tableName} AS SELECT * FROM '${tempFile}';`;
                 break;
             case FileType.Json:
             case FileType.GzipJson:
-                createTableQuery = `CREATE TABLE ${tableName} AS SELECT * FROM read_json_auto('${tempFile.name}');`;
+                createTableQuery = `CREATE TABLE ${tableName} AS SELECT * FROM read_json_auto('${tempFile}');`;
                 break;
             case FileType.Excel:
                 await quack.exec('INSTALL spatial;');
                 await quack.exec('LOAD spatial;');
-                createTableQuery = `CREATE TABLE ${tableName} AS SELECT * FROM st_read('${tempFile.name}');`;
+                createTableQuery = `CREATE TABLE ${tableName} AS SELECT * FROM st_read('${tempFile}');`;
                 break;
             default:
                 throw new Error('Unknown file type');
@@ -453,7 +460,7 @@ export const getFactTableColumnPreview = async (
         };
     } finally {
         await quack.close();
-        tempFile.removeCallback();
+        fs.unlinkSync(tempFile);
     }
 };
 
