@@ -4,9 +4,11 @@ import * as fs from 'fs';
 import request from 'supertest';
 
 import { DataLakeService } from '../src/services/datalake';
-import app, { initDb } from '../src/app';
-import { Revision } from '../src/entities/dataset/revision';
+import app from '../src/app';
+import { initDb } from '../src/db/init';
 import DatabaseManager from '../src/db/database-manager';
+import { initPassport } from '../src/middleware/passport-auth';
+import { Revision } from '../src/entities/dataset/revision';
 import { User } from '../src/entities/user/user';
 import { FactTable } from '../src/entities/dataset/fact-table';
 import { logger } from '../src/utils/logger';
@@ -31,6 +33,7 @@ describe('API Endpoints for viewing the contents of a dataset', () => {
     beforeAll(async () => {
         try {
             dbManager = await initDb();
+            await initPassport(dbManager.getDataSource());
             await user.save();
             await createFullDataset(dataset1Id, revision1Id, import1Id, user);
         } catch (error) {
