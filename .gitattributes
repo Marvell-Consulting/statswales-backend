@@ -1,0 +1,53 @@
+# Text based files
+*.css             text eol=lf
+*.csv             text eol=lf
+*.ejs             text eol=lf
+*.iml             text eol=lf
+*.htm             text eol=lf diff=html
+*.html            text eol=lf diff=html
+*.js              text eol=lf
+*.json            text eol=lf
+*.markdown        text diff=markdown
+*.md              text diff=markdown
+*.mdwn            text diff=markdown
+*.mdown           text diff=markdown
+*.mkd             text diff=markdown
+*.mkdn            text diff=markdown
+*.mjs             text eol=lf
+*.svg             text eol=lf
+*.ts              text eol=lf
+*.xml             text eol=lf
+*.yml             text eol=lf
+
+# Named Files
+Dockerfile        text eol=lf
+.editorconfig     text eol=lf
+.env              text eol=lf
+.env-example      text eol=lf
+.gitignore        text eol=lf
+.nvmrc text       eol=lf
+.prettierrc       text eol=lf
+
+# Documentation
+AUTHORS           text eol=lf
+CHANGELOG         text eol=lf
+CHANGES           text eol=lf
+CONTRIBUTING      text eol=lf
+COPYING           text eol=lf
+copyright         text eol=lf
+*COPYRIGHT*       text eol=lf
+INSTALL           text eol=lf
+license           text eol=lf
+LICENSE           text eol=lf
+NEWS              text eol=lf
+readme            text eol=lf
+*README*          text eol=lf
+TODO              text eol=lf
+
+# Binary files
+ico               binary
+png               binary
+svg               binary
+woff              binary
+woff2             binary
+
