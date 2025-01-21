@@ -24,6 +24,7 @@ export const getCubePreview = async (
     page: number,
     size: number
 ): Promise<ViewDTO | ViewErrDTO> => {
+    logger.debug(`Opening cube file ${cubeFile}`);
     const quack = await Database.create(cubeFile);
     const totalsQuery = `SELECT count(*) as totalLines, ceil(count(*)/${size}) as totalPages from default_view_${lang};`;
     const totals = await quack.all(totalsQuery);
@@ -53,6 +54,8 @@ export const getCubePreview = async (
                 tableHeaders[i] === 'int_line_number' ? FactTableColumnType.LineNumber : FactTableColumnType.Unknown
         });
     }
+    logger.debug(`Closing cube file ${cubeFile}`);
+    await quack.close();
     return {
         dataset: DatasetDTO.fromDataset(currentDataset),
         current_page: page,
@@ -91,6 +94,7 @@ export const outputCube = async (cubeFile: string, lang: string, mode: DuckdbOut
         default:
             throw new Error(`Format ${mode} not supported`);
     }
+    await quack.close();
     return outputFile.name;
 };
 

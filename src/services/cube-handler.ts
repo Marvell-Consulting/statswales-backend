@@ -61,10 +61,10 @@ export const createFactTableQuery = async (
 export const loadFileIntoCube = async (
     quack: Database,
     fileImport: FileImport,
-    tempFile: FileResult,
+    tempFile: string,
     tableName: string
 ) => {
-    const insertQuery = await createFactTableQuery(tableName, tempFile.name, fileImport.fileType, quack);
+    const insertQuery = await createFactTableQuery(tableName, tempFile, fileImport.fileType, quack);
     try {
         await quack.exec(insertQuery);
     } catch (error) {
@@ -79,24 +79,24 @@ export const loadFileIntoCube = async (
 export const loadFileDataIntoTable = async (
     quack: Database,
     fileImport: FileImport,
-    tempFile: FileResult,
+    tempFile: string,
     tableName: string
 ) => {
     let insertQuery: string;
     switch (fileImport.fileType) {
         case FileType.Csv:
         case FileType.GzipCsv:
-            insertQuery = `INSERT INTO ${tableName} SELECT * FROM read_csv('${tempFile.name}', auto_type_candidates = ['BOOLEAN', 'BIGINT', 'DOUBLE', 'VARCHAR']);`;
+            insertQuery = `INSERT INTO ${tableName} SELECT * FROM read_csv('${tempFile}', auto_type_candidates = ['BOOLEAN', 'BIGINT', 'DOUBLE', 'VARCHAR']);`;
             break;
         case FileType.Parquet:
-            insertQuery = `INSERT INTO ${tableName} SELECT * FROM ${tempFile.name};`;
+            insertQuery = `INSERT INTO ${tableName} SELECT * FROM ${tempFile};`;
             break;
         case FileType.Json:
         case FileType.GzipJson:
-            insertQuery = `INSERT INTO ${tableName} SELECT * FROM read_json_auto('${tempFile.name}');`;
+            insertQuery = `INSERT INTO ${tableName} SELECT * FROM read_json_auto('${tempFile}');`;
             break;
         case FileType.Excel:
-            insertQuery = `INSERT INTO ${tableName} SELECT * FROM st_read('${tempFile.name}');`;
+            insertQuery = `INSERT INTO ${tableName} SELECT * FROM st_read('${tempFile}');`;
             break;
         default:
             throw new Error('Unknown file type');
@@ -334,7 +334,7 @@ async function loadFactTablesWithUpdates(
 ) {
     for (const factTable of allFactTables.sort((ftA, ftB) => ftA.uploadedAt.getTime() - ftB.uploadedAt.getTime())) {
         logger.info(`Loading fact table data for fact table ${factTable.id}`);
-        const factTableFile = await getFileImportAndSaveToDisk(dataset, factTable);
+        const factTableFile: string = await getFileImportAndSaveToDisk(dataset, factTable);
         const updateQuery =
             `UPDATE ${FACT_TABLE_NAME} SET "${dataValuesColumn.columnName}"=update_table."${dataValuesColumn.columnName}", ` +
             `"${notesCodeColumn.columnName}"=(CASE ${FACT_TABLE_NAME}."${notesCodeColumn.columnName}" = NULL THEN 'r' ELSE concat(${FACT_TABLE_NAME}."${notesCodeColumn.columnName}"', ',r') END) ` +
@@ -361,7 +361,7 @@ async function loadFactTablesWithUpdates(
                 await quack.exec(`DROP TABLE update_table;`);
                 break;
         }
-        factTableFile.removeCallback();
+        fs.unlinkSync(factTableFile);
     }
 }
 
@@ -381,7 +381,7 @@ async function loadFactTablesWithoutUpdates(quack: Database, dataset: Dataset, a
                 await loadFileDataIntoTable(quack, factTable, factTableFile, FACT_TABLE_NAME);
                 break;
         }
-        factTableFile.removeCallback();
+        fs.unlinkSync(factTableFile);
     }
 }
 
@@ -639,7 +639,7 @@ async function setupMeasures(
                     throw error;
                 }
             }
-            measureFile.removeCallback();
+            fs.unlinkSync(measureFile);
         } else {
             logger.error(`Measure is defined in the dataset but it has no lookup nor definitions`);
             await quack.close();
@@ -916,7 +916,12 @@ export const createBaseCube = async (dataset: Dataset, endRevision: Revision): P
 };
 
 export const cleanUpCube = async (tmpFile: string) => {
-    fs.unlinkSync(tmpFile);
+    logger.debug('Cleaning up cube file');
+    if (fs.existsSync(tmpFile)) {
+        fs.unlink(tmpFile, async (err) => {
+            if (err) logger.error(`Unable to remove file ${tmpFile} with error: ${err}`);
+        });
+    }
 };
 
 export const getCubeDataTable = async (cubeFile: string, lang: string) => {

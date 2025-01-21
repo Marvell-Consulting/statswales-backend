@@ -2,8 +2,8 @@ import fs from 'node:fs';
 
 import tmp, { FileResult } from 'tmp';
 import { Database } from 'duckdb-async';
-import detectCharacterEncoding from 'detect-character-encoding';
 import iconv from 'iconv-lite';
+import jschardet from 'jschardet';
 
 import { Dataset } from '../entities/dataset/dataset';
 import { FileImport } from '../entities/dataset/file-import';
@@ -13,11 +13,12 @@ import { FileType } from '../enums/file-type';
 import { logger } from './logger';
 
 export const convertBufferToUTF8 = (buffer: Buffer): Buffer => {
-    const fileEncoding = detectCharacterEncoding(buffer)?.encoding;
+    const fileEncoding = jschardet.detect(buffer.toString())?.encoding;
     if (!fileEncoding) {
         logger.warn('Could not detect file encoding for the file');
         throw new Error('errors.csv.invalid');
     }
+    logger.debug(`File encoding detected as ${fileEncoding}`);
     if (fileEncoding !== 'UTF-8') {
         logger.warn(`File is not UTF-8 encoded... File appears to be ${fileEncoding}... Going to try to recode it`);
         const decodedString = iconv.decode(buffer, fileEncoding);
@@ -26,11 +27,11 @@ export const convertBufferToUTF8 = (buffer: Buffer): Buffer => {
     return buffer;
 };
 
-export const getFileImportAndSaveToDisk = async (dataset: Dataset, importFile: FileImport): Promise<FileResult> => {
+export const getFileImportAndSaveToDisk = async (dataset: Dataset, importFile: FileImport): Promise<string> => {
     const dataLakeService = new DataLakeService();
-    const importTmpFile = tmp.fileSync({ postfix: `.${importFile.fileType}` });
+    const importTmpFile = tmp.tmpNameSync({ postfix: `.${importFile.fileType}` });
     const buffer = await dataLakeService.getFileBuffer(importFile.filename, dataset.id);
-    fs.writeFileSync(importTmpFile.name, buffer);
+    fs.writeFileSync(importTmpFile, buffer);
     return importTmpFile;
 };
 
@@ -38,26 +39,26 @@ export const getFileImportAndSaveToDisk = async (dataset: Dataset, importFile: F
 export const loadFileIntoDatabase = async (
     quack: Database,
     fileImport: FileImport,
-    tempFile: FileResult,
+    tempFile: string,
     tableName: string
 ) => {
     let createTableQuery: string;
     switch (fileImport.fileType) {
         case FileType.Csv:
         case FileType.GzipCsv:
-            createTableQuery = `CREATE TABLE ${tableName} AS SELECT * FROM read_csv('${tempFile.name}', auto_type_candidates = ['BOOLEAN', 'BIGINT', 'DOUBLE', 'VARCHAR']);`;
+            createTableQuery = `CREATE TABLE ${tableName} AS SELECT * FROM read_csv('${tempFile}', auto_type_candidates = ['BOOLEAN', 'BIGINT', 'DOUBLE', 'VARCHAR']);`;
             break;
         case FileType.Parquet:
-            createTableQuery = `CREATE TABLE ${tableName} AS SELECT * FROM '${tempFile.name}';`;
+            createTableQuery = `CREATE TABLE ${tableName} AS SELECT * FROM '${tempFile}';`;
             break;
         case FileType.Json:
         case FileType.GzipJson:
-            createTableQuery = `CREATE TABLE ${tableName} AS SELECT * FROM read_json_auto('${tempFile.name}');`;
+            createTableQuery = `CREATE TABLE ${tableName} AS SELECT * FROM read_json_auto('${tempFile}');`;
             break;
         case FileType.Excel:
             await quack.exec('INSTALL spatial;');
             await quack.exec('LOAD spatial;');
-            createTableQuery = `CREATE TABLE ${tableName} AS SELECT * FROM st_read('${tempFile.name}');`;
+            createTableQuery = `CREATE TABLE ${tableName} AS SELECT * FROM st_read('${tempFile}');`;
             break;
         default:
             throw new Error('Unknown file type');

@@ -1,3 +1,5 @@
+import fs from 'fs';
+
 import { Database } from 'duckdb-async';
 
 import { FactTable } from '../entities/dataset/fact-table';
@@ -140,7 +142,7 @@ export const validateReferenceData = async (
         const factTableTmpFile = await getFileImportAndSaveToDisk(dataset, factTable);
         logger.debug(`Loading fact table in to DuckDB`);
         await loadFileIntoDatabase(quack, factTable, factTableTmpFile, factTableName);
-        factTableTmpFile.removeCallback();
+        fs.unlinkSync(factTableTmpFile);
     } catch (err) {
         await quack.close();
         logger.error(`Something went wrong trying to load data in to DuckDB with the following error: ${err}`);
