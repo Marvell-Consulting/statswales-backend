@@ -2,16 +2,19 @@ import passport from 'passport';
 import { Issuer, Strategy as OpenIdStrategy, TokenSet, UserinfoResponse } from 'openid-client';
 import { Strategy as GoogleStrategy } from 'passport-google-oauth20';
 import { Strategy as JWTStrategy, ExtractJwt } from 'passport-jwt';
-import { Repository } from 'typeorm';
+import { DataSource, Repository } from 'typeorm';
 
 import { logger } from '../utils/logger';
 import { User } from '../entities/user/user';
 import { appConfig } from '../config';
 import { AuthProvider } from '../enums/auth-providers';
+import { asyncLocalStorage } from '../services/async-local-storage';
 
 const config = appConfig();
 
-export const initPassport = async (userRepository: Repository<User>): Promise<void> => {
+export const initPassport = async (dataSource: DataSource): Promise<void> => {
+    const userRepository: Repository<User> = dataSource.getRepository('User');
+
     passport.use(
         AuthProvider.Jwt,
         new JWTStrategy(
@@ -30,6 +33,9 @@ export const initPassport = async (userRepository: Repository<User>): Promise<vo
                         done(null, undefined, { message: 'User not recognised' });
                         return;
                     }
+
+                    // store the user context for code that does not have access to the request object
+                    asyncLocalStorage.getStore()?.set('user', user);
 
                     done(null, user);
                 } catch (err: any) {
@@ -82,7 +88,6 @@ export const initPassport = async (userRepository: Repository<User>): Promise<vo
                             existingUser.provider = 'entraid';
                             existingUser.providerUserId = userInfo.sub;
                             await existingUser.save();
-
                             done(null, existingUser);
                             return;
                         }
@@ -151,7 +156,6 @@ export const initPassport = async (userRepository: Repository<User>): Promise<vo
                             existingUser.provider = 'google';
                             existingUser.providerUserId = profile.id;
                             await existingUser.save();
-
                             done(null, existingUser);
                             return;
                         }
