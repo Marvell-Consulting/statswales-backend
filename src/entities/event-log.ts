@@ -1,4 +1,4 @@
-import { BaseEntity, Column, CreateDateColumn, Entity, PrimaryGeneratedColumn } from 'typeorm';
+import { BaseEntity, Column, CreateDateColumn, Entity, Index, PrimaryGeneratedColumn } from 'typeorm';
 
 @Entity({ name: 'event_log' })
 export class EventLog extends BaseEntity {
@@ -11,12 +11,14 @@ export class EventLog extends BaseEntity {
     @Column({ name: 'entity', type: 'text', nullable: false })
     entity: string; // the entity that was affected, e.g. user, dataset, dimension, etc
 
+    @Index('IDX_event_log_entity_id')
     @Column({ name: 'entity_id', type: 'text', nullable: false })
     entityId: string; // the id of the entity that was affected
 
     @Column({ name: 'data', type: 'jsonb', nullable: true })
     data?: Record<string, any>; // the new values of the record that was changed
 
+    @Index('IDX_event_log_user_id')
     @Column({ name: 'user_id', type: 'uuid', nullable: true })
     userId?: string; // the user that triggered the event
 
