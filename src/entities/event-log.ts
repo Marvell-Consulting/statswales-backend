@@ -15,13 +15,13 @@ export class EventLog extends BaseEntity {
     entityId: string; // the id of the entity that was affected
 
     @Column({ name: 'data', type: 'jsonb', nullable: true })
-    data: Record<string, any>; // the change that was made
+    data: Record<string, any>; // the new values of the record that was changed
 
     @Column({ name: 'user_id', type: 'uuid', nullable: true })
     userId: string; // the user that triggered the event
 
     @Column({ name: 'client', type: 'text', nullable: true })
-    client: string; // the client that initiated the event, e.g. sw-frontend
+    client: string; // the client that initiated the event, e.g. sw3-frontend (or "system" if not an api call)
 
     @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
     createdAt: Date; // when the event happened

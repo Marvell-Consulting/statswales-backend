@@ -60,7 +60,7 @@ export class EntitySubscriber implements EntitySubscriberInterface {
                 entity: event?.metadata?.tableName,
                 entityId: event.entity?.id,
                 data: event.entity ? this.normaliseEntity(event.entity) : undefined,
-                userId: this.getUser()?.id || 'unknown',
+                userId: this.getUser()?.id,
                 client: this.getClient()
             };
 
