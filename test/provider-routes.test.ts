@@ -1,12 +1,13 @@
 import request from 'supertest';
 import { v4 as uuid } from 'uuid';
 
-import app, { initDb } from '../src/app';
+import app from '../src/app';
+import { initDb } from '../src/db/init';
 import DatabaseManager from '../src/db/database-manager';
+import { initPassport } from '../src/middleware/passport-auth';
 import { User } from '../src/entities/user/user';
 import { Provider } from '../src/entities/dataset/provider';
 import { ProviderSource } from '../src/entities/dataset/provider-source';
-import { ProviderDTO } from '../src/dtos/provider-dto';
 import { ProviderSourceDTO } from '../src/dtos/provider-source-dto';
 
 import { getTestUser } from './helpers/get-user';
@@ -42,6 +43,7 @@ describe('Providers', () => {
     beforeAll(async () => {
         try {
             dbManager = await initDb();
+            await initPassport(dbManager.getDataSource());
             await user.save();
             await dbManager.getEntityManager().save(Provider, providers);
             await dbManager.getEntityManager().save(ProviderSource, sources);

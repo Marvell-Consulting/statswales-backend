@@ -5,14 +5,16 @@ import request from 'supertest';
 import { t } from 'i18next';
 
 import { DataLakeService } from '../src/services/datalake';
-import app, { initDb } from '../src/app';
+import app from '../src/app';
+import { initDb } from '../src/db/init';
+import DatabaseManager from '../src/db/database-manager';
+import { initPassport } from '../src/middleware/passport-auth';
 import { Dataset } from '../src/entities/dataset/dataset';
 import { Revision } from '../src/entities/dataset/revision';
 import { User } from '../src/entities/user/user';
 import { DatasetDTO } from '../src/dtos/dataset-dto';
 import { DimensionDTO } from '../src/dtos/dimension-dto';
 import { RevisionDTO } from '../src/dtos/revision-dto';
-import DatabaseManager from '../src/db/database-manager';
 import { DatasetRepository } from '../src/repositories/dataset';
 import { FactTableRepository } from '../src/repositories/fact-table';
 import { FactTableDTO } from '../src/dtos/fact-table-dto';
@@ -39,6 +41,7 @@ describe('API Endpoints for viewing dataset objects', () => {
     beforeAll(async () => {
         try {
             dbManager = await initDb();
+            await initPassport(dbManager.getDataSource());
             await user.save();
             await createFullDataset(dataset1Id, revision1Id, import1Id, user);
         } catch (error) {

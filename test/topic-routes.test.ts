@@ -1,7 +1,9 @@
 import request from 'supertest';
 
-import app, { initDb } from '../src/app';
+import app from '../src/app';
+import { initDb } from '../src/db/init';
 import DatabaseManager from '../src/db/database-manager';
+import { initPassport } from '../src/middleware/passport-auth';
 import { User } from '../src/entities/user/user';
 import { Topic } from '../src/entities/dataset/topic';
 import { TopicDTO } from '../src/dtos/topic-dto';
@@ -28,6 +30,7 @@ describe('Topics', () => {
     beforeAll(async () => {
         try {
             dbManager = await initDb();
+            await initPassport(dbManager.getDataSource());
             await user.save();
             await dbManager.getEntityManager().save(Topic, topics);
         } catch (err) {

@@ -5,14 +5,16 @@ import request from 'supertest';
 import { addYears, subYears } from 'date-fns';
 
 import { DataLakeService } from '../src/services/datalake';
-import app, { initDb } from '../src/app';
+import app from '../src/app';
+import { initDb } from '../src/db/init';
+import DatabaseManager from '../src/db/database-manager';
+import { initPassport } from '../src/middleware/passport-auth';
 import { Dataset } from '../src/entities/dataset/dataset';
 import { t } from '../src/middleware/translation';
 import { DatasetDTO } from '../src/dtos/dataset-dto';
 import { DatasetInfoDTO } from '../src/dtos/dataset-info-dto';
 import { FactTableDTO } from '../src/dtos/fact-table-dto';
 import { MAX_PAGE_SIZE, MIN_PAGE_SIZE } from '../src/services/csv-processor';
-import DatabaseManager from '../src/db/database-manager';
 import { User } from '../src/entities/user/user';
 import { SourceAssignmentDTO } from '../src/dtos/source-assignment-dto';
 import { FactTableColumnType } from '../src/enums/fact-table-column-type';
@@ -43,6 +45,7 @@ describe('API Endpoints', () => {
     beforeAll(async () => {
         try {
             dbManager = await initDb();
+            await initPassport(dbManager.getDataSource());
             await user.save();
             await createFullDataset(dataset1Id, revision1Id, import1Id, user);
         } catch (error) {

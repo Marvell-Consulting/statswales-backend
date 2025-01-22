@@ -1,7 +1,9 @@
 import request from 'supertest';
 
-import app, { initDb } from '../src/app';
+import app from '../src/app';
+import { initDb } from '../src/db/init';
 import DatabaseManager from '../src/db/database-manager';
+import { initPassport } from '../src/middleware/passport-auth';
 import { sanitiseUser } from '../src/utils/sanitise-user';
 import { SUPPORTED_LOCALES } from '../src/middleware/translation';
 import { Locale } from '../src/enums/locale';
@@ -16,6 +18,7 @@ describe('Healthcheck', () => {
     beforeAll(async () => {
         try {
             dbManager = await initDb();
+            await initPassport(dbManager.getDataSource());
         } catch (error) {
             logger.error(error, 'Could not initialise test database');
             await dbManager.getDataSource().dropDatabase();
