@@ -21,7 +21,7 @@ type WriteEvent = InsertEvent<any> | UpdateEvent<any> | RemoveEvent<any>;
 const ignoreTables: string[] = ['event_log'];
 
 // ignore some common props from the logged value that can be easily retrieved elsewhere
-const ignoreProps: string[] = ['id', 'createdAt', 'updatedAt', 'createdBy'];
+const ignoreProps: string[] = ['id', 'createdAt', 'updatedAt', 'createdBy', 'factTables'];
 
 @EventSubscriber()
 export class EntitySubscriber implements EntitySubscriberInterface {
