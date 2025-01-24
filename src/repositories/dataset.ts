@@ -124,9 +124,9 @@ export const DatasetRepository = dataSource.getRepository(Dataset).extend({
             .addSelect(
                 `
                 CASE
-                    WHEN r.publish_at IS NULL THEN 'incomplete'
-                    WHEN r.publish_at > NOW() THEN 'scheduled'
-                    WHEN d.live IS NOT NULL AND r.publish_at <= NOW() THEN 'published'
+                    WHEN d.live IS NOT NULL AND r.approved_at IS NOT NULL AND r.publish_at <= NOW() THEN 'published'
+                    WHEN r.approved_at IS NOT NULL THEN 'scheduled'
+                    ELSE 'incomplete'
                 END
             `,
                 'publishing_status'
@@ -145,7 +145,7 @@ export const DatasetRepository = dataSource.getRepository(Dataset).extend({
                 'r.dataset_id = d.id'
             )
             .where('di.language LIKE :lang', { lang: `${lang}%` })
-            .groupBy('d.id, di.title, di.updatedAt, r.publish_at');
+            .groupBy('d.id, di.title, di.updatedAt, r.approved_at, r.publish_at');
 
         const offset = (page - 1) * limit;
 

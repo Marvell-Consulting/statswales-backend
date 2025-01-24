@@ -7,6 +7,8 @@ import { FactTable } from '../entities/dataset/fact-table';
 import { Revision } from '../entities/dataset/revision';
 import { User } from '../entities/user/user';
 
+import { DatasetRepository } from './dataset';
+
 export const RevisionRepository = dataSource.getRepository(Revision).extend({
     async createFromImport(dataset: Dataset, fileImport: FactTable, user: User): Promise<Revision> {
         logger.debug(`Creating new Revision for Dataset "${dataset.id}" from FactTable "${fileImport.id}"...`);
@@ -21,6 +23,8 @@ export const RevisionRepository = dataSource.getRepository(Revision).extend({
         const lastPublishedRevision = await dataSource.getRepository(Revision).findOne({
             where: {
                 dataset: { id: dataset.id },
+                revisionIndex: Not(IsNull()),
+                approvedAt: Not(IsNull()),
                 publishAt: Not(IsNull())
             },
             order: { revisionIndex: 'DESC' }
@@ -44,5 +48,20 @@ export const RevisionRepository = dataSource.getRepository(Revision).extend({
         logger.debug(`Updating Publish Date for Revision "${revision.id}"...`);
         revision.publishAt = publishAt;
         return dataSource.getRepository(Revision).save(revision);
+    },
+
+    async approvePublication(datasetId: string): Promise<Revision> {
+        const latestUnpublishedRevision = await dataSource.getRepository(Revision).findOneOrFail({
+            where: {
+                dataset: { id: datasetId },
+                approvedAt: IsNull(),
+                publishAt: Not(IsNull())
+            }
+        });
+
+        latestUnpublishedRevision.approvedAt = new Date();
+        await latestUnpublishedRevision.save();
+
+        return latestUnpublishedRevision;
     }
 });

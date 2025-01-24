@@ -35,6 +35,8 @@ export class TasklistStateDTO {
         when: TaskStatus;
     };
 
+    canPublish: boolean;
+
     public static translationStatus(dataset: Dataset): TaskStatus {
         const metaFullyTranslated = dataset.datasetInfo?.every((info) => {
             return every(translatableMetadataKeys, (key) => {
@@ -100,17 +102,23 @@ export class TasklistStateDTO {
         const dimensionsComplete = every(dimensions, (dim) => dim.status === TaskStatus.Completed);
         const metadataComplete = every(dto.metadata, (status) => status === TaskStatus.Completed);
 
-        // TODO: export should check for dimensionsComplete as well
+        const translationStatus = TasklistStateDTO.translationStatus(dataset);
+        const translationsComplete = translationStatus === TaskStatus.Completed;
+
         // TODO: import should check export complete and nothing was updated since the export (needs audit table)
         dto.translation = {
-            export: metadataComplete ? TaskStatus.Available : TaskStatus.CannotStart,
-            import: metadataComplete ? TasklistStateDTO.translationStatus(dataset) : TaskStatus.CannotStart
+            export: dimensionsComplete && metadataComplete ? TaskStatus.Available : TaskStatus.CannotStart,
+            import: dimensionsComplete && metadataComplete ? translationStatus : TaskStatus.CannotStart
         };
 
         dto.publishing = {
             organisation: dataset.team ? TaskStatus.Completed : TaskStatus.NotStarted,
             when: latestRevision.publishAt ? TaskStatus.Completed : TaskStatus.NotStarted
         };
+
+        const publishingComplete = every(dto.publishing, (status) => status === TaskStatus.Completed);
+
+        dto.canPublish = dimensionsComplete && metadataComplete && translationsComplete && publishingComplete;
 
         return dto;
     }
