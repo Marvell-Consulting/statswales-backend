@@ -16,6 +16,7 @@ import { FactTable } from '../entities/dataset/fact-table';
 import { Locale } from '../enums/locale';
 import { DatasetRepository } from '../repositories/dataset';
 import { DatasetDTO } from '../dtos/dataset-dto';
+import { TasklistStateDTO } from '../dtos/tasklist-state-dto';
 import { SourceAssignmentException } from '../exceptions/source-assignment.exception';
 import { BadRequestException } from '../exceptions/bad-request.exception';
 import { NotFoundException } from '../exceptions/not-found.exception';
@@ -253,12 +254,31 @@ export const updateRevisionPublicationDate = async (req: Request, res: Response,
         }
 
         await RevisionRepository.updatePublishDate(revision, publishAt);
-        const updatedDataset = await DatasetRepository.getById(req.params.dataset_id);
+        const updatedDataset = await DatasetRepository.getById(dataset.id);
 
         res.status(201);
         res.json(DatasetDTO.fromDataset(updatedDataset));
     } catch (err) {
         next(new UnknownException());
+    }
+};
+
+export const approveForPublication = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+        const dataset = res.locals.dataset;
+        const tasklist = TasklistStateDTO.fromDataset(dataset, req.language);
+
+        if (!tasklist.canPublish) {
+            throw new BadRequestException('dataset not ready for publication, please check tasklist');
+        }
+
+        await RevisionRepository.approvePublication(dataset.id);
+        const updatedDataset = await DatasetRepository.getById(dataset.id);
+        res.status(201);
+        res.json(DatasetDTO.fromDataset(updatedDataset));
+    } catch (err: any) {
+        logger.error(err, 'could not approve publication');
+        next(err);
     }
 };
 

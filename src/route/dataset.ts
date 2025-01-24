@@ -58,6 +58,7 @@ import {
     getRevisionPreview,
     removeFactTableFromRevision,
     updateRevisionPublicationDate,
+    approveForPublication,
     updateSources
 } from '../controllers/revision';
 
@@ -351,3 +352,7 @@ router.patch(
     loadDataset(),
     updateRevisionPublicationDate
 );
+
+// POST /dataset/:dataset_id/approve
+// Approve the dataset's latest revision for publication
+router.post('/:dataset_id/approve', loadDataset(), approveForPublication);
