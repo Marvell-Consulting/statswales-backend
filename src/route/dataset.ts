@@ -59,7 +59,8 @@ import {
     removeFactTableFromRevision,
     updateRevisionPublicationDate,
     approveForPublication,
-    updateSources
+    updateSources,
+    withdrawFromPublication
 } from '../controllers/revision';
 
 const jsonParser = express.json();
@@ -356,3 +357,7 @@ router.patch(
 // POST /dataset/:dataset_id/approve
 // Approve the dataset's latest revision for publication
 router.post('/:dataset_id/approve', loadDataset(), approveForPublication);
+
+// POST /dataset/:dataset_id/withdraw
+// Withdraw the dataset's latest revision from scheduled publication
+router.post('/:dataset_id/withdraw', loadDataset(), withdrawFromPublication);

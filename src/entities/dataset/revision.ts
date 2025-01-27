@@ -45,11 +45,11 @@ export class Revision extends BaseEntity implements RevisionInterface {
     createdBy: User;
 
     @Column({ name: 'approved_at', type: 'timestamptz', nullable: true })
-    approvedAt: Date;
+    approvedAt: Date | null;
 
     @ManyToOne(() => User, { nullable: true })
     @JoinColumn({ name: 'approved_by', foreignKeyConstraintName: 'FK_revision_approved_by' })
-    approvedBy: User;
+    approvedBy: User | null;
 
     @Column({ name: 'publish_at', type: 'timestamptz', nullable: true })
     publishAt: Date;

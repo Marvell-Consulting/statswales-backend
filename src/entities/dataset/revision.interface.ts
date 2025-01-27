@@ -12,7 +12,7 @@ export interface RevisionInterface {
     factTables: FactTable[];
     createdAt: Date;
     createdBy: User;
-    approvedAt: Date;
-    approvedBy: User;
+    approvedAt: Date | null;
+    approvedBy: User | null;
     publishAt: Date;
 }

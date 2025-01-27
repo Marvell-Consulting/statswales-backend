@@ -28,6 +28,7 @@ import { createDimensionsFromSourceAssignment, validateSourceAssignment } from '
 import { cleanUpCube, createBaseCube } from '../services/cube-handler';
 import { DEFAULT_PAGE_SIZE, getCSVPreview, removeFileFromDataLake, uploadCSV } from '../services/csv-processor';
 import { convertBufferToUTF8 } from '../utils/file-utils';
+import { getLatestRevision } from '../utils/latest';
 
 import { getCubePreview, outputCube } from './cube-controller';
 
@@ -279,6 +280,33 @@ export const approveForPublication = async (req: Request, res: Response, next: N
         res.json(DatasetDTO.fromDataset(updatedDataset));
     } catch (err: any) {
         logger.error(err, 'could not approve publication');
+        next(err);
+    }
+};
+
+export const withdrawFromPublication = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+        const dataset = res.locals.dataset;
+        const revision = getLatestRevision(dataset);
+
+        if (!revision) {
+            throw new BadRequestException('dataset does not have any revisions');
+        }
+
+        if (!revision.publishAt || !revision.approvedAt) {
+            throw new BadRequestException('revision is not scheduled for publication');
+        }
+
+        if (isBefore(revision.publishAt, new Date())) {
+            throw new BadRequestException('publish date has passed, cannot withdraw published revisions');
+        }
+
+        await RevisionRepository.withdrawPublication(dataset.id);
+        const updatedDataset = await DatasetRepository.getById(dataset.id);
+        res.status(201);
+        res.json(DatasetDTO.fromDataset(updatedDataset));
+    } catch (err: any) {
+        logger.error(err, 'could not withdraw publication');
         next(err);
     }
 };
