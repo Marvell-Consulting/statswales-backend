@@ -6,6 +6,7 @@ import tmp from 'tmp';
 import { t } from 'i18next';
 import { isBefore, isValid } from 'date-fns';
 
+import { User } from '../entities/user/user';
 import { FactTableDTO } from '../dtos/fact-table-dto';
 import { UnknownException } from '../exceptions/unknown.exception';
 import { ViewErrDTO } from '../dtos/view-dto';
@@ -272,7 +273,7 @@ export const approveForPublication = async (req: Request, res: Response, next: N
             throw new BadRequestException('dataset not ready for publication, please check tasklist');
         }
 
-        await RevisionRepository.approvePublication(dataset.id);
+        await RevisionRepository.approvePublication(dataset.id, req.user as User);
         const updatedDataset = await DatasetRepository.getById(dataset.id);
         res.status(201);
         res.json(DatasetDTO.fromDataset(updatedDataset));

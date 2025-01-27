@@ -50,7 +50,7 @@ export const RevisionRepository = dataSource.getRepository(Revision).extend({
         return dataSource.getRepository(Revision).save(revision);
     },
 
-    async approvePublication(datasetId: string): Promise<Revision> {
+    async approvePublication(datasetId: string, approver: User): Promise<Revision> {
         const latestUnpublishedRevision = await dataSource.getRepository(Revision).findOneOrFail({
             where: {
                 dataset: { id: datasetId },
@@ -60,6 +60,7 @@ export const RevisionRepository = dataSource.getRepository(Revision).extend({
         });
 
         latestUnpublishedRevision.approvedAt = new Date();
+        latestUnpublishedRevision.approvedBy = approver;
         await latestUnpublishedRevision.save();
 
         return latestUnpublishedRevision;
