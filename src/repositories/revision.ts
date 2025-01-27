@@ -7,8 +7,6 @@ import { FactTable } from '../entities/dataset/fact-table';
 import { Revision } from '../entities/dataset/revision';
 import { User } from '../entities/user/user';
 
-import { DatasetRepository } from './dataset';
-
 export const RevisionRepository = dataSource.getRepository(Revision).extend({
     async createFromImport(dataset: Dataset, fileImport: FactTable, user: User): Promise<Revision> {
         logger.debug(`Creating new Revision for Dataset "${dataset.id}" from FactTable "${fileImport.id}"...`);
@@ -51,18 +49,36 @@ export const RevisionRepository = dataSource.getRepository(Revision).extend({
     },
 
     async approvePublication(datasetId: string, approver: User): Promise<Revision> {
-        const latestUnpublishedRevision = await dataSource.getRepository(Revision).findOneOrFail({
+        const scheduledRevision = await dataSource.getRepository(Revision).findOneOrFail({
             where: {
                 dataset: { id: datasetId },
                 approvedAt: IsNull(),
                 publishAt: Not(IsNull())
-            }
+            },
+            order: { revisionIndex: 'DESC' }
         });
 
-        latestUnpublishedRevision.approvedAt = new Date();
-        latestUnpublishedRevision.approvedBy = approver;
-        await latestUnpublishedRevision.save();
+        scheduledRevision.approvedAt = new Date();
+        scheduledRevision.approvedBy = approver;
+        await scheduledRevision.save();
 
-        return latestUnpublishedRevision;
+        return scheduledRevision;
+    },
+
+    async withdrawPublication(datasetId: string): Promise<Revision> {
+        const approvedRevision = await dataSource.getRepository(Revision).findOneOrFail({
+            where: {
+                dataset: { id: datasetId },
+                approvedAt: Not(IsNull()),
+                publishAt: Not(IsNull())
+            },
+            order: { revisionIndex: 'DESC' }
+        });
+
+        approvedRevision.approvedAt = null;
+        approvedRevision.approvedBy = null;
+        await approvedRevision.save();
+
+        return approvedRevision;
     }
 });
