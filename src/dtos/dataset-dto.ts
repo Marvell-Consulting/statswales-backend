@@ -18,7 +18,7 @@ export class DatasetDTO {
     id: string;
     created_at: string;
     created_by: string;
-    live?: string;
+    live?: string | null;
     archive?: string;
     dimensions?: DimensionDTO[];
     revisions: RevisionDTO[];
