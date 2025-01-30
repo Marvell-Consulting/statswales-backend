@@ -10,9 +10,11 @@ export const checkConfig = () => {
 
     logger.info('Checking app config...');
 
-    walkObject(config, ({ key, value, location, isLeaf }) => {
-        if (isLeaf && !optionalProperties.includes(key) && value === undefined) {
-            const configPath = location.join('.');
+    walkObject(config, ({ value, location, isLeaf }) => {
+        const configPath = location.join('.');
+        const optional = optionalProperties.some((prop) => configPath.includes(prop));
+
+        if (isLeaf && !optional && value === undefined) {
             throw new Error(`${configPath} is invalid or missing, stopping server`);
         }
     });
