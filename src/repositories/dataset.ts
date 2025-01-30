@@ -68,7 +68,11 @@ export const DatasetRepository = dataSource.getRepository(Dataset).extend({
     async getPublishedById(id: string): Promise<Dataset> {
         const findOptions: FindOneOptions<Dataset> = {
             where: { id, live: Not(IsNull()) },
-            relations: defaultRelations
+            relations: defaultRelations,
+            order: {
+                dimensions: { dimensionInfo: { language: 'ASC' } },
+                revisions: { factTables: { factTableInfo: { columnIndex: 'ASC' } } }
+            }
         };
 
         return this.findOneOrFail(findOptions);
