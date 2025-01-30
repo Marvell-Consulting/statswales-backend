@@ -1,3 +1,5 @@
+import { isBefore } from 'date-fns';
+
 import { Dataset } from '../entities/dataset/dataset';
 import { Dimension } from '../entities/dataset/dimension';
 import { Revision } from '../entities/dataset/revision';
@@ -10,19 +12,15 @@ import { DimensionDTO } from './dimension-dto';
 import { RevisionDTO } from './revision-dto';
 import { DatasetInfoDTO } from './dataset-info-dto';
 import { DatasetProviderDTO } from './dataset-provider-dto';
-import { MeasureDTO } from './measure-dto';
 import { TeamDTO } from './team-dto';
 import { TopicDTO } from './topic-dto';
 
-export class DatasetDTO {
+// TODO: make sure to filter any props the consumer side should not have access to
+export class ConsumerDatasetDTO {
     id: string;
-    created_at: string;
-    created_by: string;
     live?: string | null;
-    archive?: string;
     dimensions?: DimensionDTO[];
     revisions: RevisionDTO[];
-    measure?: MeasureDTO;
     datasetInfo: DatasetInfoDTO[];
     providers: DatasetProviderDTO[];
     topics: TopicDTO[];
@@ -30,18 +28,18 @@ export class DatasetDTO {
     start_date?: Date | null;
     end_date?: Date | null;
 
-    static fromDataset(dataset: Dataset): DatasetDTO {
-        const dto = new DatasetDTO();
+    static fromDataset(dataset: Dataset): ConsumerDatasetDTO {
+        const dto = new ConsumerDatasetDTO();
         dto.id = dataset.id;
-        dto.created_at = dataset.createdAt.toISOString();
-        dto.created_by = dataset.createdBy?.name;
         dto.live = dataset.live?.toISOString();
-        dto.archive = dataset.archive?.toISOString();
+
+        // only return published revisions
+        dto.revisions = dataset.revisions
+            ?.filter((rev: Revision) => rev.approvedAt && rev.publishAt && isBefore(rev.publishAt, new Date()))
+            .map((rev: Revision) => RevisionDTO.fromRevision(rev));
 
         dto.datasetInfo = dataset.datasetInfo?.map((info: DatasetInfo) => DatasetInfoDTO.fromDatasetInfo(info));
         dto.dimensions = dataset.dimensions?.map((dimension: Dimension) => DimensionDTO.fromDimension(dimension));
-        dto.revisions = dataset.revisions?.map((revision: Revision) => RevisionDTO.fromRevision(revision));
-        dto.measure = dataset.measure ? MeasureDTO.fromMeasure(dataset.measure) : undefined;
         dto.providers = dataset.datasetProviders?.map((datasetProvider: DatasetProvider) =>
             DatasetProviderDTO.fromDatasetProvider(datasetProvider)
         );

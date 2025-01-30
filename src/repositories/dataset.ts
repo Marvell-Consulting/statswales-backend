@@ -1,4 +1,4 @@
-import { FindOneOptions, FindOptionsRelations } from 'typeorm';
+import { FindOneOptions, FindOptionsRelations, IsNull, Not } from 'typeorm';
 import { has } from 'lodash';
 
 import { dataSource } from '../db/data-source';
@@ -61,6 +61,19 @@ export const DatasetRepository = dataSource.getRepository(Dataset).extend({
                 revisions: { factTables: { factTableInfo: { columnIndex: 'ASC' } } }
             };
         }
+
+        return this.findOneOrFail(findOptions);
+    },
+
+    async getPublishedById(id: string): Promise<Dataset> {
+        const findOptions: FindOneOptions<Dataset> = {
+            where: { id, live: Not(IsNull()) },
+            relations: defaultRelations,
+            order: {
+                dimensions: { dimensionInfo: { language: 'ASC' } },
+                revisions: { factTables: { factTableInfo: { columnIndex: 'ASC' } } }
+            }
+        };
 
         return this.findOneOrFail(findOptions);
     },

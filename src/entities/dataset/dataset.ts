@@ -33,7 +33,7 @@ export class Dataset extends BaseEntity {
     createdBy: User;
 
     @Column({ type: 'timestamptz', nullable: true })
-    live: Date;
+    live: Date | null;
 
     @Column({ type: 'timestamptz', nullable: true })
     archive: Date;

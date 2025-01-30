@@ -55,12 +55,18 @@ export const RevisionRepository = dataSource.getRepository(Revision).extend({
                 approvedAt: IsNull(),
                 publishAt: Not(IsNull())
             },
-            order: { revisionIndex: 'DESC' }
+            order: { revisionIndex: 'DESC' },
+            relations: { dataset: true }
         });
 
         scheduledRevision.approvedAt = new Date();
         scheduledRevision.approvedBy = approver;
         await scheduledRevision.save();
+
+        if (scheduledRevision.revisionIndex === 1) {
+            scheduledRevision.dataset.live = scheduledRevision.publishAt;
+            await scheduledRevision.dataset.save();
+        }
 
         return scheduledRevision;
     },
@@ -72,12 +78,18 @@ export const RevisionRepository = dataSource.getRepository(Revision).extend({
                 approvedAt: Not(IsNull()),
                 publishAt: Not(IsNull())
             },
-            order: { revisionIndex: 'DESC' }
+            order: { revisionIndex: 'DESC' },
+            relations: { dataset: true }
         });
 
         approvedRevision.approvedAt = null;
         approvedRevision.approvedBy = null;
         await approvedRevision.save();
+
+        if (approvedRevision.revisionIndex === 1) {
+            approvedRevision.dataset.live = null;
+            await approvedRevision.dataset.save();
+        }
 
         return approvedRevision;
     }

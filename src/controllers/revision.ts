@@ -412,7 +412,7 @@ export const downloadRevisionCubeAsCSV = async (req: Request, res: Response, nex
         try {
             cubeFile = await createBaseCube(dataset, revision);
         } catch (err) {
-            logger.error(`Something went wrong trying to create the cube with the error: ${err}`);
+            logger.error(err, `Something went wrong trying to create the cube with the error`);
             next(new UnknownException('errors.cube_create_error'));
             return;
         }
