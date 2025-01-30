@@ -68,27 +68,7 @@ export const DatasetRepository = dataSource.getRepository(Dataset).extend({
     async getPublishedById(id: string): Promise<Dataset> {
         const findOptions: FindOneOptions<Dataset> = {
             where: { id, live: Not(IsNull()) },
-            relations: {
-                datasetInfo: true,
-                dimensions: {
-                    dimensionInfo: true,
-                    lookupTable: true
-                },
-                revisions: true,
-                datasetProviders: {
-                    provider: true,
-                    providerSource: true
-                },
-                datasetTopics: {
-                    topic: true
-                },
-                team: {
-                    info: true,
-                    organisation: {
-                        info: true
-                    }
-                }
-            }
+            relations: defaultRelations
         };
 
         return this.findOneOrFail(findOptions);
