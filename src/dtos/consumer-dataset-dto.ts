@@ -15,6 +15,7 @@ import { DatasetProviderDTO } from './dataset-provider-dto';
 import { TeamDTO } from './team-dto';
 import { TopicDTO } from './topic-dto';
 
+// TODO: make sure to filter any props the consumer side should not have access to
 export class ConsumerDatasetDTO {
     id: string;
     live?: string | null;
@@ -27,7 +28,6 @@ export class ConsumerDatasetDTO {
     start_date?: Date | null;
     end_date?: Date | null;
 
-    // Make sure to filter any props the consumer side should not have access to
     static fromDataset(dataset: Dataset): ConsumerDatasetDTO {
         const dto = new ConsumerDatasetDTO();
         dto.id = dataset.id;
