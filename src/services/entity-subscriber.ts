@@ -7,7 +7,7 @@ import {
     RemoveEvent,
     DeepPartial
 } from 'typeorm';
-import { isArray, isObjectLike, isPlainObject, omitBy } from 'lodash';
+import { get, isArray, isObjectLike, isPlainObject, omitBy } from 'lodash';
 
 import { logger } from '../utils/logger';
 import { EventLog } from '../entities/event-log';
@@ -57,8 +57,8 @@ export class EntitySubscriber implements EntitySubscriberInterface {
         try {
             const log: DeepPartial<EventLog> = {
                 action,
-                entity: event?.metadata?.tableName,
-                entityId: event.entity?.id,
+                entity: event.metadata?.tableName,
+                entityId: get(event, 'entityId', event.entity?.id),
                 data: event.entity ? this.normaliseEntity(event.entity) : undefined,
                 userId: this.getUser()?.id,
                 client: this.getClient()
