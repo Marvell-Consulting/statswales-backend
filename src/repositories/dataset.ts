@@ -133,11 +133,18 @@ export const DatasetRepository = dataSource.getRepository(Dataset).extend({
         // they will need to be revisited once updates are a thing
         const qb = this.createQueryBuilder('d')
             .select(['d.id as id', 'di.title as title', 'di.updatedAt as last_updated'])
-            .addSelect("CASE WHEN d.live IS NOT NULL THEN 'live' ELSE 'new' END", 'status')
             .addSelect(
                 `
                 CASE
-                    WHEN d.live IS NOT NULL AND r.approved_at IS NOT NULL AND r.publish_at <= NOW() THEN 'published'
+                    WHEN d.live IS NOT NULL AND d.live < NOW() THEN 'live'
+                    ELSE 'new'
+                END`,
+                'status'
+            )
+            .addSelect(
+                `
+                CASE
+                    WHEN d.live IS NOT NULL AND r.approved_at IS NOT NULL AND r.publish_at < NOW() THEN 'published'
                     WHEN r.approved_at IS NOT NULL THEN 'scheduled'
                     ELSE 'incomplete'
                 END
@@ -179,6 +186,7 @@ export const DatasetRepository = dataSource.getRepository(Dataset).extend({
             .innerJoin('d.datasetInfo', 'di')
             .where('di.language LIKE :lang', { lang: `${lang}%` })
             .andWhere('d.live IS NOT NULL')
+            .andWhere('d.live < NOW()')
             .groupBy('d.id, di.title, d.live');
 
         const offset = (page - 1) * limit;
