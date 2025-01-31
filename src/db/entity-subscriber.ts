@@ -12,8 +12,7 @@ import { get, isArray, isObjectLike, isPlainObject, omitBy } from 'lodash';
 import { logger } from '../utils/logger';
 import { EventLog } from '../entities/event-log';
 import { User } from '../entities/user/user';
-
-import { asyncLocalStorage } from './async-local-storage';
+import { asyncLocalStorage } from '../services/async-local-storage';
 
 type WriteEvent = InsertEvent<any> | UpdateEvent<any> | RemoveEvent<any>;
 

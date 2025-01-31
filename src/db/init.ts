@@ -1,8 +1,8 @@
 import { DataSource } from 'typeorm';
 
 import { logger } from '../utils/logger';
-import { EntitySubscriber } from '../services/entity-subscriber';
 
+import { EntitySubscriber } from './entity-subscriber';
 import DatabaseManager from './database-manager';
 
 export const initDb = async (): Promise<DatabaseManager> => {
