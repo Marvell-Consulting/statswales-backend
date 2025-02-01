@@ -24,8 +24,8 @@ const upload = multer({ storage: multer.memoryStorage() });
 const TRANSLATION_FILENAME = 'translation-import.csv';
 
 const collectTranslations = (dataset: Dataset): TranslationDTO[] => {
-    const metadataEN = dataset.datasetInfo?.find((info) => info.language.includes('en'));
-    const metadataCY = dataset.datasetInfo?.find((info) => info.language.includes('cy'));
+    const metadataEN = dataset.metadata?.find((info) => info.language.includes('en'));
+    const metadataCY = dataset.metadata?.find((info) => info.language.includes('cy'));
 
     // ignore roundingDescription if rounding isn't applied
     const metadataKeys = translatableMetadataKeys.filter((key) => {
@@ -36,8 +36,8 @@ const collectTranslations = (dataset: Dataset): TranslationDTO[] => {
         ...dataset.dimensions?.map((dim) => ({
             type: 'dimension',
             key: dim.factTableColumn,
-            english: dim.dimensionInfo?.find((info) => info.language.includes('en'))?.name,
-            cymraeg: dim.dimensionInfo?.find((info) => info.language.includes('cy'))?.name,
+            english: dim.metadata?.find((info) => info.language.includes('en'))?.name,
+            cymraeg: dim.metadata?.find((info) => info.language.includes('cy'))?.name,
             id: dim.id
         })),
         ...metadataKeys.map((prop) => ({

@@ -17,7 +17,7 @@ import { DimensionDTO } from '../src/dtos/dimension-dto';
 import { RevisionDTO } from '../src/dtos/revision-dto';
 import { DatasetRepository } from '../src/repositories/dataset';
 import { FactTableRepository } from '../src/repositories/fact-table';
-import { FactTableDTO } from '../src/dtos/fact-table-dto';
+import { DataTableDto } from '../src/dtos/data-table-dto';
 import { Locale } from '../src/enums/locale';
 import { logger } from '../src/utils/logger';
 
@@ -185,7 +185,7 @@ describe('API Endpoints for viewing dataset objects', () => {
         test('Get a revision returns 200', async () => {
             const revision = await Revision.findOne({
                 where: { id: revision1Id },
-                relations: ['createdBy', 'factTables', 'factTables.factTableInfo']
+                relations: ['createdBy', 'dataTable', 'dataTable.dataTableDescriptions']
             });
             if (!revision) {
                 throw new Error('Dataset not found');
@@ -214,10 +214,10 @@ describe('API Endpoints for viewing dataset objects', () => {
         });
     });
 
-    describe('Get FileImport metadata endpoints', () => {
+    describe('Get FileImportInterface metadata endpoints', () => {
         test('returns 401 if no auth header is sent (JWT auth)', async () => {
             const res = await request(app).get(
-                `/dataset/${dataset1Id}/revision/by-id/${revision1Id}/fact-table/by-id/${import1Id}/preview`
+                `/dataset/${dataset1Id}/revision/by-id/${revision1Id}/data-table/by-id/${import1Id}/preview`
             );
             expect(res.status).toBe(401);
             expect(res.body).toEqual({});
@@ -229,28 +229,11 @@ describe('API Endpoints for viewing dataset objects', () => {
                 throw new Error('Import not found');
             }
             const res = await request(app)
-                .get(`/dataset/${dataset1Id}/revision/by-id/${revision1Id}/fact-table/by-id/${import1Id}`)
+                .get(`/dataset/${dataset1Id}/revision/by-id/${revision1Id}/data-table/`)
                 .set(getAuthHeader(user));
-            const expectedDTO = FactTableDTO.fromFactTable(factTable);
+            const expectedDTO = DataTableDto.fromDataTable(factTable);
             expect(res.status).toBe(200);
             expect(res.body).toEqual(expectedDTO);
-        });
-
-        test('Get import returns 404 if given an invalid ID', async () => {
-            const res = await request(app)
-                .get(`/dataset/${dataset1Id}/revision/by-id/${revision1Id}/fact-table/by-id/IN-VALID-ID`)
-                .set(getAuthHeader(user));
-            expect(res.status).toBe(404);
-            expect(res.body).toEqual({ error: 'Import id is invalid or missing' });
-        });
-
-        test('Get import returns 404 if given a missing ID', async () => {
-            const res = await request(app)
-                .get(
-                    `/dataset/${dataset1Id}/revision/by-id/${revision1Id}/fact-table/by-id/8B9434D1-4807-41CD-8E81-228769671A07`
-                )
-                .set(getAuthHeader(user));
-            expect(res.status).toBe(404);
         });
 
         describe('Getting a raw file out of a file import', () => {
@@ -261,7 +244,7 @@ describe('API Endpoints for viewing dataset objects', () => {
                 DataLakeService.prototype.getFileStream = jest.fn().mockReturnValue(Promise.resolve(testFileStream));
 
                 const res = await request(app)
-                    .get(`/dataset/${dataset1Id}/revision/by-id/${revision1Id}/fact-table/by-id/${import1Id}/raw`)
+                    .get(`/dataset/${dataset1Id}/revision/by-id/${revision1Id}/data-table/raw`)
                     .set(getAuthHeader(user));
                 expect(res.status).toBe(200);
                 expect(res.text).toEqual(testFile2Buffer.toString());
@@ -270,7 +253,7 @@ describe('API Endpoints for viewing dataset objects', () => {
             test('Get file from a revision and import returns 500 if an error with the Data Lake occurs', async () => {
                 DataLakeService.prototype.getFileStream = jest.fn().mockRejectedValue(Error('Unknown Data Lake Error'));
                 const res = await request(app)
-                    .get(`/dataset/${dataset1Id}/revision/by-id/${revision1Id}/fact-table/by-id/${import1Id}/raw`)
+                    .get(`/dataset/${dataset1Id}/revision/by-id/${revision1Id}/data-table/raw`)
                     .set(getAuthHeader(user));
                 expect(res.status).toBe(500);
                 expect(res.body).toEqual({

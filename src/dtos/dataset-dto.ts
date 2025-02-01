@@ -1,7 +1,7 @@
 import { Dataset } from '../entities/dataset/dataset';
 import { Dimension } from '../entities/dataset/dimension';
 import { Revision } from '../entities/dataset/revision';
-import { DatasetInfo } from '../entities/dataset/dataset-info';
+import { DatasetMetadata } from '../entities/dataset/dataset-metadata';
 import { DatasetProvider } from '../entities/dataset/dataset-provider';
 import { DatasetTopic } from '../entities/dataset/dataset-topic';
 import { SUPPORTED_LOCALES } from '../middleware/translation';
@@ -38,7 +38,7 @@ export class DatasetDTO {
         dto.live = dataset.live?.toISOString();
         dto.archive = dataset.archive?.toISOString();
 
-        dto.datasetInfo = dataset.datasetInfo?.map((info: DatasetInfo) => DatasetInfoDTO.fromDatasetInfo(info));
+        dto.datasetInfo = dataset.metadata?.map((info: DatasetMetadata) => DatasetInfoDTO.fromDatasetInfo(info));
         dto.dimensions = dataset.dimensions?.map((dimension: Dimension) => DimensionDTO.fromDimension(dimension));
         dto.revisions = dataset.revisions?.map((revision: Revision) => RevisionDTO.fromRevision(revision));
         dto.measure = dataset.measure ? MeasureDTO.fromMeasure(dataset.measure) : undefined;

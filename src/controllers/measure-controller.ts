@@ -1,7 +1,7 @@
 import { NextFunction, Request, Response } from 'express';
 
 import { LookupTable } from '../entities/dataset/lookup-table';
-import { FactTable } from '../entities/dataset/fact-table';
+import { DataTable } from '../entities/dataset/data-table';
 import { logger } from '../utils/logger';
 import { Dataset } from '../entities/dataset/dataset';
 import { CSVHeader, ViewDTO, ViewErrDTO } from '../dtos/view-dto';
@@ -57,12 +57,12 @@ export const attachLookupTableToMeasure = async (req: Request, res: Response, ne
     const dataset: Dataset = res.locals.dataset;
 
     // Replace calls that require this to calls that get a single factTable for all revisions to "present"
-    const factTable = getLatestRevision(dataset)?.factTables[0];
+    const factTable = getLatestRevision(dataset)?.dataTable;
     if (!factTable) {
         next(new NotFoundException('errors.fact_table_invalid'));
         return;
     }
-    let fileImport: FactTable;
+    let fileImport: DataTable;
     const utf8Buffer = convertBufferToUTF8(req.file.buffer);
     try {
         fileImport = await uploadCSV(utf8Buffer, req.file?.mimetype, req.file?.originalname, res.locals.datasetId);
@@ -92,7 +92,7 @@ export const attachLookupTableToMeasure = async (req: Request, res: Response, ne
 
 export const getPreviewOfMeasure = async (req: Request, res: Response, next: NextFunction) => {
     const dataset = res.locals.dataset;
-    const factTable = getLatestRevision(dataset)?.factTables[0];
+    const factTable = getLatestRevision(dataset)?.dataTable;
     if (!dataset.measure) {
         next(new NotFoundException('errors.measure_invalid'));
         return;

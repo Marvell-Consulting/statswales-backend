@@ -2,7 +2,8 @@ import { Entity, PrimaryGeneratedColumn, Column, BaseEntity, OneToOne, JoinColum
 
 import { Dataset } from './dataset';
 import { LookupTable } from './lookup-table';
-import { MeasureInfo } from './measure-info';
+import { MeasureItem } from './measure-item';
+import { MeasureMetadata } from './measure-metadata';
 
 /*
     Describes what's being measured in the cube and how to display cube values
@@ -32,6 +33,9 @@ export class Measure extends BaseEntity {
     @Column({ name: 'extractor', type: 'jsonb', nullable: true })
     extractor: object | null;
 
-    @OneToMany(() => MeasureInfo, (measureInfo) => measureInfo.measure, { cascade: true })
-    measureInfo: MeasureInfo[] | null;
+    @OneToMany(() => MeasureItem, (measureInfo) => measureInfo.measure, { cascade: true })
+    measureInfo: MeasureItem[] | null;
+
+    @OneToMany(() => MeasureMetadata, (measureMetadata) => measureMetadata.measure, { cascade: true })
+    metadata: MeasureMetadata[];
 }

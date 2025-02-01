@@ -3,7 +3,7 @@ import { has } from 'lodash';
 
 import { dataSource } from '../db/data-source';
 import { Dataset } from '../entities/dataset/dataset';
-import { DatasetInfo } from '../entities/dataset/dataset-info';
+import { DatasetMetadata } from '../entities/dataset/dataset-metadata';
 import { User } from '../entities/user/user';
 import { logger } from '../utils/logger';
 import { DatasetListItemDTO } from '../dtos/dataset-list-item-dto';
@@ -14,15 +14,16 @@ import { DatasetProvider } from '../entities/dataset/dataset-provider';
 import { DatasetTopic } from '../entities/dataset/dataset-topic';
 import { Team } from '../entities/user/team';
 import { TranslationDTO } from '../dtos/translations-dto';
-import { DimensionInfo } from '../entities/dataset/dimension-info';
+import { DimensionMetadata } from '../entities/dataset/dimension-metadata';
 import { Revision } from '../entities/dataset/revision';
 import { ResultsetWithCount } from '../interfaces/resultset-with-count';
 
 const defaultRelations: FindOptionsRelations<Dataset> = {
     createdBy: true,
-    datasetInfo: true,
+    metadata: true,
+    factTable: true,
     dimensions: {
-        dimensionInfo: true,
+        metadata: true,
         lookupTable: true
     },
     measure: {
@@ -31,8 +32,8 @@ const defaultRelations: FindOptionsRelations<Dataset> = {
     },
     revisions: {
         createdBy: true,
-        factTables: {
-            factTableInfo: true
+        dataTable: {
+            dataTableDescriptions: true
         }
     },
     datasetProviders: {
@@ -57,8 +58,9 @@ export const DatasetRepository = dataSource.getRepository(Dataset).extend({
         if (has(relations, 'revisions.factTables.factTableInfo')) {
             // sort sources by column index if they're requested
             findOptions.order = {
-                dimensions: { dimensionInfo: { language: 'ASC' } },
-                revisions: { factTables: { factTableInfo: { columnIndex: 'ASC' } } }
+                dimensions: { metadata: { language: 'ASC' } },
+                factTable: { columnIndex: 'DESC' },
+                revisions: { dataTable: { dataTableDescriptions: { columnIndex: 'ASC' } } }
             };
         }
 
@@ -88,19 +90,19 @@ export const DatasetRepository = dataSource.getRepository(Dataset).extend({
         const altLang = language.includes('en') ? Locale.WelshGb : Locale.EnglishGb;
 
         logger.debug(`Creating new DatasetInfo with language "${language}" and title "${title}"...`);
-        const datasetInfo = await dataSource.getRepository(DatasetInfo).create({ dataset, language, title }).save();
+        const datasetMetadata = await dataSource.getRepository(DatasetMetadata).create({ dataset, language, title }).save();
         const altLangDatasetInfo = await dataSource
-            .getRepository(DatasetInfo)
+            .getRepository(DatasetMetadata)
             .create({ dataset, language: altLang })
             .save();
 
-        dataset.datasetInfo = [datasetInfo, altLangDatasetInfo];
+        dataset.metadata = [datasetMetadata, altLangDatasetInfo];
 
         return this.getById(dataset.id);
     },
 
     async patchInfoById(datasetId: string, infoDto: DatasetInfoDTO): Promise<Dataset> {
-        const infoRepo = dataSource.getRepository(DatasetInfo);
+        const infoRepo = dataSource.getRepository(DatasetMetadata);
         const existingInfo = await infoRepo.findOne({ where: { id: datasetId, language: infoDto.language } });
         const updatedInfo = DatasetInfoDTO.toDatasetInfo(infoDto);
 
@@ -116,7 +118,7 @@ export const DatasetRepository = dataSource.getRepository(Dataset).extend({
     async listAllByLanguage(lang: Locale): Promise<DatasetListItemDTO[]> {
         const qb = this.createQueryBuilder('d')
             .select(['d.id as id', 'di.title as title'])
-            .innerJoin('d.datasetInfo', 'di')
+            .innerJoin('d.metadata', 'di')
             .where('di.language ILIKE :lang', { lang: `${lang}%` })
             .groupBy('d.id, di.title')
             .orderBy('d.createdAt', 'ASC');
@@ -151,7 +153,7 @@ export const DatasetRepository = dataSource.getRepository(Dataset).extend({
             `,
                 'publishing_status'
             )
-            .innerJoin('d.datasetInfo', 'di')
+            .innerJoin('d.metadata', 'di')
             .innerJoin(
                 (subQuery) => {
                     // only join the latest revision for each dataset
@@ -183,7 +185,7 @@ export const DatasetRepository = dataSource.getRepository(Dataset).extend({
     ): Promise<ResultsetWithCount<DatasetListItemDTO>> {
         const qb = this.createQueryBuilder('d')
             .select(['d.id as id', 'di.title as title', 'd.live as published_date'])
-            .innerJoin('d.datasetInfo', 'di')
+            .innerJoin('d.metadata', 'di')
             .where('di.language LIKE :lang', { lang: `${lang}%` })
             .andWhere('d.live IS NOT NULL')
             .andWhere('d.live < NOW()')
@@ -274,8 +276,8 @@ export const DatasetRepository = dataSource.getRepository(Dataset).extend({
 
     async updateTranslations(datasetId: string, translations: TranslationDTO[]): Promise<Dataset> {
         const dataset = await this.findOneOrFail({ where: { id: datasetId } });
-        const dimensionInfoRepo = dataSource.getRepository(DimensionInfo);
-        const infoRepo = dataSource.getRepository(DatasetInfo);
+        const dimensionInfoRepo = dataSource.getRepository(DimensionMetadata);
+        const infoRepo = dataSource.getRepository(DatasetMetadata);
 
         const dimensionTranslations = translations.filter((t) => t.type === 'dimension');
 

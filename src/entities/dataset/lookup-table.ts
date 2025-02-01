@@ -4,10 +4,10 @@ import { FileType } from '../../enums/file-type';
 
 import { Dimension } from './dimension';
 import { Measure } from './measure';
-import { FileImport } from './file-import';
+import { FileImportInterface } from './file-import.interface';
 
 @Entity({ name: 'lookup_table', orderBy: { uploadedAt: 'ASC' } })
-export class LookupTable extends BaseEntity implements FileImport {
+export class LookupTable extends BaseEntity implements FileImportInterface {
     @PrimaryGeneratedColumn('uuid', { primaryKeyConstraintName: 'PK_lookup_table_id' })
     id: string;
 
@@ -37,15 +37,6 @@ export class LookupTable extends BaseEntity implements FileImport {
 
     @CreateDateColumn({ name: 'uploaded_at', type: 'timestamptz' })
     uploadedAt: Date;
-
-    @Column({ name: 'delimiter', type: 'char' })
-    delimiter: string;
-
-    @Column({ name: 'quote', type: 'char' })
-    quote: string;
-
-    @Column({ name: 'linebreak', type: 'varchar' })
-    linebreak: string;
 
     @Column({ name: 'is_statswales2_format', type: 'boolean' })
     isStatsWales2Format: boolean;

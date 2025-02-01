@@ -5,7 +5,7 @@ import tmp from 'tmp';
 
 import { DimensionType } from '../enums/dimension-type';
 import { LookupTable } from '../entities/dataset/lookup-table';
-import { FactTable } from '../entities/dataset/fact-table';
+import { DataTable } from '../entities/dataset/data-table';
 import { LookupTablePatchDTO } from '../dtos/lookup-patch-dto';
 import { LookupTableExtractor } from '../extractors/lookup-table-extractor';
 import { columnIdentification, convertFactTableToLookupTable, lookForJoinColumn } from '../utils/lookup-table-utils';
@@ -19,20 +19,20 @@ import { viewErrorGenerator } from '../utils/view-error-generator';
 import { DatasetRepository } from '../repositories/dataset';
 import { FactTableColumnType } from '../enums/fact-table-column-type';
 import { DatasetDTO } from '../dtos/dataset-dto';
-import { FactTableDTO } from '../dtos/fact-table-dto';
+import { DataTableDto } from '../dtos/data-table-dto';
 
 import { cleanUpDimension } from './dimension-processor';
 
 async function setupDimension(
     dimension: Dimension,
     lookupTable: LookupTable,
-    protoLookupTable: FactTable,
+    protoLookupTable: DataTable,
     confirmedJoinColumn: string,
     tableMatcher?: LookupTablePatchDTO
 ) {
     // Clean up previously uploaded dimensions
     if (dimension.lookupTable) await cleanUpDimension(dimension);
-    lookupTable.isStatsWales2Format = !protoLookupTable.factTableInfo.find((info) =>
+    lookupTable.isStatsWales2Format = !protoLookupTable.dataTableDescriptions.find((info) =>
         info.columnName.toLowerCase().startsWith('lang')
     );
     const updateDimension = await Dimension.findOneByOrFail({ id: dimension.id });
@@ -49,7 +49,7 @@ async function setupDimension(
     await updateDimension.save();
 }
 
-function createExtractor(protoLookupTable: FactTable, tableMatcher?: LookupTablePatchDTO): LookupTableExtractor {
+function createExtractor(protoLookupTable: DataTable, tableMatcher?: LookupTablePatchDTO): LookupTableExtractor {
     if (tableMatcher?.description_columns) {
         logger.debug(`Table matcher is supplied using user supplied information to create extractor...`);
         return {
@@ -57,33 +57,33 @@ function createExtractor(protoLookupTable: FactTable, tableMatcher?: LookupTable
             hierarchyColumn: tableMatcher.hierarchy,
             descriptionColumns: tableMatcher.description_columns.map(
                 (desc) =>
-                    protoLookupTable.factTableInfo
+                    protoLookupTable.dataTableDescriptions
                         .filter((info) => info.columnName === desc)
                         .map((info) => columnIdentification(info))[0]
             ),
             notesColumns: tableMatcher.notes_column?.map(
                 (desc) =>
-                    protoLookupTable.factTableInfo
+                    protoLookupTable.dataTableDescriptions
                         .filter((info) => info.columnName === desc)
                         .map((info) => columnIdentification(info))[0]
             )
         };
     } else {
         logger.debug(`Using lookup table to try try to generate the extractor...`);
-        const sortColumn = protoLookupTable.factTableInfo.find((info) =>
+        const sortColumn = protoLookupTable.dataTableDescriptions.find((info) =>
             info.columnName.toLowerCase().startsWith('sort')
         )?.columnName;
-        const hierarchyColumn = protoLookupTable.factTableInfo.find((info) =>
+        const hierarchyColumn = protoLookupTable.dataTableDescriptions.find((info) =>
             info.columnName.toLowerCase().startsWith('hierarchy')
         )?.columnName;
-        const filteredDescriptionColumns = protoLookupTable.factTableInfo.filter((info) =>
+        const filteredDescriptionColumns = protoLookupTable.dataTableDescriptions.filter((info) =>
             info.columnName.toLowerCase().startsWith('description')
         );
         if (filteredDescriptionColumns.length < 1) {
             throw new Error('Could not identify description columns in lookup table');
         }
         const descriptionColumns = filteredDescriptionColumns.map((info) => columnIdentification(info));
-        const filteredNotesColumns = protoLookupTable.factTableInfo.filter((info) =>
+        const filteredNotesColumns = protoLookupTable.dataTableDescriptions.filter((info) =>
             info.columnName.toLowerCase().startsWith('note')
         );
         let notesColumns: ColumnDescriptor[] | undefined;
@@ -100,8 +100,8 @@ function createExtractor(protoLookupTable: FactTable, tableMatcher?: LookupTable
 }
 
 export const validateLookupTable = async (
-    protoLookupTable: FactTable,
-    factTable: FactTable,
+    protoLookupTable: DataTable,
+    factTable: DataTable,
     dataset: Dataset,
     dimension: Dimension,
     buffer: Buffer,
@@ -197,15 +197,13 @@ export const validateLookupTable = async (
         const tableHeaders = Object.keys(dimensionTable[0]);
         const dataArray = dimensionTable.map((row) => Object.values(row));
         const currentDataset = await DatasetRepository.getById(dataset.id);
-        const currentImport = await FactTable.findOneByOrFail({ id: factTable.id });
+        const currentImport = await DataTable.findOneByOrFail({ id: factTable.id });
         const headers: CSVHeader[] = [];
         for (let i = 0; i < tableHeaders.length; i++) {
             let sourceType: FactTableColumnType;
             if (tableHeaders[i] === 'int_line_number') sourceType = FactTableColumnType.LineNumber;
             else
-                sourceType =
-                    factTable.factTableInfo.find((info) => info.columnName === tableHeaders[i])?.columnType ??
-                    FactTableColumnType.Unknown;
+                sourceType = FactTableColumnType.Unknown;
             headers.push({
                 index: i - 1,
                 name: tableHeaders[i],
@@ -214,7 +212,7 @@ export const validateLookupTable = async (
         }
         return {
             dataset: DatasetDTO.fromDataset(currentDataset),
-            fact_table: FactTableDTO.fromFactTable(currentImport),
+            fact_table: DataTableDto.fromDataTable(currentImport),
             current_page: 1,
             page_info: {
                 total_records: 1,

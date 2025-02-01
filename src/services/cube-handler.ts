@@ -6,15 +6,15 @@ import tmp, { FileResult } from 'tmp';
 import { t } from 'i18next';
 
 import { FileType } from '../enums/file-type';
-import { FileImport } from '../entities/dataset/file-import';
+import { FileImportInterface } from '../entities/dataset/file-import.interface';
 import { logger } from '../utils/logger';
 import { Dataset } from '../entities/dataset/dataset';
 import { Dimension } from '../entities/dataset/dimension';
 import { LookupTableExtractor } from '../extractors/lookup-table-extractor';
 import { getFileImportAndSaveToDisk } from '../utils/file-utils';
 import { SUPPORTED_LOCALES } from '../middleware/translation';
-import { FactTableInfo } from '../entities/dataset/fact-table-info';
-import { FactTable } from '../entities/dataset/fact-table';
+import { DataTableDescription } from '../entities/dataset/data-table-description';
+import { DataTable } from '../entities/dataset/data-table';
 import { FactTableAction } from '../enums/fact-table-action';
 import { Revision } from '../entities/dataset/revision';
 import { Locale } from '../enums/locale';
@@ -24,6 +24,7 @@ import { FactTableColumnType } from '../enums/fact-table-column-type';
 import { ReferenceDataExtractor } from '../extractors/reference-data-extractor';
 
 import { dateDimensionReferenceTableCreator } from './time-matching';
+import { FactTable } from '../entities/dataset/fact-table';
 
 export const FACT_TABLE_NAME = 'fact_table';
 
@@ -60,7 +61,7 @@ export const createFactTableQuery = async (
 
 export const loadFileIntoCube = async (
     quack: Database,
-    fileImport: FileImport,
+    fileImport: FileImportInterface,
     tempFile: string,
     tableName: string
 ) => {
@@ -78,7 +79,8 @@ export const loadFileIntoCube = async (
 // This function differs from loadFileIntoDatabase in that it only loads a file into an existing table
 export const loadFileDataIntoTable = async (
     quack: Database,
-    fileImport: FileImport,
+    fileImport: FileImportInterface,
+    factTableDef: string[],
     tempFile: string,
     tableName: string
 ) => {
@@ -86,17 +88,17 @@ export const loadFileDataIntoTable = async (
     switch (fileImport.fileType) {
         case FileType.Csv:
         case FileType.GzipCsv:
-            insertQuery = `INSERT INTO ${tableName} SELECT * FROM read_csv('${tempFile}', auto_type_candidates = ['BOOLEAN', 'BIGINT', 'DOUBLE', 'VARCHAR']);`;
+            insertQuery = `INSERT INTO ${tableName} SELECT ${factTableDef.join(',')} FROM read_csv('${tempFile}', auto_type_candidates = ['BOOLEAN', 'BIGINT', 'DOUBLE', 'VARCHAR']);`;
             break;
         case FileType.Parquet:
-            insertQuery = `INSERT INTO ${tableName} SELECT * FROM ${tempFile};`;
+            insertQuery = `INSERT INTO ${tableName} SELECT ${factTableDef.join(',')} FROM ${tempFile};`;
             break;
         case FileType.Json:
         case FileType.GzipJson:
-            insertQuery = `INSERT INTO ${tableName} SELECT * FROM read_json_auto('${tempFile}');`;
+            insertQuery = `INSERT INTO ${tableName} SELECT ${factTableDef.join(',')} FROM read_json_auto('${tempFile}');`;
             break;
         case FileType.Excel:
-            insertQuery = `INSERT INTO ${tableName} SELECT * FROM st_read('${tempFile}');`;
+            insertQuery = `INSERT INTO ${tableName} SELECT ${factTableDef.join(',')} FROM st_read('${tempFile}');`;
             break;
         default:
             throw new Error('Unknown file type');
@@ -320,17 +322,18 @@ async function createAndValidateLookupTableDimension(quack: Database, dataset: D
     }
 }
 
-function setupFactTableUpdateJoins(factTableInfos: FactTableInfo[]): string {
+function setupFactTableUpdateJoins(factTableInfos: FactTable[]): string {
     return factTableInfos.map((info) => `update_table."${info.columnName}"="${info.columnName}"`).join(' AND ');
 }
 
 async function loadFactTablesWithUpdates(
     quack: Database,
     dataset: Dataset,
-    allFactTables: FactTable[],
-    dataValuesColumn: FactTableInfo,
-    notesCodeColumn: FactTableInfo,
-    factIdentifiers: FactTableInfo[]
+    allFactTables: DataTable[],
+    factTableDef: string[],
+    dataValuesColumn: FactTable,
+    notesCodeColumn: FactTable,
+    factIdentifiers: FactTable[]
 ) {
     for (const factTable of allFactTables.sort((ftA, ftB) => ftA.uploadedAt.getTime() - ftB.uploadedAt.getTime())) {
         logger.info(`Loading fact table data for fact table ${factTable.id}`);
@@ -343,21 +346,23 @@ async function loadFactTablesWithUpdates(
         switch (factTable.action) {
             case FactTableAction.ReplaceAll:
                 await quack.exec(`DELETE FROM ${FACT_TABLE_NAME};`);
-                await loadFileDataIntoTable(quack, factTable, factTableFile, FACT_TABLE_NAME);
+                await loadFileDataIntoTable(quack, factTable, factTableDef, factTableFile, FACT_TABLE_NAME);
                 break;
             case FactTableAction.Add:
-                await loadFileDataIntoTable(quack, factTable, factTableFile, FACT_TABLE_NAME);
+                await loadFileDataIntoTable(quack, factTable, factTableDef, factTableFile, FACT_TABLE_NAME);
                 break;
             case FactTableAction.Revise:
-                await loadFileDataIntoTable(quack, factTable, factTableFile, 'update_table');
+                await loadFileIntoCube(quack, factTable, factTableFile, 'update_table');
                 await quack.exec(updateQuery);
                 await quack.exec(`DROP TABLE update_table;`);
                 break;
             case FactTableAction.AddRevise:
-                await loadFileDataIntoTable(quack, factTable, factTableFile, 'update_table');
+                await loadFileIntoCube(quack, factTable, factTableFile, 'update_table');
                 await quack.exec(updateQuery);
                 await quack.exec(`DELETE FROM update_table WHERE ${notesCodeColumn.columnName} LIKE '%r';`);
-                await quack.exec(`INSERT INTO ${FACT_TABLE_NAME} (SELECT * FROM update_table);`);
+                await quack.exec(
+                    `INSERT INTO ${FACT_TABLE_NAME} (SELECT ${factTableDef.join(',')} FROM update_table);`
+                );
                 await quack.exec(`DROP TABLE update_table;`);
                 break;
         }
@@ -365,7 +370,12 @@ async function loadFactTablesWithUpdates(
     }
 }
 
-async function loadFactTablesWithoutUpdates(quack: Database, dataset: Dataset, allFactTables: FactTable[]) {
+async function loadFactTablesWithoutUpdates(
+    quack: Database,
+    dataset: Dataset,
+    factTableDef: string[],
+    allFactTables: DataTable[]
+) {
     logger.warn(
         'There is no notes column present in this dataset.  Action allowed are limited to adding data and replacing all data'
     );
@@ -375,40 +385,46 @@ async function loadFactTablesWithoutUpdates(quack: Database, dataset: Dataset, a
         switch (factTable.action) {
             case FactTableAction.ReplaceAll:
                 await quack.exec(`DELETE FROM ${FACT_TABLE_NAME};`);
-                await loadFileDataIntoTable(quack, factTable, factTableFile, FACT_TABLE_NAME);
+                await loadFileDataIntoTable(quack, factTable, factTableDef, factTableFile, FACT_TABLE_NAME);
                 break;
             case FactTableAction.Add:
-                await loadFileDataIntoTable(quack, factTable, factTableFile, FACT_TABLE_NAME);
+                await loadFileDataIntoTable(quack, factTable, factTableDef, factTableFile, FACT_TABLE_NAME);
                 break;
         }
         fs.unlinkSync(factTableFile);
     }
 }
 
-async function loadFactTables(
+export async function loadFactTables(
     quack: Database,
     dataset: Dataset,
     endRevision: Revision,
-    dataValuesColumn: FactTableInfo | undefined,
-    notesCodeColumn: FactTableInfo | undefined,
-    factIdentifiers: FactTableInfo[]
+    factTableDef: string[],
+    dataValuesColumn: FactTable | undefined,
+    notesCodeColumn: FactTable | undefined,
+    factIdentifiers: FactTable[]
 ): Promise<void> {
     // Find all the fact tables for the given revision
     logger.debug('Finding all fact tables for this revision and those that came before');
-    let allFactTables: FactTable[] = [];
-    if (endRevision.revisionIndex > 0) {
+    const allFactTables: DataTable[] = [];
+    logger.debug(`endRevision = ${JSON.stringify(endRevision, null, 2)}`);
+    if (endRevision.revisionIndex && endRevision.revisionIndex > 0) {
         // If we have a revision index we start here
         const validRevisions = dataset.revisions.filter(
             (rev) => rev.revisionIndex <= endRevision.revisionIndex && rev.revisionIndex > 0
         );
-        allFactTables = validRevisions.flatMap((revision) => revision.factTables);
+        validRevisions.forEach((revision) => {
+            if (revision.dataTable) allFactTables.push(revision.dataTable);
+        });
     } else {
         // If we don't have a revision index we need to find the previous revision to this one that does
-        allFactTables = allFactTables.concat(endRevision.factTables);
+        if (endRevision.dataTable) allFactTables.push(endRevision.dataTable);
         const validRevisions = dataset.revisions.filter(
             (rev) => rev.createdAt < endRevision.createdAt && rev.revisionIndex > 0
         );
-        allFactTables = validRevisions.flatMap((revision) => revision.factTables);
+        validRevisions.forEach((revision) => {
+            if (revision.dataTable) allFactTables.push(revision.dataTable);
+        });
     }
 
     if (allFactTables.length === 0) {
@@ -424,12 +440,13 @@ async function loadFactTables(
                 quack,
                 dataset,
                 allFactTables,
+                factTableDef,
                 dataValuesColumn,
                 notesCodeColumn,
                 factIdentifiers
             );
         } else {
-            await loadFactTablesWithoutUpdates(quack, dataset, allFactTables);
+            await loadFactTablesWithoutUpdates(quack, dataset, factTableDef, allFactTables);
         }
     } catch (error) {
         logger.error(`Something went wrong trying to create the core fact table with error: ${error}`);
@@ -459,7 +476,7 @@ const NoteCodes: NoteCodeItem[] = [
 
 async function createNotesTable(
     quack: Database,
-    notesColumn: FactTableInfo,
+    notesColumn: FactTable,
     selectStatementsMap: Map<Locale, string[]>,
     joinStatements: string[]
 ): Promise<void> {
@@ -556,11 +573,11 @@ function measureFormats(): Map<string, MeasureFormat> {
 async function setupMeasures(
     quack: Database,
     dataset: Dataset,
-    dataValuesColumn: FactTableInfo | undefined,
+    dataValuesColumn: FactTable | undefined,
     selectStatementsMap: Map<Locale, string[]>,
     joinStatements: string[],
     orderByStatements: string[],
-    measureColumn?: FactTableInfo
+    measureColumn?: FactTable
 ) {
     logger.info('Setting up measure table if present...');
     // Process the column that represents the measure
@@ -707,7 +724,7 @@ async function setupDimensions(
                         await createAndValidateDateDimension(quack, dimension.extractor, dimension.factTableColumn);
                         SUPPORTED_LOCALES.map((locale) => {
                             const columnName =
-                                dimension.dimensionInfo.find((info) => info.language === locale)?.name ||
+                                dimension.metadata.find((info) => info.language === locale)?.name ||
                                 dimension.factTableColumn;
                             selectStatementsMap.get(locale)?.push(`${dimTable}.description as "${columnName}"`);
                             selectStatementsMap
@@ -728,7 +745,7 @@ async function setupDimensions(
                     } else {
                         SUPPORTED_LOCALES.map((locale) => {
                             const columnName =
-                                dimension.dimensionInfo.find((info) => info.language === locale)?.name ||
+                                dimension.metadata.find((info) => info.language === locale)?.name ||
                                 dimension.factTableColumn;
                             selectStatementsMap.get(locale)?.push(`${dimension.factTableColumn} as "${columnName}"`);
                         });
@@ -738,7 +755,7 @@ async function setupDimensions(
                     await createAndValidateLookupTableDimension(quack, dataset, dimension);
                     SUPPORTED_LOCALES.map((locale) => {
                         const columnName =
-                            dimension.dimensionInfo.find((info) => info.language === locale)?.name ||
+                            dimension.metadata.find((info) => info.language === locale)?.name ||
                             dimension.factTableColumn;
                         selectStatementsMap.get(locale)?.push(`${dimTable}.description as "${columnName}"`);
                     });
@@ -755,7 +772,7 @@ async function setupDimensions(
                     await loadCorrectReferenceDataIntoReferenceDataTable(quack, dimension);
                     SUPPORTED_LOCALES.map((locale) => {
                         const columnName =
-                            dimension.dimensionInfo.find((info) => info.language === locale)?.name ||
+                            dimension.metadata.find((info) => info.language === locale)?.name ||
                             dimension.factTableColumn;
                         selectStatementsMap.get(locale)?.push(`reference_data_info.description as "${columnName}"`);
                     });
@@ -769,7 +786,7 @@ async function setupDimensions(
                 case DimensionType.Symbol:
                     SUPPORTED_LOCALES.map((locale) => {
                         const columnName =
-                            dimension.dimensionInfo.find((info) => info.language === locale)?.name ||
+                            dimension.metadata.find((info) => info.language === locale)?.name ||
                             dimension.factTableColumn;
                         selectStatementsMap.get(locale)?.push(`${dimension.factTableColumn} as "${columnName}"`);
                     });
@@ -805,39 +822,45 @@ export const createBaseCube = async (dataset: Dataset, endRevision: Revision): P
     SUPPORTED_LOCALES.map((locale) => selectStatementsMap.set(locale, []));
     const joinStatements: string[] = [];
     const orderByStatements: string[] = [];
-    let notesCodeColumn: FactTableInfo | undefined;
-    let dataValuesColumn: FactTableInfo | undefined;
-    let measureColumn: FactTableInfo | undefined;
+    let notesCodeColumn: FactTable | undefined;
+    let dataValuesColumn: FactTable | undefined;
+    let measureColumn: FactTable | undefined;
 
     const firstRevision = dataset.revisions.find((rev) => rev.revisionIndex === 1);
     if (!firstRevision) {
         throw new Error(`Unable to find first revision for dataset ${dataset.id}`);
     }
-    const firstFactTable = firstRevision.factTables[0];
+    const factTable = dataset.factTable;
     const compositeKey: string[] = [];
-    const factIdentifiers: FactTableInfo[] = [];
-
-    const factTableDef = firstFactTable.factTableInfo.map((field) => {
-        switch (field.columnType) {
-            case FactTableColumnType.Dimension:
-            case FactTableColumnType.Time:
-                compositeKey.push(`"${field.columnName}"`);
-                factIdentifiers.push(field);
-                break;
-            case FactTableColumnType.Measure:
-                compositeKey.push(`"${field.columnName}"`);
-                factIdentifiers.push(field);
-                measureColumn = field;
-                break;
-            case FactTableColumnType.NoteCodes:
-                notesCodeColumn = field;
-                break;
-            case FactTableColumnType.DataValues:
-                dataValuesColumn = field;
-                break;
-        }
-        return `"${field.columnName}" ${field.columnDatatype}`;
-    });
+    const factIdentifiers: FactTable[] = [];
+    const factTableDef: string[] = [];
+    if (!factTable) {
+        throw new Error(`Unable to find fact table for dataset ${dataset.id}`);
+    }
+    const factTableCreationDef = factTable
+        .sort((col1, col2) => col1.columnIndex - col2.columnIndex)
+        .map((field) => {
+            switch (field.columnType) {
+                case FactTableColumnType.Dimension:
+                case FactTableColumnType.Time:
+                    compositeKey.push(`"${field.columnName}"`);
+                    factIdentifiers.push(field);
+                    break;
+                case FactTableColumnType.Measure:
+                    compositeKey.push(`"${field.columnName}"`);
+                    factIdentifiers.push(field);
+                    measureColumn = field;
+                    break;
+                case FactTableColumnType.NoteCodes:
+                    notesCodeColumn = field;
+                    break;
+                case FactTableColumnType.DataValues:
+                    dataValuesColumn = field;
+                    break;
+            }
+            factTableDef.push(field.columnName);
+            return `"${field.columnName}" ${field.columnDatatype}`;
+        });
 
     logger.debug('Creating an in-memory database to hold the cube using DuckDB 🐤');
     const quack = await Database.create(':memory:');
@@ -848,14 +871,14 @@ export const createBaseCube = async (dataset: Dataset, endRevision: Revision): P
         if (compositeKey.length > 0) {
             key = `, PRIMARY KEY (${compositeKey.join(', ')})`;
         }
-        await quack.exec(`CREATE TABLE ${FACT_TABLE_NAME} (${factTableDef.join(', ')}${key});`);
+        await quack.exec(`CREATE TABLE ${FACT_TABLE_NAME} (${factTableCreationDef.join(', ')}${key});`);
     } catch (err) {
         logger.error(`Failed to create fact table in cube: ${err}`);
         await quack.close();
         throw new Error(`Failed to create fact table in cube: ${err}`);
     }
 
-    await loadFactTables(quack, dataset, endRevision, dataValuesColumn, notesCodeColumn, factIdentifiers);
+    await loadFactTables(quack, dataset, endRevision, factTableDef, dataValuesColumn, notesCodeColumn, factIdentifiers);
 
     await setupMeasures(
         quack,
@@ -900,7 +923,7 @@ export const createBaseCube = async (dataset: Dataset, endRevision: Revision): P
     const tmpFile = tmp.tmpNameSync({ postfix: '.db' });
     try {
         logger.debug(`Writing memory database to disk at ${tmpFile}`);
-        await quack.exec(`ATTACH '${tmpFile}' as outDB;`);
+        await quack.exec(`ATTACH '${tmpFile}' as outDB (BLOCK_SIZE 16384);`);
         await quack.exec(`COPY FROM DATABASE memory TO outDB;`);
         await quack.exec('DETACH outDB;');
     } catch (err) {

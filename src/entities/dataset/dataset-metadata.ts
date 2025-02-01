@@ -14,24 +14,24 @@ import { Designation } from '../../enums/designation';
 
 import { Dataset } from './dataset';
 
-@Entity({ name: 'dataset_info' })
-export class DatasetInfo extends BaseEntity {
+@Entity({ name: 'dataset_metadata' })
+export class DatasetMetadata extends BaseEntity {
     @PrimaryColumn({
         name: 'dataset_id',
         type: 'uuid',
-        primaryKeyConstraintName: 'PK_dataset_info_dataset_id_language'
+        primaryKeyConstraintName: 'PK_dataset_metadata_dataset_id_language'
     })
     id: string;
 
-    @ManyToOne(() => Dataset, (dataset) => dataset.datasetInfo, { onDelete: 'CASCADE', orphanedRowAction: 'delete' })
-    @JoinColumn({ name: 'dataset_id', foreignKeyConstraintName: 'FK_dataset_info_dataset_id' })
+    @ManyToOne(() => Dataset, (dataset) => dataset.metadata, { onDelete: 'CASCADE', orphanedRowAction: 'delete' })
+    @JoinColumn({ name: 'dataset_id', foreignKeyConstraintName: 'FK_dataset_metadata_dataset_id' })
     dataset: Dataset;
 
     @PrimaryColumn({
         name: 'language',
         type: 'varchar',
         length: 5,
-        primaryKeyConstraintName: 'PK_dataset_info_dataset_id_language'
+        primaryKeyConstraintName: 'PK_dataset_metadata_dataset_id_language'
     })
     language: string;
 
