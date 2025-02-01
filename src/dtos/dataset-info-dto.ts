@@ -1,7 +1,7 @@
 import { IsArray, IsBoolean, IsEnum, IsNotEmpty, IsOptional, IsString, ValidateNested } from 'class-validator';
 import { Type } from 'class-transformer';
 
-import { DatasetInfo } from '../entities/dataset/dataset-info';
+import { DatasetMetadata } from '../entities/dataset/dataset-metadata';
 import { Designation } from '../enums/designation';
 
 import { RelatedLinkDTO } from './related-link-dto';
@@ -51,7 +51,7 @@ export class DatasetInfoDTO {
     @IsOptional()
     designation?: Designation;
 
-    static fromDatasetInfo(datasetInfo: DatasetInfo): DatasetInfoDTO {
+    static fromDatasetInfo(datasetInfo: DatasetMetadata): DatasetInfoDTO {
         const dto = new DatasetInfoDTO();
         dto.language = datasetInfo.language;
         dto.title = datasetInfo.title;
@@ -67,8 +67,8 @@ export class DatasetInfoDTO {
         return dto;
     }
 
-    static toDatasetInfo(dto: DatasetInfoDTO): Partial<DatasetInfo> {
-        const datasetInfo = new DatasetInfo();
+    static toDatasetInfo(dto: DatasetInfoDTO): Partial<DatasetMetadata> {
+        const datasetInfo = new DatasetMetadata();
         datasetInfo.language = dto.language;
         datasetInfo.title = dto.title;
         datasetInfo.description = dto.description;

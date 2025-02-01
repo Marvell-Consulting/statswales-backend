@@ -9,7 +9,7 @@ import { Dataset } from '../../src/entities/dataset/dataset';
 import { appConfig } from '../../src/config';
 import { AppEnv } from '../../src/config/env.enum';
 import { uploadCSV } from '../../src/services/csv-processor';
-import { FactTable } from '../../src/entities/dataset/fact-table';
+import { DataTable } from '../../src/entities/dataset/data-table';
 import { DatasetRepository } from '../../src/repositories/dataset';
 import { RevisionRepository } from '../../src/repositories/revision';
 
@@ -48,7 +48,7 @@ export default class SeedTestFixtures extends Seeder {
 
                 if (testDataset.csvPath) {
                     const buffer = fs.readFileSync(testDataset.csvPath);
-                    const fileImport: FactTable = await uploadCSV(buffer, 'text/csv', `test-fixture.csv`, dataset.id);
+                    const fileImport: DataTable = await uploadCSV(buffer, 'text/csv', `test-fixture.csv`, dataset.id);
                     await RevisionRepository.createFromImport(dataset, fileImport, dataset.createdBy);
                     dataset = await DatasetRepository.getById(dataset.id);
                 }

@@ -9,9 +9,6 @@ export class LookupTableDTO {
     file_type: string;
     hash: string;
     uploaded_at?: string;
-    delimiter: string;
-    quote: string;
-    linebreak: string;
 
     static fromLookupTable(lookupTable: LookupTable): LookupTableDTO {
         const dto = new LookupTableDTO();
@@ -23,9 +20,6 @@ export class LookupTableDTO {
         dto.file_type = lookupTable.fileType;
         dto.hash = lookupTable.hash;
         dto.uploaded_at = lookupTable.uploadedAt?.toISOString();
-        dto.quote = lookupTable.quote;
-        dto.linebreak = lookupTable.linebreak;
-        dto.delimiter = lookupTable.delimiter;
         return dto;
     }
 }

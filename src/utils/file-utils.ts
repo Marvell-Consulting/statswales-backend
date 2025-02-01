@@ -6,7 +6,7 @@ import iconv from 'iconv-lite';
 import jschardet from 'jschardet';
 
 import { Dataset } from '../entities/dataset/dataset';
-import { FileImport } from '../entities/dataset/file-import';
+import { FileImportInterface } from '../entities/dataset/file-import.interface';
 import { DataLakeService } from '../services/datalake';
 import { FileType } from '../enums/file-type';
 
@@ -27,7 +27,7 @@ export const convertBufferToUTF8 = (buffer: Buffer): Buffer => {
     return buffer;
 };
 
-export const getFileImportAndSaveToDisk = async (dataset: Dataset, importFile: FileImport): Promise<string> => {
+export const getFileImportAndSaveToDisk = async (dataset: Dataset, importFile: FileImportInterface): Promise<string> => {
     const dataLakeService = new DataLakeService();
     const importTmpFile = tmp.tmpNameSync({ postfix: `.${importFile.fileType}` });
     const buffer = await dataLakeService.getFileBuffer(importFile.filename, dataset.id);
@@ -38,7 +38,7 @@ export const getFileImportAndSaveToDisk = async (dataset: Dataset, importFile: F
 // This function creates a table in a duckdb database based on a file and loads the files contents directly into the table
 export const loadFileIntoDatabase = async (
     quack: Database,
-    fileImport: FileImport,
+    fileImport: FileImportInterface,
     tempFile: string,
     tableName: string
 ) => {

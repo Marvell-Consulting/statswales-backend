@@ -1,63 +1,38 @@
-import {
-    Entity,
-    PrimaryGeneratedColumn,
-    Column,
-    CreateDateColumn,
-    BaseEntity,
-    ManyToOne,
-    JoinColumn,
-    OneToMany
-} from 'typeorm';
+import { Entity, PrimaryColumn, Column, BaseEntity, ManyToOne, JoinColumn } from 'typeorm';
 
-import { FileType } from '../../enums/file-type';
-import { FactTableAction } from '../../enums/fact-table-action';
+import { FactTableColumnType } from '../../enums/fact-table-column-type';
 
-import { Revision } from './revision';
-import { FactTableInfo } from './fact-table-info';
-import { FileImport } from './file-import';
+import { Dataset } from './dataset';
 
-@Entity({ name: 'fact_table', orderBy: { uploadedAt: 'ASC' } })
-export class FactTable extends BaseEntity implements FileImport {
-    @PrimaryGeneratedColumn('uuid', { primaryKeyConstraintName: 'PK_fact_table_id' })
+@Entity({ name: 'fact_table' })
+export class FactTable extends BaseEntity {
+    @PrimaryColumn({
+        name: 'dataset_id',
+        type: 'uuid',
+        primaryKeyConstraintName: 'PK_fact_table_id_column_name'
+    })
     id: string;
 
-    @ManyToOne(() => Revision, {
+    @PrimaryColumn({
+        name: 'column_name',
+        type: 'varchar',
+        primaryKeyConstraintName: 'PK_fact_table_id_column_name'
+    })
+    columnName: string;
+
+    @Column({ name: 'column_type', type: 'enum', enum: Object.values(FactTableColumnType), nullable: false })
+    columnType: FactTableColumnType;
+
+    @Column({ name: 'column_datatype', type: 'varchar', nullable: false })
+    columnDatatype: string;
+
+    @Column({ name: 'column_index', type: 'integer', nullable: false })
+    columnIndex: number;
+
+    @ManyToOne(() => Dataset, (dataset) => dataset.factTable, {
         onDelete: 'CASCADE',
         orphanedRowAction: 'delete'
     })
-    @JoinColumn({ name: 'revision_id', foreignKeyConstraintName: 'FK_fact_table_revision_id' })
-    revision: Revision;
-
-    @Column({ name: 'mime_type', type: 'varchar', length: 255 })
-    mimeType: string;
-
-    @Column({ name: 'filetype', type: 'enum', enum: Object.values(FileType), nullable: false })
-    fileType: FileType;
-
-    @Column({ type: 'varchar', length: 255 })
-    filename: string;
-
-    @Column({ name: 'original_filename', type: 'varchar', length: 255 })
-    originalFilename: string;
-
-    @Column({ type: 'varchar', length: 255 })
-    hash: string;
-
-    @CreateDateColumn({ name: 'uploaded_at', type: 'timestamptz' })
-    uploadedAt: Date;
-
-    @Column({ name: 'delimiter', type: 'char', nullable: true })
-    delimiter: string;
-
-    @Column({ name: 'quote', type: 'char', nullable: true })
-    quote: string;
-
-    @Column({ name: 'linebreak', type: 'varchar', nullable: true })
-    linebreak: string;
-
-    @Column({ type: 'enum', enum: Object.values(FactTableAction), nullable: false })
-    action: FactTableAction;
-
-    @OneToMany(() => FactTableInfo, (factTableInfo) => factTableInfo.factTable, { cascade: true })
-    factTableInfo: FactTableInfo[];
+    @JoinColumn({ name: 'dataset_id', foreignKeyConstraintName: 'FK_dataset_id_fact_table_id' })
+    dataset: Dataset;
 }

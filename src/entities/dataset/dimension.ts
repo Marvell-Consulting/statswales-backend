@@ -12,7 +12,7 @@ import {
 import { DimensionType } from '../../enums/dimension-type';
 
 import { Dataset } from './dataset';
-import { DimensionInfo } from './dimension-info';
+import { DimensionMetadata } from './dimension-metadata';
 import { LookupTable } from './lookup-table';
 
 @Entity({ name: 'dimension' })
@@ -46,6 +46,6 @@ export class Dimension extends BaseEntity {
     })
     lookupTable: LookupTable | null;
 
-    @OneToMany(() => DimensionInfo, (dimensionInfo) => dimensionInfo.dimension, { cascade: true })
-    dimensionInfo: DimensionInfo[];
+    @OneToMany(() => DimensionMetadata, (dimensionInfo) => dimensionInfo.dimension, { cascade: true })
+    metadata: DimensionMetadata[];
 }

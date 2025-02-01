@@ -76,6 +76,14 @@
 		"crown-copyright": "© Hawlfraint y Goron",
 		"welsh-gov": "Llywodraeth Cymru"
 	},
+    "column_headers": {
+        "data_values": "Gwerthoedd Data",
+        "note_codes": "Codau Nodyn",
+        "start_date": "Dyddiad Cychwyn",
+        "end_date": "Dyddiad Gorffen",
+        "notes": "Nodiadau",
+        "measure": "Mesur"
+    },
     "routes": {
         "healthcheck": "gwiriad iechyd",
         "upload": "lanlwytho",
