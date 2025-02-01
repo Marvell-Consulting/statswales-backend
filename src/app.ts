@@ -7,6 +7,7 @@ import cookieParser from 'cookie-parser';
 import './utils/bigint-patcher';
 import { logger, httpLogger } from './utils/logger';
 import { appConfig } from './config';
+import { checkConfig } from './config/check-config';
 import { i18next, i18nextMiddleware } from './middleware/translation';
 import { rateLimiter } from './middleware/rate-limiter';
 import session from './middleware/session';
@@ -24,6 +25,7 @@ import { consumerRouter } from './route/consumer';
 
 const app: Application = express();
 const config = appConfig();
+checkConfig();
 
 logger.info(`App config loaded for '${config.env}' env`);
 

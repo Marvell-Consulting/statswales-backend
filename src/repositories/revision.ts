@@ -69,6 +69,7 @@ export const RevisionRepository = dataSource.getRepository(Revision).extend({
         return dataSource.getRepository(Revision).save(revision);
     },
 
+
     async approvePublication(revisionId: string, onlineCubeFilename: string, approver: User): Promise<Revision> {
         const scheduledRevision = await dataSource.getRepository(Revision).findOneByOrFail({ id: revisionId });
 
@@ -76,6 +77,11 @@ export const RevisionRepository = dataSource.getRepository(Revision).extend({
         scheduledRevision.approvedBy = approver;
         scheduledRevision.onlineCubeFilename = onlineCubeFilename;
         await scheduledRevision.save();
+
+        if (scheduledRevision.revisionIndex === 1) {
+            scheduledRevision.dataset.live = scheduledRevision.publishAt;
+            await scheduledRevision.dataset.save();
+        }
 
         return scheduledRevision;
     },
@@ -87,6 +93,11 @@ export const RevisionRepository = dataSource.getRepository(Revision).extend({
         approvedRevision.approvedBy = null;
         approvedRevision.onlineCubeFilename = null;
         await approvedRevision.save();
+
+        if (approvedRevision.revisionIndex === 1) {
+            approvedRevision.dataset.live = null;
+            await approvedRevision.dataset.save();
+        }
 
         return approvedRevision;
     }
