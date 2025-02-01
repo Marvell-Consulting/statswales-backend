@@ -1,7 +1,7 @@
-import { FactTable } from '../entities/dataset/fact-table';
+import { DataTable } from '../entities/dataset/data-table';
 import { Dimension } from '../entities/dataset/dimension';
 import { LookupTable } from '../entities/dataset/lookup-table';
-import { FactTableInfo } from '../entities/dataset/fact-table-info';
+import { DataTableDescription } from '../entities/dataset/data-table-description';
 import { SupportedLanguagues } from '../enums/locale';
 import { Measure } from '../entities/dataset/measure';
 import { MeasureLookupPatchDTO } from '../dtos/measure-lookup-patch-dto';
@@ -9,22 +9,19 @@ import { LookupTablePatchDTO } from '../dtos/lookup-patch-dto';
 
 import { logger } from './logger';
 
-export function convertFactTableToLookupTable(factTable: FactTable, dimension?: Dimension, measure?: Measure) {
+export function convertFactTableToLookupTable(factTable: DataTable, dimension?: Dimension, measure?: Measure) {
     const lookupTable = new LookupTable();
     lookupTable.id = factTable.id;
     lookupTable.fileType = factTable.fileType;
     lookupTable.filename = factTable.filename;
     lookupTable.mimeType = factTable.mimeType;
     lookupTable.hash = factTable.hash;
-    lookupTable.delimiter = factTable.delimiter;
-    lookupTable.linebreak = factTable.linebreak;
-    lookupTable.quote = factTable.quote;
     if (dimension) lookupTable.dimension = dimension;
     if (measure) lookupTable.measure = measure;
     return lookupTable;
 }
 
-export function columnIdentification(info: FactTableInfo) {
+export function columnIdentification(info: DataTableDescription) {
     let lang = 'zz';
     for (const supLang of Object.values(SupportedLanguagues)) {
         if (info.columnName.toLowerCase().endsWith(supLang.code.toLowerCase())) {
@@ -46,19 +43,19 @@ export function columnIdentification(info: FactTableInfo) {
 // If they've used the exact name in the guidance e.g. ref_code, reference_code, refcode use this
 // Finally we do fuzzy matching where we exclude everything that isn't a protected name and see what we have left
 export const lookForJoinColumn = (
-    protoLookupTable: FactTable,
+    protoLookupTable: DataTable,
     factTableColumn: string,
     tableMatcher?: MeasureLookupPatchDTO | LookupTablePatchDTO
 ): string => {
-    const refCol = protoLookupTable.factTableInfo.find((col) => col.columnName.toLowerCase().startsWith('ref'));
+    const refCol = protoLookupTable.dataTableDescriptions.find((col) => col.columnName.toLowerCase().startsWith('ref'));
     if (tableMatcher?.join_column) {
         return tableMatcher.join_column;
-    } else if (protoLookupTable.factTableInfo.find((col) => col.columnName === factTableColumn)) {
+    } else if (protoLookupTable.dataTableDescriptions.find((col) => col.columnName === factTableColumn)) {
         return factTableColumn;
     } else if (refCol) {
         return refCol.columnName;
     } else {
-        const possibleJoinColumns = protoLookupTable.factTableInfo.filter((info) => {
+        const possibleJoinColumns = protoLookupTable.dataTableDescriptions.filter((info) => {
             if (info.columnName.toLowerCase().indexOf('decimal') >= 0) return false;
             if (info.columnName.toLowerCase().indexOf('hierarchy') >= 0) return false;
             if (info.columnName.toLowerCase().indexOf('format') >= 0) return false;

@@ -12,7 +12,7 @@ import { DataLakeService } from '../services/datalake';
 import { hasError, titleValidator } from '../validators';
 import { BadRequestException } from '../exceptions/bad-request.exception';
 import { User } from '../entities/user/user';
-import { FactTable } from '../entities/dataset/fact-table';
+import { DataTable } from '../entities/dataset/data-table';
 import { FactTableAction } from '../enums/fact-table-action';
 import { RevisionRepository } from '../repositories/revision';
 import { getLatestRevision } from '../utils/latest';
@@ -30,6 +30,16 @@ import { DatasetListItemDTO } from '../dtos/dataset-list-item-dto';
 import { ResultsetWithCount } from '../interfaces/resultset-with-count';
 
 import { getCubePreview } from './cube-controller';
+import {
+    createDimensionsFromSourceAssignment,
+    ValidatedSourceAssignment,
+    validateSourceAssignment
+} from '../services/dimension-processor';
+import { SourceAssignmentException } from '../exceptions/source-assignment.exception';
+import { Revision } from '../entities/dataset/revision';
+import { FactTable } from '../entities/dataset/fact-table';
+import { Dataset } from '../entities/dataset/dataset';
+import { FactTableColumnType } from '../enums/fact-table-column-type';
 
 export const listAllDatasets = async (req: Request, res: Response, next: NextFunction) => {
     try {
@@ -99,11 +109,11 @@ export const createFirstRevision = async (req: Request, res: Response, next: Nex
 
     const utf8Buffer = convertBufferToUTF8(req.file.buffer);
 
-    let fileImport: FactTable;
+    let fileImport: DataTable;
     logger.debug('Uploading dataset to datalake');
     try {
         fileImport = await uploadCSV(utf8Buffer, req.file?.mimetype, req.file?.originalname, res.locals.datasetId);
-        fileImport.action = FactTableAction.Add;
+        fileImport.action = FactTableAction.ReplaceAll;
     } catch (err) {
         logger.error(`An error occurred trying to upload the file: ${err}`);
         next(new UnknownException('errors.upload_error'));
@@ -114,6 +124,16 @@ export const createFirstRevision = async (req: Request, res: Response, next: Nex
     try {
         const user = req.user as User;
         await RevisionRepository.createFromImport(res.locals.dataset, fileImport, user);
+        logger.debug('Creating base fact table definition');
+        for (const fileImportCol of fileImport.dataTableDescriptions) {
+            const factTable = new FactTable();
+            factTable.dataset = res.locals.dataset;
+            factTable.columnName = fileImportCol.columnName;
+            factTable.columnIndex = fileImportCol.columnIndex;
+            factTable.columnDatatype = fileImportCol.columnDatatype;
+            factTable.columnType = FactTableColumnType.Unknown;
+            await factTable.save();
+        }
         const dataset = await DatasetRepository.getById(res.locals.datasetId);
         res.status(201);
         res.json(DatasetDTO.fromDataset(dataset));
@@ -261,5 +281,97 @@ export const updateDatasetTeam = async (req: Request, res: Response, next: NextF
             return;
         }
         next(new UnknownException('errors.topic_update_error'));
+    }
+};
+
+async function updateFactTableDefinition(
+    dataset: Dataset,
+    dataTable: DataTable,
+    validatedSourceAssignment: ValidatedSourceAssignment
+) {
+    const factTableDef: FactTable[] = [];
+    if (validatedSourceAssignment.dataValues) {
+        const dataTableColumn = dataTable.dataTableDescriptions.find(
+            (column) => column.columnName === validatedSourceAssignment.dataValues?.column_name
+        );
+        const factTable = new FactTable();
+        factTable.dataset = dataset;
+        factTable.columnName = validatedSourceAssignment.dataValues.column_name;
+        factTable.columnType = FactTableColumnType.DataValues;
+        factTable.columnIndex = validatedSourceAssignment.dataValues.column_index;
+        factTable.columnDatatype = dataTableColumn?.columnDatatype || 'varchar';
+        const savedFactTable = await factTable.save();
+        factTableDef.push(savedFactTable);
+    }
+    if (validatedSourceAssignment.measure) {
+        const dataTableColumn = dataTable.dataTableDescriptions.find(
+            (column) => column.columnName === validatedSourceAssignment.measure?.column_name
+        );
+        const factTable = new FactTable();
+        factTable.dataset = dataset;
+        factTable.columnName = validatedSourceAssignment.measure.column_name;
+        factTable.columnType = FactTableColumnType.Measure;
+        factTable.columnIndex = validatedSourceAssignment.measure.column_index;
+        factTable.columnDatatype = dataTableColumn?.columnDatatype || 'varchar';
+        const savedFactTable = await factTable.save();
+        factTableDef.push(savedFactTable);
+    }
+    if (validatedSourceAssignment.noteCodes) {
+        const dataTableColumn = dataTable.dataTableDescriptions.find(
+            (column) => column.columnName === validatedSourceAssignment.noteCodes?.column_name
+        );
+        const factTable = new FactTable();
+        factTable.dataset = dataset;
+        factTable.columnName = validatedSourceAssignment.noteCodes.column_name;
+        factTable.columnType = FactTableColumnType.NoteCodes;
+        factTable.columnIndex = validatedSourceAssignment.noteCodes.column_index;
+        factTable.columnDatatype = dataTableColumn?.columnDatatype || 'varchar';
+        const savedFactTable = await factTable.save();
+        factTableDef.push(savedFactTable);
+    }
+    if (validatedSourceAssignment.dimensions) {
+        for (const dimension of validatedSourceAssignment.dimensions) {
+            const dataTableColumn = dataTable.dataTableDescriptions.find(
+                (column) => column.columnName === dimension.column_name
+            );
+            const factTable = new FactTable();
+            factTable.dataset = dataset;
+            factTable.columnName = dimension.column_name;
+            factTable.columnType = FactTableColumnType.Dimension;
+            factTable.columnIndex = dimension.column_index;
+            factTable.columnDatatype = dataTableColumn?.columnDatatype || 'varchar';
+            const savedFactTable = await factTable.save();
+            factTableDef.push(savedFactTable);
+        }
+    }
+    return factTableDef;
+}
+
+export const updateSources = async (req: Request, res: Response, next: NextFunction) => {
+    const { dataset } = res.locals;
+    const sourceAssignment = req.body;
+    const revision = dataset.revisions.find((revision: Revision) => revision.revisionIndex === 1);
+    if (!revision) {
+        next(new UnknownException('errors.no_first_revision'));
+        return;
+    }
+    const dataTable = revision.dataTable;
+    if (!dataTable) {
+        next(new UnknownException('errors.no_fact_table'));
+        return;
+    }
+    try {
+        const validatedSourceAssignment = validateSourceAssignment(dataTable, sourceAssignment);
+        await createDimensionsFromSourceAssignment(dataset, dataTable, validatedSourceAssignment);
+        const updatedDataset = await DatasetRepository.getById(dataset.id);
+        res.json(DatasetDTO.fromDataset(updatedDataset));
+    } catch (err) {
+        logger.error(`An error occurred trying to process the source assignments: ${err}`);
+
+        if (err instanceof SourceAssignmentException) {
+            next(new BadRequestException(err.message));
+        } else {
+            next(new BadRequestException('errors.invalid_source_assignment'));
+        }
     }
 };

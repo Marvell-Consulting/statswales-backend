@@ -10,7 +10,7 @@ import DatabaseManager from '../src/db/database-manager';
 import { initPassport } from '../src/middleware/passport-auth';
 import { Revision } from '../src/entities/dataset/revision';
 import { User } from '../src/entities/user/user';
-import { FactTable } from '../src/entities/dataset/fact-table';
+import { DataTable } from '../src/entities/dataset/data-table';
 import { logger } from '../src/utils/logger';
 
 import { createFullDataset, createSmallDataset } from './helpers/test-helper';
@@ -67,31 +67,31 @@ describe('API Endpoints for viewing the contents of a dataset', () => {
         expect(res.body.headers).toEqual([
             { index: -1, name: 'int_line_number', source_type: 'line_number' },
             { index: 0, name: 'Data Values', source_type: 'unknown' },
-            { index: 1, name: 'YearCode', source_type: 'unknown' },
-            { index: 2, name: 'Start Date', source_type: 'unknown' },
-            { index: 3, name: 'End Date', source_type: 'unknown' },
-            { index: 4, name: 'RowRef', source_type: 'unknown' },
-            { index: 5, name: 'AreaCode', source_type: 'unknown' },
+            { index: 1, name: 'RowRef', source_type: 'unknown' },
+            { index: 2, name: 'AreaCode', source_type: 'unknown' },
+            { index: 3, name: 'YearCode', source_type: 'unknown' },
+            { index: 4, name: 'Start Date', source_type: 'unknown' },
+            { index: 5, name: 'End Date', source_type: 'unknown' },
             { index: 6, name: 'Notes', source_type: 'unknown' }
         ]);
         expect(res.body.data[0]).toEqual([
             1,
             137527,
+            'Health Visitor',
+            'Wales',
             '2021-22',
             '01/04/2021',
             '31/03/2022',
-            'Health Visitor',
-            'Wales',
             'Total'
         ]);
         expect(res.body.data[23]).toEqual([
             24,
             1.563664596,
+            'Other Staff',
+            'Isle of Anglesey',
             '2022-23',
             '01/04/2022',
             '31/03/2023',
-            'Other Staff',
-            'Isle of Anglesey',
             null
         ]);
     });
@@ -122,11 +122,11 @@ describe('API Endpoints for viewing the contents of a dataset', () => {
         const removeRevisionDatasetID = crypto.randomUUID().toLowerCase();
         const importId = crypto.randomUUID().toLowerCase();
         await createSmallDataset(removeRevisionDatasetID, crypto.randomUUID(), importId, user);
-        const fileImport = await FactTable.findOneBy({ id: importId });
+        const fileImport = await DataTable.findOneBy({ id: importId });
         if (!fileImport) {
             throw new Error('Revision not found... Either it was not created or the test is broken');
         }
-        await FactTable.remove(fileImport);
+        await DataTable.remove(fileImport);
         const res = await request(app)
             .get(`/dataset/${removeRevisionDatasetID}/view`)
             .set(getAuthHeader(user))

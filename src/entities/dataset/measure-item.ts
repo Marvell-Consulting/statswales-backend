@@ -5,12 +5,12 @@ import { DataType } from '../../enums/data-types';
 
 import { Measure } from './measure';
 
-@Entity({ name: 'measure_info' })
-export class MeasureInfo extends BaseEntity {
+@Entity({ name: 'measure_item' })
+export class MeasureItem extends BaseEntity {
     @PrimaryColumn({
         name: 'measure_id',
         type: 'uuid',
-        primaryKeyConstraintName: 'PK_measure_info_measure_id_language'
+        primaryKeyConstraintName: 'PK_measure_item_measure_id_language'
     })
     id: string;
 
@@ -21,7 +21,7 @@ export class MeasureInfo extends BaseEntity {
         name: 'language',
         type: 'varchar',
         length: 5,
-        primaryKeyConstraintName: 'PK_measure_info_measure_id_language'
+        primaryKeyConstraintName: 'PK_measure_item_measure_id_language'
     })
     language: string;
 
@@ -38,7 +38,7 @@ export class MeasureInfo extends BaseEntity {
         onDelete: 'CASCADE',
         orphanedRowAction: 'delete'
     })
-    @JoinColumn({ name: 'measure_id', foreignKeyConstraintName: 'FK_measure_info_measure_id' })
+    @JoinColumn({ name: 'measure_id', foreignKeyConstraintName: 'FK_measure_item_measure_id' })
     measure: Measure;
 
     @Column({ name: 'data_type', type: 'enum', enum: Object.values(DataType), nullable: false })

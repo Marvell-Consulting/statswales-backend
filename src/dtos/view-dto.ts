@@ -4,7 +4,7 @@ import { FactTableColumnType } from '../enums/fact-table-column-type';
 
 import { Error } from './error';
 import { DatasetDTO } from './dataset-dto';
-import { FactTableDTO } from './fact-table-dto';
+import { DataTableDto } from './data-table-dto';
 
 export interface CSVHeader {
     index: number;
@@ -29,7 +29,7 @@ export interface ViewErrDTO {
 
 export interface ViewDTO {
     dataset: DatasetDTO;
-    fact_table?: FactTableDTO;
+    fact_table?: DataTableDto;
     current_page: number;
     page_info: PageInfo;
     page_size: number;
