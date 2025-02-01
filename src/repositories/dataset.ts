@@ -72,8 +72,8 @@ export const DatasetRepository = dataSource.getRepository(Dataset).extend({
             where: { id, live: Not(IsNull()) },
             relations: defaultRelations,
             order: {
-                dimensions: { dimensionInfo: { language: 'ASC' } },
-                revisions: { factTables: { factTableInfo: { columnIndex: 'ASC' } } }
+                dimensions: { metadata: { language: 'ASC' } },
+                revisions: { dataTable: { dataTableDescriptions: { columnIndex: 'ASC' } } }
             }
         };
 
