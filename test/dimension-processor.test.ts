@@ -303,13 +303,13 @@ describe('Date matching table generation', () => {
             expect(refTable[0].end).toStrictEqual(
                 sub(add(parseISO('2023-12-01T00:00:00.000Z'), { days: 1 }), { seconds: 1 })
             );
-            expect(refTable[0].type).toBe('specific-day');
+            expect(refTable[0].type).toBe('specific_day');
             expect(refTable[1].dateCode).toBe('20240101');
             expect(refTable[1].start).toStrictEqual(parseISO('2024-01-01T00:00:00.000Z'));
             expect(refTable[1].end).toStrictEqual(
                 sub(add(parseISO('2024-01-01T00:00:00.000Z'), { days: 1 }), { seconds: 1 })
             );
-            expect(refTable[1].type).toBe('specific-day');
+            expect(refTable[1].type).toBe('specific_day');
         });
 
         test('Given the format "dd/MM/yyyy" it generates matches for a table', async () => {
@@ -339,13 +339,13 @@ describe('Date matching table generation', () => {
             expect(refTable[0].end).toStrictEqual(
                 sub(add(parseISO('2023-12-01T00:00:00.000Z'), { days: 1 }), { seconds: 1 })
             );
-            expect(refTable[0].type).toBe('specific-day');
+            expect(refTable[0].type).toBe('specific_day');
             expect(refTable[1].dateCode).toBe('01/01/2024');
             expect(refTable[1].start).toStrictEqual(parseISO('2024-01-01T00:00:00.000Z'));
             expect(refTable[1].end).toStrictEqual(
                 sub(add(parseISO('2024-01-01T00:00:00.000Z'), { days: 1 }), { seconds: 1 })
             );
-            expect(refTable[1].type).toBe('specific-day');
+            expect(refTable[1].type).toBe('specific_day');
         });
 
         test('If given an unknown format it errors', async () => {
