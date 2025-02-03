@@ -395,6 +395,13 @@ async function loadFactTablesWithUpdates(
                 ELSE concat(${FACT_TABLE_NAME}."${notesCodeColumn.columnName}", ',r') END)
              FROM update_table WHERE ${setupFactTableUpdateJoins(FACT_TABLE_NAME, factIdentifiers, dataTable.dataTableDescriptions)}
              AND ${FACT_TABLE_NAME}."${dataValuesColumn.columnName}"!=update_table."${updateTableDataCol}";`;
+        const dataTableColumnSelect: string[] = [];
+        for (const factTableCol of factTableDef) {
+            const dataTableCol = dataTable.dataTableDescriptions.find(
+                (col) => col.factTableColumn === factTableCol
+            )?.columnName;
+            if (dataTableCol) dataTableColumnSelect.push(dataTableCol);
+        }
         try {
             switch (dataTable.action) {
                 case DataTableAction.ReplaceAll:
@@ -411,12 +418,13 @@ async function loadFactTablesWithUpdates(
                     break;
                 case DataTableAction.AddRevise:
                     await loadFileIntoCube(quack, dataTable, factTableFile, 'update_table');
+                    logger.debug(`Executing update query: ${updateQuery}`);
                     await quack.exec(updateQuery);
                     await quack.exec(
                         `DELETE FROM update_table USING ${FACT_TABLE_NAME} WHERE ${setupFactTableUpdateJoins(FACT_TABLE_NAME, factIdentifiers, dataTable.dataTableDescriptions)};`
                     );
                     await quack.exec(
-                        `INSERT INTO ${FACT_TABLE_NAME} (SELECT ${factTableDef.join(',')} FROM update_table);`
+                        `INSERT INTO ${FACT_TABLE_NAME} (${factTableDef.join(', ')}) (SELECT ${dataTableColumnSelect.join(', ')} FROM update_table);`
                     );
                     await quack.exec(`DROP TABLE update_table;`);
                     break;
