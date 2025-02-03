@@ -10,7 +10,7 @@ import {
 } from 'typeorm';
 
 import { FileType } from '../../enums/file-type';
-import { FactTableAction } from '../../enums/fact-table-action';
+import { DataTableAction } from '../../enums/data-table-action';
 
 import { Revision } from './revision';
 import { DataTableDescription } from './data-table-description';
@@ -46,8 +46,8 @@ export class DataTable extends BaseEntity implements FileImportInterface {
     @CreateDateColumn({ name: 'uploaded_at', type: 'timestamptz' })
     uploadedAt: Date;
 
-    @Column({ type: 'enum', enum: Object.values(FactTableAction), nullable: false })
-    action: FactTableAction;
+    @Column({ type: 'enum', enum: Object.values(DataTableAction), nullable: false })
+    action: DataTableAction;
 
     @OneToMany(() => DataTableDescription, (factTableInfo) => factTableInfo.factTable, { cascade: true })
     dataTableDescriptions: DataTableDescription[];

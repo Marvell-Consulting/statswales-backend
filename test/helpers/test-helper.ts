@@ -12,7 +12,7 @@ import { User } from '../../src/entities/user/user';
 import { DataTable } from '../../src/entities/dataset/data-table';
 import { FileType } from '../../src/enums/file-type';
 import { extractTableInformation } from '../../src/services/csv-processor';
-import { FactTableAction } from '../../src/enums/fact-table-action';
+import { DataTableAction } from '../../src/enums/data-table-action';
 import { FactTableColumnType } from '../../src/enums/fact-table-column-type';
 import { LookupTable } from '../../src/entities/dataset/lookup-table';
 import { FactTable } from '../../src/entities/dataset/fact-table';
@@ -60,7 +60,7 @@ export async function createSmallDataset(
     dataTable.originalFilename = path.basename(testFile);
     const testFileBuffer = fs.readFileSync(testFile);
     dataTable.hash = createHash('sha256').update(testFileBuffer).digest('hex');
-    dataTable.action = FactTableAction.Add;
+    dataTable.action = DataTableAction.Add;
     dataTable.fileType = fileType;
     switch (fileType) {
         case FileType.Csv:

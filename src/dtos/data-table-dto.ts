@@ -11,20 +11,22 @@ export class DataTableDto {
     file_type: string;
     hash: string;
     uploaded_at?: string;
-    fact_table_info: DataTableDescriptionDto[];
+    revision_id?: string;
+    descriptors: DataTableDescriptionDto[];
 
-    static fromDataTable(fileImport: DataTable): DataTableDto {
+    static fromDataTable(dataTable: DataTable): DataTableDto {
         const dto = new DataTableDto();
-        dto.id = fileImport.id;
-        dto.mime_type = fileImport.mimeType;
-        dto.filename = fileImport.filename;
-        dto.original_filename = fileImport.originalFilename;
-        dto.file_type = fileImport.fileType;
-        dto.hash = fileImport.hash;
-        dto.uploaded_at = fileImport.uploadedAt?.toISOString();
-        dto.fact_table_info = [];
+        dto.id = dataTable.id;
+        dto.mime_type = dataTable.mimeType;
+        dto.filename = dataTable.filename;
+        dto.original_filename = dataTable.originalFilename;
+        dto.file_type = dataTable.fileType;
+        dto.hash = dataTable.hash;
+        dto.uploaded_at = dataTable.uploadedAt?.toISOString();
+        dto.descriptors = [];
+        dto.revision_id = dataTable.revision?.id;
 
-        dto.fact_table_info = fileImport.dataTableDescriptions?.map((factTableInfo: DataTableDescription) =>
+        dto.descriptors = dataTable.dataTableDescriptions?.map((factTableInfo: DataTableDescription) =>
             DataTableDescriptionDto.fromDataTableDescription(factTableInfo)
         );
         return dto;

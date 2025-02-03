@@ -70,7 +70,10 @@ export const RevisionRepository = dataSource.getRepository(Revision).extend({
     },
 
     async approvePublication(revisionId: string, onlineCubeFilename: string, approver: User): Promise<Revision> {
-        const scheduledRevision = await dataSource.getRepository(Revision).findOneByOrFail({ id: revisionId });
+        const scheduledRevision = await dataSource.getRepository(Revision).findOneOrFail({
+            where: { id: revisionId },
+            relations: { dataset: true }
+        });
 
         scheduledRevision.approvedAt = new Date();
         scheduledRevision.approvedBy = approver;
@@ -86,7 +89,10 @@ export const RevisionRepository = dataSource.getRepository(Revision).extend({
     },
 
     async withdrawPublication(revisionId: string): Promise<Revision> {
-        const approvedRevision = await dataSource.getRepository(Revision).findOneByOrFail({ id: revisionId });
+        const approvedRevision = await dataSource.getRepository(Revision).findOneOrFail({
+            where: { id: revisionId },
+            relations: { dataset: true }
+        });
 
         approvedRevision.approvedAt = null;
         approvedRevision.approvedBy = null;

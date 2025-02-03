@@ -216,6 +216,9 @@ async function createUpdateMeasure(dataset: Dataset, columnAssignment: SourceAss
         columnName: columnAssignment.column_name,
         id: dataset.id
     });
+
+    columnInfo.columnType = FactTableColumnType.Measure;
+    await columnInfo.save();
     const existingMeasure = dataset.measure;
 
     if (
@@ -228,9 +231,6 @@ async function createUpdateMeasure(dataset: Dataset, columnAssignment: SourceAss
         );
         return;
     }
-
-    columnInfo.columnType = FactTableColumnType.Measure;
-    await columnInfo.save();
 
     if (existingMeasure && existingMeasure.factTableColumn !== columnAssignment.column_name) {
         existingMeasure.factTableColumn = columnAssignment.column_name;
@@ -378,6 +378,7 @@ export const validateDateTypeDimension = async (
     try {
         logger.debug(`Extractor created with ${JSON.stringify(extractor)}`);
         dateDimensionTable = dateDimensionReferenceTableCreator(extractor, preview);
+        logger.debug(`Date dimension table created with the following JSON: ${JSON.stringify(dateDimensionTable, null, 2)}`);
     } catch (error) {
         logger.error(
             `Something went wrong trying to create the date reference table with the following error: ${error}`
@@ -525,7 +526,7 @@ export const validateDateTypeDimension = async (
     }
     return {
         dataset: DatasetDTO.fromDataset(currentDataset),
-        fact_table: DataTableDto.fromDataTable(currentImport),
+        data_table: DataTableDto.fromDataTable(currentImport),
         current_page: 1,
         page_info: {
             total_records: 1,
@@ -575,7 +576,7 @@ async function getDatePreviewWithExtractor(
     }
     return {
         dataset: DatasetDTO.fromDataset(currentDataset),
-        fact_table: DataTableDto.fromDataTable(currentImport),
+        data_table: DataTableDto.fromDataTable(currentImport),
         current_page: 1,
         page_info: {
             total_records: dimensionTable.length,
@@ -613,7 +614,7 @@ async function getPreviewWithoutExtractor(
     }
     return {
         dataset: DatasetDTO.fromDataset(currentDataset),
-        fact_table: DataTableDto.fromDataTable(currentImport),
+        data_table: DataTableDto.fromDataTable(currentImport),
         current_page: 1,
         page_info: {
             total_records: preview.length,

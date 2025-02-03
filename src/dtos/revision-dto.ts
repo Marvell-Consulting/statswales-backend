@@ -2,6 +2,7 @@ import { Revision } from '../entities/dataset/revision';
 import { DataTable } from '../entities/dataset/data-table';
 
 import { DataTableDto } from './data-table-dto';
+import { RevisionTask } from '../interfaces/revision-task';
 
 export class RevisionDTO {
     id: string;
@@ -15,6 +16,7 @@ export class RevisionDTO {
     approved_at?: string;
     approved_by?: string;
     publish_at?: string;
+    tasks?: RevisionTask;
 
     static fromRevision(revision: Revision): RevisionDTO {
         const revDto = new RevisionDTO();

@@ -17,7 +17,7 @@ import { Error } from '../dtos/error';
 import { Locale } from '../enums/locale';
 import { FileType } from '../enums/file-type';
 import { DataTableDescription } from '../entities/dataset/data-table-description';
-import { FactTableAction } from '../enums/fact-table-action';
+import { DataTableAction } from '../enums/data-table-action';
 import { convertBufferToUTF8 } from '../utils/file-utils';
 
 import { DataLakeService } from './datalake';
@@ -232,7 +232,7 @@ export const uploadCSV = async (
     }
     dataTable.dataTableDescriptions = dataTableDescriptions;
     dataTable.filename = `${dataTable.id}.${extension}`;
-    dataTable.action = FactTableAction.ReplaceAll;
+    dataTable.action = DataTableAction.AddRevise;
     const hash = createHash('sha256');
     hash.update(uploadBuffer);
     try {
@@ -326,7 +326,7 @@ export const getCSVPreview = async (
         }
         return {
             dataset: DatasetDTO.fromDataset(currentDataset),
-            fact_table: DataTableDto.fromDataTable(currentImport),
+            data_table: DataTableDto.fromDataTable(currentImport),
             current_page: page,
             page_info: {
                 total_records: totalLines,
@@ -420,7 +420,7 @@ export const getFactTableColumnPreview = async (
         }
         return {
             dataset: DatasetDTO.fromDataset(currentDataset),
-            fact_table: DataTableDto.fromDataTable(currentImport),
+            data_table: DataTableDto.fromDataTable(currentImport),
             current_page: 1,
             page_info: {
                 total_records: 1,

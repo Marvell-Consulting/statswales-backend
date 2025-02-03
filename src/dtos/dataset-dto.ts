@@ -13,6 +13,7 @@ import { DatasetProviderDTO } from './dataset-provider-dto';
 import { MeasureDTO } from './measure-dto';
 import { TeamDTO } from './team-dto';
 import { TopicDTO } from './topic-dto';
+import { FactTableColumnDto } from './fact-table-column-dto';
 
 export class DatasetDTO {
     id: string;
@@ -20,6 +21,7 @@ export class DatasetDTO {
     created_by: string;
     live?: string | null;
     archive?: string;
+    fact_table?: FactTableColumnDto[];
     dimensions?: DimensionDTO[];
     revisions: RevisionDTO[];
     measure?: MeasureDTO;
@@ -52,6 +54,10 @@ export class DatasetDTO {
             dto.team = SUPPORTED_LOCALES.map((locale) => {
                 return TeamDTO.fromTeam(dataset.team, locale);
             });
+        }
+
+        if (dataset.factTable) {
+            dto.fact_table = dataset.factTable.map((column) => FactTableColumnDto.fromFactTableColumn(column));
         }
 
         dto.start_date = dataset.startDate;

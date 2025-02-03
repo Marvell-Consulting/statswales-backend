@@ -1,7 +1,7 @@
 import { MigrationInterface, QueryRunner } from "typeorm";
 
-export class InitialSchema1738423553264 implements MigrationInterface {
-    name = 'InitialSchema1738423553264'
+export class InitialSchema1738599982159 implements MigrationInterface {
+    name = 'InitialSchema1738599982159'
 
     public async up(queryRunner: QueryRunner): Promise<void> {
         await queryRunner.query(`
@@ -93,6 +93,7 @@ export class InitialSchema1738423553264 implements MigrationInterface {
                 "created_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
                 "approved_at" TIMESTAMP WITH TIME ZONE,
                 "publish_at" TIMESTAMP WITH TIME ZONE,
+                "tasks" jsonb,
                 "dataset_id" uuid,
                 "previous_revision_id" uuid,
                 "created_by" uuid,
@@ -345,6 +346,16 @@ export class InitialSchema1738423553264 implements MigrationInterface {
             )
         `);
         await queryRunner.query(`
+            CREATE TABLE "team" (
+                "id" uuid NOT NULL DEFAULT uuid_generate_v4(),
+                "prefix" text NOT NULL,
+                "created_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
+                "updated_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
+                "organisation_id" uuid,
+                CONSTRAINT "PK_team_id" PRIMARY KEY ("id")
+            )
+        `);
+        await queryRunner.query(`
             CREATE TABLE "team_info" (
                 "team_id" uuid NOT NULL,
                 "language" character varying(5) NOT NULL,
@@ -353,16 +364,6 @@ export class InitialSchema1738423553264 implements MigrationInterface {
                 "created_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
                 "updated_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
                 CONSTRAINT "PK_team_info_team_id_language" PRIMARY KEY ("team_id", "language")
-            )
-        `);
-        await queryRunner.query(`
-            CREATE TABLE "team" (
-                "id" uuid NOT NULL DEFAULT uuid_generate_v4(),
-                "prefix" text NOT NULL,
-                "created_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
-                "updated_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
-                "organisation_id" uuid,
-                CONSTRAINT "PK_team_id" PRIMARY KEY ("id")
             )
         `);
         await queryRunner.query(`
@@ -387,15 +388,6 @@ export class InitialSchema1738423553264 implements MigrationInterface {
                 "validity_start" date NOT NULL,
                 "validity_end" date,
                 CONSTRAINT "PK_1c127907e0b334cd1cc15afc1bb" PRIMARY KEY ("item_id", "version_no", "category_key")
-            )
-        `);
-        await queryRunner.query(`
-            CREATE TABLE "category_key_info" (
-                "category_key" text NOT NULL,
-                "lang" text NOT NULL,
-                "description" text NOT NULL,
-                "notes" text,
-                CONSTRAINT "PK_845dcc2857b4a2d31252e03f8d5" PRIMARY KEY ("category_key", "lang")
             )
         `);
         await queryRunner.query(`
@@ -434,6 +426,15 @@ export class InitialSchema1738423553264 implements MigrationInterface {
                 "description" text NOT NULL,
                 "notes" text,
                 CONSTRAINT "PK_b352b1990fc76e4cb4c7c9e0c9d" PRIMARY KEY ("category", "lang")
+            )
+        `);
+        await queryRunner.query(`
+            CREATE TABLE "category_key_info" (
+                "category_key" text NOT NULL,
+                "lang" text NOT NULL,
+                "description" text NOT NULL,
+                "notes" text,
+                CONSTRAINT "PK_845dcc2857b4a2d31252e03f8d5" PRIMARY KEY ("category_key", "lang")
             )
         `);
         await queryRunner.query(`
@@ -541,12 +542,12 @@ export class InitialSchema1738423553264 implements MigrationInterface {
             ADD CONSTRAINT "FK_organisation_info_organisation_id" FOREIGN KEY ("organisation_id") REFERENCES "organisation"("id") ON DELETE CASCADE ON UPDATE NO ACTION
         `);
         await queryRunner.query(`
-            ALTER TABLE "team_info"
-            ADD CONSTRAINT "FK_team_info_team_id" FOREIGN KEY ("team_id") REFERENCES "team"("id") ON DELETE CASCADE ON UPDATE NO ACTION
-        `);
-        await queryRunner.query(`
             ALTER TABLE "team"
             ADD CONSTRAINT "FK_team_organisation_id" FOREIGN KEY ("organisation_id") REFERENCES "organisation"("id") ON DELETE NO ACTION ON UPDATE NO ACTION
+        `);
+        await queryRunner.query(`
+            ALTER TABLE "team_info"
+            ADD CONSTRAINT "FK_team_info_team_id" FOREIGN KEY ("team_id") REFERENCES "team"("id") ON DELETE CASCADE ON UPDATE NO ACTION
         `);
         await queryRunner.query(`
             ALTER TABLE "category_key"
@@ -555,10 +556,6 @@ export class InitialSchema1738423553264 implements MigrationInterface {
         await queryRunner.query(`
             ALTER TABLE "reference_data"
             ADD CONSTRAINT "FK_dd4ff535904e339641b0b0d52c2" FOREIGN KEY ("category_key") REFERENCES "category_key"("category_key") ON DELETE NO ACTION ON UPDATE NO ACTION
-        `);
-        await queryRunner.query(`
-            ALTER TABLE "category_key_info"
-            ADD CONSTRAINT "FK_ec0b41bafd5605fff51fc0c8e47" FOREIGN KEY ("category_key") REFERENCES "category_key"("category_key") ON DELETE NO ACTION ON UPDATE NO ACTION
         `);
         await queryRunner.query(`
             ALTER TABLE "reference_data_info"
@@ -576,9 +573,16 @@ export class InitialSchema1738423553264 implements MigrationInterface {
             ALTER TABLE "category_info"
             ADD CONSTRAINT "FK_68028565126809c1e925e6f9334" FOREIGN KEY ("category") REFERENCES "category"("category") ON DELETE NO ACTION ON UPDATE NO ACTION
         `);
+        await queryRunner.query(`
+            ALTER TABLE "category_key_info"
+            ADD CONSTRAINT "FK_ec0b41bafd5605fff51fc0c8e47" FOREIGN KEY ("category_key") REFERENCES "category_key"("category_key") ON DELETE NO ACTION ON UPDATE NO ACTION
+        `);
     }
 
     public async down(queryRunner: QueryRunner): Promise<void> {
+        await queryRunner.query(`
+            ALTER TABLE "category_key_info" DROP CONSTRAINT "FK_ec0b41bafd5605fff51fc0c8e47"
+        `);
         await queryRunner.query(`
             ALTER TABLE "category_info" DROP CONSTRAINT "FK_68028565126809c1e925e6f9334"
         `);
@@ -592,19 +596,16 @@ export class InitialSchema1738423553264 implements MigrationInterface {
             ALTER TABLE "reference_data_info" DROP CONSTRAINT "FK_f671fde9c769286ba971485ba09"
         `);
         await queryRunner.query(`
-            ALTER TABLE "category_key_info" DROP CONSTRAINT "FK_ec0b41bafd5605fff51fc0c8e47"
-        `);
-        await queryRunner.query(`
             ALTER TABLE "reference_data" DROP CONSTRAINT "FK_dd4ff535904e339641b0b0d52c2"
         `);
         await queryRunner.query(`
             ALTER TABLE "category_key" DROP CONSTRAINT "FK_087b36846d67092609821a62756"
         `);
         await queryRunner.query(`
-            ALTER TABLE "team" DROP CONSTRAINT "FK_team_organisation_id"
+            ALTER TABLE "team_info" DROP CONSTRAINT "FK_team_info_team_id"
         `);
         await queryRunner.query(`
-            ALTER TABLE "team_info" DROP CONSTRAINT "FK_team_info_team_id"
+            ALTER TABLE "team" DROP CONSTRAINT "FK_team_organisation_id"
         `);
         await queryRunner.query(`
             ALTER TABLE "organisation_info" DROP CONSTRAINT "FK_organisation_info_organisation_id"
@@ -685,6 +686,9 @@ export class InitialSchema1738423553264 implements MigrationInterface {
             ALTER TABLE "data_table_description" DROP CONSTRAINT "FK_data_table_description_fact_table_id"
         `);
         await queryRunner.query(`
+            DROP TABLE "category_key_info"
+        `);
+        await queryRunner.query(`
             DROP TABLE "category_info"
         `);
         await queryRunner.query(`
@@ -692,9 +696,6 @@ export class InitialSchema1738423553264 implements MigrationInterface {
         `);
         await queryRunner.query(`
             DROP TABLE "reference_data_info"
-        `);
-        await queryRunner.query(`
-            DROP TABLE "category_key_info"
         `);
         await queryRunner.query(`
             DROP TABLE "reference_data"
@@ -706,10 +707,10 @@ export class InitialSchema1738423553264 implements MigrationInterface {
             DROP TABLE "category"
         `);
         await queryRunner.query(`
-            DROP TABLE "team"
+            DROP TABLE "team_info"
         `);
         await queryRunner.query(`
-            DROP TABLE "team_info"
+            DROP TABLE "team"
         `);
         await queryRunner.query(`
             DROP TABLE "organisation"

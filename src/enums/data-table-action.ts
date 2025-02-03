@@ -1,4 +1,4 @@
-export enum FactTableAction {
+export enum DataTableAction {
     Add = 'add',
     ReplaceAll = 'replace_all',
     Revise = 'revise',

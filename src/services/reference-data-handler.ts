@@ -226,7 +226,7 @@ export const validateReferenceData = async (
         });
         return {
             dataset: DatasetDTO.fromDataset(currentDataset),
-            fact_table: DataTableDto.fromDataTable(currentImport),
+            data_table: DataTableDto.fromDataTable(currentImport),
             current_page: 1,
             page_info: {
                 total_records: 1,

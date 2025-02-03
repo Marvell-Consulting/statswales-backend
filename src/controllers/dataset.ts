@@ -13,7 +13,7 @@ import { hasError, titleValidator } from '../validators';
 import { BadRequestException } from '../exceptions/bad-request.exception';
 import { User } from '../entities/user/user';
 import { DataTable } from '../entities/dataset/data-table';
-import { FactTableAction } from '../enums/fact-table-action';
+import { DataTableAction } from '../enums/data-table-action';
 import { RevisionRepository } from '../repositories/revision';
 import { getLatestRevision } from '../utils/latest';
 import { ViewErrDTO } from '../dtos/view-dto';
@@ -40,6 +40,7 @@ import { Revision } from '../entities/dataset/revision';
 import { FactTable } from '../entities/dataset/fact-table';
 import { Dataset } from '../entities/dataset/dataset';
 import { FactTableColumnType } from '../enums/fact-table-column-type';
+import { FactTableColumnDto } from '../dtos/fact-table-column-dto';
 
 export const listAllDatasets = async (req: Request, res: Response, next: NextFunction) => {
     try {
@@ -113,7 +114,10 @@ export const createFirstRevision = async (req: Request, res: Response, next: Nex
     logger.debug('Uploading dataset to datalake');
     try {
         fileImport = await uploadCSV(utf8Buffer, req.file?.mimetype, req.file?.originalname, res.locals.datasetId);
-        fileImport.action = FactTableAction.ReplaceAll;
+        fileImport.action = DataTableAction.ReplaceAll;
+        fileImport.dataTableDescriptions.forEach((col) => {
+            col.factTableColumn = col.columnName;
+        });
     } catch (err) {
         logger.error(`An error occurred trying to upload the file: ${err}`);
         next(new UnknownException('errors.upload_error'));
@@ -125,18 +129,22 @@ export const createFirstRevision = async (req: Request, res: Response, next: Nex
         const user = req.user as User;
         await RevisionRepository.createFromImport(res.locals.dataset, fileImport, user);
         logger.debug('Creating base fact table definition');
+        logger.debug(`Creating fact table definitions for dataset ${res.locals.dataset.id}`);
         for (const fileImportCol of fileImport.dataTableDescriptions) {
             const factTable = new FactTable();
-            factTable.dataset = res.locals.dataset;
+            factTable.id = res.locals.dataset.id;
             factTable.columnName = fileImportCol.columnName;
             factTable.columnIndex = fileImportCol.columnIndex;
             factTable.columnDatatype = fileImportCol.columnDatatype;
             factTable.columnType = FactTableColumnType.Unknown;
+            logger.debug(`Creating fact table definition for column ${fileImportCol.columnName}`);
             await factTable.save();
         }
         const dataset = await DatasetRepository.getById(res.locals.datasetId);
+        logger.debug(`Producing DTO for dataset ${dataset.id}`);
+        const dto = DatasetDTO.fromDataset(dataset);
         res.status(201);
-        res.json(DatasetDTO.fromDataset(dataset));
+        res.json(dto);
     } catch (err) {
         logger.error(`An error occurred trying to create a revision: ${err}`);
         next(new UnknownException('errors.upload_error'));
@@ -374,4 +382,12 @@ export const updateSources = async (req: Request, res: Response, next: NextFunct
             next(new BadRequestException('errors.invalid_source_assignment'));
         }
     }
+};
+
+export const getFactTableDefinition = async (req: Request, res: Response, next: NextFunction) => {
+    const { dataset } = res.locals;
+    const factTableDto: FactTableColumnDto[] =
+        dataset.factTable?.map((col: FactTable) => FactTableColumnDto.fromFactTableColumn(col)) || [];
+    res.status(200);
+    res.json(factTableDto);
 };

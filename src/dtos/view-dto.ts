@@ -29,7 +29,7 @@ export interface ViewErrDTO {
 
 export interface ViewDTO {
     dataset: DatasetDTO;
-    fact_table?: DataTableDto;
+    data_table?: DataTableDto;
     current_page: number;
     page_info: PageInfo;
     page_size: number;

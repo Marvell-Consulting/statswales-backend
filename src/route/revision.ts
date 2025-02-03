@@ -4,7 +4,7 @@ import express, { NextFunction, Request, Response, Router } from 'express';
 import multer from 'multer';
 
 import {
-    attachFactTableToRevision,
+    attachDataTableToRevision,
     confirmFactTable,
     downloadRawFactTable,
     downloadRevisionCubeAsCSV,
@@ -74,6 +74,11 @@ export const revisionRouter = router;
 // Create a new revision for an update
 router.post('/', createNewRevision);
 
+// POST /dataset/:dataset_id/revision/id/:revision_id/data-table
+// Creates a new import on a revision.  This typically only occurs when a user
+// decides the file they uploaded wasn't correct.
+router.post('/by-id/:revision_id/data-table', loadRevision(), upload.single('csv'), attachDataTableToRevision);
+
 // GET /dataset/:dataset_id/revision/by-id/:revision_id/data-table/by-id/:fact_table_id
 // Returns details of a data-table with its sources
 router.get('/by-id/:revision_id/data-table', loadRevision(), getFactTableInfo);
@@ -93,11 +98,6 @@ router.patch('/by-id/:revision_id/data-table/confirm', loadRevision(), confirmFa
 // GET /dataset/:dataset_id/revision/id/:revision_id/data-table/id/:fact_table_id/raw
 // Returns the original uploaded file back to the client
 router.get('/by-id/:revision_id/data-table/raw', loadRevision(), downloadRawFactTable);
-
-// POST /dataset/:dataset_id/revision/id/:revision_id/data-table
-// Creates a new import on a revision.  This typically only occurs when a user
-// decides the file they uploaded wasn't correct.
-router.post('/by-id/:revision_id/data-table', loadRevision(), upload.single('csv'), attachFactTableToRevision);
 
 // DELETE /:dataset_id/revision/by-id/:revision_id/data-table
 // Removes the import record and associated file from BlobStorage clearing the way

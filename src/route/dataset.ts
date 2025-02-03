@@ -24,7 +24,7 @@ import {
     cubePreview,
     deleteDatasetById,
     getDatasetById,
-    getDatasetTasklist,
+    getDatasetTasklist, getFactTableDefinition,
     listActiveDatasets,
     listAllDatasets,
     updateDatasetInfo,
@@ -153,6 +153,10 @@ router.patch('/:dataset_id/info', jsonParser, loadDataset(), updateDatasetInfo);
 // PATCH /dataset/:dataset_id/info
 // Updates the dataset info with the provided data
 router.patch('/:dataset_id/info', jsonParser, loadDataset(), updateDatasetInfo);
+
+router.get('/:dataset/sources', loadDataset(), getFactTableDefinition);
+
+router.get('/:dataset/fact-table', loadDataset(), getFactTableDefinition);
 
 // PATCH /dataset/:dataset_id/sources
 // Creates the dimensions and measures from the first import based on user input via JSON

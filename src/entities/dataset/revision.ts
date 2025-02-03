@@ -14,13 +14,14 @@ import { User } from '../user/user';
 import { RevisionInterface } from './revision.interface';
 import { Dataset } from './dataset';
 import { DataTable } from './data-table';
+import { RevisionTask } from '../../interfaces/revision-task';
 
 @Entity({ name: 'revision', orderBy: { createdAt: 'ASC' } })
 export class Revision extends BaseEntity implements RevisionInterface {
     @PrimaryGeneratedColumn('uuid', { primaryKeyConstraintName: 'PK_revision_id' })
     id: string;
 
-    @Column({ name: 'revision_index', type: 'int' })
+    @Column({ name: 'revision_index', type: 'int', nullable: false })
     revisionIndex: number;
 
     @ManyToOne(() => Dataset, (dataset) => dataset.revisions, { onDelete: 'CASCADE', orphanedRowAction: 'delete' })
@@ -53,4 +54,7 @@ export class Revision extends BaseEntity implements RevisionInterface {
 
     @Column({ name: 'publish_at', type: 'timestamptz', nullable: true })
     publishAt: Date;
+
+    @Column({ name: 'tasks', type: 'jsonb', nullable: true })
+    Tasks: RevisionTask | null;
 }
