@@ -73,7 +73,6 @@ export interface AppConfig {
             accountName: string;
             accountKey: string;
             fileSystemName: string;
-            directoryName: string;
         };
     };
 }
