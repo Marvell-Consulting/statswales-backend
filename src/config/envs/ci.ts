@@ -54,8 +54,7 @@ export function getCIConfig(): AppConfig {
             datalake: {
                 accountName: 'accountname',
                 accountKey: 'accountkey',
-                fileSystemName: 'fsname',
-                directoryName: 'dirname'
+                fileSystemName: 'fsname'
             }
         }
     });
