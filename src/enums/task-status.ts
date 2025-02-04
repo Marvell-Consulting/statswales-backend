@@ -4,5 +4,6 @@ export enum TaskStatus {
     NotStarted = 'not_started',
     Incomplete = 'incomplete',
     Completed = 'completed',
-    NotImplemented = 'not_implemented'
+    NotImplemented = 'not_implemented',
+    Unchanged = 'unchanged'
 }

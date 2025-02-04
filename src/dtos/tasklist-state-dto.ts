@@ -1,4 +1,4 @@
-import { every } from 'lodash';
+import { every, first, sortBy, last } from 'lodash';
 
 import { Dataset } from '../entities/dataset/dataset';
 import { DimensionMetadata } from '../entities/dataset/dimension-metadata';
@@ -65,24 +65,31 @@ export class TasklistStateDTO {
             return { name: dataset.measure.factTableColumn, status: TaskStatus.NotStarted, type: 'measure' };
         };
 
-        const latestRevision = dataset.revisions[dataset.revisions.length - 1];
+        const latestRevision = first(sortBy(dataset.revisions, 'created_at'));
 
         const dimensions = dataset.dimensions?.reduce((dimensionStatus: DimensionStatus[], dimension) => {
             if (dimension.type === DimensionType.NoteCodes) return dimensionStatus;
 
             const dimInfo: DimensionMetadata | undefined = dimension.metadata.find((i) => lang.includes(i.language));
-
-            dimensionStatus.push({
-                name: dimInfo?.name || 'unknown',
-                status: dimension.extractor === null ? TaskStatus.NotStarted : TaskStatus.Completed,
-                type: dimension.type
-            });
+            const dimensionUpdateTask = latestRevision?.tasks?.dimensions.find((task) => task.id === dimension.id);
+            if (dimensionUpdateTask && !dimensionUpdateTask.lookupTableUpdated) {
+                dimensionStatus.push({
+                    name: dimInfo?.name || 'unknown',
+                    status: TaskStatus.NotStarted,
+                    type: dimension.type
+                });
+            } else {
+                dimensionStatus.push({
+                    name: dimInfo?.name || 'unknown',
+                    status: dimension.extractor === null ? TaskStatus.NotStarted : TaskStatus.Completed,
+                    type: dimension.type
+                });
+            }
 
             return dimensionStatus;
         }, []);
-
         const dto = new TasklistStateDTO();
-        dto.datatable = dataset.revisions.length > 0 ? TaskStatus.Completed : TaskStatus.NotStarted;
+        dto.datatable = latestRevision?.dataTable ? TaskStatus.Completed : TaskStatus.NotStarted;
         dto.measure = measure();
         dto.dimensions = dimensions;
 
@@ -113,7 +120,7 @@ export class TasklistStateDTO {
 
         dto.publishing = {
             organisation: dataset.team ? TaskStatus.Completed : TaskStatus.NotStarted,
-            when: latestRevision.publishAt ? TaskStatus.Completed : TaskStatus.NotStarted
+            when: latestRevision?.publishAt ? TaskStatus.Completed : TaskStatus.NotStarted
         };
 
         const publishingComplete = every(dto.publishing, (status) => status === TaskStatus.Completed);

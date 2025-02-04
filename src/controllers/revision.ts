@@ -198,6 +198,7 @@ async function attachFirstDatatableToRevision(
     res: Response,
     next: NextFunction
 ) {
+    logger.debug('Attaching update data table to first revision');
     const dataset = res.locals.dataset;
     fileImport.revision = revision;
     await fileImport.save();
@@ -213,6 +214,7 @@ async function attachUpdateDataTableToRevision(
     res: Response,
     next: NextFunction
 ) {
+    logger.debug('Attaching update data table to revision');
     const dataset = res.locals.dataset;
     // Validate all the columns against the fact table
     if (req.body.column_matching) {
@@ -263,6 +265,7 @@ async function attachUpdateDataTableToRevision(
         }
     }
 
+    logger.debug(`Setting the update action to: ${req.body.update_action || 'Add'}`);
     let updateAction = DataTableAction.Add;
     if (req.body.update_action) updateAction = req.body.update_action as DataTableAction;
     fileImport.action = updateAction;
@@ -283,16 +286,20 @@ async function attachUpdateDataTableToRevision(
         try {
             switch (dimension.type) {
                 case DimensionType.LookupTable:
-                    await createAndValidateLookupTableDimension(quack, dimension.extractor, dimension.factTableColumn);
+                    logger.debug(`Validating lookup table dimension: ${dimension.id}`);
+                    await createAndValidateLookupTableDimension(quack, dataset, dimension);
                     break;
                 case DimensionType.ReferenceData:
+                    logger.debug(`Validating reference data dimension: ${dimension.id}`);
                     await loadCorrectReferenceDataIntoReferenceDataTable(quack, dimension);
                     break;
                 case DimensionType.TimePeriod:
                 case DimensionType.TimePoint:
+                    logger.debug(`Validating time dimension: ${dimension.id}`);
                     await createAndValidateDateDimension(quack, dimension.extractor, dimension.factTableColumn);
             }
         } catch (error) {
+            logger.warn(`An error occurred validating dimension ${dimension.id}: ${error}`);
             const err = error as CubeValidationException;
             if (err.type === CubeValidationType.DimensionNonMatchedRows) {
                 dimensionUpdateTasks.push({
@@ -311,6 +318,12 @@ async function attachUpdateDataTableToRevision(
     /*
         TODO Validate measure.  This requires a rewrite of how measures are created and stored
      */
+
+    // eslint-disable-next-line require-atomic-updates
+    revision.tasks = {
+        dimensions: dimensionUpdateTasks
+    };
+    await revision.save();
 
     // eslint-disable-next-line require-atomic-updates
     fileImport.revision = revision;
@@ -340,6 +353,7 @@ export const attachDataTableToRevision = async (req: Request, res: Response, nex
             logger.warn(err, 'Failed to delete file from data lake.');
         }
         revision.dataTable = null;
+        await DataTable.getRepository().delete(dataTableId);
         await revision.save();
     }
 
@@ -688,6 +702,7 @@ export const downloadRevisionCubeAsExcel = async (req: Request, res: Response, n
 
 export const createNewRevision = async (req: Request, res: Response, next: NextFunction) => {
     const dataset = res.locals.dataset;
+    logger.info(`Creating new revision for dataset ${dataset.id}`);
     const revision = new Revision();
     revision.revisionIndex = 0;
     revision.dataset = dataset;

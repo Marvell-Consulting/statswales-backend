@@ -6,5 +6,5 @@ import { DataTable } from '../entities/dataset/data-table';
 
 export const getLatestRevision = (dataset?: Dataset): Revision | undefined => {
     if (!dataset) return undefined;
-    return last(sortBy(dataset?.revisions, 'revision_index'));
+    return last(sortBy(dataset?.revisions, 'createdAt'));
 };

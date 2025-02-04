@@ -58,21 +58,29 @@ export const resetDimension = async (req: Request, res: Response, next: NextFunc
 export const sendDimensionPreview = async (req: Request, res: Response, next: NextFunction) => {
     const dataset = res.locals.dataset;
     const dimension: Dimension = dataset.dimensions.find((dim: Dimension) => dim.id === req.params.dimension_id);
-    const factTable = getLatestRevision(dataset)?.dataTable;
+    const latestRevision = getLatestRevision(dataset);
+    const dataTable = latestRevision?.dataTable;
     if (!dimension) {
         next(new NotFoundException('errors.dimension_id_invalid'));
         return;
     }
-    if (!factTable) {
+    if (!dataTable) {
         next(new NotFoundException('errors.fact_table_invalid'));
         return;
+    }
+    logger.debug(`Latest revision is ${JSON.stringify(latestRevision)}`);
+    if (latestRevision?.tasks) {
+        const outstandingDimensionTask = latestRevision.tasks.dimensions.find((dim) => dim.id === dimension.id);
+        if (outstandingDimensionTask && !outstandingDimensionTask.lookupTableUpdated) {
+            dimension.type = DimensionType.Raw;
+        }
     }
     try {
         let preview: ViewDTO | ViewErrDTO;
         if (dimension.type === DimensionType.Raw) {
-            preview = await getFactTableColumnPreview(dataset, factTable, dimension.factTableColumn);
+            preview = await getFactTableColumnPreview(dataset, dataTable, dimension.factTableColumn);
         } else {
-            preview = await getDimensionPreview(dataset, dimension, factTable, req.language);
+            preview = await getDimensionPreview(dataset, dimension, dataTable, req.language);
         }
         if ((preview as ViewErrDTO).errors) {
             res.status(500);

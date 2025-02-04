@@ -57,5 +57,5 @@ export class Revision extends BaseEntity implements RevisionInterface {
     publishAt: Date;
 
     @Column({ name: 'tasks', type: 'jsonb', nullable: true })
-    Tasks: RevisionTask | null;
+    tasks: RevisionTask;
 }

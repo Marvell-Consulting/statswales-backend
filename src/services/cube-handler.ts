@@ -317,6 +317,7 @@ export async function createAndValidateDateDimension(
 // This is a short version of the validate lookup table code found in the dimension process.
 // This concise version doesn't return any information on why the creation failed.  Just that it failed
 export async function createAndValidateLookupTableDimension(quack: Database, dataset: Dataset, dimension: Dimension) {
+    logger.debug(`Creating and validating lookup table dimension ${dimension.factTableColumn}`);
     if (!dimension.lookupTable) return;
     if (!dimension.extractor) return;
     const extractor = dimension.extractor as LookupTableExtractor;
@@ -656,8 +657,11 @@ async function setupMeasures(
     measureColumn?: FactTable
 ) {
     logger.info('Setting up measure table if present...');
+    logger.debug(`Dataset Measure = ${JSON.stringify(dataset.measure)}`);
+    logger.debug(`Measure column = ${JSON.stringify(measureColumn)}`);
     // Process the column that represents the measure
     if (measureColumn && dataset.measure && dataset.measure.joinColumn) {
+        logger.debug('Measure present in dataset.  Creating measure table...');
         // If we parsed the lookup table or the user
         // has used a user journey to define measures
         // use this first
@@ -784,6 +788,7 @@ async function setupMeasures(
 async function setupDimensions(
     quack: Database,
     dataset: Dataset,
+    endRevision: Revision,
     selectStatementsMap: Map<Locale, string[]>,
     joinStatements: string[],
     orderByStatements: string[]
@@ -828,6 +833,27 @@ async function setupDimensions(
                     }
                     break;
                 case DimensionType.LookupTable:
+                    // To allow preview to continue working for dimensions which are in progress
+                    // we check to see if there's a task for the dimension and if its been update
+                    // if its been update we skip it.
+                    if (endRevision.tasks) {
+                        const updateInProgressDimension = endRevision.tasks.dimensions.find(
+                            (dim) => dim.id === dimension.id
+                        );
+                        if (updateInProgressDimension && !updateInProgressDimension.lookupTableUpdated) {
+                            logger.warn(`Skipping dimension ${dimension.id} as it has not been updated`);
+                            SUPPORTED_LOCALES.map((locale) => {
+                                const columnName =
+                                    dimension.metadata.find((info) => info.language === locale)?.name ||
+                                    dimension.factTableColumn;
+                                selectStatementsMap
+                                    .get(locale)
+                                    ?.push(`${dimension.factTableColumn} as "${columnName}"`);
+                            });
+                            continue;
+                        }
+                    }
+
                     await createAndValidateLookupTableDimension(quack, dataset, dimension);
                     SUPPORTED_LOCALES.map((locale) => {
                         const columnName =
@@ -996,7 +1022,7 @@ export const createBaseCube = async (dataset: Dataset, endRevision: Revision): P
         await loadReferenceDataIntoCube(quack);
     }
 
-    await setupDimensions(quack, dataset, selectStatementsMap, joinStatements, orderByStatements);
+    await setupDimensions(quack, dataset, endRevision, selectStatementsMap, joinStatements, orderByStatements);
 
     if (referenceDataPresent(dataset)) {
         await cleanUpReferenceDataTables(quack);
