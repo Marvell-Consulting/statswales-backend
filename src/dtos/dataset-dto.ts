@@ -1,7 +1,7 @@
 import { Dataset } from '../entities/dataset/dataset';
 import { Dimension } from '../entities/dataset/dimension';
 import { Revision } from '../entities/dataset/revision';
-import { DatasetInfo } from '../entities/dataset/dataset-info';
+import { DatasetMetadata } from '../entities/dataset/dataset-metadata';
 import { DatasetProvider } from '../entities/dataset/dataset-provider';
 import { DatasetTopic } from '../entities/dataset/dataset-topic';
 import { SUPPORTED_LOCALES } from '../middleware/translation';
@@ -13,6 +13,7 @@ import { DatasetProviderDTO } from './dataset-provider-dto';
 import { MeasureDTO } from './measure-dto';
 import { TeamDTO } from './team-dto';
 import { TopicDTO } from './topic-dto';
+import { FactTableColumnDto } from './fact-table-column-dto';
 
 export class DatasetDTO {
     id: string;
@@ -20,6 +21,7 @@ export class DatasetDTO {
     created_by: string;
     live?: string | null;
     archive?: string;
+    fact_table?: FactTableColumnDto[];
     dimensions?: DimensionDTO[];
     revisions: RevisionDTO[];
     measure?: MeasureDTO;
@@ -38,7 +40,7 @@ export class DatasetDTO {
         dto.live = dataset.live?.toISOString();
         dto.archive = dataset.archive?.toISOString();
 
-        dto.datasetInfo = dataset.datasetInfo?.map((info: DatasetInfo) => DatasetInfoDTO.fromDatasetInfo(info));
+        dto.datasetInfo = dataset.metadata?.map((info: DatasetMetadata) => DatasetInfoDTO.fromDatasetInfo(info));
         dto.dimensions = dataset.dimensions?.map((dimension: Dimension) => DimensionDTO.fromDimension(dimension));
         dto.revisions = dataset.revisions?.map((revision: Revision) => RevisionDTO.fromRevision(revision));
         dto.measure = dataset.measure ? MeasureDTO.fromMeasure(dataset.measure) : undefined;
@@ -52,6 +54,10 @@ export class DatasetDTO {
             dto.team = SUPPORTED_LOCALES.map((locale) => {
                 return TeamDTO.fromTeam(dataset.team, locale);
             });
+        }
+
+        if (dataset.factTable) {
+            dto.fact_table = dataset.factTable.map((column) => FactTableColumnDto.fromFactTableColumn(column));
         }
 
         dto.start_date = dataset.startDate;

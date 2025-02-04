@@ -5,7 +5,7 @@ import tmp from 'tmp';
 import { join } from 'lodash';
 
 import { LookupTable } from '../entities/dataset/lookup-table';
-import { FactTable } from '../entities/dataset/fact-table';
+import { DataTable } from '../entities/dataset/data-table';
 import { MeasureLookupPatchDTO } from '../dtos/measure-lookup-patch-dto';
 import { MeasureLookupTableExtractor } from '../extractors/measure-lookup-extractor';
 import { columnIdentification, convertFactTableToLookupTable, lookForJoinColumn } from '../utils/lookup-table-utils';
@@ -20,7 +20,7 @@ import { getFileImportAndSaveToDisk, loadFileIntoDatabase } from '../utils/file-
 import { DatasetRepository } from '../repositories/dataset';
 import { FactTableColumnType } from '../enums/fact-table-column-type';
 import { DatasetDTO } from '../dtos/dataset-dto';
-import { FactTableDTO } from '../dtos/fact-table-dto';
+import { DataTableDto } from '../dtos/data-table-dto';
 import { LookupTableExtractor } from '../extractors/lookup-table-extractor';
 
 import { createFactTableQuery } from './cube-handler';
@@ -55,7 +55,7 @@ async function cleanUpMeasure(measure: Measure) {
 }
 
 function createExtractor(
-    protoLookupTable: FactTable,
+    protoLookupTable: DataTable,
     tableMatcher?: MeasureLookupPatchDTO
 ): MeasureLookupTableExtractor {
     if (tableMatcher?.description_columns) {
@@ -66,13 +66,13 @@ function createExtractor(
             measureTypeColumn: tableMatcher?.measure_type_column,
             descriptionColumns: tableMatcher.description_columns.map(
                 (desc) =>
-                    protoLookupTable.factTableInfo
+                    protoLookupTable.dataTableDescriptions
                         .filter((info) => info.columnName === desc)
                         .map((info) => columnIdentification(info))[0]
             ),
             notesColumns: tableMatcher.notes_columns?.map(
                 (desc) =>
-                    protoLookupTable.factTableInfo
+                    protoLookupTable.dataTableDescriptions
                         .filter((info) => info.columnName === desc)
                         .map((info) => columnIdentification(info))[0]
             )
@@ -80,22 +80,23 @@ function createExtractor(
     } else {
         logger.debug('Detecting column types from column names');
         let notesColumns: ColumnDescriptor[] | undefined;
-        if (protoLookupTable.factTableInfo.filter((info) => info.columnName.toLowerCase().startsWith('note')))
-            notesColumns = protoLookupTable.factTableInfo
+        if (protoLookupTable.dataTableDescriptions.filter((info) => info.columnName.toLowerCase().startsWith('note')))
+            notesColumns = protoLookupTable.dataTableDescriptions
                 .filter((info) => info.columnName.toLowerCase().startsWith('note'))
                 .map((info) => columnIdentification(info));
         return {
-            sortColumn: protoLookupTable.factTableInfo.find((info) => info.columnName.toLowerCase().startsWith('sort'))
-                ?.columnName,
-            formatColumn: protoLookupTable.factTableInfo.find(
+            sortColumn: protoLookupTable.dataTableDescriptions.find((info) =>
+                info.columnName.toLowerCase().startsWith('sort')
+            )?.columnName,
+            formatColumn: protoLookupTable.dataTableDescriptions.find(
                 (info) =>
                     info.columnName.toLowerCase().indexOf('format') > -1 ||
                     info.columnName.toLowerCase().indexOf('decimal') > -1
             )?.columnName,
-            measureTypeColumn: protoLookupTable.factTableInfo.find(
+            measureTypeColumn: protoLookupTable.dataTableDescriptions.find(
                 (info) => info.columnName.toLowerCase().indexOf('type') > -1
             )?.columnName,
-            descriptionColumns: protoLookupTable.factTableInfo
+            descriptionColumns: protoLookupTable.dataTableDescriptions
                 .filter((info) => info.columnName.toLowerCase().startsWith('description'))
                 .map((info) => columnIdentification(info)),
             notesColumns
@@ -106,13 +107,13 @@ function createExtractor(
 async function setupMeasure(
     dataset: Dataset,
     lookupTable: LookupTable,
-    protoLookupTable: FactTable,
+    protoLookupTable: DataTable,
     confirmedJoinColumn: string,
     tableMatcher?: MeasureLookupPatchDTO
 ) {
     // Clean up previously uploaded dimensions
     if (dataset.measure.lookupTable) await cleanUpMeasure(dataset.measure);
-    lookupTable.isStatsWales2Format = !protoLookupTable.factTableInfo.find((info) =>
+    lookupTable.isStatsWales2Format = !protoLookupTable.dataTableDescriptions.find((info) =>
         info.columnName.toLowerCase().startsWith('lang')
     );
     const updateMeasure = await Measure.findOneByOrFail({ id: dataset.measure.id });
@@ -222,8 +223,8 @@ async function validateTableContent(
 }
 
 export const validateMeasureLookupTable = async (
-    protoLookupTable: FactTable,
-    factTable: FactTable,
+    protoLookupTable: DataTable,
+    factTable: DataTable,
     dataset: Dataset,
     buffer: Buffer,
     tableMatcher?: MeasureLookupPatchDTO
@@ -278,15 +279,12 @@ export const validateMeasureLookupTable = async (
         const tableHeaders = Object.keys(dimensionTable[0]);
         const dataArray = dimensionTable.map((row) => Object.values(row));
         const currentDataset = await DatasetRepository.getById(dataset.id);
-        const currentImport = await FactTable.findOneByOrFail({ id: factTable.id });
+        const currentImport = await DataTable.findOneByOrFail({ id: factTable.id });
         const headers: CSVHeader[] = [];
         for (let i = 0; i < tableHeaders.length; i++) {
             let sourceType: FactTableColumnType;
             if (tableHeaders[i] === 'int_line_number') sourceType = FactTableColumnType.LineNumber;
-            else
-                sourceType =
-                    factTable.factTableInfo.find((info) => info.columnName === tableHeaders[i])?.columnType ??
-                    FactTableColumnType.Unknown;
+            else sourceType = FactTableColumnType.Unknown;
             headers.push({
                 index: i - 1,
                 name: tableHeaders[i],
@@ -295,7 +293,7 @@ export const validateMeasureLookupTable = async (
         }
         return {
             dataset: DatasetDTO.fromDataset(currentDataset),
-            fact_table: FactTableDTO.fromFactTable(currentImport),
+            data_table: DataTableDto.fromDataTable(currentImport),
             current_page: 1,
             page_info: {
                 total_records: 1,
@@ -318,7 +316,7 @@ const sampleSize = 5;
 async function getMeasurePreviewWithoutExtractor(
     dataset: Dataset,
     measure: Measure,
-    factTable: FactTable,
+    factTable: DataTable,
     quack: Database,
     tableName: string
 ): Promise<ViewDTO> {
@@ -328,7 +326,7 @@ async function getMeasurePreviewWithoutExtractor(
     const tableHeaders = Object.keys(preview[0]);
     const dataArray = preview.map((row) => Object.values(row));
     const currentDataset = await DatasetRepository.getById(dataset.id);
-    const currentImport = await FactTable.findOneByOrFail({ id: factTable.id });
+    const currentImport = await DataTable.findOneByOrFail({ id: factTable.id });
     const headers: CSVHeader[] = [];
     for (let i = 0; i < tableHeaders.length; i++) {
         headers.push({
@@ -339,7 +337,7 @@ async function getMeasurePreviewWithoutExtractor(
     }
     return {
         dataset: DatasetDTO.fromDataset(currentDataset),
-        fact_table: FactTableDTO.fromFactTable(currentImport),
+        data_table: DataTableDto.fromDataTable(currentImport),
         current_page: 1,
         page_info: {
             total_records: preview.length,
@@ -356,7 +354,7 @@ async function getMeasurePreviewWithoutExtractor(
 async function getMeasurePreviewWithExtractor(
     dataset: Dataset,
     measure: Measure,
-    factTable: FactTable,
+    factTable: DataTable,
     quack: Database,
     tableName: string
 ) {
@@ -374,7 +372,7 @@ async function getMeasurePreviewWithExtractor(
     const tableHeaders = Object.keys(measureTable[0]);
     const dataArray = measureTable.map((row) => Object.values(row));
     const currentDataset = await DatasetRepository.getById(dataset.id);
-    const currentImport = await FactTable.findOneByOrFail({ id: factTable.id });
+    const currentImport = await DataTable.findOneByOrFail({ id: factTable.id });
     const headers: CSVHeader[] = tableHeaders.map((name, idx) => ({
         name,
         index: idx,
@@ -382,7 +380,7 @@ async function getMeasurePreviewWithExtractor(
     }));
     return {
         dataset: DatasetDTO.fromDataset(currentDataset),
-        fact_table: FactTableDTO.fromFactTable(currentImport),
+        fact_table: DataTableDto.fromDataTable(currentImport),
         current_page: 1,
         page_info: {
             total_records: measureTable.length,
@@ -396,7 +394,7 @@ async function getMeasurePreviewWithExtractor(
     };
 }
 
-export const getMeasurePreview = async (dataset: Dataset, factTable: FactTable) => {
+export const getMeasurePreview = async (dataset: Dataset, factTable: DataTable) => {
     logger.debug(`Getting measure preview for ${dataset.measure.id}`);
     const tableName = 'fact_table';
     const quack = await Database.create(':memory:');

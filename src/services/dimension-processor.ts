@@ -5,8 +5,8 @@ import tmp from 'tmp';
 import { t } from 'i18next';
 
 import { SourceAssignmentDTO } from '../dtos/source-assignment-dto';
-import { FactTable } from '../entities/dataset/fact-table';
-import { FactTableInfo } from '../entities/dataset/fact-table-info';
+import { DataTable } from '../entities/dataset/data-table';
+import { DataTableDescription } from '../entities/dataset/data-table-description';
 import { FactTableColumnType } from '../enums/fact-table-column-type';
 import { SourceAssignmentException } from '../exceptions/source-assignment.exception';
 import { Dataset } from '../entities/dataset/dataset';
@@ -14,7 +14,7 @@ import { DimensionType } from '../enums/dimension-type';
 import { logger } from '../utils/logger';
 import { Dimension } from '../entities/dataset/dimension';
 import { SUPPORTED_LOCALES } from '../middleware/translation';
-import { DimensionInfo } from '../entities/dataset/dimension-info';
+import { DimensionMetadata } from '../entities/dataset/dimension-metadata';
 import { Measure } from '../entities/dataset/measure';
 import { DimensionPatchDto } from '../dtos/dimension-partch-dto';
 import { CSVHeader, ViewDTO, ViewErrDTO } from '../dtos/view-dto';
@@ -22,10 +22,11 @@ import { DateExtractor } from '../extractors/date-extractor';
 import { Locale } from '../enums/locale';
 import { DatasetRepository } from '../repositories/dataset';
 import { DatasetDTO } from '../dtos/dataset-dto';
-import { FactTableDTO } from '../dtos/fact-table-dto';
+import { DataTableDto } from '../dtos/data-table-dto';
 import { getFileImportAndSaveToDisk, loadFileIntoDatabase } from '../utils/file-utils';
 import { LookupTableExtractor } from '../extractors/lookup-table-extractor';
 import { LookupTable } from '../entities/dataset/lookup-table';
+import { FactTable } from '../entities/dataset/fact-table';
 
 import { DateReferenceDataItem, dateDimensionReferenceTableCreator } from './time-matching';
 import { createFactTableQuery } from './cube-handler';
@@ -76,7 +77,7 @@ export const cleanUpDimension = async (dimension: Dimension) => {
 };
 
 export const validateSourceAssignment = (
-    fileImport: FactTable,
+    fileImport: DataTable,
     sourceAssignment: SourceAssignmentDTO[]
 ): ValidatedSourceAssignment => {
     let dataValues: SourceAssignmentDTO | null = null;
@@ -87,7 +88,11 @@ export const validateSourceAssignment = (
     const ignore: SourceAssignmentDTO[] = [];
 
     sourceAssignment.map((sourceInfo) => {
-        if (!fileImport.factTableInfo?.find((info: FactTableInfo) => info.columnName === sourceInfo.column_name)) {
+        if (
+            !fileImport.dataTableDescriptions?.find(
+                (info: DataTableDescription) => info.columnName === sourceInfo.column_name
+            )
+        ) {
             throw new Error(`Source with id ${sourceInfo.column_name} not found`);
         }
 
@@ -125,15 +130,10 @@ export const validateSourceAssignment = (
     return { dataValues, measure, noteCodes, dimensions, ignore };
 };
 
-async function createUpdateDimension(
-    dataset: Dataset,
-    factTable: FactTable,
-    columnDescriptor: SourceAssignmentDTO
-): Promise<void> {
-    const columnInfo = await FactTableInfo.findOneByOrFail({
+async function createUpdateDimension(dataset: Dataset, columnDescriptor: SourceAssignmentDTO): Promise<void> {
+    const columnInfo = await FactTable.findOneByOrFail({
         columnName: columnDescriptor.column_name,
-        columnIndex: columnDescriptor.column_index,
-        id: factTable.id
+        id: dataset.id
     });
     columnInfo.columnType = columnDescriptor.column_type;
     await columnInfo.save();
@@ -161,7 +161,7 @@ async function createUpdateDimension(
     const savedDimension = await dimension.save();
 
     SUPPORTED_LOCALES.map(async (lang: string) => {
-        const dimensionInfo = new DimensionInfo();
+        const dimensionInfo = new DimensionMetadata();
         dimensionInfo.id = savedDimension.id;
         dimensionInfo.dimension = savedDimension;
         dimensionInfo.language = lang;
@@ -170,7 +170,7 @@ async function createUpdateDimension(
     });
 }
 
-async function cleanupDimensions(datasetId: string, factTableInfo: FactTableInfo[]): Promise<void> {
+async function cleanupDimensions(datasetId: string, factTableInfo: DataTableDescription[]): Promise<void> {
     const dataset = await Dataset.findOneOrFail({
         where: { id: datasetId },
         relations: ['dimensions']
@@ -185,37 +185,52 @@ async function cleanupDimensions(datasetId: string, factTableInfo: FactTableInfo
     }
 }
 
-async function updateFactTableInfo(factTable: FactTable, updateColumnDto: SourceAssignmentDTO) {
-    const info = factTable.factTableInfo.find(
-        (factTableInfo) => factTableInfo.columnName === updateColumnDto.column_name
-    );
-    if (!info) {
-        throw new Error('No such column');
+async function updateDataValueColumn(dataset: Dataset, dataValueColumnDto: SourceAssignmentDTO) {
+    const column = await FactTable.findOneByOrFail({ columnName: dataValueColumnDto.column_name, id: dataset.id });
+    if (!column) {
+        throw Error('No such column present in fact table');
     }
-    info.columnType = updateColumnDto.column_type;
-    await info.save();
+    if (column.columnType !== FactTableColumnType.DataValues) {
+        column.columnType = FactTableColumnType.DataValues;
+    }
+    await column.save();
 }
 
-async function createUpdateMeasure(
-    dataset: Dataset,
-    factTable: FactTable,
-    columnAssignment: SourceAssignmentDTO
-): Promise<void> {
-    const columnInfo = await FactTableInfo.findOneByOrFail({
+async function removeIgnoreAndUnknownColumns(dataset: Dataset, ignoreColumns: SourceAssignmentDTO[]) {
+    const factTableColumns = await FactTable.findBy({ dataset });
+    for (const column of ignoreColumns) {
+        const factTableCol = factTableColumns.find((columnInfo) => columnInfo.columnName === column.column_name);
+        if (!factTableCol) {
+            continue;
+        }
+        await factTableCol.remove();
+    }
+    const unknownColumns = await FactTable.findBy({ dataset });
+    for (const col of unknownColumns) {
+        await col.remove();
+    }
+}
+
+async function createUpdateMeasure(dataset: Dataset, columnAssignment: SourceAssignmentDTO): Promise<void> {
+    const columnInfo = await FactTable.findOneByOrFail({
         columnName: columnAssignment.column_name,
-        id: factTable.id
+        id: dataset.id
     });
+
+    columnInfo.columnType = FactTableColumnType.Measure;
+    await columnInfo.save();
     const existingMeasure = dataset.measure;
 
-    if (existingMeasure && existingMeasure.factTableColumn === columnAssignment.column_name) {
+    if (
+        existingMeasure &&
+        existingMeasure.factTableColumn === columnAssignment.column_name &&
+        columnInfo.columnType !== columnAssignment.column_name
+    ) {
         logger.debug(
             `No measure to create as fact table for column ${existingMeasure.factTableColumn} is already attached to one`
         );
         return;
     }
-
-    columnInfo.columnType = FactTableColumnType.Measure;
-    await columnInfo.save();
 
     if (existingMeasure && existingMeasure.factTableColumn !== columnAssignment.column_name) {
         existingMeasure.factTableColumn = columnAssignment.column_name;
@@ -227,15 +242,12 @@ async function createUpdateMeasure(
     measure.factTableColumn = columnAssignment.column_name;
     measure.dataset = dataset;
     await measure.save();
-    // eslint-disable-next-line require-atomic-updates
-    dataset.measure = measure;
-    await dataset.save();
 }
 
-async function createUpdateNoteCodes(dataset: Dataset, factTable: FactTable, columnAssignment: SourceAssignmentDTO) {
-    const columnInfo = await FactTableInfo.findOneByOrFail({
+async function createUpdateNoteCodes(dataset: Dataset, columnAssignment: SourceAssignmentDTO) {
+    const columnInfo = await FactTable.findOneByOrFail({
         columnName: columnAssignment.column_name,
-        id: factTable.id
+        id: dataset.id
     });
 
     columnInfo.columnType = FactTableColumnType.NoteCodes;
@@ -265,7 +277,7 @@ async function createUpdateNoteCodes(dataset: Dataset, factTable: FactTable, col
     const savedDimension = await dimension.save();
 
     SUPPORTED_LOCALES.map(async (lang: string) => {
-        const dimensionInfo = new DimensionInfo();
+        const dimensionInfo = new DimensionMetadata();
         dimensionInfo.id = savedDimension.id;
         dimensionInfo.dimension = savedDimension;
         dimensionInfo.language = lang;
@@ -274,45 +286,62 @@ async function createUpdateNoteCodes(dataset: Dataset, factTable: FactTable, col
     });
 }
 
+async function recreateBaseFactTable(dataset: Dataset, dataTable: DataTable): Promise<void> {
+    if (dataset.factTable) {
+        for (const col of dataset.factTable) {
+            await FactTable.getRepository().remove(col);
+        }
+    }
+    const factTable: FactTable[] = [];
+    for (const col of dataTable.dataTableDescriptions) {
+        const factTableCol = new FactTable();
+        factTableCol.columnType = FactTableColumnType.Unknown;
+        factTableCol.columnName = col.columnName;
+        factTableCol.columnDatatype = col.columnDatatype;
+        factTableCol.columnIndex = col.columnIndex;
+        factTableCol.id = dataset.id;
+        factTableCol.dataset = dataset;
+        const savedFactTableCol = await factTableCol.save();
+        factTable.push(savedFactTableCol);
+    }
+}
+
 export const createDimensionsFromSourceAssignment = async (
     dataset: Dataset,
-    factTable: FactTable,
+    dataTable: DataTable,
     sourceAssignment: ValidatedSourceAssignment
 ): Promise<void> => {
     const { dataValues, measure, ignore, noteCodes, dimensions } = sourceAssignment;
+    await recreateBaseFactTable(dataset, dataTable);
+    const factTable = await FactTable.findBy({ id: dataset.id });
 
     if (dataValues) {
-        await updateFactTableInfo(factTable, dataValues);
+        await updateDataValueColumn(dataset, dataValues);
     }
 
     if (noteCodes) {
-        await createUpdateNoteCodes(dataset, factTable, noteCodes);
+        await createUpdateNoteCodes(dataset, noteCodes);
     }
 
     if (measure) {
-        await createUpdateMeasure(dataset, factTable, measure);
+        await createUpdateMeasure(dataset, measure);
     }
 
     await Promise.all(
         dimensions.map(async (dimensionCreationDTO: SourceAssignmentDTO) => {
-            await createUpdateDimension(dataset, factTable, dimensionCreationDTO);
+            await createUpdateDimension(dataset, dimensionCreationDTO);
         })
     );
+    await cleanupDimensions(dataset.id, dataTable.dataTableDescriptions);
 
-    await Promise.all(
-        ignore.map(async (dimensionCreationDTO: SourceAssignmentDTO) => {
-            await updateFactTableInfo(factTable, dimensionCreationDTO);
-        })
-    );
-
-    await cleanupDimensions(dataset.id, factTable.factTableInfo);
+    await removeIgnoreAndUnknownColumns(dataset, ignore);
 };
 
 export const validateDateTypeDimension = async (
     dimensionPatchRequest: DimensionPatchDto,
     dataset: Dataset,
     dimension: Dimension,
-    factTable: FactTable
+    factTable: DataTable
 ): Promise<ViewDTO | ViewErrDTO> => {
     const tableName = 'fact_table';
     const quack = await Database.create(':memory:');
@@ -349,6 +378,9 @@ export const validateDateTypeDimension = async (
     try {
         logger.debug(`Extractor created with ${JSON.stringify(extractor)}`);
         dateDimensionTable = dateDimensionReferenceTableCreator(extractor, preview);
+        logger.debug(
+            `Date dimension table created with the following JSON: ${JSON.stringify(dateDimensionTable, null, 2)}`
+        );
     } catch (error) {
         logger.error(
             `Something went wrong trying to create the date reference table with the following error: ${error}`
@@ -481,15 +513,12 @@ export const validateDateTypeDimension = async (
     const tableHeaders = Object.keys(dimensionTable[0]);
     const dataArray = dimensionTable.map((row) => Object.values(row));
     const currentDataset = await DatasetRepository.getById(dataset.id);
-    const currentImport = await FactTable.findOneByOrFail({ id: factTable.id });
+    const currentImport = await DataTable.findOneByOrFail({ id: factTable.id });
     const headers: CSVHeader[] = [];
     for (let i = 0; i < tableHeaders.length; i++) {
         let sourceType: FactTableColumnType;
         if (tableHeaders[i] === 'int_line_number') sourceType = FactTableColumnType.LineNumber;
-        else
-            sourceType =
-                factTable.factTableInfo.find((info) => info.columnName === tableHeaders[i])?.columnType ??
-                FactTableColumnType.Unknown;
+        else sourceType = FactTableColumnType.Unknown;
         headers.push({
             index: i - 1,
             name: tableHeaders[i],
@@ -498,7 +527,7 @@ export const validateDateTypeDimension = async (
     }
     return {
         dataset: DatasetDTO.fromDataset(currentDataset),
-        fact_table: FactTableDTO.fromFactTable(currentImport),
+        data_table: DataTableDto.fromDataTable(currentImport),
         current_page: 1,
         page_info: {
             total_records: 1,
@@ -516,7 +545,7 @@ async function getDatePreviewWithExtractor(
     dataset: Dataset,
     extractor: object,
     factTableColumn: string,
-    factTable: FactTable,
+    dataTable: DataTable,
     quack: Database,
     tableName: string
 ): Promise<ViewDTO> {
@@ -537,7 +566,7 @@ async function getDatePreviewWithExtractor(
     const tableHeaders = Object.keys(dimensionTable[0]);
     const dataArray = dimensionTable.map((row) => Object.values(row));
     const currentDataset = await DatasetRepository.getById(dataset.id);
-    const currentImport = await FactTable.findOneByOrFail({ id: factTable.id });
+    const currentImport = await DataTable.findOneByOrFail({ id: dataTable.id });
     const headers: CSVHeader[] = [];
     for (let i = 0; i < tableHeaders.length; i++) {
         headers.push({
@@ -548,7 +577,7 @@ async function getDatePreviewWithExtractor(
     }
     return {
         dataset: DatasetDTO.fromDataset(currentDataset),
-        fact_table: FactTableDTO.fromFactTable(currentImport),
+        data_table: DataTableDto.fromDataTable(currentImport),
         current_page: 1,
         page_info: {
             total_records: dimensionTable.length,
@@ -565,7 +594,7 @@ async function getDatePreviewWithExtractor(
 async function getPreviewWithoutExtractor(
     dataset: Dataset,
     dimension: Dimension,
-    factTable: FactTable,
+    dataTable: DataTable,
     quack: Database,
     tableName: string
 ): Promise<ViewDTO> {
@@ -575,7 +604,7 @@ async function getPreviewWithoutExtractor(
     const tableHeaders = Object.keys(preview[0]);
     const dataArray = preview.map((row) => Object.values(row));
     const currentDataset = await DatasetRepository.getById(dataset.id);
-    const currentImport = await FactTable.findOneByOrFail({ id: factTable.id });
+    const currentImport = await DataTable.findOneByOrFail({ id: dataTable.id });
     const headers: CSVHeader[] = [];
     for (let i = 0; i < tableHeaders.length; i++) {
         headers.push({
@@ -586,7 +615,7 @@ async function getPreviewWithoutExtractor(
     }
     return {
         dataset: DatasetDTO.fromDataset(currentDataset),
-        fact_table: FactTableDTO.fromFactTable(currentImport),
+        data_table: DataTableDto.fromDataTable(currentImport),
         current_page: 1,
         page_info: {
             total_records: preview.length,
@@ -603,7 +632,7 @@ async function getPreviewWithoutExtractor(
 async function getLookupPreviewWithExtractor(
     dataset: Dataset,
     dimension: Dimension,
-    factTable: FactTable,
+    dataTable: DataTable,
     quack: Database,
     tableName: string
 ) {
@@ -621,7 +650,7 @@ async function getLookupPreviewWithExtractor(
     const tableHeaders = Object.keys(dimensionTable[0]);
     const dataArray = dimensionTable.map((row) => Object.values(row));
     const currentDataset = await DatasetRepository.getById(dataset.id);
-    const currentImport = await FactTable.findOneByOrFail({ id: factTable.id });
+    const currentImport = await DataTable.findOneByOrFail({ id: dataTable.id });
     const headers: CSVHeader[] = [];
     for (let i = 0; i < tableHeaders.length; i++) {
         headers.push({
@@ -632,7 +661,7 @@ async function getLookupPreviewWithExtractor(
     }
     return {
         dataset: DatasetDTO.fromDataset(currentDataset),
-        fact_table: FactTableDTO.fromFactTable(currentImport),
+        fact_table: DataTableDto.fromDataTable(currentImport),
         current_page: 1,
         page_info: {
             total_records: dimensionTable.length,
@@ -649,19 +678,19 @@ async function getLookupPreviewWithExtractor(
 export const getDimensionPreview = async (
     dataset: Dataset,
     dimension: Dimension,
-    factTable: FactTable,
+    dataTable: DataTable,
     lang: string
 ) => {
     logger.debug(`Getting dimension preview for ${dimension.id}`);
     const tableName = 'fact_table';
     const quack = await Database.create(':memory:');
-    const tempFile = tmp.tmpNameSync({ postfix: `.${factTable.fileType}` });
+    const tempFile = tmp.tmpNameSync({ postfix: `.${dataTable.fileType}` });
     // extract the data from the fact table
     try {
         const dataLakeService = new DataLakeService();
-        const fileBuffer = await dataLakeService.getFileBuffer(factTable.filename, dataset.id);
+        const fileBuffer = await dataLakeService.getFileBuffer(dataTable.filename, dataset.id);
         fs.writeFileSync(tempFile, fileBuffer);
-        const createTableQuery = await createFactTableQuery(tableName, tempFile, factTable.fileType, quack);
+        const createTableQuery = await createFactTableQuery(tableName, tempFile, dataTable.fileType, quack);
         await quack.exec(createTableQuery);
     } catch (error) {
         logger.error(
@@ -682,21 +711,21 @@ export const getDimensionPreview = async (
                         dataset,
                         dimension.extractor,
                         dimension.factTableColumn,
-                        factTable,
+                        dataTable,
                         quack,
                         tableName
                     );
                     break;
                 case DimensionType.LookupTable:
                     logger.debug('Previewing a lookup table');
-                    viewDto = await getLookupPreviewWithExtractor(dataset, dimension, factTable, quack, tableName);
+                    viewDto = await getLookupPreviewWithExtractor(dataset, dimension, dataTable, quack, tableName);
                     break;
                 case DimensionType.ReferenceData:
                     logger.debug('Previewing a lookup table');
                     viewDto = await getReferenceDataDimensionPreview(
                         dataset,
                         dimension,
-                        factTable,
+                        dataTable,
                         quack,
                         tableName,
                         lang
@@ -704,11 +733,11 @@ export const getDimensionPreview = async (
                     break;
                 default:
                     logger.debug(`Previewing a dimension of an unknown type.  Type supplied is ${dimension.type}`);
-                    viewDto = await getPreviewWithoutExtractor(dataset, dimension, factTable, quack, tableName);
+                    viewDto = await getPreviewWithoutExtractor(dataset, dimension, dataTable, quack, tableName);
             }
         } else {
             logger.debug('Straight column preview');
-            viewDto = await getPreviewWithoutExtractor(dataset, dimension, factTable, quack, tableName);
+            viewDto = await getPreviewWithoutExtractor(dataset, dimension, dataTable, quack, tableName);
         }
         await quack.close();
         fs.unlinkSync(tempFile);

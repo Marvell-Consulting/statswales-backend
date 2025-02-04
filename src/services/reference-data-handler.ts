@@ -2,7 +2,7 @@ import fs from 'fs';
 
 import { Database } from 'duckdb-async';
 
-import { FactTable } from '../entities/dataset/fact-table';
+import { DataTable } from '../entities/dataset/data-table';
 import { Dataset } from '../entities/dataset/dataset';
 import { Dimension } from '../entities/dataset/dimension';
 import { CSVHeader, ViewDTO, ViewErrDTO } from '../dtos/view-dto';
@@ -12,7 +12,7 @@ import { viewErrorGenerator } from '../utils/view-error-generator';
 import { DatasetRepository } from '../repositories/dataset';
 import { FactTableColumnType } from '../enums/fact-table-column-type';
 import { DatasetDTO } from '../dtos/dataset-dto';
-import { FactTableDTO } from '../dtos/fact-table-dto';
+import { DataTableDto } from '../dtos/data-table-dto';
 import { ReferenceType } from '../enums/reference-type';
 import { DimensionType } from '../enums/dimension-type';
 
@@ -127,7 +127,7 @@ async function validateAllItemsAreInOneCategory(
 }
 
 export const validateReferenceData = async (
-    factTable: FactTable,
+    factTable: DataTable,
     dataset: Dataset,
     dimension: Dimension,
     referenceDataType: ReferenceType | undefined,
@@ -216,7 +216,7 @@ export const validateReferenceData = async (
         const tableHeaders = Object.keys(dimensionTable[0]);
         const dataArray = dimensionTable.map((row) => Object.values(row));
         const currentDataset = await DatasetRepository.getById(dataset.id);
-        const currentImport = await FactTable.findOneByOrFail({ id: factTable.id });
+        const currentImport = await DataTable.findOneByOrFail({ id: factTable.id });
         const headers: CSVHeader[] = tableHeaders.map((header, index) => {
             return {
                 index,
@@ -226,7 +226,7 @@ export const validateReferenceData = async (
         });
         return {
             dataset: DatasetDTO.fromDataset(currentDataset),
-            fact_table: FactTableDTO.fromFactTable(currentImport),
+            data_table: DataTableDto.fromDataTable(currentImport),
             current_page: 1,
             page_info: {
                 total_records: 1,
@@ -247,7 +247,7 @@ export const validateReferenceData = async (
 export const getReferenceDataDimensionPreview = async (
     dataset: Dataset,
     dimension: Dimension,
-    factTable: FactTable,
+    factTable: DataTable,
     quack: Database,
     tableName: string,
     lang: string
@@ -273,7 +273,7 @@ export const getReferenceDataDimensionPreview = async (
         const tableHeaders = Object.keys(dimensionTable[0]);
         const dataArray = dimensionTable.map((row) => Object.values(row));
         const currentDataset = await DatasetRepository.getById(dataset.id);
-        const currentImport = await FactTable.findOneByOrFail({ id: factTable.id });
+        const currentImport = await DataTable.findOneByOrFail({ id: factTable.id });
         const headers: CSVHeader[] = tableHeaders.map((header, index) => {
             return {
                 index,
@@ -283,7 +283,7 @@ export const getReferenceDataDimensionPreview = async (
         });
         return {
             dataset: DatasetDTO.fromDataset(currentDataset),
-            fact_table: FactTableDTO.fromFactTable(currentImport),
+            fact_table: DataTableDto.fromDataTable(currentImport),
             current_page: 1,
             page_info: {
                 total_records: 1,

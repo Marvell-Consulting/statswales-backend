@@ -2,9 +2,9 @@ import { NextFunction, Request, Response } from 'express';
 
 import { Dataset } from '../entities/dataset/dataset';
 import { Dimension } from '../entities/dataset/dimension';
-import { DimensionInfo } from '../entities/dataset/dimension-info';
+import { DimensionMetadata } from '../entities/dataset/dimension-metadata';
 import { DimensionType } from '../enums/dimension-type';
-import { FactTable } from '../entities/dataset/fact-table';
+import { DataTable } from '../entities/dataset/data-table';
 import { logger } from '../utils/logger';
 import { DimensionPatchDto } from '../dtos/dimension-partch-dto';
 import { ViewDTO, ViewErrDTO } from '../dtos/view-dto';
@@ -58,21 +58,29 @@ export const resetDimension = async (req: Request, res: Response, next: NextFunc
 export const sendDimensionPreview = async (req: Request, res: Response, next: NextFunction) => {
     const dataset = res.locals.dataset;
     const dimension: Dimension = dataset.dimensions.find((dim: Dimension) => dim.id === req.params.dimension_id);
-    const factTable = getLatestRevision(dataset)?.factTables[0];
+    const latestRevision = getLatestRevision(dataset);
+    const dataTable = latestRevision?.dataTable;
     if (!dimension) {
         next(new NotFoundException('errors.dimension_id_invalid'));
         return;
     }
-    if (!factTable) {
+    if (!dataTable) {
         next(new NotFoundException('errors.fact_table_invalid'));
         return;
+    }
+    logger.debug(`Latest revision is ${JSON.stringify(latestRevision)}`);
+    if (latestRevision?.tasks) {
+        const outstandingDimensionTask = latestRevision.tasks.dimensions.find((dim) => dim.id === dimension.id);
+        if (outstandingDimensionTask && !outstandingDimensionTask.lookupTableUpdated) {
+            dimension.type = DimensionType.Raw;
+        }
     }
     try {
         let preview: ViewDTO | ViewErrDTO;
         if (dimension.type === DimensionType.Raw) {
-            preview = await getFactTableColumnPreview(dataset, factTable, dimension.factTableColumn);
+            preview = await getFactTableColumnPreview(dataset, dataTable, dimension.factTableColumn);
         } else {
-            preview = await getDimensionPreview(dataset, dimension, factTable, req.language);
+            preview = await getDimensionPreview(dataset, dimension, dataTable, req.language);
         }
         if ((preview as ViewErrDTO).errors) {
             res.status(500);
@@ -100,12 +108,12 @@ export const attachLookupTableToDimension = async (req: Request, res: Response, 
         next(new NotFoundException('errors.dimension_id_invalid'));
         return;
     }
-    const factTable = getLatestRevision(dataset)?.factTables[0];
+    const factTable = getLatestRevision(dataset)?.dataTable;
     if (!factTable) {
         next(new NotFoundException('errors.fact_table_invalid'));
         return;
     }
-    let fileImport: FactTable;
+    let fileImport: DataTable;
     const utf8Buffer = convertBufferToUTF8(req.file.buffer);
     try {
         fileImport = await uploadCSV(utf8Buffer, req.file?.mimetype, req.file?.originalname, res.locals.datasetId);
@@ -136,7 +144,7 @@ export const attachLookupTableToDimension = async (req: Request, res: Response, 
 export const updateDimension = async (req: Request, res: Response, next: NextFunction) => {
     const dataset = res.locals.dataset;
     const dimension = dataset.dimensions.find((dim: Dimension) => dim.id === req.params.dimension_id);
-    const factTable = getLatestRevision(dataset)?.factTables[0];
+    const factTable = getLatestRevision(dataset)?.dataTable;
     if (!dimension) {
         next(new NotFoundException('errors.dimension_id_invalid'));
         return;
@@ -191,9 +199,9 @@ export const updateDimensionInfo = async (req: Request, res: Response, next: Nex
     const dataset = res.locals.dataset;
     const dimension: Dimension = dataset.dimensions.find((dim: Dimension) => dim.id === req.params.dimension_id);
     const updatedInfo = req.body as DimensionInfoDTO;
-    let info = dimension.dimensionInfo.find((info) => info.language === updatedInfo.language);
+    let info = dimension.metadata.find((info) => info.language === updatedInfo.language);
     if (!info) {
-        info = new DimensionInfo();
+        info = new DimensionMetadata();
         info.dimension = dimension;
         info.language = updatedInfo.language;
     }

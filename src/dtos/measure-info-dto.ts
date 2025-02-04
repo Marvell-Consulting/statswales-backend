@@ -1,4 +1,4 @@
-import { MeasureInfo } from '../entities/dataset/measure-info';
+import { MeasureItem } from '../entities/dataset/measure-item';
 
 export class MeasureInfoDTO {
     measure_id: string;
@@ -9,7 +9,7 @@ export class MeasureInfoDTO {
     notes: string;
     display_type: string;
 
-    static fromMeasureInfo(info: MeasureInfo) {
+    static fromMeasureInfo(info: MeasureItem) {
         const dto = new MeasureInfoDTO();
         dto.measure_id = info.id;
         dto.language = info.language;

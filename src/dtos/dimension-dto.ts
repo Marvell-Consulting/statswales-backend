@@ -1,4 +1,4 @@
-import { DimensionInfo } from '../entities/dataset/dimension-info';
+import { DimensionMetadata } from '../entities/dataset/dimension-metadata';
 import { Dimension } from '../entities/dataset/dimension';
 import { DimensionType } from '../enums/dimension-type';
 
@@ -28,7 +28,7 @@ export class DimensionDTO {
         dimDto.factTableColumn = dimension.factTableColumn;
         dimDto.isSliceDimension = dimension.isSliceDimension;
 
-        dimDto.dimensionInfo = dimension.dimensionInfo?.map((dimInfo: DimensionInfo) => {
+        dimDto.dimensionInfo = dimension.metadata?.map((dimInfo: DimensionMetadata) => {
             return DimensionInfoDTO.fromDimensionInfo(dimInfo);
         });
         return dimDto;

@@ -13,7 +13,7 @@ import { Dataset } from '../src/entities/dataset/dataset';
 import { t } from '../src/middleware/translation';
 import { DatasetDTO } from '../src/dtos/dataset-dto';
 import { DatasetInfoDTO } from '../src/dtos/dataset-info-dto';
-import { FactTableDTO } from '../src/dtos/fact-table-dto';
+import { DataTableDto } from '../src/dtos/data-table-dto';
 import { MAX_PAGE_SIZE, MIN_PAGE_SIZE } from '../src/services/csv-processor';
 import { User } from '../src/entities/user/user';
 import { SourceAssignmentDTO } from '../src/dtos/source-assignment-dto';
@@ -21,7 +21,7 @@ import { FactTableColumnType } from '../src/enums/fact-table-column-type';
 import { Revision } from '../src/entities/dataset/revision';
 import { Locale } from '../src/enums/locale';
 import { DatasetRepository } from '../src/repositories/dataset';
-import { FactTable } from '../src/entities/dataset/fact-table';
+import { DataTable } from '../src/entities/dataset/data-table';
 import { logger } from '../src/utils/logger';
 
 import { createFullDataset, createSmallDataset } from './helpers/test-helper';
@@ -114,9 +114,7 @@ describe('API Endpoints', () => {
             const testFile2Buffer = fs.readFileSync(testFile2);
             DataLakeService.prototype.getFileBuffer = jest.fn().mockReturnValue(testFile2Buffer);
             const res = await request(app)
-                .get(
-                    `/dataset/${testDatasetId}/revision/by-id/${testRevisionId}/fact-table/by-id/${testFileImportId}/preview`
-                )
+                .get(`/dataset/${testDatasetId}/revision/by-id/${testRevisionId}/data-table/preview`)
                 .set(getAuthHeader(user))
                 .query({ page_number: 20 });
             expect(res.status).toBe(400);
@@ -155,9 +153,7 @@ describe('API Endpoints', () => {
             DataLakeService.prototype.getFileBuffer = jest.fn().mockReturnValue(testFile2Buffer);
 
             const res = await request(app)
-                .get(
-                    `/dataset/${testDatasetId}/revision/by-id/${testRevisionId}/fact-table/by-id/${testFileImportId}/preview`
-                )
+                .get(`/dataset/${testDatasetId}/revision/by-id/${testRevisionId}/data-table/preview`)
                 .set(getAuthHeader(user))
                 .query({ page_size: 1000 });
             expect(res.status).toBe(400);
@@ -204,9 +200,7 @@ describe('API Endpoints', () => {
             DataLakeService.prototype.getFileBuffer = jest.fn().mockReturnValue(testFile2Buffer);
 
             const res = await request(app)
-                .get(
-                    `/dataset/${testDatasetId}/revision/by-id/${testRevisionId}/fact-table/by-id/${testFileImportId}/preview`
-                )
+                .get(`/dataset/${testDatasetId}/revision/by-id/${testRevisionId}/data-table/preview`)
                 .set(getAuthHeader(user))
                 .query({ page_size: 1 });
             expect(res.status).toBe(400);
@@ -252,9 +246,7 @@ describe('API Endpoints', () => {
             DataLakeService.prototype.getFileBuffer = jest.fn().mockReturnValue(testFile1Buffer.toString());
 
             const res = await request(app)
-                .get(
-                    `/dataset/${testDatasetId}/revision/by-id/${testRevisionId}/fact-table/by-id/${testFileImportId}/preview`
-                )
+                .get(`/dataset/${testDatasetId}/revision/by-id/${testRevisionId}/data-table/preview`)
                 .set(getAuthHeader(user))
                 .query({ page_number: 1, page_size: 100 });
             expect(res.status).toBe(200);
@@ -280,7 +272,7 @@ describe('API Endpoints', () => {
                 .mockRejectedValue(new Error('A Data Lake error occurred'));
 
             const res = await request(app)
-                .get(`/dataset/${dataset1Id}/revision/by-id/${revision1Id}/fact-table/by-id/${import1Id}/preview`)
+                .get(`/dataset/${dataset1Id}/revision/by-id/${revision1Id}/data-table/preview`)
                 .set(getAuthHeader(user))
                 .query({ page_number: 2, page_size: 100 });
             expect(res.status).toBe(500);
@@ -304,13 +296,18 @@ describe('API Endpoints', () => {
         });
 
         test('Get preview of an import returns 404 when a non-existant import is requested', async () => {
+            const testDatasetId = crypto.randomUUID().toLowerCase();
+            const testRevisionId = crypto.randomUUID().toLowerCase();
+            const testFileImportId = crypto.randomUUID().toLowerCase();
+            await createSmallDataset(testDatasetId, testRevisionId, testFileImportId, user);
+            const dataTable = await DataTable.findOneOrFail({ where: { id: testFileImportId } });
+            await dataTable.remove();
+
             const res = await request(app)
-                .get(
-                    `/dataset/${dataset1Id}/revision/by-id/${revision1Id}/fact-table/by-id/97C3F48F-127C-4317-B39C-87350F222310/preview`
-                )
+                .get(`/dataset/${testDatasetId}/revision/by-id/${testRevisionId}/data-table/preview`)
                 .set(getAuthHeader(user));
             expect(res.status).toBe(404);
-            expect(res.body).toEqual({ error: 'No import found for dataset' });
+            expect(res.body).toEqual({ error: 'errors.no_data_table' });
         });
     });
 
@@ -323,9 +320,7 @@ describe('API Endpoints', () => {
             DataLakeService.prototype.deleteFile = jest.fn().mockReturnValue(true);
 
             const res = await request(app)
-                .delete(
-                    `/dataset/${testDatasetId}/revision/by-id/${testRevisionId}/fact-table/by-id/${testFileImportId}`
-                )
+                .delete(`/dataset/${testDatasetId}/revision/by-id/${testRevisionId}/data-table`)
                 .set(getAuthHeader(user));
 
             expect(res.status).toBe(200);
@@ -345,10 +340,7 @@ describe('API Endpoints', () => {
                 throw new Error('Revision not found');
             }
 
-            const imports = revision.factTables;
-
-            expect(imports).toBeInstanceOf(Array);
-            expect(imports.length).toBe(0);
+            expect(revision.dataTable).toBe(null);
         });
 
         test('Upload returns 400 if no file attached', async () => {
@@ -357,14 +349,14 @@ describe('API Endpoints', () => {
             const testFileImportId = crypto.randomUUID().toLowerCase();
             await createSmallDataset(testDatasetId, testRevisionId, testFileImportId, user);
 
-            const fileImport = await FactTable.findOneBy({ id: testFileImportId });
+            const fileImport = await DataTable.findOneBy({ id: testFileImportId });
             if (!fileImport) {
                 throw new Error('File Import not found');
             }
             await fileImport.remove();
 
             const res = await request(app)
-                .post(`/dataset/${testDatasetId}/revision/by-id/${testRevisionId}/fact-table`)
+                .post(`/dataset/${testDatasetId}/revision/by-id/${testRevisionId}/data-table`)
                 .set(getAuthHeader(user));
 
             expect(res.status).toBe(400);
@@ -378,37 +370,35 @@ describe('API Endpoints', () => {
             const testFileImportId = crypto.randomUUID().toLowerCase();
             await createSmallDataset(testDatasetId, testRevisionId, testFileImportId, user);
 
-            const fileImport = await FactTable.findOneBy({ id: testFileImportId });
+            const fileImport = await DataTable.findOneBy({ id: testFileImportId });
             if (!fileImport) {
                 throw new Error('File Import not found');
             }
             await fileImport.remove();
 
-            const revision = await Revision.findOne({ where: { id: testRevisionId }, relations: ['factTables'] });
+            const revision = await Revision.findOne({ where: { id: testRevisionId }, relations: ['dataTable'] });
             if (!revision) {
                 expect(revision).not.toBeNull();
                 return;
             }
 
-            expect(revision.factTables.length).toBe(0);
+            expect(revision.dataTable).toBe(null);
             const csvFile = path.resolve(__dirname, `sample-files/csv/sure-start-short.csv`);
 
             const res = await request(app)
-                .post(`/dataset/${testDatasetId}/revision/by-id/${testRevisionId}/fact-table`)
+                .post(`/dataset/${testDatasetId}/revision/by-id/${testRevisionId}/data-table`)
                 .set(getAuthHeader(user))
                 .attach('csv', csvFile);
 
             const updatedRevision = await Revision.findOne({
                 where: { id: testRevisionId },
-                relations: ['dataset', 'factTables']
+                relations: ['dataset', 'dataTable']
             });
 
             if (!updatedRevision) {
                 expect(updatedRevision).not.toBeNull();
                 return;
             }
-
-            expect(updatedRevision.factTables.length).toBe(1);
 
             const dataset = await DatasetRepository.getById(testDatasetId);
             const datasetDTO = DatasetDTO.fromDataset(dataset);
@@ -423,24 +413,25 @@ describe('API Endpoints', () => {
             const testFileImportId = crypto.randomUUID().toLowerCase();
             await createSmallDataset(testDatasetId, testRevisionId, testFileImportId, user);
 
-            const fileImport = await FactTable.findOneBy({ id: testFileImportId });
+            const fileImport = await DataTable.findOneBy({ id: testFileImportId });
             if (!fileImport) {
                 throw new Error('File Import not found');
             }
 
             await fileImport.remove();
 
+            DataLakeService.prototype.createDirectory = jest.fn().mockImplementation(() => {});
             DataLakeService.prototype.uploadFileBuffer = jest.fn().mockImplementation(() => {
                 throw new Error('Test error');
             });
 
             const csvFile = path.resolve(__dirname, `sample-files/csv/sure-start-short.csv`);
             const res = await request(app)
-                .post(`/dataset/${testDatasetId}/revision/by-id/${testRevisionId}/fact-table`)
+                .post(`/dataset/${testDatasetId}/revision/by-id/${testRevisionId}/data-table`)
                 .set(getAuthHeader(user))
                 .attach('csv', csvFile);
             expect(res.status).toBe(500);
-            expect(res.body).toEqual({ error: 'Error uploading the file' });
+            expect(res.body).toEqual({ error: 'errors.data_lake_error' });
         });
     });
 
@@ -451,36 +442,34 @@ describe('API Endpoints', () => {
             const testFileImportId = crypto.randomUUID().toLowerCase();
             await createFullDataset(testDatasetId, testRevisionId, testFileImportId, user);
             const res = await request(app)
-                .patch(
-                    `/dataset/${testDatasetId}/revision/by-id/${testRevisionId}/fact-table/by-id/${testFileImportId}/confirm`
-                )
+                .patch(`/dataset/${testDatasetId}/revision/by-id/${testRevisionId}/data-table/confirm`)
                 .set(getAuthHeader(user));
-            const postRunFileImport = await FactTable.findOne({
+            const postRunFileImport = await DataTable.findOne({
                 where: { id: testFileImportId },
-                relations: ['factTableInfo', 'revision']
+                relations: ['dataTableDescriptions']
             });
             if (!postRunFileImport) {
                 throw new Error('Import not found');
             }
-            expect(postRunFileImport.factTableInfo.length).toBe(6);
-            const dto = FactTableDTO.fromFactTable(postRunFileImport);
+            expect(postRunFileImport.dataTableDescriptions.length).toBe(6);
+            const dto = DataTableDto.fromDataTable(postRunFileImport);
             expect(res.status).toBe(200);
             expect(res.body).toEqual(dto);
         });
 
         test('Returns 200 with an import dto listing the no additional sources are created if sources are already present', async () => {
             const res = await request(app)
-                .patch(`/dataset/${dataset1Id}/revision/by-id/${revision1Id}/fact-table/by-id/${import1Id}/confirm`)
+                .patch(`/dataset/${dataset1Id}/revision/by-id/${revision1Id}/data-table/confirm`)
                 .set(getAuthHeader(user));
-            const postRunFileImport = await FactTable.findOne({
+            const postRunFileImport = await DataTable.findOne({
                 where: { id: import1Id },
-                relations: ['factTableInfo', 'revision']
+                relations: ['dataTableDescriptions']
             });
             if (!postRunFileImport) {
                 throw new Error('Import not found');
             }
-            expect(postRunFileImport.factTableInfo.length).toBe(6);
-            const dto = FactTableDTO.fromFactTable(postRunFileImport);
+            expect(postRunFileImport.dataTableDescriptions.length).toBe(6);
+            const dto = DataTableDto.fromDataTable(postRunFileImport);
             expect(res.status).toBe(200);
             expect(res.body).toEqual(dto);
         });
@@ -492,14 +481,14 @@ describe('API Endpoints', () => {
             const testRevisionId = crypto.randomUUID().toLowerCase();
             const testFileImportId = crypto.randomUUID().toLowerCase();
             await createSmallDataset(testDatasetId, testRevisionId, testFileImportId, user);
-            const postProcessedImport = await FactTable.findOne({
+            const postProcessedImport = await DataTable.findOne({
                 where: { id: testFileImportId },
-                relations: ['factTableInfo']
+                relations: ['dataTableDescriptions']
             });
             if (!postProcessedImport) {
                 throw new Error('Import not found');
             }
-            const sources = postProcessedImport.factTableInfo;
+            const sources = postProcessedImport.dataTableDescriptions;
             const sourceAssignment: SourceAssignmentDTO[] = sources.map((source, index) => {
                 switch (source.columnName) {
                     case 'YearCode':
@@ -547,9 +536,7 @@ describe('API Endpoints', () => {
                 }
             });
             const res = await request(app)
-                .patch(
-                    `/dataset/${testDatasetId}/revision/by-id/${testRevisionId}/fact-table/by-id/${testFileImportId}/sources`
-                )
+                .patch(`/dataset/${testDatasetId}/sources`)
                 .send(sourceAssignment)
                 .set(getAuthHeader(user));
             expect(res.status).toBe(200);
@@ -558,7 +545,7 @@ describe('API Endpoints', () => {
                 throw new Error('Dataset not found');
             }
             const dimensions = updatedDataset.dimensions;
-            expect(dimensions.length).toBe(3);
+            expect(dimensions.length).toBe(4);
         });
 
         test('Create dimensions from user supplied JSON returns 400 if the body is empty', async () => {
@@ -566,12 +553,7 @@ describe('API Endpoints', () => {
             const testRevisionId = crypto.randomUUID().toLowerCase();
             const testFileImportId = crypto.randomUUID().toLowerCase();
             await createSmallDataset(testDatasetId, testRevisionId, testFileImportId, user);
-            const res = await request(app)
-                .patch(
-                    `/dataset/${testDatasetId}/revision/by-id/${testRevisionId}/fact-table/by-id/${testFileImportId}/sources`
-                )
-                .send()
-                .set(getAuthHeader(user));
+            const res = await request(app).patch(`/dataset/${testDatasetId}/sources`).send().set(getAuthHeader(user));
             expect(res.status).toBe(400);
             expect(res.body).toEqual({ error: 'Could not assign source types to import' });
         });
@@ -581,14 +563,14 @@ describe('API Endpoints', () => {
             const testRevisionId = crypto.randomUUID().toLowerCase();
             const testFileImportId = crypto.randomUUID().toLowerCase();
             await createSmallDataset(testDatasetId, testRevisionId, testFileImportId, user);
-            const postProcessedImport = await FactTable.findOne({
+            const postProcessedImport = await DataTable.findOne({
                 where: { id: testFileImportId },
-                relations: ['factTableInfo']
+                relations: ['dataTableDescriptions']
             });
             if (!postProcessedImport) {
                 throw new Error('Import not found');
             }
-            const sourceAssignment: SourceAssignmentDTO[] = postProcessedImport.factTableInfo.map(
+            const sourceAssignment: SourceAssignmentDTO[] = postProcessedImport.dataTableDescriptions.map(
                 (factTableInfo, index) => {
                     return {
                         column_index: index,
@@ -600,9 +582,7 @@ describe('API Endpoints', () => {
             sourceAssignment[0].column_type = FactTableColumnType.DataValues;
             sourceAssignment[1].column_type = FactTableColumnType.DataValues;
             const res = await request(app)
-                .patch(
-                    `/dataset/${testDatasetId}/revision/by-id/${testRevisionId}/fact-table/by-id/${testFileImportId}/sources`
-                )
+                .patch(`/dataset/${testDatasetId}/sources`)
                 .send(sourceAssignment)
                 .set(getAuthHeader(user));
             expect(res.status).toBe(400);
@@ -620,14 +600,14 @@ describe('API Endpoints', () => {
             const testRevisionId = crypto.randomUUID().toLowerCase();
             const testFileImportId = crypto.randomUUID().toLowerCase();
             await createSmallDataset(testDatasetId, testRevisionId, testFileImportId, user);
-            const postProcessedImport = await FactTable.findOne({
+            const postProcessedImport = await DataTable.findOne({
                 where: { id: testFileImportId },
-                relations: ['factTableInfo']
+                relations: ['dataTableDescriptions']
             });
             if (!postProcessedImport) {
                 throw new Error('Import not found');
             }
-            const sourceAssignment: SourceAssignmentDTO[] = postProcessedImport.factTableInfo.map(
+            const sourceAssignment: SourceAssignmentDTO[] = postProcessedImport.dataTableDescriptions.map(
                 (factTableInfo, index) => {
                     return {
                         column_index: index,
@@ -639,9 +619,7 @@ describe('API Endpoints', () => {
             sourceAssignment[0].column_type = FactTableColumnType.NoteCodes;
             sourceAssignment[1].column_type = FactTableColumnType.NoteCodes;
             const res = await request(app)
-                .patch(
-                    `/dataset/${testDatasetId}/revision/by-id/${testRevisionId}/fact-table/by-id/${testFileImportId}/sources`
-                )
+                .patch(`/dataset/${testDatasetId}/sources`)
                 .send(sourceAssignment)
                 .set(getAuthHeader(user));
 

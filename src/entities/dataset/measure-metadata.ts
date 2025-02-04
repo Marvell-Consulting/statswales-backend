@@ -9,14 +9,14 @@ import {
     UpdateDateColumn
 } from 'typeorm';
 
-import { Dimension } from './dimension';
+import { Measure } from './measure';
 
-@Entity({ name: 'dimension_info' })
-export class DimensionInfo extends BaseEntity {
+@Entity({ name: 'measure_metadata' })
+export class MeasureMetadata extends BaseEntity {
     @PrimaryColumn({
-        name: 'dimension_id',
+        name: 'measure_id',
         type: 'uuid',
-        primaryKeyConstraintName: 'PK_dimension_info_dimension_id_language'
+        primaryKeyConstraintName: 'PK_measure_metadata_measure_id_language'
     })
     id: string;
 
@@ -24,7 +24,7 @@ export class DimensionInfo extends BaseEntity {
         name: 'language',
         type: 'varchar',
         length: 5,
-        primaryKeyConstraintName: 'PK_dimension_info_dimension_id_language'
+        primaryKeyConstraintName: 'PK_measure_metadata_measure_id_language'
     })
     language: string;
 
@@ -37,12 +37,12 @@ export class DimensionInfo extends BaseEntity {
     @Column({ type: 'text', nullable: true })
     notes: string;
 
-    @ManyToOne(() => Dimension, (dimension) => dimension.dimensionInfo, {
+    @ManyToOne(() => Measure, (measure) => measure.metadata, {
         onDelete: 'CASCADE',
         orphanedRowAction: 'delete'
     })
-    @JoinColumn({ name: 'dimension_id', foreignKeyConstraintName: 'FK_dimension_info_dimension_id' })
-    dimension: Dimension;
+    @JoinColumn({ name: 'measure_id', foreignKeyConstraintName: 'FK_measure_metadata_measure_id' })
+    measure: Measure;
 
     @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
     createdAt: Date;

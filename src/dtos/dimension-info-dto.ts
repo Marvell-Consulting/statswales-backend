@@ -1,4 +1,4 @@
-import { DimensionInfo } from '../entities/dataset/dimension-info';
+import { DimensionMetadata } from '../entities/dataset/dimension-metadata';
 
 export class DimensionInfoDTO {
     language: string;
@@ -6,7 +6,7 @@ export class DimensionInfoDTO {
     description?: string;
     notes?: string;
 
-    static fromDimensionInfo(dimensionInfo: DimensionInfo): DimensionInfoDTO {
+    static fromDimensionInfo(dimensionInfo: DimensionMetadata): DimensionInfoDTO {
         const dto = new DimensionInfoDTO();
         dto.language = dimensionInfo.language;
         dto.name = dimensionInfo.name;

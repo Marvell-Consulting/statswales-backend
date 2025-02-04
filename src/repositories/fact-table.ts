@@ -1,11 +1,11 @@
 import { dataSource } from '../db/data-source';
 import { logger } from '../utils/logger';
-import { FactTable } from '../entities/dataset/fact-table';
+import { DataTable } from '../entities/dataset/data-table';
 import { Revision } from '../entities/dataset/revision';
 
 export const FactTableRepository = dataSource.getRepository(Revision).extend({
-    async getFactTableById(datasetId: string, revisionId: string, factTableId: string): Promise<FactTable> {
-        return dataSource.getRepository(FactTable).findOneOrFail({
+    async getFactTableById(datasetId: string, revisionId: string, factTableId: string): Promise<DataTable> {
+        return dataSource.getRepository(DataTable).findOneOrFail({
             where: {
                 id: factTableId,
                 revision: {
@@ -23,7 +23,7 @@ export const FactTableRepository = dataSource.getRepository(Revision).extend({
                         measure: true
                     }
                 },
-                factTableInfo: true
+                dataTableDescriptions: true
             }
         });
     }

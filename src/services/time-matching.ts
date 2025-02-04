@@ -239,7 +239,8 @@ function periodTableCreator(dateFormat: DateExtractor, dataColumn: TableData) {
 
 function specificDateTableCreator(dateFormat: DateExtractor, dataColumn: TableData) {
     const referenceTable: DateReferenceDataItem[] = [];
-    dataColumn.map((value) => {
+    dataColumn.map((row) => {
+        const value = row.toString();
         let parsedDate: Date;
         let day: string;
         let month: string;

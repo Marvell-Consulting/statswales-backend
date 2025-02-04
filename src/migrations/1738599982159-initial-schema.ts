@@ -1,9 +1,28 @@
 import { MigrationInterface, QueryRunner } from 'typeorm';
 
-export class InitialSchema1735840656851 implements MigrationInterface {
-    name = 'InitialSchema1735840656851';
+export class InitialSchema1738599982159 implements MigrationInterface {
+    name = 'InitialSchema1738599982159';
 
     public async up(queryRunner: QueryRunner): Promise<void> {
+        await queryRunner.query(`
+            CREATE TABLE "event_log" (
+                "id" SERIAL NOT NULL,
+                "action" text NOT NULL,
+                "entity" text NOT NULL,
+                "entity_id" text NOT NULL,
+                "data" jsonb,
+                "user_id" uuid,
+                "client" text,
+                "created_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
+                CONSTRAINT "PK_event_log_id" PRIMARY KEY ("id")
+            )
+        `);
+        await queryRunner.query(`
+            CREATE INDEX "IDX_event_log_entity_id" ON "event_log" ("entity_id")
+        `);
+        await queryRunner.query(`
+            CREATE INDEX "IDX_event_log_user_id" ON "event_log" ("user_id")
+        `);
         await queryRunner.query(`
             CREATE TABLE "user" (
                 "id" uuid NOT NULL DEFAULT uuid_generate_v4(),
@@ -28,29 +47,17 @@ export class InitialSchema1735840656851 implements MigrationInterface {
             CREATE UNIQUE INDEX "UX_user_provider_provider_user_id" ON "user" ("provider", "provider_user_id")
         `);
         await queryRunner.query(`
-            CREATE TYPE "public"."fact_table_info_column_type_enum" AS ENUM(
-                'data_values',
-                'note_codes',
-                'dimension',
-                'measure',
-                'time',
-                'ignore',
-                'unknown',
-                'line_number'
-            )
-        `);
-        await queryRunner.query(`
-            CREATE TABLE "fact_table_info" (
+            CREATE TABLE "data_table_description" (
                 "fact_table_id" uuid NOT NULL,
                 "column_name" character varying NOT NULL,
                 "column_index" integer NOT NULL,
-                "column_type" "public"."fact_table_info_column_type_enum" NOT NULL,
                 "column_datatype" character varying NOT NULL,
-                CONSTRAINT "PK_fact_table_info_id_language" PRIMARY KEY ("fact_table_id", "column_name")
+                "fact_table_column" text,
+                CONSTRAINT "PK_data_table_description_id_column_name" PRIMARY KEY ("fact_table_id", "column_name")
             )
         `);
         await queryRunner.query(`
-            CREATE TYPE "public"."fact_table_filetype_enum" AS ENUM(
+            CREATE TYPE "public"."data_table_filetype_enum" AS ENUM(
                 'csv',
                 'parquet',
                 'json',
@@ -61,23 +68,21 @@ export class InitialSchema1735840656851 implements MigrationInterface {
             )
         `);
         await queryRunner.query(`
-            CREATE TYPE "public"."fact_table_action_enum" AS ENUM('add', 'replace_all', 'revise', 'add_revise')
+            CREATE TYPE "public"."data_table_action_enum" AS ENUM('add', 'replace_all', 'revise', 'add_revise')
         `);
         await queryRunner.query(`
-            CREATE TABLE "fact_table" (
+            CREATE TABLE "data_table" (
                 "id" uuid NOT NULL DEFAULT uuid_generate_v4(),
                 "mime_type" character varying(255) NOT NULL,
-                "filetype" "public"."fact_table_filetype_enum" NOT NULL,
+                "filetype" "public"."data_table_filetype_enum" NOT NULL,
                 "filename" character varying(255) NOT NULL,
                 "original_filename" character varying(255) NOT NULL,
                 "hash" character varying(255) NOT NULL,
                 "uploaded_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
-                "delimiter" character,
-                "quote" character,
-                "linebreak" character varying,
-                "action" "public"."fact_table_action_enum" NOT NULL,
+                "action" "public"."data_table_action_enum" NOT NULL,
                 "revision_id" uuid,
-                CONSTRAINT "PK_fact_table_id" PRIMARY KEY ("id")
+                CONSTRAINT "REL_de2e9e0025c38f8c9c03413908" UNIQUE ("revision_id"),
+                CONSTRAINT "PK_data_table_id" PRIMARY KEY ("id")
             )
         `);
         await queryRunner.query(`
@@ -88,6 +93,7 @@ export class InitialSchema1735840656851 implements MigrationInterface {
                 "created_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
                 "approved_at" TIMESTAMP WITH TIME ZONE,
                 "publish_at" TIMESTAMP WITH TIME ZONE,
+                "tasks" jsonb,
                 "dataset_id" uuid,
                 "previous_revision_id" uuid,
                 "created_by" uuid,
@@ -96,7 +102,7 @@ export class InitialSchema1735840656851 implements MigrationInterface {
             )
         `);
         await queryRunner.query(`
-            CREATE TYPE "public"."dataset_info_designation_enum" AS ENUM(
+            CREATE TYPE "public"."dataset_metadata_designation_enum" AS ENUM(
                 'official',
                 'accredited',
                 'in_development',
@@ -104,7 +110,7 @@ export class InitialSchema1735840656851 implements MigrationInterface {
             )
         `);
         await queryRunner.query(`
-            CREATE TABLE "dataset_info" (
+            CREATE TABLE "dataset_metadata" (
                 "dataset_id" uuid NOT NULL,
                 "language" character varying(5) NOT NULL,
                 "title" text,
@@ -115,14 +121,14 @@ export class InitialSchema1735840656851 implements MigrationInterface {
                 "rounding_description" text,
                 "related_links" jsonb,
                 "update_frequency" text,
-                "designation" "public"."dataset_info_designation_enum",
+                "designation" "public"."dataset_metadata_designation_enum",
                 "created_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
                 "updated_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
-                CONSTRAINT "PK_dataset_info_dataset_id_language" PRIMARY KEY ("dataset_id", "language")
+                CONSTRAINT "PK_dataset_metadata_dataset_id_language" PRIMARY KEY ("dataset_id", "language")
             )
         `);
         await queryRunner.query(`
-            CREATE TABLE "dimension_info" (
+            CREATE TABLE "dimension_metadata" (
                 "dimension_id" uuid NOT NULL,
                 "language" character varying(5) NOT NULL,
                 "name" text NOT NULL,
@@ -130,11 +136,11 @@ export class InitialSchema1735840656851 implements MigrationInterface {
                 "notes" text,
                 "created_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
                 "updated_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
-                CONSTRAINT "PK_dimension_info_dimension_id_language" PRIMARY KEY ("dimension_id", "language")
+                CONSTRAINT "PK_dimension_metadata_dimension_id_language" PRIMARY KEY ("dimension_id", "language")
             )
         `);
         await queryRunner.query(`
-            CREATE TYPE "public"."measure_info_display_type_enum" AS ENUM(
+            CREATE TYPE "public"."measure_item_display_type_enum" AS ENUM(
                 'DECIMAL',
                 'DOUBLE',
                 'INTEGER',
@@ -149,15 +155,27 @@ export class InitialSchema1735840656851 implements MigrationInterface {
             )
         `);
         await queryRunner.query(`
-            CREATE TABLE "measure_info" (
+            CREATE TABLE "measure_item" (
                 "measure_id" uuid NOT NULL,
                 "sort_order" integer,
                 "language" character varying(5) NOT NULL,
                 "description" character varying NOT NULL,
                 "reference" character varying NOT NULL,
                 "notes" text,
-                "display_type" "public"."measure_info_display_type_enum" NOT NULL,
-                CONSTRAINT "PK_measure_info_measure_id_language" PRIMARY KEY ("measure_id", "language")
+                "display_type" "public"."measure_item_display_type_enum" NOT NULL,
+                CONSTRAINT "PK_measure_item_measure_id_language" PRIMARY KEY ("measure_id", "language")
+            )
+        `);
+        await queryRunner.query(`
+            CREATE TABLE "measure_metadata" (
+                "measure_id" uuid NOT NULL,
+                "language" character varying(5) NOT NULL,
+                "name" text NOT NULL,
+                "description" text,
+                "notes" text,
+                "created_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
+                "updated_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
+                CONSTRAINT "PK_measure_metadata_measure_id_language" PRIMARY KEY ("measure_id", "language")
             )
         `);
         await queryRunner.query(`
@@ -192,9 +210,6 @@ export class InitialSchema1735840656851 implements MigrationInterface {
                 "filename" character varying(255) NOT NULL,
                 "hash" character varying(255) NOT NULL,
                 "uploaded_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
-                "delimiter" character NOT NULL,
-                "quote" character NOT NULL,
-                "linebreak" character varying NOT NULL,
                 "is_statswales2_format" boolean NOT NULL,
                 "dimension_id" uuid,
                 "measure_id" uuid,
@@ -278,6 +293,28 @@ export class InitialSchema1735840656851 implements MigrationInterface {
             )
         `);
         await queryRunner.query(`
+            CREATE TYPE "public"."fact_table_column_type_enum" AS ENUM(
+                'data_values',
+                'note_codes',
+                'dimension',
+                'measure',
+                'time',
+                'ignore',
+                'unknown',
+                'line_number'
+            )
+        `);
+        await queryRunner.query(`
+            CREATE TABLE "fact_table" (
+                "dataset_id" uuid NOT NULL,
+                "column_name" character varying NOT NULL,
+                "column_type" "public"."fact_table_column_type_enum" NOT NULL,
+                "column_datatype" character varying NOT NULL,
+                "column_index" integer NOT NULL,
+                CONSTRAINT "PK_fact_table_id_column_name" PRIMARY KEY ("dataset_id", "column_name")
+            )
+        `);
+        await queryRunner.query(`
             CREATE TABLE "dataset" (
                 "id" uuid NOT NULL DEFAULT uuid_generate_v4(),
                 "created_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
@@ -309,6 +346,16 @@ export class InitialSchema1735840656851 implements MigrationInterface {
             )
         `);
         await queryRunner.query(`
+            CREATE TABLE "team" (
+                "id" uuid NOT NULL DEFAULT uuid_generate_v4(),
+                "prefix" text NOT NULL,
+                "created_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
+                "updated_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
+                "organisation_id" uuid,
+                CONSTRAINT "PK_team_id" PRIMARY KEY ("id")
+            )
+        `);
+        await queryRunner.query(`
             CREATE TABLE "team_info" (
                 "team_id" uuid NOT NULL,
                 "language" character varying(5) NOT NULL,
@@ -317,16 +364,6 @@ export class InitialSchema1735840656851 implements MigrationInterface {
                 "created_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
                 "updated_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
                 CONSTRAINT "PK_team_info_team_id_language" PRIMARY KEY ("team_id", "language")
-            )
-        `);
-        await queryRunner.query(`
-            CREATE TABLE "team" (
-                "id" uuid NOT NULL DEFAULT uuid_generate_v4(),
-                "prefix" text NOT NULL,
-                "created_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
-                "updated_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
-                "organisation_id" uuid,
-                CONSTRAINT "PK_team_id" PRIMARY KEY ("id")
             )
         `);
         await queryRunner.query(`
@@ -383,15 +420,6 @@ export class InitialSchema1735840656851 implements MigrationInterface {
             )
         `);
         await queryRunner.query(`
-            CREATE TABLE "category_key_info" (
-                "category_key" text NOT NULL,
-                "lang" text NOT NULL,
-                "description" text NOT NULL,
-                "notes" text,
-                CONSTRAINT "PK_845dcc2857b4a2d31252e03f8d5" PRIMARY KEY ("category_key", "lang")
-            )
-        `);
-        await queryRunner.query(`
             CREATE TABLE "category_info" (
                 "category" text NOT NULL,
                 "lang" text NOT NULL,
@@ -401,12 +429,21 @@ export class InitialSchema1735840656851 implements MigrationInterface {
             )
         `);
         await queryRunner.query(`
-            ALTER TABLE "fact_table_info"
-            ADD CONSTRAINT "FK_fact_table_info_fact_table_id" FOREIGN KEY ("fact_table_id") REFERENCES "fact_table"("id") ON DELETE CASCADE ON UPDATE NO ACTION
+            CREATE TABLE "category_key_info" (
+                "category_key" text NOT NULL,
+                "lang" text NOT NULL,
+                "description" text NOT NULL,
+                "notes" text,
+                CONSTRAINT "PK_845dcc2857b4a2d31252e03f8d5" PRIMARY KEY ("category_key", "lang")
+            )
         `);
         await queryRunner.query(`
-            ALTER TABLE "fact_table"
-            ADD CONSTRAINT "FK_fact_table_revision_id" FOREIGN KEY ("revision_id") REFERENCES "revision"("id") ON DELETE CASCADE ON UPDATE NO ACTION
+            ALTER TABLE "data_table_description"
+            ADD CONSTRAINT "FK_data_table_description_fact_table_id" FOREIGN KEY ("fact_table_id") REFERENCES "data_table"("id") ON DELETE CASCADE ON UPDATE NO ACTION
+        `);
+        await queryRunner.query(`
+            ALTER TABLE "data_table"
+            ADD CONSTRAINT "FK_data_table_revision_id" FOREIGN KEY ("revision_id") REFERENCES "revision"("id") ON DELETE CASCADE ON UPDATE NO ACTION
         `);
         await queryRunner.query(`
             ALTER TABLE "revision"
@@ -425,16 +462,20 @@ export class InitialSchema1735840656851 implements MigrationInterface {
             ADD CONSTRAINT "FK_revision_approved_by" FOREIGN KEY ("approved_by") REFERENCES "user"("id") ON DELETE NO ACTION ON UPDATE NO ACTION
         `);
         await queryRunner.query(`
-            ALTER TABLE "dataset_info"
-            ADD CONSTRAINT "FK_dataset_info_dataset_id" FOREIGN KEY ("dataset_id") REFERENCES "dataset"("id") ON DELETE CASCADE ON UPDATE NO ACTION
+            ALTER TABLE "dataset_metadata"
+            ADD CONSTRAINT "FK_dataset_metadata_dataset_id" FOREIGN KEY ("dataset_id") REFERENCES "dataset"("id") ON DELETE CASCADE ON UPDATE NO ACTION
         `);
         await queryRunner.query(`
-            ALTER TABLE "dimension_info"
-            ADD CONSTRAINT "FK_dimension_info_dimension_id" FOREIGN KEY ("dimension_id") REFERENCES "dimension"("id") ON DELETE CASCADE ON UPDATE NO ACTION
+            ALTER TABLE "dimension_metadata"
+            ADD CONSTRAINT "FK_dimension_metadata_dimension_id" FOREIGN KEY ("dimension_id") REFERENCES "dimension"("id") ON DELETE CASCADE ON UPDATE NO ACTION
         `);
         await queryRunner.query(`
-            ALTER TABLE "measure_info"
-            ADD CONSTRAINT "FK_measure_info_measure_id" FOREIGN KEY ("measure_id") REFERENCES "measure"("id") ON DELETE CASCADE ON UPDATE NO ACTION
+            ALTER TABLE "measure_item"
+            ADD CONSTRAINT "FK_measure_item_measure_id" FOREIGN KEY ("measure_id") REFERENCES "measure"("id") ON DELETE CASCADE ON UPDATE NO ACTION
+        `);
+        await queryRunner.query(`
+            ALTER TABLE "measure_metadata"
+            ADD CONSTRAINT "FK_measure_metadata_measure_id" FOREIGN KEY ("measure_id") REFERENCES "measure"("id") ON DELETE CASCADE ON UPDATE NO ACTION
         `);
         await queryRunner.query(`
             ALTER TABLE "measure"
@@ -478,11 +519,15 @@ export class InitialSchema1735840656851 implements MigrationInterface {
         `);
         await queryRunner.query(`
             ALTER TABLE "dataset_topic"
-            ADD CONSTRAINT "FK_dataset_topic_dataset_id" FOREIGN KEY ("dataset_id") REFERENCES "dataset"("id") ON DELETE NO ACTION ON UPDATE NO ACTION
+            ADD CONSTRAINT "FK_dataset_topic_dataset_id" FOREIGN KEY ("dataset_id") REFERENCES "dataset"("id") ON DELETE CASCADE ON UPDATE NO ACTION
         `);
         await queryRunner.query(`
             ALTER TABLE "dataset_topic"
             ADD CONSTRAINT "FK_dataset_topic_topic_id" FOREIGN KEY ("topic_id") REFERENCES "topic"("id") ON DELETE NO ACTION ON UPDATE NO ACTION
+        `);
+        await queryRunner.query(`
+            ALTER TABLE "fact_table"
+            ADD CONSTRAINT "FK_dataset_id_fact_table_id" FOREIGN KEY ("dataset_id") REFERENCES "dataset"("id") ON DELETE CASCADE ON UPDATE NO ACTION
         `);
         await queryRunner.query(`
             ALTER TABLE "dataset"
@@ -497,12 +542,12 @@ export class InitialSchema1735840656851 implements MigrationInterface {
             ADD CONSTRAINT "FK_organisation_info_organisation_id" FOREIGN KEY ("organisation_id") REFERENCES "organisation"("id") ON DELETE CASCADE ON UPDATE NO ACTION
         `);
         await queryRunner.query(`
-            ALTER TABLE "team_info"
-            ADD CONSTRAINT "FK_team_info_team_id" FOREIGN KEY ("team_id") REFERENCES "team"("id") ON DELETE CASCADE ON UPDATE NO ACTION
-        `);
-        await queryRunner.query(`
             ALTER TABLE "team"
             ADD CONSTRAINT "FK_team_organisation_id" FOREIGN KEY ("organisation_id") REFERENCES "organisation"("id") ON DELETE NO ACTION ON UPDATE NO ACTION
+        `);
+        await queryRunner.query(`
+            ALTER TABLE "team_info"
+            ADD CONSTRAINT "FK_team_info_team_id" FOREIGN KEY ("team_id") REFERENCES "team"("id") ON DELETE CASCADE ON UPDATE NO ACTION
         `);
         await queryRunner.query(`
             ALTER TABLE "category_key"
@@ -525,21 +570,21 @@ export class InitialSchema1735840656851 implements MigrationInterface {
             ADD CONSTRAINT "FK_6ca6a866371cdd67a638df8a74c" FOREIGN KEY ("parent_id", "parent_version", "parent_category") REFERENCES "reference_data"("item_id", "version_no", "category_key") ON DELETE NO ACTION ON UPDATE NO ACTION
         `);
         await queryRunner.query(`
-            ALTER TABLE "category_key_info"
-            ADD CONSTRAINT "FK_ec0b41bafd5605fff51fc0c8e47" FOREIGN KEY ("category_key") REFERENCES "category_key"("category_key") ON DELETE NO ACTION ON UPDATE NO ACTION
-        `);
-        await queryRunner.query(`
             ALTER TABLE "category_info"
             ADD CONSTRAINT "FK_68028565126809c1e925e6f9334" FOREIGN KEY ("category") REFERENCES "category"("category") ON DELETE NO ACTION ON UPDATE NO ACTION
+        `);
+        await queryRunner.query(`
+            ALTER TABLE "category_key_info"
+            ADD CONSTRAINT "FK_ec0b41bafd5605fff51fc0c8e47" FOREIGN KEY ("category_key") REFERENCES "category_key"("category_key") ON DELETE NO ACTION ON UPDATE NO ACTION
         `);
     }
 
     public async down(queryRunner: QueryRunner): Promise<void> {
         await queryRunner.query(`
-            ALTER TABLE "category_info" DROP CONSTRAINT "FK_68028565126809c1e925e6f9334"
+            ALTER TABLE "category_key_info" DROP CONSTRAINT "FK_ec0b41bafd5605fff51fc0c8e47"
         `);
         await queryRunner.query(`
-            ALTER TABLE "category_key_info" DROP CONSTRAINT "FK_ec0b41bafd5605fff51fc0c8e47"
+            ALTER TABLE "category_info" DROP CONSTRAINT "FK_68028565126809c1e925e6f9334"
         `);
         await queryRunner.query(`
             ALTER TABLE "hierarchy" DROP CONSTRAINT "FK_6ca6a866371cdd67a638df8a74c"
@@ -557,10 +602,10 @@ export class InitialSchema1735840656851 implements MigrationInterface {
             ALTER TABLE "category_key" DROP CONSTRAINT "FK_087b36846d67092609821a62756"
         `);
         await queryRunner.query(`
-            ALTER TABLE "team" DROP CONSTRAINT "FK_team_organisation_id"
+            ALTER TABLE "team_info" DROP CONSTRAINT "FK_team_info_team_id"
         `);
         await queryRunner.query(`
-            ALTER TABLE "team_info" DROP CONSTRAINT "FK_team_info_team_id"
+            ALTER TABLE "team" DROP CONSTRAINT "FK_team_organisation_id"
         `);
         await queryRunner.query(`
             ALTER TABLE "organisation_info" DROP CONSTRAINT "FK_organisation_info_organisation_id"
@@ -570,6 +615,9 @@ export class InitialSchema1735840656851 implements MigrationInterface {
         `);
         await queryRunner.query(`
             ALTER TABLE "dataset" DROP CONSTRAINT "FK_dataset_created_by"
+        `);
+        await queryRunner.query(`
+            ALTER TABLE "fact_table" DROP CONSTRAINT "FK_dataset_id_fact_table_id"
         `);
         await queryRunner.query(`
             ALTER TABLE "dataset_topic" DROP CONSTRAINT "FK_dataset_topic_topic_id"
@@ -608,13 +656,16 @@ export class InitialSchema1735840656851 implements MigrationInterface {
             ALTER TABLE "measure" DROP CONSTRAINT "FK_measure_dataset_id"
         `);
         await queryRunner.query(`
-            ALTER TABLE "measure_info" DROP CONSTRAINT "FK_measure_info_measure_id"
+            ALTER TABLE "measure_metadata" DROP CONSTRAINT "FK_measure_metadata_measure_id"
         `);
         await queryRunner.query(`
-            ALTER TABLE "dimension_info" DROP CONSTRAINT "FK_dimension_info_dimension_id"
+            ALTER TABLE "measure_item" DROP CONSTRAINT "FK_measure_item_measure_id"
         `);
         await queryRunner.query(`
-            ALTER TABLE "dataset_info" DROP CONSTRAINT "FK_dataset_info_dataset_id"
+            ALTER TABLE "dimension_metadata" DROP CONSTRAINT "FK_dimension_metadata_dimension_id"
+        `);
+        await queryRunner.query(`
+            ALTER TABLE "dataset_metadata" DROP CONSTRAINT "FK_dataset_metadata_dataset_id"
         `);
         await queryRunner.query(`
             ALTER TABLE "revision" DROP CONSTRAINT "FK_revision_approved_by"
@@ -629,16 +680,16 @@ export class InitialSchema1735840656851 implements MigrationInterface {
             ALTER TABLE "revision" DROP CONSTRAINT "FK_revision_dataset_id"
         `);
         await queryRunner.query(`
-            ALTER TABLE "fact_table" DROP CONSTRAINT "FK_fact_table_revision_id"
+            ALTER TABLE "data_table" DROP CONSTRAINT "FK_data_table_revision_id"
         `);
         await queryRunner.query(`
-            ALTER TABLE "fact_table_info" DROP CONSTRAINT "FK_fact_table_info_fact_table_id"
-        `);
-        await queryRunner.query(`
-            DROP TABLE "category_info"
+            ALTER TABLE "data_table_description" DROP CONSTRAINT "FK_data_table_description_fact_table_id"
         `);
         await queryRunner.query(`
             DROP TABLE "category_key_info"
+        `);
+        await queryRunner.query(`
+            DROP TABLE "category_info"
         `);
         await queryRunner.query(`
             DROP TABLE "hierarchy"
@@ -656,10 +707,10 @@ export class InitialSchema1735840656851 implements MigrationInterface {
             DROP TABLE "category"
         `);
         await queryRunner.query(`
-            DROP TABLE "team"
+            DROP TABLE "team_info"
         `);
         await queryRunner.query(`
-            DROP TABLE "team_info"
+            DROP TABLE "team"
         `);
         await queryRunner.query(`
             DROP TABLE "organisation"
@@ -669,6 +720,12 @@ export class InitialSchema1735840656851 implements MigrationInterface {
         `);
         await queryRunner.query(`
             DROP TABLE "dataset"
+        `);
+        await queryRunner.query(`
+            DROP TABLE "fact_table"
+        `);
+        await queryRunner.query(`
+            DROP TYPE "public"."fact_table_column_type_enum"
         `);
         await queryRunner.query(`
             DROP TABLE "dataset_topic"
@@ -701,37 +758,37 @@ export class InitialSchema1735840656851 implements MigrationInterface {
             DROP TABLE "measure"
         `);
         await queryRunner.query(`
-            DROP TABLE "measure_info"
+            DROP TABLE "measure_metadata"
         `);
         await queryRunner.query(`
-            DROP TYPE "public"."measure_info_display_type_enum"
+            DROP TABLE "measure_item"
         `);
         await queryRunner.query(`
-            DROP TABLE "dimension_info"
+            DROP TYPE "public"."measure_item_display_type_enum"
         `);
         await queryRunner.query(`
-            DROP TABLE "dataset_info"
+            DROP TABLE "dimension_metadata"
         `);
         await queryRunner.query(`
-            DROP TYPE "public"."dataset_info_designation_enum"
+            DROP TABLE "dataset_metadata"
+        `);
+        await queryRunner.query(`
+            DROP TYPE "public"."dataset_metadata_designation_enum"
         `);
         await queryRunner.query(`
             DROP TABLE "revision"
         `);
         await queryRunner.query(`
-            DROP TABLE "fact_table"
+            DROP TABLE "data_table"
         `);
         await queryRunner.query(`
-            DROP TYPE "public"."fact_table_action_enum"
+            DROP TYPE "public"."data_table_action_enum"
         `);
         await queryRunner.query(`
-            DROP TYPE "public"."fact_table_filetype_enum"
+            DROP TYPE "public"."data_table_filetype_enum"
         `);
         await queryRunner.query(`
-            DROP TABLE "fact_table_info"
-        `);
-        await queryRunner.query(`
-            DROP TYPE "public"."fact_table_info_column_type_enum"
+            DROP TABLE "data_table_description"
         `);
         await queryRunner.query(`
             DROP INDEX "public"."UX_user_provider_provider_user_id"
@@ -744,6 +801,15 @@ export class InitialSchema1735840656851 implements MigrationInterface {
         `);
         await queryRunner.query(`
             DROP TABLE "user"
+        `);
+        await queryRunner.query(`
+            DROP INDEX "public"."IDX_event_log_user_id"
+        `);
+        await queryRunner.query(`
+            DROP INDEX "public"."IDX_event_log_entity_id"
+        `);
+        await queryRunner.query(`
+            DROP TABLE "event_log"
         `);
     }
 }

@@ -1,14 +1,35 @@
-import { Not, IsNull } from 'typeorm';
+import { Not, IsNull, FindOptionsRelations, FindOneOptions } from 'typeorm';
+import { has } from 'lodash';
 
 import { dataSource } from '../db/data-source';
 import { logger } from '../utils/logger';
-import { Dataset } from '../entities/dataset/dataset';
-import { FactTable } from '../entities/dataset/fact-table';
+import { DataTable } from '../entities/dataset/data-table';
 import { Revision } from '../entities/dataset/revision';
 import { User } from '../entities/user/user';
+import { Dataset } from '../entities/dataset/dataset';
+
+const defaultRelations: FindOptionsRelations<Revision> = {
+    createdBy: true,
+    dataTable: {
+        dataTableDescriptions: true
+    }
+};
 
 export const RevisionRepository = dataSource.getRepository(Revision).extend({
-    async createFromImport(dataset: Dataset, fileImport: FactTable, user: User): Promise<Revision> {
+    async getById(id: string, relations: FindOptionsRelations<Revision> = defaultRelations): Promise<Revision> {
+        const findOptions: FindOneOptions<Revision> = { where: { id }, relations };
+
+        if (has(relations, 'revisions.factTables.factTableInfo')) {
+            // sort sources by column index if they're requested
+            findOptions.order = {
+                dataTable: { dataTableDescriptions: { columnIndex: 'ASC' } }
+            };
+        }
+
+        return this.findOneOrFail(findOptions);
+    },
+
+    async createFromImport(dataset: Dataset, fileImport: DataTable, user: User): Promise<Revision> {
         logger.debug(`Creating new Revision for Dataset "${dataset.id}" from FactTable "${fileImport.id}"...`);
 
         const unpublishedRevisions = await dataSource
@@ -33,8 +54,8 @@ export const RevisionRepository = dataSource.getRepository(Revision).extend({
             .create({
                 dataset,
                 previousRevision: lastPublishedRevision || undefined,
-                revisionIndex: (lastPublishedRevision?.revisionIndex || 0) + 1,
-                factTables: [fileImport],
+                revisionIndex: 0,
+                dataTable: fileImport,
                 createdBy: user
             })
             .save();
@@ -48,19 +69,15 @@ export const RevisionRepository = dataSource.getRepository(Revision).extend({
         return dataSource.getRepository(Revision).save(revision);
     },
 
-    async approvePublication(datasetId: string, approver: User): Promise<Revision> {
+    async approvePublication(revisionId: string, onlineCubeFilename: string, approver: User): Promise<Revision> {
         const scheduledRevision = await dataSource.getRepository(Revision).findOneOrFail({
-            where: {
-                dataset: { id: datasetId },
-                approvedAt: IsNull(),
-                publishAt: Not(IsNull())
-            },
-            order: { revisionIndex: 'DESC' },
+            where: { id: revisionId },
             relations: { dataset: true }
         });
 
         scheduledRevision.approvedAt = new Date();
         scheduledRevision.approvedBy = approver;
+        scheduledRevision.onlineCubeFilename = onlineCubeFilename;
         await scheduledRevision.save();
 
         if (scheduledRevision.revisionIndex === 1) {
@@ -71,19 +88,15 @@ export const RevisionRepository = dataSource.getRepository(Revision).extend({
         return scheduledRevision;
     },
 
-    async withdrawPublication(datasetId: string): Promise<Revision> {
+    async withdrawPublication(revisionId: string): Promise<Revision> {
         const approvedRevision = await dataSource.getRepository(Revision).findOneOrFail({
-            where: {
-                dataset: { id: datasetId },
-                approvedAt: Not(IsNull()),
-                publishAt: Not(IsNull())
-            },
-            order: { revisionIndex: 'DESC' },
+            where: { id: revisionId },
             relations: { dataset: true }
         });
 
         approvedRevision.approvedAt = null;
         approvedRevision.approvedBy = null;
+        approvedRevision.onlineCubeFilename = null;
         await approvedRevision.save();
 
         if (approvedRevision.revisionIndex === 1) {

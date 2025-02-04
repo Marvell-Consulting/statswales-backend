@@ -14,11 +14,12 @@ import { User } from '../user/user';
 import { Team } from '../user/team';
 
 import { Revision } from './revision';
-import { DatasetInfo } from './dataset-info';
+import { DatasetMetadata } from './dataset-metadata';
 import { Dimension } from './dimension';
 import { DatasetProvider } from './dataset-provider';
 import { DatasetTopic } from './dataset-topic';
 import { Measure } from './measure';
+import { FactTable } from './fact-table';
 
 @Entity({ name: 'dataset' })
 export class Dataset extends BaseEntity {
@@ -44,8 +45,8 @@ export class Dataset extends BaseEntity {
     @Column({ name: 'end_date', type: 'date', nullable: true })
     endDate: Date | null;
 
-    @OneToMany(() => DatasetInfo, (datasetInfo) => datasetInfo.dataset, { cascade: true })
-    datasetInfo: DatasetInfo[];
+    @OneToMany(() => DatasetMetadata, (metadata) => metadata.dataset, { cascade: true })
+    metadata: DatasetMetadata[];
 
     @OneToMany(() => Dimension, (dimension) => dimension.dataset, { cascade: true })
     dimensions: Dimension[];
@@ -55,6 +56,9 @@ export class Dataset extends BaseEntity {
 
     @OneToOne(() => Measure, (measure) => measure.dataset, { cascade: true })
     measure: Measure;
+
+    @OneToMany(() => FactTable, (factTable) => factTable.dataset, { cascade: true })
+    factTable: FactTable[] | null;
 
     @OneToMany(() => DatasetProvider, (datasetProvider) => datasetProvider.dataset, { cascade: true })
     datasetProviders: DatasetProvider[];

@@ -6,18 +6,18 @@ import tmp from 'tmp';
 
 import { i18next } from '../middleware/translation';
 import { logger as parentLogger } from '../utils/logger';
-import { FactTable } from '../entities/dataset/fact-table';
+import { DataTable } from '../entities/dataset/data-table';
 import { Dataset } from '../entities/dataset/dataset';
 import { CSVHeader, ViewDTO, ViewErrDTO } from '../dtos/view-dto';
 import { FactTableColumnType } from '../enums/fact-table-column-type';
 import { DatasetRepository } from '../repositories/dataset';
 import { DatasetDTO } from '../dtos/dataset-dto';
-import { FactTableDTO } from '../dtos/fact-table-dto';
+import { DataTableDto } from '../dtos/data-table-dto';
 import { Error } from '../dtos/error';
 import { Locale } from '../enums/locale';
 import { FileType } from '../enums/file-type';
-import { FactTableInfo } from '../entities/dataset/fact-table-info';
-import { FactTableAction } from '../enums/fact-table-action';
+import { DataTableDescription } from '../entities/dataset/data-table-description';
+import { DataTableAction } from '../enums/data-table-action';
 import { convertBufferToUTF8 } from '../utils/file-utils';
 
 import { DataLakeService } from './datalake';
@@ -102,7 +102,7 @@ function validateParams(page_number: number, max_page_number: number, page_size:
     return errors;
 }
 
-export async function extractTableInformation(fileBuffer: Buffer, fileType: FileType): Promise<FactTableInfo[]> {
+export async function extractTableInformation(fileBuffer: Buffer, fileType: FileType): Promise<DataTableDescription[]> {
     const tableName = 'preview_table';
     const quack = await Database.create(':memory:');
     const tempFile = tmp.tmpNameSync({ postfix: `.${fileType}` });
@@ -151,10 +151,9 @@ export async function extractTableInformation(fileBuffer: Buffer, fileType: File
         throw new Error('Unable to process CSV... The resulting read resulted in only one column');
     }
     return tableHeaders.map((header) => {
-        const info = new FactTableInfo();
+        const info = new DataTableDescription();
         info.columnName = header.column_name;
         info.columnIndex = header.index;
-        info.columnType = FactTableColumnType.Unknown;
         info.columnDatatype = header.column_type;
         return info;
     });
@@ -166,36 +165,33 @@ export const uploadCSV = async (
     filetype: string,
     originalName: string,
     datasetId: string
-): Promise<FactTable> => {
+): Promise<DataTable> => {
     const dataLakeService = new DataLakeService();
     if (!fileBuffer) {
         logger.error('No buffer to upload to blob storage');
         throw new Error('No buffer to upload to blob storage');
     }
     let uploadBuffer = fileBuffer;
-    const factTable = new FactTable();
-    factTable.id = randomUUID().toLowerCase();
-    factTable.mimeType = filetype;
-    factTable.originalFilename = originalName;
+    const dataTable = new DataTable();
+    dataTable.id = randomUUID().toLowerCase();
+    dataTable.mimeType = filetype;
+    dataTable.originalFilename = originalName;
     let extension: string;
     switch (filetype) {
         case 'application/csv':
         case 'text/csv':
             extension = 'csv';
-            factTable.fileType = FileType.Csv;
-            factTable.delimiter = ',';
-            factTable.quote = '"';
-            factTable.linebreak = '\n';
+            dataTable.fileType = FileType.Csv;
             uploadBuffer = convertBufferToUTF8(fileBuffer);
             break;
         case 'application/vnd.apache.parquet':
         case 'application/parquet':
             extension = 'parquet';
-            factTable.fileType = FileType.Parquet;
+            dataTable.fileType = FileType.Parquet;
             break;
         case 'application/json':
             extension = 'json';
-            factTable.fileType = FileType.Json;
+            dataTable.fileType = FileType.Json;
             break;
         case 'application/vnd.ms-excel':
         case 'application/msexcel':
@@ -207,20 +203,17 @@ export const uploadCSV = async (
         case 'application/x-xls':
         case 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet':
             extension = 'xlsx';
-            factTable.fileType = FileType.Excel;
+            dataTable.fileType = FileType.Excel;
             break;
         case 'application/x-gzip':
             switch (originalName.split('.').reverse()[1]) {
                 case 'json':
                     extension = 'json.gz';
-                    factTable.fileType = FileType.GzipJson;
+                    dataTable.fileType = FileType.GzipJson;
                     break;
                 case 'csv':
                     extension = 'csv.gz';
-                    factTable.delimiter = ',';
-                    factTable.quote = '"';
-                    factTable.linebreak = '\n';
-                    factTable.fileType = FileType.GzipCsv;
+                    dataTable.fileType = FileType.GzipCsv;
                     break;
                 default:
                     throw new Error(`unsupported format ${originalName.split('.').reverse()[1]}`);
@@ -230,35 +223,35 @@ export const uploadCSV = async (
             logger.error(`A user uploaded a file with a mimetype of ${filetype} which is known.`);
             throw new Error('File type has not been recognised.');
     }
-    let factTableDescriptions: FactTableInfo[];
+    let dataTableDescriptions: DataTableDescription[];
     try {
-        factTableDescriptions = await extractTableInformation(uploadBuffer, factTable.fileType);
+        dataTableDescriptions = await extractTableInformation(uploadBuffer, dataTable.fileType);
     } catch (error) {
         logger.error(`Something went wrong trying to read the users file with the following error: ${error}`);
         throw error;
     }
-    factTable.factTableInfo = factTableDescriptions;
-    factTable.filename = `${factTable.id}.${extension}`;
-    factTable.action = FactTableAction.ReplaceAll;
+    dataTable.dataTableDescriptions = dataTableDescriptions;
+    dataTable.filename = `${dataTable.id}.${extension}`;
+    dataTable.action = DataTableAction.AddRevise;
     const hash = createHash('sha256');
     hash.update(uploadBuffer);
     try {
         await dataLakeService.createDirectory(datasetId);
-        await dataLakeService.uploadFileBuffer(factTable.filename, datasetId, uploadBuffer);
+        await dataLakeService.uploadFileBuffer(dataTable.filename, datasetId, uploadBuffer);
     } catch (err) {
         logger.error(
             `Something went wrong trying to upload the file to the Data Lake with the following error: ${err}`
         );
         throw new Error('Error processing file upload to Data Lake');
     }
-    factTable.hash = hash.digest('hex');
-    factTable.uploadedAt = new Date();
-    return factTable;
+    dataTable.hash = hash.digest('hex');
+    dataTable.uploadedAt = new Date();
+    return dataTable;
 };
 
 export const getCSVPreview = async (
     dataset: Dataset,
-    importObj: FactTable,
+    importObj: DataTable,
     page: number,
     size: number
 ): Promise<ViewDTO | ViewErrDTO> => {
@@ -316,14 +309,14 @@ export const getCSVPreview = async (
         const tableHeaders = Object.keys(preview[0]);
         const dataArray = preview.map((row) => Object.values(row));
         const currentDataset = await DatasetRepository.getById(dataset.id);
-        const currentImport = await FactTable.findOneByOrFail({ id: importObj.id });
+        const currentImport = await DataTable.findOneByOrFail({ id: importObj.id });
         const headers: CSVHeader[] = [];
         for (let i = 0; i < tableHeaders.length; i++) {
             let sourceType: FactTableColumnType;
             if (tableHeaders[i] === 'int_line_number') sourceType = FactTableColumnType.LineNumber;
             else
                 sourceType =
-                    importObj.factTableInfo.find((info) => info.columnName === tableHeaders[i])?.columnType ??
+                    dataset.factTable?.find((info) => info.columnName === tableHeaders[i])?.columnType ||
                     FactTableColumnType.Unknown;
             headers.push({
                 index: i - 1,
@@ -333,7 +326,7 @@ export const getCSVPreview = async (
         }
         return {
             dataset: DatasetDTO.fromDataset(currentDataset),
-            fact_table: FactTableDTO.fromFactTable(currentImport),
+            data_table: DataTableDto.fromDataTable(currentImport),
             current_page: page,
             page_info: {
                 total_records: totalLines,
@@ -372,19 +365,19 @@ export const getCSVPreview = async (
 
 export const getFactTableColumnPreview = async (
     dataset: Dataset,
-    factTable: FactTable,
+    dataTable: DataTable,
     columnName: string
 ): Promise<ViewDTO | ViewErrDTO> => {
     logger.debug(`Getting fact table column preview for ${columnName}`);
     const tableName = 'preview_table';
     const quack = await Database.create(':memory:');
-    const tempFile = tmp.tmpNameSync({ postfix: `.${factTable.fileType}` });
+    const tempFile = tmp.tmpNameSync({ postfix: `.${dataTable.fileType}` });
     try {
         const dataLakeService = new DataLakeService();
-        const fileBuffer = await dataLakeService.getFileBuffer(factTable.filename, dataset.id);
+        const fileBuffer = await dataLakeService.getFileBuffer(dataTable.filename, dataset.id);
         fs.writeFileSync(tempFile, fileBuffer);
         let createTableQuery: string;
-        switch (factTable.fileType) {
+        switch (dataTable.fileType) {
             case FileType.Csv:
             case FileType.GzipCsv:
                 createTableQuery = `CREATE TABLE ${tableName} AS SELECT * FROM read_csv('${tempFile}', auto_type_candidates = ['BOOLEAN', 'BIGINT', 'DOUBLE', 'VARCHAR']);`;
@@ -410,14 +403,14 @@ export const getFactTableColumnPreview = async (
         const tableHeaders = Object.keys(preview[0]);
         const dataArray = preview.map((row) => Object.values(row));
         const currentDataset = await DatasetRepository.getById(dataset.id);
-        const currentImport = await FactTable.findOneByOrFail({ id: factTable.id });
+        const currentImport = await DataTable.findOneByOrFail({ id: dataTable.id });
         const headers: CSVHeader[] = [];
         for (let i = 0; i < tableHeaders.length; i++) {
             let sourceType: FactTableColumnType;
             if (tableHeaders[i] === 'int_line_number') sourceType = FactTableColumnType.LineNumber;
             else
                 sourceType =
-                    factTable.factTableInfo.find((info) => info.columnName === tableHeaders[i])?.columnType ??
+                    dataset.factTable?.find((info) => info.columnName === tableHeaders[i])?.columnType ??
                     FactTableColumnType.Unknown;
             headers.push({
                 index: i - 1,
@@ -427,7 +420,7 @@ export const getFactTableColumnPreview = async (
         }
         return {
             dataset: DatasetDTO.fromDataset(currentDataset),
-            fact_table: FactTableDTO.fromFactTable(currentImport),
+            data_table: DataTableDto.fromDataTable(currentImport),
             current_page: 1,
             page_info: {
                 total_records: 1,
@@ -464,7 +457,7 @@ export const getFactTableColumnPreview = async (
     }
 };
 
-export const removeFileFromDataLake = async (importObj: FactTable, dataset: Dataset) => {
+export const removeFileFromDataLake = async (importObj: DataTable, dataset: Dataset) => {
     const datalakeService = new DataLakeService();
     try {
         await datalakeService.deleteFile(importObj.filename, dataset.id);
