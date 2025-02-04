@@ -8,8 +8,8 @@ import {
     CreateDateColumn,
     UpdateDateColumn
 } from 'typeorm';
-import { Measure } from './measure';
 
+import { Measure } from './measure';
 
 @Entity({ name: 'measure_metadata' })
 export class MeasureMetadata extends BaseEntity {

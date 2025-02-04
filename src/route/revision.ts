@@ -2,6 +2,7 @@ import 'reflect-metadata';
 
 import express, { NextFunction, Request, Response, Router } from 'express';
 import multer from 'multer';
+import { FindOptionsRelations } from 'typeorm';
 
 import {
     attachDataTableToRevision,
@@ -22,7 +23,6 @@ import {
     withdrawFromPublication,
     createNewRevision
 } from '../controllers/revision';
-import { FindOptionsRelations } from 'typeorm';
 import { Revision } from '../entities/dataset/revision';
 import { hasError, revisionIdValidator } from '../validators';
 import { logger } from '../utils/logger';

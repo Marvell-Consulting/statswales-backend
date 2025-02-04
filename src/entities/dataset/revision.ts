@@ -6,15 +6,16 @@ import {
     BaseEntity,
     JoinColumn,
     OneToMany,
-    ManyToOne, OneToOne
+    ManyToOne,
+    OneToOne
 } from 'typeorm';
 
 import { User } from '../user/user';
+import { RevisionTask } from '../../interfaces/revision-task';
 
 import { RevisionInterface } from './revision.interface';
 import { Dataset } from './dataset';
 import { DataTable } from './data-table';
-import { RevisionTask } from '../../interfaces/revision-task';
 
 @Entity({ name: 'revision', orderBy: { createdAt: 'ASC' } })
 export class Revision extends BaseEntity implements RevisionInterface {

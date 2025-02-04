@@ -28,8 +28,6 @@ import { DEFAULT_PAGE_SIZE, uploadCSV } from '../services/csv-processor';
 import { convertBufferToUTF8 } from '../utils/file-utils';
 import { DatasetListItemDTO } from '../dtos/dataset-list-item-dto';
 import { ResultsetWithCount } from '../interfaces/resultset-with-count';
-
-import { getCubePreview } from './cube-controller';
 import {
     createDimensionsFromSourceAssignment,
     ValidatedSourceAssignment,
@@ -41,6 +39,8 @@ import { FactTable } from '../entities/dataset/fact-table';
 import { Dataset } from '../entities/dataset/dataset';
 import { FactTableColumnType } from '../enums/fact-table-column-type';
 import { FactTableColumnDto } from '../dtos/fact-table-column-dto';
+
+import { getCubePreview } from './cube-controller';
 
 export const listAllDatasets = async (req: Request, res: Response, next: NextFunction) => {
     try {

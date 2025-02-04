@@ -27,7 +27,10 @@ export const convertBufferToUTF8 = (buffer: Buffer): Buffer => {
     return buffer;
 };
 
-export const getFileImportAndSaveToDisk = async (dataset: Dataset, importFile: FileImportInterface): Promise<string> => {
+export const getFileImportAndSaveToDisk = async (
+    dataset: Dataset,
+    importFile: FileImportInterface
+): Promise<string> => {
     const dataLakeService = new DataLakeService();
     const importTmpFile = tmp.tmpNameSync({ postfix: `.${importFile.fileType}` });
     const buffer = await dataLakeService.getFileBuffer(importFile.filename, dataset.id);

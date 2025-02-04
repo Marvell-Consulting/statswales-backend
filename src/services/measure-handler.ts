@@ -85,8 +85,9 @@ function createExtractor(
                 .filter((info) => info.columnName.toLowerCase().startsWith('note'))
                 .map((info) => columnIdentification(info));
         return {
-            sortColumn: protoLookupTable.dataTableDescriptions.find((info) => info.columnName.toLowerCase().startsWith('sort'))
-                ?.columnName,
+            sortColumn: protoLookupTable.dataTableDescriptions.find((info) =>
+                info.columnName.toLowerCase().startsWith('sort')
+            )?.columnName,
             formatColumn: protoLookupTable.dataTableDescriptions.find(
                 (info) =>
                     info.columnName.toLowerCase().indexOf('format') > -1 ||
@@ -283,8 +284,7 @@ export const validateMeasureLookupTable = async (
         for (let i = 0; i < tableHeaders.length; i++) {
             let sourceType: FactTableColumnType;
             if (tableHeaders[i] === 'int_line_number') sourceType = FactTableColumnType.LineNumber;
-            else
-                sourceType = FactTableColumnType.Unknown;
+            else sourceType = FactTableColumnType.Unknown;
             headers.push({
                 index: i - 1,
                 name: tableHeaders[i],

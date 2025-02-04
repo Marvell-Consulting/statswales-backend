@@ -304,9 +304,7 @@ describe('API Endpoints', () => {
             await dataTable.remove();
 
             const res = await request(app)
-                .get(
-                    `/dataset/${testDatasetId}/revision/by-id/${testRevisionId}/data-table/preview`
-                )
+                .get(`/dataset/${testDatasetId}/revision/by-id/${testRevisionId}/data-table/preview`)
                 .set(getAuthHeader(user));
             expect(res.status).toBe(404);
             expect(res.body).toEqual({ error: 'errors.no_data_table' });
@@ -433,7 +431,7 @@ describe('API Endpoints', () => {
                 .set(getAuthHeader(user))
                 .attach('csv', csvFile);
             expect(res.status).toBe(500);
-            expect(res.body).toEqual({ error: 'Error uploading the file' });
+            expect(res.body).toEqual({ error: 'errors.data_lake_error' });
         });
     });
 
@@ -448,7 +446,7 @@ describe('API Endpoints', () => {
                 .set(getAuthHeader(user));
             const postRunFileImport = await DataTable.findOne({
                 where: { id: testFileImportId },
-                relations: ['dataTableDescriptions', 'revision']
+                relations: ['dataTableDescriptions']
             });
             if (!postRunFileImport) {
                 throw new Error('Import not found');
@@ -465,7 +463,7 @@ describe('API Endpoints', () => {
                 .set(getAuthHeader(user));
             const postRunFileImport = await DataTable.findOne({
                 where: { id: import1Id },
-                relations: ['dataTableDescriptions', 'revision']
+                relations: ['dataTableDescriptions']
             });
             if (!postRunFileImport) {
                 throw new Error('Import not found');

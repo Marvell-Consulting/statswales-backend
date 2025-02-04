@@ -1,8 +1,8 @@
 import { Revision } from '../entities/dataset/revision';
 import { DataTable } from '../entities/dataset/data-table';
+import { RevisionTask } from '../interfaces/revision-task';
 
 import { DataTableDto } from './data-table-dto';
-import { RevisionTask } from '../interfaces/revision-task';
 
 export class RevisionDTO {
     id: string;

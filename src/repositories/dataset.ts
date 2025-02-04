@@ -90,7 +90,10 @@ export const DatasetRepository = dataSource.getRepository(Dataset).extend({
         const altLang = language.includes('en') ? Locale.WelshGb : Locale.EnglishGb;
 
         logger.debug(`Creating new DatasetInfo with language "${language}" and title "${title}"...`);
-        const datasetMetadata = await dataSource.getRepository(DatasetMetadata).create({ dataset, language, title }).save();
+        const datasetMetadata = await dataSource
+            .getRepository(DatasetMetadata)
+            .create({ dataset, language, title })
+            .save();
         const altLangDatasetInfo = await dataSource
             .getRepository(DatasetMetadata)
             .create({ dataset, language: altLang })

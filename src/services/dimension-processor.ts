@@ -313,7 +313,7 @@ export const createDimensionsFromSourceAssignment = async (
 ): Promise<void> => {
     const { dataValues, measure, ignore, noteCodes, dimensions } = sourceAssignment;
     await recreateBaseFactTable(dataset, dataTable);
-    let factTable = await FactTable.findBy({ id: dataset.id });
+    const factTable = await FactTable.findBy({ id: dataset.id });
 
     if (dataValues) {
         await updateDataValueColumn(dataset, dataValues);
@@ -378,7 +378,9 @@ export const validateDateTypeDimension = async (
     try {
         logger.debug(`Extractor created with ${JSON.stringify(extractor)}`);
         dateDimensionTable = dateDimensionReferenceTableCreator(extractor, preview);
-        logger.debug(`Date dimension table created with the following JSON: ${JSON.stringify(dateDimensionTable, null, 2)}`);
+        logger.debug(
+            `Date dimension table created with the following JSON: ${JSON.stringify(dateDimensionTable, null, 2)}`
+        );
     } catch (error) {
         logger.error(
             `Something went wrong trying to create the date reference table with the following error: ${error}`
@@ -516,8 +518,7 @@ export const validateDateTypeDimension = async (
     for (let i = 0; i < tableHeaders.length; i++) {
         let sourceType: FactTableColumnType;
         if (tableHeaders[i] === 'int_line_number') sourceType = FactTableColumnType.LineNumber;
-        else
-            sourceType = FactTableColumnType.Unknown;
+        else sourceType = FactTableColumnType.Unknown;
         headers.push({
             index: i - 1,
             name: tableHeaders[i],

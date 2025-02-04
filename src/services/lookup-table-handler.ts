@@ -202,8 +202,7 @@ export const validateLookupTable = async (
         for (let i = 0; i < tableHeaders.length; i++) {
             let sourceType: FactTableColumnType;
             if (tableHeaders[i] === 'int_line_number') sourceType = FactTableColumnType.LineNumber;
-            else
-                sourceType = FactTableColumnType.Unknown;
+            else sourceType = FactTableColumnType.Unknown;
             headers.push({
                 index: i - 1,
                 name: tableHeaders[i],

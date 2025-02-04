@@ -21,11 +21,11 @@ import { MeasureLookupTableExtractor } from '../extractors/measure-lookup-extrac
 import { DimensionType } from '../enums/dimension-type';
 import { FactTableColumnType } from '../enums/fact-table-column-type';
 import { ReferenceDataExtractor } from '../extractors/reference-data-extractor';
-
-import { dateDimensionReferenceTableCreator } from './time-matching';
 import { FactTable } from '../entities/dataset/fact-table';
 import { CubeValidationException, CubeValidationType } from '../exceptions/cube-error-exception';
 import { DataTableDescription } from '../entities/dataset/data-table-description';
+
+import { dateDimensionReferenceTableCreator } from './time-matching';
 
 export const FACT_TABLE_NAME = 'fact_table';
 
@@ -80,7 +80,7 @@ export const loadFileIntoCube = async (
 function parseKeyValueString<T extends Record<string, any>>(str: string): T {
     return str.split(',').reduce((acc, pair) => {
         // e.g. "YearCode: 201314"
-        const [key, value] = pair.split(':').map(part => part.trim());
+        const [key, value] = pair.split(':').map((part) => part.trim());
         // Attempt to convert to a number if it looks numeric
         const numValue = Number(value);
         (acc as any)[key] = isNaN(numValue) ? value : numValue;
@@ -103,6 +103,7 @@ export const loadFileDataTableIntoTable = async (
             (col) => col.factTableColumn === factTableCol
         )?.columnName;
         if (dataTableCol) dataTableColumnSelect.push(dataTableCol);
+        else dataTableColumnSelect.push(factTableCol);
     }
     switch (dataTable.fileType) {
         case FileType.Csv:
@@ -387,7 +388,9 @@ async function loadFactTablesWithUpdates(
     for (const dataTable of allDataTables.sort((ftA, ftB) => ftA.uploadedAt.getTime() - ftB.uploadedAt.getTime())) {
         logger.info(`Loading fact table data for fact table ${dataTable.id}`);
         const factTableFile: string = await getFileImportAndSaveToDisk(dataset, dataTable);
-        const updateTableDataCol = dataTable.dataTableDescriptions.find((col) => col.factTableColumn === dataValuesColumn.columnName)?.columnName;
+        const updateTableDataCol = dataTable.dataTableDescriptions.find(
+            (col) => col.factTableColumn === dataValuesColumn.columnName
+        )?.columnName;
         const updateQuery = `UPDATE ${FACT_TABLE_NAME} SET "${dataValuesColumn.columnName}"=update_table."${updateTableDataCol}",
              "${notesCodeColumn.columnName}"=(CASE
                 WHEN ${FACT_TABLE_NAME}."${notesCodeColumn.columnName}" IS NULL THEN 'r'

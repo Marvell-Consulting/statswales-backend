@@ -5,6 +5,7 @@ import { NextFunction, Request, Response } from 'express';
 import tmp from 'tmp';
 import { t } from 'i18next';
 import { isBefore, isValid } from 'date-fns';
+import { Database } from 'duckdb-async';
 
 import { User } from '../entities/user/user';
 import { DataTableDto } from '../dtos/data-table-dto';
@@ -25,8 +26,12 @@ import { RevisionRepository } from '../repositories/revision';
 import { DuckdbOutputType } from '../enums/duckdb-outputs';
 import {
     cleanUpCube,
-    createAndValidateDateDimension, createAndValidateLookupTableDimension,
-    createBaseCube, loadCorrectReferenceDataIntoReferenceDataTable, loadReferenceDataFromCSV, loadReferenceDataIntoCube,
+    createAndValidateDateDimension,
+    createAndValidateLookupTableDimension,
+    createBaseCube,
+    loadCorrectReferenceDataIntoReferenceDataTable,
+    loadReferenceDataFromCSV,
+    loadReferenceDataIntoCube,
     makeCubeSafeString,
     updateFactTableValidator
 } from '../services/cube-handler';
@@ -34,19 +39,23 @@ import { DEFAULT_PAGE_SIZE, getCSVPreview, removeFileFromDataLake, uploadCSV } f
 import { convertBufferToUTF8 } from '../utils/file-utils';
 import { DataTableDescription } from '../entities/dataset/data-table-description';
 import { FactTable } from '../entities/dataset/fact-table';
-
-import { getCubePreview, outputCube } from './cube-controller';
 import { DataTableAction } from '../enums/data-table-action';
-import { Database } from 'duckdb-async';
 import { ColumnMatch } from '../interfaces/column-match';
 import { DimensionType } from '../enums/dimension-type';
 import { CubeValidationException, CubeValidationType } from '../exceptions/cube-error-exception';
 import { DimensionUpdateTask } from '../interfaces/revision-task';
 import { Dataset } from '../entities/dataset/dataset';
 
+import { getCubePreview, outputCube } from './cube-controller';
+
 export const getFactTableInfo = async (req: Request, res: Response, next: NextFunction) => {
     try {
-        const fileImport = res.locals.revision.dataTable;
+        const fileImport = await DataTable.findOneOrFail({
+            where: {
+                id: req.params.id
+            },
+            relations: ['dataTableDescriptions', 'revision']
+        });
         const dto = DataTableDto.fromDataTable(fileImport);
         res.json(dto);
     } catch (err) {
@@ -303,6 +312,7 @@ async function attachUpdateDataTableToRevision(
         TODO Validate measure.  This requires a rewrite of how measures are created and stored
      */
 
+    // eslint-disable-next-line require-atomic-updates
     fileImport.revision = revision;
     await fileImport.save();
     const updatedDataset = await DatasetRepository.getById(dataset.id);
@@ -340,7 +350,11 @@ export const attachDataTableToRevision = async (req: Request, res: Response, nex
         fileImport = await uploadCSV(utf8Buffer, req.file?.mimetype, req.file?.originalname, dataset.id);
     } catch (err) {
         logger.error(`An error occurred trying to upload the file with the following error: ${err}`);
-        next(new BadRequestException('errors.upload_error'));
+        if ((err as Error).message.includes('Data Lake')) {
+            next(new UnknownException('errors.data_lake_error'));
+        } else {
+            next(new BadRequestException('errors.upload_error'));
+        }
         return;
     }
 
@@ -363,7 +377,7 @@ export const removeFactTableFromRevision = async (req: Request, res: Response, n
     try {
         logger.warn('User has requested to remove a fact table from the datalake');
         await removeFileFromDataLake(revision.dataTable, dataset);
-        if (dataset.revision.length === 1) {
+        if (dataset.revisions.length === 1) {
             for (const factTableCol of dataset.factTable) {
                 await factTableCol.remove();
             }
