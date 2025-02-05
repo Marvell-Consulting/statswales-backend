@@ -702,9 +702,13 @@ export const downloadRevisionCubeAsExcel = async (req: Request, res: Response, n
 
 export const createNewRevision = async (req: Request, res: Response, next: NextFunction) => {
     const dataset = res.locals.dataset;
-    logger.info(`Creating new revision for dataset ${dataset.id}`);
     const revision = new Revision();
-    revision.revisionIndex = 0;
+    if (dataset.revisions.length > 0) {
+        revision.revisionIndex = 0;
+    } else {
+        revision.revisionIndex = 1;
+    }
+    logger.info(`Creating new revision for dataset ${dataset.id}`);
     revision.dataset = dataset;
     const savedRevision = await revision.save();
     res.status(201);
