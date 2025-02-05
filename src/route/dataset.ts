@@ -155,9 +155,9 @@ router.patch('/:dataset_id/info', jsonParser, loadDataset(), updateDatasetInfo);
 // Updates the dataset info with the provided data
 router.patch('/:dataset_id/info', jsonParser, loadDataset(), updateDatasetInfo);
 
-router.get('/:dataset/sources', loadDataset(), getFactTableDefinition);
+// router.get('/:dataset/sources', loadDataset(), getFactTableDefinition);
 
-router.get('/:dataset/fact-table', loadDataset(), getFactTableDefinition);
+// router.get('/:dataset/fact-table', loadDataset(), getFactTableDefinition);
 
 // PATCH /dataset/:dataset_id/sources
 // Creates the dimensions and measures from the first import based on user input via JSON
