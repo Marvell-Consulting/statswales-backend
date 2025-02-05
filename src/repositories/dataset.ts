@@ -135,7 +135,6 @@ export const DatasetRepository = dataSource.getRepository(Dataset).extend({
         limit: number
     ): Promise<ResultsetWithCount<DatasetListItemDTO>> {
         // TODO: statuses are a best approximation for a first pass
-        // they will need to be revisited once updates are a thing
         const qb = this.createQueryBuilder('d')
             .select(['d.id as id', 'di.title as title', 'di.updatedAt as last_updated'])
             .addSelect(
@@ -149,8 +148,11 @@ export const DatasetRepository = dataSource.getRepository(Dataset).extend({
             .addSelect(
                 `
                 CASE
-                    WHEN d.live IS NOT NULL AND r.approved_at IS NOT NULL AND r.publish_at < NOW() THEN 'published'
-                    WHEN r.approved_at IS NOT NULL THEN 'scheduled'
+                    WHEN d.live IS NOT NULL AND d.live < NOW() AND r.approved_at IS NOT NULL AND r.publish_at < NOW() THEN 'published'
+                    WHEN d.live IS NOT NULL AND d.live < NOW() AND r.approved_at IS NOT NULL AND r.publish_at > NOW() THEN 'update_scheduled'
+                    WHEN d.live IS NOT NULL AND d.live > NOW() AND r.approved_at IS NOT NULL AND r.publish_at > NOW() THEN 'scheduled'
+                    WHEN d.live IS NOT NULL AND d.live < NOW() AND r.approved_at IS NULL THEN 'update_incomplete'
+                    WHEN d.live IS NULL AND r.approved_at IS NULL THEN 'incomplete'
                     ELSE 'incomplete'
                 END
             `,
