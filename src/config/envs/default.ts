@@ -24,7 +24,7 @@ export const getDefaultConfig = (): AppConfig => {
             fallback: Locale.English
         },
         session: {
-            store: process.env.SESSION_STORE! as SessionStore,
+            store: SessionStore.Redis,
             secret: process.env.SESSION_SECRET!,
             secure: true,
             maxAge: parseInt(process.env.SESSION_MAX_AGE || ONE_DAY.toString(), 10),
