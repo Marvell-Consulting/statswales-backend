@@ -93,7 +93,7 @@ describe('API Endpoints for viewing dataset objects', () => {
                         title: 'Test Dataset 1',
                         last_updated: expect.stringContaining(today),
                         status: 'live',
-                        publishing_status: 'incomplete'
+                        publishing_status: 'update_incomplete'
                     }
                 ],
                 count: 1
