@@ -103,6 +103,8 @@ export const createDataset = async (req: Request, res: Response, next: NextFunct
 };
 
 export const createFirstRevision = async (req: Request, res: Response, next: NextFunction) => {
+    const dataset: Dataset = res.locals.dataset;
+
     if (!req.file) {
         next(new BadRequestException('errors.upload.no_csv'));
         return;
@@ -124,6 +126,10 @@ export const createFirstRevision = async (req: Request, res: Response, next: Nex
         return;
     }
 
+    if (dataset.factTable && dataset.factTable.length > 0) {
+        await FactTable.getRepository().remove(dataset.factTable);
+    }
+
     logger.debug('Updating dataset records');
     try {
         const user = req.user as User;
@@ -140,7 +146,7 @@ export const createFirstRevision = async (req: Request, res: Response, next: Nex
             logger.debug(`Creating fact table definition for column ${fileImportCol.columnName}`);
             await factTable.save();
         }
-        const dataset = await DatasetRepository.getById(res.locals.datasetId);
+        const dataset = await DatasetRepository.getById(res.locals.dataset.id);
         logger.debug(`Producing DTO for dataset ${dataset.id}`);
         const dto = DatasetDTO.fromDataset(dataset);
         res.status(201);

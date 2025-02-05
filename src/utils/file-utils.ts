@@ -1,9 +1,9 @@
 import fs from 'node:fs';
 
-import tmp, { FileResult } from 'tmp';
+import tmp from 'tmp';
 import { Database } from 'duckdb-async';
 import iconv from 'iconv-lite';
-import jschardet from 'jschardet';
+import detectCharacterEncoding from 'detect-character-encoding';
 
 import { Dataset } from '../entities/dataset/dataset';
 import { FileImportInterface } from '../entities/dataset/file-import.interface';
@@ -13,7 +13,7 @@ import { FileType } from '../enums/file-type';
 import { logger } from './logger';
 
 export const convertBufferToUTF8 = (buffer: Buffer): Buffer => {
-    const fileEncoding = jschardet.detect(buffer.toString())?.encoding;
+    const fileEncoding = detectCharacterEncoding(buffer)?.encoding;
     if (!fileEncoding) {
         logger.warn('Could not detect file encoding for the file');
         throw new Error('errors.csv.invalid');
