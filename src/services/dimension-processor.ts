@@ -352,6 +352,7 @@ export const validateDateTypeDimension = async (
         const fileBuffer = await dataLakeService.getFileBuffer(factTable.filename, dataset.id);
         fs.writeFileSync(tempFile, fileBuffer);
         const createTableQuery = await createFactTableQuery(tableName, tempFile, factTable.fileType, quack);
+
         await quack.exec(createTableQuery);
     } catch (error) {
         logger.error(
@@ -372,19 +373,16 @@ export const validateDateTypeDimension = async (
         monthFormat: dimensionPatchRequest.month_format,
         dateFormat: dimensionPatchRequest.date_format
     };
-    logger.debug(`Extractor created with the following JSON: ${JSON.stringify(extractor)}`);
+    logger.debug(`Extractor created with: ${JSON.stringify(extractor)}`);
     const previewQuery = `SELECT DISTINCT "${dimension.factTableColumn}" FROM ${tableName}`;
     const preview = await quack.all(previewQuery);
     try {
-        logger.debug(`Extractor created with ${JSON.stringify(extractor)}`);
         dateDimensionTable = dateDimensionReferenceTableCreator(extractor, preview);
         logger.debug(
             `Date dimension table created with the following JSON: ${JSON.stringify(dateDimensionTable, null, 2)}`
         );
     } catch (error) {
-        logger.error(
-            `Something went wrong trying to create the date reference table with the following error: ${error}`
-        );
+        logger.error(error, `Something went wrong trying to create the date reference table`);
         await quack.close();
         fs.unlinkSync(tempFile);
         return {

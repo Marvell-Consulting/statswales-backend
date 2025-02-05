@@ -246,42 +246,46 @@ function specificDateTableCreator(dateFormat: DateExtractor, dataColumn: TableDa
         let month: string;
         let year: string;
         let dateStr: string;
+
         switch (dateFormat.dateFormat) {
             case 'dd/MM/yyyy':
             case 'DD/MM/YYYY':
-                parsedDate = parse(value.toString(), 'dd/MM/yyyy', new Date());
+                parsedDate = parse(value, 'dd/MM/yyyy', new Date());
                 break;
+
             case 'dd-MM-yyyy':
             case 'DD-MM-YYYY':
-                parsedDate = parse(value.toString(), 'dd-MM-yyyy', new Date());
+                parsedDate = parse(value, 'dd-MM-yyyy', new Date());
                 break;
+
             case 'yyyy-MM-dd':
             case 'YYYY-MM-DD':
-                dateStr = `${value}T00:00:00Z`;
-                parsedDate = parseISO(dateStr);
+                parsedDate = parseISO(`${value}T00:00:00Z`);
                 break;
+
             case 'yyyyMMdd':
             case 'YYYYMMDD':
                 year = value.substring(0, 4);
                 month = value.substring(4, 6);
                 day = value.substring(6, 8);
-                dateStr = `${year}-${month}-${day}T00:00:00Z`;
-                parsedDate = parseISO(dateStr);
+                parsedDate = parseISO(`${year}-${month}-${day}T00:00:00Z`);
                 break;
+
             default:
                 throw new Error(`Unknown Date Format.  Format given: ${dateFormat.dateFormat}`);
         }
+
         if (!isDate(parsedDate) || !isValid(parsedDate)) {
             logger.error(`Date is invalid... ${parsedDate}`);
             throw Error(`Unable to parse date based on supplied format of ${dateFormat.dateFormat}.`);
         }
 
         referenceTable.push({
-            dateCode: value.toString(),
+            dateCode: value,
             description: format(parsedDate, 'dd/MM/yyyy'),
             start: parsedDate,
             end: sub(add(parsedDate, { days: 1 }), { seconds: 1 }),
-            type: 'specific-day'
+            type: 'specific_day'
         });
     });
     return referenceTable;
@@ -289,9 +293,11 @@ function specificDateTableCreator(dateFormat: DateExtractor, dataColumn: TableDa
 
 export function dateDimensionReferenceTableCreator(dateFormat: DateExtractor, dataColumn: TableData) {
     const columnData = [];
+
     for (const row of dataColumn) {
         columnData.push(Object.values(row)[0]);
     }
+
     if (dateFormat.dateFormat) {
         logger.debug('Creating specific date table...');
         return specificDateTableCreator(dateFormat, columnData);
