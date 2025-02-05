@@ -54,7 +54,7 @@ export const RevisionRepository = dataSource.getRepository(Revision).extend({
             .create({
                 dataset,
                 previousRevision: lastPublishedRevision || undefined,
-                revisionIndex: 0,
+                revisionIndex: 1,
                 dataTable: fileImport,
                 createdBy: user
             })
