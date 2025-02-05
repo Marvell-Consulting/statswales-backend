@@ -358,7 +358,7 @@ async function updateFactTableDefinition(
 export const updateSources = async (req: Request, res: Response, next: NextFunction) => {
     const { dataset } = res.locals;
     const sourceAssignment = req.body;
-    const revision = dataset.revisions.find((revision: Revision) => revision.revisionIndex === 1);
+    const revision = dataset.revisions.find((revision: Revision) => revision.revisionIndex === 0);
     if (!revision) {
         next(new UnknownException('errors.no_first_revision'));
         return;
@@ -374,7 +374,7 @@ export const updateSources = async (req: Request, res: Response, next: NextFunct
         const updatedDataset = await DatasetRepository.getById(dataset.id);
         res.json(DatasetDTO.fromDataset(updatedDataset));
     } catch (err) {
-        logger.error(`An error occurred trying to process the source assignments: ${err}`);
+        logger.error(err, `An error occurred trying to process the source assignments`);
 
         if (err instanceof SourceAssignmentException) {
             next(new BadRequestException(err.message));
