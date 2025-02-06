@@ -212,7 +212,6 @@ export const validateReferenceData = async (
         `;
         logger.debug(`Preview query = ${previewQuery}`);
         const dimensionTable = await quack.all(previewQuery);
-        await quack.close();
         const tableHeaders = Object.keys(dimensionTable[0]);
         const dataArray = dimensionTable.map((row) => Object.values(row));
         const currentDataset = await DatasetRepository.getById(dataset.id);
@@ -241,6 +240,8 @@ export const validateReferenceData = async (
     } catch (error) {
         logger.error(`Something went wrong trying to generate the preview of the lookup table with error: ${error}`);
         throw error;
+    } finally {
+        await quack.close();
     }
 };
 

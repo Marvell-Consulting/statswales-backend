@@ -763,8 +763,9 @@ async function setupMeasures(
                 .get(locale)
                 ?.push(`measure.description as "${t('column_headers.measure', { lng: locale })}"`);
         });
+        const languageColumn = (dataset.measure.extractor as MeasureLookupTableExtractor).languageColumn || 'language';
         joinStatements.push(
-            `LEFT JOIN measure on CAST (measure.measure_id AS VARCHAR)=CAST(${FACT_TABLE_NAME}.${dataset.measure.factTableColumn} AS VARCHAR) AND measure.language='#LANG#'`
+            `LEFT JOIN measure on CAST (measure.measure_id AS VARCHAR)=CAST(${FACT_TABLE_NAME}.${dataset.measure.factTableColumn} AS VARCHAR) AND measure."${languageColumn}"='#LANG#'`
         );
         orderByStatements.push(`measure.measure_id`);
     } else {
@@ -797,6 +798,7 @@ async function setupDimensions(
     for (const dimension of dataset.dimensions) {
         logger.info(`Setting up dimension ${dimension.id} for fact table column ${dimension.factTableColumn}`);
         const dimTable = `${makeCubeSafeString(dimension.factTableColumn)}_lookup`;
+        let languageColumn = 'lang';
         try {
             switch (dimension.type) {
                 case DimensionType.TimePeriod:
@@ -861,8 +863,9 @@ async function setupDimensions(
                             dimension.factTableColumn;
                         selectStatementsMap.get(locale)?.push(`${dimTable}.description as "${columnName}"`);
                     });
+                    languageColumn = (dimension.extractor as LookupTableExtractor).languageColumn || 'language';
                     joinStatements.push(
-                        `LEFT JOIN ${dimTable} on CAST(${dimTable}."${dimension.joinColumn}" AS VARCHAR)=CAST(${FACT_TABLE_NAME}."${dimension.factTableColumn}" AS VARCHAR) AND ${dimTable}.language='#LANG#'`
+                        `LEFT JOIN ${dimTable} on CAST(${dimTable}."${dimension.joinColumn}" AS VARCHAR)=CAST(${FACT_TABLE_NAME}."${dimension.factTableColumn}" AS VARCHAR) AND ${dimTable}."${languageColumn}"='#LANG#'`
                     );
                     if ((dimension.extractor as LookupTableExtractor).sortColumn) {
                         orderByStatements.push(
@@ -1057,8 +1060,9 @@ export const createBaseCube = async (dataset: Dataset, endRevision: Revision): P
     } catch (err) {
         logger.error(`Failed to write memory database to disk with error: ${err}`);
         throw err;
+    } finally {
+        await quack.close();
     }
-    await quack.close();
     // Pass the file handle to the calling method
     // If used for preview you just want the file
     // If it's the end of the publishing step you'll
@@ -1077,7 +1081,10 @@ export const cleanUpCube = async (tmpFile: string) => {
 
 export const getCubeDataTable = async (cubeFile: string, lang: string) => {
     const quack = await Database.create(cubeFile);
-    const defaultView = await quack.all(`SELECT * FROM default_view_${lang};`);
-    await quack.close();
-    return defaultView;
+    try {
+        const defaultView = await quack.all(`SELECT * FROM default_view_${lang};`);
+        return defaultView;
+    } finally {
+        await quack.close();
+    }
 };

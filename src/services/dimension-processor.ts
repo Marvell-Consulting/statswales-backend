@@ -737,13 +737,13 @@ export const getDimensionPreview = async (
             logger.debug('Straight column preview');
             viewDto = await getPreviewWithoutExtractor(dataset, dimension, dataTable, quack, tableName);
         }
-        await quack.close();
         fs.unlinkSync(tempFile);
         return viewDto;
     } catch (error) {
         logger.error(`Something went wrong trying to create dimension preview with the following error: ${error}`);
-        await quack.close();
         fs.unlinkSync(tempFile);
         throw error;
+    } finally {
+        await quack.close();
     }
 };

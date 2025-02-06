@@ -75,7 +75,8 @@ function createExtractor(
                     protoLookupTable.dataTableDescriptions
                         .filter((info) => info.columnName === desc)
                         .map((info) => columnIdentification(info))[0]
-            )
+            ),
+            languageColumn: tableMatcher?.measure_type_column
         };
     } else {
         logger.debug('Detecting column types from column names');
@@ -87,6 +88,9 @@ function createExtractor(
         return {
             sortColumn: protoLookupTable.dataTableDescriptions.find((info) =>
                 info.columnName.toLowerCase().startsWith('sort')
+            )?.columnName,
+            languageColumn: protoLookupTable.dataTableDescriptions.find((info) =>
+                info.columnName.toLowerCase().startsWith('lang')
             )?.columnName,
             formatColumn: protoLookupTable.dataTableDescriptions.find(
                 (info) =>
@@ -243,6 +247,7 @@ export const validateMeasureLookupTable = async (
         fs.unlinkSync(lookupTableTmpFile);
         fs.unlinkSync(factTableTmpFile);
     } catch (err) {
+        await quack.close();
         logger.error(`Something went wrong trying to load data in to DuckDB with the following error: ${err}`);
         throw err;
     }
@@ -251,10 +256,12 @@ export const validateMeasureLookupTable = async (
     try {
         confirmedJoinColumn = lookForJoinColumn(protoLookupTable, measure.factTableColumn, tableMatcher);
     } catch (err) {
+        await quack.close();
         return viewErrorGenerator(400, dataset.id, 'patch', 'errors.dimensionValidation.no_join_column', {});
     }
 
     if (!confirmedJoinColumn) {
+        await quack.close();
         return viewErrorGenerator(400, dataset.id, 'patch', 'errors.dimensionValidation.no_join_column', {});
     }
 
@@ -306,6 +313,7 @@ export const validateMeasureLookupTable = async (
             data: dataArray
         };
     } catch (error) {
+        await quack.close();
         logger.error(`Something went wrong trying to generate the preview of the lookup table with error: ${error}`);
         throw error;
     }

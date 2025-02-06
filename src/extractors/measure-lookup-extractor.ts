@@ -6,4 +6,5 @@ export interface MeasureLookupTableExtractor {
     notesColumns?: ColumnDescriptor[];
     measureTypeColumn?: string;
     formatColumn?: string;
+    languageColumn?: string;
 }
