@@ -596,6 +596,11 @@ async function getPreviewWithoutExtractor(
     quack: Database,
     tableName: string
 ): Promise<ViewDTO> {
+    const totals = await quack.all(
+        `SELECT COUNT(DISTINCT ${dimension.factTableColumn}) AS totalLines FROM ${tableName};`
+    );
+    const totalLines = Number(totals[0].totalLines);
+
     const preview = await quack.all(
         `SELECT DISTINCT "${dimension.factTableColumn}" FROM ${tableName} ORDER BY "${dimension.factTableColumn}" ASC LIMIT ${sampleSize};`
     );
@@ -616,7 +621,7 @@ async function getPreviewWithoutExtractor(
         data_table: DataTableDto.fromDataTable(currentImport),
         current_page: 1,
         page_info: {
-            total_records: preview.length,
+            total_records: totalLines,
             start_record: 1,
             end_record: preview.length
         },
