@@ -5,4 +5,5 @@ export interface LookupTableExtractor {
     sortColumn?: string;
     hierarchyColumn?: string;
     notesColumns?: ColumnDescriptor[];
+    languageColumn?: string;
 }

@@ -4,4 +4,5 @@ export interface LookupTablePatchDTO {
     notes_column?: string[];
     sort_column?: string;
     hierarchy?: string;
+    language?: string;
 }

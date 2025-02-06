@@ -66,7 +66,8 @@ function createExtractor(protoLookupTable: DataTable, tableMatcher?: LookupTable
                     protoLookupTable.dataTableDescriptions
                         .filter((info) => info.columnName === desc)
                         .map((info) => columnIdentification(info))[0]
-            )
+            ),
+            languageColumn: tableMatcher.language
         };
     } else {
         logger.debug(`Using lookup table to try try to generate the extractor...`);
@@ -75,6 +76,9 @@ function createExtractor(protoLookupTable: DataTable, tableMatcher?: LookupTable
         )?.columnName;
         const hierarchyColumn = protoLookupTable.dataTableDescriptions.find((info) =>
             info.columnName.toLowerCase().startsWith('hierarchy')
+        )?.columnName;
+        const languageColumn = protoLookupTable.dataTableDescriptions.find((info) =>
+            info.columnName.toLowerCase().startsWith('lang')
         )?.columnName;
         const filteredDescriptionColumns = protoLookupTable.dataTableDescriptions.filter((info) =>
             info.columnName.toLowerCase().startsWith('description')
@@ -94,7 +98,8 @@ function createExtractor(protoLookupTable: DataTable, tableMatcher?: LookupTable
             sortColumn,
             hierarchyColumn,
             descriptionColumns,
-            notesColumns
+            notesColumns,
+            languageColumn
         };
     }
 }
@@ -123,6 +128,7 @@ export const validateLookupTable = async (
         fs.unlinkSync(lookupTableTmpFile);
         fs.unlinkSync(factTableTmpFile);
     } catch (err) {
+        await quack.close();
         logger.error(`Something went wrong trying to load data in to DuckDB with the following error: ${err}`);
         throw err;
     }
@@ -131,10 +137,12 @@ export const validateLookupTable = async (
     try {
         confirmedJoinColumn = lookForJoinColumn(protoLookupTable, dimension.factTableColumn, tableMatcher);
     } catch (err) {
+        await quack.close();
         return viewErrorGenerator(400, dataset.id, 'patch', 'errors.dimensionValidation.no_join_column', {});
     }
 
     if (!confirmedJoinColumn) {
+        await quack.close();
         return viewErrorGenerator(400, dataset.id, 'patch', 'errors.dimensionValidation.no_join_column', {});
     }
 
@@ -176,6 +184,7 @@ export const validateLookupTable = async (
             });
         }
     } catch (error) {
+        await quack.close();
         logger.error(
             `Something went wrong, most likely an incorrect join column name, while trying to validate the lookup table with error: ${error}`
         );
@@ -193,7 +202,6 @@ export const validateLookupTable = async (
     try {
         logger.debug('Passed validation preparing to send back the preview');
         const dimensionTable = await quack.all(`SELECT * FROM ${lookupTableName};`);
-        await quack.close();
         const tableHeaders = Object.keys(dimensionTable[0]);
         const dataArray = dimensionTable.map((row) => Object.values(row));
         const currentDataset = await DatasetRepository.getById(dataset.id);
@@ -226,5 +234,7 @@ export const validateLookupTable = async (
     } catch (error) {
         logger.error(`Something went wrong trying to generate the preview of the lookup table with error: ${error}`);
         throw error;
+    } finally {
+        await quack.close();
     }
 };
