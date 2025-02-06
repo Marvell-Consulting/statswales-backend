@@ -25,6 +25,7 @@ import { DataLakeService } from './datalake';
 export const MAX_PAGE_SIZE = 500;
 export const MIN_PAGE_SIZE = 5;
 export const DEFAULT_PAGE_SIZE = 100;
+const sampleSize = 5;
 
 const t = i18next.t;
 const logger = parentLogger.child({ module: 'CSVProcessor' });
@@ -398,7 +399,9 @@ export const getFactTableColumnPreview = async (
                 throw new Error('Unknown file type');
         }
         await quack.exec(createTableQuery);
-        const previewQuery = `SELECT DISTINCT ${columnName} FROM ${tableName} LIMIT 5`;
+        const totals = await quack.all(`SELECT COUNT(DISTINCT ${columnName}) AS totalLines FROM ${tableName};`);
+        const totalLines = Number(totals[0].totalLines);
+        const previewQuery = `SELECT DISTINCT ${columnName} FROM ${tableName} LIMIT ${sampleSize}`;
         const preview = await quack.all(previewQuery);
         const tableHeaders = Object.keys(preview[0]);
         const dataArray = preview.map((row) => Object.values(row));
@@ -423,11 +426,11 @@ export const getFactTableColumnPreview = async (
             data_table: DataTableDto.fromDataTable(currentImport),
             current_page: 1,
             page_info: {
-                total_records: 1,
+                total_records: totalLines,
                 start_record: 1,
-                end_record: 10
+                end_record: preview.length
             },
-            page_size: 10,
+            page_size: preview.length < sampleSize ? preview.length : sampleSize,
             total_pages: 1,
             headers,
             data: dataArray
