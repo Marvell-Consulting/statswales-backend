@@ -60,6 +60,7 @@ stages:
           imageToDeploy: '$(container_registry)/$(imageRepository):$(tag)'
           environmentVariables: >
             APP_ENV=$(app_env)
+            LOG_LEVEL=$(log_level)
             DB_HOST=$(db_host)
             DB_PORT=5432
             DB_USERNAME=$(db_username)
