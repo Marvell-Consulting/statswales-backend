@@ -307,12 +307,11 @@ async function attachUpdateDataTableToRevision(
                     lookupTableUpdated: false
                 });
             } else {
+                await quack.close();
                 logger.error(`An error occurred trying to validate the file with the following error: ${err}`);
                 next(new BadRequestException('errors.data_table_validation_error'));
                 return;
             }
-        } finally {
-            await quack.close();
         }
     }
 
@@ -324,6 +323,7 @@ async function attachUpdateDataTableToRevision(
     revision.tasks = {
         dimensions: dimensionUpdateTasks
     };
+    await quack.close();
     await revision.save();
 
     // eslint-disable-next-line require-atomic-updates
