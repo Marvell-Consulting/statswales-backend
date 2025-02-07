@@ -18,14 +18,20 @@ export class DatasetProvider extends BaseEntity {
     @Column({ type: 'varchar', length: 5 })
     language: string;
 
-    @ManyToOne(() => Dataset, (dataset) => dataset.datasetProviders)
+    @ManyToOne(() => Dataset, (dataset) => dataset.datasetProviders, {
+        onDelete: 'CASCADE',
+        orphanedRowAction: 'delete'
+    })
     @JoinColumn({ name: 'dataset_id', foreignKeyConstraintName: 'FK_dataset_provider_dataset_id' })
     dataset: Dataset;
 
     @Column({ type: 'uuid', name: 'provider_id' })
     providerId: string;
 
-    @ManyToOne(() => Provider, (provider) => provider.datasetProviders)
+    @ManyToOne(() => Provider, (provider) => provider.datasetProviders, {
+        onDelete: 'CASCADE',
+        orphanedRowAction: 'delete'
+    })
     @JoinColumn([
         {
             name: 'provider_id',
@@ -43,7 +49,10 @@ export class DatasetProvider extends BaseEntity {
     @Column({ type: 'uuid', name: 'provider_source_id', nullable: true })
     providerSourceId?: string;
 
-    @ManyToOne(() => ProviderSource, (providerSource) => providerSource.datasetProviders)
+    @ManyToOne(() => ProviderSource, (providerSource) => providerSource.datasetProviders, {
+        onDelete: 'CASCADE',
+        orphanedRowAction: 'delete'
+    })
     @JoinColumn([
         {
             name: 'provider_source_id',
