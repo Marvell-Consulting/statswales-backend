@@ -1,3 +1,5 @@
+import { performance } from 'node:perf_hooks';
+
 import 'reflect-metadata';
 
 import express, { NextFunction, Request, Response, Router } from 'express';
@@ -61,10 +63,17 @@ export const loadDataset = (relations?: FindOptionsRelations<Dataset>) => {
         // TODO: include user in query to prevent unauthorized access
 
         try {
-            logger.debug(`Loading dataset ${req.params.dataset_id}...`);
+            const start = performance.now();
             const dataset = await DatasetRepository.getById(req.params.dataset_id, relations);
+            const end = performance.now();
+
             res.locals.datasetId = dataset.id;
             res.locals.dataset = dataset;
+
+            const size = Math.round(Buffer.byteLength(JSON.stringify(dataset)) / 1024);
+            const time = Math.round(end - start);
+
+            logger.debug(`Dataset ${req.params.dataset_id} loaded { size: ${size}kb, time: ${time}ms }`);
         } catch (err) {
             logger.error(`Failed to load dataset, error: ${err}`);
             next(new NotFoundException('errors.no_dataset'));
