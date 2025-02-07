@@ -75,6 +75,10 @@ export interface AppConfig {
             fileSystemName: string;
         };
     };
+    duckdb: {
+        threads: number;
+        memory: string;
+    };
 }
 
 // list any optional properties here so we can ignore missing values when we check the config on boot

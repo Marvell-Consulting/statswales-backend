@@ -22,6 +22,7 @@ import { DatasetDTO } from '../dtos/dataset-dto';
 import { DataTableDto } from '../dtos/data-table-dto';
 
 import { cleanUpDimension } from './dimension-processor';
+import { duckdb } from './duckdb';
 
 async function setupDimension(
     dimension: Dimension,
@@ -115,7 +116,7 @@ export const validateLookupTable = async (
     const lookupTable = convertFactTableToLookupTable(protoLookupTable, dimension);
     const factTableName = 'fact_table';
     const lookupTableName = 'preview_lookup';
-    const quack = await Database.create(':memory:');
+    const quack = await duckdb();
     const lookupTableTmpFile = tmp.tmpNameSync({ postfix: `.${lookupTable.fileType}` });
     try {
         logger.debug(`Writing the lookup table to disk: ${lookupTableTmpFile}`);

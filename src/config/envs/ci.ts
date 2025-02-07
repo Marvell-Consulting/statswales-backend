@@ -56,6 +56,10 @@ export function getCIConfig(): AppConfig {
                 accountKey: 'accountkey',
                 fileSystemName: 'fsname'
             }
+        },
+        duckdb: {
+            threads: 1,
+            memory: '125MB'
         }
     });
 }

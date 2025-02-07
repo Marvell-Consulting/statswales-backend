@@ -45,6 +45,7 @@ import { DimensionType } from '../enums/dimension-type';
 import { CubeValidationException, CubeValidationType } from '../exceptions/cube-error-exception';
 import { DimensionUpdateTask } from '../interfaces/revision-task';
 import { Dataset } from '../entities/dataset/dataset';
+import { duckdb } from '../services/duckdb';
 
 import { getCubePreview, outputCube } from './cube-controller';
 
@@ -271,7 +272,7 @@ async function attachUpdateDataTableToRevision(
     fileImport.action = updateAction;
 
     revision.dataTable = fileImport;
-    const quack = await Database.create(':memory:');
+    const quack = await duckdb();
     try {
         await updateFactTableValidator(quack, dataset, revision);
     } catch (err) {

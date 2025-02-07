@@ -26,6 +26,7 @@ import { CubeValidationException, CubeValidationType } from '../exceptions/cube-
 import { DataTableDescription } from '../entities/dataset/data-table-description';
 
 import { dateDimensionReferenceTableCreator } from './time-matching';
+import { duckdb } from './duckdb';
 
 export const FACT_TABLE_NAME = 'fact_table';
 
@@ -1004,7 +1005,7 @@ export const createBaseCube = async (dataset: Dataset, endRevision: Revision): P
     }
 
     logger.debug('Creating an in-memory database to hold the cube using DuckDB 🐤');
-    const quack = await Database.create(':memory:');
+    const quack = await duckdb();
 
     const { measureColumn, notesCodeColumn, dataValuesColumn, factTableDef, factIdentifiers } =
         await createBaseFactTable(quack, dataset);
@@ -1080,7 +1081,7 @@ export const cleanUpCube = async (tmpFile: string) => {
 };
 
 export const getCubeDataTable = async (cubeFile: string, lang: string) => {
-    const quack = await Database.create(cubeFile);
+    const quack = await duckdb(cubeFile);
     try {
         const defaultView = await quack.all(`SELECT * FROM default_view_${lang};`);
         return defaultView;

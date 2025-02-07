@@ -33,6 +33,7 @@ import { createFactTableQuery } from './cube-handler';
 import { DataLakeService } from './datalake';
 // eslint-disable-next-line import/no-cycle
 import { getReferenceDataDimensionPreview } from './reference-data-handler';
+import { duckdb } from './duckdb';
 
 const createDateDimensionTable = `CREATE TABLE date_dimension (date_code VARCHAR, description VARCHAR, start_date datetime, end_date datetime, date_type varchar);`;
 const sampleSize = 5;
@@ -344,7 +345,7 @@ export const validateDateTypeDimension = async (
     factTable: DataTable
 ): Promise<ViewDTO | ViewErrDTO> => {
     const tableName = 'fact_table';
-    const quack = await Database.create(':memory:');
+    const quack = await duckdb();
     const tempFile = tmp.tmpNameSync({ postfix: `.${factTable.fileType}` });
     // extract the data from the fact table
     try {
@@ -686,7 +687,7 @@ export const getDimensionPreview = async (
 ) => {
     logger.debug(`Getting dimension preview for ${dimension.id}`);
     const tableName = 'fact_table';
-    const quack = await Database.create(':memory:');
+    const quack = await duckdb();
     const tempFile = tmp.tmpNameSync({ postfix: `.${dataTable.fileType}` });
     // extract the data from the fact table
     try {

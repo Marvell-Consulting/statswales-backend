@@ -46,6 +46,10 @@ export function getLocalConfig(): AppConfig {
                 secure: false,
                 cookieDomain: 'http://localhost'
             }
+        },
+        duckdb: {
+            threads: process.env.DUCKDB_THREADS ? parseInt(process.env.DUCKDB_THREADS, 10) : 1,
+            memory: process.env.DUCKDB_MEMORY || '125MB'
         }
     });
 }

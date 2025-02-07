@@ -21,6 +21,7 @@ import { DataTableAction } from '../enums/data-table-action';
 import { convertBufferToUTF8 } from '../utils/file-utils';
 
 import { DataLakeService } from './datalake';
+import { duckdb } from './duckdb';
 
 export const MAX_PAGE_SIZE = 500;
 export const MIN_PAGE_SIZE = 5;
@@ -105,7 +106,7 @@ function validateParams(page_number: number, max_page_number: number, page_size:
 
 export async function extractTableInformation(fileBuffer: Buffer, fileType: FileType): Promise<DataTableDescription[]> {
     const tableName = 'preview_table';
-    const quack = await Database.create(':memory:');
+    const quack = await duckdb();
     const tempFile = tmp.tmpNameSync({ postfix: `.${fileType}` });
     let tableHeaders: TableData;
     let createTableQuery: string;
@@ -257,7 +258,7 @@ export const getCSVPreview = async (
     size: number
 ): Promise<ViewDTO | ViewErrDTO> => {
     const tableName = 'preview_table';
-    const quack = await Database.create(':memory:');
+    const quack = await duckdb();
     const tempFile = tmp.tmpNameSync({ postfix: `.${importObj.fileType}` });
     try {
         const dataLakeService = new DataLakeService();
@@ -371,7 +372,7 @@ export const getFactTableColumnPreview = async (
 ): Promise<ViewDTO | ViewErrDTO> => {
     logger.debug(`Getting fact table column preview for ${columnName}`);
     const tableName = 'preview_table';
-    const quack = await Database.create(':memory:');
+    const quack = await duckdb();
     const tempFile = tmp.tmpNameSync({ postfix: `.${dataTable.fileType}` });
     try {
         const dataLakeService = new DataLakeService();
