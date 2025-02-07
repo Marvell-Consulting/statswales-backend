@@ -32,7 +32,7 @@ export const getDefaultConfig = (): AppConfig => {
             redisPassword: process.env.REDIS_ACCESS_KEY
         },
         logger: {
-            level: (process.env.LOGGER_LEVEL as Level) || 'info'
+            level: (process.env.LOG_LEVEL as Level) || 'info'
         },
         rateLimit: {
             windowMs: 60000,

@@ -2,7 +2,6 @@ import { AuthProvider } from '../../enums/auth-providers';
 import { AppConfig } from '../app-config.interface';
 import { defineConfig } from '../define-config';
 import { AppEnv } from '../env.enum';
-import { SessionStore } from '../session-store.enum';
 
 // anything that is not a secret can go in here, get the rest from env
 
