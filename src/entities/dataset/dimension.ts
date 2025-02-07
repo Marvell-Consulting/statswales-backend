@@ -40,10 +40,7 @@ export class Dimension extends BaseEntity {
     isSliceDimension: boolean;
 
     @OneToOne(() => LookupTable, (lookupTable) => lookupTable.dimension, { cascade: true })
-    @JoinColumn({
-        name: 'lookup_table_id',
-        foreignKeyConstraintName: 'FK_dimension_lookup_table_id_lookup_table_dimension_id'
-    })
+    @JoinColumn({ name: 'lookup_table_id', foreignKeyConstraintName: 'FK_dimension_lookup_table_id' })
     lookupTable: LookupTable | null;
 
     @OneToMany(() => DimensionMetadata, (dimensionInfo) => dimensionInfo.dimension, { cascade: true })

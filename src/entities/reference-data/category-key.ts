@@ -11,6 +11,6 @@ export class CategoryKey extends BaseEntity {
     category: string;
 
     @ManyToOne(() => Category)
-    @JoinColumn({ name: 'category' })
+    @JoinColumn({ name: 'category', foreignKeyConstraintName: 'FK_category_key_category' })
     categoryEntity: Category;
 }

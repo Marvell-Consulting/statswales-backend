@@ -17,6 +17,6 @@ export class CategoryInfo extends BaseEntity {
     notes: string;
 
     @ManyToOne(() => Category)
-    @JoinColumn({ name: 'category' })
+    @JoinColumn({ name: 'category', foreignKeyConstraintName: 'FK_category_info_category' })
     categoryEntity: Category;
 }
