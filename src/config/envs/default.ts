@@ -76,6 +76,10 @@ export const getDefaultConfig = (): AppConfig => {
                 accountKey: process.env.AZURE_DATALAKE_STORAGE_ACCOUNT_KEY!,
                 fileSystemName: process.env.AZURE_DATALAKE_STORAGE_FILESYSTEM_NAME!
             }
+        },
+        duckdb: {
+            threads: process.env.DUCKDB_THREADS ? parseInt(process.env.DUCKDB_THREADS, 10) : 1,
+            memory: process.env.DUCKDB_MEMORY || '125MB'
         }
     };
 };

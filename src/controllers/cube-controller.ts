@@ -16,6 +16,7 @@ import { getLatestRevision } from '../utils/latest';
 import { UnknownException } from '../exceptions/unknown.exception';
 import { DataLakeService } from '../services/datalake';
 import { createBaseCube } from '../services/cube-handler';
+import { duckdb } from '../services/duckdb';
 
 export const getCubePreview = async (
     cubeFile: string,
@@ -25,7 +26,7 @@ export const getCubePreview = async (
     size: number
 ): Promise<ViewDTO | ViewErrDTO> => {
     logger.debug(`Opening cube file ${cubeFile}`);
-    const quack = await Database.create(cubeFile);
+    const quack = await duckdb(cubeFile);
     try {
         const totalsQuery = `SELECT count(*) as totalLines, ceil(count(*)/${size}) as totalPages from default_view_${lang};`;
         const totals = await quack.all(totalsQuery);
@@ -82,7 +83,7 @@ export const getCubePreview = async (
 };
 
 export const outputCube = async (cubeFile: string, lang: string, mode: DuckdbOutputType) => {
-    const quack = await Database.create(cubeFile);
+    const quack = await duckdb(cubeFile);
     try {
         const outputFile: FileResult = tmp.fileSync({ postfix: `.${mode}` });
         switch (mode) {

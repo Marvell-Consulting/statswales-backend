@@ -23,6 +23,7 @@ import {
     loadCorrectReferenceDataIntoReferenceDataTable,
     loadReferenceDataIntoCube
 } from './cube-handler';
+import { duckdb } from './duckdb';
 
 async function setupDimension(dimension: Dimension, categories: string[]) {
     // Clean up previously uploaded dimensions
@@ -134,7 +135,7 @@ export const validateReferenceData = async (
     lang: string
 ): Promise<ViewDTO | ViewErrDTO> => {
     const factTableName = 'fact_table';
-    const quack = await Database.create(':memory:');
+    const quack = await duckdb();
     try {
         // Load reference data in to cube
         await loadReferenceDataIntoCube(quack);

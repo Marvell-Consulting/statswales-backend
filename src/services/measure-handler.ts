@@ -25,6 +25,7 @@ import { LookupTableExtractor } from '../extractors/lookup-table-extractor';
 
 import { createFactTableQuery } from './cube-handler';
 import { DataLakeService } from './datalake';
+import { duckdb } from './duckdb';
 
 async function cleanUpMeasure(measure: Measure) {
     if (!measure.lookupTable) return;
@@ -237,7 +238,7 @@ export const validateMeasureLookupTable = async (
     const factTableName = 'fact_table';
     const lookupTableName = 'preview_lookup';
     const measure = dataset.measure;
-    const quack = await Database.create(':memory:');
+    const quack = await duckdb();
     const lookupTableTmpFile = tmp.tmpNameSync({ postfix: `.${lookupTable.fileType}` });
     try {
         fs.writeFileSync(lookupTableTmpFile, buffer);
@@ -405,7 +406,7 @@ async function getMeasurePreviewWithExtractor(
 export const getMeasurePreview = async (dataset: Dataset, factTable: DataTable) => {
     logger.debug(`Getting measure preview for ${dataset.measure.id}`);
     const tableName = 'fact_table';
-    const quack = await Database.create(':memory:');
+    const quack = await duckdb();
     const tempFile = tmp.tmpNameSync({ postfix: `.${factTable.fileType}` });
     const measure = dataset.measure;
     if (!measure) {
