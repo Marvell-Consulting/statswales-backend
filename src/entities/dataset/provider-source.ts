@@ -1,4 +1,4 @@
-import { BaseEntity, Column, Entity, JoinColumn, ManyToOne, OneToMany, PrimaryColumn } from 'typeorm';
+import { BaseEntity, Column, Entity, Index, JoinColumn, ManyToOne, OneToMany, PrimaryColumn } from 'typeorm';
 
 import { Provider } from './provider';
 import { DatasetProvider } from './dataset-provider';
@@ -25,6 +25,7 @@ export class ProviderSource extends BaseEntity {
     @Column({ type: 'uuid', name: 'provider_id' })
     providerId: string;
 
+    @Index('IDX_provider_source_provider_id_language', ['provider_id', 'language'])
     @ManyToOne(() => Provider, (provider) => provider.sources, {
         onDelete: 'CASCADE',
         orphanedRowAction: 'delete',

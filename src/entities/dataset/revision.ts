@@ -5,9 +5,9 @@ import {
     CreateDateColumn,
     BaseEntity,
     JoinColumn,
-    OneToMany,
     ManyToOne,
-    OneToOne
+    OneToOne,
+    Index
 } from 'typeorm';
 
 import { User } from '../user/user';
@@ -25,10 +25,12 @@ export class Revision extends BaseEntity implements RevisionInterface {
     @Column({ name: 'revision_index', type: 'int', nullable: false })
     revisionIndex: number;
 
+    @Index('IDX_revison_dataset_id')
     @ManyToOne(() => Dataset, (dataset) => dataset.revisions, { onDelete: 'CASCADE', orphanedRowAction: 'delete' })
     @JoinColumn({ name: 'dataset_id', foreignKeyConstraintName: 'FK_revision_dataset_id' })
     dataset: Dataset;
 
+    @Index('IDX_revison_previous_revision_id')
     @ManyToOne(() => Revision, { nullable: true, onDelete: 'CASCADE', orphanedRowAction: 'delete' })
     @JoinColumn({ name: 'previous_revision_id', foreignKeyConstraintName: 'FK_revision_previous_revision_id' })
     previousRevision: RevisionInterface;
@@ -42,6 +44,7 @@ export class Revision extends BaseEntity implements RevisionInterface {
     @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
     createdAt: Date;
 
+    @Index('IDX_revison_created_by')
     @ManyToOne(() => User)
     @JoinColumn({ name: 'created_by', foreignKeyConstraintName: 'FK_revision_created_by' })
     createdBy: User;
@@ -49,6 +52,7 @@ export class Revision extends BaseEntity implements RevisionInterface {
     @Column({ name: 'approved_at', type: 'timestamptz', nullable: true })
     approvedAt: Date | null;
 
+    @Index('IDX_revison_approved_by')
     @ManyToOne(() => User, { nullable: true })
     @JoinColumn({ name: 'approved_by', foreignKeyConstraintName: 'FK_revision_approved_by' })
     approvedBy: User | null;

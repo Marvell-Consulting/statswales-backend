@@ -1,4 +1,13 @@
-import { BaseEntity, Column, CreateDateColumn, Entity, JoinColumn, ManyToOne, PrimaryGeneratedColumn } from 'typeorm';
+import {
+    BaseEntity,
+    Column,
+    CreateDateColumn,
+    Entity,
+    Index,
+    JoinColumn,
+    ManyToOne,
+    PrimaryGeneratedColumn
+} from 'typeorm';
 
 import { Provider } from './provider';
 import { Dataset } from './dataset';
@@ -12,6 +21,7 @@ export class DatasetProvider extends BaseEntity {
     @Column({ type: 'uuid', name: 'group_id' })
     groupId: string; // dataset providers can be in multiple languages - use this id to group them
 
+    @Index('IDX_dataset_provider_dataset_id')
     @Column({ type: 'uuid', name: 'dataset_id' })
     datasetId: string;
 
@@ -28,6 +38,7 @@ export class DatasetProvider extends BaseEntity {
     @Column({ type: 'uuid', name: 'provider_id' })
     providerId: string;
 
+    @Index('IDX_dataset_provider_provider_id_language', ['provider_id', 'language'])
     @ManyToOne(() => Provider, (provider) => provider.datasetProviders, {
         onDelete: 'CASCADE',
         orphanedRowAction: 'delete'
@@ -49,6 +60,7 @@ export class DatasetProvider extends BaseEntity {
     @Column({ type: 'uuid', name: 'provider_source_id', nullable: true })
     providerSourceId?: string;
 
+    @Index('IDX_dataset_provider_provider_source_id_language', ['provider_source_id', 'language'])
     @ManyToOne(() => ProviderSource, (providerSource) => providerSource.datasetProviders, {
         onDelete: 'CASCADE',
         orphanedRowAction: 'delete'

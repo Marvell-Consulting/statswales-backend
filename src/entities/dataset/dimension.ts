@@ -6,7 +6,8 @@ import {
     ManyToOne,
     OneToMany,
     JoinColumn,
-    OneToOne
+    OneToOne,
+    Index
 } from 'typeorm';
 
 import { DimensionType } from '../../enums/dimension-type';
@@ -20,6 +21,7 @@ export class Dimension extends BaseEntity {
     @PrimaryGeneratedColumn('uuid', { primaryKeyConstraintName: 'PK_dimension_id' })
     id: string;
 
+    @Index('IDX_dimension_dataset_id')
     @ManyToOne(() => Dataset, { onDelete: 'CASCADE', orphanedRowAction: 'delete' })
     @JoinColumn({ name: 'dataset_id', foreignKeyConstraintName: 'FK_dimension_dataset_id' })
     dataset: Dataset;
