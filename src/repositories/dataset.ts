@@ -115,7 +115,7 @@ export const DatasetRepository = dataSource.getRepository(Dataset).extend({
             await infoRepo.create({ dataset: { id: datasetId }, ...updatedInfo }).save();
         }
 
-        return this.getById(datasetId);
+        return this.getById(datasetId, { metadata: true });
     },
 
     async listAllByLanguage(lang: Locale): Promise<DatasetListItemDTO[]> {
