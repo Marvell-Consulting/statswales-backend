@@ -8,12 +8,12 @@ export const errorHandler: ErrorRequestHandler = (err: any, req: Request, res: R
 
     switch (err.status) {
         case 400:
-            logger.error(`400 error detected for ${req.originalUrl}: ${message}`);
+            logger.error(err, `400 error detected for ${req.originalUrl}: ${message}`);
             res.status(400);
             // TODO: flatten the validation errors to make them more friendly
             res.json({
                 error: t(message, { lng: req.language }),
-                reason: err.validationErrors ? err.validationErrors : undefined
+                reason: err.validationErrors
             });
             return;
 
@@ -23,13 +23,13 @@ export const errorHandler: ErrorRequestHandler = (err: any, req: Request, res: R
             break;
 
         case 404:
-            logger.error(`404 error detected for ${req.originalUrl}: ${message}`);
+            logger.error(err, `404 error detected for ${req.originalUrl}: ${message}`);
             res.status(404);
             break;
 
         case 500:
         default:
-            logger.error(`unknown error detected for ${req.originalUrl}: ${message}`);
+            logger.error(err, `unknown error detected for ${req.originalUrl}: ${message}`);
             res.status(500);
             break;
     }
