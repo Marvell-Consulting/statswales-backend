@@ -125,9 +125,11 @@ async function setupMeasure(
     updateMeasure.joinColumn = confirmedJoinColumn;
     updateMeasure.lookupTable = lookupTable;
     updateMeasure.extractor = createExtractor(protoLookupTable, tableMatcher);
+
     logger.debug('Saving the lookup table');
     await lookupTable.save();
-    logger.debug('Saving the dimension');
+
+    logger.debug('Saving the measure');
     updateMeasure.lookupTable = lookupTable;
     await updateMeasure.save();
 }
