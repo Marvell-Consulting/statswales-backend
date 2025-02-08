@@ -18,7 +18,7 @@ import { DimensionMetadata } from '../entities/dataset/dimension-metadata';
 import { Revision } from '../entities/dataset/revision';
 import { ResultsetWithCount } from '../interfaces/resultset-with-count';
 
-const defaultRelations: FindOptionsRelations<Dataset> = {
+const fullRelations: FindOptionsRelations<Dataset> = {
     createdBy: true,
     metadata: true,
     factTable: true,
@@ -52,7 +52,7 @@ const defaultRelations: FindOptionsRelations<Dataset> = {
 };
 
 export const DatasetRepository = dataSource.getRepository(Dataset).extend({
-    async getById(id: string, relations: FindOptionsRelations<Dataset> = defaultRelations): Promise<Dataset> {
+    async getById(id: string, relations: FindOptionsRelations<Dataset> = fullRelations): Promise<Dataset> {
         const findOptions: FindOneOptions<Dataset> = { where: { id }, relations };
 
         if (has(relations, 'revisions.factTables.factTableInfo')) {
@@ -70,7 +70,7 @@ export const DatasetRepository = dataSource.getRepository(Dataset).extend({
     async getPublishedById(id: string): Promise<Dataset> {
         const findOptions: FindOneOptions<Dataset> = {
             where: { id, live: Not(IsNull()) },
-            relations: defaultRelations,
+            relations: fullRelations,
             order: {
                 dimensions: { metadata: { language: 'ASC' } },
                 revisions: { dataTable: { dataTableDescriptions: { columnIndex: 'ASC' } } }

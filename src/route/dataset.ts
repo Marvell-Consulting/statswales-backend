@@ -75,7 +75,7 @@ export const loadDataset = (relations?: FindOptionsRelations<Dataset>) => {
 
             logger.debug(`Dataset ${req.params.dataset_id} loaded { size: ${size}kb, time: ${time}ms }`);
         } catch (err) {
-            logger.error(`Failed to load dataset, error: ${err}`);
+            logger.error(err, `Failed to load dataset`);
             next(new NotFoundException('errors.no_dataset'));
             return;
         }
@@ -117,6 +117,10 @@ router.get('/active', listActiveDatasets);
 // GET /dataset/:dataset_id
 // Returns the dataset with the given ID with all available relations hydrated
 router.get('/:dataset_id', loadDataset(), getDatasetById);
+
+// GET /dataset/:dataset_id/limited
+// Returns the dataset with the given ID with limited relations hydrated
+router.get('/:dataset_id/limited', loadDataset({ metadata: true, revisions: true }), getDatasetById);
 
 // DELETE /dataset/:dataset_id
 // Deletes the dataset with the given ID
@@ -184,7 +188,15 @@ router.patch('/:dataset_id/sources', jsonParser, loadDataset(), updateSources);
 
 // GET /dataset/:dataset_id/tasklist
 // Returns a JSON object with info on what parts of the dataset have been created
-router.get('/:dataset_id/tasklist', loadDataset(), getDatasetTasklist);
+const relForTasklistState: FindOptionsRelations<Dataset> = {
+    metadata: true,
+    revisions: { dataTable: true },
+    dimensions: { metadata: true },
+    datasetProviders: true,
+    datasetTopics: true,
+    team: true
+};
+router.get('/:dataset_id/tasklist', loadDataset(relForTasklistState), getDatasetTasklist);
 
 // POST /dataset/:dataset_id/providers
 // Adds a new data provider for the dataset
