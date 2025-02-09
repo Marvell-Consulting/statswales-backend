@@ -28,6 +28,7 @@ import {
     getDatasetById,
     getDatasetProviders,
     getDatasetTasklist,
+    getDatasetTopics,
     getFactTableDefinition,
     listActiveDatasets,
     listAllDatasets,
@@ -207,9 +208,13 @@ router.post('/:dataset_id/providers', jsonParser, loadDataset({}), addProvidersT
 // Updates the data providers for the dataset
 router.patch('/:dataset_id/providers', jsonParser, loadDataset({}), updateDatasetProviders);
 
+// GET /dataset/:dataset_id/topics
+// Returns the topics for the dataset
+router.get('/:dataset_id/topics', jsonParser, loadDataset({}), getDatasetTopics);
+
 // PATCH /dataset/:dataset_id/topics
 // Updates the topics for the dataset
-router.patch('/:dataset_id/topics', jsonParser, loadDataset(), updateDatasetTopics);
+router.patch('/:dataset_id/topics', jsonParser, loadDataset({}), updateDatasetTopics);
 
 // PATCH /dataset/:dataset_id/team
 // Updates the team for the dataset

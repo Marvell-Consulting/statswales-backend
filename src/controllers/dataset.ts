@@ -39,6 +39,7 @@ import { FactTable } from '../entities/dataset/fact-table';
 import { Dataset } from '../entities/dataset/dataset';
 import { FactTableColumnType } from '../enums/fact-table-column-type';
 import { FactTableColumnDto } from '../dtos/fact-table-column-dto';
+import { TopicDTO } from '../dtos/topic-dto';
 
 import { getCubePreview } from './cube-controller';
 
@@ -266,6 +267,16 @@ export const updateDatasetProviders = async (req: Request, res: Response, next: 
             return;
         }
         next(new UnknownException('errors.provider_update_error'));
+    }
+};
+
+export const getDatasetTopics = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+        const dataset = await DatasetRepository.getById(res.locals.datasetId, { datasetTopics: { topic: true } });
+        const topics = dataset.datasetTopics.map((datasetTopic) => TopicDTO.fromTopic(datasetTopic.topic));
+        res.json(topics);
+    } catch (err) {
+        next(err);
     }
 };
 
