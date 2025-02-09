@@ -218,6 +218,17 @@ export const getDatasetTasklist = async (req: Request, res: Response, next: Next
     }
 };
 
+export const getDatasetProviders = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+        const relations = { datasetProviders: { provider: true, providerSource: true } };
+        const dataset: Dataset = await DatasetRepository.getById(res.locals.datasetId, relations);
+        const providers = dataset.datasetProviders.map((provider) => DatasetProviderDTO.fromDatasetProvider(provider));
+        res.json(providers);
+    } catch (err) {
+        next(err);
+    }
+};
+
 export const addProvidersToDataset = async (req: Request, res: Response, next: NextFunction) => {
     try {
         const datasetId = res.locals.datasetId;

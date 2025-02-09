@@ -220,7 +220,7 @@ export const DatasetRepository = dataSource.getRepository(Dataset).extend({
 
         logger.debug(`Added new provider for dataset ${datasetId}`);
 
-        return this.getById(datasetId);
+        return this.getById(datasetId, { datasetProviders: { provider: true, providerSource: true } });
     },
 
     async updateDatasetProviders(datasetId: string, dataProviders: DatasetProviderDTO[]): Promise<Dataset> {
@@ -253,7 +253,7 @@ export const DatasetRepository = dataSource.getRepository(Dataset).extend({
             `Removed ${toRemove.length} providers and updated ${toUpdate.length} providers for dataset ${datasetId}`
         );
 
-        return this.getById(datasetId);
+        return this.getById(datasetId, { datasetProviders: { provider: true, providerSource: true } });
     },
 
     async updateDatasetTopics(datasetId: string, topics: string[]): Promise<Dataset> {
