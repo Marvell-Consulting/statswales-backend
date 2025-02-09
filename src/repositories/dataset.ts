@@ -101,7 +101,7 @@ export const DatasetRepository = dataSource.getRepository(Dataset).extend({
 
         dataset.metadata = [datasetMetadata, altLangDatasetInfo];
 
-        return this.getById(dataset.id);
+        return this.getById(dataset.id, { metadata: true });
     },
 
     async patchInfoById(datasetId: string, infoDto: DatasetInfoDTO): Promise<Dataset> {
@@ -319,6 +319,6 @@ export const DatasetRepository = dataSource.getRepository(Dataset).extend({
         await englishInfo.save();
         await welshInfo.save();
 
-        return this.getById(datasetId);
+        return this.getById(datasetId, { metadata: true, dimensions: { metadata: true } });
     }
 });
