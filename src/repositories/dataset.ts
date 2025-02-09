@@ -276,7 +276,7 @@ export const DatasetRepository = dataSource.getRepository(Dataset).extend({
         const team = await dataSource.getRepository(Team).findOneByOrFail({ id: teamId });
         dataset.team = team;
         await dataset.save();
-        return this.getById(datasetId);
+        return this.getById(datasetId, {});
     },
 
     async updateTranslations(datasetId: string, translations: TranslationDTO[]): Promise<Dataset> {
