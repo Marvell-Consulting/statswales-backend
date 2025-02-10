@@ -76,7 +76,7 @@ describe('API Endpoints', () => {
             const data = { title: 'My test datatset' };
             const res = await request(app).post('/dataset').set(getAuthHeader(user)).send(data);
             expect(res.status).toBe(201);
-            const dataset = await DatasetRepository.getById(res.body.id);
+            const dataset = await DatasetRepository.getById(res.body.id, { metadata: true });
             expect(res.body).toEqual(DatasetDTO.fromDataset(dataset));
         });
 
@@ -653,7 +653,7 @@ describe('API Endpoints', () => {
                     .set(getAuthHeader(user));
                 expect(res.status).toBe(201);
 
-                const updatedDataset = await DatasetRepository.getById(testDatasetId);
+                const updatedDataset = await DatasetRepository.getById(testDatasetId, { metadata: true });
                 const datasetDto = DatasetDTO.fromDataset(updatedDataset);
                 expect(res.body).toEqual(datasetDto);
             });
@@ -675,7 +675,7 @@ describe('API Endpoints', () => {
                     .set(getAuthHeader(user));
                 expect(res.status).toBe(201);
 
-                const updatedDataset = await DatasetRepository.getById(testDatasetId);
+                const updatedDataset = await DatasetRepository.getById(testDatasetId, { metadata: true });
                 const datasetDto = DatasetDTO.fromDataset(updatedDataset);
                 expect(res.body).toEqual(datasetDto);
             });
