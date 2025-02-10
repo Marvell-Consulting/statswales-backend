@@ -18,10 +18,7 @@ export class Measure extends BaseEntity {
     dataset: Dataset;
 
     @OneToOne(() => LookupTable, { cascade: true, onDelete: 'CASCADE' })
-    @JoinColumn({
-        name: 'lookup_table_id',
-        foreignKeyConstraintName: 'FK_measure_lookup_table_id_lookup_table_measure_id'
-    })
+    @JoinColumn({ name: 'lookup_table_id', foreignKeyConstraintName: 'FK_measure_lookup_table_id' })
     lookupTable: LookupTable | null;
 
     @Column({ name: 'fact_table_column', type: 'varchar' })

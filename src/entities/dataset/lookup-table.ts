@@ -11,16 +11,10 @@ export class LookupTable extends BaseEntity implements FileImportInterface {
     @PrimaryGeneratedColumn('uuid', { primaryKeyConstraintName: 'PK_lookup_table_id' })
     id: string;
 
-    @OneToOne(() => Dimension, {
-        orphanedRowAction: 'delete'
-    })
-    @JoinColumn({ name: 'dimension_id' })
+    @OneToOne(() => Dimension, { orphanedRowAction: 'delete' })
     dimension: Dimension;
 
-    @OneToOne(() => Measure, {
-        orphanedRowAction: 'delete'
-    })
-    @JoinColumn({ name: 'measure_id' })
+    @OneToOne(() => Measure, { orphanedRowAction: 'delete' })
     measure: Measure;
 
     @Column({ name: 'mime_type', type: 'varchar', length: 255 })

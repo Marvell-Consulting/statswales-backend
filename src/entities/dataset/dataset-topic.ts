@@ -18,7 +18,7 @@ export class DatasetTopic extends BaseEntity {
     @Column({ type: 'int', name: 'topic_id' })
     topicId: number;
 
-    @ManyToOne(() => Topic, (topic) => topic.datasetTopics)
+    @ManyToOne(() => Topic, (topic) => topic.datasetTopics, { onDelete: 'CASCADE', orphanedRowAction: 'delete' })
     @JoinColumn({ name: 'topic_id', foreignKeyConstraintName: 'FK_dataset_topic_topic_id' })
     topic: Topic;
 }

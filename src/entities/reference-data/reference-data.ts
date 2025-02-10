@@ -23,6 +23,6 @@ export class ReferenceData extends BaseEntity {
     validityEnd: Date;
 
     @ManyToOne(() => CategoryKey)
-    @JoinColumn({ name: 'category_key' })
+    @JoinColumn({ name: 'category_key', foreignKeyConstraintName: 'FK_reference_data_category_key' })
     categoryKeyEntity: CategoryKey;
 }

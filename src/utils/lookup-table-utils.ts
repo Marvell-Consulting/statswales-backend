@@ -16,8 +16,6 @@ export function convertFactTableToLookupTable(factTable: DataTable, dimension?: 
     lookupTable.filename = factTable.filename;
     lookupTable.mimeType = factTable.mimeType;
     lookupTable.hash = factTable.hash;
-    if (dimension) lookupTable.dimension = dimension;
-    if (measure) lookupTable.measure = measure;
     return lookupTable;
 }
 

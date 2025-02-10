@@ -62,8 +62,10 @@ export const attachLookupTableToMeasure = async (req: Request, res: Response, ne
         next(new NotFoundException('errors.fact_table_invalid'));
         return;
     }
+
     let fileImport: DataTable;
     const utf8Buffer = convertBufferToUTF8(req.file.buffer);
+
     try {
         fileImport = await uploadCSV(utf8Buffer, req.file?.mimetype, req.file?.originalname, res.locals.datasetId);
     } catch (err) {
@@ -85,7 +87,7 @@ export const attachLookupTableToMeasure = async (req: Request, res: Response, ne
         res.status(200);
         res.json(result);
     } catch (err) {
-        logger.error(`An error occurred trying to handle measure lookup table with error: ${err}`);
+        logger.error(err, `An error occurred trying to handle measure lookup table with error`);
         next(new UnknownException('errors.upload_error'));
     }
 };
