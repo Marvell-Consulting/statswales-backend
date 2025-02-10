@@ -1,12 +1,11 @@
-import { every, first, sortBy, last } from 'lodash';
+import { every, first, sortBy } from 'lodash';
 
 import { Dataset } from '../entities/dataset/dataset';
 import { DimensionMetadata } from '../entities/dataset/dimension-metadata';
 import { DimensionType } from '../enums/dimension-type';
 import { TaskStatus } from '../enums/task-status';
 import { translatableMetadataKeys } from '../types/translatable-metadata';
-
-import { DimensionStatus } from './dimension-status';
+import { DimensionStatus } from '../interfaces/dimension-status';
 
 export class TasklistStateDTO {
     datatable: TaskStatus;
@@ -52,17 +51,14 @@ export class TasklistStateDTO {
         const info = dataset.metadata?.find((info) => info.language === lang);
 
         const measure = () => {
-            if (!dataset.measure) {
-                return undefined;
-            }
-            if (dataset.measure.joinColumn) {
-                return {
-                    name: dataset.measure.factTableColumn,
-                    status: TaskStatus.Completed,
-                    type: 'measure'
-                };
-            }
-            return { name: dataset.measure.factTableColumn, status: TaskStatus.NotStarted, type: 'measure' };
+            if (!dataset.measure) return undefined;
+
+            return {
+                id: dataset.measure.id,
+                name: dataset.measure.factTableColumn,
+                status: dataset.measure.joinColumn ? TaskStatus.Completed : TaskStatus.NotStarted,
+                type: 'measure'
+            };
         };
 
         const latestRevision = first(sortBy(dataset.revisions, 'created_at'));
@@ -74,12 +70,14 @@ export class TasklistStateDTO {
             const dimensionUpdateTask = latestRevision?.tasks?.dimensions.find((task) => task.id === dimension.id);
             if (dimensionUpdateTask && !dimensionUpdateTask.lookupTableUpdated) {
                 dimensionStatus.push({
+                    id: dimension.id,
                     name: dimInfo?.name || 'unknown',
                     status: TaskStatus.NotStarted,
                     type: dimension.type
                 });
             } else {
                 dimensionStatus.push({
+                    id: dimension.id,
                     name: dimInfo?.name || 'unknown',
                     status: dimension.extractor === null ? TaskStatus.NotStarted : TaskStatus.Completed,
                     type: dimension.type
