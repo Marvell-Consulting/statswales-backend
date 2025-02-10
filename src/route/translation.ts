@@ -24,8 +24,8 @@ const upload = multer({ storage: multer.memoryStorage() });
 const TRANSLATION_FILENAME = 'translation-import.csv';
 
 const collectTranslations = (dataset: Dataset): TranslationDTO[] => {
-    const metadataEN = dataset.metadata?.find((info) => info.language.includes('en'));
-    const metadataCY = dataset.metadata?.find((info) => info.language.includes('cy'));
+    const metadataEN = dataset.metadata?.find((meta) => meta.language.includes('en'));
+    const metadataCY = dataset.metadata?.find((meta) => meta.language.includes('cy'));
 
     // ignore roundingDescription if rounding isn't applied
     const metadataKeys = translatableMetadataKeys.filter((key) => {
@@ -33,12 +33,12 @@ const collectTranslations = (dataset: Dataset): TranslationDTO[] => {
     });
 
     const translations: TranslationDTO[] = [
-        ...dataset.dimensions?.map((dim) => ({
+        ...dataset.dimensions?.map((dimension) => ({
             type: 'dimension',
-            key: dim.factTableColumn,
-            english: dim.metadata?.find((info) => info.language.includes('en'))?.name,
-            cymraeg: dim.metadata?.find((info) => info.language.includes('cy'))?.name,
-            id: dim.id
+            key: dimension.factTableColumn,
+            english: dimension.metadata?.find((meta) => meta.language.includes('en'))?.name,
+            cymraeg: dimension.metadata?.find((meta) => meta.language.includes('cy'))?.name,
+            id: dimension.id
         })),
         ...metadataKeys.map((prop) => ({
             type: 'metadata',
@@ -67,7 +67,7 @@ const parseUploadedTranslations = async (fileBuffer: Buffer): Promise<Translatio
 
 translationRouter.get(
     '/:dataset_id/preview',
-    loadDataset(),
+    loadDataset({ metadata: true, dimensions: { metadata: true } }),
     async (req: Request, res: Response, next: NextFunction) => {
         try {
             logger.info('Previewing translations for export...');
@@ -81,23 +81,27 @@ translationRouter.get(
     }
 );
 
-translationRouter.get('/:dataset_id/export', loadDataset(), async (req: Request, res: Response, next: NextFunction) => {
-    try {
-        logger.info('Exporting translations to CSV...');
-        const dataset: Dataset = res.locals.dataset;
-        const translations = collectTranslations(dataset);
-        res.setHeader('Content-Type', 'text/csv');
-        stringify(translations, { bom: true, header: true }).pipe(res);
-    } catch (error) {
-        logger.error('Error exporting translations', error);
-        next(new UnknownException());
+translationRouter.get(
+    '/:dataset_id/export',
+    loadDataset({ metadata: true, dimensions: { metadata: true } }),
+    async (req: Request, res: Response, next: NextFunction) => {
+        try {
+            logger.info('Exporting translations to CSV...');
+            const dataset: Dataset = res.locals.dataset;
+            const translations = collectTranslations(dataset);
+            res.setHeader('Content-Type', 'text/csv');
+            stringify(translations, { bom: true, header: true }).pipe(res);
+        } catch (error) {
+            logger.error('Error exporting translations', error);
+            next(new UnknownException());
+        }
     }
-});
+);
 
 translationRouter.post(
     '/:dataset_id/import',
     upload.single('csv'),
-    loadDataset(),
+    loadDataset({ metadata: true, dimensions: { metadata: true } }),
     async (req: Request, res: Response, next: NextFunction) => {
         const dataset: Dataset = res.locals.dataset;
         logger.info('Validating imported translations CSV...');
@@ -151,7 +155,7 @@ translationRouter.post(
 
 translationRouter.patch(
     '/:dataset_id/import',
-    loadDataset(),
+    loadDataset({ metadata: true, dimensions: { metadata: true } }),
     async (req: Request, res: Response, next: NextFunction) => {
         let dataset: Dataset = res.locals.dataset;
         logger.info('Updating translations from CSV...');

@@ -162,11 +162,7 @@ router.get('/:dataset_id/cube/excel', loadDataset(), downloadCubeAsExcel);
 
 // PATCH /dataset/:dataset_id/info
 // Updates the dataset info with the provided data
-router.patch('/:dataset_id/info', jsonParser, loadDataset(), updateDatasetInfo);
-
-// PATCH /dataset/:dataset_id/info
-// Updates the dataset info with the provided data
-router.patch('/:dataset_id/info', jsonParser, loadDataset(), updateDatasetInfo);
+router.patch('/:dataset_id/info', jsonParser, loadDataset({}), updateDatasetInfo);
 
 router.get('/:dataset_id/sources', loadDataset(), getFactTableDefinition);
 
@@ -212,4 +208,4 @@ router.patch('/:dataset_id/topics', jsonParser, loadDataset(), updateDatasetTopi
 
 // PATCH /dataset/:dataset_id/team
 // Updates the team for the dataset
-router.patch('/:dataset_id/team', jsonParser, loadDataset(), updateDatasetTeam);
+router.patch('/:dataset_id/team', jsonParser, loadDataset({}), updateDatasetTeam);

@@ -101,7 +101,7 @@ export const DatasetRepository = dataSource.getRepository(Dataset).extend({
 
         dataset.metadata = [datasetMetadata, altLangDatasetInfo];
 
-        return this.getById(dataset.id);
+        return this.getById(dataset.id, { metadata: true });
     },
 
     async patchInfoById(datasetId: string, infoDto: DatasetInfoDTO): Promise<Dataset> {
@@ -115,7 +115,7 @@ export const DatasetRepository = dataSource.getRepository(Dataset).extend({
             await infoRepo.create({ dataset: { id: datasetId }, ...updatedInfo }).save();
         }
 
-        return this.getById(datasetId);
+        return this.getById(datasetId, { metadata: true });
     },
 
     async listAllByLanguage(lang: Locale): Promise<DatasetListItemDTO[]> {
@@ -276,7 +276,7 @@ export const DatasetRepository = dataSource.getRepository(Dataset).extend({
         const team = await dataSource.getRepository(Team).findOneByOrFail({ id: teamId });
         dataset.team = team;
         await dataset.save();
-        return this.getById(datasetId);
+        return this.getById(datasetId, {});
     },
 
     async updateTranslations(datasetId: string, translations: TranslationDTO[]): Promise<Dataset> {
@@ -319,6 +319,6 @@ export const DatasetRepository = dataSource.getRepository(Dataset).extend({
         await englishInfo.save();
         await welshInfo.save();
 
-        return this.getById(datasetId);
+        return this.getById(datasetId, { metadata: true, dimensions: { metadata: true } });
     }
 });

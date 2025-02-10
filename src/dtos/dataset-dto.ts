@@ -28,6 +28,7 @@ export class DatasetDTO {
     datasetInfo: DatasetInfoDTO[];
     providers: DatasetProviderDTO[];
     topics: TopicDTO[];
+    team_id?: string;
     team?: TeamDTO[];
     start_date?: Date | null;
     end_date?: Date | null;
@@ -49,6 +50,8 @@ export class DatasetDTO {
         );
 
         dto.topics = dataset.datasetTopics?.map((datasetTopic: DatasetTopic) => TopicDTO.fromTopic(datasetTopic.topic));
+
+        dto.team_id = dataset.teamId; // keep this because it means we don't need always hydrate the team relation
 
         if (dataset.team) {
             dto.team = SUPPORTED_LOCALES.map((locale) => {
