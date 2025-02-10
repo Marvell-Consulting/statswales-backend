@@ -557,11 +557,13 @@ async function getDatePreviewWithExtractor(
         await stmt.run(row.dateCode, row.description, row.start, row.end, row.type);
     });
     await stmt.finalize();
-    const dimensionTable = await quack.all(
-        `SELECT date_dimension.* FROM date_dimension
+    const dimensionTable = await quack.all(`
+        SELECT DISTINCT(date_dimension.date_code), date_dimension.description, date_dimension.start_date, date_dimension.end_date, date_dimension.date_type
+        FROM date_dimension
         RIGHT JOIN "${tableName}" ON CAST("${tableName}"."${factTableColumn}" AS VARCHAR)=CAST(date_dimension.date_code AS VARCHAR)
-        ORDER BY end_date ASC LIMIT ${sampleSize};`
-    );
+        ORDER BY end_date ASC LIMIT ${sampleSize};
+    `);
+
     const tableHeaders = Object.keys(dimensionTable[0]);
     const dataArray = dimensionTable.map((row) => Object.values(row));
     const currentDataset = await DatasetRepository.getById(dataset.id);

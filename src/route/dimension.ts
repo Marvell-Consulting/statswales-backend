@@ -18,7 +18,7 @@ import { NotFoundException } from '../exceptions/not-found.exception';
 import { Dimension } from '../entities/dataset/dimension';
 import { DimensionRepository } from '../repositories/dimension';
 
-export const loadDimension = (relations?: FindOptionsRelations<Dimension>) => {
+export const loadDimension = () => {
     return async (req: Request, res: Response, next: NextFunction) => {
         const dimensionIdError = await hasError(dimensionIdValidator(), req);
         if (dimensionIdError) {
