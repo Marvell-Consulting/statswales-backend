@@ -26,7 +26,9 @@ import {
     cubePreview,
     deleteDatasetById,
     getDatasetById,
+    getDatasetProviders,
     getDatasetTasklist,
+    getDatasetTopics,
     getFactTableDefinition,
     listActiveDatasets,
     listAllDatasets,
@@ -194,17 +196,25 @@ const relForTasklistState: FindOptionsRelations<Dataset> = {
 };
 router.get('/:dataset_id/tasklist', loadDataset(relForTasklistState), getDatasetTasklist);
 
+// GET /dataset/:dataset_id/providers
+// Returns the data providers for the dataset
+router.get('/:dataset_id/providers', jsonParser, loadDataset({}), getDatasetProviders);
+
 // POST /dataset/:dataset_id/providers
 // Adds a new data provider for the dataset
-router.post('/:dataset_id/providers', jsonParser, loadDataset(), addProvidersToDataset);
+router.post('/:dataset_id/providers', jsonParser, loadDataset({}), addProvidersToDataset);
 
 // PATCH /dataset/:dataset_id/providers
 // Updates the data providers for the dataset
-router.patch('/:dataset_id/providers', jsonParser, loadDataset(), updateDatasetProviders);
+router.patch('/:dataset_id/providers', jsonParser, loadDataset({}), updateDatasetProviders);
+
+// GET /dataset/:dataset_id/topics
+// Returns the topics for the dataset
+router.get('/:dataset_id/topics', jsonParser, loadDataset({}), getDatasetTopics);
 
 // PATCH /dataset/:dataset_id/topics
 // Updates the topics for the dataset
-router.patch('/:dataset_id/topics', jsonParser, loadDataset(), updateDatasetTopics);
+router.patch('/:dataset_id/topics', jsonParser, loadDataset({}), updateDatasetTopics);
 
 // PATCH /dataset/:dataset_id/team
 // Updates the team for the dataset
