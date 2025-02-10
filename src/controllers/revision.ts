@@ -5,7 +5,6 @@ import { NextFunction, Request, Response } from 'express';
 import tmp from 'tmp';
 import { t } from 'i18next';
 import { isBefore, isValid } from 'date-fns';
-import { Database } from 'duckdb-async';
 
 import { User } from '../entities/user/user';
 import { DataTableDto } from '../dtos/data-table-dto';
@@ -30,7 +29,6 @@ import {
     createAndValidateLookupTableDimension,
     createBaseCube,
     loadCorrectReferenceDataIntoReferenceDataTable,
-    loadReferenceDataFromCSV,
     loadReferenceDataIntoCube,
     makeCubeSafeString,
     updateFactTableValidator
@@ -44,7 +42,6 @@ import { ColumnMatch } from '../interfaces/column-match';
 import { DimensionType } from '../enums/dimension-type';
 import { CubeValidationException, CubeValidationType } from '../exceptions/cube-error-exception';
 import { DimensionUpdateTask } from '../interfaces/revision-task';
-import { Dataset } from '../entities/dataset/dataset';
 import { duckdb } from '../services/duckdb';
 
 import { getCubePreview, outputCube } from './cube-controller';
@@ -431,7 +428,7 @@ export const updateRevisionPublicationDate = async (req: Request, res: Response,
         }
 
         await RevisionRepository.updatePublishDate(revision, publishAt);
-        const updatedDataset = await DatasetRepository.getById(dataset.id);
+        const updatedDataset = await DatasetRepository.getById(dataset.id, {});
 
         res.status(201);
         res.json(DatasetDTO.fromDataset(updatedDataset));
@@ -456,7 +453,7 @@ export const approveForPublication = async (req: Request, res: Response, next: N
         const onlineCubeFilename = `${revision.id}.duckdb`;
         await dataLakeService.uploadFileBuffer(onlineCubeFilename, dataset.id, cubeBuffer);
         await RevisionRepository.approvePublication(revision.id, onlineCubeFilename, req.user as User);
-        const updatedDataset = await DatasetRepository.getById(dataset.id);
+        const updatedDataset = await DatasetRepository.getById(dataset.id, {});
         res.status(201);
         res.json(DatasetDTO.fromDataset(updatedDataset));
     } catch (err: any) {
@@ -484,7 +481,7 @@ export const withdrawFromPublication = async (req: Request, res: Response, next:
             await dataLakeService.deleteFile(onlineCubeFilename, dataset.id);
         }
 
-        const updatedDataset = await DatasetRepository.getById(dataset.id);
+        const updatedDataset = await DatasetRepository.getById(dataset.id, {});
         res.status(201);
         res.json(DatasetDTO.fromDataset(updatedDataset));
     } catch (err: any) {
