@@ -77,7 +77,6 @@ stages:
             FRONTEND_URL=$(frontend_url)
             FRONTEND_PORT=$(frontend_port)
             SESSION_SECRET=$(session_secret)
-            SESSION_STORE=$(session_store)
             JWT_SECRET=$(jwt_secret)
             JWT_EXPIRES_IN=$(jwt_expires_in)
             AUTH_PROVIDERS=$(auth_providers)
