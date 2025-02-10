@@ -1,92 +1,103 @@
-L1,L2
-"Business, economy and labour market",Business
-,Economic indices
-,Employment
-,Gross disposable household income
-,Gross value added
-,Research and development
-"Crime, fire and rescue",Crime and justice
-,Fire and rescue incidents
-,Fire services
-,Police
-Education and training,Apprenticeships
-,Further education
-,Higher education
-,Lifelong learning
-,Pupils
-,Schools
-,Student support
-,Teachers and support staff
-,Youth work
-"Environment, energy and agriculture",Air quality
-,Energy
-,Farming
-,Flooding
-,Fly-tipping
-,Greenhouse gases
-,Land
-,Waste management
-Finance and tax,Capital
-,Council tax
-,Land transaction tax
-,Landfill disposals tax
-,Non-domestic rates (business rates)
-,Revenue
-,Settlement
-Health and social care,Ambulance services
-,Children
-,Coronavirus (COVID-19)
-,Dental services
-,Health finance
-,Hospital and other care setting activity
-,General practice
-,"Maternity, births and conceptions"
-,Mental health
-,Performance and waiting times
-,Primary care and community services
-,Staff
-,Social care and day care
-,Social services
-,Substance misuse
-Housing,Affordable housing
-,Demolitions
-,Disabled facilities grants
-,"Hazards, licences and housing quality"
-,Help to buy
-,Homelessness
-,Household numbers
-,Housing improvement
-,Housing stock and need
-,New house building
-,Possessions and evictions
-,Private sector rents
-,Social housing
-,Traveller caravan count
-"People, identity and equality",Age
-,Disability
-,Ethnicity
-,Gender identity
-,Language
-,Marital status
-,Migration
-,National identity
-,Population
-,Pregnancy and maternity
-,Religion
-,Sex
-,Sexual orientation
-,Socio-economic status
-Poverty,Communities First
-,Deprivation
-,Discretionary assistance fund
-,Income poverty
-Tourism,
-Transport,Air
-,Rail
-,Road
-,Sea
-Welsh and local government,Electoral register
-,Government workforce
-,Local authority performance
-,Senedd constituencies
-Welsh language,
+id,path,l1_en,l1_cy,l2_en,l2_cy
+1,1,"Business, economy and labour market","Busnes, economi a'r farchnad lafur",,
+2,1.2,,,Business,Busnes
+3,1.3,,,Economic indices,Mynegeion economaidd
+4,1.4,,,Employment,Cyflogaeth
+5,1.5,,,Gross disposable household income,Incwm gwario gros aelwydydd
+6,1.6,,,Gross value added,Gwerth ychwanegol gros
+7,1.7,,,Research and development,Ymchwil a datblygu
+8,8,"Crime, fire and rescue","Trosedd, tân ac achub",,
+9,8.9,,,Crime and justice,Trosedd a chyfiawnder
+10,8.10,,,Fire and rescue incidents,Digwyddiadau tân ac achub
+11,8.11,,,Fire services,Gwasanaethau tân
+12,8.12,,,Police,Heddlu
+13,13,Education and training,Addysg a hyfforddiant,,
+14,13.14,,,Apprenticeships,Prentisiaethau
+15,13.15,,,Further education,Addysg bellach
+16,13.16,,,Higher education,Addysg uwch
+17,13.17,,,Lifelong learning,Dysgu gydol oes
+18,13.18,,,Pupils,Disgyblion
+19,13.19,,,Schools,Ysgolion
+20,13.2,,,Student support,Cymorth i fyfyrwyr
+21,13.21,,,Teachers and support staff,Athrawon a staff cymorth
+22,13.22,,,Youth work,Gwaith ieuenctid
+23,23,"Environment, energy and agriculture","Amgylchedd, ynni ac amaethyddiaeth",,
+24,23.24,,,Air quality,Ansawdd aer
+25,23.25,,,Energy,Ynni
+26,23.26,,,Farming,Ffermio
+27,23.27,,,Flooding,Llifogydd
+28,23.28,,,Fly-tipping,Tipio anghyfreithlon
+29,23.29,,,Greenhouse gases,Nwyon tŷ gwydr
+30,23.30,,,Land,Tir
+31,23.31,,,Waste management,Rheoli gwastraff
+32,32,Finance and tax,Cyllid a threth,,
+33,32.33,,,Capital,Cyfalaf
+34,32.34,,,Council tax,Treth gyngor
+35,32.35,,,Land transaction tax,Treth trafodiadau tir
+36,32.36,,,Landfill disposals tax,Treth gwarediadau tirlenwi
+37,32.37,,,Non-domestic rates (business rates),Ardrethi annomestig (ardrethi busnes)
+38,32.38,,,Revenue,Refeniw
+39,32.39,,,Settlement,Setliad
+40,40,Health and social care,Iechyd a gofal cymdeithasol,,
+41,40.41,,,Ambulance services,Gwasanaethau ambiwlans
+42,40.42,,,"Births, deaths and conceptions","Genedigaethau, marwolaethau a beichiogiadau"
+43,40.43,,,Children,Plant
+44,40.44,,,Coronavirus (COVID-19),Coronafeirws (COVID-19)
+45,40.45,,,Dental services,Gwasanaethau deintyddol
+46,40.46,,,Health finance,Cyllid iechyd
+47,40.47,,,Hospital and other care setting activity,Gweithgarwch ysbyty a lleoliadau gofal eraill
+48,40.48,,,General practice,Meddygaeth deulu
+49,40.49,,,Mental health,Iechyd meddwl
+50,40.50,,,Performance and waiting times,Perfformiad ac amseroedd aros
+51,40.51,,,Primary care and community services,Gofal sylfaenol a gwasanaethau cymunedol
+52,40.52,,,Staff,Staff
+53,40.53,,,Social care and day care,Gofal cymdeithasol a gofal dydd
+54,40.54,,,Social services,Gwasanaethau cymdeithasol
+55,40.55,,,Substance misuse,Camddefnyddio sylweddau
+56,56,Housing,Tai,,
+57,56.57,,,Affordable housing,Tai fforddiadwy
+58,56.58,,,Demolitions,Dymchweliadau
+59,56.59,,,Disabled facilities grants,Grantiau cyfleusterau i'r anabl
+60,56.60,,,"Hazards, licences and housing quality","Peryglon, trwyddedau ac ansawdd tai"
+61,56.61,,,Help to buy,Help i brynu
+62,56.62,,,Homelessness,Digartrefedd
+63,56.63,,,Household numbers,Niferoedd aelwydydd
+64,56.64,,,Housing improvement,Gwella tai
+65,56.65,,,Housing stock and need,Stoc tai a'r angen
+66,56.66,,,New house building,Adeiladu tai newydd
+67,56.67,,,Possessions and evictions,Meddiannau a throi allan
+68,56.68,,,Private sector rents,Rhenti sector preifat
+69,56.69,,,Social housing,Tai cymdeithasol
+70,56.70,,,Traveller caravan count,Cyfrif carafannau teithwyr
+71,71,"People, identity and equality","Pobl, hunaniaeth a chydraddoldeb",,
+72,71.72,,,Age,Oedran
+73,71.73,,,Disability,Anabledd
+74,71.74,,,Ethnicity,Ethnigrwydd
+75,71.75,,,Gender identity,Hunaniaeth rhywedd
+76,71.76,,,Language,Iaith
+77,71.77,,,Marital status,Statws priodasol
+78,71.78,,,Migration,Mudo
+79,71.79,,,National identity,Hunaniaeth genedlaethol
+80,71.80,,,Population,Poblogaeth
+81,71.81,,,Pregnancy and maternity,Beichiogrwydd a mamolaeth
+82,71.82,,,Religion,Crefydd
+83,71.83,,,Sex,Rhyw
+84,71.84,,,Sexual orientation,Cyfeiriadedd rhywiol
+85,71.85,,,Socio-economic status,Statws economaidd-gymdeithasol
+86,86,Poverty,Tlodi,,
+87,86.87,,,Communities First,Cymunedau yn Gyntaf
+88,86.88,,,Deprivation,Amddifadedd
+89,86.89,,,Discretionary assistance fund,Cronfa cymorth dewisol
+90,86.90,,,Income poverty,Tlodi incwm
+91,91,Tourism,Twristiaeth,,
+92,92,Transport,Trafnidiaeth,,
+93,92.93,,,Air,Awyr
+94,92.94,,,Rail,Rheilffyrdd
+95,92.95,,,Road,Ffyrdd
+96,92.96,,,Sea,Môr
+97,97,Welsh and local government,Llywodraeth Cymru a llywodraeth leol,,
+98,97.98,,,Electoral register,Cofrestr etholiadol
+99,97.99,,,Government workforce,Gweithlu y Llywodraeth
+100,97.100,,,Local authority performance,Perfformiad awdurdodau lleol
+101,97.101,,,Senedd constituencies,Etholaethau Senedd
+102,102,Welsh language,Yr iaith Gymraeg,,
