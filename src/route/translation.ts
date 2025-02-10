@@ -55,7 +55,7 @@ const parseUploadedTranslations = async (fileBuffer: Buffer): Promise<Translatio
     const translations: TranslationDTO[] = [];
 
     const csvParser: AsyncIterable<TranslationDTO> = Readable.from(fileBuffer).pipe(
-        parse({ bom: true, columns: true })
+        parse({ bom: true, columns: true, skip_records_with_empty_values: true })
     );
 
     for await (const row of csvParser) {
@@ -75,7 +75,7 @@ translationRouter.get(
             const translations = collectTranslations(dataset);
             res.json(translations);
         } catch (error) {
-            logger.error('Error previewing translations', error);
+            logger.error(error, 'Error previewing translations');
             next(new UnknownException());
         }
     }
@@ -90,9 +90,9 @@ translationRouter.get(
             const dataset: Dataset = res.locals.dataset;
             const translations = collectTranslations(dataset);
             res.setHeader('Content-Type', 'text/csv');
-            stringify(translations, { bom: true, header: true }).pipe(res);
+            stringify(translations, { bom: true, header: true, quoted_string: true }).pipe(res);
         } catch (error) {
-            logger.error('Error exporting translations', error);
+            logger.error(error, 'Error exporting translations');
             next(new UnknownException());
         }
     }
@@ -147,7 +147,7 @@ translationRouter.post(
                 next(error);
                 return;
             }
-            logger.error('Error importing translations', error);
+            logger.error(error, 'Error importing translations');
             next(new UnknownException());
         }
     }
