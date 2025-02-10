@@ -1,4 +1,4 @@
-import { BaseEntity, Column, CreateDateColumn, Entity, JoinColumn, ManyToOne, PrimaryGeneratedColumn } from 'typeorm';
+import { BaseEntity, Column, Entity, Index, JoinColumn, ManyToOne, PrimaryGeneratedColumn } from 'typeorm';
 
 import { Dataset } from './dataset';
 import { Topic } from './topic';
@@ -8,6 +8,7 @@ export class DatasetTopic extends BaseEntity {
     @PrimaryGeneratedColumn('uuid', { name: 'id', primaryKeyConstraintName: 'PK_dataset_topic_id' })
     id: string;
 
+    @Index('IDX_dataset_topic_dataset_id')
     @Column({ type: 'uuid', name: 'dataset_id' })
     datasetId: string;
 
@@ -15,6 +16,7 @@ export class DatasetTopic extends BaseEntity {
     @JoinColumn({ name: 'dataset_id', foreignKeyConstraintName: 'FK_dataset_topic_dataset_id' })
     dataset: Dataset;
 
+    @Index('IDX_dataset_topic_topic_id')
     @Column({ type: 'int', name: 'topic_id' })
     topicId: number;
 

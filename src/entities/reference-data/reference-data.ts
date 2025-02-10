@@ -1,4 +1,4 @@
-import { Entity, BaseEntity, PrimaryColumn, ManyToOne, JoinColumn, Column } from 'typeorm';
+import { Entity, BaseEntity, PrimaryColumn, ManyToOne, JoinColumn, Column, Index } from 'typeorm';
 
 import { CategoryKey } from './category-key';
 
@@ -10,6 +10,7 @@ export class ReferenceData extends BaseEntity {
     @PrimaryColumn({ name: 'version_no', type: 'int' })
     versionNumber: number;
 
+    @Index('IDX_reference_data_category_key')
     @PrimaryColumn({ name: 'category_key', type: 'text' })
     categoryKey: string;
 

@@ -7,7 +7,8 @@ import {
     ManyToOne,
     OneToMany,
     JoinColumn,
-    OneToOne
+    OneToOne,
+    Index
 } from 'typeorm';
 
 import { User } from '../user/user';
@@ -29,6 +30,7 @@ export class Dataset extends BaseEntity {
     @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
     createdAt: Date;
 
+    @Index('IDX_dataset_created_by')
     @ManyToOne(() => User)
     @JoinColumn({ name: 'created_by', foreignKeyConstraintName: 'FK_dataset_created_by' })
     createdBy: User;
@@ -66,6 +68,7 @@ export class Dataset extends BaseEntity {
     @OneToMany(() => DatasetTopic, (datasetTopic) => datasetTopic.dataset, { cascade: true })
     datasetTopics: DatasetTopic[];
 
+    @Index('IDX_dataset_team_id')
     @ManyToOne(() => Team, (team) => team.datasets, { nullable: true })
     @JoinColumn({ name: 'team_id', foreignKeyConstraintName: 'FK_dataset_team_id' })
     team: Team;

@@ -3,6 +3,7 @@ import {
     Column,
     CreateDateColumn,
     Entity,
+    Index,
     JoinColumn,
     ManyToOne,
     OneToMany,
@@ -26,6 +27,7 @@ export class Team extends BaseEntity {
     @OneToMany(() => TeamInfo, (info) => info.team, { cascade: true })
     info: TeamInfo[];
 
+    @Index('IDX_team_organisation_id')
     @ManyToOne(() => Organisation)
     @JoinColumn({ name: 'organisation_id', foreignKeyConstraintName: 'FK_team_organisation_id' })
     organisation?: Organisation;
