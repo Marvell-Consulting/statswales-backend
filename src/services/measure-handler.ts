@@ -64,6 +64,7 @@ function createExtractor(
         return {
             sortColumn: tableMatcher?.sort_column,
             formatColumn: tableMatcher?.format_column,
+            decimalColumn: tableMatcher?.decimal_column,
             measureTypeColumn: tableMatcher?.measure_type_column,
             descriptionColumns: tableMatcher.description_columns.map(
                 (desc) =>
@@ -94,9 +95,10 @@ function createExtractor(
                 info.columnName.toLowerCase().startsWith('lang')
             )?.columnName,
             formatColumn: protoLookupTable.dataTableDescriptions.find(
-                (info) =>
-                    info.columnName.toLowerCase().indexOf('format') > -1 ||
-                    info.columnName.toLowerCase().indexOf('decimal') > -1
+                (info) => info.columnName.toLowerCase().indexOf('format') > -1
+            )?.columnName,
+            decimalColumn: protoLookupTable.dataTableDescriptions.find(
+                (info) => info.columnName.toLowerCase().indexOf('decimal') > -1
             )?.columnName,
             measureTypeColumn: protoLookupTable.dataTableDescriptions.find(
                 (info) => info.columnName.toLowerCase().indexOf('type') > -1
@@ -192,6 +194,26 @@ async function rowMatcher(
     return undefined;
 }
 
+async function checkDecimalColumn(quack: Database, extractor: MeasureLookupTableExtractor, lookupTableName: string) {
+    const unmatchedFormats: string[] = [];
+    logger.debug('Decimal column is present.  Validating contains only integers.');
+    const formats = await quack.all(`SELECT DISTINCT "${extractor.formatColumn}" as formats FROM ${lookupTableName};`);
+    for (const format of Object.values(formats.map((format) => format.formats))) {
+        if (!Number.isInteger(Number(test))) unmatchedFormats.push(format);
+    }
+    return unmatchedFormats;
+}
+
+async function checkFormatColumn(quack: Database, extractor: MeasureLookupTableExtractor, lookupTableName: string) {
+    const unmatchedFormats: string[] = [];
+    logger.debug('Decimal column is present.  Validating contains only integers.');
+    const formats = await quack.all(`SELECT DISTINCT "${extractor.formatColumn}" as formats FROM ${lookupTableName};`);
+    for (const format of Object.values(formats.map((format) => format.formats))) {
+        if (!Number.isInteger(Number(test))) unmatchedFormats.push(format);
+    }
+    return unmatchedFormats;
+}
+
 async function validateTableContent(
     quack: Database,
     datasetId: string,
@@ -201,29 +223,29 @@ async function validateTableContent(
     const unmatchedFormats: string[] = [];
     if (extractor.formatColumn && extractor.formatColumn.toLowerCase().indexOf('format') > -1) {
         logger.debug('Formats column is present.  Validating all formats present are valid.');
-        const formats = await quack.all(
-            `SELECT DISTINCT "${extractor.formatColumn}" as formats FROM ${lookupTableName};`
-        );
-        for (const format of Object.values(formats.map((format) => format.formats))) {
-            if (Object.values(DataValueFormat).indexOf(format) === -1) unmatchedFormats.push(format);
-        }
-    } else if (extractor.formatColumn && extractor.formatColumn.toLowerCase().indexOf('decimal') !== -1) {
-        logger.debug('Decimal column is present.  Validating contains only 1 or 0.');
-        const formats = await quack.all(
-            `SELECT DISTINCT "${extractor.formatColumn}" as formats FROM ${lookupTableName};`
-        );
-        for (const format of Object.values(formats.map((format) => format.formats))) {
-            if (format < 0 && format > 1) unmatchedFormats.push(format);
+        const unMatchedFormats = await checkFormatColumn(quack, extractor, lookupTableName);
+        if (unMatchedFormats.length > 0) {
+            logger.debug(
+                `Found invalid formats while validating format column.  Formats found: ${JSON.stringify(unmatchedFormats)}`
+            );
+            return viewErrorGenerator(400, datasetId, 'patch', 'errors.dimensionValidation.invalid_formats_present', {
+                totalNonMatching: unmatchedFormats.length,
+                nonMatchingValues: unmatchedFormats
+            });
         }
     }
-    if (unmatchedFormats.length > 0) {
-        logger.debug(
-            `Found invalid formats while validating format column.  Formats found: ${JSON.stringify(unmatchedFormats)}`
-        );
-        return viewErrorGenerator(400, datasetId, 'patch', 'errors.dimensionValidation.invalid_lookup_table', {
-            totalNonMatching: unmatchedFormats.length,
-            nonMatchingValues: unmatchedFormats
-        });
+
+    if (extractor.decimalColumn && extractor.decimalColumn.toLowerCase().indexOf('decimal') !== -1) {
+        const unmatchedDecimals = await checkDecimalColumn(quack, extractor, lookupTableName);
+        if (unmatchedDecimals.length > 0) {
+            logger.debug(
+                `Found invalid formats while validating decimals column.  Formats found: ${JSON.stringify(unmatchedFormats)}`
+            );
+            return viewErrorGenerator(400, datasetId, 'patch', 'errors.dimensionValidation.invalid_decimals_present', {
+                totalNonMatching: unmatchedFormats.length,
+                nonMatchingValues: unmatchedFormats
+            });
+        }
     }
     logger.debug('Validating column contents complete.');
     return undefined;
