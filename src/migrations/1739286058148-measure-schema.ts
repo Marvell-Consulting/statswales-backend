@@ -1,7 +1,7 @@
-import { MigrationInterface, QueryRunner } from "typeorm";
+import { MigrationInterface, QueryRunner } from 'typeorm';
 
-export class MeasureSchema1739284915412 implements MigrationInterface {
-    name = 'MeasureSchema1739284915412'
+export class MeasureSchema1739286058148 implements MigrationInterface {
+    name = 'MeasureSchema1739286058148';
 
     public async up(queryRunner: QueryRunner): Promise<void> {
         await queryRunner.query(`
@@ -12,17 +12,18 @@ export class MeasureSchema1739284915412 implements MigrationInterface {
         `);
         await queryRunner.query(`
             CREATE TYPE "public"."measure_item_format_enum" AS ENUM(
-                'DECIMAL',
-                'DOUBLE',
-                'INTEGER',
-                'BIGINT',
-                'PERCENT',
-                'VARCHAR',
-                'BOOLEAN',
-                'DATE',
-                'DATETIME',
-                'TIME',
-                'TIMESTAMP'
+                'boolean',
+                'decimal',
+                'float ',
+                'integer',
+                'long',
+                'percentage',
+                'string',
+                'text',
+                'date',
+                'datetime',
+                'time',
+                'timestamp'
             )
         `);
         await queryRunner.query(`
@@ -91,7 +92,7 @@ export class MeasureSchema1739284915412 implements MigrationInterface {
         `);
         await queryRunner.query(`
             ALTER TABLE "measure_item"
-            ADD CONSTRAINT "PK_08558adffa34e2143696fbf6434" PRIMARY KEY ("reference", "measure_id", "language")
+            ADD CONSTRAINT "PK_08558adffa34e2143696fbf6434" PRIMARY KEY ("measure_id", "language", "reference")
         `);
         await queryRunner.query(`
             ALTER TABLE "measure_item" DROP CONSTRAINT "PK_measure_item_measure_id_language"
@@ -135,5 +136,4 @@ export class MeasureSchema1739284915412 implements MigrationInterface {
             ADD "display_type" "public"."measure_item_display_type_enum" NOT NULL
         `);
     }
-
 }
