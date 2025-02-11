@@ -8,5 +8,5 @@ export interface MeasureLookupPatchDTO {
     measure_type_column: string;
     format_column: string;
     decimal_column: string;
-    languague_column: string;
+    language_column: string;
 }
