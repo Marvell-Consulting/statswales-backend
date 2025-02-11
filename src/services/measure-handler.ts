@@ -196,21 +196,22 @@ async function rowMatcher(
 
 async function checkDecimalColumn(quack: Database, extractor: MeasureLookupTableExtractor, lookupTableName: string) {
     const unmatchedFormats: string[] = [];
-    // logger.debug('Decimal column is present.  Validating contains only integers.');
-    // const formats = await quack.all(`SELECT DISTINCT "${extractor.decimalColumn}" as formats FROM ${lookupTableName};`);
-    // for (const format of Object.values(formats.map((format) => format.formats.toLowerCase()))) {
-    //     if (!Number.isInteger(Number(format))) unmatchedFormats.push(format);
-    // }
+    logger.debug('Decimal column is present.  Validating contains only integers.');
+    const formats = await quack.all(`SELECT DISTINCT "${extractor.decimalColumn}" as formats FROM ${lookupTableName};`);
+    for (const format of Object.values(formats.map((format) => format.formats))) {
+        if (!Number.isInteger(Number(format))) unmatchedFormats.push(format);
+    }
     return unmatchedFormats;
 }
 
 async function checkFormatColumn(quack: Database, extractor: MeasureLookupTableExtractor, lookupTableName: string) {
     const unmatchedFormats: string[] = [];
-    // logger.debug('Decimal column is present.  Validating contains only integers.');
-    // const formats = await quack.all(`SELECT DISTINCT "${extractor.formatColumn}" as formats FROM ${lookupTableName};`);
-    // for (const format of Object.values(formats.map((format) => format.formats))) {
-    //     if (Object.values(DataValueFormat).indexOf(format.toLowerCase()) === -1) unmatchedFormats.push(format);
-    // }
+    logger.debug('Decimal column is present.  Validating contains only integers.');
+    const formats = await quack.all(`SELECT DISTINCT "${extractor.formatColumn}" as formats FROM ${lookupTableName};`);
+    logger.debug(`Formats = ${JSON.stringify(Object.values(DataValueFormat), null, 2)}`);
+    for (const format of Object.values(formats.map((format) => format.formats))) {
+        if (Object.values(DataValueFormat).indexOf(format.toLowerCase()) === -1) unmatchedFormats.push(format);
+    }
     return unmatchedFormats;
 }
 
