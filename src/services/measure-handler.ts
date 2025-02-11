@@ -196,21 +196,21 @@ async function rowMatcher(
 
 async function checkDecimalColumn(quack: Database, extractor: MeasureLookupTableExtractor, lookupTableName: string) {
     const unmatchedFormats: string[] = [];
-    logger.debug('Decimal column is present.  Validating contains only integers.');
-    const formats = await quack.all(`SELECT DISTINCT "${extractor.decimalColumn}" as formats FROM ${lookupTableName};`);
-    for (const format of Object.values(formats.map((format) => format.formats))) {
-        if (!Number.isInteger(Number(format))) unmatchedFormats.push(format);
-    }
+    // logger.debug('Decimal column is present.  Validating contains only integers.');
+    // const formats = await quack.all(`SELECT DISTINCT "${extractor.decimalColumn}" as formats FROM ${lookupTableName};`);
+    // for (const format of Object.values(formats.map((format) => format.formats.toLowerCase()))) {
+    //     if (!Number.isInteger(Number(format))) unmatchedFormats.push(format);
+    // }
     return unmatchedFormats;
 }
 
 async function checkFormatColumn(quack: Database, extractor: MeasureLookupTableExtractor, lookupTableName: string) {
     const unmatchedFormats: string[] = [];
-    logger.debug('Decimal column is present.  Validating contains only integers.');
-    const formats = await quack.all(`SELECT DISTINCT "${extractor.formatColumn}" as formats FROM ${lookupTableName};`);
-    for (const format of Object.values(formats.map((format) => format.formats))) {
-        if (!Number.isInteger(Number(format))) unmatchedFormats.push(format);
-    }
+    // logger.debug('Decimal column is present.  Validating contains only integers.');
+    // const formats = await quack.all(`SELECT DISTINCT "${extractor.formatColumn}" as formats FROM ${lookupTableName};`);
+    // for (const format of Object.values(formats.map((format) => format.formats))) {
+    //     if (Object.values(DataValueFormat).indexOf(format.toLowerCase()) === -1) unmatchedFormats.push(format);
+    // }
     return unmatchedFormats;
 }
 
@@ -220,17 +220,16 @@ async function validateTableContent(
     lookupTableName: string,
     extractor: MeasureLookupTableExtractor
 ): Promise<ViewErrDTO | undefined> {
-    const unmatchedFormats: string[] = [];
     if (extractor.formatColumn && extractor.formatColumn.toLowerCase().indexOf('format') > -1) {
         logger.debug('Formats column is present.  Validating all formats present are valid.');
         const unMatchedFormats = await checkFormatColumn(quack, extractor, lookupTableName);
         if (unMatchedFormats.length > 0) {
             logger.debug(
-                `Found invalid formats while validating format column.  Formats found: ${JSON.stringify(unmatchedFormats)}`
+                `Found invalid formats while validating format column.  Formats found: ${JSON.stringify(unMatchedFormats)}`
             );
             return viewErrorGenerator(400, datasetId, 'patch', 'errors.dimensionValidation.invalid_formats_present', {
-                totalNonMatching: unmatchedFormats.length,
-                nonMatchingValues: unmatchedFormats
+                totalNonMatching: unMatchedFormats.length,
+                nonMatchingValues: unMatchedFormats
             });
         }
     }
@@ -239,11 +238,11 @@ async function validateTableContent(
         const unmatchedDecimals = await checkDecimalColumn(quack, extractor, lookupTableName);
         if (unmatchedDecimals.length > 0) {
             logger.debug(
-                `Found invalid formats while validating decimals column.  Formats found: ${JSON.stringify(unmatchedFormats)}`
+                `Found invalid formats while validating decimals column.  Formats found: ${JSON.stringify(unmatchedDecimals)}`
             );
             return viewErrorGenerator(400, datasetId, 'patch', 'errors.dimensionValidation.invalid_decimals_present', {
-                totalNonMatching: unmatchedFormats.length,
-                nonMatchingValues: unmatchedFormats
+                totalNonMatching: unmatchedDecimals.length,
+                nonMatchingValues: unmatchedDecimals
             });
         }
     }
