@@ -1,12 +1,12 @@
 export enum DataValueFormat {
-    Decimal = 'Decimal',
-    Float = 'Float ',
-    Integer = 'Integer',
-    Long = 'Long',
-    Percentage = 'Percentage',
-    String = 'String',
-    Text = 'Text',
-    Date = 'Date',
-    DateTime = 'DateTime',
-    Time = 'Time'
+    Decimal = 'decimal',
+    Float = 'float ',
+    Integer = 'integer',
+    Long = 'long',
+    Percentage = 'percentage',
+    String = 'string',
+    Text = 'text',
+    Date = 'date',
+    DateTime = 'datetime',
+    Time = 'time'
 }

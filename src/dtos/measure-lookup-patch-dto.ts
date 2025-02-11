@@ -7,4 +7,5 @@ export interface MeasureLookupPatchDTO {
     sort_column?: string;
     measure_type_column: string;
     format_column: string;
+    decimal_column: string;
 }
