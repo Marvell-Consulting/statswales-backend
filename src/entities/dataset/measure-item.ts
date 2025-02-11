@@ -1,7 +1,6 @@
 import { Entity, PrimaryColumn, Column, BaseEntity, ManyToOne, JoinColumn } from 'typeorm';
 
 import { DisplayType } from '../../enums/display-type';
-import { DataType } from '../../enums/data-types';
 
 import { Measure } from './measure';
 
@@ -10,38 +9,50 @@ export class MeasureItem extends BaseEntity {
     @PrimaryColumn({
         name: 'measure_id',
         type: 'uuid',
-        primaryKeyConstraintName: 'PK_measure_item_measure_id_language'
+        primaryKeyConstraintName: 'PK_measure_item_measure_id_language_reference'
     })
     id: string;
-
-    @Column({ name: 'sort_order', type: 'int', nullable: true })
-    sortOrder: number;
 
     @PrimaryColumn({
         name: 'language',
         type: 'varchar',
         length: 5,
-        primaryKeyConstraintName: 'PK_measure_item_measure_id_language'
+        primaryKeyConstraintName: 'PK_measure_item_measure_id_language_reference'
     })
     language: string;
+
+    @PrimaryColumn({
+        name: 'reference',
+        type: 'text',
+        primaryKeyConstraintName: 'PK_measure_item_measure_id_language_reference'
+    })
+    reference: string;
+
+    @Column({ name: 'format', type: 'enum', enum: Object.values(DisplayType), nullable: false })
+    format: string;
+
+    @Column({ name: 'decimal', type: 'integer', nullable: true })
+    decimal: number | null;
 
     @Column({ type: 'varchar' })
     description: string;
 
-    @Column({ type: 'varchar', nullable: false })
-    reference: string;
+    @Column({ name: 'sort_order', type: 'int', nullable: true })
+    sortOrder: number | null;
 
     @Column({ type: 'text', nullable: true })
-    notes: string;
+    notes: string | null;
 
-    @ManyToOne(() => Measure, (measure) => measure.measureInfo, {
+    @Column({ name: 'hierarchy', type: 'varchar', nullable: true })
+    hierarchy: string | null;
+
+    @ManyToOne(() => Measure, (measure) => measure.measureTable, {
         onDelete: 'CASCADE',
         orphanedRowAction: 'delete'
     })
     @JoinColumn({ name: 'measure_id', foreignKeyConstraintName: 'FK_measure_item_measure_id' })
     measure: Measure;
 
-    @Column({ name: 'data_type', type: 'enum', enum: Object.values(DataType), nullable: false })
-    @Column({ name: 'display_type', type: 'enum', enum: Object.values(DisplayType), nullable: false })
-    displayType: DisplayType;
+    @Column({ name: 'measure_type', type: 'varchar', nullable: true })
+    measureType: string | null;
 }

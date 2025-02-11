@@ -9,12 +9,12 @@ export class MeasureDTO {
     fact_table_column: string;
     join_column: string | null;
     lookup_table?: LookupTableDTO;
-    measure_info: MeasureInfoDTO[] | undefined;
+    measure_table: MeasureInfoDTO[] | undefined;
 
     static fromMeasure(measure: Measure): MeasureDTO {
         const dto = new MeasureDTO();
         dto.id = measure.id;
-        dto.measure_info = measure.measureInfo?.map((info) => {
+        dto.measure_table = measure.measureTable?.map((info) => {
             return MeasureInfoDTO.fromMeasureInfo(info);
         });
         dto.join_column = measure.joinColumn;

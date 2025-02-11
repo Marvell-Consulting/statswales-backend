@@ -28,7 +28,7 @@ const fullRelations: FindOptionsRelations<Dataset> = {
     },
     measure: {
         lookupTable: true,
-        measureInfo: true
+        measureTable: true
     },
     revisions: {
         createdBy: true,

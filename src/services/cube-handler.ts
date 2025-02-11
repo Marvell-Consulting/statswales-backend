@@ -24,6 +24,7 @@ import { ReferenceDataExtractor } from '../extractors/reference-data-extractor';
 import { FactTable } from '../entities/dataset/fact-table';
 import { CubeValidationException, CubeValidationType } from '../exceptions/cube-error-exception';
 import { DataTableDescription } from '../entities/dataset/data-table-description';
+import { MeasureItem } from '../entities/dataset/measure-item';
 
 import { dateDimensionReferenceTableCreator } from './time-matching';
 import { duckdb } from './duckdb';
@@ -648,6 +649,36 @@ function measureFormats(): Map<string, MeasureFormat> {
     return measureFormats;
 }
 
+export async function createMeasureLookupTable(quack: Database, measureTable: MeasureItem[] | null) {
+    await quack.exec(`CREATE TABLE measure (
+        reference VARCHAR,
+        language VARCHAR(5),
+        description VARCHAR,
+        format VARCHAR,
+        sort_order INTEGER,
+        notes VARCHAR,
+        decimals INTEGER,
+        hierarchy VARCHAR,
+        measure_type VARCHAR
+    );`);
+    const stmt = await quack.prepare('INSERT INTO measure VALUES (?,?,?,?,?,?,?,?,?);');
+    if (measureTable) {
+        for (const row of measureTable) {
+            await stmt.run(
+                row.reference,
+                row.language,
+                row.description,
+                row.format,
+                row.sortOrder ? row.sortOrder : null,
+                row.notes ? row.notes : null,
+                row.decimal ? row.decimal : null,
+                row.hierarchy ? row.hierarchy : null,
+                row.measureType ? row.measureType : null
+            );
+        }
+    }
+}
+
 async function setupMeasures(
     quack: Database,
     dataset: Dataset,
@@ -661,91 +692,12 @@ async function setupMeasures(
     logger.debug(`Dataset Measure = ${JSON.stringify(dataset.measure)}`);
     logger.debug(`Measure column = ${JSON.stringify(measureColumn)}`);
     // Process the column that represents the measure
-    if (measureColumn && dataset.measure && dataset.measure.joinColumn) {
+    if (measureColumn && dataset.measure && dataset.measure.measureTable) {
         logger.debug('Measure present in dataset.  Creating measure table...');
-        // If we parsed the lookup table or the user
-        // has used a user journey to define measures
-        // use this first
-        if (dataset.measure.measureInfo && dataset.measure.measureInfo.length > 0) {
-            logger.debug('Using measure info to build measure table');
-            try {
-                await quack.exec(
-                    `CREATE TABLE measure (measure_id ${measureColumn.columnType}, sort_order INT, language VARCHAR(5), description VARCHAR, notes VARCHAR, data_type VARCHAR, display_type VARCHAR);`
-                );
-                const insertStmt = await quack.prepare(`INSERT INTO measure (?,?,?,?,?,?);`);
-                dataset.measure.measureInfo.map(async (measure) => {
-                    await insertStmt.run(
-                        measure.id,
-                        measure.sortOrder,
-                        measure.language,
-                        measure.description,
-                        measure.notes,
-                        measure.displayType
-                    );
-                });
-                await insertStmt.finalize();
-            } catch (error) {
-                logger.error(`Unable to create or load measure table in to the cube with error: ${error}`);
-                await quack.close();
-                throw error;
-            }
-        } else if (dataset.measure && dataset.measure.lookupTable) {
-            logger.debug('Measure lookup table present using this to build measure table');
-            const measure = dataset.measure;
-            const extractor = measure.extractor as MeasureLookupTableExtractor;
-            const measureFile = await getFileImportAndSaveToDisk(dataset, dataset.measure.lookupTable);
-            if (dataset.measure.lookupTable.isStatsWales2Format) {
-                logger.debug('Lookup table is marked as in StatsWales 2 format building view...');
-                try {
-                    await loadFileIntoCube(quack, dataset.measure.lookupTable, measureFile, 'measure_sw2');
-                    const viewComponents: string[] = [];
-                    for (const locale of SUPPORTED_LOCALES) {
-                        let formatColumn = `"${extractor.formatColumn}"`;
-                        if (!formatColumn && !extractor.decimalColumn) {
-                            formatColumn = `'text'`;
-                        } else if (extractor.decimalColumn) {
-                            formatColumn = `'float'`;
-                        }
-                        let measureTypeColumn = `"${extractor.formatColumn}"`;
-                        if (!extractor.measureTypeColumn) {
-                            measureTypeColumn = `'Unknown'`;
-                        }
-                        viewComponents.push(
-                            `SELECT
-                            "${measure.joinColumn}" as measure_id,
-                            "${extractor.sortColumn}" as sort_order,
-                            '${locale.toLowerCase()}' AS language,
-                            "${extractor.descriptionColumns.find((col) => col.lang === locale.split('-')[0])?.name}" AS description,
-                            ${formatColumn} AS display_type,
-                            ${measureTypeColumn} AS data_type FROM measure_sw2\n`
-                        );
-                    }
-                    const buildMeasureViewQuery = `CREATE TABLE measure AS ${viewComponents.join('\nUNION\n')};`;
-                    await quack.exec(buildMeasureViewQuery);
-                } catch (error) {
-                    logger.error(`Unable to create or load measure table in to the cube with error: ${error}`);
-                    await quack.close();
-                    throw error;
-                }
-            } else {
-                try {
-                    logger.debug('Lookup table in preferred format... loading straight in to cube');
-                    await loadFileIntoCube(quack, dataset.measure.lookupTable, measureFile, 'measure');
-                } catch (error) {
-                    logger.error(`Unable to load measure table in to the cube with error: ${error}`);
-                    await quack.close();
-                    throw error;
-                }
-            }
-            fs.unlinkSync(measureFile);
-        } else {
-            logger.error(`Measure is defined in the dataset but it has no lookup nor definitions`);
-            await quack.close();
-            throw new Error('No measure definitions found');
-        }
+        await createMeasureLookupTable(quack, dataset.measure.measureTable);
         logger.debug('Creating query part to format the data value correctly');
         const caseStatement: string[] = ['CASE'];
-        const presentFormats = await quack.all('SELECT DISTINCT display_type FROM measure');
+        const presentFormats = await quack.all('SELECT DISTINCT format FROM measure');
         for (const dataFormat of presentFormats.map((type) => type.display_type)) {
             caseStatement.push(
                 measureFormats()
