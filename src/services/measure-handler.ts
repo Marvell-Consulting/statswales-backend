@@ -197,7 +197,7 @@ async function rowMatcher(
 async function checkDecimalColumn(quack: Database, extractor: MeasureLookupTableExtractor, lookupTableName: string) {
     const unmatchedFormats: string[] = [];
     logger.debug('Decimal column is present.  Validating contains only integers.');
-    const formats = await quack.all(`SELECT DISTINCT "${extractor.formatColumn}" as formats FROM ${lookupTableName};`);
+    const formats = await quack.all(`SELECT DISTINCT "${extractor.decimalColumn}" as formats FROM ${lookupTableName};`);
     for (const format of Object.values(formats.map((format) => format.formats))) {
         if (!Number.isInteger(Number(test))) unmatchedFormats.push(format);
     }
