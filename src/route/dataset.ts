@@ -193,7 +193,7 @@ const relForTasklistState: FindOptionsRelations<Dataset> = {
     metadata: true,
     revisions: { dataTable: true },
     dimensions: { metadata: true },
-    measure: { measureInfo: true },
+    measure: { measureTable: true },
     datasetProviders: true,
     datasetTopics: true,
     team: true
