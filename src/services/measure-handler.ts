@@ -83,8 +83,8 @@ function createExtractor(
                         .filter((info) => info.columnName === desc)
                         .map((info) => columnIdentification(info))[0]
             ),
-            languageColumn: tableMatcher?.languague_column,
-            isSW2Format: !tableMatcher?.languague_column
+            languageColumn: tableMatcher?.language_column,
+            isSW2Format: !tableMatcher?.language_column
         };
     } else {
         logger.debug('Detecting column types from column names');
