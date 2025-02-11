@@ -611,40 +611,40 @@ function measureFormats(): Map<string, MeasureFormat> {
     const measureFormats: Map<string, MeasureFormat> = new Map();
     measureFormats.set('decimal', {
         name: 'decimal',
-        method: "WHEN measure.display_type = 'decimal' THEN printf('%,.2f', |COL|)"
+        method: "WHEN measure.format = 'decimal' THEN printf('%,.2f', |COL|)"
     });
     measureFormats.set('float', {
         name: 'float',
-        method: "WHEN measure.display_type = 'float' THEN printf('%,.2f', |COL|)"
+        method: "WHEN measure.format = 'float' THEN printf('%,.2f', |COL|)"
     });
     measureFormats.set('integer', {
         name: 'integer',
-        method: "WHEN measure.display_type = 'integer' THEN printf('%,d', CAST(|COL| AS INTEGER))"
+        method: "WHEN measure.format = 'integer' THEN printf('%,d', CAST(|COL| AS INTEGER))"
     });
-    measureFormats.set('long', { name: 'long', method: "WHEN measure.display_type = 'Long' THEN printf('%f', |COL|)" });
+    measureFormats.set('long', { name: 'long', method: "WHEN measure.format = 'Long' THEN printf('%f', |COL|)" });
     measureFormats.set('percentage', {
         name: 'percentage',
-        method: "WHEN measure.display_type = 'percentage' THEN printf('%f', |COL|)"
+        method: "WHEN measure.format = 'percentage' THEN printf('%f', |COL|)"
     });
     measureFormats.set('string', {
         name: 'string',
-        method: "WHEN measure.display_type = 'string' THEN printf('%s', CAST(|COL| AS VARCHAR))"
+        method: "WHEN measure.format = 'string' THEN printf('%s', CAST(|COL| AS VARCHAR))"
     });
     measureFormats.set('text', {
         name: 'text',
-        method: "WHEN measure.display_type = 'text' THEN printf('%s', CAST(|COL| AS VARCHAR))"
+        method: "WHEN measure.format = 'text' THEN printf('%s', CAST(|COL| AS VARCHAR))"
     });
     measureFormats.set('date', {
         name: 'date',
-        method: "WHEN measure.display_type = 'date' THEN printf('%s', CAST(|COL| AS VARCHAR))"
+        method: "WHEN measure.format = 'date' THEN printf('%s', CAST(|COL| AS VARCHAR))"
     });
     measureFormats.set('datetime', {
         name: 'datetime',
-        method: "WHEN measure.display_type = 'datetime' THEN printf('%s', CAST(|COL| AS VARCHAR))"
+        method: "WHEN measure.format = 'datetime' THEN printf('%s', CAST(|COL| AS VARCHAR))"
     });
     measureFormats.set('time', {
         name: 'time',
-        method: "WHEN measure.display_type = 'time' THEN printf('%s', CAST(|COL| AS VARCHAR))"
+        method: "WHEN measure.format = 'time' THEN printf('%s', CAST(|COL| AS VARCHAR))"
     });
     return measureFormats;
 }
@@ -697,8 +697,9 @@ async function setupMeasures(
         await createMeasureLookupTable(quack, dataset.measure.measureTable);
         logger.debug('Creating query part to format the data value correctly');
         const caseStatement: string[] = ['CASE'];
-        const presentFormats = await quack.all('SELECT DISTINCT format FROM measure');
-        for (const dataFormat of presentFormats.map((type) => type.display_type)) {
+        const presentFormats = await quack.all('SELECT DISTINCT format FROM measure;');
+        logger.debug(`Present formats: ${JSON.stringify(presentFormats)}`);
+        for (const dataFormat of presentFormats.map((type) => type.format)) {
             caseStatement.push(
                 measureFormats()
                     .get(dataFormat.toLowerCase())
@@ -718,9 +719,9 @@ async function setupMeasures(
         });
         const languageColumn = (dataset.measure.extractor as MeasureLookupTableExtractor).languageColumn || 'language';
         joinStatements.push(
-            `LEFT JOIN measure on CAST (measure.measure_id AS VARCHAR)=CAST(${FACT_TABLE_NAME}.${dataset.measure.factTableColumn} AS VARCHAR) AND measure."${languageColumn}"='#LANG#'`
+            `LEFT JOIN measure on CAST (measure.reference AS VARCHAR)=CAST(${FACT_TABLE_NAME}.${dataset.measure.factTableColumn} AS VARCHAR) AND measure."${languageColumn}"='#LANG#'`
         );
-        orderByStatements.push(`measure.measure_id`);
+        orderByStatements.push(`measure.sort_order, measure.reference`);
     } else {
         SUPPORTED_LOCALES.map((locale) => {
             if (dataValuesColumn)

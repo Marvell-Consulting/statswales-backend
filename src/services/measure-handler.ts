@@ -138,8 +138,9 @@ async function setupMeasure(
     logger.debug('Saving the lookup table');
     await lookupTable.save();
 
-    logger.debug('Saving measure table to database');
+    logger.debug(`Saving measure table to database using rows ${JSON.stringify(measureTable, null, 2)}`);
     for (const row of measureTable) {
+        row.id = updateMeasure.id;
         row.measure = updateMeasure;
         await row.save();
     }
@@ -332,6 +333,7 @@ async function createMeasureTable(
         logger.debug(`Extracting SW3 measure lookup table to measure table using query ${buildMeasureViewQuery}`);
     }
     const tableContents = await quack.all(buildMeasureViewQuery);
+    logger.debug(`Creating measureTable from lookup using result: ${JSON.stringify(tableContents)}`);
     for (const row of tableContents) {
         const item = new MeasureItem();
         item.reference = row.reference;
@@ -342,6 +344,7 @@ async function createMeasureTable(
         item.sortOrder = row.sort_order || null;
         item.decimal = row.decimal || null;
         item.measureType = row.measure_type || null;
+        measureTable.push(item);
     }
     return measureTable;
 }

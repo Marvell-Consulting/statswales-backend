@@ -1,13 +1,14 @@
 export enum DisplayType {
-    Decimal = 'DECIMAL',
-    Float = 'DOUBLE',
-    Integer = 'INTEGER',
-    Long = 'BIGINT',
-    Percentage = 'PERCENT',
-    String = 'VARCHAR',
-    Boolean = 'BOOLEAN',
-    Date = 'DATE',
-    DateTime = 'DATETIME',
-    Time = 'TIME',
-    Timestamp = 'TIMESTAMP'
+    Boolean = 'boolean',
+    Decimal = 'decimal',
+    Float = 'float ',
+    Integer = 'integer',
+    Long = 'long',
+    Percentage = 'percentage',
+    String = 'string',
+    Text = 'text',
+    Date = 'date',
+    DateTime = 'datetime',
+    Time = 'time',
+    Timestamp = 'timestamp'
 }
