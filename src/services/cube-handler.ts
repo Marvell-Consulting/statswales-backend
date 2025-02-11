@@ -609,41 +609,41 @@ interface MeasureFormat {
 function measureFormats(): Map<string, MeasureFormat> {
     const measureFormats: Map<string, MeasureFormat> = new Map();
     measureFormats.set('decimal', {
-        name: 'Decimal',
-        method: "WHEN measure.display_type = 'Decimal' THEN printf('%,.2f', |COL|)"
+        name: 'decimal',
+        method: "WHEN measure.display_type = 'decimal' THEN printf('%,.2f', |COL|)"
     });
     measureFormats.set('float', {
-        name: 'Float',
-        method: "WHEN measure.display_type = 'Float' THEN printf('%,.2f', |COL|)"
+        name: 'float',
+        method: "WHEN measure.display_type = 'float' THEN printf('%,.2f', |COL|)"
     });
     measureFormats.set('integer', {
-        name: 'Integer',
-        method: "WHEN measure.display_type = 'Integer' THEN printf('%,d', CAST(|COL| AS INTEGER))"
+        name: 'integer',
+        method: "WHEN measure.display_type = 'integer' THEN printf('%,d', CAST(|COL| AS INTEGER))"
     });
-    measureFormats.set('long', { name: 'Long', method: "WHEN measure.display_type = 'Long' THEN printf('%f', |COL|)" });
+    measureFormats.set('long', { name: 'long', method: "WHEN measure.display_type = 'Long' THEN printf('%f', |COL|)" });
     measureFormats.set('percentage', {
-        name: 'Percentage',
-        method: "WHEN measure.display_type = 'Long' THEN printf('%f', |COL|)"
+        name: 'percentage',
+        method: "WHEN measure.display_type = 'percentage' THEN printf('%f', |COL|)"
     });
     measureFormats.set('string', {
-        name: 'String',
-        method: "WHEN measure.display_type = 'String' THEN printf('%s', CAST(|COL| AS VARCHAR))"
+        name: 'string',
+        method: "WHEN measure.display_type = 'string' THEN printf('%s', CAST(|COL| AS VARCHAR))"
     });
     measureFormats.set('text', {
-        name: 'Text',
-        method: "WHEN measure.display_type = 'Text' THEN printf('%s', CAST(|COL| AS VARCHAR))"
+        name: 'text',
+        method: "WHEN measure.display_type = 'text' THEN printf('%s', CAST(|COL| AS VARCHAR))"
     });
     measureFormats.set('date', {
-        name: 'Date',
-        method: "WHEN measure.display_type = 'Date' THEN printf('%s', CAST(|COL| AS VARCHAR))"
+        name: 'date',
+        method: "WHEN measure.display_type = 'date' THEN printf('%s', CAST(|COL| AS VARCHAR))"
     });
     measureFormats.set('datetime', {
-        name: 'DateTime',
-        method: "WHEN measure.display_type = 'DateTime' THEN printf('%s', CAST(|COL| AS VARCHAR))"
+        name: 'datetime',
+        method: "WHEN measure.display_type = 'datetime' THEN printf('%s', CAST(|COL| AS VARCHAR))"
     });
     measureFormats.set('time', {
-        name: 'Time',
-        method: "WHEN measure.display_type = 'Time' THEN printf('%s', CAST(|COL| AS VARCHAR))"
+        name: 'time',
+        method: "WHEN measure.display_type = 'time' THEN printf('%s', CAST(|COL| AS VARCHAR))"
     });
     return measureFormats;
 }
@@ -701,10 +701,10 @@ async function setupMeasures(
                     const viewComponents: string[] = [];
                     for (const locale of SUPPORTED_LOCALES) {
                         let formatColumn = `"${extractor.formatColumn}"`;
-                        if (!formatColumn) {
-                            formatColumn = `'Text'`;
-                        } else if (formatColumn.toLowerCase().indexOf('decimal') > -1) {
-                            formatColumn = `CASE WHEN "${extractor.formatColumn}" = 1 THEN 'Decimal' ELSE 'Integer' END`;
+                        if (!formatColumn && !extractor.decimalColumn) {
+                            formatColumn = `'text'`;
+                        } else if (extractor.decimalColumn) {
+                            formatColumn = `'float'`;
                         }
                         let measureTypeColumn = `"${extractor.formatColumn}"`;
                         if (!extractor.measureTypeColumn) {
