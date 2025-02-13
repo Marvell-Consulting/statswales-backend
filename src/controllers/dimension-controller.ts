@@ -1,6 +1,5 @@
 import { NextFunction, Request, Response } from 'express';
 
-import { Dataset } from '../entities/dataset/dataset';
 import { Dimension } from '../entities/dataset/dimension';
 import { DimensionMetadata } from '../entities/dataset/dimension-metadata';
 import { DimensionType } from '../enums/dimension-type';
@@ -23,24 +22,12 @@ import { validateReferenceData } from '../services/reference-data-handler';
 import { convertBufferToUTF8 } from '../utils/file-utils';
 
 export const getDimensionInfo = async (req: Request, res: Response, next: NextFunction) => {
-    const dataset = res.locals.dataset;
-    const dimension = dataset.dimensions.find((dim: Dimension) => dim.id === req.params.dimension_id);
-
-    if (!dimension) {
-        next(new NotFoundException('errors.dimension_id_invalid'));
-        return;
-    }
-
-    res.json(DimensionDTO.fromDimension(dimension));
+    res.json(DimensionDTO.fromDimension(res.locals.dimension));
 };
 
 export const resetDimension = async (req: Request, res: Response, next: NextFunction) => {
-    const { dimension } = res.locals;
+    const dimension = res.locals.dimension;
 
-    if (!dimension) {
-        next(new NotFoundException('errors.dimension_id_invalid'));
-        return;
-    }
     dimension.type = DimensionType.Raw;
     dimension.extractor = null;
     if (dimension.lookuptable) {
