@@ -35,8 +35,7 @@ export const getDimensionInfo = async (req: Request, res: Response, next: NextFu
 };
 
 export const resetDimension = async (req: Request, res: Response, next: NextFunction) => {
-    const dataset = res.locals.dataset;
-    const dimension = dataset.dimensions.find((dim: Dimension) => dim.id === req.params.dimension_id);
+    const { dimension } = res.locals;
 
     if (!dimension) {
         next(new NotFoundException('errors.dimension_id_invalid'));
@@ -56,18 +55,15 @@ export const resetDimension = async (req: Request, res: Response, next: NextFunc
 };
 
 export const sendDimensionPreview = async (req: Request, res: Response, next: NextFunction) => {
-    const dataset = res.locals.dataset;
-    const dimension: Dimension = dataset.dimensions.find((dim: Dimension) => dim.id === req.params.dimension_id);
+    const { dataset, dimension } = res.locals;
     const latestRevision = getLatestRevision(dataset);
     const dataTable = latestRevision?.dataTable;
-    if (!dimension) {
-        next(new NotFoundException('errors.dimension_id_invalid'));
-        return;
-    }
+
     if (!dataTable) {
         next(new NotFoundException('errors.fact_table_invalid'));
         return;
     }
+
     logger.debug(`Latest revision is ${JSON.stringify(latestRevision)}`);
     if (latestRevision?.tasks) {
         const outstandingDimensionTask = latestRevision.tasks.dimensions.find((dim) => dim.id === dimension.id);
@@ -100,21 +96,17 @@ export const attachLookupTableToDimension = async (req: Request, res: Response, 
         next(new BadRequestException('errors.upload.no_csv'));
         return;
     }
-    const dataset: Dataset = res.locals.dataset;
-    const dimension: Dimension | undefined = dataset.dimensions.find(
-        (dim: Dimension) => dim.id === req.params.dimension_id
-    );
-    if (!dimension) {
-        next(new NotFoundException('errors.dimension_id_invalid'));
-        return;
-    }
+    const { dataset, dimension } = res.locals;
+
     const factTable = getLatestRevision(dataset)?.dataTable;
+
     if (!factTable) {
         next(new NotFoundException('errors.fact_table_invalid'));
         return;
     }
     let fileImport: DataTable;
     const utf8Buffer = convertBufferToUTF8(req.file.buffer);
+
     try {
         fileImport = await uploadCSV(utf8Buffer, req.file?.mimetype, req.file?.originalname, res.locals.datasetId);
     } catch (err) {
@@ -142,19 +134,17 @@ export const attachLookupTableToDimension = async (req: Request, res: Response, 
 };
 
 export const updateDimension = async (req: Request, res: Response, next: NextFunction) => {
-    const dataset = res.locals.dataset;
-    const dimension = dataset.dimensions.find((dim: Dimension) => dim.id === req.params.dimension_id);
+    const { dataset, dimension } = res.locals;
     const factTable = getLatestRevision(dataset)?.dataTable;
-    if (!dimension) {
-        next(new NotFoundException('errors.dimension_id_invalid'));
-        return;
-    }
+
     if (!factTable) {
         next(new NotFoundException('errors.fact_table_invalid'));
         return;
     }
+
     const dimensionPatchRequest = req.body as DimensionPatchDto;
     let preview: ViewDTO | ViewErrDTO;
+
     try {
         logger.debug(`User dimension type = ${JSON.stringify(dimensionPatchRequest)}`);
         switch (dimensionPatchRequest.dimension_type) {
@@ -191,27 +181,29 @@ export const updateDimension = async (req: Request, res: Response, next: NextFun
         res.json(preview);
         return;
     }
+
     res.status(200);
     res.json(preview);
 };
 
-export const updateDimensionInfo = async (req: Request, res: Response, next: NextFunction) => {
-    const dataset = res.locals.dataset;
-    const dimension: Dimension = dataset.dimensions.find((dim: Dimension) => dim.id === req.params.dimension_id);
-    const updatedInfo = req.body as DimensionInfoDTO;
-    let info = dimension.metadata.find((info) => info.language === updatedInfo.language);
-    if (!info) {
-        info = new DimensionMetadata();
-        info.dimension = dimension;
-        info.language = updatedInfo.language;
+export const updateDimensionMetadata = async (req: Request, res: Response, next: NextFunction) => {
+    const { dimension } = res.locals;
+
+    const update = req.body as DimensionInfoDTO;
+    let metadata = dimension.metadata.find((meta: DimensionMetadata) => meta.language === update.language);
+
+    if (!metadata) {
+        metadata = new DimensionMetadata();
+        metadata.dimension = dimension;
+        metadata.language = update.language;
     }
-    if (updatedInfo.name) {
-        info.name = updatedInfo.name;
+    if (update.name) {
+        metadata.name = update.name;
     }
-    if (updatedInfo.notes) {
-        info.notes = updatedInfo.notes;
+    if (update.notes) {
+        metadata.notes = update.notes;
     }
-    await info.save();
+    await metadata.save();
     const updatedDimension = await Dimension.findOneByOrFail({ id: dimension.id });
     res.status(202);
     res.json(DimensionDTO.fromDimension(updatedDimension));
