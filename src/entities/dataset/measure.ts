@@ -31,7 +31,7 @@ export class Measure extends BaseEntity {
     extractor: object | null;
 
     @OneToMany(() => MeasureItem, (measureInfo) => measureInfo.measure, { cascade: true })
-    measureInfo: MeasureItem[] | null;
+    measureTable: MeasureItem[] | null;
 
     @OneToMany(() => MeasureMetadata, (measureMetadata) => measureMetadata.measure, { cascade: true })
     metadata: MeasureMetadata[];
