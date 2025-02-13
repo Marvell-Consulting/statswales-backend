@@ -217,7 +217,7 @@ export const validateReferenceData = async (
         const dimensionTable = await quack.all(previewQuery);
         const tableHeaders = Object.keys(dimensionTable[0]);
         const dataArray = dimensionTable.map((row) => Object.values(row));
-        const currentDataset = await DatasetRepository.getById(dataset.id);
+        const currentDataset = await DatasetRepository.getById(dataset.id, { dimensions: { metadata: true } });
         const currentImport = await DataTable.findOneByOrFail({ id: factTable.id });
         const headers: CSVHeader[] = tableHeaders.map((header, index) => {
             return {
