@@ -2,7 +2,6 @@ import 'reflect-metadata';
 
 import express, { NextFunction, Request, Response, Router } from 'express';
 import multer from 'multer';
-import { FindOptionsRelations } from 'typeorm';
 
 import { logger } from '../utils/logger';
 import {
@@ -11,9 +10,9 @@ import {
     resetDimension,
     sendDimensionPreview,
     updateDimension,
-    updateDimensionInfo
+    updateDimensionMetadata
 } from '../controllers/dimension-controller';
-import { dimensionIdValidator, hasError, revisionIdValidator } from '../validators';
+import { dimensionIdValidator, hasError } from '../validators';
 import { NotFoundException } from '../exceptions/not-found.exception';
 import { Dimension } from '../entities/dataset/dimension';
 import { DimensionRepository } from '../repositories/dimension';
@@ -80,6 +79,6 @@ router.post('/by-id/:dimension_id/lookup', upload.single('csv'), loadDimension()
 // If it fails it sends back an error
 router.patch('/by-id/:dimension_id', jsonParser, loadDimension(), updateDimension);
 
-// PATCH /:dataset_id/dimension/by-id/:dimension_id/info
-// Updates the dimension info
-router.patch('/by-id/:dimension_id/info', jsonParser, loadDimension(), updateDimensionInfo);
+// PATCH /:dataset_id/dimension/by-id/:dimension_id/meta
+// Updates the dimension metadata
+router.patch('/by-id/:dimension_id/metadata', jsonParser, loadDimension(), updateDimensionMetadata);
