@@ -263,7 +263,14 @@ export const getReferenceDataDimensionPreview = async (
     try {
         logger.debug('Passed validation preparing to send back the preview');
 
-        const fullQuery = `
+        const countQuery = `
+            SELECT COUNT(DISTINCT ${tableName}."${dimension.factTableColumn}") AS total_rows
+            FROM ${tableName}
+        `;
+        const countResult = await quack.all(countQuery);
+        const totalRows = countResult[0].total_rows;
+
+        const previewQuery = `
             SELECT DISTINCT ${tableName}."${dimension.factTableColumn}", reference_data_info.description
             FROM ${tableName}
             LEFT JOIN reference_data
@@ -273,15 +280,10 @@ export const getReferenceDataDimensionPreview = async (
                 AND reference_data.category_key=reference_data_info.category_key
                 AND reference_data.version_no=reference_data_info.version_no
             WHERE reference_data_info.lang='${lang.toLowerCase()}'
+            LIMIT ${sampleSize}
         `;
 
-        const totalResult = await quack.all(fullQuery);
-        const totalRecords = totalResult.length;
-
-        const previewQuery = `${fullQuery} LIMIT ${sampleSize}`;
-        logger.debug(`Preview Query = ${previewQuery}`);
         const previewResult = await quack.all(previewQuery);
-
         const tableHeaders = Object.keys(previewResult[0]);
         const dataArray = previewResult.map((row) => Object.values(row));
 
@@ -305,7 +307,7 @@ export const getReferenceDataDimensionPreview = async (
             fact_table: DataTableDto.fromDataTable(currentImport),
             current_page: 1,
             page_info: {
-                total_records: totalRecords,
+                total_records: totalRows,
                 start_record: 1,
                 end_record: sampleSize
             },

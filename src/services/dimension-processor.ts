@@ -557,18 +557,25 @@ async function getDatePreviewWithExtractor(
         await stmt.run(row.dateCode, row.description, row.start, row.end, row.type);
     });
     await stmt.finalize();
-    const dimensionTable = await quack.all(`
+    const countQuery = `SELECT COUNT(DISTINCT date_dimension.date_code) AS total_rows FROM date_dimension`;
+    const countResult = await quack.all(countQuery);
+    const totalRows = countResult[0].total_rows;
+
+    const previewQuery = `
         SELECT DISTINCT(date_dimension.date_code), date_dimension.description, date_dimension.start_date, date_dimension.end_date, date_dimension.date_type
         FROM date_dimension
         RIGHT JOIN "${tableName}" ON CAST("${tableName}"."${factTableColumn}" AS VARCHAR)=CAST(date_dimension.date_code AS VARCHAR)
-        ORDER BY end_date ASC LIMIT ${sampleSize};
-    `);
+        ORDER BY end_date ASC
+        LIMIT ${sampleSize}
+    `;
+    const previewResult = await quack.all(previewQuery);
 
-    const tableHeaders = Object.keys(dimensionTable[0]);
-    const dataArray = dimensionTable.map((row) => Object.values(row));
+    const tableHeaders = Object.keys(previewResult[0]);
+    const dataArray = previewResult.map((row) => Object.values(row));
     const currentDataset = await DatasetRepository.getById(dataset.id);
     const currentImport = await DataTable.findOneByOrFail({ id: dataTable.id });
     const headers: CSVHeader[] = [];
+
     for (let i = 0; i < tableHeaders.length; i++) {
         headers.push({
             index: i,
@@ -576,16 +583,17 @@ async function getDatePreviewWithExtractor(
             source_type: FactTableColumnType.Unknown
         });
     }
+
     return {
         dataset: DatasetDTO.fromDataset(currentDataset),
         data_table: DataTableDto.fromDataTable(currentImport),
         current_page: 1,
         page_info: {
-            total_records: dimensionTable.length,
+            total_records: totalRows,
             start_record: 1,
-            end_record: dimensionTable.length < sampleSize ? dimensionTable.length : sampleSize
+            end_record: sampleSize
         },
-        page_size: dimensionTable.length < sampleSize ? dimensionTable.length : sampleSize,
+        page_size: previewResult.length < sampleSize ? previewResult.length : sampleSize,
         total_pages: 1,
         headers,
         data: dataArray
@@ -689,7 +697,7 @@ export const getDimensionPreview = async (
     dataTable: DataTable,
     lang: string
 ) => {
-    logger.debug(`Getting dimension preview for ${dimension.id}`);
+    logger.info(`Getting dimension preview for ${dimension.id}`);
     const tableName = 'fact_table';
     const quack = await duckdb();
     const tempFile = tmp.tmpNameSync({ postfix: `.${dataTable.fileType}` });
