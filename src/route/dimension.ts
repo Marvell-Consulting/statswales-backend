@@ -79,6 +79,6 @@ router.post('/by-id/:dimension_id/lookup', upload.single('csv'), loadDimension()
 // If it fails it sends back an error
 router.patch('/by-id/:dimension_id', jsonParser, loadDimension(), updateDimension);
 
-// PATCH /:dataset_id/dimension/by-id/:dimension_id/info
-// Updates the dimension info
-router.patch('/by-id/:dimension_id/info', jsonParser, loadDimension(), updateDimensionMetadata);
+// PATCH /:dataset_id/dimension/by-id/:dimension_id/meta
+// Updates the dimension metadata
+router.patch('/by-id/:dimension_id/metadata', jsonParser, loadDimension(), updateDimensionMetadata);

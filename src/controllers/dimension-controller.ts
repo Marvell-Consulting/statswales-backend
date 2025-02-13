@@ -15,7 +15,7 @@ import { getLatestRevision } from '../utils/latest';
 import { BadRequestException } from '../exceptions/bad-request.exception';
 import { UnknownException } from '../exceptions/unknown.exception';
 import { LookupTablePatchDTO } from '../dtos/lookup-patch-dto';
-import { DimensionInfoDTO } from '../dtos/dimension-info-dto';
+import { DimensionMetadataDTO } from '../dtos/dimension-metadata-dto';
 import { getFactTableColumnPreview, uploadCSV } from '../services/csv-processor';
 import { getDimensionPreview, validateDateTypeDimension } from '../services/dimension-processor';
 import { validateLookupTable } from '../services/lookup-table-handler';
@@ -189,7 +189,7 @@ export const updateDimension = async (req: Request, res: Response, next: NextFun
 export const updateDimensionMetadata = async (req: Request, res: Response, next: NextFunction) => {
     const { dimension } = res.locals;
 
-    const update = req.body as DimensionInfoDTO;
+    const update = req.body as DimensionMetadataDTO;
     let metadata = dimension.metadata.find((meta: DimensionMetadata) => meta.language === update.language);
 
     if (!metadata) {
