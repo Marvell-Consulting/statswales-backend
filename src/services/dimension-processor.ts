@@ -639,12 +639,12 @@ async function getLookupPreviewWithExtractor(
     dataset: Dataset,
     dimension: Dimension,
     dataTable: DataTable,
-    quack: Database,
-    tableName: string
+    quack: Database
 ) {
     if (!dimension.lookupTable) {
         throw new Error(`Lookup table does does not exist on dimension ${dimension.id}`);
     }
+
     logger.debug(`Generating lookup table preview for dimension ${dimension.id}`);
     const lookupTmpFile = await getFileImportAndSaveToDisk(dataset, dimension.lookupTable);
     const lookupTableName = `lookup_table`;
@@ -658,6 +658,7 @@ async function getLookupPreviewWithExtractor(
     const currentDataset = await DatasetRepository.getById(dataset.id);
     const currentImport = await DataTable.findOneByOrFail({ id: dataTable.id });
     const headers: CSVHeader[] = [];
+
     for (let i = 0; i < tableHeaders.length; i++) {
         headers.push({
             index: i,
@@ -665,6 +666,7 @@ async function getLookupPreviewWithExtractor(
             source_type: FactTableColumnType.Unknown
         });
     }
+
     return {
         dataset: DatasetDTO.fromDataset(currentDataset),
         fact_table: DataTableDto.fromDataTable(currentImport),
@@ -722,10 +724,12 @@ export const getDimensionPreview = async (
                         tableName
                     );
                     break;
+
                 case DimensionType.LookupTable:
                     logger.debug('Previewing a lookup table');
-                    viewDto = await getLookupPreviewWithExtractor(dataset, dimension, dataTable, quack, tableName);
+                    viewDto = await getLookupPreviewWithExtractor(dataset, dimension, dataTable, quack);
                     break;
+
                 case DimensionType.ReferenceData:
                     logger.debug('Previewing a lookup table');
                     viewDto = await getReferenceDataDimensionPreview(
@@ -737,6 +741,7 @@ export const getDimensionPreview = async (
                         lang
                     );
                     break;
+
                 default:
                     logger.debug(`Previewing a dimension of an unknown type.  Type supplied is ${dimension.type}`);
                     viewDto = await getPreviewWithoutExtractor(dataset, dimension, dataTable, quack, tableName);
