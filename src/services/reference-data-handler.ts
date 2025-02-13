@@ -25,6 +25,8 @@ import {
 } from './cube-handler';
 import { duckdb } from './duckdb';
 
+const sampleSize = 5;
+
 async function setupDimension(dimension: Dimension, categories: string[]) {
     // Clean up previously uploaded dimensions
     if (dimension.extractor) await cleanUpDimension(dimension);
@@ -260,7 +262,9 @@ export const getReferenceDataDimensionPreview = async (
     await cleanUpReferenceDataTables(quack);
     try {
         logger.debug('Passed validation preparing to send back the preview');
-        const previewQuery = `SELECT DISTINCT ${tableName}."${dimension.factTableColumn}", reference_data_info.description
+
+        const fullQuery = `
+            SELECT DISTINCT ${tableName}."${dimension.factTableColumn}", reference_data_info.description
             FROM ${tableName}
             LEFT JOIN reference_data
                 ON CAST(${tableName}."${dimension.factTableColumn}" AS VARCHAR)=reference_data.item_id
@@ -268,14 +272,26 @@ export const getReferenceDataDimensionPreview = async (
                 ON reference_data.item_id=reference_data_info.item_id
                 AND reference_data.category_key=reference_data_info.category_key
                 AND reference_data.version_no=reference_data_info.version_no
-            WHERE reference_data_info.lang='${lang.toLowerCase()}';`;
+            WHERE reference_data_info.lang='${lang.toLowerCase()}'
+        `;
+
+        const totalResult = await quack.all(fullQuery);
+        const totalRecords = totalResult.length;
+
+        const previewQuery = `${fullQuery} LIMIT ${sampleSize}`;
         logger.debug(`Preview Query = ${previewQuery}`);
-        const dimensionTable = await quack.all(previewQuery);
-        logger.debug(`Query Result = ${JSON.stringify(dimensionTable, null, 2)}`);
-        const tableHeaders = Object.keys(dimensionTable[0]);
-        const dataArray = dimensionTable.map((row) => Object.values(row));
-        const currentDataset = await DatasetRepository.getById(dataset.id);
+        const previewResult = await quack.all(previewQuery);
+
+        const tableHeaders = Object.keys(previewResult[0]);
+        const dataArray = previewResult.map((row) => Object.values(row));
+
+        const currentDataset = await DatasetRepository.getById(dataset.id, {
+            dimensions: { metadata: true },
+            revisions: { dataTable: true }
+        });
+
         const currentImport = await DataTable.findOneByOrFail({ id: factTable.id });
+
         const headers: CSVHeader[] = tableHeaders.map((header, index) => {
             return {
                 index,
@@ -283,16 +299,17 @@ export const getReferenceDataDimensionPreview = async (
                 source_type: FactTableColumnType.Unknown
             };
         });
+
         return {
             dataset: DatasetDTO.fromDataset(currentDataset),
             fact_table: DataTableDto.fromDataTable(currentImport),
             current_page: 1,
             page_info: {
-                total_records: 1,
+                total_records: totalRecords,
                 start_record: 1,
-                end_record: 10
+                end_record: sampleSize
             },
-            page_size: 10,
+            page_size: sampleSize,
             total_pages: 1,
             headers,
             data: dataArray
