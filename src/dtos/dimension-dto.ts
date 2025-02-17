@@ -2,7 +2,7 @@ import { DimensionMetadata } from '../entities/dataset/dimension-metadata';
 import { Dimension } from '../entities/dataset/dimension';
 import { DimensionType } from '../enums/dimension-type';
 
-import { DimensionInfoDTO } from './dimension-info-dto';
+import { DimensionMetadataDTO } from './dimension-metadata-dto';
 import { LookupTableDTO } from './lookup-table-dto';
 
 export class DimensionDTO {
@@ -14,7 +14,7 @@ export class DimensionDTO {
     factTableColumn: string; // <-- Tells you which column in the fact table you're joining to
     isSliceDimension: boolean;
     lookupTable?: LookupTableDTO;
-    dimensionInfo?: DimensionInfoDTO[];
+    metadata?: DimensionMetadataDTO[];
 
     static fromDimension(dimension: Dimension): DimensionDTO {
         const dimDto = new DimensionDTO();
@@ -28,9 +28,10 @@ export class DimensionDTO {
         dimDto.factTableColumn = dimension.factTableColumn;
         dimDto.isSliceDimension = dimension.isSliceDimension;
 
-        dimDto.dimensionInfo = dimension.metadata?.map((dimInfo: DimensionMetadata) => {
-            return DimensionInfoDTO.fromDimensionInfo(dimInfo);
+        dimDto.metadata = dimension.metadata?.map((dimInfo: DimensionMetadata) => {
+            return DimensionMetadataDTO.fromDimensionMetadata(dimInfo);
         });
+
         return dimDto;
     }
 }
