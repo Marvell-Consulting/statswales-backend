@@ -1,6 +1,6 @@
 import { MeasureItem } from '../entities/dataset/measure-item';
 
-export class MeasureInfoDTO {
+export class MeasureItemDto {
     measure_id: string;
     language: string;
     reference: string;
@@ -12,8 +12,8 @@ export class MeasureInfoDTO {
     measure_type?: string;
     hierarchy?: string;
 
-    static fromMeasureInfo(info: MeasureItem) {
-        const dto = new MeasureInfoDTO();
+    static fromMeasureItem(info: MeasureItem) {
+        const dto = new MeasureItemDto();
         dto.measure_id = info.id;
         dto.language = info.language;
         dto.reference = info.reference;
