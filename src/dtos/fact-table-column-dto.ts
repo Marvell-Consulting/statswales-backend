@@ -1,4 +1,4 @@
-import { FactTable } from '../entities/dataset/fact-table';
+import { FactTableColumn } from '../entities/dataset/fact-table-column';
 
 export class FactTableColumnDto {
     name: string;
@@ -6,7 +6,7 @@ export class FactTableColumnDto {
     type: string;
     datatype: string;
 
-    static fromFactTableColumn(factTableColumn: FactTable): FactTableColumnDto {
+    static fromFactTableColumn(factTableColumn: FactTableColumn): FactTableColumnDto {
         const dto = new FactTableColumnDto();
         dto.name = factTableColumn.columnName;
         dto.index = factTableColumn.columnIndex;

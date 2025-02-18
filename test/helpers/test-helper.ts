@@ -15,7 +15,7 @@ import { extractTableInformation } from '../../src/services/csv-processor';
 import { DataTableAction } from '../../src/enums/data-table-action';
 import { FactTableColumnType } from '../../src/enums/fact-table-column-type';
 import { LookupTable } from '../../src/entities/dataset/lookup-table';
-import { FactTable } from '../../src/entities/dataset/fact-table';
+import { FactTableColumn } from '../../src/entities/dataset/fact-table-column';
 import { DataTableDescription } from '../../src/entities/dataset/data-table-description';
 
 export async function createSmallDataset(
@@ -77,11 +77,11 @@ export async function createSmallDataset(
             break;
     }
     await dataTable.save();
-    const factTable: FactTable[] = [];
+    const factTable: FactTableColumn[] = [];
     const factTableInfo = await extractTableInformation(testFileBuffer, fileType);
     const dataTableDescriptions = [];
     for (const info of factTableInfo) {
-        const factTableCol = new FactTable();
+        const factTableCol = new FactTableColumn();
         factTableCol.columnName = info.columnName;
         factTableCol.columnIndex = info.columnIndex;
         factTableCol.columnType = FactTableColumnType.Unknown;

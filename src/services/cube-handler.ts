@@ -21,10 +21,10 @@ import { MeasureLookupTableExtractor } from '../extractors/measure-lookup-extrac
 import { DimensionType } from '../enums/dimension-type';
 import { FactTableColumnType } from '../enums/fact-table-column-type';
 import { ReferenceDataExtractor } from '../extractors/reference-data-extractor';
-import { FactTable } from '../entities/dataset/fact-table';
+import { FactTableColumn } from '../entities/dataset/fact-table-column';
 import { CubeValidationException, CubeValidationType } from '../exceptions/cube-error-exception';
 import { DataTableDescription } from '../entities/dataset/data-table-description';
-import { MeasureItem } from '../entities/dataset/measure-item';
+import { MeasureRow } from '../entities/dataset/measure-row';
 
 import { dateDimensionReferenceTableCreator } from './time-matching';
 import { duckdb } from './duckdb';
@@ -368,7 +368,7 @@ export async function createAndValidateLookupTableDimension(quack: Database, dat
 
 function setupFactTableUpdateJoins(
     factTableName: string,
-    factIdentifiers: FactTable[],
+    factIdentifiers: FactTableColumn[],
     dataTableIdentifiers: DataTableDescription[]
 ): string {
     const joinParts: string[] = [];
@@ -384,9 +384,9 @@ async function loadFactTablesWithUpdates(
     dataset: Dataset,
     allDataTables: DataTable[],
     factTableDef: string[],
-    dataValuesColumn: FactTable,
-    notesCodeColumn: FactTable,
-    factIdentifiers: FactTable[]
+    dataValuesColumn: FactTableColumn,
+    notesCodeColumn: FactTableColumn,
+    factIdentifiers: FactTableColumn[]
 ) {
     for (const dataTable of allDataTables.sort((ftA, ftB) => ftA.uploadedAt.getTime() - ftB.uploadedAt.getTime())) {
         logger.info(`Loading fact table data for fact table ${dataTable.id}`);
@@ -471,9 +471,9 @@ export async function loadFactTables(
     dataset: Dataset,
     endRevision: Revision,
     factTableDef: string[],
-    dataValuesColumn: FactTable | undefined,
-    notesCodeColumn: FactTable | undefined,
-    factIdentifiers: FactTable[]
+    dataValuesColumn: FactTableColumn | undefined,
+    notesCodeColumn: FactTableColumn | undefined,
+    factIdentifiers: FactTableColumn[]
 ): Promise<void> {
     // Find all the fact tables for the given revision
     logger.debug('Finding all fact tables for this revision and those that came before');
@@ -555,7 +555,7 @@ const NoteCodes: NoteCodeItem[] = [
 
 async function createNotesTable(
     quack: Database,
-    notesColumn: FactTable,
+    notesColumn: FactTableColumn,
     selectStatementsMap: Map<Locale, string[]>,
     joinStatements: string[]
 ): Promise<void> {
@@ -649,7 +649,7 @@ function measureFormats(): Map<string, MeasureFormat> {
     return measureFormats;
 }
 
-export async function createMeasureLookupTable(quack: Database, measureTable: MeasureItem[] | null) {
+export async function createMeasureLookupTable(quack: Database, measureTable: MeasureRow[] | null) {
     await quack.exec(`CREATE TABLE measure (
         reference VARCHAR,
         language VARCHAR(5),
@@ -682,11 +682,11 @@ export async function createMeasureLookupTable(quack: Database, measureTable: Me
 async function setupMeasures(
     quack: Database,
     dataset: Dataset,
-    dataValuesColumn: FactTable | undefined,
+    dataValuesColumn: FactTableColumn | undefined,
     selectStatementsMap: Map<Locale, string[]>,
     joinStatements: string[],
     orderByStatements: string[],
-    measureColumn?: FactTable
+    measureColumn?: FactTableColumn
 ) {
     logger.info('Setting up measure table if present...');
     logger.debug(`Dataset Measure = ${JSON.stringify(dataset.measure)}`);
@@ -869,9 +869,9 @@ function referenceDataPresent(dataset: Dataset) {
 }
 
 async function createBaseFactTable(quack: Database, dataset: Dataset) {
-    let notesCodeColumn: FactTable | undefined;
-    let dataValuesColumn: FactTable | undefined;
-    let measureColumn: FactTable | undefined;
+    let notesCodeColumn: FactTableColumn | undefined;
+    let dataValuesColumn: FactTableColumn | undefined;
+    let measureColumn: FactTableColumn | undefined;
 
     const firstRevision = dataset.revisions.find((rev) => rev.revisionIndex === 1);
     if (!firstRevision) {
@@ -879,7 +879,7 @@ async function createBaseFactTable(quack: Database, dataset: Dataset) {
     }
     const factTable = dataset.factTable;
     const compositeKey: string[] = [];
-    const factIdentifiers: FactTable[] = [];
+    const factIdentifiers: FactTableColumn[] = [];
     const factTableDef: string[] = [];
     if (!factTable) {
         throw new Error(`Unable to find fact table for dataset ${dataset.id}`);

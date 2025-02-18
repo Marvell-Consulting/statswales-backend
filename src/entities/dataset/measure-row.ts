@@ -4,12 +4,12 @@ import { DisplayType } from '../../enums/display-type';
 
 import { Measure } from './measure';
 
-@Entity({ name: 'measure_item' })
-export class MeasureItem extends BaseEntity {
+@Entity({ name: 'measure_rows' })
+export class MeasureRow extends BaseEntity {
     @PrimaryColumn({
         name: 'measure_id',
         type: 'uuid',
-        primaryKeyConstraintName: 'PK_measure_item_measure_id_language_reference'
+        primaryKeyConstraintName: 'PK_measure_row_measure_id_language_reference'
     })
     id: string;
 
@@ -17,14 +17,14 @@ export class MeasureItem extends BaseEntity {
         name: 'language',
         type: 'varchar',
         length: 5,
-        primaryKeyConstraintName: 'PK_measure_item_measure_id_language_reference'
+        primaryKeyConstraintName: 'PK_measure_row_measure_id_language_reference'
     })
     language: string;
 
     @PrimaryColumn({
         name: 'reference',
         type: 'text',
-        primaryKeyConstraintName: 'PK_measure_item_measure_id_language_reference'
+        primaryKeyConstraintName: 'PK_measure_row_measure_id_language_reference'
     })
     reference: string;
 
@@ -50,7 +50,7 @@ export class MeasureItem extends BaseEntity {
         onDelete: 'CASCADE',
         orphanedRowAction: 'delete'
     })
-    @JoinColumn({ name: 'measure_id', foreignKeyConstraintName: 'FK_measure_item_measure_id' })
+    @JoinColumn({ name: 'measure_id', foreignKeyConstraintName: 'FK_measure_row_measure_id' })
     measure: Measure;
 
     @Column({ name: 'measure_type', type: 'varchar', nullable: true })

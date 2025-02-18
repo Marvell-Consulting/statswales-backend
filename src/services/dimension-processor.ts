@@ -26,7 +26,7 @@ import { DataTableDto } from '../dtos/data-table-dto';
 import { getFileImportAndSaveToDisk, loadFileIntoDatabase } from '../utils/file-utils';
 import { LookupTableExtractor } from '../extractors/lookup-table-extractor';
 import { LookupTable } from '../entities/dataset/lookup-table';
-import { FactTable } from '../entities/dataset/fact-table';
+import { FactTableColumn } from '../entities/dataset/fact-table-column';
 
 import { DateReferenceDataItem, dateDimensionReferenceTableCreator } from './time-matching';
 import { createFactTableQuery } from './cube-handler';
@@ -132,7 +132,7 @@ export const validateSourceAssignment = (
 };
 
 async function createUpdateDimension(dataset: Dataset, columnDescriptor: SourceAssignmentDTO): Promise<void> {
-    const columnInfo = await FactTable.findOneByOrFail({
+    const columnInfo = await FactTableColumn.findOneByOrFail({
         columnName: columnDescriptor.column_name,
         id: dataset.id
     });
@@ -187,7 +187,7 @@ async function cleanupDimensions(datasetId: string, factTableInfo: DataTableDesc
 }
 
 async function updateDataValueColumn(dataset: Dataset, dataValueColumnDto: SourceAssignmentDTO) {
-    const column = await FactTable.findOneByOrFail({ columnName: dataValueColumnDto.column_name, id: dataset.id });
+    const column = await FactTableColumn.findOneByOrFail({ columnName: dataValueColumnDto.column_name, id: dataset.id });
     if (!column) {
         throw Error('No such column present in fact table');
     }
@@ -198,7 +198,7 @@ async function updateDataValueColumn(dataset: Dataset, dataValueColumnDto: Sourc
 }
 
 async function removeIgnoreAndUnknownColumns(dataset: Dataset, ignoreColumns: SourceAssignmentDTO[]) {
-    const factTableColumns = await FactTable.findBy({ dataset });
+    const factTableColumns = await FactTableColumn.findBy({ dataset });
     for (const column of ignoreColumns) {
         const factTableCol = factTableColumns.find((columnInfo) => columnInfo.columnName === column.column_name);
         if (!factTableCol) {
@@ -206,14 +206,14 @@ async function removeIgnoreAndUnknownColumns(dataset: Dataset, ignoreColumns: So
         }
         await factTableCol.remove();
     }
-    const unknownColumns = await FactTable.findBy({ dataset });
+    const unknownColumns = await FactTableColumn.findBy({ dataset });
     for (const col of unknownColumns) {
         await col.remove();
     }
 }
 
 async function createUpdateMeasure(dataset: Dataset, columnAssignment: SourceAssignmentDTO): Promise<void> {
-    const columnInfo = await FactTable.findOneByOrFail({
+    const columnInfo = await FactTableColumn.findOneByOrFail({
         columnName: columnAssignment.column_name,
         id: dataset.id
     });
@@ -246,7 +246,7 @@ async function createUpdateMeasure(dataset: Dataset, columnAssignment: SourceAss
 }
 
 async function createUpdateNoteCodes(dataset: Dataset, columnAssignment: SourceAssignmentDTO) {
-    const columnInfo = await FactTable.findOneByOrFail({
+    const columnInfo = await FactTableColumn.findOneByOrFail({
         columnName: columnAssignment.column_name,
         id: dataset.id
     });
@@ -290,12 +290,12 @@ async function createUpdateNoteCodes(dataset: Dataset, columnAssignment: SourceA
 async function recreateBaseFactTable(dataset: Dataset, dataTable: DataTable): Promise<void> {
     if (dataset.factTable) {
         for (const col of dataset.factTable) {
-            await FactTable.getRepository().remove(col);
+            await FactTableColumn.getRepository().remove(col);
         }
     }
-    const factTable: FactTable[] = [];
+    const factTable: FactTableColumn[] = [];
     for (const col of dataTable.dataTableDescriptions) {
-        const factTableCol = new FactTable();
+        const factTableCol = new FactTableColumn();
         factTableCol.columnType = FactTableColumnType.Unknown;
         factTableCol.columnName = col.columnName;
         factTableCol.columnDatatype = col.columnDatatype;
@@ -314,7 +314,7 @@ export const createDimensionsFromSourceAssignment = async (
 ): Promise<void> => {
     const { dataValues, measure, ignore, noteCodes, dimensions } = sourceAssignment;
     await recreateBaseFactTable(dataset, dataTable);
-    const factTable = await FactTable.findBy({ id: dataset.id });
+    const factTable = await FactTableColumn.findBy({ id: dataset.id });
 
     if (dataValues) {
         await updateDataValueColumn(dataset, dataValues);

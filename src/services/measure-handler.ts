@@ -20,7 +20,7 @@ import { DatasetRepository } from '../repositories/dataset';
 import { FactTableColumnType } from '../enums/fact-table-column-type';
 import { DatasetDTO } from '../dtos/dataset-dto';
 import { DataTableDto } from '../dtos/data-table-dto';
-import { MeasureItem } from '../entities/dataset/measure-item';
+import { MeasureRow } from '../entities/dataset/measure-row';
 import { SUPPORTED_LOCALES } from '../middleware/translation';
 
 import { createFactTableQuery, createMeasureLookupTable } from './cube-handler';
@@ -124,7 +124,7 @@ async function setupMeasure(
     dataset: Dataset,
     lookupTable: LookupTable,
     confirmedJoinColumn: string,
-    measureTable: MeasureItem[],
+    measureTable: MeasureRow[],
     extractor: MeasureLookupTableExtractor
 ) {
     // Clean up previously uploaded dimensions
@@ -271,7 +271,7 @@ async function createMeasureTable(
     lookupTable: string,
     extractor: MeasureLookupTableExtractor
 ) {
-    const measureTable: MeasureItem[] = [];
+    const measureTable: MeasureRow[] = [];
     const viewComponents: string[] = [];
     let formatColumn = `"${extractor.formatColumn}"`;
     if (!extractor.formatColumn && !extractor.decimalColumn) {
@@ -335,7 +335,7 @@ async function createMeasureTable(
     const tableContents = await quack.all(buildMeasureViewQuery);
     logger.debug(`Creating measureTable from lookup using result: ${JSON.stringify(tableContents)}`);
     for (const row of tableContents) {
-        const item = new MeasureItem();
+        const item = new MeasureRow();
         item.reference = row.reference;
         item.language = row.language;
         item.description = row.description;

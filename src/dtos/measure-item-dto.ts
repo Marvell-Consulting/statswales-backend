@@ -1,4 +1,4 @@
-import { MeasureItem } from '../entities/dataset/measure-item';
+import { MeasureRow } from '../entities/dataset/measure-row';
 
 export class MeasureItemDto {
     measure_id: string;
@@ -12,7 +12,7 @@ export class MeasureItemDto {
     measure_type?: string;
     hierarchy?: string;
 
-    static fromMeasureItem(info: MeasureItem) {
+    static fromMeasureItem(info: MeasureRow) {
         const dto = new MeasureItemDto();
         dto.measure_id = info.id;
         dto.language = info.language;

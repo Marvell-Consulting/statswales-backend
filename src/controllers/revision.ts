@@ -36,7 +36,7 @@ import {
 import { DEFAULT_PAGE_SIZE, getCSVPreview, removeFileFromDataLake, uploadCSV } from '../services/csv-processor';
 import { convertBufferToUTF8 } from '../utils/file-utils';
 import { DataTableDescription } from '../entities/dataset/data-table-description';
-import { FactTable } from '../entities/dataset/fact-table';
+import { FactTableColumn } from '../entities/dataset/fact-table-column';
 import { DataTableAction } from '../enums/data-table-action';
 import { ColumnMatch } from '../interfaces/column-match';
 import { DimensionType } from '../enums/dimension-type';
@@ -219,8 +219,8 @@ async function attachUpdateDataTableToRevision(
         const columnMatcher = JSON.parse(req.body.column_matching) as ColumnMatch[];
         const matchedColumns: string[] = [];
         for (const col of columnMatcher) {
-            const factTableCol: FactTable | undefined = dataset.factTable.find(
-                (factTableCol: FactTable) =>
+            const factTableCol: FactTableColumn | undefined = dataset.factTable.find(
+                (factTableCol: FactTableColumn) =>
                     makeCubeSafeString(factTableCol.columnName) === makeCubeSafeString(col.fact_table_column_name)
             );
             const dataTableCol = fileImport.dataTableDescriptions.find(
@@ -242,8 +242,8 @@ async function attachUpdateDataTableToRevision(
         const matchedColumns: string[] = [];
         const unmatchedColumns: string[] = [];
         for (const col of fileImport.dataTableDescriptions) {
-            const factTableCol: FactTable = dataset.factTable.find(
-                (factTableCol: FactTable) =>
+            const factTableCol: FactTableColumn = dataset.factTable.find(
+                (factTableCol: FactTableColumn) =>
                     makeCubeSafeString(factTableCol.columnName) === makeCubeSafeString(col.columnName)
             );
             if (factTableCol) {
