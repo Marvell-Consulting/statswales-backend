@@ -279,19 +279,10 @@ async function createMeasureTable(
     } else if (!extractor.formatColumn && extractor.decimalColumn) {
         formatColumn = `'float'`;
     }
-    let decimalColumnDef = '';
-    if (extractor.decimalColumn) {
-        decimalColumnDef = `"${extractor.decimalColumn}" as decimal,`;
-    }
+    const decimalColumnDef = extractor.decimalColumn ? `"${extractor.decimalColumn}" as decimal,` : '';
+    const sortOrderDef = extractor.sortColumn ? `"${extractor.sortColumn}" as sort_order,` : '';
+    const measureTypeDef = extractor.measureTypeColumn ? `"${extractor.measureTypeColumn}" as measure_type,` : '';
     let notesColumnDef = '';
-    let sortOrderDef = '';
-    if (extractor.sortColumn) {
-        sortOrderDef = `"${extractor.sortColumn}" as sort_order,`;
-    }
-    let measureTypeDef = '';
-    if (extractor.measureTypeColumn) {
-        measureTypeDef = `"${extractor.measureTypeColumn}" as measure_type,`;
-    }
     let buildMeasureViewQuery: string;
     if (extractor.isSW2Format) {
         for (const locale of SUPPORTED_LOCALES) {
