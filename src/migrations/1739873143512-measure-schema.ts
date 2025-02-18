@@ -16,7 +16,7 @@ export class MeasureSchema1739873143512 implements MigrationInterface {
             CREATE TYPE "public"."measure_rows_format_enum" AS ENUM(
                 'boolean',
                 'decimal',
-                'float ',
+                'float',
                 'integer',
                 'long',
                 'percentage',
