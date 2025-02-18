@@ -2,7 +2,7 @@ import { Entity, PrimaryGeneratedColumn, Column, BaseEntity, OneToOne, JoinColum
 
 import { Dataset } from './dataset';
 import { LookupTable } from './lookup-table';
-import { MeasureItem } from './measure-item';
+import { MeasureRow } from './measure-row';
 import { MeasureMetadata } from './measure-metadata';
 
 /*
@@ -30,8 +30,8 @@ export class Measure extends BaseEntity {
     @Column({ name: 'extractor', type: 'jsonb', nullable: true })
     extractor: object | null;
 
-    @OneToMany(() => MeasureItem, (measureInfo) => measureInfo.measure, { cascade: true })
-    measureInfo: MeasureItem[] | null;
+    @OneToMany(() => MeasureRow, (row) => row.measure, { cascade: true })
+    measureTable: MeasureRow[] | null;
 
     @OneToMany(() => MeasureMetadata, (measureMetadata) => measureMetadata.measure, { cascade: true })
     metadata: MeasureMetadata[];

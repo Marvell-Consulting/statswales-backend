@@ -21,9 +21,10 @@ import { MeasureLookupTableExtractor } from '../extractors/measure-lookup-extrac
 import { DimensionType } from '../enums/dimension-type';
 import { FactTableColumnType } from '../enums/fact-table-column-type';
 import { ReferenceDataExtractor } from '../extractors/reference-data-extractor';
-import { FactTable } from '../entities/dataset/fact-table';
+import { FactTableColumn } from '../entities/dataset/fact-table-column';
 import { CubeValidationException, CubeValidationType } from '../exceptions/cube-error-exception';
 import { DataTableDescription } from '../entities/dataset/data-table-description';
+import { MeasureRow } from '../entities/dataset/measure-row';
 
 import { dateDimensionReferenceTableCreator } from './time-matching';
 import { duckdb } from './duckdb';
@@ -367,7 +368,7 @@ export async function createAndValidateLookupTableDimension(quack: Database, dat
 
 function setupFactTableUpdateJoins(
     factTableName: string,
-    factIdentifiers: FactTable[],
+    factIdentifiers: FactTableColumn[],
     dataTableIdentifiers: DataTableDescription[]
 ): string {
     const joinParts: string[] = [];
@@ -383,9 +384,9 @@ async function loadFactTablesWithUpdates(
     dataset: Dataset,
     allDataTables: DataTable[],
     factTableDef: string[],
-    dataValuesColumn: FactTable,
-    notesCodeColumn: FactTable,
-    factIdentifiers: FactTable[]
+    dataValuesColumn: FactTableColumn,
+    notesCodeColumn: FactTableColumn,
+    factIdentifiers: FactTableColumn[]
 ) {
     for (const dataTable of allDataTables.sort((ftA, ftB) => ftA.uploadedAt.getTime() - ftB.uploadedAt.getTime())) {
         logger.info(`Loading fact table data for fact table ${dataTable.id}`);
@@ -470,9 +471,9 @@ export async function loadFactTables(
     dataset: Dataset,
     endRevision: Revision,
     factTableDef: string[],
-    dataValuesColumn: FactTable | undefined,
-    notesCodeColumn: FactTable | undefined,
-    factIdentifiers: FactTable[]
+    dataValuesColumn: FactTableColumn | undefined,
+    notesCodeColumn: FactTableColumn | undefined,
+    factIdentifiers: FactTableColumn[]
 ): Promise<void> {
     // Find all the fact tables for the given revision
     logger.debug('Finding all fact tables for this revision and those that came before');
@@ -554,7 +555,7 @@ const NoteCodes: NoteCodeItem[] = [
 
 async function createNotesTable(
     quack: Database,
-    notesColumn: FactTable,
+    notesColumn: FactTableColumn,
     selectStatementsMap: Map<Locale, string[]>,
     joinStatements: string[]
 ): Promise<void> {
@@ -609,144 +610,96 @@ interface MeasureFormat {
 function measureFormats(): Map<string, MeasureFormat> {
     const measureFormats: Map<string, MeasureFormat> = new Map();
     measureFormats.set('decimal', {
-        name: 'Decimal',
-        method: "WHEN measure.display_type = 'Decimal' THEN printf('%,.2f', |COL|)"
+        name: 'decimal',
+        method: "WHEN measure.format = 'decimal' THEN printf('%,.2f', |COL|)"
     });
     measureFormats.set('float', {
-        name: 'Float',
-        method: "WHEN measure.display_type = 'Float' THEN printf('%,.2f', |COL|)"
+        name: 'float',
+        method: "WHEN measure.format = 'float' THEN printf('%,.2f', |COL|)"
     });
     measureFormats.set('integer', {
-        name: 'Integer',
-        method: "WHEN measure.display_type = 'Integer' THEN printf('%,d', CAST(|COL| AS INTEGER))"
+        name: 'integer',
+        method: "WHEN measure.format = 'integer' THEN printf('%,d', CAST(|COL| AS INTEGER))"
     });
-    measureFormats.set('long', { name: 'Long', method: "WHEN measure.display_type = 'Long' THEN printf('%f', |COL|)" });
+    measureFormats.set('long', { name: 'long', method: "WHEN measure.format = 'Long' THEN printf('%f', |COL|)" });
     measureFormats.set('percentage', {
-        name: 'Percentage',
-        method: "WHEN measure.display_type = 'Long' THEN printf('%f', |COL|)"
+        name: 'percentage',
+        method: "WHEN measure.format = 'percentage' THEN printf('%f', |COL|)"
     });
     measureFormats.set('string', {
-        name: 'String',
-        method: "WHEN measure.display_type = 'String' THEN printf('%s', CAST(|COL| AS VARCHAR))"
+        name: 'string',
+        method: "WHEN measure.format = 'string' THEN printf('%s', CAST(|COL| AS VARCHAR))"
     });
     measureFormats.set('text', {
-        name: 'Text',
-        method: "WHEN measure.display_type = 'Text' THEN printf('%s', CAST(|COL| AS VARCHAR))"
+        name: 'text',
+        method: "WHEN measure.format = 'text' THEN printf('%s', CAST(|COL| AS VARCHAR))"
     });
     measureFormats.set('date', {
-        name: 'Date',
-        method: "WHEN measure.display_type = 'Date' THEN printf('%s', CAST(|COL| AS VARCHAR))"
+        name: 'date',
+        method: "WHEN measure.format = 'date' THEN printf('%s', CAST(|COL| AS VARCHAR))"
     });
     measureFormats.set('datetime', {
-        name: 'DateTime',
-        method: "WHEN measure.display_type = 'DateTime' THEN printf('%s', CAST(|COL| AS VARCHAR))"
+        name: 'datetime',
+        method: "WHEN measure.format = 'datetime' THEN printf('%s', CAST(|COL| AS VARCHAR))"
     });
     measureFormats.set('time', {
-        name: 'Time',
-        method: "WHEN measure.display_type = 'Time' THEN printf('%s', CAST(|COL| AS VARCHAR))"
+        name: 'time',
+        method: "WHEN measure.format = 'time' THEN printf('%s', CAST(|COL| AS VARCHAR))"
     });
     return measureFormats;
+}
+
+export async function createMeasureLookupTable(quack: Database, measureTable: MeasureRow[] | null) {
+    await quack.exec(`CREATE TABLE measure (
+        reference VARCHAR,
+        language VARCHAR(5),
+        description VARCHAR,
+        format VARCHAR,
+        sort_order INTEGER,
+        notes VARCHAR,
+        decimals INTEGER,
+        hierarchy VARCHAR,
+        measure_type VARCHAR
+    );`);
+    const stmt = await quack.prepare('INSERT INTO measure VALUES (?,?,?,?,?,?,?,?,?);');
+    if (measureTable) {
+        for (const row of measureTable) {
+            await stmt.run(
+                row.reference,
+                row.language,
+                row.description,
+                row.format,
+                row.sortOrder ? row.sortOrder : null,
+                row.notes ? row.notes : null,
+                row.decimal ? row.decimal : null,
+                row.hierarchy ? row.hierarchy : null,
+                row.measureType ? row.measureType : null
+            );
+        }
+    }
 }
 
 async function setupMeasures(
     quack: Database,
     dataset: Dataset,
-    dataValuesColumn: FactTable | undefined,
+    dataValuesColumn: FactTableColumn | undefined,
     selectStatementsMap: Map<Locale, string[]>,
     joinStatements: string[],
     orderByStatements: string[],
-    measureColumn?: FactTable
+    measureColumn?: FactTableColumn
 ) {
     logger.info('Setting up measure table if present...');
     logger.debug(`Dataset Measure = ${JSON.stringify(dataset.measure)}`);
     logger.debug(`Measure column = ${JSON.stringify(measureColumn)}`);
     // Process the column that represents the measure
-    if (measureColumn && dataset.measure && dataset.measure.joinColumn) {
+    if (measureColumn && dataset.measure && dataset.measure.measureTable) {
         logger.debug('Measure present in dataset.  Creating measure table...');
-        // If we parsed the lookup table or the user
-        // has used a user journey to define measures
-        // use this first
-        if (dataset.measure.measureInfo && dataset.measure.measureInfo.length > 0) {
-            logger.debug('Using measure info to build measure table');
-            try {
-                await quack.exec(
-                    `CREATE TABLE measure (measure_id ${measureColumn.columnType}, sort_order INT, language VARCHAR(5), description VARCHAR, notes VARCHAR, data_type VARCHAR, display_type VARCHAR);`
-                );
-                const insertStmt = await quack.prepare(`INSERT INTO measure (?,?,?,?,?,?);`);
-                dataset.measure.measureInfo.map(async (measure) => {
-                    await insertStmt.run(
-                        measure.id,
-                        measure.sortOrder,
-                        measure.language,
-                        measure.description,
-                        measure.notes,
-                        measure.displayType
-                    );
-                });
-                await insertStmt.finalize();
-            } catch (error) {
-                logger.error(`Unable to create or load measure table in to the cube with error: ${error}`);
-                await quack.close();
-                throw error;
-            }
-        } else if (dataset.measure && dataset.measure.lookupTable) {
-            logger.debug('Measure lookup table present using this to build measure table');
-            const measure = dataset.measure;
-            const extractor = measure.extractor as MeasureLookupTableExtractor;
-            const measureFile = await getFileImportAndSaveToDisk(dataset, dataset.measure.lookupTable);
-            if (dataset.measure.lookupTable.isStatsWales2Format) {
-                logger.debug('Lookup table is marked as in StatsWales 2 format building view...');
-                try {
-                    await loadFileIntoCube(quack, dataset.measure.lookupTable, measureFile, 'measure_sw2');
-                    const viewComponents: string[] = [];
-                    for (const locale of SUPPORTED_LOCALES) {
-                        let formatColumn = `"${extractor.formatColumn}"`;
-                        if (!formatColumn) {
-                            formatColumn = `'Text'`;
-                        } else if (formatColumn.toLowerCase().indexOf('decimal') > -1) {
-                            formatColumn = `CASE WHEN "${extractor.formatColumn}" = 1 THEN 'Decimal' ELSE 'Integer' END`;
-                        }
-                        let measureTypeColumn = `"${extractor.formatColumn}"`;
-                        if (!extractor.measureTypeColumn) {
-                            measureTypeColumn = `'Unknown'`;
-                        }
-                        viewComponents.push(
-                            `SELECT
-                            "${measure.joinColumn}" as measure_id,
-                            "${extractor.sortColumn}" as sort_order,
-                            '${locale.toLowerCase()}' AS language,
-                            "${extractor.descriptionColumns.find((col) => col.lang === locale.split('-')[0])?.name}" AS description,
-                            ${formatColumn} AS display_type,
-                            ${measureTypeColumn} AS data_type FROM measure_sw2\n`
-                        );
-                    }
-                    const buildMeasureViewQuery = `CREATE TABLE measure AS ${viewComponents.join('\nUNION\n')};`;
-                    await quack.exec(buildMeasureViewQuery);
-                } catch (error) {
-                    logger.error(`Unable to create or load measure table in to the cube with error: ${error}`);
-                    await quack.close();
-                    throw error;
-                }
-            } else {
-                try {
-                    logger.debug('Lookup table in preferred format... loading straight in to cube');
-                    await loadFileIntoCube(quack, dataset.measure.lookupTable, measureFile, 'measure');
-                } catch (error) {
-                    logger.error(`Unable to load measure table in to the cube with error: ${error}`);
-                    await quack.close();
-                    throw error;
-                }
-            }
-            fs.unlinkSync(measureFile);
-        } else {
-            logger.error(`Measure is defined in the dataset but it has no lookup nor definitions`);
-            await quack.close();
-            throw new Error('No measure definitions found');
-        }
+        await createMeasureLookupTable(quack, dataset.measure.measureTable);
         logger.debug('Creating query part to format the data value correctly');
         const caseStatement: string[] = ['CASE'];
-        const presentFormats = await quack.all('SELECT DISTINCT display_type FROM measure');
-        for (const dataFormat of presentFormats.map((type) => type.display_type)) {
+        const presentFormats = await quack.all('SELECT DISTINCT format FROM measure;');
+        logger.debug(`Present formats: ${JSON.stringify(presentFormats)}`);
+        for (const dataFormat of presentFormats.map((type) => type.format)) {
             caseStatement.push(
                 measureFormats()
                     .get(dataFormat.toLowerCase())
@@ -766,9 +719,9 @@ async function setupMeasures(
         });
         const languageColumn = (dataset.measure.extractor as MeasureLookupTableExtractor).languageColumn || 'language';
         joinStatements.push(
-            `LEFT JOIN measure on CAST (measure.measure_id AS VARCHAR)=CAST(${FACT_TABLE_NAME}.${dataset.measure.factTableColumn} AS VARCHAR) AND measure."${languageColumn}"='#LANG#'`
+            `LEFT JOIN measure on CAST (measure.reference AS VARCHAR)=CAST(${FACT_TABLE_NAME}.${dataset.measure.factTableColumn} AS VARCHAR) AND measure."${languageColumn}"='#LANG#'`
         );
-        orderByStatements.push(`measure.measure_id`);
+        orderByStatements.push(`measure.sort_order, measure.reference`);
     } else {
         SUPPORTED_LOCALES.map((locale) => {
             if (dataValuesColumn)
@@ -916,9 +869,9 @@ function referenceDataPresent(dataset: Dataset) {
 }
 
 async function createBaseFactTable(quack: Database, dataset: Dataset) {
-    let notesCodeColumn: FactTable | undefined;
-    let dataValuesColumn: FactTable | undefined;
-    let measureColumn: FactTable | undefined;
+    let notesCodeColumn: FactTableColumn | undefined;
+    let dataValuesColumn: FactTableColumn | undefined;
+    let measureColumn: FactTableColumn | undefined;
 
     const firstRevision = dataset.revisions.find((rev) => rev.revisionIndex === 1);
     if (!firstRevision) {
@@ -926,7 +879,7 @@ async function createBaseFactTable(quack: Database, dataset: Dataset) {
     }
     const factTable = dataset.factTable;
     const compositeKey: string[] = [];
-    const factIdentifiers: FactTable[] = [];
+    const factIdentifiers: FactTableColumn[] = [];
     const factTableDef: string[] = [];
     if (!factTable) {
         throw new Error(`Unable to find fact table for dataset ${dataset.id}`);

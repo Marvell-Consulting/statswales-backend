@@ -8,4 +8,5 @@ export interface MeasureLookupTableExtractor {
     formatColumn?: string;
     decimalColumn?: string;
     languageColumn?: string;
+    isSW2Format: boolean;
 }

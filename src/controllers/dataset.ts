@@ -35,7 +35,7 @@ import {
 } from '../services/dimension-processor';
 import { SourceAssignmentException } from '../exceptions/source-assignment.exception';
 import { Revision } from '../entities/dataset/revision';
-import { FactTable } from '../entities/dataset/fact-table';
+import { FactTableColumn } from '../entities/dataset/fact-table-column';
 import { Dataset } from '../entities/dataset/dataset';
 import { FactTableColumnType } from '../enums/fact-table-column-type';
 import { FactTableColumnDto } from '../dtos/fact-table-column-dto';
@@ -128,7 +128,7 @@ export const createFirstRevision = async (req: Request, res: Response, next: Nex
     }
 
     if (dataset.factTable && dataset.factTable.length > 0) {
-        await FactTable.getRepository().remove(dataset.factTable);
+        await FactTableColumn.getRepository().remove(dataset.factTable);
     }
 
     logger.debug('Updating dataset records');
@@ -138,7 +138,7 @@ export const createFirstRevision = async (req: Request, res: Response, next: Nex
         logger.debug('Creating base fact table definition');
         logger.debug(`Creating fact table definitions for dataset ${res.locals.dataset.id}`);
         for (const fileImportCol of fileImport.dataTableDescriptions) {
-            const factTable = new FactTable();
+            const factTable = new FactTableColumn();
             factTable.id = res.locals.dataset.id;
             factTable.columnName = fileImportCol.columnName;
             factTable.columnIndex = fileImportCol.columnIndex;
@@ -325,12 +325,12 @@ async function updateFactTableDefinition(
     dataTable: DataTable,
     validatedSourceAssignment: ValidatedSourceAssignment
 ) {
-    const factTableDef: FactTable[] = [];
+    const factTableDef: FactTableColumn[] = [];
     if (validatedSourceAssignment.dataValues) {
         const dataTableColumn = dataTable.dataTableDescriptions.find(
             (column) => column.columnName === validatedSourceAssignment.dataValues?.column_name
         );
-        const factTable = new FactTable();
+        const factTable = new FactTableColumn();
         factTable.dataset = dataset;
         factTable.columnName = validatedSourceAssignment.dataValues.column_name;
         factTable.columnType = FactTableColumnType.DataValues;
@@ -343,7 +343,7 @@ async function updateFactTableDefinition(
         const dataTableColumn = dataTable.dataTableDescriptions.find(
             (column) => column.columnName === validatedSourceAssignment.measure?.column_name
         );
-        const factTable = new FactTable();
+        const factTable = new FactTableColumn();
         factTable.dataset = dataset;
         factTable.columnName = validatedSourceAssignment.measure.column_name;
         factTable.columnType = FactTableColumnType.Measure;
@@ -356,7 +356,7 @@ async function updateFactTableDefinition(
         const dataTableColumn = dataTable.dataTableDescriptions.find(
             (column) => column.columnName === validatedSourceAssignment.noteCodes?.column_name
         );
-        const factTable = new FactTable();
+        const factTable = new FactTableColumn();
         factTable.dataset = dataset;
         factTable.columnName = validatedSourceAssignment.noteCodes.column_name;
         factTable.columnType = FactTableColumnType.NoteCodes;
@@ -370,7 +370,7 @@ async function updateFactTableDefinition(
             const dataTableColumn = dataTable.dataTableDescriptions.find(
                 (column) => column.columnName === dimension.column_name
             );
-            const factTable = new FactTable();
+            const factTable = new FactTableColumn();
             factTable.dataset = dataset;
             factTable.columnName = dimension.column_name;
             factTable.columnType = FactTableColumnType.Dimension;
@@ -415,7 +415,7 @@ export const updateSources = async (req: Request, res: Response, next: NextFunct
 export const getFactTableDefinition = async (req: Request, res: Response, next: NextFunction) => {
     const { dataset } = res.locals;
     const factTableDto: FactTableColumnDto[] =
-        dataset.factTable?.map((col: FactTable) => FactTableColumnDto.fromFactTableColumn(col)) || [];
+        dataset.factTable?.map((col: FactTableColumn) => FactTableColumnDto.fromFactTableColumn(col)) || [];
     res.status(200);
     res.json(factTableDto);
 };

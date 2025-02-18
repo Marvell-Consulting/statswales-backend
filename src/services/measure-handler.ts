@@ -2,7 +2,6 @@ import fs from 'fs';
 
 import { Database } from 'duckdb-async';
 import tmp from 'tmp';
-import { join } from 'lodash';
 
 import { LookupTable } from '../entities/dataset/lookup-table';
 import { DataTable } from '../entities/dataset/data-table';
@@ -21,9 +20,10 @@ import { DatasetRepository } from '../repositories/dataset';
 import { FactTableColumnType } from '../enums/fact-table-column-type';
 import { DatasetDTO } from '../dtos/dataset-dto';
 import { DataTableDto } from '../dtos/data-table-dto';
-import { LookupTableExtractor } from '../extractors/lookup-table-extractor';
+import { MeasureRow } from '../entities/dataset/measure-row';
+import { SUPPORTED_LOCALES } from '../middleware/translation';
 
-import { createFactTableQuery } from './cube-handler';
+import { createFactTableQuery, createMeasureLookupTable } from './cube-handler';
 import { DataLakeService } from './datalake';
 import { duckdb } from './duckdb';
 
@@ -39,7 +39,12 @@ async function cleanUpMeasure(measure: Measure) {
 
     try {
         const lookupTableId = measure.lookupTable.id;
-        measure.measureInfo = null;
+        if (measure.measureTable) {
+            for (const row of measure.measureTable) {
+                await row.remove();
+            }
+        }
+        measure.measureTable = null;
         measure.joinColumn = null;
         measure.extractor = null;
         measure.lookupTable = null;
@@ -78,7 +83,8 @@ function createExtractor(
                         .filter((info) => info.columnName === desc)
                         .map((info) => columnIdentification(info))[0]
             ),
-            languageColumn: tableMatcher?.measure_type_column
+            languageColumn: tableMatcher?.language_column,
+            isSW2Format: !tableMatcher?.language_column
         };
     } else {
         logger.debug('Detecting column types from column names');
@@ -106,7 +112,10 @@ function createExtractor(
             descriptionColumns: protoLookupTable.dataTableDescriptions
                 .filter((info) => info.columnName.toLowerCase().startsWith('description'))
                 .map((info) => columnIdentification(info)),
-            notesColumns
+            notesColumns,
+            isSW2Format: !protoLookupTable.dataTableDescriptions.find((info) =>
+                info.columnName.toLowerCase().startsWith('lang')
+            )
         };
     }
 }
@@ -114,22 +123,27 @@ function createExtractor(
 async function setupMeasure(
     dataset: Dataset,
     lookupTable: LookupTable,
-    protoLookupTable: DataTable,
     confirmedJoinColumn: string,
-    tableMatcher?: MeasureLookupPatchDTO
+    measureTable: MeasureRow[],
+    extractor: MeasureLookupTableExtractor
 ) {
     // Clean up previously uploaded dimensions
     if (dataset.measure.lookupTable) await cleanUpMeasure(dataset.measure);
-    lookupTable.isStatsWales2Format = !protoLookupTable.dataTableDescriptions.find((info) =>
-        info.columnName.toLowerCase().startsWith('lang')
-    );
+    lookupTable.isStatsWales2Format = extractor.isSW2Format;
     const updateMeasure = await Measure.findOneByOrFail({ id: dataset.measure.id });
     updateMeasure.joinColumn = confirmedJoinColumn;
     updateMeasure.lookupTable = lookupTable;
-    updateMeasure.extractor = createExtractor(protoLookupTable, tableMatcher);
+    updateMeasure.extractor = extractor;
 
     logger.debug('Saving the lookup table');
     await lookupTable.save();
+
+    logger.debug(`Saving measure table to database using rows ${JSON.stringify(measureTable, null, 2)}`);
+    for (const row of measureTable) {
+        row.id = updateMeasure.id;
+        row.measure = updateMeasure;
+        await row.save();
+    }
 
     logger.debug('Saving the measure');
     updateMeasure.lookupTable = lookupTable;
@@ -196,21 +210,22 @@ async function rowMatcher(
 
 async function checkDecimalColumn(quack: Database, extractor: MeasureLookupTableExtractor, lookupTableName: string) {
     const unmatchedFormats: string[] = [];
-    // logger.debug('Decimal column is present.  Validating contains only integers.');
-    // const formats = await quack.all(`SELECT DISTINCT "${extractor.decimalColumn}" as formats FROM ${lookupTableName};`);
-    // for (const format of Object.values(formats.map((format) => format.formats.toLowerCase()))) {
-    //     if (!Number.isInteger(Number(format))) unmatchedFormats.push(format);
-    // }
+    logger.debug('Decimal column is present.  Validating contains only integers.');
+    const formats = await quack.all(`SELECT DISTINCT "${extractor.decimalColumn}" as formats FROM ${lookupTableName};`);
+    for (const format of Object.values(formats.map((format) => format.formats))) {
+        if (!Number.isInteger(Number(format))) unmatchedFormats.push(format);
+    }
     return unmatchedFormats;
 }
 
 async function checkFormatColumn(quack: Database, extractor: MeasureLookupTableExtractor, lookupTableName: string) {
     const unmatchedFormats: string[] = [];
-    // logger.debug('Decimal column is present.  Validating contains only integers.');
-    // const formats = await quack.all(`SELECT DISTINCT "${extractor.formatColumn}" as formats FROM ${lookupTableName};`);
-    // for (const format of Object.values(formats.map((format) => format.formats))) {
-    //     if (Object.values(DataValueFormat).indexOf(format.toLowerCase()) === -1) unmatchedFormats.push(format);
-    // }
+    logger.debug('Decimal column is present.  Validating contains only integers.');
+    const formats = await quack.all(`SELECT DISTINCT "${extractor.formatColumn}" as formats FROM ${lookupTableName};`);
+    logger.debug(`Formats = ${JSON.stringify(Object.values(DataValueFormat), null, 2)}`);
+    for (const format of Object.values(formats.map((format) => format.formats))) {
+        if (Object.values(DataValueFormat).indexOf(format.toLowerCase()) === -1) unmatchedFormats.push(format);
+    }
     return unmatchedFormats;
 }
 
@@ -248,6 +263,81 @@ async function validateTableContent(
     }
     logger.debug('Validating column contents complete.');
     return undefined;
+}
+
+async function createMeasureTable(
+    quack: Database,
+    joinColumn: string,
+    lookupTable: string,
+    extractor: MeasureLookupTableExtractor
+) {
+    const measureTable: MeasureRow[] = [];
+    const viewComponents: string[] = [];
+    let formatColumn = `"${extractor.formatColumn}"`;
+    if (!extractor.formatColumn && !extractor.decimalColumn) {
+        formatColumn = `'text'`;
+    } else if (!extractor.formatColumn && extractor.decimalColumn) {
+        formatColumn = `'float'`;
+    }
+    const decimalColumnDef = extractor.decimalColumn ? `"${extractor.decimalColumn}" as decimal,` : '';
+    const sortOrderDef = extractor.sortColumn ? `"${extractor.sortColumn}" as sort_order,` : '';
+    const measureTypeDef = extractor.measureTypeColumn ? `"${extractor.measureTypeColumn}" as measure_type,` : '';
+    let notesColumnDef = '';
+    let buildMeasureViewQuery: string;
+    if (extractor.isSW2Format) {
+        for (const locale of SUPPORTED_LOCALES) {
+            if (extractor.notesColumns) {
+                const notesCol = extractor.notesColumns.find((col) => col.lang === locale.split('-')[0])?.name;
+                if (notesCol) {
+                    notesColumnDef = `"${notesCol}" as notes,`;
+                }
+            }
+            viewComponents.push(
+                `SELECT
+                    "${joinColumn}" as reference,
+                    '${locale.toLowerCase()}' AS language,
+                    "${extractor.descriptionColumns.find((col) => col.lang === locale.split('-')[0])?.name}" AS description,
+                    ${notesColumnDef}
+                    ${sortOrderDef}
+                    ${formatColumn} AS format,
+                    ${decimalColumnDef}
+                    ${measureTypeDef}
+                FROM ${lookupTable}\n`
+            );
+        }
+        buildMeasureViewQuery = `${viewComponents.join('\nUNION\n')};`;
+        logger.debug(`Extracting SW2 measure lookup table to measure table using query ${buildMeasureViewQuery}`);
+    } else {
+        if (extractor.notesColumns) {
+            notesColumnDef = `"${extractor.notesColumns[0]}" as notes,`;
+        }
+        buildMeasureViewQuery = `SELECT
+                    "${joinColumn}" as reference,
+                    "${extractor.languageColumn}" AS language,
+                    "${extractor.descriptionColumns[0]}" AS description,
+                    ${notesColumnDef}
+                    ${sortOrderDef}
+                    ${formatColumn} AS format,
+                    ${decimalColumnDef}
+                    ${measureTypeDef}
+                FROM ${lookupTable}\n`;
+        logger.debug(`Extracting SW3 measure lookup table to measure table using query ${buildMeasureViewQuery}`);
+    }
+    const tableContents = await quack.all(buildMeasureViewQuery);
+    logger.debug(`Creating measureTable from lookup using result: ${JSON.stringify(tableContents)}`);
+    for (const row of tableContents) {
+        const item = new MeasureRow();
+        item.reference = row.reference;
+        item.language = row.language;
+        item.description = row.description;
+        item.format = row.format;
+        item.notes = row.notes || null;
+        item.sortOrder = row.sort_order || null;
+        item.decimal = row.decimal || null;
+        item.measureType = row.measure_type || null;
+        measureTable.push(item);
+    }
+    return measureTable;
 }
 
 export const validateMeasureLookupTable = async (
@@ -299,10 +389,11 @@ export const validateMeasureLookupTable = async (
     );
     if (rowMatchingErrors) return rowMatchingErrors;
     const extractor = createExtractor(protoLookupTable, tableMatcher);
+    const measureTable = await createMeasureTable(quack, confirmedJoinColumn, lookupTableName, extractor);
     const tableValidationErrors = await validateTableContent(quack, dataset.id, lookupTableName, extractor);
     if (tableValidationErrors) return tableValidationErrors;
 
-    await setupMeasure(dataset, lookupTable, protoLookupTable, confirmedJoinColumn, tableMatcher);
+    await setupMeasure(dataset, lookupTable, confirmedJoinColumn, measureTable, extractor);
 
     try {
         const dimensionTable = await quack.all(`SELECT * FROM ${lookupTableName};`);
@@ -387,18 +478,14 @@ async function getMeasurePreviewWithExtractor(
     dataset: Dataset,
     measure: Measure,
     factTable: DataTable,
-    quack: Database,
-    tableName: string
+    quack: Database
 ) {
     if (!measure.lookupTable) {
         throw new Error(`Lookup table does does not exist on measure ${measure.id}`);
     }
     logger.debug(`Generating lookup table preview for measure ${measure.id}`);
-    const lookupTmpFile = await getFileImportAndSaveToDisk(dataset, measure.lookupTable);
-    const lookupTableName = `lookup_table`;
-    await loadFileIntoDatabase(quack, measure.lookupTable, lookupTmpFile, lookupTableName);
-    const sortColumn = (measure.extractor as LookupTableExtractor).sortColumn || measure.joinColumn;
-    const query = `SELECT * FROM ${lookupTableName} ORDER BY ${sortColumn} LIMIT ${sampleSize};`;
+    await createMeasureLookupTable(quack, measure.measureTable);
+    const query = `SELECT * FROM measure ORDER BY sort_order, reference LIMIT ${sampleSize};`;
     logger.debug(`Querying the cube to get the preview using query ${query}`);
     const measureTable = await quack.all(query);
     const tableHeaders = Object.keys(measureTable[0]);
@@ -452,10 +539,8 @@ export const getMeasurePreview = async (dataset: Dataset, factTable: DataTable) 
     }
     let viewDto: ViewDTO;
     try {
-        if (measure.measureInfo && measure.measureInfo.length > 0) {
-            throw new Error(`Measure tables from measure info are not yet supported`);
-        } else if (dataset.measure.extractor) {
-            viewDto = await getMeasurePreviewWithExtractor(dataset, measure, factTable, quack, tableName);
+        if (measure.measureTable && measure.measureTable.length > 0) {
+            viewDto = await getMeasurePreviewWithExtractor(dataset, measure, factTable, quack);
         } else {
             logger.debug('Straight column preview');
             viewDto = await getMeasurePreviewWithoutExtractor(dataset, measure, factTable, quack, tableName);

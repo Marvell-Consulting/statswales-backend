@@ -4,19 +4,19 @@ import { FactTableColumnType } from '../../enums/fact-table-column-type';
 
 import { Dataset } from './dataset';
 
-@Entity({ name: 'fact_table' })
-export class FactTable extends BaseEntity {
+@Entity({ name: 'fact_table_column' })
+export class FactTableColumn extends BaseEntity {
     @PrimaryColumn({
         name: 'dataset_id',
         type: 'uuid',
-        primaryKeyConstraintName: 'PK_fact_table_id_column_name'
+        primaryKeyConstraintName: 'PK_fact_table_column_id_column_name'
     })
     id: string;
 
     @PrimaryColumn({
         name: 'column_name',
         type: 'varchar',
-        primaryKeyConstraintName: 'PK_fact_table_id_column_name'
+        primaryKeyConstraintName: 'PK_fact_table_column_id_column_name'
     })
     columnName: string;
 
@@ -33,6 +33,6 @@ export class FactTable extends BaseEntity {
         onDelete: 'CASCADE',
         orphanedRowAction: 'delete'
     })
-    @JoinColumn({ name: 'dataset_id', foreignKeyConstraintName: 'FK_dataset_id_fact_table_id' })
+    @JoinColumn({ name: 'dataset_id', foreignKeyConstraintName: 'FK_dataset_id_fact_table_column_id' })
     dataset: Dataset;
 }
