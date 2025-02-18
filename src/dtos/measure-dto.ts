@@ -1,7 +1,7 @@
 import { Measure } from '../entities/dataset/measure';
 
 import { LookupTableDTO } from './lookup-table-dto';
-import { MeasureItemDto } from './measure-item-dto';
+import { MeasureRowDto } from './measure-row-dto';
 
 export class MeasureDTO {
     id: string;
@@ -9,13 +9,13 @@ export class MeasureDTO {
     fact_table_column: string;
     join_column: string | null;
     lookup_table?: LookupTableDTO;
-    measure_table: MeasureItemDto[] | undefined;
+    measure_table: MeasureRowDto[] | undefined;
 
     static fromMeasure(measure: Measure): MeasureDTO {
         const dto = new MeasureDTO();
         dto.id = measure.id;
         dto.measure_table = measure.measureTable?.map((info) => {
-            return MeasureItemDto.fromMeasureItem(info);
+            return MeasureRowDto.fromMeasureRow(info);
         });
         dto.join_column = measure.joinColumn;
         dto.fact_table_column = measure.factTableColumn;

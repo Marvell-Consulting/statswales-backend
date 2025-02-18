@@ -4,7 +4,7 @@ import { FactTableColumnType } from '../../enums/fact-table-column-type';
 
 import { Dataset } from './dataset';
 
-@Entity({ name: 'fact_table_columns' })
+@Entity({ name: 'fact_table_column' })
 export class FactTableColumn extends BaseEntity {
     @PrimaryColumn({
         name: 'dataset_id',

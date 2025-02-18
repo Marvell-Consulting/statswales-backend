@@ -59,7 +59,7 @@ export class Dataset extends BaseEntity {
     @OneToOne(() => Measure, (measure) => measure.dataset, { cascade: true })
     measure: Measure;
 
-    @OneToMany(() => FactTableColumn, (factTable) => factTable.dataset, { cascade: true })
+    @OneToMany(() => FactTableColumn, (factTableColumn) => factTableColumn.dataset, { cascade: true })
     factTable: FactTableColumn[] | null;
 
     @OneToMany(() => DatasetProvider, (datasetProvider) => datasetProvider.dataset, { cascade: true })

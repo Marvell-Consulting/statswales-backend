@@ -30,7 +30,7 @@ export class Measure extends BaseEntity {
     @Column({ name: 'extractor', type: 'jsonb', nullable: true })
     extractor: object | null;
 
-    @OneToMany(() => MeasureRow, (measureInfo) => measureInfo.measure, { cascade: true })
+    @OneToMany(() => MeasureRow, (row) => row.measure, { cascade: true })
     measureTable: MeasureRow[] | null;
 
     @OneToMany(() => MeasureMetadata, (measureMetadata) => measureMetadata.measure, { cascade: true })

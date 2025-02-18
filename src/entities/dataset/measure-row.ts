@@ -4,7 +4,7 @@ import { DisplayType } from '../../enums/display-type';
 
 import { Measure } from './measure';
 
-@Entity({ name: 'measure_rows' })
+@Entity({ name: 'measure_row' })
 export class MeasureRow extends BaseEntity {
     @PrimaryColumn({
         name: 'measure_id',

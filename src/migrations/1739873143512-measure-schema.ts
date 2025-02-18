@@ -29,7 +29,7 @@ export class MeasureSchema1739873143512 implements MigrationInterface {
             )
         `);
         await queryRunner.query(`
-            CREATE TABLE "measure_rows" (
+            CREATE TABLE "measure_row" (
                 "measure_id" uuid NOT NULL,
                 "language" character varying(5) NOT NULL,
                 "reference" text NOT NULL,
@@ -56,7 +56,7 @@ export class MeasureSchema1739873143512 implements MigrationInterface {
             )
         `);
         await queryRunner.query(`
-            CREATE TABLE "fact_table_columns" (
+            CREATE TABLE "fact_table_column" (
                 "dataset_id" uuid NOT NULL,
                 "column_name" character varying NOT NULL,
                 "column_type" "public"."fact_table_columns_column_type_enum" NOT NULL,
@@ -66,30 +66,30 @@ export class MeasureSchema1739873143512 implements MigrationInterface {
             )
         `);
         await queryRunner.query(`
-            ALTER TABLE "measure_rows"
+            ALTER TABLE "measure_row"
             ADD CONSTRAINT "FK_measure_row_measure_id" FOREIGN KEY ("measure_id") REFERENCES "measure"("id") ON DELETE CASCADE ON UPDATE NO ACTION
         `);
         await queryRunner.query(`
-            ALTER TABLE "fact_table_columns"
+            ALTER TABLE "fact_table_column"
             ADD CONSTRAINT "FK_dataset_id_fact_table_column_id" FOREIGN KEY ("dataset_id") REFERENCES "dataset"("id") ON DELETE CASCADE ON UPDATE NO ACTION
         `);
     }
 
     public async down(queryRunner: QueryRunner): Promise<void> {
         await queryRunner.query(`
-            ALTER TABLE "fact_table_columns" DROP CONSTRAINT "FK_dataset_id_fact_table_column_id"
+            ALTER TABLE "fact_table_column" DROP CONSTRAINT "FK_dataset_id_fact_table_column_id"
         `);
         await queryRunner.query(`
-            ALTER TABLE "measure_rows" DROP CONSTRAINT "FK_measure_row_measure_id"
+            ALTER TABLE "measure_row" DROP CONSTRAINT "FK_measure_row_measure_id"
         `);
         await queryRunner.query(`
-            DROP TABLE "fact_table_columns"
+            DROP TABLE "fact_table_column"
         `);
         await queryRunner.query(`
             DROP TYPE "public"."fact_table_columns_column_type_enum"
         `);
         await queryRunner.query(`
-            DROP TABLE "measure_rows"
+            DROP TABLE "measure_row"
         `);
         await queryRunner.query(`
             DROP TYPE "public"."measure_rows_format_enum"
