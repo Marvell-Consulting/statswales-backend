@@ -1,7 +1,7 @@
 export enum DisplayType {
     Boolean = 'boolean',
     Decimal = 'decimal',
-    Float = 'float ',
+    Float = 'float',
     Integer = 'integer',
     Long = 'long',
     Percentage = 'percentage',
