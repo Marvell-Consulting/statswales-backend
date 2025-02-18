@@ -1,7 +1,7 @@
-import { MigrationInterface, QueryRunner } from "typeorm";
+import { MigrationInterface, QueryRunner } from 'typeorm';
 
 export class MeasureSchema1739873143512 implements MigrationInterface {
-    name = 'MeasureSchema1739873143512'
+    name = 'MeasureSchema1739873143512';
 
     public async up(queryRunner: QueryRunner): Promise<void> {
         await queryRunner.query(`

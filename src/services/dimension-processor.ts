@@ -187,7 +187,10 @@ async function cleanupDimensions(datasetId: string, factTableInfo: DataTableDesc
 }
 
 async function updateDataValueColumn(dataset: Dataset, dataValueColumnDto: SourceAssignmentDTO) {
-    const column = await FactTableColumn.findOneByOrFail({ columnName: dataValueColumnDto.column_name, id: dataset.id });
+    const column = await FactTableColumn.findOneByOrFail({
+        columnName: dataValueColumnDto.column_name,
+        id: dataset.id
+    });
     if (!column) {
         throw Error('No such column present in fact table');
     }
