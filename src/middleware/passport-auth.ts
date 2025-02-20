@@ -71,6 +71,7 @@ const initJwt = async (userRepository: Repository<User>, jwtConfig: Record<strin
                     // store the user context for code that does not have access to the request object
                     asyncLocalStorage.getStore()?.set('user', user);
 
+                    logger.info('user successfully authenticated');
                     done(null, user);
                 } catch (err: any) {
                     logger.error(err);

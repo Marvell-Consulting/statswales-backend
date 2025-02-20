@@ -10,36 +10,36 @@ import {
 } from 'typeorm';
 
 import { Provider } from './provider';
-import { Dataset } from './dataset';
 import { ProviderSource } from './provider-source';
+import { Revision } from './revision';
 
-@Entity({ name: 'dataset_provider' })
-export class DatasetProvider extends BaseEntity {
-    @PrimaryGeneratedColumn('uuid', { name: 'id', primaryKeyConstraintName: 'PK_dataset_provider_id' })
+@Entity({ name: 'revision_provider' })
+export class RevisionProvider extends BaseEntity {
+    @PrimaryGeneratedColumn('uuid', { name: 'id', primaryKeyConstraintName: 'PK_revision_provider_id' })
     id: string;
 
     @Column({ type: 'uuid', name: 'group_id' })
-    groupId: string; // dataset providers can be in multiple languages - use this id to group them
+    groupId: string; // revision providers can be in multiple languages - use this id to group them
 
-    @Index('IDX_dataset_provider_dataset_id')
-    @Column({ type: 'uuid', name: 'dataset_id' })
-    datasetId: string;
+    @Index('IDX_revision_provider_revision_id')
+    @Column({ type: 'uuid', name: 'revision_id' })
+    revisionId: string;
 
     @Column({ type: 'varchar', length: 5 })
     language: string;
 
-    @ManyToOne(() => Dataset, (dataset) => dataset.datasetProviders, {
+    @ManyToOne(() => Revision, (revision) => revision.revisionProviders, {
         onDelete: 'CASCADE',
         orphanedRowAction: 'delete'
     })
-    @JoinColumn({ name: 'dataset_id', foreignKeyConstraintName: 'FK_dataset_provider_dataset_id' })
-    dataset: Dataset;
+    @JoinColumn({ name: 'revision_id', foreignKeyConstraintName: 'FK_revision_provider_revision_id' })
+    revision: Revision;
 
     @Column({ type: 'uuid', name: 'provider_id' })
     providerId: string;
 
-    @Index('IDX_dataset_provider_provider_id_language', ['provider_id', 'language'])
-    @ManyToOne(() => Provider, (provider) => provider.datasetProviders, {
+    @Index('IDX_revision_provider_provider_id_language', ['provider_id', 'language'])
+    @ManyToOne(() => Provider, (provider) => provider.revisionProviders, {
         onDelete: 'CASCADE',
         orphanedRowAction: 'delete'
     })
@@ -47,12 +47,12 @@ export class DatasetProvider extends BaseEntity {
         {
             name: 'provider_id',
             referencedColumnName: 'id',
-            foreignKeyConstraintName: 'FK_dataset_provider_provider_id_language'
+            foreignKeyConstraintName: 'FK_revision_provider_provider_id_language'
         },
         {
             name: 'language',
             referencedColumnName: 'language',
-            foreignKeyConstraintName: 'FK_dataset_provider_provider_id_language'
+            foreignKeyConstraintName: 'FK_revision_provider_provider_id_language'
         }
     ])
     provider: Provider;
@@ -60,8 +60,8 @@ export class DatasetProvider extends BaseEntity {
     @Column({ type: 'uuid', name: 'provider_source_id', nullable: true })
     providerSourceId?: string;
 
-    @Index('IDX_dataset_provider_provider_source_id_language', ['provider_source_id', 'language'])
-    @ManyToOne(() => ProviderSource, (providerSource) => providerSource.datasetProviders, {
+    @Index('IDX_revision_provider_provider_source_id_language', ['provider_source_id', 'language'])
+    @ManyToOne(() => ProviderSource, (providerSource) => providerSource.revisionProviders, {
         onDelete: 'CASCADE',
         orphanedRowAction: 'delete'
     })
@@ -69,12 +69,12 @@ export class DatasetProvider extends BaseEntity {
         {
             name: 'provider_source_id',
             referencedColumnName: 'id',
-            foreignKeyConstraintName: 'FK_dataset_provider_provider_source_id_language'
+            foreignKeyConstraintName: 'FK_revision_provider_provider_source_id_language'
         },
         {
             name: 'language',
             referencedColumnName: 'language',
-            foreignKeyConstraintName: 'FK_dataset_provider_provider_source_id_language'
+            foreignKeyConstraintName: 'FK_revision_provider_provider_source_id_language'
         }
     ])
     providerSource: ProviderSource;

@@ -22,6 +22,7 @@ import { organisationRouter } from './route/organisation';
 import { teamRouter } from './route/team';
 import { translationRouter } from './route/translation';
 import { consumerRouter } from './route/consumer';
+import { initServices } from './middleware/services';
 
 const app: Application = express();
 const config = appConfig();
@@ -37,6 +38,7 @@ app.use(i18nextMiddleware.handle(i18next));
 app.use(cookieParser());
 app.use(session);
 app.use(requestContext);
+app.use(initServices);
 
 // public routes
 app.use('/auth', rateLimiter, authRouter);

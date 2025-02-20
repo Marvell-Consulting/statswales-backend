@@ -1,33 +1,25 @@
 import { Dataset } from '../entities/dataset/dataset';
 import { Dimension } from '../entities/dataset/dimension';
 import { Revision } from '../entities/dataset/revision';
-import { DatasetMetadata } from '../entities/dataset/dataset-metadata';
-import { DatasetProvider } from '../entities/dataset/dataset-provider';
-import { DatasetTopic } from '../entities/dataset/dataset-topic';
 import { SUPPORTED_LOCALES } from '../middleware/translation';
 
 import { DimensionDTO } from './dimension-dto';
 import { RevisionDTO } from './revision-dto';
-import { DatasetInfoDTO } from './dataset-info-dto';
-import { DatasetProviderDTO } from './dataset-provider-dto';
 import { MeasureDTO } from './measure-dto';
 import { TeamDTO } from './team-dto';
-import { TopicDTO } from './topic-dto';
 import { FactTableColumnDto } from './fact-table-column-dto';
 
 export class DatasetDTO {
     id: string;
     created_at: string;
-    created_by: string;
+    created_by_id: string;
     live?: string | null;
     archive?: string;
     fact_table?: FactTableColumnDto[];
     dimensions?: DimensionDTO[];
     revisions: RevisionDTO[];
+    draft_revision?: RevisionDTO;
     measure?: MeasureDTO;
-    datasetInfo: DatasetInfoDTO[];
-    providers: DatasetProviderDTO[];
-    topics: TopicDTO[];
     team_id?: string;
     team?: TeamDTO[];
     start_date?: Date | null;
@@ -37,20 +29,16 @@ export class DatasetDTO {
         const dto = new DatasetDTO();
         dto.id = dataset.id;
         dto.created_at = dataset.createdAt.toISOString();
-        dto.created_by = dataset.createdBy?.name;
+        dto.created_by_id = dataset.createdById;
+
         dto.live = dataset.live?.toISOString();
         dto.archive = dataset.archive?.toISOString();
 
-        dto.datasetInfo = dataset.metadata?.map((info: DatasetMetadata) => DatasetInfoDTO.fromDatasetInfo(info));
         dto.dimensions = dataset.dimensions?.map((dimension: Dimension) => DimensionDTO.fromDimension(dimension));
         dto.revisions = dataset.revisions?.map((revision: Revision) => RevisionDTO.fromRevision(revision));
+        dto.draft_revision = dto.draft_revision ? RevisionDTO.fromRevision(dataset.draftRevision) : undefined;
+
         dto.measure = dataset.measure ? MeasureDTO.fromMeasure(dataset.measure) : undefined;
-        dto.providers = dataset.datasetProviders?.map((datasetProvider: DatasetProvider) =>
-            DatasetProviderDTO.fromDatasetProvider(datasetProvider)
-        );
-
-        dto.topics = dataset.datasetTopics?.map((datasetTopic: DatasetTopic) => TopicDTO.fromTopic(datasetTopic.topic));
-
         dto.team_id = dataset.teamId; // keep this because it means we don't need always hydrate the team relation
 
         if (dataset.team) {

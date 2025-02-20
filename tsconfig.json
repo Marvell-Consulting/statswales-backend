@@ -26,6 +26,7 @@
     "emitDecoratorMetadata": true,
     "experimentalDecorators": true,
     "sourceMap": true,
-    "baseUrl": "."
+    "baseUrl": ".",
+    "typeRoots" : ["./src/@types"]
   }
 }

@@ -11,6 +11,9 @@ export class RelatedLinkDTO {
     label: string;
 
     @IsString()
+    language: string;
+
+    @IsString()
     @IsDateString()
     created_at: string;
 }
