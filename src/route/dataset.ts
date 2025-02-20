@@ -27,12 +27,12 @@ import {
     deleteDatasetById,
     getDatasetById,
     getDatasetProviders,
-    getDatasetTasklist,
+    getTasklist,
     getDatasetTopics,
     getFactTableDefinition,
     listActiveDatasets,
     listAllDatasets,
-    updateDatasetInfo,
+    updateMetadata,
     updateDatasetProviders,
     updateDatasetTeam,
     updateDatasetTopics,
@@ -134,7 +134,7 @@ router.get('/:dataset_id', loadDataset(), getDatasetById);
 
 // GET /dataset/:dataset_id/limited
 // Returns the dataset with the given ID with limited relations hydrated
-router.get('/:dataset_id/limited', loadDataset({ metadata: true, revisions: true }), getDatasetById);
+router.get('/:dataset_id/limited', loadDataset({ draftRevision: { metadata: true } }), getDatasetById);
 
 // DELETE /dataset/:dataset_id
 // Deletes the dataset with the given ID
@@ -184,9 +184,9 @@ router.get('/:dataset_id/cube/parquet', loadDataset(), downloadCubeAsParquet);
 // Returns a CSV file representation of the default view of the cube
 router.get('/:dataset_id/cube/excel', loadDataset(), downloadCubeAsExcel);
 
-// PATCH /dataset/:dataset_id/info
+// PATCH /dataset/:dataset_id/metadata
 // Updates the dataset info with the provided data
-router.patch('/:dataset_id/info', jsonParser, loadDataset({}), updateDatasetInfo);
+router.patch('/:dataset_id/metadata', jsonParser, loadDataset({}), updateMetadata);
 
 router.get('/:dataset_id/sources', loadDataset({ factTable: true }), getFactTableDefinition);
 
@@ -222,15 +222,12 @@ router.patch(
 // GET /dataset/:dataset_id/tasklist
 // Returns a JSON object with info on what parts of the dataset have been created
 const relForTasklistState: FindOptionsRelations<Dataset> = {
-    metadata: true,
-    revisions: { dataTable: true },
+    draftRevision: { metadata: true, dataTable: true, revisionProviders: true, revisionTopics: true },
     dimensions: { metadata: true },
     measure: { measureTable: true },
-    datasetProviders: true,
-    datasetTopics: true,
     team: true
 };
-router.get('/:dataset_id/tasklist', loadDataset(relForTasklistState), getDatasetTasklist);
+router.get('/:dataset_id/tasklist', loadDataset(relForTasklistState), getTasklist);
 
 // GET /dataset/:dataset_id/providers
 // Returns the data providers for the dataset
