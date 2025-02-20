@@ -7,15 +7,22 @@ import {
     JoinColumn,
     ManyToOne,
     OneToOne,
-    Index
+    Index,
+    OneToMany,
+    UpdateDateColumn
 } from 'typeorm';
 
 import { User } from '../user/user';
 import { RevisionTask } from '../../interfaces/revision-task';
+import { RelatedLinkDTO } from '../../dtos/related-link-dto';
+import { Designation } from '../../enums/designation';
 
 import { RevisionInterface } from './revision.interface';
 import { Dataset } from './dataset';
 import { DataTable } from './data-table';
+import { RevisionMetadata } from './revision-metadata';
+import { RevisionProvider } from './revision-provider';
+import { RevisionTopic } from './revision-topic';
 
 @Entity({ name: 'revision', orderBy: { createdAt: 'ASC' } })
 export class Revision extends BaseEntity implements RevisionInterface {
@@ -49,6 +56,9 @@ export class Revision extends BaseEntity implements RevisionInterface {
     @JoinColumn({ name: 'created_by', foreignKeyConstraintName: 'FK_revision_created_by' })
     createdBy: User;
 
+    @UpdateDateColumn({ name: 'updated_at', type: 'timestamptz' })
+    updatedAt: Date;
+
     @Column({ name: 'approved_at', type: 'timestamptz', nullable: true })
     approvedAt: Date | null;
 
@@ -62,4 +72,25 @@ export class Revision extends BaseEntity implements RevisionInterface {
 
     @Column({ name: 'tasks', type: 'jsonb', nullable: true })
     tasks: RevisionTask;
+
+    @Column({ type: 'boolean', name: 'rounding_applied', nullable: true })
+    roundingApplied?: boolean;
+
+    @Column({ type: 'text', name: 'update_frequency', nullable: true })
+    updateFrequency?: string; // in ISO 8601 duration format, e.g. P1Y = every year
+
+    @Column({ type: 'enum', enum: Object.values(Designation), nullable: true })
+    designation?: Designation;
+
+    @Column({ type: 'jsonb', name: 'related_links', nullable: true })
+    relatedLinks?: RelatedLinkDTO[];
+
+    @OneToMany(() => RevisionMetadata, (metadata) => metadata.revision, { cascade: true })
+    metadata: RevisionMetadata[];
+
+    @OneToMany(() => RevisionProvider, (revisionProvider) => revisionProvider.revision, { cascade: true })
+    revisionProviders: RevisionProvider[];
+
+    @OneToMany(() => RevisionTopic, (revisionTopic) => revisionTopic.revision, { cascade: true })
+    revisionTopics: RevisionTopic[];
 }

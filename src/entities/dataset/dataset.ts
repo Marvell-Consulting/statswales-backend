@@ -15,10 +15,9 @@ import { User } from '../user/user';
 import { Team } from '../user/team';
 
 import { Revision } from './revision';
-import { DatasetMetadata } from './dataset-metadata';
 import { Dimension } from './dimension';
-import { DatasetProvider } from './dataset-provider';
-import { DatasetTopic } from './dataset-topic';
+import { RevisionProvider } from './revision-provider';
+import { RevisionTopic } from './revision-topic';
 import { Measure } from './measure';
 import { FactTableColumn } from './fact-table-column';
 
@@ -35,6 +34,9 @@ export class Dataset extends BaseEntity {
     @JoinColumn({ name: 'created_by', foreignKeyConstraintName: 'FK_dataset_created_by' })
     createdBy: User;
 
+    @Column({ type: 'uuid', name: 'created_by' })
+    createdById: string;
+
     @Column({ type: 'timestamptz', nullable: true })
     live: Date | null;
 
@@ -47,26 +49,37 @@ export class Dataset extends BaseEntity {
     @Column({ name: 'end_date', type: 'date', nullable: true })
     endDate: Date | null;
 
-    @OneToMany(() => DatasetMetadata, (metadata) => metadata.dataset, { cascade: true })
-    metadata: DatasetMetadata[];
-
     @OneToMany(() => Dimension, (dimension) => dimension.dataset, { cascade: true })
     dimensions: Dimension[];
 
     @OneToMany(() => Revision, (revision) => revision.dataset, { cascade: true })
     revisions: Revision[];
 
+    // the very first revision
+    @OneToOne(() => Revision, (revision) => revision.dataset, { nullable: true })
+    @JoinColumn({ name: 'start_revision_id', foreignKeyConstraintName: 'FK_dataset_start_revision_id' })
+    startRevision: Revision;
+
+    // the newest revision (including draft revision if in progress)
+    @OneToOne(() => Revision, (revision) => revision.dataset, { nullable: true })
+    @JoinColumn({ name: 'end_revision_id', foreignKeyConstraintName: 'FK_dataset_end_revision_id' })
+    endRevision: Revision;
+
+    // the currently in progress unpublished (initial or update) revision or NULL if none in progress
+    @OneToOne(() => Revision, (revision) => revision.dataset, { nullable: true })
+    @JoinColumn({ name: 'draft_revision_id', foreignKeyConstraintName: 'FK_dataset_draft_revision_id' })
+    draftRevision: Revision;
+
+    // the most recent published aka "live" revision or NULL if unpublished
+    @OneToOne(() => Revision, (revision) => revision.dataset, { nullable: true })
+    @JoinColumn({ name: 'published_revision_id', foreignKeyConstraintName: 'FK_dataset_published_revision_id' })
+    publishedRevision: Revision;
+
     @OneToOne(() => Measure, (measure) => measure.dataset, { cascade: true })
     measure: Measure;
 
     @OneToMany(() => FactTableColumn, (factTableColumn) => factTableColumn.dataset, { cascade: true })
     factTable: FactTableColumn[] | null;
-
-    @OneToMany(() => DatasetProvider, (datasetProvider) => datasetProvider.dataset, { cascade: true })
-    datasetProviders: DatasetProvider[];
-
-    @OneToMany(() => DatasetTopic, (datasetTopic) => datasetTopic.dataset, { cascade: true })
-    datasetTopics: DatasetTopic[];
 
     @Column({ name: 'team_id', type: 'uuid', nullable: true })
     teamId?: string;

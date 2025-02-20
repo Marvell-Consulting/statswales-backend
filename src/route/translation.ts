@@ -24,12 +24,13 @@ const upload = multer({ storage: multer.memoryStorage() });
 const TRANSLATION_FILENAME = 'translation-import.csv';
 
 const collectTranslations = (dataset: Dataset): TranslationDTO[] => {
-    const metadataEN = dataset.metadata?.find((meta) => meta.language.includes('en'));
-    const metadataCY = dataset.metadata?.find((meta) => meta.language.includes('cy'));
+    const revision = dataset.draftRevision;
+    const metadataEN = revision.metadata?.find((meta) => meta.language.includes('en'));
+    const metadataCY = revision.metadata?.find((meta) => meta.language.includes('cy'));
 
     // ignore roundingDescription if rounding isn't applied
     const metadataKeys = translatableMetadataKeys.filter((key) => {
-        return metadataEN?.roundingApplied === true ? true : key !== 'roundingDescription';
+        return revision.roundingApplied === true ? true : key !== 'roundingDescription';
     });
 
     const translations: TranslationDTO[] = [
@@ -67,7 +68,7 @@ const parseUploadedTranslations = async (fileBuffer: Buffer): Promise<Translatio
 
 translationRouter.get(
     '/:dataset_id/preview',
-    loadDataset({ metadata: true, dimensions: { metadata: true } }),
+    loadDataset({ draftRevision: { metadata: true }, dimensions: { metadata: true } }),
     async (req: Request, res: Response, next: NextFunction) => {
         try {
             logger.info('Previewing translations for export...');
@@ -83,7 +84,7 @@ translationRouter.get(
 
 translationRouter.get(
     '/:dataset_id/export',
-    loadDataset({ metadata: true, dimensions: { metadata: true } }),
+    loadDataset({ draftRevision: { metadata: true }, dimensions: { metadata: true } }),
     async (req: Request, res: Response, next: NextFunction) => {
         try {
             logger.info('Exporting translations to CSV...');
@@ -101,7 +102,7 @@ translationRouter.get(
 translationRouter.post(
     '/:dataset_id/import',
     upload.single('csv'),
-    loadDataset({ metadata: true, dimensions: { metadata: true } }),
+    loadDataset({ draftRevision: { metadata: true }, dimensions: { metadata: true } }),
     async (req: Request, res: Response, next: NextFunction) => {
         const dataset: Dataset = res.locals.dataset;
         logger.info('Validating imported translations CSV...');
@@ -155,7 +156,7 @@ translationRouter.post(
 
 translationRouter.patch(
     '/:dataset_id/import',
-    loadDataset({ metadata: true, dimensions: { metadata: true } }),
+    loadDataset({ draftRevision: { metadata: true }, dimensions: { metadata: true } }),
     async (req: Request, res: Response, next: NextFunction) => {
         let dataset: Dataset = res.locals.dataset;
         logger.info('Updating translations from CSV...');
@@ -164,7 +165,7 @@ translationRouter.patch(
             const datalake = new DataLakeService();
             const fileBuffer = await datalake.getFileBuffer(TRANSLATION_FILENAME, dataset.id);
             const newTranslations = await parseUploadedTranslations(fileBuffer);
-            dataset = await DatasetRepository.updateTranslations(dataset.id, newTranslations);
+            dataset = await req.datasetService.updateTranslations(dataset.id, newTranslations);
             await datalake.deleteFile(TRANSLATION_FILENAME, dataset.id);
 
             res.status(201);
