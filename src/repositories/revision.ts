@@ -7,6 +7,10 @@ import { DataTable } from '../entities/dataset/data-table';
 import { Revision } from '../entities/dataset/revision';
 import { User } from '../entities/user/user';
 import { Dataset } from '../entities/dataset/dataset';
+import { RevisionMetadata } from '../entities/dataset/revision-metadata';
+import { SUPPORTED_LOCALES } from '../middleware/translation';
+import { Locale } from '../enums/locale';
+import { RevisionMetadataDTO } from '../dtos/revistion-metadata-dto';
 
 const defaultRelations: FindOptionsRelations<Revision> = {
     createdBy: true,
@@ -66,10 +70,40 @@ export const RevisionRepository = dataSource.getRepository(Revision).extend({
         return newRevision;
     },
 
+    async createMetadata(revision: Revision, title: string, lang: string): Promise<Revision> {
+        logger.debug(`Creating metadata for supported locales for revision '${revision.id}'...`);
+
+        const metadata: RevisionMetadata[] = SUPPORTED_LOCALES.map((language: Locale) => {
+            return RevisionMetadata.create({ revision, language, title: language === lang ? title : '' });
+        });
+
+        await dataSource.getRepository(RevisionMetadata).save(metadata);
+
+        return this.getById(revision.id, { metadata: true });
+    },
+
+    async updateMetadata(revision: Revision, metaDto: RevisionMetadataDTO): Promise<Revision> {
+        logger.debug(`Updating revision metadata for lang '${metaDto.language}'`);
+
+        const splitMeta = RevisionMetadataDTO.splitMeta(metaDto);
+
+        // props that aren't translated live on the revision itself
+        await this.merge(revision, splitMeta.revision).save();
+
+        // props that are translated live in revision metadata
+        const metaRepo = dataSource.getRepository(RevisionMetadata);
+        const existingMeta: RevisionMetadata = await metaRepo.findOneOrFail({
+            where: { id: revision.id, language: metaDto.language }
+        });
+        await metaRepo.merge(existingMeta, splitMeta.metadata).save();
+
+        return this.getById(revision.id, { metadata: true });
+    },
+
     async updatePublishDate(revision: Revision, publishAt: Date): Promise<Revision> {
-        logger.debug(`Updating Publish Date for Revision "${revision.id}"...`);
+        logger.debug(`Updating publish date for revision '${revision.id}'`);
         revision.publishAt = publishAt;
-        return dataSource.getRepository(Revision).save(revision);
+        return this.save(revision);
     },
 
     async approvePublication(revisionId: string, onlineCubeFilename: string, approver: User): Promise<Revision> {

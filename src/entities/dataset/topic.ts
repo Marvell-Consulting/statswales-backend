@@ -1,6 +1,6 @@
 import { BaseEntity, Column, Entity, OneToMany, PrimaryGeneratedColumn } from 'typeorm';
 
-import { DatasetTopic } from './dataset-topic';
+import { RevisionTopic } from './revision-topic';
 
 @Entity({ name: 'topic' })
 export class Topic extends BaseEntity {
@@ -20,6 +20,6 @@ export class Topic extends BaseEntity {
     @Column({ name: 'name_cy', type: 'text', nullable: true })
     nameCY: string;
 
-    @OneToMany(() => DatasetTopic, (datasetTopic) => datasetTopic.topic, { cascade: true })
-    datasetTopics: DatasetTopic[];
+    @OneToMany(() => RevisionTopic, (revisionTopic) => revisionTopic.topic, { cascade: true })
+    revisionTopics: RevisionTopic[];
 }
