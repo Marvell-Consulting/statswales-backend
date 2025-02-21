@@ -32,6 +32,9 @@ export class Revision extends BaseEntity implements RevisionInterface {
     @Column({ name: 'revision_index', type: 'int', nullable: false })
     revisionIndex: number;
 
+    @Column({ name: 'dataset_id' })
+    datasetId: string;
+
     @Index('IDX_revison_dataset_id')
     @ManyToOne(() => Dataset, (dataset) => dataset.revisions, { onDelete: 'CASCADE', orphanedRowAction: 'delete' })
     @JoinColumn({ name: 'dataset_id', foreignKeyConstraintName: 'FK_revision_dataset_id' })

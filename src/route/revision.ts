@@ -29,7 +29,7 @@ import { logger } from '../utils/logger';
 import { NotFoundException } from '../exceptions/not-found.exception';
 import { RevisionRepository } from '../repositories/revision';
 
-// middleware that loads the dataset (with nested relations) and stores it in res.locals
+// middleware that loads the revision and stores it in res.locals
 // leave relations undefined to load the default relations
 // pass an empty object to load no relations
 export const loadRevision = (relations?: FindOptionsRelations<Revision>) => {
@@ -41,22 +41,20 @@ export const loadRevision = (relations?: FindOptionsRelations<Revision>) => {
             return;
         }
 
-        // TODO: include user in query to prevent unauthorized access
-
         try {
-            logger.debug(`Loading dataset ${req.params.revision_id}...`);
+            logger.debug(`Loading revision: ${req.params.revision_id}...`);
             const revision = await RevisionRepository.getById(req.params.revision_id, relations);
+
+            if (res.locals.datasetId !== revision.datasetId) {
+                logger.error('Revision does not belong to dataset');
+                throw new NotFoundException('errors.revision_id_invalid');
+            }
+
             res.locals.revision_id = revision.id;
             res.locals.revision = revision;
         } catch (err) {
-            logger.error(`Failed to load revision, error: ${err}`);
+            logger.error(err, `Failed to load revision`);
             next(new NotFoundException('errors.no_revision'));
-            return;
-        }
-
-        if (!res.locals.dataset.revisions.find((rev: Revision) => rev.id === req.params.revision_id)) {
-            logger.error('Revision does not belong to dataset');
-            next(new NotFoundException('errors.revision_id_invalid'));
             return;
         }
 

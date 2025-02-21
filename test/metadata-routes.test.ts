@@ -16,7 +16,7 @@ import { DatasetDTO } from '../src/dtos/dataset-dto';
 import { DimensionDTO } from '../src/dtos/dimension-dto';
 import { RevisionDTO } from '../src/dtos/revision-dto';
 import { DatasetRepository } from '../src/repositories/dataset';
-import { FactTableRepository } from '../src/repositories/fact-table';
+import { DataTableRepository } from '../src/repositories/data-table';
 import { DataTableDto } from '../src/dtos/data-table-dto';
 import { Locale } from '../src/enums/locale';
 import { logger } from '../src/utils/logger';
@@ -224,14 +224,14 @@ describe('API Endpoints for viewing dataset objects', () => {
         });
 
         test('Get import returns 200 with object', async () => {
-            const factTable = await FactTableRepository.getFactTableById(dataset1Id, revision1Id, import1Id);
-            if (!factTable) {
+            const dataTable = await DataTableRepository.getDataTableById(dataset1Id, revision1Id, import1Id);
+            if (!dataTable) {
                 throw new Error('Import not found');
             }
             const res = await request(app)
                 .get(`/dataset/${dataset1Id}/revision/by-id/${revision1Id}/data-table/`)
                 .set(getAuthHeader(user));
-            const expectedDTO = DataTableDto.fromDataTable(factTable);
+            const expectedDTO = DataTableDto.fromDataTable(dataTable);
             expect(res.status).toBe(200);
             expect(res.body).toEqual(expectedDTO);
         });

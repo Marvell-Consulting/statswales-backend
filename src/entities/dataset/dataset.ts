@@ -16,8 +16,6 @@ import { Team } from '../user/team';
 
 import { Revision } from './revision';
 import { Dimension } from './dimension';
-import { RevisionProvider } from './revision-provider';
-import { RevisionTopic } from './revision-topic';
 import { Measure } from './measure';
 import { FactTableColumn } from './fact-table-column';
 
