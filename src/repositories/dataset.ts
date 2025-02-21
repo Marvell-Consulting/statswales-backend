@@ -1,48 +1,59 @@
 import { FindOneOptions, FindOptionsRelations, IsNull, Not } from 'typeorm';
-import { has } from 'lodash';
+import { has, set } from 'lodash';
 
+import { logger } from '../utils/logger';
 import { dataSource } from '../db/data-source';
 import { Dataset } from '../entities/dataset/dataset';
-import { logger } from '../utils/logger';
 import { DatasetListItemDTO } from '../dtos/dataset-list-item-dto';
 import { Locale } from '../enums/locale';
 import { Team } from '../entities/user/team';
 import { Revision } from '../entities/dataset/revision';
 import { ResultsetWithCount } from '../interfaces/resultset-with-count';
+import { DataTable } from '../entities/dataset/data-table';
+import { FactTableColumn } from '../entities/dataset/fact-table-column';
+import { FactTableColumnType } from '../enums/fact-table-column-type';
 
-const fullRelations: FindOptionsRelations<Dataset> = {
+export const datasetAll: FindOptionsRelations<Dataset> = {
     createdBy: true,
     factTable: true,
-    dimensions: {
-        metadata: true,
-        lookupTable: true
-    },
-    measure: true,
+    dimensions: { metadata: true, lookupTable: true },
+    measure: { lookupTable: true, measureTable: true },
     revisions: {
-        dataTable: {
-            dataTableDescriptions: true
-        }
+        createdBy: true,
+        metadata: true,
+        revisionProviders: true,
+        revisionTopics: true,
+        dataTable: { dataTableDescriptions: true }
     }
 };
 
-export const defaultRelations: FindOptionsRelations<Dataset> = {
-    draftRevision: true
+export const datasetDraftWithMetadata: FindOptionsRelations<Dataset> = {
+    draftRevision: { metadata: true }
+};
+
+export const datasetDraftWithDataTable: FindOptionsRelations<Dataset> = {
+    factTable: true,
+    dimensions: { metadata: true, lookupTable: true },
+    draftRevision: { dataTable: { dataTableDescriptions: true } }
+};
+
+export const datasetTasklistState: FindOptionsRelations<Dataset> = {
+    draftRevision: { metadata: true, dataTable: true, revisionProviders: true, revisionTopics: true },
+    dimensions: { metadata: true },
+    measure: { measureTable: true },
+    team: true
 };
 
 export const DatasetRepository = dataSource.getRepository(Dataset).extend({
-    async getById(id: string, relations: FindOptionsRelations<Dataset> = defaultRelations): Promise<Dataset> {
+    async getById(id: string, relations: FindOptionsRelations<Dataset> = {}): Promise<Dataset> {
         const findOptions: FindOneOptions<Dataset> = { where: { id }, relations };
-        logger.debug(
-            `Getting Dataset by ID "${id}" with the following relations: ${JSON.stringify(relations, null, 2)}`
-        );
 
-        if (has(relations, 'revisions.factTables.factTableInfo')) {
-            // sort sources by column index if they're requested
-            findOptions.order = {
-                dimensions: { metadata: { language: 'ASC' } },
-                factTable: { columnIndex: 'DESC' },
-                revisions: { dataTable: { dataTableDescriptions: { columnIndex: 'ASC' } } }
-            };
+        if (has(relations, 'factTable')) {
+            set(findOptions, 'order.factTable', { columnIndex: 'ASC' });
+        }
+
+        if (has(relations, 'revisions.dataTable.dataTableDescriptions')) {
+            set(findOptions, 'revisions.dataTable.dataTableDescriptions', { columnIndex: 'ASC' });
         }
 
         return this.findOneOrFail(findOptions);
@@ -51,7 +62,7 @@ export const DatasetRepository = dataSource.getRepository(Dataset).extend({
     async getPublishedById(id: string): Promise<Dataset> {
         const findOptions: FindOneOptions<Dataset> = {
             where: { id, live: Not(IsNull()) },
-            relations: fullRelations,
+            relations: datasetAll,
             order: {
                 dimensions: { metadata: { language: 'ASC' } },
                 revisions: { dataTable: { dataTableDescriptions: { columnIndex: 'ASC' } } }
@@ -65,22 +76,32 @@ export const DatasetRepository = dataSource.getRepository(Dataset).extend({
         await this.delete({ id });
     },
 
-    async listAllByLanguage(lang: Locale): Promise<DatasetListItemDTO[]> {
-        const qb = this.createQueryBuilder('d')
-            .select(['d.id as id', 'di.title as title'])
-            .innerJoin('d.metadata', 'di')
-            .where('di.language ILIKE :lang', { lang: `${lang}%` })
-            .groupBy('d.id, di.title')
-            .orderBy('d.createdAt', 'ASC');
+    async replaceFactTable(dataset: Dataset, dataTable: DataTable): Promise<void> {
+        if (dataset.factTable && dataset.factTable.length > 0) {
+            logger.debug(`Existing factTable found for dataset ${dataset.id}, deleting`);
+            await dataSource.getRepository(FactTableColumn).remove(dataset.factTable);
+        }
 
-        return qb.getRawMany();
+        logger.debug(`Creating fact table definitions for dataset ${dataset.id}`);
+
+        const factColumns: FactTableColumn[] = [];
+
+        dataTable.dataTableDescriptions.map((dataTableCol) => {
+            const factTableColumn = FactTableColumn.create({
+                id: dataset.id,
+                columnName: dataTableCol.columnName,
+                columnIndex: dataTableCol.columnIndex,
+                columnDatatype: dataTableCol.columnDatatype,
+                columnType: FactTableColumnType.Unknown
+            });
+
+            factColumns.push(factTableColumn);
+        });
+
+        await dataSource.getRepository(FactTableColumn).save(factColumns);
     },
 
-    async listActiveByLanguage(
-        lang: Locale,
-        page: number,
-        limit: number
-    ): Promise<ResultsetWithCount<DatasetListItemDTO>> {
+    async listByLanguage(lang: Locale, page: number, limit: number): Promise<ResultsetWithCount<DatasetListItemDTO>> {
         // TODO: statuses are a best approximation for a first pass
         const qb = this.createQueryBuilder('d')
             .select(['d.id as id', 'r.title as title', 'r.updated_at as last_updated'])

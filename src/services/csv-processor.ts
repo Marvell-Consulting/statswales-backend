@@ -222,7 +222,7 @@ export const uploadCSV = async (
             }
             break;
         default:
-            logger.error(`A user uploaded a file with a mimetype of ${filetype} which is known.`);
+            logger.error(`Unknown mimetype of ${filetype}`);
             throw new Error('File type has not been recognised.');
     }
     let dataTableDescriptions: DataTableDescription[];

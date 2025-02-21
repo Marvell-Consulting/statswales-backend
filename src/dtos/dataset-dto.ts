@@ -36,7 +36,7 @@ export class DatasetDTO {
 
         dto.dimensions = dataset.dimensions?.map((dimension: Dimension) => DimensionDTO.fromDimension(dimension));
         dto.revisions = dataset.revisions?.map((revision: Revision) => RevisionDTO.fromRevision(revision));
-        dto.draft_revision = dto.draft_revision ? RevisionDTO.fromRevision(dataset.draftRevision) : undefined;
+        dto.draft_revision = dataset.draftRevision ? RevisionDTO.fromRevision(dataset.draftRevision) : undefined;
 
         dto.measure = dataset.measure ? MeasureDTO.fromMeasure(dataset.measure) : undefined;
         dto.team_id = dataset.teamId; // keep this because it means we don't need always hydrate the team relation

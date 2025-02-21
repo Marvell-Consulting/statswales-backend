@@ -1,4 +1,4 @@
-import { Not, IsNull, FindOptionsRelations, FindOneOptions } from 'typeorm';
+import { FindOptionsRelations, FindOneOptions } from 'typeorm';
 import { has } from 'lodash';
 
 import { dataSource } from '../db/data-source';
@@ -6,14 +6,14 @@ import { logger } from '../utils/logger';
 import { DataTable } from '../entities/dataset/data-table';
 import { Revision } from '../entities/dataset/revision';
 import { User } from '../entities/user/user';
-import { Dataset } from '../entities/dataset/dataset';
 import { RevisionMetadata } from '../entities/dataset/revision-metadata';
 import { SUPPORTED_LOCALES } from '../middleware/translation';
 import { Locale } from '../enums/locale';
 import { RevisionMetadataDTO } from '../dtos/revistion-metadata-dto';
 
+import { DataTableRepository } from './data-table';
+
 const defaultRelations: FindOptionsRelations<Revision> = {
-    createdBy: true,
     dataTable: {
         dataTableDescriptions: true
     }
@@ -26,7 +26,7 @@ export const RevisionRepository = dataSource.getRepository(Revision).extend({
             `Getting Revision by ID "${id}" with the following relations: ${JSON.stringify(relations, null, 2)}`
         );
 
-        if (has(relations, 'revisions.factTables.factTableInfo')) {
+        if (has(relations, 'dataTable.dataTableDescriptions')) {
             // sort sources by column index if they're requested
             findOptions.order = {
                 dataTable: { dataTableDescriptions: { columnIndex: 'ASC' } }
@@ -36,38 +36,17 @@ export const RevisionRepository = dataSource.getRepository(Revision).extend({
         return this.findOneOrFail(findOptions);
     },
 
-    async createFromImport(dataset: Dataset, fileImport: DataTable, user: User): Promise<Revision> {
-        logger.debug(`Creating new Revision for Dataset "${dataset.id}" from FactTable "${fileImport.id}"...`);
+    async replaceDataTable(revision: Revision, dataTable: DataTable): Promise<Revision> {
+        logger.debug(`Updating dataTable for revision '${revision.id}'`);
 
-        const unpublishedRevisions = await dataSource
-            .getRepository(Revision)
-            .find({ where: { dataset: { id: dataset.id }, publishAt: IsNull() } });
+        if (revision.dataTable) {
+            logger.debug(`Existing dataTable '${revision.dataTable.id}' for revision '${revision.id}' found, deleting`);
+            await DataTableRepository.remove(revision.dataTable);
+        }
 
-        // purge any previous unpublished revisions and associated imports / sources / dimensions
-        await dataSource.getRepository(Revision).remove(unpublishedRevisions);
+        const updatedRevision = await this.merge(revision, { dataTable }).save();
 
-        const lastPublishedRevision = await dataSource.getRepository(Revision).findOne({
-            where: {
-                dataset: { id: dataset.id },
-                revisionIndex: Not(IsNull()),
-                approvedAt: Not(IsNull()),
-                publishAt: Not(IsNull())
-            },
-            order: { revisionIndex: 'DESC' }
-        });
-
-        const newRevision = await dataSource
-            .getRepository(Revision)
-            .create({
-                dataset,
-                previousRevision: lastPublishedRevision || undefined,
-                revisionIndex: 1,
-                dataTable: fileImport,
-                createdBy: user
-            })
-            .save();
-
-        return newRevision;
+        return updatedRevision;
     },
 
     async createMetadata(revision: Revision, title: string, lang: string): Promise<Revision> {
