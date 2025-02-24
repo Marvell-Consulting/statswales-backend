@@ -51,7 +51,7 @@ export class RevisionProviderDTO {
         return dto;
     }
 
-    static toDatsetProvider(dto: RevisionProviderDTO): RevisionProvider {
+    static toRevisionProvider(dto: RevisionProviderDTO): RevisionProvider {
         const revProvider = new RevisionProvider();
         revProvider.id = dto.id || uuid();
         revProvider.groupId = dto.group_id || uuid();

@@ -13,7 +13,8 @@ import {
     withDraftAndMetadata,
     DatasetRepository,
     withAll,
-    withDraftForTasklistState
+    withDraftForTasklistState,
+    withDraftAndProviders
 } from '../repositories/dataset';
 import { datasetIdValidator, hasError } from '../validators';
 import { NotFoundException } from '../exceptions/not-found.exception';
@@ -26,18 +27,18 @@ import {
     downloadCubeFile
 } from '../controllers/cube-controller';
 import {
-    addProvidersToDataset,
+    addDataProvider,
     createDataset,
     uploadDataTable,
     cubePreview,
     deleteDatasetById,
-    getDatasetProviders,
+    getDataProviders,
     getTasklist,
     getDatasetTopics,
     getFactTableDefinition,
     listAllDatasets,
     updateMetadata,
-    updateDatasetProviders,
+    updateDataProviders,
     updateDatasetTeam,
     updateDatasetTopics,
     updateSources,
@@ -211,15 +212,15 @@ router.get('/:dataset_id/tasklist', loadDataset(withDraftForTasklistState), getT
 
 // GET /dataset/:dataset_id/providers
 // Returns the data providers for the dataset
-router.get('/:dataset_id/providers', jsonParser, loadDataset({}), getDatasetProviders);
+router.get('/:dataset_id/providers', jsonParser, loadDataset(withDraftAndProviders), getDataProviders);
 
 // POST /dataset/:dataset_id/providers
 // Adds a new data provider for the dataset
-router.post('/:dataset_id/providers', jsonParser, loadDataset({}), addProvidersToDataset);
+router.post('/:dataset_id/providers', jsonParser, loadDataset({}), addDataProvider);
 
 // PATCH /dataset/:dataset_id/providers
 // Updates the data providers for the dataset
-router.patch('/:dataset_id/providers', jsonParser, loadDataset({}), updateDatasetProviders);
+router.patch('/:dataset_id/providers', jsonParser, loadDataset({}), updateDataProviders);
 
 // GET /dataset/:dataset_id/topics
 // Returns the topics for the dataset
