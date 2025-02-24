@@ -31,6 +31,14 @@ export const withDraftAndMetadata: FindOptionsRelations<Dataset> = {
     draftRevision: { metadata: true }
 };
 
+export const withDraftAndProviders: FindOptionsRelations<Dataset> = {
+    draftRevision: { revisionProviders: { provider: true, providerSource: true } }
+};
+
+export const withDraftAndTopics: FindOptionsRelations<Dataset> = {
+    draftRevision: { revisionTopics: { topic: true } }
+};
+
 export const withDraftAndDataTable: FindOptionsRelations<Dataset> = {
     factTable: true,
     dimensions: { metadata: true, lookupTable: true },
@@ -173,58 +181,6 @@ export const DatasetRepository = dataSource.getRepository(Dataset).extend({
 
         return { data, count };
     },
-
-    // async addDatasetProvider(datasetId: string, dataProvider: RevisionProviderDTO): Promise<Dataset> {
-    //     const newProvider = RevisionProviderDTO.toDatsetProvider(dataProvider);
-
-    //     // add new data provider for both languages
-    //     const altLang = newProvider.language.includes(Locale.English) ? Locale.WelshGb : Locale.EnglishGb;
-
-    //     const newProviderAltLang: Partial<RevisionProvider> = {
-    //         ...newProvider,
-    //         id: undefined,
-    //         language: altLang.toLowerCase()
-    //     };
-
-    //     await dataSource.getRepository(RevisionProvider).save([newProvider, newProviderAltLang]);
-
-    //     logger.debug(`Added new provider for dataset ${datasetId}`);
-
-    //     return this.getById(datasetId, { datasetProviders: { provider: true, providerSource: true } });
-    // },
-
-    // async updateDatasetProviders(datasetId: string, dataProviders: RevisionProviderDTO[]): Promise<Dataset> {
-    //     const existing = await dataSource.getRepository(RevisionProvider).findBy({ datasetId });
-    //     const submitted = dataProviders.map((provider) => RevisionProviderDTO.toDatsetProvider(provider));
-
-    //     // we can receive updates in a single language, but we need to update the relations for both languages
-
-    //     // work out what providers have been removed and remove for both languages
-    //     const toRemove = existing.filter((existing) => {
-    //         // if the group id is still present in the submitted data then don't remove those providers
-    //         return !submitted.some((submitted) => submitted.groupId === existing.groupId);
-    //     });
-
-    //     await dataSource.getRepository(RevisionProvider).remove(toRemove);
-
-    //     // update the data providers for both languages
-    //     const toUpdate = existing
-    //         .filter((existing) => submitted.some((submitted) => submitted.groupId === existing.groupId))
-    //         .map((updating) => {
-    //             const updated = submitted.find((submitted) => submitted.groupId === updating.groupId)!;
-    //             updating.providerId = updated.providerId;
-    //             updating.providerSourceId = updated.providerSourceId;
-    //             return updating;
-    //         });
-
-    //     await dataSource.getRepository(RevisionProvider).save(toUpdate);
-
-    //     logger.debug(
-    //         `Removed ${toRemove.length} providers and updated ${toUpdate.length} providers for dataset ${datasetId}`
-    //     );
-
-    //     return this.getById(datasetId, { datasetProviders: { provider: true, providerSource: true } });
-    // },
 
     // async updateDatasetTopics(datasetId: string, topics: string[]): Promise<Dataset> {
     //     // remove any existing topic relations

@@ -1,19 +1,21 @@
 import { FindOptionsRelations } from 'typeorm';
-import { Multer } from 'multer';
 
 import { RevisionMetadataDTO } from '../dtos/revistion-metadata-dto';
 import { TranslationDTO } from '../dtos/translations-dto';
 import { Dataset } from '../entities/dataset/dataset';
 import { User } from '../entities/user/user';
 import { Locale } from '../enums/locale';
-import { DatasetRepository } from '../repositories/dataset';
+import {
+    DatasetRepository,
+    withDraftAndDataTable,
+    withDraftAndMetadata,
+    withDraftAndProviders
+} from '../repositories/dataset';
 import { RevisionRepository } from '../repositories/revision';
 import { logger } from '../utils/logger';
-import { convertBufferToUTF8 } from '../utils/file-utils';
-import { DataTable } from '../entities/dataset/data-table';
-import { FactTableColumn } from '../entities/dataset/fact-table-column';
 import { DataTableAction } from '../enums/data-table-action';
-import { FactTableColumnType } from '../enums/fact-table-column-type';
+import { RevisionProviderDTO } from '../dtos/revision-provider-dto';
+import { RevisionProvider } from '../entities/dataset/revision-provider';
 
 import { uploadCSV } from './csv-processor';
 
@@ -43,12 +45,12 @@ export class DatasetService {
 
         logger.info(`Dataset '${dataset.id}' created with draft revision '${firstRev.id}'`);
 
-        return DatasetRepository.getById(dataset.id, { draftRevision: { metadata: true } });
+        return DatasetRepository.getById(dataset.id, withDraftAndMetadata);
     }
 
     // Patch the metadata for the currently in progress revision
     async updateMetadata(datasetId: string, metadata: RevisionMetadataDTO): Promise<Dataset> {
-        const dataset = await DatasetRepository.getById(datasetId, { draftRevision: { metadata: true } });
+        const dataset = await DatasetRepository.getById(datasetId, withDraftAndMetadata);
         await RevisionRepository.updateMetadata(dataset.draftRevision, metadata);
 
         return DatasetRepository.getById(dataset.id, {});
@@ -74,10 +76,61 @@ export class DatasetService {
         await RevisionRepository.replaceDataTable(dataset.draftRevision, dataTable);
         await DatasetRepository.replaceFactTable(dataset, dataTable);
 
-        return DatasetRepository.getById(datasetId, {
-            factTable: true,
-            draftRevision: { dataTable: true }
+        return DatasetRepository.getById(datasetId, withDraftAndDataTable);
+    }
+
+    async addDataProvider(datasetId: string, dataProvider: RevisionProviderDTO): Promise<Dataset> {
+        const newProvider = RevisionProviderDTO.toRevisionProvider(dataProvider);
+
+        // add new data provider for both languages
+        const altLang = newProvider.language.includes(Locale.English) ? Locale.WelshGb : Locale.EnglishGb;
+
+        const newProviderAltLang: Partial<RevisionProvider> = {
+            ...newProvider,
+            id: undefined,
+            language: altLang.toLowerCase()
+        };
+
+        await RevisionProvider.getRepository().save([newProvider, newProviderAltLang]);
+
+        logger.debug(`Added new provider for dataset ${datasetId}`);
+
+        return DatasetRepository.getById(datasetId, withDraftAndProviders);
+    }
+
+    async updateDataProviders(datasetId: string, dataProviders: RevisionProviderDTO[]): Promise<Dataset> {
+        const dataset = await DatasetRepository.getById(datasetId, { draftRevision: { revisionProviders: true } });
+        const existing = dataset.draftRevision.revisionProviders;
+        const submitted = dataProviders.map((provider) => RevisionProviderDTO.toRevisionProvider(provider));
+
+        // we can receive updates in a single language, but we need to update the relations for both languages
+
+        // work out what providers have been removed and remove for both languages
+        const toRemove = existing.filter((existing) => {
+            // if the group id is still present in the submitted data then don't remove those providers
+            return !submitted.some((submitted) => submitted.groupId === existing.groupId);
         });
+
+        await RevisionProvider.getRepository().remove(toRemove);
+
+        // update the data providers for both languages
+        const toUpdate = existing
+            .filter((existing) => submitted.some((submitted) => submitted.groupId === existing.groupId))
+            .map((updating) => {
+                const updated = submitted.find((submitted) => submitted.groupId === updating.groupId)!;
+                updating.providerId = updated.providerId;
+                updating.providerSourceId = updated.providerSourceId;
+
+                return updating;
+            });
+
+        await RevisionProvider.getRepository().save(toUpdate);
+
+        logger.debug(
+            `Removed ${toRemove.length} providers and updated ${toUpdate.length} providers for dataset ${datasetId}`
+        );
+
+        return DatasetRepository.getById(datasetId, withDraftAndProviders);
     }
 
     async updateTranslations(datasetId: string, translations: TranslationDTO[]): Promise<Dataset> {
