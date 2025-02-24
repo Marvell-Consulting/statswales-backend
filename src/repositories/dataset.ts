@@ -13,7 +13,7 @@ import { DataTable } from '../entities/dataset/data-table';
 import { FactTableColumn } from '../entities/dataset/fact-table-column';
 import { FactTableColumnType } from '../enums/fact-table-column-type';
 
-export const datasetAll: FindOptionsRelations<Dataset> = {
+export const withAll: FindOptionsRelations<Dataset> = {
     createdBy: true,
     factTable: true,
     dimensions: { metadata: true, lookupTable: true },
@@ -27,17 +27,17 @@ export const datasetAll: FindOptionsRelations<Dataset> = {
     }
 };
 
-export const datasetDraftWithMetadata: FindOptionsRelations<Dataset> = {
+export const withDraftAndMetadata: FindOptionsRelations<Dataset> = {
     draftRevision: { metadata: true }
 };
 
-export const datasetDraftWithDataTable: FindOptionsRelations<Dataset> = {
+export const withDraftAndDataTable: FindOptionsRelations<Dataset> = {
     factTable: true,
     dimensions: { metadata: true, lookupTable: true },
     draftRevision: { dataTable: { dataTableDescriptions: true } }
 };
 
-export const datasetTasklistState: FindOptionsRelations<Dataset> = {
+export const withDraftForTasklistState: FindOptionsRelations<Dataset> = {
     draftRevision: { metadata: true, dataTable: true, revisionProviders: true, revisionTopics: true },
     dimensions: { metadata: true },
     measure: { measureTable: true },
@@ -62,7 +62,7 @@ export const DatasetRepository = dataSource.getRepository(Dataset).extend({
     async getPublishedById(id: string): Promise<Dataset> {
         const findOptions: FindOneOptions<Dataset> = {
             where: { id, live: Not(IsNull()) },
-            relations: datasetAll,
+            relations: withAll,
             order: {
                 dimensions: { metadata: { language: 'ASC' } },
                 revisions: { dataTable: { dataTableDescriptions: { columnIndex: 'ASC' } } }

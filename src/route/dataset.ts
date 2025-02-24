@@ -9,11 +9,11 @@ import passport from 'passport';
 
 import { logger } from '../utils/logger';
 import {
-    datasetDraftWithDataTable,
-    datasetDraftWithMetadata,
+    withDraftAndDataTable,
+    withDraftAndMetadata,
     DatasetRepository,
-    datasetAll,
-    datasetTasklistState
+    withAll,
+    withDraftForTasklistState
 } from '../repositories/dataset';
 import { datasetIdValidator, hasError } from '../validators';
 import { NotFoundException } from '../exceptions/not-found.exception';
@@ -144,15 +144,11 @@ router.get('/:dataset_id', loadDataset({}), getDatasetById);
 
 // GET /dataset/:dataset_id/all
 // Returns the dataset with all available relations hydrated
-router.get('/:dataset_id/all', loadDataset(datasetAll), getDatasetById);
-
-// GET /dataset/:dataset_id/meta
-// Returns the dataset with the current draft and metadata
-router.get('/:dataset_id/meta', loadDataset(datasetDraftWithMetadata), getDatasetById);
+router.get('/:dataset_id/all', loadDataset(withAll), getDatasetById);
 
 // GET /dataset/:dataset_id/data
 // Returns the dataset with the current draft revision and data table
-router.get('/:dataset_id/data', loadDataset(datasetDraftWithDataTable), getDatasetById);
+router.get('/:dataset_id/data', loadDataset(withDraftAndDataTable), getDatasetById);
 
 // POST /dataset/:dataset_id/data
 // Upload a data file to a dataset
@@ -161,15 +157,15 @@ router.post('/:dataset_id/data', upload.single('csv'), loadDataset({}), uploadDa
 
 // GET /dataset/:dataset_id/view
 // Returns a view of the data file attached to the import
-router.get('/:dataset_id/view', loadDataset(datasetDraftWithDataTable), cubePreview);
+router.get('/:dataset_id/view', loadDataset(withDraftAndDataTable), cubePreview);
 
 // GET /dataset/:dataset_id/cube
 // Returns the latest revision of the dataset as a DuckDB File
-router.get('/:dataset_id/cube', loadDataset(datasetDraftWithDataTable), downloadCubeFile);
+router.get('/:dataset_id/cube', loadDataset(withDraftAndDataTable), downloadCubeFile);
 
 // GET /dataset/:dataset_id/cube/json
 // Returns a JSON file representation of the default view of the cube
-router.get('/:dataset_id/cube/json', loadDataset(datasetDraftWithDataTable), downloadCubeAsJSON);
+router.get('/:dataset_id/cube/json', loadDataset(withDraftAndDataTable), downloadCubeAsJSON);
 
 // GET /dataset/:dataset_id/cube/csv
 // Returns a CSV file representation of the default view of the cube
@@ -182,6 +178,10 @@ router.get('/:dataset_id/cube/parquet', loadDataset(), downloadCubeAsParquet);
 // GET /dataset/:dataset_id/cube/excel
 // Returns a CSV file representation of the default view of the cube
 router.get('/:dataset_id/cube/excel', loadDataset(), downloadCubeAsExcel);
+
+// GET /dataset/:dataset_id/metadata
+// Returns the dataset with the current draft and metadata
+router.get('/:dataset_id/meta', loadDataset(withDraftAndMetadata), getDatasetById);
 
 // PATCH /dataset/:dataset_id/metadata
 // Updates the dataset info with the provided data
@@ -203,11 +203,11 @@ router.get('/:dataset_id/fact-table', loadDataset({ factTable: true }), getFactT
 // Notes: There can only be one object with a type of "dataValue" and one object with a type of "noteCodes"
 // and one object with a value of "measure"
 // Returns a JSON object with the current state of the dataset including the dimensions created.
-router.patch('/:dataset_id/sources', jsonParser, loadDataset(datasetDraftWithDataTable), updateSources);
+router.patch('/:dataset_id/sources', jsonParser, loadDataset(withDraftAndDataTable), updateSources);
 
 // GET /dataset/:dataset_id/tasklist
 // Returns a JSON object with info on what parts of the dataset have been created
-router.get('/:dataset_id/tasklist', loadDataset(datasetTasklistState), getTasklist);
+router.get('/:dataset_id/tasklist', loadDataset(withDraftForTasklistState), getTasklist);
 
 // GET /dataset/:dataset_id/providers
 // Returns the data providers for the dataset
