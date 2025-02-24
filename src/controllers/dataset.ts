@@ -14,7 +14,7 @@ import { hasError, titleValidator } from '../validators';
 import { BadRequestException } from '../exceptions/bad-request.exception';
 import { getLatestRevision } from '../utils/latest';
 import { ViewErrDTO } from '../dtos/view-dto';
-import { dtoValidator } from '../validators/dto-validator';
+import { arrayValidator, dtoValidator } from '../validators/dto-validator';
 import { RevisionMetadataDTO } from '../dtos/revistion-metadata-dto';
 import { TasklistStateDTO } from '../dtos/tasklist-state-dto';
 import { TeamSelectionDTO } from '../dtos/team-selection-dto';
@@ -22,10 +22,11 @@ import { cleanUpCube, createBaseCube } from '../services/cube-handler';
 import { DEFAULT_PAGE_SIZE } from '../services/csv-processor';
 import { createDimensionsFromSourceAssignment, validateSourceAssignment } from '../services/dimension-processor';
 import { SourceAssignmentException } from '../exceptions/source-assignment.exception';
-import { Revision } from '../entities/dataset/revision';
 import { FactTableColumn } from '../entities/dataset/fact-table-column';
 import { Dataset } from '../entities/dataset/dataset';
 import { FactTableColumnDto } from '../dtos/fact-table-column-dto';
+import { RevisionProviderDTO } from '../dtos/revision-provider-dto';
+import { RevisionProvider } from '../entities/dataset/revision-provider';
 
 import { getCubePreview } from './cube-controller';
 
@@ -157,58 +158,56 @@ export const getTasklist = async (req: Request, res: Response, next: NextFunctio
     }
 };
 
-export const getDatasetProviders = async (req: Request, res: Response, next: NextFunction) => {
-    // try {
-    //     const relations = { datasetProviders: { provider: true, providerSource: true } };
-    //     const dataset: Dataset = await DatasetRepository.getById(res.locals.datasetId, relations);
-    //     const providers = dataset.datasetProviders.map((provider) => DatasetProviderDTO.fromDatasetProvider(provider));
-    //     res.json(providers);
-    // } catch (err) {
-    //     next(err);
-    // }
-    next(new UnknownException('needs updating'));
+export const getDataProviders = async (req: Request, res: Response, next: NextFunction) => {
+    const dataset = res.locals.dataset;
+    try {
+        const providers = dataset.draftRevision.revisionProviders.map((provider: RevisionProvider) =>
+            RevisionProviderDTO.fromRevisionProvider(provider)
+        );
+        res.json(providers);
+    } catch (err) {
+        next(err);
+    }
 };
 
-export const addProvidersToDataset = async (req: Request, res: Response, next: NextFunction) => {
-    // try {
-    //     const datasetId = res.locals.datasetId;
-    //     const provider = await dtoValidator(RevisionProviderDTO, req.body);
-    //     const updatedDataset = await DatasetRepository.addDatasetProvider(datasetId, provider);
-    //     res.status(201);
-    //     res.json(DatasetDTO.fromDataset(updatedDataset));
-    // } catch (err: any) {
-    //     if (err instanceof BadRequestException) {
-    //         err.validationErrors?.forEach((error) => {
-    //             if (!error.constraints) return;
-    //             Object.values(error.constraints).forEach((message) => logger.error(message));
-    //         });
-    //         next(err);
-    //         return;
-    //     }
-    //     next(new UnknownException('errors.provider_update_error'));
-    // }
-    next(new UnknownException('needs updating'));
+export const addDataProvider = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+        const provider = await dtoValidator(RevisionProviderDTO, req.body);
+        const updatedDataset = await req.datasetService.addDataProvider(res.locals.datasetId, provider);
+        res.status(201);
+        res.json(DatasetDTO.fromDataset(updatedDataset));
+    } catch (err: any) {
+        logger.error(err, 'failed to add provider');
+        if (err instanceof BadRequestException) {
+            err.validationErrors?.forEach((error) => {
+                if (!error.constraints) return;
+                Object.values(error.constraints).forEach((message) => logger.error(message));
+            });
+            next(err);
+            return;
+        }
+        next(new UnknownException('errors.provider_update_error'));
+    }
 };
 
-export const updateDatasetProviders = async (req: Request, res: Response, next: NextFunction) => {
-    // try {
-    //     const datasetId = res.locals.datasetId;
-    //     const providers = await arrayValidator(RevisionProviderDTO, req.body);
-    //     const updatedDataset = await DatasetRepository.updateDatasetProviders(datasetId, providers);
-    //     res.status(201);
-    //     res.json(DatasetDTO.fromDataset(updatedDataset));
-    // } catch (err: any) {
-    //     if (err instanceof BadRequestException) {
-    //         err.validationErrors?.forEach((error) => {
-    //             if (!error.constraints) return;
-    //             Object.values(error.constraints).forEach((message) => logger.error(message));
-    //         });
-    //         next(err);
-    //         return;
-    //     }
-    //     next(new UnknownException('errors.provider_update_error'));
-    // }
-    next(new UnknownException('needs updating'));
+export const updateDataProviders = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+        const providers = await arrayValidator(RevisionProviderDTO, req.body);
+        const updatedDataset = await req.datasetService.updateDataProviders(res.locals.datasetId, providers);
+        res.status(201);
+        res.json(DatasetDTO.fromDataset(updatedDataset));
+    } catch (err: any) {
+        logger.error(err, 'failed to update providers');
+        if (err instanceof BadRequestException) {
+            err.validationErrors?.forEach((error) => {
+                if (!error.constraints) return;
+                Object.values(error.constraints).forEach((message) => logger.error(message));
+            });
+            next(err);
+            return;
+        }
+        next(new UnknownException('errors.provider_update_error'));
+    }
 };
 
 export const getDatasetTopics = async (req: Request, res: Response, next: NextFunction) => {
