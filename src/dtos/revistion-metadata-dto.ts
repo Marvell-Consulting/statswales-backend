@@ -81,8 +81,9 @@ export class RevisionMetadataDTO {
 
         const revision: Partial<Revision> = {
             roundingApplied: dto.rounding_applied,
-            relatedLinks: dto.related_links,
-            designation: dto.designation
+            relatedLinks: dto.related_links?.map((linkDto) => RelatedLinkDTO.toRelatedLink(linkDto)),
+            designation: dto.designation,
+            updateFrequency: UpdateFrequencyDTO.toDuration(dto.update_frequency)
         };
 
         return { metadata, revision };

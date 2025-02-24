@@ -2,6 +2,7 @@ import { Revision } from '../entities/dataset/revision';
 import { RevisionProvider } from '../entities/dataset/revision-provider';
 import { RevisionTopic } from '../entities/dataset/revision-topic';
 import { Designation } from '../enums/designation';
+import { Locale } from '../enums/locale';
 import { RevisionTask } from '../interfaces/revision-task';
 
 import { DataTableDto } from './data-table-dto';
@@ -51,6 +52,11 @@ export class RevisionDTO {
         if (revision.dataTable) {
             revDto.data_table = DataTableDto.fromDataTable(revision.dataTable);
         }
+
+        revDto.rounding_applied = revision.roundingApplied;
+        revDto.update_frequency = UpdateFrequencyDTO.fromDuration(revision.updateFrequency);
+        revDto.designation = revision.designation;
+        revDto.related_links = revision.relatedLinks?.map((relLink) => RelatedLinkDTO.fromRelatedLink(relLink));
 
         if (revision.metadata) {
             revDto.metadata = revision.metadata.map((meta) => RevisionMetadataDTO.fromRevisionMetadata(meta));
