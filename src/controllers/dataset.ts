@@ -27,6 +27,9 @@ import { Dataset } from '../entities/dataset/dataset';
 import { FactTableColumnDto } from '../dtos/fact-table-column-dto';
 import { RevisionProviderDTO } from '../dtos/revision-provider-dto';
 import { RevisionProvider } from '../entities/dataset/revision-provider';
+import { TopicDTO } from '../dtos/topic-dto';
+import { RevisionTopic } from '../entities/dataset/revision-topic';
+import { TopicSelectionDTO } from '../dtos/topic-selection-dto';
 
 import { getCubePreview } from './cube-controller';
 
@@ -210,36 +213,34 @@ export const updateDataProviders = async (req: Request, res: Response, next: Nex
     }
 };
 
-export const getDatasetTopics = async (req: Request, res: Response, next: NextFunction) => {
-    // try {
-    //     const dataset = await DatasetRepository.getById(res.locals.datasetId, { datasetTopics: { topic: true } });
-    //     const topics = dataset.datasetTopics.map((datasetTopic) => TopicDTO.fromTopic(datasetTopic.topic));
-    //     res.json(topics);
-    // } catch (err) {
-    //     next(err);
-    // }
-    next(new UnknownException('needs updating'));
+export const getTopics = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+        const revisionTopics = res.locals.dataset?.draftRevision?.revisionTopics || [];
+        const topics = revisionTopics.map((revTopic: RevisionTopic) => TopicDTO.fromTopic(revTopic.topic));
+        res.json(topics);
+    } catch (err) {
+        next(err);
+    }
 };
 
-export const updateDatasetTopics = async (req: Request, res: Response, next: NextFunction) => {
-    // try {
-    //     const datasetId = res.locals.datasetId;
-    //     const datasetTopics = await dtoValidator(TopicSelectionDTO, req.body);
-    //     const updatedDataset = await DatasetRepository.updateDatasetTopics(datasetId, datasetTopics.topics);
-    //     res.status(201);
-    //     res.json(DatasetDTO.fromDataset(updatedDataset));
-    // } catch (err: any) {
-    //     if (err instanceof BadRequestException) {
-    //         err.validationErrors?.forEach((error) => {
-    //             if (!error.constraints) return;
-    //             Object.values(error.constraints).forEach((message) => logger.error(message));
-    //         });
-    //         next(err);
-    //         return;
-    //     }
-    //     next(new UnknownException('errors.topic_update_error'));
-    // }
-    next(new UnknownException('needs updating'));
+export const updateTopics = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+        const datasetId = res.locals.datasetId;
+        const datasetTopics = await dtoValidator(TopicSelectionDTO, req.body);
+        const updatedDataset = await req.datasetService.updateTopics(datasetId, datasetTopics.topics);
+        res.status(201);
+        res.json(DatasetDTO.fromDataset(updatedDataset));
+    } catch (err: any) {
+        if (err instanceof BadRequestException) {
+            err.validationErrors?.forEach((error) => {
+                if (!error.constraints) return;
+                Object.values(error.constraints).forEach((message) => logger.error(message));
+            });
+            next(err);
+            return;
+        }
+        next(new UnknownException('errors.topic_update_error'));
+    }
 };
 
 export const updateDatasetTeam = async (req: Request, res: Response, next: NextFunction) => {

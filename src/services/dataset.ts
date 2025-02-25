@@ -9,13 +9,15 @@ import {
     DatasetRepository,
     withDraftAndDataTable,
     withDraftAndMetadata,
-    withDraftAndProviders
+    withDraftAndProviders,
+    withDraftAndTopics
 } from '../repositories/dataset';
 import { RevisionRepository } from '../repositories/revision';
 import { logger } from '../utils/logger';
 import { DataTableAction } from '../enums/data-table-action';
 import { RevisionProviderDTO } from '../dtos/revision-provider-dto';
 import { RevisionProvider } from '../entities/dataset/revision-provider';
+import { RevisionTopic } from '../entities/dataset/revision-topic';
 
 import { uploadCSV } from './csv-processor';
 
@@ -131,6 +133,24 @@ export class DatasetService {
         );
 
         return DatasetRepository.getById(datasetId, withDraftAndProviders);
+    }
+
+    async updateTopics(datasetId: string, topics: string[]): Promise<Dataset> {
+        const dataset = await DatasetRepository.getById(datasetId, { draftRevision: { revisionTopics: true } });
+        const revision = dataset.draftRevision;
+
+        // remove any existing topic relations
+        const existingTopics = revision.revisionTopics;
+        await RevisionTopic.getRepository().remove(existingTopics);
+
+        // save the new topic relations
+        const newTopics = topics.map((topicId: string) => {
+            return RevisionTopic.getRepository().create({ revisionId: revision.id, topicId: parseInt(topicId, 10) });
+        });
+
+        await RevisionTopic.getRepository().save(newTopics);
+
+        return DatasetRepository.getById(datasetId, withDraftAndTopics);
     }
 
     async updateTranslations(datasetId: string, translations: TranslationDTO[]): Promise<Dataset> {
