@@ -9,7 +9,7 @@ import passport from 'passport';
 
 import { logger } from '../utils/logger';
 import {
-    withDraftAndDataTable,
+    withDraftForCube,
     withDraftAndMetadata,
     DatasetRepository,
     withAll,
@@ -119,11 +119,7 @@ router.use(
     '/:dataset_id/measure',
     rateLimiter,
     passport.authenticate('jwt', { session: false }),
-    loadDataset({
-        factTable: true,
-        measure: { measureTable: true, metadata: true },
-        revisions: { dataTable: true }
-    }),
+    loadDataset(withDraftForCube),
     measureRouter
 );
 
@@ -150,7 +146,7 @@ router.get('/:dataset_id/all', loadDataset(withAll), getDatasetById);
 
 // GET /dataset/:dataset_id/data
 // Returns the dataset with the current draft revision and data table
-router.get('/:dataset_id/data', loadDataset(withDraftAndDataTable), getDatasetById);
+router.get('/:dataset_id/data', loadDataset(withDraftForCube), getDatasetById);
 
 // POST /dataset/:dataset_id/data
 // Upload a data file to a dataset
@@ -159,15 +155,15 @@ router.post('/:dataset_id/data', upload.single('csv'), loadDataset({}), uploadDa
 
 // GET /dataset/:dataset_id/view
 // Returns a view of the data file attached to the import
-router.get('/:dataset_id/view', loadDataset(withDraftAndDataTable), cubePreview);
+router.get('/:dataset_id/view', loadDataset(withDraftForCube), cubePreview);
 
 // GET /dataset/:dataset_id/cube
 // Returns the latest revision of the dataset as a DuckDB File
-router.get('/:dataset_id/cube', loadDataset(withDraftAndDataTable), downloadCubeFile);
+router.get('/:dataset_id/cube', loadDataset(withDraftForCube), downloadCubeFile);
 
 // GET /dataset/:dataset_id/cube/json
 // Returns a JSON file representation of the default view of the cube
-router.get('/:dataset_id/cube/json', loadDataset(withDraftAndDataTable), downloadCubeAsJSON);
+router.get('/:dataset_id/cube/json', loadDataset(withDraftForCube), downloadCubeAsJSON);
 
 // GET /dataset/:dataset_id/cube/csv
 // Returns a CSV file representation of the default view of the cube
@@ -205,7 +201,7 @@ router.get('/:dataset_id/fact-table', loadDataset({ factTable: true }), getFactT
 // Notes: There can only be one object with a type of "dataValue" and one object with a type of "noteCodes"
 // and one object with a value of "measure"
 // Returns a JSON object with the current state of the dataset including the dimensions created.
-router.patch('/:dataset_id/sources', jsonParser, loadDataset(withDraftAndDataTable), updateSources);
+router.patch('/:dataset_id/sources', jsonParser, loadDataset(withDraftForCube), updateSources);
 
 // GET /dataset/:dataset_id/tasklist
 // Returns a JSON object with info on what parts of the dataset have been created

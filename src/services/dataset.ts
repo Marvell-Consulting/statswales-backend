@@ -7,7 +7,7 @@ import { User } from '../entities/user/user';
 import { Locale } from '../enums/locale';
 import {
     DatasetRepository,
-    withDraftAndDataTable,
+    withDraftForCube,
     withDraftAndMetadata,
     withDraftAndProviders,
     withDraftAndTopics
@@ -78,7 +78,7 @@ export class DatasetService {
         await RevisionRepository.replaceDataTable(dataset.draftRevision, dataTable);
         await DatasetRepository.replaceFactTable(dataset, dataTable);
 
-        return DatasetRepository.getById(datasetId, withDraftAndDataTable);
+        return DatasetRepository.getById(datasetId, withDraftForCube);
     }
 
     async addDataProvider(datasetId: string, dataProvider: RevisionProviderDTO): Promise<Dataset> {
