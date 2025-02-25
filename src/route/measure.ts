@@ -1,11 +1,10 @@
 import 'reflect-metadata';
 
-import express, { NextFunction, Request, Response, Router } from 'express';
+import { Router } from 'express';
 import multer from 'multer';
 
 import { attachLookupTableToMeasure, getPreviewOfMeasure, resetMeasure } from '../controllers/measure-controller';
 
-const jsonParser = express.json();
 const upload = multer({ storage: multer.memoryStorage() });
 
 const router = Router();
