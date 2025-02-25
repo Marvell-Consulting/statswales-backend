@@ -90,7 +90,12 @@ router.use(
     '/:dataset_id/revision',
     rateLimiter,
     passport.authenticate('jwt', { session: false }),
-    loadDataset(),
+    loadDataset({
+        dimensions: { metadata: true },
+        factTable: true,
+        measure: { measureTable: true, metadata: true },
+        revisions: { dataTable: { dataTableDescriptions: true } }
+    }),
     revisionRouter
 );
 router.use(
