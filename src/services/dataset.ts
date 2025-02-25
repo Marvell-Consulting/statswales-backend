@@ -1,5 +1,3 @@
-import { FindOptionsRelations } from 'typeorm';
-
 import { RevisionMetadataDTO } from '../dtos/revistion-metadata-dto';
 import { TranslationDTO } from '../dtos/translations-dto';
 import { Dataset } from '../entities/dataset/dataset';
@@ -18,6 +16,8 @@ import { DataTableAction } from '../enums/data-table-action';
 import { RevisionProviderDTO } from '../dtos/revision-provider-dto';
 import { RevisionProvider } from '../entities/dataset/revision-provider';
 import { RevisionTopic } from '../entities/dataset/revision-topic';
+import { DimensionRepository } from '../repositories/dimension';
+import { RevisionMetadata } from '../entities/dataset/revision-metadata';
 
 import { uploadCSV } from './csv-processor';
 
@@ -154,34 +154,35 @@ export class DatasetService {
     }
 
     async updateTranslations(datasetId: string, translations: TranslationDTO[]): Promise<Dataset> {
-        const translatedRelations: FindOptionsRelations<Dataset> = {
+        const dataset = await DatasetRepository.getById(datasetId, {
             draftRevision: { metadata: true },
             dimensions: { metadata: true }
-        };
-
-        const dataset = await DatasetRepository.getById(datasetId, translatedRelations);
+        });
 
         const revision = dataset.draftRevision;
-        const dimensionTranslations = translations.filter((t) => t.type === 'dimension');
-
         const dimensions = dataset.dimensions;
 
-        // logger.debug(`Updating dimension names...`);
+        // set all metadata updated_at to the same time, we can use this later to flag untranslated changes
+        const now = new Date();
 
-        // for (const row of dimensionTranslations) {
-        //     const englishDimInfo = await dimensionMetaRepo.findOneByOrFail({ id: row.id, language: Locale.EnglishGb });
-        //     englishDimInfo.name = row.english || '';
-        //     await englishDimInfo.save();
+        logger.debug(`Updating dimension names...`);
 
-        //     const welshDimInfo = await dimensionMetaRepo.findOneByOrFail({ id: row.id, language: Locale.WelshGb });
-        //     welshDimInfo.name = row.cymraeg || '';
-        //     await welshDimInfo.save();
-        // }
+        dimensions.forEach((dimension) => {
+            const translation = translations.find((t) => t.type === 'dimension' && t.key === dimension.factTableColumn);
 
-        const metaTranslations = translations.filter((t) => t.type === 'metadata');
+            const dimMetaEN = dimension.metadata.find((meta) => meta.language.includes('en'))!;
+            dimMetaEN.name = translation?.english!;
+            dimMetaEN.updatedAt = now;
+
+            const dimMetaCY = dimension.metadata.find((meta) => meta.language.includes('cy'))!;
+            dimMetaCY.name = translation?.cymraeg!;
+            dimMetaCY.updatedAt = now;
+        });
+
+        await DimensionRepository.save(dimensions);
 
         logger.debug(`Updating metadata...`);
-
+        const metaTranslations = translations.filter((t) => t.type === 'metadata');
         const metaEn = revision.metadata.find((meta) => meta.language === Locale.EnglishGb)!;
         const metaCy = revision.metadata.find((meta) => meta.language === Locale.WelshGb)!;
 
@@ -191,9 +192,11 @@ export class DatasetService {
             metaCy[metaKey] = row.cymraeg || '';
         });
 
-        await metaEn.save();
-        await metaCy.save();
+        metaEn.updatedAt = now;
+        metaCy.updatedAt = now;
 
-        return DatasetRepository.getById(datasetId, translatedRelations);
+        await RevisionMetadata.getRepository().save([metaEn, metaCy]);
+
+        return DatasetRepository.getById(datasetId, {});
     }
 }
