@@ -14,7 +14,8 @@ import {
     DatasetRepository,
     withAll,
     withDraftForTasklistState,
-    withDraftAndProviders
+    withDraftAndProviders,
+    withDraftAndTopics
 } from '../repositories/dataset';
 import { datasetIdValidator, hasError } from '../validators';
 import { NotFoundException } from '../exceptions/not-found.exception';
@@ -34,13 +35,13 @@ import {
     deleteDatasetById,
     getDataProviders,
     getTasklist,
-    getDatasetTopics,
+    getTopics,
     getFactTableDefinition,
     listAllDatasets,
     updateMetadata,
     updateDataProviders,
     updateDatasetTeam,
-    updateDatasetTopics,
+    updateTopics,
     updateSources,
     getDatasetById
 } from '../controllers/dataset';
@@ -224,11 +225,11 @@ router.patch('/:dataset_id/providers', jsonParser, loadDataset({}), updateDataPr
 
 // GET /dataset/:dataset_id/topics
 // Returns the topics for the dataset
-router.get('/:dataset_id/topics', jsonParser, loadDataset({}), getDatasetTopics);
+router.get('/:dataset_id/topics', jsonParser, loadDataset(withDraftAndTopics), getTopics);
 
 // PATCH /dataset/:dataset_id/topics
 // Updates the topics for the dataset
-router.patch('/:dataset_id/topics', jsonParser, loadDataset({}), updateDatasetTopics);
+router.patch('/:dataset_id/topics', jsonParser, loadDataset(withDraftAndTopics), updateTopics);
 
 // PATCH /dataset/:dataset_id/team
 // Updates the team for the dataset
