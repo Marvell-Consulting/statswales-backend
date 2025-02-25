@@ -182,21 +182,6 @@ export const DatasetRepository = dataSource.getRepository(Dataset).extend({
         return { data, count };
     },
 
-    // async updateDatasetTopics(datasetId: string, topics: string[]): Promise<Dataset> {
-    //     // remove any existing topic relations
-    //     const existing = await dataSource.getRepository(RevisionTopic).findBy({ datasetId });
-    //     await dataSource.getRepository(RevisionTopic).remove(existing);
-
-    //     // save the new topic relations
-    //     const datasetTopics = topics.map((topicId: string) => {
-    //         return dataSource.getRepository(RevisionTopic).create({ datasetId, topicId: parseInt(topicId, 10) });
-    //     });
-
-    //     await dataSource.getRepository(RevisionTopic).save(datasetTopics);
-
-    //     return this.getById(datasetId, {});
-    // },
-
     async updateDatasetTeam(datasetId: string, teamId: string): Promise<Dataset> {
         const dataset = await this.findOneOrFail({ where: { id: datasetId } });
         const team = await dataSource.getRepository(Team).findOneByOrFail({ id: teamId });
