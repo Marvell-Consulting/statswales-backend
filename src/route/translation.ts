@@ -3,6 +3,7 @@ import { Readable } from 'node:stream';
 import { Request, Response, NextFunction, Router } from 'express';
 import { parse, stringify } from 'csv';
 import multer from 'multer';
+import { pick } from 'lodash';
 
 import { logger } from '../utils/logger';
 import { UnknownException } from '../exceptions/unknown.exception';
@@ -10,7 +11,6 @@ import { BadRequestException } from '../exceptions/bad-request.exception';
 import { Dataset } from '../entities/dataset/dataset';
 import { DatasetDTO } from '../dtos/dataset-dto';
 import { TranslationDTO } from '../dtos/translations-dto';
-import { DatasetRepository } from '../repositories/dataset';
 import { DataLakeService } from '../services/datalake';
 import { translatableMetadataKeys } from '../types/translatable-metadata';
 
@@ -23,7 +23,7 @@ const upload = multer({ storage: multer.memoryStorage() });
 // imported translation filename can be constant as we overwrite each time it's imported
 const TRANSLATION_FILENAME = 'translation-import.csv';
 
-const collectTranslations = (dataset: Dataset): TranslationDTO[] => {
+const collectTranslations = (dataset: Dataset, includeIds = false): TranslationDTO[] => {
     const revision = dataset.draftRevision;
     const metadataEN = revision.metadata?.find((meta) => meta.language.includes('en'));
     const metadataCY = revision.metadata?.find((meta) => meta.language.includes('cy'));
@@ -34,13 +34,21 @@ const collectTranslations = (dataset: Dataset): TranslationDTO[] => {
     });
 
     const translations: TranslationDTO[] = [
-        ...dataset.dimensions?.map((dimension) => ({
-            type: 'dimension',
-            key: dimension.factTableColumn,
-            english: dimension.metadata?.find((meta) => meta.language.includes('en'))?.name,
-            cymraeg: dimension.metadata?.find((meta) => meta.language.includes('cy'))?.name,
-            id: dimension.id
-        })),
+        ...dataset.dimensions?.map((dimension) => {
+            const factTableColumn = dimension.factTableColumn;
+            const dimMetaEN = dimension.metadata?.find((meta) => meta.language.includes('en'));
+            const dimMetaCY = dimension.metadata?.find((meta) => meta.language.includes('cy'));
+            const dimNameEN = dimMetaEN?.name === factTableColumn ? '' : dimMetaEN?.name;
+            const dimNameCY = dimMetaCY?.name === factTableColumn ? '' : dimMetaCY?.name;
+
+            return {
+                type: 'dimension',
+                key: dimension.factTableColumn,
+                english: dimNameEN,
+                cymraeg: dimNameCY,
+                id: dimension.id
+            };
+        }),
         ...metadataKeys.map((prop) => ({
             type: 'metadata',
             key: prop,
@@ -49,7 +57,7 @@ const collectTranslations = (dataset: Dataset): TranslationDTO[] => {
         }))
     ];
 
-    return translations;
+    return includeIds ? translations : translations.map((row) => pick(row, ['type', 'key', 'english', 'cymraeg']));
 };
 
 const parseUploadedTranslations = async (fileBuffer: Buffer): Promise<TranslationDTO[]> => {
@@ -73,7 +81,7 @@ translationRouter.get(
         try {
             logger.info('Previewing translations for export...');
             const dataset: Dataset = res.locals.dataset;
-            const translations = collectTranslations(dataset);
+            const translations = collectTranslations(dataset, true);
             res.json(translations);
         } catch (error) {
             logger.error(error, 'Error previewing translations');
