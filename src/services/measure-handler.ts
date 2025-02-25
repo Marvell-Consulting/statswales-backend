@@ -484,7 +484,7 @@ async function getMeasurePreviewWithExtractor(
     logger.debug(`Generating lookup table preview for measure ${measure.id}`);
     await createMeasureLookupTable(quack, measure.measureTable);
     const query = `SELECT * FROM measure ORDER BY sort_order, reference LIMIT ${sampleSize};`;
-    logger.debug(`Querying the cube to get the preview using query ${query}`);
+    logger.debug(`Querying the cube to get the preview using query: ${query}`);
     const measureTable = await quack.all(query);
     const tableHeaders = Object.keys(measureTable[0]);
     const dataArray = measureTable.map((row) => Object.values(row));
@@ -512,13 +512,13 @@ async function getMeasurePreviewWithExtractor(
 }
 
 export const getMeasurePreview = async (dataset: Dataset, dataTable: DataTable) => {
-    logger.debug(`Getting measure preview for ${dataset.measure.id}`);
+    logger.debug(`Getting preview for measure: ${dataset.measure.id}`);
     const tableName = 'fact_table';
     const quack = await duckdb();
     const tempFile = tmp.tmpNameSync({ postfix: `.${dataTable.fileType}` });
     const measure = dataset.measure;
     if (!measure) {
-        throw new Error('No measure present on the dataset.');
+        throw new Error('No measure present on the dataset');
     }
     // extract the data from the fact table
     try {
@@ -526,10 +526,11 @@ export const getMeasurePreview = async (dataset: Dataset, dataTable: DataTable) 
         const fileBuffer = await dataLakeService.getFileBuffer(dataTable.filename, dataset.id);
         fs.writeFileSync(tempFile, fileBuffer);
         const createTableQuery = await createFactTableQuery(tableName, tempFile, dataTable.fileType, quack);
+        logger.debug(`Creating fact table with query: ${createTableQuery}`);
         await quack.exec(createTableQuery);
     } catch (error) {
         logger.error(
-            `Something went wrong trying to create ${tableName} in DuckDB.  Unable to do matching and validation`
+            `Something went wrong trying to create ${tableName} in DuckDB. Unable to do matching and validation`
         );
         await quack.close();
         fs.unlinkSync(tempFile);
@@ -547,7 +548,7 @@ export const getMeasurePreview = async (dataset: Dataset, dataTable: DataTable) 
         fs.unlinkSync(tempFile);
         return viewDto;
     } catch (error) {
-        logger.error(`Something went wrong trying to create measure preview with the following error: ${error}`);
+        logger.error(error, `Something went wrong trying to create measure preview`);
         await quack.close();
         fs.unlinkSync(tempFile);
         throw error;

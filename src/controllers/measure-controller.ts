@@ -4,17 +4,15 @@ import { LookupTable } from '../entities/dataset/lookup-table';
 import { DataTable } from '../entities/dataset/data-table';
 import { logger } from '../utils/logger';
 import { Dataset } from '../entities/dataset/dataset';
-import { CSVHeader, ViewDTO, ViewErrDTO } from '../dtos/view-dto';
+import { ViewErrDTO } from '../dtos/view-dto';
 import { DatasetDTO } from '../dtos/dataset-dto';
 import { DataLakeService } from '../services/datalake';
 import { MeasureLookupPatchDTO } from '../dtos/measure-lookup-patch-dto';
 import { NotFoundException } from '../exceptions/not-found.exception';
 import { BadRequestException } from '../exceptions/bad-request.exception';
-import { getLatestRevision } from '../utils/latest';
 import { UnknownException } from '../exceptions/unknown.exception';
 import { getMeasurePreview, validateMeasureLookupTable } from '../services/measure-handler';
 import { uploadCSV } from '../services/csv-processor';
-import { convertBufferToUTF8 } from '../utils/file-utils';
 
 export const resetMeasure = async (req: Request, res: Response, next: NextFunction) => {
     const dataset = res.locals.dataset;
@@ -55,19 +53,19 @@ export const attachLookupTableToMeasure = async (req: Request, res: Response, ne
         return;
     }
     const dataset: Dataset = res.locals.dataset;
+    const revision = dataset.draftRevision;
 
     // Replace calls that require this to calls that get a single factTable for all revisions to "present"
-    const factTable = getLatestRevision(dataset)?.dataTable;
+    const factTable = revision?.dataTable;
     if (!factTable) {
         next(new NotFoundException('errors.fact_table_invalid'));
         return;
     }
 
     let fileImport: DataTable;
-    const utf8Buffer = convertBufferToUTF8(req.file.buffer);
 
     try {
-        fileImport = await uploadCSV(utf8Buffer, req.file?.mimetype, req.file?.originalname, res.locals.datasetId);
+        fileImport = await uploadCSV(req.file.buffer, req.file?.mimetype, req.file?.originalname, res.locals.datasetId);
     } catch (err) {
         logger.error(`An error occurred trying to upload the file: ${err}`);
         next(new UnknownException('errors.upload_error'));
@@ -94,7 +92,7 @@ export const attachLookupTableToMeasure = async (req: Request, res: Response, ne
 
 export const getPreviewOfMeasure = async (req: Request, res: Response, next: NextFunction) => {
     const dataset = res.locals.dataset;
-    const factTable = getLatestRevision(dataset)?.dataTable;
+    const factTable = dataset.draftRevision?.dataTable;
     if (!dataset.measure) {
         next(new NotFoundException('errors.measure_invalid'));
         return;
@@ -108,7 +106,7 @@ export const getPreviewOfMeasure = async (req: Request, res: Response, next: Nex
         res.status(200);
         res.json(preview);
     } catch (err) {
-        logger.error(`Something went wrong trying to get a preview of the dimension with the following error: ${err}`);
+        logger.error(err, `Something went wrong trying to get a preview of the dimension`);
         next(new UnknownException('errors.upload_error'));
     }
 };
