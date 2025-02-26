@@ -480,9 +480,6 @@ async function getMeasurePreviewWithExtractor(
     factTable: DataTable,
     quack: Database
 ) {
-    if (!measure.lookupTable) {
-        throw new Error(`Lookup table does does not exist on measure ${measure.id}`);
-    }
     logger.debug(`Generating lookup table preview for measure ${measure.id}`);
     await createMeasureLookupTable(quack, measure.measureTable);
     const query = `SELECT * FROM measure ORDER BY sort_order, reference LIMIT ${sampleSize};`;
@@ -513,11 +510,11 @@ async function getMeasurePreviewWithExtractor(
     };
 }
 
-export const getMeasurePreview = async (dataset: Dataset, factTable: DataTable) => {
+export const getMeasurePreview = async (dataset: Dataset, dataTable: DataTable) => {
     logger.debug(`Getting measure preview for ${dataset.measure.id}`);
     const tableName = 'fact_table';
     const quack = await duckdb();
-    const tempFile = tmp.tmpNameSync({ postfix: `.${factTable.fileType}` });
+    const tempFile = tmp.tmpNameSync({ postfix: `.${dataTable.fileType}` });
     const measure = dataset.measure;
     if (!measure) {
         throw new Error('No measure present on the dataset.');
@@ -525,9 +522,9 @@ export const getMeasurePreview = async (dataset: Dataset, factTable: DataTable) 
     // extract the data from the fact table
     try {
         const dataLakeService = new DataLakeService();
-        const fileBuffer = await dataLakeService.getFileBuffer(factTable.filename, dataset.id);
+        const fileBuffer = await dataLakeService.getFileBuffer(dataTable.filename, dataset.id);
         fs.writeFileSync(tempFile, fileBuffer);
-        const createTableQuery = await createFactTableQuery(tableName, tempFile, factTable.fileType, quack);
+        const createTableQuery = await createFactTableQuery(tableName, tempFile, dataTable.fileType, quack);
         await quack.exec(createTableQuery);
     } catch (error) {
         logger.error(
@@ -540,10 +537,10 @@ export const getMeasurePreview = async (dataset: Dataset, factTable: DataTable) 
     let viewDto: ViewDTO;
     try {
         if (measure.measureTable && measure.measureTable.length > 0) {
-            viewDto = await getMeasurePreviewWithExtractor(dataset, measure, factTable, quack);
+            viewDto = await getMeasurePreviewWithExtractor(dataset, measure, dataTable, quack);
         } else {
             logger.debug('Straight column preview');
-            viewDto = await getMeasurePreviewWithoutExtractor(dataset, measure, factTable, quack, tableName);
+            viewDto = await getMeasurePreviewWithoutExtractor(dataset, measure, dataTable, quack, tableName);
         }
         await quack.close();
         fs.unlinkSync(tempFile);

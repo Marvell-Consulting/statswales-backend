@@ -1,5 +1,6 @@
 import fs from 'fs';
 import { Readable } from 'node:stream';
+import { performance } from 'node:perf_hooks';
 
 import { NextFunction, Request, Response } from 'express';
 import tmp from 'tmp';
@@ -43,6 +44,7 @@ import { DimensionType } from '../enums/dimension-type';
 import { CubeValidationException, CubeValidationType } from '../exceptions/cube-error-exception';
 import { DimensionUpdateTask } from '../interfaces/revision-task';
 import { duckdb } from '../services/duckdb';
+import { SUPPORTED_LOCALES } from '../middleware/translation';
 
 import { getCubePreview, outputCube } from './cube-controller';
 
@@ -86,6 +88,7 @@ export const getRevisionPreview = async (req: Request, res: Response, next: Next
     const dataset = res.locals.dataset;
     const revision = res.locals.revision;
     const lang = req.language.split('-')[0];
+    const start = performance.now();
 
     const page_number: number = Number.parseInt(req.query.page_number as string, 10) || 1;
     const page_size: number = Number.parseInt(req.query.page_size as string, 10) || DEFAULT_PAGE_SIZE;
@@ -105,7 +108,7 @@ export const getRevisionPreview = async (req: Request, res: Response, next: Next
     } else {
         logger.debug('Creating fresh cube for preview');
         try {
-            cubeFile = await createBaseCube(dataset, revision);
+            cubeFile = await createBaseCube(dataset.id, revision.id);
         } catch (error) {
             logger.error(`Something went wrong trying to create the cube with the error: ${error}`);
             next(new UnknownException('errors.cube_create_error'));
@@ -113,6 +116,9 @@ export const getRevisionPreview = async (req: Request, res: Response, next: Next
         }
     }
     const cubePreview = await getCubePreview(cubeFile, lang, dataset, page_number, page_size);
+    const end = performance.now();
+    const time = Math.round(end - start);
+    logger.info(`Cube revision preview took ${time}ms`);
     await cleanUpCube(cubeFile);
     if ((cubePreview as ViewErrDTO).errors) {
         const processErr = cubePreview as ViewErrDTO;
@@ -212,7 +218,8 @@ async function attachUpdateDataTableToRevision(
     res: Response,
     next: NextFunction
 ) {
-    logger.debug('Attaching update data table to revision');
+    logger.debug('Attaching update data table to revision and validating cube');
+    const start = performance.now();
     const dataset = res.locals.dataset;
     // Validate all the columns against the fact table
     if (req.body.column_matching) {
@@ -258,6 +265,9 @@ async function attachUpdateDataTableToRevision(
             logger.error(
                 `Could not match all columns to the fact table.  The following columns were not matched: ${unmatchedColumns.join(', ')}`
             );
+            const end = performance.now();
+            const time = Math.round(end - start);
+            logger.info(`Cube update validation took ${time}ms`);
             next(new UnknownException('errors.failed_to_match_columns'));
             return;
         }
@@ -274,6 +284,9 @@ async function attachUpdateDataTableToRevision(
         await updateFactTableValidator(quack, dataset, revision);
     } catch (err) {
         logger.debug('Closing DuckDB instance');
+        const end = performance.now();
+        const time = Math.round(end - start);
+        logger.info(`Cube update validation took ${time}ms`);
         await quack.close();
         logger.error(`An error occurred trying to validate the file with the following error: ${err}`);
         next(new BadRequestException('errors.data_table_validation_error'));
@@ -307,6 +320,9 @@ async function attachUpdateDataTableToRevision(
                 });
             } else {
                 logger.debug('Closing DuckDB instance');
+                const end = performance.now();
+                const time = Math.round(end - start);
+                logger.info(`Cube update validation took ${time}ms`);
                 await quack.close();
                 logger.error(`An error occurred trying to validate the file with the following error: ${err}`);
                 next(new BadRequestException('errors.data_table_validation_error'));
@@ -326,7 +342,9 @@ async function attachUpdateDataTableToRevision(
     logger.debug('Closing DuckDB instance');
     await quack.close();
     await revision.save();
-
+    const end = performance.now();
+    const time = Math.round(end - start);
+    logger.info(`Cube update validation took ${time}ms`);
     // eslint-disable-next-line require-atomic-updates
     fileImport.revision = revision;
     await fileImport.save();
@@ -443,18 +461,32 @@ export const updateRevisionPublicationDate = async (req: Request, res: Response,
 export const approveForPublication = async (req: Request, res: Response, next: NextFunction) => {
     try {
         const { dataset, revision } = res.locals;
-        const tasklist = TasklistStateDTO.fromDataset(dataset, req.language);
+        const fullDataset = await DatasetRepository.getById(dataset.id);
+        const tasklist = TasklistStateDTO.fromDataset(fullDataset, req.language);
 
         if (!tasklist.canPublish) {
             throw new BadRequestException('dataset not ready for publication, please check tasklist');
         }
-
+        const start = performance.now();
         logger.debug(`Creating base cube for publication for revision: ${revision.id}`);
-        const cubeFilePath = await createBaseCube(dataset, revision);
+        const cubeFilePath = await createBaseCube(dataset.id, revision.id);
         const dataLakeService = new DataLakeService();
         const cubeBuffer = fs.readFileSync(cubeFilePath);
         const onlineCubeFilename = `${revision.id}.duckdb`;
+        for (const locale of SUPPORTED_LOCALES) {
+            const lang = locale.split('-')[0].toLowerCase();
+            logger.debug(`Creating parquet file for language "${lang}" and uploading to data lake`);
+            const parquetFilePath = await outputCube(cubeFilePath, lang, DuckdbOutputType.Parquet);
+            await dataLakeService.uploadFileBuffer(
+                `${revision.id}_${lang}.parquet`,
+                dataset.id,
+                fs.readFileSync(parquetFilePath)
+            );
+        }
         await dataLakeService.uploadFileBuffer(onlineCubeFilename, dataset.id, cubeBuffer);
+        const end = performance.now();
+        const time = Math.round(end - start);
+        logger.info(`Cube and parquet file creation took ${time}ms (including uploading to data lake)`);
         await RevisionRepository.approvePublication(revision.id, onlineCubeFilename, req.user as User);
         const updatedDataset = await DatasetRepository.getById(dataset.id, {});
         res.status(201);
@@ -503,7 +535,7 @@ export const downloadRevisionCubeFile = async (req: Request, res: Response, next
         fs.writeFileSync(cubeFile, fileBuffer);
     } else {
         try {
-            cubeFile = await createBaseCube(dataset, revision);
+            cubeFile = await createBaseCube(dataset.id, revision.id);
         } catch (err) {
             logger.error(`Something went wrong trying to create the cube with the error: ${err}`);
             next(new UnknownException('errors.cube_create_error'));
@@ -536,7 +568,7 @@ export const downloadRevisionCubeAsJSON = async (req: Request, res: Response, ne
     } else {
         try {
             logger.info('Creating fresh cube file.');
-            cubeFile = await createBaseCube(dataset, revision);
+            cubeFile = await createBaseCube(dataset.id, revision.id);
         } catch (err) {
             logger.error(`Something went wrong trying to create the cube with the error: ${err}`);
             next(new UnknownException('errors.cube_create_error'));
@@ -581,7 +613,7 @@ export const downloadRevisionCubeAsCSV = async (req: Request, res: Response, nex
         fs.writeFileSync(cubeFile, fileBuffer);
     } else {
         try {
-            cubeFile = await createBaseCube(dataset, revision);
+            cubeFile = await createBaseCube(dataset.id, revision.id);
         } catch (err) {
             logger.error(err, `Something went wrong trying to create the cube with the error`);
             next(new UnknownException('errors.cube_create_error'));
@@ -626,7 +658,7 @@ export const downloadRevisionCubeAsParquet = async (req: Request, res: Response,
         fs.writeFileSync(cubeFile, fileBuffer);
     } else {
         try {
-            cubeFile = await createBaseCube(dataset, revision);
+            cubeFile = await createBaseCube(dataset.id, revision.id);
         } catch (err) {
             logger.error(`Something went wrong trying to create the cube with the error: ${err}`);
             next(new UnknownException('errors.cube_create_error'));
@@ -671,7 +703,7 @@ export const downloadRevisionCubeAsExcel = async (req: Request, res: Response, n
         fs.writeFileSync(cubeFile, fileBuffer);
     } else {
         try {
-            cubeFile = await createBaseCube(dataset, revision);
+            cubeFile = await createBaseCube(dataset.id, revision.id);
         } catch (err) {
             logger.error(`Something went wrong trying to create the cube with the error: ${err}`);
             next(new UnknownException('errors.cube_create_error'));
@@ -705,6 +737,7 @@ export const downloadRevisionCubeAsExcel = async (req: Request, res: Response, n
 export const createNewRevision = async (req: Request, res: Response, next: NextFunction) => {
     const dataset = res.locals.dataset;
     const revision = new Revision();
+    revision.createdBy = req.user as User;
     if (dataset.revisions.length > 0) {
         revision.revisionIndex = 0;
     } else {

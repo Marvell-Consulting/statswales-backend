@@ -19,19 +19,14 @@ import { Revision } from '../entities/dataset/revision';
 import { ResultsetWithCount } from '../interfaces/resultset-with-count';
 
 const fullRelations: FindOptionsRelations<Dataset> = {
-    createdBy: true,
     metadata: true,
-    factTable: true,
     dimensions: {
         metadata: true,
         lookupTable: true
     },
-    measure: {
-        lookupTable: true,
-        measureTable: true
-    },
+    factTable: true,
+    measure: true,
     revisions: {
-        createdBy: true,
         dataTable: {
             dataTableDescriptions: true
         }
@@ -54,6 +49,9 @@ const fullRelations: FindOptionsRelations<Dataset> = {
 export const DatasetRepository = dataSource.getRepository(Dataset).extend({
     async getById(id: string, relations: FindOptionsRelations<Dataset> = fullRelations): Promise<Dataset> {
         const findOptions: FindOneOptions<Dataset> = { where: { id }, relations };
+        logger.debug(
+            `Getting Dataset by ID "${id}" with the following relations: ${JSON.stringify(relations, null, 2)}`
+        );
 
         if (has(relations, 'revisions.factTables.factTableInfo')) {
             // sort sources by column index if they're requested

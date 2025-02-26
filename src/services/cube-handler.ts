@@ -1,9 +1,11 @@
 import fs from 'node:fs';
 import path from 'path';
+import { performance } from 'node:perf_hooks';
 
 import { Database, DuckDbError } from 'duckdb-async';
 import tmp from 'tmp';
 import { t } from 'i18next';
+import { FindOptionsRelations } from 'typeorm';
 
 import { FileType } from '../enums/file-type';
 import { FileImportInterface } from '../entities/dataset/file-import.interface';
@@ -25,6 +27,8 @@ import { FactTableColumn } from '../entities/dataset/fact-table-column';
 import { CubeValidationException, CubeValidationType } from '../exceptions/cube-error-exception';
 import { DataTableDescription } from '../entities/dataset/data-table-description';
 import { MeasureRow } from '../entities/dataset/measure-row';
+import { DatasetRepository } from '../repositories/dataset';
+import { RevisionRepository } from '../repositories/revision';
 
 import { dateDimensionReferenceTableCreator } from './time-matching';
 import { duckdb } from './duckdb';
@@ -749,7 +753,20 @@ async function setupDimensions(
     orderByStatements: string[]
 ) {
     logger.info('Setting up dimension tables...');
-    for (const dimension of dataset.dimensions) {
+    const factTable = dataset.factTable;
+    if (!factTable)
+        throw new Error(
+            `No fact table found in dataset ${dataset.id} for revision ${endRevision.id}.  Cannot create dimension tables`
+        );
+    const orderedDimension = dataset.dimensions.map((dim) => {
+        const col = factTable.find((col) => col.columnName === dim.factTableColumn);
+        return {
+            dimension: dim,
+            index: col ? factTable.indexOf(col) : -1
+        };
+    });
+    for (const dim of orderedDimension.sort((dimA, dimB) => dimA.index - dimB.index)) {
+        const dimension = dim.dimension;
         logger.info(`Setting up dimension ${dimension.id} for fact table column ${dimension.factTableColumn}`);
         const dimTable = `${makeCubeSafeString(dimension.factTableColumn)}_lookup`;
         let languageColumn = 'lang';
@@ -877,13 +894,13 @@ async function createBaseFactTable(quack: Database, dataset: Dataset) {
     if (!firstRevision) {
         throw new Error(`Unable to find first revision for dataset ${dataset.id}`);
     }
-    const factTable = dataset.factTable;
+    if (!dataset.factTable) {
+        throw new Error(`Unable to find fact table for dataset ${dataset.id}`);
+    }
+    const factTable = dataset.factTable.sort((colA, colB) => colA.columnIndex - colB.columnIndex);
     const compositeKey: string[] = [];
     const factIdentifiers: FactTableColumn[] = [];
     const factTableDef: string[] = [];
-    if (!factTable) {
-        throw new Error(`Unable to find fact table for dataset ${dataset.id}`);
-    }
 
     const factTableCreationDef = factTable
         .sort((col1, col2) => col1.columnIndex - col2.columnIndex)
@@ -946,11 +963,38 @@ export const updateFactTableValidator = async (
 // DO NOT put validation against columns which should be present here.
 // Function should be able to generate a cube just from a fact table or collection
 // of fact tables.
-export const createBaseCube = async (dataset: Dataset, endRevision: Revision): Promise<string> => {
+export const createBaseCube = async (datasetId: string, endRevisionId: string): Promise<string> => {
+    const functionStart = performance.now();
     const selectStatementsMap = new Map<Locale, string[]>();
     SUPPORTED_LOCALES.map((locale) => selectStatementsMap.set(locale, []));
     const joinStatements: string[] = [];
     const orderByStatements: string[] = [];
+
+    const datasetRelations: FindOptionsRelations<Dataset> = {
+        dimensions: {
+            metadata: true,
+            lookupTable: true
+        },
+        factTable: true,
+        measure: {
+            measureTable: true
+        },
+        revisions: {
+            dataTable: {
+                dataTableDescriptions: true
+            }
+        }
+    };
+
+    const endRevisionRelations: FindOptionsRelations<Revision> = {
+        dataTable: {
+            dataTableDescriptions: true
+        }
+    };
+
+    logger.debug(`Loading dataset with id: ${datasetId} using relations: ${JSON.stringify(datasetRelations)}`);
+    const dataset = await DatasetRepository.getById(datasetId, datasetRelations);
+    const endRevision = await RevisionRepository.getById(endRevisionId, endRevisionRelations);
 
     const firstRevision = dataset.revisions.find((rev) => rev.revisionIndex === 1);
     if (!firstRevision) {
@@ -958,6 +1002,7 @@ export const createBaseCube = async (dataset: Dataset, endRevision: Revision): P
     }
 
     logger.debug('Creating an in-memory database to hold the cube using DuckDB 🐤');
+    const buildStart = performance.now();
     const quack = await duckdb();
 
     const { measureColumn, notesCodeColumn, dataValuesColumn, factTableDef, factIdentifiers } =
@@ -997,7 +1042,7 @@ export const createBaseCube = async (dataset: Dataset, endRevision: Revision): P
     logger.info(`Creating default views...`);
     // Build the default views
     for (const locale of SUPPORTED_LOCALES) {
-        const defaultViewSQL = `CREATE VIEW default_view_${locale.toLowerCase().split('-')[0]} AS SELECT\n${selectStatementsMap
+        const defaultViewSQL = `CREATE TABLE default_view_${locale.toLowerCase().split('-')[0]} AS SELECT\n${selectStatementsMap
             .get(locale)
             ?.join(
                 ',\n'
@@ -1021,6 +1066,10 @@ export const createBaseCube = async (dataset: Dataset, endRevision: Revision): P
     // If used for preview you just want the file
     // If it's the end of the publishing step you'll
     // want to upload the file to the data lake.
+    const end = performance.now();
+    const functionTime = Math.round(end - functionStart);
+    const buildTime = Math.round(end - buildStart);
+    logger.warn(`Cube function took ${functionTime}ms to complete and it took ${buildTime}ms to build the cube.`);
     return tmpFile;
 };
 

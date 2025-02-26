@@ -67,31 +67,31 @@ describe('API Endpoints for viewing the contents of a dataset', () => {
         expect(res.body.headers).toEqual([
             { index: -1, name: 'int_line_number', source_type: 'line_number' },
             { index: 0, name: 'Data Values', source_type: 'unknown' },
-            { index: 1, name: 'RowRef', source_type: 'unknown' },
-            { index: 2, name: 'AreaCode', source_type: 'unknown' },
-            { index: 3, name: 'YearCode', source_type: 'unknown' },
-            { index: 4, name: 'Start Date', source_type: 'unknown' },
-            { index: 5, name: 'End Date', source_type: 'unknown' },
+            { index: 1, name: 'YearCode', source_type: 'unknown' },
+            { index: 2, name: 'Start Date', source_type: 'unknown' },
+            { index: 3, name: 'End Date', source_type: 'unknown' },
+            { index: 4, name: 'AreaCode', source_type: 'unknown' },
+            { index: 5, name: 'RowRef', source_type: 'unknown' },
             { index: 6, name: 'Notes', source_type: 'unknown' }
         ]);
         expect(res.body.data[0]).toEqual([
             1,
-            137527,
-            'Health Visitor',
-            'Wales',
+            4.030567686,
             '2021-22',
             '01/04/2021',
             '31/03/2022',
-            'Total'
+            'Wales',
+            'Health Visitor',
+            'Average'
         ]);
         expect(res.body.data[23]).toEqual([
             24,
-            1.563664596,
-            'Other Staff',
-            'Isle of Anglesey',
+            1007,
             '2022-23',
             '01/04/2022',
             '31/03/2023',
+            'Isle of Anglesey',
+            'Other Staff',
             null
         ]);
     });
