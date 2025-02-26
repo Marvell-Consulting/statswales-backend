@@ -581,27 +581,6 @@ export class InitialSchema1738599982159 implements MigrationInterface {
 
     public async down(queryRunner: QueryRunner): Promise<void> {
         await queryRunner.query(`
-            ALTER TABLE "category_key_info" DROP CONSTRAINT "FK_ec0b41bafd5605fff51fc0c8e47"
-        `);
-        await queryRunner.query(`
-            ALTER TABLE "category_info" DROP CONSTRAINT "FK_68028565126809c1e925e6f9334"
-        `);
-        await queryRunner.query(`
-            ALTER TABLE "hierarchy" DROP CONSTRAINT "FK_6ca6a866371cdd67a638df8a74c"
-        `);
-        await queryRunner.query(`
-            ALTER TABLE "hierarchy" DROP CONSTRAINT "FK_aaba494e02eaa91111d549e5763"
-        `);
-        await queryRunner.query(`
-            ALTER TABLE "reference_data_info" DROP CONSTRAINT "FK_f671fde9c769286ba971485ba09"
-        `);
-        await queryRunner.query(`
-            ALTER TABLE "reference_data" DROP CONSTRAINT "FK_dd4ff535904e339641b0b0d52c2"
-        `);
-        await queryRunner.query(`
-            ALTER TABLE "category_key" DROP CONSTRAINT "FK_087b36846d67092609821a62756"
-        `);
-        await queryRunner.query(`
             ALTER TABLE "team_info" DROP CONSTRAINT "FK_team_info_team_id"
         `);
         await queryRunner.query(`
@@ -684,27 +663,6 @@ export class InitialSchema1738599982159 implements MigrationInterface {
         `);
         await queryRunner.query(`
             ALTER TABLE "data_table_description" DROP CONSTRAINT "FK_data_table_description_fact_table_id"
-        `);
-        await queryRunner.query(`
-            DROP TABLE "category_key_info"
-        `);
-        await queryRunner.query(`
-            DROP TABLE "category_info"
-        `);
-        await queryRunner.query(`
-            DROP TABLE "hierarchy"
-        `);
-        await queryRunner.query(`
-            DROP TABLE "reference_data_info"
-        `);
-        await queryRunner.query(`
-            DROP TABLE "reference_data"
-        `);
-        await queryRunner.query(`
-            DROP TABLE "category_key"
-        `);
-        await queryRunner.query(`
-            DROP TABLE "category"
         `);
         await queryRunner.query(`
             DROP TABLE "team_info"
