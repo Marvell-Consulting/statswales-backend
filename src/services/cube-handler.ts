@@ -6,6 +6,8 @@ import { Database, DuckDbError } from 'duckdb-async';
 import tmp from 'tmp';
 import { t } from 'i18next';
 import { FindOptionsRelations } from 'typeorm';
+import { fromZonedTime, toZonedTime } from 'date-fns-tz';
+import { formatISO } from 'date-fns';
 
 import { FileType } from '../enums/file-type';
 import { FileImportInterface } from '../entities/dataset/file-import.interface';
@@ -316,6 +318,37 @@ export async function createAndValidateDateDimension(
         const err = new CubeValidationException('Failed to validate date dimension');
         err.type = CubeValidationType.Dimension;
         throw err;
+    }
+    const periodCoverage = await quack.all(
+        `SELECT MIN(start_date) as startDate, MAX(end_date) as endDate FROM ${makeCubeSafeString(factTableColumn)}_lookup;`
+    );
+    logger.debug(
+        `Period coverage: ${toZonedTime(periodCoverage[0].startDate, 'UTC')} to ${toZonedTime(periodCoverage[0].endDate, 'UTC')}`
+    );
+    const metaDataCoverage = await quack.all("SELECT * FROM metadata WHERE key = 'start_data' OR key = 'end_date';");
+    if (metaDataCoverage.length > 0) {
+        for (const metaData of metaDataCoverage) {
+            if (metaData.key === 'start_date') {
+                if (periodCoverage[0].startDate < metaData.value) {
+                    await quack.exec(
+                        `UPDATE metadata SET value='${formatISO(toZonedTime(periodCoverage[0].startDate, 'UTC'))}' WHERE key='start_data';`
+                    );
+                }
+            } else if (metaData.key === 'end_date') {
+                if (periodCoverage[0].endDate > metaData.value) {
+                    await quack.exec(
+                        `UPDATE metadata SET value='${formatISO(toZonedTime(periodCoverage[0].endDate, 'UTC'))}' WHERE key='end_date';`
+                    );
+                }
+            }
+        }
+    } else {
+        await quack.exec(
+            `INSERT INTO metadata (key, value) VALUES ('start_date', '${formatISO(toZonedTime(periodCoverage[0].startDate, 'UTC'))}');`
+        );
+        await quack.exec(
+            `INSERT INTO metadata (key, value) VALUES ('end_date', '${formatISO(toZonedTime(periodCoverage[0].endDate, 'UTC'))}');`
+        );
     }
     return `${makeCubeSafeString(factTableColumn)}_lookup`;
 }
@@ -959,6 +992,11 @@ export const updateFactTableValidator = async (
     return quack;
 };
 
+async function createCubeMetadataTable(quack: Database, dataset: Dataset) {
+    logger.debug('Adding metadata table to the cube');
+    await quack.exec(`CREATE TABLE metadata (key VARCHAR, value VARCHAR);`);
+}
+
 // Builds a fresh cube based on all revisions and returns the file pointer
 // to the duckdb file on disk.  This is based on the recipe in our cube miro
 // board and our candidate cube format repo.  It is limited to building a
@@ -1011,6 +1049,8 @@ export const createBaseCube = async (datasetId: string, endRevisionId: string): 
 
     const { measureColumn, notesCodeColumn, dataValuesColumn, factTableDef, factIdentifiers } =
         await createBaseFactTable(quack, dataset);
+
+    await createCubeMetadataTable(quack, dataset);
 
     await loadFactTables(quack, dataset, endRevision, factTableDef, dataValuesColumn, notesCodeColumn, factIdentifiers);
 
@@ -1083,6 +1123,22 @@ export const cleanUpCube = async (tmpFile: string) => {
         fs.unlink(tmpFile, async (err) => {
             if (err) logger.error(`Unable to remove file ${tmpFile} with error: ${err}`);
         });
+    }
+};
+
+export const getCubeTimePeriods = async (cubeFile: string) => {
+    const quack = await duckdb(cubeFile);
+    try {
+        const periodCoverage = await quack.all(`SELECT key, value FROM metadata`);
+        return periodCoverage.reduce(
+            (acc, curr) => {
+                acc[curr.key] = curr.value;
+                return acc;
+            },
+            {} as Record<string, string>
+        );
+    } finally {
+        await quack.close();
     }
 };
 

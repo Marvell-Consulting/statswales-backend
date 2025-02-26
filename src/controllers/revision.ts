@@ -5,7 +5,8 @@ import { performance } from 'node:perf_hooks';
 import { NextFunction, Request, Response } from 'express';
 import tmp from 'tmp';
 import { t } from 'i18next';
-import { isBefore, isValid } from 'date-fns';
+import { formatISO, isBefore, isValid, parse, parseISO } from 'date-fns';
+import { toZonedTime } from 'date-fns-tz';
 
 import { User } from '../entities/user/user';
 import { DataTableDto } from '../dtos/data-table-dto';
@@ -29,6 +30,7 @@ import {
     createAndValidateDateDimension,
     createAndValidateLookupTableDimension,
     createBaseCube,
+    getCubeTimePeriods,
     loadCorrectReferenceDataIntoReferenceDataTable,
     loadReferenceDataIntoCube,
     makeCubeSafeString,
@@ -461,8 +463,25 @@ export const updateRevisionPublicationDate = async (req: Request, res: Response,
 export const approveForPublication = async (req: Request, res: Response, next: NextFunction) => {
     try {
         const { dataset, revision } = res.locals;
-        const fullDataset = await DatasetRepository.getById(dataset.id);
+        const fullDataset = await DatasetRepository.getById(dataset.id, {
+            dimensions: {
+                metadata: true
+            },
+            revisions: {
+                dataTable: true
+            },
+            factTable: true,
+            measure: {
+                metadata: true,
+                measureTable: true
+            },
+            metadata: true,
+            datasetProviders: true,
+            datasetTopics: true,
+            team: true
+        });
         const tasklist = TasklistStateDTO.fromDataset(fullDataset, req.language);
+        logger.debug(`Tasklist for revision: ${JSON.stringify(tasklist, null, 2)}`);
 
         if (!tasklist.canPublish) {
             throw new BadRequestException('dataset not ready for publication, please check tasklist');
@@ -470,6 +489,10 @@ export const approveForPublication = async (req: Request, res: Response, next: N
         const start = performance.now();
         logger.debug(`Creating base cube for publication for revision: ${revision.id}`);
         const cubeFilePath = await createBaseCube(dataset.id, revision.id);
+        const periodCoverage = await getCubeTimePeriods(cubeFilePath);
+        fullDataset.startDate = new Date(Date.parse(periodCoverage.start_date));
+        fullDataset.endDate = new Date(Date.parse(periodCoverage.end_date));
+        await fullDataset.save();
         const dataLakeService = new DataLakeService();
         const cubeBuffer = fs.readFileSync(cubeFilePath);
         const onlineCubeFilename = `${revision.id}.duckdb`;

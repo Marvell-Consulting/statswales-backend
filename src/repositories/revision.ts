@@ -78,6 +78,14 @@ export const RevisionRepository = dataSource.getRepository(Revision).extend({
             relations: { dataset: true }
         });
 
+        const highestIndex = await dataSource.query(
+            `SELECT MAX(revision_index) AS max_index FROM revision WHERE dataset_id = $1 AND approved_at IS NOT NULL;`,
+            [scheduledRevision.dataset.id]
+        );
+        if (highestIndex[0].max_index !== null) {
+            scheduledRevision.revisionIndex = highestIndex[0].max_index + 1;
+        }
+
         scheduledRevision.approvedAt = new Date();
         scheduledRevision.approvedBy = approver;
         scheduledRevision.onlineCubeFilename = onlineCubeFilename;
