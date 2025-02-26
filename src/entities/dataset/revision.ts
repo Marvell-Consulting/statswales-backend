@@ -14,7 +14,7 @@ import {
 
 import { User } from '../user/user';
 import { RevisionTask } from '../../interfaces/revision-task';
-import { RelatedLinkDTO } from '../../dtos/related-link-dto';
+import { RelatedLink } from '../../dtos/related-link-dto';
 import { Designation } from '../../enums/designation';
 
 import { RevisionInterface } from './revision.interface';
@@ -86,7 +86,7 @@ export class Revision extends BaseEntity implements RevisionInterface {
     designation?: Designation;
 
     @Column({ type: 'jsonb', name: 'related_links', nullable: true })
-    relatedLinks?: RelatedLinkDTO[];
+    relatedLinks?: RelatedLink[];
 
     @OneToMany(() => RevisionMetadata, (metadata) => metadata.revision, { cascade: true })
     metadata: RevisionMetadata[];

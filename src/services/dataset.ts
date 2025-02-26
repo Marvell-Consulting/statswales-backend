@@ -165,8 +165,7 @@ export class DatasetService {
         // set all metadata updated_at to the same time, we can use this later to flag untranslated changes
         const now = new Date();
 
-        logger.debug(`Updating dimension names...`);
-
+        logger.debug(`Updating dimension name translations...`);
         dimensions.forEach((dimension) => {
             const translation = translations.find((t) => t.type === 'dimension' && t.key === dimension.factTableColumn);
 
@@ -181,7 +180,7 @@ export class DatasetService {
 
         await DimensionRepository.save(dimensions);
 
-        logger.debug(`Updating metadata...`);
+        logger.debug(`Updating metadata translations...`);
         const metaTranslations = translations.filter((t) => t.type === 'metadata');
         const metaEn = revision.metadata.find((meta) => meta.language === Locale.EnglishGb)!;
         const metaCy = revision.metadata.find((meta) => meta.language === Locale.WelshGb)!;
@@ -196,6 +195,15 @@ export class DatasetService {
         metaCy.updatedAt = now;
 
         await RevisionMetadata.getRepository().save([metaEn, metaCy]);
+
+        logger.debug(`Updating related link translations...`);
+        revision.relatedLinks?.forEach((link) => {
+            const translation = translations.find((t) => t.type === 'link' && t.key === link.id);
+            link.labelEN = translation?.english;
+            link.labelCY = translation?.cymraeg;
+        });
+
+        await RevisionRepository.save(revision);
 
         return DatasetRepository.getById(datasetId, {});
     }
