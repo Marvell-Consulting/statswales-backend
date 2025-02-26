@@ -17,7 +17,7 @@ import { logger } from '../utils/logger';
 import { DataLakeService } from '../services/datalake';
 import { DataTable } from '../entities/dataset/data-table';
 import { Locale } from '../enums/locale';
-import { DatasetRepository } from '../repositories/dataset';
+import { DatasetRepository, withDraftForTasklistState } from '../repositories/dataset';
 import { DatasetDTO } from '../dtos/dataset-dto';
 import { TasklistStateDTO } from '../dtos/tasklist-state-dto';
 import { BadRequestException } from '../exceptions/bad-request.exception';
@@ -47,6 +47,7 @@ import { CubeValidationException, CubeValidationType } from '../exceptions/cube-
 import { DimensionUpdateTask } from '../interfaces/revision-task';
 import { duckdb } from '../services/duckdb';
 import { SUPPORTED_LOCALES } from '../middleware/translation';
+import { getLatestRevision } from '../utils/latest';
 
 import { getCubePreview, outputCube } from './cube-controller';
 
@@ -461,27 +462,13 @@ export const updateRevisionPublicationDate = async (req: Request, res: Response,
 };
 
 export const approveForPublication = async (req: Request, res: Response, next: NextFunction) => {
+    const dataset = res.locals.dataset;
+    const revision = getLatestRevision(dataset)!;
+
     try {
-        const { dataset, revision } = res.locals;
-        const fullDataset = await DatasetRepository.getById(dataset.id, {
-            dimensions: {
-                metadata: true
-            },
-            revisions: {
-                dataTable: true
-            },
-            factTable: true,
-            measure: {
-                metadata: true,
-                measureTable: true
-            },
-            metadata: true,
-            datasetProviders: true,
-            datasetTopics: true,
-            team: true
-        });
-        const tasklist = TasklistStateDTO.fromDataset(fullDataset, req.language);
-        logger.debug(`Tasklist for revision: ${JSON.stringify(tasklist, null, 2)}`);
+        const datasetForTasklist = await DatasetRepository.getById(dataset.id, withDraftForTasklistState);
+        const draftRevision = datasetForTasklist.draftRevision;
+        const tasklist = TasklistStateDTO.fromDataset(datasetForTasklist, draftRevision, req.language);
 
         if (!tasklist.canPublish) {
             throw new BadRequestException('dataset not ready for publication, please check tasklist');
@@ -490,9 +477,9 @@ export const approveForPublication = async (req: Request, res: Response, next: N
         logger.debug(`Creating base cube for publication for revision: ${revision.id}`);
         const cubeFilePath = await createBaseCube(dataset.id, revision.id);
         const periodCoverage = await getCubeTimePeriods(cubeFilePath);
-        fullDataset.startDate = new Date(Date.parse(periodCoverage.start_date));
-        fullDataset.endDate = new Date(Date.parse(periodCoverage.end_date));
-        await fullDataset.save();
+        dataset.startDate = new Date(Date.parse(periodCoverage.start_date));
+        dataset.endDate = new Date(Date.parse(periodCoverage.end_date));
+        await dataset.save();
         const dataLakeService = new DataLakeService();
         const cubeBuffer = fs.readFileSync(cubeFilePath);
         const onlineCubeFilename = `${revision.id}.duckdb`;
