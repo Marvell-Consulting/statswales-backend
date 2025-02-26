@@ -13,6 +13,7 @@ import { DatasetDTO } from '../dtos/dataset-dto';
 import { TranslationDTO } from '../dtos/translations-dto';
 import { DataLakeService } from '../services/datalake';
 import { translatableMetadataKeys } from '../types/translatable-metadata';
+import { RelatedLink } from '../dtos/related-link-dto';
 
 import { loadDataset } from './dataset';
 
@@ -54,6 +55,12 @@ const collectTranslations = (dataset: Dataset, includeIds = false): TranslationD
             key: prop,
             english: metadataEN?.[prop] as string,
             cymraeg: metadataCY?.[prop] as string
+        })),
+        ...(revision.relatedLinks || []).map((link: RelatedLink) => ({
+            type: 'link',
+            key: link.id,
+            english: link.labelEN,
+            cymraeg: link.labelCY
         }))
     ];
 
