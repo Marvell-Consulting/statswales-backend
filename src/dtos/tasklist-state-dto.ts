@@ -6,6 +6,7 @@ import { DimensionType } from '../enums/dimension-type';
 import { TaskStatus } from '../enums/task-status';
 import { translatableMetadataKeys } from '../types/translatable-metadata';
 import { DimensionStatus } from '../interfaces/dimension-status';
+import { logger } from '../utils/logger';
 
 export class TasklistStateDTO {
     datatable: TaskStatus;
@@ -122,6 +123,13 @@ export class TasklistStateDTO {
         };
 
         const publishingComplete = every(dto.publishing, (status) => status === TaskStatus.Completed);
+
+        console.log('tasklist state: ', {
+            dimensionsComplete,
+            metadataComplete,
+            translationsComplete,
+            publishingComplete
+        });
 
         dto.canPublish = dimensionsComplete && metadataComplete && translationsComplete && publishingComplete;
 
