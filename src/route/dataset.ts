@@ -112,7 +112,11 @@ router.use(
     '/:dataset_id/measure',
     rateLimiter,
     passport.authenticate('jwt', { session: false }),
-    loadDataset(),
+    loadDataset({
+        factTable: true,
+        measure: { measureTable: true, metadata: true },
+        revisions: { dataTable: true }
+    }),
     measureRouter
 );
 
@@ -174,9 +178,9 @@ router.get('/:dataset_id/cube/excel', loadDataset(), downloadCubeAsExcel);
 // Updates the dataset info with the provided data
 router.patch('/:dataset_id/info', jsonParser, loadDataset({}), updateDatasetInfo);
 
-router.get('/:dataset_id/sources', loadDataset(), getFactTableDefinition);
+router.get('/:dataset_id/sources', loadDataset({ factTable: true }), getFactTableDefinition);
 
-router.get('/:dataset_id/fact-table', loadDataset(), getFactTableDefinition);
+router.get('/:dataset_id/fact-table', loadDataset({ factTable: true }), getFactTableDefinition);
 
 // PATCH /dataset/:dataset_id/sources
 // Creates the dimensions and measures from the first import based on user input via JSON
@@ -190,7 +194,20 @@ router.get('/:dataset_id/fact-table', loadDataset(), getFactTableDefinition);
 // Notes: There can only be one object with a type of "dataValue" and one object with a type of "noteCodes"
 // and one object with a value of "measure"
 // Returns a JSON object with the current state of the dataset including the dimensions created.
-router.patch('/:dataset_id/sources', jsonParser, loadDataset(), updateSources);
+router.patch(
+    '/:dataset_id/sources',
+    jsonParser,
+    loadDataset({
+        dimensions: true,
+        revisions: {
+            dataTable: {
+                dataTableDescriptions: true
+            }
+        },
+        factTable: true
+    }),
+    updateSources
+);
 
 // GET /dataset/:dataset_id/tasklist
 // Returns a JSON object with info on what parts of the dataset have been created

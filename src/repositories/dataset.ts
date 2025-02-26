@@ -24,6 +24,7 @@ const fullRelations: FindOptionsRelations<Dataset> = {
         metadata: true,
         lookupTable: true
     },
+    factTable: true,
     measure: true,
     revisions: {
         dataTable: {

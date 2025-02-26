@@ -76,17 +76,17 @@ describe('API Endpoints for viewing the contents of a dataset', () => {
         ]);
         expect(res.body.data[0]).toEqual([
             1,
-            137527,
+            4.030567686,
             '2021-22',
             '01/04/2021',
             '31/03/2022',
             'Wales',
             'Health Visitor',
-            'Total'
+            'Average'
         ]);
         expect(res.body.data[23]).toEqual([
             24,
-            1.563664596,
+            1007,
             '2022-23',
             '01/04/2022',
             '31/03/2023',

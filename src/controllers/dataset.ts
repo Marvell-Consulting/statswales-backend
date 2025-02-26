@@ -2,6 +2,7 @@ import fs from 'fs';
 
 import { NextFunction, Request, Response } from 'express';
 import tmp from 'tmp';
+import { last, sortBy } from 'lodash';
 
 import { DatasetRepository } from '../repositories/dataset';
 import { Locale } from '../enums/locale';
@@ -160,7 +161,7 @@ export const createFirstRevision = async (req: Request, res: Response, next: Nex
 
 export const cubePreview = async (req: Request, res: Response, next: NextFunction) => {
     const dataset = res.locals.dataset;
-    const latestRevision = getLatestRevision(dataset);
+    const latestRevision = last(sortBy(dataset?.revisions, 'revisionIndex'));
 
     if (!latestRevision) {
         next(new UnknownException('errors.no_revision'));
@@ -181,9 +182,13 @@ export const cubePreview = async (req: Request, res: Response, next: NextFunctio
             return;
         }
     }
+    const start = performance.now();
     const page_number: number = Number.parseInt(req.query.page_number as string, 10) || 1;
     const page_size: number = Number.parseInt(req.query.page_size as string, 10) || DEFAULT_PAGE_SIZE;
     const cubePreview = await getCubePreview(cubeFile, req.language.split('-')[0], dataset, page_number, page_size);
+    const end = performance.now();
+    const time = Math.round(end - start);
+    logger.info(`Generating preview of cube took ${time}ms`);
     await cleanUpCube(cubeFile);
     if ((cubePreview as ViewErrDTO).errors) {
         res.status(500);
@@ -384,7 +389,8 @@ async function updateFactTableDefinition(
 }
 
 export const updateSources = async (req: Request, res: Response, next: NextFunction) => {
-    const { dataset } = res.locals;
+    const dataset = res.locals.dataset;
+    logger.debug(`Req Body = ${JSON.stringify(req.body, null, 2)}`);
     const sourceAssignment = req.body;
     const revision = dataset.revisions.find((revision: Revision) => revision.revisionIndex === 1);
     if (!revision) {
@@ -402,7 +408,7 @@ export const updateSources = async (req: Request, res: Response, next: NextFunct
         const updatedDataset = await DatasetRepository.getById(dataset.id);
         res.json(DatasetDTO.fromDataset(updatedDataset));
     } catch (err) {
-        logger.error(`An error occurred trying to process the source assignments: ${err}`);
+        logger.error(err, `An error occurred trying to process the source assignments: ${err}`);
 
         if (err instanceof SourceAssignmentException) {
             next(new BadRequestException(err.message));

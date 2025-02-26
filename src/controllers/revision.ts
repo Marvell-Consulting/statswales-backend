@@ -44,6 +44,7 @@ import { DimensionType } from '../enums/dimension-type';
 import { CubeValidationException, CubeValidationType } from '../exceptions/cube-error-exception';
 import { DimensionUpdateTask } from '../interfaces/revision-task';
 import { duckdb } from '../services/duckdb';
+import { SUPPORTED_LOCALES } from '../middleware/translation';
 
 import { getCubePreview, outputCube } from './cube-controller';
 
@@ -87,6 +88,7 @@ export const getRevisionPreview = async (req: Request, res: Response, next: Next
     const dataset = res.locals.dataset;
     const revision = res.locals.revision;
     const lang = req.language.split('-')[0];
+    const start = performance.now();
 
     const page_number: number = Number.parseInt(req.query.page_number as string, 10) || 1;
     const page_size: number = Number.parseInt(req.query.page_size as string, 10) || DEFAULT_PAGE_SIZE;
@@ -114,6 +116,9 @@ export const getRevisionPreview = async (req: Request, res: Response, next: Next
         }
     }
     const cubePreview = await getCubePreview(cubeFile, lang, dataset, page_number, page_size);
+    const end = performance.now();
+    const time = Math.round(end - start);
+    logger.info(`Cube revision preview took ${time}ms`);
     await cleanUpCube(cubeFile);
     if ((cubePreview as ViewErrDTO).errors) {
         const processErr = cubePreview as ViewErrDTO;
@@ -456,18 +461,32 @@ export const updateRevisionPublicationDate = async (req: Request, res: Response,
 export const approveForPublication = async (req: Request, res: Response, next: NextFunction) => {
     try {
         const { dataset, revision } = res.locals;
-        const tasklist = TasklistStateDTO.fromDataset(dataset, req.language);
+        const fullDataset = await DatasetRepository.getById(dataset.id);
+        const tasklist = TasklistStateDTO.fromDataset(fullDataset, req.language);
 
         if (!tasklist.canPublish) {
             throw new BadRequestException('dataset not ready for publication, please check tasklist');
         }
-
+        const start = performance.now();
         logger.debug(`Creating base cube for publication for revision: ${revision.id}`);
         const cubeFilePath = await createBaseCube(dataset.id, revision.id);
         const dataLakeService = new DataLakeService();
         const cubeBuffer = fs.readFileSync(cubeFilePath);
         const onlineCubeFilename = `${revision.id}.duckdb`;
+        for (const locale of SUPPORTED_LOCALES) {
+            const lang = locale.split('-')[0].toLowerCase();
+            logger.debug(`Creating parquet file for language "${lang}" and uploading to data lake`);
+            const parquetFilePath = await outputCube(cubeFilePath, lang, DuckdbOutputType.Parquet);
+            await dataLakeService.uploadFileBuffer(
+                `${revision.id}_${lang}.parquet`,
+                dataset.id,
+                fs.readFileSync(parquetFilePath)
+            );
+        }
         await dataLakeService.uploadFileBuffer(onlineCubeFilename, dataset.id, cubeBuffer);
+        const end = performance.now();
+        const time = Math.round(end - start);
+        logger.info(`Cube and parquet file creation took ${time}ms (including uploading to data lake)`);
         await RevisionRepository.approvePublication(revision.id, onlineCubeFilename, req.user as User);
         const updatedDataset = await DatasetRepository.getById(dataset.id, {});
         res.status(201);
@@ -718,6 +737,7 @@ export const downloadRevisionCubeAsExcel = async (req: Request, res: Response, n
 export const createNewRevision = async (req: Request, res: Response, next: NextFunction) => {
     const dataset = res.locals.dataset;
     const revision = new Revision();
+    revision.createdBy = req.user as User;
     if (dataset.revisions.length > 0) {
         revision.revisionIndex = 0;
     } else {

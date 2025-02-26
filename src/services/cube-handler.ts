@@ -1042,7 +1042,7 @@ export const createBaseCube = async (datasetId: string, endRevisionId: string): 
     logger.info(`Creating default views...`);
     // Build the default views
     for (const locale of SUPPORTED_LOCALES) {
-        const defaultViewSQL = `CREATE VIEW default_view_${locale.toLowerCase().split('-')[0]} AS SELECT\n${selectStatementsMap
+        const defaultViewSQL = `CREATE TABLE default_view_${locale.toLowerCase().split('-')[0]} AS SELECT\n${selectStatementsMap
             .get(locale)
             ?.join(
                 ',\n'
