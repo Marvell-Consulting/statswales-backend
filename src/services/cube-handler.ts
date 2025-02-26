@@ -615,40 +615,40 @@ function measureFormats(): Map<string, MeasureFormat> {
     const measureFormats: Map<string, MeasureFormat> = new Map();
     measureFormats.set('decimal', {
         name: 'decimal',
-        method: "WHEN measure.format = 'decimal' THEN printf('%,.2f', |COL|)"
+        method: "WHEN measure.reference = '|REF|' THEN printf('%,.|DEC|f', |COL|)"
     });
     measureFormats.set('float', {
         name: 'float',
-        method: "WHEN measure.format = 'float' THEN printf('%,.2f', |COL|)"
+        method: "WHEN measure.reference = '|REF|' THEN printf('%,.|DEC|f', |COL|)"
     });
     measureFormats.set('integer', {
         name: 'integer',
-        method: "WHEN measure.format = 'integer' THEN printf('%,d', CAST(|COL| AS INTEGER))"
+        method: "WHEN measure.reference = '|REF|' THEN printf('%,d', CAST(|COL| AS INTEGER))"
     });
-    measureFormats.set('long', { name: 'long', method: "WHEN measure.format = 'Long' THEN printf('%f', |COL|)" });
+    measureFormats.set('long', { name: 'long', method: "WHEN measure.reference = '|REF|' THEN printf('%f', |COL|)" });
     measureFormats.set('percentage', {
         name: 'percentage',
-        method: "WHEN measure.format = 'percentage' THEN printf('%f', |COL|)"
+        method: "WHEN measure.reference = '|REF|' THEN printf('%f', |COL|)"
     });
     measureFormats.set('string', {
         name: 'string',
-        method: "WHEN measure.format = 'string' THEN printf('%s', CAST(|COL| AS VARCHAR))"
+        method: "WHEN measure.reference = '|REF|' THEN printf('%s', CAST(|COL| AS VARCHAR))"
     });
     measureFormats.set('text', {
         name: 'text',
-        method: "WHEN measure.format = 'text' THEN printf('%s', CAST(|COL| AS VARCHAR))"
+        method: "WHEN measure.reference = '|REF|' THEN printf('%s', CAST(|COL| AS VARCHAR))"
     });
     measureFormats.set('date', {
         name: 'date',
-        method: "WHEN measure.format = 'date' THEN printf('%s', CAST(|COL| AS VARCHAR))"
+        method: "WHEN measure.reference = '|REF|' THEN printf('%s', CAST(|COL| AS VARCHAR))"
     });
     measureFormats.set('datetime', {
         name: 'datetime',
-        method: "WHEN measure.format = 'datetime' THEN printf('%s', CAST(|COL| AS VARCHAR))"
+        method: "WHEN measure.reference = '|REF|' THEN printf('%s', CAST(|COL| AS VARCHAR))"
     });
     measureFormats.set('time', {
         name: 'time',
-        method: "WHEN measure.format = 'time' THEN printf('%s', CAST(|COL| AS VARCHAR))"
+        method: "WHEN measure.reference = '|REF|' THEN printf('%s', CAST(|COL| AS VARCHAR))"
     });
     return measureFormats;
 }
@@ -700,14 +700,18 @@ async function setupMeasures(
         logger.debug('Measure present in dataset.  Creating measure table...');
         await createMeasureLookupTable(quack, dataset.measure.measureTable);
         logger.debug('Creating query part to format the data value correctly');
+
+        const uniqueReferences = await quack.all(
+            'SELECT DISTINCT reference, format, sort_order, decimals FROM measure;'
+        );
         const caseStatement: string[] = ['CASE'];
-        const presentFormats = await quack.all('SELECT DISTINCT format FROM measure;');
-        logger.debug(`Present formats: ${JSON.stringify(presentFormats)}`);
-        for (const dataFormat of presentFormats.map((type) => type.format)) {
+        for (const row of uniqueReferences) {
             caseStatement.push(
                 measureFormats()
-                    .get(dataFormat.toLowerCase())
-                    ?.method.replace('|COL|', `${FACT_TABLE_NAME}."${dataValuesColumn?.columnName}"`) || ''
+                    .get(row.format.toLowerCase())
+                    ?.method.replace('|REF|', row.reference)
+                    .replace('|DEC|', row.decimals ? row.decimals : '0')
+                    .replace('|COL|', `${FACT_TABLE_NAME}."${dataValuesColumn?.columnName}"`) || ''
             );
         }
         caseStatement.push(`ELSE CAST(${FACT_TABLE_NAME}."${dataValuesColumn?.columnName}" AS VARCHAR) END`);
