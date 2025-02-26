@@ -106,9 +106,7 @@ export class TasklistStateDTO {
         return metaFullyTranslated ? TaskStatus.Completed : TaskStatus.Incomplete;
     }
 
-    public static fromDataset(dataset: Dataset, lang: string): TasklistStateDTO {
-        const revision = dataset.draftRevision;
-
+    public static fromDataset(dataset: Dataset, revision: Revision, lang: string): TasklistStateDTO {
         const dto = new TasklistStateDTO();
         dto.datatable = revision?.dataTable ? TaskStatus.Completed : TaskStatus.NotStarted;
         dto.measure = TasklistStateDTO.measureStatus(dataset);
