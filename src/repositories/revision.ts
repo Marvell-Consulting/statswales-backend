@@ -18,6 +18,9 @@ const defaultRelations: FindOptionsRelations<Revision> = {
 export const RevisionRepository = dataSource.getRepository(Revision).extend({
     async getById(id: string, relations: FindOptionsRelations<Revision> = defaultRelations): Promise<Revision> {
         const findOptions: FindOneOptions<Revision> = { where: { id }, relations };
+        logger.debug(
+            `Getting Revision by ID "${id}" with the following relations: ${JSON.stringify(relations, null, 2)}`
+        );
 
         if (has(relations, 'revisions.factTables.factTableInfo')) {
             // sort sources by column index if they're requested

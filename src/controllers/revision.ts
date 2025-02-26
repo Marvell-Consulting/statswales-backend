@@ -1,5 +1,6 @@
 import fs from 'fs';
 import { Readable } from 'node:stream';
+import { performance } from 'node:perf_hooks';
 
 import { NextFunction, Request, Response } from 'express';
 import tmp from 'tmp';
@@ -105,7 +106,7 @@ export const getRevisionPreview = async (req: Request, res: Response, next: Next
     } else {
         logger.debug('Creating fresh cube for preview');
         try {
-            cubeFile = await createBaseCube(dataset, revision);
+            cubeFile = await createBaseCube(dataset.id, revision.id);
         } catch (error) {
             logger.error(`Something went wrong trying to create the cube with the error: ${error}`);
             next(new UnknownException('errors.cube_create_error'));
@@ -212,7 +213,8 @@ async function attachUpdateDataTableToRevision(
     res: Response,
     next: NextFunction
 ) {
-    logger.debug('Attaching update data table to revision');
+    logger.debug('Attaching update data table to revision and validating cube');
+    const start = performance.now();
     const dataset = res.locals.dataset;
     // Validate all the columns against the fact table
     if (req.body.column_matching) {
@@ -258,6 +260,9 @@ async function attachUpdateDataTableToRevision(
             logger.error(
                 `Could not match all columns to the fact table.  The following columns were not matched: ${unmatchedColumns.join(', ')}`
             );
+            const end = performance.now();
+            const time = Math.round(end - start);
+            logger.info(`Cube update validation took ${time}ms`);
             next(new UnknownException('errors.failed_to_match_columns'));
             return;
         }
@@ -274,6 +279,9 @@ async function attachUpdateDataTableToRevision(
         await updateFactTableValidator(quack, dataset, revision);
     } catch (err) {
         logger.debug('Closing DuckDB instance');
+        const end = performance.now();
+        const time = Math.round(end - start);
+        logger.info(`Cube update validation took ${time}ms`);
         await quack.close();
         logger.error(`An error occurred trying to validate the file with the following error: ${err}`);
         next(new BadRequestException('errors.data_table_validation_error'));
@@ -307,6 +315,9 @@ async function attachUpdateDataTableToRevision(
                 });
             } else {
                 logger.debug('Closing DuckDB instance');
+                const end = performance.now();
+                const time = Math.round(end - start);
+                logger.info(`Cube update validation took ${time}ms`);
                 await quack.close();
                 logger.error(`An error occurred trying to validate the file with the following error: ${err}`);
                 next(new BadRequestException('errors.data_table_validation_error'));
@@ -326,7 +337,9 @@ async function attachUpdateDataTableToRevision(
     logger.debug('Closing DuckDB instance');
     await quack.close();
     await revision.save();
-
+    const end = performance.now();
+    const time = Math.round(end - start);
+    logger.info(`Cube update validation took ${time}ms`);
     // eslint-disable-next-line require-atomic-updates
     fileImport.revision = revision;
     await fileImport.save();
@@ -450,7 +463,7 @@ export const approveForPublication = async (req: Request, res: Response, next: N
         }
 
         logger.debug(`Creating base cube for publication for revision: ${revision.id}`);
-        const cubeFilePath = await createBaseCube(dataset, revision);
+        const cubeFilePath = await createBaseCube(dataset.id, revision.id);
         const dataLakeService = new DataLakeService();
         const cubeBuffer = fs.readFileSync(cubeFilePath);
         const onlineCubeFilename = `${revision.id}.duckdb`;
@@ -503,7 +516,7 @@ export const downloadRevisionCubeFile = async (req: Request, res: Response, next
         fs.writeFileSync(cubeFile, fileBuffer);
     } else {
         try {
-            cubeFile = await createBaseCube(dataset, revision);
+            cubeFile = await createBaseCube(dataset.id, revision.id);
         } catch (err) {
             logger.error(`Something went wrong trying to create the cube with the error: ${err}`);
             next(new UnknownException('errors.cube_create_error'));
@@ -536,7 +549,7 @@ export const downloadRevisionCubeAsJSON = async (req: Request, res: Response, ne
     } else {
         try {
             logger.info('Creating fresh cube file.');
-            cubeFile = await createBaseCube(dataset, revision);
+            cubeFile = await createBaseCube(dataset.id, revision.id);
         } catch (err) {
             logger.error(`Something went wrong trying to create the cube with the error: ${err}`);
             next(new UnknownException('errors.cube_create_error'));
@@ -581,7 +594,7 @@ export const downloadRevisionCubeAsCSV = async (req: Request, res: Response, nex
         fs.writeFileSync(cubeFile, fileBuffer);
     } else {
         try {
-            cubeFile = await createBaseCube(dataset, revision);
+            cubeFile = await createBaseCube(dataset.id, revision.id);
         } catch (err) {
             logger.error(err, `Something went wrong trying to create the cube with the error`);
             next(new UnknownException('errors.cube_create_error'));
@@ -626,7 +639,7 @@ export const downloadRevisionCubeAsParquet = async (req: Request, res: Response,
         fs.writeFileSync(cubeFile, fileBuffer);
     } else {
         try {
-            cubeFile = await createBaseCube(dataset, revision);
+            cubeFile = await createBaseCube(dataset.id, revision.id);
         } catch (err) {
             logger.error(`Something went wrong trying to create the cube with the error: ${err}`);
             next(new UnknownException('errors.cube_create_error'));
@@ -671,7 +684,7 @@ export const downloadRevisionCubeAsExcel = async (req: Request, res: Response, n
         fs.writeFileSync(cubeFile, fileBuffer);
     } else {
         try {
-            cubeFile = await createBaseCube(dataset, revision);
+            cubeFile = await createBaseCube(dataset.id, revision.id);
         } catch (err) {
             logger.error(`Something went wrong trying to create the cube with the error: ${err}`);
             next(new UnknownException('errors.cube_create_error'));

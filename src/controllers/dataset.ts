@@ -174,7 +174,7 @@ export const cubePreview = async (req: Request, res: Response, next: NextFunctio
         fs.writeFileSync(cubeFile, fileBuffer);
     } else {
         try {
-            cubeFile = await createBaseCube(dataset, latestRevision);
+            cubeFile = await createBaseCube(dataset.id, latestRevision.id);
         } catch (err) {
             logger.error(`Something went wrong trying to create the cube with the error: ${err}`);
             next(new UnknownException('errors.cube_create_error'));
