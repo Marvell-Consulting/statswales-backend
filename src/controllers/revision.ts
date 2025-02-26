@@ -273,6 +273,7 @@ async function attachUpdateDataTableToRevision(
     try {
         await updateFactTableValidator(quack, dataset, revision);
     } catch (err) {
+        logger.debug('Closing DuckDB instance');
         await quack.close();
         logger.error(`An error occurred trying to validate the file with the following error: ${err}`);
         next(new BadRequestException('errors.data_table_validation_error'));
@@ -305,6 +306,7 @@ async function attachUpdateDataTableToRevision(
                     lookupTableUpdated: false
                 });
             } else {
+                logger.debug('Closing DuckDB instance');
                 await quack.close();
                 logger.error(`An error occurred trying to validate the file with the following error: ${err}`);
                 next(new BadRequestException('errors.data_table_validation_error'));
@@ -321,6 +323,7 @@ async function attachUpdateDataTableToRevision(
     revision.tasks = {
         dimensions: dimensionUpdateTasks
     };
+    logger.debug('Closing DuckDB instance');
     await quack.close();
     await revision.save();
 
