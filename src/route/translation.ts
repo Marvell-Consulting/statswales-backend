@@ -25,7 +25,7 @@ const upload = multer({ storage: multer.memoryStorage() });
 const TRANSLATION_FILENAME = 'translation-import.csv';
 
 const collectTranslations = (dataset: Dataset, includeIds = false): TranslationDTO[] => {
-    const revision = dataset.draftRevision;
+    const revision = dataset.draftRevision!;
     const metadataEN = revision.metadata?.find((meta) => meta.language.includes('en'));
     const metadataCY = revision.metadata?.find((meta) => meta.language.includes('cy'));
 

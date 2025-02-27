@@ -12,6 +12,7 @@ import { ResultsetWithCount } from '../interfaces/resultset-with-count';
 import { DataTable } from '../entities/dataset/data-table';
 import { FactTableColumn } from '../entities/dataset/fact-table-column';
 import { FactTableColumnType } from '../enums/fact-table-column-type';
+import { PeriodCovered } from '../interfaces/period-covered';
 
 export const withAll: FindOptionsRelations<Dataset> = {
     createdBy: true,
@@ -153,5 +154,29 @@ export const DatasetRepository = dataSource.getRepository(Dataset).extend({
         dataset.team = team;
         await dataset.save();
         return this.getById(datasetId, {});
+    },
+
+    async publish(revision: Revision, period: PeriodCovered): Promise<Dataset> {
+        const dataset = revision.dataset;
+
+        dataset.startDate = period.start_date;
+        dataset.endDate = period.end_date;
+        dataset.draftRevision = null;
+        dataset.publishedRevision = revision;
+
+        if (revision.revisionIndex === 1) {
+            dataset.live = revision.publishAt; // set the first published date if this is the first rev
+        }
+
+        return DatasetRepository.save(dataset);
+    },
+
+    async withdraw(revision: Revision): Promise<Dataset> {
+        const dataset = revision.dataset;
+
+        dataset.draftRevision = revision;
+        dataset.publishedRevision = revision.previousRevision;
+
+        return DatasetRepository.save(dataset);
     }
 });

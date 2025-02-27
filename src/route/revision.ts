@@ -13,7 +13,6 @@ import {
     downloadRevisionCubeAsJSON,
     downloadRevisionCubeAsParquet,
     downloadRevisionCubeFile,
-    getFactTableInfo,
     getFactTablePreview,
     getRevisionInfo,
     getRevisionPreview,
@@ -76,10 +75,6 @@ router.post('/', createNewRevision);
 // Creates a new import on a revision.  This typically only occurs when a user
 // decides the file they uploaded wasn't correct.
 router.post('/by-id/:revision_id/data-table', loadRevision(), upload.single('csv'), attachDataTableToRevision);
-
-// GET /dataset/:dataset_id/revision/by-id/:revision_id/data-table/by-id/:fact_table_id
-// Returns details of a data-table with its sources
-router.get('/by-id/:revision_id/data-table', loadRevision(), getFactTableInfo);
 
 // GET /dataset/:dataset_id/revision/by-id/:revision_id/data-table/preview
 // Returns a view of the data file attached to the data-table

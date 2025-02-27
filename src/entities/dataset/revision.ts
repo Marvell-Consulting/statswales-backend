@@ -17,7 +17,6 @@ import { RevisionTask } from '../../interfaces/revision-task';
 import { RelatedLink } from '../../dtos/related-link-dto';
 import { Designation } from '../../enums/designation';
 
-import { RevisionInterface } from './revision.interface';
 import { Dataset } from './dataset';
 import { DataTable } from './data-table';
 import { RevisionMetadata } from './revision-metadata';
@@ -25,7 +24,7 @@ import { RevisionProvider } from './revision-provider';
 import { RevisionTopic } from './revision-topic';
 
 @Entity({ name: 'revision', orderBy: { createdAt: 'ASC' } })
-export class Revision extends BaseEntity implements RevisionInterface {
+export class Revision extends BaseEntity {
     @PrimaryGeneratedColumn('uuid', { primaryKeyConstraintName: 'PK_revision_id' })
     id: string;
 
@@ -40,10 +39,13 @@ export class Revision extends BaseEntity implements RevisionInterface {
     @JoinColumn({ name: 'dataset_id', foreignKeyConstraintName: 'FK_revision_dataset_id' })
     dataset: Dataset;
 
+    @Column({ name: 'previous_revision_id' })
+    previousRevisionId: string;
+
     @Index('IDX_revison_previous_revision_id')
     @ManyToOne(() => Revision, { nullable: true, onDelete: 'CASCADE', orphanedRowAction: 'delete' })
     @JoinColumn({ name: 'previous_revision_id', foreignKeyConstraintName: 'FK_revision_previous_revision_id' })
-    previousRevision: RevisionInterface;
+    previousRevision: Revision | null;
 
     @Column({ name: 'online_cube_filename', type: 'varchar', length: 255, nullable: true })
     onlineCubeFilename: string | null;

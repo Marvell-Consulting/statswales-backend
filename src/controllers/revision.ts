@@ -1,12 +1,11 @@
-import fs from 'fs';
+import fs from 'node:fs';
 import { Readable } from 'node:stream';
 import { performance } from 'node:perf_hooks';
 
 import { NextFunction, Request, Response } from 'express';
 import tmp from 'tmp';
 import { t } from 'i18next';
-import { formatISO, isBefore, isValid, parse, parseISO } from 'date-fns';
-import { toZonedTime } from 'date-fns-tz';
+import { isBefore, isValid } from 'date-fns';
 
 import { User } from '../entities/user/user';
 import { DataTableDto } from '../dtos/data-table-dto';
@@ -30,7 +29,6 @@ import {
     createAndValidateDateDimension,
     createAndValidateLookupTableDimension,
     createBaseCube,
-    getCubeTimePeriods,
     loadCorrectReferenceDataIntoReferenceDataTable,
     loadReferenceDataIntoCube,
     makeCubeSafeString,
@@ -46,25 +44,8 @@ import { DimensionType } from '../enums/dimension-type';
 import { CubeValidationException, CubeValidationType } from '../exceptions/cube-error-exception';
 import { DimensionUpdateTask } from '../interfaces/revision-task';
 import { duckdb } from '../services/duckdb';
-import { SUPPORTED_LOCALES } from '../middleware/translation';
-import { getLatestRevision } from '../utils/latest';
 
 import { getCubePreview, outputCube } from './cube-controller';
-
-export const getFactTableInfo = async (req: Request, res: Response, next: NextFunction) => {
-    try {
-        const fileImport = await DataTable.findOneOrFail({
-            where: {
-                id: req.params.id
-            },
-            relations: ['dataTableDescriptions', 'revision']
-        });
-        const dto = DataTableDto.fromDataTable(fileImport);
-        res.json(dto);
-    } catch (err) {
-        next(new UnknownException());
-    }
-};
 
 export const getFactTablePreview = async (req: Request, res: Response, next: NextFunction) => {
     const { dataset, revision } = res.locals;
@@ -434,7 +415,7 @@ export const updateRevisionPublicationDate = async (req: Request, res: Response,
     const revision = res.locals.revision;
 
     if (revision.approvedAt) {
-        next(new BadRequestException('errors.revision_already_approved'));
+        next(new BadRequestException('errors.publish_at.revision_already_approved'));
         return;
     }
 
@@ -463,54 +444,28 @@ export const updateRevisionPublicationDate = async (req: Request, res: Response,
 
 export const approveForPublication = async (req: Request, res: Response, next: NextFunction) => {
     const { dataset, revision } = res.locals;
+    const user = req.user as User;
+
     try {
+        if (revision.approvedAt) {
+            throw new BadRequestException('errors.approve.revision_already_approved');
+        }
+
+        // is draft ready to be published?
         const datasetForTasklist = await DatasetRepository.getById(dataset.id, withDraftForTasklistState);
-        const draftRevision = datasetForTasklist.draftRevision;
+        const draftRevision = datasetForTasklist.draftRevision!;
         const tasklist = TasklistStateDTO.fromDataset(datasetForTasklist, draftRevision, req.language);
 
         if (!tasklist.canPublish) {
-            throw new BadRequestException('dataset not ready for publication, please check tasklist');
+            logger.error('Dataset is not ready for publication, check tasklist state');
+            throw new BadRequestException('errors.approve.not_ready');
         }
-        const start = performance.now();
-        logger.debug(`Creating base cube for publication for revision: ${revision.id}`);
-        const cubeFilePath = await createBaseCube(dataset.id, revision.id);
-        const periodCoverage = await getCubeTimePeriods(cubeFilePath);
-        dataset.startDate = new Date(Date.parse(periodCoverage.start_date));
-        dataset.endDate = new Date(Date.parse(periodCoverage.end_date));
-        await dataset.save();
-        const dataLakeService = new DataLakeService();
-        const cubeBuffer = fs.readFileSync(cubeFilePath);
-        const onlineCubeFilename = `${revision.id}.duckdb`;
-        for (const locale of SUPPORTED_LOCALES) {
-            const lang = locale.split('-')[0].toLowerCase();
-            logger.debug(`Creating parquet file for language "${lang}" and uploading to data lake`);
-            const parquetFilePath = await outputCube(cubeFilePath, lang, DuckdbOutputType.Parquet);
-            await dataLakeService.uploadFileBuffer(
-                `${revision.id}_${lang}.parquet`,
-                dataset.id,
-                fs.readFileSync(parquetFilePath)
-            );
-        }
-        await dataLakeService.uploadFileBuffer(onlineCubeFilename, dataset.id, cubeBuffer);
-        const end = performance.now();
-        const time = Math.round(end - start);
-        logger.info(`Cube and parquet file creation took ${time}ms (including uploading to data lake)`);
 
-        const scheduledRevision = await RevisionRepository.approvePublication(
-            revision.id,
-            onlineCubeFilename,
-            req.user as User
-        );
-
-        dataset.draftRevision = null;
-        dataset.publishedRevision = scheduledRevision;
-        dataset.live = scheduledRevision.publishAt;
-        const updatedDataset = await DatasetRepository.save(dataset);
+        const approvedDataset = await req.datasetService.approveForPublication(dataset.id, revision.id, user);
 
         res.status(201);
-        res.json(DatasetDTO.fromDataset(updatedDataset));
+        res.json(DatasetDTO.fromDataset(approvedDataset));
     } catch (err: any) {
-        logger.error(err, 'could not approve publication');
         next(err);
     }
 };
@@ -520,23 +475,16 @@ export const withdrawFromPublication = async (req: Request, res: Response, next:
         const { dataset, revision } = res.locals;
 
         if (!revision.publishAt || !revision.approvedAt) {
-            throw new BadRequestException('revision is not scheduled for publication');
+            throw new BadRequestException('errors.withdraw.not_scheduled');
         }
 
         if (isBefore(revision.publishAt, new Date())) {
-            throw new BadRequestException('publish date has passed, cannot withdraw published revisions');
+            throw new BadRequestException('errors.withdraw.already_published');
         }
 
-        const onlineCubeFilename = revision.onlineCubeFilename;
-        await RevisionRepository.withdrawPublication(revision.id);
-        if (onlineCubeFilename) {
-            const dataLakeService = new DataLakeService();
-            await dataLakeService.deleteFile(onlineCubeFilename, dataset.id);
-        }
-
-        const updatedDataset = await DatasetRepository.getById(dataset.id, {});
+        const withdrawnDataset = await req.datasetService.withdrawFromPublication(dataset.id, revision.id);
         res.status(201);
-        res.json(DatasetDTO.fromDataset(updatedDataset));
+        res.json(DatasetDTO.fromDataset(withdrawnDataset));
     } catch (err: any) {
         logger.error(err, 'could not withdraw publication');
         next(err);
