@@ -98,7 +98,7 @@ router.use(
     rateLimiter,
     passport.authenticate('jwt', { session: false }),
     loadDataset({
-        dimensions: { metadata: true },
+        dimensions: { metadata: true, lookupTable: true },
         factTable: true,
         measure: { measureTable: true, metadata: true },
         revisions: { dataTable: { dataTableDescriptions: true } }
@@ -110,7 +110,7 @@ router.use(
     rateLimiter,
     passport.authenticate('jwt', { session: false }),
     loadDataset({
-        dimensions: true,
+        dimensions: { metadata: true, lookupTable: true },
         revisions: { dataTable: true }
     }),
     dimensionRouter
