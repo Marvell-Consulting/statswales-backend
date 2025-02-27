@@ -12,7 +12,6 @@ import { DatasetDTO } from '../dtos/dataset-dto';
 import { DataLakeService } from '../services/datalake';
 import { hasError, titleValidator } from '../validators';
 import { BadRequestException } from '../exceptions/bad-request.exception';
-import { getLatestRevision } from '../utils/latest';
 import { ViewErrDTO } from '../dtos/view-dto';
 import { arrayValidator, dtoValidator } from '../validators/dto-validator';
 import { RevisionMetadataDTO } from '../dtos/revistion-metadata-dto';
@@ -152,7 +151,7 @@ export const updateMetadata = async (req: Request, res: Response, next: NextFunc
 
 export const getTasklist = async (req: Request, res: Response, next: NextFunction) => {
     const dataset: Dataset = res.locals.dataset;
-    const revision = dataset.draftRevision;
+    const revision = dataset.draftRevision!;
     try {
         const tasklistState = TasklistStateDTO.fromDataset(dataset, revision, req.language as Locale);
         res.json(tasklistState);
@@ -266,7 +265,7 @@ export const updateDatasetTeam = async (req: Request, res: Response, next: NextF
 
 export const updateSources = async (req: Request, res: Response, next: NextFunction) => {
     const dataset: Dataset = res.locals.dataset;
-    const revision = dataset.draftRevision;
+    const revision = dataset.draftRevision!;
     const dataTable = revision.dataTable;
     const sourceAssignment = req.body;
 

@@ -31,6 +31,7 @@ import { DataTableDescription } from '../entities/dataset/data-table-description
 import { MeasureRow } from '../entities/dataset/measure-row';
 import { DatasetRepository } from '../repositories/dataset';
 import { RevisionRepository } from '../repositories/revision';
+import { PeriodCovered } from '../interfaces/period-covered';
 
 import { dateDimensionReferenceTableCreator } from './time-matching';
 import { duckdb } from './duckdb';
@@ -1007,6 +1008,7 @@ async function createCubeMetadataTable(quack: Database, dataset: Dataset) {
 // Function should be able to generate a cube just from a fact table or collection
 // of fact tables.
 export const createBaseCube = async (datasetId: string, endRevisionId: string): Promise<string> => {
+    logger.debug(`Creating base cube for for revision: ${endRevisionId}`);
     const functionStart = performance.now();
     const selectStatementsMap = new Map<Locale, string[]>();
     SUPPORTED_LOCALES.map((locale) => selectStatementsMap.set(locale, []));
@@ -1130,17 +1132,17 @@ export const cleanUpCube = async (tmpFile: string) => {
     }
 };
 
-export const getCubeTimePeriods = async (cubeFile: string) => {
+export const getCubeTimePeriods = async (cubeFile: string): Promise<PeriodCovered> => {
     const quack = await duckdb(cubeFile);
     try {
         const periodCoverage = await quack.all(`SELECT key, value FROM metadata`);
         return periodCoverage.reduce(
             (acc, curr) => {
-                acc[curr.key] = curr.value;
+                acc[curr.key] = new Date(Date.parse(curr.value));
                 return acc;
             },
-            {} as Record<string, string>
-        );
+            {} as Record<string, Date>
+        ) as PeriodCovered;
     } finally {
         await quack.close();
     }

@@ -56,22 +56,22 @@ export class Dataset extends BaseEntity {
     // the very first revision
     @OneToOne(() => Revision, (revision) => revision.dataset, { nullable: true })
     @JoinColumn({ name: 'start_revision_id', foreignKeyConstraintName: 'FK_dataset_start_revision_id' })
-    startRevision: Revision;
+    startRevision: Revision | null;
 
     // the newest revision (including draft revision if in progress)
     @OneToOne(() => Revision, (revision) => revision.dataset, { nullable: true })
     @JoinColumn({ name: 'end_revision_id', foreignKeyConstraintName: 'FK_dataset_end_revision_id' })
-    endRevision: Revision;
+    endRevision: Revision | null;
 
     // the currently in progress unpublished (initial or update) revision or NULL if none in progress
     @OneToOne(() => Revision, (revision) => revision.dataset, { nullable: true })
     @JoinColumn({ name: 'draft_revision_id', foreignKeyConstraintName: 'FK_dataset_draft_revision_id' })
-    draftRevision: Revision;
+    draftRevision: Revision | null;
 
     // the most recent published aka "live" revision or NULL if unpublished
     @OneToOne(() => Revision, (revision) => revision.dataset, { nullable: true })
     @JoinColumn({ name: 'published_revision_id', foreignKeyConstraintName: 'FK_dataset_published_revision_id' })
-    publishedRevision: Revision;
+    publishedRevision: Revision | null;
 
     @OneToOne(() => Measure, (measure) => measure.dataset, { cascade: true })
     measure: Measure;
