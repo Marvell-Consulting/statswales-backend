@@ -5,7 +5,7 @@ import { Locale } from '../enums/locale';
 import { ResultsetWithCount } from '../interfaces/resultset-with-count';
 import { DatasetListItemDTO } from '../dtos/dataset-list-item-dto';
 import { UnknownException } from '../exceptions/unknown.exception';
-import { DatasetRepository } from '../repositories/dataset';
+import { PublishedDatasetRepository, withAll } from '../repositories/published-dataset';
 import { NotFoundException } from '../exceptions/not-found.exception';
 import { ConsumerDatasetDTO } from '../dtos/consumer-dataset-dto';
 import { DownloadFormat } from '../enums/download-format';
@@ -25,11 +25,8 @@ export const listPublishedDatasets = async (req: Request, res: Response, next: N
         const page = parseInt(req.query.page as string, 10) || 1;
         const limit = parseInt(req.query.limit as string, 10) || 10;
 
-        const results: ResultsetWithCount<DatasetListItemDTO> = await DatasetRepository.listPublishedByLanguage(
-            lang,
-            page,
-            limit
-        );
+        const results: ResultsetWithCount<DatasetListItemDTO> =
+            await PublishedDatasetRepository.listPublishedByLanguage(lang, page, limit);
 
         res.json(results);
     } catch (err) {
@@ -39,7 +36,8 @@ export const listPublishedDatasets = async (req: Request, res: Response, next: N
 };
 
 export const getPublishedDatasetById = async (req: Request, res: Response, next: NextFunction) => {
-    res.json(ConsumerDatasetDTO.fromDataset(res.locals.dataset));
+    const dataset = await PublishedDatasetRepository.getById(res.locals.datasetId, withAll);
+    res.json(ConsumerDatasetDTO.fromDataset(dataset));
 };
 
 export const downloadPublishedDataset = async (req: Request, res: Response, next: NextFunction) => {
