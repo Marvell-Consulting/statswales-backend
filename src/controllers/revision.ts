@@ -462,9 +462,7 @@ export const updateRevisionPublicationDate = async (req: Request, res: Response,
 };
 
 export const approveForPublication = async (req: Request, res: Response, next: NextFunction) => {
-    const dataset = res.locals.dataset;
-    const revision = getLatestRevision(dataset)!;
-
+    const { dataset, revision } = res.locals;
     try {
         const datasetForTasklist = await DatasetRepository.getById(dataset.id, withDraftForTasklistState);
         const draftRevision = datasetForTasklist.draftRevision;
