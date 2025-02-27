@@ -22,36 +22,37 @@ import { DatasetDTO } from '../dtos/dataset-dto';
 import { DataTableDto } from '../dtos/data-table-dto';
 import { MeasureRow } from '../entities/dataset/measure-row';
 import { SUPPORTED_LOCALES } from '../middleware/translation';
+import { DisplayType } from '../enums/display-type';
 
 import { createFactTableQuery, createMeasureLookupTable } from './cube-handler';
 import { DataLakeService } from './datalake';
 import { duckdb } from './duckdb';
 
-async function cleanUpMeasure(measure: Measure) {
-    if (!measure.lookupTable) return;
-    logger.info(`Cleaning up previous lookup table`);
-    try {
-        const dataLakeService = new DataLakeService();
-        await dataLakeService.deleteFile(measure.lookupTable.filename, measure.dataset.id);
-    } catch (err) {
-        logger.warn(`Something went wrong trying to remove previously uploaded lookup table with error: ${err}`);
+async function cleanUpMeasure(measureId: string) {
+    const measure = await Measure.findOneByOrFail({ id: measureId });
+    logger.info(`Cleaning up previous measure lookup table`);
+    if (measure.lookupTable) {
+        logger.debug(`Removing previously uploaded lookup table from measure`);
+        try {
+            const dataLakeService = new DataLakeService();
+            await dataLakeService.deleteFile(measure.lookupTable.filename, measure.dataset.id);
+        } catch (err) {
+            logger.warn(`Something went wrong trying to remove previously uploaded lookup table with error: ${err}`);
+        }
     }
 
     try {
-        const lookupTableId = measure.lookupTable.id;
-        if (measure.measureTable) {
-            for (const row of measure.measureTable) {
-                await row.remove();
-            }
-        }
+        const lookupTableId = measure.lookupTable?.id;
         measure.measureTable = null;
         measure.joinColumn = null;
         measure.extractor = null;
         measure.lookupTable = null;
         await measure.save();
+        await MeasureRow.delete({ measure });
         logger.debug(`Removing orphaned measure lookup table`);
-        const oldLookupTable = await LookupTable.findOneBy({ id: lookupTableId });
-        await oldLookupTable?.remove();
+        if (!lookupTableId) {
+            await LookupTable.delete({ id: lookupTableId });
+        }
     } catch (err) {
         logger.error(
             `Something has gone wrong trying to unlink the previous lookup table from the measure with the following error: ${err}`
@@ -128,7 +129,7 @@ async function setupMeasure(
     extractor: MeasureLookupTableExtractor
 ) {
     // Clean up previously uploaded dimensions
-    if (dataset.measure.lookupTable) await cleanUpMeasure(dataset.measure);
+    await cleanUpMeasure(dataset.measure.id);
     lookupTable.isStatsWales2Format = extractor.isSW2Format;
     const updateMeasure = await Measure.findOneByOrFail({ id: dataset.measure.id });
     updateMeasure.joinColumn = confirmedJoinColumn;
@@ -330,7 +331,7 @@ async function createMeasureTable(
         item.reference = row.reference;
         item.language = row.language;
         item.description = row.description;
-        item.format = row.format;
+        item.format = row.format.toLowerCase() as DisplayType;
         item.notes = row.notes || null;
         item.sortOrder = row.sort_order || null;
         item.decimal = row.decimal || null;

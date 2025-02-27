@@ -29,7 +29,7 @@ export class MeasureRow extends BaseEntity {
     reference: string;
 
     @Column({ name: 'format', type: 'enum', enum: Object.values(DisplayType), nullable: false })
-    format: string;
+    format: DisplayType;
 
     @Column({ name: 'decimal', type: 'integer', nullable: true })
     decimal: number | null;
