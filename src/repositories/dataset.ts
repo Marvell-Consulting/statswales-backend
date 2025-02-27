@@ -18,7 +18,12 @@ export const withAll: FindOptionsRelations<Dataset> = {
     factTable: true,
     dimensions: { metadata: true, lookupTable: true },
     measure: { lookupTable: true, measureTable: true },
-    draftRevision: { metadata: true, dataTable: true, revisionProviders: true, revisionTopics: true },
+    draftRevision: {
+        metadata: true,
+        dataTable: true,
+        revisionProviders: { provider: true },
+        revisionTopics: { topic: true }
+    },
     revisions: true
 };
 
