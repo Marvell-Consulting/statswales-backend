@@ -400,9 +400,9 @@ export const getFactTableColumnPreview = async (
                 throw new Error('Unknown file type');
         }
         await quack.exec(createTableQuery);
-        const totals = await quack.all(`SELECT COUNT(DISTINCT ${columnName}) AS totalLines FROM ${tableName};`);
+        const totals = await quack.all(`SELECT COUNT(DISTINCT "${columnName}") AS totalLines FROM ${tableName};`);
         const totalLines = Number(totals[0].totalLines);
-        const previewQuery = `SELECT DISTINCT ${columnName} FROM ${tableName} LIMIT ${sampleSize}`;
+        const previewQuery = `SELECT DISTINCT "${columnName}" FROM ${tableName} LIMIT ${sampleSize}`;
         const preview = await quack.all(previewQuery);
         const tableHeaders = Object.keys(preview[0]);
         const dataArray = preview.map((row) => Object.values(row));
