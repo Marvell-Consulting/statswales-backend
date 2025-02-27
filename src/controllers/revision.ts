@@ -504,6 +504,7 @@ export const approveForPublication = async (req: Request, res: Response, next: N
 
         dataset.draftRevision = null;
         dataset.publishedRevision = scheduledRevision;
+        dataset.live = scheduledRevision.publishAt;
         const updatedDataset = await DatasetRepository.save(dataset);
 
         res.status(201);
