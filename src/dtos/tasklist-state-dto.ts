@@ -124,7 +124,7 @@ export class TasklistStateDTO {
 
         const publishingComplete = every(dto.publishing, (status) => status === TaskStatus.Completed);
 
-        console.log('tasklist state: ', {
+        logger.debug('tasklist state: ', {
             dimensionsComplete,
             metadataComplete,
             translationsComplete,
