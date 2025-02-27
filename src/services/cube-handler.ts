@@ -325,6 +325,7 @@ export async function createAndValidateDateDimension(
     logger.debug(
         `Period coverage: ${toZonedTime(periodCoverage[0].startDate, 'UTC')} to ${toZonedTime(periodCoverage[0].endDate, 'UTC')}`
     );
+    await quack.exec(`CREATE TABLE IF NOT EXISTS metadata (key VARCHAR, value VARCHAR);`);
     const metaDataCoverage = await quack.all("SELECT * FROM metadata WHERE key = 'start_data' OR key = 'end_date';");
     if (metaDataCoverage.length > 0) {
         for (const metaData of metaDataCoverage) {
