@@ -1,4 +1,4 @@
-import { FindOneOptions, FindOptionsRelations, IsNull, Not } from 'typeorm';
+import { And, FindOneOptions, FindOptionsRelations, IsNull, LessThan, Not } from 'typeorm';
 import { has, set } from 'lodash';
 
 import { logger } from '../utils/logger';
@@ -64,19 +64,6 @@ export const DatasetRepository = dataSource.getRepository(Dataset).extend({
         if (has(relations, 'revisions.dataTable.dataTableDescriptions')) {
             set(findOptions, 'revisions.dataTable.dataTableDescriptions', { columnIndex: 'ASC' });
         }
-
-        return this.findOneOrFail(findOptions);
-    },
-
-    async getPublishedById(id: string): Promise<Dataset> {
-        const findOptions: FindOneOptions<Dataset> = {
-            where: { id, live: Not(IsNull()) },
-            relations: withAll,
-            order: {
-                dimensions: { metadata: { language: 'ASC' } },
-                revisions: { dataTable: { dataTableDescriptions: { columnIndex: 'ASC' } } }
-            }
-        };
 
         return this.findOneOrFail(findOptions);
     },
@@ -155,29 +142,6 @@ export const DatasetRepository = dataSource.getRepository(Dataset).extend({
 
         const countQuery = qb.clone();
         const resultQuery = qb.orderBy('r.updated_at', 'DESC').offset(offset).limit(limit);
-        const [data, count] = await Promise.all([resultQuery.getRawMany(), countQuery.getCount()]);
-
-        return { data, count };
-    },
-
-    async listPublishedByLanguage(
-        lang: Locale,
-        page: number,
-        limit: number
-    ): Promise<ResultsetWithCount<DatasetListItemDTO>> {
-        const qb = this.createQueryBuilder('d')
-            .select(['d.id as id', 'rm.title as title', 'd.live as published_date'])
-            .innerJoin('d.publishedRevision', 'r')
-            .innerJoin('r.metadata', 'rm')
-            .where('rm.language LIKE :lang', { lang: `${lang}%` })
-            .andWhere('d.live IS NOT NULL')
-            .andWhere('d.live < NOW()')
-            .groupBy('d.id, rm.title, d.live')
-            .orderBy('d.live', 'DESC');
-
-        const offset = (page - 1) * limit;
-        const countQuery = qb.clone();
-        const resultQuery = qb.orderBy('d.live', 'DESC').offset(offset).limit(limit);
         const [data, count] = await Promise.all([resultQuery.getRawMany(), countQuery.getCount()]);
 
         return { data, count };

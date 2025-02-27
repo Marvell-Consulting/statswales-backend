@@ -3,16 +3,11 @@ import { isBefore } from 'date-fns';
 import { Dataset } from '../entities/dataset/dataset';
 import { Dimension } from '../entities/dataset/dimension';
 import { Revision } from '../entities/dataset/revision';
-import { RevisionProvider } from '../entities/dataset/revision-provider';
-import { RevisionTopic } from '../entities/dataset/revision-topic';
 import { SUPPORTED_LOCALES } from '../middleware/translation';
 
 import { DimensionDTO } from './dimension-dto';
 import { RevisionDTO } from './revision-dto';
-import { RevisionMetadataDTO } from './revistion-metadata-dto';
-import { RevisionProviderDTO } from './revision-provider-dto';
 import { TeamDTO } from './team-dto';
-import { TopicDTO } from './topic-dto';
 
 // TODO: make sure to filter any props the consumer side should not have access to
 export class ConsumerDatasetDTO {
@@ -20,9 +15,7 @@ export class ConsumerDatasetDTO {
     live?: string | null;
     dimensions?: DimensionDTO[];
     revisions: RevisionDTO[];
-    datasetInfo: RevisionMetadataDTO[];
-    providers: RevisionProviderDTO[];
-    topics: TopicDTO[];
+    published_revision?: RevisionDTO;
     team?: TeamDTO[];
     start_date?: Date | null;
     end_date?: Date | null;
@@ -39,15 +32,9 @@ export class ConsumerDatasetDTO {
 
         dto.dimensions = dataset.dimensions?.map((dimension: Dimension) => DimensionDTO.fromDimension(dimension));
 
-        const publishedRevision = dataset.publishedRevision;
-
-        dto.providers = publishedRevision.revisionProviders?.map((revProvider: RevisionProvider) =>
-            RevisionProviderDTO.fromRevisionProvider(revProvider)
-        );
-
-        dto.topics = publishedRevision.revisionTopics?.map((revTopic: RevisionTopic) =>
-            TopicDTO.fromTopic(revTopic.topic)
-        );
+        if (dataset.publishedRevision) {
+            dto.published_revision = RevisionDTO.fromRevision(dataset.publishedRevision);
+        }
 
         if (dataset.team) {
             dto.team = SUPPORTED_LOCALES.map((locale) => {

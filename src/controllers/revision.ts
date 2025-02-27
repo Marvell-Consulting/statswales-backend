@@ -495,8 +495,17 @@ export const approveForPublication = async (req: Request, res: Response, next: N
         const end = performance.now();
         const time = Math.round(end - start);
         logger.info(`Cube and parquet file creation took ${time}ms (including uploading to data lake)`);
-        await RevisionRepository.approvePublication(revision.id, onlineCubeFilename, req.user as User);
-        const updatedDataset = await DatasetRepository.getById(dataset.id, {});
+
+        const scheduledRevision = await RevisionRepository.approvePublication(
+            revision.id,
+            onlineCubeFilename,
+            req.user as User
+        );
+
+        dataset.draftRevision = null;
+        dataset.publishedRevision = scheduledRevision;
+        const updatedDataset = await DatasetRepository.save(dataset);
+
         res.status(201);
         res.json(DatasetDTO.fromDataset(updatedDataset));
     } catch (err: any) {
