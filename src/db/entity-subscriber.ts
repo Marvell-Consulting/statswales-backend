@@ -78,6 +78,10 @@ export class EntitySubscriber implements EntitySubscriberInterface {
     }
 
     async afterRemove(event: RemoveEvent<any>): Promise<void> {
+        if (!event.entity) {
+            logger.warn('afterRemove event has no entity to log.');
+            return;
+        }
         await this.logEvent('delete', event);
     }
 }

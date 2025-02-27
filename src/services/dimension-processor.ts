@@ -27,6 +27,9 @@ import { getFileImportAndSaveToDisk, loadFileIntoDatabase } from '../utils/file-
 import { LookupTableExtractor } from '../extractors/lookup-table-extractor';
 import { LookupTable } from '../entities/dataset/lookup-table';
 import { FactTableColumn } from '../entities/dataset/fact-table-column';
+import { MeasureRow } from '../entities/dataset/measure-row';
+import { MeasureMetadata } from '../entities/dataset/measure-metadata';
+import { measureRouter } from '../route/measure';
 
 import { DateReferenceDataItem, dateDimensionReferenceTableCreator } from './time-matching';
 import { createFactTableQuery } from './cube-handler';
@@ -138,22 +141,6 @@ async function createUpdateDimension(dataset: Dataset, columnDescriptor: SourceA
     });
     columnInfo.columnType = columnDescriptor.column_type;
     await columnInfo.save();
-    const existingDimension = dataset.dimensions.find((dim) => dim.factTableColumn === columnDescriptor.column_name);
-
-    if (existingDimension) {
-        const expectedType =
-            columnInfo.columnType === FactTableColumnType.Time ? DimensionType.TimePeriod : DimensionType.Raw;
-        if (existingDimension.type !== expectedType) {
-            existingDimension.type = expectedType;
-            await existingDimension.save();
-        }
-        logger.debug(
-            `No Dimension to create as fact table for column ${existingDimension.factTableColumn} is already attached to one`
-        );
-        return;
-    }
-
-    logger.debug("The existing dimension is either a footnotes dimension or we don't have one... So lets create one");
     const dimension = new Dimension();
     dimension.type =
         columnDescriptor.column_type === FactTableColumnType.Time ? DimensionType.TimePeriod : DimensionType.Raw;
@@ -169,21 +156,6 @@ async function createUpdateDimension(dataset: Dataset, columnDescriptor: SourceA
         dimensionInfo.name = columnInfo.columnName;
         await dimensionInfo.save();
     });
-}
-
-async function cleanupDimensions(datasetId: string, factTableInfo: DataTableDescription[]): Promise<void> {
-    const dataset = await Dataset.findOneOrFail({
-        where: { id: datasetId },
-        relations: ['dimensions']
-    });
-
-    const revisedDimensions = dataset.dimensions;
-
-    for (const dimension of revisedDimensions) {
-        if (!factTableInfo.find((factTableInfo) => factTableInfo.columnName === dimension.factTableColumn)) {
-            await dimension.remove();
-        }
-    }
 }
 
 async function updateDataValueColumn(dataset: Dataset, dataValueColumnDto: SourceAssignmentDTO) {
@@ -223,25 +195,6 @@ async function createUpdateMeasure(dataset: Dataset, columnAssignment: SourceAss
 
     columnInfo.columnType = FactTableColumnType.Measure;
     await columnInfo.save();
-    const existingMeasure = dataset.measure;
-
-    if (
-        existingMeasure &&
-        existingMeasure.factTableColumn === columnAssignment.column_name &&
-        columnInfo.columnType !== columnAssignment.column_name
-    ) {
-        logger.debug(
-            `No measure to create as fact table for column ${existingMeasure.factTableColumn} is already attached to one`
-        );
-        return;
-    }
-
-    if (existingMeasure && existingMeasure.factTableColumn !== columnAssignment.column_name) {
-        existingMeasure.factTableColumn = columnAssignment.column_name;
-        await existingMeasure.save();
-        return;
-    }
-
     const measure = new Measure();
     measure.factTableColumn = columnAssignment.column_name;
     measure.dataset = dataset;
@@ -257,45 +210,11 @@ async function createUpdateNoteCodes(dataset: Dataset, columnAssignment: SourceA
     columnInfo.columnType = FactTableColumnType.NoteCodes;
     columnInfo.columnDatatype = 'VARCHAR';
     await columnInfo.save();
-
-    const existingDimension = dataset.dimensions.find((dim) => dim.type === DimensionType.NoteCodes);
-
-    if (existingDimension && existingDimension.factTableColumn === columnAssignment.column_name) {
-        logger.debug(
-            `No NotesCode Dimension to create as fact table for column ${existingDimension.factTableColumn} is already attached to one`
-        );
-        return;
-    }
-
-    if (existingDimension && existingDimension.factTableColumn !== columnAssignment.column_name) {
-        existingDimension.factTableColumn = columnAssignment.column_name;
-        await existingDimension.save();
-        return;
-    }
-
-    const dimension = new Dimension();
-    dimension.type = DimensionType.NoteCodes;
-    dimension.dataset = dataset;
-    dimension.factTableColumn = columnInfo.columnName;
-    dimension.joinColumn = 'NoteCode';
-    const savedDimension = await dimension.save();
-
-    SUPPORTED_LOCALES.map(async (lang: string) => {
-        const dimensionInfo = new DimensionMetadata();
-        dimensionInfo.id = savedDimension.id;
-        dimensionInfo.dimension = savedDimension;
-        dimensionInfo.language = lang;
-        dimensionInfo.name = columnInfo.columnName;
-        await dimensionInfo.save();
-    });
 }
 
 async function recreateBaseFactTable(dataset: Dataset, dataTable: DataTable): Promise<void> {
-    if (dataset.factTable) {
-        for (const col of dataset.factTable) {
-            await FactTableColumn.getRepository().remove(col);
-        }
-    }
+    logger.warn(`Removing all fact table columns for dataset ${dataset.id}`);
+    await FactTableColumn.getRepository().delete({ id: dataset.id });
     const factTable: FactTableColumn[] = [];
     for (const col of dataTable.dataTableDescriptions) {
         const factTableCol = new FactTableColumn();
@@ -310,6 +229,49 @@ async function recreateBaseFactTable(dataset: Dataset, dataTable: DataTable): Pr
     }
 }
 
+async function removeAllDimensions(dataset: Dataset) {
+    logger.warn(`Removing all dimensions for dataset ${dataset.id}`);
+    for (const dimension of dataset.dimensions) {
+        if (dimension.lookupTable) {
+            const dataLakeService = new DataLakeService();
+            try {
+                dataLakeService.deleteFile(dimension.lookupTable.filename, dataset.id);
+            } catch (error) {
+                logger.warn(
+                    error,
+                    `Something went wrong trying to remove previously uploaded lookup table with error: ${error}`
+                );
+            }
+            logger.warn(`Removing lookup table for dimension ${dimension.id}`);
+            await LookupTable.getRepository().delete({ dimension });
+        }
+        await DimensionMetadata.getRepository().delete({ dimension });
+    }
+    await Dimension.getRepository().delete({ dataset });
+}
+
+async function removeMeasure(dataset: Dataset) {
+    logger.warn(`Removing measure for dataset ${dataset.id}`);
+    if (dataset.measure) {
+        if (dataset.measure.lookupTable) {
+            const dataLakeService = new DataLakeService();
+            try {
+                dataLakeService.deleteFile(dataset.measure.lookupTable.filename, dataset.id);
+            } catch (error) {
+                logger.warn(
+                    error,
+                    `Something went wrong trying to remove previously uploaded lookup table with error: ${error}`
+                );
+            }
+            logger.warn(`Removing lookup table for measure ${dataset.measure.id}`);
+            await LookupTable.getRepository().delete({ measure: dataset.measure });
+        }
+        await MeasureRow.getRepository().delete({ measure: dataset.measure });
+        await MeasureMetadata.getRepository().delete({ measure: dataset.measure });
+    }
+    await Measure.getRepository().delete({ dataset });
+}
+
 export const createDimensionsFromSourceAssignment = async (
     dataset: Dataset,
     dataTable: DataTable,
@@ -317,7 +279,8 @@ export const createDimensionsFromSourceAssignment = async (
 ): Promise<void> => {
     const { dataValues, measure, ignore, noteCodes, dimensions } = sourceAssignment;
     await recreateBaseFactTable(dataset, dataTable);
-    const factTable = await FactTableColumn.findBy({ id: dataset.id });
+    await removeAllDimensions(dataset);
+    await removeMeasure(dataset);
 
     if (dataValues) {
         await updateDataValueColumn(dataset, dataValues);
@@ -336,7 +299,6 @@ export const createDimensionsFromSourceAssignment = async (
             await createUpdateDimension(dataset, dimensionCreationDTO);
         })
     );
-    await cleanupDimensions(dataset.id, dataTable.dataTableDescriptions);
 
     await removeIgnoreAndUnknownColumns(dataset, ignore);
 };
