@@ -1,3 +1,5 @@
+import fs from 'node:fs';
+
 import { RevisionMetadataDTO } from '../dtos/revistion-metadata-dto';
 import { TranslationDTO } from '../dtos/translations-dto';
 import { Dataset } from '../entities/dataset/dataset';
@@ -18,8 +20,13 @@ import { RevisionProvider } from '../entities/dataset/revision-provider';
 import { RevisionTopic } from '../entities/dataset/revision-topic';
 import { DimensionRepository } from '../repositories/dimension';
 import { RevisionMetadata } from '../entities/dataset/revision-metadata';
+import { outputCube } from '../controllers/cube-controller';
+import { DuckdbOutputType } from '../enums/duckdb-outputs';
+import { SUPPORTED_LOCALES } from '../middleware/translation';
 
+import { createBaseCube, getCubeTimePeriods } from './cube-handler';
 import { uploadCSV } from './csv-processor';
+import { DataLakeService } from './datalake';
 
 export class DatasetService {
     lang: Locale;
@@ -53,7 +60,7 @@ export class DatasetService {
     // Patch the metadata for the currently in progress revision
     async updateMetadata(datasetId: string, metadata: RevisionMetadataDTO): Promise<Dataset> {
         const dataset = await DatasetRepository.getById(datasetId, withDraftAndMetadata);
-        await RevisionRepository.updateMetadata(dataset.draftRevision, metadata);
+        await RevisionRepository.updateMetadata(dataset.draftRevision!, metadata);
 
         return DatasetRepository.getById(dataset.id, {});
     }
@@ -75,7 +82,7 @@ export class DatasetService {
             col.factTableColumn = col.columnName;
         });
 
-        await RevisionRepository.replaceDataTable(dataset.draftRevision, dataTable);
+        await RevisionRepository.replaceDataTable(dataset.draftRevision!, dataTable);
         await DatasetRepository.replaceFactTable(dataset, dataTable);
 
         return DatasetRepository.getById(datasetId, withDraftForCube);
@@ -102,7 +109,7 @@ export class DatasetService {
 
     async updateDataProviders(datasetId: string, dataProviders: RevisionProviderDTO[]): Promise<Dataset> {
         const dataset = await DatasetRepository.getById(datasetId, { draftRevision: { revisionProviders: true } });
-        const existing = dataset.draftRevision.revisionProviders;
+        const existing = dataset.draftRevision!.revisionProviders;
         const submitted = dataProviders.map((provider) => RevisionProviderDTO.toRevisionProvider(provider));
 
         // we can receive updates in a single language, but we need to update the relations for both languages
@@ -137,7 +144,7 @@ export class DatasetService {
 
     async updateTopics(datasetId: string, topics: string[]): Promise<Dataset> {
         const dataset = await DatasetRepository.getById(datasetId, { draftRevision: { revisionTopics: true } });
-        const revision = dataset.draftRevision;
+        const revision = dataset.draftRevision!;
 
         // remove any existing topic relations
         const existingTopics = revision.revisionTopics;
@@ -159,7 +166,7 @@ export class DatasetService {
             dimensions: { metadata: true }
         });
 
-        const revision = dataset.draftRevision;
+        const revision = dataset.draftRevision!;
         const dimensions = dataset.dimensions;
 
         // set all metadata updated_at to the same time, we can use this later to flag untranslated changes
@@ -206,5 +213,51 @@ export class DatasetService {
         await RevisionRepository.save(revision);
 
         return DatasetRepository.getById(datasetId, {});
+    }
+
+    async approveForPublication(datasetId: string, revisionId: string, user: User): Promise<Dataset> {
+        const start = performance.now();
+
+        const dataset = await DatasetRepository.getById(datasetId, {});
+        const cubeFilePath = await createBaseCube(datasetId, revisionId);
+        const periodCoverage = await getCubeTimePeriods(cubeFilePath);
+
+        const dataLakeService = new DataLakeService();
+        const cubeBuffer = fs.readFileSync(cubeFilePath);
+        const onlineCubeFilename = `${revisionId}.duckdb`;
+        await dataLakeService.uploadFileBuffer(onlineCubeFilename, dataset.id, cubeBuffer);
+
+        for (const locale of SUPPORTED_LOCALES) {
+            const lang = locale.split('-')[0].toLowerCase();
+            logger.debug(`Creating parquet file for language "${lang}" and uploading to data lake`);
+            const parquetFilePath = await outputCube(cubeFilePath, lang, DuckdbOutputType.Parquet);
+            await dataLakeService.uploadFileBuffer(
+                `${revisionId}_${lang}.parquet`,
+                dataset.id,
+                fs.readFileSync(parquetFilePath)
+            );
+        }
+
+        const end = performance.now();
+        const time = Math.round(end - start);
+        logger.info(`Cube and parquet file creation took ${time}ms (including uploading to data lake)`);
+
+        const scheduledRevision = await RevisionRepository.approvePublication(revisionId, onlineCubeFilename, user);
+        const approvedDataset = await DatasetRepository.publish(scheduledRevision, periodCoverage);
+
+        return approvedDataset;
+    }
+
+    async withdrawFromPublication(datasetId: string, revisionId: string): Promise<Dataset> {
+        const revision = await RevisionRepository.withdrawPublication(revisionId);
+
+        if (revision.onlineCubeFilename) {
+            const dataLakeService = new DataLakeService();
+            await dataLakeService.deleteFile(revision.onlineCubeFilename, datasetId);
+        }
+
+        const withdrawnDataset = await DatasetRepository.withdraw(revision);
+
+        return withdrawnDataset;
     }
 }

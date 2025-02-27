@@ -22,9 +22,7 @@ const defaultRelations: FindOptionsRelations<Revision> = {
 export const RevisionRepository = dataSource.getRepository(Revision).extend({
     async getById(id: string, relations: FindOptionsRelations<Revision> = defaultRelations): Promise<Revision> {
         const findOptions: FindOneOptions<Revision> = { where: { id }, relations };
-        logger.debug(
-            `Getting Revision by ID "${id}" with the following relations: ${JSON.stringify(relations, null, 2)}`
-        );
+        logger.debug(`Getting revision: ${id} with relations: ${JSON.stringify(relations, null, 2)}`);
 
         if (has(relations, 'dataTable.dataTableDescriptions')) {
             // sort sources by column index if they're requested
@@ -91,23 +89,20 @@ export const RevisionRepository = dataSource.getRepository(Revision).extend({
             relations: { dataset: true }
         });
 
-        const highestIndex = await dataSource.query(
-            `SELECT MAX(revision_index) AS max_index FROM revision WHERE dataset_id = $1 AND approved_at IS NOT NULL;`,
-            [scheduledRevision.dataset.id]
-        );
-        if (highestIndex[0].max_index !== null) {
-            scheduledRevision.revisionIndex = highestIndex[0].max_index + 1;
+        if (scheduledRevision.revisionIndex === 0) {
+            const result = await dataSource.query(
+                `SELECT MAX(revision_index) AS max_index FROM revision WHERE dataset_id = $1 AND approved_at IS NOT NULL;`,
+                [scheduledRevision.dataset.id]
+            );
+
+            const highestIndex = result[0].max_index;
+            scheduledRevision.revisionIndex = highestIndex + 1;
         }
 
         scheduledRevision.approvedAt = new Date();
         scheduledRevision.approvedBy = approver;
         scheduledRevision.onlineCubeFilename = onlineCubeFilename;
         await scheduledRevision.save();
-
-        if (scheduledRevision.revisionIndex === 1) {
-            scheduledRevision.dataset.live = scheduledRevision.publishAt;
-            await scheduledRevision.dataset.save();
-        }
 
         return scheduledRevision;
     },
