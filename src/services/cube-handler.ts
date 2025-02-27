@@ -730,7 +730,7 @@ async function setupMeasures(
     logger.debug(`Dataset Measure = ${JSON.stringify(dataset.measure)}`);
     logger.debug(`Measure column = ${JSON.stringify(measureColumn)}`);
     // Process the column that represents the measure
-    if (measureColumn && dataset.measure && dataset.measure.measureTable) {
+    if (measureColumn && dataset.measure && dataset.measure.measureTable && dataset.measure.measureTable.length > 0) {
         logger.debug('Measure present in dataset.  Creating measure table...');
         await createMeasureLookupTable(quack, dataset.measure.measureTable);
         logger.debug('Creating query part to format the data value correctly');
