@@ -611,7 +611,7 @@ async function getPreviewWithoutExtractor(
     tableName: string
 ): Promise<ViewDTO> {
     const totals = await quack.all(
-        `SELECT COUNT(DISTINCT ${dimension.factTableColumn}) AS totalLines FROM ${tableName};`
+        `SELECT COUNT(DISTINCT "${dimension.factTableColumn}") AS totalLines FROM ${tableName};`
     );
     const totalLines = Number(totals[0].totalLines);
 
