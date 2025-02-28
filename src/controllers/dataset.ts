@@ -4,6 +4,7 @@ import { NextFunction, Request, Response } from 'express';
 import tmp from 'tmp';
 import { last, sortBy } from 'lodash';
 
+import { User } from '../entities/user/user';
 import { DatasetRepository } from '../repositories/dataset';
 import { Locale } from '../enums/locale';
 import { logger } from '../utils/logger';
@@ -65,7 +66,7 @@ export const createDataset = async (req: Request, res: Response, next: NextFunct
     }
 
     try {
-        const dataset = await req.datasetService.createNew(req.body.title);
+        const dataset = await req.datasetService.createNew(req.body.title, req.user as User);
         res.status(201);
         res.json(DatasetDTO.fromDataset(dataset));
     } catch (err) {
