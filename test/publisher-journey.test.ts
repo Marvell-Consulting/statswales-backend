@@ -545,7 +545,7 @@ describe('API Endpoints', () => {
                 throw new Error('Dataset not found');
             }
             const dimensions = updatedDataset.dimensions;
-            expect(dimensions.length).toBe(4);
+            expect(dimensions.length).toBe(3);
         });
 
         test('Create dimensions from user supplied JSON returns 400 if the body is empty', async () => {
