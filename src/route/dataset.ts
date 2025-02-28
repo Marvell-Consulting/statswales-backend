@@ -167,15 +167,15 @@ router.get('/:dataset_id/cube/json', loadDataset(withDraftForCube), downloadCube
 
 // GET /dataset/:dataset_id/cube/csv
 // Returns a CSV file representation of the default view of the cube
-router.get('/:dataset_id/cube/csv', loadDataset(), downloadCubeAsCSV);
+router.get('/:dataset_id/cube/csv', loadDataset(withDraftForCube), downloadCubeAsCSV);
 
 // GET /dataset/:dataset_id/cube/parquet
 // Returns a CSV file representation of the default view of the cube
-router.get('/:dataset_id/cube/parquet', loadDataset(), downloadCubeAsParquet);
+router.get('/:dataset_id/cube/parquet', loadDataset(withDraftForCube), downloadCubeAsParquet);
 
 // GET /dataset/:dataset_id/cube/excel
 // Returns a CSV file representation of the default view of the cube
-router.get('/:dataset_id/cube/excel', loadDataset(), downloadCubeAsExcel);
+router.get('/:dataset_id/cube/excel', loadDataset(withDraftForCube), downloadCubeAsExcel);
 
 // GET /dataset/:dataset_id/metadata
 // Returns the dataset with the current draft and metadata
