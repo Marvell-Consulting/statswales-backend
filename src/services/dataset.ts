@@ -23,6 +23,8 @@ import { RevisionMetadata } from '../entities/dataset/revision-metadata';
 import { outputCube } from '../controllers/cube-controller';
 import { DuckdbOutputType } from '../enums/duckdb-outputs';
 import { SUPPORTED_LOCALES } from '../middleware/translation';
+import { isPublished } from '../utils/revision';
+import { BadRequestException } from '../exceptions/bad-request.exception';
 
 import { createBaseCube, getCubeTimePeriods } from './cube-handler';
 import { uploadCSV } from './csv-processor';
@@ -38,11 +40,11 @@ export class DatasetService {
     }
 
     // Create a new dataaset, first revision and title
-    async createNew(title: string): Promise<Dataset> {
+    async createNew(title: string, createdBy: User): Promise<Dataset> {
         logger.info(`Creating new dataset...`);
 
-        const dataset = await DatasetRepository.create({ createdBy: this.user }).save();
-        const firstRev = await RevisionRepository.create({ dataset, createdBy: this.user, revisionIndex: 1 }).save();
+        const dataset = await DatasetRepository.create({ createdBy }).save();
+        const firstRev = await RevisionRepository.create({ dataset, createdBy, revisionIndex: 1 }).save();
         await RevisionRepository.createMetadata(firstRev, title, this.lang);
 
         await DatasetRepository.save({
@@ -259,5 +261,28 @@ export class DatasetService {
         const withdrawnDataset = await DatasetRepository.withdraw(revision);
 
         return withdrawnDataset;
+    }
+
+    async createRevision(datasetId: string, createdBy: User): Promise<Dataset> {
+        logger.info(`Creating new revision for dataset: ${datasetId}...`);
+
+        const dataset = await DatasetRepository.findOneOrFail({
+            where: { id: datasetId },
+            relations: { publishedRevision: true, revisions: true }
+        });
+
+        const publishedRevision = dataset.publishedRevision!;
+        const unPublishedRevisions = dataset.revisions.filter((rev) => !isPublished(rev));
+
+        if (unPublishedRevisions.length > 0) {
+            throw new BadRequestException('errors.create_revision.existing_unpublished_revisions');
+        }
+
+        const newRevision = await RevisionRepository.deepCloneRevision(publishedRevision.id, createdBy);
+        logger.info(`New draft revision created: ${newRevision.id}`);
+
+        await DatasetRepository.save({ id: datasetId, draftRevision: newRevision, endRevision: newRevision });
+
+        return DatasetRepository.getById(datasetId, withDraftAndMetadata);
     }
 }

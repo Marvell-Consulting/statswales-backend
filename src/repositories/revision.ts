@@ -1,5 +1,5 @@
 import { FindOptionsRelations, FindOneOptions } from 'typeorm';
-import { has } from 'lodash';
+import { has, pick } from 'lodash';
 
 import { dataSource } from '../db/data-source';
 import { logger } from '../utils/logger';
@@ -10,6 +10,8 @@ import { RevisionMetadata } from '../entities/dataset/revision-metadata';
 import { SUPPORTED_LOCALES } from '../middleware/translation';
 import { Locale } from '../enums/locale';
 import { RevisionMetadataDTO } from '../dtos/revistion-metadata-dto';
+import { RevisionProvider } from '../entities/dataset/revision-provider';
+import { RevisionTopic } from '../entities/dataset/revision-topic';
 
 import { DataTableRepository } from './data-table';
 
@@ -124,5 +126,63 @@ export const RevisionRepository = dataSource.getRepository(Revision).extend({
         }
 
         return approvedRevision;
+    },
+
+    async deepCloneRevision(revisionId: string, createdBy: User): Promise<Revision> {
+        const prevRevision = await this.getById(revisionId, {
+            dataTable: true,
+            metadata: true,
+            revisionProviders: true,
+            revisionTopics: true
+        });
+
+        const copyProps = pick(prevRevision, [
+            'datasetId',
+            'roundingApplied',
+            'updateFrequency',
+            'designation',
+            'relatedLinks'
+        ]);
+
+        const dataTable = DataTableRepository.create({
+            ...prevRevision.dataTable,
+            id: undefined,
+            revision: undefined
+        });
+
+        const metadata = prevRevision.metadata.map((meta) =>
+            RevisionMetadata.create({
+                ...meta,
+                revision: undefined,
+                createdAt: undefined,
+                updatedAt: undefined
+            })
+        );
+
+        const revisionProviders = prevRevision.revisionProviders.map((revProvider) =>
+            RevisionProvider.create({
+                ...revProvider,
+                id: undefined,
+                revision: undefined,
+                createdAt: undefined
+            })
+        );
+
+        const revisionTopics = prevRevision.revisionTopics.map((revTopic) =>
+            RevisionTopic.create({
+                topicId: revTopic.topicId
+            })
+        );
+
+        return this.create({
+            ...copyProps,
+            previousRevisionId: prevRevision.id,
+            revisionIndex: 0,
+            createdBy,
+            dataTable,
+            metadata,
+            revisionProviders,
+            revisionTopics
+        }).save();
     }
 });

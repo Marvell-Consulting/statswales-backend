@@ -701,17 +701,13 @@ export const downloadRevisionCubeAsExcel = async (req: Request, res: Response, n
 };
 
 export const createNewRevision = async (req: Request, res: Response, next: NextFunction) => {
-    const dataset = res.locals.dataset;
-    const revision = new Revision();
-    revision.createdBy = req.user as User;
-    if (dataset.revisions.length > 0) {
-        revision.revisionIndex = 0;
-    } else {
-        revision.revisionIndex = 1;
+    const user = req.user as User;
+
+    try {
+        const dataset = await req.datasetService.createRevision(res.locals.datasetId, user);
+        res.status(201);
+        res.json(RevisionDTO.fromRevision(dataset.draftRevision!));
+    } catch (err) {
+        next(err);
     }
-    logger.info(`Creating new revision for dataset ${dataset.id}`);
-    revision.dataset = dataset;
-    const savedRevision = await revision.save();
-    res.status(201);
-    res.json(RevisionDTO.fromRevision(savedRevision));
 };
