@@ -13,14 +13,15 @@ import {
     downloadRevisionCubeAsJSON,
     downloadRevisionCubeAsParquet,
     downloadRevisionCubeFile,
-    getFactTablePreview,
+    getDataTablePreview,
     getRevisionInfo,
     getRevisionPreview,
     removeFactTableFromRevision,
     updateRevisionPublicationDate,
     approveForPublication,
     withdrawFromPublication,
-    createNewRevision
+    createNewRevision,
+    getDataTable
 } from '../controllers/revision';
 import { Revision } from '../entities/dataset/revision';
 import { hasError, revisionIdValidator } from '../validators';
@@ -71,16 +72,26 @@ export const revisionRouter = router;
 // Create a new revision for an update
 router.post('/', createNewRevision);
 
+// GET /dataset/:dataset_id/revision/id/:revision_id
+// Returns details of a revision
+router.get('/by-id/:revision_id', loadRevision(), getRevisionInfo);
+
+// GET /dataset/:dataset_id/revision/id/:revision_id/preview
+// Returns details of a revision with its imports
+router.get('/by-id/:revision_id/preview', loadRevision(), getRevisionPreview);
+
 // POST /dataset/:dataset_id/revision/id/:revision_id/data-table
 // Creates a new import on a revision.  This typically only occurs when a user
 // decides the file they uploaded wasn't correct.
 router.post('/by-id/:revision_id/data-table', loadRevision(), upload.single('csv'), attachDataTableToRevision);
 
+// GET /dataset/:dataset_id/revision/by-id/:revision_id/data-table
+// Returns details of a data-table
+router.get('/by-id/:revision_id/data-table', loadRevision(), getDataTable);
+
 // GET /dataset/:dataset_id/revision/by-id/:revision_id/data-table/preview
 // Returns a view of the data file attached to the data-table
-router.get('/by-id/:revision_id/data-table/preview', loadRevision(), getFactTablePreview);
-
-router.get('/by-id/:revision_id/preview', loadRevision(), getRevisionPreview);
+router.get('/by-id/:revision_id/data-table/preview', loadRevision(), getDataTablePreview);
 
 // PATCH /dataset/:dataset_id/revision/by-id/:revision_id/data-table/confirm
 // Moves the file from temporary blob storage to datalake and creates sources
@@ -108,10 +119,6 @@ router.post('/by-id/:revision_id/approve', loadRevision(), approveForPublication
 // POST /dataset/:dataset_id/revision/by-id/<revision id>/withdraw
 // Withdraw the dataset's latest revision from scheduled publication
 router.post('/by-id/:revision_id/withdraw', loadRevision(), withdrawFromPublication);
-
-// GET /dataset/:dataset_id/revision/id/:revision_id
-// Returns details of a revision with its imports
-router.get('/by-id/:revision_id', loadRevision(), getRevisionInfo);
 
 // GET /dataset/:dataset_id/revision/by-id/:revision_id/cube
 // Returns the specific revision of the dataset as a DuckDB File

@@ -3,10 +3,8 @@ import * as fs from 'fs';
 import { createHash } from 'crypto';
 
 import { Dataset } from '../../src/entities/dataset/dataset';
-import { DatasetMetadata } from '../../src/entities/dataset/dataset-metadata';
 import { Revision } from '../../src/entities/dataset/revision';
 import { DimensionType } from '../../src/enums/dimension-type';
-import { Dimension } from '../../src/entities/dataset/dimension';
 import { DimensionMetadata } from '../../src/entities/dataset/dimension-metadata';
 import { User } from '../../src/entities/user/user';
 import { DataTable } from '../../src/entities/dataset/data-table';
@@ -16,7 +14,9 @@ import { DataTableAction } from '../../src/enums/data-table-action';
 import { FactTableColumnType } from '../../src/enums/fact-table-column-type';
 import { LookupTable } from '../../src/entities/dataset/lookup-table';
 import { FactTableColumn } from '../../src/entities/dataset/fact-table-column';
-import { DataTableDescription } from '../../src/entities/dataset/data-table-description';
+import { RevisionMetadata } from '../../src/entities/dataset/revision-metadata';
+import { DimensionRepository } from '../../src/repositories/dimension';
+import { DatasetRepository } from '../../src/repositories/dataset';
 
 export async function createSmallDataset(
     datasetId: string,
@@ -25,84 +25,77 @@ export async function createSmallDataset(
     user: User,
     testFilePath = '../sample-files/csv/sure-start-short.csv',
     fileType = FileType.Csv
-) {
-    // First create a dataset
-    const dataset = new Dataset();
-    dataset.id = datasetId.toLowerCase();
-    dataset.createdBy = user;
-    dataset.live = new Date();
-    await dataset.save();
-
-    // Give it some info
-    const datasetInfo = new DatasetMetadata();
-    datasetInfo.dataset = dataset;
-    datasetInfo.title = 'Test Dataset 1';
-    datasetInfo.description = 'I am a small incomplete test dataset';
-    datasetInfo.language = 'en-GB';
-    await datasetInfo.save();
-    dataset.metadata = [datasetInfo];
-
-    // At the sametime we also always create a first revision
-    const revision = new Revision();
-    revision.id = revisionId.toLowerCase();
-    revision.dataset = dataset;
-    revision.createdBy = user;
-    revision.revisionIndex = 1;
-    await revision.save();
-    dataset.revisions = [revision];
-
-    // Attach a fact table e.g. a file to the revision
-    const dataTable = new DataTable();
-    dataTable.revision = revision;
-    dataTable.id = importId.toLowerCase();
-    dataTable.filename = `${importId.toLowerCase()}.csv`;
+): Promise<Dataset> {
     const testFile = path.resolve(__dirname, testFilePath);
-    dataTable.originalFilename = path.basename(testFile);
     const testFileBuffer = fs.readFileSync(testFile);
-    dataTable.hash = createHash('sha256').update(testFileBuffer).digest('hex');
-    dataTable.action = DataTableAction.Add;
-    dataTable.fileType = fileType;
+    let mimeType = 'text/csv';
+
+    const dataTableDescriptions = await extractTableInformation(testFileBuffer, fileType);
+
     switch (fileType) {
         case FileType.Csv:
-            dataTable.mimeType = 'text/csv';
+            mimeType = 'text/csv';
             break;
         case FileType.Excel:
-            dataTable.mimeType = 'application/vnd.ms-excel';
+            mimeType = 'application/vnd.ms-excel';
             break;
         case FileType.Parquet:
-            dataTable.mimeType = 'application/vnd.apache.parquet';
+            mimeType = 'application/vnd.apache.parquet';
             break;
         case FileType.Json:
-            dataTable.mimeType = 'application/json';
+            mimeType = 'application/json';
             break;
     }
-    await dataTable.save();
-    const factTable: FactTableColumn[] = [];
-    const factTableInfo = await extractTableInformation(testFileBuffer, fileType);
-    const dataTableDescriptions = [];
-    for (const info of factTableInfo) {
-        const factTableCol = new FactTableColumn();
-        factTableCol.columnName = info.columnName;
-        factTableCol.columnIndex = info.columnIndex;
-        factTableCol.columnType = FactTableColumnType.Unknown;
-        factTableCol.columnDatatype = info.columnDatatype;
-        if (info.columnName.toLowerCase().indexOf('note') >= 0) {
-            factTableCol.columnDatatype = 'VARCHAR';
-            factTableCol.columnType = FactTableColumnType.NoteCodes;
-        }
-        if (info.columnName.toLowerCase().indexOf('data') >= 0) {
-            factTableCol.columnType = FactTableColumnType.DataValues;
-        }
-        factTableCol.dataset = dataset;
-        await factTableCol.save();
-        factTable.push(factTableCol);
-        dataTableDescriptions.push(info);
-    }
-    dataTable.dataTableDescriptions = dataTableDescriptions;
-    await dataTable.save();
-    revision.dataTable = dataTable;
-    await dataset.save();
-    return dataset;
+
+    // First create a dataset
+    const dataset = await Dataset.create({
+        id: datasetId,
+        createdBy: user,
+        factTable: dataTableDescriptions.map((desc) => {
+            const isNoteCol = desc.columnName.toLowerCase().includes('note');
+            const isDataCol = desc.columnName.toLowerCase().includes('data');
+            const columnType = isNoteCol ? FactTableColumnType.NoteCodes : FactTableColumnType.Unknown;
+            const columnDatatype = isNoteCol ? 'VARCHAR' : desc.columnDatatype;
+
+            return FactTableColumn.create({
+                columnName: desc.columnName,
+                columnIndex: desc.columnIndex,
+                columnType: isDataCol ? FactTableColumnType.DataValues : columnType,
+                columnDatatype
+            });
+        })
+    }).save();
+
+    const revision = await Revision.create({
+        id: revisionId,
+        datasetId,
+        createdBy: user,
+        revisionIndex: 1,
+        metadata: ['en-GB', 'cy-GB'].map((lang) =>
+            RevisionMetadata.create({
+                language: lang,
+                title: 'Test Dataset 1',
+                summary: 'I am a small incomplete test dataset'
+            })
+        ),
+        dataTable: DataTable.create({
+            id: importId,
+            filename: `${importId.toLowerCase()}.csv`,
+            originalFilename: path.basename(testFile),
+            hash: createHash('sha256').update(testFileBuffer).digest('hex'),
+            action: DataTableAction.Add,
+            fileType,
+            mimeType,
+            dataTableDescriptions
+        })
+    }).save();
+
+    return DatasetRepository.save({
+        ...dataset,
+        draftRevision: revision,
+        startRevision: revision,
+        endRevision: revision
+    });
 }
 
 const sureStartShortDimensionDescriptor = [
@@ -149,45 +142,36 @@ const rowRefLookupTable = () => {
 export async function createFullDataset(
     datasetId: string,
     revisionId: string,
-    factTableId: string,
+    dataTableId: string,
     user: User,
     testFilePath = '../sample-files/csv/sure-start-short.csv',
     fileType = FileType.Csv,
     dimensionDescriptorJson = sureStartShortDimensionDescriptor
-) {
-    const dataset = await createSmallDataset(datasetId, revisionId, factTableId, user, testFilePath, fileType);
+): Promise<void> {
+    const dataset = await createSmallDataset(datasetId, revisionId, dataTableId, user, testFilePath, fileType);
     const revision = await Revision.findOneBy({ id: revisionId });
+
     if (!revision) {
         throw new Error('No revision found for dataset');
     }
-    const factTable = await DataTable.findOneBy({ id: factTableId });
+
+    const factTable = await DataTable.findOneBy({ id: dataTableId });
+
     if (!factTable) {
         throw new Error('No import found for revision');
     }
-    // Create some dimensions
-    dataset.dimensions = await Promise.all(
-        dimensionDescriptorJson.map(async (descriptor) => {
-            const dimension = new Dimension();
-            dimension.dataset = dataset;
-            dimension.factTableColumn = descriptor.columnName;
-            dimension.type = descriptor.dimensionType || DimensionType.Raw;
-            if (descriptor.dimensionType === DimensionType.LookupTable) {
-                const lookupTable = rowRefLookupTable();
-                const savedLookup = await lookupTable.save();
-                dimension.lookupTable = savedLookup;
-            }
-            dimension.extractor = descriptor.extractor || {};
-            dimension.joinColumn = descriptor.joinColumn || null;
-            await dimension.save();
-            const dimensionInfo = new DimensionMetadata();
-            dimensionInfo.dimension = dimension;
-            dimensionInfo.name = descriptor.columnName;
-            dimensionInfo.language = 'en-GB';
-            dimension.metadata = [dimensionInfo];
-            await dimensionInfo.save();
-            await dimension.save();
-            return dimension;
-        })
-    );
-    await dataset.save();
+
+    const dimensions = dimensionDescriptorJson.map((descriptor) => {
+        return DimensionRepository.create({
+            dataset,
+            factTableColumn: descriptor.columnName,
+            type: descriptor.dimensionType || DimensionType.Raw,
+            extractor: descriptor.extractor || {},
+            joinColumn: descriptor.joinColumn || null,
+            metadata: [DimensionMetadata.create({ name: descriptor.columnName, language: 'en-GB' })],
+            lookupTable: descriptor.dimensionType === DimensionType.LookupTable ? rowRefLookupTable() : undefined
+        });
+    });
+
+    await DimensionRepository.save(dimensions);
 }

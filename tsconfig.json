@@ -27,6 +27,6 @@
     "experimentalDecorators": true,
     "sourceMap": true,
     "baseUrl": ".",
-    "typeRoots" : ["./src/@types"]
+    "typeRoots" : ["./node_modules/@types", "./src/@types"]
   }
 }

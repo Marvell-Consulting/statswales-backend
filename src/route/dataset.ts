@@ -179,7 +179,7 @@ router.get('/:dataset_id/cube/excel', loadDataset(withDraftForCube), downloadCub
 
 // GET /dataset/:dataset_id/metadata
 // Returns the dataset with the current draft and metadata
-router.get('/:dataset_id/meta', loadDataset(withDraftAndMetadata), getDatasetById);
+router.get('/:dataset_id/metadata', loadDataset(withDraftAndMetadata), getDatasetById);
 
 // PATCH /dataset/:dataset_id/metadata
 // Updates the dataset info with the provided data

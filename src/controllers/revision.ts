@@ -47,7 +47,20 @@ import { duckdb } from '../services/duckdb';
 
 import { getCubePreview, outputCube } from './cube-controller';
 
-export const getFactTablePreview = async (req: Request, res: Response, next: NextFunction) => {
+export const getDataTable = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+        const dataTable = await DataTable.findOneOrFail({
+            where: { id: req.params.id },
+            relations: { dataTableDescriptions: true, revision: true }
+        });
+        const dto = DataTableDto.fromDataTable(dataTable);
+        res.json(dto);
+    } catch (err) {
+        next(new UnknownException());
+    }
+};
+
+export const getDataTablePreview = async (req: Request, res: Response, next: NextFunction) => {
     const { dataset, revision } = res.locals;
 
     const page_number: number = Number.parseInt(req.query.page_number as string, 10) || 1;

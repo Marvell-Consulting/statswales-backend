@@ -12,6 +12,8 @@ import { Revision } from '../src/entities/dataset/revision';
 import { User } from '../src/entities/user/user';
 import { DataTable } from '../src/entities/dataset/data-table';
 import { logger } from '../src/utils/logger';
+import { DatasetRepository } from '../src/repositories/dataset';
+import { RevisionRepository } from '../src/repositories/revision';
 
 import { createFullDataset, createSmallDataset } from './helpers/test-helper';
 import { getTestUser } from './helpers/get-user';
@@ -49,6 +51,7 @@ describe('API Endpoints for viewing the contents of a dataset', () => {
         const lookupTable = path.resolve(__dirname, `sample-files/csv/rowref-sw2-lookup.csv`);
         const testFile1Buffer = fs.readFileSync(testFile2);
         const lookupTableBuffer = fs.readFileSync(lookupTable);
+
         DataLakeService.prototype.getFileBuffer = jest
             .fn()
             .mockImplementation((filename: string, directory: string) => {
@@ -97,38 +100,27 @@ describe('API Endpoints for viewing the contents of a dataset', () => {
     });
 
     test('Get a dataset view returns 500 if there is no revision on the dataset', async () => {
-        const removeRevisionDatasetID = crypto.randomUUID().toLowerCase();
-        const removeRevisionRevisionID = crypto.randomUUID().toLowerCase();
-        await createSmallDataset(
-            removeRevisionDatasetID,
-            removeRevisionRevisionID,
-            crypto.randomUUID().toLowerCase(),
-            user
-        );
-        const revision = await Revision.findOneBy({ id: removeRevisionRevisionID });
-        if (!revision) {
-            throw new Error('Revision not found... Either it was not created or the test is broken');
-        }
-        await Revision.remove(revision);
+        const dataset = await DatasetRepository.create({ createdBy: user }).save();
+
         const res = await request(app)
-            .get(`/dataset/${removeRevisionDatasetID}/view`)
+            .get(`/dataset/${dataset.id}/view`)
             .set(getAuthHeader(user))
             .query({ page_number: 2, page_size: 100 });
+
         expect(res.status).toBe(500);
         expect(res.body).toEqual({ error: 'No revision found for dataset' });
     });
 
     test('Get a dataset view returns 500 if there is no fact table on the dataset', async () => {
-        const removeRevisionDatasetID = crypto.randomUUID().toLowerCase();
-        const importId = crypto.randomUUID().toLowerCase();
-        await createSmallDataset(removeRevisionDatasetID, crypto.randomUUID(), importId, user);
-        const fileImport = await DataTable.findOneBy({ id: importId });
-        if (!fileImport) {
-            throw new Error('Revision not found... Either it was not created or the test is broken');
-        }
-        await DataTable.remove(fileImport);
+        const dataset = await DatasetRepository.create({ createdBy: user }).save();
+        const revision = await RevisionRepository.create({ createdBy: user, dataset, revisionIndex: 1 }).save();
+        await DatasetRepository.update(
+            { id: dataset.id },
+            { draftRevision: revision, startRevision: revision, endRevision: revision }
+        );
+
         const res = await request(app)
-            .get(`/dataset/${removeRevisionDatasetID}/view`)
+            .get(`/dataset/${dataset.id}/view`)
             .set(getAuthHeader(user))
             .query({ page_number: 2, page_size: 100 });
         expect(res.status).toBe(500);
