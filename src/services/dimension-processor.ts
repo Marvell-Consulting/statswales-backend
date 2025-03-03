@@ -212,9 +212,7 @@ async function createUpdateNoteCodes(dataset: Dataset, columnAssignment: SourceA
     await columnInfo.save();
 }
 
-async function recreateBaseFactTable(dataset: Dataset, dataTable: DataTable): Promise<void> {
-    logger.warn(`Removing all fact table columns for dataset ${dataset.id}`);
-    await FactTableColumn.getRepository().delete({ id: dataset.id });
+async function createBaseFactTable(dataset: Dataset, dataTable: DataTable): Promise<void> {
     const factTable: FactTableColumn[] = [];
     for (const col of dataTable.dataTableDescriptions) {
         const factTableCol = new FactTableColumn();
@@ -272,15 +270,21 @@ async function removeMeasure(dataset: Dataset) {
     await Measure.getRepository().delete({ dataset });
 }
 
+export const cleanupDimensionMeasureAndFactTable = async (dataset: Dataset): Promise<void> => {
+    logger.warn(`Removing all fact table columns for dataset ${dataset.id}`);
+    await FactTableColumn.getRepository().delete({ id: dataset.id });
+    await removeAllDimensions(dataset);
+    await removeMeasure(dataset);
+};
+
 export const createDimensionsFromSourceAssignment = async (
     dataset: Dataset,
     dataTable: DataTable,
     sourceAssignment: ValidatedSourceAssignment
 ): Promise<void> => {
     const { dataValues, measure, ignore, noteCodes, dimensions } = sourceAssignment;
-    await recreateBaseFactTable(dataset, dataTable);
-    await removeAllDimensions(dataset);
-    await removeMeasure(dataset);
+    await cleanupDimensionMeasureAndFactTable(dataset);
+    await createBaseFactTable(dataset, dataTable);
 
     if (dataValues) {
         await updateDataValueColumn(dataset, dataValues);

@@ -30,6 +30,7 @@ import { convertBufferToUTF8 } from '../utils/file-utils';
 import { DatasetListItemDTO } from '../dtos/dataset-list-item-dto';
 import { ResultsetWithCount } from '../interfaces/resultset-with-count';
 import {
+    cleanupDimensionMeasureAndFactTable,
     createDimensionsFromSourceAssignment,
     ValidatedSourceAssignment,
     validateSourceAssignment
@@ -128,9 +129,8 @@ export const createFirstRevision = async (req: Request, res: Response, next: Nex
         return;
     }
 
-    if (dataset.factTable && dataset.factTable.length > 0) {
-        await FactTableColumn.getRepository().remove(dataset.factTable);
-    }
+    logger.debug('Cleaning up any existing dimension, measure and fact table definitions');
+    await cleanupDimensionMeasureAndFactTable(dataset);
 
     logger.debug('Updating dataset records');
     try {
