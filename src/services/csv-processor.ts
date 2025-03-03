@@ -274,7 +274,7 @@ export const getCSVPreview = async (
         switch (importObj.fileType) {
             case FileType.Csv:
             case FileType.GzipCsv:
-                createTableQuery = `CREATE TABLE ${tableName} AS SELECT * FROM read_csv('${tempFile}', auto_type_candidates = ['BOOLEAN', 'BIGINT', 'DOUBLE', 'VARCHAR']);`;
+                createTableQuery = `CREATE TABLE ${tableName} AS SELECT * FROM read_csv('${tempFile}', auto_type_candidates = ['BIGINT', 'DOUBLE', 'VARCHAR']);`;
                 break;
             case FileType.Parquet:
                 createTableQuery = `CREATE TABLE ${tableName} AS SELECT * FROM '${tempFile}';`;

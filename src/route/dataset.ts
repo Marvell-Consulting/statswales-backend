@@ -148,7 +148,17 @@ router.post('/', jsonParser, createDataset);
 // POST /dataset/:dataset_id/data
 // Upload a CSV file to a dataset
 // Returns a DTO object that includes the revisions and import records
-router.post('/:dataset_id/data', upload.single('csv'), loadDataset(), createFirstRevision);
+router.post(
+    '/:dataset_id/data',
+    upload.single('csv'),
+    loadDataset({
+        factTable: true,
+        measure: { measureTable: true },
+        dimensions: true,
+        revisions: { dataTable: { dataTableDescriptions: true } }
+    }),
+    createFirstRevision
+);
 
 // GET /dataset/:dataset_id/view
 // Returns a view of the data file attached to the import
