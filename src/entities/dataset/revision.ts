@@ -39,8 +39,8 @@ export class Revision extends BaseEntity {
     @JoinColumn({ name: 'dataset_id', foreignKeyConstraintName: 'FK_revision_dataset_id' })
     dataset: Dataset;
 
-    @Column({ name: 'previous_revision_id' })
-    previousRevisionId: string;
+    @Column({ name: 'previous_revision_id', nullable: true })
+    previousRevisionId?: string;
 
     @Index('IDX_revison_previous_revision_id')
     @ManyToOne(() => Revision, { nullable: true, onDelete: 'CASCADE', orphanedRowAction: 'delete' })

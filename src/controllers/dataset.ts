@@ -41,7 +41,7 @@ export const listAllDatasets = async (req: Request, res: Response, next: NextFun
         const results = await DatasetRepository.listByLanguage(lang, page, limit);
         res.json(results);
     } catch (err) {
-        logger.error(err, 'Failed to fetch active dataset list');
+        logger.error(err, 'Failed to fetch dataset list');
         next(new UnknownException());
     }
 };
@@ -95,7 +95,7 @@ export const uploadDataTable = async (req: Request, res: Response, next: NextFun
 
 export const cubePreview = async (req: Request, res: Response, next: NextFunction) => {
     const dataset = res.locals.dataset;
-    const latestRevision = last(sortBy(dataset?.revisions, 'revisionIndex'));
+    const latestRevision = dataset.draftRevision ?? last(sortBy(dataset?.revisions, 'revisionIndex'));
 
     if (!latestRevision) {
         next(new UnknownException('errors.no_revision'));
@@ -266,8 +266,8 @@ export const updateDatasetTeam = async (req: Request, res: Response, next: NextF
 
 export const updateSources = async (req: Request, res: Response, next: NextFunction) => {
     const dataset: Dataset = res.locals.dataset;
-    const revision = dataset.draftRevision!;
-    const dataTable = revision.dataTable;
+    const revision = dataset.draftRevision;
+    const dataTable = revision?.dataTable;
     const sourceAssignment = req.body;
 
     if (!revision || revision.revisionIndex !== 1) {

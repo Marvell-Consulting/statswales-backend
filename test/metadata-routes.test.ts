@@ -20,6 +20,7 @@ import { DataTableRepository } from '../src/repositories/data-table';
 import { DataTableDto } from '../src/dtos/data-table-dto';
 import { Locale } from '../src/enums/locale';
 import { logger } from '../src/utils/logger';
+import { withDataTable } from '../src/repositories/revision';
 
 import { createFullDataset } from './helpers/test-helper';
 import { getTestUser } from './helpers/get-user';
@@ -33,7 +34,7 @@ DataLakeService.prototype.uploadFileBuffer = jest.fn();
 
 const dataset1Id = 'bdc40218-af89-424b-b86e-d21710bc92f1';
 const revision1Id = '85f0e416-8bd1-4946-9e2c-1c958897c6ef';
-const import1Id = 'fa07be9d-3495-432d-8c1f-d0fc6daae359';
+const dataTableId = 'fa07be9d-3495-432d-8c1f-d0fc6daae359';
 const user: User = getTestUser('test', 'user');
 
 describe('API Endpoints for viewing dataset objects', () => {
@@ -43,7 +44,7 @@ describe('API Endpoints for viewing dataset objects', () => {
             dbManager = await initDb();
             await initPassport(dbManager.getDataSource());
             await user.save();
-            await createFullDataset(dataset1Id, revision1Id, import1Id, user);
+            await createFullDataset(dataset1Id, revision1Id, dataTableId, user);
         } catch (error) {
             logger.error(error, 'Could not initialise test database');
             await dbManager.getDataSource().dropDatabase();
@@ -70,20 +71,6 @@ describe('API Endpoints for viewing dataset objects', () => {
 
         test('Get a list of all datasets returns 200 with a file list', async () => {
             const res = await request(app).get('/dataset').set(getAuthHeader(user));
-            expect(res.status).toBe(200);
-            expect(res.body).toEqual([{ id: dataset1Id, title: 'Test Dataset 1' }]);
-        });
-    });
-
-    describe('List all active datasets', () => {
-        test('returns 401 if no auth header is sent (JWT auth)', async () => {
-            const res = await request(app).get('/dataset/active');
-            expect(res.status).toBe(401);
-            expect(res.body).toEqual({});
-        });
-
-        test('Get a list of all active datasets returns 200 with a file list', async () => {
-            const res = await request(app).get('/dataset/active').set(getAuthHeader(user));
             const today = new Date().toISOString().split('T')[0];
             expect(res.status).toBe(200);
             expect(res.body).toEqual({
@@ -92,8 +79,8 @@ describe('API Endpoints for viewing dataset objects', () => {
                         id: dataset1Id,
                         title: 'Test Dataset 1',
                         last_updated: expect.stringContaining(today),
-                        status: 'live',
-                        publishing_status: 'update_incomplete'
+                        status: 'new',
+                        publishing_status: 'incomplete'
                     }
                 ],
                 count: 1
@@ -143,7 +130,9 @@ describe('API Endpoints for viewing dataset objects', () => {
         });
 
         test('Get a dimension returns 200 with a shallow object', async () => {
-            const dataset1 = await DatasetRepository.getById(dataset1Id);
+            const dataset1 = await DatasetRepository.getById(dataset1Id, {
+                dimensions: { metadata: true, lookupTable: true }
+            });
             if (!dataset1) {
                 throw new Error('Dataset not found');
             }
@@ -183,12 +172,9 @@ describe('API Endpoints for viewing dataset objects', () => {
         });
 
         test('Get a revision returns 200', async () => {
-            const revision = await Revision.findOne({
-                where: { id: revision1Id },
-                relations: ['createdBy', 'dataTable', 'dataTable.dataTableDescriptions']
-            });
+            const revision = await Revision.findOne({ where: { id: revision1Id }, relations: withDataTable });
             if (!revision) {
-                throw new Error('Dataset not found');
+                throw new Error('Revision not found');
             }
             const res = await request(app)
                 .get(`/dataset/${dataset1Id}/revision/by-id/${revision1Id}`)
@@ -214,22 +200,22 @@ describe('API Endpoints for viewing dataset objects', () => {
         });
     });
 
-    describe('Get FileImportInterface metadata endpoints', () => {
+    describe('DataTable endpoints', () => {
         test('returns 401 if no auth header is sent (JWT auth)', async () => {
             const res = await request(app).get(
-                `/dataset/${dataset1Id}/revision/by-id/${revision1Id}/data-table/by-id/${import1Id}/preview`
+                `/dataset/${dataset1Id}/revision/by-id/${revision1Id}/data-table/by-id/${dataTableId}/preview`
             );
             expect(res.status).toBe(401);
             expect(res.body).toEqual({});
         });
 
-        test('Get import returns 200 with object', async () => {
-            const dataTable = await DataTableRepository.getDataTableById(dataset1Id, revision1Id, import1Id);
+        test('Get data-table returns 200 with object', async () => {
+            const dataTable = await DataTableRepository.getDataTableById(dataset1Id, revision1Id, dataTableId);
             if (!dataTable) {
-                throw new Error('Import not found');
+                throw new Error('Data table not found');
             }
             const res = await request(app)
-                .get(`/dataset/${dataset1Id}/revision/by-id/${revision1Id}/data-table/`)
+                .get(`/dataset/${dataset1Id}/revision/by-id/${revision1Id}/data-table`)
                 .set(getAuthHeader(user));
             const expectedDTO = DataTableDto.fromDataTable(dataTable);
             expect(res.status).toBe(200);

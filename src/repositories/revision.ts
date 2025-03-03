@@ -15,14 +15,14 @@ import { RevisionTopic } from '../entities/dataset/revision-topic';
 
 import { DataTableRepository } from './data-table';
 
-const defaultRelations: FindOptionsRelations<Revision> = {
+export const withDataTable: FindOptionsRelations<Revision> = {
     dataTable: {
         dataTableDescriptions: true
     }
 };
 
 export const RevisionRepository = dataSource.getRepository(Revision).extend({
-    async getById(id: string, relations: FindOptionsRelations<Revision> = defaultRelations): Promise<Revision> {
+    async getById(id: string, relations: FindOptionsRelations<Revision> = withDataTable): Promise<Revision> {
         const findOptions: FindOneOptions<Revision> = { where: { id }, relations };
         logger.debug(`Getting revision: ${id} with relations: ${JSON.stringify(relations, null, 2)}`);
 

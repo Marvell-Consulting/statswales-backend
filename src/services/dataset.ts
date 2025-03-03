@@ -7,7 +7,6 @@ import { User } from '../entities/user/user';
 import { Locale } from '../enums/locale';
 import {
     DatasetRepository,
-    withDraftForCube,
     withDraftAndMetadata,
     withDraftAndProviders,
     withDraftAndTopics
@@ -32,14 +31,11 @@ import { DataLakeService } from './datalake';
 
 export class DatasetService {
     lang: Locale;
-    user: Partial<User> | undefined;
 
-    constructor(lang: Locale, user?: Partial<User>) {
+    constructor(lang: Locale) {
         this.lang = lang;
-        this.user = user;
     }
 
-    // Create a new dataaset, first revision and title
     async createNew(title: string, createdBy: User): Promise<Dataset> {
         logger.info(`Creating new dataset...`);
 
@@ -59,7 +55,6 @@ export class DatasetService {
         return DatasetRepository.getById(dataset.id, withDraftAndMetadata);
     }
 
-    // Patch the metadata for the currently in progress revision
     async updateMetadata(datasetId: string, metadata: RevisionMetadataDTO): Promise<Dataset> {
         const dataset = await DatasetRepository.getById(datasetId, withDraftAndMetadata);
         await RevisionRepository.updateMetadata(dataset.draftRevision!, metadata);
@@ -67,7 +62,6 @@ export class DatasetService {
         return DatasetRepository.getById(dataset.id, {});
     }
 
-    // Add or replace the fact table for the dataset
     async updateFactTable(datasetId: string, file: Express.Multer.File): Promise<Dataset> {
         const dataset = await DatasetRepository.getById(datasetId, {
             factTable: true,
@@ -87,13 +81,12 @@ export class DatasetService {
         await RevisionRepository.replaceDataTable(dataset.draftRevision!, dataTable);
         await DatasetRepository.replaceFactTable(dataset, dataTable);
 
-        return DatasetRepository.getById(datasetId, withDraftForCube);
+        return DatasetRepository.getById(datasetId, {});
     }
 
     async addDataProvider(datasetId: string, dataProvider: RevisionProviderDTO): Promise<Dataset> {
         const newProvider = RevisionProviderDTO.toRevisionProvider(dataProvider);
 
-        // add new data provider for both languages
         const altLang = newProvider.language.includes(Locale.English) ? Locale.WelshGb : Locale.EnglishGb;
 
         const newProviderAltLang: Partial<RevisionProvider> = {
@@ -113,8 +106,6 @@ export class DatasetService {
         const dataset = await DatasetRepository.getById(datasetId, { draftRevision: { revisionProviders: true } });
         const existing = dataset.draftRevision!.revisionProviders;
         const submitted = dataProviders.map((provider) => RevisionProviderDTO.toRevisionProvider(provider));
-
-        // we can receive updates in a single language, but we need to update the relations for both languages
 
         // work out what providers have been removed and remove for both languages
         const toRemove = existing.filter((existing) => {
