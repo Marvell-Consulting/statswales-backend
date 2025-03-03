@@ -21,6 +21,10 @@ export const withDataTable: FindOptionsRelations<Revision> = {
     }
 };
 
+export const withMetadata: FindOptionsRelations<Revision> = {
+    metadata: true
+};
+
 export const RevisionRepository = dataSource.getRepository(Revision).extend({
     async getById(id: string, relations: FindOptionsRelations<Revision> = withDataTable): Promise<Revision> {
         const findOptions: FindOneOptions<Revision> = { where: { id }, relations };

@@ -20,7 +20,7 @@ import { DataTableRepository } from '../src/repositories/data-table';
 import { DataTableDto } from '../src/dtos/data-table-dto';
 import { Locale } from '../src/enums/locale';
 import { logger } from '../src/utils/logger';
-import { withDataTable } from '../src/repositories/revision';
+import { withDataTable, withMetadata } from '../src/repositories/revision';
 
 import { createFullDataset } from './helpers/test-helper';
 import { getTestUser } from './helpers/get-user';
@@ -172,7 +172,7 @@ describe('API Endpoints for viewing dataset objects', () => {
         });
 
         test('Get a revision returns 200', async () => {
-            const revision = await Revision.findOne({ where: { id: revision1Id }, relations: withDataTable });
+            const revision = await Revision.findOne({ where: { id: revision1Id }, relations: withMetadata });
             if (!revision) {
                 throw new Error('Revision not found');
             }

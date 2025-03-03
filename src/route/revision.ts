@@ -27,7 +27,7 @@ import { Revision } from '../entities/dataset/revision';
 import { hasError, revisionIdValidator } from '../validators';
 import { logger } from '../utils/logger';
 import { NotFoundException } from '../exceptions/not-found.exception';
-import { RevisionRepository } from '../repositories/revision';
+import { RevisionRepository, withMetadata } from '../repositories/revision';
 
 // middleware that loads the revision and stores it in res.locals
 // leave relations undefined to load the default relations
@@ -73,8 +73,8 @@ export const revisionRouter = router;
 router.post('/', createNewRevision);
 
 // GET /dataset/:dataset_id/revision/id/:revision_id
-// Returns details of a revision
-router.get('/by-id/:revision_id', loadRevision(), getRevisionInfo);
+// Returns details of a revision with metadata
+router.get('/by-id/:revision_id', loadRevision(withMetadata), getRevisionInfo);
 
 // GET /dataset/:dataset_id/revision/id/:revision_id/preview
 // Returns details of a revision with its imports
