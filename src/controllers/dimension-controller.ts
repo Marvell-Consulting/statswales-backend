@@ -85,14 +85,24 @@ export const attachLookupTableToDimension = async (req: Request, res: Response, 
     }
     const { dataset, dimension } = res.locals;
 
-    const factTable = getLatestRevision(dataset)?.dataTable;
+    const dataTable = getLatestRevision(dataset)?.dataTable;
 
-    if (!factTable) {
+    if (!dataTable) {
         next(new NotFoundException('errors.fact_table_invalid'));
         return;
     }
+
     let fileImport: DataTable;
-    const utf8Buffer = convertBufferToUTF8(req.file.buffer);
+    let utf8Buffer: Buffer<ArrayBufferLike>;
+    switch (req.file.mimetype) {
+        case 'text/csv':
+        case 'application/csv':
+        case 'application/json':
+            utf8Buffer = convertBufferToUTF8(req.file.buffer);
+            break;
+        default:
+            utf8Buffer = req.file.buffer;
+    }
 
     try {
         fileImport = await uploadCSV(utf8Buffer, req.file?.mimetype, req.file?.originalname, res.locals.datasetId);
@@ -105,7 +115,7 @@ export const attachLookupTableToDimension = async (req: Request, res: Response, 
     const tableMatcher = req.body as LookupTablePatchDTO;
 
     try {
-        const result = await validateLookupTable(fileImport, factTable, dataset, dimension, utf8Buffer, tableMatcher);
+        const result = await validateLookupTable(fileImport, dataTable, dataset, dimension, utf8Buffer, tableMatcher);
         if ((result as ViewErrDTO).status) {
             const error = result as ViewErrDTO;
             res.status(error.status);

@@ -13,6 +13,7 @@ import { BadRequestException } from '../exceptions/bad-request.exception';
 import { UnknownException } from '../exceptions/unknown.exception';
 import { getMeasurePreview, validateMeasureLookupTable } from '../services/measure-handler';
 import { uploadCSV } from '../services/csv-processor';
+import { convertBufferToUTF8 } from '../utils/file-utils';
 
 export const resetMeasure = async (req: Request, res: Response, next: NextFunction) => {
     const dataset = res.locals.dataset;
@@ -63,9 +64,19 @@ export const attachLookupTableToMeasure = async (req: Request, res: Response, ne
     }
 
     let fileImport: DataTable;
+    let utf8Buffer: Buffer<ArrayBufferLike>;
+    switch (req.file.mimetype) {
+        case 'text/csv':
+        case 'application/csv':
+        case 'application/json':
+            utf8Buffer = convertBufferToUTF8(req.file.buffer);
+            break;
+        default:
+            utf8Buffer = req.file.buffer;
+    }
 
     try {
-        fileImport = await uploadCSV(req.file.buffer, req.file?.mimetype, req.file?.originalname, res.locals.datasetId);
+        fileImport = await uploadCSV(utf8Buffer, req.file?.mimetype, req.file?.originalname, res.locals.datasetId);
     } catch (err) {
         logger.error(`An error occurred trying to upload the file: ${err}`);
         next(new UnknownException('errors.upload_error'));
