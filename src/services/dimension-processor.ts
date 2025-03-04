@@ -227,28 +227,30 @@ async function createBaseFactTable(dataset: Dataset, dataTable: DataTable): Prom
     }
 }
 
-async function removeAllDimensions(dataset: Dataset) {
+export async function removeAllDimensions(dataset: Dataset) {
     logger.warn(`Removing all dimensions for dataset ${dataset.id}`);
-    for (const dimension of dataset.dimensions) {
-        if (dimension.lookupTable) {
-            const dataLakeService = new DataLakeService();
-            try {
-                dataLakeService.deleteFile(dimension.lookupTable.filename, dataset.id);
-            } catch (error) {
-                logger.warn(
-                    error,
-                    `Something went wrong trying to remove previously uploaded lookup table with error: ${error}`
-                );
+    if (dataset.dimensions) {
+        for (const dimension of dataset.dimensions) {
+            if (dimension.lookupTable) {
+                const dataLakeService = new DataLakeService();
+                try {
+                    dataLakeService.deleteFile(dimension.lookupTable.filename, dataset.id);
+                } catch (error) {
+                    logger.warn(
+                        error,
+                        `Something went wrong trying to remove previously uploaded lookup table with error: ${error}`
+                    );
+                }
+                logger.warn(`Removing lookup table for dimension ${dimension.id}`);
+                await LookupTable.getRepository().delete({ dimension });
             }
-            logger.warn(`Removing lookup table for dimension ${dimension.id}`);
-            await LookupTable.getRepository().delete({ dimension });
+            await DimensionMetadata.getRepository().delete({ dimension });
         }
-        await DimensionMetadata.getRepository().delete({ dimension });
     }
     await Dimension.getRepository().delete({ dataset });
 }
 
-async function removeMeasure(dataset: Dataset) {
+export async function removeMeasure(dataset: Dataset) {
     logger.warn(`Removing measure for dataset ${dataset.id}`);
     if (dataset.measure) {
         if (dataset.measure.lookupTable) {

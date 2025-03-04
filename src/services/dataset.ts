@@ -28,6 +28,7 @@ import { BadRequestException } from '../exceptions/bad-request.exception';
 import { createBaseCube, getCubeTimePeriods } from './cube-handler';
 import { uploadCSV } from './csv-processor';
 import { DataLakeService } from './datalake';
+import { removeAllDimensions, removeMeasure } from './dimension-processor';
 
 export class DatasetService {
     lang: Locale;
@@ -77,6 +78,9 @@ export class DatasetService {
         dataTable.dataTableDescriptions.forEach((col) => {
             col.factTableColumn = col.columnName;
         });
+
+        await removeAllDimensions(dataset);
+        await removeMeasure(dataset);
 
         await RevisionRepository.replaceDataTable(dataset.draftRevision!, dataTable);
         await DatasetRepository.replaceFactTable(dataset, dataTable);
