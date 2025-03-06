@@ -54,14 +54,14 @@ async function validateUnknownReferenceDataItems(quack: Database, dataset: Datas
     `);
     if (nonMatchedRows.length > 0) {
         logger.error('The user has unknown items in their reference data column');
-        const nonMatchedFactTableValues = await quack.all(`
+        const nonMatchingDataTableValues = await quack.all(`
               SELECT DISTINCT fact_table."${dimension.factTableColumn}", reference_data.item_id FROM fact_table
               LEFT JOIN reference_data on reference_data.item_id=CAST(fact_table."${dimension.factTableColumn}" AS VARCHAR)
               WHERE reference_data.item_id IS NULL;
         `);
         return viewErrorGenerator(400, dataset.id, 'patch', 'errors.dimensionValidation.invalid_lookup_table', {
             totalNonMatching: nonMatchedRows.length,
-            nonMatchedFactTableValues: nonMatchedFactTableValues.map((row) => Object.values(row)[0])
+            nonMatchingDataTableValues: nonMatchingDataTableValues.map((row) => Object.values(row)[0])
         });
     }
     return undefined;
@@ -83,7 +83,7 @@ async function validateAllItemsAreInCategory(
     `);
     if (nonMatchedRows.length > 0) {
         logger.error('The user has unknown items in their reference data column');
-        const nonMatchedValues = await quack.all(`
+        const nonMatchingDataTableValues = await quack.all(`
             SELECT fact_table."${dimension.factTableColumn}", first(reference_data.category_key), first(categories.category), first(category_info.description) FROM fact_table
             LEFT JOIN reference_data on reference_data.item_id=CAST(fact_table."${dimension.factTableColumn}" AS VARCHAR)
             JOIN category_keys ON reference_data.category_key=category_keys.category_key
@@ -91,8 +91,8 @@ async function validateAllItemsAreInCategory(
             WHERE categories.category!='${referenceDataType}' GROUP BY fact_table."${dimension.factTableColumn}", item_id;
         `);
         return viewErrorGenerator(400, dataset.id, 'patch', 'errors.dimensionValidation.invalid_lookup_table', {
-            totalNonMatching: nonMatchedValues.length,
-            nonMatchingValues: nonMatchedValues.map((row) => Object.values(row)[0])
+            totalNonMatching: nonMatchingDataTableValues.length,
+            nonMatchingDataTableValues: nonMatchingDataTableValues.map((row) => Object.values(row)[0])
         });
     }
     return undefined;
@@ -113,7 +113,7 @@ async function validateAllItemsAreInOneCategory(
         logger.error('The user has more than one type of category in reference data column');
         return viewErrorGenerator(400, dataset.id, 'patch', 'errors.dimensionValidation.to_many_categories_present', {
             totalNonMatching: categoriesPresent.length,
-            nonMatchingValues: categoriesPresent.map((row) => Object.values(row)[0])
+            nonMatchingDataTableValues: categoriesPresent.map((row) => Object.values(row)[0])
         });
     }
     if (categoriesPresent.length === 0) {

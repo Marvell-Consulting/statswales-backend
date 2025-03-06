@@ -178,7 +178,7 @@ async function rowMatcher(
             );
             return viewErrorGenerator(400, datasetId, 'patch', 'errors.dimensionValidation.matching_error', {
                 totalNonMatching: rows[0].total_rows,
-                nonMatchingFactTableValues: nonMatchedFactTableValues.map((row) => Object.values(row)[0]),
+                nonMatchingDataTableValues: nonMatchedFactTableValues.map((row) => Object.values(row)[0]),
                 nonMatchingLookupValues: nonMatchedLookupValues.map((row) => Object.values(row)[0])
             });
         }
@@ -201,7 +201,7 @@ async function rowMatcher(
             );
             return viewErrorGenerator(400, datasetId, 'patch', 'errors.dimensionValidation.matching_error', {
                 totalNonMatching: nonMatchedRows.length,
-                nonMatchingFactTableValues: nonMatchedFactTableValues.map((row) => Object.values(row)[0]),
+                nonMatchingDataTableValues: nonMatchedFactTableValues.map((row) => Object.values(row)[0]),
                 nonMatchingLookupValues: nonMatchingLookupValues.map((row) => Object.values(row)[0])
             });
         }
@@ -216,7 +216,7 @@ async function rowMatcher(
         );
         return viewErrorGenerator(400, datasetId, 'patch', 'errors.dimensionValidation.invalid_lookup_table', {
             totalNonMatching: nonMatchedRows[0].total_rows,
-            nonMatchingFactTableValues: nonMatchedFactTableValues.map((row) => Object.values(row)[0]),
+            nonMatchingDataTableValues: nonMatchedFactTableValues.map((row) => Object.values(row)[0]),
             nonMatchingLookupValues: null
         });
     }

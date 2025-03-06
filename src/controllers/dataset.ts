@@ -402,6 +402,7 @@ export const updateSources = async (req: Request, res: Response, next: NextFunct
         next(new UnknownException('errors.no_fact_table'));
         return;
     }
+    logger.debug(`Processing request to update dataset sources...`);
     try {
         const validatedSourceAssignment = validateSourceAssignment(dataTable, sourceAssignment);
         await createDimensionsFromSourceAssignment(dataset, dataTable, validatedSourceAssignment);

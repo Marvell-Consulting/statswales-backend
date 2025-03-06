@@ -168,12 +168,12 @@ export const validateLookupTable = async (
             );
             return viewErrorGenerator(400, dataset.id, 'patch', 'errors.dimensionValidation.invalid_lookup_table', {
                 totalNonMatching: rows[0].total_rows,
-                nonMatchingFactTableValues: nonMatchedFactTableValues.map((row) => Object.values(row)[0]),
+                nonMatchingDataTableValues: nonMatchedFactTableValues.map((row) => Object.values(row)[0]),
                 nonMatchedLookupValues: nonMatchedLookupValues.map((row) => Object.values(row)[0])
             });
         }
         if (nonMatchedRows.length > 0) {
-            const nonMatchingFactTableValues = await quack.all(
+            const nonMatchingDataTableValues = await quack.all(
                 `SELECT DISTINCT fact_table_column FROM (SELECT "${dimension.factTableColumn}" as fact_table_column
                 FROM ${factTableName})as fact_table
                 LEFT JOIN ${lookupTableName}
@@ -191,7 +191,7 @@ export const validateLookupTable = async (
             );
             return viewErrorGenerator(400, dataset.id, 'patch', 'errors.dimensionValidation.invalid_lookup_table', {
                 totalNonMatching: nonMatchedRows.length,
-                nonMatchingFactTableValues: nonMatchingFactTableValues.map((row) => Object.values(row)[0]),
+                nonMatchingDataTableValues: nonMatchingDataTableValues.map((row) => Object.values(row)[0]),
                 nonMatchedLookupValues: nonMatchingLookupValues.map((row) => Object.values(row)[0])
             });
         }
@@ -204,7 +204,7 @@ export const validateLookupTable = async (
         const nonMatchedValues = await quack.all(`SELECT DISTINCT ${dimension.factTableColumn} FROM ${factTableName};`);
         return viewErrorGenerator(400, dataset.id, 'patch', 'errors.dimensionValidation.invalid_lookup_table', {
             totalNonMatching: nonMatchedRows[0].total_rows,
-            nonMatchingFactTableValues: nonMatchedValues.map((row) => Object.values(row)[0])
+            nonMatchingDataTableValues: nonMatchedValues.map((row) => Object.values(row)[0])
         });
     }
 

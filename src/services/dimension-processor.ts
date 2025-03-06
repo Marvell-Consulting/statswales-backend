@@ -90,7 +90,7 @@ export const validateSourceAssignment = (
     const dimensions: SourceAssignmentDTO[] = [];
     const dateDimensions: SourceAssignmentDTO[] = [];
     const ignore: SourceAssignmentDTO[] = [];
-
+    logger.debug(`Validating source assignment from: ${JSON.stringify(sourceAssignment, null, 2)}`);
     sourceAssignment.map((sourceInfo) => {
         if (
             !fileImport.dataTableDescriptions?.find(
