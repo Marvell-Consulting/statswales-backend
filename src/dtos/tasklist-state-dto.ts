@@ -1,29 +1,31 @@
-import { every, first, sortBy } from 'lodash';
+import { every } from 'lodash';
 
 import { Dataset } from '../entities/dataset/dataset';
-import { DimensionMetadata } from '../entities/dataset/dimension-metadata';
 import { DimensionType } from '../enums/dimension-type';
 import { TaskStatus } from '../enums/task-status';
 import { translatableMetadataKeys } from '../types/translatable-metadata';
 import { DimensionStatus } from '../interfaces/dimension-status';
 import { logger } from '../utils/logger';
+import { Revision } from '../entities/dataset/revision';
+
+export interface Metadata {
+    title: TaskStatus;
+    summary: TaskStatus;
+    statistical_quality: TaskStatus;
+    update_frequency: TaskStatus;
+    designation: TaskStatus;
+    data_collection: TaskStatus;
+    related_reports: TaskStatus;
+    data_sources: TaskStatus;
+    relevant_topics: TaskStatus;
+}
 
 export class TasklistStateDTO {
     datatable: TaskStatus;
     measure?: DimensionStatus;
     dimensions: DimensionStatus[];
 
-    metadata: {
-        title: TaskStatus;
-        summary: TaskStatus;
-        statistical_quality: TaskStatus;
-        data_sources: TaskStatus;
-        related_reports: TaskStatus;
-        update_frequency: TaskStatus;
-        designation: TaskStatus;
-        data_collection: TaskStatus;
-        relevant_topics: TaskStatus;
-    };
+    metadata: Metadata;
 
     translation: {
         export: TaskStatus;
@@ -37,78 +39,86 @@ export class TasklistStateDTO {
 
     canPublish: boolean;
 
-    public static translationStatus(dataset: Dataset): TaskStatus {
-        const metaFullyTranslated = dataset.metadata?.every((info) => {
+    public static measureStatus(dataset: Dataset) {
+        if (!dataset.measure) return undefined;
+
+        return {
+            id: dataset.measure.id,
+            name: dataset.measure.factTableColumn,
+            status: dataset.measure.joinColumn ? TaskStatus.Completed : TaskStatus.NotStarted,
+            type: 'measure'
+        };
+    }
+
+    public static dimensionStatus(dataset: Dataset, revision: Revision, lang: string): DimensionStatus[] {
+        return dataset.dimensions?.reduce((dimensionStatus: DimensionStatus[], dimension) => {
+            if (dimension.type === DimensionType.NoteCodes) return dimensionStatus;
+
+            const name = dimension.metadata.find((meta) => lang.includes(meta.language))?.name ?? 'unknown';
+
+            const isUpdate = revision.tasks?.dimensions.find((task) => task.id === dimension.id);
+
+            const status =
+                (isUpdate && !isUpdate.lookupTableUpdated) || dimension.extractor === null
+                    ? TaskStatus.NotStarted
+                    : TaskStatus.Completed;
+
+            dimensionStatus.push({ name, status, id: dimension.id, type: dimension.type });
+
+            return dimensionStatus;
+        }, []);
+    }
+
+    public static metadataStatus(revision: Revision, lang: string): Metadata {
+        const metadata = revision?.metadata.find((meta) => lang.includes(meta.language));
+
+        return {
+            title: metadata?.title ? TaskStatus.Completed : TaskStatus.NotStarted,
+            summary: metadata?.summary ? TaskStatus.Completed : TaskStatus.NotStarted,
+            statistical_quality: metadata?.quality ? TaskStatus.Completed : TaskStatus.NotStarted,
+            data_collection: metadata?.collection ? TaskStatus.Completed : TaskStatus.NotStarted,
+            update_frequency: revision.updateFrequency ? TaskStatus.Completed : TaskStatus.NotStarted,
+            designation: revision?.designation ? TaskStatus.Completed : TaskStatus.NotStarted,
+            data_sources: revision?.revisionProviders?.length > 0 ? TaskStatus.Completed : TaskStatus.NotStarted,
+            relevant_topics: revision?.revisionTopics?.length > 0 ? TaskStatus.Completed : TaskStatus.NotStarted,
+            related_reports:
+                revision?.relatedLinks && revision.relatedLinks?.length > 0
+                    ? TaskStatus.Completed
+                    : TaskStatus.NotStarted
+        };
+    }
+
+    public static publishingStatus(dataset: Dataset, revision: Revision) {
+        return {
+            organisation: dataset.team ? TaskStatus.Completed : TaskStatus.NotStarted,
+            when: revision.publishAt ? TaskStatus.Completed : TaskStatus.NotStarted
+        };
+    }
+
+    public static translationStatus(revision: Revision): TaskStatus {
+        const metaFullyTranslated = revision.metadata?.every((meta) => {
             return every(translatableMetadataKeys, (key) => {
                 // ignore roundingDescription if rounding isn't applied, otherwise check some data exists
-                return key === 'roundingDescription' && !info.roundingApplied ? true : Boolean(info[key]);
+                return key === 'roundingDescription' && !revision.roundingApplied ? true : Boolean(meta[key]);
             });
         });
 
         return metaFullyTranslated ? TaskStatus.Completed : TaskStatus.Incomplete;
     }
 
-    public static fromDataset(dataset: Dataset, lang: string): TasklistStateDTO {
-        const info = dataset.metadata?.find((info) => info.language === lang);
-
-        const measure = () => {
-            if (!dataset.measure) return undefined;
-
-            return {
-                id: dataset.measure.id,
-                name: dataset.measure.factTableColumn,
-                status: dataset.measure.joinColumn ? TaskStatus.Completed : TaskStatus.NotStarted,
-                type: 'measure'
-            };
-        };
-
-        const latestRevision = first(sortBy(dataset.revisions, 'created_at'));
-
-        const dimensions = dataset.dimensions?.reduce((dimensionStatus: DimensionStatus[], dimension) => {
-            if (dimension.type === DimensionType.NoteCodes) return dimensionStatus;
-
-            const dimInfo: DimensionMetadata | undefined = dimension.metadata.find((i) => lang.includes(i.language));
-            const dimensionUpdateTask = latestRevision?.tasks?.dimensions.find((task) => task.id === dimension.id);
-            if (dimensionUpdateTask && !dimensionUpdateTask.lookupTableUpdated) {
-                dimensionStatus.push({
-                    id: dimension.id,
-                    name: dimInfo?.name || 'unknown',
-                    status: TaskStatus.NotStarted,
-                    type: dimension.type
-                });
-            } else {
-                dimensionStatus.push({
-                    id: dimension.id,
-                    name: dimInfo?.name || 'unknown',
-                    status: dimension.extractor === null ? TaskStatus.NotStarted : TaskStatus.Completed,
-                    type: dimension.type
-                });
-            }
-
-            return dimensionStatus;
-        }, []);
+    public static fromDataset(dataset: Dataset, revision: Revision, lang: string): TasklistStateDTO {
         const dto = new TasklistStateDTO();
-        dto.datatable = latestRevision?.dataTable ? TaskStatus.Completed : TaskStatus.NotStarted;
-        dto.measure = measure();
-        dto.dimensions = dimensions;
+        dto.datatable = revision?.dataTable ? TaskStatus.Completed : TaskStatus.NotStarted;
+        dto.measure = TasklistStateDTO.measureStatus(dataset);
+        dto.dimensions = TasklistStateDTO.dimensionStatus(dataset, revision, lang);
+        dto.metadata = TasklistStateDTO.metadataStatus(revision, lang);
+        dto.publishing = TasklistStateDTO.publishingStatus(dataset, revision);
 
-        dto.metadata = {
-            title: info?.title ? TaskStatus.Completed : TaskStatus.NotStarted,
-            summary: info?.description ? TaskStatus.Completed : TaskStatus.NotStarted,
-            statistical_quality: info?.quality ? TaskStatus.Completed : TaskStatus.NotStarted,
-            data_collection: info?.collection ? TaskStatus.Completed : TaskStatus.NotStarted,
-            data_sources: dataset.datasetProviders?.length > 0 ? TaskStatus.Completed : TaskStatus.NotStarted,
-            related_reports:
-                info?.relatedLinks && info.relatedLinks?.length > 0 ? TaskStatus.Completed : TaskStatus.NotStarted,
-            update_frequency: info?.updateFrequency ? TaskStatus.Completed : TaskStatus.NotStarted,
-            designation: info?.designation ? TaskStatus.Completed : TaskStatus.NotStarted,
-            relevant_topics: dataset.datasetTopics?.length > 0 ? TaskStatus.Completed : TaskStatus.NotStarted
-        };
-
-        const dimensionsComplete = every(dimensions, (dim) => dim.status === TaskStatus.Completed);
+        const dimensionsComplete = every(dto.dimensions, (dim) => dim.status === TaskStatus.Completed);
         const metadataComplete = every(dto.metadata, (status) => status === TaskStatus.Completed);
+        const publishingComplete = every(dto.publishing, (status) => status === TaskStatus.Completed);
 
-        const translationStatus = TasklistStateDTO.translationStatus(dataset);
+        const translationStatus = TasklistStateDTO.translationStatus(revision);
         const translationsComplete = translationStatus === TaskStatus.Completed;
 
         // TODO: import should check export complete and nothing was updated since the export (needs audit table)
@@ -116,20 +126,6 @@ export class TasklistStateDTO {
             export: dimensionsComplete && metadataComplete ? TaskStatus.Available : TaskStatus.CannotStart,
             import: dimensionsComplete && metadataComplete ? translationStatus : TaskStatus.CannotStart
         };
-
-        dto.publishing = {
-            organisation: dataset.team ? TaskStatus.Completed : TaskStatus.NotStarted,
-            when: latestRevision?.publishAt ? TaskStatus.Completed : TaskStatus.NotStarted
-        };
-
-        const publishingComplete = every(dto.publishing, (status) => status === TaskStatus.Completed);
-
-        logger.debug('tasklist state: ', {
-            dimensionsComplete,
-            metadataComplete,
-            translationsComplete,
-            publishingComplete
-        });
 
         dto.canPublish = dimensionsComplete && metadataComplete && translationsComplete && publishingComplete;
 

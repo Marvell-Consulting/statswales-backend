@@ -5,7 +5,7 @@ import multer from 'multer';
 import { FindOptionsRelations } from 'typeorm';
 
 import {
-    attachDataTableToRevision,
+    updateDataTable,
     confirmFactTable,
     downloadRawFactTable,
     downloadRevisionCubeAsCSV,
@@ -13,23 +13,23 @@ import {
     downloadRevisionCubeAsJSON,
     downloadRevisionCubeAsParquet,
     downloadRevisionCubeFile,
-    getFactTableInfo,
-    getFactTablePreview,
+    getDataTablePreview,
     getRevisionInfo,
     getRevisionPreview,
     removeFactTableFromRevision,
     updateRevisionPublicationDate,
     approveForPublication,
     withdrawFromPublication,
-    createNewRevision
+    createNewRevision,
+    getDataTable
 } from '../controllers/revision';
 import { Revision } from '../entities/dataset/revision';
 import { hasError, revisionIdValidator } from '../validators';
 import { logger } from '../utils/logger';
 import { NotFoundException } from '../exceptions/not-found.exception';
-import { RevisionRepository } from '../repositories/revision';
+import { RevisionRepository, withMetadata } from '../repositories/revision';
 
-// middleware that loads the dataset (with nested relations) and stores it in res.locals
+// middleware that loads the revision and stores it in res.locals
 // leave relations undefined to load the default relations
 // pass an empty object to load no relations
 export const loadRevision = (relations?: FindOptionsRelations<Revision>) => {
@@ -41,22 +41,19 @@ export const loadRevision = (relations?: FindOptionsRelations<Revision>) => {
             return;
         }
 
-        // TODO: include user in query to prevent unauthorized access
-
         try {
-            logger.debug(`Loading dataset ${req.params.revision_id}...`);
             const revision = await RevisionRepository.getById(req.params.revision_id, relations);
+
+            if (res.locals.datasetId !== revision.datasetId) {
+                logger.error('Revision does not belong to dataset');
+                throw new NotFoundException('errors.revision_id_invalid');
+            }
+
             res.locals.revision_id = revision.id;
             res.locals.revision = revision;
         } catch (err) {
-            logger.error(`Failed to load revision, error: ${err}`);
+            logger.error(err, `Failed to load revision`);
             next(new NotFoundException('errors.no_revision'));
-            return;
-        }
-
-        if (!res.locals.dataset.revisions.find((rev: Revision) => rev.id === req.params.revision_id)) {
-            logger.error('Revision does not belong to dataset');
-            next(new NotFoundException('errors.revision_id_invalid'));
             return;
         }
 
@@ -74,20 +71,25 @@ export const revisionRouter = router;
 // Create a new revision for an update
 router.post('/', createNewRevision);
 
-// POST /dataset/:dataset_id/revision/id/:revision_id/data-table
-// Creates a new import on a revision.  This typically only occurs when a user
-// decides the file they uploaded wasn't correct.
-router.post('/by-id/:revision_id/data-table', loadRevision(), upload.single('csv'), attachDataTableToRevision);
+// GET /dataset/:dataset_id/revision/id/:revision_id
+// Returns details of a revision with metadata
+router.get('/by-id/:revision_id', loadRevision(withMetadata), getRevisionInfo);
 
-// GET /dataset/:dataset_id/revision/by-id/:revision_id/data-table/by-id/:fact_table_id
-// Returns details of a data-table with its sources
-router.get('/by-id/:revision_id/data-table', loadRevision(), getFactTableInfo);
+// GET /dataset/:dataset_id/revision/id/:revision_id/preview
+// Returns details of a revision with its imports
+router.get('/by-id/:revision_id/preview', loadRevision(), getRevisionPreview);
+
+// POST /dataset/:dataset_id/revision/id/:revision_id/data-table
+// Upload an updated data file for the revision
+router.post('/by-id/:revision_id/data-table', loadRevision(), upload.single('csv'), updateDataTable);
+
+// GET /dataset/:dataset_id/revision/by-id/:revision_id/data-table
+// Returns details of a data-table
+router.get('/by-id/:revision_id/data-table', loadRevision(), getDataTable);
 
 // GET /dataset/:dataset_id/revision/by-id/:revision_id/data-table/preview
 // Returns a view of the data file attached to the data-table
-router.get('/by-id/:revision_id/data-table/preview', loadRevision(), getFactTablePreview);
-
-router.get('/by-id/:revision_id/preview', loadRevision(), getRevisionPreview);
+router.get('/by-id/:revision_id/data-table/preview', loadRevision(), getDataTablePreview);
 
 // PATCH /dataset/:dataset_id/revision/by-id/:revision_id/data-table/confirm
 // Moves the file from temporary blob storage to datalake and creates sources
@@ -115,10 +117,6 @@ router.post('/by-id/:revision_id/approve', loadRevision(), approveForPublication
 // POST /dataset/:dataset_id/revision/by-id/<revision id>/withdraw
 // Withdraw the dataset's latest revision from scheduled publication
 router.post('/by-id/:revision_id/withdraw', loadRevision(), withdrawFromPublication);
-
-// GET /dataset/:dataset_id/revision/id/:revision_id
-// Returns details of a revision with its imports
-router.get('/by-id/:revision_id', loadRevision(), getRevisionInfo);
 
 // GET /dataset/:dataset_id/revision/by-id/:revision_id/cube
 // Returns the specific revision of the dataset as a DuckDB File

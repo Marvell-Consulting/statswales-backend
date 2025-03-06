@@ -1,7 +1,7 @@
 import { BaseEntity, Column, Entity, OneToMany, PrimaryColumn } from 'typeorm';
 
 import { ProviderSource } from './provider-source';
-import { DatasetProvider } from './dataset-provider';
+import { RevisionProvider } from './revision-provider';
 
 @Entity({ name: 'provider' })
 export class Provider extends BaseEntity {
@@ -22,6 +22,6 @@ export class Provider extends BaseEntity {
     @OneToMany(() => ProviderSource, (source) => source.provider)
     sources?: ProviderSource[];
 
-    @OneToMany(() => DatasetProvider, (datasetProvider) => datasetProvider.provider, { cascade: true })
-    datasetProviders?: DatasetProvider[];
+    @OneToMany(() => RevisionProvider, (revisionProvider) => revisionProvider.provider, { cascade: true })
+    revisionProviders?: RevisionProvider[];
 }

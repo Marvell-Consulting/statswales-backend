@@ -18,7 +18,7 @@
     "check": "npm-run-all prettier:fix lint:fix test build",
     "predev": "bash -c ' func() { if [ $(command -v podman) ]; then podman compose up -d db-dev redis; else docker compose up -d db-dev redis; fi }; func'",
     "dev:check": "npm-run-all check dev",
-    "dev": "ts-node-dev --respawn src/server.ts | pino-colada",
+    "dev": "ts-node-dev --respawn --transpile-only src/server.ts | pino-colada",
     "start": "node dist/server.js",
     "typeorm": "typeorm-ts-node-commonjs",
     "typeorm-seeding": "ts-node ./node_modules/@jorgebodega/typeorm-seeding/dist/cli.js",
@@ -27,6 +27,7 @@
     "migration:drop": "npm run typeorm schema:drop -- --dataSource=./src/db/data-source.ts",
     "migration:revert": "npm run typeorm migration:revert -- --dataSource=./src/db/data-source.ts",
     "migration:generate": "npm run typeorm migration:generate -- --dataSource=./src/db/data-source.ts",
+    "migration:create": "npm run typeorm migration:create",
     "seed:required": "npm run typeorm-seeding -- -d ./src/db/data-source.ts ./src/seeders/*.ts",
     "seed:e2e": "npm run typeorm-seeding -- -d ./src/db/data-source.ts ./test/fixtures/seed-test-fixtures.ts",
     "seed:ci": "npm run typeorm-seeding -- -d ./src/db/data-source.ts ./test/fixtures/seed-test-fixtures.ts"

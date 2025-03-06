@@ -1,12 +1,11 @@
-import fs from 'fs';
+import fs from 'node:fs';
 import { Readable } from 'node:stream';
 import { performance } from 'node:perf_hooks';
 
 import { NextFunction, Request, Response } from 'express';
 import tmp from 'tmp';
 import { t } from 'i18next';
-import { formatISO, isBefore, isValid, parse, parseISO } from 'date-fns';
-import { toZonedTime } from 'date-fns-tz';
+import { isBefore, isValid } from 'date-fns';
 
 import { User } from '../entities/user/user';
 import { DataTableDto } from '../dtos/data-table-dto';
@@ -17,7 +16,7 @@ import { logger } from '../utils/logger';
 import { DataLakeService } from '../services/datalake';
 import { DataTable } from '../entities/dataset/data-table';
 import { Locale } from '../enums/locale';
-import { DatasetRepository } from '../repositories/dataset';
+import { DatasetRepository, withDraftForTasklistState } from '../repositories/dataset';
 import { DatasetDTO } from '../dtos/dataset-dto';
 import { TasklistStateDTO } from '../dtos/tasklist-state-dto';
 import { BadRequestException } from '../exceptions/bad-request.exception';
@@ -30,14 +29,12 @@ import {
     createAndValidateDateDimension,
     createAndValidateLookupTableDimension,
     createBaseCube,
-    getCubeTimePeriods,
     loadCorrectReferenceDataIntoReferenceDataTable,
     loadReferenceDataIntoCube,
     makeCubeSafeString,
     updateFactTableValidator
 } from '../services/cube-handler';
 import { DEFAULT_PAGE_SIZE, getCSVPreview, removeFileFromDataLake, uploadCSV } from '../services/csv-processor';
-import { convertBufferToUTF8 } from '../utils/file-utils';
 import { DataTableDescription } from '../entities/dataset/data-table-description';
 import { FactTableColumn } from '../entities/dataset/fact-table-column';
 import { DataTableAction } from '../enums/data-table-action';
@@ -46,26 +43,24 @@ import { DimensionType } from '../enums/dimension-type';
 import { CubeValidationException, CubeValidationType } from '../exceptions/cube-error-exception';
 import { DimensionUpdateTask } from '../interfaces/revision-task';
 import { duckdb } from '../services/duckdb';
-import { SUPPORTED_LOCALES } from '../middleware/translation';
+import { Dataset } from '../entities/dataset/dataset';
 
 import { getCubePreview, outputCube } from './cube-controller';
 
-export const getFactTableInfo = async (req: Request, res: Response, next: NextFunction) => {
+export const getDataTable = async (req: Request, res: Response, next: NextFunction) => {
     try {
-        const fileImport = await DataTable.findOneOrFail({
-            where: {
-                id: req.params.id
-            },
-            relations: ['dataTableDescriptions', 'revision']
+        const dataTable = await DataTable.findOneOrFail({
+            where: { id: req.params.id },
+            relations: { dataTableDescriptions: true, revision: true }
         });
-        const dto = DataTableDto.fromDataTable(fileImport);
+        const dto = DataTableDto.fromDataTable(dataTable);
         res.json(dto);
     } catch (err) {
         next(new UnknownException());
     }
 };
 
-export const getFactTablePreview = async (req: Request, res: Response, next: NextFunction) => {
+export const getDataTablePreview = async (req: Request, res: Response, next: NextFunction) => {
     const { dataset, revision } = res.locals;
 
     const page_number: number = Number.parseInt(req.query.page_number as string, 10) || 1;
@@ -192,47 +187,24 @@ export const downloadRawFactTable = async (req: Request, res: Response, next: Ne
 };
 
 export const getRevisionInfo = async (req: Request, res: Response, next: NextFunction) => {
-    const dataset = res.locals.dataset;
     const revision = res.locals.revision;
     res.json(RevisionDTO.fromRevision(revision));
 };
 
-async function attachFirstDatatableToRevision(
-    revision: Revision,
-    fileImport: DataTable,
-    req: Request,
-    res: Response,
-    next: NextFunction
-) {
-    logger.debug('Attaching update data table to first revision');
-    const dataset = res.locals.dataset;
-    fileImport.revision = revision;
-    await fileImport.save();
-    const updatedDataset = await DatasetRepository.getById(dataset.id);
-    res.status(201);
-    res.json(DatasetDTO.fromDataset(updatedDataset));
-}
-
-async function attachUpdateDataTableToRevision(
-    revision: Revision,
-    fileImport: DataTable,
-    req: Request,
-    res: Response,
-    next: NextFunction
-) {
+async function attachUpdateDataTableToRevision(dataset: Dataset, revision: Revision, dataTable: DataTable, body: any) {
     logger.debug('Attaching update data table to revision and validating cube');
     const start = performance.now();
-    const dataset = res.locals.dataset;
+
     // Validate all the columns against the fact table
-    if (req.body.column_matching) {
-        const columnMatcher = JSON.parse(req.body.column_matching) as ColumnMatch[];
+    if (body.column_matching) {
+        const columnMatcher = JSON.parse(body.column_matching) as ColumnMatch[];
         const matchedColumns: string[] = [];
         for (const col of columnMatcher) {
-            const factTableCol: FactTableColumn | undefined = dataset.factTable.find(
+            const factTableCol: FactTableColumn | undefined = dataset.factTable?.find(
                 (factTableCol: FactTableColumn) =>
                     makeCubeSafeString(factTableCol.columnName) === makeCubeSafeString(col.fact_table_column_name)
             );
-            const dataTableCol = fileImport.dataTableDescriptions.find(
+            const dataTableCol = dataTable.dataTableDescriptions.find(
                 (dataTableCol: DataTableDescription) =>
                     makeCubeSafeString(dataTableCol.columnName) === makeCubeSafeString(col.data_table_column_name)
             );
@@ -241,17 +213,16 @@ async function attachUpdateDataTableToRevision(
                 dataTableCol.factTableColumn = factTableCol.columnName;
             }
         }
-        if (matchedColumns.length !== dataset.factTable.length) {
+        if (matchedColumns.length !== dataset.factTable?.length) {
             logger.error(`Could not match all columns to the fact table.`);
-            next(new UnknownException('errors.failed_to_match_columns'));
-            return;
+            throw new UnknownException('errors.failed_to_match_columns');
         }
     } else {
         // validate columns
         const matchedColumns: string[] = [];
         const unmatchedColumns: string[] = [];
-        for (const col of fileImport.dataTableDescriptions) {
-            const factTableCol: FactTableColumn = dataset.factTable.find(
+        for (const col of dataTable.dataTableDescriptions) {
+            const factTableCol: FactTableColumn | undefined = dataset.factTable?.find(
                 (factTableCol: FactTableColumn) =>
                     makeCubeSafeString(factTableCol.columnName) === makeCubeSafeString(col.columnName)
             );
@@ -263,25 +234,28 @@ async function attachUpdateDataTableToRevision(
             }
         }
 
-        if (matchedColumns.length !== dataset.factTable.length) {
+        if (matchedColumns.length !== dataset.factTable?.length) {
             logger.error(
                 `Could not match all columns to the fact table.  The following columns were not matched: ${unmatchedColumns.join(', ')}`
             );
             const end = performance.now();
             const time = Math.round(end - start);
             logger.info(`Cube update validation took ${time}ms`);
-            next(new UnknownException('errors.failed_to_match_columns'));
-            return;
+            throw new UnknownException('errors.failed_to_match_columns');
         }
     }
 
-    logger.debug(`Setting the update action to: ${req.body.update_action || 'Add'}`);
+    logger.debug(`Setting the update action to: ${body.update_action || 'Add'}`);
     let updateAction = DataTableAction.Add;
-    if (req.body.update_action) updateAction = req.body.update_action as DataTableAction;
-    fileImport.action = updateAction;
 
-    revision.dataTable = fileImport;
+    if (body.update_action) {
+        updateAction = body.update_action as DataTableAction;
+    }
+
+    dataTable.action = updateAction;
+    revision.dataTable = dataTable;
     const quack = await duckdb();
+
     try {
         await updateFactTableValidator(quack, dataset, revision);
     } catch (err) {
@@ -291,11 +265,12 @@ async function attachUpdateDataTableToRevision(
         logger.info(`Cube update validation took ${time}ms`);
         await quack.close();
         logger.error(`An error occurred trying to validate the file with the following error: ${err}`);
-        next(new BadRequestException('errors.data_table_validation_error'));
-        return;
+        throw new BadRequestException('errors.data_table_validation_error');
     }
+
     const dimensionUpdateTasks: DimensionUpdateTask[] = [];
     await loadReferenceDataIntoCube(quack);
+
     for (const dimension of dataset.dimensions) {
         try {
             switch (dimension.type) {
@@ -327,8 +302,7 @@ async function attachUpdateDataTableToRevision(
                 logger.info(`Cube update validation took ${time}ms`);
                 await quack.close();
                 logger.error(`An error occurred trying to validate the file with the following error: ${err}`);
-                next(new BadRequestException('errors.data_table_validation_error'));
-                return;
+                throw new BadRequestException('errors.data_table_validation_error');
             }
         }
     }
@@ -338,9 +312,8 @@ async function attachUpdateDataTableToRevision(
      */
 
     // eslint-disable-next-line require-atomic-updates
-    revision.tasks = {
-        dimensions: dimensionUpdateTasks
-    };
+    revision.tasks = { dimensions: dimensionUpdateTasks };
+
     logger.debug('Closing DuckDB instance');
     await quack.close();
     await revision.save();
@@ -348,16 +321,15 @@ async function attachUpdateDataTableToRevision(
     const time = Math.round(end - start);
     logger.info(`Cube update validation took ${time}ms`);
     // eslint-disable-next-line require-atomic-updates
-    fileImport.revision = revision;
-    await fileImport.save();
-    const updatedDataset = await DatasetRepository.getById(dataset.id);
-    res.status(201);
-    res.json(DatasetDTO.fromDataset(updatedDataset));
+    dataTable.revision = revision;
+    await dataTable.save();
 }
 
-export const attachDataTableToRevision = async (req: Request, res: Response, next: NextFunction) => {
-    const dataset = res.locals.dataset;
-    const revision = res.locals.revision;
+export const updateDataTable = async (req: Request, res: Response, next: NextFunction) => {
+    const dataset: Dataset = res.locals.dataset;
+    const revision: Revision = res.locals.revision;
+
+    logger.debug(`Updating data table for revision ${revision.id}`);
 
     if (!req.file) {
         next(new BadRequestException('errors.upload.no_csv'));
@@ -365,27 +337,23 @@ export const attachDataTableToRevision = async (req: Request, res: Response, nex
     }
 
     if (revision.dataTable) {
-        const dataTableId = revision.dataTable.id;
-        logger.debug(`Data table (${dataTableId}) already exists, removing it from the revision.`);
-        const dataTableFile = revision.dataTable.filename;
-        const dataLakeService = new DataLakeService();
+        logger.debug(`Revision ${revision.id} already has a data table ${revision.dataTable.id}, removing it`);
         try {
-            dataLakeService.deleteFile(dataTableFile, dataset.id);
+            const dataLakeService = new DataLakeService();
+            dataLakeService.deleteFile(revision.dataTable.filename, dataset.id);
         } catch (err) {
-            logger.warn(err, 'Failed to delete file from data lake.');
+            logger.warn(err, `Failed to delete data table file ${revision.dataTable.filename} from data lake`);
         }
-        revision.dataTable = null;
-        await DataTable.getRepository().delete(dataTableId);
-        await revision.save();
+        await DataTable.getRepository().remove(revision.dataTable);
     }
 
-    let fileImport: DataTable;
-    const utf8Buffer = convertBufferToUTF8(req.file.buffer);
+    let dataTable: DataTable;
 
     try {
-        fileImport = await uploadCSV(utf8Buffer, req.file?.mimetype, req.file?.originalname, dataset.id);
+        const { buffer, mimetype, originalname } = req.file;
+        dataTable = await uploadCSV(buffer, mimetype, originalname, dataset.id);
     } catch (err) {
-        logger.error(`An error occurred trying to upload the file with the following error: ${err}`);
+        logger.error(err, `An error occurred trying to upload the file`);
         if ((err as Error).message.includes('Data Lake')) {
             next(new UnknownException('errors.data_lake_error'));
         } else {
@@ -394,10 +362,18 @@ export const attachDataTableToRevision = async (req: Request, res: Response, nex
         return;
     }
 
-    if (revision.revisionIndex > 0) {
-        await attachFirstDatatableToRevision(revision, fileImport, req, res, next);
-    } else {
-        await attachUpdateDataTableToRevision(revision, fileImport, req, res, next);
+    try {
+        if (revision.revisionIndex === 1) {
+            logger.debug('Attaching data table to first revision');
+            await RevisionRepository.save({ ...revision, dataTable });
+        } else {
+            await attachUpdateDataTableToRevision(dataset, revision, dataTable, req.body);
+        }
+        const updatedDataset = await DatasetRepository.getById(dataset.id);
+        res.status(201);
+        res.json(DatasetDTO.fromDataset(updatedDataset));
+    } catch (err) {
+        next(err);
     }
 };
 
@@ -433,7 +409,7 @@ export const updateRevisionPublicationDate = async (req: Request, res: Response,
     const revision = res.locals.revision;
 
     if (revision.approvedAt) {
-        next(new BadRequestException('errors.revision_already_approved'));
+        next(new BadRequestException('errors.publish_at.revision_already_approved'));
         return;
     }
 
@@ -461,61 +437,29 @@ export const updateRevisionPublicationDate = async (req: Request, res: Response,
 };
 
 export const approveForPublication = async (req: Request, res: Response, next: NextFunction) => {
+    const { dataset, revision } = res.locals;
+    const user = req.user as User;
+
     try {
-        const { dataset, revision } = res.locals;
-        const fullDataset = await DatasetRepository.getById(dataset.id, {
-            dimensions: {
-                metadata: true
-            },
-            revisions: {
-                dataTable: true
-            },
-            factTable: true,
-            measure: {
-                metadata: true,
-                measureTable: true
-            },
-            metadata: true,
-            datasetProviders: true,
-            datasetTopics: true,
-            team: true
-        });
-        const tasklist = TasklistStateDTO.fromDataset(fullDataset, req.language);
-        logger.debug(`Tasklist for revision: ${JSON.stringify(tasklist, null, 2)}`);
+        if (revision.approvedAt) {
+            throw new BadRequestException('errors.approve.revision_already_approved');
+        }
+
+        // is draft ready to be published?
+        const datasetForTasklist = await DatasetRepository.getById(dataset.id, withDraftForTasklistState);
+        const draftRevision = datasetForTasklist.draftRevision!;
+        const tasklist = TasklistStateDTO.fromDataset(datasetForTasklist, draftRevision, req.language);
 
         if (!tasklist.canPublish) {
-            throw new BadRequestException('dataset not ready for publication, please check tasklist');
+            logger.error('Dataset is not ready for publication, check tasklist state');
+            throw new BadRequestException('errors.approve.not_ready');
         }
-        const start = performance.now();
-        logger.debug(`Creating base cube for publication for revision: ${revision.id}`);
-        const cubeFilePath = await createBaseCube(dataset.id, revision.id);
-        const periodCoverage = await getCubeTimePeriods(cubeFilePath);
-        fullDataset.startDate = new Date(Date.parse(periodCoverage.start_date));
-        fullDataset.endDate = new Date(Date.parse(periodCoverage.end_date));
-        await fullDataset.save();
-        const dataLakeService = new DataLakeService();
-        const cubeBuffer = fs.readFileSync(cubeFilePath);
-        const onlineCubeFilename = `${revision.id}.duckdb`;
-        for (const locale of SUPPORTED_LOCALES) {
-            const lang = locale.split('-')[0].toLowerCase();
-            logger.debug(`Creating parquet file for language "${lang}" and uploading to data lake`);
-            const parquetFilePath = await outputCube(cubeFilePath, lang, DuckdbOutputType.Parquet);
-            await dataLakeService.uploadFileBuffer(
-                `${revision.id}_${lang}.parquet`,
-                dataset.id,
-                fs.readFileSync(parquetFilePath)
-            );
-        }
-        await dataLakeService.uploadFileBuffer(onlineCubeFilename, dataset.id, cubeBuffer);
-        const end = performance.now();
-        const time = Math.round(end - start);
-        logger.info(`Cube and parquet file creation took ${time}ms (including uploading to data lake)`);
-        await RevisionRepository.approvePublication(revision.id, onlineCubeFilename, req.user as User);
-        const updatedDataset = await DatasetRepository.getById(dataset.id, {});
+
+        const approvedDataset = await req.datasetService.approveForPublication(dataset.id, revision.id, user);
+
         res.status(201);
-        res.json(DatasetDTO.fromDataset(updatedDataset));
+        res.json(DatasetDTO.fromDataset(approvedDataset));
     } catch (err: any) {
-        logger.error(err, 'could not approve publication');
         next(err);
     }
 };
@@ -525,23 +469,16 @@ export const withdrawFromPublication = async (req: Request, res: Response, next:
         const { dataset, revision } = res.locals;
 
         if (!revision.publishAt || !revision.approvedAt) {
-            throw new BadRequestException('revision is not scheduled for publication');
+            throw new BadRequestException('errors.withdraw.not_scheduled');
         }
 
         if (isBefore(revision.publishAt, new Date())) {
-            throw new BadRequestException('publish date has passed, cannot withdraw published revisions');
+            throw new BadRequestException('errors.withdraw.already_published');
         }
 
-        const onlineCubeFilename = revision.onlineCubeFilename;
-        await RevisionRepository.withdrawPublication(revision.id);
-        if (onlineCubeFilename) {
-            const dataLakeService = new DataLakeService();
-            await dataLakeService.deleteFile(onlineCubeFilename, dataset.id);
-        }
-
-        const updatedDataset = await DatasetRepository.getById(dataset.id, {});
+        const withdrawnDataset = await req.datasetService.withdrawFromPublication(dataset.id, revision.id);
         res.status(201);
-        res.json(DatasetDTO.fromDataset(updatedDataset));
+        res.json(DatasetDTO.fromDataset(withdrawnDataset));
     } catch (err: any) {
         logger.error(err, 'could not withdraw publication');
         next(err);
@@ -758,17 +695,13 @@ export const downloadRevisionCubeAsExcel = async (req: Request, res: Response, n
 };
 
 export const createNewRevision = async (req: Request, res: Response, next: NextFunction) => {
-    const dataset = res.locals.dataset;
-    const revision = new Revision();
-    revision.createdBy = req.user as User;
-    if (dataset.revisions.length > 0) {
-        revision.revisionIndex = 0;
-    } else {
-        revision.revisionIndex = 1;
+    const user = req.user as User;
+
+    try {
+        const dataset = await req.datasetService.createRevision(res.locals.datasetId, user);
+        res.status(201);
+        res.json(RevisionDTO.fromRevision(dataset.draftRevision!));
+    } catch (err) {
+        next(err);
     }
-    logger.info(`Creating new revision for dataset ${dataset.id}`);
-    revision.dataset = dataset;
-    const savedRevision = await revision.save();
-    res.status(201);
-    res.json(RevisionDTO.fromRevision(savedRevision));
 };

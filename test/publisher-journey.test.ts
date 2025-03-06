@@ -12,7 +12,6 @@ import { initPassport } from '../src/middleware/passport-auth';
 import { Dataset } from '../src/entities/dataset/dataset';
 import { t } from '../src/middleware/translation';
 import { DatasetDTO } from '../src/dtos/dataset-dto';
-import { DatasetInfoDTO } from '../src/dtos/dataset-info-dto';
 import { DataTableDto } from '../src/dtos/data-table-dto';
 import { MAX_PAGE_SIZE, MIN_PAGE_SIZE } from '../src/services/csv-processor';
 import { User } from '../src/entities/user/user';
@@ -20,9 +19,12 @@ import { SourceAssignmentDTO } from '../src/dtos/source-assignment-dto';
 import { FactTableColumnType } from '../src/enums/fact-table-column-type';
 import { Revision } from '../src/entities/dataset/revision';
 import { Locale } from '../src/enums/locale';
-import { DatasetRepository } from '../src/repositories/dataset';
+import { DatasetRepository, withDraftAndMetadata } from '../src/repositories/dataset';
 import { DataTable } from '../src/entities/dataset/data-table';
+import { DatasetService } from '../src/services/dataset';
 import { logger } from '../src/utils/logger';
+import { RevisionRepository } from '../src/repositories/revision';
+import { RevisionMetadataDTO } from '../src/dtos/revistion-metadata-dto';
 
 import { createFullDataset, createSmallDataset } from './helpers/test-helper';
 import { getTestUser } from './helpers/get-user';
@@ -40,6 +42,8 @@ const revision1Id = '85f0e416-8bd1-4946-9e2c-1c958897c6ef';
 const import1Id = 'fa07be9d-3495-432d-8c1f-d0fc6daae359';
 const user: User = getTestUser('test', 'user');
 
+let datasetService: DatasetService;
+
 describe('API Endpoints', () => {
     let dbManager: DatabaseManager;
     beforeAll(async () => {
@@ -48,6 +52,7 @@ describe('API Endpoints', () => {
             await initPassport(dbManager.getDataSource());
             await user.save();
             await createFullDataset(dataset1Id, revision1Id, import1Id, user);
+            datasetService = new DatasetService(Locale.EnglishGb);
         } catch (error) {
             logger.error(error, 'Could not initialise test database');
             await dbManager.getDataSource().dropDatabase();
@@ -76,12 +81,12 @@ describe('API Endpoints', () => {
             const data = { title: 'My test datatset' };
             const res = await request(app).post('/dataset').set(getAuthHeader(user)).send(data);
             expect(res.status).toBe(201);
-            const dataset = await DatasetRepository.getById(res.body.id, { metadata: true });
+            const dataset = await DatasetRepository.getById(res.body.id, withDraftAndMetadata);
             expect(res.body).toEqual(DatasetDTO.fromDataset(dataset));
         });
 
         test('Upload returns 400 if no file attached', async () => {
-            const dataset = await DatasetRepository.createWithTitle(user, Locale.EnglishGb, 'Test Dataset 1');
+            const dataset = await datasetService.createNew('Test Dataset 1', user);
             const res = await request(app).post(`/dataset/${dataset.id}/data`).set(getAuthHeader(user));
             expect(res.status).toBe(400);
             expect(res.body).toEqual({ error: 'No CSV data provided' });
@@ -89,7 +94,7 @@ describe('API Endpoints', () => {
         });
 
         test('Upload returns 201 if a file is attached', async () => {
-            const dataset = await DatasetRepository.createWithTitle(user, Locale.EnglishGb, 'Test Dataset 2');
+            const dataset = await datasetService.createNew('Test Dataset 2', user);
             const csvFile = path.resolve(__dirname, `sample-files/csv/sure-start-short.csv`);
             const res = await request(app)
                 .post(`/dataset/${dataset.id}/data`)
@@ -236,11 +241,13 @@ describe('API Endpoints', () => {
                 ]
             });
         });
+
         test('Get preview of an import returns 200 and correct page data', async () => {
             const testDatasetId = crypto.randomUUID().toLowerCase();
             const testRevisionId = crypto.randomUUID().toLowerCase();
             const testFileImportId = crypto.randomUUID().toLowerCase();
             await createSmallDataset(testDatasetId, testRevisionId, testFileImportId, user);
+
             const testFile2 = path.resolve(__dirname, `sample-files/csv/sure-start-short.csv`);
             const testFile1Buffer = fs.readFileSync(testFile2);
             DataLakeService.prototype.getFileBuffer = jest.fn().mockReturnValue(testFile1Buffer.toString());
@@ -249,6 +256,7 @@ describe('API Endpoints', () => {
                 .get(`/dataset/${testDatasetId}/revision/by-id/${testRevisionId}/data-table/preview`)
                 .set(getAuthHeader(user))
                 .query({ page_number: 1, page_size: 100 });
+
             expect(res.status).toBe(200);
             expect(res.body.current_page).toBe(1);
             expect(res.body.total_pages).toBe(1);
@@ -334,7 +342,10 @@ describe('API Endpoints', () => {
             const dto = DatasetDTO.fromDataset(updatedDataset);
             expect(res.body).toEqual(dto);
 
-            const revision = updatedDataset.revisions.find((rev: Revision) => rev.id === testRevisionId);
+            const revision = await RevisionRepository.findOne({
+                where: { id: testRevisionId },
+                relations: { dataTable: true }
+            });
 
             if (!revision) {
                 throw new Error('Revision not found');
@@ -370,11 +381,11 @@ describe('API Endpoints', () => {
             const testFileImportId = crypto.randomUUID().toLowerCase();
             await createSmallDataset(testDatasetId, testRevisionId, testFileImportId, user);
 
-            const fileImport = await DataTable.findOneBy({ id: testFileImportId });
-            if (!fileImport) {
-                throw new Error('File Import not found');
+            const dataTable = await DataTable.findOneBy({ id: testFileImportId });
+            if (!dataTable) {
+                throw new Error('Data table not found');
             }
-            await fileImport.remove();
+            await dataTable.remove();
 
             const revision = await Revision.findOne({ where: { id: testRevisionId }, relations: ['dataTable'] });
             if (!revision) {
@@ -481,13 +492,16 @@ describe('API Endpoints', () => {
             const testRevisionId = crypto.randomUUID().toLowerCase();
             const testFileImportId = crypto.randomUUID().toLowerCase();
             await createSmallDataset(testDatasetId, testRevisionId, testFileImportId, user);
+
             const postProcessedImport = await DataTable.findOne({
                 where: { id: testFileImportId },
                 relations: ['dataTableDescriptions']
             });
+
             if (!postProcessedImport) {
                 throw new Error('Import not found');
             }
+
             const sources = postProcessedImport.dataTableDescriptions;
             const sourceAssignment: SourceAssignmentDTO[] = sources.map((source, index) => {
                 switch (source.columnName) {
@@ -539,8 +553,9 @@ describe('API Endpoints', () => {
                 .patch(`/dataset/${testDatasetId}/sources`)
                 .send(sourceAssignment)
                 .set(getAuthHeader(user));
+
             expect(res.status).toBe(200);
-            const updatedDataset = await DatasetRepository.getById(testDatasetId);
+            const updatedDataset = await DatasetRepository.getById(testDatasetId, { dimensions: true });
             if (!updatedDataset) {
                 throw new Error('Dataset not found');
             }
@@ -587,7 +602,7 @@ describe('API Endpoints', () => {
                 .set(getAuthHeader(user));
             expect(res.status).toBe(400);
 
-            const updatedDataset = await DatasetRepository.getById(testDatasetId);
+            const updatedDataset = await DatasetRepository.getById(testDatasetId, { dimensions: true });
             if (!updatedDataset) {
                 throw new Error('Dataset not found');
             }
@@ -625,7 +640,7 @@ describe('API Endpoints', () => {
 
             expect(res.status).toBe(400);
 
-            const updatedDataset = await DatasetRepository.getById(testDatasetId);
+            const updatedDataset = await DatasetRepository.getById(testDatasetId, { dimensions: true });
             if (!updatedDataset) {
                 throw new Error('Dataset not found');
             }
@@ -636,48 +651,56 @@ describe('API Endpoints', () => {
 
     describe('Metadata handling routes', () => {
         describe('Update title/description endpoint', () => {
-            test('Returns 200 when updating existing dataset info', async () => {
+            test('Can update the English title', async () => {
                 const testDatasetId = crypto.randomUUID().toLowerCase();
                 const testRevisionId = crypto.randomUUID().toLowerCase();
                 const testFileImportId = crypto.randomUUID().toLowerCase();
                 await createSmallDataset(testDatasetId, testRevisionId, testFileImportId, user);
 
-                const updatedInfo = new DatasetInfoDTO();
-                updatedInfo.language = 'en-GB';
-                updatedInfo.description = 'This description has been updated';
-                updatedInfo.title = 'Updated dataset title';
+                const meta: RevisionMetadataDTO = {
+                    language: 'en-GB',
+                    title: 'Updated dataset title'
+                };
 
                 const res = await request(app)
-                    .patch(`/dataset/${testDatasetId}/info`)
-                    .send(updatedInfo)
+                    .patch(`/dataset/${testDatasetId}/metadata`)
+                    .send(meta)
                     .set(getAuthHeader(user));
                 expect(res.status).toBe(201);
 
-                const updatedDataset = await DatasetRepository.getById(testDatasetId, { metadata: true });
-                const datasetDto = DatasetDTO.fromDataset(updatedDataset);
-                expect(res.body).toEqual(datasetDto);
+                const updatedDataset = await DatasetRepository.getById(testDatasetId, {
+                    draftRevision: { metadata: true }
+                });
+
+                const metaEN = updatedDataset.draftRevision?.metadata.find((meta) => meta.language.includes('en'));
+
+                expect(metaEN?.title).toEqual(meta.title);
             });
 
-            test('Returns 201 when adding new dataset info', async () => {
+            test('Can update the Welsh title', async () => {
                 const testDatasetId = crypto.randomUUID().toLowerCase();
                 const testRevisionId = crypto.randomUUID().toLowerCase();
                 const testFileImportId = crypto.randomUUID().toLowerCase();
                 await createSmallDataset(testDatasetId, testRevisionId, testFileImportId, user);
 
-                const updatedInfo = new DatasetInfoDTO();
-                updatedInfo.language = 'cy-GB';
-                updatedInfo.description = 'This should be a welsh description';
-                updatedInfo.title = 'This should be a welsh title';
+                const meta: RevisionMetadataDTO = {
+                    language: 'cy-GB',
+                    title: 'This should be a welsh title'
+                };
 
                 const res = await request(app)
-                    .patch(`/dataset/${testDatasetId}/info`)
-                    .send(updatedInfo)
+                    .patch(`/dataset/${testDatasetId}/metadata`)
+                    .send(meta)
                     .set(getAuthHeader(user));
                 expect(res.status).toBe(201);
 
-                const updatedDataset = await DatasetRepository.getById(testDatasetId, { metadata: true });
-                const datasetDto = DatasetDTO.fromDataset(updatedDataset);
-                expect(res.body).toEqual(datasetDto);
+                const updatedDataset = await DatasetRepository.getById(testDatasetId, {
+                    draftRevision: { metadata: true }
+                });
+
+                const metaCY = updatedDataset.draftRevision?.metadata.find((meta) => meta.language.includes('cy'));
+
+                expect(metaCY?.title).toEqual(meta.title);
             });
         });
     });

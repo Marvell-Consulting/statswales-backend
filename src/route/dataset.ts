@@ -8,7 +8,15 @@ import { FindOptionsRelations } from 'typeorm';
 import passport from 'passport';
 
 import { logger } from '../utils/logger';
-import { DatasetRepository } from '../repositories/dataset';
+import {
+    withDraftForCube,
+    withDraftAndMetadata,
+    DatasetRepository,
+    withAll,
+    withDraftForTasklistState,
+    withDraftAndProviders,
+    withDraftAndTopics
+} from '../repositories/dataset';
 import { datasetIdValidator, hasError } from '../validators';
 import { NotFoundException } from '../exceptions/not-found.exception';
 import { Dataset } from '../entities/dataset/dataset';
@@ -20,23 +28,22 @@ import {
     downloadCubeFile
 } from '../controllers/cube-controller';
 import {
-    addProvidersToDataset,
+    addDataProvider,
     createDataset,
-    createFirstRevision,
+    uploadDataTable,
     cubePreview,
     deleteDatasetById,
-    getDatasetById,
-    getDatasetProviders,
-    getDatasetTasklist,
-    getDatasetTopics,
+    getDataProviders,
+    getTasklist,
+    getTopics,
     getFactTableDefinition,
-    listActiveDatasets,
     listAllDatasets,
-    updateDatasetInfo,
-    updateDatasetProviders,
+    updateMetadata,
+    updateDataProviders,
     updateDatasetTeam,
-    updateDatasetTopics,
-    updateSources
+    updateTopics,
+    updateSources,
+    getDatasetById
 } from '../controllers/dataset';
 import { rateLimiter } from '../middleware/rate-limiter';
 
@@ -91,7 +98,7 @@ router.use(
     rateLimiter,
     passport.authenticate('jwt', { session: false }),
     loadDataset({
-        dimensions: { metadata: true },
+        dimensions: { metadata: true, lookupTable: true },
         factTable: true,
         measure: { measureTable: true, metadata: true },
         revisions: { dataTable: { dataTableDescriptions: true } }
@@ -103,7 +110,7 @@ router.use(
     rateLimiter,
     passport.authenticate('jwt', { session: false }),
     loadDataset({
-        dimensions: true,
+        dimensions: { metadata: true, lookupTable: true },
         revisions: { dataTable: true }
     }),
     dimensionRouter
@@ -112,81 +119,71 @@ router.use(
     '/:dataset_id/measure',
     rateLimiter,
     passport.authenticate('jwt', { session: false }),
-    loadDataset({
-        factTable: true,
-        measure: { measureTable: true, metadata: true },
-        revisions: { dataTable: true }
-    }),
+    loadDataset(withDraftForCube),
     measureRouter
 );
 
-// GET /dataset
-// Returns a JSON object with a list of all datasets and their titles
+// GET /dataset/
+// Returns a list of all datasets
 router.get('/', listAllDatasets);
-
-// GET /dataset/active
-// Returns a list of all active datasets e.g. ones with imports
-router.get('/active', listActiveDatasets);
-
-// GET /dataset/:dataset_id
-// Returns the dataset with the given ID with all available relations hydrated
-router.get('/:dataset_id', loadDataset(), getDatasetById);
-
-// GET /dataset/:dataset_id/limited
-// Returns the dataset with the given ID with limited relations hydrated
-router.get('/:dataset_id/limited', loadDataset({ metadata: true, revisions: true }), getDatasetById);
-
-// DELETE /dataset/:dataset_id
-// Deletes the dataset with the given ID
-router.delete('/:dataset_id', loadDataset({}), deleteDatasetById);
 
 // POST /dataset
 // Creates a new dataset with a title
 // Returns a DatasetDTO object
 router.post('/', jsonParser, createDataset);
 
+// DELETE /dataset/:dataset_id
+// Deletes the dataset with the given ID
+router.delete('/:dataset_id', loadDataset({}), deleteDatasetById);
+
+// GET /dataset/:dataset_id
+// Returns the dataset with no relations hydrated (i.e. validates dataset exists)
+router.get('/:dataset_id', loadDataset({}), getDatasetById);
+
+// GET /dataset/:dataset_id/all
+// Returns the dataset with all available relations hydrated
+router.get('/:dataset_id/all', loadDataset(withAll), getDatasetById);
+
+// GET /dataset/:dataset_id/data
+// Returns the dataset with the current draft revision and data table
+router.get('/:dataset_id/data', loadDataset(withDraftForCube), getDatasetById);
+
 // POST /dataset/:dataset_id/data
-// Upload a CSV file to a dataset
-// Returns a DTO object that includes the revisions and import records
-router.post(
-    '/:dataset_id/data',
-    upload.single('csv'),
-    loadDataset({
-        factTable: true,
-        measure: { measureTable: true },
-        dimensions: true,
-        revisions: { dataTable: { dataTableDescriptions: true } }
-    }),
-    createFirstRevision
-);
+// Upload a data file to a dataset
+// Returns a DTO object that includes the draft revision
+router.post('/:dataset_id/data', upload.single('csv'), loadDataset({}), uploadDataTable);
 
 // GET /dataset/:dataset_id/view
 // Returns a view of the data file attached to the import
-router.get('/:dataset_id/view', loadDataset(), cubePreview);
+router.get('/:dataset_id/view', loadDataset(withDraftForCube), cubePreview);
 
 // GET /dataset/:dataset_id/cube
 // Returns the latest revision of the dataset as a DuckDB File
-router.get('/:dataset_id/cube', loadDataset(), downloadCubeFile);
+router.get('/:dataset_id/cube', loadDataset(withDraftForCube), downloadCubeFile);
 
 // GET /dataset/:dataset_id/cube/json
 // Returns a JSON file representation of the default view of the cube
-router.get('/:dataset_id/cube/json', loadDataset(), downloadCubeAsJSON);
+router.get('/:dataset_id/cube/json', loadDataset(withDraftForCube), downloadCubeAsJSON);
 
 // GET /dataset/:dataset_id/cube/csv
 // Returns a CSV file representation of the default view of the cube
-router.get('/:dataset_id/cube/csv', loadDataset(), downloadCubeAsCSV);
+router.get('/:dataset_id/cube/csv', loadDataset(withDraftForCube), downloadCubeAsCSV);
 
 // GET /dataset/:dataset_id/cube/parquet
 // Returns a CSV file representation of the default view of the cube
-router.get('/:dataset_id/cube/parquet', loadDataset(), downloadCubeAsParquet);
+router.get('/:dataset_id/cube/parquet', loadDataset(withDraftForCube), downloadCubeAsParquet);
 
 // GET /dataset/:dataset_id/cube/excel
 // Returns a CSV file representation of the default view of the cube
-router.get('/:dataset_id/cube/excel', loadDataset(), downloadCubeAsExcel);
+router.get('/:dataset_id/cube/excel', loadDataset(withDraftForCube), downloadCubeAsExcel);
 
-// PATCH /dataset/:dataset_id/info
+// GET /dataset/:dataset_id/metadata
+// Returns the dataset with the current draft and metadata
+router.get('/:dataset_id/metadata', loadDataset(withDraftAndMetadata), getDatasetById);
+
+// PATCH /dataset/:dataset_id/metadata
 // Updates the dataset info with the provided data
-router.patch('/:dataset_id/info', jsonParser, loadDataset({}), updateDatasetInfo);
+router.patch('/:dataset_id/metadata', jsonParser, loadDataset({}), updateMetadata);
 
 router.get('/:dataset_id/sources', loadDataset({ factTable: true }), getFactTableDefinition);
 
@@ -204,53 +201,31 @@ router.get('/:dataset_id/fact-table', loadDataset({ factTable: true }), getFactT
 // Notes: There can only be one object with a type of "dataValue" and one object with a type of "noteCodes"
 // and one object with a value of "measure"
 // Returns a JSON object with the current state of the dataset including the dimensions created.
-router.patch(
-    '/:dataset_id/sources',
-    jsonParser,
-    loadDataset({
-        dimensions: true,
-        revisions: {
-            dataTable: {
-                dataTableDescriptions: true
-            }
-        },
-        factTable: true
-    }),
-    updateSources
-);
+router.patch('/:dataset_id/sources', jsonParser, loadDataset(withDraftForCube), updateSources);
 
 // GET /dataset/:dataset_id/tasklist
 // Returns a JSON object with info on what parts of the dataset have been created
-const relForTasklistState: FindOptionsRelations<Dataset> = {
-    metadata: true,
-    revisions: { dataTable: true },
-    dimensions: { metadata: true },
-    measure: { measureTable: true },
-    datasetProviders: true,
-    datasetTopics: true,
-    team: true
-};
-router.get('/:dataset_id/tasklist', loadDataset(relForTasklistState), getDatasetTasklist);
+router.get('/:dataset_id/tasklist', loadDataset(withDraftForTasklistState), getTasklist);
 
 // GET /dataset/:dataset_id/providers
 // Returns the data providers for the dataset
-router.get('/:dataset_id/providers', jsonParser, loadDataset({}), getDatasetProviders);
+router.get('/:dataset_id/providers', jsonParser, loadDataset(withDraftAndProviders), getDataProviders);
 
 // POST /dataset/:dataset_id/providers
 // Adds a new data provider for the dataset
-router.post('/:dataset_id/providers', jsonParser, loadDataset({}), addProvidersToDataset);
+router.post('/:dataset_id/providers', jsonParser, loadDataset({}), addDataProvider);
 
 // PATCH /dataset/:dataset_id/providers
 // Updates the data providers for the dataset
-router.patch('/:dataset_id/providers', jsonParser, loadDataset({}), updateDatasetProviders);
+router.patch('/:dataset_id/providers', jsonParser, loadDataset({}), updateDataProviders);
 
 // GET /dataset/:dataset_id/topics
 // Returns the topics for the dataset
-router.get('/:dataset_id/topics', jsonParser, loadDataset({}), getDatasetTopics);
+router.get('/:dataset_id/topics', jsonParser, loadDataset(withDraftAndTopics), getTopics);
 
 // PATCH /dataset/:dataset_id/topics
 // Updates the topics for the dataset
-router.patch('/:dataset_id/topics', jsonParser, loadDataset({}), updateDatasetTopics);
+router.patch('/:dataset_id/topics', jsonParser, loadDataset(withDraftAndTopics), updateTopics);
 
 // PATCH /dataset/:dataset_id/team
 // Updates the team for the dataset

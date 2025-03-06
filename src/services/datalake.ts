@@ -53,7 +53,7 @@ export class DataLakeService {
     }
 
     public async uploadFileBuffer(fileName: string, directory: string, fileContent: Buffer) {
-        logger.debug(`Uploading file with file '${fileName}' to datalake`);
+        logger.debug(`Uploading file with name '${fileName}' to datalake`);
         const fileSystemClient = this.serviceClient.getFileSystemClient(fileSystemName);
         const directoryClient = fileSystemClient.getDirectoryClient(directory);
         const fileClient = directoryClient.getFileClient(fileName);
@@ -97,6 +97,7 @@ export class DataLakeService {
     }
 
     public async getFileBuffer(fileName: string, directory: string) {
+        logger.debug(`Fetching file buffer with name '${fileName}' from datalake`);
         const fileSystemClient = this.serviceClient.getFileSystemClient(fileSystemName);
         const directoryClient = fileSystemClient.getDirectoryClient(directory);
         const fileClient = directoryClient.getFileClient(fileName);

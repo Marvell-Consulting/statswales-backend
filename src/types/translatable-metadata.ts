@@ -1,8 +1,8 @@
-import { DatasetMetadata } from '../entities/dataset/dataset-metadata';
+import { RevisionMetadata } from '../entities/dataset/revision-metadata';
 
-export const translatableMetadataKeys: (keyof DatasetMetadata)[] = [
+export const translatableMetadataKeys: (keyof RevisionMetadata)[] = [
     'title',
-    'description',
+    'summary',
     'collection',
     'quality',
     'roundingDescription'

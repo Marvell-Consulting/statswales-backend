@@ -3,6 +3,7 @@ import { Readable } from 'node:stream';
 import { Request, Response, NextFunction, Router } from 'express';
 import { parse, stringify } from 'csv';
 import multer from 'multer';
+import { pick } from 'lodash';
 
 import { logger } from '../utils/logger';
 import { UnknownException } from '../exceptions/unknown.exception';
@@ -10,9 +11,9 @@ import { BadRequestException } from '../exceptions/bad-request.exception';
 import { Dataset } from '../entities/dataset/dataset';
 import { DatasetDTO } from '../dtos/dataset-dto';
 import { TranslationDTO } from '../dtos/translations-dto';
-import { DatasetRepository } from '../repositories/dataset';
 import { DataLakeService } from '../services/datalake';
 import { translatableMetadataKeys } from '../types/translatable-metadata';
+import { RelatedLink } from '../dtos/related-link-dto';
 
 import { loadDataset } from './dataset';
 
@@ -23,32 +24,47 @@ const upload = multer({ storage: multer.memoryStorage() });
 // imported translation filename can be constant as we overwrite each time it's imported
 const TRANSLATION_FILENAME = 'translation-import.csv';
 
-const collectTranslations = (dataset: Dataset): TranslationDTO[] => {
-    const metadataEN = dataset.metadata?.find((meta) => meta.language.includes('en'));
-    const metadataCY = dataset.metadata?.find((meta) => meta.language.includes('cy'));
+const collectTranslations = (dataset: Dataset, includeIds = false): TranslationDTO[] => {
+    const revision = dataset.draftRevision!;
+    const metadataEN = revision.metadata?.find((meta) => meta.language.includes('en'));
+    const metadataCY = revision.metadata?.find((meta) => meta.language.includes('cy'));
 
     // ignore roundingDescription if rounding isn't applied
     const metadataKeys = translatableMetadataKeys.filter((key) => {
-        return metadataEN?.roundingApplied === true ? true : key !== 'roundingDescription';
+        return revision.roundingApplied === true ? true : key !== 'roundingDescription';
     });
 
     const translations: TranslationDTO[] = [
-        ...dataset.dimensions?.map((dimension) => ({
-            type: 'dimension',
-            key: dimension.factTableColumn,
-            english: dimension.metadata?.find((meta) => meta.language.includes('en'))?.name,
-            cymraeg: dimension.metadata?.find((meta) => meta.language.includes('cy'))?.name,
-            id: dimension.id
-        })),
+        ...dataset.dimensions?.map((dimension) => {
+            const factTableColumn = dimension.factTableColumn;
+            const dimMetaEN = dimension.metadata?.find((meta) => meta.language.includes('en'));
+            const dimMetaCY = dimension.metadata?.find((meta) => meta.language.includes('cy'));
+            const dimNameEN = dimMetaEN?.name === factTableColumn ? '' : dimMetaEN?.name;
+            const dimNameCY = dimMetaCY?.name === factTableColumn ? '' : dimMetaCY?.name;
+
+            return {
+                type: 'dimension',
+                key: dimension.factTableColumn,
+                english: dimNameEN,
+                cymraeg: dimNameCY,
+                id: dimension.id
+            };
+        }),
         ...metadataKeys.map((prop) => ({
             type: 'metadata',
             key: prop,
             english: metadataEN?.[prop] as string,
             cymraeg: metadataCY?.[prop] as string
+        })),
+        ...(revision.relatedLinks || []).map((link: RelatedLink) => ({
+            type: 'link',
+            key: link.id,
+            english: link.labelEN,
+            cymraeg: link.labelCY
         }))
     ];
 
-    return translations;
+    return includeIds ? translations : translations.map((row) => pick(row, ['type', 'key', 'english', 'cymraeg']));
 };
 
 const parseUploadedTranslations = async (fileBuffer: Buffer): Promise<TranslationDTO[]> => {
@@ -67,12 +83,12 @@ const parseUploadedTranslations = async (fileBuffer: Buffer): Promise<Translatio
 
 translationRouter.get(
     '/:dataset_id/preview',
-    loadDataset({ metadata: true, dimensions: { metadata: true } }),
+    loadDataset({ draftRevision: { metadata: true }, dimensions: { metadata: true } }),
     async (req: Request, res: Response, next: NextFunction) => {
         try {
             logger.info('Previewing translations for export...');
             const dataset: Dataset = res.locals.dataset;
-            const translations = collectTranslations(dataset);
+            const translations = collectTranslations(dataset, true);
             res.json(translations);
         } catch (error) {
             logger.error(error, 'Error previewing translations');
@@ -83,7 +99,7 @@ translationRouter.get(
 
 translationRouter.get(
     '/:dataset_id/export',
-    loadDataset({ metadata: true, dimensions: { metadata: true } }),
+    loadDataset({ draftRevision: { metadata: true }, dimensions: { metadata: true } }),
     async (req: Request, res: Response, next: NextFunction) => {
         try {
             logger.info('Exporting translations to CSV...');
@@ -101,7 +117,7 @@ translationRouter.get(
 translationRouter.post(
     '/:dataset_id/import',
     upload.single('csv'),
-    loadDataset({ metadata: true, dimensions: { metadata: true } }),
+    loadDataset({ draftRevision: { metadata: true }, dimensions: { metadata: true } }),
     async (req: Request, res: Response, next: NextFunction) => {
         const dataset: Dataset = res.locals.dataset;
         logger.info('Validating imported translations CSV...');
@@ -155,7 +171,7 @@ translationRouter.post(
 
 translationRouter.patch(
     '/:dataset_id/import',
-    loadDataset({ metadata: true, dimensions: { metadata: true } }),
+    loadDataset({ draftRevision: { metadata: true }, dimensions: { metadata: true } }),
     async (req: Request, res: Response, next: NextFunction) => {
         let dataset: Dataset = res.locals.dataset;
         logger.info('Updating translations from CSV...');
@@ -164,7 +180,7 @@ translationRouter.patch(
             const datalake = new DataLakeService();
             const fileBuffer = await datalake.getFileBuffer(TRANSLATION_FILENAME, dataset.id);
             const newTranslations = await parseUploadedTranslations(fileBuffer);
-            dataset = await DatasetRepository.updateTranslations(dataset.id, newTranslations);
+            dataset = await req.datasetService.updateTranslations(dataset.id, newTranslations);
             await datalake.deleteFile(TRANSLATION_FILENAME, dataset.id);
 
             res.status(201);

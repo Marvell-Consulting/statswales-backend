@@ -4,6 +4,7 @@ import { NextFunction, Request, Response } from 'express';
 import tmp from 'tmp';
 import { last, sortBy } from 'lodash';
 
+import { User } from '../entities/user/user';
 import { DatasetRepository } from '../repositories/dataset';
 import { Locale } from '../enums/locale';
 import { logger } from '../utils/logger';
@@ -12,64 +13,35 @@ import { DatasetDTO } from '../dtos/dataset-dto';
 import { DataLakeService } from '../services/datalake';
 import { hasError, titleValidator } from '../validators';
 import { BadRequestException } from '../exceptions/bad-request.exception';
-import { User } from '../entities/user/user';
-import { DataTable } from '../entities/dataset/data-table';
-import { DataTableAction } from '../enums/data-table-action';
-import { RevisionRepository } from '../repositories/revision';
-import { getLatestRevision } from '../utils/latest';
 import { ViewErrDTO } from '../dtos/view-dto';
 import { arrayValidator, dtoValidator } from '../validators/dto-validator';
-import { DatasetInfoDTO } from '../dtos/dataset-info-dto';
+import { RevisionMetadataDTO } from '../dtos/revistion-metadata-dto';
 import { TasklistStateDTO } from '../dtos/tasklist-state-dto';
-import { DatasetProviderDTO } from '../dtos/dataset-provider-dto';
-import { TopicSelectionDTO } from '../dtos/topic-selection-dto';
 import { TeamSelectionDTO } from '../dtos/team-selection-dto';
 import { cleanUpCube, createBaseCube } from '../services/cube-handler';
-import { DEFAULT_PAGE_SIZE, uploadCSV } from '../services/csv-processor';
-import { convertBufferToUTF8 } from '../utils/file-utils';
-import { DatasetListItemDTO } from '../dtos/dataset-list-item-dto';
-import { ResultsetWithCount } from '../interfaces/resultset-with-count';
-import {
-    cleanupDimensionMeasureAndFactTable,
-    createDimensionsFromSourceAssignment,
-    ValidatedSourceAssignment,
-    validateSourceAssignment
-} from '../services/dimension-processor';
+import { DEFAULT_PAGE_SIZE } from '../services/csv-processor';
+import { createDimensionsFromSourceAssignment, validateSourceAssignment } from '../services/dimension-processor';
 import { SourceAssignmentException } from '../exceptions/source-assignment.exception';
-import { Revision } from '../entities/dataset/revision';
 import { FactTableColumn } from '../entities/dataset/fact-table-column';
 import { Dataset } from '../entities/dataset/dataset';
-import { FactTableColumnType } from '../enums/fact-table-column-type';
 import { FactTableColumnDto } from '../dtos/fact-table-column-dto';
+import { RevisionProviderDTO } from '../dtos/revision-provider-dto';
+import { RevisionProvider } from '../entities/dataset/revision-provider';
 import { TopicDTO } from '../dtos/topic-dto';
+import { RevisionTopic } from '../entities/dataset/revision-topic';
+import { TopicSelectionDTO } from '../dtos/topic-selection-dto';
 
 import { getCubePreview } from './cube-controller';
 
 export const listAllDatasets = async (req: Request, res: Response, next: NextFunction) => {
     try {
-        const datasets: DatasetListItemDTO[] = await DatasetRepository.listAllByLanguage(req.language as Locale);
-        res.json(datasets);
-    } catch (err) {
-        logger.error(err, 'Failed to fetch dataset list');
-        next(new UnknownException());
-    }
-};
-
-export const listActiveDatasets = async (req: Request, res: Response, next: NextFunction) => {
-    try {
         const lang = req.language as Locale;
         const page = parseInt(req.query.page as string, 10) || 1;
         const limit = parseInt(req.query.limit as string, 10) || 20;
-
-        const results: ResultsetWithCount<DatasetListItemDTO> = await DatasetRepository.listActiveByLanguage(
-            lang,
-            page,
-            limit
-        );
-
+        const results = await DatasetRepository.listByLanguage(lang, page, limit);
         res.json(results);
     } catch (err) {
-        logger.error(err, 'Failed to fetch active dataset list');
+        logger.error(err, 'Failed to fetch dataset list');
         next(new UnknownException());
     }
 };
@@ -94,18 +66,16 @@ export const createDataset = async (req: Request, res: Response, next: NextFunct
     }
 
     try {
-        const language = req.language as Locale;
-        const dataset = await DatasetRepository.createWithTitle(req.user as User, language, req.body.title);
-        logger.info(`Dataset created with id: ${dataset.id}`);
+        const dataset = await req.datasetService.createNew(req.body.title, req.user as User);
         res.status(201);
         res.json(DatasetDTO.fromDataset(dataset));
     } catch (err) {
-        logger.error(`An error occurred trying to create a dataset: ${err}`);
+        logger.error(err, `Failed to create dataset`);
         next(new UnknownException());
     }
 };
 
-export const createFirstRevision = async (req: Request, res: Response, next: NextFunction) => {
+export const uploadDataTable = async (req: Request, res: Response, next: NextFunction) => {
     const dataset: Dataset = res.locals.dataset;
 
     if (!req.file) {
@@ -113,60 +83,25 @@ export const createFirstRevision = async (req: Request, res: Response, next: Nex
         return;
     }
 
-    const utf8Buffer = convertBufferToUTF8(req.file.buffer);
-
-    let fileImport: DataTable;
-    logger.debug('Uploading dataset to datalake');
     try {
-        fileImport = await uploadCSV(utf8Buffer, req.file?.mimetype, req.file?.originalname, res.locals.datasetId);
-        fileImport.action = DataTableAction.ReplaceAll;
-        fileImport.dataTableDescriptions.forEach((col) => {
-            col.factTableColumn = col.columnName;
-        });
-    } catch (err) {
-        logger.error(`An error occurred trying to upload the file: ${err}`);
-        next(new UnknownException('errors.upload_error'));
-        return;
-    }
-
-    logger.debug('Cleaning up any existing dimension, measure and fact table definitions');
-    await cleanupDimensionMeasureAndFactTable(dataset);
-
-    logger.debug('Updating dataset records');
-    try {
-        const user = req.user as User;
-        await RevisionRepository.createFromImport(res.locals.dataset, fileImport, user);
-        logger.debug('Creating base fact table definition');
-        logger.debug(`Creating fact table definitions for dataset ${res.locals.dataset.id}`);
-        for (const fileImportCol of fileImport.dataTableDescriptions) {
-            const factTable = new FactTableColumn();
-            factTable.id = res.locals.dataset.id;
-            factTable.columnName = fileImportCol.columnName;
-            factTable.columnIndex = fileImportCol.columnIndex;
-            factTable.columnDatatype = fileImportCol.columnDatatype;
-            factTable.columnType = FactTableColumnType.Unknown;
-            logger.debug(`Creating fact table definition for column ${fileImportCol.columnName}`);
-            await factTable.save();
-        }
-        const dataset = await DatasetRepository.getById(res.locals.dataset.id);
-        logger.debug(`Producing DTO for dataset ${dataset.id}`);
-        const dto = DatasetDTO.fromDataset(dataset);
+        const updatedDataset = await req.datasetService.updateFactTable(dataset.id, req.file);
+        const dto = DatasetDTO.fromDataset(updatedDataset);
         res.status(201);
         res.json(dto);
     } catch (err) {
-        logger.error(`An error occurred trying to create a revision: ${err}`);
-        next(new UnknownException('errors.upload_error'));
+        logger.error(err, 'Failed to update the fact table');
     }
 };
 
 export const cubePreview = async (req: Request, res: Response, next: NextFunction) => {
     const dataset = res.locals.dataset;
-    const latestRevision = last(sortBy(dataset?.revisions, 'revisionIndex'));
+    const latestRevision = dataset.draftRevision ?? last(sortBy(dataset?.revisions, 'revisionIndex'));
 
     if (!latestRevision) {
         next(new UnknownException('errors.no_revision'));
         return;
     }
+
     let cubeFile: string;
     if (latestRevision.onlineCubeFilename) {
         const dataLakeService = new DataLakeService();
@@ -196,10 +131,10 @@ export const cubePreview = async (req: Request, res: Response, next: NextFunctio
     res.json(cubePreview);
 };
 
-export const updateDatasetInfo = async (req: Request, res: Response, next: NextFunction) => {
+export const updateMetadata = async (req: Request, res: Response, next: NextFunction) => {
     try {
-        const infoDto = await dtoValidator(DatasetInfoDTO, req.body);
-        const updatedDataset = await DatasetRepository.patchInfoById(res.locals.datasetId, infoDto);
+        const metadata = await dtoValidator(RevisionMetadataDTO, req.body);
+        const updatedDataset = await req.datasetService.updateMetadata(res.locals.datasetId, metadata);
         res.status(201);
         res.json(DatasetDTO.fromDataset(updatedDataset));
     } catch (err: any) {
@@ -215,34 +150,38 @@ export const updateDatasetInfo = async (req: Request, res: Response, next: NextF
     }
 };
 
-export const getDatasetTasklist = async (req: Request, res: Response, next: NextFunction) => {
+export const getTasklist = async (req: Request, res: Response, next: NextFunction) => {
+    const dataset: Dataset = res.locals.dataset;
+    const revision = dataset.draftRevision!;
     try {
-        const tasklistState = TasklistStateDTO.fromDataset(res.locals.dataset, req.language as Locale);
+        const tasklistState = TasklistStateDTO.fromDataset(dataset, revision, req.language as Locale);
         res.json(tasklistState);
     } catch (err) {
+        logger.error(err, `There was a problem fetching the tasklist for dataset ${dataset.id}`);
         next(new UnknownException('errors.tasklist_error'));
     }
 };
 
-export const getDatasetProviders = async (req: Request, res: Response, next: NextFunction) => {
+export const getDataProviders = async (req: Request, res: Response, next: NextFunction) => {
+    const dataset = res.locals.dataset;
     try {
-        const relations = { datasetProviders: { provider: true, providerSource: true } };
-        const dataset: Dataset = await DatasetRepository.getById(res.locals.datasetId, relations);
-        const providers = dataset.datasetProviders.map((provider) => DatasetProviderDTO.fromDatasetProvider(provider));
+        const providers = dataset.draftRevision.revisionProviders.map((provider: RevisionProvider) =>
+            RevisionProviderDTO.fromRevisionProvider(provider)
+        );
         res.json(providers);
     } catch (err) {
         next(err);
     }
 };
 
-export const addProvidersToDataset = async (req: Request, res: Response, next: NextFunction) => {
+export const addDataProvider = async (req: Request, res: Response, next: NextFunction) => {
     try {
-        const datasetId = res.locals.datasetId;
-        const provider = await dtoValidator(DatasetProviderDTO, req.body);
-        const updatedDataset = await DatasetRepository.addDatasetProvider(datasetId, provider);
+        const provider = await dtoValidator(RevisionProviderDTO, req.body);
+        const updatedDataset = await req.datasetService.addDataProvider(res.locals.datasetId, provider);
         res.status(201);
         res.json(DatasetDTO.fromDataset(updatedDataset));
     } catch (err: any) {
+        logger.error(err, 'failed to add provider');
         if (err instanceof BadRequestException) {
             err.validationErrors?.forEach((error) => {
                 if (!error.constraints) return;
@@ -255,14 +194,14 @@ export const addProvidersToDataset = async (req: Request, res: Response, next: N
     }
 };
 
-export const updateDatasetProviders = async (req: Request, res: Response, next: NextFunction) => {
+export const updateDataProviders = async (req: Request, res: Response, next: NextFunction) => {
     try {
-        const datasetId = res.locals.datasetId;
-        const providers = await arrayValidator(DatasetProviderDTO, req.body);
-        const updatedDataset = await DatasetRepository.updateDatasetProviders(datasetId, providers);
+        const providers = await arrayValidator(RevisionProviderDTO, req.body);
+        const updatedDataset = await req.datasetService.updateDataProviders(res.locals.datasetId, providers);
         res.status(201);
         res.json(DatasetDTO.fromDataset(updatedDataset));
     } catch (err: any) {
+        logger.error(err, 'failed to update providers');
         if (err instanceof BadRequestException) {
             err.validationErrors?.forEach((error) => {
                 if (!error.constraints) return;
@@ -275,21 +214,21 @@ export const updateDatasetProviders = async (req: Request, res: Response, next: 
     }
 };
 
-export const getDatasetTopics = async (req: Request, res: Response, next: NextFunction) => {
+export const getTopics = async (req: Request, res: Response, next: NextFunction) => {
     try {
-        const dataset = await DatasetRepository.getById(res.locals.datasetId, { datasetTopics: { topic: true } });
-        const topics = dataset.datasetTopics.map((datasetTopic) => TopicDTO.fromTopic(datasetTopic.topic));
+        const revisionTopics = res.locals.dataset?.draftRevision?.revisionTopics || [];
+        const topics = revisionTopics.map((revTopic: RevisionTopic) => TopicDTO.fromTopic(revTopic.topic));
         res.json(topics);
     } catch (err) {
         next(err);
     }
 };
 
-export const updateDatasetTopics = async (req: Request, res: Response, next: NextFunction) => {
+export const updateTopics = async (req: Request, res: Response, next: NextFunction) => {
     try {
         const datasetId = res.locals.datasetId;
         const datasetTopics = await dtoValidator(TopicSelectionDTO, req.body);
-        const updatedDataset = await DatasetRepository.updateDatasetTopics(datasetId, datasetTopics.topics);
+        const updatedDataset = await req.datasetService.updateTopics(datasetId, datasetTopics.topics);
         res.status(201);
         res.json(DatasetDTO.fromDataset(updatedDataset));
     } catch (err: any) {
@@ -325,83 +264,22 @@ export const updateDatasetTeam = async (req: Request, res: Response, next: NextF
     }
 };
 
-async function updateFactTableDefinition(
-    dataset: Dataset,
-    dataTable: DataTable,
-    validatedSourceAssignment: ValidatedSourceAssignment
-) {
-    const factTableDef: FactTableColumn[] = [];
-    if (validatedSourceAssignment.dataValues) {
-        const dataTableColumn = dataTable.dataTableDescriptions.find(
-            (column) => column.columnName === validatedSourceAssignment.dataValues?.column_name
-        );
-        const factTable = new FactTableColumn();
-        factTable.dataset = dataset;
-        factTable.columnName = validatedSourceAssignment.dataValues.column_name;
-        factTable.columnType = FactTableColumnType.DataValues;
-        factTable.columnIndex = validatedSourceAssignment.dataValues.column_index;
-        factTable.columnDatatype = dataTableColumn?.columnDatatype || 'varchar';
-        const savedFactTable = await factTable.save();
-        factTableDef.push(savedFactTable);
-    }
-    if (validatedSourceAssignment.measure) {
-        const dataTableColumn = dataTable.dataTableDescriptions.find(
-            (column) => column.columnName === validatedSourceAssignment.measure?.column_name
-        );
-        const factTable = new FactTableColumn();
-        factTable.dataset = dataset;
-        factTable.columnName = validatedSourceAssignment.measure.column_name;
-        factTable.columnType = FactTableColumnType.Measure;
-        factTable.columnIndex = validatedSourceAssignment.measure.column_index;
-        factTable.columnDatatype = dataTableColumn?.columnDatatype || 'varchar';
-        const savedFactTable = await factTable.save();
-        factTableDef.push(savedFactTable);
-    }
-    if (validatedSourceAssignment.noteCodes) {
-        const dataTableColumn = dataTable.dataTableDescriptions.find(
-            (column) => column.columnName === validatedSourceAssignment.noteCodes?.column_name
-        );
-        const factTable = new FactTableColumn();
-        factTable.dataset = dataset;
-        factTable.columnName = validatedSourceAssignment.noteCodes.column_name;
-        factTable.columnType = FactTableColumnType.NoteCodes;
-        factTable.columnIndex = validatedSourceAssignment.noteCodes.column_index;
-        factTable.columnDatatype = dataTableColumn?.columnDatatype || 'varchar';
-        const savedFactTable = await factTable.save();
-        factTableDef.push(savedFactTable);
-    }
-    if (validatedSourceAssignment.dimensions) {
-        for (const dimension of validatedSourceAssignment.dimensions) {
-            const dataTableColumn = dataTable.dataTableDescriptions.find(
-                (column) => column.columnName === dimension.column_name
-            );
-            const factTable = new FactTableColumn();
-            factTable.dataset = dataset;
-            factTable.columnName = dimension.column_name;
-            factTable.columnType = FactTableColumnType.Dimension;
-            factTable.columnIndex = dimension.column_index;
-            factTable.columnDatatype = dataTableColumn?.columnDatatype || 'varchar';
-            const savedFactTable = await factTable.save();
-            factTableDef.push(savedFactTable);
-        }
-    }
-    return factTableDef;
-}
-
 export const updateSources = async (req: Request, res: Response, next: NextFunction) => {
-    const dataset = res.locals.dataset;
-    logger.debug(`Req Body = ${JSON.stringify(req.body, null, 2)}`);
+    const dataset: Dataset = res.locals.dataset;
+    const revision = dataset.draftRevision;
+    const dataTable = revision?.dataTable;
     const sourceAssignment = req.body;
-    const revision = dataset.revisions.find((revision: Revision) => revision.revisionIndex === 1);
-    if (!revision) {
+
+    if (!revision || revision.revisionIndex !== 1) {
         next(new UnknownException('errors.no_first_revision'));
         return;
     }
-    const dataTable = revision.dataTable;
+
     if (!dataTable) {
         next(new UnknownException('errors.no_fact_table'));
         return;
     }
+
     logger.debug(`Processing request to update dataset sources...`);
     try {
         const validatedSourceAssignment = validateSourceAssignment(dataTable, sourceAssignment);
@@ -420,7 +298,7 @@ export const updateSources = async (req: Request, res: Response, next: NextFunct
 };
 
 export const getFactTableDefinition = async (req: Request, res: Response, next: NextFunction) => {
-    const { dataset } = res.locals;
+    const dataset: Dataset = res.locals.dataset;
     const factTableDto: FactTableColumnDto[] =
         dataset.factTable?.map((col: FactTableColumn) => FactTableColumnDto.fromFactTableColumn(col)) || [];
     res.status(200);

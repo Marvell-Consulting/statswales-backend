@@ -169,16 +169,19 @@ export const uploadCSV = async (
     datasetId: string
 ): Promise<DataTable> => {
     const dataLakeService = new DataLakeService();
+
     if (!fileBuffer) {
         logger.error('No buffer to upload to blob storage');
         throw new Error('No buffer to upload to blob storage');
     }
+
     let uploadBuffer = fileBuffer;
     const dataTable = new DataTable();
     dataTable.id = randomUUID().toLowerCase();
     dataTable.mimeType = filetype;
     dataTable.originalFilename = originalName;
     let extension: string;
+
     switch (filetype) {
         case 'application/csv':
         case 'text/csv':
@@ -222,11 +225,14 @@ export const uploadCSV = async (
             }
             break;
         default:
-            logger.error(`A user uploaded a file with a mimetype of ${filetype} which is known.`);
+            logger.error(`Unknown mimetype of ${filetype}`);
             throw new Error('File type has not been recognised.');
     }
+
     let dataTableDescriptions: DataTableDescription[];
+
     try {
+        logger.debug('Extracting table information from file');
         dataTableDescriptions = await extractTableInformation(uploadBuffer, dataTable.fileType);
     } catch (error) {
         logger.error(`Something went wrong trying to read the users file with the following error: ${error}`);
@@ -237,6 +243,7 @@ export const uploadCSV = async (
     dataTable.action = DataTableAction.AddRevise;
     const hash = createHash('sha256');
     hash.update(uploadBuffer);
+
     try {
         await dataLakeService.createDirectory(datasetId);
         await dataLakeService.uploadFileBuffer(dataTable.filename, datasetId, uploadBuffer);
@@ -246,6 +253,7 @@ export const uploadCSV = async (
         );
         throw new Error('Error processing file upload to Data Lake');
     }
+
     dataTable.hash = hash.digest('hex');
     dataTable.uploadedAt = new Date();
     return dataTable;

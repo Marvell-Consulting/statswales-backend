@@ -31,6 +31,7 @@ import { DataTableDescription } from '../entities/dataset/data-table-description
 import { MeasureRow } from '../entities/dataset/measure-row';
 import { DatasetRepository } from '../repositories/dataset';
 import { RevisionRepository } from '../repositories/revision';
+import { PeriodCovered } from '../interfaces/period-covered';
 
 import { dateDimensionReferenceTableCreator } from './time-matching';
 import { duckdb } from './duckdb';
@@ -74,6 +75,7 @@ export const loadFileIntoCube = async (
     tempFile: string,
     tableName: string
 ) => {
+    logger.debug(`Loading file in to the cube`);
     const insertQuery = await createFactTableQuery(tableName, tempFile, fileImport.fileType, quack);
     try {
         await quack.exec(insertQuery);
@@ -363,6 +365,7 @@ export async function createAndValidateLookupTableDimension(quack: Database, dat
     const extractor = dimension.extractor as LookupTableExtractor;
     const lookupTableFile = await getFileImportAndSaveToDisk(dataset, dimension.lookupTable);
     if (dimension.lookupTable.isStatsWales2Format) {
+        logger.debug('Lookup table is SW2 format');
         await loadFileIntoCube(
             quack,
             dimension.lookupTable,
@@ -428,10 +431,12 @@ async function loadFactTablesWithUpdates(
 ) {
     for (const dataTable of allDataTables.sort((ftA, ftB) => ftA.uploadedAt.getTime() - ftB.uploadedAt.getTime())) {
         logger.info(`Loading fact table data for fact table ${dataTable.id}`);
+
         const factTableFile: string = await getFileImportAndSaveToDisk(dataset, dataTable);
         const updateTableDataCol = dataTable.dataTableDescriptions.find(
             (col) => col.factTableColumn === dataValuesColumn.columnName
         )?.columnName;
+
         const updateQuery = `UPDATE ${FACT_TABLE_NAME} SET "${dataValuesColumn.columnName}"=update_table."${updateTableDataCol}",
              "${notesCodeColumn.columnName}"=(CASE
                 WHEN ${FACT_TABLE_NAME}."${notesCodeColumn.columnName}" IS NULL THEN 'r'
@@ -440,12 +445,14 @@ async function loadFactTablesWithUpdates(
              FROM update_table WHERE ${setupFactTableUpdateJoins(FACT_TABLE_NAME, factIdentifiers, dataTable.dataTableDescriptions)}
              AND ${FACT_TABLE_NAME}."${dataValuesColumn.columnName}"!=update_table."${updateTableDataCol}";`;
         const dataTableColumnSelect: string[] = [];
+
         for (const factTableCol of factTableDef) {
             const dataTableCol = dataTable.dataTableDescriptions.find(
                 (col) => col.factTableColumn === factTableCol
             )?.columnName;
             if (dataTableCol) dataTableColumnSelect.push(dataTableCol);
         }
+
         try {
             switch (dataTable.action) {
                 case DataTableAction.ReplaceAll:
@@ -562,11 +569,11 @@ export async function loadFactTables(
         if (error instanceof CubeValidationException) {
             throw error;
         }
+        logger.error(error, `Something went wrong trying to create the core fact table`);
         const err = new CubeValidationException('Something went wrong trying to create the core fact table');
         err.type = CubeValidationType.FactTable;
         err.stack = (error as Error).stack;
         err.originalError = (error as Error).message;
-        logger.error(`Something went wrong trying to create the core fact table with error: ${error}`);
         await quack.close();
         throw err;
     }
@@ -1007,6 +1014,7 @@ async function createCubeMetadataTable(quack: Database, dataset: Dataset) {
 // Function should be able to generate a cube just from a fact table or collection
 // of fact tables.
 export const createBaseCube = async (datasetId: string, endRevisionId: string): Promise<string> => {
+    logger.debug(`Creating base cube for for revision: ${endRevisionId}`);
     const functionStart = performance.now();
     const selectStatementsMap = new Map<Locale, string[]>();
     SUPPORTED_LOCALES.map((locale) => selectStatementsMap.set(locale, []));
@@ -1130,17 +1138,17 @@ export const cleanUpCube = async (tmpFile: string) => {
     }
 };
 
-export const getCubeTimePeriods = async (cubeFile: string) => {
+export const getCubeTimePeriods = async (cubeFile: string): Promise<PeriodCovered> => {
     const quack = await duckdb(cubeFile);
     try {
         const periodCoverage = await quack.all(`SELECT key, value FROM metadata`);
         return periodCoverage.reduce(
             (acc, curr) => {
-                acc[curr.key] = curr.value;
+                acc[curr.key] = new Date(Date.parse(curr.value));
                 return acc;
             },
-            {} as Record<string, string>
-        );
+            {} as Record<string, Date>
+        ) as PeriodCovered;
     } finally {
         await quack.close();
     }

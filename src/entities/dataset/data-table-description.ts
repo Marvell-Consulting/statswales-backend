@@ -1,7 +1,5 @@
 import { Entity, PrimaryColumn, Column, BaseEntity, ManyToOne, JoinColumn } from 'typeorm';
 
-import { FactTableColumnType } from '../../enums/fact-table-column-type';
-
 import { DataTable } from './data-table';
 
 @Entity({ name: 'data_table_description' })
