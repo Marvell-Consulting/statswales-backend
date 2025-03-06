@@ -1,4 +1,4 @@
-import { And, FindOneOptions, FindOptionsRelations, IsNull, LessThan, Not } from 'typeorm';
+import { FindOneOptions, FindOptionsRelations } from 'typeorm';
 import { has, set } from 'lodash';
 
 import { logger } from '../utils/logger';
