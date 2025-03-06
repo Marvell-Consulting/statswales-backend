@@ -17,6 +17,7 @@ export class RevisionDTO {
     revision_index: number;
     previous_revision_id?: string;
     online_cube_filename?: string;
+    data_table_id?: string;
     data_table?: DataTableDto;
     created_at: string;
     created_by: string;
@@ -39,9 +40,10 @@ export class RevisionDTO {
         revDto.id = revision.id;
         revDto.revision_index = revision.revisionIndex;
         revDto.dataset_id = revision.dataset?.id;
+        revDto.data_table_id = revision.dataTableId;
         revDto.created_at = revision.createdAt.toISOString();
         revDto.updated_at = revision.updatedAt.toISOString();
-        revDto.previous_revision_id = revision.previousRevision?.id;
+        revDto.previous_revision_id = revision.previousRevisionId;
         revDto.online_cube_filename = revision.onlineCubeFilename || undefined;
         revDto.publish_at = revision.publishAt?.toISOString();
         revDto.approved_at = revision.approvedAt?.toISOString();

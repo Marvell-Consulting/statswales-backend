@@ -75,6 +75,7 @@ export const loadFileIntoCube = async (
     tempFile: string,
     tableName: string
 ) => {
+    logger.debug(`Loading file in to the cube`);
     const insertQuery = await createFactTableQuery(tableName, tempFile, fileImport.fileType, quack);
     try {
         await quack.exec(insertQuery);
@@ -364,6 +365,7 @@ export async function createAndValidateLookupTableDimension(quack: Database, dat
     const extractor = dimension.extractor as LookupTableExtractor;
     const lookupTableFile = await getFileImportAndSaveToDisk(dataset, dimension.lookupTable);
     if (dimension.lookupTable.isStatsWales2Format) {
+        logger.debug('Lookup table is SW2 format');
         await loadFileIntoCube(
             quack,
             dimension.lookupTable,

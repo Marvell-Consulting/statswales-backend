@@ -5,7 +5,7 @@ import multer from 'multer';
 import { FindOptionsRelations } from 'typeorm';
 
 import {
-    attachDataTableToRevision,
+    updateDataTable,
     confirmFactTable,
     downloadRawFactTable,
     downloadRevisionCubeAsCSV,
@@ -42,7 +42,6 @@ export const loadRevision = (relations?: FindOptionsRelations<Revision>) => {
         }
 
         try {
-            logger.debug(`Loading revision: ${req.params.revision_id}...`);
             const revision = await RevisionRepository.getById(req.params.revision_id, relations);
 
             if (res.locals.datasetId !== revision.datasetId) {
@@ -81,9 +80,8 @@ router.get('/by-id/:revision_id', loadRevision(withMetadata), getRevisionInfo);
 router.get('/by-id/:revision_id/preview', loadRevision(), getRevisionPreview);
 
 // POST /dataset/:dataset_id/revision/id/:revision_id/data-table
-// Creates a new import on a revision.  This typically only occurs when a user
-// decides the file they uploaded wasn't correct.
-router.post('/by-id/:revision_id/data-table', loadRevision(), upload.single('csv'), attachDataTableToRevision);
+// Upload an updated data file for the revision
+router.post('/by-id/:revision_id/data-table', loadRevision(), upload.single('csv'), updateDataTable);
 
 // GET /dataset/:dataset_id/revision/by-id/:revision_id/data-table
 // Returns details of a data-table

@@ -47,6 +47,9 @@ export class RevisionMetadata extends BaseEntity {
     @Column({ type: 'text', name: 'rounding_description', nullable: true })
     roundingDescription?: string;
 
+    @Column({ name: 'reason', type: 'text', nullable: true })
+    reason?: string | null;
+
     @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
     createdAt: Date;
 

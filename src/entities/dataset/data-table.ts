@@ -1,13 +1,4 @@
-import {
-    Entity,
-    PrimaryGeneratedColumn,
-    Column,
-    CreateDateColumn,
-    BaseEntity,
-    JoinColumn,
-    OneToMany,
-    OneToOne
-} from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, BaseEntity, OneToMany, OneToOne } from 'typeorm';
 
 import { FileType } from '../../enums/file-type';
 import { DataTableAction } from '../../enums/data-table-action';
@@ -21,11 +12,7 @@ export class DataTable extends BaseEntity implements FileImportInterface {
     @PrimaryGeneratedColumn('uuid', { primaryKeyConstraintName: 'PK_data_table_id' })
     id: string;
 
-    @OneToOne(() => Revision, {
-        onDelete: 'CASCADE',
-        orphanedRowAction: 'delete'
-    })
-    @JoinColumn({ name: 'revision_id', foreignKeyConstraintName: 'FK_data_table_revision_id' })
+    @OneToOne(() => Revision, (revision) => revision.dataTable, { onDelete: 'CASCADE', orphanedRowAction: 'delete' })
     revision: Revision;
 
     @Column({ name: 'mime_type', type: 'varchar', length: 255 })

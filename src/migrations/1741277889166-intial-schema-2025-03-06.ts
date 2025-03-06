@@ -1,7 +1,7 @@
 import { MigrationInterface, QueryRunner } from 'typeorm';
 
-export class IntialSchema202503051741197302913 implements MigrationInterface {
-    name = 'IntialSchema202503051741197302913';
+export class IntialSchema202503061741277889166 implements MigrationInterface {
+    name = 'IntialSchema202503061741277889166';
 
     public async up(queryRunner: QueryRunner): Promise<void> {
         await queryRunner.query(
@@ -27,10 +27,10 @@ export class IntialSchema202503051741197302913 implements MigrationInterface {
             `CREATE TYPE "public"."data_table_action_enum" AS ENUM('add', 'replace_all', 'revise', 'add_revise')`
         );
         await queryRunner.query(
-            `CREATE TABLE "data_table" ("id" uuid NOT NULL DEFAULT uuid_generate_v4(), "mime_type" character varying(255) NOT NULL, "filetype" "public"."data_table_filetype_enum" NOT NULL, "filename" character varying(255) NOT NULL, "original_filename" character varying(255) NOT NULL, "hash" character varying(255) NOT NULL, "uploaded_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), "action" "public"."data_table_action_enum" NOT NULL, "revision_id" uuid, CONSTRAINT "REL_de2e9e0025c38f8c9c03413908" UNIQUE ("revision_id"), CONSTRAINT "PK_data_table_id" PRIMARY KEY ("id"))`
+            `CREATE TABLE "data_table" ("id" uuid NOT NULL DEFAULT uuid_generate_v4(), "mime_type" character varying(255) NOT NULL, "filetype" "public"."data_table_filetype_enum" NOT NULL, "filename" character varying(255) NOT NULL, "original_filename" character varying(255) NOT NULL, "hash" character varying(255) NOT NULL, "uploaded_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), "action" "public"."data_table_action_enum" NOT NULL, CONSTRAINT "PK_data_table_id" PRIMARY KEY ("id"))`
         );
         await queryRunner.query(
-            `CREATE TABLE "revision_metadata" ("revision_id" uuid NOT NULL, "language" character varying(5) NOT NULL, "title" text, "summary" text, "collection" text, "quality" text, "rounding_description" text, "created_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), "updated_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), CONSTRAINT "PK_revision_metadata_revision_id_language" PRIMARY KEY ("revision_id", "language"))`
+            `CREATE TABLE "revision_metadata" ("revision_id" uuid NOT NULL, "language" character varying(5) NOT NULL, "title" text, "summary" text, "collection" text, "quality" text, "rounding_description" text, "reason" text, "created_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), "updated_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), CONSTRAINT "PK_revision_metadata_revision_id_language" PRIMARY KEY ("revision_id", "language"))`
         );
         await queryRunner.query(
             `CREATE TABLE "provider_source" ("id" uuid NOT NULL, "language" character varying(5) NOT NULL, "sw2_id" integer, "name" text NOT NULL, "provider_id" uuid NOT NULL, CONSTRAINT "PK_provider_source_id_language" PRIMARY KEY ("id", "language"))`
@@ -65,12 +65,13 @@ export class IntialSchema202503051741197302913 implements MigrationInterface {
             `CREATE TYPE "public"."revision_designation_enum" AS ENUM('official', 'accredited', 'in_development', 'none')`
         );
         await queryRunner.query(
-            `CREATE TABLE "revision" ("id" uuid NOT NULL DEFAULT uuid_generate_v4(), "revision_index" integer NOT NULL, "dataset_id" uuid NOT NULL, "previous_revision_id" uuid, "online_cube_filename" character varying(255), "created_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), "updated_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), "approved_at" TIMESTAMP WITH TIME ZONE, "publish_at" TIMESTAMP WITH TIME ZONE, "tasks" jsonb, "rounding_applied" boolean, "update_frequency" text, "designation" "public"."revision_designation_enum", "related_links" jsonb, "created_by" uuid, "approved_by" uuid, CONSTRAINT "PK_revision_id" PRIMARY KEY ("id"))`
+            `CREATE TABLE "revision" ("id" uuid NOT NULL DEFAULT uuid_generate_v4(), "dataset_id" uuid NOT NULL, "revision_index" integer NOT NULL, "previous_revision_id" uuid, "online_cube_filename" character varying(255), "data_table_id" uuid, "created_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), "updated_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), "approved_at" TIMESTAMP WITH TIME ZONE, "publish_at" TIMESTAMP WITH TIME ZONE, "tasks" jsonb, "rounding_applied" boolean, "update_frequency" text, "designation" "public"."revision_designation_enum", "related_links" jsonb, "created_by" uuid, "approved_by" uuid, CONSTRAINT "REL_4e80a15cf1f7e78d47396d6375" UNIQUE ("data_table_id"), CONSTRAINT "PK_revision_id" PRIMARY KEY ("id"))`
         );
         await queryRunner.query(`CREATE INDEX "IDX_revison_dataset_id" ON "revision" ("dataset_id") `);
         await queryRunner.query(
             `CREATE INDEX "IDX_revison_previous_revision_id" ON "revision" ("previous_revision_id") `
         );
+        await queryRunner.query(`CREATE INDEX "IDX_revison_data_table_id" ON "revision" ("data_table_id") `);
         await queryRunner.query(`CREATE INDEX "IDX_revison_created_by" ON "revision" ("created_by") `);
         await queryRunner.query(`CREATE INDEX "IDX_revison_approved_by" ON "revision" ("approved_by") `);
         await queryRunner.query(
@@ -119,17 +120,14 @@ export class IntialSchema202503051741197302913 implements MigrationInterface {
             `CREATE TABLE "organisation" ("id" uuid NOT NULL DEFAULT uuid_generate_v4(), "created_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), "updated_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), CONSTRAINT "PK_organisation_id" PRIMARY KEY ("id"))`
         );
         await queryRunner.query(
-            `CREATE TABLE "team_info" ("team_id" uuid NOT NULL, "language" character varying(5) NOT NULL, "name" text, "email" text NOT NULL, "created_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), "updated_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), CONSTRAINT "PK_team_info_team_id_language" PRIMARY KEY ("team_id", "language"))`
-        );
-        await queryRunner.query(
             `CREATE TABLE "team" ("id" uuid NOT NULL DEFAULT uuid_generate_v4(), "prefix" text NOT NULL, "created_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), "updated_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), "organisation_id" uuid, CONSTRAINT "PK_team_id" PRIMARY KEY ("id"))`
         );
         await queryRunner.query(`CREATE INDEX "IDX_team_organisation_id" ON "team" ("organisation_id") `);
         await queryRunner.query(
-            `ALTER TABLE "data_table_description" ADD CONSTRAINT "FK_data_table_description_fact_table_id" FOREIGN KEY ("fact_table_id") REFERENCES "data_table"("id") ON DELETE CASCADE ON UPDATE NO ACTION`
+            `CREATE TABLE "team_info" ("team_id" uuid NOT NULL, "language" character varying(5) NOT NULL, "name" text, "email" text NOT NULL, "created_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), "updated_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), CONSTRAINT "PK_team_info_team_id_language" PRIMARY KEY ("team_id", "language"))`
         );
         await queryRunner.query(
-            `ALTER TABLE "data_table" ADD CONSTRAINT "FK_data_table_revision_id" FOREIGN KEY ("revision_id") REFERENCES "revision"("id") ON DELETE CASCADE ON UPDATE NO ACTION`
+            `ALTER TABLE "data_table_description" ADD CONSTRAINT "FK_data_table_description_fact_table_id" FOREIGN KEY ("fact_table_id") REFERENCES "data_table"("id") ON DELETE CASCADE ON UPDATE NO ACTION`
         );
         await queryRunner.query(
             `ALTER TABLE "revision_metadata" ADD CONSTRAINT "FK_revision_metadata_revision_id" FOREIGN KEY ("revision_id") REFERENCES "revision"("id") ON DELETE CASCADE ON UPDATE NO ACTION`
@@ -157,6 +155,9 @@ export class IntialSchema202503051741197302913 implements MigrationInterface {
         );
         await queryRunner.query(
             `ALTER TABLE "revision" ADD CONSTRAINT "FK_revision_previous_revision_id" FOREIGN KEY ("previous_revision_id") REFERENCES "revision"("id") ON DELETE CASCADE ON UPDATE NO ACTION`
+        );
+        await queryRunner.query(
+            `ALTER TABLE "revision" ADD CONSTRAINT "FK_revision_data_table_id" FOREIGN KEY ("data_table_id") REFERENCES "data_table"("id") ON DELETE SET NULL ON UPDATE NO ACTION`
         );
         await queryRunner.query(
             `ALTER TABLE "revision" ADD CONSTRAINT "FK_revision_created_by" FOREIGN KEY ("created_by") REFERENCES "user"("id") ON DELETE NO ACTION ON UPDATE NO ACTION`
@@ -198,7 +199,7 @@ export class IntialSchema202503051741197302913 implements MigrationInterface {
             `ALTER TABLE "dataset" ADD CONSTRAINT "FK_dataset_end_revision_id" FOREIGN KEY ("end_revision_id") REFERENCES "revision"("id") ON DELETE NO ACTION ON UPDATE NO ACTION`
         );
         await queryRunner.query(
-            `ALTER TABLE "dataset" ADD CONSTRAINT "FK_dataset_draft_revision_id" FOREIGN KEY ("draft_revision_id") REFERENCES "revision"("id") ON DELETE NO ACTION ON UPDATE NO ACTION`
+            `ALTER TABLE "dataset" ADD CONSTRAINT "FK_dataset_draft_revision_id" FOREIGN KEY ("draft_revision_id") REFERENCES "revision"("id") ON DELETE SET NULL ON UPDATE NO ACTION`
         );
         await queryRunner.query(
             `ALTER TABLE "dataset" ADD CONSTRAINT "FK_dataset_published_revision_id" FOREIGN KEY ("published_revision_id") REFERENCES "revision"("id") ON DELETE NO ACTION ON UPDATE NO ACTION`
@@ -210,16 +211,16 @@ export class IntialSchema202503051741197302913 implements MigrationInterface {
             `ALTER TABLE "organisation_info" ADD CONSTRAINT "FK_organisation_info_organisation_id" FOREIGN KEY ("organisation_id") REFERENCES "organisation"("id") ON DELETE CASCADE ON UPDATE NO ACTION`
         );
         await queryRunner.query(
-            `ALTER TABLE "team_info" ADD CONSTRAINT "FK_team_info_team_id" FOREIGN KEY ("team_id") REFERENCES "team"("id") ON DELETE CASCADE ON UPDATE NO ACTION`
+            `ALTER TABLE "team" ADD CONSTRAINT "FK_team_organisation_id" FOREIGN KEY ("organisation_id") REFERENCES "organisation"("id") ON DELETE NO ACTION ON UPDATE NO ACTION`
         );
         await queryRunner.query(
-            `ALTER TABLE "team" ADD CONSTRAINT "FK_team_organisation_id" FOREIGN KEY ("organisation_id") REFERENCES "organisation"("id") ON DELETE NO ACTION ON UPDATE NO ACTION`
+            `ALTER TABLE "team_info" ADD CONSTRAINT "FK_team_info_team_id" FOREIGN KEY ("team_id") REFERENCES "team"("id") ON DELETE CASCADE ON UPDATE NO ACTION`
         );
     }
 
     public async down(queryRunner: QueryRunner): Promise<void> {
-        await queryRunner.query(`ALTER TABLE "team" DROP CONSTRAINT "FK_team_organisation_id"`);
         await queryRunner.query(`ALTER TABLE "team_info" DROP CONSTRAINT "FK_team_info_team_id"`);
+        await queryRunner.query(`ALTER TABLE "team" DROP CONSTRAINT "FK_team_organisation_id"`);
         await queryRunner.query(
             `ALTER TABLE "organisation_info" DROP CONSTRAINT "FK_organisation_info_organisation_id"`
         );
@@ -241,6 +242,7 @@ export class IntialSchema202503051741197302913 implements MigrationInterface {
         );
         await queryRunner.query(`ALTER TABLE "revision" DROP CONSTRAINT "FK_revision_approved_by"`);
         await queryRunner.query(`ALTER TABLE "revision" DROP CONSTRAINT "FK_revision_created_by"`);
+        await queryRunner.query(`ALTER TABLE "revision" DROP CONSTRAINT "FK_revision_data_table_id"`);
         await queryRunner.query(`ALTER TABLE "revision" DROP CONSTRAINT "FK_revision_previous_revision_id"`);
         await queryRunner.query(`ALTER TABLE "revision" DROP CONSTRAINT "FK_revision_dataset_id"`);
         await queryRunner.query(`ALTER TABLE "revision_topic" DROP CONSTRAINT "FK_revision_topic_topic_id"`);
@@ -254,13 +256,12 @@ export class IntialSchema202503051741197302913 implements MigrationInterface {
         await queryRunner.query(`ALTER TABLE "revision_provider" DROP CONSTRAINT "FK_revision_provider_revision_id"`);
         await queryRunner.query(`ALTER TABLE "provider_source" DROP CONSTRAINT "FK_provider_source_provider_id"`);
         await queryRunner.query(`ALTER TABLE "revision_metadata" DROP CONSTRAINT "FK_revision_metadata_revision_id"`);
-        await queryRunner.query(`ALTER TABLE "data_table" DROP CONSTRAINT "FK_data_table_revision_id"`);
         await queryRunner.query(
             `ALTER TABLE "data_table_description" DROP CONSTRAINT "FK_data_table_description_fact_table_id"`
         );
+        await queryRunner.query(`DROP TABLE "team_info"`);
         await queryRunner.query(`DROP INDEX "public"."IDX_team_organisation_id"`);
         await queryRunner.query(`DROP TABLE "team"`);
-        await queryRunner.query(`DROP TABLE "team_info"`);
         await queryRunner.query(`DROP TABLE "organisation"`);
         await queryRunner.query(`DROP TABLE "organisation_info"`);
         await queryRunner.query(`DROP INDEX "public"."IDX_dataset_team_id"`);
@@ -280,6 +281,7 @@ export class IntialSchema202503051741197302913 implements MigrationInterface {
         await queryRunner.query(`DROP TABLE "dimension_metadata"`);
         await queryRunner.query(`DROP INDEX "public"."IDX_revison_approved_by"`);
         await queryRunner.query(`DROP INDEX "public"."IDX_revison_created_by"`);
+        await queryRunner.query(`DROP INDEX "public"."IDX_revison_data_table_id"`);
         await queryRunner.query(`DROP INDEX "public"."IDX_revison_previous_revision_id"`);
         await queryRunner.query(`DROP INDEX "public"."IDX_revison_dataset_id"`);
         await queryRunner.query(`DROP TABLE "revision"`);

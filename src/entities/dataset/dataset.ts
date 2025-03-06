@@ -64,7 +64,7 @@ export class Dataset extends BaseEntity {
     endRevision: Revision | null;
 
     // the currently in progress unpublished (initial or update) revision or NULL if none in progress
-    @OneToOne(() => Revision, (revision) => revision.dataset, { nullable: true, cascade: true })
+    @OneToOne(() => Revision, (revision) => revision.dataset, { nullable: true, cascade: true, onDelete: 'SET NULL' })
     @JoinColumn({ name: 'draft_revision_id', foreignKeyConstraintName: 'FK_dataset_draft_revision_id' })
     draftRevision: Revision | null;
 

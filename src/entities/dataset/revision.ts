@@ -28,9 +28,6 @@ export class Revision extends BaseEntity {
     @PrimaryGeneratedColumn('uuid', { primaryKeyConstraintName: 'PK_revision_id' })
     id: string;
 
-    @Column({ name: 'revision_index', type: 'int', nullable: false })
-    revisionIndex: number;
-
     @Column({ name: 'dataset_id' })
     datasetId: string;
 
@@ -38,6 +35,9 @@ export class Revision extends BaseEntity {
     @ManyToOne(() => Dataset, (dataset) => dataset.revisions, { onDelete: 'CASCADE', orphanedRowAction: 'delete' })
     @JoinColumn({ name: 'dataset_id', foreignKeyConstraintName: 'FK_revision_dataset_id' })
     dataset: Dataset;
+
+    @Column({ name: 'revision_index', type: 'int', nullable: false })
+    revisionIndex: number;
 
     @Column({ name: 'previous_revision_id', nullable: true })
     previousRevisionId?: string;
@@ -50,7 +50,12 @@ export class Revision extends BaseEntity {
     @Column({ name: 'online_cube_filename', type: 'varchar', length: 255, nullable: true })
     onlineCubeFilename: string | null;
 
-    @OneToOne(() => DataTable, (dataTable) => dataTable.revision, { cascade: true })
+    @Index('IDX_revison_data_table_id')
+    @Column({ name: 'data_table_id', nullable: true })
+    dataTableId?: string;
+
+    @OneToOne(() => DataTable, (dataTable) => dataTable.revision, { cascade: true, onDelete: 'SET NULL' })
+    @JoinColumn({ name: 'data_table_id', foreignKeyConstraintName: 'FK_revision_data_table_id' })
     dataTable: DataTable | null;
 
     @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
