@@ -381,11 +381,11 @@ describe('API Endpoints', () => {
             const testFileImportId = crypto.randomUUID().toLowerCase();
             await createSmallDataset(testDatasetId, testRevisionId, testFileImportId, user);
 
-            const fileImport = await DataTable.findOneBy({ id: testFileImportId });
-            if (!fileImport) {
-                throw new Error('File Import not found');
+            const dataTable = await DataTable.findOneBy({ id: testFileImportId });
+            if (!dataTable) {
+                throw new Error('Data table not found');
             }
-            await fileImport.remove();
+            await dataTable.remove();
 
             const revision = await Revision.findOne({ where: { id: testRevisionId }, relations: ['dataTable'] });
             if (!revision) {

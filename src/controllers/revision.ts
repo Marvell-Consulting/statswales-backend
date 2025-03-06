@@ -326,15 +326,10 @@ async function attachUpdateDataTableToRevision(dataset: Dataset, revision: Revis
 }
 
 export const updateDataTable = async (req: Request, res: Response, next: NextFunction) => {
-    const dataset = res.locals.dataset;
-    const revision = res.locals.revision;
+    const dataset: Dataset = res.locals.dataset;
+    const revision: Revision = res.locals.revision;
 
     logger.debug(`Updating data table for revision ${revision.id}`);
-
-    if (revision.revisionIndex !== 0) {
-        next(new BadRequestException('errors.upload.cannot_update_non_draft'));
-        return;
-    }
 
     if (!req.file) {
         next(new BadRequestException('errors.upload.no_csv'));
@@ -349,7 +344,7 @@ export const updateDataTable = async (req: Request, res: Response, next: NextFun
         } catch (err) {
             logger.warn(err, `Failed to delete data table file ${revision.dataTable.filename} from data lake`);
         }
-        await RevisionRepository.remove(revision.dataTable);
+        await DataTable.getRepository().remove(revision.dataTable);
     }
 
     let dataTable: DataTable;
@@ -368,7 +363,12 @@ export const updateDataTable = async (req: Request, res: Response, next: NextFun
     }
 
     try {
-        await attachUpdateDataTableToRevision(dataset, revision, dataTable, req.body);
+        if (revision.revisionIndex === 1) {
+            logger.debug('Attaching data table to first revision');
+            await RevisionRepository.save({ ...revision, dataTable });
+        } else {
+            await attachUpdateDataTableToRevision(dataset, revision, dataTable, req.body);
+        }
         const updatedDataset = await DatasetRepository.getById(dataset.id);
         res.status(201);
         res.json(DatasetDTO.fromDataset(updatedDataset));
