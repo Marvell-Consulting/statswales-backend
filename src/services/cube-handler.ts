@@ -429,10 +429,12 @@ async function loadFactTablesWithUpdates(
 ) {
     for (const dataTable of allDataTables.sort((ftA, ftB) => ftA.uploadedAt.getTime() - ftB.uploadedAt.getTime())) {
         logger.info(`Loading fact table data for fact table ${dataTable.id}`);
+
         const factTableFile: string = await getFileImportAndSaveToDisk(dataset, dataTable);
         const updateTableDataCol = dataTable.dataTableDescriptions.find(
             (col) => col.factTableColumn === dataValuesColumn.columnName
         )?.columnName;
+
         const updateQuery = `UPDATE ${FACT_TABLE_NAME} SET "${dataValuesColumn.columnName}"=update_table."${updateTableDataCol}",
              "${notesCodeColumn.columnName}"=(CASE
                 WHEN ${FACT_TABLE_NAME}."${notesCodeColumn.columnName}" IS NULL THEN 'r'
@@ -441,12 +443,14 @@ async function loadFactTablesWithUpdates(
              FROM update_table WHERE ${setupFactTableUpdateJoins(FACT_TABLE_NAME, factIdentifiers, dataTable.dataTableDescriptions)}
              AND ${FACT_TABLE_NAME}."${dataValuesColumn.columnName}"!=update_table."${updateTableDataCol}";`;
         const dataTableColumnSelect: string[] = [];
+
         for (const factTableCol of factTableDef) {
             const dataTableCol = dataTable.dataTableDescriptions.find(
                 (col) => col.factTableColumn === factTableCol
             )?.columnName;
             if (dataTableCol) dataTableColumnSelect.push(dataTableCol);
         }
+
         try {
             switch (dataTable.action) {
                 case DataTableAction.ReplaceAll:
@@ -563,11 +567,11 @@ export async function loadFactTables(
         if (error instanceof CubeValidationException) {
             throw error;
         }
+        logger.error(error, `Something went wrong trying to create the core fact table`);
         const err = new CubeValidationException('Something went wrong trying to create the core fact table');
         err.type = CubeValidationType.FactTable;
         err.stack = (error as Error).stack;
         err.originalError = (error as Error).message;
-        logger.error(`Something went wrong trying to create the core fact table with error: ${error}`);
         await quack.close();
         throw err;
     }
