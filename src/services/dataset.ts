@@ -79,8 +79,10 @@ export class DatasetService {
             col.factTableColumn = col.columnName;
         });
 
-        await removeAllDimensions(dataset);
-        await removeMeasure(dataset);
+        if (dataset.draftRevision?.revisionIndex === 1) {
+            await removeAllDimensions(dataset);
+            await removeMeasure(dataset);
+        }
 
         await RevisionRepository.replaceDataTable(dataset.draftRevision!, dataTable);
         await DatasetRepository.replaceFactTable(dataset, dataTable);
