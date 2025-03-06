@@ -143,7 +143,7 @@ async function createUpdateDimension(dataset: Dataset, columnDescriptor: SourceA
     await columnInfo.save();
     const dimension = new Dimension();
     dimension.type =
-        columnDescriptor.column_type === FactTableColumnType.Time ? DimensionType.TimePeriod : DimensionType.Raw;
+        columnDescriptor.column_type === FactTableColumnType.Time ? DimensionType.DatePeriod : DimensionType.Raw;
     dimension.dataset = dataset;
     dimension.factTableColumn = columnInfo.columnName;
     const savedDimension = await dimension.save();
@@ -689,8 +689,8 @@ export const getDimensionPreview = async (
     try {
         if (dimension.extractor) {
             switch (dimension.type) {
-                case DimensionType.TimePoint:
-                case DimensionType.TimePeriod:
+                case DimensionType.Date:
+                case DimensionType.DatePeriod:
                     logger.debug('Previewing a date type dimension');
                     viewDto = await getDatePreviewWithExtractor(
                         dataset,

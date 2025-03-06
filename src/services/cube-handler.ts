@@ -810,8 +810,8 @@ async function setupDimensions(
         let languageColumn = 'lang';
         try {
             switch (dimension.type) {
-                case DimensionType.TimePeriod:
-                case DimensionType.TimePoint:
+                case DimensionType.DatePeriod:
+                case DimensionType.Date:
                     if (dimension.extractor) {
                         await createAndValidateDateDimension(quack, dimension.extractor, dimension.factTableColumn);
                         SUPPORTED_LOCALES.map((locale) => {

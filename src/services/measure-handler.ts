@@ -170,39 +170,54 @@ async function rowMatcher(
         const rows = await quack.all(`SELECT COUNT(*) as total_rows FROM ${factTableName}`);
         if (nonMatchedRows.length === rows[0].total_rows) {
             logger.error(`The user supplied an incorrect lookup table and none of the rows matched`);
-            const nonMatchedValues = await quack.all(
+            const nonMatchedFactTableValues = await quack.all(
                 `SELECT DISTINCT ${measure.factTableColumn} FROM ${factTableName};`
             );
-            return viewErrorGenerator(400, datasetId, 'patch', 'errors.dimensionValidation.invalid_lookup_table', {
+            const nonMatchedLookupValues = await quack.all(
+                `SELECT DISTINCT ${lookupTableName}."${confirmedJoinColumn}" FROM ${lookupTableName};`
+            );
+            return viewErrorGenerator(400, datasetId, 'patch', 'errors.dimensionValidation.matching_error', {
                 totalNonMatching: rows[0].total_rows,
-                nonMatchingValues: nonMatchedValues.map((row) => Object.values(row)[0])
+                nonMatchingFactTableValues: nonMatchedFactTableValues.map((row) => Object.values(row)[0]),
+                nonMatchingLookupValues: nonMatchedLookupValues.map((row) => Object.values(row)[0])
             });
         }
         if (nonMatchedRows.length > 0) {
             logger.error(`Seems some of the rows didn't match.`);
-            const nonMatchedValues = await quack.all(
+            const nonMatchedFactTableValues = await quack.all(
                 `SELECT DISTINCT fact_table_column FROM (SELECT "${measure.factTableColumn}" as fact_table_column
                 FROM ${factTableName}) as fact_table
                 LEFT JOIN ${lookupTableName} ON CAST(fact_table.fact_table_column AS VARCHAR)=CAST(${lookupTableName}."${confirmedJoinColumn}" AS VARCHAR)
                 where ${lookupTableName}."${confirmedJoinColumn}" IS NULL;`
             );
+            const nonMatchingLookupValues = await quack.all(
+                `SELECT DISTINCT measure_table_column FROM (SELECT "${confirmedJoinColumn}" as measure_table_column
+                 FROM ${lookupTableName}) AS measure_table
+                 LEFT JOIN ${factTableName} ON CAST(measure_table.measure_table_column AS VARCHAR)=CAST(${factTableName}."${measure.factTableColumn}" AS VARCHAR)
+                 WHERE ${factTableName}."${measure.factTableColumn}" IS NULL;`
+            );
             logger.error(
                 `The user supplied an incorrect or incomplete lookup table and ${nonMatchedRows.length} rows didn't match`
             );
-            return viewErrorGenerator(400, datasetId, 'patch', 'errors.dimensionValidation.invalid_lookup_table', {
+            return viewErrorGenerator(400, datasetId, 'patch', 'errors.dimensionValidation.matching_error', {
                 totalNonMatching: nonMatchedRows.length,
-                nonMatchingValues: nonMatchedValues.map((row) => Object.values(row)[0])
+                nonMatchingFactTableValues: nonMatchedFactTableValues.map((row) => Object.values(row)[0]),
+                nonMatchingLookupValues: nonMatchingLookupValues.map((row) => Object.values(row)[0])
             });
         }
     } catch (error) {
         logger.error(
+            error,
             `Something went wrong, most likely an incorrect join column name, while trying to validate the lookup table with error: ${error}`
         );
         const nonMatchedRows = await quack.all(`SELECT COUNT(*) AS total_rows FROM ${factTableName};`);
-        const nonMatchedValues = await quack.all(`SELECT DISTINCT ${measure.factTableColumn} FROM ${factTableName};`);
+        const nonMatchedFactTableValues = await quack.all(
+            `SELECT DISTINCT ${measure.factTableColumn} FROM ${factTableName};`
+        );
         return viewErrorGenerator(400, datasetId, 'patch', 'errors.dimensionValidation.invalid_lookup_table', {
             totalNonMatching: nonMatchedRows[0].total_rows,
-            nonMatchingValues: nonMatchedValues.map((row) => Object.values(row)[0])
+            nonMatchingFactTableValues: nonMatchedFactTableValues.map((row) => Object.values(row)[0]),
+            nonMatchingLookupValues: null
         });
     }
     logger.debug('The measure lookup table passed row matching.');

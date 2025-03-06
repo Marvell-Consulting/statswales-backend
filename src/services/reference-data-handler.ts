@@ -54,14 +54,14 @@ async function validateUnknownReferenceDataItems(quack: Database, dataset: Datas
     `);
     if (nonMatchedRows.length > 0) {
         logger.error('The user has unknown items in their reference data column');
-        const nonMatchedValues = await quack.all(`
+        const nonMatchedFactTableValues = await quack.all(`
               SELECT DISTINCT fact_table."${dimension.factTableColumn}", reference_data.item_id FROM fact_table
               LEFT JOIN reference_data on reference_data.item_id=CAST(fact_table."${dimension.factTableColumn}" AS VARCHAR)
               WHERE reference_data.item_id IS NULL;
         `);
         return viewErrorGenerator(400, dataset.id, 'patch', 'errors.dimensionValidation.invalid_lookup_table', {
             totalNonMatching: nonMatchedRows.length,
-            nonMatchingValues: nonMatchedValues.map((row) => Object.values(row)[0])
+            nonMatchedFactTableValues: nonMatchedFactTableValues.map((row) => Object.values(row)[0])
         });
     }
     return undefined;

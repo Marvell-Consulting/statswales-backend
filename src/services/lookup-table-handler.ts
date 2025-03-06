@@ -160,28 +160,39 @@ export const validateLookupTable = async (
         const rows = await quack.all(`SELECT COUNT(*) as total_rows FROM ${factTableName}`);
         if (nonMatchedRows.length === rows[0].total_rows) {
             logger.error(`The user supplied an incorrect lookup table and none of the rows matched`);
-            const nonMatchedValues = await quack.all(
+            const nonMatchedFactTableValues = await quack.all(
                 `SELECT DISTINCT ${dimension.factTableColumn} FROM ${factTableName};`
+            );
+            const nonMatchedLookupValues = await quack.all(
+                `SELECT DISTINCT ${lookupTableName}."${confirmedJoinColumn}" FROM ${lookupTableName};`
             );
             return viewErrorGenerator(400, dataset.id, 'patch', 'errors.dimensionValidation.invalid_lookup_table', {
                 totalNonMatching: rows[0].total_rows,
-                nonMatchingValues: nonMatchedValues.map((row) => Object.values(row)[0])
+                nonMatchingFactTableValues: nonMatchedFactTableValues.map((row) => Object.values(row)[0]),
+                nonMatchedLookupValues: nonMatchedLookupValues.map((row) => Object.values(row)[0])
             });
         }
         if (nonMatchedRows.length > 0) {
-            const nonMatchedValues = await quack.all(
+            const nonMatchingFactTableValues = await quack.all(
                 `SELECT DISTINCT fact_table_column FROM (SELECT "${dimension.factTableColumn}" as fact_table_column
                 FROM ${factTableName})as fact_table
                 LEFT JOIN ${lookupTableName}
                 ON CAST(fact_table.fact_table_column AS VARCHAR)=CAST(${lookupTableName}."${confirmedJoinColumn}" AS VARCHAR)
                 WHERE ${lookupTableName}."${confirmedJoinColumn}" IS NULL;`
             );
+            const nonMatchingLookupValues = await quack.all(
+                `SELECT DISTINCT measure_table_column FROM (SELECT "${confirmedJoinColumn}" as measure_table_column
+                 FROM ${lookupTableName}) AS measure_table
+                 LEFT JOIN ${factTableName} ON CAST(measure_table.measure_table_column AS VARCHAR)=CAST(${factTableName}."${dimension.factTableColumn}" AS VARCHAR)
+                 WHERE ${factTableName}."${dimension.factTableColumn}" IS NULL;`
+            );
             logger.error(
                 `The user supplied an incorrect or incomplete lookup table and ${nonMatchedRows.length} rows didn't match`
             );
             return viewErrorGenerator(400, dataset.id, 'patch', 'errors.dimensionValidation.invalid_lookup_table', {
                 totalNonMatching: nonMatchedRows.length,
-                nonMatchingValues: nonMatchedValues.map((row) => Object.values(row)[0])
+                nonMatchingFactTableValues: nonMatchingFactTableValues.map((row) => Object.values(row)[0]),
+                nonMatchedLookupValues: nonMatchingLookupValues.map((row) => Object.values(row)[0])
             });
         }
     } catch (error) {
@@ -193,7 +204,7 @@ export const validateLookupTable = async (
         const nonMatchedValues = await quack.all(`SELECT DISTINCT ${dimension.factTableColumn} FROM ${factTableName};`);
         return viewErrorGenerator(400, dataset.id, 'patch', 'errors.dimensionValidation.invalid_lookup_table', {
             totalNonMatching: nonMatchedRows[0].total_rows,
-            nonMatchingValues: nonMatchedValues.map((row) => Object.values(row)[0])
+            nonMatchingFactTableValues: nonMatchedValues.map((row) => Object.values(row)[0])
         });
     }
 

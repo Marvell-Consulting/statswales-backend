@@ -135,8 +135,8 @@ export const updateDimension = async (req: Request, res: Response, next: NextFun
     try {
         logger.debug(`User dimension type = ${JSON.stringify(dimensionPatchRequest)}`);
         switch (dimensionPatchRequest.dimension_type) {
-            case DimensionType.TimePeriod:
-            case DimensionType.TimePoint:
+            case DimensionType.DatePeriod:
+            case DimensionType.Date:
                 logger.debug('Matching a Dimension containing Dates');
                 preview = await validateDateTypeDimension(dimensionPatchRequest, dataset, dimension, factTable);
                 break;
