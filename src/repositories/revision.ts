@@ -28,7 +28,6 @@ export const withMetadata: FindOptionsRelations<Revision> = {
 export const RevisionRepository = dataSource.getRepository(Revision).extend({
     async getById(id: string, relations: FindOptionsRelations<Revision> = withDataTable): Promise<Revision> {
         const findOptions: FindOneOptions<Revision> = { where: { id }, relations };
-        logger.debug(`Getting revision: ${id} with relations: ${JSON.stringify(relations, null, 2)}`);
 
         if (has(relations, 'dataTable.dataTableDescriptions')) {
             // sort sources by column index if they're requested
@@ -148,12 +147,6 @@ export const RevisionRepository = dataSource.getRepository(Revision).extend({
             'relatedLinks'
         ]);
 
-        const dataTable = DataTableRepository.create({
-            ...prevRevision.dataTable,
-            id: undefined,
-            revision: undefined
-        });
-
         const metadata = prevRevision.metadata.map((meta) =>
             RevisionMetadata.create({
                 ...meta,
@@ -183,7 +176,6 @@ export const RevisionRepository = dataSource.getRepository(Revision).extend({
             previousRevisionId: prevRevision.id,
             revisionIndex: 0,
             createdBy,
-            dataTable,
             metadata,
             revisionProviders,
             revisionTopics
