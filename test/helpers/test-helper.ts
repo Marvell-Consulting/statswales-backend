@@ -108,7 +108,7 @@ export async function createSmallDataset(
 const sureStartShortDimensionDescriptor = [
     {
         columnName: 'YearCode',
-        dimensionType: DimensionType.TimePeriod,
+        dimensionType: DimensionType.DatePeriod,
         extractor: { type: 'financial', yearFormat: 'yyyyyy' },
         joinColumn: 'date_code'
     },

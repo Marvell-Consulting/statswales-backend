@@ -307,8 +307,8 @@ async function attachUpdateDataTableToRevision(
                     logger.debug(`Validating reference data dimension: ${dimension.id}`);
                     await loadCorrectReferenceDataIntoReferenceDataTable(quack, dimension);
                     break;
-                case DimensionType.TimePeriod:
-                case DimensionType.TimePoint:
+                case DimensionType.DatePeriod:
+                case DimensionType.Date:
                     logger.debug(`Validating time dimension: ${dimension.id}`);
                     await createAndValidateDateDimension(quack, dimension.extractor, dimension.factTableColumn);
             }
