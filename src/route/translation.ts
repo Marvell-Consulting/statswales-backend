@@ -14,6 +14,7 @@ import { TranslationDTO } from '../dtos/translations-dto';
 import { DataLakeService } from '../services/datalake';
 import { translatableMetadataKeys } from '../types/translatable-metadata';
 import { RelatedLink } from '../dtos/related-link-dto';
+import { EventLog } from '../entities/event-log';
 
 import { loadDataset } from './dataset';
 
@@ -104,7 +105,17 @@ translationRouter.get(
         try {
             logger.info('Exporting translations to CSV...');
             const dataset: Dataset = res.locals.dataset;
+            const revision = dataset.draftRevision!;
             const translations = collectTranslations(dataset);
+
+            await EventLog.getRepository().save({
+                action: 'export',
+                entity: 'translations',
+                entityId: revision.id,
+                userId: req.user?.id,
+                client: 'sw3-frontend'
+            });
+
             res.setHeader('Content-Type', 'text/csv');
             stringify(translations, { bom: true, header: true, quoted_string: true }).pipe(res);
         } catch (error) {
@@ -174,6 +185,7 @@ translationRouter.patch(
     loadDataset({ draftRevision: { metadata: true }, dimensions: { metadata: true } }),
     async (req: Request, res: Response, next: NextFunction) => {
         let dataset: Dataset = res.locals.dataset;
+        const revision = dataset.draftRevision!;
         logger.info('Updating translations from CSV...');
 
         try {
@@ -182,6 +194,15 @@ translationRouter.patch(
             const newTranslations = await parseUploadedTranslations(fileBuffer);
             dataset = await req.datasetService.updateTranslations(dataset.id, newTranslations);
             await datalake.deleteFile(TRANSLATION_FILENAME, dataset.id);
+
+            await EventLog.getRepository().save({
+                action: 'import',
+                entity: 'translations',
+                entityId: revision.id,
+                data: newTranslations,
+                userId: req.user?.id,
+                client: 'sw3-frontend'
+            });
 
             res.status(201);
             res.json(DatasetDTO.fromDataset(dataset));

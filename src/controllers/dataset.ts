@@ -151,10 +151,9 @@ export const updateMetadata = async (req: Request, res: Response, next: NextFunc
 };
 
 export const getTasklist = async (req: Request, res: Response, next: NextFunction) => {
-    const dataset: Dataset = res.locals.dataset;
-    const revision = dataset.draftRevision!;
+    const dataset = res.locals.dataset;
     try {
-        const tasklistState = TasklistStateDTO.fromDataset(dataset, revision, req.language as Locale);
+        const tasklistState = await req.datasetService.getTasklistState(dataset.id, req.language as Locale);
         res.json(tasklistState);
     } catch (err) {
         logger.error(err, `There was a problem fetching the tasklist for dataset ${dataset.id}`);

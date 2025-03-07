@@ -13,7 +13,6 @@ import {
     withDraftAndMetadata,
     DatasetRepository,
     withAll,
-    withDraftForTasklistState,
     withDraftAndProviders,
     withDraftAndTopics
 } from '../repositories/dataset';
@@ -205,7 +204,7 @@ router.patch('/:dataset_id/sources', jsonParser, loadDataset(withDraftForCube), 
 
 // GET /dataset/:dataset_id/tasklist
 // Returns a JSON object with info on what parts of the dataset have been created
-router.get('/:dataset_id/tasklist', loadDataset(withDraftForTasklistState), getTasklist);
+router.get('/:dataset_id/tasklist', loadDataset({}), getTasklist);
 
 // GET /dataset/:dataset_id/providers
 // Returns the data providers for the dataset

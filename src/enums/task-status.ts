@@ -1,9 +1,10 @@
 export enum TaskStatus {
     CannotStart = 'cannot_start',
     Available = 'available',
+    NotRequired = 'not_required',
     NotStarted = 'not_started',
     Incomplete = 'incomplete',
     Completed = 'completed',
-    NotImplemented = 'not_implemented',
-    Unchanged = 'unchanged'
+    Unchanged = 'unchanged',
+    Updated = 'updated'
 }
