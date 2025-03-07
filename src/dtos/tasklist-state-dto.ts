@@ -1,4 +1,4 @@
-import { every, isEqual, pick, sortBy } from 'lodash';
+import { every, isEqual, max, pick, some, sortBy } from 'lodash';
 
 import { Dataset } from '../entities/dataset/dataset';
 import { DimensionType } from '../enums/dimension-type';
@@ -6,6 +6,7 @@ import { TaskStatus } from '../enums/task-status';
 import { translatableMetadataKeys } from '../types/translatable-metadata';
 import { DimensionStatus } from '../interfaces/dimension-status';
 import { Revision } from '../entities/dataset/revision';
+import { EventLog } from '../entities/event-log';
 
 export interface MetadataStatus {
     title: TaskStatus;
@@ -19,22 +20,24 @@ export interface MetadataStatus {
     topics: TaskStatus;
 }
 
+export interface TranslationStatus {
+    export: TaskStatus;
+    import: TaskStatus;
+}
+
+export interface PublishingStatus {
+    organisation: TaskStatus;
+    when: TaskStatus;
+}
+
 export class TasklistStateDTO {
     datatable: TaskStatus;
     measure?: DimensionStatus;
     dimensions: DimensionStatus[];
 
     metadata: MetadataStatus;
-
-    translation: {
-        export: TaskStatus;
-        import: TaskStatus;
-    };
-
-    publishing: {
-        organisation: TaskStatus;
-        when: TaskStatus;
-    };
+    translation: TranslationStatus;
+    publishing: PublishingStatus;
 
     canPublish: boolean;
 
@@ -154,14 +157,22 @@ export class TasklistStateDTO {
         };
     }
 
-    public static publishingStatus(dataset: Dataset, revision: Revision) {
+    public static publishingStatus(dataset: Dataset, revision: Revision): PublishingStatus {
         return {
             organisation: dataset.team ? TaskStatus.Completed : TaskStatus.NotStarted,
             when: revision.publishAt ? TaskStatus.Completed : TaskStatus.NotStarted
         };
     }
 
-    public static translationStatus(revision: Revision): TaskStatus {
+    public static translationStatus(revision: Revision, translationEvents?: EventLog[]): TranslationStatus {
+        const lastExportedAt = translationEvents?.find((event) => event.action === 'export')?.createdAt;
+        const lastImportedAt = translationEvents?.find((event) => event.action === 'import')?.createdAt;
+
+        const metaEN = revision.metadata?.find((meta) => meta.language.includes('en'))!;
+        const metaCY = revision.metadata?.find((meta) => meta.language.includes('cy'))!;
+        const metadataSynced = metaEN.updatedAt === metaCY.updatedAt;
+        const lastMetaUpdateAt = max([metaEN.updatedAt, metaCY.updatedAt])!;
+
         const metaFullyTranslated = revision.metadata?.every((meta) => {
             return every(translatableMetadataKeys, (key) => {
                 // ignore roundingDescription if rounding isn't applied, otherwise check some data exists
@@ -169,29 +180,35 @@ export class TasklistStateDTO {
             });
         });
 
-        return metaFullyTranslated ? TaskStatus.Completed : TaskStatus.Incomplete;
+        const translationRequired = !metadataSynced || !metaFullyTranslated;
+        const exportStatus = lastExportedAt ? TaskStatus.Completed : TaskStatus.NotStarted;
+        const importStatus =
+            lastImportedAt && lastImportedAt > lastMetaUpdateAt ? TaskStatus.Completed : TaskStatus.NotStarted;
+
+        return {
+            export: translationRequired ? exportStatus : TaskStatus.NotRequired,
+            import: translationRequired ? importStatus : TaskStatus.NotRequired
+        };
     }
 
-    public static fromDataset(dataset: Dataset, revision: Revision, lang: string): TasklistStateDTO {
+    public static fromDataset(
+        dataset: Dataset,
+        revision: Revision,
+        lang: string,
+        translationEvents?: EventLog[]
+    ): TasklistStateDTO {
         const dto = new TasklistStateDTO();
         dto.datatable = TasklistStateDTO.dataTableStatus(revision);
         dto.measure = TasklistStateDTO.measureStatus(dataset, revision);
         dto.dimensions = TasklistStateDTO.dimensionStatus(dataset, revision, lang);
         dto.metadata = TasklistStateDTO.metadataStatus(revision, lang);
         dto.publishing = TasklistStateDTO.publishingStatus(dataset, revision);
+        dto.translation = TasklistStateDTO.translationStatus(revision, translationEvents);
 
         const dimensionsComplete = every(dto.dimensions, (dim) => dim.status === TaskStatus.Completed);
         const metadataComplete = every(dto.metadata, (status) => status === TaskStatus.Completed);
         const publishingComplete = every(dto.publishing, (status) => status === TaskStatus.Completed);
-
-        const translationStatus = TasklistStateDTO.translationStatus(revision);
-        const translationsComplete = translationStatus === TaskStatus.Completed;
-
-        // TODO: import should check export complete and nothing was updated since the export (needs audit table)
-        dto.translation = {
-            export: dimensionsComplete && metadataComplete ? TaskStatus.Available : TaskStatus.CannotStart,
-            import: dimensionsComplete && metadataComplete ? translationStatus : TaskStatus.CannotStart
-        };
+        const translationsComplete = dto.translation.import === TaskStatus.Completed;
 
         dto.canPublish = dimensionsComplete && metadataComplete && translationsComplete && publishingComplete;
 
