@@ -98,8 +98,10 @@ export const DatasetRepository = dataSource.getRepository(Dataset).extend({
         await dataSource.getRepository(FactTableColumn).save(factColumns);
     },
 
-    async listByLanguage(lang: Locale, page: number, limit: number): Promise<ResultsetWithCount<DatasetListItemDTO>> {
-        // TODO: statuses are a best approximation for a first pass
+    async listByLanguage(locale: Locale, page: number, limit: number): Promise<ResultsetWithCount<DatasetListItemDTO>> {
+        logger.debug(`Listing datasets for language ${locale}, page ${page}, limit ${limit}`);
+        const lang = locale.includes('en') ? Locale.EnglishGb : Locale.WelshGb;
+
         const qb = this.createQueryBuilder('d')
             .select(['d.id as id', 'r.title as title', 'r.title_alt as title_alt', 'r.updated_at as last_updated'])
             .addSelect(
