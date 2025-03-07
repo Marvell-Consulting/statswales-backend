@@ -49,7 +49,7 @@ export const loadFileIntoDatabase = async (
     switch (fileImport.fileType) {
         case FileType.Csv:
         case FileType.GzipCsv:
-            createTableQuery = `CREATE TABLE ${tableName} AS SELECT * FROM read_csv('${tempFile}', auto_type_candidates = ['BOOLEAN', 'BIGINT', 'DOUBLE', 'VARCHAR']);`;
+            createTableQuery = `CREATE TABLE ${tableName} AS SELECT * FROM read_csv('${tempFile}', auto_type_candidates = ['BIGINT', 'DOUBLE', 'VARCHAR']);`;
             break;
         case FileType.Parquet:
             createTableQuery = `CREATE TABLE ${tableName} AS SELECT * FROM '${tempFile}';`;
@@ -66,5 +66,6 @@ export const loadFileIntoDatabase = async (
         default:
             throw new Error('Unknown file type');
     }
+    logger.debug(`Creating table ${tableName} from ${fileImport.fileType} file with query: ${createTableQuery}`);
     await quack.exec(createTableQuery);
 };
