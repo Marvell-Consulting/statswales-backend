@@ -9,13 +9,13 @@ import { TopicDTO } from '../dtos/topic-dto';
 export const topicRouter = Router();
 
 topicRouter.get('/', async (req: Request, res: Response, next: NextFunction) => {
-    try {
-        logger.info('List topics');
-        const topics = await TopicRepository.listAll();
-        const topicDTOs = topics.map((topic) => TopicDTO.fromTopic(topic, req.language as Locale));
-        res.json(topicDTOs);
-    } catch (error) {
-        logger.error('Error listing topics', error);
-        next(new UnknownException());
-    }
+  try {
+    logger.info('List topics');
+    const topics = await TopicRepository.listAll();
+    const topicDTOs = topics.map((topic) => TopicDTO.fromTopic(topic, req.language as Locale));
+    res.json(topicDTOs);
+  } catch (error) {
+    logger.error('Error listing topics', error);
+    next(new UnknownException());
+  }
 });

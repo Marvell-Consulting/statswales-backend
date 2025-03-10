@@ -12,35 +12,35 @@ import { NotFoundException } from '../exceptions/not-found.exception';
 export const teamRouter = Router();
 
 teamRouter.get('/', async (req: Request, res: Response, next: NextFunction) => {
-    try {
-        logger.info('List teams');
-        const teams = await TeamRepository.listAll();
-        let teamDTOs = teams.map((team) => TeamDTO.fromTeam(team, req.language as Locale));
-        teamDTOs = sortBy(teamDTOs, 'name');
-        res.json(teamDTOs);
-    } catch (error) {
-        logger.error('Error listing teams', error);
-        next(new UnknownException());
-    }
+  try {
+    logger.info('List teams');
+    const teams = await TeamRepository.listAll();
+    let teamDTOs = teams.map((team) => TeamDTO.fromTeam(team, req.language as Locale));
+    teamDTOs = sortBy(teamDTOs, 'name');
+    res.json(teamDTOs);
+  } catch (error) {
+    logger.error('Error listing teams', error);
+    next(new UnknownException());
+  }
 });
 
 teamRouter.get('/:team_id', async (req: Request, res: Response, next: NextFunction) => {
-    const teamIdError = await hasError(teamIdValidator(), req);
-    if (teamIdError) {
-        logger.error(teamIdError);
-        next(new NotFoundException('errors.team_id_invalid'));
-        return;
-    }
+  const teamIdError = await hasError(teamIdValidator(), req);
+  if (teamIdError) {
+    logger.error(teamIdError);
+    next(new NotFoundException('errors.team_id_invalid'));
+    return;
+  }
 
-    try {
-        logger.debug(`Loading team ${req.params.team_id}...`);
-        const team = await TeamRepository.getById(req.params.team_id);
-        res.json(TeamDTO.fromTeam(team, req.language as Locale));
-    } catch (err) {
-        logger.error(`Failed to load team, error: ${err}`);
-        next(new NotFoundException('errors.no_team'));
-        return;
-    }
+  try {
+    logger.debug(`Loading team ${req.params.team_id}...`);
+    const team = await TeamRepository.getById(req.params.team_id);
+    res.json(TeamDTO.fromTeam(team, req.language as Locale));
+  } catch (err) {
+    logger.error(`Failed to load team, error: ${err}`);
+    next(new NotFoundException('errors.no_team'));
+    return;
+  }
 
-    next();
+  next();
 });

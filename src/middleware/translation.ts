@@ -10,23 +10,23 @@ const AVAILABLE_LANGUAGES = config.language.availableTranslations;
 const SUPPORTED_LOCALES = config.language.supportedLocales;
 
 i18next
-    .use(Backend)
-    .use(i18nextMiddleware.LanguageDetector)
-    .init({
-        detection: {
-            order: ['querystring', 'header'],
-            lookupQuerystring: 'lang',
-            lookupHeader: 'accept-language',
-            ignoreCase: true,
-            caches: false
-        },
-        backend: {
-            loadPath: `${__dirname}/../resources/locales/{{lng}}.json`
-        },
-        fallbackLng: config.language.fallback,
-        preload: AVAILABLE_LANGUAGES,
-        debug: false
-    });
+  .use(Backend)
+  .use(i18nextMiddleware.LanguageDetector)
+  .init({
+    detection: {
+      order: ['querystring', 'header'],
+      lookupQuerystring: 'lang',
+      lookupHeader: 'accept-language',
+      ignoreCase: true,
+      caches: false
+    },
+    backend: {
+      loadPath: `${__dirname}/../resources/locales/{{lng}}.json`
+    },
+    fallbackLng: config.language.fallback,
+    preload: AVAILABLE_LANGUAGES,
+    debug: false
+  });
 
 const t = i18next.t;
 

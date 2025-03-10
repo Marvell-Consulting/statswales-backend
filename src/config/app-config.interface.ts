@@ -7,78 +7,78 @@ import { AppEnv } from './env.enum';
 import { SessionStore } from './session-store.enum';
 
 export interface AppConfig {
-    env: AppEnv;
-    frontend: {
-        port: number;
-        url: string;
+  env: AppEnv;
+  frontend: {
+    port: number;
+    url: string;
+  };
+  backend: {
+    port: number;
+    url: string;
+  };
+  language: {
+    availableTranslations: Locale[];
+    supportedLocales: Locale[];
+    fallback: Locale;
+  };
+  session: {
+    store: SessionStore;
+    secret: string;
+    secure: boolean;
+    maxAge: number;
+    redisUrl?: string;
+    redisPassword?: string;
+  };
+  logger: {
+    level: Level | 'silent';
+  };
+  rateLimit: {
+    windowMs: number;
+    maxRequests: number;
+  };
+  database: {
+    host: string;
+    port: number;
+    username: string;
+    password: string;
+    database: string;
+    ssl?: boolean;
+    synchronize?: boolean;
+  };
+  auth: {
+    providers: AuthProvider[];
+    jwt: {
+      secret: string;
+      expiresIn: string;
+      secure: boolean;
+      cookieDomain: string;
     };
-    backend: {
-        port: number;
-        url: string;
+    google: {
+      clientId: string;
+      clientSecret: string;
     };
-    language: {
-        availableTranslations: Locale[];
-        supportedLocales: Locale[];
-        fallback: Locale;
+    entraid: {
+      url: string;
+      clientId: string;
+      clientSecret: string;
     };
-    session: {
-        store: SessionStore;
-        secret: string;
-        secure: boolean;
-        maxAge: number;
-        redisUrl?: string;
-        redisPassword?: string;
+  };
+  storage: {
+    blob: {
+      accountName: string;
+      accountKey: string;
+      containerName: string;
     };
-    logger: {
-        level: Level | 'silent';
+    datalake: {
+      accountName: string;
+      accountKey: string;
+      fileSystemName: string;
     };
-    rateLimit: {
-        windowMs: number;
-        maxRequests: number;
-    };
-    database: {
-        host: string;
-        port: number;
-        username: string;
-        password: string;
-        database: string;
-        ssl?: boolean;
-        synchronize?: boolean;
-    };
-    auth: {
-        providers: AuthProvider[];
-        jwt: {
-            secret: string;
-            expiresIn: string;
-            secure: boolean;
-            cookieDomain: string;
-        };
-        google: {
-            clientId: string;
-            clientSecret: string;
-        };
-        entraid: {
-            url: string;
-            clientId: string;
-            clientSecret: string;
-        };
-    };
-    storage: {
-        blob: {
-            accountName: string;
-            accountKey: string;
-            containerName: string;
-        };
-        datalake: {
-            accountName: string;
-            accountKey: string;
-            fileSystemName: string;
-        };
-    };
-    duckdb: {
-        threads: number;
-        memory: string;
-    };
+  };
+  duckdb: {
+    threads: number;
+    memory: string;
+  };
 }
 
 // list any optional properties here so we can ignore missing values when we check the config on boot

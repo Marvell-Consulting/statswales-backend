@@ -11,28 +11,28 @@ import { Dataset } from '../entities/dataset/dataset';
 export const consumerRouter = Router();
 
 export const loadPublishedDataset = (relations?: FindOptionsRelations<Dataset>) => {
-    return async (req: Request, res: Response, next: NextFunction) => {
-        const datasetIdError = await hasError(datasetIdValidator(), req);
+  return async (req: Request, res: Response, next: NextFunction) => {
+    const datasetIdError = await hasError(datasetIdValidator(), req);
 
-        if (datasetIdError) {
-            logger.error(datasetIdError);
-            next(new NotFoundException('errors.dataset_id_invalid'));
-            return;
-        }
+    if (datasetIdError) {
+      logger.error(datasetIdError);
+      next(new NotFoundException('errors.dataset_id_invalid'));
+      return;
+    }
 
-        try {
-            logger.debug(`Loading published dataset ${req.params.dataset_id}...`);
-            const dataset = await PublishedDatasetRepository.getById(req.params.dataset_id, relations);
-            res.locals.datasetId = dataset.id;
-            res.locals.dataset = dataset;
-        } catch (err) {
-            logger.error(err, `Failed to load dataset`);
-            next(new NotFoundException('errors.no_dataset'));
-            return;
-        }
+    try {
+      logger.debug(`Loading published dataset ${req.params.dataset_id}...`);
+      const dataset = await PublishedDatasetRepository.getById(req.params.dataset_id, relations);
+      res.locals.datasetId = dataset.id;
+      res.locals.dataset = dataset;
+    } catch (err) {
+      logger.error(err, `Failed to load dataset`);
+      next(new NotFoundException('errors.no_dataset'));
+      return;
+    }
 
-        next();
-    };
+    next();
+  };
 };
 
 // GET /published/list
@@ -46,7 +46,7 @@ consumerRouter.get('/:dataset_id', loadPublishedDataset(), getPublishedDatasetBy
 // GET /published/:datasetId/revision/:revisionId/download/:format
 // Returns a published dataset as a file stream
 consumerRouter.get(
-    '/:dataset_id/revision/:revision_id/download/:format',
-    loadPublishedDataset(),
-    downloadPublishedDataset
+  '/:dataset_id/revision/:revision_id/download/:format',
+  loadPublishedDataset(),
+  downloadPublishedDataset
 );

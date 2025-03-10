@@ -22,112 +22,112 @@ import { validateReferenceData } from '../services/reference-data-handler';
 import { convertBufferToUTF8 } from '../utils/file-utils';
 
 export const getDimensionInfo = async (req: Request, res: Response) => {
-    res.json(DimensionDTO.fromDimension(res.locals.dimension));
+  res.json(DimensionDTO.fromDimension(res.locals.dimension));
 };
 
 export const resetDimension = async (req: Request, res: Response) => {
-    const dimension = res.locals.dimension;
+  const dimension = res.locals.dimension;
 
-    dimension.type = DimensionType.Raw;
-    dimension.extractor = null;
-    if (dimension.lookuptable) {
-        const lookupTable: LookupTable = dimension.lookupTable;
-        await lookupTable.remove();
-        dimension.lookuptable = null;
-    }
-    await dimension.save();
-    const updatedDimension = await Dimension.findOneByOrFail({ id: dimension.id });
-    res.status(202);
-    res.json(DimensionDTO.fromDimension(updatedDimension));
+  dimension.type = DimensionType.Raw;
+  dimension.extractor = null;
+  if (dimension.lookuptable) {
+    const lookupTable: LookupTable = dimension.lookupTable;
+    await lookupTable.remove();
+    dimension.lookuptable = null;
+  }
+  await dimension.save();
+  const updatedDimension = await Dimension.findOneByOrFail({ id: dimension.id });
+  res.status(202);
+  res.json(DimensionDTO.fromDimension(updatedDimension));
 };
 
 export const sendDimensionPreview = async (req: Request, res: Response, next: NextFunction) => {
-    const { dataset, dimension } = res.locals;
-    const latestRevision = getLatestRevision(dataset);
-    const dataTable = latestRevision?.dataTable;
+  const { dataset, dimension } = res.locals;
+  const latestRevision = getLatestRevision(dataset);
+  const dataTable = latestRevision?.dataTable;
 
-    if (!dataTable) {
-        next(new NotFoundException('errors.fact_table_invalid'));
-        return;
-    }
+  if (!dataTable) {
+    next(new NotFoundException('errors.fact_table_invalid'));
+    return;
+  }
 
-    logger.debug(`Latest revision is ${JSON.stringify(latestRevision)}`);
-    if (latestRevision?.tasks) {
-        const outstandingDimensionTask = latestRevision.tasks.dimensions.find((dim) => dim.id === dimension.id);
-        if (outstandingDimensionTask && !outstandingDimensionTask.lookupTableUpdated) {
-            dimension.type = DimensionType.Raw;
-        }
+  logger.debug(`Latest revision is ${JSON.stringify(latestRevision)}`);
+  if (latestRevision?.tasks) {
+    const outstandingDimensionTask = latestRevision.tasks.dimensions.find((dim) => dim.id === dimension.id);
+    if (outstandingDimensionTask && !outstandingDimensionTask.lookupTableUpdated) {
+      dimension.type = DimensionType.Raw;
     }
-    try {
-        let preview: ViewDTO | ViewErrDTO;
-        if (dimension.type === DimensionType.Raw) {
-            preview = await getFactTableColumnPreview(dataset, dataTable, dimension.factTableColumn);
-        } else {
-            preview = await getDimensionPreview(dataset, dimension, dataTable, req.language);
-        }
-        if ((preview as ViewErrDTO).errors) {
-            res.status(500);
-            res.json(preview);
-        }
-        res.status(200);
-        res.json(preview);
-    } catch (err) {
-        logger.error(`Something went wrong trying to get a preview of the dimension with the following error: ${err}`);
-        res.status(500);
-        res.json({ message: 'Something went wrong trying to generate a preview of the dimension' });
+  }
+  try {
+    let preview: ViewDTO | ViewErrDTO;
+    if (dimension.type === DimensionType.Raw) {
+      preview = await getFactTableColumnPreview(dataset, dataTable, dimension.factTableColumn);
+    } else {
+      preview = await getDimensionPreview(dataset, dimension, dataTable, req.language);
     }
+    if ((preview as ViewErrDTO).errors) {
+      res.status(500);
+      res.json(preview);
+    }
+    res.status(200);
+    res.json(preview);
+  } catch (err) {
+    logger.error(`Something went wrong trying to get a preview of the dimension with the following error: ${err}`);
+    res.status(500);
+    res.json({ message: 'Something went wrong trying to generate a preview of the dimension' });
+  }
 };
 
 export const attachLookupTableToDimension = async (req: Request, res: Response, next: NextFunction) => {
-    if (!req.file) {
-        next(new BadRequestException('errors.upload.no_csv'));
-        return;
+  if (!req.file) {
+    next(new BadRequestException('errors.upload.no_csv'));
+    return;
+  }
+  const { dataset, dimension } = res.locals;
+
+  const dataTable = getLatestRevision(dataset)?.dataTable;
+
+  if (!dataTable) {
+    next(new NotFoundException('errors.fact_table_invalid'));
+    return;
+  }
+
+  let fileImport: DataTable;
+  let utf8Buffer: Buffer<ArrayBufferLike>;
+  switch (req.file.mimetype) {
+    case 'text/csv':
+    case 'application/csv':
+    case 'application/json':
+      utf8Buffer = convertBufferToUTF8(req.file.buffer);
+      break;
+    default:
+      utf8Buffer = req.file.buffer;
+  }
+
+  try {
+    fileImport = await uploadCSV(utf8Buffer, req.file?.mimetype, req.file?.originalname, res.locals.datasetId);
+  } catch (err) {
+    logger.error(`An error occurred trying to upload the file: ${err}`);
+    next(new UnknownException('errors.upload_error'));
+    return;
+  }
+
+  const tableMatcher = req.body as LookupTablePatchDTO;
+
+  try {
+    const result = await validateLookupTable(fileImport, dataTable, dataset, dimension, utf8Buffer, tableMatcher);
+    if ((result as ViewErrDTO).status) {
+      const error = result as ViewErrDTO;
+      res.status(error.status);
+      res.json(result);
+      return;
     }
-    const { dataset, dimension } = res.locals;
-
-    const dataTable = getLatestRevision(dataset)?.dataTable;
-
-    if (!dataTable) {
-        next(new NotFoundException('errors.fact_table_invalid'));
-        return;
-    }
-
-    let fileImport: DataTable;
-    let utf8Buffer: Buffer<ArrayBufferLike>;
-    switch (req.file.mimetype) {
-        case 'text/csv':
-        case 'application/csv':
-        case 'application/json':
-            utf8Buffer = convertBufferToUTF8(req.file.buffer);
-            break;
-        default:
-            utf8Buffer = req.file.buffer;
-    }
-
-    try {
-        fileImport = await uploadCSV(utf8Buffer, req.file?.mimetype, req.file?.originalname, res.locals.datasetId);
-    } catch (err) {
-        logger.error(`An error occurred trying to upload the file: ${err}`);
-        next(new UnknownException('errors.upload_error'));
-        return;
-    }
-
-    const tableMatcher = req.body as LookupTablePatchDTO;
-
-    try {
-        const result = await validateLookupTable(fileImport, dataTable, dataset, dimension, utf8Buffer, tableMatcher);
-        if ((result as ViewErrDTO).status) {
-            const error = result as ViewErrDTO;
-            res.status(error.status);
-            res.json(result);
-            return;
-        }
-        res.status(200);
-        res.json(result);
-    } catch (err) {
-        logger.error(`An error occurred trying to handle the lookup table: ${err}`);
-        next(new UnknownException('errors.upload_error'));
-    }
+    res.status(200);
+    res.json(result);
+  } catch (err) {
+    logger.error(`An error occurred trying to handle the lookup table: ${err}`);
+    next(new UnknownException('errors.upload_error'));
+  }
 };
 
 export const updateDimension = async (req: Request, res: Response, next: NextFunction) => {
@@ -139,8 +139,8 @@ export const updateDimension = async (req: Request, res: Response, next: NextFun
         return;
     }
 
-    const dimensionPatchRequest = req.body as DimensionPatchDto;
-    let preview: ViewDTO | ViewErrDTO;
+  const dimensionPatchRequest = req.body as DimensionPatchDto;
+  let preview: ViewDTO | ViewErrDTO;
 
     try {
         logger.debug(`User dimension type = ${JSON.stringify(dimensionPatchRequest)}`);
@@ -177,35 +177,35 @@ export const updateDimension = async (req: Request, res: Response, next: NextFun
         return;
     }
 
-    if ((preview as ViewErrDTO).errors) {
-        res.status((preview as ViewErrDTO).status);
-        res.json(preview);
-        return;
-    }
-
-    res.status(200);
+  if ((preview as ViewErrDTO).errors) {
+    res.status((preview as ViewErrDTO).status);
     res.json(preview);
+    return;
+  }
+
+  res.status(200);
+  res.json(preview);
 };
 
 export const updateDimensionMetadata = async (req: Request, res: Response) => {
-    const { dimension } = res.locals;
+  const { dimension } = res.locals;
 
-    const update = req.body as DimensionMetadataDTO;
-    let metadata = dimension.metadata.find((meta: DimensionMetadata) => meta.language === update.language);
+  const update = req.body as DimensionMetadataDTO;
+  let metadata = dimension.metadata.find((meta: DimensionMetadata) => meta.language === update.language);
 
-    if (!metadata) {
-        metadata = new DimensionMetadata();
-        metadata.dimension = dimension;
-        metadata.language = update.language;
-    }
-    if (update.name) {
-        metadata.name = update.name;
-    }
-    if (update.notes) {
-        metadata.notes = update.notes;
-    }
-    await metadata.save();
-    const updatedDimension = await Dimension.findOneByOrFail({ id: dimension.id });
-    res.status(202);
-    res.json(DimensionDTO.fromDimension(updatedDimension));
+  if (!metadata) {
+    metadata = new DimensionMetadata();
+    metadata.dimension = dimension;
+    metadata.language = update.language;
+  }
+  if (update.name) {
+    metadata.name = update.name;
+  }
+  if (update.notes) {
+    metadata.notes = update.notes;
+  }
+  await metadata.save();
+  const updatedDimension = await Dimension.findOneByOrFail({ id: dimension.id });
+  res.status(202);
+  res.json(DimensionDTO.fromDimension(updatedDimension));
 };

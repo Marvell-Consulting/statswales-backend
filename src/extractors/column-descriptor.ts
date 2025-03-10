@@ -1,4 +1,4 @@
 export interface ColumnDescriptor {
-    lang: string;
-    name: string;
+  lang: string;
+  name: string;
 }

@@ -5,12 +5,12 @@ import multer from 'multer';
 
 import { logger } from '../utils/logger';
 import {
-    attachLookupTableToDimension,
-    getDimensionInfo,
-    resetDimension,
-    sendDimensionPreview,
-    updateDimension,
-    updateDimensionMetadata
+  attachLookupTableToDimension,
+  getDimensionInfo,
+  resetDimension,
+  sendDimensionPreview,
+  updateDimension,
+  updateDimensionMetadata
 } from '../controllers/dimension-controller';
 import { dimensionIdValidator, hasError } from '../validators';
 import { NotFoundException } from '../exceptions/not-found.exception';
@@ -18,35 +18,35 @@ import { Dimension } from '../entities/dataset/dimension';
 import { DimensionRepository } from '../repositories/dimension';
 
 export const loadDimension = () => {
-    return async (req: Request, res: Response, next: NextFunction) => {
-        const dimensionIdError = await hasError(dimensionIdValidator(), req);
-        if (dimensionIdError) {
-            logger.error(dimensionIdError);
-            next(new NotFoundException('errors.dimension_id_invalid'));
-            return;
-        }
+  return async (req: Request, res: Response, next: NextFunction) => {
+    const dimensionIdError = await hasError(dimensionIdValidator(), req);
+    if (dimensionIdError) {
+      logger.error(dimensionIdError);
+      next(new NotFoundException('errors.dimension_id_invalid'));
+      return;
+    }
 
-        // TODO: include user in query to prevent unauthorized access
+    // TODO: include user in query to prevent unauthorized access
 
-        try {
-            logger.debug(`Loading dataset ${req.params.dimension_id}...`);
-            const dimension = await DimensionRepository.getById(req.params.dimension_id);
-            res.locals.dimension_id = dimension.id;
-            res.locals.dimension = dimension;
-        } catch (err) {
-            logger.error(`Failed to load dimension, error: ${err}`);
-            next(new NotFoundException('errors.no_dimension'));
-            return;
-        }
+    try {
+      logger.debug(`Loading dataset ${req.params.dimension_id}...`);
+      const dimension = await DimensionRepository.getById(req.params.dimension_id);
+      res.locals.dimension_id = dimension.id;
+      res.locals.dimension = dimension;
+    } catch (err) {
+      logger.error(`Failed to load dimension, error: ${err}`);
+      next(new NotFoundException('errors.no_dimension'));
+      return;
+    }
 
-        if (!res.locals.dataset.dimensions.find((dim: Dimension) => dim.id === req.params.dimension_id)) {
-            logger.error('Dimension does not belong to dataset');
-            next(new NotFoundException('errors.dimension_id_invalid'));
-            return;
-        }
+    if (!res.locals.dataset.dimensions.find((dim: Dimension) => dim.id === req.params.dimension_id)) {
+      logger.error('Dimension does not belong to dataset');
+      next(new NotFoundException('errors.dimension_id_invalid'));
+      return;
+    }
 
-        next();
-    };
+    next();
+  };
 };
 
 const jsonParser = express.json();

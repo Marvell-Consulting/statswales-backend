@@ -1,4 +1,4 @@
 export enum SessionStore {
-    Memory = 'memory',
-    Redis = 'redis'
+  Memory = 'memory',
+  Redis = 'redis'
 }

@@ -1,3 +1,3 @@
 export interface ReferenceDataExtractor {
-    categories: string[];
+  categories: string[];
 }

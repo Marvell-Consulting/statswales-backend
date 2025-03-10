@@ -7,39 +7,39 @@ import { DatasetDTO } from './dataset-dto';
 import { DataTableDto } from './data-table-dto';
 
 export interface CSVHeader {
-    index: number;
-    name: string;
-    source_type?: FactTableColumnType;
+  index: number;
+  name: string;
+  source_type?: FactTableColumnType;
 }
 
 export interface PageInfo {
-    total_records: number | undefined;
-    start_record: number | undefined;
-    end_record: number | undefined;
+  total_records: number | undefined;
+  start_record: number | undefined;
+  end_record: number | undefined;
 }
 
 export interface ViewErrDTO {
-    status: number;
-    errors: Error[];
-    dataset_id: string | undefined;
-    headers?: CSVHeader[];
-    data?: string[][];
-    extension?: object;
+  status: number;
+  errors: Error[];
+  dataset_id: string | undefined;
+  headers?: CSVHeader[];
+  data?: string[][];
+  extension?: object;
 }
 
 export interface ViewDTO {
-    dataset: DatasetDTO;
-    data_table?: DataTableDto;
-    current_page: number;
-    page_info: PageInfo;
-    page_size: number;
-    total_pages: number;
-    headers: CSVHeader[];
-    data: string[][];
-    extension?: object;
+  dataset: DatasetDTO;
+  data_table?: DataTableDto;
+  current_page: number;
+  page_info: PageInfo;
+  page_size: number;
+  total_pages: number;
+  headers: CSVHeader[];
+  data: string[][];
+  extension?: object;
 }
 
 export interface ViewStream {
-    success: boolean;
-    stream: Readable;
+  success: boolean;
+  stream: Readable;
 }
