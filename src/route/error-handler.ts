@@ -1,9 +1,9 @@
-import { ErrorRequestHandler, Request, Response } from 'express';
+import { ErrorRequestHandler, NextFunction, Request, Response } from 'express';
 
 import { logger } from '../utils/logger';
 import { t } from '../middleware/translation';
 
-export const errorHandler: ErrorRequestHandler = (err: any, req: Request, res: Response) => {
+export const errorHandler: ErrorRequestHandler = (err: any, req: Request, res: Response, _next: NextFunction) => {
   const message = 'message' in err ? (err as any).message : 'errors.unknown_error';
 
   switch (err.status) {
