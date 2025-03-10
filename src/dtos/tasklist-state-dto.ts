@@ -40,6 +40,7 @@ export class TasklistStateDTO {
     publishing: PublishingStatus;
 
     canPublish: boolean;
+    isUpdate: boolean;
 
     public static dataTableStatus(revision: Revision) {
         const isUpdate = Boolean(revision.previousRevisionId);
@@ -198,6 +199,8 @@ export class TasklistStateDTO {
         translationEvents?: EventLog[]
     ): TasklistStateDTO {
         const dto = new TasklistStateDTO();
+        dto.isUpdate = Boolean(revision.previousRevisionId);
+
         dto.datatable = TasklistStateDTO.dataTableStatus(revision);
         dto.measure = TasklistStateDTO.measureStatus(dataset, revision);
         dto.dimensions = TasklistStateDTO.dimensionStatus(dataset, revision, lang);
