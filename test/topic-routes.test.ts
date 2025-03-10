@@ -33,7 +33,7 @@ describe('Topics', () => {
             await initPassport(dbManager.getDataSource());
             await user.save();
             await dbManager.getEntityManager().save(Topic, topics);
-        } catch (err) {
+        } catch (_err) {
             await dbManager.getDataSource().dropDatabase();
             await dbManager.getDataSource().destroy();
             process.exit(1);

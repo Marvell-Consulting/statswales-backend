@@ -47,7 +47,7 @@ describe('Providers', () => {
             await user.save();
             await dbManager.getEntityManager().save(Provider, providers);
             await dbManager.getEntityManager().save(ProviderSource, sources);
-        } catch (err) {
+        } catch (_err) {
             await dbManager.getDataSource().dropDatabase();
             await dbManager.getDataSource().destroy();
             process.exit(1);

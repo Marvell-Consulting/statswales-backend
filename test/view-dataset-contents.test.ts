@@ -8,14 +8,12 @@ import app from '../src/app';
 import { initDb } from '../src/db/init';
 import DatabaseManager from '../src/db/database-manager';
 import { initPassport } from '../src/middleware/passport-auth';
-import { Revision } from '../src/entities/dataset/revision';
 import { User } from '../src/entities/user/user';
-import { DataTable } from '../src/entities/dataset/data-table';
 import { logger } from '../src/utils/logger';
 import { DatasetRepository } from '../src/repositories/dataset';
 import { RevisionRepository } from '../src/repositories/revision';
 
-import { createFullDataset, createSmallDataset } from './helpers/test-helper';
+import { createFullDataset } from './helpers/test-helper';
 import { getTestUser } from './helpers/get-user';
 import { getAuthHeader } from './helpers/auth-header';
 
@@ -54,7 +52,7 @@ describe('API Endpoints for viewing the contents of a dataset', () => {
 
         DataLakeService.prototype.getFileBuffer = jest
             .fn()
-            .mockImplementation((filename: string, directory: string) => {
+            .mockImplementation((filename: string, _directory: string) => {
                 if (filename === 'RowRefLookupTable.csv') return lookupTableBuffer;
                 else return testFile1Buffer;
             });

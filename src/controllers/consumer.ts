@@ -35,7 +35,7 @@ export const listPublishedDatasets = async (req: Request, res: Response, next: N
     }
 };
 
-export const getPublishedDatasetById = async (req: Request, res: Response, next: NextFunction) => {
+export const getPublishedDatasetById = async (req: Request, res: Response) => {
     const dataset = await PublishedDatasetRepository.getById(res.locals.datasetId, withAll);
     res.json(ConsumerDatasetDTO.fromDataset(dataset));
 };

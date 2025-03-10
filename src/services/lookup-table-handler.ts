@@ -1,6 +1,5 @@
-import fs from 'fs';
+import fs from 'node:fs';
 
-import { Database } from 'duckdb-async';
 import tmp from 'tmp';
 
 import { DimensionType } from '../enums/dimension-type';
@@ -113,7 +112,7 @@ export const validateLookupTable = async (
     buffer: Buffer,
     tableMatcher?: LookupTablePatchDTO
 ): Promise<ViewDTO | ViewErrDTO> => {
-    const lookupTable = convertFactTableToLookupTable(protoLookupTable, dimension);
+    const lookupTable = convertFactTableToLookupTable(protoLookupTable);
     const factTableName = 'fact_table';
     const lookupTableName = 'preview_lookup';
     const quack = await duckdb();
@@ -137,7 +136,7 @@ export const validateLookupTable = async (
     let confirmedJoinColumn: string | undefined;
     try {
         confirmedJoinColumn = lookForJoinColumn(protoLookupTable, dimension.factTableColumn, tableMatcher);
-    } catch (err) {
+    } catch (_err) {
         await quack.close();
         return viewErrorGenerator(400, dataset.id, 'patch', 'errors.dimensionValidation.no_join_column', {});
     }

@@ -176,14 +176,14 @@ export class DatasetService {
 
         logger.debug(`Updating dimension name translations...`);
         dimensions.forEach((dimension) => {
-            const translation = translations.find((t) => t.type === 'dimension' && t.key === dimension.factTableColumn);
+            const translation = translations.find((t) => t.type === 'dimension' && t.key === dimension.factTableColumn)!;
 
             const dimMetaEN = dimension.metadata.find((meta) => meta.language.includes('en'))!;
-            dimMetaEN.name = translation?.english!;
+            dimMetaEN.name = translation?.english || '';
             dimMetaEN.updatedAt = now;
 
             const dimMetaCY = dimension.metadata.find((meta) => meta.language.includes('cy'))!;
-            dimMetaCY.name = translation?.cymraeg!;
+            dimMetaCY.name = translation?.cymraeg || '';
             dimMetaCY.updatedAt = now;
         });
 

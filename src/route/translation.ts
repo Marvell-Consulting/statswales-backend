@@ -36,7 +36,7 @@ const collectTranslations = (dataset: Dataset, includeIds = false): TranslationD
     });
 
     const translations: TranslationDTO[] = [
-        ...dataset.dimensions?.map((dimension) => {
+        ...(dataset.dimensions || []).map((dimension) => {
             const factTableColumn = dimension.factTableColumn;
             const dimMetaEN = dimension.metadata?.find((meta) => meta.language.includes('en'));
             const dimMetaCY = dimension.metadata?.find((meta) => meta.language.includes('cy'));

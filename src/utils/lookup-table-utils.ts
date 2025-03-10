@@ -1,15 +1,13 @@
 import { DataTable } from '../entities/dataset/data-table';
-import { Dimension } from '../entities/dataset/dimension';
 import { LookupTable } from '../entities/dataset/lookup-table';
 import { DataTableDescription } from '../entities/dataset/data-table-description';
 import { SupportedLanguagues } from '../enums/locale';
-import { Measure } from '../entities/dataset/measure';
 import { MeasureLookupPatchDTO } from '../dtos/measure-lookup-patch-dto';
 import { LookupTablePatchDTO } from '../dtos/lookup-patch-dto';
 
 import { logger } from './logger';
 
-export function convertFactTableToLookupTable(factTable: DataTable, dimension?: Dimension, measure?: Measure) {
+export function convertFactTableToLookupTable(factTable: DataTable) {
     const lookupTable = new LookupTable();
     lookupTable.id = factTable.id;
     lookupTable.fileType = factTable.fileType;

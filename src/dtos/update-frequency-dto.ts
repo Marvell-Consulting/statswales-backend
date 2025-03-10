@@ -3,14 +3,14 @@ import { invert } from 'lodash';
 
 import { DurationUnit } from '../enums/duration-unit';
 
-/* eslint-disable id-length */
+ 
 const durationCodeToUnit = {
     D: DurationUnit.Day,
     W: DurationUnit.Week,
     M: DurationUnit.Month,
     Y: DurationUnit.Year
 };
-/* eslint-enable id-length */
+ 
 
 const unitToDurationCode = invert(durationCodeToUnit);
 

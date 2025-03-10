@@ -11,6 +11,6 @@ export const initDb = async (): Promise<DatabaseManager> => {
     return dbManager;
 };
 
-export const initEntitySubscriber = async (dataSource: DataSource): Promise<void> => {
-    const eventService = new EntitySubscriber(dataSource);
+export const initEntitySubscriber = async (dataSource: DataSource): Promise<EntitySubscriber> => {
+    return new EntitySubscriber(dataSource);
 };

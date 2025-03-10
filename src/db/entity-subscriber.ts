@@ -5,7 +5,9 @@ import {
     InsertEvent,
     UpdateEvent,
     RemoveEvent,
-    DeepPartial
+    DeepPartial,
+    BaseEntity,
+    ObjectLiteral
 } from 'typeorm';
 import { get, isArray, isObjectLike, isPlainObject, omitBy } from 'lodash';
 
@@ -14,7 +16,9 @@ import { EventLog } from '../entities/event-log';
 import { User } from '../entities/user/user';
 import { asyncLocalStorage } from '../services/async-local-storage';
 
-type WriteEvent = InsertEvent<any> | UpdateEvent<any> | RemoveEvent<any>;
+type AnyEntity = BaseEntity | ObjectLiteral;
+
+type WriteEvent = InsertEvent<AnyEntity> | UpdateEvent<AnyEntity> | RemoveEvent<AnyEntity>;
 
 // prevent logging of event_log table (infinite loop!) and anything else we want to ignore
 const ignoreTables: string[] = ['event_log'];
@@ -39,8 +43,8 @@ export class EntitySubscriber implements EntitySubscriberInterface {
         return asyncLocalStorage.getStore()?.get('requestId') ? 'sw3-frontend' : 'system';
     }
 
-    private normaliseEntity(entity: any): Record<string, any> {
-        return omitBy(entity, (val, key) => {
+    private normaliseEntity(entity: AnyEntity): Record<string, unknown> {
+        return omitBy(entity, (val: unknown, key: string) => {
             if (ignoreProps.includes(key)) return true;
 
             // ignore nested typeorm entities but include jsonb objects and arrays
@@ -57,7 +61,7 @@ export class EntitySubscriber implements EntitySubscriberInterface {
             const log: DeepPartial<EventLog> = {
                 action,
                 entity: event.metadata?.tableName,
-                entityId: get(event, 'entityId', event.entity?.id),
+                entityId: get(event, 'entityId') || get(event, 'entity.id'),
                 data: event.entity ? this.normaliseEntity(event.entity) : undefined,
                 userId: this.getUser()?.id,
                 client: this.getClient()
@@ -69,15 +73,15 @@ export class EntitySubscriber implements EntitySubscriberInterface {
         }
     }
 
-    async afterInsert(event: InsertEvent<any>): Promise<void> {
+    async afterInsert(event: InsertEvent<AnyEntity>): Promise<void> {
         await this.logEvent('insert', event);
     }
 
-    async afterUpdate(event: UpdateEvent<any>): Promise<void> {
+    async afterUpdate(event: UpdateEvent<AnyEntity>): Promise<void> {
         await this.logEvent('update', event);
     }
 
-    async afterRemove(event: RemoveEvent<any>): Promise<void> {
+    async afterRemove(event: RemoveEvent<AnyEntity>): Promise<void> {
         if (!event.entityId && !event.entity) {
             return;
         }

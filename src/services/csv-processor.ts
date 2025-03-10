@@ -1,7 +1,7 @@
 import { createHash, randomUUID } from 'node:crypto';
 import fs from 'fs';
 
-import { Database, TableData } from 'duckdb-async';
+import { TableData } from 'duckdb-async';
 import tmp from 'tmp';
 
 import { i18next } from '../middleware/translation';

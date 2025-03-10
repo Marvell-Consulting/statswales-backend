@@ -1,4 +1,4 @@
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, BaseEntity, JoinColumn, OneToOne } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, BaseEntity, OneToOne } from 'typeorm';
 
 import { FileType } from '../../enums/file-type';
 

@@ -21,11 +21,11 @@ import { validateLookupTable } from '../services/lookup-table-handler';
 import { validateReferenceData } from '../services/reference-data-handler';
 import { convertBufferToUTF8 } from '../utils/file-utils';
 
-export const getDimensionInfo = async (req: Request, res: Response, next: NextFunction) => {
+export const getDimensionInfo = async (req: Request, res: Response) => {
     res.json(DimensionDTO.fromDimension(res.locals.dimension));
 };
 
-export const resetDimension = async (req: Request, res: Response, next: NextFunction) => {
+export const resetDimension = async (req: Request, res: Response) => {
     const dimension = res.locals.dimension;
 
     dimension.type = DimensionType.Raw;
@@ -187,7 +187,7 @@ export const updateDimension = async (req: Request, res: Response, next: NextFun
     res.json(preview);
 };
 
-export const updateDimensionMetadata = async (req: Request, res: Response, next: NextFunction) => {
+export const updateDimensionMetadata = async (req: Request, res: Response) => {
     const { dimension } = res.locals;
 
     const update = req.body as DimensionMetadataDTO;

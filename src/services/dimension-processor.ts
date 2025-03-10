@@ -33,7 +33,6 @@ import { MeasureMetadata } from '../entities/dataset/measure-metadata';
 import { dateDimensionReferenceTableCreator, DateReferenceDataItem } from './time-matching';
 import { createFactTableQuery } from './cube-handler';
 import { DataLakeService } from './datalake';
-// eslint-disable-next-line import/no-cycle
 import { getReferenceDataDimensionPreview } from './reference-data-handler';
 import { duckdb } from './duckdb';
 
@@ -97,7 +96,6 @@ export const validateSourceAssignment = (
     let noteCodes: SourceAssignmentDTO | null = null;
     let measure: SourceAssignmentDTO | null = null;
     const dimensions: SourceAssignmentDTO[] = [];
-    const dateDimensions: SourceAssignmentDTO[] = [];
     const ignore: SourceAssignmentDTO[] = [];
     logger.debug(`Validating source assignment from: ${JSON.stringify(sourceAssignment, null, 2)}`);
     sourceAssignment.map((sourceInfo) => {

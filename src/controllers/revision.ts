@@ -16,9 +16,8 @@ import { logger } from '../utils/logger';
 import { DataLakeService } from '../services/datalake';
 import { DataTable } from '../entities/dataset/data-table';
 import { Locale } from '../enums/locale';
-import { DatasetRepository, withDraftForTasklistState } from '../repositories/dataset';
+import { DatasetRepository } from '../repositories/dataset';
 import { DatasetDTO } from '../dtos/dataset-dto';
-import { TasklistStateDTO } from '../dtos/tasklist-state-dto';
 import { BadRequestException } from '../exceptions/bad-request.exception';
 import { NotFoundException } from '../exceptions/not-found.exception';
 import { RevisionDTO } from '../dtos/revision-dto';
@@ -55,7 +54,7 @@ export const getDataTable = async (req: Request, res: Response, next: NextFuncti
         });
         const dto = DataTableDto.fromDataTable(dataTable);
         res.json(dto);
-    } catch (err) {
+    } catch (_err) {
         next(new UnknownException());
     }
 };
@@ -125,7 +124,7 @@ export const getRevisionPreview = async (req: Request, res: Response, next: Next
     res.json(cubePreview);
 };
 
-export const confirmFactTable = async (req: Request, res: Response, next: NextFunction) => {
+export const confirmFactTable = async (req: Request, res: Response) => {
     const revision = res.locals.revision;
     const dto = DataTableDto.fromDataTable(revision.dataTable);
     res.json(dto);
@@ -144,7 +143,7 @@ export const downloadRawFactTable = async (req: Request, res: Response, next: Ne
 
     try {
         readable = await dataLakeService.getFileStream(revision.dataTable.filename, dataset.id);
-    } catch (error) {
+    } catch (_err) {
         res.status(500);
         res.json({
             status: 500,
@@ -186,7 +185,7 @@ export const downloadRawFactTable = async (req: Request, res: Response, next: Ne
     });
 };
 
-export const getRevisionInfo = async (req: Request, res: Response, next: NextFunction) => {
+export const getRevisionInfo = async (req: Request, res: Response) => {
     const revision = res.locals.revision;
     res.json(RevisionDTO.fromRevision(revision));
 };
@@ -307,11 +306,9 @@ async function attachUpdateDataTableToRevision(dataset: Dataset, revision: Revis
         }
     }
 
-    /*
-        TODO Validate measure.  This requires a rewrite of how measures are created and stored
-     */
+    // TODO Validate measure.  This requires a rewrite of how measures are created and stored
 
-    // eslint-disable-next-line require-atomic-updates
+
     revision.tasks = { dimensions: dimensionUpdateTasks };
 
     logger.debug('Closing DuckDB instance');
@@ -320,7 +317,7 @@ async function attachUpdateDataTableToRevision(dataset: Dataset, revision: Revis
     const end = performance.now();
     const time = Math.round(end - start);
     logger.info(`Cube update validation took ${time}ms`);
-    // eslint-disable-next-line require-atomic-updates
+
     dataTable.revision = revision;
     await dataTable.save();
 }
@@ -431,7 +428,7 @@ export const updateRevisionPublicationDate = async (req: Request, res: Response,
 
         res.status(201);
         res.json(DatasetDTO.fromDataset(updatedDataset));
-    } catch (err) {
+    } catch (_err) {
         next(new UnknownException());
     }
 };
@@ -456,7 +453,7 @@ export const approveForPublication = async (req: Request, res: Response, next: N
 
         res.status(201);
         res.json(DatasetDTO.fromDataset(approvedDataset));
-    } catch (err: any) {
+    } catch (err: unknown) {
         next(err);
     }
 };
@@ -476,7 +473,7 @@ export const withdrawFromPublication = async (req: Request, res: Response, next:
         const withdrawnDataset = await req.datasetService.withdrawFromPublication(dataset.id, revision.id);
         res.status(201);
         res.json(DatasetDTO.fromDataset(withdrawnDataset));
-    } catch (err: any) {
+    } catch (err: unknown) {
         logger.error(err, 'could not withdraw publication');
         next(err);
     }

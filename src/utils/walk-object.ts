@@ -9,6 +9,7 @@ export interface WalkObjectCallback {
     (obj: WalkObjectCallbackArgs): void;
 }
 
+// eslint-disable-next-line @typescript-eslint/no-empty-object-type
 export interface UnknownObject extends Record<string | number | symbol, unknown> {}
 
 export const isObject = (item: unknown) => {

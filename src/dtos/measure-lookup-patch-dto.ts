@@ -1,5 +1,3 @@
-import { ColumnDescriptor } from '../extractors/column-descriptor';
-
 export interface MeasureLookupPatchDTO {
     join_column: string;
     description_columns: string[];

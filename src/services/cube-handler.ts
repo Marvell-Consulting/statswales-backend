@@ -6,7 +6,7 @@ import { Database, DuckDbError } from 'duckdb-async';
 import tmp from 'tmp';
 import { t } from 'i18next';
 import { FindOptionsRelations } from 'typeorm';
-import { fromZonedTime, toZonedTime } from 'date-fns-tz';
+import { toZonedTime } from 'date-fns-tz';
 import { formatISO } from 'date-fns';
 
 import { FileType } from '../enums/file-type';
@@ -1050,7 +1050,7 @@ export const updateFactTableValidator = async (
     return quack;
 };
 
-async function createCubeMetadataTable(quack: Database, dataset: Dataset) {
+async function createCubeMetadataTable(quack: Database) {
     logger.debug('Adding metadata table to the cube');
     await quack.exec(`CREATE TABLE metadata (key VARCHAR, value VARCHAR);`);
 }
@@ -1114,7 +1114,7 @@ export const createBaseCube = async (datasetId: string, endRevisionId: string): 
     const { measureColumn, notesCodeColumn, dataValuesColumn, factTableDef, factIdentifiers } =
         await createBaseFactTable(quack, dataset);
 
-    await createCubeMetadataTable(quack, dataset);
+    await createCubeMetadataTable(quack);
 
     await loadFactTables(quack, dataset, endRevision, factTableDef, dataValuesColumn, notesCodeColumn, factIdentifiers);
 

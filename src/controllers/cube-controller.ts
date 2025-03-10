@@ -1,7 +1,6 @@
 import fs from 'node:fs';
 
 import tmp, { FileResult } from 'tmp';
-import { Database } from 'duckdb-async';
 import { NextFunction, Request, Response } from 'express';
 
 import { Dataset } from '../entities/dataset/dataset';

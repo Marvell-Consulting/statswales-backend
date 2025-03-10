@@ -17,7 +17,7 @@ const domain = new URL(config.auth.jwt.cookieDomain).hostname;
 logger.debug(`JWT cookie domain is '${domain}'`);
 
 // TODO: remove once EntraID is available for WG users
-export const loginLocal: RequestHandler = async (req, res, next) => {
+export const loginLocal: RequestHandler = async (req, res) => {
     logger.debug('auth request from local form received');
 
     const returnURL = `${config.frontend.url}/auth/callback`;

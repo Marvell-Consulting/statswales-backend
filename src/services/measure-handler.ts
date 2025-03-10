@@ -363,7 +363,7 @@ export const validateMeasureLookupTable = async (
     buffer: Buffer,
     tableMatcher?: MeasureLookupPatchDTO
 ): Promise<ViewDTO | ViewErrDTO> => {
-    const lookupTable = convertFactTableToLookupTable(protoLookupTable, undefined, dataset?.measure);
+    const lookupTable = convertFactTableToLookupTable(protoLookupTable);
     const factTableName = 'fact_table';
     const lookupTableName = 'preview_lookup';
     const measure = dataset.measure;
@@ -385,7 +385,7 @@ export const validateMeasureLookupTable = async (
     let confirmedJoinColumn: string | undefined;
     try {
         confirmedJoinColumn = lookForJoinColumn(protoLookupTable, measure.factTableColumn, tableMatcher);
-    } catch (err) {
+    } catch (_err) {
         await quack.close();
         return viewErrorGenerator(400, dataset.id, 'patch', 'errors.dimensionValidation.no_join_column', {});
     }

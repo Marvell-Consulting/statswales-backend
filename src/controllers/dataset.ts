@@ -16,7 +16,6 @@ import { BadRequestException } from '../exceptions/bad-request.exception';
 import { ViewErrDTO } from '../dtos/view-dto';
 import { arrayValidator, dtoValidator } from '../validators/dto-validator';
 import { RevisionMetadataDTO } from '../dtos/revistion-metadata-dto';
-import { TasklistStateDTO } from '../dtos/tasklist-state-dto';
 import { TeamSelectionDTO } from '../dtos/team-selection-dto';
 import { cleanUpCube, createBaseCube } from '../services/cube-handler';
 import { DEFAULT_PAGE_SIZE } from '../services/csv-processor';
@@ -46,11 +45,11 @@ export const listAllDatasets = async (req: Request, res: Response, next: NextFun
     }
 };
 
-export const getDatasetById = async (req: Request, res: Response, next: NextFunction) => {
+export const getDatasetById = async (req: Request, res: Response) => {
     res.json(DatasetDTO.fromDataset(res.locals.dataset));
 };
 
-export const deleteDatasetById = async (req: Request, res: Response, next: NextFunction) => {
+export const deleteDatasetById = async (req: Request, res: Response) => {
     const dataLakeService = new DataLakeService();
     await dataLakeService.deleteDirectoryAndFiles(req.params.dataset_id);
     await DatasetRepository.deleteById(res.locals.datasetId);
@@ -137,7 +136,7 @@ export const updateMetadata = async (req: Request, res: Response, next: NextFunc
         const updatedDataset = await req.datasetService.updateMetadata(res.locals.datasetId, metadata);
         res.status(201);
         res.json(DatasetDTO.fromDataset(updatedDataset));
-    } catch (err: any) {
+    } catch (err: unknown) {
         if (err instanceof BadRequestException) {
             err.validationErrors?.forEach((error) => {
                 if (!error.constraints) return;
@@ -179,7 +178,7 @@ export const addDataProvider = async (req: Request, res: Response, next: NextFun
         const updatedDataset = await req.datasetService.addDataProvider(res.locals.datasetId, provider);
         res.status(201);
         res.json(DatasetDTO.fromDataset(updatedDataset));
-    } catch (err: any) {
+    } catch (err: unknown) {
         logger.error(err, 'failed to add provider');
         if (err instanceof BadRequestException) {
             err.validationErrors?.forEach((error) => {
@@ -199,7 +198,7 @@ export const updateDataProviders = async (req: Request, res: Response, next: Nex
         const updatedDataset = await req.datasetService.updateDataProviders(res.locals.datasetId, providers);
         res.status(201);
         res.json(DatasetDTO.fromDataset(updatedDataset));
-    } catch (err: any) {
+    } catch (err: unknown) {
         logger.error(err, 'failed to update providers');
         if (err instanceof BadRequestException) {
             err.validationErrors?.forEach((error) => {
@@ -230,7 +229,7 @@ export const updateTopics = async (req: Request, res: Response, next: NextFuncti
         const updatedDataset = await req.datasetService.updateTopics(datasetId, datasetTopics.topics);
         res.status(201);
         res.json(DatasetDTO.fromDataset(updatedDataset));
-    } catch (err: any) {
+    } catch (err: unknown) {
         if (err instanceof BadRequestException) {
             err.validationErrors?.forEach((error) => {
                 if (!error.constraints) return;
@@ -250,7 +249,7 @@ export const updateDatasetTeam = async (req: Request, res: Response, next: NextF
         const updatedDataset = await DatasetRepository.updateDatasetTeam(datasetId, datasetTeam.team_id);
         res.status(201);
         res.json(DatasetDTO.fromDataset(updatedDataset));
-    } catch (err: any) {
+    } catch (err: unknown) {
         if (err instanceof BadRequestException) {
             err.validationErrors?.forEach((error) => {
                 if (!error.constraints) return;
@@ -296,7 +295,7 @@ export const updateSources = async (req: Request, res: Response, next: NextFunct
     }
 };
 
-export const getFactTableDefinition = async (req: Request, res: Response, next: NextFunction) => {
+export const getFactTableDefinition = async (req: Request, res: Response) => {
     const dataset: Dataset = res.locals.dataset;
     const factTableDto: FactTableColumnDto[] =
         dataset.factTable?.map((col: FactTableColumn) => FactTableColumnDto.fromFactTableColumn(col)) || [];

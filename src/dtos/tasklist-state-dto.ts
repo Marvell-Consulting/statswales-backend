@@ -1,4 +1,4 @@
-import { every, isEqual, max, pick, some, sortBy } from 'lodash';
+import { every, isEqual, max, pick } from 'lodash';
 
 import { Dataset } from '../entities/dataset/dataset';
 import { DimensionType } from '../enums/dimension-type';
@@ -169,8 +169,13 @@ export class TasklistStateDTO {
         const lastExportedAt = translationEvents?.find((event) => event.action === 'export')?.createdAt;
         const lastImportedAt = translationEvents?.find((event) => event.action === 'import')?.createdAt;
 
-        const metaEN = revision.metadata?.find((meta) => meta.language.includes('en'))!;
-        const metaCY = revision.metadata?.find((meta) => meta.language.includes('cy'))!;
+        const metaEN = revision.metadata?.find((meta) => meta.language.includes('en'));
+        const metaCY = revision.metadata?.find((meta) => meta.language.includes('cy'));
+
+        if (!metaEN || !metaCY) {
+          throw new Error(`Cannot generate tasklist state - metadata missing`);
+      }
+
         const metadataSynced = metaEN.updatedAt === metaCY.updatedAt;
         const lastMetaUpdateAt = max([metaEN.updatedAt, metaCY.updatedAt])!;
 

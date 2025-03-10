@@ -245,7 +245,6 @@ function specificDateTableCreator(dateFormat: DateExtractor, dataColumn: TableDa
         let day: string;
         let month: string;
         let year: string;
-        let dateStr: string;
 
         switch (dateFormat.dateFormat) {
             case 'dd/MM/yyyy':

@@ -16,7 +16,6 @@ import { DataTableDto } from '../dtos/data-table-dto';
 import { ReferenceType } from '../enums/reference-type';
 import { DimensionType } from '../enums/dimension-type';
 
-// eslint-disable-next-line import/no-cycle
 import { cleanUpDimension } from './dimension-processor';
 import {
     cleanUpReferenceDataTables,
