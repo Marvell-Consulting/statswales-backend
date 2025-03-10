@@ -1,4 +1,5 @@
 import { DimensionMetadata } from '../entities/dataset/dimension-metadata';
+import { MetadataInterface } from '../interfaces/metadata-interface';
 
 export class DimensionMetadataDTO {
     language: string;
@@ -6,7 +7,7 @@ export class DimensionMetadataDTO {
     description?: string;
     notes?: string;
 
-    static fromDimensionMetadata(dimensionInfo: DimensionMetadata): DimensionMetadataDTO {
+    static fromDimensionMetadata(dimensionInfo: MetadataInterface): DimensionMetadataDTO {
         const dto = new DimensionMetadataDTO();
         dto.language = dimensionInfo.language;
         dto.name = dimensionInfo.name;

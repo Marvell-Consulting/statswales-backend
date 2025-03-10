@@ -601,7 +601,8 @@ const NoteCodes: NoteCodeItem[] = [
 async function createNotesTable(
     quack: Database,
     notesColumn: FactTableColumn,
-    selectStatementsMap: Map<Locale, string[]>,
+    viewSelectStatementsMap: Map<Locale, string[]>,
+    rawSelectStatementsMap: Map<Locale, string[]>,
     joinStatements: string[]
 ): Promise<void> {
     logger.info('Creating notes table...');
@@ -638,7 +639,10 @@ async function createNotesTable(
         );
     }
     for (const locale of SUPPORTED_LOCALES) {
-        selectStatementsMap
+        viewSelectStatementsMap
+            .get(locale)
+            ?.push(`all_notes.description as "${t('column_headers.notes', { lng: locale })}"`);
+        rawSelectStatementsMap
             .get(locale)
             ?.push(`all_notes.description as "${t('column_headers.notes', { lng: locale })}"`);
     }
@@ -728,7 +732,8 @@ async function setupMeasures(
     quack: Database,
     dataset: Dataset,
     dataValuesColumn: FactTableColumn | undefined,
-    selectStatementsMap: Map<Locale, string[]>,
+    viewSelectStatementsMap: Map<Locale, string[]>,
+    rawSelectStatementsMap: Map<Locale, string[]>,
     joinStatements: string[],
     orderByStatements: string[],
     measureColumn?: FactTableColumn
@@ -758,13 +763,21 @@ async function setupMeasures(
         caseStatement.push(`ELSE CAST(${FACT_TABLE_NAME}."${dataValuesColumn?.columnName}" AS VARCHAR) END`);
         logger.debug(`Data view case statement ended up as: ${caseStatement.join('\n')}`);
         SUPPORTED_LOCALES.map((locale) => {
-            if (dataValuesColumn)
-                selectStatementsMap
+            const columnName =
+                dataset.measure.metadata.find((info) => info.language === locale)?.name ||
+                dataset.measure.factTableColumn;
+            if (dataValuesColumn) {
+                rawSelectStatementsMap
+                    .get(locale)
+                    ?.push(
+                        `${FACT_TABLE_NAME}."${dataValuesColumn?.columnName}" as "${t('column_headers.data_values', { lng: locale })}"`
+                    );
+                viewSelectStatementsMap
                     .get(locale)
                     ?.push(`${caseStatement.join('\n')} as "${t('column_headers.data_values', { lng: locale })}"`);
-            selectStatementsMap
-                .get(locale)
-                ?.push(`measure.description as "${t('column_headers.measure', { lng: locale })}"`);
+            }
+            viewSelectStatementsMap.get(locale)?.push(`measure.description as "${columnName}"`);
+            rawSelectStatementsMap.get(locale)?.push(`measure.description as "${columnName}"`);
         });
         const languageColumn = (dataset.measure.extractor as MeasureLookupTableExtractor).languageColumn || 'language';
         joinStatements.push(
@@ -773,18 +786,22 @@ async function setupMeasures(
         orderByStatements.push(`measure.sort_order, measure.reference`);
     } else {
         SUPPORTED_LOCALES.map((locale) => {
-            if (dataValuesColumn)
-                selectStatementsMap
+            if (dataValuesColumn) {
+                viewSelectStatementsMap
                     .get(locale)
                     ?.push(
                         `${FACT_TABLE_NAME}."${dataValuesColumn?.columnName}" as "${t('column_headers.data_values', { lng: locale })}"`
                     );
-            if (measureColumn)
-                selectStatementsMap
+                rawSelectStatementsMap
                     .get(locale)
                     ?.push(
-                        `${FACT_TABLE_NAME}."${measureColumn.columnName}" as "${t('column_headers.measure', { lng: locale })}"`
+                        `${FACT_TABLE_NAME}."${dataValuesColumn?.columnName}" as "${t('column_headers.data_values', { lng: locale })}"`
                     );
+            }
+            if (measureColumn) {
+                viewSelectStatementsMap.get(locale)?.push(`${FACT_TABLE_NAME}."${measureColumn.columnName}"`);
+                rawSelectStatementsMap.get(locale)?.push(`${FACT_TABLE_NAME}."${measureColumn.columnName}"`);
+            }
         });
     }
 }
@@ -793,7 +810,8 @@ async function setupDimensions(
     quack: Database,
     dataset: Dataset,
     endRevision: Revision,
-    selectStatementsMap: Map<Locale, string[]>,
+    viewSelectStatementsMap: Map<Locale, string[]>,
+    rawSelectStatementsMap: Map<Locale, string[]>,
     joinStatements: string[],
     orderByStatements: string[]
 ) {
@@ -825,13 +843,24 @@ async function setupDimensions(
                             const columnName =
                                 dimension.metadata.find((info) => info.language === locale)?.name ||
                                 dimension.factTableColumn;
-                            selectStatementsMap.get(locale)?.push(`${dimTable}.description as "${columnName}"`);
-                            selectStatementsMap
+                            viewSelectStatementsMap.get(locale)?.push(`${dimTable}.description as "${columnName}"`);
+                            viewSelectStatementsMap
                                 .get(locale)
                                 ?.push(
                                     `strftime(${dimTable}.start_date, '%d/%m/%Y') as "${t('column_headers.start_date', { lng: locale })}"`
                                 );
-                            selectStatementsMap
+                            viewSelectStatementsMap
+                                .get(locale)
+                                ?.push(
+                                    `strftime(${dimTable}.end_date, '%d/%m/%Y') as "${t('column_headers.end_date', { lng: locale })}"`
+                                );
+                            rawSelectStatementsMap.get(locale)?.push(`${dimTable}.description as "${columnName}"`);
+                            rawSelectStatementsMap
+                                .get(locale)
+                                ?.push(
+                                    `strftime(${dimTable}.start_date, '%d/%m/%Y') as "${t('column_headers.start_date', { lng: locale })}"`
+                                );
+                            rawSelectStatementsMap
                                 .get(locale)
                                 ?.push(
                                     `strftime(${dimTable}.end_date, '%d/%m/%Y') as "${t('column_headers.end_date', { lng: locale })}"`
@@ -846,7 +875,10 @@ async function setupDimensions(
                             const columnName =
                                 dimension.metadata.find((info) => info.language === locale)?.name ||
                                 dimension.factTableColumn;
-                            selectStatementsMap.get(locale)?.push(`${dimension.factTableColumn} as "${columnName}"`);
+                            viewSelectStatementsMap
+                                .get(locale)
+                                ?.push(`${dimension.factTableColumn} as "${columnName}"`);
+                            rawSelectStatementsMap.get(locale)?.push(`${dimension.factTableColumn} as "${columnName}"`);
                         });
                     }
                     break;
@@ -864,7 +896,10 @@ async function setupDimensions(
                                 const columnName =
                                     dimension.metadata.find((info) => info.language === locale)?.name ||
                                     dimension.factTableColumn;
-                                selectStatementsMap
+                                viewSelectStatementsMap
+                                    .get(locale)
+                                    ?.push(`${dimension.factTableColumn} as "${columnName}"`);
+                                rawSelectStatementsMap
                                     .get(locale)
                                     ?.push(`${dimension.factTableColumn} as "${columnName}"`);
                             });
@@ -877,7 +912,8 @@ async function setupDimensions(
                         const columnName =
                             dimension.metadata.find((info) => info.language === locale)?.name ||
                             dimension.factTableColumn;
-                        selectStatementsMap.get(locale)?.push(`${dimTable}.description as "${columnName}"`);
+                        viewSelectStatementsMap.get(locale)?.push(`${dimTable}.description as "${columnName}"`);
+                        rawSelectStatementsMap.get(locale)?.push(`${dimTable}.description as "${columnName}"`);
                     });
                     languageColumn = (dimension.extractor as LookupTableExtractor).languageColumn || 'language';
                     joinStatements.push(
@@ -895,21 +931,35 @@ async function setupDimensions(
                         const columnName =
                             dimension.metadata.find((info) => info.language === locale)?.name ||
                             dimension.factTableColumn;
-                        selectStatementsMap.get(locale)?.push(`reference_data_info.description as "${columnName}"`);
+                        viewSelectStatementsMap.get(locale)?.push(`reference_data_info.description as "${columnName}"`);
+                        rawSelectStatementsMap.get(locale)?.push(`reference_data_info.description as "${columnName}"`);
                     });
                     joinStatements.push(
                         `LEFT JOIN reference_data on CAST(${FACT_TABLE_NAME}."${dimension.factTableColumn}" AS VARCHAR)=reference_data.item_id`
                     );
                     break;
-                case DimensionType.Raw:
-                case DimensionType.Numeric:
                 case DimensionType.Text:
+                    SUPPORTED_LOCALES.map((locale) => {
+                        const columnName =
+                            dimension.metadata.find((info) => info.language === locale)?.name ||
+                            dimension.factTableColumn;
+                        viewSelectStatementsMap
+                            .get(locale)
+                            ?.push(`CAST(${dimension.factTableColumn} AS VARCHAR) as "${columnName}"`);
+                        rawSelectStatementsMap
+                            .get(locale)
+                            ?.push(`CAST(${dimension.factTableColumn} AS VARCHAR) as "${columnName}"`);
+                    });
+                    break;
+                case DimensionType.Numeric:
+                case DimensionType.Raw:
                 case DimensionType.Symbol:
                     SUPPORTED_LOCALES.map((locale) => {
                         const columnName =
                             dimension.metadata.find((info) => info.language === locale)?.name ||
                             dimension.factTableColumn;
-                        selectStatementsMap.get(locale)?.push(`${dimension.factTableColumn} as "${columnName}"`);
+                        viewSelectStatementsMap.get(locale)?.push(`${dimension.factTableColumn} as "${columnName}"`);
+                        rawSelectStatementsMap.get(locale)?.push(`${dimension.factTableColumn} as "${columnName}"`);
                     });
                     break;
             }
@@ -1016,8 +1066,12 @@ async function createCubeMetadataTable(quack: Database, dataset: Dataset) {
 export const createBaseCube = async (datasetId: string, endRevisionId: string): Promise<string> => {
     logger.debug(`Creating base cube for for revision: ${endRevisionId}`);
     const functionStart = performance.now();
-    const selectStatementsMap = new Map<Locale, string[]>();
-    SUPPORTED_LOCALES.map((locale) => selectStatementsMap.set(locale, []));
+    const viewSelectStatementsMap = new Map<Locale, string[]>();
+    const rawSelectStatementsMap = new Map<Locale, string[]>();
+    SUPPORTED_LOCALES.map((locale) => {
+        viewSelectStatementsMap.set(locale, []);
+        rawSelectStatementsMap.set(locale, []);
+    });
     const joinStatements: string[] = [];
     const orderByStatements: string[] = [];
 
@@ -1028,6 +1082,7 @@ export const createBaseCube = async (datasetId: string, endRevisionId: string): 
         },
         factTable: true,
         measure: {
+            metadata: true,
             measureTable: true
         },
         revisions: {
@@ -1067,7 +1122,8 @@ export const createBaseCube = async (datasetId: string, endRevisionId: string): 
         quack,
         dataset,
         dataValuesColumn,
-        selectStatementsMap,
+        viewSelectStatementsMap,
+        rawSelectStatementsMap,
         joinStatements,
         orderByStatements,
         measureColumn
@@ -1077,7 +1133,15 @@ export const createBaseCube = async (datasetId: string, endRevisionId: string): 
         await loadReferenceDataIntoCube(quack);
     }
 
-    await setupDimensions(quack, dataset, endRevision, selectStatementsMap, joinStatements, orderByStatements);
+    await setupDimensions(
+        quack,
+        dataset,
+        endRevision,
+        viewSelectStatementsMap,
+        rawSelectStatementsMap,
+        joinStatements,
+        orderByStatements
+    );
 
     if (referenceDataPresent(dataset)) {
         await cleanUpReferenceDataTables(quack);
@@ -1089,22 +1153,29 @@ export const createBaseCube = async (datasetId: string, endRevisionId: string): 
 
     logger.debug('Adding notes code column to the select statement.');
     if (notesCodeColumn) {
-        await createNotesTable(quack, notesCodeColumn, selectStatementsMap, joinStatements);
+        await createNotesTable(quack, notesCodeColumn, viewSelectStatementsMap, rawSelectStatementsMap, joinStatements);
     }
 
     logger.info(`Creating default views...`);
     // Build the default views
     for (const locale of SUPPORTED_LOCALES) {
-        if (selectStatementsMap.get(locale)?.length === 0) {
-            selectStatementsMap.get(locale)?.push('*');
+        if (viewSelectStatementsMap.get(locale)?.length === 0) {
+            viewSelectStatementsMap.get(locale)?.push('*');
         }
-        const defaultViewSQL = `CREATE TABLE default_view_${locale.toLowerCase().split('-')[0]} AS SELECT\n${selectStatementsMap
+        const defaultViewSQL = `CREATE TABLE default_view_${locale.toLowerCase().split('-')[0]} AS SELECT\n${viewSelectStatementsMap
             .get(locale)
             ?.join(
                 ',\n'
             )} FROM ${FACT_TABLE_NAME}\n${joinStatements.join('\n').replace(/#LANG#/g, locale.toLowerCase())}\n ${orderByStatements.length > 0 ? `ORDER BY ${orderByStatements.join(', ')}` : ''};`;
         logger.debug(defaultViewSQL);
         await quack.exec(defaultViewSQL);
+        const rawViewSQL = `CREATE TABLE raw_view_${locale.toLowerCase().split('-')[0]} AS SELECT\n${rawSelectStatementsMap
+            .get(locale)
+            ?.join(
+                ',\n'
+            )} FROM ${FACT_TABLE_NAME}\n${joinStatements.join('\n').replace(/#LANG#/g, locale.toLowerCase())}\n ${orderByStatements.length > 0 ? `ORDER BY ${orderByStatements.join(', ')}` : ''};`;
+        logger.debug(rawViewSQL);
+        await quack.exec(rawViewSQL);
     }
     const tmpFile = tmp.tmpNameSync({ postfix: '.db' });
     try {
