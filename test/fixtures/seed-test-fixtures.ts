@@ -1,4 +1,4 @@
- 
+/* eslint-disable no-console */
 import fs from 'node:fs';
 
 import { Seeder } from '@jorgebodega/typeorm-seeding';

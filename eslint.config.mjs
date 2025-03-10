@@ -20,6 +20,7 @@ export default tseslint.config(
     tseslint.configs.recommended,
     {
       rules: {
+        'no-console': 'error',
         'line-comment-position': 'off',
         'no-warning-comments': 'warn',
         '@typescript-eslint/no-explicit-any': 'warn',
