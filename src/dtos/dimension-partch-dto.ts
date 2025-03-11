@@ -1,6 +1,7 @@
 import { DimensionType } from '../enums/dimension-type';
 import { YearType } from '../enums/year-type';
 import { ReferenceType } from '../enums/reference-type';
+import {NumberType} from "../extractors/number-extractor";
 
 export interface DimensionPatchDto {
   dimension_type: DimensionType;
@@ -13,4 +14,6 @@ export interface DimensionPatchDto {
   month_format?: string;
   date_format?: string;
   fifth_quarter: boolean;
+  number_format?: NumberType;
+  decimal_places?: number;
 }

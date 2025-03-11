@@ -1,25 +1,30 @@
-import { NextFunction, Request, Response } from 'express';
+import {NextFunction, Request, Response} from 'express';
 
-import { Dimension } from '../entities/dataset/dimension';
-import { DimensionMetadata } from '../entities/dataset/dimension-metadata';
-import { DimensionType } from '../enums/dimension-type';
-import { DataTable } from '../entities/dataset/data-table';
-import { logger } from '../utils/logger';
-import { DimensionPatchDto } from '../dtos/dimension-partch-dto';
-import { ViewDTO, ViewErrDTO } from '../dtos/view-dto';
-import { NotFoundException } from '../exceptions/not-found.exception';
-import { DimensionDTO } from '../dtos/dimension-dto';
-import { LookupTable } from '../entities/dataset/lookup-table';
-import { getLatestRevision } from '../utils/latest';
-import { BadRequestException } from '../exceptions/bad-request.exception';
-import { UnknownException } from '../exceptions/unknown.exception';
-import { LookupTablePatchDTO } from '../dtos/lookup-patch-dto';
-import { DimensionMetadataDTO } from '../dtos/dimension-metadata-dto';
-import { getFactTableColumnPreview, uploadCSV } from '../services/csv-processor';
-import { getDimensionPreview, setupTextDimension, validateDateTypeDimension } from '../services/dimension-processor';
-import { validateLookupTable } from '../services/lookup-table-handler';
-import { validateReferenceData } from '../services/reference-data-handler';
-import { convertBufferToUTF8 } from '../utils/file-utils';
+import {Dimension} from '../entities/dataset/dimension';
+import {DimensionMetadata} from '../entities/dataset/dimension-metadata';
+import {DimensionType} from '../enums/dimension-type';
+import {DataTable} from '../entities/dataset/data-table';
+import {logger} from '../utils/logger';
+import {DimensionPatchDto} from '../dtos/dimension-partch-dto';
+import {ViewDTO, ViewErrDTO} from '../dtos/view-dto';
+import {NotFoundException} from '../exceptions/not-found.exception';
+import {DimensionDTO} from '../dtos/dimension-dto';
+import {LookupTable} from '../entities/dataset/lookup-table';
+import {getLatestRevision} from '../utils/latest';
+import {BadRequestException} from '../exceptions/bad-request.exception';
+import {UnknownException} from '../exceptions/unknown.exception';
+import {LookupTablePatchDTO} from '../dtos/lookup-patch-dto';
+import {DimensionMetadataDTO} from '../dtos/dimension-metadata-dto';
+import {getFactTableColumnPreview, uploadCSV} from '../services/csv-processor';
+import {
+  getDimensionPreview,
+  setupTextDimension,
+  validateDateTypeDimension,
+  validateNumericDimension
+} from '../services/dimension-processor';
+import {validateLookupTable} from '../services/lookup-table-handler';
+import {validateReferenceData} from '../services/reference-data-handler';
+import {convertBufferToUTF8} from '../utils/file-utils';
 
 export const getDimensionInfo = async (req: Request, res: Response) => {
   res.json(DimensionDTO.fromDimension(res.locals.dimension));
@@ -163,6 +168,9 @@ export const updateDimension = async (req: Request, res: Response, next: NextFun
       case DimensionType.Text:
         await setupTextDimension(dimension);
         preview = await getFactTableColumnPreview(dataset, dataTable, dimension.factTableColumn);
+        break;
+      case DimensionType.Numeric:
+        preview = await validateNumericDimension(dimensionPatchRequest, dataset, dimension, dataTable);
         break;
       case DimensionType.LookupTable:
         logger.debug('User requested to patch a lookup table?');
