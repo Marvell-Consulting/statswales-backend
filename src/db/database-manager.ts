@@ -15,7 +15,7 @@ class DatabaseManager {
     this.dataSource = dataSource;
   }
 
-  getDataSource() {
+  getDataSource(): DataSource {
     return this.dataSource;
   }
 
@@ -26,7 +26,7 @@ class DatabaseManager {
     return this.entityManager;
   }
 
-  async initializeDataSource() {
+  async initializeDataSource(): Promise<void> {
     this.logger.debug(`DB '${this.dataSource.options.database}' initializing...`);
 
     if (!this.dataSource.isInitialized) {
