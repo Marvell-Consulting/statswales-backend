@@ -48,7 +48,17 @@ export const withDraftForCube: FindOptionsRelations<Dataset> = {
 };
 
 export const withDraftForTasklistState: FindOptionsRelations<Dataset> = {
-    draftRevision: { metadata: true, dataTable: true, revisionProviders: true, revisionTopics: true },
+    draftRevision: {
+        metadata: true,
+        dataTable: true,
+        revisionProviders: true,
+        revisionTopics: true,
+        previousRevision: {
+            metadata: true,
+            revisionProviders: true,
+            revisionTopics: true
+        }
+    },
     dimensions: { metadata: true },
     measure: { measureTable: true },
     team: true
@@ -98,10 +108,12 @@ export const DatasetRepository = dataSource.getRepository(Dataset).extend({
         await dataSource.getRepository(FactTableColumn).save(factColumns);
     },
 
-    async listByLanguage(lang: Locale, page: number, limit: number): Promise<ResultsetWithCount<DatasetListItemDTO>> {
-        // TODO: statuses are a best approximation for a first pass
+    async listByLanguage(locale: Locale, page: number, limit: number): Promise<ResultsetWithCount<DatasetListItemDTO>> {
+        logger.debug(`Listing datasets for language ${locale}, page ${page}, limit ${limit}`);
+        const lang = locale.includes('en') ? Locale.EnglishGb : Locale.WelshGb;
+
         const qb = this.createQueryBuilder('d')
-            .select(['d.id as id', 'r.title as title', 'r.updated_at as last_updated'])
+            .select(['d.id as id', 'r.title as title', 'r.title_alt as title_alt', 'r.updated_at as last_updated'])
             .addSelect(
                 `
                 CASE
@@ -127,17 +139,17 @@ export const DatasetRepository = dataSource.getRepository(Dataset).extend({
                 (subQuery) => {
                     // only join the latest revision for each dataset
                     return subQuery
-                        .select('DISTINCT ON (rev.dataset_id) rev.*, rm.title')
+                        .select('DISTINCT ON (rev.dataset_id) rev.*, rm1.title as title, rm2.title as title_alt')
                         .from(Revision, 'rev')
-                        .innerJoin('rev.metadata', 'rm')
-                        .where('rm.language LIKE :lang', { lang: `${lang}%` })
+                        .innerJoin('rev.metadata', 'rm1', 'rm1.language = :lang', { lang })
+                        .innerJoin('rev.metadata', 'rm2', 'rm2.language != :lang', { lang })
                         .orderBy('rev.dataset_id')
                         .addOrderBy('rev.created_at', 'DESC');
                 },
                 'r',
                 'r.dataset_id = d.id'
             )
-            .groupBy('d.id, r.title, r.updated_at, r.approved_at, r.publish_at');
+            .groupBy('d.id, r.title, r.title_alt, r.updated_at, r.approved_at, r.publish_at');
 
         const offset = (page - 1) * limit;
 

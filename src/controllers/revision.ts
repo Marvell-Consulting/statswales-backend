@@ -445,12 +445,9 @@ export const approveForPublication = async (req: Request, res: Response, next: N
             throw new BadRequestException('errors.approve.revision_already_approved');
         }
 
-        // is draft ready to be published?
-        const datasetForTasklist = await DatasetRepository.getById(dataset.id, withDraftForTasklistState);
-        const draftRevision = datasetForTasklist.draftRevision!;
-        const tasklist = TasklistStateDTO.fromDataset(datasetForTasklist, draftRevision, req.language);
+        const tasklistState = await req.datasetService.getTasklistState(dataset.id, req.language as Locale);
 
-        if (!tasklist.canPublish) {
+        if (!tasklistState.canPublish) {
             logger.error('Dataset is not ready for publication, check tasklist state');
             throw new BadRequestException('errors.approve.not_ready');
         }

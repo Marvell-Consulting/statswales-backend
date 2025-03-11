@@ -9,7 +9,8 @@ import {
     DatasetRepository,
     withDraftAndMetadata,
     withDraftAndProviders,
-    withDraftAndTopics
+    withDraftAndTopics,
+    withDraftForTasklistState
 } from '../repositories/dataset';
 import { RevisionRepository } from '../repositories/revision';
 import { logger } from '../utils/logger';
@@ -24,6 +25,8 @@ import { DuckdbOutputType } from '../enums/duckdb-outputs';
 import { SUPPORTED_LOCALES } from '../middleware/translation';
 import { isPublished } from '../utils/revision';
 import { BadRequestException } from '../exceptions/bad-request.exception';
+import { TasklistStateDTO } from '../dtos/tasklist-state-dto';
+import { EventLog } from '../entities/event-log';
 
 import { createBaseCube, getCubeTimePeriods } from './cube-handler';
 import { uploadCSV } from './csv-processor';
@@ -281,5 +284,17 @@ export class DatasetService {
         await DatasetRepository.save({ id: datasetId, draftRevision: newRevision, endRevision: newRevision });
 
         return DatasetRepository.getById(datasetId, withDraftAndMetadata);
+    }
+
+    async getTasklistState(datasetId: string, locale: Locale): Promise<TasklistStateDTO> {
+        const dataset = await DatasetRepository.getById(datasetId, withDraftForTasklistState);
+        const revision = dataset.draftRevision!;
+
+        const translationEvents = await EventLog.getRepository().find({
+            where: { entity: 'translations', entityId: revision.id },
+            order: { createdAt: 'DESC' }
+        });
+
+        return TasklistStateDTO.fromDataset(dataset, revision, locale, translationEvents);
     }
 }

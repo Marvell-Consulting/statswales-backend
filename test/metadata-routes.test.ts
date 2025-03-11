@@ -78,6 +78,7 @@ describe('API Endpoints for viewing dataset objects', () => {
                     {
                         id: dataset1Id,
                         title: 'Test Dataset 1',
+                        title_alt: 'Test Dataset 1',
                         last_updated: expect.stringContaining(today),
                         status: 'new',
                         publishing_status: 'incomplete'
