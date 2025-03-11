@@ -27,8 +27,8 @@ import { getTestUser } from './helpers/get-user';
 import { getAuthHeader } from './helpers/auth-header';
 
 DataLakeService.prototype.listFiles = jest
-    .fn()
-    .mockReturnValue([{ name: 'test-data-1.csv', path: 'test/test-data-1.csv', isDirectory: false }]);
+  .fn()
+  .mockReturnValue([{ name: 'test-data-1.csv', path: 'test/test-data-1.csv', isDirectory: false }]);
 
 DataLakeService.prototype.uploadFileBuffer = jest.fn();
 
@@ -38,237 +38,229 @@ const dataTableId = 'fa07be9d-3495-432d-8c1f-d0fc6daae359';
 const user: User = getTestUser('test', 'user');
 
 describe('API Endpoints for viewing dataset objects', () => {
-    let dbManager: DatabaseManager;
-    beforeAll(async () => {
-        try {
-            dbManager = await initDb();
-            await initPassport(dbManager.getDataSource());
-            await user.save();
-            await createFullDataset(dataset1Id, revision1Id, dataTableId, user);
-        } catch (error) {
-            logger.error(error, 'Could not initialise test database');
-            await dbManager.getDataSource().dropDatabase();
-            await dbManager.getDataSource().destroy();
-            process.exit(1);
-        }
+  let dbManager: DatabaseManager;
+  beforeAll(async () => {
+    try {
+      dbManager = await initDb();
+      await initPassport(dbManager.getDataSource());
+      await user.save();
+      await createFullDataset(dataset1Id, revision1Id, dataTableId, user);
+    } catch (error) {
+      logger.error(error, 'Could not initialise test database');
+      await dbManager.getDataSource().dropDatabase();
+      await dbManager.getDataSource().destroy();
+      process.exit(1);
+    }
+  });
+
+  test('Check fixtures loaded successfully', async () => {
+    const dataset1 = await Dataset.findOneBy({ id: dataset1Id });
+    if (!dataset1) {
+      throw new Error('Dataset not found');
+    }
+    const dto = DatasetDTO.fromDataset(dataset1);
+    expect(dto).toBeInstanceOf(DatasetDTO);
+  });
+
+  describe('List all datasets', () => {
+    test('returns 401 if no auth header is sent (JWT auth)', async () => {
+      const res = await request(app).get('/dataset');
+      expect(res.status).toBe(401);
+      expect(res.body).toEqual({});
     });
 
-    test('Check fixtures loaded successfully', async () => {
-        const dataset1 = await Dataset.findOneBy({ id: dataset1Id });
-        if (!dataset1) {
-            throw new Error('Dataset not found');
-        }
-        const dto = DatasetDTO.fromDataset(dataset1);
-        expect(dto).toBeInstanceOf(DatasetDTO);
+    test('Get a list of all datasets returns 200 with a file list', async () => {
+      const res = await request(app).get('/dataset').set(getAuthHeader(user));
+      const today = new Date().toISOString().split('T')[0];
+      expect(res.status).toBe(200);
+      expect(res.body).toEqual({
+        data: [
+          {
+            id: dataset1Id,
+            title: 'Test Dataset 1',
+            title_alt: 'Test Dataset 1',
+            last_updated: expect.stringContaining(today),
+            status: 'new',
+            publishing_status: 'incomplete'
+          }
+        ],
+        count: 1
+      });
+    });
+  });
+
+  describe('Display dataset object endpoints', () => {
+    test('returns 401 if no auth header is sent (JWT auth)', async () => {
+      const res = await request(app).get(`/dataset/${dataset1Id}`);
+      expect(res.status).toBe(401);
+      expect(res.body).toEqual({});
     });
 
-    describe('List all datasets', () => {
-        test('returns 401 if no auth header is sent (JWT auth)', async () => {
-            const res = await request(app).get('/dataset');
-            expect(res.status).toBe(401);
-            expect(res.body).toEqual({});
-        });
-
-        test('Get a list of all datasets returns 200 with a file list', async () => {
-            const res = await request(app).get('/dataset').set(getAuthHeader(user));
-            const today = new Date().toISOString().split('T')[0];
-            expect(res.status).toBe(200);
-            expect(res.body).toEqual({
-                data: [
-                    {
-                        id: dataset1Id,
-                        title: 'Test Dataset 1',
-                        title_alt: 'Test Dataset 1',
-                        last_updated: expect.stringContaining(today),
-                        status: 'new',
-                        publishing_status: 'incomplete'
-                    }
-                ],
-                count: 1
-            });
-        });
+    test('Get a dataset returns 200', async () => {
+      const dataset1 = await DatasetRepository.getById(dataset1Id);
+      if (!dataset1) {
+        throw new Error('Dataset not found');
+      }
+      const dto = await DatasetDTO.fromDataset(dataset1);
+      const res = await request(app).get(`/dataset/${dataset1Id}`).set(getAuthHeader(user));
+      expect(res.status).toBe(200);
+      expect(res.body).toEqual(dto);
     });
 
-    describe('Display dataset object endpoints', () => {
-        test('returns 401 if no auth header is sent (JWT auth)', async () => {
-            const res = await request(app).get(`/dataset/${dataset1Id}`);
-            expect(res.status).toBe(401);
-            expect(res.body).toEqual({});
-        });
+    test('Get a dataset returns 404 if an invalid ID is given', async () => {
+      const res = await request(app).get(`/dataset/INVALID-ID`).set(getAuthHeader(user));
+      expect(res.status).toBe(404);
+      expect(res.body).toEqual({ error: 'Dataset id is invalid or missing' });
+    });
 
-        test('Get a dataset returns 200', async () => {
-            const dataset1 = await DatasetRepository.getById(dataset1Id);
-            if (!dataset1) {
-                throw new Error('Dataset not found');
+    test('Get a dataset returns 404 if a non-existant ID is given', async () => {
+      const res = await request(app).get(`/dataset/8B9434D1-4807-41CD-8E81-228769671A07`).set(getAuthHeader(user));
+      expect(res.status).toBe(404);
+    });
+  });
+
+  describe('Display dimension metadata endpoints', () => {
+    test('returns 401 if no auth header is sent (JWT auth)', async () => {
+      const res = await request(app).get(`/dataset/${dataset1Id}/dimension/by-id/06b60fc5-93c9-4bd8-ac6f-3cc60ea538c4`);
+      expect(res.status).toBe(401);
+      expect(res.body).toEqual({});
+    });
+
+    test('Get a dimension returns 200 with a shallow object', async () => {
+      const dataset1 = await DatasetRepository.getById(dataset1Id, {
+        dimensions: { metadata: true, lookupTable: true }
+      });
+      if (!dataset1) {
+        throw new Error('Dataset not found');
+      }
+      const dimension = dataset1.dimensions.pop();
+      if (!dimension) {
+        throw new Error('No dimension found on test dataset');
+      }
+      const dto = await DimensionDTO.fromDimension(dimension);
+      const res = await request(app)
+        .get(`/dataset/${dataset1Id}/dimension/by-id/${dimension.id}`)
+        .set(getAuthHeader(user));
+      expect(res.status).toBe(200);
+      expect(res.body).toEqual(dto);
+    });
+
+    test('Get a dimension returns 404 if an invalid ID is given', async () => {
+      const res = await request(app).get(`/dataset/${dataset1Id}/dimension/by-id/INVALID-ID`).set(getAuthHeader(user));
+      expect(res.status).toBe(404);
+      expect(res.body).toEqual({ error: 'Dimension id is invalid or missing' });
+    });
+
+    test('Get a dimension returns 404 if a non-existant ID is given', async () => {
+      const res = await request(app)
+        .get(`/dataset/${dataset1Id}/dimension/by-id/8B9434D1-4807-41CD-8E81-228769671A07`)
+        .set(getAuthHeader(user));
+      expect(res.status).toBe(404);
+    });
+  });
+
+  describe('Get revision metadata endpoints', () => {
+    test('returns 401 if no auth header is sent (JWT auth)', async () => {
+      const res = await request(app).get(`/dataset/${dataset1Id}/revision/by-id/${revision1Id}`);
+      expect(res.status).toBe(401);
+      expect(res.body).toEqual({});
+    });
+
+    test('Get a revision returns 200', async () => {
+      const revision = await Revision.findOne({ where: { id: revision1Id }, relations: withMetadata });
+      if (!revision) {
+        throw new Error('Revision not found');
+      }
+      const res = await request(app)
+        .get(`/dataset/${dataset1Id}/revision/by-id/${revision1Id}`)
+        .set(getAuthHeader(user));
+      expect(res.status).toBe(200);
+      const dto = await RevisionDTO.fromRevision(revision);
+      expect(res.body).toEqual(dto);
+    });
+
+    test('Get revision returns 404 if an invalid ID is given', async () => {
+      const res = await request(app).get(`/dataset/${dataset1Id}/revision/by-id/INVALID-ID`).set(getAuthHeader(user));
+      expect(res.status).toBe(404);
+      expect(res.body).toEqual({ error: 'Revision id is invalid or missing' });
+    });
+
+    test('Get revision returns 404 if a ID is given', async () => {
+      const res = await request(app)
+        .get(`/dataset/${dataset1Id}/revision/by-id/8B9434D1-4807-41CD-8E81-228769671A07`)
+        .set(getAuthHeader(user));
+      expect(res.status).toBe(404);
+    });
+  });
+
+  describe('DataTable endpoints', () => {
+    test('returns 401 if no auth header is sent (JWT auth)', async () => {
+      const res = await request(app).get(
+        `/dataset/${dataset1Id}/revision/by-id/${revision1Id}/data-table/by-id/${dataTableId}/preview`
+      );
+      expect(res.status).toBe(401);
+      expect(res.body).toEqual({});
+    });
+
+    test('Get data-table returns 200 with object', async () => {
+      const dataTable = await DataTableRepository.getDataTableById(dataset1Id, revision1Id, dataTableId);
+      if (!dataTable) {
+        throw new Error('Data table not found');
+      }
+      const res = await request(app)
+        .get(`/dataset/${dataset1Id}/revision/by-id/${revision1Id}/data-table`)
+        .set(getAuthHeader(user));
+      const expectedDTO = DataTableDto.fromDataTable(dataTable);
+      expect(res.status).toBe(200);
+      expect(res.body).toEqual(expectedDTO);
+    });
+
+    describe('Getting a raw file out of a file import', () => {
+      test('Get file from a revision and import returns 200 and complete file data if stored in the Data Lake', async () => {
+        const testFile2 = path.resolve(__dirname, `sample-files/csv/test-data-2.csv`);
+        const testFileStream = fs.createReadStream(testFile2);
+        const testFile2Buffer = fs.readFileSync(testFile2);
+        DataLakeService.prototype.getFileStream = jest.fn().mockReturnValue(Promise.resolve(testFileStream));
+
+        const res = await request(app)
+          .get(`/dataset/${dataset1Id}/revision/by-id/${revision1Id}/data-table/raw`)
+          .set(getAuthHeader(user));
+        expect(res.status).toBe(200);
+        expect(res.text).toEqual(testFile2Buffer.toString());
+      });
+
+      test('Get file from a revision and import returns 500 if an error with the Data Lake occurs', async () => {
+        DataLakeService.prototype.getFileStream = jest.fn().mockRejectedValue(Error('Unknown Data Lake Error'));
+        const res = await request(app)
+          .get(`/dataset/${dataset1Id}/revision/by-id/${revision1Id}/data-table/raw`)
+          .set(getAuthHeader(user));
+        expect(res.status).toBe(500);
+        expect(res.body).toEqual({
+          status: 500,
+          errors: [
+            {
+              field: 'csv',
+              message: [
+                {
+                  lang: Locale.English,
+                  message: t('errors.download_from_datalake', { lng: Locale.English })
+                },
+                {
+                  lang: Locale.Welsh,
+                  message: t('errors.download_from_datalake', { lng: Locale.Welsh })
+                }
+              ],
+              tag: { name: 'errors.download_from_datalake', params: {} }
             }
-            const dto = await DatasetDTO.fromDataset(dataset1);
-            const res = await request(app).get(`/dataset/${dataset1Id}`).set(getAuthHeader(user));
-            expect(res.status).toBe(200);
-            expect(res.body).toEqual(dto);
+          ],
+          dataset_id: dataset1Id
         });
-
-        test('Get a dataset returns 404 if an invalid ID is given', async () => {
-            const res = await request(app).get(`/dataset/INVALID-ID`).set(getAuthHeader(user));
-            expect(res.status).toBe(404);
-            expect(res.body).toEqual({ error: 'Dataset id is invalid or missing' });
-        });
-
-        test('Get a dataset returns 404 if a non-existant ID is given', async () => {
-            const res = await request(app)
-                .get(`/dataset/8B9434D1-4807-41CD-8E81-228769671A07`)
-                .set(getAuthHeader(user));
-            expect(res.status).toBe(404);
-        });
+      });
     });
+  });
 
-    describe('Display dimension metadata endpoints', () => {
-        test('returns 401 if no auth header is sent (JWT auth)', async () => {
-            const res = await request(app).get(
-                `/dataset/${dataset1Id}/dimension/by-id/06b60fc5-93c9-4bd8-ac6f-3cc60ea538c4`
-            );
-            expect(res.status).toBe(401);
-            expect(res.body).toEqual({});
-        });
-
-        test('Get a dimension returns 200 with a shallow object', async () => {
-            const dataset1 = await DatasetRepository.getById(dataset1Id, {
-                dimensions: { metadata: true, lookupTable: true }
-            });
-            if (!dataset1) {
-                throw new Error('Dataset not found');
-            }
-            const dimension = dataset1.dimensions.pop();
-            if (!dimension) {
-                throw new Error('No dimension found on test dataset');
-            }
-            const dto = await DimensionDTO.fromDimension(dimension);
-            const res = await request(app)
-                .get(`/dataset/${dataset1Id}/dimension/by-id/${dimension.id}`)
-                .set(getAuthHeader(user));
-            expect(res.status).toBe(200);
-            expect(res.body).toEqual(dto);
-        });
-
-        test('Get a dimension returns 404 if an invalid ID is given', async () => {
-            const res = await request(app)
-                .get(`/dataset/${dataset1Id}/dimension/by-id/INVALID-ID`)
-                .set(getAuthHeader(user));
-            expect(res.status).toBe(404);
-            expect(res.body).toEqual({ error: 'Dimension id is invalid or missing' });
-        });
-
-        test('Get a dimension returns 404 if a non-existant ID is given', async () => {
-            const res = await request(app)
-                .get(`/dataset/${dataset1Id}/dimension/by-id/8B9434D1-4807-41CD-8E81-228769671A07`)
-                .set(getAuthHeader(user));
-            expect(res.status).toBe(404);
-        });
-    });
-
-    describe('Get revision metadata endpoints', () => {
-        test('returns 401 if no auth header is sent (JWT auth)', async () => {
-            const res = await request(app).get(`/dataset/${dataset1Id}/revision/by-id/${revision1Id}`);
-            expect(res.status).toBe(401);
-            expect(res.body).toEqual({});
-        });
-
-        test('Get a revision returns 200', async () => {
-            const revision = await Revision.findOne({ where: { id: revision1Id }, relations: withMetadata });
-            if (!revision) {
-                throw new Error('Revision not found');
-            }
-            const res = await request(app)
-                .get(`/dataset/${dataset1Id}/revision/by-id/${revision1Id}`)
-                .set(getAuthHeader(user));
-            expect(res.status).toBe(200);
-            const dto = await RevisionDTO.fromRevision(revision);
-            expect(res.body).toEqual(dto);
-        });
-
-        test('Get revision returns 404 if an invalid ID is given', async () => {
-            const res = await request(app)
-                .get(`/dataset/${dataset1Id}/revision/by-id/INVALID-ID`)
-                .set(getAuthHeader(user));
-            expect(res.status).toBe(404);
-            expect(res.body).toEqual({ error: 'Revision id is invalid or missing' });
-        });
-
-        test('Get revision returns 404 if a ID is given', async () => {
-            const res = await request(app)
-                .get(`/dataset/${dataset1Id}/revision/by-id/8B9434D1-4807-41CD-8E81-228769671A07`)
-                .set(getAuthHeader(user));
-            expect(res.status).toBe(404);
-        });
-    });
-
-    describe('DataTable endpoints', () => {
-        test('returns 401 if no auth header is sent (JWT auth)', async () => {
-            const res = await request(app).get(
-                `/dataset/${dataset1Id}/revision/by-id/${revision1Id}/data-table/by-id/${dataTableId}/preview`
-            );
-            expect(res.status).toBe(401);
-            expect(res.body).toEqual({});
-        });
-
-        test('Get data-table returns 200 with object', async () => {
-            const dataTable = await DataTableRepository.getDataTableById(dataset1Id, revision1Id, dataTableId);
-            if (!dataTable) {
-                throw new Error('Data table not found');
-            }
-            const res = await request(app)
-                .get(`/dataset/${dataset1Id}/revision/by-id/${revision1Id}/data-table`)
-                .set(getAuthHeader(user));
-            const expectedDTO = DataTableDto.fromDataTable(dataTable);
-            expect(res.status).toBe(200);
-            expect(res.body).toEqual(expectedDTO);
-        });
-
-        describe('Getting a raw file out of a file import', () => {
-            test('Get file from a revision and import returns 200 and complete file data if stored in the Data Lake', async () => {
-                const testFile2 = path.resolve(__dirname, `sample-files/csv/test-data-2.csv`);
-                const testFileStream = fs.createReadStream(testFile2);
-                const testFile2Buffer = fs.readFileSync(testFile2);
-                DataLakeService.prototype.getFileStream = jest.fn().mockReturnValue(Promise.resolve(testFileStream));
-
-                const res = await request(app)
-                    .get(`/dataset/${dataset1Id}/revision/by-id/${revision1Id}/data-table/raw`)
-                    .set(getAuthHeader(user));
-                expect(res.status).toBe(200);
-                expect(res.text).toEqual(testFile2Buffer.toString());
-            });
-
-            test('Get file from a revision and import returns 500 if an error with the Data Lake occurs', async () => {
-                DataLakeService.prototype.getFileStream = jest.fn().mockRejectedValue(Error('Unknown Data Lake Error'));
-                const res = await request(app)
-                    .get(`/dataset/${dataset1Id}/revision/by-id/${revision1Id}/data-table/raw`)
-                    .set(getAuthHeader(user));
-                expect(res.status).toBe(500);
-                expect(res.body).toEqual({
-                    status: 500,
-                    errors: [
-                        {
-                            field: 'csv',
-                            message: [
-                                {
-                                    lang: Locale.English,
-                                    message: t('errors.download_from_datalake', { lng: Locale.English })
-                                },
-                                {
-                                    lang: Locale.Welsh,
-                                    message: t('errors.download_from_datalake', { lng: Locale.Welsh })
-                                }
-                            ],
-                            tag: { name: 'errors.download_from_datalake', params: {} }
-                        }
-                    ],
-                    dataset_id: dataset1Id
-                });
-            });
-        });
-    });
-
-    afterAll(async () => {
-        await dbManager.getDataSource().dropDatabase();
-        await dbManager.getDataSource().destroy();
-    });
+  afterAll(async () => {
+    await dbManager.getDataSource().dropDatabase();
+    await dbManager.getDataSource().destroy();
+  });
 });

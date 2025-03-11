@@ -9,78 +9,78 @@ import { Dataset } from '../../src/entities/dataset/dataset';
 import { publisher1 } from './users';
 
 export const uploadPageTest: DeepPartial<Dataset> = {
-    id: '936c1ab4-2b33-4b13-8949-4316a156d24b',
-    createdBy: publisher1,
-    metadata: [
-        { language: 'en-GB', title: 'Test - Upload' },
-        { language: 'cy-GB', title: 'Test - Upload' }
-    ]
+  id: '936c1ab4-2b33-4b13-8949-4316a156d24b',
+  createdBy: publisher1,
+  metadata: [
+    { language: 'en-GB', title: 'Test - Upload' },
+    { language: 'cy-GB', title: 'Test - Upload' }
+  ]
 };
 
 export const previewPageTestA: DeepPartial<Dataset> = {
-    id: 'fb440a0d-a4fb-40cb-b9e2-3f88659a5343',
-    createdBy: publisher1,
-    metadata: [
-        { language: 'en-GB', title: 'Test - Preview A' },
-        { language: 'en-CY', title: 'Test - Preview A' }
-    ]
+  id: 'fb440a0d-a4fb-40cb-b9e2-3f88659a5343',
+  createdBy: publisher1,
+  metadata: [
+    { language: 'en-GB', title: 'Test - Preview A' },
+    { language: 'en-CY', title: 'Test - Preview A' }
+  ]
 };
 
 export const previewPageTestB: DeepPartial<Dataset> = {
-    id: '01a31d4c-fffd-4db4-b4d7-36505672df3f',
-    createdBy: publisher1,
-    metadata: [
-        { language: 'en-GB', title: 'Test - Preview B' },
-        { language: 'en-CY', title: 'Test - Preview B' }
-    ]
+  id: '01a31d4c-fffd-4db4-b4d7-36505672df3f',
+  createdBy: publisher1,
+  metadata: [
+    { language: 'en-GB', title: 'Test - Preview B' },
+    { language: 'en-CY', title: 'Test - Preview B' }
+  ]
 };
 
 export const sourcesPageTest: DeepPartial<Dataset> = {
-    id: 'cda9a27b-1b64-4922-b8b7-ef193b5f884e',
-    createdBy: publisher1,
-    metadata: [
-        { language: 'en-GB', title: 'Test - Sources' },
-        { language: 'en-CY', title: 'Test - Sources' }
-    ]
+  id: 'cda9a27b-1b64-4922-b8b7-ef193b5f884e',
+  createdBy: publisher1,
+  metadata: [
+    { language: 'en-GB', title: 'Test - Sources' },
+    { language: 'en-CY', title: 'Test - Sources' }
+  ]
 };
 
 export const metadataTestA: DeepPartial<Dataset> = {
-    id: '47dcdd38-57d4-405f-93ac-9db20bebcfc6',
-    createdBy: publisher1,
-    metadata: [
-        { language: 'en-GB', title: 'Test - Metadata A' },
-        { language: 'en-CY', title: 'Test - Metadata A' }
-    ]
+  id: '47dcdd38-57d4-405f-93ac-9db20bebcfc6',
+  createdBy: publisher1,
+  metadata: [
+    { language: 'en-GB', title: 'Test - Metadata A' },
+    { language: 'en-CY', title: 'Test - Metadata A' }
+  ]
 };
 
 export const metadataTestB: DeepPartial<Dataset> = {
-    id: '3837564c-a901-42be-9aa6-e62232150ff6',
-    createdBy: publisher1,
-    metadata: [
-        { language: 'en-GB', title: 'Test - Metadata B' },
-        { language: 'en-CY', title: 'Test - Metadata B' }
-    ]
+  id: '3837564c-a901-42be-9aa6-e62232150ff6',
+  createdBy: publisher1,
+  metadata: [
+    { language: 'en-GB', title: 'Test - Metadata B' },
+    { language: 'en-CY', title: 'Test - Metadata B' }
+  ]
 };
 
 const generatePublishedDataset = (): DeepPartial<Dataset> => ({
-    id: uuid(),
-    createdBy: publisher1,
-    metadata: [
-        { language: 'en-GB', title: faker.book.title() },
-        { language: 'en-CY', title: faker.book.title() }
-    ],
-    live: faker.date.recent({ days: 180 })
+  id: uuid(),
+  createdBy: publisher1,
+  metadata: [
+    { language: 'en-GB', title: faker.book.title() },
+    { language: 'en-CY', title: faker.book.title() }
+  ],
+  live: faker.date.recent({ days: 180 })
 });
 
 export const testDatasets = [
-    { dataset: uploadPageTest },
-    { dataset: previewPageTestA, csvPath: path.join(__dirname, `../sample-files/csv/cheeses.csv`) },
-    { dataset: previewPageTestB, csvPath: path.join(__dirname, `../sample-files/csv/cheeses.csv`) },
-    { dataset: sourcesPageTest, csvPath: path.join(__dirname, `../sample-files/csv/sure-start-short.csv`) },
-    { dataset: metadataTestA, csvPath: path.join(__dirname, `../sample-files/csv/sure-start-short.csv`) },
-    { dataset: metadataTestB, csvPath: path.join(__dirname, `../sample-files/csv/sure-start-short.csv`) },
-    ...Array.from({ length: 42 }, () => ({
-        dataset: generatePublishedDataset(),
-        csvPath: path.join(__dirname, `../sample-files/csv/cheeses.csv`)
-    }))
+  { dataset: uploadPageTest },
+  { dataset: previewPageTestA, csvPath: path.join(__dirname, `../sample-files/csv/cheeses.csv`) },
+  { dataset: previewPageTestB, csvPath: path.join(__dirname, `../sample-files/csv/cheeses.csv`) },
+  { dataset: sourcesPageTest, csvPath: path.join(__dirname, `../sample-files/csv/sure-start-short.csv`) },
+  { dataset: metadataTestA, csvPath: path.join(__dirname, `../sample-files/csv/sure-start-short.csv`) },
+  { dataset: metadataTestB, csvPath: path.join(__dirname, `../sample-files/csv/sure-start-short.csv`) },
+  ...Array.from({ length: 42 }, () => ({
+    dataset: generatePublishedDataset(),
+    csvPath: path.join(__dirname, `../sample-files/csv/cheeses.csv`)
+  }))
 ];
