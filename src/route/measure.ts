@@ -4,10 +4,10 @@ import express, { Router } from 'express';
 import multer from 'multer';
 
 import {
-    attachLookupTableToMeasure,
-    getPreviewOfMeasure,
-    resetMeasure,
-    updateMeasureMetadata
+  attachLookupTableToMeasure,
+  getPreviewOfMeasure,
+  resetMeasure,
+  updateMeasureMetadata
 } from '../controllers/measure-controller';
 
 const jsonParser = express.json();

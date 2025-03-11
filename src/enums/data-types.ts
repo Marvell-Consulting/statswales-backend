@@ -1,7 +1,7 @@
 export enum DataType {
-    Numerical,
-    Percentage,
-    Rank,
-    Decile,
-    Quintile
+  Numerical,
+  Percentage,
+  Rank,
+  Decile,
+  Quintile
 }

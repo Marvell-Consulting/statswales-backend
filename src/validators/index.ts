@@ -2,7 +2,7 @@ import { Request } from 'express';
 import { body, check, param, ValidationChain } from 'express-validator';
 
 export const hasError = async (validator: ValidationChain, req: Request) => {
-    return !(await validator.run(req)).isEmpty();
+  return !(await validator.run(req)).isEmpty();
 };
 
 export const datasetIdValidator = () => param('dataset_id').trim().notEmpty().isUUID(4);

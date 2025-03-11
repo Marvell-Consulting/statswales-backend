@@ -5,23 +5,23 @@ import multer from 'multer';
 import { FindOptionsRelations } from 'typeorm';
 
 import {
-    updateDataTable,
-    confirmFactTable,
-    downloadRawFactTable,
-    downloadRevisionCubeAsCSV,
-    downloadRevisionCubeAsExcel,
-    downloadRevisionCubeAsJSON,
-    downloadRevisionCubeAsParquet,
-    downloadRevisionCubeFile,
-    getDataTablePreview,
-    getRevisionInfo,
-    getRevisionPreview,
-    removeFactTableFromRevision,
-    updateRevisionPublicationDate,
-    approveForPublication,
-    withdrawFromPublication,
-    createNewRevision,
-    getDataTable
+  updateDataTable,
+  confirmFactTable,
+  downloadRawFactTable,
+  downloadRevisionCubeAsCSV,
+  downloadRevisionCubeAsExcel,
+  downloadRevisionCubeAsJSON,
+  downloadRevisionCubeAsParquet,
+  downloadRevisionCubeFile,
+  getDataTablePreview,
+  getRevisionInfo,
+  getRevisionPreview,
+  removeFactTableFromRevision,
+  updateRevisionPublicationDate,
+  approveForPublication,
+  withdrawFromPublication,
+  createNewRevision,
+  getDataTable
 } from '../controllers/revision';
 import { Revision } from '../entities/dataset/revision';
 import { hasError, revisionIdValidator } from '../validators';
@@ -33,32 +33,32 @@ import { RevisionRepository, withMetadata } from '../repositories/revision';
 // leave relations undefined to load the default relations
 // pass an empty object to load no relations
 export const loadRevision = (relations?: FindOptionsRelations<Revision>) => {
-    return async (req: Request, res: Response, next: NextFunction) => {
-        const revisionIdError = await hasError(revisionIdValidator(), req);
-        if (revisionIdError) {
-            logger.error(revisionIdError);
-            next(new NotFoundException('errors.revision_id_invalid'));
-            return;
-        }
+  return async (req: Request, res: Response, next: NextFunction) => {
+    const revisionIdError = await hasError(revisionIdValidator(), req);
+    if (revisionIdError) {
+      logger.error(revisionIdError);
+      next(new NotFoundException('errors.revision_id_invalid'));
+      return;
+    }
 
-        try {
-            const revision = await RevisionRepository.getById(req.params.revision_id, relations);
+    try {
+      const revision = await RevisionRepository.getById(req.params.revision_id, relations);
 
-            if (res.locals.datasetId !== revision.datasetId) {
-                logger.error('Revision does not belong to dataset');
-                throw new NotFoundException('errors.revision_id_invalid');
-            }
+      if (res.locals.datasetId !== revision.datasetId) {
+        logger.error('Revision does not belong to dataset');
+        throw new NotFoundException('errors.revision_id_invalid');
+      }
 
-            res.locals.revision_id = revision.id;
-            res.locals.revision = revision;
-        } catch (err) {
-            logger.error(err, `Failed to load revision`);
-            next(new NotFoundException('errors.no_revision'));
-            return;
-        }
+      res.locals.revision_id = revision.id;
+      res.locals.revision = revision;
+    } catch (err) {
+      logger.error(err, `Failed to load revision`);
+      next(new NotFoundException('errors.no_revision'));
+      return;
+    }
 
-        next();
-    };
+    next();
+  };
 };
 
 const jsonParser = express.json();

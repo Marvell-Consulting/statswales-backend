@@ -365,7 +365,7 @@ describe('Date matching table generation', () => {
 
     test('Generate sample files for date/time matching', async () => {
         const filePath = `${__dirname}/sample-files/date-period-csv/`;
-        // eslint-disable-next-line no-process-env
+         
         if (process.env.generateDatePeriodSamples) {
             generateAllSampleCSVs(filePath);
         }

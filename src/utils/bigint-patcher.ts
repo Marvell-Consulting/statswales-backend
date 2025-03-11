@@ -4,6 +4,6 @@
 // is less than the max safe interger we return a number otherwise
 // we return a string
 (BigInt.prototype as any).toJSON = function () {
-    if (this < Number.MAX_SAFE_INTEGER) return Number(this);
-    return this.toString();
+  if (this < Number.MAX_SAFE_INTEGER) return Number(this);
+  return this.toString();
 };

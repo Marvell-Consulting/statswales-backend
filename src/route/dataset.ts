@@ -9,40 +9,40 @@ import passport from 'passport';
 
 import { logger } from '../utils/logger';
 import {
-    withDraftForCube,
-    withDraftAndMetadata,
-    DatasetRepository,
-    withAll,
-    withDraftAndProviders,
-    withDraftAndTopics
+  withDraftForCube,
+  withDraftAndMetadata,
+  DatasetRepository,
+  withAll,
+  withDraftAndProviders,
+  withDraftAndTopics
 } from '../repositories/dataset';
 import { datasetIdValidator, hasError } from '../validators';
 import { NotFoundException } from '../exceptions/not-found.exception';
 import { Dataset } from '../entities/dataset/dataset';
 import {
-    downloadCubeAsCSV,
-    downloadCubeAsExcel,
-    downloadCubeAsJSON,
-    downloadCubeAsParquet,
-    downloadCubeFile
+  downloadCubeAsCSV,
+  downloadCubeAsExcel,
+  downloadCubeAsJSON,
+  downloadCubeAsParquet,
+  downloadCubeFile
 } from '../controllers/cube-controller';
 import {
-    addDataProvider,
-    createDataset,
-    uploadDataTable,
-    cubePreview,
-    deleteDatasetById,
-    getDataProviders,
-    getTasklist,
-    getTopics,
-    getFactTableDefinition,
-    listAllDatasets,
-    updateMetadata,
-    updateDataProviders,
-    updateDatasetTeam,
-    updateTopics,
-    updateSources,
-    getDatasetById
+  addDataProvider,
+  createDataset,
+  uploadDataTable,
+  cubePreview,
+  deleteDatasetById,
+  getDataProviders,
+  getTasklist,
+  getTopics,
+  getFactTableDefinition,
+  listAllDatasets,
+  updateMetadata,
+  updateDataProviders,
+  updateDatasetTeam,
+  updateTopics,
+  updateSources,
+  getDatasetById
 } from '../controllers/dataset';
 import { rateLimiter } from '../middleware/rate-limiter';
 
@@ -60,66 +60,66 @@ export const datasetRouter = router;
 // leave relations undefined to load the default relations
 // pass an empty object to load no relations
 export const loadDataset = (relations?: FindOptionsRelations<Dataset>) => {
-    return async (req: Request, res: Response, next: NextFunction) => {
-        const datasetIdError = await hasError(datasetIdValidator(), req);
-        if (datasetIdError) {
-            logger.error(datasetIdError);
-            next(new NotFoundException('errors.dataset_id_invalid'));
-            return;
-        }
+  return async (req: Request, res: Response, next: NextFunction) => {
+    const datasetIdError = await hasError(datasetIdValidator(), req);
+    if (datasetIdError) {
+      logger.error(datasetIdError);
+      next(new NotFoundException('errors.dataset_id_invalid'));
+      return;
+    }
 
-        // TODO: include user in query to prevent unauthorized access
+    // TODO: include user in query to prevent unauthorized access
 
-        try {
-            const start = performance.now();
-            const dataset = await DatasetRepository.getById(req.params.dataset_id, relations);
-            const end = performance.now();
+    try {
+      const start = performance.now();
+      const dataset = await DatasetRepository.getById(req.params.dataset_id, relations);
+      const end = performance.now();
 
-            res.locals.datasetId = dataset.id;
-            res.locals.dataset = dataset;
+      res.locals.datasetId = dataset.id;
+      res.locals.dataset = dataset;
 
-            const size = Math.round(Buffer.byteLength(JSON.stringify(dataset)) / 1024);
-            const time = Math.round(end - start);
+      const size = Math.round(Buffer.byteLength(JSON.stringify(dataset)) / 1024);
+      const time = Math.round(end - start);
 
-            logger.debug(`Dataset ${req.params.dataset_id} loaded { size: ${size}kb, time: ${time}ms }`);
-        } catch (err) {
-            logger.error(err, `Failed to load dataset`);
-            next(new NotFoundException('errors.no_dataset'));
-            return;
-        }
+      logger.debug(`Dataset ${req.params.dataset_id} loaded { size: ${size}kb, time: ${time}ms }`);
+    } catch (err) {
+      logger.error(err, `Failed to load dataset`);
+      next(new NotFoundException('errors.no_dataset'));
+      return;
+    }
 
-        next();
-    };
+    next();
+  };
 };
 
 router.use(
-    '/:dataset_id/revision',
-    rateLimiter,
-    passport.authenticate('jwt', { session: false }),
-    loadDataset({
-        dimensions: { metadata: true, lookupTable: true },
-        factTable: true,
-        measure: { measureTable: true, metadata: true },
-        revisions: { dataTable: { dataTableDescriptions: true } }
-    }),
-    revisionRouter
+  '/:dataset_id/revision',
+  rateLimiter,
+  passport.authenticate('jwt', { session: false }),
+  loadDataset({
+    dimensions: { metadata: true, lookupTable: true },
+    factTable: true,
+    measure: { measureTable: true, metadata: true },
+    revisions: { dataTable: { dataTableDescriptions: true } }
+  }),
+  revisionRouter
 );
 router.use(
-    '/:dataset_id/dimension',
-    rateLimiter,
-    passport.authenticate('jwt', { session: false }),
-    loadDataset({
-        dimensions: { metadata: true, lookupTable: true },
-        revisions: { dataTable: true }
-    }),
-    dimensionRouter
+  '/:dataset_id/dimension',
+  rateLimiter,
+  passport.authenticate('jwt', { session: false }),
+  loadDataset({
+    dimensions: { metadata: true, lookupTable: true },
+    revisions: { dataTable: true }
+  }),
+  dimensionRouter
 );
 router.use(
-    '/:dataset_id/measure',
-    rateLimiter,
-    passport.authenticate('jwt', { session: false }),
-    loadDataset(withDraftForCube),
-    measureRouter
+  '/:dataset_id/measure',
+  rateLimiter,
+  passport.authenticate('jwt', { session: false }),
+  loadDataset(withDraftForCube),
+  measureRouter
 );
 
 // GET /dataset/

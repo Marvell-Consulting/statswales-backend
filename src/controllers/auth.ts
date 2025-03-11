@@ -17,95 +17,95 @@ const domain = new URL(config.auth.jwt.cookieDomain).hostname;
 logger.debug(`JWT cookie domain is '${domain}'`);
 
 // TODO: remove once EntraID is available for WG users
-export const loginLocal: RequestHandler = async (req, res, next) => {
-    logger.debug('auth request from local form received');
+export const loginLocal: RequestHandler = async (req, res) => {
+  logger.debug('auth request from local form received');
 
-    const returnURL = `${config.frontend.url}/auth/callback`;
-    const username = ((req.query.username as string) || '').trim();
+  const returnURL = `${config.frontend.url}/auth/callback`;
+  const username = ((req.query.username as string) || '').trim();
 
-    if (!username) {
-        logger.error('local auth failed: username must be provided');
-        res.redirect(`${returnURL}?error=login`);
-        return;
-    }
+  if (!username) {
+    logger.error('local auth failed: username must be provided');
+    res.redirect(`${returnURL}?error=login`);
+    return;
+  }
 
-    try {
-        logger.debug('checking if user exists...');
-        const userRepository: Repository<User> = dataSource.getRepository('User');
-        const user = await userRepository.findOneByOrFail({ providerUserId: username, provider: 'local' });
-        logger.debug('existing user found');
+  try {
+    logger.debug('checking if user exists...');
+    const userRepository: Repository<User> = dataSource.getRepository('User');
+    const user = await userRepository.findOneByOrFail({ providerUserId: username, provider: 'local' });
+    logger.debug('existing user found');
 
-        logger.info('local auth successful, creating JWT and returning user to the frontend');
-        const payload = { user: sanitiseUser(user) };
-        const { secret, expiresIn, secure } = config.auth.jwt;
-        const token = jwt.sign(payload, secret, { expiresIn });
+    logger.info('local auth successful, creating JWT and returning user to the frontend');
+    const payload = { user: sanitiseUser(user) };
+    const { secret, expiresIn, secure } = config.auth.jwt;
+    const token = jwt.sign(payload, secret, { expiresIn });
 
-        res.cookie('jwt', token, { secure, httpOnly: true, domain });
-        res.redirect(returnURL);
-    } catch (error) {
-        logger.error(error);
-        res.redirect(`${returnURL}?error=login`);
-    }
+    res.cookie('jwt', token, { secure, httpOnly: true, domain });
+    res.redirect(returnURL);
+  } catch (error) {
+    logger.error(error);
+    res.redirect(`${returnURL}?error=login`);
+  }
 };
 
 export const loginGoogle: RequestHandler = (req, res, next) => {
-    logger.debug('attempting to authenticate with Google...');
+  logger.debug('attempting to authenticate with Google...');
 
-    const returnURL = `${config.frontend.url}/auth/callback`;
+  const returnURL = `${config.frontend.url}/auth/callback`;
 
-    passport.authenticate(AuthProvider.Google, (err: Error, user: User, info: Record<string, string>) => {
-        if (err || !user) {
-            const errorMessage = err?.message || info?.message || 'unknown error';
-            logger.error(`google auth returned an error: ${errorMessage}`);
-            res.redirect(`${returnURL}?error=provider`);
-            return;
-        }
-        req.login(user, { session: false }, (error) => {
-            if (error) {
-                logger.error(`error logging in: ${error}`);
-                res.redirect(`${returnURL}?error=login`);
-                return;
-            }
+  passport.authenticate(AuthProvider.Google, (err: Error, user: User, info: Record<string, string>) => {
+    if (err || !user) {
+      const errorMessage = err?.message || info?.message || 'unknown error';
+      logger.error(`google auth returned an error: ${errorMessage}`);
+      res.redirect(`${returnURL}?error=provider`);
+      return;
+    }
+    req.login(user, { session: false }, (error) => {
+      if (error) {
+        logger.error(`error logging in: ${error}`);
+        res.redirect(`${returnURL}?error=login`);
+        return;
+      }
 
-            logger.info('google auth successful, creating JWT and returning user to the frontend');
+      logger.info('google auth successful, creating JWT and returning user to the frontend');
 
-            const payload = { user: sanitiseUser(user) };
-            const { secret, expiresIn, secure } = config.auth.jwt;
-            const token = jwt.sign(payload, secret, { expiresIn });
+      const payload = { user: sanitiseUser(user) };
+      const { secret, expiresIn, secure } = config.auth.jwt;
+      const token = jwt.sign(payload, secret, { expiresIn });
 
-            res.cookie('jwt', token, { secure, httpOnly: true, domain });
-            res.redirect(returnURL);
-        });
-    })(req, res, next);
+      res.cookie('jwt', token, { secure, httpOnly: true, domain });
+      res.redirect(returnURL);
+    });
+  })(req, res, next);
 };
 
 export const loginEntraID: RequestHandler = (req, res, next) => {
-    logger.debug('attempting to authenticate with EntraID...');
+  logger.debug('attempting to authenticate with EntraID...');
 
-    const returnURL = `${config.frontend.url}/auth/callback`;
+  const returnURL = `${config.frontend.url}/auth/callback`;
 
-    passport.authenticate(AuthProvider.EntraId, (err: Error, user: User, info: Record<string, string>) => {
-        if (err || !user) {
-            const errorMessage = err?.message || info?.message || 'unknown error';
-            logger.error(`entraid auth returned an error: ${errorMessage}`);
-            res.redirect(`${returnURL}?error=provider`);
-            return;
-        }
-        req.login(user, { session: false }, (error) => {
-            if (error) {
-                logger.error(`error logging in: ${error}`);
-                res.redirect(`${returnURL}?error=login`);
-                return;
-            }
+  passport.authenticate(AuthProvider.EntraId, (err: Error, user: User, info: Record<string, string>) => {
+    if (err || !user) {
+      const errorMessage = err?.message || info?.message || 'unknown error';
+      logger.error(`entraid auth returned an error: ${errorMessage}`);
+      res.redirect(`${returnURL}?error=provider`);
+      return;
+    }
+    req.login(user, { session: false }, (error) => {
+      if (error) {
+        logger.error(`error logging in: ${error}`);
+        res.redirect(`${returnURL}?error=login`);
+        return;
+      }
 
-            logger.info('entraid auth successful, creating JWT and returning user to the frontend');
+      logger.info('entraid auth successful, creating JWT and returning user to the frontend');
 
-            const payload = { user: sanitiseUser(user) };
-            const { secret, expiresIn, secure } = config.auth.jwt;
-            const token = jwt.sign(payload, secret, { expiresIn });
+      const payload = { user: sanitiseUser(user) };
+      const { secret, expiresIn, secure } = config.auth.jwt;
+      const token = jwt.sign(payload, secret, { expiresIn });
 
-            res.cookie('jwt', token, { secure, httpOnly: true, domain });
-            res.redirect(returnURL);
-        });
-    })(req, res, next);
+      res.cookie('jwt', token, { secure, httpOnly: true, domain });
+      res.redirect(returnURL);
+    });
+  })(req, res, next);
 };

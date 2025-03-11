@@ -20,7 +20,7 @@ import { DataTableRepository } from '../src/repositories/data-table';
 import { DataTableDto } from '../src/dtos/data-table-dto';
 import { Locale } from '../src/enums/locale';
 import { logger } from '../src/utils/logger';
-import { withDataTable, withMetadata } from '../src/repositories/revision';
+import { withMetadata } from '../src/repositories/revision';
 
 import { createFullDataset } from './helpers/test-helper';
 import { getTestUser } from './helpers/get-user';

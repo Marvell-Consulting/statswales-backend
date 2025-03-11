@@ -16,23 +16,22 @@ import { logger } from '../utils/logger';
 import { DataLakeService } from '../services/datalake';
 import { DataTable } from '../entities/dataset/data-table';
 import { Locale } from '../enums/locale';
-import { DatasetRepository, withDraftForTasklistState } from '../repositories/dataset';
+import { DatasetRepository } from '../repositories/dataset';
 import { DatasetDTO } from '../dtos/dataset-dto';
-import { TasklistStateDTO } from '../dtos/tasklist-state-dto';
 import { BadRequestException } from '../exceptions/bad-request.exception';
 import { NotFoundException } from '../exceptions/not-found.exception';
 import { RevisionDTO } from '../dtos/revision-dto';
 import { RevisionRepository } from '../repositories/revision';
 import { DuckdbOutputType } from '../enums/duckdb-outputs';
 import {
-    cleanUpCube,
-    createAndValidateDateDimension,
-    createAndValidateLookupTableDimension,
-    createBaseCube,
-    loadCorrectReferenceDataIntoReferenceDataTable,
-    loadReferenceDataIntoCube,
-    makeCubeSafeString,
-    updateFactTableValidator
+  cleanUpCube,
+  createAndValidateDateDimension,
+  createAndValidateLookupTableDimension,
+  createBaseCube,
+  loadCorrectReferenceDataIntoReferenceDataTable,
+  loadReferenceDataIntoCube,
+  makeCubeSafeString,
+  updateFactTableValidator
 } from '../services/cube-handler';
 import { DEFAULT_PAGE_SIZE, getCSVPreview, removeFileFromDataLake, uploadCSV } from '../services/csv-processor';
 import { DataTableDescription } from '../entities/dataset/data-table-description';
@@ -48,217 +47,254 @@ import { Dataset } from '../entities/dataset/dataset';
 import { getCubePreview, outputCube } from './cube-controller';
 
 export const getDataTable = async (req: Request, res: Response, next: NextFunction) => {
-    try {
-        const dataTable = await DataTable.findOneOrFail({
-            where: { id: req.params.id },
-            relations: { dataTableDescriptions: true, revision: true }
-        });
-        const dto = DataTableDto.fromDataTable(dataTable);
-        res.json(dto);
-    } catch (err) {
-        next(new UnknownException());
-    }
+  try {
+    const dataTable = await DataTable.findOneOrFail({
+      where: { id: req.params.id },
+      relations: { dataTableDescriptions: true, revision: true }
+    });
+    const dto = DataTableDto.fromDataTable(dataTable);
+    res.json(dto);
+  } catch (_err) {
+    next(new UnknownException());
+  }
 };
 
 export const getDataTablePreview = async (req: Request, res: Response, next: NextFunction) => {
-    const { dataset, revision } = res.locals;
+  const { dataset, revision } = res.locals;
 
-    const page_number: number = Number.parseInt(req.query.page_number as string, 10) || 1;
-    const page_size: number = Number.parseInt(req.query.page_size as string, 10) || DEFAULT_PAGE_SIZE;
+  const page_number: number = Number.parseInt(req.query.page_number as string, 10) || 1;
+  const page_size: number = Number.parseInt(req.query.page_size as string, 10) || DEFAULT_PAGE_SIZE;
 
-    if (!revision.dataTable) {
-        next(new NotFoundException('errors.no_data_table'));
-        return;
-    }
+  if (!revision.dataTable) {
+    next(new NotFoundException('errors.no_data_table'));
+    return;
+  }
 
-    const processedCSV = await getCSVPreview(dataset, revision.dataTable, page_number, page_size);
+  const processedCSV = await getCSVPreview(dataset, revision.dataTable, page_number, page_size);
 
-    if ((processedCSV as ViewErrDTO).errors) {
-        const processErr = processedCSV as ViewErrDTO;
-        res.status(processErr.status);
-    }
+  if ((processedCSV as ViewErrDTO).errors) {
+    const processErr = processedCSV as ViewErrDTO;
+    res.status(processErr.status);
+  }
 
-    res.json(processedCSV);
+  res.json(processedCSV);
 };
 
 export const getRevisionPreview = async (req: Request, res: Response, next: NextFunction) => {
-    const dataset = res.locals.dataset;
-    const revision = res.locals.revision;
-    const lang = req.language.split('-')[0];
-    const start = performance.now();
+  const dataset = res.locals.dataset;
+  const revision = res.locals.revision;
+  const lang = req.language.split('-')[0];
+  const start = performance.now();
 
-    const page_number: number = Number.parseInt(req.query.page_number as string, 10) || 1;
-    const page_size: number = Number.parseInt(req.query.page_size as string, 10) || DEFAULT_PAGE_SIZE;
+  const page_number: number = Number.parseInt(req.query.page_number as string, 10) || 1;
+  const page_size: number = Number.parseInt(req.query.page_size as string, 10) || DEFAULT_PAGE_SIZE;
 
-    let cubeFile: string;
-    if (revision.onlineCubeFilename) {
-        logger.debug('Loading cube from datalake for preview');
-        const datalakeService = new DataLakeService();
-        cubeFile = tmp.tmpNameSync({ postfix: '.duckdb' });
-        try {
-            const cubeBuffer = await datalakeService.getFileBuffer(revision.onlineCubeFilename, dataset.id);
-            fs.writeFileSync(cubeFile, cubeBuffer);
-        } catch (err) {
-            logger.error('Something went wrong trying to download file from data lake');
-            throw err;
-        }
-    } else {
-        logger.debug('Creating fresh cube for preview');
-        try {
-            cubeFile = await createBaseCube(dataset.id, revision.id);
-        } catch (error) {
-            logger.error(`Something went wrong trying to create the cube with the error: ${error}`);
-            next(new UnknownException('errors.cube_create_error'));
-            return;
-        }
+  let cubeFile: string;
+  if (revision.onlineCubeFilename) {
+    logger.debug('Loading cube from datalake for preview');
+    const datalakeService = new DataLakeService();
+    cubeFile = tmp.tmpNameSync({ postfix: '.duckdb' });
+    try {
+      const cubeBuffer = await datalakeService.getFileBuffer(revision.onlineCubeFilename, dataset.id);
+      fs.writeFileSync(cubeFile, cubeBuffer);
+    } catch (err) {
+      logger.error('Something went wrong trying to download file from data lake');
+      throw err;
     }
-    const cubePreview = await getCubePreview(cubeFile, lang, dataset, page_number, page_size);
-    const end = performance.now();
-    const time = Math.round(end - start);
-    logger.info(`Cube revision preview took ${time}ms`);
-    await cleanUpCube(cubeFile);
-    if ((cubePreview as ViewErrDTO).errors) {
-        const processErr = cubePreview as ViewErrDTO;
-        res.status(processErr.status);
+  } else {
+    logger.debug('Creating fresh cube for preview');
+    try {
+      cubeFile = await createBaseCube(dataset.id, revision.id);
+    } catch (error) {
+      logger.error(`Something went wrong trying to create the cube with the error: ${error}`);
+      next(new UnknownException('errors.cube_create_error'));
+      return;
     }
+  }
+  const cubePreview = await getCubePreview(cubeFile, lang, dataset, page_number, page_size);
+  const end = performance.now();
+  const time = Math.round(end - start);
+  logger.info(`Cube revision preview took ${time}ms`);
+  await cleanUpCube(cubeFile);
+  if ((cubePreview as ViewErrDTO).errors) {
+    const processErr = cubePreview as ViewErrDTO;
+    res.status(processErr.status);
+  }
 
-    res.json(cubePreview);
+  res.json(cubePreview);
 };
 
-export const confirmFactTable = async (req: Request, res: Response, next: NextFunction) => {
-    const revision = res.locals.revision;
-    const dto = DataTableDto.fromDataTable(revision.dataTable);
-    res.json(dto);
+export const confirmFactTable = async (req: Request, res: Response) => {
+  const revision = res.locals.revision;
+  const dto = DataTableDto.fromDataTable(revision.dataTable);
+  res.json(dto);
 };
 
 export const downloadRawFactTable = async (req: Request, res: Response, next: NextFunction) => {
-    const { dataset, revision } = res.locals;
-    logger.info('User requested to down files...');
-    const dataLakeService = new DataLakeService();
-    let readable: Readable;
-    if (!revision.dataTable) {
-        logger.error("Revision doesn't have a data table, can't download file");
-        next(new NotFoundException('errors.revision_id_invalid'));
-        return;
-    }
+  const { dataset, revision } = res.locals;
+  logger.info('User requested to down files...');
+  const dataLakeService = new DataLakeService();
+  let readable: Readable;
+  if (!revision.dataTable) {
+    logger.error("Revision doesn't have a data table, can't download file");
+    next(new NotFoundException('errors.revision_id_invalid'));
+    return;
+  }
 
-    try {
-        readable = await dataLakeService.getFileStream(revision.dataTable.filename, dataset.id);
-    } catch (error) {
-        res.status(500);
-        res.json({
-            status: 500,
-            errors: [
-                {
-                    field: 'csv',
-                    message: [
-                        {
-                            lang: Locale.English,
-                            message: t('errors.download_from_datalake', { lng: Locale.English })
-                        },
-                        {
-                            lang: Locale.Welsh,
-                            message: t('errors.download_from_datalake', { lng: Locale.Welsh })
-                        }
-                    ],
-                    tag: { name: 'errors.download_from_datalake', params: {} }
-                }
-            ],
-            dataset_id: dataset.id
-        });
-        return;
-    }
+  try {
+    readable = await dataLakeService.getFileStream(revision.dataTable.filename, dataset.id);
+  } catch (_err) {
+    res.status(500);
+    res.json({
+      status: 500,
+      errors: [
+        {
+          field: 'csv',
+          message: [
+            {
+              lang: Locale.English,
+              message: t('errors.download_from_datalake', { lng: Locale.English })
+            },
+            {
+              lang: Locale.Welsh,
+              message: t('errors.download_from_datalake', { lng: Locale.Welsh })
+            }
+          ],
+          tag: { name: 'errors.download_from_datalake', params: {} }
+        }
+      ],
+      dataset_id: dataset.id
+    });
+    return;
+  }
+  // eslint-disable-next-line @typescript-eslint/naming-convention
+  res.writeHead(200, { 'Content-Type': 'text/csv' });
+  readable.pipe(res);
+
+  // Handle errors in the file stream
+  readable.on('error', (err) => {
+    logger.error('File stream error:', err);
     // eslint-disable-next-line @typescript-eslint/naming-convention
-    res.writeHead(200, { 'Content-Type': 'text/csv' });
-    readable.pipe(res);
+    res.writeHead(500, { 'Content-Type': 'text/plain' });
+    res.end('Server Error');
+  });
 
-    // Handle errors in the file stream
-    readable.on('error', (err) => {
-        logger.error('File stream error:', err);
-        // eslint-disable-next-line @typescript-eslint/naming-convention
-        res.writeHead(500, { 'Content-Type': 'text/plain' });
-        res.end('Server Error');
-    });
-
-    // Optionally listen for the end of the stream
-    readable.on('end', () => {
-        logger.debug('File stream ended');
-    });
+  // Optionally listen for the end of the stream
+  readable.on('end', () => {
+    logger.debug('File stream ended');
+  });
 };
 
-export const getRevisionInfo = async (req: Request, res: Response, next: NextFunction) => {
-    const revision = res.locals.revision;
-    res.json(RevisionDTO.fromRevision(revision));
+export const getRevisionInfo = async (req: Request, res: Response) => {
+  const revision = res.locals.revision;
+  res.json(RevisionDTO.fromRevision(revision));
 };
 
 async function attachUpdateDataTableToRevision(dataset: Dataset, revision: Revision, dataTable: DataTable, body: any) {
-    logger.debug('Attaching update data table to revision and validating cube');
-    const start = performance.now();
+  logger.debug('Attaching update data table to revision and validating cube');
+  const start = performance.now();
 
-    // Validate all the columns against the fact table
-    if (body.column_matching) {
-        const columnMatcher = JSON.parse(body.column_matching) as ColumnMatch[];
-        const matchedColumns: string[] = [];
-        for (const col of columnMatcher) {
-            const factTableCol: FactTableColumn | undefined = dataset.factTable?.find(
-                (factTableCol: FactTableColumn) =>
-                    makeCubeSafeString(factTableCol.columnName) === makeCubeSafeString(col.fact_table_column_name)
-            );
-            const dataTableCol = dataTable.dataTableDescriptions.find(
-                (dataTableCol: DataTableDescription) =>
-                    makeCubeSafeString(dataTableCol.columnName) === makeCubeSafeString(col.data_table_column_name)
-            );
-            if (factTableCol && dataTableCol) {
-                matchedColumns.push(factTableCol.columnName);
-                dataTableCol.factTableColumn = factTableCol.columnName;
-            }
-        }
-        if (matchedColumns.length !== dataset.factTable?.length) {
-            logger.error(`Could not match all columns to the fact table.`);
-            throw new UnknownException('errors.failed_to_match_columns');
-        }
-    } else {
-        // validate columns
-        const matchedColumns: string[] = [];
-        const unmatchedColumns: string[] = [];
-        for (const col of dataTable.dataTableDescriptions) {
-            const factTableCol: FactTableColumn | undefined = dataset.factTable?.find(
-                (factTableCol: FactTableColumn) =>
-                    makeCubeSafeString(factTableCol.columnName) === makeCubeSafeString(col.columnName)
-            );
-            if (factTableCol) {
-                matchedColumns.push(factTableCol.columnName);
-                col.factTableColumn = factTableCol.columnName;
-            } else {
-                unmatchedColumns.push(col.columnName);
-            }
-        }
-
-        if (matchedColumns.length !== dataset.factTable?.length) {
-            logger.error(
-                `Could not match all columns to the fact table.  The following columns were not matched: ${unmatchedColumns.join(', ')}`
-            );
-            const end = performance.now();
-            const time = Math.round(end - start);
-            logger.info(`Cube update validation took ${time}ms`);
-            throw new UnknownException('errors.failed_to_match_columns');
-        }
+  // Validate all the columns against the fact table
+  if (body.column_matching) {
+    const columnMatcher = JSON.parse(body.column_matching) as ColumnMatch[];
+    const matchedColumns: string[] = [];
+    for (const col of columnMatcher) {
+      const factTableCol: FactTableColumn | undefined = dataset.factTable?.find(
+        (factTableCol: FactTableColumn) =>
+          makeCubeSafeString(factTableCol.columnName) === makeCubeSafeString(col.fact_table_column_name)
+      );
+      const dataTableCol = dataTable.dataTableDescriptions.find(
+        (dataTableCol: DataTableDescription) =>
+          makeCubeSafeString(dataTableCol.columnName) === makeCubeSafeString(col.data_table_column_name)
+      );
+      if (factTableCol && dataTableCol) {
+        matchedColumns.push(factTableCol.columnName);
+        dataTableCol.factTableColumn = factTableCol.columnName;
+      }
+    }
+    if (matchedColumns.length !== dataset.factTable?.length) {
+      logger.error(`Could not match all columns to the fact table.`);
+      throw new UnknownException('errors.failed_to_match_columns');
+    }
+  } else {
+    // validate columns
+    const matchedColumns: string[] = [];
+    const unmatchedColumns: string[] = [];
+    for (const col of dataTable.dataTableDescriptions) {
+      const factTableCol: FactTableColumn | undefined = dataset.factTable?.find(
+        (factTableCol: FactTableColumn) =>
+          makeCubeSafeString(factTableCol.columnName) === makeCubeSafeString(col.columnName)
+      );
+      if (factTableCol) {
+        matchedColumns.push(factTableCol.columnName);
+        col.factTableColumn = factTableCol.columnName;
+      } else {
+        unmatchedColumns.push(col.columnName);
+      }
     }
 
-    logger.debug(`Setting the update action to: ${body.update_action || 'Add'}`);
-    let updateAction = DataTableAction.Add;
-
-    if (body.update_action) {
-        updateAction = body.update_action as DataTableAction;
+    if (matchedColumns.length !== dataset.factTable?.length) {
+      logger.error(
+        `Could not match all columns to the fact table.  The following columns were not matched: ${unmatchedColumns.join(', ')}`
+      );
+      const end = performance.now();
+      const time = Math.round(end - start);
+      logger.info(`Cube update validation took ${time}ms`);
+      throw new UnknownException('errors.failed_to_match_columns');
     }
+  }
 
-    dataTable.action = updateAction;
-    revision.dataTable = dataTable;
-    const quack = await duckdb();
+  logger.debug(`Setting the update action to: ${body.update_action || 'Add'}`);
+  let updateAction = DataTableAction.Add;
 
+  if (body.update_action) {
+    updateAction = body.update_action as DataTableAction;
+  }
+
+  dataTable.action = updateAction;
+  revision.dataTable = dataTable;
+  const quack = await duckdb();
+
+  try {
+    await updateFactTableValidator(quack, dataset, revision);
+  } catch (err) {
+    logger.debug('Closing DuckDB instance');
+    const end = performance.now();
+    const time = Math.round(end - start);
+    logger.info(`Cube update validation took ${time}ms`);
+    await quack.close();
+    logger.error(`An error occurred trying to validate the file with the following error: ${err}`);
+    throw new BadRequestException('errors.data_table_validation_error');
+  }
+
+  const dimensionUpdateTasks: DimensionUpdateTask[] = [];
+  await loadReferenceDataIntoCube(quack);
+
+  for (const dimension of dataset.dimensions) {
     try {
-        await updateFactTableValidator(quack, dataset, revision);
-    } catch (err) {
+      switch (dimension.type) {
+        case DimensionType.LookupTable:
+          logger.debug(`Validating lookup table dimension: ${dimension.id}`);
+          await createAndValidateLookupTableDimension(quack, dataset, dimension);
+          break;
+        case DimensionType.ReferenceData:
+          logger.debug(`Validating reference data dimension: ${dimension.id}`);
+          await loadCorrectReferenceDataIntoReferenceDataTable(quack, dimension);
+          break;
+        case DimensionType.DatePeriod:
+        case DimensionType.Date:
+          logger.debug(`Validating time dimension: ${dimension.id}`);
+          await createAndValidateDateDimension(quack, dimension.extractor, dimension.factTableColumn);
+      }
+    } catch (error) {
+      logger.warn(`An error occurred validating dimension ${dimension.id}: ${error}`);
+      const err = error as CubeValidationException;
+      if (err.type === CubeValidationType.DimensionNonMatchedRows) {
+        dimensionUpdateTasks.push({
+          id: dimension.id,
+          lookupTableUpdated: false
+        });
+      } else {
         logger.debug('Closing DuckDB instance');
         const end = performance.now();
         const time = Math.round(end - start);
@@ -266,439 +302,399 @@ async function attachUpdateDataTableToRevision(dataset: Dataset, revision: Revis
         await quack.close();
         logger.error(`An error occurred trying to validate the file with the following error: ${err}`);
         throw new BadRequestException('errors.data_table_validation_error');
+      }
     }
+  }
 
-    const dimensionUpdateTasks: DimensionUpdateTask[] = [];
-    await loadReferenceDataIntoCube(quack);
+  // TODO Validate measure.  This requires a rewrite of how measures are created and stored
 
-    for (const dimension of dataset.dimensions) {
-        try {
-            switch (dimension.type) {
-                case DimensionType.LookupTable:
-                    logger.debug(`Validating lookup table dimension: ${dimension.id}`);
-                    await createAndValidateLookupTableDimension(quack, dataset, dimension);
-                    break;
-                case DimensionType.ReferenceData:
-                    logger.debug(`Validating reference data dimension: ${dimension.id}`);
-                    await loadCorrectReferenceDataIntoReferenceDataTable(quack, dimension);
-                    break;
-                case DimensionType.DatePeriod:
-                case DimensionType.Date:
-                    logger.debug(`Validating time dimension: ${dimension.id}`);
-                    await createAndValidateDateDimension(quack, dimension.extractor, dimension.factTableColumn);
-            }
-        } catch (error) {
-            logger.warn(`An error occurred validating dimension ${dimension.id}: ${error}`);
-            const err = error as CubeValidationException;
-            if (err.type === CubeValidationType.DimensionNonMatchedRows) {
-                dimensionUpdateTasks.push({
-                    id: dimension.id,
-                    lookupTableUpdated: false
-                });
-            } else {
-                logger.debug('Closing DuckDB instance');
-                const end = performance.now();
-                const time = Math.round(end - start);
-                logger.info(`Cube update validation took ${time}ms`);
-                await quack.close();
-                logger.error(`An error occurred trying to validate the file with the following error: ${err}`);
-                throw new BadRequestException('errors.data_table_validation_error');
-            }
-        }
-    }
+  revision.tasks = { dimensions: dimensionUpdateTasks };
 
-    /*
-        TODO Validate measure.  This requires a rewrite of how measures are created and stored
-     */
+  logger.debug('Closing DuckDB instance');
+  await quack.close();
+  await revision.save();
+  const end = performance.now();
+  const time = Math.round(end - start);
+  logger.info(`Cube update validation took ${time}ms`);
 
-    // eslint-disable-next-line require-atomic-updates
-    revision.tasks = { dimensions: dimensionUpdateTasks };
-
-    logger.debug('Closing DuckDB instance');
-    await quack.close();
-    await revision.save();
-    const end = performance.now();
-    const time = Math.round(end - start);
-    logger.info(`Cube update validation took ${time}ms`);
-    // eslint-disable-next-line require-atomic-updates
-    dataTable.revision = revision;
-    await dataTable.save();
+  dataTable.revision = revision;
+  await dataTable.save();
 }
 
 export const updateDataTable = async (req: Request, res: Response, next: NextFunction) => {
-    const dataset: Dataset = res.locals.dataset;
-    const revision: Revision = res.locals.revision;
+  const dataset: Dataset = res.locals.dataset;
+  const revision: Revision = res.locals.revision;
 
-    logger.debug(`Updating data table for revision ${revision.id}`);
+  logger.debug(`Updating data table for revision ${revision.id}`);
 
-    if (!req.file) {
-        next(new BadRequestException('errors.upload.no_csv'));
-        return;
-    }
+  if (!req.file) {
+    next(new BadRequestException('errors.upload.no_csv'));
+    return;
+  }
 
-    if (revision.dataTable) {
-        logger.debug(`Revision ${revision.id} already has a data table ${revision.dataTable.id}, removing it`);
-        try {
-            const dataLakeService = new DataLakeService();
-            dataLakeService.deleteFile(revision.dataTable.filename, dataset.id);
-        } catch (err) {
-            logger.warn(err, `Failed to delete data table file ${revision.dataTable.filename} from data lake`);
-        }
-        await DataTable.getRepository().remove(revision.dataTable);
-    }
-
-    let dataTable: DataTable;
-
+  if (revision.dataTable) {
+    logger.debug(`Revision ${revision.id} already has a data table ${revision.dataTable.id}, removing it`);
     try {
-        const { buffer, mimetype, originalname } = req.file;
-        dataTable = await uploadCSV(buffer, mimetype, originalname, dataset.id);
+      const dataLakeService = new DataLakeService();
+      dataLakeService.deleteFile(revision.dataTable.filename, dataset.id);
     } catch (err) {
-        logger.error(err, `An error occurred trying to upload the file`);
-        if ((err as Error).message.includes('Data Lake')) {
-            next(new UnknownException('errors.data_lake_error'));
-        } else {
-            next(new BadRequestException('errors.upload_error'));
-        }
-        return;
+      logger.warn(err, `Failed to delete data table file ${revision.dataTable.filename} from data lake`);
     }
+    await DataTable.getRepository().remove(revision.dataTable);
+  }
 
-    try {
-        if (revision.revisionIndex === 1) {
-            logger.debug('Attaching data table to first revision');
-            await RevisionRepository.save({ ...revision, dataTable });
-        } else {
-            await attachUpdateDataTableToRevision(dataset, revision, dataTable, req.body);
-        }
-        const updatedDataset = await DatasetRepository.getById(dataset.id);
-        res.status(201);
-        res.json(DatasetDTO.fromDataset(updatedDataset));
-    } catch (err) {
-        next(err);
+  let dataTable: DataTable;
+
+  try {
+    const { buffer, mimetype, originalname } = req.file;
+    dataTable = await uploadCSV(buffer, mimetype, originalname, dataset.id);
+  } catch (err) {
+    logger.error(err, `An error occurred trying to upload the file`);
+    if ((err as Error).message.includes('Data Lake')) {
+      next(new UnknownException('errors.data_lake_error'));
+    } else {
+      next(new BadRequestException('errors.upload_error'));
     }
+    return;
+  }
+
+  try {
+    if (revision.revisionIndex === 1) {
+      logger.debug('Attaching data table to first revision');
+      await RevisionRepository.save({ ...revision, dataTable });
+    } else {
+      await attachUpdateDataTableToRevision(dataset, revision, dataTable, req.body);
+    }
+    const updatedDataset = await DatasetRepository.getById(dataset.id);
+    res.status(201);
+    res.json(DatasetDTO.fromDataset(updatedDataset));
+  } catch (err) {
+    next(err);
+  }
 };
 
 export const removeFactTableFromRevision = async (req: Request, res: Response, next: NextFunction) => {
-    const { dataset, revision } = res.locals;
+  const { dataset, revision } = res.locals;
 
-    if (!revision.dataTable) {
-        logger.error("Revision doesn't have a data table, can't remove file");
-        next(new NotFoundException('errors.revision_id_invalid'));
-        return;
-    }
+  if (!revision.dataTable) {
+    logger.error("Revision doesn't have a data table, can't remove file");
+    next(new NotFoundException('errors.revision_id_invalid'));
+    return;
+  }
 
-    try {
-        logger.warn('User has requested to remove a fact table from the datalake');
-        await removeFileFromDataLake(revision.dataTable, dataset);
-        if (dataset.revisions.length === 1) {
-            for (const factTableCol of dataset.factTable) {
-                await factTableCol.remove();
-            }
-        }
-        await revision.dataTable.remove();
-        const updatedDataset = await DatasetRepository.getById(dataset.id);
-        const dto = DatasetDTO.fromDataset(updatedDataset);
-        res.json(dto);
-    } catch (err) {
-        logger.error(`An error occurred trying to remove the file with the following error: ${err}`);
-        next(new UnknownException('errors.remove_file'));
+  try {
+    logger.warn('User has requested to remove a fact table from the datalake');
+    await removeFileFromDataLake(revision.dataTable, dataset);
+    if (dataset.revisions.length === 1) {
+      for (const factTableCol of dataset.factTable) {
+        await factTableCol.remove();
+      }
     }
+    await revision.dataTable.remove();
+    const updatedDataset = await DatasetRepository.getById(dataset.id);
+    const dto = DatasetDTO.fromDataset(updatedDataset);
+    res.json(dto);
+  } catch (err) {
+    logger.error(`An error occurred trying to remove the file with the following error: ${err}`);
+    next(new UnknownException('errors.remove_file'));
+  }
 };
 
 export const updateRevisionPublicationDate = async (req: Request, res: Response, next: NextFunction) => {
-    const dataset = res.locals.dataset;
-    const revision = res.locals.revision;
+  const dataset = res.locals.dataset;
+  const revision = res.locals.revision;
 
-    if (revision.approvedAt) {
-        next(new BadRequestException('errors.publish_at.revision_already_approved'));
-        return;
+  if (revision.approvedAt) {
+    next(new BadRequestException('errors.publish_at.revision_already_approved'));
+    return;
+  }
+
+  try {
+    const publishAt = req.body.publish_at;
+
+    if (!publishAt || !isValid(new Date(publishAt))) {
+      next(new BadRequestException('errors.publish_at.invalid'));
+      return;
     }
 
-    try {
-        const publishAt = req.body.publish_at;
-
-        if (!publishAt || !isValid(new Date(publishAt))) {
-            next(new BadRequestException('errors.publish_at.invalid'));
-            return;
-        }
-
-        if (isBefore(publishAt, new Date())) {
-            next(new BadRequestException('errors.publish_at.in_past'));
-            return;
-        }
-
-        await RevisionRepository.updatePublishDate(revision, publishAt);
-        const updatedDataset = await DatasetRepository.getById(dataset.id, {});
-
-        res.status(201);
-        res.json(DatasetDTO.fromDataset(updatedDataset));
-    } catch (err) {
-        next(new UnknownException());
+    if (isBefore(publishAt, new Date())) {
+      next(new BadRequestException('errors.publish_at.in_past'));
+      return;
     }
+
+    await RevisionRepository.updatePublishDate(revision, publishAt);
+    const updatedDataset = await DatasetRepository.getById(dataset.id, {});
+
+    res.status(201);
+    res.json(DatasetDTO.fromDataset(updatedDataset));
+  } catch (_err) {
+    next(new UnknownException());
+  }
 };
 
 export const approveForPublication = async (req: Request, res: Response, next: NextFunction) => {
-    const { dataset, revision } = res.locals;
-    const user = req.user as User;
+  const { dataset, revision } = res.locals;
+  const user = req.user as User;
 
-    try {
-        if (revision.approvedAt) {
-            throw new BadRequestException('errors.approve.revision_already_approved');
-        }
-
-        const tasklistState = await req.datasetService.getTasklistState(dataset.id, req.language as Locale);
-
-        if (!tasklistState.canPublish) {
-            logger.error('Dataset is not ready for publication, check tasklist state');
-            throw new BadRequestException('errors.approve.not_ready');
-        }
-
-        const approvedDataset = await req.datasetService.approveForPublication(dataset.id, revision.id, user);
-
-        res.status(201);
-        res.json(DatasetDTO.fromDataset(approvedDataset));
-    } catch (err: any) {
-        next(err);
+  try {
+    if (revision.approvedAt) {
+      throw new BadRequestException('errors.approve.revision_already_approved');
     }
+
+    const tasklistState = await req.datasetService.getTasklistState(dataset.id, req.language as Locale);
+
+    if (!tasklistState.canPublish) {
+      logger.error('Dataset is not ready for publication, check tasklist state');
+      throw new BadRequestException('errors.approve.not_ready');
+    }
+
+    const approvedDataset = await req.datasetService.approveForPublication(dataset.id, revision.id, user);
+
+    res.status(201);
+    res.json(DatasetDTO.fromDataset(approvedDataset));
+  } catch (err: unknown) {
+    next(err);
+  }
 };
 
 export const withdrawFromPublication = async (req: Request, res: Response, next: NextFunction) => {
-    try {
-        const { dataset, revision } = res.locals;
+  try {
+    const { dataset, revision } = res.locals;
 
-        if (!revision.publishAt || !revision.approvedAt) {
-            throw new BadRequestException('errors.withdraw.not_scheduled');
-        }
-
-        if (isBefore(revision.publishAt, new Date())) {
-            throw new BadRequestException('errors.withdraw.already_published');
-        }
-
-        const withdrawnDataset = await req.datasetService.withdrawFromPublication(dataset.id, revision.id);
-        res.status(201);
-        res.json(DatasetDTO.fromDataset(withdrawnDataset));
-    } catch (err: any) {
-        logger.error(err, 'could not withdraw publication');
-        next(err);
+    if (!revision.publishAt || !revision.approvedAt) {
+      throw new BadRequestException('errors.withdraw.not_scheduled');
     }
+
+    if (isBefore(revision.publishAt, new Date())) {
+      throw new BadRequestException('errors.withdraw.already_published');
+    }
+
+    const withdrawnDataset = await req.datasetService.withdrawFromPublication(dataset.id, revision.id);
+    res.status(201);
+    res.json(DatasetDTO.fromDataset(withdrawnDataset));
+  } catch (err: unknown) {
+    logger.error(err, 'could not withdraw publication');
+    next(err);
+  }
 };
 
 export const downloadRevisionCubeFile = async (req: Request, res: Response, next: NextFunction) => {
-    const { dataset, revision } = res.locals;
-    let cubeFile: string;
-    if (revision.onlineCubeFilename) {
-        const dataLakeService = new DataLakeService();
-        const fileBuffer = await dataLakeService.getFileBuffer(revision.onlineCubeFilename, dataset.id);
-        cubeFile = tmp.tmpNameSync({ postfix: '.duckdb' });
-        fs.writeFileSync(cubeFile, fileBuffer);
-    } else {
-        try {
-            cubeFile = await createBaseCube(dataset.id, revision.id);
-        } catch (err) {
-            logger.error(`Something went wrong trying to create the cube with the error: ${err}`);
-            next(new UnknownException('errors.cube_create_error'));
-            return;
-        }
+  const { dataset, revision } = res.locals;
+  let cubeFile: string;
+  if (revision.onlineCubeFilename) {
+    const dataLakeService = new DataLakeService();
+    const fileBuffer = await dataLakeService.getFileBuffer(revision.onlineCubeFilename, dataset.id);
+    cubeFile = tmp.tmpNameSync({ postfix: '.duckdb' });
+    fs.writeFileSync(cubeFile, fileBuffer);
+  } else {
+    try {
+      cubeFile = await createBaseCube(dataset.id, revision.id);
+    } catch (err) {
+      logger.error(`Something went wrong trying to create the cube with the error: ${err}`);
+      next(new UnknownException('errors.cube_create_error'));
+      return;
     }
-    const fileBuffer = Buffer.from(fs.readFileSync(cubeFile));
-    logger.info(`Sending original cube file (size: ${fileBuffer.length}) from: ${cubeFile}`);
-    res.writeHead(200, {
-        // eslint-disable-next-line @typescript-eslint/naming-convention
-        'Content-Type': 'application/octet-stream',
-        // eslint-disable-next-line @typescript-eslint/naming-convention
-        'Content-disposition': `attachment;filename=${dataset.id}.duckdb`,
-        // eslint-disable-next-line @typescript-eslint/naming-convention
-        'Content-Length': fileBuffer.length
-    });
-    res.end(fileBuffer);
-    await cleanUpCube(cubeFile);
+  }
+  const fileBuffer = Buffer.from(fs.readFileSync(cubeFile));
+  logger.info(`Sending original cube file (size: ${fileBuffer.length}) from: ${cubeFile}`);
+  res.writeHead(200, {
+    // eslint-disable-next-line @typescript-eslint/naming-convention
+    'Content-Type': 'application/octet-stream',
+    // eslint-disable-next-line @typescript-eslint/naming-convention
+    'Content-disposition': `attachment;filename=${dataset.id}.duckdb`,
+    // eslint-disable-next-line @typescript-eslint/naming-convention
+    'Content-Length': fileBuffer.length
+  });
+  res.end(fileBuffer);
+  await cleanUpCube(cubeFile);
 };
 
 export const downloadRevisionCubeAsJSON = async (req: Request, res: Response, next: NextFunction) => {
-    const { dataset, revision } = res.locals;
-    const lang = req.language.split('-')[0];
-    let cubeFile: string;
-    if (revision.onlineCubeFilename) {
-        const dataLakeService = new DataLakeService();
-        const fileBuffer = await dataLakeService.getFileBuffer(revision.onlineCubeFilename, dataset.id);
-        cubeFile = tmp.tmpNameSync({ postfix: '.duckdb' });
-        fs.writeFileSync(cubeFile, fileBuffer);
-    } else {
-        try {
-            logger.info('Creating fresh cube file.');
-            cubeFile = await createBaseCube(dataset.id, revision.id);
-        } catch (err) {
-            logger.error(`Something went wrong trying to create the cube with the error: ${err}`);
-            next(new UnknownException('errors.cube_create_error'));
-            return;
-        }
+  const { dataset, revision } = res.locals;
+  const lang = req.language.split('-')[0];
+  let cubeFile: string;
+  if (revision.onlineCubeFilename) {
+    const dataLakeService = new DataLakeService();
+    const fileBuffer = await dataLakeService.getFileBuffer(revision.onlineCubeFilename, dataset.id);
+    cubeFile = tmp.tmpNameSync({ postfix: '.duckdb' });
+    fs.writeFileSync(cubeFile, fileBuffer);
+  } else {
+    try {
+      logger.info('Creating fresh cube file.');
+      cubeFile = await createBaseCube(dataset.id, revision.id);
+    } catch (err) {
+      logger.error(`Something went wrong trying to create the cube with the error: ${err}`);
+      next(new UnknownException('errors.cube_create_error'));
+      return;
     }
-    const downloadFile = await outputCube(cubeFile, lang, DuckdbOutputType.Json);
-    await cleanUpCube(cubeFile);
-    const downloadStream = fs.createReadStream(downloadFile);
+  }
+  const downloadFile = await outputCube(cubeFile, lang, DuckdbOutputType.Json);
+  await cleanUpCube(cubeFile);
+  const downloadStream = fs.createReadStream(downloadFile);
+  // eslint-disable-next-line @typescript-eslint/naming-convention
+  res.writeHead(200, { 'Content-Type': '\tapplication/json' });
+  downloadStream.pipe(res);
+
+  // Handle errors in the file stream
+  downloadStream.on('error', (err) => {
+    logger.error('File stream error:', err);
     // eslint-disable-next-line @typescript-eslint/naming-convention
-    res.writeHead(200, { 'Content-Type': '\tapplication/json' });
-    downloadStream.pipe(res);
+    res.writeHead(500, { 'Content-Type': 'text/plain' });
+    fs.unlinkSync(downloadFile);
+    res.end('Server Error');
+  });
 
-    // Handle errors in the file stream
-    downloadStream.on('error', (err) => {
-        logger.error('File stream error:', err);
-        // eslint-disable-next-line @typescript-eslint/naming-convention
-        res.writeHead(500, { 'Content-Type': 'text/plain' });
-        fs.unlinkSync(downloadFile);
-        res.end('Server Error');
-    });
-
-    // Optionally listen for the end of the stream
-    downloadStream.on('end', () => {
-        fs.unlinkSync(downloadFile);
-        logger.debug('File stream ended');
-    });
+  // Optionally listen for the end of the stream
+  downloadStream.on('end', () => {
+    fs.unlinkSync(downloadFile);
+    logger.debug('File stream ended');
+  });
 };
 
 export const downloadRevisionCubeAsCSV = async (req: Request, res: Response, next: NextFunction) => {
-    const { dataset, revision } = res.locals;
-    const lang = req.language.split('-')[0];
-    if (!revision) {
-        next(new UnknownException('errors.no_revision'));
-        return;
+  const { dataset, revision } = res.locals;
+  const lang = req.language.split('-')[0];
+  if (!revision) {
+    next(new UnknownException('errors.no_revision'));
+    return;
+  }
+  let cubeFile: string;
+  if (revision.onlineCubeFilename) {
+    const dataLakeService = new DataLakeService();
+    const fileBuffer = await dataLakeService.getFileBuffer(revision.onlineCubeFilename, dataset.id);
+    cubeFile = tmp.tmpNameSync({ postfix: '.duckdb' });
+    fs.writeFileSync(cubeFile, fileBuffer);
+  } else {
+    try {
+      cubeFile = await createBaseCube(dataset.id, revision.id);
+    } catch (err) {
+      logger.error(err, `Something went wrong trying to create the cube with the error`);
+      next(new UnknownException('errors.cube_create_error'));
+      return;
     }
-    let cubeFile: string;
-    if (revision.onlineCubeFilename) {
-        const dataLakeService = new DataLakeService();
-        const fileBuffer = await dataLakeService.getFileBuffer(revision.onlineCubeFilename, dataset.id);
-        cubeFile = tmp.tmpNameSync({ postfix: '.duckdb' });
-        fs.writeFileSync(cubeFile, fileBuffer);
-    } else {
-        try {
-            cubeFile = await createBaseCube(dataset.id, revision.id);
-        } catch (err) {
-            logger.error(err, `Something went wrong trying to create the cube with the error`);
-            next(new UnknownException('errors.cube_create_error'));
-            return;
-        }
-    }
-    const downloadFile = await outputCube(cubeFile, lang, DuckdbOutputType.Csv);
-    await cleanUpCube(cubeFile);
-    const downloadStream = fs.createReadStream(downloadFile);
+  }
+  const downloadFile = await outputCube(cubeFile, lang, DuckdbOutputType.Csv);
+  await cleanUpCube(cubeFile);
+  const downloadStream = fs.createReadStream(downloadFile);
+  // eslint-disable-next-line @typescript-eslint/naming-convention
+  res.writeHead(200, { 'Content-Type': '\ttext/csv' });
+  downloadStream.pipe(res);
+
+  // Handle errors in the file stream
+  downloadStream.on('error', (err) => {
+    logger.error('File stream error:', err);
     // eslint-disable-next-line @typescript-eslint/naming-convention
-    res.writeHead(200, { 'Content-Type': '\ttext/csv' });
-    downloadStream.pipe(res);
+    res.writeHead(500, { 'Content-Type': 'text/plain' });
+    fs.unlinkSync(downloadFile);
+    res.end('Server Error');
+  });
 
-    // Handle errors in the file stream
-    downloadStream.on('error', (err) => {
-        logger.error('File stream error:', err);
-        // eslint-disable-next-line @typescript-eslint/naming-convention
-        res.writeHead(500, { 'Content-Type': 'text/plain' });
-        fs.unlinkSync(downloadFile);
-        res.end('Server Error');
-    });
-
-    // Optionally listen for the end of the stream
-    downloadStream.on('end', () => {
-        fs.unlinkSync(downloadFile);
-        logger.debug('File stream ended');
-    });
+  // Optionally listen for the end of the stream
+  downloadStream.on('end', () => {
+    fs.unlinkSync(downloadFile);
+    logger.debug('File stream ended');
+  });
 };
 
 export const downloadRevisionCubeAsParquet = async (req: Request, res: Response, next: NextFunction) => {
-    const { dataset, revision } = res.locals;
-    const lang = req.language.split('-')[0];
-    if (!revision) {
-        next(new UnknownException('errors.no_revision'));
-        return;
+  const { dataset, revision } = res.locals;
+  const lang = req.language.split('-')[0];
+  if (!revision) {
+    next(new UnknownException('errors.no_revision'));
+    return;
+  }
+  let cubeFile: string;
+  if (revision.onlineCubeFilename) {
+    const dataLakeService = new DataLakeService();
+    const fileBuffer = await dataLakeService.getFileBuffer(revision.onlineCubeFilename, dataset.id);
+    cubeFile = tmp.tmpNameSync({ postfix: '.duckdb' });
+    fs.writeFileSync(cubeFile, fileBuffer);
+  } else {
+    try {
+      cubeFile = await createBaseCube(dataset.id, revision.id);
+    } catch (err) {
+      logger.error(`Something went wrong trying to create the cube with the error: ${err}`);
+      next(new UnknownException('errors.cube_create_error'));
+      return;
     }
-    let cubeFile: string;
-    if (revision.onlineCubeFilename) {
-        const dataLakeService = new DataLakeService();
-        const fileBuffer = await dataLakeService.getFileBuffer(revision.onlineCubeFilename, dataset.id);
-        cubeFile = tmp.tmpNameSync({ postfix: '.duckdb' });
-        fs.writeFileSync(cubeFile, fileBuffer);
-    } else {
-        try {
-            cubeFile = await createBaseCube(dataset.id, revision.id);
-        } catch (err) {
-            logger.error(`Something went wrong trying to create the cube with the error: ${err}`);
-            next(new UnknownException('errors.cube_create_error'));
-            return;
-        }
-    }
-    const downloadFile = await outputCube(cubeFile, lang, DuckdbOutputType.Parquet);
-    await cleanUpCube(cubeFile);
-    const downloadStream = fs.createReadStream(downloadFile);
+  }
+  const downloadFile = await outputCube(cubeFile, lang, DuckdbOutputType.Parquet);
+  await cleanUpCube(cubeFile);
+  const downloadStream = fs.createReadStream(downloadFile);
+  // eslint-disable-next-line @typescript-eslint/naming-convention
+  res.writeHead(200, { 'Content-Type': '\tapplication/vnd.apache.parquet' });
+  downloadStream.pipe(res);
+
+  // Handle errors in the file stream
+  downloadStream.on('error', (err) => {
+    logger.error('File stream error:', err);
     // eslint-disable-next-line @typescript-eslint/naming-convention
-    res.writeHead(200, { 'Content-Type': '\tapplication/vnd.apache.parquet' });
-    downloadStream.pipe(res);
+    res.writeHead(500, { 'Content-Type': 'text/plain' });
+    fs.unlinkSync(downloadFile);
+    res.end('Server Error');
+  });
 
-    // Handle errors in the file stream
-    downloadStream.on('error', (err) => {
-        logger.error('File stream error:', err);
-        // eslint-disable-next-line @typescript-eslint/naming-convention
-        res.writeHead(500, { 'Content-Type': 'text/plain' });
-        fs.unlinkSync(downloadFile);
-        res.end('Server Error');
-    });
-
-    // Optionally listen for the end of the stream
-    downloadStream.on('end', () => {
-        fs.unlinkSync(downloadFile);
-        logger.debug('File stream ended');
-    });
+  // Optionally listen for the end of the stream
+  downloadStream.on('end', () => {
+    fs.unlinkSync(downloadFile);
+    logger.debug('File stream ended');
+  });
 };
 
 export const downloadRevisionCubeAsExcel = async (req: Request, res: Response, next: NextFunction) => {
-    const { dataset, revision } = res.locals;
-    const lang = req.language.split('-')[0];
-    if (!revision) {
-        next(new UnknownException('errors.no_revision'));
-        return;
+  const { dataset, revision } = res.locals;
+  const lang = req.language.split('-')[0];
+  if (!revision) {
+    next(new UnknownException('errors.no_revision'));
+    return;
+  }
+  let cubeFile: string;
+  if (revision.onlineCubeFilename) {
+    const dataLakeService = new DataLakeService();
+    const fileBuffer = await dataLakeService.getFileBuffer(revision.onlineCubeFilename, dataset.id);
+    cubeFile = tmp.tmpNameSync({ postfix: '.duckdb' });
+    fs.writeFileSync(cubeFile, fileBuffer);
+  } else {
+    try {
+      cubeFile = await createBaseCube(dataset.id, revision.id);
+    } catch (err) {
+      logger.error(`Something went wrong trying to create the cube with the error: ${err}`);
+      next(new UnknownException('errors.cube_create_error'));
+      return;
     }
-    let cubeFile: string;
-    if (revision.onlineCubeFilename) {
-        const dataLakeService = new DataLakeService();
-        const fileBuffer = await dataLakeService.getFileBuffer(revision.onlineCubeFilename, dataset.id);
-        cubeFile = tmp.tmpNameSync({ postfix: '.duckdb' });
-        fs.writeFileSync(cubeFile, fileBuffer);
-    } else {
-        try {
-            cubeFile = await createBaseCube(dataset.id, revision.id);
-        } catch (err) {
-            logger.error(`Something went wrong trying to create the cube with the error: ${err}`);
-            next(new UnknownException('errors.cube_create_error'));
-            return;
-        }
-    }
-    const downloadFile = await outputCube(cubeFile, lang, DuckdbOutputType.Excel);
-    logger.info(`Cube file located at: ${cubeFile}`);
-    await cleanUpCube(cubeFile);
-    const downloadStream = fs.createReadStream(downloadFile);
+  }
+  const downloadFile = await outputCube(cubeFile, lang, DuckdbOutputType.Excel);
+  logger.info(`Cube file located at: ${cubeFile}`);
+  await cleanUpCube(cubeFile);
+  const downloadStream = fs.createReadStream(downloadFile);
+  // eslint-disable-next-line @typescript-eslint/naming-convention
+  res.writeHead(200, { 'Content-Type': '\tapplication/vnd.ms-excel' });
+  downloadStream.pipe(res);
+
+  // Handle errors in the file stream
+  downloadStream.on('error', (err) => {
+    logger.error('File stream error:', err);
     // eslint-disable-next-line @typescript-eslint/naming-convention
-    res.writeHead(200, { 'Content-Type': '\tapplication/vnd.ms-excel' });
-    downloadStream.pipe(res);
+    res.writeHead(500, { 'Content-Type': 'text/plain' });
+    fs.unlinkSync(downloadFile);
+    res.end('Server Error');
+  });
 
-    // Handle errors in the file stream
-    downloadStream.on('error', (err) => {
-        logger.error('File stream error:', err);
-        // eslint-disable-next-line @typescript-eslint/naming-convention
-        res.writeHead(500, { 'Content-Type': 'text/plain' });
-        fs.unlinkSync(downloadFile);
-        res.end('Server Error');
-    });
-
-    // Optionally listen for the end of the stream
-    downloadStream.on('end', () => {
-        fs.unlinkSync(downloadFile);
-        logger.debug('File stream ended');
-    });
+  // Optionally listen for the end of the stream
+  downloadStream.on('end', () => {
+    fs.unlinkSync(downloadFile);
+    logger.debug('File stream ended');
+  });
 };
 
 export const createNewRevision = async (req: Request, res: Response, next: NextFunction) => {
-    const user = req.user as User;
+  const user = req.user as User;
 
-    try {
-        const dataset = await req.datasetService.createRevision(res.locals.datasetId, user);
-        res.status(201);
-        res.json(RevisionDTO.fromRevision(dataset.draftRevision!));
-    } catch (err) {
-        next(err);
-    }
+  try {
+    const dataset = await req.datasetService.createRevision(res.locals.datasetId, user);
+    res.status(201);
+    res.json(RevisionDTO.fromRevision(dataset.draftRevision!));
+  } catch (err) {
+    next(err);
+  }
 };
