@@ -4,9 +4,13 @@ import app from '../src/app';
 import { initDb } from '../src/db/init';
 import DatabaseManager from '../src/db/database-manager';
 import { initPassport } from '../src/middleware/passport-auth';
+import { sanitiseUser } from '../src/utils/sanitise-user';
 import { SUPPORTED_LOCALES } from '../src/middleware/translation';
 import { Locale } from '../src/enums/locale';
 import { logger } from '../src/utils/logger';
+
+import { getTestUser } from './helpers/get-user';
+import { getAuthHeader } from './helpers/auth-header';
 
 describe('Healthcheck', () => {
     let dbManager: DatabaseManager;
@@ -82,6 +86,37 @@ describe('Healthcheck', () => {
             expect(res.body).toEqual({ lang: Locale.WelshGb, supported: SUPPORTED_LOCALES });
         });
     });
+
+    describe('Authentication', () => {
+      test('/heathcheck/jwt returns 401 without a bearer token', async () => {
+          const res = await request(app).get('/healthcheck/jwt');
+          expect(res.status).toBe(401);
+      });
+
+      test('/heathcheck/jwt returns 401 with an invalid bearer token', async () => {
+          const res = await request(app).get('/healthcheck/jwt').set({ Authorization: 'Bearer this-is-not-a-token' });
+          expect(res.status).toBe(401);
+      });
+
+      test('/heathcheck/jwt returns 401 with a valid bearer token but inactive user', async () => {
+          const inactiveUser = getTestUser('Inactive', 'User');
+          const res = await request(app).get('/healthcheck/jwt').set(getAuthHeader(inactiveUser));
+          expect(res.status).toBe(401);
+      });
+
+      test('/heathcheck/jwt returns 200 with a valid bearer token', async () => {
+          const testUser = getTestUser();
+          await testUser.save();
+
+          const res = await request(app).get('/healthcheck/jwt').set(getAuthHeader(testUser));
+
+          expect(res.status).toBe(200);
+          expect(res.body).toEqual({
+              message: 'success',
+              user: sanitiseUser(testUser)
+          });
+      });
+  });
 
     afterAll(async () => {
         await dbManager.getDataSource().dropDatabase();

@@ -1,6 +1,9 @@
 import { Request, Response, Router } from 'express';
+import passport from 'passport';
 import { isString } from 'lodash';
 
+import { sanitiseUser } from '../utils/sanitise-user';
+import { User } from '../entities/user/user';
 import { appConfig } from '../config';
 import { AppEnv } from '../config/env.enum';
 import { DataLakeService } from '../services/datalake';
@@ -58,6 +61,11 @@ healthcheck.get('/live', stillAlive);
 // for testing language detection / switching is working
 healthcheck.get('/language', (req, res) => {
   res.json({ lang: req.language, supported: SUPPORTED_LOCALES });
+});
+
+// for testing jwt auth is working
+healthcheck.get('/jwt', passport.authenticate('jwt', { session: false }), (req, res) => {
+  res.json({ message: 'success', user: sanitiseUser(req.user as User) });
 });
 
 export const healthcheckRouter = healthcheck;
