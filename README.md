@@ -116,3 +116,28 @@ npm run migration:generate -- ./src/migration/initial-schema
 ## Deploying the service
 
 The app is deployed as a container, based on [Dockerfile](Dockerfile).
+
+## Service healthcheck
+
+There a several routes for checking service availability and container health. A successful healthcheck will return a
+200 response with the following body:
+```
+{ message: 'success' }
+```
+
+An endpoint to report if the service has started up:
+```
+GET /heathcheck
+```
+
+An endpoint that reports if the service is ready to receive requests. It checks for both a database connection and a
+file store connection:
+```
+GET /healthcheck/ready
+```
+
+An endpoint that reports if the service is still in a healthy state. This is currently an alias for the
+`/healthcheck/ready` route above.
+```
+GET /healthcheck/live
+```
