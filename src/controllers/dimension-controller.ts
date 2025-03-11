@@ -16,7 +16,7 @@ import { UnknownException } from '../exceptions/unknown.exception';
 import { LookupTablePatchDTO } from '../dtos/lookup-patch-dto';
 import { DimensionMetadataDTO } from '../dtos/dimension-metadata-dto';
 import { getFactTableColumnPreview, uploadCSV } from '../services/csv-processor';
-import { getDimensionPreview, validateDateTypeDimension } from '../services/dimension-processor';
+import { getDimensionPreview, setupTextDimension, validateDateTypeDimension } from '../services/dimension-processor';
 import { validateLookupTable } from '../services/lookup-table-handler';
 import { validateReferenceData } from '../services/reference-data-handler';
 import { convertBufferToUTF8 } from '../utils/file-utils';
@@ -132,9 +132,9 @@ export const attachLookupTableToDimension = async (req: Request, res: Response, 
 
 export const updateDimension = async (req: Request, res: Response, next: NextFunction) => {
     const { dataset, dimension } = res.locals;
-    const factTable = getLatestRevision(dataset)?.dataTable;
+    const dataTable = getLatestRevision(dataset)?.dataTable;
 
-    if (!factTable) {
+    if (!dataTable) {
         next(new NotFoundException('errors.fact_table_invalid'));
         return;
     }
@@ -148,17 +148,21 @@ export const updateDimension = async (req: Request, res: Response, next: NextFun
             case DimensionType.DatePeriod:
             case DimensionType.Date:
                 logger.debug('Matching a Dimension containing Dates');
-                preview = await validateDateTypeDimension(dimensionPatchRequest, dataset, dimension, factTable);
+                preview = await validateDateTypeDimension(dimensionPatchRequest, dataset, dimension, dataTable);
                 break;
             case DimensionType.ReferenceData:
                 logger.debug('Matching a Dimension containing Reference Data');
                 preview = await validateReferenceData(
-                    factTable,
+                    dataTable,
                     dataset,
                     dimension,
                     dimensionPatchRequest.reference_type,
                     `${req.language}`
                 );
+                break;
+            case DimensionType.Text:
+                await setupTextDimension(dimension);
+                preview = await getFactTableColumnPreview(dataset, dataTable, dimension.factTableColumn);
                 break;
             case DimensionType.LookupTable:
                 logger.debug('User requested to patch a lookup table?');

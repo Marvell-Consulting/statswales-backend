@@ -9,10 +9,12 @@ import {
     UpdateDateColumn
 } from 'typeorm';
 
+import { MetadataInterface } from '../../interfaces/metadata-interface';
+
 import { Dimension } from './dimension';
 
 @Entity({ name: 'dimension_metadata' })
-export class DimensionMetadata extends BaseEntity {
+export class DimensionMetadata extends BaseEntity implements MetadataInterface {
     @PrimaryColumn({
         name: 'dimension_id',
         type: 'uuid',

@@ -1,10 +1,16 @@
 import 'reflect-metadata';
 
-import { Router } from 'express';
+import express, { Router } from 'express';
 import multer from 'multer';
 
-import { attachLookupTableToMeasure, getPreviewOfMeasure, resetMeasure } from '../controllers/measure-controller';
+import {
+    attachLookupTableToMeasure,
+    getPreviewOfMeasure,
+    resetMeasure,
+    updateMeasureMetadata
+} from '../controllers/measure-controller';
 
+const jsonParser = express.json();
 const upload = multer({ storage: multer.memoryStorage() });
 
 const router = Router();
@@ -21,3 +27,7 @@ router.post('/', upload.single('csv'), attachLookupTableToMeasure);
 // It should be noted that this returns the raw values in the
 // preview as opposed to view which returns interpreted values.
 router.get('/preview', getPreviewOfMeasure);
+
+// PATCH /:dataset_id/dimension/by-id/:dimension_id/meta
+// Updates the dimension metadata
+router.patch('/metadata', jsonParser, updateMeasureMetadata);

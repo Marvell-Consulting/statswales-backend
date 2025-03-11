@@ -29,9 +29,8 @@ import { LookupTable } from '../entities/dataset/lookup-table';
 import { FactTableColumn } from '../entities/dataset/fact-table-column';
 import { MeasureRow } from '../entities/dataset/measure-row';
 import { MeasureMetadata } from '../entities/dataset/measure-metadata';
-import { measureRouter } from '../route/measure';
 
-import { DateReferenceDataItem, dateDimensionReferenceTableCreator } from './time-matching';
+import { dateDimensionReferenceTableCreator, DateReferenceDataItem } from './time-matching';
 import { createFactTableQuery } from './cube-handler';
 import { DataLakeService } from './datalake';
 // eslint-disable-next-line import/no-cycle
@@ -78,6 +77,16 @@ export const cleanUpDimension = async (dimension: Dimension) => {
             logger.warn(`Something went wrong trying to remove previously uploaded lookup table with error: ${err}`);
         }
     }
+};
+
+export const setupTextDimension = async (dimension: Dimension) => {
+    if (dimension.extractor) await cleanUpDimension(dimension);
+    const updateDimension = await Dimension.findOneByOrFail({ id: dimension.id });
+    updateDimension.type = DimensionType.Text;
+    updateDimension.extractor = {
+        type: 'text'
+    };
+    await updateDimension.save();
 };
 
 export const validateSourceAssignment = (
@@ -198,7 +207,15 @@ async function createUpdateMeasure(dataset: Dataset, columnAssignment: SourceAss
     const measure = new Measure();
     measure.factTableColumn = columnAssignment.column_name;
     measure.dataset = dataset;
-    await measure.save();
+    const savedMeasure = await measure.save();
+    SUPPORTED_LOCALES.map(async (lang: string) => {
+        const metadata = new MeasureMetadata();
+        metadata.id = savedMeasure.id;
+        metadata.measure = savedMeasure;
+        metadata.language = lang;
+        metadata.name = columnInfo.columnName;
+        await metadata.save();
+    });
 }
 
 async function createUpdateNoteCodes(dataset: Dataset, columnAssignment: SourceAssignmentDTO) {
@@ -241,10 +258,7 @@ export async function removeAllDimensions(dataset: Dataset) {
                         `Something went wrong trying to remove previously uploaded lookup table with error: ${error}`
                     );
                 }
-                logger.warn(`Removing lookup table for dimension ${dimension.id}`);
-                await LookupTable.getRepository().delete({ dimension });
             }
-            await DimensionMetadata.getRepository().delete({ dimension });
         }
     }
     await Dimension.getRepository().delete({ dataset });
@@ -263,8 +277,6 @@ export async function removeMeasure(dataset: Dataset) {
                     `Something went wrong trying to remove previously uploaded lookup table with error: ${error}`
                 );
             }
-            logger.warn(`Removing lookup table for measure ${dataset.measure.id}`);
-            await LookupTable.getRepository().delete({ measure: dataset.measure });
         }
         await MeasureRow.getRepository().delete({ measure: dataset.measure });
         await MeasureMetadata.getRepository().delete({ measure: dataset.measure });
@@ -719,6 +731,11 @@ export const getDimensionPreview = async (
                         tableName,
                         lang
                     );
+                    break;
+
+                case DimensionType.Text:
+                    logger.debug('Previewing text dimension');
+                    viewDto = await getPreviewWithoutExtractor(dataset, dimension, dataTable, quack, tableName);
                     break;
 
                 default:
