@@ -79,13 +79,13 @@ export const cleanUpDimension = async (dimension: Dimension) => {
 };
 
 export const setupTextDimension = async (dimension: Dimension) => {
-    if (dimension.extractor) await cleanUpDimension(dimension);
-    const updateDimension = await Dimension.findOneByOrFail({ id: dimension.id });
-    updateDimension.type = DimensionType.Text;
-    updateDimension.extractor = {
-        type: 'text'
-    };
-    await updateDimension.save();
+  if (dimension.extractor) await cleanUpDimension(dimension);
+  const updateDimension = await Dimension.findOneByOrFail({ id: dimension.id });
+  updateDimension.type = DimensionType.Text;
+  updateDimension.extractor = {
+    type: 'text'
+  };
+  await updateDimension.save();
 };
 
 export const validateSourceAssignment = (
@@ -200,20 +200,20 @@ async function createUpdateMeasure(dataset: Dataset, columnAssignment: SourceAss
     id: dataset.id
   });
 
-    columnInfo.columnType = FactTableColumnType.Measure;
-    await columnInfo.save();
-    const measure = new Measure();
-    measure.factTableColumn = columnAssignment.column_name;
-    measure.dataset = dataset;
-    const savedMeasure = await measure.save();
-    SUPPORTED_LOCALES.map(async (lang: string) => {
-        const metadata = new MeasureMetadata();
-        metadata.id = savedMeasure.id;
-        metadata.measure = savedMeasure;
-        metadata.language = lang;
-        metadata.name = columnInfo.columnName;
-        await metadata.save();
-    });
+  columnInfo.columnType = FactTableColumnType.Measure;
+  await columnInfo.save();
+  const measure = new Measure();
+  measure.factTableColumn = columnAssignment.column_name;
+  measure.dataset = dataset;
+  const savedMeasure = await measure.save();
+  SUPPORTED_LOCALES.map(async (lang: string) => {
+    const metadata = new MeasureMetadata();
+    metadata.id = savedMeasure.id;
+    metadata.measure = savedMeasure;
+    metadata.language = lang;
+    metadata.name = columnInfo.columnName;
+    await metadata.save();
+  });
 }
 
 async function createUpdateNoteCodes(dataset: Dataset, columnAssignment: SourceAssignmentDTO) {
@@ -243,43 +243,43 @@ async function createBaseFactTable(dataset: Dataset, dataTable: DataTable): Prom
 }
 
 export async function removeAllDimensions(dataset: Dataset) {
-    logger.warn(`Removing all dimensions for dataset ${dataset.id}`);
-    if (dataset.dimensions) {
-        for (const dimension of dataset.dimensions) {
-            if (dimension.lookupTable) {
-                const dataLakeService = new DataLakeService();
-                try {
-                    dataLakeService.deleteFile(dimension.lookupTable.filename, dataset.id);
-                } catch (error) {
-                    logger.warn(
-                        error,
-                        `Something went wrong trying to remove previously uploaded lookup table with error: ${error}`
-                    );
-                }
-            }
+  logger.warn(`Removing all dimensions for dataset ${dataset.id}`);
+  if (dataset.dimensions) {
+    for (const dimension of dataset.dimensions) {
+      if (dimension.lookupTable) {
+        const dataLakeService = new DataLakeService();
+        try {
+          dataLakeService.deleteFile(dimension.lookupTable.filename, dataset.id);
+        } catch (error) {
+          logger.warn(
+            error,
+            `Something went wrong trying to remove previously uploaded lookup table with error: ${error}`
+          );
         }
+      }
     }
-    await Dimension.getRepository().delete({ dataset });
+  }
+  await Dimension.getRepository().delete({ dataset });
 }
 
 export async function removeMeasure(dataset: Dataset) {
-    logger.warn(`Removing measure for dataset ${dataset.id}`);
-    if (dataset.measure) {
-        if (dataset.measure.lookupTable) {
-            const dataLakeService = new DataLakeService();
-            try {
-                dataLakeService.deleteFile(dataset.measure.lookupTable.filename, dataset.id);
-            } catch (error) {
-                logger.warn(
-                    error,
-                    `Something went wrong trying to remove previously uploaded lookup table with error: ${error}`
-                );
-            }
-        }
-        await MeasureRow.getRepository().delete({ measure: dataset.measure });
-        await MeasureMetadata.getRepository().delete({ measure: dataset.measure });
+  logger.warn(`Removing measure for dataset ${dataset.id}`);
+  if (dataset.measure) {
+    if (dataset.measure.lookupTable) {
+      const dataLakeService = new DataLakeService();
+      try {
+        dataLakeService.deleteFile(dataset.measure.lookupTable.filename, dataset.id);
+      } catch (error) {
+        logger.warn(
+          error,
+          `Something went wrong trying to remove previously uploaded lookup table with error: ${error}`
+        );
+      }
     }
-    await Measure.getRepository().delete({ dataset });
+    await MeasureRow.getRepository().delete({ measure: dataset.measure });
+    await MeasureMetadata.getRepository().delete({ measure: dataset.measure });
+  }
+  await Measure.getRepository().delete({ dataset });
 }
 
 export const cleanupDimensionMeasureAndFactTable = async (dataset: Dataset): Promise<void> => {
@@ -720,26 +720,26 @@ export const getDimensionPreview = async (
           viewDto = await getReferenceDataDimensionPreview(dataset, dimension, dataTable, quack, tableName, lang);
           break;
 
-                case DimensionType.Text:
-                    logger.debug('Previewing text dimension');
-                    viewDto = await getPreviewWithoutExtractor(dataset, dimension, dataTable, quack, tableName);
-                    break;
+        case DimensionType.Text:
+          logger.debug('Previewing text dimension');
+          viewDto = await getPreviewWithoutExtractor(dataset, dimension, dataTable, quack, tableName);
+          break;
 
-                default:
-                    logger.debug(`Previewing a dimension of an unknown type.  Type supplied is ${dimension.type}`);
-                    viewDto = await getPreviewWithoutExtractor(dataset, dimension, dataTable, quack, tableName);
-            }
-        } else {
-            logger.debug('Straight column preview');
-            viewDto = await getPreviewWithoutExtractor(dataset, dimension, dataTable, quack, tableName);
-        }
-        fs.unlinkSync(tempFile);
-        return viewDto;
-    } catch (error) {
-        logger.error(`Something went wrong trying to create dimension preview with the following error: ${error}`);
-        fs.unlinkSync(tempFile);
-        throw error;
-    } finally {
-        await quack.close();
+        default:
+          logger.debug(`Previewing a dimension of an unknown type.  Type supplied is ${dimension.type}`);
+          viewDto = await getPreviewWithoutExtractor(dataset, dimension, dataTable, quack, tableName);
+      }
+    } else {
+      logger.debug('Straight column preview');
+      viewDto = await getPreviewWithoutExtractor(dataset, dimension, dataTable, quack, tableName);
     }
+    fs.unlinkSync(tempFile);
+    return viewDto;
+  } catch (error) {
+    logger.error(`Something went wrong trying to create dimension preview with the following error: ${error}`);
+    fs.unlinkSync(tempFile);
+    throw error;
+  } finally {
+    await quack.close();
+  }
 };

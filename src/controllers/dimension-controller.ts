@@ -131,51 +131,51 @@ export const attachLookupTableToDimension = async (req: Request, res: Response, 
 };
 
 export const updateDimension = async (req: Request, res: Response, next: NextFunction) => {
-    const { dataset, dimension } = res.locals;
-    const dataTable = getLatestRevision(dataset)?.dataTable;
+  const { dataset, dimension } = res.locals;
+  const dataTable = getLatestRevision(dataset)?.dataTable;
 
-    if (!dataTable) {
-        next(new NotFoundException('errors.fact_table_invalid'));
-        return;
-    }
+  if (!dataTable) {
+    next(new NotFoundException('errors.fact_table_invalid'));
+    return;
+  }
 
   const dimensionPatchRequest = req.body as DimensionPatchDto;
   let preview: ViewDTO | ViewErrDTO;
 
-    try {
-        logger.debug(`User dimension type = ${JSON.stringify(dimensionPatchRequest)}`);
-        switch (dimensionPatchRequest.dimension_type) {
-            case DimensionType.DatePeriod:
-            case DimensionType.Date:
-                logger.debug('Matching a Dimension containing Dates');
-                preview = await validateDateTypeDimension(dimensionPatchRequest, dataset, dimension, dataTable);
-                break;
-            case DimensionType.ReferenceData:
-                logger.debug('Matching a Dimension containing Reference Data');
-                preview = await validateReferenceData(
-                    dataTable,
-                    dataset,
-                    dimension,
-                    dimensionPatchRequest.reference_type,
-                    `${req.language}`
-                );
-                break;
-            case DimensionType.Text:
-                await setupTextDimension(dimension);
-                preview = await getFactTableColumnPreview(dataset, dataTable, dimension.factTableColumn);
-                break;
-            case DimensionType.LookupTable:
-                logger.debug('User requested to patch a lookup table?');
-                throw new Error('You need to post a lookup table with this request');
-            default:
-                throw new Error('Not Implemented Yet!');
-        }
-    } catch (error) {
-        logger.error(error, `Something went wrong trying to validate the dimension`);
-        res.status(500);
-        res.json({ message: 'Unable to validate or match dimension against patch' });
-        return;
+  try {
+    logger.debug(`User dimension type = ${JSON.stringify(dimensionPatchRequest)}`);
+    switch (dimensionPatchRequest.dimension_type) {
+      case DimensionType.DatePeriod:
+      case DimensionType.Date:
+        logger.debug('Matching a Dimension containing Dates');
+        preview = await validateDateTypeDimension(dimensionPatchRequest, dataset, dimension, dataTable);
+        break;
+      case DimensionType.ReferenceData:
+        logger.debug('Matching a Dimension containing Reference Data');
+        preview = await validateReferenceData(
+          dataTable,
+          dataset,
+          dimension,
+          dimensionPatchRequest.reference_type,
+          `${req.language}`
+        );
+        break;
+      case DimensionType.Text:
+        await setupTextDimension(dimension);
+        preview = await getFactTableColumnPreview(dataset, dataTable, dimension.factTableColumn);
+        break;
+      case DimensionType.LookupTable:
+        logger.debug('User requested to patch a lookup table?');
+        throw new Error('You need to post a lookup table with this request');
+      default:
+        throw new Error('Not Implemented Yet!');
     }
+  } catch (error) {
+    logger.error(error, `Something went wrong trying to validate the dimension`);
+    res.status(500);
+    res.json({ message: 'Unable to validate or match dimension against patch' });
+    return;
+  }
 
   if ((preview as ViewErrDTO).errors) {
     res.status((preview as ViewErrDTO).status);

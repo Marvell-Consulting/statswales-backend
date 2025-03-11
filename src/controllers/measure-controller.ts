@@ -15,9 +15,7 @@ import { getMeasurePreview, validateMeasureLookupTable } from '../services/measu
 import { uploadCSV } from '../services/csv-processor';
 import { convertBufferToUTF8 } from '../utils/file-utils';
 import { DimensionMetadataDTO } from '../dtos/dimension-metadata-dto';
-import { DimensionMetadata } from '../entities/dataset/dimension-metadata';
 import { MeasureMetadata } from '../entities/dataset/measure-metadata';
-import { MeasureDTO } from '../dtos/measure-dto';
 
 export const resetMeasure = async (req: Request, res: Response, next: NextFunction) => {
   const dataset = res.locals.dataset;
@@ -127,26 +125,26 @@ export const getPreviewOfMeasure = async (req: Request, res: Response, next: Nex
 };
 
 export const updateMeasureMetadata = async (req: Request, res: Response, next: NextFunction) => {
-    const measure = res.locals.dataset.measure;
-    if (!measure) {
-        next(new NotFoundException('errors.measure_invalid'));
-    }
-    const update = req.body as DimensionMetadataDTO;
-    let metadata = measure.metadata.find((meta: MeasureMetadata) => meta.language === update.language);
+  const measure = res.locals.dataset.measure;
+  if (!measure) {
+    next(new NotFoundException('errors.measure_invalid'));
+  }
+  const update = req.body as DimensionMetadataDTO;
+  let metadata = measure.metadata.find((meta: MeasureMetadata) => meta.language === update.language);
 
-    if (!metadata) {
-        metadata = new MeasureMetadata();
-        metadata.measure = measure;
-        metadata.language = update.language;
-    }
-    if (update.name) {
-        metadata.name = update.name;
-    }
-    if (update.notes) {
-        metadata.notes = update.notes;
-    }
-    const updatedMeasureMetadata = await metadata.save();
-    res.status(200);
-    const dto = DimensionMetadataDTO.fromDimensionMetadata(updatedMeasureMetadata);
-    res.json(dto);
+  if (!metadata) {
+    metadata = new MeasureMetadata();
+    metadata.measure = measure;
+    metadata.language = update.language;
+  }
+  if (update.name) {
+    metadata.name = update.name;
+  }
+  if (update.notes) {
+    metadata.notes = update.notes;
+  }
+  const updatedMeasureMetadata = await metadata.save();
+  res.status(200);
+  const dto = DimensionMetadataDTO.fromDimensionMetadata(updatedMeasureMetadata);
+  res.json(dto);
 };
