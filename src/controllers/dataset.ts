@@ -290,7 +290,7 @@ export const updateSources = async (req: Request, res: Response, next: NextFunct
     if (err instanceof SourceAssignmentException) {
       next(new BadRequestException(err.message));
     } else {
-      next(new BadRequestException('errors.invalid_source_assignment'));
+      next(new UnknownException('errors.unknown_server_error'));
     }
   }
 };
