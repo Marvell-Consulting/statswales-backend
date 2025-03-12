@@ -1,14 +1,14 @@
 import {
-    BaseEntity,
-    Column,
-    CreateDateColumn,
-    Entity,
-    Index,
-    JoinColumn,
-    ManyToOne,
-    OneToMany,
-    PrimaryGeneratedColumn,
-    UpdateDateColumn
+  BaseEntity,
+  Column,
+  CreateDateColumn,
+  Entity,
+  Index,
+  JoinColumn,
+  ManyToOne,
+  OneToMany,
+  PrimaryGeneratedColumn,
+  UpdateDateColumn
 } from 'typeorm';
 
 import { Dataset } from '../dataset/dataset';
@@ -18,26 +18,26 @@ import { TeamInfo } from './team-info';
 
 @Entity({ name: 'team' })
 export class Team extends BaseEntity {
-    @PrimaryGeneratedColumn('uuid', { primaryKeyConstraintName: 'PK_team_id' })
-    id: string;
+  @PrimaryGeneratedColumn('uuid', { primaryKeyConstraintName: 'PK_team_id' })
+  id: string;
 
-    @Column({ name: 'prefix', type: 'text', nullable: false })
-    prefix: string;
+  @Column({ name: 'prefix', type: 'text', nullable: false })
+  prefix: string;
 
-    @OneToMany(() => TeamInfo, (info) => info.team, { cascade: true })
-    info: TeamInfo[];
+  @OneToMany(() => TeamInfo, (info) => info.team, { cascade: true })
+  info: TeamInfo[];
 
-    @Index('IDX_team_organisation_id')
-    @ManyToOne(() => Organisation)
-    @JoinColumn({ name: 'organisation_id', foreignKeyConstraintName: 'FK_team_organisation_id' })
-    organisation?: Organisation;
+  @Index('IDX_team_organisation_id')
+  @ManyToOne(() => Organisation)
+  @JoinColumn({ name: 'organisation_id', foreignKeyConstraintName: 'FK_team_organisation_id' })
+  organisation?: Organisation;
 
-    @OneToMany(() => Dataset, (dataset) => dataset.team)
-    datasets?: Dataset[];
+  @OneToMany(() => Dataset, (dataset) => dataset.team)
+  datasets?: Dataset[];
 
-    @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
-    createdAt: Date;
+  @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
+  createdAt: Date;
 
-    @UpdateDateColumn({ name: 'updated_at', type: 'timestamptz' })
-    updatedAt: Date;
+  @UpdateDateColumn({ name: 'updated_at', type: 'timestamptz' })
+  updatedAt: Date;
 }
