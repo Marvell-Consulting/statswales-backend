@@ -89,7 +89,7 @@ export class Revision extends BaseEntity {
     @Column({ type: 'text', name: 'update_frequency', nullable: true })
     updateFrequency?: string; // in ISO 8601 duration format, e.g. P1Y = every year
 
-    @Column({ type: 'enum', enum: Object.values(Designation), nullable: true })
+    @Column({ type: 'text', nullable: true })
     designation?: Designation;
 
     @Column({ type: 'jsonb', name: 'related_links', nullable: true })
