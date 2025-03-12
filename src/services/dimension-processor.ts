@@ -218,7 +218,7 @@ async function createUpdateMeasure(dataset: Dataset, columnAssignment: SourceAss
     dataset,
     factTableColumn: columnInfo.columnName,
     metadata: SUPPORTED_LOCALES.map((language: string) =>
-      DimensionMetadata.create({ language, name: columnInfo.columnName })
+      MeasureMetadata.create({ language, name: columnInfo.columnName })
     )
   }).save();
 }
