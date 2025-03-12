@@ -11,7 +11,7 @@ export function getStagingConfig(): AppConfig {
         auth: {
             providers: [AuthProvider.Google, AuthProvider.EntraId, AuthProvider.Local],
             jwt: {
-                cookieDomain: process.env.BACKEND_URL!.replace('statswales-develop-backend.', '')
+                cookieDomain: process.env.BACKEND_URL!.replace('statswales-develop-backend.', '').replace('api.', '')
             }
         }
     });
