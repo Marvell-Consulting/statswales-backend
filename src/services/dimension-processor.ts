@@ -1,42 +1,42 @@
 import fs from 'fs';
 
-import {Database} from 'duckdb-async';
+import { Database } from 'duckdb-async';
 import tmp from 'tmp';
-import {t} from 'i18next';
+import { t } from 'i18next';
 
-import {SourceAssignmentDTO} from '../dtos/source-assignment-dto';
-import {DataTable} from '../entities/dataset/data-table';
-import {DataTableDescription} from '../entities/dataset/data-table-description';
-import {FactTableColumnType} from '../enums/fact-table-column-type';
-import {SourceAssignmentException} from '../exceptions/source-assignment.exception';
-import {Dataset} from '../entities/dataset/dataset';
-import {DimensionType} from '../enums/dimension-type';
-import {logger} from '../utils/logger';
-import {Dimension} from '../entities/dataset/dimension';
-import {SUPPORTED_LOCALES} from '../middleware/translation';
-import {DimensionMetadata} from '../entities/dataset/dimension-metadata';
-import {Measure} from '../entities/dataset/measure';
-import {DimensionPatchDto} from '../dtos/dimension-partch-dto';
-import {CSVHeader, ViewDTO, ViewErrDTO} from '../dtos/view-dto';
-import {DateExtractor} from '../extractors/date-extractor';
-import {Locale} from '../enums/locale';
-import {DatasetRepository} from '../repositories/dataset';
-import {DatasetDTO} from '../dtos/dataset-dto';
-import {DataTableDto} from '../dtos/data-table-dto';
-import {getFileImportAndSaveToDisk, loadFileIntoDatabase} from '../utils/file-utils';
-import {LookupTableExtractor} from '../extractors/lookup-table-extractor';
-import {LookupTable} from '../entities/dataset/lookup-table';
-import {FactTableColumn} from '../entities/dataset/fact-table-column';
-import {MeasureRow} from '../entities/dataset/measure-row';
-import {MeasureMetadata} from '../entities/dataset/measure-metadata';
+import { SourceAssignmentDTO } from '../dtos/source-assignment-dto';
+import { DataTable } from '../entities/dataset/data-table';
+import { DataTableDescription } from '../entities/dataset/data-table-description';
+import { FactTableColumnType } from '../enums/fact-table-column-type';
+import { SourceAssignmentException } from '../exceptions/source-assignment.exception';
+import { Dataset } from '../entities/dataset/dataset';
+import { DimensionType } from '../enums/dimension-type';
+import { logger } from '../utils/logger';
+import { Dimension } from '../entities/dataset/dimension';
+import { SUPPORTED_LOCALES } from '../middleware/translation';
+import { DimensionMetadata } from '../entities/dataset/dimension-metadata';
+import { Measure } from '../entities/dataset/measure';
+import { DimensionPatchDto } from '../dtos/dimension-partch-dto';
+import { CSVHeader, ViewDTO, ViewErrDTO } from '../dtos/view-dto';
+import { DateExtractor } from '../extractors/date-extractor';
+import { Locale } from '../enums/locale';
+import { DatasetRepository } from '../repositories/dataset';
+import { DatasetDTO } from '../dtos/dataset-dto';
+import { DataTableDto } from '../dtos/data-table-dto';
+import { getFileImportAndSaveToDisk, loadFileIntoDatabase } from '../utils/file-utils';
+import { LookupTableExtractor } from '../extractors/lookup-table-extractor';
+import { LookupTable } from '../entities/dataset/lookup-table';
+import { FactTableColumn } from '../entities/dataset/fact-table-column';
+import { MeasureRow } from '../entities/dataset/measure-row';
+import { MeasureMetadata } from '../entities/dataset/measure-metadata';
 
-import {dateDimensionReferenceTableCreator, DateReferenceDataItem} from './time-matching';
-import {createFactTableQuery} from './cube-handler';
-import {DataLakeService} from './datalake';
-import {getReferenceDataDimensionPreview} from './reference-data-handler';
-import {duckdb} from './duckdb';
-import {NumberExtractor, NumberType} from "../extractors/number-extractor";
-import {viewErrorGenerator} from "../utils/view-error-generator";
+import { dateDimensionReferenceTableCreator, DateReferenceDataItem } from './time-matching';
+import { createFactTableQuery } from './cube-handler';
+import { DataLakeService } from './datalake';
+import { getReferenceDataDimensionPreview } from './reference-data-handler';
+import { duckdb } from './duckdb';
+import { NumberExtractor, NumberType } from '../extractors/number-extractor';
+import { viewErrorGenerator } from '../utils/view-error-generator';
 
 const createDateDimensionTable = `CREATE TABLE date_dimension (date_code VARCHAR, description VARCHAR, start_date datetime, end_date datetime, date_type varchar);`;
 const sampleSize = 5;
@@ -155,7 +155,9 @@ async function createUpdateDimension(dataset: Dataset, columnDescriptor: SourceA
     dataset,
     type: DimensionType.Raw,
     factTableColumn: columnInfo.columnName,
-    metadata: SUPPORTED_LOCALES.map((language: string) => DimensionMetadata.create({ language, name: columnInfo.columnName }))
+    metadata: SUPPORTED_LOCALES.map((language: string) =>
+      DimensionMetadata.create({ language, name: columnInfo.columnName })
+    )
   }).save();
 }
 
@@ -177,7 +179,9 @@ async function removeIgnoreAndUnknownColumns(dataset: Dataset, ignoreColumns: So
   let factTableColumns: FactTableColumn[] = [];
   try {
     factTableColumns = await FactTableColumn.findBy({ id: dataset.id, columnDatatype: FactTableColumnType.Unknown });
-    logger.debug(`Found ${factTableColumns.length} columns in fact table... ${JSON.stringify(factTableColumns, null, 2)}`);
+    logger.debug(
+      `Found ${factTableColumns.length} columns in fact table... ${JSON.stringify(factTableColumns, null, 2)}`
+    );
   } catch (error) {
     logger.error(error, `Something went wrong trying to find columns in fact table with error: ${error}`);
   }
@@ -198,7 +202,7 @@ async function removeIgnoreAndUnknownColumns(dataset: Dataset, ignoreColumns: So
 
   const unknownColumns = await FactTableColumn.findBy({ id: dataset.id, columnDatatype: FactTableColumnType.Unknown });
   if (unknownColumns.length > 0)
-    throw new SourceAssignmentException('Unknown columns found in fact table after dimension processing.')
+    throw new SourceAssignmentException('Unknown columns found in fact table after dimension processing.');
 }
 
 async function createUpdateMeasure(dataset: Dataset, columnAssignment: SourceAssignmentDTO): Promise<void> {
@@ -213,7 +217,9 @@ async function createUpdateMeasure(dataset: Dataset, columnAssignment: SourceAss
   await Measure.create({
     dataset,
     factTableColumn: columnInfo.columnName,
-    metadata: SUPPORTED_LOCALES.map((language: string) => DimensionMetadata.create({ language, name: columnInfo.columnName }))
+    metadata: SUPPORTED_LOCALES.map((language: string) =>
+      DimensionMetadata.create({ language, name: columnInfo.columnName })
+    )
   }).save();
 }
 
@@ -238,7 +244,7 @@ async function createBaseFactTable(dataset: Dataset, dataTable: DataTable): Prom
     factTableCol.id = dataset.id;
     factTableCol.dataset = dataset;
     return factTableCol;
-  })
+  });
   await FactTableColumn.save(factTable);
 }
 
@@ -326,10 +332,13 @@ export const createDimensionsFromSourceAssignment = async (
       await removeIgnoreAndUnknownColumns(dataset, ignore);
     }
   } catch (error) {
-    logger.error(error, `There were unknown columns left after removing ignore columns.  Unwinding dimension and measure creation.`);
+    logger.error(
+      error,
+      `There were unknown columns left after removing ignore columns.  Unwinding dimension and measure creation.`
+    );
     await cleanupDimensionMeasureAndFactTable(dataset);
     await createBaseFactTable(dataset, dataTable);
-    throw error
+    throw error;
   }
 
   logger.debug('Finished creating dimensions');
@@ -341,18 +350,18 @@ export const validateNumericDimension = async (
   dataTable: DataTable,
   dimension: Dimension
 ): Promise<ViewDTO | ViewErrDTO> => {
-  const numberType = dimensionPatchRequest.number_format
+  const numberType = dimensionPatchRequest.number_format;
   if (!numberType) {
     throw new Error('No number type supplied');
   }
   const decimalPlaces = dimensionPatchRequest.decimal_places;
-  if (!decimalPlaces && numberType !== NumberType.Decimal) {
+  if (!decimalPlaces && numberType === NumberType.Decimal) {
     throw new Error('No decimal places supplied for non decimal number type');
   }
   const extractor: NumberExtractor = {
     type: numberType,
     decimalPlaces: decimalPlaces || 0
-  }
+  };
 
   const tableName = 'fact_table';
   const quack = await duckdb();
@@ -372,7 +381,9 @@ export const validateNumericDimension = async (
     throw error;
   }
   // Validate column type in data table matches proposed type first using DuckDBs column detection
-  const columnInfo = await quack.all(`SELECT * FROM (DESCRIBE ${tableName}) WHERE column_name = '${dimension.factTableColumn}';`);
+  const columnInfo = await quack.all(
+    `SELECT * FROM (DESCRIBE ${tableName}) WHERE column_name = '${dimension.factTableColumn}';`
+  );
   if (extractor.type === NumberType.Integer) {
     let savedDimension: Dimension;
     switch (columnInfo[0].column_type) {
@@ -432,10 +443,7 @@ export const validateNumericDimension = async (
     }
   } catch (error) {
     await quack.close();
-    logger.error(
-      error,
-      `Something went wrong trying to validate the data with the following error: ${error}`
-    );
+    logger.error(error, `Something went wrong trying to validate the data with the following error: ${error}`);
     const nonMatchedRows = await quack.all(`SELECT COUNT(*) AS total_rows FROM ${tableName};`);
     const nonMatchedValues = await quack.all(`SELECT DISTINCT ${dimension.factTableColumn} FROM ${tableName};`);
     return viewErrorGenerator(400, dataset.id, 'patch', 'errors.dimensionValidation.invalid_lookup_table', {
@@ -443,6 +451,10 @@ export const validateNumericDimension = async (
       nonMatchingDataTableValues: nonMatchedValues.map((row) => Object.values(row)[0])
     });
   }
+  logger.debug(`Validation finished, updating dimension ${dimension.id} with new extractor`);
+  dimension.lookupTable = null;
+  dimension.joinColumn = null;
+  dimension.type = DimensionType.Numeric;
   dimension.extractor = extractor;
   const savedDimension = await dimension.save();
   return getPreviewWithNumberExtractor(dataset, savedDimension, dataTable, quack, tableName);
@@ -718,15 +730,16 @@ async function getPreviewWithNumberExtractor(
   const extractor = dimension.extractor as NumberExtractor;
   let query: string;
   if (extractor.type === NumberType.Integer) {
-    query = `SELECT DISTINCT CAST("${dimension.factTableColumn}" AS INTEGER) FROM ${tableName} ORDER BY "${dimension.factTableColumn}" ASC LIMIT ${sampleSize};`;
+    query = `SELECT DISTINCT CAST("${dimension.factTableColumn}" AS INTEGER) AS "${dimension.factTableColumn}" FROM ${tableName} ORDER BY "${dimension.factTableColumn}" ASC LIMIT ${sampleSize};`;
   } else {
-    query = `SELECT DISTINCT ROUND(CAST("${dimension.factTableColumn}" AS FLOAT), ${extractor.decimalPlaces}) FROM ${tableName} ORDER BY "${dimension.factTableColumn}" ASC LIMIT ${sampleSize};`;
+    query = `SELECT DISTINCT CAST(CAST("${dimension.factTableColumn}" AS DECIMAL(18,${extractor.decimalPlaces})) AS VARCHAR) AS "${dimension.factTableColumn}" FROM ${tableName} ORDER BY "${dimension.factTableColumn}" ASC LIMIT ${sampleSize};`;
   }
   const totals = await quack.all(
     `SELECT COUNT(DISTINCT "${dimension.factTableColumn}") AS totalLines FROM ${tableName};`
   );
   const totalLines = Number(totals[0].totalLines);
 
+  logger.debug(`query = ${query}`);
   const preview = await quack.all(query);
   const tableHeaders = Object.keys(preview[0]);
   const dataArray = preview.map((row) => Object.values(row));

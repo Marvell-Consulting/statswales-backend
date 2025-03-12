@@ -35,6 +35,7 @@ import { PeriodCovered } from '../interfaces/period-covered';
 
 import { dateDimensionReferenceTableCreator } from './time-matching';
 import { duckdb } from './duckdb';
+import { NumberExtractor, NumberType } from '../extractors/number-extractor';
 
 export const FACT_TABLE_NAME = 'fact_table';
 
@@ -910,6 +911,31 @@ async function setupDimensions(
             `LEFT JOIN reference_data on CAST(${FACT_TABLE_NAME}."${dimension.factTableColumn}" AS VARCHAR)=reference_data.item_id`
           );
           break;
+        case DimensionType.Numeric:
+          SUPPORTED_LOCALES.map((locale) => {
+            const columnName =
+              dimension.metadata.find((info) => info.language === locale)?.name || dimension.factTableColumn;
+            if ((dimension.extractor as NumberExtractor).type === NumberType.Integer) {
+              viewSelectStatementsMap
+                .get(locale)
+                ?.push(`CAST(${FACT_TABLE_NAME}."${dimension.factTableColumn}" AS INTEGER) AS "${columnName}"`);
+              rawSelectStatementsMap
+                .get(locale)
+                ?.push(`CAST(${FACT_TABLE_NAME}."${dimension.factTableColumn}" AS INTEGER) AS "${columnName}"`);
+            } else {
+              viewSelectStatementsMap
+                .get(locale)
+                ?.push(
+                  `CAST(CAST(${FACT_TABLE_NAME}."${dimension.factTableColumn}" AS DECIMAL(18, ${(dimension.extractor as NumberExtractor).decimalPlaces})) AS VARCHAR) AS "${columnName}"`
+                );
+              rawSelectStatementsMap
+                .get(locale)
+                ?.push(
+                  `CAST(${FACT_TABLE_NAME}."${dimension.factTableColumn}" AS DECIMAL(18, ${(dimension.extractor as NumberExtractor).decimalPlaces})) AS "${columnName}"`
+                );
+            }
+          });
+          break;
         case DimensionType.Text:
           SUPPORTED_LOCALES.map((locale) => {
             const columnName =
@@ -922,7 +948,6 @@ async function setupDimensions(
               ?.push(`CAST(${dimension.factTableColumn} AS VARCHAR) as "${columnName}"`);
           });
           break;
-        case DimensionType.Numeric:
         case DimensionType.Raw:
         case DimensionType.Symbol:
           SUPPORTED_LOCALES.map((locale) => {

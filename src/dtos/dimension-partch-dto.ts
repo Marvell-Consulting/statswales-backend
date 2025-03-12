@@ -1,7 +1,7 @@
 import { DimensionType } from '../enums/dimension-type';
 import { YearType } from '../enums/year-type';
 import { ReferenceType } from '../enums/reference-type';
-import {NumberType} from "../extractors/number-extractor";
+import { NumberType } from '../extractors/number-extractor';
 
 export interface DimensionPatchDto {
   dimension_type: DimensionType;

@@ -12,7 +12,7 @@ export function getCIConfig(): AppConfig {
     return defineConfig({
         env: AppEnv.Ci,
         logger: {
-            level: (process.env.LOG_LEVEL as Level) || 'silent'
+            level: (process.env.LOG_LEVEL as Level) || 'debug'
         },
         frontend: {
             port: parseInt(process.env.FRONTEND_PORT || '3000', 10),
