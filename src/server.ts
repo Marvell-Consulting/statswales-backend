@@ -10,17 +10,17 @@ import { initPassport } from './middleware/passport-auth';
 const PORT = appConfig().backend.port;
 
 Promise.resolve()
-    .then(async () => {
-        const dbManager = await initDb();
-        await initEntitySubscriber(dbManager.getDataSource());
-        await initPassport(dbManager.getDataSource());
-    })
-    .then(() => {
-        app.listen(PORT, async () => {
-            logger.info(`Server is running on port ${PORT}`);
-        });
-    })
-    .catch((err) => {
-        logger.error(err);
-        process.exit(1);
+  .then(async () => {
+    const dbManager = await initDb();
+    await initEntitySubscriber(dbManager.getDataSource());
+    await initPassport(dbManager.getDataSource());
+  })
+  .then(() => {
+    app.listen(PORT, async () => {
+      logger.info(`Server is running on port ${PORT}`);
     });
+  })
+  .catch((err) => {
+    logger.error(err);
+    process.exit(1);
+  });

@@ -19,7 +19,7 @@ export class DataLakeService {
     this.serviceClient = new DataLakeServiceClient(`https://${accountName}.dfs.core.windows.net`, sharedKeyCredential);
   }
 
-  public getServiceClient() {
+  public getServiceClient(): DataLakeServiceClient {
     return this.serviceClient;
   }
 
