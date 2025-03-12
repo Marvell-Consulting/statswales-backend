@@ -21,40 +21,40 @@ const config = appConfig();
 // This seeder loads test fixtures used by the e2e tests on the frontend. This needs to be run before the frontend tests
 // so that the test users and starting datasets are available in the database.
 export default class SeedTestFixtures extends Seeder {
-    async run(dataSource: DataSource): Promise<void> {
-        if (![AppEnv.Local, AppEnv.Ci].includes(config.env)) {
-            throw new Error('SeedTestFixtures is only intended to be run in local or test environments');
+  async run(dataSource: DataSource): Promise<void> {
+    if (![AppEnv.Local, AppEnv.Ci].includes(config.env)) {
+      throw new Error('SeedTestFixtures is only intended to be run in local or test environments');
+    }
+
+    await this.seedUsers(dataSource);
+    await this.seedDatasets(dataSource);
+  }
+
+  async seedUsers(dataSource: DataSource): Promise<void> {
+    console.log(`Seeding ${testUsers.length} test users...`);
+    const entityManager = dataSource.createEntityManager();
+    const users = await entityManager.create(User, testUsers);
+    await dataSource.getRepository(User).save(users);
+  }
+
+  async seedDatasets(dataSource: DataSource): Promise<void> {
+    console.log(`Seeding ${testDatasets.length} test datasets...`);
+    const entityManager = dataSource.createEntityManager();
+
+    for (const testDataset of testDatasets) {
+      try {
+        const entity = await entityManager.create(Dataset, testDataset.dataset);
+        let dataset = await dataSource.getRepository(Dataset).save(entity);
+
+        if (testDataset.csvPath) {
+          const buffer = fs.readFileSync(testDataset.csvPath);
+          const fileImport: DataTable = await uploadCSV(buffer, 'text/csv', `test-fixture.csv`, dataset.id);
+          await RevisionRepository.createFromImport(dataset, fileImport, dataset.createdBy);
+          dataset = await DatasetRepository.getById(dataset.id);
         }
-
-        await this.seedUsers(dataSource);
-        await this.seedDatasets(dataSource);
+      } catch (err) {
+        console.error(`Error seeding dataset ${testDataset.dataset.id}`, err);
+      }
     }
-
-    async seedUsers(dataSource: DataSource): Promise<void> {
-        console.log(`Seeding ${testUsers.length} test users...`);
-        const entityManager = dataSource.createEntityManager();
-        const users = await entityManager.create(User, testUsers);
-        await dataSource.getRepository(User).save(users);
-    }
-
-    async seedDatasets(dataSource: DataSource): Promise<void> {
-        console.log(`Seeding ${testDatasets.length} test datasets...`);
-        const entityManager = dataSource.createEntityManager();
-
-        for (const testDataset of testDatasets) {
-            try {
-                const entity = await entityManager.create(Dataset, testDataset.dataset);
-                let dataset = await dataSource.getRepository(Dataset).save(entity);
-
-                if (testDataset.csvPath) {
-                    const buffer = fs.readFileSync(testDataset.csvPath);
-                    const fileImport: DataTable = await uploadCSV(buffer, 'text/csv', `test-fixture.csv`, dataset.id);
-                    await RevisionRepository.createFromImport(dataset, fileImport, dataset.createdBy);
-                    dataset = await DatasetRepository.getById(dataset.id);
-                }
-            } catch (err) {
-                console.error(`Error seeding dataset ${testDataset.dataset.id}`, err);
-            }
-        }
-    }
+  }
 }

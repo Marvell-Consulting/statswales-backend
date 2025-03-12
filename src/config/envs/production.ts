@@ -5,7 +5,7 @@ import { AppEnv } from '../env.enum';
 // anything that is not a secret can go in here, get the rest from env
 
 export function getProductionConfig(): AppConfig {
-    return defineConfig({
-        env: AppEnv.Prod
-    });
+  return defineConfig({
+    env: AppEnv.Prod
+  });
 }
