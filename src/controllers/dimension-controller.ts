@@ -170,7 +170,7 @@ export const updateDimension = async (req: Request, res: Response, next: NextFun
         preview = await getFactTableColumnPreview(dataset, dataTable, dimension.factTableColumn);
         break;
       case DimensionType.Numeric:
-        preview = await validateNumericDimension(dimensionPatchRequest, dataset, dimension, dataTable);
+        preview = await validateNumericDimension(dimensionPatchRequest, dataset, dataTable, dimension);
         break;
       case DimensionType.LookupTable:
         logger.debug('User requested to patch a lookup table?');
