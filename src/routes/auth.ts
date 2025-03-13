@@ -1,4 +1,4 @@
-import { Router } from 'express';
+import { Request, Response, Router } from 'express';
 import passport from 'passport';
 
 import { loginEntraID, loginGoogle, loginLocal } from '../controllers/auth';
@@ -22,5 +22,9 @@ if (config.auth.providers.includes(AuthProvider.EntraId)) {
 if (config.auth.providers.includes(AuthProvider.Local)) {
   auth.get('/local', loginLocal);
 }
+
+auth.get('/providers', (req: Request, res: Response) => {
+  res.json({ enabled: config.auth.providers });
+});
 
 export const authRouter = auth;
