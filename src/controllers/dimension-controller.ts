@@ -16,7 +16,12 @@ import { UnknownException } from '../exceptions/unknown.exception';
 import { LookupTablePatchDTO } from '../dtos/lookup-patch-dto';
 import { DimensionMetadataDTO } from '../dtos/dimension-metadata-dto';
 import { getFactTableColumnPreview, uploadCSV } from '../services/csv-processor';
-import { getDimensionPreview, setupTextDimension, validateDateTypeDimension } from '../services/dimension-processor';
+import {
+  getDimensionPreview,
+  setupTextDimension,
+  validateDateTypeDimension,
+  validateNumericDimension
+} from '../services/dimension-processor';
 import { validateLookupTable } from '../services/lookup-table-handler';
 import { validateReferenceData } from '../services/reference-data-handler';
 import { convertBufferToUTF8 } from '../utils/file-utils';
@@ -163,6 +168,9 @@ export const updateDimension = async (req: Request, res: Response, next: NextFun
       case DimensionType.Text:
         await setupTextDimension(dimension);
         preview = await getFactTableColumnPreview(dataset, dataTable, dimension.factTableColumn);
+        break;
+      case DimensionType.Numeric:
+        preview = await validateNumericDimension(dimensionPatchRequest, dataset, dataTable, dimension);
         break;
       case DimensionType.LookupTable:
         logger.debug('User requested to patch a lookup table?');

@@ -268,6 +268,11 @@ export const updateSources = async (req: Request, res: Response, next: NextFunct
   const dataTable = revision?.dataTable;
   const sourceAssignment = req.body;
 
+  if (!sourceAssignment) {
+    next(new BadRequestException('Could not assign source types to import'));
+    return;
+  }
+
   if (!revision || revision.revisionIndex !== 1) {
     next(new UnknownException('errors.no_first_revision'));
     return;
@@ -290,7 +295,7 @@ export const updateSources = async (req: Request, res: Response, next: NextFunct
     if (err instanceof SourceAssignmentException) {
       next(new BadRequestException(err.message));
     } else {
-      next(new BadRequestException('errors.invalid_source_assignment'));
+      next(new UnknownException('errors.unknown_server_error'));
     }
   }
 };

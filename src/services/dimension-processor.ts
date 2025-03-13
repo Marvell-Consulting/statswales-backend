@@ -35,6 +35,8 @@ import { createFactTableQuery } from './cube-handler';
 import { DataLakeService } from './datalake';
 import { getReferenceDataDimensionPreview } from './reference-data-handler';
 import { duckdb } from './duckdb';
+import { NumberExtractor, NumberType } from '../extractors/number-extractor';
+import { viewErrorGenerator } from '../utils/view-error-generator';
 
 const createDateDimensionTable = `CREATE TABLE date_dimension (date_code VARCHAR, description VARCHAR, start_date datetime, end_date datetime, date_type varchar);`;
 const sampleSize = 5;
@@ -148,21 +150,15 @@ async function createUpdateDimension(dataset: Dataset, columnDescriptor: SourceA
   });
   columnInfo.columnType = columnDescriptor.column_type;
   await columnInfo.save();
-  const dimension = new Dimension();
-  dimension.type =
-    columnDescriptor.column_type === FactTableColumnType.Time ? DimensionType.DatePeriod : DimensionType.Raw;
-  dimension.dataset = dataset;
-  dimension.factTableColumn = columnInfo.columnName;
-  const savedDimension = await dimension.save();
 
-  SUPPORTED_LOCALES.map(async (lang: string) => {
-    const dimensionInfo = new DimensionMetadata();
-    dimensionInfo.id = savedDimension.id;
-    dimensionInfo.dimension = savedDimension;
-    dimensionInfo.language = lang;
-    dimensionInfo.name = columnInfo.columnName;
-    await dimensionInfo.save();
-  });
+  await Dimension.create({
+    dataset,
+    type: DimensionType.Raw,
+    factTableColumn: columnInfo.columnName,
+    metadata: SUPPORTED_LOCALES.map((language: string) =>
+      DimensionMetadata.create({ language, name: columnInfo.columnName })
+    )
+  }).save();
 }
 
 async function updateDataValueColumn(dataset: Dataset, dataValueColumnDto: SourceAssignmentDTO) {
@@ -180,18 +176,33 @@ async function updateDataValueColumn(dataset: Dataset, dataValueColumnDto: Sourc
 }
 
 async function removeIgnoreAndUnknownColumns(dataset: Dataset, ignoreColumns: SourceAssignmentDTO[]) {
-  const factTableColumns = await FactTableColumn.findBy({ dataset });
+  let factTableColumns: FactTableColumn[] = [];
+  try {
+    factTableColumns = await FactTableColumn.findBy({ id: dataset.id, columnDatatype: FactTableColumnType.Unknown });
+    logger.debug(
+      `Found ${factTableColumns.length} columns in fact table... ${JSON.stringify(factTableColumns, null, 2)}`
+    );
+  } catch (error) {
+    logger.error(error, `Something went wrong trying to find columns in fact table with error: ${error}`);
+  }
+
+  if (!factTableColumns.length && ignoreColumns.length === 0) {
+    logger.debug(`No columns unknown column left and no columns to be ignored.`);
+    return;
+  }
+
   for (const column of ignoreColumns) {
+    logger.debug(`Removing column ${column.column_name} from fact table`);
     const factTableCol = factTableColumns.find((columnInfo) => columnInfo.columnName === column.column_name);
     if (!factTableCol) {
       continue;
     }
     await factTableCol.remove();
   }
-  const unknownColumns = await FactTableColumn.findBy({ dataset });
-  for (const col of unknownColumns) {
-    await col.remove();
-  }
+
+  const unknownColumns = await FactTableColumn.findBy({ id: dataset.id, columnDatatype: FactTableColumnType.Unknown });
+  if (unknownColumns.length > 0)
+    throw new SourceAssignmentException('Unknown columns found in fact table after dimension processing.');
 }
 
 async function createUpdateMeasure(dataset: Dataset, columnAssignment: SourceAssignmentDTO): Promise<void> {
@@ -202,18 +213,14 @@ async function createUpdateMeasure(dataset: Dataset, columnAssignment: SourceAss
 
   columnInfo.columnType = FactTableColumnType.Measure;
   await columnInfo.save();
-  const measure = new Measure();
-  measure.factTableColumn = columnAssignment.column_name;
-  measure.dataset = dataset;
-  const savedMeasure = await measure.save();
-  SUPPORTED_LOCALES.map(async (lang: string) => {
-    const metadata = new MeasureMetadata();
-    metadata.id = savedMeasure.id;
-    metadata.measure = savedMeasure;
-    metadata.language = lang;
-    metadata.name = columnInfo.columnName;
-    await metadata.save();
-  });
+
+  await Measure.create({
+    dataset,
+    factTableColumn: columnInfo.columnName,
+    metadata: SUPPORTED_LOCALES.map((language: string) =>
+      MeasureMetadata.create({ language, name: columnInfo.columnName })
+    )
+  }).save();
 }
 
 async function createUpdateNoteCodes(dataset: Dataset, columnAssignment: SourceAssignmentDTO) {
@@ -228,8 +235,7 @@ async function createUpdateNoteCodes(dataset: Dataset, columnAssignment: SourceA
 }
 
 async function createBaseFactTable(dataset: Dataset, dataTable: DataTable): Promise<void> {
-  const factTable: FactTableColumn[] = [];
-  for (const col of dataTable.dataTableDescriptions) {
+  const factTable = dataTable.dataTableDescriptions.map((col) => {
     const factTableCol = new FactTableColumn();
     factTableCol.columnType = FactTableColumnType.Unknown;
     factTableCol.columnName = col.columnName;
@@ -237,9 +243,9 @@ async function createBaseFactTable(dataset: Dataset, dataTable: DataTable): Prom
     factTableCol.columnIndex = col.columnIndex;
     factTableCol.id = dataset.id;
     factTableCol.dataset = dataset;
-    const savedFactTableCol = await factTableCol.save();
-    factTable.push(savedFactTableCol);
-  }
+    return factTableCol;
+  });
+  await FactTableColumn.save(factTable);
 }
 
 export async function removeAllDimensions(dataset: Dataset) {
@@ -299,24 +305,159 @@ export const createDimensionsFromSourceAssignment = async (
   await createBaseFactTable(dataset, dataTable);
 
   if (dataValues) {
+    logger.debug('Creating data values column');
     await updateDataValueColumn(dataset, dataValues);
   }
 
   if (noteCodes) {
+    logger.debug('Creating note codes column');
     await createUpdateNoteCodes(dataset, noteCodes);
   }
 
   if (measure) {
+    logger.debug('Creating measure column');
     await createUpdateMeasure(dataset, measure);
   }
 
   await Promise.all(
     dimensions.map(async (dimensionCreationDTO: SourceAssignmentDTO) => {
+      logger.debug(`Creating dimension column: ${JSON.stringify(dimensionCreationDTO)}`);
       await createUpdateDimension(dataset, dimensionCreationDTO);
     })
   );
 
-  await removeIgnoreAndUnknownColumns(dataset, ignore);
+  try {
+    if (ignore) {
+      logger.debug(`Removing ${ignore.length} ignore columns from fact table`);
+      await removeIgnoreAndUnknownColumns(dataset, ignore);
+    }
+  } catch (error) {
+    logger.error(
+      error,
+      `There were unknown columns left after removing ignore columns.  Unwinding dimension and measure creation.`
+    );
+    await cleanupDimensionMeasureAndFactTable(dataset);
+    await createBaseFactTable(dataset, dataTable);
+    throw error;
+  }
+
+  logger.debug('Finished creating dimensions');
+};
+
+export const validateNumericDimension = async (
+  dimensionPatchRequest: DimensionPatchDto,
+  dataset: Dataset,
+  dataTable: DataTable,
+  dimension: Dimension
+): Promise<ViewDTO | ViewErrDTO> => {
+  const numberType = dimensionPatchRequest.number_format;
+  if (!numberType) {
+    throw new Error('No number type supplied');
+  }
+  const decimalPlaces = dimensionPatchRequest.decimal_places;
+  if (!decimalPlaces && numberType === NumberType.Decimal) {
+    throw new Error('No decimal places supplied for non decimal number type');
+  }
+  const extractor: NumberExtractor = {
+    type: numberType,
+    decimalPlaces: decimalPlaces || 0
+  };
+
+  const tableName = 'fact_table';
+  const quack = await duckdb();
+  const tempFile = tmp.tmpNameSync({ postfix: `.${dataTable.fileType}` });
+  // extract the data from the fact table
+  try {
+    const dataLakeService = new DataLakeService();
+    const fileBuffer = await dataLakeService.getFileBuffer(dataTable.filename, dataset.id);
+    fs.writeFileSync(tempFile, fileBuffer);
+    const createTableQuery = await createFactTableQuery(tableName, tempFile, dataTable.fileType, quack);
+
+    await quack.exec(createTableQuery);
+  } catch (error) {
+    logger.error(`Something went wrong trying to create ${tableName} in DuckDB.  Unable to do matching and validation`);
+    await quack.close();
+    fs.unlinkSync(tempFile);
+    throw error;
+  }
+  // Validate column type in data table matches proposed type first using DuckDBs column detection
+  const columnInfo = await quack.all(
+    `SELECT * FROM (DESCRIBE ${tableName}) WHERE column_name = '${dimension.factTableColumn}';`
+  );
+  if (extractor.type === NumberType.Integer) {
+    let savedDimension: Dimension;
+    switch (columnInfo[0].column_type) {
+      case 'BIGINT':
+      case 'HUGEINT':
+      case 'SMALLINT':
+      case 'TINYINT':
+      case 'INTEGER':
+      case 'UBIGINT':
+      case 'UHUGEINT':
+      case 'UINTEGER':
+      case 'USMALLINT':
+      case 'UTINYINT':
+        dimension.extractor = extractor;
+        savedDimension = await dimension.save();
+        return getPreviewWithNumberExtractor(dataset, savedDimension, dataTable, quack, tableName);
+    }
+  } else if (extractor.type === NumberType.Decimal) {
+    let savedDimension: Dimension;
+    switch (columnInfo[0].column_type) {
+      case 'DOUBLE':
+      case 'FLOAT':
+        dimension.extractor = extractor;
+        savedDimension = await dimension.save();
+        return getPreviewWithNumberExtractor(dataset, savedDimension, dataTable, quack, tableName);
+    }
+  }
+
+  let castType: string;
+  if (extractor.type === NumberType.Integer) {
+    castType = 'INTEGER';
+  } else {
+    castType = 'DOUBLE';
+  }
+  try {
+    const nonMatchingQuery = `SELECT ${dimension.factTableColumn} FROM (SELECT TRY_CAST(${dimension.factTableColumn} AS ${castType}) as IS_NUMBER, ${dimension.factTableColumn} FROM ${tableName} WHERE IS_NUMBER IS NULL);`;
+    const nonMatchingRows = await quack.all(nonMatchingQuery);
+    if (nonMatchingRows.length > 0) {
+      const nonMatchingDataTableValues = await quack.all(
+        `SELECT DISTINCT ${dimension.factTableColumn}
+        FROM (
+          SELECT
+            TRY_CAST(${dimension.factTableColumn} AS ${castType}) as IS_NUMBER,
+            ${dimension.factTableColumn}
+          FROM ${tableName}
+          WHERE IS_NUMBER IS NULL
+        );`
+      );
+      logger.error(
+        `The user supplied a ${extractor.type} number format but there were ${nonMatchingRows.length} rows which didn't match the format`
+      );
+      await quack.close();
+      return viewErrorGenerator(400, dataset.id, 'patch', 'errors.dimensionValidation.invalid_lookup_table', {
+        totalNonMatching: nonMatchingRows.length,
+        nonMatchingDataTableValues: nonMatchingDataTableValues.map((row) => Object.values(row)[0])
+      });
+    }
+  } catch (error) {
+    await quack.close();
+    logger.error(error, `Something went wrong trying to validate the data with the following error: ${error}`);
+    const nonMatchedRows = await quack.all(`SELECT COUNT(*) AS total_rows FROM ${tableName};`);
+    const nonMatchedValues = await quack.all(`SELECT DISTINCT ${dimension.factTableColumn} FROM ${tableName};`);
+    return viewErrorGenerator(400, dataset.id, 'patch', 'errors.dimensionValidation.invalid_lookup_table', {
+      totalNonMatching: nonMatchedRows[0].total_rows,
+      nonMatchingDataTableValues: nonMatchedValues.map((row) => Object.values(row)[0])
+    });
+  }
+  logger.debug(`Validation finished, updating dimension ${dimension.id} with new extractor`);
+  dimension.lookupTable = null;
+  dimension.joinColumn = null;
+  dimension.type = DimensionType.Numeric;
+  dimension.extractor = extractor;
+  const savedDimension = await dimension.save();
+  return getPreviewWithNumberExtractor(dataset, savedDimension, dataTable, quack, tableName);
 };
 
 export const validateDateTypeDimension = async (
@@ -579,6 +720,55 @@ async function getDatePreviewWithExtractor(
   };
 }
 
+async function getPreviewWithNumberExtractor(
+  dataset: Dataset,
+  dimension: Dimension,
+  dataTable: DataTable,
+  quack: Database,
+  tableName: string
+): Promise<ViewDTO> {
+  const extractor = dimension.extractor as NumberExtractor;
+  let query: string;
+  if (extractor.type === NumberType.Integer) {
+    query = `SELECT DISTINCT CAST("${dimension.factTableColumn}" AS INTEGER) AS "${dimension.factTableColumn}" FROM ${tableName} ORDER BY "${dimension.factTableColumn}" ASC LIMIT ${sampleSize};`;
+  } else {
+    query = `SELECT DISTINCT CAST(CAST("${dimension.factTableColumn}" AS DECIMAL(18,${extractor.decimalPlaces})) AS VARCHAR) AS "${dimension.factTableColumn}" FROM ${tableName} ORDER BY "${dimension.factTableColumn}" ASC LIMIT ${sampleSize};`;
+  }
+  const totals = await quack.all(
+    `SELECT COUNT(DISTINCT "${dimension.factTableColumn}") AS totalLines FROM ${tableName};`
+  );
+  const totalLines = Number(totals[0].totalLines);
+
+  logger.debug(`query = ${query}`);
+  const preview = await quack.all(query);
+  const tableHeaders = Object.keys(preview[0]);
+  const dataArray = preview.map((row) => Object.values(row));
+  const currentDataset = await DatasetRepository.getById(dataset.id);
+  const currentImport = await DataTable.findOneByOrFail({ id: dataTable.id });
+  const headers: CSVHeader[] = [];
+  for (let i = 0; i < tableHeaders.length; i++) {
+    headers.push({
+      index: i,
+      name: tableHeaders[i],
+      source_type: FactTableColumnType.Unknown
+    });
+  }
+  return {
+    dataset: DatasetDTO.fromDataset(currentDataset),
+    data_table: DataTableDto.fromDataTable(currentImport),
+    current_page: 1,
+    page_info: {
+      total_records: totalLines,
+      start_record: 1,
+      end_record: preview.length
+    },
+    page_size: preview.length < sampleSize ? preview.length : sampleSize,
+    total_pages: 1,
+    headers,
+    data: dataArray
+  };
+}
+
 async function getPreviewWithoutExtractor(
   dataset: Dataset,
   dimension: Dimension,
@@ -723,6 +913,11 @@ export const getDimensionPreview = async (
         case DimensionType.Text:
           logger.debug('Previewing text dimension');
           viewDto = await getPreviewWithoutExtractor(dataset, dimension, dataTable, quack, tableName);
+          break;
+
+        case DimensionType.Numeric:
+          logger.debug('Previewing a numeric dimension');
+          viewDto = await getPreviewWithNumberExtractor(dataset, dimension, dataTable, quack, tableName);
           break;
 
         default:
