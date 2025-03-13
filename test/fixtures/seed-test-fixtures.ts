@@ -3,6 +3,7 @@ import fs from 'node:fs';
 
 import { Seeder } from '@jorgebodega/typeorm-seeding';
 import { DataSource } from 'typeorm';
+import { omit } from 'lodash';
 
 import { User } from '../../src/entities/user/user';
 import { Dataset } from '../../src/entities/dataset/dataset';
@@ -10,11 +11,10 @@ import { appConfig } from '../../src/config';
 import { AppEnv } from '../../src/config/env.enum';
 import { uploadCSV } from '../../src/services/csv-processor';
 import { DataTable } from '../../src/entities/dataset/data-table';
-import { DatasetRepository } from '../../src/repositories/dataset';
-import { RevisionRepository } from '../../src/repositories/revision';
 
 import { testUsers } from './users';
 import { testDatasets } from './datasets';
+import { Revision } from '../../src/entities/dataset/revision';
 
 const config = appConfig();
 
@@ -43,17 +43,34 @@ export default class SeedTestFixtures extends Seeder {
 
     for (const testDataset of testDatasets) {
       try {
-        const entity = await entityManager.create(Dataset, testDataset.dataset);
-        let dataset = await dataSource.getRepository(Dataset).save(entity);
+        let revision = testDataset.dataset.draftRevision || testDataset.dataset.publishedRevision;
+        const partialDataset = omit(testDataset.dataset, ['draftRevision', 'publishedRevision']);
+        const dataset = await entityManager.getRepository(Dataset).create(partialDataset).save();
 
-        if (testDataset.csvPath) {
+        if (revision && testDataset.csvPath) {
           const buffer = fs.readFileSync(testDataset.csvPath);
-          const fileImport: DataTable = await uploadCSV(buffer, 'text/csv', `test-fixture.csv`, dataset.id);
-          await RevisionRepository.createFromImport(dataset, fileImport, dataset.createdBy);
-          dataset = await DatasetRepository.getById(dataset.id);
+          const dataTable: DataTable = await uploadCSV(buffer, 'text/csv', `test-fixture.csv`, dataset.id);
+
+          revision = await entityManager.getRepository(Revision).save({
+            ...revision,
+            dataset,
+            dataTable,
+            approvedBy: dataset.createdBy,
+            approvedAt: dataset.live || undefined,
+            publishAt: dataset.live || undefined
+          });
+
+          await entityManager.getRepository(Dataset).save({
+            ...dataset,
+            startRevision: revision,
+            endRevision: revision,
+            draftRevision: dataset.live ? undefined : revision,
+            publishedRevision: dataset.live ? revision : undefined
+          });
         }
       } catch (err) {
-        console.error(`Error seeding dataset ${testDataset.dataset.id}`, err);
+        console.error(err, `Error seeding dataset ${testDataset.dataset.id}`);
+        process.exit(1);
       }
     }
   }
