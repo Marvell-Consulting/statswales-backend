@@ -35,7 +35,7 @@ async function cleanUpMeasure(measureId: string) {
     logger.debug(`Removing previously uploaded lookup table from measure`);
     try {
       const dataLakeService = new DataLakeService();
-      await dataLakeService.deleteFile(measure.lookupTable.filename, measure.dataset.id);
+      await dataLakeService.delete(measure.lookupTable.filename, measure.dataset.id);
     } catch (err) {
       logger.warn(`Something went wrong trying to remove previously uploaded lookup table with error: ${err}`);
     }
@@ -538,7 +538,7 @@ export const getMeasurePreview = async (dataset: Dataset, dataTable: DataTable) 
   // extract the data from the fact table
   try {
     const dataLakeService = new DataLakeService();
-    const fileBuffer = await dataLakeService.getFileBuffer(dataTable.filename, dataset.id);
+    const fileBuffer = await dataLakeService.loadBuffer(dataTable.filename, dataset.id);
     fs.writeFileSync(tempFile, fileBuffer);
     const createTableQuery = await createFactTableQuery(tableName, tempFile, dataTable.fileType, quack);
     logger.debug(`Creating fact table with query: ${createTableQuery}`);

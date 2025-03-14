@@ -33,6 +33,14 @@ export default tseslint.config(
             selector: 'default',
             format: ['camelCase', 'PascalCase', 'UPPER_CASE', 'snake_case'],
             leadingUnderscore: 'allow'
+          },
+          {
+            selector: 'import',
+            format: ['camelCase', 'PascalCase'],
+          },
+          {
+            selector: 'typeLike',
+            format: ['PascalCase']
           }
         ],
         '@typescript-eslint/no-unused-vars': [

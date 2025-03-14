@@ -165,7 +165,7 @@ translationRouter.post(
 
       // store the translation import in the datalake so we can use it once it's confirmed as correct
       const datalake = new DataLakeService();
-      await datalake.uploadFileBuffer(TRANSLATION_FILENAME, dataset.id, Buffer.from(req.file.buffer));
+      await datalake.saveBuffer(TRANSLATION_FILENAME, dataset.id, Buffer.from(req.file.buffer));
 
       res.status(201);
       res.json(DatasetDTO.fromDataset(dataset));
@@ -190,10 +190,10 @@ translationRouter.patch(
 
     try {
       const datalake = new DataLakeService();
-      const fileBuffer = await datalake.getFileBuffer(TRANSLATION_FILENAME, dataset.id);
+      const fileBuffer = await datalake.loadBuffer(TRANSLATION_FILENAME, dataset.id);
       const newTranslations = await parseUploadedTranslations(fileBuffer);
       dataset = await req.datasetService.updateTranslations(dataset.id, newTranslations);
-      await datalake.deleteFile(TRANSLATION_FILENAME, dataset.id);
+      await datalake.delete(TRANSLATION_FILENAME, dataset.id);
 
       await EventLog.getRepository().save({
         action: 'import',

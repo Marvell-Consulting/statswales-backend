@@ -33,7 +33,7 @@ export const getFileImportAndSaveToDisk = async (
 ): Promise<string> => {
   const dataLakeService = new DataLakeService();
   const importTmpFile = tmp.tmpNameSync({ postfix: `.${importFile.fileType}` });
-  const buffer = await dataLakeService.getFileBuffer(importFile.filename, dataset.id);
+  const buffer = await dataLakeService.loadBuffer(importFile.filename, dataset.id);
   fs.writeFileSync(importTmpFile, buffer);
   return importTmpFile;
 };

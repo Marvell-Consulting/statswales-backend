@@ -1,142 +1,82 @@
-import { basename } from 'path';
 import { Readable } from 'stream';
 
-import { DataLakeServiceClient, StorageSharedKeyCredential } from '@azure/storage-file-datalake';
+import {
+  DataLakeDirectoryClient,
+  DataLakeFileClient,
+  DataLakeFileSystemClient,
+  DataLakeServiceClient,
+  FileUploadResponse,
+  PathDeleteIfExistsResponse,
+  StorageSharedKeyCredential
+} from '@azure/storage-file-datalake';
 
 import { logger as parentLogger } from '../utils/logger';
-import { appConfig } from '../config';
 
 const logger = parentLogger.child({ module: 'DataLakeService' });
 
-const config = appConfig();
-const { accountName, accountKey, fileSystemName } = config.storage.datalake;
+interface DataLakeConfig {
+  url: string;
+  accountName: string;
+  accountKey: string;
+  fileSystemName: string;
+}
 
 export class DataLakeService {
   private readonly serviceClient: DataLakeServiceClient;
+  private readonly fileSystemClient: DataLakeFileSystemClient;
 
-  public constructor() {
+  public constructor(config: DataLakeConfig) {
+    const { url, accountName, accountKey, fileSystemName } = config;
+
     const sharedKeyCredential = new StorageSharedKeyCredential(accountName, accountKey);
-    this.serviceClient = new DataLakeServiceClient(`https://${accountName}.dfs.core.windows.net`, sharedKeyCredential);
+    this.serviceClient = new DataLakeServiceClient(url, sharedKeyCredential);
+    this.fileSystemClient = this.serviceClient.getFileSystemClient(fileSystemName);
   }
 
   public getServiceClient(): DataLakeServiceClient {
     return this.serviceClient;
   }
 
-  public async createDirectory(dirName: string) {
-    const fileSystemClient = this.serviceClient.getFileSystemClient(fileSystemName);
-    const directoryClient = fileSystemClient.getDirectoryClient(dirName);
-
-    await directoryClient.create();
+  private getDirectoryClient(directory: string): DataLakeDirectoryClient {
+    return this.fileSystemClient.getDirectoryClient(directory);
   }
 
-  public async uploadFileStream(fileName: string, directory: string, fileContent: Readable) {
-    logger.debug(`Uploading file with name '${fileName}' to datalake`);
-
-    const fileSystemClient = this.serviceClient.getFileSystemClient(fileSystemName);
-    const directoryClient = fileSystemClient.getDirectoryClient(directory);
-    const fileClient = directoryClient.getFileClient(fileName);
-    // Create the file in the Data Lake
-    await fileClient.create();
-    let position = 0;
-    for await (const chunk of fileContent) {
-      const chunkSize = chunk.length;
-      // Append the chunk at the current position
-      await fileClient.append(chunk, position, chunkSize);
-      position += chunkSize;
-    }
-    // Flush and commit the file
-    await fileClient.flush(position);
+  private getFileClient(filename: string, directory: string): DataLakeFileClient {
+    return this.getDirectoryClient(directory).getFileClient(filename);
   }
 
-  public async uploadFileBuffer(fileName: string, directory: string, fileContent: Buffer) {
-    logger.debug(`Uploading file with name '${fileName}' to datalake`);
-    const fileSystemClient = this.serviceClient.getFileSystemClient(fileSystemName);
-    const directoryClient = fileSystemClient.getDirectoryClient(directory);
-    const fileClient = directoryClient.getFileClient(fileName);
-    await fileClient.create();
-    await fileClient.append(fileContent, 0, fileContent.length);
-    await fileClient.flush(fileContent.length);
+  public async createDirectoryIfNotExists(directory: string) {
+    return this.getDirectoryClient(directory).createIfNotExists();
   }
 
-  public async deleteFile(fileName: string, directory: string) {
-    const fileSystemClient = this.serviceClient.getFileSystemClient(fileSystemName);
-    const directoryClient = fileSystemClient.getDirectoryClient(directory);
-    const fileClient = directoryClient.getFileClient(fileName);
-
-    await fileClient.delete();
+  public async saveBuffer(filename: string, directory: string, content: Buffer): Promise<FileUploadResponse> {
+    logger.debug(`Uploading file '${filename}' to datalake as buffer`);
+    await this.createDirectoryIfNotExists(directory);
+    return this.getFileClient(filename, directory).upload(content);
   }
 
-  public async deleteDirectoryAndFiles(directory: string) {
-    const fileSystemClient = this.serviceClient.getFileSystemClient(fileSystemName);
-    const directoryClient = fileSystemClient.getDirectoryClient(directory);
-    await directoryClient.delete(true);
+  public async loadBuffer(filename: string, directory: string): Promise<Buffer> {
+    logger.debug(`Fetching file '${filename}' from datalake as buffer`);
+    return this.getFileClient(filename, directory).readToBuffer();
   }
 
-  public async deleteDirectory(directory: string) {
-    const fileSystemClient = this.serviceClient.getFileSystemClient(fileSystemName);
-    const directoryClient = fileSystemClient.getDirectoryClient(directory);
-    await directoryClient.delete(false);
+  public async saveStream(filename: string, directory: string, content: Readable): Promise<FileUploadResponse> {
+    logger.debug(`Uploading file '${filename}' to datalake as stream`);
+    await this.createDirectoryIfNotExists(directory);
+    return this.getFileClient(filename, directory).uploadStream(content);
   }
 
-  public async listFiles(directory: string) {
-    const fileSystemClient = this.serviceClient.getFileSystemClient(fileSystemName);
-
-    const files = await fileSystemClient.listPaths({ path: directory });
-    const fileList = [];
-    for await (const file of files) {
-      if (file.name === undefined) {
-        continue;
-      }
-      fileList.push({ name: basename(file.name), path: file.name, isDirectory: file.isDirectory });
-    }
-    return fileList;
+  public async loadStream(filename: string, directory: string): Promise<NodeJS.ReadableStream | undefined> {
+    logger.debug(`Fetching file '${filename}' from datalake as stream`);
+    const downloadResponse = await this.getFileClient(filename, directory).read();
+    return downloadResponse.readableStreamBody;
   }
 
-  public async getFileBuffer(fileName: string, directory: string) {
-    logger.debug(`Fetching file buffer with name '${fileName}' from datalake`);
-    const fileSystemClient = this.serviceClient.getFileSystemClient(fileSystemName);
-    const directoryClient = fileSystemClient.getDirectoryClient(directory);
-    const fileClient = directoryClient.getFileClient(fileName);
-
-    const downloadResponse = await fileClient.read();
-    const body = downloadResponse.readableStreamBody;
-    if (body === undefined) {
-      throw new Error('ReadableStreamBody is undefined');
-    }
-
-    const downloaded = await streamToBuffer(body);
-
-    function streamToBuffer(readableStream: NodeJS.ReadableStream): Promise<Buffer> {
-      const chunks: Uint8Array[] = [];
-      if (readableStream === undefined) {
-        throw new Error('ReadableStream is undefined');
-      }
-      return new Promise((resolve, reject) => {
-        readableStream.on('data', (data) => {
-          chunks.push(data);
-        });
-        readableStream.on('end', () => {
-          resolve(Buffer.concat(chunks));
-        });
-        readableStream.on('error', reject);
-      });
-    }
-
-    return downloaded;
+  public async delete(filename: string, directory: string): Promise<PathDeleteIfExistsResponse> {
+    return this.getFileClient(filename, directory).deleteIfExists();
   }
 
-  public async getFileStream(fileName: string, directory: string) {
-    try {
-      const fileSystemClient = this.serviceClient.getFileSystemClient(fileSystemName);
-      const directoryClient = fileSystemClient.getDirectoryClient(directory);
-      const fileClient = directoryClient.getFileClient(fileName);
-
-      const downloadResponse = await fileClient.read();
-      return downloadResponse.readableStreamBody as Readable;
-    } catch (error) {
-      logger.error('getFileStream', error);
-      throw error;
-    }
+  public async deleteDirectory(directory: string): Promise<PathDeleteIfExistsResponse> {
+    return this.getDirectoryClient(directory).deleteIfExists(true);
   }
 }

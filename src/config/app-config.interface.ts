@@ -5,6 +5,7 @@ import { AuthProvider } from '../enums/auth-providers';
 
 import { AppEnv } from './env.enum';
 import { SessionStore } from './session-store.enum';
+import { FileStore } from './file-store.enum';
 
 export interface AppConfig {
   env: AppEnv;
@@ -64,12 +65,15 @@ export interface AppConfig {
     };
   };
   storage: {
+    store: FileStore;
     blob: {
+      url: string;
       accountName: string;
       accountKey: string;
       containerName: string;
     };
     datalake: {
+      url: string;
       accountName: string;
       accountKey: string;
       fileSystemName: string;

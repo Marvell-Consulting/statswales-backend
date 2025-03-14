@@ -3,6 +3,7 @@ import { Level } from 'pino';
 import { AppConfig } from '../app-config.interface';
 import { AppEnv } from '../env.enum';
 import { SessionStore } from '../session-store.enum';
+import { FileStore } from '../file-store.enum';
 import { Locale } from '../../enums/locale';
 
 const ONE_DAY = 24 * 60 * 60 * 1000;
@@ -66,12 +67,15 @@ export const getDefaultConfig = (): AppConfig => {
       }
     },
     storage: {
+      store: FileStore.DataLake,
       blob: {
+        url: process.env.AZURE_BLOB_STORAGE_URL!,
         accountName: process.env.AZURE_BLOB_STORAGE_ACCOUNT_NAME!,
         accountKey: process.env.AZURE_BLOB_STORAGE_ACCOUNT_KEY!,
         containerName: process.env.AZURE_BLOB_STORAGE_CONTAINER_NAME!
       },
       datalake: {
+        url: process.env.AZURE_DATALAKE_STORAGE_URL!,
         accountName: process.env.AZURE_DATALAKE_STORAGE_ACCOUNT_NAME!,
         accountKey: process.env.AZURE_DATALAKE_STORAGE_ACCOUNT_KEY!,
         fileSystemName: process.env.AZURE_DATALAKE_STORAGE_FILESYSTEM_NAME!
