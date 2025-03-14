@@ -227,13 +227,13 @@ export class DatasetService {
     const dataLakeService = new DataLakeService();
     const cubeBuffer = fs.readFileSync(cubeFilePath);
     const onlineCubeFilename = `${revisionId}.duckdb`;
-    await dataLakeService.uploadFileBuffer(onlineCubeFilename, dataset.id, cubeBuffer);
+    await dataLakeService.saveBuffer(onlineCubeFilename, dataset.id, cubeBuffer);
 
     for (const locale of SUPPORTED_LOCALES) {
       const lang = locale.split('-')[0].toLowerCase();
       logger.debug(`Creating parquet file for language "${lang}" and uploading to data lake`);
       const parquetFilePath = await outputCube(cubeFilePath, lang, DuckdbOutputType.Parquet);
-      await dataLakeService.uploadFileBuffer(
+      await dataLakeService.saveBuffer(
         `${revisionId}_${lang}.parquet`,
         dataset.id,
         fs.readFileSync(parquetFilePath)
@@ -255,7 +255,7 @@ export class DatasetService {
 
     if (revision.onlineCubeFilename) {
       const dataLakeService = new DataLakeService();
-      await dataLakeService.deleteFile(revision.onlineCubeFilename, datasetId);
+      await dataLakeService.delete(revision.onlineCubeFilename, datasetId);
     }
 
     const withdrawnDataset = await DatasetRepository.withdraw(revision);

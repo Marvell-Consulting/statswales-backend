@@ -33,7 +33,7 @@ export const resetMeasure = async (req: Request, res: Response, next: NextFuncti
     measure.lookupTable = null;
     logger.debug(`Removing file ${dataset.id}/${measureLookupFilename} from data lake`);
     const datalakeService = new DataLakeService();
-    await datalakeService.deleteFile(measureLookupFilename, dataset.id);
+    await datalakeService.delete(measureLookupFilename, dataset.id);
   }
   if (measure.measureInfo) {
     logger.debug('Removing all measure info');

@@ -95,7 +95,7 @@ export const getRevisionPreview = async (req: Request, res: Response, next: Next
     const datalakeService = new DataLakeService();
     cubeFile = tmp.tmpNameSync({ postfix: '.duckdb' });
     try {
-      const cubeBuffer = await datalakeService.getFileBuffer(revision.onlineCubeFilename, dataset.id);
+      const cubeBuffer = await datalakeService.loadBuffer(revision.onlineCubeFilename, dataset.id);
       fs.writeFileSync(cubeFile, cubeBuffer);
     } catch (err) {
       logger.error('Something went wrong trying to download file from data lake');
@@ -142,7 +142,7 @@ export const downloadRawFactTable = async (req: Request, res: Response, next: Ne
   }
 
   try {
-    readable = await dataLakeService.getFileStream(revision.dataTable.filename, dataset.id);
+    readable = await dataLakeService.loadStream(revision.dataTable.filename, dataset.id);
   } catch (_err) {
     res.status(500);
     res.json({
@@ -336,7 +336,7 @@ export const updateDataTable = async (req: Request, res: Response, next: NextFun
     logger.debug(`Revision ${revision.id} already has a data table ${revision.dataTable.id}, removing it`);
     try {
       const dataLakeService = new DataLakeService();
-      dataLakeService.deleteFile(revision.dataTable.filename, dataset.id);
+      dataLakeService.delete(revision.dataTable.filename, dataset.id);
     } catch (err) {
       logger.warn(err, `Failed to delete data table file ${revision.dataTable.filename} from data lake`);
     }
@@ -483,7 +483,7 @@ export const downloadRevisionCubeFile = async (req: Request, res: Response, next
   let cubeFile: string;
   if (revision.onlineCubeFilename) {
     const dataLakeService = new DataLakeService();
-    const fileBuffer = await dataLakeService.getFileBuffer(revision.onlineCubeFilename, dataset.id);
+    const fileBuffer = await dataLakeService.loadBuffer(revision.onlineCubeFilename, dataset.id);
     cubeFile = tmp.tmpNameSync({ postfix: '.duckdb' });
     fs.writeFileSync(cubeFile, fileBuffer);
   } else {
@@ -515,7 +515,7 @@ export const downloadRevisionCubeAsJSON = async (req: Request, res: Response, ne
   let cubeFile: string;
   if (revision.onlineCubeFilename) {
     const dataLakeService = new DataLakeService();
-    const fileBuffer = await dataLakeService.getFileBuffer(revision.onlineCubeFilename, dataset.id);
+    const fileBuffer = await dataLakeService.loadBuffer(revision.onlineCubeFilename, dataset.id);
     cubeFile = tmp.tmpNameSync({ postfix: '.duckdb' });
     fs.writeFileSync(cubeFile, fileBuffer);
   } else {
@@ -561,7 +561,7 @@ export const downloadRevisionCubeAsCSV = async (req: Request, res: Response, nex
   let cubeFile: string;
   if (revision.onlineCubeFilename) {
     const dataLakeService = new DataLakeService();
-    const fileBuffer = await dataLakeService.getFileBuffer(revision.onlineCubeFilename, dataset.id);
+    const fileBuffer = await dataLakeService.loadBuffer(revision.onlineCubeFilename, dataset.id);
     cubeFile = tmp.tmpNameSync({ postfix: '.duckdb' });
     fs.writeFileSync(cubeFile, fileBuffer);
   } else {
@@ -606,7 +606,7 @@ export const downloadRevisionCubeAsParquet = async (req: Request, res: Response,
   let cubeFile: string;
   if (revision.onlineCubeFilename) {
     const dataLakeService = new DataLakeService();
-    const fileBuffer = await dataLakeService.getFileBuffer(revision.onlineCubeFilename, dataset.id);
+    const fileBuffer = await dataLakeService.loadBuffer(revision.onlineCubeFilename, dataset.id);
     cubeFile = tmp.tmpNameSync({ postfix: '.duckdb' });
     fs.writeFileSync(cubeFile, fileBuffer);
   } else {
@@ -651,7 +651,7 @@ export const downloadRevisionCubeAsExcel = async (req: Request, res: Response, n
   let cubeFile: string;
   if (revision.onlineCubeFilename) {
     const dataLakeService = new DataLakeService();
-    const fileBuffer = await dataLakeService.getFileBuffer(revision.onlineCubeFilename, dataset.id);
+    const fileBuffer = await dataLakeService.loadBuffer(revision.onlineCubeFilename, dataset.id);
     cubeFile = tmp.tmpNameSync({ postfix: '.duckdb' });
     fs.writeFileSync(cubeFile, fileBuffer);
   } else {

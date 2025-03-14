@@ -26,11 +26,7 @@ import { createFullDataset } from './helpers/test-helper';
 import { getTestUser } from './helpers/get-user';
 import { getAuthHeader } from './helpers/auth-header';
 
-DataLakeService.prototype.listFiles = jest
-  .fn()
-  .mockReturnValue([{ name: 'test-data-1.csv', path: 'test/test-data-1.csv', isDirectory: false }]);
-
-DataLakeService.prototype.uploadFileBuffer = jest.fn();
+DataLakeService.prototype.saveBuffer = jest.fn();
 
 const dataset1Id = 'bdc40218-af89-424b-b86e-d21710bc92f1';
 const revision1Id = '85f0e416-8bd1-4946-9e2c-1c958897c6ef';
@@ -220,7 +216,7 @@ describe('API Endpoints for viewing dataset objects', () => {
         const testFile2 = path.resolve(__dirname, `sample-files/csv/test-data-2.csv`);
         const testFileStream = fs.createReadStream(testFile2);
         const testFile2Buffer = fs.readFileSync(testFile2);
-        DataLakeService.prototype.getFileStream = jest.fn().mockReturnValue(Promise.resolve(testFileStream));
+        DataLakeService.prototype.loadStream = jest.fn().mockReturnValue(Promise.resolve(testFileStream));
 
         const res = await request(app)
           .get(`/dataset/${dataset1Id}/revision/by-id/${revision1Id}/data-table/raw`)
@@ -230,7 +226,7 @@ describe('API Endpoints for viewing dataset objects', () => {
       });
 
       test('Get file from a revision and import returns 500 if an error with the Data Lake occurs', async () => {
-        DataLakeService.prototype.getFileStream = jest.fn().mockRejectedValue(Error('Unknown Data Lake Error'));
+        DataLakeService.prototype.loadStream = jest.fn().mockRejectedValue(Error('Unknown Data Lake Error'));
         const res = await request(app)
           .get(`/dataset/${dataset1Id}/revision/by-id/${revision1Id}/data-table/raw`)
           .set(getAuthHeader(user));

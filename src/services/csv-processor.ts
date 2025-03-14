@@ -245,8 +245,8 @@ export const uploadCSV = async (
   hash.update(uploadBuffer);
 
   try {
-    await dataLakeService.createDirectory(datasetId);
-    await dataLakeService.uploadFileBuffer(dataTable.filename, datasetId, uploadBuffer);
+    await dataLakeService.createDirectoryIfNotExists(datasetId);
+    await dataLakeService.saveBuffer(dataTable.filename, datasetId, uploadBuffer);
   } catch (err) {
     logger.error(`Something went wrong trying to upload the file to the Data Lake with the following error: ${err}`);
     throw new Error('Error processing file upload to Data Lake');
@@ -270,7 +270,7 @@ export const getCSVPreview = async (
     const dataLakeService = new DataLakeService();
     let fileBuffer: Buffer;
     try {
-      fileBuffer = await dataLakeService.getFileBuffer(importObj.filename, dataset.id);
+      fileBuffer = await dataLakeService.loadBuffer(importObj.filename, dataset.id);
     } catch (err) {
       logger.error(`Something went wrong trying to get file from datalake with error: ${err}`);
       throw err;
@@ -382,7 +382,7 @@ export const getFactTableColumnPreview = async (
   const tempFile = tmp.tmpNameSync({ postfix: `.${dataTable.fileType}` });
   try {
     const dataLakeService = new DataLakeService();
-    const fileBuffer = await dataLakeService.getFileBuffer(dataTable.filename, dataset.id);
+    const fileBuffer = await dataLakeService.loadBuffer(dataTable.filename, dataset.id);
     fs.writeFileSync(tempFile, fileBuffer);
     let createTableQuery: string;
     switch (dataTable.fileType) {
@@ -470,7 +470,7 @@ export const getFactTableColumnPreview = async (
 export const removeFileFromDataLake = async (importObj: DataTable, dataset: Dataset) => {
   const datalakeService = new DataLakeService();
   try {
-    await datalakeService.deleteFile(importObj.filename, dataset.id);
+    await datalakeService.delete(importObj.filename, dataset.id);
   } catch (err) {
     logger.error(err);
     throw new Error('Unable to successfully remove from from Datalake');
