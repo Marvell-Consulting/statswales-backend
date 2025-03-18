@@ -1,16 +1,26 @@
 import request from 'supertest';
 
-import app from '../src/app';
-import { initDb } from '../src/db/init';
-import DatabaseManager from '../src/db/database-manager';
-import { initPassport } from '../src/middleware/passport-auth';
-import { sanitiseUser } from '../src/utils/sanitise-user';
-import { SUPPORTED_LOCALES } from '../src/middleware/translation';
-import { Locale } from '../src/enums/locale';
-import { logger } from '../src/utils/logger';
+import app from '../../src/app';
+import { initDb } from '../../src/db/init';
+import DatabaseManager from '../../src/db/database-manager';
+import { initPassport } from '../../src/middleware/passport-auth';
+import { sanitiseUser } from '../../src/utils/sanitise-user';
+import { SUPPORTED_LOCALES } from '../../src/middleware/translation';
+import { Locale } from '../../src/enums/locale';
+import { logger } from '../../src/utils/logger';
 
-import { getTestUser } from './helpers/get-user';
-import { getAuthHeader } from './helpers/auth-header';
+import { getTestUser } from '../helpers/get-user';
+import { getAuthHeader } from '../helpers/auth-header';
+
+jest.mock('../../src/services/blob-storage', () => {
+  return function BlobStorage() {
+    return {
+      getServiceClient: jest.fn().mockReturnValue({
+        getProperties: jest.fn().mockResolvedValue(true)
+      })
+    };
+  };
+});
 
 describe('Healthcheck', () => {
   let dbManager: DatabaseManager;

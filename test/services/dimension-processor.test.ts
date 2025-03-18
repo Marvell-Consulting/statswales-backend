@@ -2,10 +2,10 @@ import fs from 'fs';
 
 import { add, parseISO, sub } from 'date-fns';
 
-import { logger } from '../src/utils/logger';
-import { YearType } from '../src/enums/year-type';
-import { dateDimensionReferenceTableCreator } from '../src/services/time-matching';
-import { DateExtractor } from '../src/extractors/date-extractor';
+import { logger } from '../../src/utils/logger';
+import { YearType } from '../../src/enums/year-type';
+import { dateDimensionReferenceTableCreator } from '../../src/services/time-matching';
+import { DateExtractor } from '../../src/extractors/date-extractor';
 
 interface AllFormats {
   years: DateExtractor[];

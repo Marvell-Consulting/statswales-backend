@@ -1,12 +1,24 @@
 import request from 'supertest';
 
-import app from '../src/app';
-import { initDb } from '../src/db/init';
-import DatabaseManager from '../src/db/database-manager';
-import { initPassport } from '../src/middleware/passport-auth';
-import { logger } from '../src/utils/logger';
+import app from '../../src/app';
+import { initDb } from '../../src/db/init';
+import DatabaseManager from '../../src/db/database-manager';
+import { initPassport } from '../../src/middleware/passport-auth';
+import { logger } from '../../src/utils/logger';
 
-import { appConfig } from '../src/config';
+import { appConfig } from '../../src/config';
+
+// Need to mock blob storage as it is included in services middleware for every route
+// avoids the "Jest did not exit one second after the test run has completed"
+jest.mock('../../src/services/blob-storage', () => {
+  return function BlobStorage() {
+    return {
+      getContainerClient: jest.fn().mockReturnValue({
+        createIfNotExists: jest.fn().mockResolvedValue(true)
+      })
+    };
+  };
+});
 
 describe('Healthcheck', () => {
   let dbManager: DatabaseManager;

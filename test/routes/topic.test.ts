@@ -1,16 +1,28 @@
 import request from 'supertest';
 
-import app from '../src/app';
-import { initDb } from '../src/db/init';
-import DatabaseManager from '../src/db/database-manager';
-import { initPassport } from '../src/middleware/passport-auth';
-import { User } from '../src/entities/user/user';
-import { Topic } from '../src/entities/dataset/topic';
-import { TopicDTO } from '../src/dtos/topic-dto';
-import { Locale } from '../src/enums/locale';
+import app from '../../src/app';
+import { initDb } from '../../src/db/init';
+import DatabaseManager from '../../src/db/database-manager';
+import { initPassport } from '../../src/middleware/passport-auth';
+import { User } from '../../src/entities/user/user';
+import { Topic } from '../../src/entities/dataset/topic';
+import { TopicDTO } from '../../src/dtos/topic-dto';
+import { Locale } from '../../src/enums/locale';
 
-import { getTestUser } from './helpers/get-user';
-import { getAuthHeader } from './helpers/auth-header';
+import { getTestUser } from '../helpers/get-user';
+import { getAuthHeader } from '../helpers/auth-header';
+
+// Need to mock blob storage as it is included in services middleware for every route
+// avoids the "Jest did not exit one second after the test run has completed"
+jest.mock('../../src/services/blob-storage', () => {
+  return function BlobStorage() {
+    return {
+      getContainerClient: jest.fn().mockReturnValue({
+        createIfNotExists: jest.fn().mockResolvedValue(true)
+      })
+    };
+  };
+});
 
 const user: User = getTestUser('test', 'user');
 
