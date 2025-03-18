@@ -21,7 +21,7 @@ import { DataTableAction } from '../enums/data-table-action';
 import { convertBufferToUTF8 } from '../utils/file-utils';
 
 import { duckdb } from './duckdb';
-import { getFileService } from '../utils/get-storage';
+import { getFileService } from '../utils/get-file-service';
 
 export const MAX_PAGE_SIZE = 500;
 export const MIN_PAGE_SIZE = 5;

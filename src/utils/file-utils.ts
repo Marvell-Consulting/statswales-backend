@@ -10,7 +10,7 @@ import { FileImportInterface } from '../entities/dataset/file-import.interface';
 import { FileType } from '../enums/file-type';
 
 import { logger } from './logger';
-import { getFileService } from './get-storage';
+import { getFileService } from './get-file-service';
 
 export const convertBufferToUTF8 = (buffer: Buffer): Buffer => {
   const fileEncoding = detectCharacterEncoding(buffer)?.encoding;

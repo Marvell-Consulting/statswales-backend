@@ -23,7 +23,7 @@ import { DataTableDto } from '../dtos/data-table-dto';
 import { MeasureRow } from '../entities/dataset/measure-row';
 import { SUPPORTED_LOCALES } from '../middleware/translation';
 import { DisplayType } from '../enums/display-type';
-import { getFileService } from '../utils/get-storage';
+import { getFileService } from '../utils/get-file-service';
 
 import { createFactTableQuery, createMeasureLookupTable } from './cube-handler';
 import { duckdb } from './duckdb';

@@ -31,7 +31,7 @@ import { EventLog } from '../entities/event-log';
 import { createBaseCube, getCubeTimePeriods } from './cube-handler';
 import { uploadCSV } from './csv-processor';
 import { removeAllDimensions, removeMeasure } from './dimension-processor';
-import { getFileService } from '../utils/get-storage';
+import { getFileService } from '../utils/get-file-service';
 
 export class DatasetService {
   lang: Locale;

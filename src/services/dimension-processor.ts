@@ -36,7 +36,7 @@ import { getReferenceDataDimensionPreview } from './reference-data-handler';
 import { duckdb } from './duckdb';
 import { NumberExtractor, NumberType } from '../extractors/number-extractor';
 import { viewErrorGenerator } from '../utils/view-error-generator';
-import { getFileService } from '../utils/get-storage';
+import { getFileService } from '../utils/get-file-service';
 
 const createDateDimensionTable = `CREATE TABLE date_dimension (date_code VARCHAR, description VARCHAR, start_date datetime, end_date datetime, date_type varchar);`;
 const sampleSize = 5;
