@@ -31,7 +31,7 @@ import { EventLog } from '../entities/event-log';
 import { createBaseCube, getCubeTimePeriods } from './cube-handler';
 import { uploadCSV } from './csv-processor';
 import { removeAllDimensions, removeMeasure } from './dimension-processor';
-import { getStorage } from '../utils/get-storage';
+import { getFileService } from '../utils/get-storage';
 
 export class DatasetService {
   lang: Locale;
@@ -224,7 +224,7 @@ export class DatasetService {
     const cubeFilePath = await createBaseCube(datasetId, revisionId);
     const periodCoverage = await getCubeTimePeriods(cubeFilePath);
 
-    const fileService = getStorage();
+    const fileService = getFileService();
     const cubeBuffer = fs.readFileSync(cubeFilePath);
     const onlineCubeFilename = `${revisionId}.duckdb`;
     await fileService.saveBuffer(onlineCubeFilename, dataset.id, cubeBuffer);
@@ -250,7 +250,7 @@ export class DatasetService {
     const revision = await RevisionRepository.withdrawPublication(revisionId);
 
     if (revision.onlineCubeFilename) {
-      const fileService = getStorage();
+      const fileService = getFileService();
       await fileService.delete(revision.onlineCubeFilename, datasetId);
     }
 

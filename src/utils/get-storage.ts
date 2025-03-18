@@ -4,7 +4,7 @@ import { StorageService } from '../interfaces/storage-service';
 import BlobStorage from '../services/blob-storage';
 import DataLakeStorage from '../services/datalake-storage';
 
-export const getStorage = (): StorageService => {
+export const getFileService = (): StorageService => {
   const config = appConfig();
 
   return config.storage.store === FileStore.Blob

@@ -21,7 +21,7 @@ import { DataTableAction } from '../enums/data-table-action';
 import { convertBufferToUTF8 } from '../utils/file-utils';
 
 import { duckdb } from './duckdb';
-import { getStorage } from '../utils/get-storage';
+import { getFileService } from '../utils/get-storage';
 
 export const MAX_PAGE_SIZE = 500;
 export const MIN_PAGE_SIZE = 5;
@@ -243,7 +243,7 @@ export const uploadCSV = async (
   hash.update(uploadBuffer);
 
   try {
-    const fileService = getStorage();
+    const fileService = getFileService();
     await fileService.saveBuffer(dataTable.filename, datasetId, uploadBuffer);
   } catch (err) {
     logger.error(`Something went wrong trying to upload the file to the Data Lake with the following error: ${err}`);
@@ -267,7 +267,7 @@ export const getCSVPreview = async (
   try {
     let fileBuffer: Buffer;
     try {
-      const fileService = getStorage();
+      const fileService = getFileService();
       fileBuffer = await fileService.loadBuffer(importObj.filename, dataset.id);
     } catch (err) {
       logger.error(err, `Something went wrong trying to fetch the file from storage`);
@@ -379,7 +379,7 @@ export const getFactTableColumnPreview = async (
   const quack = await duckdb();
   const tempFile = tmp.tmpNameSync({ postfix: `.${dataTable.fileType}` });
   try {
-    const fileService = getStorage();
+    const fileService = getFileService();
     const fileBuffer = await fileService.loadBuffer(dataTable.filename, dataset.id);
     fs.writeFileSync(tempFile, fileBuffer);
     let createTableQuery: string;
