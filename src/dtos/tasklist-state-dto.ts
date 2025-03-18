@@ -1,4 +1,4 @@
-import { every, isEqual, max, pick } from 'lodash';
+import { every, isEqual, max, pick, sortBy } from 'lodash';
 
 import { Dataset } from '../entities/dataset/dataset';
 import { DimensionType } from '../enums/dimension-type';
@@ -117,11 +117,13 @@ export class TasklistStateDTO {
       const topics = revision.revisionTopics.map((t) => t.topicId).sort();
       const prevTopics = prevRevision.revisionTopics.map((t) => t.topicId).sort();
 
-      const providers = revision.revisionProviders.map((prov) =>
-        pick(prov, ['providerId', 'providerSourceId', 'language'])
+      const providers = sortBy(
+        revision.revisionProviders.map((prov) => pick(prov, ['providerId', 'providerSourceId', 'language'])),
+        'language'
       );
-      const prevProviders = prevRevision.revisionProviders.map((prov) =>
-        pick(prov, ['providerId', 'providerSourceId', 'language'])
+      const prevProviders = sortBy(
+        prevRevision.revisionProviders.map((prov) => pick(prov, ['providerId', 'providerSourceId', 'language'])),
+        'language'
       );
 
       return {
