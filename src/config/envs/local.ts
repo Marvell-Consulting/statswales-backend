@@ -53,7 +53,7 @@ export function getLocalConfig(): AppConfig {
       memory: process.env.DUCKDB_MEMORY || '125MB'
     },
     storage: {
-      store: (process.env.FILE_STORE as FileStore.Blob) || FileStore.DataLake
+      store: (process.env.FILE_STORE as FileStore) || FileStore.DataLake
     }
   });
 }
