@@ -275,7 +275,7 @@ describe('API Endpoints', () => {
       expect(res.body.data[23]).toEqual([24, 202122, 596, 137527, 1, 1, 't']);
     });
 
-    test('Get preview of an import returns 500 if a Datalake error occurs', async () => {
+    test('Get preview of an import returns 500 if a file storage error occurs', async () => {
       BlobStorage.prototype.loadBuffer = jest.fn().mockRejectedValue(new Error('A Data Lake error occurred'));
 
       const res = await request(app)
@@ -319,7 +319,7 @@ describe('API Endpoints', () => {
   });
 
   describe('Step 2b - Unhappy path of the user uploading the wrong file', () => {
-    test('Returns 200 when the user requests to delete the import stored in the datalake', async () => {
+    test('Returns 200 when the user requests to delete the import stored in the file store', async () => {
       const testDatasetId = crypto.randomUUID().toLowerCase();
       const testRevisionId = crypto.randomUUID().toLowerCase();
       const testFileImportId = crypto.randomUUID().toLowerCase();
@@ -417,7 +417,7 @@ describe('API Endpoints', () => {
       await Dataset.remove(dataset);
     });
 
-    test('Upload returns 500 if an error occurs with Datalake Storage', async () => {
+    test('Upload returns 500 if an error occurs with file storage', async () => {
       const testDatasetId = crypto.randomUUID().toLowerCase();
       const testRevisionId = crypto.randomUUID().toLowerCase();
       const testFileImportId = crypto.randomUUID().toLowerCase();

@@ -162,7 +162,7 @@ translationRouter.post(
         }
       });
 
-      // store the translation import in the datalake so we can use it once it's confirmed as correct
+      // store the translation import in the file store so we can use it once it's confirmed as correct
       await req.fileService.saveBuffer(TRANSLATION_FILENAME, dataset.id, Buffer.from(req.file.buffer));
 
       res.status(201);
