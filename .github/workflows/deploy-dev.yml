@@ -1,0 +1,46 @@
+name: Deploy Dev
+
+on:
+  workflow_run:
+    workflows: [Docker]
+    types:
+      - completed
+    branches:
+      - main
+jobs:
+  on-success:
+    runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    steps:
+      - name: Set Image Tag (from commit SHA)
+        run: |
+          SHORT_SHA=$(echo $GITHUB_SHA | cut -c1-7)
+          IMAGE_TAG="ghcr.io/marvell-consulting/statswales-backend:sha-$SHORT_SHA"
+          echo "IMAGE_TAG=$IMAGE_TAG" >> $GITHUB_ENV
+
+      - name: Debug Output - Verify Image Tag
+        run: |
+          echo "Commit SHA: $GITHUB_SHA"
+          echo "Computed Image Tag: $IMAGE_TAG"
+
+      - name: Create JSON Payload
+        run: |
+          PARAMETERS_JSON="{\\\"BACKEND_APP_IMAGE\\\":\\\"$IMAGE_TAG\\\"}"
+          cat <<EOF > $GITHUB_WORKSPACE/payload.json
+          {
+            "definition": { "id": 8 },
+            "parameters": "$PARAMETERS_JSON",
+            "reason": "Manual",
+            "sourceBranch": "refs/heads/main"
+          }
+          EOF
+          cat $GITHUB_WORKSPACE/payload.json  # Print payload for debugging
+
+      - name: Trigger Azure DevOps Pipeline (Terraform)
+        env:
+          AZURE_DEVOPS_PAT: ${{ secrets.AZURE_DEVOPS_PAT }}
+        run: |
+          curl -u ":$AZURE_DEVOPS_PAT" \
+            -X POST "https://dev.azure.com/MarvellConsulting/StatsWales/_apis/build/builds?api-version=6.0" \
+            -H "Content-Type: application/json" \
+            -d @$GITHUB_WORKSPACE/payload.json
