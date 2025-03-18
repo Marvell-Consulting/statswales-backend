@@ -8,6 +8,7 @@ import {
   BlobDeleteIfExistsResponse,
   StorageSharedKeyCredential
 } from '@azure/storage-blob';
+
 import BlobStorage from '../../src/services/blob-storage';
 import { FileStore } from '../../src/config/file-store.enum';
 
@@ -97,30 +98,32 @@ describe('BlobStorage', () => {
     expect(result).toBe(response);
   });
 
-  // it.only('should list files in a directory', async () => {
-  //   const blobItems = [{ name: 'file1.txt' }, { name: 'file2.txt' }] as any;
+  it('should list files in a directory', async () => {
+    const files = [{ name: '1234/file1.csv' }, { name: '1234/file2.csv' }] as any;
 
-  //   containerClientMock.listBlobsByHierarchy.mockImplementation(function* () {
-  //     yield { segment: { blobItems } };
-  //   });
+    containerClientMock.listBlobsByHierarchy = jest.fn().mockImplementation(function* (_delimiter, _opts) {
+      yield* files;
+    }) as any;
 
-  //   const result = await blobStorage.listFiles('directory');
+    const result = await blobStorage.listFiles('1234');
 
-  //   expect(result).toEqual(['file1.txt', 'file2.txt']);
-  // });
+    expect(result).toEqual(['1234/file1.csv', '1234/file2.csv']);
+  });
 
-  // it('should delete all files in a directory', async () => {
-  //   const blobItems = [{ name: 'file1.txt' }, { name: 'file2.txt' }] as any;
-  //   containerClientMock.listBlobsByHierarchy.mockImplementation(function* () {
-  //     yield { segment: { blobItems } };
-  //   });
-  //   blockBlobClientMock.deleteIfExists.mockResolvedValue({
-  //     succeeded: true,
-  //     _response: {}
-  //   } as BlobDeleteIfExistsResponse);
+  it('should delete all files in a directory', async () => {
+    const files = [{ name: '1234/file1.csv' }, { name: '1234/file2.csv' }] as any;
 
-  //   await blobStorage.deleteDirectory('directory');
+    containerClientMock.listBlobsByHierarchy = jest.fn().mockImplementation(function* (_delimiter, _opts) {
+      yield* files;
+    }) as any;
 
-  //   expect(blockBlobClientMock.deleteIfExists).toHaveBeenCalledTimes(2);
-  // });
+    blockBlobClientMock.deleteIfExists.mockResolvedValue({
+      succeeded: true,
+      _response: {}
+    } as BlobDeleteIfExistsResponse);
+
+    await blobStorage.deleteDirectory('1234');
+
+    expect(blockBlobClientMock.deleteIfExists).toHaveBeenCalledTimes(2);
+  });
 });

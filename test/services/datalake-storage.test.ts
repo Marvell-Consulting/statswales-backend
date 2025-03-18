@@ -1,4 +1,5 @@
 import { Readable } from 'node:stream';
+
 import {
   DataLakeServiceClient,
   DataLakeFileSystemClient,
@@ -7,8 +8,12 @@ import {
   FileUploadResponse,
   PathDeleteIfExistsResponse,
   StorageSharedKeyCredential,
-  DirectoryCreateIfNotExistsResponse
+  DirectoryCreateIfNotExistsResponse,
+  Path,
+  FileSystemListPathsResponse
 } from '@azure/storage-file-datalake';
+import { PagedAsyncIterableIterator } from '@azure/core-paging';
+
 import DataLakeStorage from '../../src/services/datalake-storage';
 import { FileStore } from '../../src/config/file-store.enum';
 
@@ -114,22 +119,25 @@ describe('DataLakeStorage', () => {
     expect(result).toBe(response);
   });
 
-  // it('should list files in directory', async () => {
-  //   const files = [
-  //     { name: 'file1.txt', isDirectory: false },
-  //     { name: 'file2.txt', isDirectory: false }
-  //   ];
-  //   fsClientMock.listPaths.mockReturnValue({
-  //     async *[Symbol.asyncIterator]() {
-  //       yield* files;
-  //     }
-  //   });
+  it('should list files in directory', async () => {
+    const files = [
+      { name: 'file1.txt', isDirectory: false },
+      { name: 'file2.txt', isDirectory: false }
+    ];
 
-  //   const result = await dataLakeStorage.listFiles('test-directory');
-  //   expect(fsClientMock.listPaths).toHaveBeenCalledWith({ path: 'test-directory' });
-  //   expect(result).toEqual([
-  //     { name: 'file1.txt', path: 'file1.txt', isDirectory: false },
-  //     { name: 'file2.txt', path: 'file2.txt', isDirectory: false }
-  //   ]);
-  // });
+    const fileIterator = {
+      async *[Symbol.asyncIterator]() {
+        yield* files;
+      }
+    } as unknown as PagedAsyncIterableIterator<Path, FileSystemListPathsResponse>;
+
+    fsClientMock.listPaths.mockReturnValue(fileIterator);
+
+    const result = await dataLakeStorage.listFiles('test-directory');
+    expect(fsClientMock.listPaths).toHaveBeenCalledWith({ path: 'test-directory' });
+    expect(result).toEqual([
+      { name: 'file1.txt', path: 'file1.txt', isDirectory: false },
+      { name: 'file2.txt', path: 'file2.txt', isDirectory: false }
+    ]);
+  });
 });

@@ -100,22 +100,11 @@ export default class BlobStorage implements StorageService {
     prefix: string,
     blobAction?: (blob: BlobItem) => Promise<any>
   ): Promise<void> {
-    const maxPageSize = 20;
-    const listOptions = { prefix };
-
-    for await (const response of containerClient
-      .listBlobsByHierarchy(this.delimiter, listOptions)
-      .byPage({ maxPageSize })) {
-      const segment = response.segment;
-
-      if (segment.blobPrefixes) {
-        for await (const blobPrefix of segment.blobPrefixes) {
-          await this.listHierarchical(containerClient, `${prefix}${blobPrefix.name}`, blobAction);
-        }
-      }
-
-      if (blobAction) {
-        for (const blob of response.segment.blobItems) {
+    for await (const blob of containerClient.listBlobsByHierarchy(this.delimiter, { prefix })) {
+      if (blob.kind === 'prefix') {
+        await this.listHierarchical(containerClient, `${prefix}${blob.name}`, blobAction);
+      } else {
+        if (blobAction) {
           await blobAction(blob);
         }
       }
