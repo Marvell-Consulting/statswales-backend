@@ -7,6 +7,7 @@ import { translatableMetadataKeys } from '../types/translatable-metadata';
 import { DimensionStatus } from '../interfaces/dimension-status';
 import { Revision } from '../entities/dataset/revision';
 import { EventLog } from '../entities/event-log';
+import { logger } from '../utils/logger';
 
 export interface MetadataStatus {
   title: TaskStatus;
@@ -200,8 +201,10 @@ export class TasklistStateDTO {
     lang: string,
     translationEvents?: EventLog[]
   ): TasklistStateDTO {
+    const isUpdate = Boolean(revision.previousRevisionId);
+
     const dto = new TasklistStateDTO();
-    dto.isUpdate = Boolean(revision.previousRevisionId);
+    dto.isUpdate = isUpdate;
 
     dto.datatable = TasklistStateDTO.dataTableStatus(revision);
     dto.measure = TasklistStateDTO.measureStatus(dataset, revision, lang);
@@ -210,12 +213,26 @@ export class TasklistStateDTO {
     dto.publishing = TasklistStateDTO.publishingStatus(dataset, revision);
     dto.translation = TasklistStateDTO.translationStatus(revision, translationEvents);
 
-    const dimensionsComplete = every(dto.dimensions, (dim) => dim.status === TaskStatus.Completed);
-    const metadataComplete = every(dto.metadata, (status) => status === TaskStatus.Completed);
+    const dimensionsComplete = isUpdate || every(dto.dimensions, (dim) => dim.status === TaskStatus.Completed);
+    const metadataComplete = isUpdate || every(dto.metadata, (status) => status === TaskStatus.Completed);
     const publishingComplete = every(dto.publishing, (status) => status === TaskStatus.Completed);
     const translationsComplete = dto.translation.import === TaskStatus.Completed;
 
     dto.canPublish = dimensionsComplete && metadataComplete && translationsComplete && publishingComplete;
+
+    logger.debug(
+      `\nTasklistState: ${JSON.stringify(
+        {
+          dimensionsComplete,
+          metadataComplete,
+          translationsComplete,
+          publishingComplete,
+          canPublish: dto.canPublish
+        },
+        null,
+        2
+      )}`
+    );
 
     return dto;
   }
