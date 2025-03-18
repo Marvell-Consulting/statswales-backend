@@ -60,7 +60,7 @@ export const withDraftForTasklistState: FindOptionsRelations<Dataset> = {
     }
   },
   dimensions: { metadata: true },
-  measure: { measureTable: true },
+  measure: { measureTable: true, metadata: true },
   team: true
 };
 

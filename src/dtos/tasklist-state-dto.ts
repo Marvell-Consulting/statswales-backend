@@ -53,7 +53,7 @@ export class TasklistStateDTO {
     return revision?.dataTable ? TaskStatus.Completed : TaskStatus.NotStarted;
   }
 
-  public static measureStatus(dataset: Dataset, revision: Revision) {
+  public static measureStatus(dataset: Dataset, revision: Revision, lang: string) {
     if (!dataset.measure) return undefined;
 
     const measure = dataset.measure;
@@ -66,7 +66,9 @@ export class TasklistStateDTO {
       status = TaskStatus.Completed;
     }
 
-    return { type: 'measure', id: measure.id, name: measure.factTableColumn, status };
+    const name = measure.metadata?.find((meta) => meta.language.includes(lang))?.name ?? measure.factTableColumn;
+
+    return { type: 'measure', id: measure.id, name, status };
   }
 
   public static dimensionStatus(dataset: Dataset, revision: Revision, lang: string): DimensionStatus[] {
@@ -200,7 +202,7 @@ export class TasklistStateDTO {
     dto.isUpdate = Boolean(revision.previousRevisionId);
 
     dto.datatable = TasklistStateDTO.dataTableStatus(revision);
-    dto.measure = TasklistStateDTO.measureStatus(dataset, revision);
+    dto.measure = TasklistStateDTO.measureStatus(dataset, revision, lang);
     dto.dimensions = TasklistStateDTO.dimensionStatus(dataset, revision, lang);
     dto.metadata = TasklistStateDTO.metadataStatus(revision, lang);
     dto.publishing = TasklistStateDTO.publishingStatus(dataset, revision);
