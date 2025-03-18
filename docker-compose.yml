@@ -25,6 +25,8 @@ services:
   blobstorage:
     image: mcr.microsoft.com/azure-storage/azurite
     container_name: 'azurite'
-    command: "azurite-blob --blobHost 127.0.0.1 --blobPort 10000"
+    # command: azurite --blobHost 0.0.0.0 --queueHost 0.0.0.0 --tableHost 0.0.0.0 --debug=/tmp/debug.log
     ports:
       - "10000:10000"
+      - "10001:10001"
+      - "10002:10002"

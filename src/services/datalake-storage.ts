@@ -1,18 +1,22 @@
-import { Readable } from 'stream';
+import { basename } from 'node:path';
+import { Readable } from 'node:stream';
 
 import {
   DataLakeDirectoryClient,
   DataLakeFileClient,
   DataLakeFileSystemClient,
   DataLakeServiceClient,
+  DirectoryCreateIfNotExistsResponse,
   FileUploadResponse,
   PathDeleteIfExistsResponse,
   StorageSharedKeyCredential
 } from '@azure/storage-file-datalake';
 
+import { FileStore } from '../config/file-store.enum';
+import { StorageService } from '../interfaces/storage-service';
 import { logger as parentLogger } from '../utils/logger';
 
-const logger = parentLogger.child({ module: 'DataLakeService' });
+const logger = parentLogger.child({ module: 'DataLake' });
 
 interface DataLakeConfig {
   url: string;
@@ -21,7 +25,7 @@ interface DataLakeConfig {
   fileSystemName: string;
 }
 
-export class DataLakeService {
+export default class DataLakeStorage implements StorageService {
   private readonly serviceClient: DataLakeServiceClient;
   private readonly fileSystemClient: DataLakeFileSystemClient;
 
@@ -31,6 +35,10 @@ export class DataLakeService {
     const sharedKeyCredential = new StorageSharedKeyCredential(accountName, accountKey);
     this.serviceClient = new DataLakeServiceClient(url, sharedKeyCredential);
     this.fileSystemClient = this.serviceClient.getFileSystemClient(fileSystemName);
+  }
+
+  public getType(): FileStore {
+    return FileStore.DataLake;
   }
 
   public getServiceClient(): DataLakeServiceClient {
@@ -45,7 +53,7 @@ export class DataLakeService {
     return this.getDirectoryClient(directory).getFileClient(filename);
   }
 
-  public async createDirectoryIfNotExists(directory: string) {
+  public async createDirectoryIfNotExists(directory: string): Promise<DirectoryCreateIfNotExistsResponse> {
     return this.getDirectoryClient(directory).createIfNotExists();
   }
 
@@ -66,10 +74,15 @@ export class DataLakeService {
     return this.getFileClient(filename, directory).uploadStream(content);
   }
 
-  public async loadStream(filename: string, directory: string): Promise<NodeJS.ReadableStream | undefined> {
+  public async loadStream(filename: string, directory: string): Promise<Readable> {
     logger.debug(`Fetching file '${filename}' from datalake as stream`);
     const downloadResponse = await this.getFileClient(filename, directory).read();
-    return downloadResponse.readableStreamBody;
+
+    if (!downloadResponse.readableStreamBody) {
+      throw new Error(`Failed to download file '${filename}' from datalake`);
+    }
+
+    return downloadResponse.readableStreamBody as Readable;
   }
 
   public async delete(filename: string, directory: string): Promise<PathDeleteIfExistsResponse> {
@@ -78,5 +91,19 @@ export class DataLakeService {
 
   public async deleteDirectory(directory: string): Promise<PathDeleteIfExistsResponse> {
     return this.getDirectoryClient(directory).deleteIfExists(true);
+  }
+
+  public async listFiles(directory: string) {
+    const files = await this.fileSystemClient.listPaths({ path: directory });
+    const fileList = [];
+
+    for await (const file of files) {
+      if (file.name === undefined) {
+        continue;
+      }
+      fileList.push({ name: basename(file.name), path: file.name, isDirectory: file.isDirectory });
+    }
+
+    return fileList;
   }
 }

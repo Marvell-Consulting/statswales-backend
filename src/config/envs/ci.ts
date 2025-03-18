@@ -51,8 +51,8 @@ export function getCIConfig(): AppConfig {
     storage: {
       store: FileStore.Blob,
       blob: {
-        // these are the default credentials provided in the Azurite docs
-        // at https://github.com/Azure/Azurite?tab=readme-ov-file#default-storage-account
+        // default dev credentials provided in the Azurite docs
+        // @see https://github.com/Azure/Azurite?tab=readme-ov-file#default-storage-account
         url: 'http://127.0.0.1:10000',
         accountName: 'devstoreaccount1',
         accountKey: 'Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==',

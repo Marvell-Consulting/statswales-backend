@@ -4,6 +4,7 @@ import { AuthProvider } from '../../enums/auth-providers';
 import { AppConfig } from '../app-config.interface';
 import { defineConfig } from '../define-config';
 import { AppEnv } from '../env.enum';
+import { FileStore } from '../file-store.enum';
 
 // anything that is not a secret can go in here, get the rest from env
 
@@ -50,6 +51,9 @@ export function getLocalConfig(): AppConfig {
     duckdb: {
       threads: process.env.DUCKDB_THREADS ? parseInt(process.env.DUCKDB_THREADS, 10) : 1,
       memory: process.env.DUCKDB_MEMORY || '125MB'
+    },
+    storage: {
+      store: (process.env.FILE_STORE as FileStore.Blob) || FileStore.DataLake
     }
   });
 }

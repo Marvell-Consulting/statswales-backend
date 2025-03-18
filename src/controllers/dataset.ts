@@ -10,7 +10,6 @@ import { Locale } from '../enums/locale';
 import { logger } from '../utils/logger';
 import { UnknownException } from '../exceptions/unknown.exception';
 import { DatasetDTO } from '../dtos/dataset-dto';
-import { DataLakeService } from '../services/datalake';
 import { hasError, titleValidator } from '../validators';
 import { BadRequestException } from '../exceptions/bad-request.exception';
 import { ViewErrDTO } from '../dtos/view-dto';
@@ -50,8 +49,7 @@ export const getDatasetById = async (req: Request, res: Response) => {
 };
 
 export const deleteDatasetById = async (req: Request, res: Response) => {
-  const dataLakeService = new DataLakeService();
-  await dataLakeService.deleteDirectory(req.params.dataset_id);
+  await req.fileService.deleteDirectory(req.params.dataset_id);
   await DatasetRepository.deleteById(res.locals.datasetId);
   res.status(204);
   res.end();
@@ -103,8 +101,7 @@ export const cubePreview = async (req: Request, res: Response, next: NextFunctio
 
   let cubeFile: string;
   if (latestRevision.onlineCubeFilename) {
-    const dataLakeService = new DataLakeService();
-    const fileBuffer = await dataLakeService.loadBuffer(latestRevision.onlineCubeFilename, dataset.id);
+    const fileBuffer = await req.fileService.loadBuffer(latestRevision.onlineCubeFilename, dataset.id);
     cubeFile = tmp.tmpNameSync({ postfix: '.duckdb' });
     fs.writeFileSync(cubeFile, fileBuffer);
   } else {

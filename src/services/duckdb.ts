@@ -3,7 +3,7 @@ import { Database } from 'duckdb-async';
 import { logger as parentLogger } from '../utils/logger';
 import { appConfig } from '../config';
 
-const logger = parentLogger.child({ module: 'DataLakeService' });
+const logger = parentLogger.child({ module: 'DuckDB' });
 
 const config = appConfig();
 

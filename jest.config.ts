@@ -13,8 +13,6 @@ const config: Config = {
     '/test/',
     '/src/migrations',
     '/src/controllers/auth.ts',
-    '/src/controllers/datalake.ts',
-    '/src/controllers/blob-storage.ts',
     'src/middleware/passport-auth.ts'
   ],
   setupFiles: ['<rootDir>/test/helpers/jest-setup.ts'],
