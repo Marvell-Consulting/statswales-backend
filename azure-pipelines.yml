@@ -64,6 +64,7 @@ stages:
           DB_USERNAME=$(db_username)
           DB_PASSWORD=$(db_password)
           DB_DATABASE=$(db_database)
+          AZURE_DATALAKE_STORAGE_URL=$(azure_datalake_storage_url)
           AZURE_DATALAKE_STORAGE_ACCOUNT_NAME=$(azure_datalake_storage_account_name)
           AZURE_DATALAKE_STORAGE_ACCOUNT_KEY=$(azure_datalake_storage_account_key)
           AZURE_DATALAKE_STORAGE_FILESYSTEM_NAME=$(azure_datalake_storage_filesystem_name)
