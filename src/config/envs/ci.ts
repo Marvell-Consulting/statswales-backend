@@ -51,12 +51,14 @@ export function getCIConfig(): AppConfig {
     storage: {
       store: FileStore.Blob,
       blob: {
-        // default dev credentials provided in the Azurite docs
+        // defaults to dev credentials provided in the Azurite docs
         // @see https://github.com/Azure/Azurite?tab=readme-ov-file#default-storage-account
-        url: 'http://127.0.0.1:10000',
-        accountName: 'devstoreaccount1',
-        accountKey: 'Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==',
-        containerName: 'sw3test'
+        url: process.env.AZURE_BLOB_STORAGE_URL || 'http://127.0.0.1:10000',
+        accountName: process.env.AZURE_BLOB_STORAGE_ACCOUNT_NAME || 'devstoreaccount1',
+        accountKey:
+          process.env.AZURE_BLOB_STORAGE_ACCOUNT_KEY ||
+          'Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==',
+        containerName: process.env.AZURE_BLOB_STORAGE_CONTAINER_NAME || 'sw3test'
       }
     },
     duckdb: {

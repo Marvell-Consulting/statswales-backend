@@ -75,7 +75,9 @@ export const getDefaultConfig = (): AppConfig => {
         containerName: process.env.AZURE_BLOB_STORAGE_CONTAINER_NAME!
       },
       datalake: {
-        url: process.env.AZURE_DATALAKE_STORAGE_URL!,
+        url:
+          process.env.AZURE_DATALAKE_STORAGE_URL ||
+          `https://${process.env.AZURE_DATALAKE_STORAGE_ACCOUNT_NAME}.dfs.core.windows.net`,
         accountName: process.env.AZURE_DATALAKE_STORAGE_ACCOUNT_NAME!,
         accountKey: process.env.AZURE_DATALAKE_STORAGE_ACCOUNT_KEY!,
         fileSystemName: process.env.AZURE_DATALAKE_STORAGE_FILESYSTEM_NAME!
