@@ -48,10 +48,16 @@ export const getDatasetById = async (req: Request, res: Response) => {
   res.json(DatasetDTO.fromDataset(res.locals.dataset));
 };
 
-export const deleteDatasetById = async (req: Request, res: Response) => {
+export const deleteDraftDatasetById = async (req: Request, res: Response) => {
+  const dataset: Dataset = res.locals.dataset;
+  if (dataset.publishedRevision) {
+    res.status(405);
+    res.end();
+    return;
+  }
   await req.fileService.deleteDirectory(req.params.dataset_id);
   await DatasetRepository.deleteById(res.locals.datasetId);
-  res.status(204);
+  res.status(202);
   res.end();
 };
 
