@@ -93,7 +93,7 @@ export default class DataLakeStorage implements StorageService {
     return this.getDirectoryClient(directory).deleteIfExists(true);
   }
 
-  public async listFiles(directory: string) {
+  public async listFiles(directory: string): Promise<Record<string, unknown>[]> {
     const files = await this.fileSystemClient.listPaths({ path: directory });
     const fileList = [];
 

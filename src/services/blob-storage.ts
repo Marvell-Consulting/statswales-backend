@@ -98,7 +98,7 @@ export default class BlobStorage implements StorageService {
   private async listHierarchical(
     containerClient: ContainerClient,
     prefix: string,
-    blobAction?: (blob: BlobItem) => Promise<any>
+    blobAction?: (blob: BlobItem) => Promise<void>
   ): Promise<void> {
     for await (const blob of containerClient.listBlobsByHierarchy(this.delimiter, { prefix })) {
       if (blob.kind === 'prefix') {
@@ -120,7 +120,11 @@ export default class BlobStorage implements StorageService {
 
   public async listFiles(directory: string): Promise<string[]> {
     const files: string[] = [];
-    const listBlobFn = async (blob: BlobItem) => Promise.resolve().then(() => files.push(blob.name));
+    const listBlobFn = async (blob: BlobItem) =>
+      Promise.resolve().then(() => {
+        files.push(blob.name);
+        return;
+      });
     await this.listHierarchical(this.containerClient, `${directory}`, listBlobFn);
 
     return files;

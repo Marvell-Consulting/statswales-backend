@@ -1,7 +1,7 @@
 import { Readable } from 'node:stream';
 
-import { BlobServiceClient, BlobUploadCommonResponse } from '@azure/storage-blob';
-import { DataLakeServiceClient, FileUploadResponse } from '@azure/storage-file-datalake';
+import { BlobDeleteIfExistsResponse, BlobServiceClient, BlobUploadCommonResponse } from '@azure/storage-blob';
+import { DataLakeServiceClient, FileUploadResponse, PathDeleteIfExistsResponse } from '@azure/storage-file-datalake';
 import { FileStore } from '../config/file-store.enum';
 
 export interface StorageService {
@@ -19,7 +19,7 @@ export interface StorageService {
     content: Readable
   ): Promise<BlobUploadCommonResponse | FileUploadResponse>;
   loadStream(filename: string, directory: string): Promise<Readable>;
-  delete(filename: string, directory: string): Promise<any>;
-  deleteDirectory(directory: string): Promise<any>;
-  listFiles(directory: string): Promise<any>;
+  delete(filename: string, directory: string): Promise<BlobDeleteIfExistsResponse | PathDeleteIfExistsResponse>;
+  deleteDirectory(directory: string): Promise<void | PathDeleteIfExistsResponse>;
+  listFiles(directory: string): Promise<string[] | Record<string, unknown>[]>;
 }
