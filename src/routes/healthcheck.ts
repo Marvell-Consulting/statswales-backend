@@ -4,14 +4,11 @@ import { isString } from 'lodash';
 
 import { sanitiseUser } from '../utils/sanitise-user';
 import { User } from '../entities/user/user';
-import { appConfig } from '../config';
-import { AppEnv } from '../config/env.enum';
-import { DataLakeService } from '../services/datalake';
 import { dataSource } from '../db/data-source';
 import { logger } from '../utils/logger';
 import { SUPPORTED_LOCALES } from '../middleware/translation';
+import { StorageService } from '../interfaces/storage-service';
 
-const config = appConfig();
 const healthcheck = Router();
 
 const checkDb = async (): Promise<boolean> => {
@@ -19,11 +16,8 @@ const checkDb = async (): Promise<boolean> => {
   return true;
 };
 
-const checkDatalake = async (): Promise<boolean> => {
-  if (config.env !== AppEnv.Ci) {
-    const datalake = new DataLakeService();
-    await datalake.getServiceClient().getProperties();
-  }
+const checkStorage = async (fileService: StorageService): Promise<boolean> => {
+  await fileService.getServiceClient().getProperties();
   return true;
 };
 
@@ -37,7 +31,7 @@ const stillAlive = async (req: Request, res: Response) => {
     const timeoutMs = 1000;
     const results = await Promise.all([
       Promise.race([checkDb(), timeout(timeoutMs, 'db')]),
-      Promise.race([checkDatalake(), timeout(timeoutMs, 'datalake')])
+      Promise.race([checkStorage(req.fileService), timeout(timeoutMs, 'file storage')])
     ]);
     results.forEach((result) => {
       if (isString(result) && result.includes('timeout')) throw new Error(`${result} after ${timeoutMs}ms`);
@@ -48,7 +42,7 @@ const stillAlive = async (req: Request, res: Response) => {
     return;
   }
 
-  res.json({ message: 'success' }); // server is up and has connection to db and datalake
+  res.json({ message: 'success' }); // server is up and has connection to db and file storage
 };
 
 healthcheck.get('/', (req: Request, res: Response) => {

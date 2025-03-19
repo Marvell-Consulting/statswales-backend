@@ -6,7 +6,7 @@ This service is currently in beta and under active development, some features ma
 
 -   Node 20+
 -   PostgreSQL 16+
--   Azure Datalake
+-   Azure Datalake / Blob Storage
 -   Docker
 
 ### Special requirements for windows

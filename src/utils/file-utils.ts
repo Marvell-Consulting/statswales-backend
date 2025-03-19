@@ -7,10 +7,10 @@ import detectCharacterEncoding from 'detect-character-encoding';
 
 import { Dataset } from '../entities/dataset/dataset';
 import { FileImportInterface } from '../entities/dataset/file-import.interface';
-import { DataLakeService } from '../services/datalake';
 import { FileType } from '../enums/file-type';
 
 import { logger } from './logger';
+import { getFileService } from './get-file-service';
 
 export const convertBufferToUTF8 = (buffer: Buffer): Buffer => {
   const fileEncoding = detectCharacterEncoding(buffer)?.encoding;
@@ -31,9 +31,9 @@ export const getFileImportAndSaveToDisk = async (
   dataset: Dataset,
   importFile: FileImportInterface
 ): Promise<string> => {
-  const dataLakeService = new DataLakeService();
+  const fileService = getFileService();
   const importTmpFile = tmp.tmpNameSync({ postfix: `.${importFile.fileType}` });
-  const buffer = await dataLakeService.getFileBuffer(importFile.filename, dataset.id);
+  const buffer = await fileService.loadBuffer(importFile.filename, dataset.id);
   fs.writeFileSync(importTmpFile, buffer);
   return importTmpFile;
 };

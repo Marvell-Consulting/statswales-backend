@@ -11,7 +11,6 @@ import { BadRequestException } from '../exceptions/bad-request.exception';
 import { Dataset } from '../entities/dataset/dataset';
 import { DatasetDTO } from '../dtos/dataset-dto';
 import { TranslationDTO } from '../dtos/translations-dto';
-import { DataLakeService } from '../services/datalake';
 import { translatableMetadataKeys } from '../types/translatable-metadata';
 import { RelatedLink } from '../dtos/related-link-dto';
 import { EventLog } from '../entities/event-log';
@@ -163,9 +162,8 @@ translationRouter.post(
         }
       });
 
-      // store the translation import in the datalake so we can use it once it's confirmed as correct
-      const datalake = new DataLakeService();
-      await datalake.uploadFileBuffer(TRANSLATION_FILENAME, dataset.id, Buffer.from(req.file.buffer));
+      // store the translation import in the file store so we can use it once it's confirmed as correct
+      await req.fileService.saveBuffer(TRANSLATION_FILENAME, dataset.id, Buffer.from(req.file.buffer));
 
       res.status(201);
       res.json(DatasetDTO.fromDataset(dataset));
@@ -189,11 +187,10 @@ translationRouter.patch(
     logger.info('Updating translations from CSV...');
 
     try {
-      const datalake = new DataLakeService();
-      const fileBuffer = await datalake.getFileBuffer(TRANSLATION_FILENAME, dataset.id);
+      const fileBuffer = await req.fileService.loadBuffer(TRANSLATION_FILENAME, dataset.id);
       const newTranslations = await parseUploadedTranslations(fileBuffer);
       dataset = await req.datasetService.updateTranslations(dataset.id, newTranslations);
-      await datalake.deleteFile(TRANSLATION_FILENAME, dataset.id);
+      await req.fileService.delete(TRANSLATION_FILENAME, dataset.id);
 
       await EventLog.getRepository().save({
         action: 'import',

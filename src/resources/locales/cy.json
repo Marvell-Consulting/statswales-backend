@@ -35,16 +35,13 @@
         "upload": {
             "no_title": "Nid yw teitl ar gyfer y set ddata wedi’i ddarparu (GPT)",
             "no-csv": "Ni ddarparwyd data CSV",
-            "no-csv-data": "Nid oes data CSV ar gael",
-            "upload_to_datalake": "Gwall wrth uwchlwytho'r ffeil i'r llyn data (GPT)",
-            "no_internal_name": "Nid oes enw mewnol ar gyfer y set ddata wedi’i ddarparu"
+            "no-csv-data": "Nid oes data CSV ar gael"
         },
         "page_size": "Rhaid i faint y dudalen fod rhwng {{min_page_size}} a {{max_page_size}} (GPT)",
         "page_number_to_high": "Rhaid i rif y dudalen fod yn llai na neu'n hafal i {{page_number}} (GPT)",
         "page_number_to_low": "Rhaid i rif y dudalen fod yn fwy na 0 (GPT)",
         "no_datafile": "Dim ffeil data ynghlwm wrth Set Ddata (GPT)",
-        "download_from_datalake": "Gwall wrth lawrlwytho ffeil o'r llyn data (GPT)",
-        "download_from_blobstorage": "Gwall wrth lawrlwytho ffeil o’r storfa blob (GPT)"
+        "download_from_filestore": "Gwall wrth lawrlwytho ffeil o'r llyn data (GPT)"
 	},
     "dimensionInfo": {
         "footnotes": {

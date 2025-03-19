@@ -13,7 +13,6 @@ import { UnknownException } from '../exceptions/unknown.exception';
 import { ViewErrDTO } from '../dtos/view-dto';
 import { Revision } from '../entities/dataset/revision';
 import { logger } from '../utils/logger';
-import { DataLakeService } from '../services/datalake';
 import { DataTable } from '../entities/dataset/data-table';
 import { Locale } from '../enums/locale';
 import { DatasetRepository } from '../repositories/dataset';
@@ -33,7 +32,7 @@ import {
   makeCubeSafeString,
   updateFactTableValidator
 } from '../services/cube-handler';
-import { DEFAULT_PAGE_SIZE, getCSVPreview, removeFileFromDataLake, uploadCSV } from '../services/csv-processor';
+import { DEFAULT_PAGE_SIZE, getCSVPreview, uploadCSV } from '../services/csv-processor';
 import { DataTableDescription } from '../entities/dataset/data-table-description';
 import { FactTableColumn } from '../entities/dataset/fact-table-column';
 import { DataTableAction } from '../enums/data-table-action';
@@ -91,11 +90,10 @@ export const getRevisionPreview = async (req: Request, res: Response, next: Next
 
   let cubeFile: string;
   if (revision.onlineCubeFilename) {
-    logger.debug('Loading cube from datalake for preview');
-    const datalakeService = new DataLakeService();
+    logger.debug('Loading cube from file store for preview');
     cubeFile = tmp.tmpNameSync({ postfix: '.duckdb' });
     try {
-      const cubeBuffer = await datalakeService.getFileBuffer(revision.onlineCubeFilename, dataset.id);
+      const cubeBuffer = await req.fileService.loadBuffer(revision.onlineCubeFilename, dataset.id);
       fs.writeFileSync(cubeFile, cubeBuffer);
     } catch (err) {
       logger.error('Something went wrong trying to download file from data lake');
@@ -133,7 +131,6 @@ export const confirmFactTable = async (req: Request, res: Response) => {
 export const downloadRawFactTable = async (req: Request, res: Response, next: NextFunction) => {
   const { dataset, revision } = res.locals;
   logger.info('User requested to down files...');
-  const dataLakeService = new DataLakeService();
   let readable: Readable;
   if (!revision.dataTable) {
     logger.error("Revision doesn't have a data table, can't download file");
@@ -142,7 +139,7 @@ export const downloadRawFactTable = async (req: Request, res: Response, next: Ne
   }
 
   try {
-    readable = await dataLakeService.getFileStream(revision.dataTable.filename, dataset.id);
+    readable = await req.fileService.loadStream(revision.dataTable.filename, dataset.id);
   } catch (_err) {
     res.status(500);
     res.json({
@@ -153,14 +150,14 @@ export const downloadRawFactTable = async (req: Request, res: Response, next: Ne
           message: [
             {
               lang: Locale.English,
-              message: t('errors.download_from_datalake', { lng: Locale.English })
+              message: t('errors.download_from_filestore', { lng: Locale.English })
             },
             {
               lang: Locale.Welsh,
-              message: t('errors.download_from_datalake', { lng: Locale.Welsh })
+              message: t('errors.download_from_filestore', { lng: Locale.Welsh })
             }
           ],
-          tag: { name: 'errors.download_from_datalake', params: {} }
+          tag: { name: 'errors.download_from_filestore', params: {} }
         }
       ],
       dataset_id: dataset.id
@@ -335,8 +332,7 @@ export const updateDataTable = async (req: Request, res: Response, next: NextFun
   if (revision.dataTable) {
     logger.debug(`Revision ${revision.id} already has a data table ${revision.dataTable.id}, removing it`);
     try {
-      const dataLakeService = new DataLakeService();
-      dataLakeService.deleteFile(revision.dataTable.filename, dataset.id);
+      await req.fileService.delete(revision.dataTable.filename, dataset.id);
     } catch (err) {
       logger.warn(err, `Failed to delete data table file ${revision.dataTable.filename} from data lake`);
     }
@@ -383,8 +379,8 @@ export const removeFactTableFromRevision = async (req: Request, res: Response, n
   }
 
   try {
-    logger.warn('User has requested to remove a fact table from the datalake');
-    await removeFileFromDataLake(revision.dataTable, dataset);
+    logger.warn('User has requested to remove a fact table from the filestore');
+    await req.fileService.delete(revision.dataTable.filename, dataset.id);
     if (dataset.revisions.length === 1) {
       for (const factTableCol of dataset.factTable) {
         await factTableCol.remove();
@@ -482,8 +478,7 @@ export const downloadRevisionCubeFile = async (req: Request, res: Response, next
   const { dataset, revision } = res.locals;
   let cubeFile: string;
   if (revision.onlineCubeFilename) {
-    const dataLakeService = new DataLakeService();
-    const fileBuffer = await dataLakeService.getFileBuffer(revision.onlineCubeFilename, dataset.id);
+    const fileBuffer = await req.fileService.loadBuffer(revision.onlineCubeFilename, dataset.id);
     cubeFile = tmp.tmpNameSync({ postfix: '.duckdb' });
     fs.writeFileSync(cubeFile, fileBuffer);
   } else {
@@ -514,8 +509,7 @@ export const downloadRevisionCubeAsJSON = async (req: Request, res: Response, ne
   const lang = req.language.split('-')[0];
   let cubeFile: string;
   if (revision.onlineCubeFilename) {
-    const dataLakeService = new DataLakeService();
-    const fileBuffer = await dataLakeService.getFileBuffer(revision.onlineCubeFilename, dataset.id);
+    const fileBuffer = await req.fileService.loadBuffer(revision.onlineCubeFilename, dataset.id);
     cubeFile = tmp.tmpNameSync({ postfix: '.duckdb' });
     fs.writeFileSync(cubeFile, fileBuffer);
   } else {
@@ -560,8 +554,7 @@ export const downloadRevisionCubeAsCSV = async (req: Request, res: Response, nex
   }
   let cubeFile: string;
   if (revision.onlineCubeFilename) {
-    const dataLakeService = new DataLakeService();
-    const fileBuffer = await dataLakeService.getFileBuffer(revision.onlineCubeFilename, dataset.id);
+    const fileBuffer = await req.fileService.loadBuffer(revision.onlineCubeFilename, dataset.id);
     cubeFile = tmp.tmpNameSync({ postfix: '.duckdb' });
     fs.writeFileSync(cubeFile, fileBuffer);
   } else {
@@ -605,8 +598,7 @@ export const downloadRevisionCubeAsParquet = async (req: Request, res: Response,
   }
   let cubeFile: string;
   if (revision.onlineCubeFilename) {
-    const dataLakeService = new DataLakeService();
-    const fileBuffer = await dataLakeService.getFileBuffer(revision.onlineCubeFilename, dataset.id);
+    const fileBuffer = await req.fileService.loadBuffer(revision.onlineCubeFilename, dataset.id);
     cubeFile = tmp.tmpNameSync({ postfix: '.duckdb' });
     fs.writeFileSync(cubeFile, fileBuffer);
   } else {
@@ -650,8 +642,7 @@ export const downloadRevisionCubeAsExcel = async (req: Request, res: Response, n
   }
   let cubeFile: string;
   if (revision.onlineCubeFilename) {
-    const dataLakeService = new DataLakeService();
-    const fileBuffer = await dataLakeService.getFileBuffer(revision.onlineCubeFilename, dataset.id);
+    const fileBuffer = await req.fileService.loadBuffer(revision.onlineCubeFilename, dataset.id);
     cubeFile = tmp.tmpNameSync({ postfix: '.duckdb' });
     fs.writeFileSync(cubeFile, fileBuffer);
   } else {

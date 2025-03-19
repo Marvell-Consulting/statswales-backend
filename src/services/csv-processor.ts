@@ -20,8 +20,8 @@ import { DataTableDescription } from '../entities/dataset/data-table-description
 import { DataTableAction } from '../enums/data-table-action';
 import { convertBufferToUTF8 } from '../utils/file-utils';
 
-import { DataLakeService } from './datalake';
 import { duckdb } from './duckdb';
+import { getFileService } from '../utils/get-file-service';
 
 export const MAX_PAGE_SIZE = 500;
 export const MIN_PAGE_SIZE = 5;
@@ -168,8 +168,6 @@ export const uploadCSV = async (
   originalName: string,
   datasetId: string
 ): Promise<DataTable> => {
-  const dataLakeService = new DataLakeService();
-
   if (!fileBuffer) {
     logger.error('No buffer to upload to blob storage');
     throw new Error('No buffer to upload to blob storage');
@@ -245,8 +243,8 @@ export const uploadCSV = async (
   hash.update(uploadBuffer);
 
   try {
-    await dataLakeService.createDirectory(datasetId);
-    await dataLakeService.uploadFileBuffer(dataTable.filename, datasetId, uploadBuffer);
+    const fileService = getFileService();
+    await fileService.saveBuffer(dataTable.filename, datasetId, uploadBuffer);
   } catch (err) {
     logger.error(`Something went wrong trying to upload the file to the Data Lake with the following error: ${err}`);
     throw new Error('Error processing file upload to Data Lake');
@@ -267,12 +265,12 @@ export const getCSVPreview = async (
   const quack = await duckdb();
   const tempFile = tmp.tmpNameSync({ postfix: `.${importObj.fileType}` });
   try {
-    const dataLakeService = new DataLakeService();
     let fileBuffer: Buffer;
     try {
-      fileBuffer = await dataLakeService.getFileBuffer(importObj.filename, dataset.id);
+      const fileService = getFileService();
+      fileBuffer = await fileService.loadBuffer(importObj.filename, dataset.id);
     } catch (err) {
-      logger.error(`Something went wrong trying to get file from datalake with error: ${err}`);
+      logger.error(err, `Something went wrong trying to fetch the file from storage`);
       throw err;
     }
     fs.writeFileSync(tempFile, fileBuffer);
@@ -356,11 +354,11 @@ export const getCSVPreview = async (
           message: [
             {
               lang: Locale.English,
-              message: t('errors.download_from_datalake', { lng: Locale.English })
+              message: t('errors.download_from_filestore', { lng: Locale.English })
             },
-            { lang: Locale.Welsh, message: t('errors.download_from_datalake', { lng: Locale.Welsh }) }
+            { lang: Locale.Welsh, message: t('errors.download_from_filestore', { lng: Locale.Welsh }) }
           ],
-          tag: { name: 'errors.download_from_datalake', params: {} }
+          tag: { name: 'errors.download_from_filestore', params: {} }
         }
       ],
       dataset_id: dataset.id
@@ -381,8 +379,8 @@ export const getFactTableColumnPreview = async (
   const quack = await duckdb();
   const tempFile = tmp.tmpNameSync({ postfix: `.${dataTable.fileType}` });
   try {
-    const dataLakeService = new DataLakeService();
-    const fileBuffer = await dataLakeService.getFileBuffer(dataTable.filename, dataset.id);
+    const fileService = getFileService();
+    const fileBuffer = await fileService.loadBuffer(dataTable.filename, dataset.id);
     fs.writeFileSync(tempFile, fileBuffer);
     let createTableQuery: string;
     switch (dataTable.fileType) {
@@ -452,11 +450,11 @@ export const getFactTableColumnPreview = async (
           message: [
             {
               lang: Locale.English,
-              message: t('errors.download_from_datalake', { lng: Locale.English })
+              message: t('errors.download_from_filestore', { lng: Locale.English })
             },
-            { lang: Locale.Welsh, message: t('errors.download_from_datalake', { lng: Locale.Welsh }) }
+            { lang: Locale.Welsh, message: t('errors.download_from_filestore', { lng: Locale.Welsh }) }
           ],
-          tag: { name: 'errors.download_from_datalake', params: {} }
+          tag: { name: 'errors.download_from_filestore', params: {} }
         }
       ],
       dataset_id: dataset.id
@@ -464,15 +462,5 @@ export const getFactTableColumnPreview = async (
   } finally {
     await quack.close();
     fs.unlinkSync(tempFile);
-  }
-};
-
-export const removeFileFromDataLake = async (importObj: DataTable, dataset: Dataset) => {
-  const datalakeService = new DataLakeService();
-  try {
-    await datalakeService.deleteFile(importObj.filename, dataset.id);
-  } catch (err) {
-    logger.error(err);
-    throw new Error('Unable to successfully remove from from Datalake');
   }
 };

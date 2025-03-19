@@ -6,7 +6,6 @@ import { logger } from '../utils/logger';
 import { Dataset } from '../entities/dataset/dataset';
 import { ViewErrDTO } from '../dtos/view-dto';
 import { DatasetDTO } from '../dtos/dataset-dto';
-import { DataLakeService } from '../services/datalake';
 import { MeasureLookupPatchDTO } from '../dtos/measure-lookup-patch-dto';
 import { NotFoundException } from '../exceptions/not-found.exception';
 import { BadRequestException } from '../exceptions/bad-request.exception';
@@ -32,8 +31,7 @@ export const resetMeasure = async (req: Request, res: Response, next: NextFuncti
     await lookupTable.remove();
     measure.lookupTable = null;
     logger.debug(`Removing file ${dataset.id}/${measureLookupFilename} from data lake`);
-    const datalakeService = new DataLakeService();
-    await datalakeService.deleteFile(measureLookupFilename, dataset.id);
+    await req.fileService.delete(measureLookupFilename, dataset.id);
   }
   if (measure.measureInfo) {
     logger.debug('Removing all measure info');

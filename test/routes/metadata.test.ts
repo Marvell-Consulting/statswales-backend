@@ -1,36 +1,32 @@
-import path from 'path';
-import fs from 'fs';
+import path from 'node:path';
+import fs from 'node:fs';
 
 import request from 'supertest';
 import { t } from 'i18next';
 
-import { DataLakeService } from '../src/services/datalake';
-import app from '../src/app';
-import { initDb } from '../src/db/init';
-import DatabaseManager from '../src/db/database-manager';
-import { initPassport } from '../src/middleware/passport-auth';
-import { Dataset } from '../src/entities/dataset/dataset';
-import { Revision } from '../src/entities/dataset/revision';
-import { User } from '../src/entities/user/user';
-import { DatasetDTO } from '../src/dtos/dataset-dto';
-import { DimensionDTO } from '../src/dtos/dimension-dto';
-import { RevisionDTO } from '../src/dtos/revision-dto';
-import { DatasetRepository } from '../src/repositories/dataset';
-import { DataTableRepository } from '../src/repositories/data-table';
-import { DataTableDto } from '../src/dtos/data-table-dto';
-import { Locale } from '../src/enums/locale';
-import { logger } from '../src/utils/logger';
-import { withMetadata } from '../src/repositories/revision';
+import app from '../../src/app';
+import { initDb } from '../../src/db/init';
+import DatabaseManager from '../../src/db/database-manager';
+import { initPassport } from '../../src/middleware/passport-auth';
+import { Dataset } from '../../src/entities/dataset/dataset';
+import { Revision } from '../../src/entities/dataset/revision';
+import { User } from '../../src/entities/user/user';
+import { DatasetDTO } from '../../src/dtos/dataset-dto';
+import { DimensionDTO } from '../../src/dtos/dimension-dto';
+import { RevisionDTO } from '../../src/dtos/revision-dto';
+import { DatasetRepository } from '../../src/repositories/dataset';
+import { DataTableRepository } from '../../src/repositories/data-table';
+import { DataTableDto } from '../../src/dtos/data-table-dto';
+import { Locale } from '../../src/enums/locale';
+import { logger } from '../../src/utils/logger';
+import { withMetadata } from '../../src/repositories/revision';
 
-import { createFullDataset } from './helpers/test-helper';
-import { getTestUser } from './helpers/get-user';
-import { getAuthHeader } from './helpers/auth-header';
+import { createFullDataset } from '../helpers/test-helper';
+import { getTestUser } from '../helpers/get-user';
+import { getAuthHeader } from '../helpers/auth-header';
+import BlobStorage from '../../src/services/blob-storage';
 
-DataLakeService.prototype.listFiles = jest
-  .fn()
-  .mockReturnValue([{ name: 'test-data-1.csv', path: 'test/test-data-1.csv', isDirectory: false }]);
-
-DataLakeService.prototype.uploadFileBuffer = jest.fn();
+jest.mock('../../src/services/blob-storage');
 
 const dataset1Id = 'bdc40218-af89-424b-b86e-d21710bc92f1';
 const revision1Id = '85f0e416-8bd1-4946-9e2c-1c958897c6ef';
@@ -217,10 +213,10 @@ describe('API Endpoints for viewing dataset objects', () => {
 
     describe('Getting a raw file out of a file import', () => {
       test('Get file from a revision and import returns 200 and complete file data if stored in the Data Lake', async () => {
-        const testFile2 = path.resolve(__dirname, `sample-files/csv/test-data-2.csv`);
+        const testFile2 = path.resolve(__dirname, `../sample-files/csv/test-data-2.csv`);
         const testFileStream = fs.createReadStream(testFile2);
         const testFile2Buffer = fs.readFileSync(testFile2);
-        DataLakeService.prototype.getFileStream = jest.fn().mockReturnValue(Promise.resolve(testFileStream));
+        BlobStorage.prototype.loadStream = jest.fn().mockReturnValue(Promise.resolve(testFileStream));
 
         const res = await request(app)
           .get(`/dataset/${dataset1Id}/revision/by-id/${revision1Id}/data-table/raw`)
@@ -230,7 +226,7 @@ describe('API Endpoints for viewing dataset objects', () => {
       });
 
       test('Get file from a revision and import returns 500 if an error with the Data Lake occurs', async () => {
-        DataLakeService.prototype.getFileStream = jest.fn().mockRejectedValue(Error('Unknown Data Lake Error'));
+        BlobStorage.prototype.loadStream = jest.fn().mockRejectedValue(Error('Unknown Data Lake Error'));
         const res = await request(app)
           .get(`/dataset/${dataset1Id}/revision/by-id/${revision1Id}/data-table/raw`)
           .set(getAuthHeader(user));
@@ -243,14 +239,14 @@ describe('API Endpoints for viewing dataset objects', () => {
               message: [
                 {
                   lang: Locale.English,
-                  message: t('errors.download_from_datalake', { lng: Locale.English })
+                  message: t('errors.download_from_filestore', { lng: Locale.English })
                 },
                 {
                   lang: Locale.Welsh,
-                  message: t('errors.download_from_datalake', { lng: Locale.Welsh })
+                  message: t('errors.download_from_filestore', { lng: Locale.Welsh })
                 }
               ],
-              tag: { name: 'errors.download_from_datalake', params: {} }
+              tag: { name: 'errors.download_from_filestore', params: {} }
             }
           ],
           dataset_id: dataset1Id

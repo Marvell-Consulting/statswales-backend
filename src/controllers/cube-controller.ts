@@ -13,7 +13,6 @@ import { DatasetDTO } from '../dtos/dataset-dto';
 import { validateParams } from '../utils/paging-validation';
 import { getLatestRevision } from '../utils/latest';
 import { UnknownException } from '../exceptions/unknown.exception';
-import { DataLakeService } from '../services/datalake';
 import { createBaseCube } from '../services/cube-handler';
 import { duckdb } from '../services/duckdb';
 
@@ -123,8 +122,7 @@ export const downloadCubeFile = async (req: Request, res: Response, next: NextFu
   }
   let cubeBuffer: Buffer;
   if (latestRevision.onlineCubeFilename) {
-    const dataLakeService = new DataLakeService();
-    cubeBuffer = await dataLakeService.getFileBuffer(latestRevision.onlineCubeFilename, dataset.id);
+    cubeBuffer = await req.fileService.loadBuffer(latestRevision.onlineCubeFilename, dataset.id);
   } else {
     try {
       const cubeFile = await createBaseCube(dataset.id, latestRevision.id);
@@ -157,8 +155,7 @@ export const downloadCubeAsJSON = async (req: Request, res: Response, next: Next
   }
   let cubeFile: string;
   if (latestRevision.onlineCubeFilename) {
-    const dataLakeService = new DataLakeService();
-    const fileBuffer = await dataLakeService.getFileBuffer(latestRevision.onlineCubeFilename, dataset.id);
+    const fileBuffer = await req.fileService.loadBuffer(latestRevision.onlineCubeFilename, dataset.id);
     cubeFile = tmp.tmpNameSync({ postfix: '.duckdb' });
     fs.writeFileSync(cubeFile, fileBuffer);
   } else {
@@ -204,8 +201,7 @@ export const downloadCubeAsCSV = async (req: Request, res: Response, next: NextF
   }
   let cubeFile: string;
   if (latestRevision.onlineCubeFilename) {
-    const dataLakeService = new DataLakeService();
-    const fileBuffer = await dataLakeService.getFileBuffer(latestRevision.onlineCubeFilename, dataset.id);
+    const fileBuffer = await req.fileService.loadBuffer(latestRevision.onlineCubeFilename, dataset.id);
     cubeFile = tmp.tmpNameSync({ postfix: '.duckdb' });
     fs.writeFileSync(cubeFile, fileBuffer);
   } else {
@@ -250,8 +246,7 @@ export const downloadCubeAsParquet = async (req: Request, res: Response, next: N
   }
   let cubeFile: string;
   if (latestRevision.onlineCubeFilename) {
-    const dataLakeService = new DataLakeService();
-    const fileBuffer = await dataLakeService.getFileBuffer(latestRevision.onlineCubeFilename, dataset.id);
+    const fileBuffer = await req.fileService.loadBuffer(latestRevision.onlineCubeFilename, dataset.id);
     cubeFile = tmp.tmpNameSync({ postfix: '.duckdb' });
     fs.writeFileSync(cubeFile, fileBuffer);
   } else {
@@ -296,8 +291,7 @@ export const downloadCubeAsExcel = async (req: Request, res: Response, next: Nex
   }
   let cubeFile: string;
   if (latestRevision.onlineCubeFilename) {
-    const dataLakeService = new DataLakeService();
-    const fileBuffer = await dataLakeService.getFileBuffer(latestRevision.onlineCubeFilename, dataset.id);
+    const fileBuffer = await req.fileService.loadBuffer(latestRevision.onlineCubeFilename, dataset.id);
     cubeFile = tmp.tmpNameSync({ postfix: '.duckdb' });
     fs.writeFileSync(cubeFile, fileBuffer);
   } else {

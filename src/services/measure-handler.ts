@@ -23,9 +23,9 @@ import { DataTableDto } from '../dtos/data-table-dto';
 import { MeasureRow } from '../entities/dataset/measure-row';
 import { SUPPORTED_LOCALES } from '../middleware/translation';
 import { DisplayType } from '../enums/display-type';
+import { getFileService } from '../utils/get-file-service';
 
 import { createFactTableQuery, createMeasureLookupTable } from './cube-handler';
-import { DataLakeService } from './datalake';
 import { duckdb } from './duckdb';
 
 async function cleanUpMeasure(measureId: string) {
@@ -34,8 +34,8 @@ async function cleanUpMeasure(measureId: string) {
   if (measure.lookupTable) {
     logger.debug(`Removing previously uploaded lookup table from measure`);
     try {
-      const dataLakeService = new DataLakeService();
-      await dataLakeService.deleteFile(measure.lookupTable.filename, measure.dataset.id);
+      const fileService = getFileService();
+      await fileService.delete(measure.lookupTable.filename, measure.dataset.id);
     } catch (err) {
       logger.warn(`Something went wrong trying to remove previously uploaded lookup table with error: ${err}`);
     }
@@ -537,8 +537,8 @@ export const getMeasurePreview = async (dataset: Dataset, dataTable: DataTable) 
   }
   // extract the data from the fact table
   try {
-    const dataLakeService = new DataLakeService();
-    const fileBuffer = await dataLakeService.getFileBuffer(dataTable.filename, dataset.id);
+    const fileService = getFileService();
+    const fileBuffer = await fileService.loadBuffer(dataTable.filename, dataset.id);
     fs.writeFileSync(tempFile, fileBuffer);
     const createTableQuery = await createFactTableQuery(tableName, tempFile, dataTable.fileType, quack);
     logger.debug(`Creating fact table with query: ${createTableQuery}`);

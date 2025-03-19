@@ -38,12 +38,10 @@
         "page_number_to_high": "Page number must be less than or equal to {{page_number}}",
         "page_number_to_low": "Page number must be greater than 0",
         "no_datafile": "No datafile attached to Dataset",
-        "download_from_datalake": "Error downloading file from datalake",
-        "download_from_blobstorage": "Error downloading file from blob storage",
+        "download_from_filestore": "Error downloading file from file store",
         "upload": {
             "no_title": "No title for the dataset has been provided",
-            "no_csv": "No CSV data provided",
-            "upload_to_datalake": "Error uploading the file to the datalake"
+            "no_csv": "No CSV data provided"
         },
         "dataset_id_invalid": "Dataset id is invalid or missing",
         "revision_id_invalid": "Revision id is invalid or missing",

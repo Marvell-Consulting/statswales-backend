@@ -32,11 +32,11 @@ import { MeasureMetadata } from '../entities/dataset/measure-metadata';
 
 import { dateDimensionReferenceTableCreator, DateReferenceDataItem } from './time-matching';
 import { createFactTableQuery } from './cube-handler';
-import { DataLakeService } from './datalake';
 import { getReferenceDataDimensionPreview } from './reference-data-handler';
 import { duckdb } from './duckdb';
 import { NumberExtractor, NumberType } from '../extractors/number-extractor';
 import { viewErrorGenerator } from '../utils/view-error-generator';
+import { getFileService } from '../utils/get-file-service';
 
 const createDateDimensionTable = `CREATE TABLE date_dimension (date_code VARCHAR, description VARCHAR, start_date datetime, end_date datetime, date_type varchar);`;
 const sampleSize = 5;
@@ -72,8 +72,8 @@ export const cleanUpDimension = async (dimension: Dimension) => {
   if (lookupTableId && lookupTableFilename) {
     logger.info(`Cleaning up previous lookup table`);
     try {
-      const dataLakeService = new DataLakeService();
-      await dataLakeService.deleteFile(lookupTableFilename, dimension.dataset.id);
+      const fileService = getFileService();
+      await fileService.delete(lookupTableFilename, dimension.dataset.id);
     } catch (err) {
       logger.warn(`Something went wrong trying to remove previously uploaded lookup table with error: ${err}`);
     }
@@ -253,9 +253,9 @@ export async function removeAllDimensions(dataset: Dataset) {
   if (dataset.dimensions) {
     for (const dimension of dataset.dimensions) {
       if (dimension.lookupTable) {
-        const dataLakeService = new DataLakeService();
         try {
-          dataLakeService.deleteFile(dimension.lookupTable.filename, dataset.id);
+          const fileService = getFileService();
+          await fileService.delete(dimension.lookupTable.filename, dataset.id);
         } catch (error) {
           logger.warn(
             error,
@@ -272,9 +272,9 @@ export async function removeMeasure(dataset: Dataset) {
   logger.warn(`Removing measure for dataset ${dataset.id}`);
   if (dataset.measure) {
     if (dataset.measure.lookupTable) {
-      const dataLakeService = new DataLakeService();
       try {
-        dataLakeService.deleteFile(dataset.measure.lookupTable.filename, dataset.id);
+        const fileService = getFileService();
+        fileService.delete(dataset.measure.lookupTable.filename, dataset.id);
       } catch (error) {
         logger.warn(
           error,
@@ -368,8 +368,8 @@ export const validateNumericDimension = async (
   const tempFile = tmp.tmpNameSync({ postfix: `.${dataTable.fileType}` });
   // extract the data from the fact table
   try {
-    const dataLakeService = new DataLakeService();
-    const fileBuffer = await dataLakeService.getFileBuffer(dataTable.filename, dataset.id);
+    const fileService = getFileService();
+    const fileBuffer = await fileService.loadBuffer(dataTable.filename, dataset.id);
     fs.writeFileSync(tempFile, fileBuffer);
     const createTableQuery = await createFactTableQuery(tableName, tempFile, dataTable.fileType, quack);
 
@@ -471,8 +471,8 @@ export const validateDateTypeDimension = async (
   const tempFile = tmp.tmpNameSync({ postfix: `.${factTable.fileType}` });
   // extract the data from the fact table
   try {
-    const dataLakeService = new DataLakeService();
-    const fileBuffer = await dataLakeService.getFileBuffer(factTable.filename, dataset.id);
+    const fileService = getFileService();
+    const fileBuffer = await fileService.loadBuffer(factTable.filename, dataset.id);
     fs.writeFileSync(tempFile, fileBuffer);
     const createTableQuery = await createFactTableQuery(tableName, tempFile, factTable.fileType, quack);
 
@@ -872,8 +872,8 @@ export const getDimensionPreview = async (
   const tempFile = tmp.tmpNameSync({ postfix: `.${dataTable.fileType}` });
   // extract the data from the fact table
   try {
-    const dataLakeService = new DataLakeService();
-    const fileBuffer = await dataLakeService.getFileBuffer(dataTable.filename, dataset.id);
+    const fileService = getFileService();
+    const fileBuffer = await fileService.loadBuffer(dataTable.filename, dataset.id);
     fs.writeFileSync(tempFile, fileBuffer);
     const createTableQuery = await createFactTableQuery(tableName, tempFile, dataTable.fileType, quack);
     await quack.exec(createTableQuery);

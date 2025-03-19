@@ -92,7 +92,6 @@ router.get('/by-id/:revision_id/data-table', loadRevision(), getDataTable);
 router.get('/by-id/:revision_id/data-table/preview', loadRevision(), getDataTablePreview);
 
 // PATCH /dataset/:dataset_id/revision/by-id/:revision_id/data-table/confirm
-// Moves the file from temporary blob storage to datalake and creates sources
 // returns a JSON object with the current state of the revision including the data-table
 // and sources created from the data-table.
 router.patch('/by-id/:revision_id/data-table/confirm', loadRevision(), confirmFactTable);

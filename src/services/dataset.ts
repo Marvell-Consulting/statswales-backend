@@ -30,8 +30,8 @@ import { EventLog } from '../entities/event-log';
 
 import { createBaseCube, getCubeTimePeriods } from './cube-handler';
 import { uploadCSV } from './csv-processor';
-import { DataLakeService } from './datalake';
 import { removeAllDimensions, removeMeasure } from './dimension-processor';
+import { getFileService } from '../utils/get-file-service';
 
 export class DatasetService {
   lang: Locale;
@@ -74,7 +74,7 @@ export class DatasetService {
 
     const { buffer, mimetype, originalname } = file;
 
-    logger.debug('Uploading new fact table file to datalake');
+    logger.debug('Uploading new fact table file to filestore');
     const dataTable = await uploadCSV(buffer, mimetype, originalname, datasetId);
 
     dataTable.action = DataTableAction.ReplaceAll;
@@ -224,20 +224,16 @@ export class DatasetService {
     const cubeFilePath = await createBaseCube(datasetId, revisionId);
     const periodCoverage = await getCubeTimePeriods(cubeFilePath);
 
-    const dataLakeService = new DataLakeService();
+    const fileService = getFileService();
     const cubeBuffer = fs.readFileSync(cubeFilePath);
     const onlineCubeFilename = `${revisionId}.duckdb`;
-    await dataLakeService.uploadFileBuffer(onlineCubeFilename, dataset.id, cubeBuffer);
+    await fileService.saveBuffer(onlineCubeFilename, dataset.id, cubeBuffer);
 
     for (const locale of SUPPORTED_LOCALES) {
       const lang = locale.split('-')[0].toLowerCase();
       logger.debug(`Creating parquet file for language "${lang}" and uploading to data lake`);
       const parquetFilePath = await outputCube(cubeFilePath, lang, DuckdbOutputType.Parquet);
-      await dataLakeService.uploadFileBuffer(
-        `${revisionId}_${lang}.parquet`,
-        dataset.id,
-        fs.readFileSync(parquetFilePath)
-      );
+      await fileService.saveBuffer(`${revisionId}_${lang}.parquet`, dataset.id, fs.readFileSync(parquetFilePath));
     }
 
     const end = performance.now();
@@ -254,8 +250,8 @@ export class DatasetService {
     const revision = await RevisionRepository.withdrawPublication(revisionId);
 
     if (revision.onlineCubeFilename) {
-      const dataLakeService = new DataLakeService();
-      await dataLakeService.deleteFile(revision.onlineCubeFilename, datasetId);
+      const fileService = getFileService();
+      await fileService.delete(revision.onlineCubeFilename, datasetId);
     }
 
     const withdrawnDataset = await DatasetRepository.withdraw(revision);
