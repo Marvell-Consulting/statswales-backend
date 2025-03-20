@@ -1157,6 +1157,9 @@ export const createBaseCube = async (datasetId: string, endRevisionId: string): 
     if (viewSelectStatementsMap.get(locale)?.length === 0) {
       viewSelectStatementsMap.get(locale)?.push('*');
     }
+    if (rawSelectStatementsMap.get(locale)?.length === 0) {
+      rawSelectStatementsMap.get(locale)?.push('*');
+    }
     const defaultViewSQL = `CREATE TABLE default_view_${locale.toLowerCase().split('-')[0]} AS SELECT\n${viewSelectStatementsMap
       .get(locale)
       ?.join(
