@@ -77,7 +77,7 @@ router.get('/by-id/:revision_id', loadRevision(withMetadata), getRevisionInfo);
 
 // GET /dataset/:dataset_id/revision/id/:revision_id/preview
 // Returns details of a revision with its imports
-router.get('/by-id/:revision_id/preview', loadRevision(), getRevisionPreview);
+router.get('/by-id/:revision_id/preview', loadRevision(withMetadata), getRevisionPreview);
 
 // POST /dataset/:dataset_id/revision/id/:revision_id/data-table
 // Upload an updated data file for the revision

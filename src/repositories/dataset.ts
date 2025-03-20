@@ -25,7 +25,9 @@ export const withAll: FindOptionsRelations<Dataset> = {
     revisionProviders: { provider: true },
     revisionTopics: { topic: true }
   },
-  revisions: true
+  revisions: {
+    metadata: true
+  }
 };
 
 export const withDraftAndMetadata: FindOptionsRelations<Dataset> = {
