@@ -23,24 +23,45 @@ jobs:
           echo "Commit SHA: $GITHUB_SHA"
           echo "Computed Image Tag: $IMAGE_TAG"
 
-      - name: Create JSON Payload
+      - name: Update Azure DevOps VariableGroup (Backend)
+        env:
+          AZURE_DEVOPS_PAT: ${{ secrets.AZURE_DEVOPS_PAT }}
+          IMAGE_TAG: ${{ env.IMAGE_TAG }}
+          DEVOPS_PROJECT_ID: ${{ secrets.AZURE_PROJECT_ID }}
         run: |
-          PARAMETERS_JSON="{\\\"BACKEND_APP_IMAGE\\\":\\\"$IMAGE_TAG\\\"}"
-          cat <<EOF > $GITHUB_WORKSPACE/payload.json
-          {
-            "definition": { "id": 8 },
-            "parameters": "$PARAMETERS_JSON",
-            "reason": "Manual",
-            "sourceBranch": "refs/heads/main"
-          }
-          EOF
-          cat $GITHUB_WORKSPACE/payload.json  # Print payload for debugging
+          # Update the pipeline variable using the Azure DevOps REST API
+          curl -u ":$AZURE_DEVOPS_PAT" \
+            -X PUT "https://dev.azure.com/MarvellConsulting/StatsWales/_apis/distributedtask/variablegroups/1?api-version=7.1" \
+            -H "Content-Type: application/json" \
+            -d "{
+              \"id\": 1,
+              \"name\": \"Backend\",
+              \"type\": \"Vsts\",
+              \"variables\": {
+                  \"BACKEND_APP_IMAGE\": {
+                      \"value\": \"$IMAGE_TAG\",
+                      \"isSecret\": false
+                  }
+              },
+              \"variableGroupProjectReferences\": [
+                  {
+                      \"name\": \"Backend\",
+                      \"projectReference\": {
+                          \"id\": \"$DEVOPS_PROJECT_ID\",
+                          \"name\": \"StatsWales\"
+                      }
+                  }
+              ]
+            }"
 
       - name: Trigger Azure DevOps Pipeline (Terraform)
         env:
           AZURE_DEVOPS_PAT: ${{ secrets.AZURE_DEVOPS_PAT }}
         run: |
           curl -u ":$AZURE_DEVOPS_PAT" \
-            -X POST "https://dev.azure.com/MarvellConsulting/StatsWales/_apis/build/builds?api-version=6.0" \
+            -X POST "https://dev.azure.com/MarvellConsulting/StatsWales/_apis/build/builds?api-version=7.1" \
             -H "Content-Type: application/json" \
-            -d @$GITHUB_WORKSPACE/payload.json
+            -d "{
+              \"definition\": { \"id\": 8 },
+              \"sourceBranch\": \"refs/heads/main\"
+            }"
