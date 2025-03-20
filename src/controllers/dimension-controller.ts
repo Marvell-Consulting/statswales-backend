@@ -46,15 +46,9 @@ export const resetDimension = async (req: Request, res: Response) => {
   res.json(DimensionDTO.fromDimension(updatedDimension));
 };
 
-export const sendDimensionPreview = async (req: Request, res: Response, next: NextFunction) => {
+export const sendDimensionPreview = async (req: Request, res: Response) => {
   const { dataset, dimension } = res.locals;
   const latestRevision = getLatestRevision(dataset);
-  const dataTable = latestRevision?.dataTable;
-
-  if (!dataTable) {
-    next(new NotFoundException('errors.fact_table_invalid'));
-    return;
-  }
 
   logger.debug(`Latest revision is ${JSON.stringify(latestRevision)}`);
   if (latestRevision?.tasks) {
@@ -66,9 +60,9 @@ export const sendDimensionPreview = async (req: Request, res: Response, next: Ne
   try {
     let preview: ViewDTO | ViewErrDTO;
     if (dimension.type === DimensionType.Raw) {
-      preview = await getFactTableColumnPreview(dataset, dataTable, dimension.factTableColumn);
+      preview = await getFactTableColumnPreview(dataset, dimension.factTableColumn);
     } else {
-      preview = await getDimensionPreview(dataset, dimension, dataTable, req.language);
+      preview = await getDimensionPreview(dataset, dimension, req.language);
     }
     if ((preview as ViewErrDTO).errors) {
       res.status(500);
@@ -167,10 +161,10 @@ export const updateDimension = async (req: Request, res: Response, next: NextFun
         break;
       case DimensionType.Text:
         await setupTextDimension(dimension);
-        preview = await getFactTableColumnPreview(dataset, dataTable, dimension.factTableColumn);
+        preview = await getFactTableColumnPreview(dataset, dimension.factTableColumn);
         break;
       case DimensionType.Numeric:
-        preview = await validateNumericDimension(dimensionPatchRequest, dataset, dataTable, dimension);
+        preview = await validateNumericDimension(dimensionPatchRequest, dataset, dimension);
         break;
       case DimensionType.LookupTable:
         logger.debug('User requested to patch a lookup table?');

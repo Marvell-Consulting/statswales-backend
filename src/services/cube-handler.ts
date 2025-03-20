@@ -973,7 +973,7 @@ function referenceDataPresent(dataset: Dataset) {
   return false;
 }
 
-async function createBaseFactTable(quack: Database, dataset: Dataset) {
+export async function createEmptyFactTableInCube(quack: Database, dataset: Dataset) {
   let notesCodeColumn: FactTableColumn | undefined;
   let dataValuesColumn: FactTableColumn | undefined;
   let measureColumn: FactTableColumn | undefined;
@@ -1035,7 +1035,7 @@ export const updateFactTableValidator = async (
   dataset: Dataset,
   revision: Revision
 ): Promise<Database> => {
-  const { notesCodeColumn, dataValuesColumn, factTableDef, factIdentifiers } = await createBaseFactTable(
+  const { notesCodeColumn, dataValuesColumn, factTableDef, factIdentifiers } = await createEmptyFactTableInCube(
     quack,
     dataset
   );
@@ -1104,10 +1104,8 @@ export const createBaseCube = async (datasetId: string, endRevisionId: string): 
   const buildStart = performance.now();
   const quack = await duckdb();
 
-  const { measureColumn, notesCodeColumn, dataValuesColumn, factTableDef, factIdentifiers } = await createBaseFactTable(
-    quack,
-    dataset
-  );
+  const { measureColumn, notesCodeColumn, dataValuesColumn, factTableDef, factIdentifiers } =
+    await createEmptyFactTableInCube(quack, dataset);
 
   await createCubeMetadataTable(quack);
 

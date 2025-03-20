@@ -250,7 +250,6 @@ export const validateReferenceData = async (
 export const getReferenceDataDimensionPreview = async (
   dataset: Dataset,
   dimension: Dimension,
-  factTable: DataTable,
   quack: Database,
   tableName: string,
   lang: string
@@ -291,8 +290,6 @@ export const getReferenceDataDimensionPreview = async (
       revisions: { dataTable: true }
     });
 
-    const currentImport = await DataTable.findOneByOrFail({ id: factTable.id });
-
     const headers: CSVHeader[] = tableHeaders.map((header, index) => {
       return {
         index,
@@ -303,7 +300,6 @@ export const getReferenceDataDimensionPreview = async (
 
     return {
       dataset: DatasetDTO.fromDataset(currentDataset),
-      fact_table: DataTableDto.fromDataTable(currentImport),
       current_page: 1,
       page_info: {
         total_records: totalRows,

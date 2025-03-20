@@ -31,12 +31,15 @@ import { MeasureRow } from '../entities/dataset/measure-row';
 import { MeasureMetadata } from '../entities/dataset/measure-metadata';
 
 import { dateDimensionReferenceTableCreator, DateReferenceDataItem } from './time-matching';
-import { createFactTableQuery } from './cube-handler';
+import { createEmptyFactTableInCube, createFactTableQuery, loadFactTables } from './cube-handler';
 import { getReferenceDataDimensionPreview } from './reference-data-handler';
 import { duckdb } from './duckdb';
 import { NumberExtractor, NumberType } from '../extractors/number-extractor';
 import { viewErrorGenerator } from '../utils/view-error-generator';
 import { getFileService } from '../utils/get-file-service';
+import { Revision } from '../entities/dataset/revision';
+import { Error } from '../dtos/error';
+import { UnknownException } from '../exceptions/unknown.exception';
 
 const createDateDimensionTable = `CREATE TABLE date_dimension (date_code VARCHAR, description VARCHAR, start_date datetime, end_date datetime, date_type varchar);`;
 const sampleSize = 5;
@@ -347,7 +350,6 @@ export const createDimensionsFromSourceAssignment = async (
 export const validateNumericDimension = async (
   dimensionPatchRequest: DimensionPatchDto,
   dataset: Dataset,
-  dataTable: DataTable,
   dimension: Dimension
 ): Promise<ViewDTO | ViewErrDTO> => {
   const numberType = dimensionPatchRequest.number_format;
@@ -364,22 +366,26 @@ export const validateNumericDimension = async (
   };
 
   const tableName = 'fact_table';
-  const quack = await duckdb();
-  const tempFile = tmp.tmpNameSync({ postfix: `.${dataTable.fileType}` });
-  // extract the data from the fact table
-  try {
-    const fileService = getFileService();
-    const fileBuffer = await fileService.loadBuffer(dataTable.filename, dataset.id);
-    fs.writeFileSync(tempFile, fileBuffer);
-    const createTableQuery = await createFactTableQuery(tableName, tempFile, dataTable.fileType, quack);
-
-    await quack.exec(createTableQuery);
-  } catch (error) {
-    logger.error(`Something went wrong trying to create ${tableName} in DuckDB.  Unable to do matching and validation`);
-    await quack.close();
-    fs.unlinkSync(tempFile);
-    throw error;
+  let endRevision: Revision;
+  if (dataset.draftRevision) {
+    endRevision = dataset.draftRevision;
+  } else if (dataset.publishedRevision) {
+    endRevision = dataset.publishedRevision;
+  } else {
+    throw new Error('No revision present on the dataset');
   }
+  const quack = await duckdb();
+  try {
+    const { notesCodeColumn, dataValuesColumn, factTableDef, factIdentifiers } = await createEmptyFactTableInCube(
+      quack,
+      dataset
+    );
+    await loadFactTables(quack, dataset, endRevision, factTableDef, dataValuesColumn, notesCodeColumn, factIdentifiers);
+  } catch (error) {
+    logger.error(error, `Something went wrong trying to load the fact table into DuckDB`);
+    throw new UnknownException('Something went wrong trying to load the fact table into DuckDB');
+  }
+
   // Validate column type in data table matches proposed type first using DuckDBs column detection
   const columnInfo = await quack.all(
     `SELECT * FROM (DESCRIBE ${tableName}) WHERE column_name = '${dimension.factTableColumn}';`
@@ -399,7 +405,7 @@ export const validateNumericDimension = async (
       case 'UTINYINT':
         dimension.extractor = extractor;
         savedDimension = await dimension.save();
-        return getPreviewWithNumberExtractor(dataset, savedDimension, dataTable, quack, tableName);
+        return getPreviewWithNumberExtractor(dataset, savedDimension, quack, tableName);
     }
   } else if (extractor.type === NumberType.Decimal) {
     let savedDimension: Dimension;
@@ -408,7 +414,7 @@ export const validateNumericDimension = async (
       case 'FLOAT':
         dimension.extractor = extractor;
         savedDimension = await dimension.save();
-        return getPreviewWithNumberExtractor(dataset, savedDimension, dataTable, quack, tableName);
+        return getPreviewWithNumberExtractor(dataset, savedDimension, quack, tableName);
     }
   }
 
@@ -457,7 +463,7 @@ export const validateNumericDimension = async (
   dimension.type = DimensionType.Numeric;
   dimension.extractor = extractor;
   const savedDimension = await dimension.save();
-  return getPreviewWithNumberExtractor(dataset, savedDimension, dataTable, quack, tableName);
+  return getPreviewWithNumberExtractor(dataset, savedDimension, quack, tableName);
 };
 
 export const validateDateTypeDimension = async (
@@ -664,7 +670,6 @@ async function getDatePreviewWithExtractor(
   dataset: Dataset,
   extractor: object,
   factTableColumn: string,
-  dataTable: DataTable,
   quack: Database,
   tableName: string
 ): Promise<ViewDTO> {
@@ -693,7 +698,6 @@ async function getDatePreviewWithExtractor(
   const tableHeaders = Object.keys(previewResult[0]);
   const dataArray = previewResult.map((row) => Object.values(row));
   const currentDataset = await DatasetRepository.getById(dataset.id);
-  const currentImport = await DataTable.findOneByOrFail({ id: dataTable.id });
   const headers: CSVHeader[] = [];
 
   for (let i = 0; i < tableHeaders.length; i++) {
@@ -706,7 +710,6 @@ async function getDatePreviewWithExtractor(
 
   return {
     dataset: DatasetDTO.fromDataset(currentDataset),
-    data_table: DataTableDto.fromDataTable(currentImport),
     current_page: 1,
     page_info: {
       total_records: totalRows,
@@ -723,7 +726,6 @@ async function getDatePreviewWithExtractor(
 async function getPreviewWithNumberExtractor(
   dataset: Dataset,
   dimension: Dimension,
-  dataTable: DataTable,
   quack: Database,
   tableName: string
 ): Promise<ViewDTO> {
@@ -744,7 +746,6 @@ async function getPreviewWithNumberExtractor(
   const tableHeaders = Object.keys(preview[0]);
   const dataArray = preview.map((row) => Object.values(row));
   const currentDataset = await DatasetRepository.getById(dataset.id);
-  const currentImport = await DataTable.findOneByOrFail({ id: dataTable.id });
   const headers: CSVHeader[] = [];
   for (let i = 0; i < tableHeaders.length; i++) {
     headers.push({
@@ -755,7 +756,6 @@ async function getPreviewWithNumberExtractor(
   }
   return {
     dataset: DatasetDTO.fromDataset(currentDataset),
-    data_table: DataTableDto.fromDataTable(currentImport),
     current_page: 1,
     page_info: {
       total_records: totalLines,
@@ -772,7 +772,6 @@ async function getPreviewWithNumberExtractor(
 async function getPreviewWithoutExtractor(
   dataset: Dataset,
   dimension: Dimension,
-  dataTable: DataTable,
   quack: Database,
   tableName: string
 ): Promise<ViewDTO> {
@@ -787,7 +786,6 @@ async function getPreviewWithoutExtractor(
   const tableHeaders = Object.keys(preview[0]);
   const dataArray = preview.map((row) => Object.values(row));
   const currentDataset = await DatasetRepository.getById(dataset.id);
-  const currentImport = await DataTable.findOneByOrFail({ id: dataTable.id });
   const headers: CSVHeader[] = [];
   for (let i = 0; i < tableHeaders.length; i++) {
     headers.push({
@@ -798,7 +796,6 @@ async function getPreviewWithoutExtractor(
   }
   return {
     dataset: DatasetDTO.fromDataset(currentDataset),
-    data_table: DataTableDto.fromDataTable(currentImport),
     current_page: 1,
     page_info: {
       total_records: totalLines,
@@ -812,12 +809,7 @@ async function getPreviewWithoutExtractor(
   };
 }
 
-async function getLookupPreviewWithExtractor(
-  dataset: Dataset,
-  dimension: Dimension,
-  dataTable: DataTable,
-  quack: Database
-) {
+async function getLookupPreviewWithExtractor(dataset: Dataset, dimension: Dimension, quack: Database) {
   if (!dimension.lookupTable) {
     throw new Error(`Lookup table does does not exist on dimension ${dimension.id}`);
   }
@@ -833,7 +825,6 @@ async function getLookupPreviewWithExtractor(
   const tableHeaders = Object.keys(dimensionTable[0]);
   const dataArray = dimensionTable.map((row) => Object.values(row));
   const currentDataset = await DatasetRepository.getById(dataset.id);
-  const currentImport = await DataTable.findOneByOrFail({ id: dataTable.id });
   const headers: CSVHeader[] = [];
 
   for (let i = 0; i < tableHeaders.length; i++) {
@@ -846,7 +837,6 @@ async function getLookupPreviewWithExtractor(
 
   return {
     dataset: DatasetDTO.fromDataset(currentDataset),
-    fact_table: DataTableDto.fromDataTable(currentImport),
     current_page: 1,
     page_info: {
       total_records: dimensionTable.length,
@@ -860,29 +850,29 @@ async function getLookupPreviewWithExtractor(
   };
 }
 
-export const getDimensionPreview = async (
-  dataset: Dataset,
-  dimension: Dimension,
-  dataTable: DataTable,
-  lang: string
-) => {
+export const getDimensionPreview = async (dataset: Dataset, dimension: Dimension, lang: string) => {
   logger.info(`Getting dimension preview for ${dimension.id}`);
   const tableName = 'fact_table';
-  const quack = await duckdb();
-  const tempFile = tmp.tmpNameSync({ postfix: `.${dataTable.fileType}` });
-  // extract the data from the fact table
-  try {
-    const fileService = getFileService();
-    const fileBuffer = await fileService.loadBuffer(dataTable.filename, dataset.id);
-    fs.writeFileSync(tempFile, fileBuffer);
-    const createTableQuery = await createFactTableQuery(tableName, tempFile, dataTable.fileType, quack);
-    await quack.exec(createTableQuery);
-  } catch (error) {
-    logger.error(`Something went wrong trying to create ${tableName} in DuckDB.  Unable to do matching and validation`);
-    await quack.close();
-    fs.unlinkSync(tempFile);
-    throw error;
+  let endRevision: Revision;
+  if (dataset.draftRevision) {
+    endRevision = dataset.draftRevision;
+  } else if (dataset.publishedRevision) {
+    endRevision = dataset.publishedRevision;
+  } else {
+    throw new Error('No revision present on the dataset');
   }
+  const quack = await duckdb();
+  try {
+    const { notesCodeColumn, dataValuesColumn, factTableDef, factIdentifiers } = await createEmptyFactTableInCube(
+      quack,
+      dataset
+    );
+    await loadFactTables(quack, dataset, endRevision, factTableDef, dataValuesColumn, notesCodeColumn, factIdentifiers);
+  } catch (error) {
+    logger.error(error, `Something went wrong trying to load the fact table into DuckDB`);
+    throw new UnknownException('Something went wrong trying to load the fact table into DuckDB');
+  }
+
   let viewDto: ViewDTO;
   try {
     if (dimension.extractor) {
@@ -894,7 +884,6 @@ export const getDimensionPreview = async (
             dataset,
             dimension.extractor,
             dimension.factTableColumn,
-            dataTable,
             quack,
             tableName
           );
@@ -902,37 +891,35 @@ export const getDimensionPreview = async (
 
         case DimensionType.LookupTable:
           logger.debug('Previewing a lookup table');
-          viewDto = await getLookupPreviewWithExtractor(dataset, dimension, dataTable, quack);
+          viewDto = await getLookupPreviewWithExtractor(dataset, dimension, quack);
           break;
 
         case DimensionType.ReferenceData:
           logger.debug('Previewing a lookup table');
-          viewDto = await getReferenceDataDimensionPreview(dataset, dimension, dataTable, quack, tableName, lang);
+          viewDto = await getReferenceDataDimensionPreview(dataset, dimension, quack, tableName, lang);
           break;
 
         case DimensionType.Text:
           logger.debug('Previewing text dimension');
-          viewDto = await getPreviewWithoutExtractor(dataset, dimension, dataTable, quack, tableName);
+          viewDto = await getPreviewWithoutExtractor(dataset, dimension, quack, tableName);
           break;
 
         case DimensionType.Numeric:
           logger.debug('Previewing a numeric dimension');
-          viewDto = await getPreviewWithNumberExtractor(dataset, dimension, dataTable, quack, tableName);
+          viewDto = await getPreviewWithNumberExtractor(dataset, dimension, quack, tableName);
           break;
 
         default:
           logger.debug(`Previewing a dimension of an unknown type.  Type supplied is ${dimension.type}`);
-          viewDto = await getPreviewWithoutExtractor(dataset, dimension, dataTable, quack, tableName);
+          viewDto = await getPreviewWithoutExtractor(dataset, dimension, quack, tableName);
       }
     } else {
       logger.debug('Straight column preview');
-      viewDto = await getPreviewWithoutExtractor(dataset, dimension, dataTable, quack, tableName);
+      viewDto = await getPreviewWithoutExtractor(dataset, dimension, quack, tableName);
     }
-    fs.unlinkSync(tempFile);
     return viewDto;
   } catch (error) {
     logger.error(`Something went wrong trying to create dimension preview with the following error: ${error}`);
-    fs.unlinkSync(tempFile);
     throw error;
   } finally {
     await quack.close();
