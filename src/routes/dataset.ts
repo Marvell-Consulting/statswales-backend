@@ -31,7 +31,6 @@ import {
   createDataset,
   uploadDataTable,
   cubePreview,
-  deleteDatasetById,
   getDataProviders,
   getTasklist,
   getTopics,
@@ -42,7 +41,8 @@ import {
   updateDatasetTeam,
   updateTopics,
   updateSources,
-  getDatasetById
+  getDatasetById,
+  deleteDraftDatasetById
 } from '../controllers/dataset';
 import { rateLimiter } from '../middleware/rate-limiter';
 
@@ -133,7 +133,7 @@ router.post('/', jsonParser, createDataset);
 
 // DELETE /dataset/:dataset_id
 // Deletes the dataset with the given ID
-router.delete('/:dataset_id', loadDataset({}), deleteDatasetById);
+router.delete('/:dataset_id', loadDataset({}), deleteDraftDatasetById);
 
 // GET /dataset/:dataset_id
 // Returns the dataset with no relations hydrated (i.e. validates dataset exists)

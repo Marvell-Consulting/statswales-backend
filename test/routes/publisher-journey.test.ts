@@ -707,7 +707,7 @@ describe('API Endpoints', () => {
     expect(datesetFromDb?.id).toBe(datasetID);
     BlobStorage.prototype.deleteDirectory = jest.fn();
     const res = await request(app).delete(`/dataset/${datasetID}`).set(getAuthHeader(user));
-    expect(res.status).toBe(204);
+    expect(res.status).toBe(202);
     const dataset = await Dataset.findOneBy({ id: datasetID });
     expect(dataset).toBeNull();
   });
