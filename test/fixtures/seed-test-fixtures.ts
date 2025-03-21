@@ -9,7 +9,7 @@ import { User } from '../../src/entities/user/user';
 import { Dataset } from '../../src/entities/dataset/dataset';
 import { appConfig } from '../../src/config';
 import { AppEnv } from '../../src/config/env.enum';
-import { uploadCSV } from '../../src/services/csv-processor';
+import { validateAndUploadCSV } from '../../src/services/csv-processor';
 import { DataTable } from '../../src/entities/dataset/data-table';
 
 import { testUsers } from './users';
@@ -49,7 +49,7 @@ export default class SeedTestFixtures extends Seeder {
 
         if (revision && testDataset.csvPath) {
           const buffer = fs.readFileSync(testDataset.csvPath);
-          const dataTable: DataTable = await uploadCSV(buffer, 'text/csv', `test-fixture.csv`, dataset.id);
+          const dataTable: DataTable = await validateAndUploadCSV(buffer, 'text/csv', `test-fixture.csv`, dataset.id);
 
           revision = await entityManager.getRepository(Revision).save({
             ...revision,

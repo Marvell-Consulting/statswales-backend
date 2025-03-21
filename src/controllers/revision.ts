@@ -32,7 +32,7 @@ import {
   makeCubeSafeString,
   updateFactTableValidator
 } from '../services/cube-handler';
-import { DEFAULT_PAGE_SIZE, getCSVPreview, uploadCSV } from '../services/csv-processor';
+import { DEFAULT_PAGE_SIZE, getCSVPreview, validateAndUploadCSV } from '../services/csv-processor';
 import { DataTableDescription } from '../entities/dataset/data-table-description';
 import { FactTableColumn } from '../entities/dataset/fact-table-column';
 import { DataTableAction } from '../enums/data-table-action';
@@ -343,7 +343,7 @@ export const updateDataTable = async (req: Request, res: Response, next: NextFun
 
   try {
     const { buffer, mimetype, originalname } = req.file;
-    dataTable = await uploadCSV(buffer, mimetype, originalname, dataset.id);
+    dataTable = await validateAndUploadCSV(buffer, mimetype, originalname, dataset.id);
   } catch (err) {
     logger.error(err, `An error occurred trying to upload the file`);
     if ((err as Error).message.includes('Data Lake')) {

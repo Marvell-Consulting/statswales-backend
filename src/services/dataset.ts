@@ -29,7 +29,7 @@ import { TasklistStateDTO } from '../dtos/tasklist-state-dto';
 import { EventLog } from '../entities/event-log';
 
 import { createBaseCube, getCubeTimePeriods } from './cube-handler';
-import { uploadCSV } from './csv-processor';
+import { validateAndUploadCSV } from './csv-processor';
 import { removeAllDimensions, removeMeasure } from './dimension-processor';
 import { getFileService } from '../utils/get-file-service';
 
@@ -75,7 +75,7 @@ export class DatasetService {
     const { buffer, mimetype, originalname } = file;
 
     logger.debug('Uploading new fact table file to filestore');
-    const dataTable = await uploadCSV(buffer, mimetype, originalname, datasetId);
+    const dataTable = await validateAndUploadCSV(buffer, mimetype, originalname, datasetId);
 
     dataTable.action = DataTableAction.ReplaceAll;
     dataTable.dataTableDescriptions.forEach((col) => {

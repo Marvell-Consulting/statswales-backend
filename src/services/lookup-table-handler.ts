@@ -106,7 +106,6 @@ function createExtractor(protoLookupTable: DataTable, tableMatcher?: LookupTable
 
 export const validateLookupTable = async (
   protoLookupTable: DataTable,
-  factTable: DataTable,
   dataset: Dataset,
   dimension: Dimension,
   buffer: Buffer,
@@ -115,11 +114,12 @@ export const validateLookupTable = async (
   const lookupTable = convertFactTableToLookupTable(protoLookupTable);
   const factTableName = 'fact_table';
   const lookupTableName = 'preview_lookup';
-  const quack = await duckdb();
+
   const lookupTableTmpFile = tmp.tmpNameSync({ postfix: `.${lookupTable.fileType}` });
   try {
     logger.debug(`Writing the lookup table to disk: ${lookupTableTmpFile}`);
     fs.writeFileSync(lookupTableTmpFile, buffer);
+
     const factTableTmpFile = await getFileImportAndSaveToDisk(dataset, factTable);
     logger.debug(`Loading fact table in to DuckDB`);
     await loadFileIntoDatabase(quack, factTable, factTableTmpFile, factTableName);

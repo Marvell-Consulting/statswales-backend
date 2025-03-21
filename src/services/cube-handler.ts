@@ -978,10 +978,6 @@ export async function createEmptyFactTableInCube(quack: Database, dataset: Datas
   let dataValuesColumn: FactTableColumn | undefined;
   let measureColumn: FactTableColumn | undefined;
 
-  const firstRevision = dataset.revisions.find((rev) => rev.revisionIndex === 1);
-  if (!firstRevision) {
-    throw new Error(`Unable to find first revision for dataset ${dataset.id}`);
-  }
   if (!dataset.factTable) {
     throw new Error(`Unable to find fact table for dataset ${dataset.id}`);
   }

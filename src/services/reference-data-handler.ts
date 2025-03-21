@@ -23,6 +23,7 @@ import {
   loadReferenceDataIntoCube
 } from './cube-handler';
 import { duckdb } from './duckdb';
+import {createEmptyCubeWithFactTable} from "../utils/create-facttable";
 
 const sampleSize = 5;
 
@@ -129,26 +130,26 @@ async function validateAllItemsAreInOneCategory(
 }
 
 export const validateReferenceData = async (
-  factTable: DataTable,
   dataset: Dataset,
   dimension: Dimension,
   referenceDataType: ReferenceType | undefined,
   lang: string
 ): Promise<ViewDTO | ViewErrDTO> => {
-  const factTableName = 'fact_table';
-  const quack = await duckdb();
+  let quack: Database;
+  try {
+    quack = await createEmptyCubeWithFactTable(dataset);
+  } catch (error) {
+    logger.error(error, 'Something went wrong trying to create a new database');
+    return viewErrorGenerator(500, dataset.id, 'patch', 'errors.cube_builder.fact_table_creation_failed', {});
+  }
   try {
     // Load reference data in to cube
     await loadReferenceDataIntoCube(quack);
     await copyAllReferenceDataIntoTable(quack);
-    const factTableTmpFile = await getFileImportAndSaveToDisk(dataset, factTable);
-    logger.debug(`Loading fact table in to DuckDB`);
-    await loadFileIntoDatabase(quack, factTable, factTableTmpFile, factTableName);
-    fs.unlinkSync(factTableTmpFile);
   } catch (err) {
     await quack.close();
-    logger.error(`Something went wrong trying to load data in to DuckDB with the following error: ${err}`);
-    throw err;
+    logger.error(err, `Something went wrong trying to load the reference data into the cube`);
+    return viewErrorGenerator(500, dataset.id, 'patch', 'errors.cube_builder.reference_data_loading_failed', {});
   }
 
   let confirmedReferenceDataCategory = referenceDataType?.toString();
@@ -182,8 +183,14 @@ export const validateReferenceData = async (
     }
   } catch (error) {
     await quack.close();
-    logger.error(`Something went wrong trying to validate reference data with the following error: ${error}`);
-    throw new Error(`Something went wrong trying to validate reference data with the following error: ${error}`);
+    logger.error(error, `Something went wrong trying to validate reference data`);
+    return viewErrorGenerator(
+      500,
+      dataset.id,
+      'patch',
+      'errors.dimension_validation.reference_data_validation_failed.',
+      {}
+    );
   }
 
   const categoriesPresent = await quack.all(`SELECT DISTINCT category_keys.category_key FROM fact_table
@@ -240,8 +247,14 @@ export const validateReferenceData = async (
       data: dataArray
     };
   } catch (error) {
-    logger.error(`Something went wrong trying to generate the preview of the lookup table with error: ${error}`);
-    throw error;
+    logger.error(error, `Something went wrong trying to generate the preview of the column`);
+    return viewErrorGenerator(
+      500,
+      dataset.id,
+      'patch',
+      'errors.dimension_validation.reference_data_preview_failed',
+      {}
+    );
   } finally {
     await quack.close();
   }

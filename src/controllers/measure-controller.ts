@@ -11,7 +11,7 @@ import { NotFoundException } from '../exceptions/not-found.exception';
 import { BadRequestException } from '../exceptions/bad-request.exception';
 import { UnknownException } from '../exceptions/unknown.exception';
 import { getMeasurePreview, validateMeasureLookupTable } from '../services/measure-handler';
-import { uploadCSV } from '../services/csv-processor';
+import { validateAndUploadCSV } from '../services/csv-processor';
 import { convertBufferToUTF8 } from '../utils/file-utils';
 import { DimensionMetadataDTO } from '../dtos/dimension-metadata-dto';
 import { MeasureMetadata } from '../entities/dataset/measure-metadata';
@@ -54,51 +54,33 @@ export const attachLookupTableToMeasure = async (req: Request, res: Response, ne
     return;
   }
   const dataset: Dataset = res.locals.dataset;
-  const revision = dataset.draftRevision;
-
-  // Replace calls that require this to calls that get a single factTable for all revisions to "present"
-  const factTable = revision?.dataTable;
-  if (!factTable) {
-    next(new NotFoundException('errors.fact_table_invalid'));
-    return;
-  }
 
   let fileImport: DataTable;
-  let utf8Buffer: Buffer<ArrayBufferLike>;
-  switch (req.file.mimetype) {
-    case 'text/csv':
-    case 'application/csv':
-    case 'application/json':
-      utf8Buffer = convertBufferToUTF8(req.file.buffer);
-      break;
-    default:
-      utf8Buffer = req.file.buffer;
-  }
-
+  let processedBuffer: Buffer;
   try {
-    fileImport = await uploadCSV(utf8Buffer, req.file?.mimetype, req.file?.originalname, res.locals.datasetId);
+    const { dataTable, buffer } = await validateAndUploadCSV(
+      req.file.buffer,
+      req.file?.mimetype,
+      req.file?.originalname,
+      res.locals.datasetId
+    );
+    fileImport = dataTable;
+    processedBuffer = buffer;
   } catch (err) {
-    logger.error(`An error occurred trying to upload the file: ${err}`);
+    logger.error(err, `An error occurred trying to process and upload the file`);
     next(new UnknownException('errors.upload_error'));
     return;
   }
 
   const tableMatcher = req.body as MeasureLookupPatchDTO;
-
-  try {
-    const result = await validateMeasureLookupTable(fileImport, factTable, dataset, req.file.buffer, tableMatcher);
-    if ((result as ViewErrDTO).status) {
-      const error = result as ViewErrDTO;
-      res.status(error.status);
-      res.json(result);
-      return;
-    }
+  const result = await validateMeasureLookupTable(fileImport, dataset, processedBuffer, tableMatcher);
+  if ((result as ViewErrDTO).status) {
+    const error = result as ViewErrDTO;
+    res.status(error.status);
+  } else {
     res.status(200);
-    res.json(result);
-  } catch (err) {
-    logger.error(err, `An error occurred trying to handle measure lookup table with error`);
-    next(new UnknownException('errors.upload_error'));
   }
+  res.json(result);
 };
 
 export const getPreviewOfMeasure = async (req: Request, res: Response, next: NextFunction) => {
