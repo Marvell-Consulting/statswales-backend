@@ -1,18 +1,13 @@
-import fs from 'fs';
-
 import { Database } from 'duckdb-async';
 
-import { DataTable } from '../entities/dataset/data-table';
 import { Dataset } from '../entities/dataset/dataset';
 import { Dimension } from '../entities/dataset/dimension';
 import { CSVHeader, ViewDTO, ViewErrDTO } from '../dtos/view-dto';
 import { logger } from '../utils/logger';
-import { getFileImportAndSaveToDisk, loadFileIntoDatabase } from '../utils/file-utils';
 import { viewErrorGenerator } from '../utils/view-error-generator';
 import { DatasetRepository } from '../repositories/dataset';
 import { FactTableColumnType } from '../enums/fact-table-column-type';
 import { DatasetDTO } from '../dtos/dataset-dto';
-import { DataTableDto } from '../dtos/data-table-dto';
 import { ReferenceType } from '../enums/reference-type';
 import { DimensionType } from '../enums/dimension-type';
 
@@ -22,8 +17,7 @@ import {
   loadCorrectReferenceDataIntoReferenceDataTable,
   loadReferenceDataIntoCube
 } from './cube-handler';
-import { duckdb } from './duckdb';
-import {createEmptyCubeWithFactTable} from "../utils/create-facttable";
+import { createEmptyCubeWithFactTable } from '../utils/create-facttable';
 
 const sampleSize = 5;
 
@@ -224,7 +218,6 @@ export const validateReferenceData = async (
     const tableHeaders = Object.keys(dimensionTable[0]);
     const dataArray = dimensionTable.map((row) => Object.values(row));
     const currentDataset = await DatasetRepository.getById(dataset.id, { dimensions: { metadata: true } });
-    const currentImport = await DataTable.findOneByOrFail({ id: factTable.id });
     const headers: CSVHeader[] = tableHeaders.map((header, index) => {
       return {
         index,
@@ -234,7 +227,6 @@ export const validateReferenceData = async (
     });
     return {
       dataset: DatasetDTO.fromDataset(currentDataset),
-      data_table: DataTableDto.fromDataTable(currentImport),
       current_page: 1,
       page_info: {
         total_records: 1,

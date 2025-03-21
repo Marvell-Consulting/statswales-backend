@@ -44,6 +44,7 @@ import { duckdb } from '../services/duckdb';
 import { Dataset } from '../entities/dataset/dataset';
 
 import { getCubePreview, outputCube } from './cube-controller';
+import { FileValidationException } from '../exceptions/validation-exception';
 
 export const getDataTable = async (req: Request, res: Response, next: NextFunction) => {
   try {
@@ -187,13 +188,18 @@ export const getRevisionInfo = async (req: Request, res: Response) => {
   res.json(RevisionDTO.fromRevision(revision));
 };
 
-async function attachUpdateDataTableToRevision(dataset: Dataset, revision: Revision, dataTable: DataTable, body: any) {
+async function attachUpdateDataTableToRevision(
+  dataset: Dataset,
+  revision: Revision,
+  dataTable: DataTable,
+  updateAction: DataTableAction,
+  columnMatcher?: ColumnMatch[]
+) {
   logger.debug('Attaching update data table to revision and validating cube');
   const start = performance.now();
 
   // Validate all the columns against the fact table
-  if (body.column_matching) {
-    const columnMatcher = JSON.parse(body.column_matching) as ColumnMatch[];
+  if (columnMatcher) {
     const matchedColumns: string[] = [];
     for (const col of columnMatcher) {
       const factTableCol: FactTableColumn | undefined = dataset.factTable?.find(
@@ -241,13 +247,7 @@ async function attachUpdateDataTableToRevision(dataset: Dataset, revision: Revis
     }
   }
 
-  logger.debug(`Setting the update action to: ${body.update_action || 'Add'}`);
-  let updateAction = DataTableAction.Add;
-
-  if (body.update_action) {
-    updateAction = body.update_action as DataTableAction;
-  }
-
+  logger.debug(`Setting the update action to: ${updateAction}`);
   dataTable.action = updateAction;
   revision.dataTable = dataTable;
   const quack = await duckdb();
@@ -338,28 +338,30 @@ export const updateDataTable = async (req: Request, res: Response, next: NextFun
     }
     await DataTable.getRepository().remove(revision.dataTable);
   }
-
-  let dataTable: DataTable;
-
+  let fileImport: DataTable;
   try {
-    const { buffer, mimetype, originalname } = req.file;
-    dataTable = await validateAndUploadCSV(buffer, mimetype, originalname, dataset.id);
+    const { mimetype, originalname } = req.file;
+    const { dataTable } = await validateAndUploadCSV(req.file.buffer, mimetype, originalname, dataset.id);
+    fileImport = dataTable;
   } catch (err) {
-    logger.error(err, `An error occurred trying to upload the file`);
-    if ((err as Error).message.includes('Data Lake')) {
-      next(new UnknownException('errors.data_lake_error'));
+    const error = err as FileValidationException;
+    logger.error(error, `An error occurred trying to upload the file`);
+    if (error.status === 500) {
+      return next(new UnknownException(error.errorTag));
     } else {
-      next(new BadRequestException('errors.upload_error'));
+      const error = err as FileValidationException;
+      return next(new BadRequestException(error.errorTag));
     }
-    return;
   }
 
   try {
     if (revision.revisionIndex === 1) {
       logger.debug('Attaching data table to first revision');
-      await RevisionRepository.save({ ...revision, dataTable });
+      await RevisionRepository.save({ ...revision, fileImport });
     } else {
-      await attachUpdateDataTableToRevision(dataset, revision, dataTable, req.body);
+      const columnMatcher = JSON.parse(req.body.column_matching) as ColumnMatch[];
+      const updateAction = req.body.update_action ? (req.body.update_action as DataTableAction) : DataTableAction.Add;
+      await attachUpdateDataTableToRevision(dataset, revision, fileImport, updateAction, columnMatcher);
     }
     const updatedDataset = await DatasetRepository.getById(dataset.id);
     res.status(201);

@@ -1,10 +1,9 @@
 import { createHash, randomUUID } from 'node:crypto';
 import fs from 'fs';
 
-import {Database, TableData} from 'duckdb-async';
+import { Database, TableData } from 'duckdb-async';
 import tmp from 'tmp';
 
-import { i18next } from '../middleware/translation';
 import { logger as parentLogger } from '../utils/logger';
 import { DataTable } from '../entities/dataset/data-table';
 import { Dataset } from '../entities/dataset/dataset';
@@ -13,102 +12,23 @@ import { FactTableColumnType } from '../enums/fact-table-column-type';
 import { DatasetRepository } from '../repositories/dataset';
 import { DatasetDTO } from '../dtos/dataset-dto';
 import { DataTableDto } from '../dtos/data-table-dto';
-import { Error } from '../dtos/error';
-import { Locale } from '../enums/locale';
 import { FileType } from '../enums/file-type';
 import { DataTableDescription } from '../entities/dataset/data-table-description';
 import { DataTableAction } from '../enums/data-table-action';
-import {convertBufferToUTF8, loadFileIntoDatabase} from '../utils/file-utils';
+import { convertBufferToUTF8, loadFileIntoDatabase } from '../utils/file-utils';
 
 import { duckdb } from './duckdb';
 import { getFileService } from '../utils/get-file-service';
-import { Revision } from '../entities/dataset/revision';
-import { createEmptyFactTableInCube, loadFactTables } from './cube-handler';
 import { FileValidationErrorType, FileValidationException } from '../exceptions/validation-exception';
 import { DuckDBException } from '../exceptions/duckdb-exception';
 import { viewErrorGenerator } from '../utils/view-error-generator';
-import {createEmptyCubeWithFactTable} from "../utils/create-facttable";
+import { createEmptyCubeWithFactTable } from '../utils/create-facttable';
+import { validateParams } from '../validators/preview-validator';
 
-export const MAX_PAGE_SIZE = 500;
-export const MIN_PAGE_SIZE = 5;
 export const DEFAULT_PAGE_SIZE = 100;
 const sampleSize = 5;
 
-const t = i18next.t;
 const logger = parentLogger.child({ module: 'CSVProcessor' });
-
-function validatePageSize(page_size: number): boolean {
-  return !(page_size > MAX_PAGE_SIZE || page_size < MIN_PAGE_SIZE);
-}
-
-function validatePageNumber(page_number: number): boolean {
-  return page_number >= 1;
-}
-
-function validatMaxPageNumber(page_number: number, max_page_number: number): boolean {
-  return page_number <= max_page_number;
-}
-
-function validateParams(page_number: number, max_page_number: number, page_size: number): Error[] {
-  const errors: Error[] = [];
-  if (!validatePageSize(page_size)) {
-    errors.push({
-      field: 'page_size',
-      message: [
-        {
-          lang: Locale.English,
-          message: t('errors.page_size', {
-            lng: Locale.English,
-            max_page_size: MAX_PAGE_SIZE,
-            min_page_size: MIN_PAGE_SIZE
-          })
-        },
-        {
-          lang: Locale.Welsh,
-          message: t('errors.page_size', {
-            lng: Locale.Welsh,
-            max_page_size: MAX_PAGE_SIZE,
-            min_page_size: MIN_PAGE_SIZE
-          })
-        }
-      ],
-      tag: {
-        name: 'errors.page_size',
-        params: { max_page_size: MAX_PAGE_SIZE, min_page_size: MIN_PAGE_SIZE }
-      }
-    });
-  }
-  if (!validatMaxPageNumber(page_number, max_page_number)) {
-    errors.push({
-      field: 'page_number',
-      message: [
-        {
-          lang: Locale.English,
-          message: t('errors.page_number_to_high', { lng: Locale.English, page_number: max_page_number })
-        },
-        {
-          lang: Locale.Welsh,
-          message: t('errors.page_number_to_high', { lng: Locale.Welsh, page_number: max_page_number })
-        }
-      ],
-      tag: {
-        name: 'errors.page_number_to_high',
-        params: { page_number: max_page_number }
-      }
-    });
-  }
-  if (!validatePageNumber(page_number)) {
-    errors.push({
-      field: 'page_number',
-      message: [
-        { lang: Locale.English, message: t('errors.page_number_to_low', { lng: Locale.English }) },
-        { lang: Locale.Welsh, message: t('errors.page_number_to_low', { lng: Locale.Welsh }) }
-      ],
-      tag: { name: 'errors.page_number_to_low', params: {} }
-    });
-  }
-  return errors;
-}
 
 export async function extractTableInformation(fileBuffer: Buffer, fileType: FileType): Promise<DataTableDescription[]> {
   const tableName = 'preview_table';
@@ -150,7 +70,10 @@ export async function extractTableInformation(fileBuffer: Buffer, fileType: File
     } else if ((error as DuckDBException).stack.includes('CSV Error on Line')) {
       throw new FileValidationException(`Errors in CSV file`, FileValidationErrorType.InvalidCsv);
     }
-    throw new FileValidationException(`Unknown error occurred, please refer to the log for more information`, FileValidationErrorType.unknown);
+    throw new FileValidationException(
+      `Unknown error occurred, please refer to the log for more information`,
+      FileValidationErrorType.unknown
+    );
   } finally {
     logger.debug('Closing DuckDB Memory Database');
     await quack.close();
@@ -158,10 +81,10 @@ export async function extractTableInformation(fileBuffer: Buffer, fileType: File
     fs.unlinkSync(tempFile);
   }
   if (tableHeaders.length === 0) {
-    throw new FileValidationException(`Failed to parse CSV in to columns`, FileValidationErrorType.InvalidCsv);
+    throw new FileValidationException(`Failed to parse CSV into columns`, FileValidationErrorType.InvalidCsv);
   }
   if (tableHeaders.length === 1 && fileType === FileType.Csv) {
-    throw new FileValidationException(`Failed to parse CSV in to columns`, FileValidationErrorType.InvalidCsv);
+    throw new FileValidationException(`Failed to parse CSV into columns`, FileValidationErrorType.InvalidCsv);
   }
   return tableHeaders.map((header) => {
     const info = new DataTableDescription();
@@ -172,7 +95,6 @@ export async function extractTableInformation(fileBuffer: Buffer, fileType: File
   });
 }
 
-// Required Methods for refactor
 export const validateAndUploadCSV = async (
   fileBuffer: Buffer,
   filetype: string,
@@ -247,6 +169,7 @@ export const validateAndUploadCSV = async (
     dataTableDescriptions = await extractTableInformation(uploadBuffer, dataTable.fileType);
   } catch (error) {
     logger.error(error, `Something went wrong trying to read the users upload.`);
+    // Error is of type FileValidationException
     throw error;
   }
   dataTable.dataTableDescriptions = dataTableDescriptions;
@@ -260,7 +183,7 @@ export const validateAndUploadCSV = async (
     await fileService.saveBuffer(dataTable.filename, datasetId, uploadBuffer);
   } catch (err) {
     logger.error(`Something went wrong trying to upload the file to the Data Lake with the following error: ${err}`);
-    throw new Error('Error processing file upload to Data Lake');
+    throw new FileValidationException('Error uploading file to blob storage', FileValidationErrorType.datalake, 500);
   }
 
   dataTable.hash = hash.digest('hex');
@@ -276,6 +199,7 @@ export const getCSVPreview = async (
 ): Promise<ViewDTO | ViewErrDTO> => {
   const tableName = 'preview_table';
   const tempFile = tmp.tmpNameSync({ postfix: `.${importObj.fileType}` });
+  const quack = await duckdb();
   try {
     let fileBuffer: Buffer;
     try {
@@ -283,27 +207,9 @@ export const getCSVPreview = async (
       fileBuffer = await fileService.loadBuffer(importObj.filename, dataset.id);
     } catch (err) {
       logger.error(err, `Something went wrong trying to fetch the file from storage`);
-      await quack.close();
-      return {
-        status: 500,
-        errors: [
-          {
-            field: 'csv',
-            message: [
-              {
-                lang: Locale.English,
-                message: t('errors.download_from_filestore', { lng: Locale.English })
-              },
-              { lang: Locale.Welsh, message: t('errors.download_from_filestore', { lng: Locale.Welsh }) }
-            ],
-            tag: { name: 'errors.download_from_filestore', params: {} }
-          }
-        ],
-        dataset_id: dataset.id
-      };
+      return viewErrorGenerator(500, dataset.id, 'csv', 'errors.datalake.failed_to_fetch_file', {});
     }
     fs.writeFileSync(tempFile, fileBuffer);
-    const quack = await duckdb();
     await loadFileIntoDatabase(quack, importObj, tempFile, tableName);
     const totalsQuery = `SELECT count(*) as totalLines, ceil(count(*)/${size}) as totalPages from ${tableName};`;
     const totals = await quack.all(totalsQuery);
@@ -355,23 +261,7 @@ export const getCSVPreview = async (
     };
   } catch (error) {
     logger.error(error);
-    return {
-      status: 500,
-      errors: [
-        {
-          field: 'csv',
-          message: [
-            {
-              lang: Locale.English,
-              message: t('errors.download_from_filestore', { lng: Locale.English })
-            },
-            { lang: Locale.Welsh, message: t('errors.download_from_filestore', { lng: Locale.Welsh }) }
-          ],
-          tag: { name: 'errors.download_from_filestore', params: {} }
-        }
-      ],
-      dataset_id: dataset.id
-    };
+    return viewErrorGenerator(500, dataset.id, 'csv', 'errors.preview.preview_failed', {});
   } finally {
     await quack.close();
     if (fs.existsSync(tempFile)) fs.unlinkSync(tempFile);

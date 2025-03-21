@@ -10,11 +10,11 @@ import { DuckdbOutputType } from '../enums/duckdb-outputs';
 import { DatasetRepository } from '../repositories/dataset';
 import { CSVHeader, ViewDTO, ViewErrDTO } from '../dtos/view-dto';
 import { DatasetDTO } from '../dtos/dataset-dto';
-import { validateParams } from '../utils/paging-validation';
 import { getLatestRevision } from '../utils/latest';
 import { UnknownException } from '../exceptions/unknown.exception';
 import { createBaseCube } from '../services/cube-handler';
 import { duckdb } from '../services/duckdb';
+import { validateParams } from '../validators/preview-validator';
 
 export const getCubePreview = async (
   cubeFile: string,

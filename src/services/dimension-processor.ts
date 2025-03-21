@@ -1,8 +1,4 @@
-import fs from 'fs';
-
 import { Database } from 'duckdb-async';
-import tmp from 'tmp';
-import { t } from 'i18next';
 
 import { SourceAssignmentDTO } from '../dtos/source-assignment-dto';
 import { DataTable } from '../entities/dataset/data-table';
@@ -19,10 +15,8 @@ import { Measure } from '../entities/dataset/measure';
 import { DimensionPatchDto } from '../dtos/dimension-partch-dto';
 import { CSVHeader, ViewDTO, ViewErrDTO } from '../dtos/view-dto';
 import { DateExtractor } from '../extractors/date-extractor';
-import { Locale } from '../enums/locale';
 import { DatasetRepository } from '../repositories/dataset';
 import { DatasetDTO } from '../dtos/dataset-dto';
-import { DataTableDto } from '../dtos/data-table-dto';
 import { getFileImportAndSaveToDisk, loadFileIntoDatabase } from '../utils/file-utils';
 import { LookupTableExtractor } from '../extractors/lookup-table-extractor';
 import { LookupTable } from '../entities/dataset/lookup-table';
@@ -31,16 +25,11 @@ import { MeasureRow } from '../entities/dataset/measure-row';
 import { MeasureMetadata } from '../entities/dataset/measure-metadata';
 
 import { dateDimensionReferenceTableCreator, DateReferenceDataItem } from './time-matching';
-import { createEmptyFactTableInCube, createFactTableQuery, loadFactTables } from './cube-handler';
 import { getReferenceDataDimensionPreview } from './reference-data-handler';
-import { duckdb } from './duckdb';
 import { NumberExtractor, NumberType } from '../extractors/number-extractor';
 import { viewErrorGenerator } from '../utils/view-error-generator';
 import { getFileService } from '../utils/get-file-service';
-import { Revision } from '../entities/dataset/revision';
-import { Error } from '../dtos/error';
-import { UnknownException } from '../exceptions/unknown.exception';
-import {createEmptyCubeWithFactTable} from "../utils/create-facttable";
+import { createEmptyCubeWithFactTable } from '../utils/create-facttable';
 
 const createDateDimensionTable = `CREATE TABLE date_dimension (date_code VARCHAR, description VARCHAR, start_date datetime, end_date datetime, date_type varchar);`;
 const sampleSize = 5;
@@ -560,7 +549,6 @@ export const validateDateTypeDimension = async (
   const tableHeaders = Object.keys(dimensionTable[0]);
   const dataArray = dimensionTable.map((row) => Object.values(row));
   const currentDataset = await DatasetRepository.getById(dataset.id, { dimensions: { metadata: true } });
-  const currentImport = await DataTable.findOneByOrFail({ id: factTable.id });
   const headers: CSVHeader[] = [];
   for (let i = 0; i < tableHeaders.length; i++) {
     let sourceType: FactTableColumnType;
@@ -574,7 +562,6 @@ export const validateDateTypeDimension = async (
   }
   return {
     dataset: DatasetDTO.fromDataset(currentDataset),
-    data_table: DataTableDto.fromDataTable(currentImport),
     current_page: 1,
     page_info: {
       total_records: 1,
