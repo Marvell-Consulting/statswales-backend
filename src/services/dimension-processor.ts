@@ -1,8 +1,4 @@
-import fs from 'fs';
-
 import { Database } from 'duckdb-async';
-import tmp from 'tmp';
-import { t } from 'i18next';
 
 import { SourceAssignmentDTO } from '../dtos/source-assignment-dto';
 import { DataTable } from '../entities/dataset/data-table';
@@ -19,10 +15,8 @@ import { Measure } from '../entities/dataset/measure';
 import { DimensionPatchDto } from '../dtos/dimension-partch-dto';
 import { CSVHeader, ViewDTO, ViewErrDTO } from '../dtos/view-dto';
 import { DateExtractor } from '../extractors/date-extractor';
-import { Locale } from '../enums/locale';
 import { DatasetRepository } from '../repositories/dataset';
 import { DatasetDTO } from '../dtos/dataset-dto';
-import { DataTableDto } from '../dtos/data-table-dto';
 import { getFileImportAndSaveToDisk, loadFileIntoDatabase } from '../utils/file-utils';
 import { LookupTableExtractor } from '../extractors/lookup-table-extractor';
 import { LookupTable } from '../entities/dataset/lookup-table';
@@ -31,15 +25,11 @@ import { MeasureRow } from '../entities/dataset/measure-row';
 import { MeasureMetadata } from '../entities/dataset/measure-metadata';
 
 import { dateDimensionReferenceTableCreator, DateReferenceDataItem } from './time-matching';
-import { createEmptyFactTableInCube, createFactTableQuery, loadFactTables } from './cube-handler';
 import { getReferenceDataDimensionPreview } from './reference-data-handler';
-import { duckdb } from './duckdb';
 import { NumberExtractor, NumberType } from '../extractors/number-extractor';
 import { viewErrorGenerator } from '../utils/view-error-generator';
 import { getFileService } from '../utils/get-file-service';
-import { Revision } from '../entities/dataset/revision';
-import { Error } from '../dtos/error';
-import { UnknownException } from '../exceptions/unknown.exception';
+import { createEmptyCubeWithFactTable } from '../utils/create-facttable';
 
 const createDateDimensionTable = `CREATE TABLE date_dimension (date_code VARCHAR, description VARCHAR, start_date datetime, end_date datetime, date_type varchar);`;
 const sampleSize = 5;
@@ -366,24 +356,12 @@ export const validateNumericDimension = async (
   };
 
   const tableName = 'fact_table';
-  let endRevision: Revision;
-  if (dataset.draftRevision) {
-    endRevision = dataset.draftRevision;
-  } else if (dataset.publishedRevision) {
-    endRevision = dataset.publishedRevision;
-  } else {
-    throw new Error('No revision present on the dataset');
-  }
-  const quack = await duckdb();
+  let quack: Database;
   try {
-    const { notesCodeColumn, dataValuesColumn, factTableDef, factIdentifiers } = await createEmptyFactTableInCube(
-      quack,
-      dataset
-    );
-    await loadFactTables(quack, dataset, endRevision, factTableDef, dataValuesColumn, notesCodeColumn, factIdentifiers);
+    quack = await createEmptyCubeWithFactTable(dataset);
   } catch (error) {
-    logger.error(error, `Something went wrong trying to load the fact table into DuckDB`);
-    throw new UnknownException('Something went wrong trying to load the fact table into DuckDB');
+    logger.error(error, 'Something went wrong trying to create a new database');
+    return viewErrorGenerator(500, dataset.id, 'patch', 'errors.cube_builder.fact_table_creation_failed', {});
   }
 
   // Validate column type in data table matches proposed type first using DuckDBs column detection
@@ -469,25 +447,15 @@ export const validateNumericDimension = async (
 export const validateDateTypeDimension = async (
   dimensionPatchRequest: DimensionPatchDto,
   dataset: Dataset,
-  dimension: Dimension,
-  factTable: DataTable
+  dimension: Dimension
 ): Promise<ViewDTO | ViewErrDTO> => {
   const tableName = 'fact_table';
-  const quack = await duckdb();
-  const tempFile = tmp.tmpNameSync({ postfix: `.${factTable.fileType}` });
-  // extract the data from the fact table
+  let quack: Database;
   try {
-    const fileService = getFileService();
-    const fileBuffer = await fileService.loadBuffer(factTable.filename, dataset.id);
-    fs.writeFileSync(tempFile, fileBuffer);
-    const createTableQuery = await createFactTableQuery(tableName, tempFile, factTable.fileType, quack);
-
-    await quack.exec(createTableQuery);
+    quack = await createEmptyCubeWithFactTable(dataset);
   } catch (error) {
-    logger.error(`Something went wrong trying to create ${tableName} in DuckDB.  Unable to do matching and validation`);
-    await quack.close();
-    fs.unlinkSync(tempFile);
-    throw error;
+    logger.error(error, 'Something went wrong trying to create a new database');
+    return viewErrorGenerator(500, dataset.id, 'patch', 'errors.cube_builder.fact_table_creation_failed', {});
   }
   // Use the extracted data to try to create a reference table based on the user supplied information
   logger.debug(`Dimension patch request is: ${JSON.stringify(dimensionPatchRequest)}`);
@@ -511,28 +479,11 @@ export const validateDateTypeDimension = async (
   } catch (error) {
     logger.error(error, `Something went wrong trying to create the date reference table`);
     await quack.close();
-    fs.unlinkSync(tempFile);
-    return {
-      status: 400,
-      dataset_id: dataset.id,
-      errors: [
-        {
-          field: 'patch',
-          tag: { name: 'errors.dimensionValidation.invalid_date_format', params: {} },
-          message: [
-            {
-              lang: Locale.English,
-              message: t('errors.dimensionValidation.invalid_date_format', { lng: Locale.English })
-            }
-          ]
-        }
-      ],
-      extension: {
-        extractor,
-        totalNonMatching: preview.length,
-        nonMatchingValues: []
-      }
-    };
+    return viewErrorGenerator(400, dataset.id, 'patch', 'errors.dimension.invalid_date_format', {
+      extractor,
+      totalNonMatching: preview.length,
+      nonMatchingValues: []
+    });
   }
   // Now validate the reference table... There should no unmatched values in the fact table
   // If there are unmatched values then we need to reject the users input.
@@ -553,29 +504,11 @@ export const validateDateTypeDimension = async (
     if (nonMatchedRows.length > 0) {
       if (nonMatchedRows.length === preview.length) {
         logger.error(`The user supplied an incorrect format and none of the rows matched.`);
-        return {
-          status: 400,
-          dataset_id: dataset.id,
-          errors: [
-            {
-              field: 'patch',
-              tag: { name: 'errors.dimensionValidation.invalid_date_format', params: {} },
-              message: [
-                {
-                  lang: Locale.English,
-                  message: t('errors.dimensionValidation.invalid_date_format', {
-                    lng: Locale.English
-                  })
-                }
-              ]
-            }
-          ],
-          extension: {
-            extractor,
-            totalNonMatching: preview.length,
-            nonMatchingValues: []
-          }
-        };
+        return viewErrorGenerator(400, dataset.id, 'patch', 'errors.dimension.invalid_date_format', {
+          extractor,
+          totalNonMatching: preview.length,
+          nonMatchingValues: []
+        });
       } else {
         logger.error(
           `There were ${nonMatchedRows.length} row(s) which didn't match based on the information given to us by the user`
@@ -587,38 +520,17 @@ export const validateDateTypeDimension = async (
           .map((item) => item.fact_table_date)
           .filter((item, i, ar) => ar.indexOf(item) === i);
         const totalNonMatching = nonMatchedRows.length;
-        return {
-          status: 400,
-          errors: [
-            {
-              field: 'csv',
-              message: [
-                {
-                  lang: Locale.English,
-                  message: t('errors.dimensionValidation.unmatched_values', { lng: Locale.English })
-                },
-                {
-                  lang: Locale.Welsh,
-                  message: t('errors.dimensionValidation.unmatched_values', { lng: Locale.Welsh })
-                }
-              ],
-              tag: { name: 'errors.dimensionValidation.unmatched_values', params: {} }
-            }
-          ],
-          dataset_id: dataset.id,
-          extension: {
-            extractor,
-            totalNonMatching,
-            nonMatchingValues
-          }
-        } as ViewErrDTO;
+        return viewErrorGenerator(400, dataset.id, 'patch', 'errors.dimension.invalid_date_format', {
+          extractor,
+          totalNonMatching,
+          nonMatchingValues
+        });
       }
     }
   } catch (error) {
-    logger.error(`Something went wrong trying to validate the data with the following error: ${error}`);
+    logger.error(error, `Something unexpected went wrong trying to validate the data`);
     await quack.close();
-    fs.unlinkSync(tempFile);
-    throw error;
+    return viewErrorGenerator(500, dataset.id, 'patch', 'errors.dimension_validation.unknown_error', {});
   }
   const coverage = await quack.all(
     `SELECT MIN(start_date) as start_date, MAX(end_date) AS end_date FROM date_dimension;`
@@ -634,11 +546,9 @@ export const validateDateTypeDimension = async (
   await updateDimension.save();
   const dimensionTable = await quack.all('SELECT * FROM date_dimension;');
   await quack.close();
-  fs.unlinkSync(tempFile);
   const tableHeaders = Object.keys(dimensionTable[0]);
   const dataArray = dimensionTable.map((row) => Object.values(row));
   const currentDataset = await DatasetRepository.getById(dataset.id, { dimensions: { metadata: true } });
-  const currentImport = await DataTable.findOneByOrFail({ id: factTable.id });
   const headers: CSVHeader[] = [];
   for (let i = 0; i < tableHeaders.length; i++) {
     let sourceType: FactTableColumnType;
@@ -652,7 +562,6 @@ export const validateDateTypeDimension = async (
   }
   return {
     dataset: DatasetDTO.fromDataset(currentDataset),
-    data_table: DataTableDto.fromDataTable(currentImport),
     current_page: 1,
     page_info: {
       total_records: 1,
@@ -853,24 +762,12 @@ async function getLookupPreviewWithExtractor(dataset: Dataset, dimension: Dimens
 export const getDimensionPreview = async (dataset: Dataset, dimension: Dimension, lang: string) => {
   logger.info(`Getting dimension preview for ${dimension.id}`);
   const tableName = 'fact_table';
-  let endRevision: Revision;
-  if (dataset.draftRevision) {
-    endRevision = dataset.draftRevision;
-  } else if (dataset.publishedRevision) {
-    endRevision = dataset.publishedRevision;
-  } else {
-    throw new Error('No revision present on the dataset');
-  }
-  const quack = await duckdb();
+  let quack: Database;
   try {
-    const { notesCodeColumn, dataValuesColumn, factTableDef, factIdentifiers } = await createEmptyFactTableInCube(
-      quack,
-      dataset
-    );
-    await loadFactTables(quack, dataset, endRevision, factTableDef, dataValuesColumn, notesCodeColumn, factIdentifiers);
+    quack = await createEmptyCubeWithFactTable(dataset);
   } catch (error) {
-    logger.error(error, `Something went wrong trying to load the fact table into DuckDB`);
-    throw new UnknownException('Something went wrong trying to load the fact table into DuckDB');
+    logger.error(error, 'Something went wrong trying to create the cube for the preview');
+    return viewErrorGenerator(500, dataset.id, 'none', 'errors.dimension.preview_failed', {});
   }
 
   let viewDto: ViewDTO;
@@ -920,7 +817,7 @@ export const getDimensionPreview = async (dataset: Dataset, dimension: Dimension
     return viewDto;
   } catch (error) {
     logger.error(`Something went wrong trying to create dimension preview with the following error: ${error}`);
-    throw error;
+    return viewErrorGenerator(500, dataset.id, 'none', 'errors.dimension.preview_failed', {});
   } finally {
     await quack.close();
   }

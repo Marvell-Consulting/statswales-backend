@@ -1,18 +1,13 @@
-import fs from 'fs';
-
 import { Database } from 'duckdb-async';
 
-import { DataTable } from '../entities/dataset/data-table';
 import { Dataset } from '../entities/dataset/dataset';
 import { Dimension } from '../entities/dataset/dimension';
 import { CSVHeader, ViewDTO, ViewErrDTO } from '../dtos/view-dto';
 import { logger } from '../utils/logger';
-import { getFileImportAndSaveToDisk, loadFileIntoDatabase } from '../utils/file-utils';
 import { viewErrorGenerator } from '../utils/view-error-generator';
 import { DatasetRepository } from '../repositories/dataset';
 import { FactTableColumnType } from '../enums/fact-table-column-type';
 import { DatasetDTO } from '../dtos/dataset-dto';
-import { DataTableDto } from '../dtos/data-table-dto';
 import { ReferenceType } from '../enums/reference-type';
 import { DimensionType } from '../enums/dimension-type';
 
@@ -22,7 +17,7 @@ import {
   loadCorrectReferenceDataIntoReferenceDataTable,
   loadReferenceDataIntoCube
 } from './cube-handler';
-import { duckdb } from './duckdb';
+import { createEmptyCubeWithFactTable } from '../utils/create-facttable';
 
 const sampleSize = 5;
 
@@ -129,26 +124,26 @@ async function validateAllItemsAreInOneCategory(
 }
 
 export const validateReferenceData = async (
-  factTable: DataTable,
   dataset: Dataset,
   dimension: Dimension,
   referenceDataType: ReferenceType | undefined,
   lang: string
 ): Promise<ViewDTO | ViewErrDTO> => {
-  const factTableName = 'fact_table';
-  const quack = await duckdb();
+  let quack: Database;
+  try {
+    quack = await createEmptyCubeWithFactTable(dataset);
+  } catch (error) {
+    logger.error(error, 'Something went wrong trying to create a new database');
+    return viewErrorGenerator(500, dataset.id, 'patch', 'errors.cube_builder.fact_table_creation_failed', {});
+  }
   try {
     // Load reference data in to cube
     await loadReferenceDataIntoCube(quack);
     await copyAllReferenceDataIntoTable(quack);
-    const factTableTmpFile = await getFileImportAndSaveToDisk(dataset, factTable);
-    logger.debug(`Loading fact table in to DuckDB`);
-    await loadFileIntoDatabase(quack, factTable, factTableTmpFile, factTableName);
-    fs.unlinkSync(factTableTmpFile);
   } catch (err) {
     await quack.close();
-    logger.error(`Something went wrong trying to load data in to DuckDB with the following error: ${err}`);
-    throw err;
+    logger.error(err, `Something went wrong trying to load the reference data into the cube`);
+    return viewErrorGenerator(500, dataset.id, 'patch', 'errors.cube_builder.reference_data_loading_failed', {});
   }
 
   let confirmedReferenceDataCategory = referenceDataType?.toString();
@@ -182,8 +177,14 @@ export const validateReferenceData = async (
     }
   } catch (error) {
     await quack.close();
-    logger.error(`Something went wrong trying to validate reference data with the following error: ${error}`);
-    throw new Error(`Something went wrong trying to validate reference data with the following error: ${error}`);
+    logger.error(error, `Something went wrong trying to validate reference data`);
+    return viewErrorGenerator(
+      500,
+      dataset.id,
+      'patch',
+      'errors.dimension_validation.reference_data_validation_failed.',
+      {}
+    );
   }
 
   const categoriesPresent = await quack.all(`SELECT DISTINCT category_keys.category_key FROM fact_table
@@ -217,7 +218,6 @@ export const validateReferenceData = async (
     const tableHeaders = Object.keys(dimensionTable[0]);
     const dataArray = dimensionTable.map((row) => Object.values(row));
     const currentDataset = await DatasetRepository.getById(dataset.id, { dimensions: { metadata: true } });
-    const currentImport = await DataTable.findOneByOrFail({ id: factTable.id });
     const headers: CSVHeader[] = tableHeaders.map((header, index) => {
       return {
         index,
@@ -227,7 +227,6 @@ export const validateReferenceData = async (
     });
     return {
       dataset: DatasetDTO.fromDataset(currentDataset),
-      data_table: DataTableDto.fromDataTable(currentImport),
       current_page: 1,
       page_info: {
         total_records: 1,
@@ -240,8 +239,14 @@ export const validateReferenceData = async (
       data: dataArray
     };
   } catch (error) {
-    logger.error(`Something went wrong trying to generate the preview of the lookup table with error: ${error}`);
-    throw error;
+    logger.error(error, `Something went wrong trying to generate the preview of the column`);
+    return viewErrorGenerator(
+      500,
+      dataset.id,
+      'patch',
+      'errors.dimension_validation.reference_data_preview_failed',
+      {}
+    );
   } finally {
     await quack.close();
   }
