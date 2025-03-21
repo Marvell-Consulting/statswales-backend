@@ -393,7 +393,18 @@ export async function createAndValidateLookupTableDimension(quack: Database, dat
     );
   }
   const nonMatchedRows = await quack.all(
-    `SELECT line_number, fact_table_column, ${makeCubeSafeString(dimension.factTableColumn)}_lookup."${dimension.joinColumn}" AS lookup_table_column FROM (SELECT row_number() OVER () as line_number, "${dimension.factTableColumn}" AS fact_table_column FROM ${FACT_TABLE_NAME}) AS fact_table LEFT JOIN ${makeCubeSafeString(dimension.factTableColumn)}_lookup ON CAST(fact_table.fact_table_column AS VARCHAR)=CAST(${makeCubeSafeString(dimension.factTableColumn)}_lookup."${dimension.joinColumn}" AS VARCHAR) where lookup_table_column IS NULL;`
+    `SELECT
+      line_number,
+      fact_table_column, 
+      ${makeCubeSafeString(dimension.factTableColumn)}_lookup."${dimension.joinColumn}" AS lookup_table_column
+    FROM (
+      SELECT
+        row_number() OVER () as line_number,
+        "${dimension.factTableColumn}" AS fact_table_column
+      FROM ${FACT_TABLE_NAME}) AS fact_table
+      LEFT JOIN ${makeCubeSafeString(dimension.factTableColumn)}_lookup ON CAST(fact_table.fact_table_column AS VARCHAR)=CAST(${makeCubeSafeString(dimension.factTableColumn)}_lookup."${dimension.joinColumn}" AS VARCHAR
+    )
+    WHERE lookup_table_column IS NULL;`
   );
   if (nonMatchedRows.length > 0) {
     const err = new CubeValidationException('Failed to validate lookup table dimension');
