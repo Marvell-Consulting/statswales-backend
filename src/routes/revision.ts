@@ -135,4 +135,4 @@ router.get('/by-id/:revision_id/cube/parquet', loadRevision(), downloadRevisionC
 
 // GET /dataset/:dataset_id/revision/by-id/:revision_id/cube/excel
 // Returns the specific revision of the dataset as an Excel file
-router.get('/by-id/:revision_id/cube/excel', loadRevision(), downloadRevisionCubeAsExcel);
+router.get('/by-id/:revision_id/cube/xlsx', loadRevision(), downloadRevisionCubeAsExcel);

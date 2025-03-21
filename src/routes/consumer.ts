@@ -45,8 +45,4 @@ consumerRouter.get('/:dataset_id', loadPublishedDataset(), getPublishedDatasetBy
 
 // GET /published/:datasetId/revision/:revisionId/download/:format
 // Returns a published dataset as a file stream
-consumerRouter.get(
-  '/:dataset_id/revision/:revision_id/download/:format',
-  loadPublishedDataset(),
-  downloadPublishedDataset
-);
+consumerRouter.get('/:dataset_id/download/:format', loadPublishedDataset(), downloadPublishedDataset);
