@@ -46,7 +46,8 @@ export const withDraftForCube: FindOptionsRelations<Dataset> = {
   factTable: true,
   draftRevision: { dataTable: { dataTableDescriptions: true } },
   dimensions: { metadata: true, lookupTable: true },
-  measure: { metadata: true, measureTable: true, lookupTable: true }
+  measure: { metadata: true, measureTable: true, lookupTable: true },
+  revisions: { dataTable: { dataTableDescriptions: true } }
 };
 
 export const withDraftForTasklistState: FindOptionsRelations<Dataset> = {

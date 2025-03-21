@@ -103,17 +103,12 @@ export const attachLookupTableToMeasure = async (req: Request, res: Response, ne
 
 export const getPreviewOfMeasure = async (req: Request, res: Response, next: NextFunction) => {
   const dataset = res.locals.dataset;
-  const factTable = dataset.draftRevision?.dataTable;
   if (!dataset.measure) {
     next(new NotFoundException('errors.measure_invalid'));
     return;
   }
-  if (!factTable) {
-    next(new NotFoundException('errors.fact_table_invalid'));
-    return;
-  }
   try {
-    const preview = await getMeasurePreview(dataset, factTable);
+    const preview = await getMeasurePreview(dataset);
     res.status(200);
     res.json(preview);
   } catch (err) {

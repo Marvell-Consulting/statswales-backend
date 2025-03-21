@@ -22,6 +22,9 @@ import { convertBufferToUTF8 } from '../utils/file-utils';
 
 import { duckdb } from './duckdb';
 import { getFileService } from '../utils/get-file-service';
+import { Revision } from '../entities/dataset/revision';
+import { createEmptyFactTableInCube, loadFactTables } from './cube-handler';
+import { UnknownException } from '../exceptions/unknown.exception';
 
 export const MAX_PAGE_SIZE = 500;
 export const MIN_PAGE_SIZE = 5;
@@ -371,39 +374,31 @@ export const getCSVPreview = async (
 
 export const getFactTableColumnPreview = async (
   dataset: Dataset,
-  dataTable: DataTable,
   columnName: string
 ): Promise<ViewDTO | ViewErrDTO> => {
   logger.debug(`Getting fact table column preview for ${columnName}`);
-  const tableName = 'preview_table';
+  const tableName = 'fact_table';
+  let endRevision: Revision;
+  if (dataset.draftRevision) {
+    endRevision = dataset.draftRevision;
+  } else if (dataset.publishedRevision) {
+    endRevision = dataset.publishedRevision;
+  } else {
+    throw new Error('No revision present on the dataset');
+  }
   const quack = await duckdb();
-  const tempFile = tmp.tmpNameSync({ postfix: `.${dataTable.fileType}` });
   try {
-    const fileService = getFileService();
-    const fileBuffer = await fileService.loadBuffer(dataTable.filename, dataset.id);
-    fs.writeFileSync(tempFile, fileBuffer);
-    let createTableQuery: string;
-    switch (dataTable.fileType) {
-      case FileType.Csv:
-      case FileType.GzipCsv:
-        createTableQuery = `CREATE TABLE ${tableName} AS SELECT * FROM read_csv('${tempFile}', auto_type_candidates = ['BOOLEAN', 'BIGINT', 'DOUBLE', 'VARCHAR']);`;
-        break;
-      case FileType.Parquet:
-        createTableQuery = `CREATE TABLE ${tableName} AS SELECT * FROM '${tempFile}';`;
-        break;
-      case FileType.Json:
-      case FileType.GzipJson:
-        createTableQuery = `CREATE TABLE ${tableName} AS SELECT * FROM read_json_auto('${tempFile}');`;
-        break;
-      case FileType.Excel:
-        await quack.exec('INSTALL spatial;');
-        await quack.exec('LOAD spatial;');
-        createTableQuery = `CREATE TABLE ${tableName} AS SELECT * FROM st_read('${tempFile}');`;
-        break;
-      default:
-        throw new Error('Unknown file type');
-    }
-    await quack.exec(createTableQuery);
+    const { notesCodeColumn, dataValuesColumn, factTableDef, factIdentifiers } = await createEmptyFactTableInCube(
+      quack,
+      dataset
+    );
+    await loadFactTables(quack, dataset, endRevision, factTableDef, dataValuesColumn, notesCodeColumn, factIdentifiers);
+  } catch (error) {
+    logger.error(error, `Something went wrong trying to load the fact table into DuckDB`);
+    throw new UnknownException('Something went wrong trying to load the fact table into DuckDB');
+  }
+
+  try {
     const totals = await quack.all(`SELECT COUNT(DISTINCT "${columnName}") AS totalLines FROM ${tableName};`);
     const totalLines = Number(totals[0].totalLines);
     const previewQuery = `SELECT DISTINCT "${columnName}" FROM ${tableName} LIMIT ${sampleSize}`;
@@ -411,7 +406,6 @@ export const getFactTableColumnPreview = async (
     const tableHeaders = Object.keys(preview[0]);
     const dataArray = preview.map((row) => Object.values(row));
     const currentDataset = await DatasetRepository.getById(dataset.id);
-    const currentImport = await DataTable.findOneByOrFail({ id: dataTable.id });
     const headers: CSVHeader[] = [];
     for (let i = 0; i < tableHeaders.length; i++) {
       let sourceType: FactTableColumnType;
@@ -428,7 +422,6 @@ export const getFactTableColumnPreview = async (
     }
     return {
       dataset: DatasetDTO.fromDataset(currentDataset),
-      data_table: DataTableDto.fromDataTable(currentImport),
       current_page: 1,
       page_info: {
         total_records: totalLines,
@@ -461,6 +454,5 @@ export const getFactTableColumnPreview = async (
     };
   } finally {
     await quack.close();
-    fs.unlinkSync(tempFile);
   }
 };
