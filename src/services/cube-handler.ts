@@ -373,15 +373,17 @@ export async function createAndValidateLookupTableDimension(quack: Database, dat
       const descriptionCol = extractor.descriptionColumns.find(
         (col) => col.lang.toLowerCase() === locale.split('-')[0]
       );
-      const descriptionColStr = descriptionCol ? `${descriptionCol.name} as description, ` : '';
+      const descriptionColStr = descriptionCol ? `"${descriptionCol.name}" AS description, ` : '';
       const notesCol = extractor.notesColumns?.find((col) => col.lang.toLowerCase() === locale.split('-')[0]);
-      const notesColStr = notesCol ? `${notesCol.name} as notes, ` : '';
+      const notesColStr = notesCol ? `"${notesCol.name}" AS notes, ` : '';
       return (
         `SELECT "${dimension.joinColumn}", ${sortOrderCol} '${locale.toLowerCase()}' as language,\n` +
         `${descriptionColStr} ${notesColStr} from ${makeCubeSafeString(dimension.factTableColumn)}_lookup_sw2`
       );
     });
-    await quack.exec(`CREATE TABLE "${dimension.factTableColumn}_lookup" AS ${viewParts.join('\nUNION\n')};`);
+    await quack.exec(
+      `CREATE TABLE "${makeCubeSafeString(dimension.factTableColumn)}_lookup" AS ${viewParts.join('\nUNION\n')};`
+    );
   } else {
     await loadFileIntoCube(
       quack,
@@ -391,7 +393,18 @@ export async function createAndValidateLookupTableDimension(quack: Database, dat
     );
   }
   const nonMatchedRows = await quack.all(
-    `SELECT line_number, fact_table_column, ${makeCubeSafeString(dimension.factTableColumn)}_lookup.${dimension.joinColumn} as lookup_table_column FROM (SELECT row_number() OVER () as line_number, "${dimension.factTableColumn}" as fact_table_column FROM ${FACT_TABLE_NAME}) as fact_table LEFT JOIN ${makeCubeSafeString(dimension.factTableColumn)}_lookup ON CAST(fact_table.fact_table_column AS VARCHAR)=CAST(${makeCubeSafeString(dimension.factTableColumn)}_lookup.${dimension.joinColumn} AS VARCHAR) where lookup_table_column IS NULL;`
+    `SELECT
+      line_number,
+      fact_table_column, 
+      ${makeCubeSafeString(dimension.factTableColumn)}_lookup."${dimension.joinColumn}" AS lookup_table_column
+    FROM (
+      SELECT
+        row_number() OVER () as line_number,
+        "${dimension.factTableColumn}" AS fact_table_column
+      FROM ${FACT_TABLE_NAME}) AS fact_table
+      LEFT JOIN ${makeCubeSafeString(dimension.factTableColumn)}_lookup ON CAST(fact_table.fact_table_column AS VARCHAR)=CAST(${makeCubeSafeString(dimension.factTableColumn)}_lookup."${dimension.joinColumn}" AS VARCHAR
+    )
+    WHERE lookup_table_column IS NULL;`
   );
   if (nonMatchedRows.length > 0) {
     const err = new CubeValidationException('Failed to validate lookup table dimension');
@@ -861,8 +874,8 @@ async function setupDimensions(
             SUPPORTED_LOCALES.map((locale) => {
               const columnName =
                 dimension.metadata.find((info) => info.language === locale)?.name || dimension.factTableColumn;
-              viewSelectStatementsMap.get(locale)?.push(`${dimension.factTableColumn} as "${columnName}"`);
-              rawSelectStatementsMap.get(locale)?.push(`${dimension.factTableColumn} as "${columnName}"`);
+              viewSelectStatementsMap.get(locale)?.push(`"${dimension.factTableColumn}" as "${columnName}"`);
+              rawSelectStatementsMap.get(locale)?.push(`"${dimension.factTableColumn}" as "${columnName}"`);
             });
           }
           break;
@@ -877,8 +890,8 @@ async function setupDimensions(
               SUPPORTED_LOCALES.map((locale) => {
                 const columnName =
                   dimension.metadata.find((info) => info.language === locale)?.name || dimension.factTableColumn;
-                viewSelectStatementsMap.get(locale)?.push(`${dimension.factTableColumn} as "${columnName}"`);
-                rawSelectStatementsMap.get(locale)?.push(`${dimension.factTableColumn} as "${columnName}"`);
+                viewSelectStatementsMap.get(locale)?.push(`"${dimension.factTableColumn}" as "${columnName}"`);
+                rawSelectStatementsMap.get(locale)?.push(`"${dimension.factTableColumn}" as "${columnName}"`);
               });
               continue;
             }
@@ -959,7 +972,7 @@ async function setupDimensions(
           break;
       }
     } catch (err) {
-      logger.error(`Something went wrong trying to load dimension ${dimension.id} in to the cube`);
+      logger.error(err, `Something went wrong trying to load dimension ${dimension.id} in to the cube`);
       await quack.close();
       throw new Error(`Could not load dimensions ${dimension.id} in to the cube with the following error: ${err}`);
     }

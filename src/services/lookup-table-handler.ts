@@ -71,24 +71,24 @@ function createExtractor(protoLookupTable: DataTable, tableMatcher?: LookupTable
     };
   } else {
     logger.debug(`Using lookup table to try try to generate the extractor...`);
-    const sortColumn = protoLookupTable.dataTableDescriptions.find((info) =>
-      info.columnName.toLowerCase().startsWith('sort')
+    const sortColumn = protoLookupTable.dataTableDescriptions.find(
+      (info) => info.columnName.toLowerCase().indexOf('sort') > -1
     )?.columnName;
-    const hierarchyColumn = protoLookupTable.dataTableDescriptions.find((info) =>
-      info.columnName.toLowerCase().startsWith('hierarchy')
+    const hierarchyColumn = protoLookupTable.dataTableDescriptions.find(
+      (info) => info.columnName.toLowerCase().indexOf('hierarchy') > -1
     )?.columnName;
-    const languageColumn = protoLookupTable.dataTableDescriptions.find((info) =>
-      info.columnName.toLowerCase().startsWith('lang')
+    const languageColumn = protoLookupTable.dataTableDescriptions.find(
+      (info) => info.columnName.toLowerCase().indexOf('lang') > -1
     )?.columnName;
-    const filteredDescriptionColumns = protoLookupTable.dataTableDescriptions.filter((info) =>
-      info.columnName.toLowerCase().startsWith('description')
+    const filteredDescriptionColumns = protoLookupTable.dataTableDescriptions.filter(
+      (info) => info.columnName.toLowerCase().indexOf('description') > -1
     );
     if (filteredDescriptionColumns.length < 1) {
       throw new Error('Could not identify description columns in lookup table');
     }
     const descriptionColumns = filteredDescriptionColumns.map((info) => columnIdentification(info));
-    const filteredNotesColumns = protoLookupTable.dataTableDescriptions.filter((info) =>
-      info.columnName.toLowerCase().startsWith('note')
+    const filteredNotesColumns = protoLookupTable.dataTableDescriptions.filter(
+      (info) => info.columnName.toLowerCase().indexOf('note') > -1
     );
     let notesColumns: ColumnDescriptor[] | undefined;
     if (filteredNotesColumns.length > 0) {

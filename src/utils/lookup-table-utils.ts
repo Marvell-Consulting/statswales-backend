@@ -46,7 +46,9 @@ export const lookForJoinColumn = (
   const refCol = protoLookupTable.dataTableDescriptions.find((col) => col.columnName.toLowerCase().startsWith('ref'));
   if (tableMatcher?.join_column) {
     return tableMatcher.join_column;
-  } else if (protoLookupTable.dataTableDescriptions.find((col) => col.columnName === factTableColumn)) {
+  } else if (
+    protoLookupTable.dataTableDescriptions.find((col) => col.columnName.toLowerCase() === factTableColumn.toLowerCase())
+  ) {
     return factTableColumn;
   } else if (refCol) {
     return refCol.columnName;
