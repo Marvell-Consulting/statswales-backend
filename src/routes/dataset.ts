@@ -108,10 +108,7 @@ router.use(
   '/:dataset_id/dimension',
   rateLimiter,
   passport.authenticate('jwt', { session: false }),
-  loadDataset({
-    dimensions: { metadata: true, lookupTable: true },
-    revisions: { dataTable: true }
-  }),
+  loadDataset(withDraftForCube),
   dimensionRouter
 );
 router.use(

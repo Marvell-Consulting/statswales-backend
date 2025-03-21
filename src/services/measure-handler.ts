@@ -25,8 +25,10 @@ import { SUPPORTED_LOCALES } from '../middleware/translation';
 import { DisplayType } from '../enums/display-type';
 import { getFileService } from '../utils/get-file-service';
 
-import { createFactTableQuery, createMeasureLookupTable } from './cube-handler';
+import { createEmptyFactTableInCube, createMeasureLookupTable, loadFactTables } from './cube-handler';
 import { duckdb } from './duckdb';
+import { Revision } from '../entities/dataset/revision';
+import { UnknownException } from '../exceptions/unknown.exception';
 
 async function cleanUpMeasure(measureId: string) {
   const measure = await Measure.findOneByOrFail({ id: measureId });
@@ -455,7 +457,6 @@ const sampleSize = 5;
 async function getMeasurePreviewWithoutExtractor(
   dataset: Dataset,
   measure: Measure,
-  factTable: DataTable,
   quack: Database,
   tableName: string
 ): Promise<ViewDTO> {
@@ -465,7 +466,6 @@ async function getMeasurePreviewWithoutExtractor(
   const tableHeaders = Object.keys(preview[0]);
   const dataArray = preview.map((row) => Object.values(row));
   const currentDataset = await DatasetRepository.getById(dataset.id);
-  const currentImport = await DataTable.findOneByOrFail({ id: factTable.id });
   const headers: CSVHeader[] = [];
   for (let i = 0; i < tableHeaders.length; i++) {
     headers.push({
@@ -476,7 +476,6 @@ async function getMeasurePreviewWithoutExtractor(
   }
   return {
     dataset: DatasetDTO.fromDataset(currentDataset),
-    data_table: DataTableDto.fromDataTable(currentImport),
     current_page: 1,
     page_info: {
       total_records: preview.length,
@@ -490,12 +489,7 @@ async function getMeasurePreviewWithoutExtractor(
   };
 }
 
-async function getMeasurePreviewWithExtractor(
-  dataset: Dataset,
-  measure: Measure,
-  factTable: DataTable,
-  quack: Database
-) {
+async function getMeasurePreviewWithExtractor(dataset: Dataset, measure: Measure, quack: Database) {
   logger.debug(`Generating lookup table preview for measure ${measure.id}`);
   await createMeasureLookupTable(quack, measure.measureTable);
   const query = `SELECT * FROM measure ORDER BY sort_order, reference LIMIT ${sampleSize};`;
@@ -504,7 +498,6 @@ async function getMeasurePreviewWithExtractor(
   const tableHeaders = Object.keys(measureTable[0]);
   const dataArray = measureTable.map((row) => Object.values(row));
   const currentDataset = await DatasetRepository.getById(dataset.id);
-  const currentImport = await DataTable.findOneByOrFail({ id: factTable.id });
   const headers: CSVHeader[] = tableHeaders.map((name, idx) => ({
     name,
     index: idx,
@@ -512,7 +505,6 @@ async function getMeasurePreviewWithExtractor(
   }));
   return {
     dataset: DatasetDTO.fromDataset(currentDataset),
-    fact_table: DataTableDto.fromDataTable(currentImport),
     current_page: 1,
     page_info: {
       total_records: measureTable.length,
@@ -526,44 +518,46 @@ async function getMeasurePreviewWithExtractor(
   };
 }
 
-export const getMeasurePreview = async (dataset: Dataset, dataTable: DataTable) => {
+export const getMeasurePreview = async (dataset: Dataset) => {
   logger.debug(`Getting preview for measure: ${dataset.measure.id}`);
   const tableName = 'fact_table';
+  let endRevision: Revision;
+  if (dataset.draftRevision) {
+    endRevision = dataset.draftRevision;
+  } else if (dataset.publishedRevision) {
+    endRevision = dataset.publishedRevision;
+  } else {
+    throw new Error('No revision present on the dataset');
+  }
   const quack = await duckdb();
-  const tempFile = tmp.tmpNameSync({ postfix: `.${dataTable.fileType}` });
+  try {
+    const { notesCodeColumn, dataValuesColumn, factTableDef, factIdentifiers } = await createEmptyFactTableInCube(
+      quack,
+      dataset
+    );
+    await loadFactTables(quack, dataset, endRevision, factTableDef, dataValuesColumn, notesCodeColumn, factIdentifiers);
+  } catch (error) {
+    logger.error(error, `Something went wrong trying to load the fact table into DuckDB`);
+    throw new UnknownException('Something went wrong trying to load the fact table into DuckDB');
+  }
+
   const measure = dataset.measure;
   if (!measure) {
     throw new Error('No measure present on the dataset');
   }
-  // extract the data from the fact table
-  try {
-    const fileService = getFileService();
-    const fileBuffer = await fileService.loadBuffer(dataTable.filename, dataset.id);
-    fs.writeFileSync(tempFile, fileBuffer);
-    const createTableQuery = await createFactTableQuery(tableName, tempFile, dataTable.fileType, quack);
-    logger.debug(`Creating fact table with query: ${createTableQuery}`);
-    await quack.exec(createTableQuery);
-  } catch (error) {
-    logger.error(`Something went wrong trying to create ${tableName} in DuckDB. Unable to do matching and validation`);
-    await quack.close();
-    fs.unlinkSync(tempFile);
-    throw error;
-  }
   let viewDto: ViewDTO;
   try {
     if (measure.measureTable && measure.measureTable.length > 0) {
-      viewDto = await getMeasurePreviewWithExtractor(dataset, measure, dataTable, quack);
+      viewDto = await getMeasurePreviewWithExtractor(dataset, measure, quack);
     } else {
       logger.debug('Straight column preview');
-      viewDto = await getMeasurePreviewWithoutExtractor(dataset, measure, dataTable, quack, tableName);
+      viewDto = await getMeasurePreviewWithoutExtractor(dataset, measure, quack, tableName);
     }
     await quack.close();
-    fs.unlinkSync(tempFile);
     return viewDto;
   } catch (error) {
     logger.error(error, `Something went wrong trying to create measure preview`);
     await quack.close();
-    fs.unlinkSync(tempFile);
     throw error;
   }
 };
