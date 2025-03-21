@@ -11,7 +11,7 @@ import { FileType } from '../enums/file-type';
 
 import { logger } from './logger';
 import { getFileService } from './get-file-service';
-import {FileValidationErrorType, FileValidationException} from "../exceptions/validation-exception";
+import { FileValidationErrorType, FileValidationException } from '../exceptions/validation-exception';
 
 export const convertBufferToUTF8 = (buffer: Buffer): Buffer => {
   const fileEncoding = detectCharacterEncoding(buffer)?.encoding;
