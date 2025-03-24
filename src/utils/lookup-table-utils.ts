@@ -7,13 +7,13 @@ import { LookupTablePatchDTO } from '../dtos/lookup-patch-dto';
 
 import { logger } from './logger';
 
-export function convertFactTableToLookupTable(factTable: DataTable) {
+export function convertDataTableToLookupTable(dataTable: DataTable) {
   const lookupTable = new LookupTable();
-  lookupTable.id = factTable.id;
-  lookupTable.fileType = factTable.fileType;
-  lookupTable.filename = factTable.filename;
-  lookupTable.mimeType = factTable.mimeType;
-  lookupTable.hash = factTable.hash;
+  lookupTable.id = dataTable.id;
+  lookupTable.fileType = dataTable.fileType;
+  lookupTable.filename = dataTable.filename;
+  lookupTable.mimeType = dataTable.mimeType;
+  lookupTable.hash = dataTable.hash;
   return lookupTable;
 }
 
@@ -54,14 +54,14 @@ export const lookForJoinColumn = (
     return refCol.columnName;
   } else {
     const possibleJoinColumns = protoLookupTable.dataTableDescriptions.filter((info) => {
-      if (info.columnName.toLowerCase().indexOf('decimal') >= 0) return false;
-      if (info.columnName.toLowerCase().indexOf('hierarchy') >= 0) return false;
-      if (info.columnName.toLowerCase().indexOf('format') >= 0) return false;
-      if (info.columnName.toLowerCase().indexOf('description') >= 0) return false;
-      if (info.columnName.toLowerCase().indexOf('sort') >= 0) return false;
-      if (info.columnName.toLowerCase().indexOf('note') >= 0) return false;
-      if (info.columnName.toLowerCase().indexOf('type') >= 0) return false;
-      if (info.columnName.toLowerCase().indexOf('lang') >= 0) return false;
+      if (info.columnName.toLowerCase().includes('decimal')) return false;
+      if (info.columnName.toLowerCase().includes('hierarchy')) return false;
+      if (info.columnName.toLowerCase().includes('format')) return false;
+      if (info.columnName.toLowerCase().includes('description')) return false;
+      if (info.columnName.toLowerCase().includes('sort')) return false;
+      if (info.columnName.toLowerCase().includes('note')) return false;
+      if (info.columnName.toLowerCase().includes('type')) return false;
+      if (info.columnName.toLowerCase().includes('lang')) return false;
       logger.debug(`Looks like column ${info.columnName.toLowerCase()} is a join column`);
       return true;
     });

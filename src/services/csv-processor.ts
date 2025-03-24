@@ -10,8 +10,6 @@ import { Dataset } from '../entities/dataset/dataset';
 import { CSVHeader, ViewDTO, ViewErrDTO } from '../dtos/view-dto';
 import { FactTableColumnType } from '../enums/fact-table-column-type';
 import { DatasetRepository } from '../repositories/dataset';
-import { DatasetDTO } from '../dtos/dataset-dto';
-import { DataTableDto } from '../dtos/data-table-dto';
 import { FileType } from '../enums/file-type';
 import { DataTableDescription } from '../entities/dataset/data-table-description';
 import { DataTableAction } from '../enums/data-table-action';
@@ -21,7 +19,7 @@ import { duckdb } from './duckdb';
 import { getFileService } from '../utils/get-file-service';
 import { FileValidationErrorType, FileValidationException } from '../exceptions/validation-exception';
 import { DuckDBException } from '../exceptions/duckdb-exception';
-import { viewErrorGenerator } from '../utils/view-error-generator';
+import { viewErrorGenerators, viewGenerator } from '../utils/view-error-generators';
 import { createEmptyCubeWithFactTable } from '../utils/create-facttable';
 import { validateParams } from '../validators/preview-validator';
 
@@ -207,7 +205,7 @@ export const getCSVPreview = async (
       fileBuffer = await fileService.loadBuffer(importObj.filename, dataset.id);
     } catch (err) {
       logger.error(err, `Something went wrong trying to fetch the file from storage`);
-      return viewErrorGenerator(500, dataset.id, 'csv', 'errors.datalake.failed_to_fetch_file', {});
+      return viewErrorGenerators(500, dataset.id, 'csv', 'errors.datalake.failed_to_fetch_file', {});
     }
     fs.writeFileSync(tempFile, fileBuffer);
     await loadFileIntoDatabase(quack, importObj, tempFile, tableName);
@@ -245,23 +243,15 @@ export const getCSVPreview = async (
         source_type: sourceType
       });
     }
-    return {
-      dataset: DatasetDTO.fromDataset(currentDataset),
-      data_table: DataTableDto.fromDataTable(currentImport),
-      current_page: page,
-      page_info: {
-        total_records: totalLines,
-        start_record: startLine,
-        end_record: lastLine
-      },
-      page_size: size,
-      total_pages: totalPages,
-      headers,
-      data: dataArray
+    const pageInfo = {
+      total_records: totalLines,
+      start_record: startLine,
+      end_record: lastLine
     };
+    return viewGenerator(currentDataset, page, pageInfo, size, totalPages, headers, dataArray, currentImport);
   } catch (error) {
     logger.error(error);
-    return viewErrorGenerator(500, dataset.id, 'csv', 'errors.preview.preview_failed', {});
+    return viewErrorGenerators(500, dataset.id, 'csv', 'errors.preview.preview_failed', {});
   } finally {
     await quack.close();
     if (fs.existsSync(tempFile)) fs.unlinkSync(tempFile);
@@ -279,7 +269,7 @@ export const getFactTableColumnPreview = async (
     quack = await createEmptyCubeWithFactTable(dataset);
   } catch (error) {
     logger.error(error, 'Something went wrong trying to create a new database');
-    return viewErrorGenerator(500, dataset.id, 'patch', 'errors.cube_builder.fact_table_creation_failed', {});
+    return viewErrorGenerators(500, dataset.id, 'patch', 'errors.cube_builder.fact_table_creation_failed', {});
   }
   try {
     const totals = await quack.all(`SELECT COUNT(DISTINCT "${columnName}") AS totalLines FROM ${tableName};`);
@@ -303,22 +293,16 @@ export const getFactTableColumnPreview = async (
         source_type: sourceType
       });
     }
-    return {
-      dataset: DatasetDTO.fromDataset(currentDataset),
-      current_page: 1,
-      page_info: {
-        total_records: totalLines,
-        start_record: 1,
-        end_record: preview.length
-      },
-      page_size: preview.length < sampleSize ? preview.length : sampleSize,
-      total_pages: 1,
-      headers,
-      data: dataArray
+    const pageInfo = {
+      total_records: totalLines,
+      start_record: 1,
+      end_record: preview.length
     };
+    const pageSize = preview.length < sampleSize ? preview.length : sampleSize;
+    return viewGenerator(currentDataset, 1, pageInfo, pageSize, 1, headers, dataArray);
   } catch (error) {
     logger.error(error);
-    return viewErrorGenerator(500, dataset.id, 'csv', 'errors.cube.failed_to_query', {});
+    return viewErrorGenerators(500, dataset.id, 'csv', 'errors.cube.failed_to_query', {});
   } finally {
     await quack.close();
   }

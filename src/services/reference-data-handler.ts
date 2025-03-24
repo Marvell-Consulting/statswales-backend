@@ -4,10 +4,9 @@ import { Dataset } from '../entities/dataset/dataset';
 import { Dimension } from '../entities/dataset/dimension';
 import { CSVHeader, ViewDTO, ViewErrDTO } from '../dtos/view-dto';
 import { logger } from '../utils/logger';
-import { viewErrorGenerator } from '../utils/view-error-generator';
+import { viewErrorGenerators, viewGenerator } from '../utils/view-error-generators';
 import { DatasetRepository } from '../repositories/dataset';
 import { FactTableColumnType } from '../enums/fact-table-column-type';
-import { DatasetDTO } from '../dtos/dataset-dto';
 import { ReferenceType } from '../enums/reference-type';
 import { DimensionType } from '../enums/dimension-type';
 
@@ -53,7 +52,7 @@ async function validateUnknownReferenceDataItems(quack: Database, dataset: Datas
               LEFT JOIN reference_data on reference_data.item_id=CAST(fact_table."${dimension.factTableColumn}" AS VARCHAR)
               WHERE reference_data.item_id IS NULL;
         `);
-    return viewErrorGenerator(400, dataset.id, 'patch', 'errors.dimensionValidation.invalid_lookup_table', {
+    return viewErrorGenerators(400, dataset.id, 'patch', 'errors.dimensionValidation.invalid_lookup_table', {
       totalNonMatching: nonMatchedRows.length,
       nonMatchingDataTableValues: nonMatchingDataTableValues.map((row) => Object.values(row)[0])
     });
@@ -84,7 +83,7 @@ async function validateAllItemsAreInCategory(
             JOIN categories ON categories.category=category_keys.category JOIN category_info ON categories.category=category_info.category AND lang='${lang.toLowerCase()}'
             WHERE categories.category!='${referenceDataType}' GROUP BY fact_table."${dimension.factTableColumn}", item_id;
         `);
-    return viewErrorGenerator(400, dataset.id, 'patch', 'errors.dimensionValidation.invalid_lookup_table', {
+    return viewErrorGenerators(400, dataset.id, 'patch', 'errors.dimensionValidation.invalid_lookup_table', {
       totalNonMatching: nonMatchingDataTableValues.length,
       nonMatchingDataTableValues: nonMatchingDataTableValues.map((row) => Object.values(row)[0])
     });
@@ -105,14 +104,14 @@ async function validateAllItemsAreInOneCategory(
     `);
   if (categoriesPresent.length > 1) {
     logger.error('The user has more than one type of category in reference data column');
-    return viewErrorGenerator(400, dataset.id, 'patch', 'errors.dimensionValidation.to_many_categories_present', {
+    return viewErrorGenerators(400, dataset.id, 'patch', 'errors.dimensionValidation.to_many_categories_present', {
       totalNonMatching: categoriesPresent.length,
       nonMatchingDataTableValues: categoriesPresent.map((row) => Object.values(row)[0])
     });
   }
   if (categoriesPresent.length === 0) {
     logger.error('There users column can not be matched to anything in the reference data');
-    return viewErrorGenerator(
+    return viewErrorGenerators(
       400,
       dataset.id,
       'patch',
@@ -134,7 +133,7 @@ export const validateReferenceData = async (
     quack = await createEmptyCubeWithFactTable(dataset);
   } catch (error) {
     logger.error(error, 'Something went wrong trying to create a new database');
-    return viewErrorGenerator(500, dataset.id, 'patch', 'errors.cube_builder.fact_table_creation_failed', {});
+    return viewErrorGenerators(500, dataset.id, 'patch', 'errors.cube_builder.fact_table_creation_failed', {});
   }
   try {
     // Load reference data in to cube
@@ -143,7 +142,7 @@ export const validateReferenceData = async (
   } catch (err) {
     await quack.close();
     logger.error(err, `Something went wrong trying to load the reference data into the cube`);
-    return viewErrorGenerator(500, dataset.id, 'patch', 'errors.cube_builder.reference_data_loading_failed', {});
+    return viewErrorGenerators(500, dataset.id, 'patch', 'errors.cube_builder.reference_data_loading_failed', {});
   }
 
   let confirmedReferenceDataCategory = referenceDataType?.toString();
@@ -178,7 +177,7 @@ export const validateReferenceData = async (
   } catch (error) {
     await quack.close();
     logger.error(error, `Something went wrong trying to validate reference data`);
-    return viewErrorGenerator(
+    return viewErrorGenerators(
       500,
       dataset.id,
       'patch',
@@ -202,7 +201,7 @@ export const validateReferenceData = async (
 
   try {
     logger.debug('Passed validation preparing to send back the preview');
-    const previewQuery = `
+    const allMatchesQuery = `
             SELECT DISTINCT fact_table."${dimension.factTableColumn}", reference_data_info.description
             FROM fact_table
             LEFT JOIN reference_data
@@ -212,6 +211,19 @@ export const validateReferenceData = async (
                 AND reference_data.category_key=reference_data_info.category_key
                 AND reference_data.version_no=reference_data_info.version_no
             WHERE reference_data_info.lang='${lang.toLowerCase()}';
+        `;
+    const allMatches = await quack.all(allMatchesQuery);
+    const previewQuery = `
+            SELECT DISTINCT fact_table."${dimension.factTableColumn}", reference_data_info.description
+            FROM fact_table
+            LEFT JOIN reference_data
+                ON CAST(fact_table."${dimension.factTableColumn}" AS VARCHAR)=reference_data.item_id
+            JOIN reference_data_info
+                ON reference_data.item_id=reference_data_info.item_id
+                AND reference_data.category_key=reference_data_info.category_key
+                AND reference_data.version_no=reference_data_info.version_no
+            WHERE reference_data_info.lang='${lang.toLowerCase()}'
+            LIMIT ${sampleSize};
         `;
     logger.debug(`Preview query = ${previewQuery}`);
     const dimensionTable = await quack.all(previewQuery);
@@ -225,22 +237,16 @@ export const validateReferenceData = async (
         source_type: FactTableColumnType.Unknown
       };
     });
-    return {
-      dataset: DatasetDTO.fromDataset(currentDataset),
-      current_page: 1,
-      page_info: {
-        total_records: 1,
-        start_record: 1,
-        end_record: 10
-      },
-      page_size: 10,
-      total_pages: 1,
-      headers,
-      data: dataArray
+    const pageInfo = {
+      total_records: allMatches.length,
+      start_record: 1,
+      end_record: dataArray.length
     };
+    const pageSize = dataArray.length < sampleSize ? dataArray.length : sampleSize;
+    return viewGenerator(currentDataset, 1, pageInfo, pageSize, 1, headers, dataArray);
   } catch (error) {
     logger.error(error, `Something went wrong trying to generate the preview of the column`);
-    return viewErrorGenerator(
+    return viewErrorGenerators(
       500,
       dataset.id,
       'patch',
@@ -302,20 +308,13 @@ export const getReferenceDataDimensionPreview = async (
         source_type: FactTableColumnType.Unknown
       };
     });
-
-    return {
-      dataset: DatasetDTO.fromDataset(currentDataset),
-      current_page: 1,
-      page_info: {
-        total_records: totalRows,
-        start_record: 1,
-        end_record: sampleSize
-      },
-      page_size: sampleSize,
-      total_pages: 1,
-      headers,
-      data: dataArray
+    const pageInfo = {
+      total_records: totalRows,
+      start_record: 1,
+      end_record: dataArray.length
     };
+    const pageSize = dataArray.length < sampleSize ? dataArray.length : sampleSize;
+    return viewGenerator(currentDataset, 1, pageInfo, pageSize, 1, headers, dataArray);
   } catch (error) {
     logger.error(`Something went wrong trying to generate the preview of the lookup table with error: ${error}`);
     throw error;

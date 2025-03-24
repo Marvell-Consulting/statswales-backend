@@ -7,21 +7,22 @@ import { LookupTable } from '../entities/dataset/lookup-table';
 import { DataTable } from '../entities/dataset/data-table';
 import { LookupTablePatchDTO } from '../dtos/lookup-patch-dto';
 import { LookupTableExtractor } from '../extractors/lookup-table-extractor';
-import { columnIdentification, convertFactTableToLookupTable, lookForJoinColumn } from '../utils/lookup-table-utils';
+import { columnIdentification, convertDataTableToLookupTable, lookForJoinColumn } from '../utils/lookup-table-utils';
 import { ColumnDescriptor } from '../extractors/column-descriptor';
 import { Dataset } from '../entities/dataset/dataset';
 import { CSVHeader, ViewDTO, ViewErrDTO } from '../dtos/view-dto';
 import { logger } from '../utils/logger';
 import { Dimension } from '../entities/dataset/dimension';
 import { loadFileIntoDatabase } from '../utils/file-utils';
-import { viewErrorGenerator } from '../utils/view-error-generator';
+import { viewErrorGenerators, viewGenerator } from '../utils/view-error-generators';
 import { DatasetRepository } from '../repositories/dataset';
 import { FactTableColumnType } from '../enums/fact-table-column-type';
-import { DatasetDTO } from '../dtos/dataset-dto';
 
 import { cleanUpDimension } from './dimension-processor';
 import { Database } from 'duckdb-async';
 import { createEmptyCubeWithFactTable } from '../utils/create-facttable';
+
+const sampleSize = 5;
 
 async function setupDimension(
   dimension: Dimension,
@@ -111,7 +112,7 @@ export const validateLookupTable = async (
   buffer: Buffer,
   tableMatcher?: LookupTablePatchDTO
 ): Promise<ViewDTO | ViewErrDTO> => {
-  const lookupTable = convertFactTableToLookupTable(protoLookupTable);
+  const lookupTable = convertDataTableToLookupTable(protoLookupTable);
   const factTableName = 'fact_table';
   const lookupTableName = 'preview_lookup';
   let quack: Database;
@@ -119,7 +120,7 @@ export const validateLookupTable = async (
     quack = await createEmptyCubeWithFactTable(dataset);
   } catch (error) {
     logger.error(error, 'Something went wrong trying to create a new database');
-    return viewErrorGenerator(500, dataset.id, 'patch', 'errors.cube_builder.fact_table_creation_failed', {});
+    return viewErrorGenerators(500, dataset.id, 'patch', 'errors.cube_builder.fact_table_creation_failed', {});
   }
 
   const lookupTableTmpFile = tmp.tmpNameSync({ postfix: `.${lookupTable.fileType}` });
@@ -132,7 +133,7 @@ export const validateLookupTable = async (
   } catch (err) {
     await quack.close();
     logger.error(err, `Something went wrong trying to load the lookup table into the cube`);
-    return viewErrorGenerator(500, dataset.id, 'patch', 'errors.cube_builder.lookup_table_loading_failed', {
+    return viewErrorGenerators(500, dataset.id, 'patch', 'errors.cube_builder.lookup_table_loading_failed', {
       mismatch: false
     });
   }
@@ -142,14 +143,14 @@ export const validateLookupTable = async (
     confirmedJoinColumn = lookForJoinColumn(protoLookupTable, dimension.factTableColumn, tableMatcher);
   } catch (_err) {
     await quack.close();
-    return viewErrorGenerator(400, dataset.id, 'patch', 'errors.dimensionValidation.no_join_column', {
+    return viewErrorGenerators(400, dataset.id, 'patch', 'errors.dimensionValidation.no_join_column', {
       mismatch: false
     });
   }
 
   if (!confirmedJoinColumn) {
     await quack.close();
-    return viewErrorGenerator(400, dataset.id, 'patch', 'errors.dimensionValidation.no_join_column', {
+    return viewErrorGenerators(400, dataset.id, 'patch', 'errors.dimensionValidation.no_join_column', {
       mismatch: false
     });
   }
@@ -173,7 +174,7 @@ export const validateLookupTable = async (
       const nonMatchedLookupValues = await quack.all(
         `SELECT DISTINCT ${lookupTableName}."${confirmedJoinColumn}" FROM ${lookupTableName};`
       );
-      return viewErrorGenerator(400, dataset.id, 'patch', 'errors.dimensionValidation.invalid_lookup_table', {
+      return viewErrorGenerators(400, dataset.id, 'patch', 'errors.dimensionValidation.invalid_lookup_table', {
         totalNonMatching: rows[0].total_rows,
         nonMatchingDataTableValues: nonMatchedFactTableValues.map((row) => Object.values(row)[0]),
         nonMatchedLookupValues: nonMatchedLookupValues.map((row) => Object.values(row)[0]),
@@ -197,7 +198,7 @@ export const validateLookupTable = async (
       logger.error(
         `The user supplied an incorrect or incomplete lookup table and ${nonMatchedRows.length} rows didn't match`
       );
-      return viewErrorGenerator(400, dataset.id, 'patch', 'errors.dimensionValidation.invalid_lookup_table', {
+      return viewErrorGenerators(400, dataset.id, 'patch', 'errors.dimensionValidation.invalid_lookup_table', {
         totalNonMatching: nonMatchedRows.length,
         nonMatchingDataTableValues: nonMatchingDataTableValues.map((row) => Object.values(row)[0]),
         nonMatchedLookupValues: nonMatchingLookupValues.map((row) => Object.values(row)[0]),
@@ -212,7 +213,7 @@ export const validateLookupTable = async (
     const nonMatchedRows = await quack.all(`SELECT COUNT(*) AS total_rows FROM ${factTableName};`);
     const nonMatchedValues = await quack.all(`SELECT DISTINCT ${dimension.factTableColumn} FROM ${factTableName};`);
     await quack.close();
-    return viewErrorGenerator(400, dataset.id, 'patch', 'errors.dimensionValidation.invalid_lookup_table', {
+    return viewErrorGenerators(400, dataset.id, 'patch', 'errors.dimensionValidation.invalid_lookup_table', {
       totalNonMatching: nonMatchedRows[0].total_rows,
       nonMatchingDataTableValues: nonMatchedValues.map((row) => Object.values(row)[0]),
       mismatch: true
@@ -224,7 +225,7 @@ export const validateLookupTable = async (
 
   try {
     logger.debug('Passed validation preparing to send back the preview');
-    const dimensionTable = await quack.all(`SELECT * FROM ${lookupTableName};`);
+    const dimensionTable = await quack.all(`SELECT * FROM ${lookupTableName} LIMIT ${sampleSize};`);
     const tableHeaders = Object.keys(dimensionTable[0]);
     const dataArray = dimensionTable.map((row) => Object.values(row));
     const currentDataset = await DatasetRepository.getById(dataset.id);
@@ -239,22 +240,16 @@ export const validateLookupTable = async (
         source_type: sourceType
       });
     }
-    return {
-      dataset: DatasetDTO.fromDataset(currentDataset),
-      current_page: 1,
-      page_info: {
-        total_records: 1,
-        start_record: 1,
-        end_record: 10
-      },
-      page_size: 10,
-      total_pages: 1,
-      headers,
-      data: dataArray
+    const pageInfo = {
+      total_records: dimensionTable.length,
+      start_record: 1,
+      end_record: dataArray.length
     };
+    const pageSize = dimensionTable.length < sampleSize ? dimensionTable.length : sampleSize;
+    return viewGenerator(currentDataset, 1, pageInfo, pageSize, 1, headers, dataArray);
   } catch (error) {
     logger.error(error, `Something went wrong trying to generate the preview of the lookup.`);
-    return viewErrorGenerator(500, dataset.id, 'preview', 'errors.dimension.lookup_preview_generation_failed', {});
+    return viewErrorGenerators(500, dataset.id, 'preview', 'errors.dimension.lookup_preview_generation_failed', {});
   } finally {
     await quack.close();
   }

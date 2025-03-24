@@ -16,7 +16,6 @@ import { DimensionPatchDto } from '../dtos/dimension-partch-dto';
 import { CSVHeader, ViewDTO, ViewErrDTO } from '../dtos/view-dto';
 import { DateExtractor } from '../extractors/date-extractor';
 import { DatasetRepository } from '../repositories/dataset';
-import { DatasetDTO } from '../dtos/dataset-dto';
 import { getFileImportAndSaveToDisk, loadFileIntoDatabase } from '../utils/file-utils';
 import { LookupTableExtractor } from '../extractors/lookup-table-extractor';
 import { LookupTable } from '../entities/dataset/lookup-table';
@@ -27,7 +26,7 @@ import { MeasureMetadata } from '../entities/dataset/measure-metadata';
 import { dateDimensionReferenceTableCreator, DateReferenceDataItem } from './time-matching';
 import { getReferenceDataDimensionPreview } from './reference-data-handler';
 import { NumberExtractor, NumberType } from '../extractors/number-extractor';
-import { viewErrorGenerator } from '../utils/view-error-generator';
+import { viewErrorGenerators, viewGenerator } from '../utils/view-error-generators';
 import { getFileService } from '../utils/get-file-service';
 import { createEmptyCubeWithFactTable } from '../utils/create-facttable';
 
@@ -361,7 +360,7 @@ export const validateNumericDimension = async (
     quack = await createEmptyCubeWithFactTable(dataset);
   } catch (error) {
     logger.error(error, 'Something went wrong trying to create a new database');
-    return viewErrorGenerator(500, dataset.id, 'patch', 'errors.cube_builder.fact_table_creation_failed', {});
+    return viewErrorGenerators(500, dataset.id, 'patch', 'errors.cube_builder.fact_table_creation_failed', {});
   }
 
   // Validate column type in data table matches proposed type first using DuckDBs column detection
@@ -420,7 +419,7 @@ export const validateNumericDimension = async (
         `The user supplied a ${extractor.type} number format but there were ${nonMatchingRows.length} rows which didn't match the format`
       );
       await quack.close();
-      return viewErrorGenerator(400, dataset.id, 'patch', 'errors.dimensionValidation.invalid_lookup_table', {
+      return viewErrorGenerators(400, dataset.id, 'patch', 'errors.dimensionValidation.invalid_lookup_table', {
         totalNonMatching: nonMatchingRows.length,
         nonMatchingDataTableValues: nonMatchingDataTableValues.map((row) => Object.values(row)[0])
       });
@@ -430,7 +429,7 @@ export const validateNumericDimension = async (
     logger.error(error, `Something went wrong trying to validate the data with the following error: ${error}`);
     const nonMatchedRows = await quack.all(`SELECT COUNT(*) AS total_rows FROM ${tableName};`);
     const nonMatchedValues = await quack.all(`SELECT DISTINCT ${dimension.factTableColumn} FROM ${tableName};`);
-    return viewErrorGenerator(400, dataset.id, 'patch', 'errors.dimensionValidation.invalid_lookup_table', {
+    return viewErrorGenerators(400, dataset.id, 'patch', 'errors.dimensionValidation.invalid_lookup_table', {
       totalNonMatching: nonMatchedRows[0].total_rows,
       nonMatchingDataTableValues: nonMatchedValues.map((row) => Object.values(row)[0])
     });
@@ -455,7 +454,7 @@ export const validateDateTypeDimension = async (
     quack = await createEmptyCubeWithFactTable(dataset);
   } catch (error) {
     logger.error(error, 'Something went wrong trying to create a new database');
-    return viewErrorGenerator(500, dataset.id, 'patch', 'errors.cube_builder.fact_table_creation_failed', {});
+    return viewErrorGenerators(500, dataset.id, 'patch', 'errors.cube_builder.fact_table_creation_failed', {});
   }
   // Use the extracted data to try to create a reference table based on the user supplied information
   logger.debug(`Dimension patch request is: ${JSON.stringify(dimensionPatchRequest)}`);
@@ -479,7 +478,7 @@ export const validateDateTypeDimension = async (
   } catch (error) {
     logger.error(error, `Something went wrong trying to create the date reference table`);
     await quack.close();
-    return viewErrorGenerator(400, dataset.id, 'patch', 'errors.dimension.invalid_date_format', {
+    return viewErrorGenerators(400, dataset.id, 'patch', 'errors.dimension.invalid_date_format', {
       extractor,
       totalNonMatching: preview.length,
       nonMatchingValues: []
@@ -504,7 +503,7 @@ export const validateDateTypeDimension = async (
     if (nonMatchedRows.length > 0) {
       if (nonMatchedRows.length === preview.length) {
         logger.error(`The user supplied an incorrect format and none of the rows matched.`);
-        return viewErrorGenerator(400, dataset.id, 'patch', 'errors.dimension.invalid_date_format', {
+        return viewErrorGenerators(400, dataset.id, 'patch', 'errors.dimension.invalid_date_format', {
           extractor,
           totalNonMatching: preview.length,
           nonMatchingValues: []
@@ -520,7 +519,7 @@ export const validateDateTypeDimension = async (
           .map((item) => item.fact_table_date)
           .filter((item, i, ar) => ar.indexOf(item) === i);
         const totalNonMatching = nonMatchedRows.length;
-        return viewErrorGenerator(400, dataset.id, 'patch', 'errors.dimension.invalid_date_format', {
+        return viewErrorGenerators(400, dataset.id, 'patch', 'errors.dimension.invalid_date_format', {
           extractor,
           totalNonMatching,
           nonMatchingValues
@@ -530,7 +529,7 @@ export const validateDateTypeDimension = async (
   } catch (error) {
     logger.error(error, `Something unexpected went wrong trying to validate the data`);
     await quack.close();
-    return viewErrorGenerator(500, dataset.id, 'patch', 'errors.dimension_validation.unknown_error', {});
+    return viewErrorGenerators(500, dataset.id, 'patch', 'errors.dimension_validation.unknown_error', {});
   }
   const coverage = await quack.all(
     `SELECT MIN(start_date) as start_date, MAX(end_date) AS end_date FROM date_dimension;`
@@ -560,19 +559,12 @@ export const validateDateTypeDimension = async (
       source_type: sourceType
     });
   }
-  return {
-    dataset: DatasetDTO.fromDataset(currentDataset),
-    current_page: 1,
-    page_info: {
-      total_records: 1,
-      start_record: 1,
-      end_record: 10
-    },
-    page_size: 10,
-    total_pages: 1,
-    headers,
-    data: dataArray
+  const pageInfo = {
+    total_records: 1,
+    start_record: 1,
+    end_record: 10
   };
+  return viewGenerator(currentDataset, 1, pageInfo, 10, 1, headers, dataArray);
 };
 
 async function getDatePreviewWithExtractor(
@@ -616,20 +608,13 @@ async function getDatePreviewWithExtractor(
       source_type: FactTableColumnType.Unknown
     });
   }
-
-  return {
-    dataset: DatasetDTO.fromDataset(currentDataset),
-    current_page: 1,
-    page_info: {
-      total_records: totalRows,
-      start_record: 1,
-      end_record: sampleSize
-    },
-    page_size: previewResult.length < sampleSize ? previewResult.length : sampleSize,
-    total_pages: 1,
-    headers,
-    data: dataArray
+  const pageInfo = {
+    total_records: totalRows,
+    start_record: 1,
+    end_record: dataArray.length
   };
+  const pageSize = dataArray.length < sampleSize ? dataArray.length : sampleSize;
+  return viewGenerator(currentDataset, 1, pageInfo, pageSize, 1, headers, dataArray);
 }
 
 async function getPreviewWithNumberExtractor(
@@ -663,19 +648,13 @@ async function getPreviewWithNumberExtractor(
       source_type: FactTableColumnType.Unknown
     });
   }
-  return {
-    dataset: DatasetDTO.fromDataset(currentDataset),
-    current_page: 1,
-    page_info: {
-      total_records: totalLines,
-      start_record: 1,
-      end_record: preview.length
-    },
-    page_size: preview.length < sampleSize ? preview.length : sampleSize,
-    total_pages: 1,
-    headers,
-    data: dataArray
+  const pageInfo = {
+    total_records: totalLines,
+    start_record: 1,
+    end_record: preview.length
   };
+  const pageSize = preview.length < sampleSize ? preview.length : sampleSize;
+  return viewGenerator(currentDataset, 1, pageInfo, pageSize, 1, headers, dataArray);
 }
 
 async function getPreviewWithoutExtractor(
@@ -703,19 +682,13 @@ async function getPreviewWithoutExtractor(
       source_type: FactTableColumnType.Unknown
     });
   }
-  return {
-    dataset: DatasetDTO.fromDataset(currentDataset),
-    current_page: 1,
-    page_info: {
-      total_records: totalLines,
-      start_record: 1,
-      end_record: preview.length
-    },
-    page_size: preview.length < sampleSize ? preview.length : sampleSize,
-    total_pages: 1,
-    headers,
-    data: dataArray
+  const pageInfo = {
+    total_records: totalLines,
+    start_record: 1,
+    end_record: preview.length
   };
+  const pageSize = preview.length < sampleSize ? preview.length : sampleSize;
+  return viewGenerator(currentDataset, 1, pageInfo, pageSize, 1, headers, dataArray);
 }
 
 async function getLookupPreviewWithExtractor(dataset: Dataset, dimension: Dimension, quack: Database) {
@@ -743,20 +716,13 @@ async function getLookupPreviewWithExtractor(dataset: Dataset, dimension: Dimens
       source_type: FactTableColumnType.Unknown
     });
   }
-
-  return {
-    dataset: DatasetDTO.fromDataset(currentDataset),
-    current_page: 1,
-    page_info: {
-      total_records: dimensionTable.length,
-      start_record: 1,
-      end_record: dimensionTable.length < sampleSize ? dimensionTable.length : sampleSize
-    },
-    page_size: dimensionTable.length < sampleSize ? dimensionTable.length : sampleSize,
-    total_pages: 1,
-    headers,
-    data: dataArray
+  const pageInfo = {
+    total_records: dimensionTable.length,
+    start_record: 1,
+    end_record: dataArray.length
   };
+  const pageSize = dimensionTable.length < sampleSize ? dimensionTable.length : sampleSize;
+  return viewGenerator(currentDataset, 1, pageInfo, pageSize, 1, headers, dataArray);
 }
 
 export const getDimensionPreview = async (dataset: Dataset, dimension: Dimension, lang: string) => {
@@ -767,7 +733,7 @@ export const getDimensionPreview = async (dataset: Dataset, dimension: Dimension
     quack = await createEmptyCubeWithFactTable(dataset);
   } catch (error) {
     logger.error(error, 'Something went wrong trying to create the cube for the preview');
-    return viewErrorGenerator(500, dataset.id, 'none', 'errors.dimension.preview_failed', {});
+    return viewErrorGenerators(500, dataset.id, 'none', 'errors.dimension.preview_failed', {});
   }
 
   let viewDto: ViewDTO;
@@ -817,7 +783,7 @@ export const getDimensionPreview = async (dataset: Dataset, dimension: Dimension
     return viewDto;
   } catch (error) {
     logger.error(`Something went wrong trying to create dimension preview with the following error: ${error}`);
-    return viewErrorGenerator(500, dataset.id, 'none', 'errors.dimension.preview_failed', {});
+    return viewErrorGenerators(500, dataset.id, 'none', 'errors.dimension.preview_failed', {});
   } finally {
     await quack.close();
   }

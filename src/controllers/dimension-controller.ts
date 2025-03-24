@@ -22,7 +22,7 @@ import {
 } from '../services/dimension-processor';
 import { validateLookupTable } from '../services/lookup-table-handler';
 import { validateReferenceData } from '../services/reference-data-handler';
-import { viewErrorGenerator } from '../utils/view-error-generator';
+import { viewErrorGenerators } from '../utils/view-error-generators';
 
 export const getDimensionInfo = async (req: Request, res: Response) => {
   res.json(DimensionDTO.fromDimension(res.locals.dimension));
@@ -130,7 +130,7 @@ export const updateDimension = async (req: Request, res: Response) => {
       break;
     case DimensionType.LookupTable:
       logger.debug('User requested to patch a lookup table?');
-      preview = viewErrorGenerator(
+      preview = viewErrorGenerators(
         400,
         dataset.id,
         'dimension_type',
@@ -139,7 +139,7 @@ export const updateDimension = async (req: Request, res: Response) => {
       );
       break;
     default:
-      preview = viewErrorGenerator(400, dataset.id, 'dimension_type', 'errors.dimension_validation.unknown_type', {});
+      preview = viewErrorGenerators(400, dataset.id, 'dimension_type', 'errors.dimension_validation.unknown_type', {});
   }
 
   if ((preview as ViewErrDTO).errors) {

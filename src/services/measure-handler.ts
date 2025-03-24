@@ -7,18 +7,17 @@ import { LookupTable } from '../entities/dataset/lookup-table';
 import { DataTable } from '../entities/dataset/data-table';
 import { MeasureLookupPatchDTO } from '../dtos/measure-lookup-patch-dto';
 import { MeasureLookupTableExtractor } from '../extractors/measure-lookup-extractor';
-import { columnIdentification, convertFactTableToLookupTable, lookForJoinColumn } from '../utils/lookup-table-utils';
+import { columnIdentification, convertDataTableToLookupTable, lookForJoinColumn } from '../utils/lookup-table-utils';
 import { ColumnDescriptor } from '../extractors/column-descriptor';
 import { Dataset } from '../entities/dataset/dataset';
 import { CSVHeader, ViewDTO, ViewErrDTO } from '../dtos/view-dto';
-import { viewErrorGenerator } from '../utils/view-error-generator';
+import { viewErrorGenerators, viewGenerator } from '../utils/view-error-generators';
 import { DataValueFormat } from '../enums/data-value-format';
 import { logger } from '../utils/logger';
 import { Measure } from '../entities/dataset/measure';
 import { loadFileIntoDatabase } from '../utils/file-utils';
 import { DatasetRepository } from '../repositories/dataset';
 import { FactTableColumnType } from '../enums/fact-table-column-type';
-import { DatasetDTO } from '../dtos/dataset-dto';
 import { MeasureRow } from '../entities/dataset/measure-row';
 import { SUPPORTED_LOCALES } from '../middleware/translation';
 import { DisplayType } from '../enums/display-type';
@@ -26,6 +25,8 @@ import { getFileService } from '../utils/get-file-service';
 
 import { createMeasureLookupTable } from './cube-handler';
 import { createEmptyCubeWithFactTable } from '../utils/create-facttable';
+
+const sampleSize = 5;
 
 async function cleanUpMeasure(measureId: string) {
   const measure = await Measure.findOneByOrFail({ id: measureId });
@@ -175,7 +176,7 @@ async function rowMatcher(
       const nonMatchedLookupValues = await quack.all(
         `SELECT DISTINCT ${lookupTableName}."${confirmedJoinColumn}" FROM ${lookupTableName};`
       );
-      return viewErrorGenerator(400, datasetId, 'patch', 'errors.dimensionValidation.matching_error', {
+      return viewErrorGenerators(400, datasetId, 'patch', 'errors.dimensionValidation.matching_error', {
         totalNonMatching: rows[0].total_rows,
         nonMatchingDataTableValues: nonMatchedFactTableValues.map((row) => Object.values(row)[0]),
         nonMatchingLookupValues: nonMatchedLookupValues.map((row) => Object.values(row)[0]),
@@ -199,7 +200,7 @@ async function rowMatcher(
       logger.error(
         `The user supplied an incorrect or incomplete lookup table and ${nonMatchedRows.length} rows didn't match`
       );
-      return viewErrorGenerator(400, datasetId, 'patch', 'errors.dimensionValidation.matching_error', {
+      return viewErrorGenerators(400, datasetId, 'patch', 'errors.dimensionValidation.matching_error', {
         totalNonMatching: nonMatchedRows.length,
         nonMatchingDataTableValues: nonMatchedFactTableValues.map((row) => Object.values(row)[0]),
         nonMatchingLookupValues: nonMatchingLookupValues.map((row) => Object.values(row)[0]),
@@ -215,7 +216,7 @@ async function rowMatcher(
     const nonMatchedFactTableValues = await quack.all(
       `SELECT DISTINCT ${measure.factTableColumn} FROM ${factTableName};`
     );
-    return viewErrorGenerator(400, datasetId, 'patch', 'errors.dimensionValidation.invalid_lookup_table', {
+    return viewErrorGenerators(400, datasetId, 'patch', 'errors.dimensionValidation.invalid_lookup_table', {
       totalNonMatching: nonMatchedRows[0].total_rows,
       nonMatchingDataTableValues: nonMatchedFactTableValues.map((row) => Object.values(row)[0]),
       nonMatchingLookupValues: null,
@@ -260,7 +261,7 @@ async function validateTableContent(
       logger.debug(
         `Found invalid formats while validating format column.  Formats found: ${JSON.stringify(unMatchedFormats)}`
       );
-      return viewErrorGenerator(400, datasetId, 'patch', 'errors.dimensionValidation.invalid_formats_present', {
+      return viewErrorGenerators(400, datasetId, 'patch', 'errors.dimensionValidation.invalid_formats_present', {
         totalNonMatching: unMatchedFormats.length,
         nonMatchingValues: unMatchedFormats
       });
@@ -273,7 +274,7 @@ async function validateTableContent(
       logger.debug(
         `Found invalid formats while validating decimals column.  Formats found: ${JSON.stringify(unmatchedDecimals)}`
       );
-      return viewErrorGenerator(400, datasetId, 'patch', 'errors.dimensionValidation.invalid_decimals_present', {
+      return viewErrorGenerators(400, datasetId, 'patch', 'errors.dimensionValidation.invalid_decimals_present', {
         totalNonMatching: unmatchedDecimals.length,
         nonMatchingValues: unmatchedDecimals
       });
@@ -362,9 +363,10 @@ export const validateMeasureLookupTable = async (
   protoLookupTable: DataTable,
   dataset: Dataset,
   buffer: Buffer,
+  lang: string,
   tableMatcher?: MeasureLookupPatchDTO
 ): Promise<ViewDTO | ViewErrDTO> => {
-  const lookupTable = convertFactTableToLookupTable(protoLookupTable);
+  const lookupTable = convertDataTableToLookupTable(protoLookupTable);
   const factTableName = 'fact_table';
   const lookupTableName = 'preview_lookup';
   const measure = dataset.measure;
@@ -373,7 +375,7 @@ export const validateMeasureLookupTable = async (
     quack = await createEmptyCubeWithFactTable(dataset);
   } catch (error) {
     logger.error(error, 'Something went wrong trying to create a new database');
-    return viewErrorGenerator(500, dataset.id, 'patch', 'errors.cube_builder.fact_table_creation_failed', {});
+    return viewErrorGenerators(500, dataset.id, 'patch', 'errors.cube_builder.fact_table_creation_failed', {});
   }
 
   const lookupTableTmpFile = tmp.tmpNameSync({ postfix: `.${lookupTable.fileType}` });
@@ -384,7 +386,7 @@ export const validateMeasureLookupTable = async (
   } catch (err) {
     await quack.close();
     logger.error(err, `Something went wrong trying to load data in to DuckDB with the following error: ${err}`);
-    return viewErrorGenerator(500, dataset.id, 'csv', 'errors.dimension.unknown_error', {
+    return viewErrorGenerators(500, dataset.id, 'csv', 'errors.dimension.unknown_error', {
       mismatch: false
     });
   }
@@ -394,14 +396,14 @@ export const validateMeasureLookupTable = async (
     confirmedJoinColumn = lookForJoinColumn(protoLookupTable, measure.factTableColumn, tableMatcher);
   } catch (_err) {
     await quack.close();
-    return viewErrorGenerator(400, dataset.id, 'csv', 'errors.dimensionValidation.no_join_column', {
+    return viewErrorGenerators(400, dataset.id, 'csv', 'errors.dimensionValidation.no_join_column', {
       mismatch: false
     });
   }
 
   if (!confirmedJoinColumn) {
     await quack.close();
-    return viewErrorGenerator(400, dataset.id, 'csv', 'errors.dimensionValidation.no_join_column', {
+    return viewErrorGenerators(400, dataset.id, 'csv', 'errors.dimensionValidation.no_join_column', {
       mismatch: false
     });
   }
@@ -423,7 +425,7 @@ export const validateMeasureLookupTable = async (
   await setupMeasure(dataset, lookupTable, confirmedJoinColumn, measureTable, extractor);
 
   try {
-    const dimensionTable = await quack.all(`SELECT * FROM ${lookupTableName};`);
+    const dimensionTable = await quack.all(`SELECT * FROM measure where language = '${lang};`);
     await quack.close();
     const tableHeaders = Object.keys(dimensionTable[0]);
     const dataArray = dimensionTable.map((row) => Object.values(row));
@@ -439,29 +441,21 @@ export const validateMeasureLookupTable = async (
         source_type: sourceType
       });
     }
-    return {
-      dataset: DatasetDTO.fromDataset(currentDataset),
-      current_page: 1,
-      page_info: {
-        total_records: 1,
-        start_record: 1,
-        end_record: 10
-      },
-      page_size: 10,
-      total_pages: 1,
-      headers,
-      data: dataArray
+    const pageInfo = {
+      total_records: dataArray.length,
+      start_record: 1,
+      end_record: dataArray.length
     };
+    const pageSize = dataArray.length;
+    return viewGenerator(currentDataset, 1, pageInfo, pageSize, 1, headers, dataArray);
   } catch (error) {
     await quack.close();
     logger.error(`Something went wrong trying to generate the preview of the lookup table with error: ${error}`);
-    return viewErrorGenerator(500, dataset.id, 'csv', 'errors.dimension.unknown_error', {
+    return viewErrorGenerators(500, dataset.id, 'csv', 'errors.dimension.unknown_error', {
       mismatch: false
     });
   }
 };
-
-const sampleSize = 5;
 
 async function getMeasurePreviewWithoutExtractor(
   dataset: Dataset,
@@ -483,25 +477,19 @@ async function getMeasurePreviewWithoutExtractor(
       source_type: FactTableColumnType.Unknown
     });
   }
-  return {
-    dataset: DatasetDTO.fromDataset(currentDataset),
-    current_page: 1,
-    page_info: {
-      total_records: preview.length,
-      start_record: 1,
-      end_record: preview.length
-    },
-    page_size: preview.length < sampleSize ? preview.length : sampleSize,
-    total_pages: 1,
-    headers,
-    data: dataArray
+  const pageInfo = {
+    total_records: preview.length,
+    start_record: 1,
+    end_record: dataArray.length
   };
+  const pageSize = preview.length < sampleSize ? preview.length : sampleSize;
+  return viewGenerator(currentDataset, 1, pageInfo, pageSize, 1, headers, dataArray);
 }
 
-async function getMeasurePreviewWithExtractor(dataset: Dataset, measure: Measure, quack: Database) {
+async function getMeasurePreviewWithExtractor(dataset: Dataset, measure: Measure, quack: Database, lang: string) {
   logger.debug(`Generating lookup table preview for measure ${measure.id}`);
   await createMeasureLookupTable(quack, measure.measureTable);
-  const query = `SELECT * FROM measure ORDER BY sort_order, reference LIMIT ${sampleSize};`;
+  const query = `SELECT * FROM measure WHERE language = '${lang.toLowerCase()}' ORDER BY sort_order, reference LIMIT ${sampleSize};`;
   logger.debug(`Querying the cube to get the preview using query: ${query}`);
   const measureTable = await quack.all(query);
   const tableHeaders = Object.keys(measureTable[0]);
@@ -512,22 +500,16 @@ async function getMeasurePreviewWithExtractor(dataset: Dataset, measure: Measure
     index: idx,
     source_type: FactTableColumnType.Unknown
   }));
-  return {
-    dataset: DatasetDTO.fromDataset(currentDataset),
-    current_page: 1,
-    page_info: {
-      total_records: measureTable.length,
-      start_record: 1,
-      end_record: measureTable.length < sampleSize ? measureTable.length : sampleSize
-    },
-    page_size: measureTable.length < sampleSize ? measureTable.length : sampleSize,
-    total_pages: 1,
-    headers,
-    data: dataArray
+  const pageInfo = {
+    total_records: measureTable.length,
+    start_record: 1,
+    end_record: dataArray.length
   };
+  const pageSize = measureTable.length < sampleSize ? measureTable.length : sampleSize;
+  return viewGenerator(currentDataset, 1, pageInfo, pageSize, 1, headers, dataArray);
 }
 
-export const getMeasurePreview = async (dataset: Dataset): Promise<ViewDTO | ViewErrDTO> => {
+export const getMeasurePreview = async (dataset: Dataset, lang: string): Promise<ViewDTO | ViewErrDTO> => {
   logger.debug(`Getting preview for measure: ${dataset.measure.id}`);
   const tableName = 'fact_table';
   let quack: Database;
@@ -535,23 +517,23 @@ export const getMeasurePreview = async (dataset: Dataset): Promise<ViewDTO | Vie
     quack = await createEmptyCubeWithFactTable(dataset);
   } catch (error) {
     logger.error(error, 'Something went wrong trying to create a new database');
-    return viewErrorGenerator(500, dataset.id, 'patch', 'errors.cube_builder.fact_table_creation_failed', {});
+    return viewErrorGenerators(500, dataset.id, 'patch', 'errors.cube_builder.fact_table_creation_failed', {});
   }
 
   const measure = dataset.measure;
   if (!measure) {
-    return viewErrorGenerator(500, dataset.id, 'measure', 'errors.dataset.measure_not_found', {});
+    return viewErrorGenerators(500, dataset.id, 'measure', 'errors.dataset.measure_not_found', {});
   }
   try {
     if (measure.measureTable && measure.measureTable.length > 0) {
-      return await getMeasurePreviewWithExtractor(dataset, measure, quack);
+      return await getMeasurePreviewWithExtractor(dataset, measure, quack, lang);
     } else {
       logger.debug('Straight column preview');
       return await getMeasurePreviewWithoutExtractor(dataset, measure, quack, tableName);
     }
   } catch (error) {
     logger.error(error, `Something went wrong trying to generate the preview of the measure`);
-    return viewErrorGenerator(500, dataset.id, 'csv', 'errors.measure.unknown_error', {
+    return viewErrorGenerators(500, dataset.id, 'csv', 'errors.measure.unknown_error', {
       mismatch: false
     });
   } finally {

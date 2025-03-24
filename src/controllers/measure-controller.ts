@@ -53,7 +53,7 @@ export const attachLookupTableToMeasure = async (req: Request, res: Response, ne
     return;
   }
   const dataset: Dataset = res.locals.dataset;
-
+  const lang = req.language.toLowerCase();
   let fileImport: DataTable;
   let processedBuffer: Buffer;
   try {
@@ -72,7 +72,7 @@ export const attachLookupTableToMeasure = async (req: Request, res: Response, ne
   }
 
   const tableMatcher = req.body as MeasureLookupPatchDTO;
-  const result = await validateMeasureLookupTable(fileImport, dataset, processedBuffer, tableMatcher);
+  const result = await validateMeasureLookupTable(fileImport, dataset, processedBuffer, lang, tableMatcher);
   if ((result as ViewErrDTO).status) {
     const error = result as ViewErrDTO;
     res.status(error.status);
@@ -84,12 +84,13 @@ export const attachLookupTableToMeasure = async (req: Request, res: Response, ne
 
 export const getPreviewOfMeasure = async (req: Request, res: Response, next: NextFunction) => {
   const dataset = res.locals.dataset;
+  const lang = req.language.toLowerCase();
   if (!dataset.measure) {
     next(new NotFoundException('errors.measure_invalid'));
     return;
   }
   try {
-    const preview = await getMeasurePreview(dataset);
+    const preview = await getMeasurePreview(dataset, lang);
     res.status(200);
     res.json(preview);
   } catch (err) {
