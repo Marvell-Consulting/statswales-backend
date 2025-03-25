@@ -23,6 +23,7 @@ import { teamRouter } from './routes/team';
 import { translationRouter } from './routes/translation';
 import { consumerRouter } from './routes/consumer';
 import { initServices } from './middleware/services';
+import { adminRouter } from './routes/admin';
 
 const app: Application = express();
 const config = appConfig();
@@ -52,6 +53,9 @@ app.use('/topic', rateLimiter, passport.authenticate('jwt', { session: false }),
 app.use('/organisation', rateLimiter, passport.authenticate('jwt', { session: false }), organisationRouter);
 app.use('/team', rateLimiter, passport.authenticate('jwt', { session: false }), teamRouter);
 app.use('/translation', rateLimiter, passport.authenticate('jwt', { session: false }), translationRouter);
+
+// admin routes
+app.use('/admin', rateLimiter, passport.authenticate('jwt', { session: false }), adminRouter);
 
 app.use(errorHandler);
 
