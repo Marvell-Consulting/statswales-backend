@@ -17,7 +17,6 @@ import { CSVHeader, ViewDTO, ViewErrDTO } from '../dtos/view-dto';
 import { DateExtractor } from '../extractors/date-extractor';
 import { DatasetRepository } from '../repositories/dataset';
 import { getFileImportAndSaveToDisk, loadFileIntoDatabase } from '../utils/file-utils';
-import { LookupTableExtractor } from '../extractors/lookup-table-extractor';
 import { LookupTable } from '../entities/dataset/lookup-table';
 import { FactTableColumn } from '../entities/dataset/fact-table-column';
 import { MeasureRow } from '../entities/dataset/measure-row';
@@ -29,6 +28,10 @@ import { NumberExtractor, NumberType } from '../extractors/number-extractor';
 import { viewErrorGenerators, viewGenerator } from '../utils/view-error-generators';
 import { getFileService } from '../utils/get-file-service';
 import { createEmptyCubeWithFactTable } from '../utils/create-facttable';
+import { createLookupTableInCube } from './lookup-table-handler';
+import { createDatePeriodTableQuery, makeCubeSafeString } from './cube-handler';
+import { t } from 'i18next';
+import { CubeValidationException, CubeValidationType } from '../exceptions/cube-error-exception';
 
 const createDateDimensionTable = `CREATE TABLE date_dimension (date_code VARCHAR, description VARCHAR, start_date datetime, end_date datetime, date_type varchar);`;
 const sampleSize = 5;
@@ -419,7 +422,7 @@ export const validateNumericDimension = async (
         `The user supplied a ${extractor.type} number format but there were ${nonMatchingRows.length} rows which didn't match the format`
       );
       await quack.close();
-      return viewErrorGenerators(400, dataset.id, 'patch', 'errors.dimensionValidation.invalid_lookup_table', {
+      return viewErrorGenerators(400, dataset.id, 'patch', 'errors.dimension_validation.non_numerical_values_present', {
         totalNonMatching: nonMatchingRows.length,
         nonMatchingDataTableValues: nonMatchingDataTableValues.map((row) => Object.values(row)[0])
       });
@@ -429,7 +432,7 @@ export const validateNumericDimension = async (
     logger.error(error, `Something went wrong trying to validate the data with the following error: ${error}`);
     const nonMatchedRows = await quack.all(`SELECT COUNT(*) AS total_rows FROM ${tableName};`);
     const nonMatchedValues = await quack.all(`SELECT DISTINCT ${dimension.factTableColumn} FROM ${tableName};`);
-    return viewErrorGenerators(400, dataset.id, 'patch', 'errors.dimensionValidation.invalid_lookup_table', {
+    return viewErrorGenerators(400, dataset.id, 'patch', 'errors.dimension_validation.unknown_error', {
       totalNonMatching: nonMatchedRows[0].total_rows,
       nonMatchingDataTableValues: nonMatchedValues.map((row) => Object.values(row)[0])
     });
@@ -443,12 +446,105 @@ export const validateNumericDimension = async (
   return getPreviewWithNumberExtractor(dataset, savedDimension, quack, tableName);
 };
 
-export const validateDateTypeDimension = async (
+export const validateUpdatedDateDimension = async (
+  quack: Database,
+  dataset: Dataset,
+  dimension: Dimension,
+  factTableColumn: FactTableColumn
+) => {
+  const errors = await validateDateDimension(quack, dataset, dimension, factTableColumn);
+  if (errors) {
+    const err = new CubeValidationException('Validation failed');
+    err.type = CubeValidationType.DimensionNonMatchedRows;
+    throw err;
+  }
+  return undefined;
+};
+
+export const validateDateDimension = async (
+  quack: Database,
+  dataset: Dataset,
+  dimension: Dimension,
+  factTableColumn: FactTableColumn
+) => {
+  const extractor = dimension.extractor as DateExtractor;
+  const tableName = 'fact_table';
+  try {
+    const preview = await quack.all(`SELECT DISTINCT "${dimension.factTableColumn}" FROM ${tableName};`);
+    // Now validate everything matches
+    const nonMatchedRows = await quack.all(
+      `SELECT
+        line_number, fact_table_date, "${makeCubeSafeString(factTableColumn.columnName)}_lookup".date_code
+      FROM (
+        SELECT
+          row_number() OVER () as line_number, "${dimension.factTableColumn}" as fact_table_date
+        FROM
+          ${tableName}
+      ) as fact_table
+      LEFT JOIN "${makeCubeSafeString(factTableColumn.columnName)}_lookup"
+      ON fact_table.fact_table_date="${makeCubeSafeString(factTableColumn.columnName)}_lookup".date_code
+      WHERE date_code IS NULL;`
+    );
+    if (nonMatchedRows.length > 0) {
+      if (nonMatchedRows.length === preview.length) {
+        logger.error(`The user supplied an incorrect format and none of the rows matched.`);
+        return viewErrorGenerators(400, dataset.id, 'patch', 'errors.dimension_validation.invalid_date_format', {
+          extractor,
+          totalNonMatching: preview.length,
+          nonMatchingValues: []
+        });
+      } else {
+        logger.error(
+          `There were ${nonMatchedRows.length} row(s) which didn't match based on the information given to us by the user`
+        );
+        const nonMatchedRowSample = await quack.all(
+          `
+            SELECT
+              DISTINCT fact_table_date
+            FROM (
+              SELECT
+                row_number() OVER () as line_number, "${dimension.factTableColumn}" as fact_table_date
+              FROM ${tableName}) AS fact_table
+              LEFT JOIN "${makeCubeSafeString(factTableColumn.columnName)}_lookup"
+              ON fact_table.fact_table_date="${makeCubeSafeString(factTableColumn.columnName)}_lookup".date_code
+             WHERE date_code IS NULL
+            );`
+        );
+        const nonMatchingValues = nonMatchedRowSample
+          .map((item) => item.fact_table_date)
+          .filter((item, i, ar) => ar.indexOf(item) === i);
+        const totalNonMatching = nonMatchedRows.length;
+        return viewErrorGenerators(400, dataset.id, 'patch', 'errors.dimension_validation.invalid_date_format', {
+          extractor,
+          totalNonMatching,
+          nonMatchingValues
+        });
+      }
+    }
+  } catch (error) {
+    logger.error(error, `Something unexpected went wrong trying to validate the data`);
+    await quack.close();
+    return viewErrorGenerators(500, dataset.id, 'patch', 'errors.dimension_validation.unknown_error', {});
+  }
+  return undefined;
+};
+
+export const createAndValidateDateDimension = async (
   dimensionPatchRequest: DimensionPatchDto,
   dataset: Dataset,
-  dimension: Dimension
+  dimension: Dimension,
+  language: string
 ): Promise<ViewDTO | ViewErrDTO> => {
   const tableName = 'fact_table';
+  const factTableColumn = dataset.factTable?.find(
+    (col) => dimension.factTableColumn === col.columnName && col.columnType === FactTableColumnType.Dimension
+  );
+  if (!factTableColumn) {
+    logger.error(`Could not find the fact table column ${dimension.factTableColumn} in the dataset`);
+    return viewErrorGenerators(500, dataset.id, 'patch', 'errors.dimension_validation.fact_table_column_not_found', {
+      mismatch: false
+    });
+  }
   let quack: Database;
   try {
     quack = await createEmptyCubeWithFactTable(dataset);
@@ -484,55 +580,47 @@ export const validateDateTypeDimension = async (
       nonMatchingValues: []
     });
   }
-  // Now validate the reference table... There should no unmatched values in the fact table
-  // If there are unmatched values then we need to reject the users input.
+
   try {
-    await quack.exec(createDateDimensionTable);
-    // Create the date_dimension table
-    const stmt = await quack.prepare('INSERT INTO date_dimension VALUES (?,?,?,?,?);');
-
-    dateDimensionTable.map(async (row) => {
-      await stmt.run(row.dateCode, row.description, row.start, row.end, row.type);
-    });
-    await stmt.finalize();
-
-    // Now validate everything matches
-    const nonMatchedRows = await quack.all(
-      `SELECT line_number, fact_table_date, date_dimension.date_code FROM (SELECT row_number() OVER () as line_number, "${dimension.factTableColumn}" as fact_table_date FROM ${tableName}) as fact_table LEFT JOIN date_dimension ON CAST(fact_table.fact_table_date AS VARCHAR)=CAST(date_dimension.date_code AS VARCHAR) where date_code IS NULL;`
+    await quack.exec(createDatePeriodTableQuery(factTableColumn));
+    const stmt = await quack.prepare(
+      `INSERT INTO ${makeCubeSafeString(factTableColumn.columnName)}_lookup
+    ("${factTableColumn.columnName}", language, description, hierarchy, date_type, start_date, end_date) VALUES (?,?,?,?,?,?,?);`
     );
-    if (nonMatchedRows.length > 0) {
-      if (nonMatchedRows.length === preview.length) {
-        logger.error(`The user supplied an incorrect format and none of the rows matched.`);
-        return viewErrorGenerators(400, dataset.id, 'patch', 'errors.dimension.invalid_date_format', {
-          extractor,
-          totalNonMatching: preview.length,
-          nonMatchingValues: []
-        });
-      } else {
-        logger.error(
-          `There were ${nonMatchedRows.length} row(s) which didn't match based on the information given to us by the user`
+    for (const locale of SUPPORTED_LOCALES) {
+      logger.debug(`populating ${makeCubeSafeString(factTableColumn.columnName)}_lookup table for locale ${locale}`);
+      dateDimensionTable.map(async (row) => {
+        await stmt.run(
+          row.dateCode,
+          locale.toLowerCase(),
+          row.description,
+          null,
+          t(`date_type.${row.type}`, { lng: locale }),
+          row.start,
+          row.end
         );
-        const nonMatchedRowSample = await quack.all(
-          `SELECT DISTINCT fact_table_date, FROM (SELECT row_number() OVER () as line_number, "${dimension.factTableColumn}" as fact_table_date FROM ${tableName}) as fact_table LEFT JOIN date_dimension ON CAST(fact_table.fact_table_date AS VARCHAR)=CAST(date_dimension.date_code AS VARCHAR) where date_code IS NULL;`
-        );
-        const nonMatchingValues = nonMatchedRowSample
-          .map((item) => item.fact_table_date)
-          .filter((item, i, ar) => ar.indexOf(item) === i);
-        const totalNonMatching = nonMatchedRows.length;
-        return viewErrorGenerators(400, dataset.id, 'patch', 'errors.dimension.invalid_date_format', {
-          extractor,
-          totalNonMatching,
-          nonMatchingValues
-        });
-      }
+      });
     }
+    await stmt.finalize();
   } catch (error) {
-    logger.error(error, `Something unexpected went wrong trying to validate the data`);
+    logger.error(error, `Something went wrong trying to create the date dimension table`);
     await quack.close();
-    return viewErrorGenerators(500, dataset.id, 'patch', 'errors.dimension_validation.unknown_error', {});
+    return viewErrorGenerators(500, dataset.id, 'patch', 'errors.dimension_validation.unknown_error', {
+      extractor,
+      totalNonMatching: preview.length,
+      nonMatchingValues: [],
+      mismatch: false
+    });
   }
+
+  const validationErrors = await validateDateDimension(quack, dataset, dimension, factTableColumn);
+  if (validationErrors) {
+    await quack.close();
+    return validationErrors;
+  }
+
   const coverage = await quack.all(
-    `SELECT MIN(start_date) as start_date, MAX(end_date) AS end_date FROM date_dimension;`
+    `SELECT MIN(start_date) as start_date, MAX(end_date) AS end_date FROM ${makeCubeSafeString(factTableColumn.columnName)}_lookup;`
   );
   const updateDataset = await Dataset.findOneByOrFail({ id: dataset.id });
   updateDataset.startDate = coverage[0].start_date;
@@ -543,7 +631,12 @@ export const validateDateTypeDimension = async (
   updateDimension.joinColumn = 'date_code';
   updateDimension.type = dimensionPatchRequest.dimension_type;
   await updateDimension.save();
-  const dimensionTable = await quack.all('SELECT * FROM date_dimension;');
+  const dimensionTable = await quack.all(`
+    SELECT DISTINCT ${makeCubeSafeString(factTableColumn.columnName)}_lookup.* FROM ${makeCubeSafeString(factTableColumn.columnName)}_lookup
+    LEFT JOIN fact_table
+    ON ${makeCubeSafeString(factTableColumn.columnName)}_lookup."${factTableColumn.columnName}"=fact_table."${factTableColumn.columnName}"
+    WHERE language = '${language}';
+  `);
   await quack.close();
   const tableHeaders = Object.keys(dimensionTable[0]);
   const dataArray = dimensionTable.map((row) => Object.values(row));
@@ -691,17 +784,31 @@ async function getPreviewWithoutExtractor(
   return viewGenerator(currentDataset, 1, pageInfo, pageSize, 1, headers, dataArray);
 }
 
-async function getLookupPreviewWithExtractor(dataset: Dataset, dimension: Dimension, quack: Database) {
+async function getLookupPreviewWithExtractor(
+  dataset: Dataset,
+  dimension: Dimension,
+  quack: Database,
+  language: string
+) {
   if (!dimension.lookupTable) {
     throw new Error(`Lookup table does does not exist on dimension ${dimension.id}`);
+  }
+  const factTableColumn = dataset.factTable?.find(
+    (col) => dimension.factTableColumn === col.columnName && col.columnType === FactTableColumnType.Dimension
+  );
+  if (!factTableColumn) {
+    logger.error(`Could not find the fact table column ${dimension.factTableColumn} in the dataset`);
+    return viewErrorGenerators(500, dataset.id, 'patch', 'errors.dimension_validation.fact_table_column_not_found', {
+      mismatch: false
+    });
   }
 
   logger.debug(`Generating lookup table preview for dimension ${dimension.id}`);
   const lookupTmpFile = await getFileImportAndSaveToDisk(dataset, dimension.lookupTable);
   const lookupTableName = `lookup_table`;
   await loadFileIntoDatabase(quack, dimension.lookupTable, lookupTmpFile, lookupTableName);
-  const sortColumn = (dimension.extractor as LookupTableExtractor).sortColumn || dimension.joinColumn;
-  const query = `SELECT * FROM ${lookupTableName} ORDER BY ${sortColumn} LIMIT ${sampleSize};`;
+  await createLookupTableInCube(quack, factTableColumn, dimension, lookupTableName);
+  const query = `SELECT * EXCLUDE(language) FROM ${makeCubeSafeString(dimension.factTableColumn)}_lookup where language = '${language.toLowerCase()}' ORDER BY sort_order LIMIT ${sampleSize};`;
   logger.debug(`Querying the cube to get the preview using query ${query}`);
   const dimensionTable = await quack.all(query);
   const tableHeaders = Object.keys(dimensionTable[0]);
@@ -736,7 +843,7 @@ export const getDimensionPreview = async (dataset: Dataset, dimension: Dimension
     return viewErrorGenerators(500, dataset.id, 'none', 'errors.dimension.preview_failed', {});
   }
 
-  let viewDto: ViewDTO;
+  let viewDto: ViewDTO | ViewErrDTO;
   try {
     if (dimension.extractor) {
       switch (dimension.type) {
@@ -754,7 +861,7 @@ export const getDimensionPreview = async (dataset: Dataset, dimension: Dimension
 
         case DimensionType.LookupTable:
           logger.debug('Previewing a lookup table');
-          viewDto = await getLookupPreviewWithExtractor(dataset, dimension, quack);
+          viewDto = await getLookupPreviewWithExtractor(dataset, dimension, quack, lang);
           break;
 
         case DimensionType.ReferenceData:

@@ -21,7 +21,7 @@ export const viewErrorGenerators = (
   tag: string,
   extension: object
 ): ViewErrDTO => {
-  const messages: ErrorMessage[] = AVAILABLE_LANGUAGES.map((lang) => {
+  const userMessages: ErrorMessage[] = AVAILABLE_LANGUAGES.map((lang) => {
     return {
       message: t(tag, { lng: lang }),
       lang
@@ -33,8 +33,8 @@ export const viewErrorGenerators = (
     errors: [
       {
         field,
-        tag: { name: tag, params: {} },
-        message: messages
+        message: { key: tag, params: {} },
+        user_message: userMessages
       }
     ],
     extension

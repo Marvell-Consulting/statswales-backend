@@ -130,7 +130,7 @@ describe('API Endpoints', () => {
         errors: [
           {
             field: 'page_number',
-            message: [
+            user_message: [
               {
                 lang: Locale.English,
                 message: t('errors.page_number_to_high', { lng: Locale.English, page_number: 1 })
@@ -140,8 +140,8 @@ describe('API Endpoints', () => {
                 message: t('errors.page_number_to_high', { lng: Locale.Welsh, page_number: 1 })
               }
             ],
-            tag: {
-              name: 'errors.page_number_to_high',
+            message: {
+              key: 'errors.page_number_to_high',
               params: { page_number: 1 }
             }
           }
@@ -169,7 +169,7 @@ describe('API Endpoints', () => {
         errors: [
           {
             field: 'page_size',
-            message: [
+            user_message: [
               {
                 lang: Locale.English,
                 message: t('errors.page_size', {
@@ -187,8 +187,8 @@ describe('API Endpoints', () => {
                 })
               }
             ],
-            tag: {
-              name: 'errors.page_size',
+            message: {
+              key: 'errors.page_size',
               params: { max_page_size: MAX_PAGE_SIZE, min_page_size: MIN_PAGE_SIZE }
             }
           }
@@ -216,7 +216,7 @@ describe('API Endpoints', () => {
         errors: [
           {
             field: 'page_size',
-            message: [
+            user_message: [
               {
                 lang: Locale.English,
                 message: t('errors.page_size', {
@@ -234,8 +234,8 @@ describe('API Endpoints', () => {
                 })
               }
             ],
-            tag: {
-              name: 'errors.page_size',
+            message: {
+              key: 'errors.page_size',
               params: { max_page_size: MAX_PAGE_SIZE, min_page_size: MIN_PAGE_SIZE }
             }
           }
@@ -288,14 +288,14 @@ describe('API Endpoints', () => {
         errors: [
           {
             field: 'csv',
-            message: [
+            user_message: [
               {
                 lang: Locale.English,
                 message: t('errors.datalake.failed_to_fetch_file', { lng: Locale.English })
               },
               { lang: Locale.Welsh, message: t('errors.datalake.failed_to_fetch_file', { lng: Locale.Welsh }) }
             ],
-            tag: { name: 'errors.datalake.failed_to_fetch_file', params: {} }
+            message: { key: 'errors.datalake.failed_to_fetch_file', params: {} }
           }
         ],
         dataset_id: dataset1Id,

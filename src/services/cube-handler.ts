@@ -285,37 +285,51 @@ export const loadCorrectReferenceDataIntoReferenceDataTable = async (quack: Data
   }
 };
 
+export const createDatePeriodTableQuery = (factTableColumn: FactTableColumn) => {
+  return `
+  CREATE TABLE ${makeCubeSafeString(factTableColumn.columnName)}_lookup (
+    "${factTableColumn.columnName}" ${factTableColumn.columnDatatype},
+    language VARCHAR(5),
+    description VARCHAR,
+    hierarchy VARCHAR,
+    date_type varchar,
+    start_date datetime,
+    end_date datetime
+  );`;
+};
+
 // This is a short version of validate date dimension code found in the dimension processor.
 // This concise version doesn't return any information on why the creation failed.  Just that it failed
-export async function createAndValidateDateDimension(
-  quack: Database,
-  extractor: object | null,
-  factTableColumn: string
-) {
+export async function createDateDimension(quack: Database, extractor: object | null, factTableColumn: FactTableColumn) {
   if (!extractor) {
     throw new Error('Extractor not supplied');
   }
-  const columnData = await quack.all(`SELECT "${factTableColumn}" FROM ${FACT_TABLE_NAME};`);
+  const columnData = await quack.all(`SELECT "${factTableColumn.columnName}" FROM ${FACT_TABLE_NAME};`);
   const dateDimensionTable = dateDimensionReferenceTableCreator(extractor, columnData);
-  await quack.exec(
-    `CREATE TABLE ${makeCubeSafeString(factTableColumn)}_lookup (date_code VARCHAR, description VARCHAR, start_date datetime, end_date datetime, date_type varchar);`
-  );
+  await quack.exec(createDatePeriodTableQuery(factTableColumn));
   // Create the date_dimension table
-  const stmt = await quack.prepare(`INSERT INTO ${makeCubeSafeString(factTableColumn)}_lookup VALUES (?,?,?,?,?);`);
-  dateDimensionTable.map(async (row) => {
-    await stmt.run(row.dateCode, row.description, row.start, row.end, row.type);
-  });
-  await stmt.finalize();
-  const nonMatchedRows = await quack.all(
-    `SELECT line_number, fact_table_date, ${makeCubeSafeString(factTableColumn)}_lookup.date_code FROM (SELECT row_number() OVER () as line_number, "${factTableColumn}" as fact_table_date FROM ${FACT_TABLE_NAME}) as fact_table LEFT JOIN ${makeCubeSafeString(factTableColumn)}_lookup ON CAST(fact_table.fact_table_date AS VARCHAR)=CAST(${makeCubeSafeString(factTableColumn)}_lookup.date_code AS VARCHAR) where date_code IS NULL;`
+  const stmt = await quack.prepare(
+    `INSERT INTO ${makeCubeSafeString(factTableColumn.columnName)}_lookup
+    ("${factTableColumn.columnName}", language, description, hierarchy, date_type, start_date, end_date) VALUES (?,?,?,?,?,?,?);`
   );
-  if (nonMatchedRows.length > 0) {
-    const err = new CubeValidationException('Failed to validate date dimension');
-    err.type = CubeValidationType.Dimension;
-    throw err;
+  for (const locale of SUPPORTED_LOCALES) {
+    logger.debug(`populating ${makeCubeSafeString(factTableColumn.columnName)}_lookup table for locale ${locale}`);
+    dateDimensionTable.map(async (row) => {
+      await stmt.run(
+        row.dateCode,
+        locale.toLowerCase(),
+        row.description,
+        null,
+        t(`date_type.${row.type}`, { lng: locale }),
+        row.start,
+        row.end
+      );
+    });
   }
+
+  await stmt.finalize();
   const periodCoverage = await quack.all(
-    `SELECT MIN(start_date) as startDate, MAX(end_date) as endDate FROM ${makeCubeSafeString(factTableColumn)}_lookup;`
+    `SELECT MIN(start_date) as startDate, MAX(end_date) as endDate FROM ${makeCubeSafeString(factTableColumn.columnName)}_lookup;`
   );
   logger.debug(
     `Period coverage: ${toZonedTime(periodCoverage[0].startDate, 'UTC')} to ${toZonedTime(periodCoverage[0].endDate, 'UTC')}`
@@ -346,71 +360,82 @@ export async function createAndValidateDateDimension(
       `INSERT INTO metadata (key, value) VALUES ('end_date', '${formatISO(toZonedTime(periodCoverage[0].endDate, 'UTC'))}');`
     );
   }
-  return `${makeCubeSafeString(factTableColumn)}_lookup`;
+  return `${makeCubeSafeString(factTableColumn.columnName)}_lookup`;
 }
+
+export const createLookupTableQuery = (factTableColumn: FactTableColumn) => {
+  return `CREATE TABLE ${makeCubeSafeString(factTableColumn.columnName)}_lookup (
+    "${factTableColumn.columnName}" ${factTableColumn.columnDatatype} NOT NULL,
+    language VARCHAR(5) NOT NULL,
+    description TEXT NOT NULL,
+    notes TEXT,
+    sort_order INTEGER,
+    hierarchy ${factTableColumn.columnDatatype}
+  );`;
+};
 
 // This is a short version of the validate lookup table code found in the dimension process.
 // This concise version doesn't return any information on why the creation failed.  Just that it failed
-export async function createAndValidateLookupTableDimension(quack: Database, dataset: Dataset, dimension: Dimension) {
+export async function createLookupTableDimension(quack: Database, dataset: Dataset, dimension: Dimension) {
   logger.debug(`Creating and validating lookup table dimension ${dimension.factTableColumn}`);
   if (!dimension.lookupTable) return;
   if (!dimension.extractor) return;
+  const factTableColumn = dataset.factTable?.find((col) => col.columnName === dimension.factTableColumn);
+  if (!factTableColumn) {
+    const error = new CubeValidationException(`Fact table column ${dimension.factTableColumn} not found`);
+    error.type = CubeValidationType.FactTableColumnMissing;
+    error.datasetId = dataset.id;
+    throw error;
+  }
+  await quack.exec(createLookupTableQuery(factTableColumn));
   const extractor = dimension.extractor as LookupTableExtractor;
   const lookupTableFile = await getFileImportAndSaveToDisk(dataset, dimension.lookupTable);
+  const lookupTableName = dimension.lookupTable.isStatsWales2Format
+    ? `${makeCubeSafeString(dimension.factTableColumn)}_lookup_sw2`
+    : `${makeCubeSafeString(dimension.factTableColumn)}_lookup_sw3`;
+  await loadFileIntoCube(quack, dimension.lookupTable, lookupTableFile, lookupTableName);
+
   if (dimension.lookupTable.isStatsWales2Format) {
     logger.debug('Lookup table is SW2 format');
-    await loadFileIntoCube(
-      quack,
-      dimension.lookupTable,
-      lookupTableFile,
-      `${makeCubeSafeString(dimension.factTableColumn)}_lookup_sw2`
-    );
-    let sortOrderCol = '';
-    if (extractor.sortColumn) {
-      sortOrderCol = `"${extractor.sortColumn}", `;
-    }
-    const viewParts: string[] = SUPPORTED_LOCALES.map((locale) => {
+    const dataExtractorParts = [];
+    for (const locale of SUPPORTED_LOCALES) {
       const descriptionCol = extractor.descriptionColumns.find(
         (col) => col.lang.toLowerCase() === locale.split('-')[0]
       );
-      const descriptionColStr = descriptionCol ? `"${descriptionCol.name}" AS description, ` : '';
       const notesCol = extractor.notesColumns?.find((col) => col.lang.toLowerCase() === locale.split('-')[0]);
-      const notesColStr = notesCol ? `"${notesCol.name}" AS notes, ` : '';
-      return (
-        `SELECT "${dimension.joinColumn}", ${sortOrderCol} '${locale.toLowerCase()}' as language,\n` +
-        `${descriptionColStr} ${notesColStr} from ${makeCubeSafeString(dimension.factTableColumn)}_lookup_sw2`
+      const descriptionColStr = descriptionCol ? `"${descriptionCol.name}"` : 'NULL';
+      const notesColStr = notesCol ? `"${notesCol.name}"` : 'NULL';
+      const sortStr = extractor.sortColumn ? `"${extractor.sortColumn}"` : 'NULL';
+      const hierarchyCol = extractor.hierarchyColumn ? `"${extractor.hierarchyColumn}", ` : 'NULL';
+      dataExtractorParts.push(
+        `SELECT "${dimension.joinColumn}" as ${factTableColumn.columnName},
+        '${locale.toLowerCase()}' as language,
+        ${descriptionColStr} as description,
+        ${notesColStr} as notes,
+        ${sortStr} as sort_order,
+        ${hierarchyCol} as hierarchy
+        FROM ${lookupTableName}`
       );
-    });
-    await quack.exec(
-      `CREATE TABLE "${makeCubeSafeString(dimension.factTableColumn)}_lookup" AS ${viewParts.join('\nUNION\n')};`
-    );
+    }
+    const builtInsertQuery = `INSERT INTO ${makeCubeSafeString(dimension.factTableColumn)}_lookup ${dataExtractorParts.join(' UNION ')};`;
+    await quack.exec(builtInsertQuery);
   } else {
-    await loadFileIntoCube(
-      quack,
-      dimension.lookupTable,
-      lookupTableFile,
-      `${makeCubeSafeString(dimension.factTableColumn)}_lookup`
-    );
-  }
-  const nonMatchedRows = await quack.all(
-    `SELECT
-      line_number,
-      fact_table_column, 
-      ${makeCubeSafeString(dimension.factTableColumn)}_lookup."${dimension.joinColumn}" AS lookup_table_column
-    FROM (
+    const notesStr = extractor.notesColumns ? `"${extractor.notesColumns[0].name}"` : 'NULL';
+    const dataExtractorParts = `
       SELECT
-        row_number() OVER () as line_number,
-        "${dimension.factTableColumn}" AS fact_table_column
-      FROM ${FACT_TABLE_NAME}) AS fact_table
-      LEFT JOIN ${makeCubeSafeString(dimension.factTableColumn)}_lookup ON CAST(fact_table.fact_table_column AS VARCHAR)=CAST(${makeCubeSafeString(dimension.factTableColumn)}_lookup."${dimension.joinColumn}" AS VARCHAR
-    )
-    WHERE lookup_table_column IS NULL;`
-  );
-  if (nonMatchedRows.length > 0) {
-    const err = new CubeValidationException('Failed to validate lookup table dimension');
-    err.type = CubeValidationType.DimensionNonMatchedRows;
-    throw err;
+        "${dimension.joinColumn}" as ${factTableColumn.columnName},
+        "${extractor.languageColumn}" as language,
+        "${extractor.descriptionColumns[0].name}" as description,
+        ${notesStr} as notes,
+        ${extractor.sortColumn ? `"${extractor.sortColumn}"` : 'NULL'} as sort_order,
+        ${extractor.hierarchyColumn ? `"${extractor.hierarchyColumn}"` : 'NULL'} as hierarchy
+      FROM ${lookupTableName}
+    `;
+    const builtInsertQuery = `INSERT INTO ${makeCubeSafeString(dimension.factTableColumn)}_lookup ${dataExtractorParts};`;
+    await quack.exec(builtInsertQuery);
   }
+  logger.debug(`Dropping original lookup table ${lookupTableName}`);
+  await quack.exec(`DROP TABLE ${lookupTableName};`);
 }
 
 function setupFactTableUpdateJoins(
@@ -702,33 +727,41 @@ function measureFormats(): Map<string, MeasureFormat> {
   return measureFormats;
 }
 
-export async function createMeasureLookupTable(quack: Database, measureTable: MeasureRow[] | null) {
-  await quack.exec(`CREATE TABLE measure (
-        reference VARCHAR,
-        language VARCHAR(5),
-        description VARCHAR,
-        format VARCHAR,
-        sort_order INTEGER,
-        notes VARCHAR,
-        decimals INTEGER,
-        hierarchy VARCHAR,
-        measure_type VARCHAR
-    );`);
+export const measureTableCreateStatement = (joinColumnType: string) => {
+  return `
+    CREATE TABLE measure (
+      reference ${joinColumnType},
+      language TEXT,
+      description TEXT,
+      notes TEXT,
+      sort_order INTEGER,
+      format TEXT,
+      decimals INTEGER,
+      measure_type TEXT,
+      hierarchy ${joinColumnType}
+    );
+  `;
+};
+
+export async function createMeasureLookupTable(
+  quack: Database,
+  measureColumn: FactTableColumn,
+  measureTable: MeasureRow[]
+) {
+  await quack.exec(measureTableCreateStatement(measureColumn.columnDatatype));
   const stmt = await quack.prepare('INSERT INTO measure VALUES (?,?,?,?,?,?,?,?,?);');
-  if (measureTable) {
-    for (const row of measureTable) {
-      await stmt.run(
-        row.reference,
-        row.language,
-        row.description,
-        row.format,
-        row.sortOrder ? row.sortOrder : null,
-        row.notes ? row.notes : null,
-        row.decimal ? row.decimal : null,
-        row.hierarchy ? row.hierarchy : null,
-        row.measureType ? row.measureType : null
-      );
-    }
+  for (const row of measureTable) {
+    await stmt.run(
+      row.reference,
+      row.language,
+      row.description,
+      row.notes ? row.notes : null,
+      row.sortOrder ? row.sortOrder : null,
+      row.format,
+      row.decimal ? row.decimal : null,
+      row.measureType ? row.measureType : null,
+      row.hierarchy ? row.hierarchy : null
+    );
   }
 }
 
@@ -748,7 +781,7 @@ async function setupMeasures(
   // Process the column that represents the measure
   if (measureColumn && dataset.measure && dataset.measure.measureTable && dataset.measure.measureTable.length > 0) {
     logger.debug('Measure present in dataset.  Creating measure table...');
-    await createMeasureLookupTable(quack, dataset.measure.measureTable);
+    await createMeasureLookupTable(quack, measureColumn, dataset.measure.measureTable);
     logger.debug('Creating query part to format the data value correctly');
 
     const uniqueReferences = await quack.all('SELECT DISTINCT reference, format, sort_order, decimals FROM measure;');
@@ -831,6 +864,18 @@ async function setupDimensions(
   });
   for (const dim of orderedDimension.sort((dimA, dimB) => dimA.index - dimB.index)) {
     const dimension = dim.dimension;
+    const factTableColumn = dataset.factTable?.find(
+      (col) =>
+        col.columnName === dimension.factTableColumn &&
+        (col.columnType === FactTableColumnType.Dimension || col.columnType === FactTableColumnType.Unknown)
+    );
+    if (!factTableColumn) {
+      const error = new CubeValidationException(
+        `No fact table column found for dimension ${dimension.id} in dataset ${dataset.id}`
+      );
+      error.type = CubeValidationType.FactTableColumnMissing;
+      throw error;
+    }
     logger.info(`Setting up dimension ${dimension.id} for fact table column ${dimension.factTableColumn}`);
     const dimTable = `${makeCubeSafeString(dimension.factTableColumn)}_lookup`;
     let languageColumn = 'lang';
@@ -839,7 +884,7 @@ async function setupDimensions(
         case DimensionType.DatePeriod:
         case DimensionType.Date:
           if (dimension.extractor) {
-            await createAndValidateDateDimension(quack, dimension.extractor, dimension.factTableColumn);
+            await createDateDimension(quack, dimension.extractor, factTableColumn);
             SUPPORTED_LOCALES.map((locale) => {
               const columnName =
                 dimension.metadata.find((info) => info.language === locale)?.name || dimension.factTableColumn;
@@ -867,7 +912,7 @@ async function setupDimensions(
                 );
             });
             joinStatements.push(
-              `LEFT JOIN ${dimTable} on CAST(${dimTable}."${dimension.joinColumn}" AS VARCHAR)=CAST(${FACT_TABLE_NAME}."${dimension.factTableColumn}" AS VARCHAR)`
+              `LEFT JOIN ${dimTable} on "${dimTable}"."${factTableColumn.columnName}"=${FACT_TABLE_NAME}."${factTableColumn.columnName}"`
             );
             orderByStatements.push(`${dimTable}.end_date`);
           } else {
@@ -897,7 +942,7 @@ async function setupDimensions(
             }
           }
 
-          await createAndValidateLookupTableDimension(quack, dataset, dimension);
+          await createLookupTableDimension(quack, dataset, dimension);
           SUPPORTED_LOCALES.map((locale) => {
             const columnName =
               dimension.metadata.find((info) => info.language === locale)?.name || dimension.factTableColumn;
@@ -906,11 +951,9 @@ async function setupDimensions(
           });
           languageColumn = (dimension.extractor as LookupTableExtractor).languageColumn || 'language';
           joinStatements.push(
-            `LEFT JOIN ${dimTable} on CAST(${dimTable}."${dimension.joinColumn}" AS VARCHAR)=CAST(${FACT_TABLE_NAME}."${dimension.factTableColumn}" AS VARCHAR) AND ${dimTable}."${languageColumn}"='#LANG#'`
+            `LEFT JOIN "${dimTable}" on "${dimTable}"."${factTableColumn.columnName}"=${FACT_TABLE_NAME}."${factTableColumn.columnName}" AND "${dimTable}"."${languageColumn}"='#LANG#'`
           );
-          if ((dimension.extractor as LookupTableExtractor).sortColumn) {
-            orderByStatements.push(`${dimTable}."${(dimension.extractor as LookupTableExtractor).sortColumn}"`);
-          }
+          orderByStatements.push(`"${dimTable}".sort_order`);
           break;
         case DimensionType.ReferenceData:
           await loadCorrectReferenceDataIntoReferenceDataTable(quack, dimension);
@@ -1106,6 +1149,11 @@ export const createBaseCube = async (datasetId: string, endRevisionId: string): 
 
   const firstRevision = dataset.revisions.find((rev) => rev.revisionIndex === 1);
   if (!firstRevision) {
+    const err = new CubeValidationException(
+      `Could not find first revision for dataset ${datasetId} in revision ${endRevisionId}`
+    );
+    err.type = CubeValidationType.NoFirstRevision;
+    err.datasetId = datasetId;
     throw new Error(`Unable to find first revision for dataset ${dataset.id}`);
   }
 
@@ -1189,9 +1237,15 @@ export const createBaseCube = async (datasetId: string, endRevisionId: string): 
     await quack.exec(`COPY FROM DATABASE memory TO outDB;`);
     await quack.exec('DETACH outDB;');
   } catch (err) {
-    logger.error(`Failed to write memory database to disk with error: ${err}`);
-    throw err;
+    logger.error(err, `Failed to write memory database to disk with error: ${err}`);
+    const error = new CubeValidationException('Failed to write memory database to disk');
+    error.type = CubeValidationType.CubeCreationFailed;
+    throw error;
   } finally {
+    const end = performance.now();
+    const functionTime = Math.round(end - functionStart);
+    const buildTime = Math.round(end - buildStart);
+    logger.warn(`Cube function took ${functionTime}ms to complete and it took ${buildTime}ms to build the cube.`);
     await quack.close();
   }
   // Pass the file handle to the calling method

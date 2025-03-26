@@ -52,9 +52,10 @@ async function validateUnknownReferenceDataItems(quack: Database, dataset: Datas
               LEFT JOIN reference_data on reference_data.item_id=CAST(fact_table."${dimension.factTableColumn}" AS VARCHAR)
               WHERE reference_data.item_id IS NULL;
         `);
-    return viewErrorGenerators(400, dataset.id, 'patch', 'errors.dimensionValidation.invalid_lookup_table', {
+    return viewErrorGenerators(400, dataset.id, 'patch', 'errors.dimension_validation.unknown_reference_data_items', {
       totalNonMatching: nonMatchedRows.length,
-      nonMatchingDataTableValues: nonMatchingDataTableValues.map((row) => Object.values(row)[0])
+      nonMatchingDataTableValues: nonMatchingDataTableValues.map((row) => Object.values(row)[0]),
+      mismatch: true
     });
   }
   return undefined;
@@ -83,9 +84,10 @@ async function validateAllItemsAreInCategory(
             JOIN categories ON categories.category=category_keys.category JOIN category_info ON categories.category=category_info.category AND lang='${lang.toLowerCase()}'
             WHERE categories.category!='${referenceDataType}' GROUP BY fact_table."${dimension.factTableColumn}", item_id;
         `);
-    return viewErrorGenerators(400, dataset.id, 'patch', 'errors.dimensionValidation.invalid_lookup_table', {
+    return viewErrorGenerators(400, dataset.id, 'patch', 'errors.dimension_validation.items_not_in_category', {
       totalNonMatching: nonMatchingDataTableValues.length,
-      nonMatchingDataTableValues: nonMatchingDataTableValues.map((row) => Object.values(row)[0])
+      nonMatchingDataTableValues: nonMatchingDataTableValues.map((row) => Object.values(row)[0]),
+      mismatch: true
     });
   }
   return undefined;
@@ -104,7 +106,7 @@ async function validateAllItemsAreInOneCategory(
     `);
   if (categoriesPresent.length > 1) {
     logger.error('The user has more than one type of category in reference data column');
-    return viewErrorGenerators(400, dataset.id, 'patch', 'errors.dimensionValidation.to_many_categories_present', {
+    return viewErrorGenerators(400, dataset.id, 'patch', 'errors.dimension_validation.to_many_categories_present', {
       totalNonMatching: categoriesPresent.length,
       nonMatchingDataTableValues: categoriesPresent.map((row) => Object.values(row)[0])
     });
@@ -115,7 +117,7 @@ async function validateAllItemsAreInOneCategory(
       400,
       dataset.id,
       'patch',
-      'errors.dimensionValidation.no_reference_data_categories_present',
+      'errors.dimension_validation.no_reference_data_categories_present',
       {}
     );
   }

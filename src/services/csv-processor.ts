@@ -302,7 +302,7 @@ export const getFactTableColumnPreview = async (
     return viewGenerator(currentDataset, 1, pageInfo, pageSize, 1, headers, dataArray);
   } catch (error) {
     logger.error(error);
-    return viewErrorGenerators(500, dataset.id, 'csv', 'errors.cube.failed_to_query', {});
+    return viewErrorGenerators(500, dataset.id, 'csv', 'dimension.preview.failed_to_preview_column', {});
   } finally {
     await quack.close();
   }

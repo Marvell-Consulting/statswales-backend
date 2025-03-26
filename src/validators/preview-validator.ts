@@ -24,7 +24,7 @@ export function validateParams(page_number: number, max_page_number: number, pag
   if (!validatePageSize(page_size)) {
     errors.push({
       field: 'page_size',
-      message: [
+      user_message: [
         {
           lang: Locale.English,
           message: t('errors.page_size', {
@@ -42,8 +42,8 @@ export function validateParams(page_number: number, max_page_number: number, pag
           })
         }
       ],
-      tag: {
-        name: 'errors.page_size',
+      message: {
+        key: 'errors.page_size',
         params: { max_page_size: MAX_PAGE_SIZE, min_page_size: MIN_PAGE_SIZE }
       }
     });
@@ -51,7 +51,7 @@ export function validateParams(page_number: number, max_page_number: number, pag
   if (!validatMaxPageNumber(page_number, max_page_number)) {
     errors.push({
       field: 'page_number',
-      message: [
+      user_message: [
         {
           lang: Locale.English,
           message: t('errors.page_number_to_high', { lng: Locale.English, page_number: max_page_number })
@@ -61,8 +61,8 @@ export function validateParams(page_number: number, max_page_number: number, pag
           message: t('errors.page_number_to_high', { lng: Locale.Welsh, page_number: max_page_number })
         }
       ],
-      tag: {
-        name: 'errors.page_number_to_high',
+      message: {
+        key: 'errors.page_number_to_high',
         params: { page_number: max_page_number }
       }
     });
@@ -70,11 +70,11 @@ export function validateParams(page_number: number, max_page_number: number, pag
   if (!validatePageNumber(page_number)) {
     errors.push({
       field: 'page_number',
-      message: [
+      user_message: [
         { lang: Locale.English, message: t('errors.page_number_to_low', { lng: Locale.English }) },
         { lang: Locale.Welsh, message: t('errors.page_number_to_low', { lng: Locale.Welsh }) }
       ],
-      tag: { name: 'errors.page_number_to_low', params: {} }
+      message: { key: 'errors.page_number_to_low', params: {} }
     });
   }
   return errors;

@@ -17,7 +17,7 @@ import { getFactTableColumnPreview, validateAndUploadCSV } from '../services/csv
 import {
   getDimensionPreview,
   setupTextDimension,
-  validateDateTypeDimension,
+  createAndValidateDateDimension,
   validateNumericDimension
 } from '../services/dimension-processor';
 import { validateLookupTable } from '../services/lookup-table-handler';
@@ -73,6 +73,7 @@ export const attachLookupTableToDimension = async (req: Request, res: Response, 
     return;
   }
   const { dataset, dimension } = res.locals;
+  const language = req.language.toLowerCase();
 
   const { dataTable, buffer } = await validateAndUploadCSV(
     req.file.buffer,
@@ -84,7 +85,7 @@ export const attachLookupTableToDimension = async (req: Request, res: Response, 
   const tableMatcher = req.body as LookupTablePatchDTO;
 
   try {
-    const result = await validateLookupTable(dataTable, dataset, dimension, buffer, tableMatcher);
+    const result = await validateLookupTable(dataTable, dataset, dimension, buffer, language, tableMatcher);
     if ((result as ViewErrDTO).status) {
       const error = result as ViewErrDTO;
       res.status(error.status);
@@ -101,6 +102,7 @@ export const attachLookupTableToDimension = async (req: Request, res: Response, 
 
 export const updateDimension = async (req: Request, res: Response) => {
   const { dataset, dimension } = res.locals;
+  const language = req.language.toLowerCase();
 
   const dimensionPatchRequest = req.body as DimensionPatchDto;
   let preview: ViewDTO | ViewErrDTO;
@@ -110,7 +112,7 @@ export const updateDimension = async (req: Request, res: Response) => {
     case DimensionType.DatePeriod:
     case DimensionType.Date:
       logger.debug('Matching a Dimension containing Dates');
-      preview = await validateDateTypeDimension(dimensionPatchRequest, dataset, dimension);
+      preview = await createAndValidateDateDimension(dimensionPatchRequest, dataset, dimension, language);
       break;
     case DimensionType.ReferenceData:
       logger.debug('Matching a Dimension containing Reference Data');
