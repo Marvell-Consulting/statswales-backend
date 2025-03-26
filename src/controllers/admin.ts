@@ -7,6 +7,8 @@ import { UnknownException } from '../exceptions/unknown.exception';
 import { UserGroupRepository } from '../repositories/user-group';
 import { NotFoundException } from '../exceptions/not-found.exception';
 import { hasError, userGroupIdValidator } from '../validators';
+import { arrayValidator, dtoValidator } from '../validators/dto-validator';
+import { UserGroupMetadataDTO } from '../dtos/user/user-group-metadata-dto';
 
 export const loadUserGroup = async (req: Request, res: Response, next: NextFunction) => {
   const userGroupIdError = await hasError(userGroupIdValidator(), req);
@@ -19,6 +21,7 @@ export const loadUserGroup = async (req: Request, res: Response, next: NextFunct
   try {
     const group = await UserGroupRepository.getById(req.params.user_group_id);
     res.locals.userGroup = group;
+    res.locals.userGroupId = group.id;
   } catch (error) {
     logger.error(error, 'Error loading user group');
     next(new NotFoundException('errors.no_user_group'));
@@ -30,9 +33,8 @@ export const loadUserGroup = async (req: Request, res: Response, next: NextFunct
 export const createUserGroup = async (req: Request, res: Response, next: NextFunction) => {
   try {
     logger.info('Create new user group');
-    const { name_en, name_cy } = req.body;
-
-    const group = await UserGroupRepository.createGroup(name_en, name_cy);
+    const meta = await arrayValidator(UserGroupMetadataDTO, req.body);
+    const group = await UserGroupRepository.createGroup(meta);
     res.json(UserGroupDTO.fromUserGroup(group, req.language as Locale));
   } catch (error) {
     logger.error('Error creating group', error);
@@ -67,13 +69,20 @@ export const getUserGroupById = async (req: Request, res: Response, next: NextFu
     const group = await UserGroupRepository.getById(req.params.user_group_id);
     res.json(UserGroupDTO.fromUserGroup(group, req.language as Locale));
   } catch (err) {
-    logger.error(err, `Failed to load user group`);
+    logger.error(err, `Failed to get user group`);
     next(new NotFoundException('errors.no_user_group'));
   }
 };
 
-export const updateUserGroup = async (req: Request, res: Response, next: NextFunction) => {
-  const group = res.locals.userGroup;
+export const updateUserGroup = async (req: Request, res: Response) => {
+  let group = res.locals.userGroup;
 
-  next();
+  try {
+    const dto = await dtoValidator(UserGroupDTO, req.body);
+    group = await UserGroupRepository.updateGroup(group, dto);
+    res.json(UserGroupDTO.fromUserGroup(group, req.language as Locale));
+  } catch (err) {
+    logger.error(err, 'Error updating group');
+    throw new UnknownException();
+  }
 };

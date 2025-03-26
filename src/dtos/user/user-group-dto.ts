@@ -5,12 +5,12 @@ import { DatasetDTO } from '../dataset-dto';
 
 import { OrganisationDTO } from '../organisation-dto';
 import { UserDto } from './user-dto';
+import { UserGroupMetadataDTO } from './user-group-metadata-dto';
 
 export class UserGroupDTO {
   id: string;
   prefix?: string;
-  name?: string;
-  email?: string;
+  metadata?: UserGroupMetadataDTO[];
   organisation_id?: string;
   organisation?: OrganisationDTO;
   users: UserDto[];
@@ -19,32 +19,25 @@ export class UserGroupDTO {
   dataset_count?: number;
 
   static fromUserGroup(userGroup: UserGroup, lang: Locale): UserGroupDTO {
-    const meta = userGroup.metadata?.find((meta) => lang.includes(meta.language));
-
     const dto = new UserGroupDTO();
+
     dto.id = userGroup.id;
-    dto.name = meta?.name;
-    dto.email = meta?.email;
     dto.organisation_id = userGroup.organisation?.id;
     dto.organisation = userGroup.organisation
       ? OrganisationDTO.fromOrganisation(userGroup.organisation, lang)
       : undefined;
 
+    dto.metadata = userGroup.metadata?.map((meta) => UserGroupMetadataDTO.fromUserGroupMetadata(meta));
+
     return dto;
   }
 
   static toUserGroup(dto: UserGroupDTO): DeepPartial<UserGroup> {
-    return {
+    return UserGroup.create({
+      id: dto.id,
       prefix: dto.prefix,
       organisationId: dto.organisation_id,
-      metadata: [
-        {
-          name: dto.name,
-          email: dto.email,
-          id: '',
-          language: ''
-        }
-      ]
-    };
+      metadata: dto.metadata?.map((m) => UserGroupMetadataDTO.toUserGroupMetadata(m))
+    });
   }
 }

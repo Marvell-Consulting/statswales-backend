@@ -15,4 +15,4 @@ adminRouter.get('/group', listUserGroups);
 adminRouter.post('/group', jsonParser, createUserGroup);
 
 adminRouter.get('/group/:user_group_id', loadUserGroup, getUserGroupById);
-adminRouter.patch('/group/:user_group_id', loadUserGroup, updateUserGroup);
+adminRouter.patch('/group/:user_group_id', loadUserGroup, jsonParser, updateUserGroup);
