@@ -11,24 +11,24 @@ import {
 
 import { Organisation } from './organisation';
 
-@Entity({ name: 'organisation_info' })
-export class OrganisationInfo extends BaseEntity {
+@Entity({ name: 'organisation_metadata' })
+export class OrganisationMetadata extends BaseEntity {
   @PrimaryColumn({
     name: 'organisation_id',
     type: 'uuid',
-    primaryKeyConstraintName: 'PK_organisation_info_organisation_id_language'
+    primaryKeyConstraintName: 'PK_organisation_metadata_organisation_id_language'
   })
   id: string;
 
-  @ManyToOne(() => Organisation, (org) => org.info, { onDelete: 'CASCADE', orphanedRowAction: 'delete' })
-  @JoinColumn({ name: 'organisation_id', foreignKeyConstraintName: 'FK_organisation_info_organisation_id' })
+  @ManyToOne(() => Organisation, (org) => org.metadata, { onDelete: 'CASCADE', orphanedRowAction: 'delete' })
+  @JoinColumn({ name: 'organisation_id', foreignKeyConstraintName: 'FK_organisation_metadata_organisation_id' })
   organisation: Organisation;
 
   @PrimaryColumn({
     name: 'language',
     type: 'varchar',
     length: 5,
-    primaryKeyConstraintName: 'PK_organisation_info_organisation_id_language'
+    primaryKeyConstraintName: 'PK_organisation_metadata_organisation_id_language'
   })
   language: string;
 

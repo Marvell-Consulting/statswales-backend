@@ -6,7 +6,6 @@ import { dataSource } from '../db/data-source';
 import { Dataset } from '../entities/dataset/dataset';
 import { DatasetListItemDTO } from '../dtos/dataset-list-item-dto';
 import { Locale } from '../enums/locale';
-import { Team } from '../entities/user/team';
 import { Revision } from '../entities/dataset/revision';
 import { ResultsetWithCount } from '../interfaces/resultset-with-count';
 import { DataTable } from '../entities/dataset/data-table';
@@ -63,8 +62,7 @@ export const withDraftForTasklistState: FindOptionsRelations<Dataset> = {
     }
   },
   dimensions: { metadata: true },
-  measure: { measureTable: true, metadata: true },
-  team: true
+  measure: { measureTable: true, metadata: true }
 };
 
 export const DatasetRepository = dataSource.getRepository(Dataset).extend({
@@ -161,14 +159,6 @@ export const DatasetRepository = dataSource.getRepository(Dataset).extend({
     const [data, count] = await Promise.all([resultQuery.getRawMany(), countQuery.getCount()]);
 
     return { data, count };
-  },
-
-  async updateDatasetTeam(datasetId: string, teamId: string): Promise<Dataset> {
-    const dataset = await this.findOneOrFail({ where: { id: datasetId } });
-    const team = await dataSource.getRepository(Team).findOneByOrFail({ id: teamId });
-    dataset.team = team;
-    await dataset.save();
-    return this.getById(datasetId, {});
   },
 
   async publish(revision: Revision, period: PeriodCovered): Promise<Dataset> {

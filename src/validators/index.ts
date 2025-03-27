@@ -13,8 +13,6 @@ export const dimensionIdValidator = () => param('dimension_id').trim().notEmpty(
 
 export const providerIdValidator = () => param('provider_id').trim().notEmpty().isUUID(4);
 
-export const teamIdValidator = () => param('team_id').trim().notEmpty().isUUID(4);
-
 export const userGroupIdValidator = () => param('user_group_id').trim().notEmpty().isUUID(4);
 
 export const titleValidator = () => body('title').trim().notEmpty();

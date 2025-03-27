@@ -19,7 +19,6 @@ import { errorHandler } from './routes/error-handler';
 import { providerRouter } from './routes/provider';
 import { topicRouter } from './routes/topic';
 import { organisationRouter } from './routes/organisation';
-import { teamRouter } from './routes/team';
 import { translationRouter } from './routes/translation';
 import { consumerRouter } from './routes/consumer';
 import { initServices } from './middleware/services';
@@ -51,7 +50,6 @@ app.use('/dataset', rateLimiter, passport.authenticate('jwt', { session: false }
 app.use('/provider', rateLimiter, passport.authenticate('jwt', { session: false }), providerRouter);
 app.use('/topic', rateLimiter, passport.authenticate('jwt', { session: false }), topicRouter);
 app.use('/organisation', rateLimiter, passport.authenticate('jwt', { session: false }), organisationRouter);
-app.use('/team', rateLimiter, passport.authenticate('jwt', { session: false }), teamRouter);
 app.use('/translation', rateLimiter, passport.authenticate('jwt', { session: false }), translationRouter);
 
 // admin routes

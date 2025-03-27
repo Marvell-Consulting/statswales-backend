@@ -12,7 +12,7 @@ export const UserGroupRepository = dataSource.getRepository(UserGroup).extend({
       where: { id },
       relations: {
         metadata: true,
-        organisation: { info: true },
+        organisation: { metadata: true },
         users: true,
         datasets: { endRevision: { metadata: true } }
       }
@@ -23,10 +23,7 @@ export const UserGroupRepository = dataSource.getRepository(UserGroup).extend({
     const lang = locale.includes('en') ? Locale.EnglishGb : Locale.WelshGb;
 
     const qb = this.createQueryBuilder('ug')
-      .select('ug.id', 'id')
-      .addSelect('ug.prefix', 'prefix')
-      .addSelect('ugm.name', 'name')
-      .addSelect('ugm.email', 'email')
+      .select(['ug.id AS id', 'ug.prefix AS prefix', 'ugm.name AS name', 'ugm.email AS email'])
       .addSelect('COUNT(DISTINCT u.id)', 'user_count')
       .addSelect('COUNT(DISTINCT d.id)', 'dataset_count')
       .leftJoin('ug.metadata', 'ugm', 'ugm.language = :lang', { lang })

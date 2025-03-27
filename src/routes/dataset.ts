@@ -38,7 +38,6 @@ import {
   listAllDatasets,
   updateMetadata,
   updateDataProviders,
-  updateDatasetTeam,
   updateTopics,
   updateSources,
   getDatasetById,
@@ -222,7 +221,3 @@ router.get('/:dataset_id/topics', jsonParser, loadDataset(withDraftAndTopics), g
 // PATCH /dataset/:dataset_id/topics
 // Updates the topics for the dataset
 router.patch('/:dataset_id/topics', jsonParser, loadDataset(withDraftAndTopics), updateTopics);
-
-// PATCH /dataset/:dataset_id/team
-// Updates the team for the dataset
-router.patch('/:dataset_id/team', jsonParser, loadDataset({}), updateDatasetTeam);

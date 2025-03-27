@@ -18,6 +18,7 @@ import { Dataset } from '../dataset/dataset';
 import { Organisation } from './organisation';
 import { User } from './user';
 import { UserGroupMetadata } from './user-group-metadata';
+import { UserGroupStatus } from '../../enums/user-group-status';
 
 @Entity({ name: 'user_group' })
 export class UserGroup extends BaseEntity {
@@ -56,6 +57,15 @@ export class UserGroup extends BaseEntity {
     }
   })
   users?: User[];
+
+  @Column({
+    name: 'status',
+    type: 'enum',
+    enum: Object.values(UserGroupStatus),
+    nullable: false,
+    default: UserGroupStatus.Active
+  })
+  status: UserGroupStatus;
 
   @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
   createdAt: Date;
