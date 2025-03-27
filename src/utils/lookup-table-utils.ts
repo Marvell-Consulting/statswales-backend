@@ -1,7 +1,7 @@
 import { DataTable } from '../entities/dataset/data-table';
 import { LookupTable } from '../entities/dataset/lookup-table';
 import { DataTableDescription } from '../entities/dataset/data-table-description';
-import { Locale, SupportedLanguagues } from '../enums/locale';
+import { Locale } from '../enums/locale';
 import { MeasureLookupPatchDTO } from '../dtos/measure-lookup-patch-dto';
 import { LookupTablePatchDTO } from '../dtos/lookup-patch-dto';
 
@@ -26,19 +26,24 @@ export function convertDataTableToLookupTable(dataTable: DataTable) {
 }
 
 export function columnIdentification(info: DataTableDescription) {
-  let lang = 'zz';
-  for (const supLang of Object.values(SupportedLanguagues)) {
-    if (info.columnName.toLowerCase().endsWith(supLang.code.toLowerCase())) {
-      lang = supLang.code;
-      break;
-    } else if (info.columnName.toLowerCase().endsWith(supLang.name.toLowerCase())) {
-      lang = supLang.code;
+  let columnLang = 'zz';
+  for (const locale of SUPPORTED_LOCALES) {
+    const lang = locale.split('-')[0].toLowerCase();
+    if (info.columnName.toLowerCase().endsWith(locale.split('-')[0].toLowerCase())) {
+      columnLang = locale.toLowerCase();
       break;
     }
+    for (const nestedLocale of SUPPORTED_LOCALES) {
+      if (info.columnName.toLowerCase().endsWith(t(`language.${lang}`, { lng: nestedLocale }).toLowerCase())) {
+        columnLang = locale.toLowerCase();
+        break;
+      }
+    }
+    if (columnLang === lang) break;
   }
   return {
     name: info.columnName,
-    lang
+    lang: columnLang
   };
 }
 
@@ -77,10 +82,10 @@ export const lookForJoinColumn = (
       if (info.columnName.toLowerCase().includes(t('lookup_column_headers.description', { lng: tableLanguage })))
         return false;
       if (info.columnName.toLowerCase().includes(t('lookup_column_headers.sort', { lng: tableLanguage }))) return false;
-      if (info.columnName.toLowerCase().includes(t('lookup_column_headers.note', { lng: tableLanguage }))) return false;
-      if (info.columnName.toLowerCase().includes(t('lookup_column_headers.type', { lng: tableLanguage }))) return false;
-      if (info.columnName.toLowerCase().includes(t('lookup_column_headers.language', { lng: tableLanguage })))
+      if (info.columnName.toLowerCase().includes(t('lookup_column_headers.notes', { lng: tableLanguage })))
         return false;
+      if (info.columnName.toLowerCase().includes(t('lookup_column_headers.type', { lng: tableLanguage }))) return false;
+      if (info.columnName.toLowerCase().includes(t('lookup_column_headers.lang', { lng: tableLanguage }))) return false;
       if (info.columnName.toLowerCase().includes('lang')) return false;
       logger.debug(`Looks like column ${info.columnName.toLowerCase()} is a join column`);
       return true;

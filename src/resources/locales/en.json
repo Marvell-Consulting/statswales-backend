@@ -135,7 +135,7 @@
   "lookup_column_headers": {
     "refcode": "refcode",
     "description": "description",
-    "notes": "notes",
+    "notes": "note",
     "sort": "sort",
     "hierarchy": "hierarchy",
     "measure": "measure",

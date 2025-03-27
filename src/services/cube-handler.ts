@@ -21,7 +21,6 @@ import { DataTable } from '../entities/dataset/data-table';
 import { DataTableAction } from '../enums/data-table-action';
 import { Revision } from '../entities/dataset/revision';
 import { Locale } from '../enums/locale';
-import { MeasureLookupTableExtractor } from '../extractors/measure-lookup-extractor';
 import { DimensionType } from '../enums/dimension-type';
 import { FactTableColumnType } from '../enums/fact-table-column-type';
 import { ReferenceDataExtractor } from '../extractors/reference-data-extractor';
@@ -395,14 +394,14 @@ export async function createLookupTableDimension(quack: Database, dataset: Datas
     : `${makeCubeSafeString(dimension.factTableColumn)}_lookup_sw3`;
   await loadFileIntoCube(quack, dimension.lookupTable, lookupTableFile, lookupTableName);
 
-  if (dimension.lookupTable.isStatsWales2Format) {
+  if (extractor.isSW2Format) {
     logger.debug('Lookup table is SW2 format');
     const dataExtractorParts = [];
     for (const locale of SUPPORTED_LOCALES) {
       const descriptionCol = extractor.descriptionColumns.find(
-        (col) => col.lang.toLowerCase() === locale.split('-')[0]
+        (col) => col.lang.toLowerCase() === locale.toLowerCase()
       );
-      const notesCol = extractor.notesColumns?.find((col) => col.lang.toLowerCase() === locale.split('-')[0]);
+      const notesCol = extractor.notesColumns?.find((col) => col.lang.toLowerCase() === locale.toLowerCase());
       const descriptionColStr = descriptionCol ? `"${descriptionCol.name}"` : 'NULL';
       const notesColStr = notesCol ? `"${notesCol.name}"` : 'NULL';
       const sortStr = extractor.sortColumn ? `"${extractor.sortColumn}"` : 'NULL';
@@ -417,7 +416,8 @@ export async function createLookupTableDimension(quack: Database, dataset: Datas
         FROM ${lookupTableName}`
       );
     }
-    const builtInsertQuery = `INSERT INTO ${makeCubeSafeString(dimension.factTableColumn)}_lookup ${dataExtractorParts.join(' UNION ')};`;
+    const builtInsertQuery = `INSERT INTO ${makeCubeSafeString(dimension.factTableColumn)}_lookup (${dataExtractorParts.join(' UNION ')});`;
+    logger.debug(`Built insert query: ${builtInsertQuery}`);
     await quack.exec(builtInsertQuery);
   } else {
     const notesStr = extractor.notesColumns ? `"${extractor.notesColumns[0].name}"` : 'NULL';
@@ -813,9 +813,8 @@ async function setupMeasures(
       viewSelectStatementsMap.get(locale)?.push(`measure.description as "${columnName}"`);
       rawSelectStatementsMap.get(locale)?.push(`measure.description as "${columnName}"`);
     });
-    const languageColumn = (dataset.measure.extractor as MeasureLookupTableExtractor).languageColumn || 'language';
     joinStatements.push(
-      `LEFT JOIN measure on CAST (measure.reference AS VARCHAR)=CAST(${FACT_TABLE_NAME}.${dataset.measure.factTableColumn} AS VARCHAR) AND measure."${languageColumn}"='#LANG#'`
+      `LEFT JOIN measure on measure.reference=${FACT_TABLE_NAME}.${dataset.measure.factTableColumn} AND measure.language='#LANG#'`
     );
     orderByStatements.push(`measure.sort_order, measure.reference`);
   } else {
@@ -878,7 +877,6 @@ async function setupDimensions(
     }
     logger.info(`Setting up dimension ${dimension.id} for fact table column ${dimension.factTableColumn}`);
     const dimTable = `${makeCubeSafeString(dimension.factTableColumn)}_lookup`;
-    let languageColumn = 'lang';
     try {
       switch (dimension.type) {
         case DimensionType.DatePeriod:
@@ -949,9 +947,8 @@ async function setupDimensions(
             viewSelectStatementsMap.get(locale)?.push(`${dimTable}.description as "${columnName}"`);
             rawSelectStatementsMap.get(locale)?.push(`${dimTable}.description as "${columnName}"`);
           });
-          languageColumn = (dimension.extractor as LookupTableExtractor).languageColumn || 'language';
           joinStatements.push(
-            `LEFT JOIN "${dimTable}" on "${dimTable}"."${factTableColumn.columnName}"=${FACT_TABLE_NAME}."${factTableColumn.columnName}" AND "${dimTable}"."${languageColumn}"='#LANG#'`
+            `LEFT JOIN "${dimTable}" on "${dimTable}"."${factTableColumn.columnName}"=${FACT_TABLE_NAME}."${factTableColumn.columnName}" AND "${dimTable}".language='#LANG#'`
           );
           orderByStatements.push(`"${dimTable}".sort_order`);
           break;

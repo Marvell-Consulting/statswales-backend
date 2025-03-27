@@ -33,6 +33,7 @@ import { FactTableColumn } from '../entities/dataset/fact-table-column';
 import { CubeValidationException, CubeValidationType } from '../exceptions/cube-error-exception';
 import { Locale } from '../enums/locale';
 import { t } from 'i18next';
+import { FileValidationErrorType, FileValidationException } from '../exceptions/validation-exception';
 
 const sampleSize = 5;
 
@@ -86,46 +87,48 @@ function createExtractor(
             .filter((info) => info.columnName === desc)
             .map((info) => columnIdentification(info))[0]
       ),
-      languageColumn: tableMatcher.language
+      languageColumn: tableMatcher.language,
+      isSW2Format: !tableMatcher.language
     };
   } else {
-    const noteStr = t('lookup_column_headers.note', { lng: tableLanguage });
+    logger.debug('Detecting column types from column names');
+    const noteStr = t('lookup_column_headers.notes', { lng: tableLanguage });
     const sortStr = t('lookup_column_headers.sort', { lng: tableLanguage });
     const hierarchyStr = t('lookup_column_headers.hierarchy', { lng: tableLanguage });
     const descriptionStr = t('lookup_column_headers.description', { lng: tableLanguage });
     const langStr = t('lookup_column_headers.lang', { lng: tableLanguage });
-    logger.debug(`Using lookup table to try try to generate the extractor...`);
-    const sortColumn = protoLookupTable.dataTableDescriptions.find((info) =>
-      info.columnName.toLowerCase().includes(sortStr)
-    )?.columnName;
-    const hierarchyColumn = protoLookupTable.dataTableDescriptions.find((info) =>
-      info.columnName.toLowerCase().includes(hierarchyStr)
-    )?.columnName;
-    const languageColumn = protoLookupTable.dataTableDescriptions.find((info) =>
-      info.columnName.toLowerCase().includes(langStr)
-    )?.columnName;
-    const filteredDescriptionColumns = protoLookupTable.dataTableDescriptions.filter((info) =>
-      info.columnName.toLowerCase().includes(descriptionStr)
-    );
-    if (filteredDescriptionColumns.length < 1) {
-      throw new Error('Could not identify description columns in lookup table');
-    }
-    const descriptionColumns = filteredDescriptionColumns.map((info) => columnIdentification(info));
-    const filteredNotesColumns = protoLookupTable.dataTableDescriptions.filter((info) =>
-      info.columnName.toLowerCase().includes(noteStr)
-    );
     let notesColumns: ColumnDescriptor[] | undefined;
-    if (filteredNotesColumns.length > 0) {
-      notesColumns = filteredNotesColumns.map((info) => columnIdentification(info));
-    }
-    return {
+    if (protoLookupTable.dataTableDescriptions.filter((info) => info.columnName.toLowerCase().startsWith(noteStr)))
+      notesColumns = protoLookupTable.dataTableDescriptions
+        .filter((info) => info.columnName.toLowerCase().startsWith(noteStr))
+        .map((info) => columnIdentification(info));
+    const extractor: LookupTableExtractor = {
       tableLanguage,
-      sortColumn,
-      hierarchyColumn,
-      descriptionColumns,
+      sortColumn: protoLookupTable.dataTableDescriptions.find((info) =>
+        info.columnName.toLowerCase().startsWith(sortStr)
+      )?.columnName,
+      languageColumn: protoLookupTable.dataTableDescriptions.find((info) =>
+        info.columnName.toLowerCase().startsWith(langStr)
+      )?.columnName,
+      hierarchyColumn: protoLookupTable.dataTableDescriptions.find((info) =>
+        info.columnName.toLowerCase().includes(hierarchyStr)
+      )?.columnName,
+      descriptionColumns: protoLookupTable.dataTableDescriptions
+        .filter((info) => info.columnName.toLowerCase().includes(descriptionStr))
+        .map((info) => columnIdentification(info)),
       notesColumns,
-      languageColumn
+      isSW2Format: !protoLookupTable.dataTableDescriptions.find((info) =>
+        info.columnName.toLowerCase().startsWith(langStr)
+      )
     };
+    logger.debug(`Extracted extractor from lookup table:\n${JSON.stringify(extractor, null, 2)}`);
+    if (extractor.descriptionColumns.length === 0) {
+      throw new FileValidationException(
+        'errors.measure_validation.no_description_columns',
+        FileValidationErrorType.InvalidCsv
+      );
+    }
+    return extractor;
   }
 }
 
@@ -137,14 +140,14 @@ export const createLookupTableInCube = async (
 ) => {
   const extractor = dimension.extractor as LookupTableExtractor;
   await quack.exec(createLookupTableQuery(factTableColumn));
-  if (dimension.lookupTable?.isStatsWales2Format) {
+  if (extractor.isSW2Format) {
     logger.debug('Lookup table is SW2 format');
     const dataExtractorParts = [];
     for (const locale of SUPPORTED_LOCALES) {
       const descriptionCol = extractor.descriptionColumns.find(
-        (col) => col.lang.toLowerCase() === locale.split('-')[0]
+        (col) => col.lang.toLowerCase() === locale.toLowerCase()
       );
-      const notesCol = extractor.notesColumns?.find((col) => col.lang.toLowerCase() === locale.split('-')[0]);
+      const notesCol = extractor.notesColumns?.find((col) => col.lang.toLowerCase() === locale.toLowerCase());
       const descriptionColStr = descriptionCol ? `"${descriptionCol.name}"` : 'NULL';
       const notesColStr = notesCol ? `"${notesCol.name}"` : 'NULL';
       const sortStr = extractor.sortColumn ? `"${extractor.sortColumn}"` : 'NULL';
@@ -163,15 +166,15 @@ export const createLookupTableInCube = async (
     logger.debug(`Built insert query: ${builtInsertQuery}`);
     await quack.exec(builtInsertQuery);
   } else {
-    const notesStr = extractor.notesColumns ? `"${extractor.notesColumns[0].name}"` : 'null';
+    const notesStr = extractor.notesColumns ? `"${extractor.notesColumns[0].name}"` : 'NULL';
     const dataExtractorParts = `
       SELECT
         "${dimension.joinColumn}" as ${factTableColumn.columnName},
         "${extractor.languageColumn}" as language,
         "${extractor.descriptionColumns[0].name}" as description,
         ${notesStr} as notes,
-        ${extractor.sortColumn ? `"${extractor.sortColumn}"` : 'null'} as sort_order,
-        "${extractor.hierarchyColumn ? `"${extractor.hierarchyColumn}"` : 'null'}" as hierarchy
+        ${extractor.sortColumn ? `"${extractor.sortColumn}"` : 'NULL'} as sort_order,
+        ${extractor.hierarchyColumn ? `"${extractor.hierarchyColumn}"` : 'NULL'} as hierarchy
       FROM ${lookupTableName}
     `;
     const builtInsertQuery = `INSERT INTO ${makeCubeSafeString(dimension.factTableColumn)}_lookup ${dataExtractorParts};`;

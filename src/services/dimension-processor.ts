@@ -474,7 +474,7 @@ export const validateDateDimension = async (
     // Now validate everything matches
     const nonMatchedRows = await quack.all(
       `SELECT
-        line_number, fact_table_date, "${makeCubeSafeString(factTableColumn.columnName)}_lookup".date_code
+        line_number, fact_table_date, "${makeCubeSafeString(factTableColumn.columnName)}_lookup"."${factTableColumn.columnName}"
       FROM (
         SELECT
           row_number() OVER () as line_number, "${dimension.factTableColumn}" as fact_table_date
@@ -482,8 +482,8 @@ export const validateDateDimension = async (
           ${tableName}
       ) as fact_table
       LEFT JOIN "${makeCubeSafeString(factTableColumn.columnName)}_lookup"
-      ON fact_table.fact_table_date="${makeCubeSafeString(factTableColumn.columnName)}_lookup".date_code
-      WHERE date_code IS NULL;`
+      ON fact_table.fact_table_date="${makeCubeSafeString(factTableColumn.columnName)}_lookup"."${factTableColumn.columnName}"
+      WHERE "${factTableColumn.columnName}" IS NULL;`
     );
     if (nonMatchedRows.length > 0) {
       if (nonMatchedRows.length === preview.length) {
@@ -506,8 +506,8 @@ export const validateDateDimension = async (
                 row_number() OVER () as line_number, "${dimension.factTableColumn}" as fact_table_date
               FROM ${tableName}) AS fact_table
               LEFT JOIN "${makeCubeSafeString(factTableColumn.columnName)}_lookup"
-              ON fact_table.fact_table_date="${makeCubeSafeString(factTableColumn.columnName)}_lookup".date_code
-             WHERE date_code IS NULL
+              ON fact_table.fact_table_date="${makeCubeSafeString(factTableColumn.columnName)}_lookup"."${factTableColumn.columnName}"
+             WHERE "${factTableColumn.columnName}" IS NULL
             );`
         );
         const nonMatchingValues = nonMatchedRowSample
@@ -523,7 +523,6 @@ export const validateDateDimension = async (
     }
   } catch (error) {
     logger.error(error, `Something unexpected went wrong trying to validate the data`);
-    await quack.close();
     return viewErrorGenerators(500, dataset.id, 'patch', 'errors.dimension_validation.unknown_error', {});
   }
   return undefined;

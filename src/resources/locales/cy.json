@@ -102,6 +102,15 @@
     "lang": "iaith"
   },
   "formats": {
-
+    "decimal": "degol",
+    "float": "arnawf",
+    "integer": "cyfanrif",
+    "long": "hir",
+    "percentage": "canran",
+    "string": "llinyn",
+    "text": "testun",
+    "date": "dyddiad",
+    "datetime": "dyddiadamser",
+    "time": "amser"
   }
 }

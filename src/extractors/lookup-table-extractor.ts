@@ -9,4 +9,5 @@ export interface LookupTableExtractor {
   hierarchyColumn?: string;
   notesColumns?: ColumnDescriptor[];
   languageColumn?: string;
+  isSW2Format: boolean;
 }
