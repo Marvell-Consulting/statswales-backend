@@ -146,7 +146,6 @@ export const updateDimension = async (req: Request, res: Response) => {
 
   if ((preview as ViewErrDTO).errors) {
     res.status((preview as ViewErrDTO).status);
-    return;
   } else {
     res.status(202);
   }

@@ -1,7 +1,8 @@
 import fs from 'fs';
 
-import { Database } from 'duckdb-async';
+import { Database, DuckDbError } from 'duckdb-async';
 import tmp from 'tmp';
+import { t } from 'i18next';
 
 import { LookupTable } from '../entities/dataset/lookup-table';
 import { DataTable } from '../entities/dataset/data-table';
@@ -33,6 +34,8 @@ import { createMeasureLookupTable, measureTableCreateStatement } from './cube-ha
 import { createEmptyCubeWithFactTable } from '../utils/create-facttable';
 import { FileValidationErrorType, FileValidationException } from '../exceptions/validation-exception';
 import { FactTableColumn } from '../entities/dataset/fact-table-column';
+import { Locale } from '../enums/locale';
+import { DataValueFormat } from '../enums/data-value-format';
 
 const sampleSize = 5;
 
@@ -71,11 +74,13 @@ async function cleanUpMeasure(measureId: string) {
 
 function createExtractor(
   protoLookupTable: DataTable,
+  tableLanguage: Locale,
   tableMatcher?: MeasureLookupPatchDTO
 ): MeasureLookupTableExtractor {
   if (tableMatcher?.description_columns) {
     logger.debug('Using user supplied table matcher to match columns');
     return {
+      tableLanguage,
       sortColumn: tableMatcher?.sort_column,
       formatColumn: tableMatcher?.format_column,
       decimalColumn: tableMatcher?.decimal_column,
@@ -97,33 +102,45 @@ function createExtractor(
     };
   } else {
     logger.debug('Detecting column types from column names');
+    const noteStr = t('lookup_column_headers.note', { lng: tableLanguage });
+    const sortStr = t('lookup_column_headers.sort', { lng: tableLanguage });
+    const formatStr = t('lookup_column_headers.format', { lng: tableLanguage });
+    const decimalStr = t('lookup_column_headers.decimal', { lng: tableLanguage });
+    const measureTypeStr = t('lookup_column_headers.type', { lng: tableLanguage });
+    const hierarchyStr = t('lookup_column_headers.hierarchy', { lng: tableLanguage });
+    const descriptionStr = t('lookup_column_headers.description', { lng: tableLanguage });
+    const langStr = t('lookup_column_headers.lang', { lng: tableLanguage });
     let notesColumns: ColumnDescriptor[] | undefined;
-    if (protoLookupTable.dataTableDescriptions.filter((info) => info.columnName.toLowerCase().startsWith('note')))
+    if (protoLookupTable.dataTableDescriptions.filter((info) => info.columnName.toLowerCase().startsWith(noteStr)))
       notesColumns = protoLookupTable.dataTableDescriptions
-        .filter((info) => info.columnName.toLowerCase().startsWith('note'))
+        .filter((info) => info.columnName.toLowerCase().startsWith(noteStr))
         .map((info) => columnIdentification(info));
     const extractor = {
+      tableLanguage,
       sortColumn: protoLookupTable.dataTableDescriptions.find((info) =>
-        info.columnName.toLowerCase().startsWith('sort')
+        info.columnName.toLowerCase().startsWith(sortStr)
       )?.columnName,
       languageColumn: protoLookupTable.dataTableDescriptions.find((info) =>
-        info.columnName.toLowerCase().startsWith('lang')
+        info.columnName.toLowerCase().startsWith(langStr)
       )?.columnName,
-      formatColumn: protoLookupTable.dataTableDescriptions.find(
-        (info) => info.columnName.toLowerCase().indexOf('format') > -1
+      formatColumn: protoLookupTable.dataTableDescriptions.find((info) =>
+        info.columnName.toLowerCase().includes(formatStr)
       )?.columnName,
-      decimalColumn: protoLookupTable.dataTableDescriptions.find(
-        (info) => info.columnName.toLowerCase().indexOf('decimal') > -1
+      decimalColumn: protoLookupTable.dataTableDescriptions.find((info) =>
+        info.columnName.toLowerCase().includes(decimalStr)
       )?.columnName,
-      measureTypeColumn: protoLookupTable.dataTableDescriptions.find(
-        (info) => info.columnName.toLowerCase().indexOf('type') > -1
+      measureTypeColumn: protoLookupTable.dataTableDescriptions.find((info) =>
+        info.columnName.toLowerCase().includes(measureTypeStr)
+      )?.columnName,
+      hierarchyColumn: protoLookupTable.dataTableDescriptions.find((info) =>
+        info.columnName.toLowerCase().includes(hierarchyStr)
       )?.columnName,
       descriptionColumns: protoLookupTable.dataTableDescriptions
-        .filter((info) => info.columnName.toLowerCase().startsWith('description'))
+        .filter((info) => info.columnName.toLowerCase().startsWith(descriptionStr))
         .map((info) => columnIdentification(info)),
       notesColumns,
       isSW2Format: !protoLookupTable.dataTableDescriptions.find((info) =>
-        info.columnName.toLowerCase().startsWith('lang')
+        info.columnName.toLowerCase().startsWith(langStr)
       )
     };
     if (extractor.descriptionColumns.length === 0) {
@@ -184,9 +201,15 @@ async function createMeasureTable(
   const sortOrderDef = extractor.sortColumn ? `"${extractor.sortColumn}"` : 'NULL';
   const measureTypeDef = extractor.measureTypeColumn ? `"${extractor.measureTypeColumn}"` : 'NULL';
   const hierarchyDef = extractor.hierarchyColumn ? `"${extractor.hierarchyColumn}"` : 'NULL';
-  let notesColumnDef = 'NULL as notes,';
+  let notesColumnDef = 'NULL';
   let buildMeasureViewQuery: string;
   if (extractor.isSW2Format) {
+    if (extractor.descriptionColumns.length < SUPPORTED_LOCALES.length) {
+      throw new FileValidationException(
+        'errors.measure_validation.missing_languages',
+        FileValidationErrorType.MissingLanguages
+      );
+    }
     for (const locale of SUPPORTED_LOCALES) {
       if (extractor.notesColumns) {
         const notesCol = extractor.notesColumns.find((col) => col.lang === locale.split('-')[0])?.name;
@@ -211,13 +234,31 @@ async function createMeasureTable(
     buildMeasureViewQuery = `${viewComponents.join('\nUNION\n')}`;
     logger.debug(`Extracting SW2 measure lookup table to measure table using query ${buildMeasureViewQuery}`);
   } else {
-    if (extractor.notesColumns) {
-      notesColumnDef = `"${extractor.notesColumns[0]}"`;
+    logger.debug(`Extractor = ${JSON.stringify(extractor, null, 2)}`);
+    if (extractor.notesColumns && extractor.notesColumns.length > 0) {
+      notesColumnDef = `"${extractor.notesColumns[0].name}"`;
+    } else {
+      notesColumnDef = 'NULL';
     }
+
+    const measureMatcher: string[] = [];
+    SUPPORTED_LOCALES.map((locale) => {
+      const lang = locale.split('-')[0].toLowerCase();
+      const tLang = lang;
+      measureMatcher.push(`WHEN LOWER("${extractor.languageColumn}") LIKE '${lang}%' THEN '${locale.toLowerCase()}'`);
+      SUPPORTED_LOCALES.map((locale) => {
+        const lang = locale.split('-')[0].toLowerCase();
+        measureMatcher.push(
+          `WHEN LOWER("${extractor.languageColumn}") LIKE '%${t(`language.${lang}`, { lng: tLang }).toLowerCase()}%' THEN '${locale.toLowerCase()}'`
+        );
+      });
+    });
     buildMeasureViewQuery = `SELECT
                     "${joinColumn}" AS reference,
-                    "${extractor.languageColumn}" AS language,
-                    "${extractor.descriptionColumns[0]}" AS description,
+                    CASE
+                      ${measureMatcher.join('\n')}
+                    END AS language,
+                    "${extractor.descriptionColumns[0].name}" AS description,
                     ${notesColumnDef} AS notes,
                     ${sortOrderDef} AS sort_order,
                     ${formatColumn} AS format,
@@ -232,12 +273,42 @@ async function createMeasureTable(
     logger.debug(`Extracting lookup table contents to measure using query:\n ${inertQuery}`);
     await quack.exec(inertQuery);
     await quack.exec(`DROP TABLE ${lookupTable};`);
-  } catch (error) {
-    logger.error(error, `Something went wrong trying to extract the lookup tables contents to measure.`);
+    const measureTable = await quack.all(`SELECT * FROM measure;`);
+    logger.debug(`Creating measureTable from lookup using result:\n${JSON.stringify(measureTable, null, 2)}`);
+  } catch (err) {
+    logger.error(err, `Something went wrong trying to extract the lookup tables contents to measure.`);
+    const error = err as DuckDbError;
+    if (error.errorType === 'Conversion') {
+      if (error.message.toLowerCase().includes('decimal')) {
+        throw new FileValidationException(
+          'errors.measure_validation.invalid_decimals_present',
+          FileValidationErrorType.BadDecimalColumn
+        );
+      }
+      throw new FileValidationException(
+        'errors.measure_validation.wrong_column_type',
+        FileValidationErrorType.WrongDataTypeInReference
+      );
+    } else if (error.errorType) {
+      throw new FileValidationException(
+        'errors.measure_validation.extracting_data_failed',
+        FileValidationErrorType.InvalidCsv
+      );
+    }
     throw new FileValidationException(
-      'errors.measure_validation.extracting_data_failed',
-      FileValidationErrorType.InvalidCsv
+      'An unknown error occurred while trying to extract the lookup table contents to measure.',
+      FileValidationErrorType.unknown,
+      500
     );
+  }
+
+  // Convert formats if they're in something other than English
+  if (!extractor.tableLanguage.includes('en')) {
+    for (const format of Object.values(DataValueFormat)) {
+      const query = `UPDATE measure SET format = '${format}' WHERE format = LOWER('${t('formats.${format}', { lng: extractor.tableLanguage.toLowerCase() })}');`;
+      logger.debug(`Updating format column to ${format} using query:\n ${query}`);
+      await quack.exec(query);
+    }
   }
 
   const tableContents = await quack.all(`SELECT * FROM measure;`);
@@ -295,9 +366,28 @@ export const validateMeasureLookupTable = async (
     });
   }
 
+  const tableLanguageArr: Locale[] = [];
+
+  SUPPORTED_LOCALES.map((locale) => {
+    if (
+      protoLookupTable.dataTableDescriptions.find((col) =>
+        col.columnName.toLowerCase().includes(t('lookup_column_headers.description', { lng: locale.toLowerCase() }))
+      )
+    ) {
+      tableLanguageArr.push(locale);
+    }
+  });
+  if (tableLanguageArr.length < 1) {
+    await quack.close();
+    return viewErrorGenerators(400, dataset.id, 'csv', 'errors.measure_validation.no_description_columns', {
+      mismatch: false
+    });
+  }
+  const tableLanguage = tableLanguageArr[0];
+
   let confirmedJoinColumn: string | undefined;
   try {
-    confirmedJoinColumn = lookForJoinColumn(protoLookupTable, measure.factTableColumn, tableMatcher);
+    confirmedJoinColumn = lookForJoinColumn(protoLookupTable, measure.factTableColumn, tableLanguage, tableMatcher);
   } catch (_err) {
     await quack.close();
     return viewErrorGenerators(400, dataset.id, 'csv', 'errors.measure_validation.no_join_column', {
@@ -314,7 +404,7 @@ export const validateMeasureLookupTable = async (
 
   let extractor: MeasureLookupTableExtractor;
   try {
-    extractor = createExtractor(protoLookupTable, tableMatcher);
+    extractor = createExtractor(protoLookupTable, tableLanguage, tableMatcher);
   } catch (error) {
     logger.error(error, `Something went wrong trying to create the measure lookup table extractor`);
     await quack.close();
@@ -369,8 +459,11 @@ export const validateMeasureLookupTable = async (
   await updatedMeasure.save();
 
   try {
-    const dimensionTable = await quack.all(`SELECT * FROM measure where language = '${lang}';`);
-    await quack.close();
+    logger.debug(`Generating preview of measure table`);
+    const dimensionTable = await quack.all(
+      `SELECT * EXCLUDE(language) FROM measure WHERE language = '${lang.toLowerCase()}' ORDER BY sort_order, reference;`
+    );
+    logger.debug(`Measure preview query result: ${JSON.stringify(dimensionTable, null, 2)}`);
     const tableHeaders = Object.keys(dimensionTable[0]);
     const dataArray = dimensionTable.map((row) => Object.values(row));
     const currentDataset = await DatasetRepository.getById(dataset.id);
@@ -393,11 +486,12 @@ export const validateMeasureLookupTable = async (
     const pageSize = dataArray.length;
     return viewGenerator(currentDataset, 1, pageInfo, pageSize, 1, headers, dataArray);
   } catch (error) {
-    await quack.close();
     logger.error(`Something went wrong trying to generate the preview of the lookup table with error: ${error}`);
     return viewErrorGenerators(500, dataset.id, 'csv', 'errors.dimension.unknown_error', {
       mismatch: false
     });
+  } finally {
+    await quack.close();
   }
 };
 
@@ -442,7 +536,7 @@ async function getMeasurePreviewWithExtractor(dataset: Dataset, measure: Measure
     return viewErrorGenerators(500, dataset.id, 'patch', 'errors.dataset.measure_not_found', {});
   }
   await createMeasureLookupTable(quack, measureColumn, measure.measureTable);
-  const query = `SELECT * FROM measure WHERE language = '${lang.toLowerCase()}' ORDER BY sort_order, reference LIMIT ${sampleSize};`;
+  const query = `SELECT * EXCLUDE(language) FROM measure WHERE language = '${lang.toLowerCase()}' ORDER BY sort_order, reference LIMIT ${sampleSize};`;
   logger.debug(`Querying the cube to get the preview using query: ${query}`);
   const measureTable = await quack.all(query);
   const tableHeaders = Object.keys(measureTable[0]);

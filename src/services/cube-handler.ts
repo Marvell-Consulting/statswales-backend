@@ -117,17 +117,17 @@ export const loadFileDataTableIntoTable = async (
   switch (dataTable.fileType) {
     case FileType.Csv:
     case FileType.GzipCsv:
-      insertQuery = `INSERT INTO ${tableName} (${factTableDef.join(',')}) SELECT ${dataTableColumnSelect.join(',')} FROM read_csv('${tempFile}', auto_type_candidates = ['BOOLEAN', 'BIGINT', 'DOUBLE', 'VARCHAR']);`;
+      insertQuery = `INSERT INTO ${tableName} ("${factTableDef.join('", "')}") SELECT "${dataTableColumnSelect.join('", "')}" FROM read_csv('${tempFile}', auto_type_candidates = ['BOOLEAN', 'BIGINT', 'DOUBLE', 'VARCHAR']);`;
       break;
     case FileType.Parquet:
-      insertQuery = `INSERT INTO ${tableName} (${factTableDef.join(',')}) SELECT ${dataTableColumnSelect.join(',')} FROM ${tempFile};`;
+      insertQuery = `INSERT INTO ${tableName} ("${factTableDef.join('", "')}") SELECT "${dataTableColumnSelect.join('", "')}" FROM ${tempFile};`;
       break;
     case FileType.Json:
     case FileType.GzipJson:
-      insertQuery = `INSERT INTO ${tableName} (${factTableDef.join(',')}) SELECT ${dataTableColumnSelect.join(',')} FROM read_json_auto('${tempFile}');`;
+      insertQuery = `INSERT INTO ${tableName} ("${factTableDef.join('", "')}") SELECT "${dataTableColumnSelect.join('", "')}" FROM read_json_auto('${tempFile}');`;
       break;
     case FileType.Excel:
-      insertQuery = `INSERT INTO ${tableName} (${factTableDef.join(',')}) SELECT ${dataTableColumnSelect.join(',')} FROM st_read('${tempFile}');`;
+      insertQuery = `INSERT INTO ${tableName} ("${factTableDef.join('", "')}") SELECT "${dataTableColumnSelect.join('", "')}" FROM st_read('${tempFile}');`;
       break;
     default:
       throw new Error('Unknown file type');
@@ -506,7 +506,7 @@ async function loadFactTablesWithUpdates(
             `DELETE FROM update_table USING ${FACT_TABLE_NAME} WHERE ${setupFactTableUpdateJoins(FACT_TABLE_NAME, factIdentifiers, dataTable.dataTableDescriptions)};`
           );
           await quack.exec(
-            `INSERT INTO ${FACT_TABLE_NAME} (${factTableDef.join(', ')}) (SELECT ${dataTableColumnSelect.join(', ')} FROM update_table);`
+            `INSERT INTO ${FACT_TABLE_NAME} ("${factTableDef.join('", "')}") (SELECT "${dataTableColumnSelect.join('", "')}" FROM update_table);`
           );
           await quack.exec(`DROP TABLE update_table;`);
           break;
@@ -753,7 +753,7 @@ export async function createMeasureLookupTable(
   for (const row of measureTable) {
     await stmt.run(
       row.reference,
-      row.language,
+      row.language.toLowerCase(),
       row.description,
       row.notes ? row.notes : null,
       row.sortOrder ? row.sortOrder : null,

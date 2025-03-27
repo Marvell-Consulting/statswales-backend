@@ -1,133 +1,159 @@
 {
-    "greeting": "Hello",
-    "alpha": "Alpha",
-    "menu": "Menu",
-    "upload-csv": "Upload CSV",
-    "list-data-files": "List Data Files",
-    "feedback": "This is a new service – your feedback will help us to improve it.",
-    "share-page": "Share this page",
-    "top-of-page": "Back to top",
-    "status-field": "statws",
-    "app-running": "App is running",
-    "health-notes": "Expand endpoint to check for database connection and other services.",
-    "datalake-error": "Unable to connect to get Datalake",
-    "pagination": {
-        "previous": "Previous",
-        "next": "Next",
-        "update": "Update"
-    },
-    "homepage": {
-        "title": "Welcome to StatsWales Alpha",
-        "welcome": "We're going to use the GovUK Design system until we're able to get hold of the Welsh Government GEL",
-        "apitext": "You can find our api at "
-    },
+  "greeting": "Hello",
+  "alpha": "Alpha",
+  "menu": "Menu",
+  "upload-csv": "Upload CSV",
+  "list-data-files": "List Data Files",
+  "feedback": "This is a new service – your feedback will help us to improve it.",
+  "share-page": "Share this page",
+  "top-of-page": "Back to top",
+  "status-field": "statws",
+  "app-running": "App is running",
+  "health-notes": "Expand endpoint to check for database connection and other services.",
+  "datalake-error": "Unable to connect to get Datalake",
+  "pagination": {
+    "previous": "Previous",
+    "next": "Next",
+    "update": "Update"
+  },
+  "homepage": {
+    "title": "Welcome to StatsWales Alpha",
+    "welcome": "We're going to use the GovUK Design system until we're able to get hold of the Welsh Government GEL",
+    "apitext": "You can find our api at "
+  },
+  "upload": {
+    "title": "Upload a CSV file",
+    "description": "Upload a CSV file to the data lake",
+    "datasetName": "Dataset Name",
+    "datasetDescription": "Dataset Description",
+    "selectCSV": "Select a CSV file",
+    "uploadBtn": "Upload CSV"
+  },
+  "errors": {
+    "unknown_error": "An unknown error occurred",
+    "missing": "Filename Missing",
+    "problem": "There is a problem",
+    "name_missing": "Dataset Name Missing",
+    "page_size": "Page size must be between {{min_page_size}} and {{max_page_size}}",
+    "page_number_to_high": "Page number must be less than or equal to {{page_number}}",
+    "page_number_to_low": "Page number must be greater than 0",
+    "no_datafile": "No datafile attached to Dataset",
+    "download_from_filestore": "Error downloading file from file store",
     "upload": {
-        "title": "Upload a CSV file",
-        "description": "Upload a CSV file to the data lake",
-        "datasetName": "Dataset Name",
-        "datasetDescription": "Dataset Description",
-        "selectCSV": "Select a CSV file",
-        "uploadBtn": "Upload CSV"
+      "no_title": "No title for the dataset has been provided",
+      "no_csv": "No CSV data provided"
     },
-	"errors": {
-        "unknown_error": "An unknown error occurred",
-        "missing": "Filename Missing",
-		"problem": "There is a problem",
-        "name_missing": "Dataset Name Missing",
-        "page_size": "Page size must be between {{min_page_size}} and {{max_page_size}}",
-        "page_number_to_high": "Page number must be less than or equal to {{page_number}}",
-        "page_number_to_low": "Page number must be greater than 0",
-        "no_datafile": "No datafile attached to Dataset",
-        "download_from_filestore": "Error downloading file from file store",
-        "upload": {
-            "no_title": "No title for the dataset has been provided",
-            "no_csv": "No CSV data provided"
-        },
-        "dataset_id_invalid": "Dataset id is invalid or missing",
-        "revision_id_invalid": "Revision id is invalid or missing",
-        "provider_id_invalid": "Provider id is invalid or missing",
-        "fact_table_id_invalid": "Import id is invalid or missing",
-        "lookup_table_id_invalid": "Import id is invalid or missing",
-        "dimension_id_invalid": "Dimension id is invalid or missing",
-        "info_update_error": "Could not update the dataset info",
-        "no_dataset": "Dataset could not be found",
-        "no_revision": "No revision found for dataset",
-        "no_file_import": "No import found for dataset",
-        "upload_error": "Error uploading the file",
-        "move_file_error": "Error moving file from temporary blob storage to Data Lake. Please try again.",
-        "too_many_data_values": "Only one DataValues source can be specified",
-        "too_many_footnotes": "Only one Footnote source can be specified",
-        "invalid_source_type": "Invalid source type",
-        "invalid_source_assignment": "Could not assign source types to import",
-        "tasklist_error": "There was a problem generating the tasklist state",
-        "import_location_not_supported": "Import location not supported",
-        "remove_file": "Error removing file from temporary blob storage",
-        "invalid_dto": "Invalid request object",
-        "revision_already_approved": "Cannot change the publish date for a revision which has already been approved",
-        "publish_at": {
-            "invalid": "Publish at is missing or invalid",
-            "in_past": "Publish at cannot be in the past"
-        },
-        "translation_file": {
-            "invalid": "Uploaded translation file keys do not match the exported file"
-        }
-	},
-    "dimension_info": {
-        "footnotes": {
-            "title": "Footnotes",
-            "description": "Footnotes for the data"
-        }
+    "dataset_id_invalid": "Dataset id is invalid or missing",
+    "revision_id_invalid": "Revision id is invalid or missing",
+    "provider_id_invalid": "Provider id is invalid or missing",
+    "fact_table_id_invalid": "Import id is invalid or missing",
+    "lookup_table_id_invalid": "Import id is invalid or missing",
+    "dimension_id_invalid": "Dimension id is invalid or missing",
+    "info_update_error": "Could not update the dataset info",
+    "no_dataset": "Dataset could not be found",
+    "no_revision": "No revision found for dataset",
+    "no_file_import": "No import found for dataset",
+    "upload_error": "Error uploading the file",
+    "move_file_error": "Error moving file from temporary blob storage to Data Lake. Please try again.",
+    "too_many_data_values": "Only one DataValues source can be specified",
+    "too_many_footnotes": "Only one Footnote source can be specified",
+    "invalid_source_type": "Invalid source type",
+    "invalid_source_assignment": "Could not assign source types to import",
+    "tasklist_error": "There was a problem generating the tasklist state",
+    "import_location_not_supported": "Import location not supported",
+    "remove_file": "Error removing file from temporary blob storage",
+    "invalid_dto": "Invalid request object",
+    "revision_already_approved": "Cannot change the publish date for a revision which has already been approved",
+    "publish_at": {
+      "invalid": "Publish at is missing or invalid",
+      "in_past": "Publish at cannot be in the past"
     },
-    "list": {
-        "title": "Display Data"
-    },
-    "display": {
-        "title": "Displaying Data for",
-        "description": "Description:"
-    },
-    "api": {
-        "available": "API is available"
-    },
-	"header": {
-
-	},
-	"footer": {
-		"support-link": "Support Links",
-		"project-reports": "Project Reports",
-		"github-repo": "GitHub Repository",
-		"help": "Help",
-		"cookies": "Cookies",
-		"contact": "Contact",
-		"terms": "Terms and conditions",
-		"copyright-notice": "All content is available under the <a class=\"govuk-footer__link\" href=\"https://www.nationalarchives.gov.uk/doc/open-government-licence/version/3/\" rel=\"license\">Open Government Licence v3.0</a>, except where otherwise stated",
-		"crown-copyright": "© Crown copyright",
-		"welsh-gov": "Welsh Government"
-	},
-    "routes": {
-        "healthcheck": "healthcheck",
-        "upload": "upload",
-        "list": "list",
-        "data": "data"
-    },
-    "column_headers": {
-        "data_values": "Data Values",
-        "note_codes": "Note Codes",
-        "start_date": "Start Date",
-        "end_date": "End Date",
-        "notes": "Notes",
-        "measure": "Measure"
-    },
-    "note_codes": {
-        "average": "Average",
-        "confidential": "Confidential",
-        "estimated": "Estimated",
-        "forecast": "Forecast",
-        "low_figure": "Low Figure",
-        "provisional": "Provisional",
-        "revised": "Revised",
-        "total": "Total",
-        "low_reliability": "Low Reliability",
-        "missing_data": "Missing Data",
-        "not_applicable": "Not Applicable"
+    "translation_file": {
+      "invalid": "Uploaded translation file keys do not match the exported file"
     }
+  },
+  "dimension_info": {
+    "footnotes": {
+      "title": "Footnotes",
+      "description": "Footnotes for the data"
+    }
+  },
+  "list": {
+    "title": "Display Data"
+  },
+  "display": {
+    "title": "Displaying Data for",
+    "description": "Description:"
+  },
+  "api": {
+    "available": "API is available"
+  },
+  "header": {},
+  "footer": {
+    "support-link": "Support Links",
+    "project-reports": "Project Reports",
+    "github-repo": "GitHub Repository",
+    "help": "Help",
+    "cookies": "Cookies",
+    "contact": "Contact",
+    "terms": "Terms and conditions",
+    "copyright-notice": "All content is available under the <a class=\"govuk-footer__link\" href=\"https://www.nationalarchives.gov.uk/doc/open-government-licence/version/3/\" rel=\"license\">Open Government Licence v3.0</a>, except where otherwise stated",
+    "crown-copyright": "© Crown copyright",
+    "welsh-gov": "Welsh Government"
+  },
+  "routes": {
+    "healthcheck": "healthcheck",
+    "upload": "upload",
+    "list": "list",
+    "data": "data"
+  },
+  "column_headers": {
+    "data_values": "Data Values",
+    "note_codes": "Note Codes",
+    "start_date": "Start Date",
+    "end_date": "End Date",
+    "notes": "Notes",
+    "measure": "Measure"
+  },
+  "note_codes": {
+    "average": "Average",
+    "confidential": "Confidential",
+    "estimated": "Estimated",
+    "forecast": "Forecast",
+    "low_figure": "Low Figure",
+    "provisional": "Provisional",
+    "revised": "Revised",
+    "total": "Total",
+    "low_reliability": "Low Reliability",
+    "missing_data": "Missing Data",
+    "not_applicable": "Not Applicable"
+  },
+  "language": {
+    "en": "English",
+    "cy": "Welsh"
+  },
+  "lookup_column_headers": {
+    "refcode": "refcode",
+    "description": "description",
+    "notes": "notes",
+    "sort": "sort",
+    "hierarchy": "hierarchy",
+    "measure": "measure",
+    "type": "type",
+    "format": "format",
+    "decimal": "decimal",
+    "lang": "lang"
+  },
+  "formats": {
+    "decimal": "decimal",
+    "float": "float",
+    "integer": "integer",
+    "long": "long",
+    "percentage": "percentage",
+    "string": "string",
+    "text": "text",
+    "date": "date",
+    "datetime": "datatime",
+    "time": "time"
+  }
 }

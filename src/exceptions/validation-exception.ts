@@ -1,6 +1,9 @@
 export enum FileValidationErrorType {
   UnknownMimeType = 'unknown_mime_type',
   UnknownFileFormat = 'unknown_file_format',
+  WrongDataTypeInReference = 'wrong_data_type_in_reference',
+  MissingLanguages = 'missing_languages',
+  BadDecimalColumn = 'invalid_decimals_present',
   InvalidUnicode = 'invalid_unicode',
   InvalidCsv = 'invalid_csv',
   InvalidJson = 'invalid_json',

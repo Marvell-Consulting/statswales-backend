@@ -1,7 +1,7 @@
 import { DataTable } from '../entities/dataset/data-table';
 import { LookupTable } from '../entities/dataset/lookup-table';
 import { DataTableDescription } from '../entities/dataset/data-table-description';
-import { SupportedLanguagues } from '../enums/locale';
+import { Locale, SupportedLanguagues } from '../enums/locale';
 import { MeasureLookupPatchDTO } from '../dtos/measure-lookup-patch-dto';
 import { LookupTablePatchDTO } from '../dtos/lookup-patch-dto';
 
@@ -13,6 +13,7 @@ import { viewErrorGenerators } from './view-error-generators';
 import { SUPPORTED_LOCALES } from '../middleware/translation';
 import { MeasureLookupTableExtractor } from '../extractors/measure-lookup-extractor';
 import { DataValueFormat } from '../enums/data-value-format';
+import { t } from 'i18next';
 
 export function convertDataTableToLookupTable(dataTable: DataTable) {
   const lookupTable = new LookupTable();
@@ -48,26 +49,38 @@ export function columnIdentification(info: DataTableDescription) {
 export const lookForJoinColumn = (
   protoLookupTable: DataTable,
   factTableColumn: string,
+  tableLanguage: Locale,
   tableMatcher?: MeasureLookupPatchDTO | LookupTablePatchDTO
 ): string => {
   const refCol = protoLookupTable.dataTableDescriptions.find((col) => col.columnName.toLowerCase().startsWith('ref'));
+  const refCodeCol = protoLookupTable.dataTableDescriptions.find((col) =>
+    col.columnName.toLowerCase().includes(t('lookup_column_headers.refcode', { lng: tableLanguage }).toLowerCase())
+  );
   if (tableMatcher?.join_column) {
     return tableMatcher.join_column;
   } else if (refCol) {
     return refCol.columnName;
+  } else if (refCodeCol) {
+    return refCodeCol.columnName;
   } else if (
     protoLookupTable.dataTableDescriptions.find((col) => col.columnName.toLowerCase() === factTableColumn.toLowerCase())
   ) {
     return factTableColumn;
   } else {
     const possibleJoinColumns = protoLookupTable.dataTableDescriptions.filter((info) => {
-      if (info.columnName.toLowerCase().includes('decimal')) return false;
-      if (info.columnName.toLowerCase().includes('hierarchy')) return false;
-      if (info.columnName.toLowerCase().includes('format')) return false;
-      if (info.columnName.toLowerCase().includes('description')) return false;
-      if (info.columnName.toLowerCase().includes('sort')) return false;
-      if (info.columnName.toLowerCase().includes('note')) return false;
-      if (info.columnName.toLowerCase().includes('type')) return false;
+      if (info.columnName.toLowerCase().includes(t('lookup_column_headers.decimal', { lng: tableLanguage })))
+        return false;
+      if (info.columnName.toLowerCase().includes(t('lookup_column_headers.hierarchy', { lng: tableLanguage })))
+        return false;
+      if (info.columnName.toLowerCase().includes(t('lookup_column_headers.format', { lng: tableLanguage })))
+        return false;
+      if (info.columnName.toLowerCase().includes(t('lookup_column_headers.description', { lng: tableLanguage })))
+        return false;
+      if (info.columnName.toLowerCase().includes(t('lookup_column_headers.sort', { lng: tableLanguage }))) return false;
+      if (info.columnName.toLowerCase().includes(t('lookup_column_headers.note', { lng: tableLanguage }))) return false;
+      if (info.columnName.toLowerCase().includes(t('lookup_column_headers.type', { lng: tableLanguage }))) return false;
+      if (info.columnName.toLowerCase().includes(t('lookup_column_headers.language', { lng: tableLanguage })))
+        return false;
       if (info.columnName.toLowerCase().includes('lang')) return false;
       logger.debug(`Looks like column ${info.columnName.toLowerCase()} is a join column`);
       return true;
@@ -103,15 +116,16 @@ export const validateLookupTableLanguages = async (
   try {
     logger.debug(`Checking language counts match total number of supported languages`);
     const missingLanguageRows = await quack.all(`
-      SELECT "${joinColumn}", COUNT(language) as lang_count
+      SELECT "${joinColumn}", COUNT(language) as lang_count, STRING_AGG(language, ',') as languages
       FROM "${lookupTableName}"
       GROUP BY "${joinColumn}" HAVING lang_count < ${SUPPORTED_LOCALES.length};
     `);
     if (missingLanguageRows.length > 0) {
       const missingLanguages: string[] = [];
       SUPPORTED_LOCALES.forEach((locale) => {
-        if (!missingLanguageRows.find((row) => row.languages.includes(locale.split('-')[0]))) {
-          missingLanguages.push(locale);
+        logger.debug(`Checking if ${locale.toLowerCase()} is missing from ${JSON.stringify(missingLanguageRows)}`);
+        if (!missingLanguageRows.find((row) => row.languages.includes(locale.split('-')[0].toLowerCase()))) {
+          missingLanguages.push(`languages.${locale.split('-')[0]}`);
         }
       });
       logger.error(`The lookup table is missing the following languages: ${missingLanguages.join(', ')}`);
@@ -120,7 +134,8 @@ export const validateLookupTableLanguages = async (
         dataset.id,
         'patch',
         `errors.${validationType}_validation.missing_languages`,
-        missingLanguages
+        {},
+        { languages: missingLanguages.join(', ') }
       );
     }
   } catch (error) {
@@ -238,20 +253,20 @@ export const validateLookupTableReferenceValues = async (
 
 async function checkDecimalColumn(quack: Database, extractor: MeasureLookupTableExtractor, lookupTableName: string) {
   const unmatchedFormats: string[] = [];
-  logger.debug('Decimal column is present.  Validating contains only integers.');
-  const formats = await quack.all(`SELECT DISTINCT "${extractor.decimalColumn}" as formats FROM ${lookupTableName};`);
-  for (const format of Object.values(formats.map((format) => format.formats))) {
-    if (!Number.isInteger(Number(format)) && Number(format) >= 0) unmatchedFormats.push(format);
+  logger.debug('Decimal column is present.  Validating contains only positive integers.');
+  const formats = await quack.all(`SELECT decimals FROM ${lookupTableName};`);
+  for (const format of Object.values(formats.map((format) => format.decimals))) {
+    if (format < 0) unmatchedFormats.push(format);
   }
   return unmatchedFormats;
 }
 
 async function checkFormatColumn(quack: Database, extractor: MeasureLookupTableExtractor, lookupTableName: string) {
   const unmatchedFormats: string[] = [];
-  logger.debug('Decimal column is present.  Validating contains only integers.');
-  const formats = await quack.all(`SELECT DISTINCT "${extractor.formatColumn}" as formats FROM ${lookupTableName};`);
+  logger.debug('Format column is present.  Validating it contains only known formats.');
+  const formats = await quack.all(`SELECT DISTINCT format FROM ${lookupTableName};`);
   logger.debug(`Formats = ${JSON.stringify(Object.values(DataValueFormat), null, 2)}`);
-  for (const format of Object.values(formats.map((format) => format.formats))) {
+  for (const format of Object.values(formats.map((format) => format.format))) {
     if (Object.values(DataValueFormat).indexOf(format.toLowerCase()) === -1) unmatchedFormats.push(format);
   }
   return unmatchedFormats;
@@ -263,7 +278,7 @@ export const validateMeasureTableContent = async (
   lookupTableName: string,
   extractor: MeasureLookupTableExtractor
 ): Promise<ViewErrDTO | undefined> => {
-  if (extractor.formatColumn && extractor.formatColumn.toLowerCase().indexOf('format') > -1) {
+  if (extractor.formatColumn && extractor.formatColumn.toLowerCase().includes('format')) {
     logger.debug('Formats column is present.  Validating all formats present are valid.');
     const unMatchedFormats = await checkFormatColumn(quack, extractor, lookupTableName);
     if (unMatchedFormats.length > 0) {
@@ -273,12 +288,12 @@ export const validateMeasureTableContent = async (
       return viewErrorGenerators(400, datasetId, 'patch', 'errors.measure_validation.invalid_formats_present', {
         totalNonMatching: unMatchedFormats.length,
         nonMatchingValues: unMatchedFormats,
-        mismatch: true
+        mismatch: false
       });
     }
   }
 
-  if (extractor.decimalColumn && extractor.decimalColumn.toLowerCase().indexOf('decimal') !== -1) {
+  if (extractor.decimalColumn && extractor.decimalColumn.toLowerCase().includes('decimal')) {
     const unmatchedDecimals = await checkDecimalColumn(quack, extractor, lookupTableName);
     if (unmatchedDecimals.length > 0) {
       logger.debug(
@@ -287,7 +302,7 @@ export const validateMeasureTableContent = async (
       return viewErrorGenerators(400, datasetId, 'patch', 'errors.measure_validation.invalid_decimals_present', {
         totalNonMatching: unmatchedDecimals.length,
         nonMatchingValues: unmatchedDecimals,
-        mismatch: true
+        mismatch: false
       });
     }
   }

@@ -1,6 +1,8 @@
 import { ColumnDescriptor } from './column-descriptor';
+import { Locale } from '../enums/locale';
 
 export interface MeasureLookupTableExtractor {
+  tableLanguage: Locale;
   descriptionColumns: ColumnDescriptor[];
   sortColumn?: string;
   notesColumns?: ColumnDescriptor[];

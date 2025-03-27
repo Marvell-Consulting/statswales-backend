@@ -79,6 +79,7 @@ export const attachLookupTableToMeasure = async (req: Request, res: Response, ne
   } else {
     res.status(200);
   }
+  logger.debug(`Result of the lookup table validation is ${JSON.stringify(result, null, 2)}`);
   res.json(result);
 };
 

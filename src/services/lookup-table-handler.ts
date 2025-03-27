@@ -31,6 +31,8 @@ import { SUPPORTED_LOCALES } from '../middleware/translation';
 import { createLookupTableQuery, makeCubeSafeString } from './cube-handler';
 import { FactTableColumn } from '../entities/dataset/fact-table-column';
 import { CubeValidationException, CubeValidationType } from '../exceptions/cube-error-exception';
+import { Locale } from '../enums/locale';
+import { t } from 'i18next';
 
 const sampleSize = 5;
 
@@ -39,6 +41,7 @@ async function setupDimension(
   lookupTable: LookupTable,
   protoLookupTable: DataTable,
   confirmedJoinColumn: string,
+  tableLanguage: Locale,
   tableMatcher?: LookupTablePatchDTO
 ): Promise<Dimension> {
   // Clean up previously uploaded dimensions
@@ -51,7 +54,7 @@ async function setupDimension(
   updateDimension.joinColumn = confirmedJoinColumn;
   updateDimension.lookupTable = lookupTable;
   logger.debug(`Creating extractor...`);
-  updateDimension.extractor = createExtractor(protoLookupTable, tableMatcher);
+  updateDimension.extractor = createExtractor(protoLookupTable, tableLanguage, tableMatcher);
   logger.debug('Saving the lookup table');
   await lookupTable.save();
   logger.debug('Saving the dimension');
@@ -60,10 +63,15 @@ async function setupDimension(
   return updateDimension;
 }
 
-function createExtractor(protoLookupTable: DataTable, tableMatcher?: LookupTablePatchDTO): LookupTableExtractor {
+function createExtractor(
+  protoLookupTable: DataTable,
+  tableLanguage: Locale,
+  tableMatcher?: LookupTablePatchDTO
+): LookupTableExtractor {
   if (tableMatcher?.description_columns) {
     logger.debug(`Table matcher is supplied using user supplied information to create extractor...`);
     return {
+      tableLanguage,
       sortColumn: tableMatcher.sort_column,
       hierarchyColumn: tableMatcher.hierarchy,
       descriptionColumns: tableMatcher.description_columns.map(
@@ -81,31 +89,37 @@ function createExtractor(protoLookupTable: DataTable, tableMatcher?: LookupTable
       languageColumn: tableMatcher.language
     };
   } else {
+    const noteStr = t('lookup_column_headers.note', { lng: tableLanguage });
+    const sortStr = t('lookup_column_headers.sort', { lng: tableLanguage });
+    const hierarchyStr = t('lookup_column_headers.hierarchy', { lng: tableLanguage });
+    const descriptionStr = t('lookup_column_headers.description', { lng: tableLanguage });
+    const langStr = t('lookup_column_headers.lang', { lng: tableLanguage });
     logger.debug(`Using lookup table to try try to generate the extractor...`);
-    const sortColumn = protoLookupTable.dataTableDescriptions.find(
-      (info) => info.columnName.toLowerCase().indexOf('sort') > -1
+    const sortColumn = protoLookupTable.dataTableDescriptions.find((info) =>
+      info.columnName.toLowerCase().includes(sortStr)
     )?.columnName;
-    const hierarchyColumn = protoLookupTable.dataTableDescriptions.find(
-      (info) => info.columnName.toLowerCase().indexOf('hierarchy') > -1
+    const hierarchyColumn = protoLookupTable.dataTableDescriptions.find((info) =>
+      info.columnName.toLowerCase().includes(hierarchyStr)
     )?.columnName;
-    const languageColumn = protoLookupTable.dataTableDescriptions.find(
-      (info) => info.columnName.toLowerCase().indexOf('lang') > -1
+    const languageColumn = protoLookupTable.dataTableDescriptions.find((info) =>
+      info.columnName.toLowerCase().includes(langStr)
     )?.columnName;
-    const filteredDescriptionColumns = protoLookupTable.dataTableDescriptions.filter(
-      (info) => info.columnName.toLowerCase().indexOf('description') > -1
+    const filteredDescriptionColumns = protoLookupTable.dataTableDescriptions.filter((info) =>
+      info.columnName.toLowerCase().includes(descriptionStr)
     );
     if (filteredDescriptionColumns.length < 1) {
       throw new Error('Could not identify description columns in lookup table');
     }
     const descriptionColumns = filteredDescriptionColumns.map((info) => columnIdentification(info));
-    const filteredNotesColumns = protoLookupTable.dataTableDescriptions.filter(
-      (info) => info.columnName.toLowerCase().indexOf('note') > -1
+    const filteredNotesColumns = protoLookupTable.dataTableDescriptions.filter((info) =>
+      info.columnName.toLowerCase().includes(noteStr)
     );
     let notesColumns: ColumnDescriptor[] | undefined;
     if (filteredNotesColumns.length > 0) {
       notesColumns = filteredNotesColumns.map((info) => columnIdentification(info));
     }
     return {
+      tableLanguage,
       sortColumn,
       hierarchyColumn,
       descriptionColumns,
@@ -208,6 +222,24 @@ export const validateLookupTable = async (
       mismatch: false
     });
   }
+  const tableLanguageArr: Locale[] = [];
+
+  SUPPORTED_LOCALES.map((locale) => {
+    if (
+      protoLookupTable.dataTableDescriptions.find((col) =>
+        col.columnName.toLowerCase().includes(t('lookup_column_headers.description', { lng: locale.toLowerCase() }))
+      )
+    ) {
+      tableLanguageArr.push(locale);
+    }
+  });
+  if (tableLanguageArr.length < 1) {
+    return viewErrorGenerators(400, dataset.id, 'csv', 'errors.measure_validation.no_description_columns', {
+      mismatch: false
+    });
+  }
+  const tableLanguage = tableLanguageArr[0];
+
   let quack: Database;
   try {
     quack = await createEmptyCubeWithFactTable(dataset);
@@ -233,7 +265,7 @@ export const validateLookupTable = async (
 
   let confirmedJoinColumn: string | undefined;
   try {
-    confirmedJoinColumn = lookForJoinColumn(protoLookupTable, dimension.factTableColumn, tableMatcher);
+    confirmedJoinColumn = lookForJoinColumn(protoLookupTable, dimension.factTableColumn, tableLanguage, tableMatcher);
   } catch (_err) {
     await quack.close();
     return viewErrorGenerators(400, dataset.id, 'patch', 'errors.lookup_validation.no_join_column', {
@@ -253,6 +285,7 @@ export const validateLookupTable = async (
     lookupTable,
     protoLookupTable,
     confirmedJoinColumn,
+    tableLanguage,
     tableMatcher
   );
 
