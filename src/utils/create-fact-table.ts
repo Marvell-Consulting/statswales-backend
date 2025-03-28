@@ -1,18 +1,13 @@
 import { Database } from 'duckdb-async';
 import { Dataset } from '../entities/dataset/dataset';
-import { Revision } from '../entities/dataset/revision';
 import { duckdb } from '../services/duckdb';
 import { createEmptyFactTableInCube, loadFactTables } from '../services/cube-handler';
 import { logger } from './logger';
 import { FileValidationErrorType, FileValidationException } from '../exceptions/validation-exception';
 
 export async function createEmptyCubeWithFactTable(dataset: Dataset): Promise<Database> {
-  let endRevision: Revision;
-  if (dataset.draftRevision) {
-    endRevision = dataset.draftRevision;
-  } else if (dataset.publishedRevision) {
-    endRevision = dataset.publishedRevision;
-  } else {
+  const endRevision = dataset.draftRevision;
+  if (!endRevision) {
     throw new Error('No revision present on the dataset');
   }
   const quack = await duckdb();

@@ -31,7 +31,7 @@ import { DisplayType } from '../enums/display-type';
 import { getFileService } from '../utils/get-file-service';
 
 import { createMeasureLookupTable, measureTableCreateStatement } from './cube-handler';
-import { createEmptyCubeWithFactTable } from '../utils/create-facttable';
+import { createEmptyCubeWithFactTable } from '../utils/create-fact-table';
 import { FileValidationErrorType, FileValidationException } from '../exceptions/validation-exception';
 import { FactTableColumn } from '../entities/dataset/fact-table-column';
 import { Locale } from '../enums/locale';

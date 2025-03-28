@@ -26,14 +26,15 @@ import { FactTableColumnType } from '../enums/fact-table-column-type';
 
 import { cleanUpDimension } from './dimension-processor';
 import { Database } from 'duckdb-async';
-import { createEmptyCubeWithFactTable } from '../utils/create-facttable';
+import { createEmptyCubeWithFactTable } from '../utils/create-fact-table';
 import { SUPPORTED_LOCALES } from '../middleware/translation';
 import { createLookupTableQuery, makeCubeSafeString } from './cube-handler';
 import { FactTableColumn } from '../entities/dataset/fact-table-column';
-import { CubeValidationException, CubeValidationType } from '../exceptions/cube-error-exception';
+import { CubeValidationException } from '../exceptions/cube-error-exception';
 import { Locale } from '../enums/locale';
 import { t } from 'i18next';
 import { FileValidationErrorType, FileValidationException } from '../exceptions/validation-exception';
+import { CubeValidationType } from '../enums/cube-validation-type';
 
 const sampleSize = 5;
 

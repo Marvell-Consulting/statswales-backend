@@ -25,7 +25,7 @@ import { DimensionType } from '../enums/dimension-type';
 import { FactTableColumnType } from '../enums/fact-table-column-type';
 import { ReferenceDataExtractor } from '../extractors/reference-data-extractor';
 import { FactTableColumn } from '../entities/dataset/fact-table-column';
-import { CubeValidationException, CubeValidationType } from '../exceptions/cube-error-exception';
+import { CubeValidationException } from '../exceptions/cube-error-exception';
 import { DataTableDescription } from '../entities/dataset/data-table-description';
 import { MeasureRow } from '../entities/dataset/measure-row';
 import { DatasetRepository } from '../repositories/dataset';
@@ -35,6 +35,7 @@ import { PeriodCovered } from '../interfaces/period-covered';
 import { dateDimensionReferenceTableCreator } from './time-matching';
 import { duckdb } from './duckdb';
 import { NumberExtractor, NumberType } from '../extractors/number-extractor';
+import { CubeValidationType } from '../enums/cube-validation-type';
 
 export const FACT_TABLE_NAME = 'fact_table';
 

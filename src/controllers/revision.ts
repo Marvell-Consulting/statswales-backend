@@ -38,7 +38,7 @@ import { FactTableColumn } from '../entities/dataset/fact-table-column';
 import { DataTableAction } from '../enums/data-table-action';
 import { ColumnMatch } from '../interfaces/column-match';
 import { DimensionType } from '../enums/dimension-type';
-import { CubeValidationException, CubeValidationType } from '../exceptions/cube-error-exception';
+import { CubeValidationException } from '../exceptions/cube-error-exception';
 import { DimensionUpdateTask } from '../interfaces/revision-task';
 import { duckdb } from '../services/duckdb';
 import { Dataset } from '../entities/dataset/dataset';
@@ -48,6 +48,7 @@ import { FileValidationException } from '../exceptions/validation-exception';
 import { FactTableColumnType } from '../enums/fact-table-column-type';
 import { checkForReferenceErrors } from '../services/lookup-table-handler';
 import { validateUpdatedDateDimension } from '../services/dimension-processor';
+import { CubeValidationType } from '../enums/cube-validation-type';
 
 export const getDataTable = async (req: Request, res: Response, next: NextFunction) => {
   try {
@@ -352,11 +353,11 @@ export const updateDataTable = async (req: Request, res: Response, next: NextFun
     }
     await DataTable.getRepository().remove(revision.dataTable);
   }
-  let fileImport: DataTable;
+  let dataTable: DataTable;
   try {
     const { mimetype, originalname } = req.file;
-    const { dataTable } = await validateAndUploadCSV(req.file.buffer, mimetype, originalname, dataset.id);
-    fileImport = dataTable;
+    const uploadResult = await validateAndUploadCSV(req.file.buffer, mimetype, originalname, dataset.id);
+    dataTable = uploadResult.dataTable;
   } catch (err) {
     const error = err as FileValidationException;
     logger.error(error, `An error occurred trying to upload the file`);
@@ -371,11 +372,11 @@ export const updateDataTable = async (req: Request, res: Response, next: NextFun
   try {
     if (revision.revisionIndex === 1) {
       logger.debug('Attaching data table to first revision');
-      await RevisionRepository.save({ ...revision, fileImport });
+      await RevisionRepository.save({ ...revision, dataTable });
     } else {
       const columnMatcher = JSON.parse(req.body.column_matching) as ColumnMatch[];
       const updateAction = req.body.update_action ? (req.body.update_action as DataTableAction) : DataTableAction.Add;
-      await attachUpdateDataTableToRevision(dataset, revision, fileImport, updateAction, columnMatcher);
+      await attachUpdateDataTableToRevision(dataset, revision, dataTable, updateAction, columnMatcher);
     }
     const updatedDataset = await DatasetRepository.getById(dataset.id);
     res.status(201);
@@ -501,7 +502,7 @@ export const downloadRevisionCubeFile = async (req: Request, res: Response, next
     try {
       cubeFile = await createBaseCube(dataset.id, revision.id);
     } catch (err) {
-      logger.error(err, `Something went wrong trying to create the cube with the error: ${err}`);
+      logger.error(err, `Something went wrong trying to create the cube`);
       next(new UnknownException('errors.cube_builder.cube_build_failed'));
       return;
     }
@@ -533,7 +534,7 @@ export const downloadRevisionCubeAsJSON = async (req: Request, res: Response, ne
       logger.info('Creating fresh cube file.');
       cubeFile = await createBaseCube(dataset.id, revision.id);
     } catch (err) {
-      logger.error(`Something went wrong trying to create the cube with the error: ${err}`);
+      logger.error(err, `Something went wrong trying to create the cube`);
       next(new UnknownException('errors.cube_builder.cube_build_failed'));
       return;
     }
@@ -621,7 +622,7 @@ export const downloadRevisionCubeAsParquet = async (req: Request, res: Response,
     try {
       cubeFile = await createBaseCube(dataset.id, revision.id);
     } catch (err) {
-      logger.error(`Something went wrong trying to create the cube with the error: ${err}`);
+      logger.error(err, `Something went wrong trying to create the cube with the error: ${err}`);
       next(new UnknownException('errors.cube_builder.cube_build_failed'));
       return;
     }
@@ -665,7 +666,7 @@ export const downloadRevisionCubeAsExcel = async (req: Request, res: Response, n
     try {
       cubeFile = await createBaseCube(dataset.id, revision.id);
     } catch (err) {
-      logger.error(`Something went wrong trying to create the cube with the error: ${err}`);
+      logger.error(err, `Something went wrong trying to create the cube with the error: ${err}`);
       next(new UnknownException('errors.cube_builder.cube_build_failed'));
       return;
     }

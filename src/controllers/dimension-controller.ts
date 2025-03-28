@@ -75,16 +75,16 @@ export const attachLookupTableToDimension = async (req: Request, res: Response, 
   const { dataset, dimension } = res.locals;
   const language = req.language.toLowerCase();
 
-  const { dataTable, buffer } = await validateAndUploadCSV(
-    req.file.buffer,
-    req.file?.mimetype,
-    req.file?.originalname,
-    res.locals.datasetId
-  );
-
-  const tableMatcher = req.body as LookupTablePatchDTO;
-
   try {
+    const { dataTable, buffer } = await validateAndUploadCSV(
+      req.file.buffer,
+      req.file?.mimetype,
+      req.file?.originalname,
+      res.locals.datasetId
+    );
+
+    const tableMatcher = req.body as LookupTablePatchDTO;
+
     const result = await validateLookupTable(dataTable, dataset, dimension, buffer, language, tableMatcher);
     if ((result as ViewErrDTO).status) {
       const error = result as ViewErrDTO;

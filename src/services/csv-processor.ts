@@ -20,7 +20,7 @@ import { getFileService } from '../utils/get-file-service';
 import { FileValidationErrorType, FileValidationException } from '../exceptions/validation-exception';
 import { DuckDBException } from '../exceptions/duckdb-exception';
 import { viewErrorGenerators, viewGenerator } from '../utils/view-error-generators';
-import { createEmptyCubeWithFactTable } from '../utils/create-facttable';
+import { createEmptyCubeWithFactTable } from '../utils/create-fact-table';
 import { validateParams } from '../validators/preview-validator';
 
 export const DEFAULT_PAGE_SIZE = 100;

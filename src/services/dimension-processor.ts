@@ -27,11 +27,12 @@ import { getReferenceDataDimensionPreview } from './reference-data-handler';
 import { NumberExtractor, NumberType } from '../extractors/number-extractor';
 import { viewErrorGenerators, viewGenerator } from '../utils/view-error-generators';
 import { getFileService } from '../utils/get-file-service';
-import { createEmptyCubeWithFactTable } from '../utils/create-facttable';
+import { createEmptyCubeWithFactTable } from '../utils/create-fact-table';
 import { createLookupTableInCube } from './lookup-table-handler';
 import { createDatePeriodTableQuery, makeCubeSafeString } from './cube-handler';
 import { t } from 'i18next';
-import { CubeValidationException, CubeValidationType } from '../exceptions/cube-error-exception';
+import { CubeValidationException } from '../exceptions/cube-error-exception';
+import { CubeValidationType } from '../enums/cube-validation-type';
 
 const createDateDimensionTable = `CREATE TABLE date_dimension (date_code VARCHAR, description VARCHAR, start_date datetime, end_date datetime, date_type varchar);`;
 const sampleSize = 5;
@@ -451,7 +452,7 @@ export const validateUpdatedDateDimension = async (
   dataset: Dataset,
   dimension: Dimension,
   factTableColumn: FactTableColumn
-) => {
+): Promise<undefined> => {
   const errors = await validateDateDimension(quack, dataset, dimension, factTableColumn);
   if (errors) {
     const err = new CubeValidationException('Validation failed');
@@ -466,7 +467,7 @@ export const validateDateDimension = async (
   dataset: Dataset,
   dimension: Dimension,
   factTableColumn: FactTableColumn
-) => {
+): Promise<ViewErrDTO | undefined> => {
   const extractor = dimension.extractor as DateExtractor;
   const tableName = 'fact_table';
   try {
