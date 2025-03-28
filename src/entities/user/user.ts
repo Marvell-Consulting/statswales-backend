@@ -1,4 +1,14 @@
-import { BaseEntity, Column, CreateDateColumn, Entity, Index, PrimaryGeneratedColumn, UpdateDateColumn } from 'typeorm';
+import {
+  BaseEntity,
+  Column,
+  CreateDateColumn,
+  Entity,
+  Index,
+  ManyToMany,
+  PrimaryGeneratedColumn,
+  UpdateDateColumn
+} from 'typeorm';
+import { UserGroup } from './user-group';
 
 @Entity({ name: 'user' })
 @Index('UX_user_provider_provider_user_id', ['provider', 'providerUserId'], { unique: true })
@@ -25,6 +35,9 @@ export class User extends BaseEntity {
 
   @Column({ name: 'family_name', nullable: true })
   familyName?: string;
+
+  @ManyToMany(() => UserGroup, (userGroup) => userGroup.users)
+  groups: UserGroup[];
 
   @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
   createdAt: Date;

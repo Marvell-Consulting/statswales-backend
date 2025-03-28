@@ -15,7 +15,6 @@ import { BadRequestException } from '../exceptions/bad-request.exception';
 import { ViewErrDTO } from '../dtos/view-dto';
 import { arrayValidator, dtoValidator } from '../validators/dto-validator';
 import { RevisionMetadataDTO } from '../dtos/revistion-metadata-dto';
-import { TeamSelectionDTO } from '../dtos/team-selection-dto';
 import { cleanUpCube, createBaseCube } from '../services/cube-handler';
 import { DEFAULT_PAGE_SIZE } from '../services/csv-processor';
 import { createDimensionsFromSourceAssignment, validateSourceAssignment } from '../services/dimension-processor';
@@ -230,26 +229,6 @@ export const updateTopics = async (req: Request, res: Response, next: NextFuncti
     const datasetId = res.locals.datasetId;
     const datasetTopics = await dtoValidator(TopicSelectionDTO, req.body);
     const updatedDataset = await req.datasetService.updateTopics(datasetId, datasetTopics.topics);
-    res.status(201);
-    res.json(DatasetDTO.fromDataset(updatedDataset));
-  } catch (err: unknown) {
-    if (err instanceof BadRequestException) {
-      err.validationErrors?.forEach((error) => {
-        if (!error.constraints) return;
-        Object.values(error.constraints).forEach((message) => logger.error(message));
-      });
-      next(err);
-      return;
-    }
-    next(new UnknownException('errors.topic_update_error'));
-  }
-};
-
-export const updateDatasetTeam = async (req: Request, res: Response, next: NextFunction) => {
-  try {
-    const datasetId = res.locals.datasetId;
-    const datasetTeam = await dtoValidator(TeamSelectionDTO, req.body);
-    const updatedDataset = await DatasetRepository.updateDatasetTeam(datasetId, datasetTeam.team_id);
     res.status(201);
     res.json(DatasetDTO.fromDataset(updatedDataset));
   } catch (err: unknown) {

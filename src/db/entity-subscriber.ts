@@ -78,6 +78,9 @@ export class EntitySubscriber implements EntitySubscriberInterface {
   }
 
   async afterUpdate(event: UpdateEvent<AnyEntity>): Promise<void> {
+    if (!event.entity) {
+      return;
+    }
     await this.logEvent('update', event);
   }
 

@@ -1,12 +1,10 @@
 import { Dataset } from '../entities/dataset/dataset';
 import { Dimension } from '../entities/dataset/dimension';
 import { Revision } from '../entities/dataset/revision';
-import { SUPPORTED_LOCALES } from '../middleware/translation';
 
 import { DimensionDTO } from './dimension-dto';
 import { RevisionDTO } from './revision-dto';
 import { MeasureDTO } from './measure-dto';
-import { TeamDTO } from './team-dto';
 import { FactTableColumnDto } from './fact-table-column-dto';
 
 export class DatasetDTO {
@@ -20,8 +18,6 @@ export class DatasetDTO {
   revisions: RevisionDTO[];
   draft_revision?: RevisionDTO;
   measure?: MeasureDTO;
-  team_id?: string;
-  team?: TeamDTO[];
   start_date?: Date | null;
   end_date?: Date | null;
 
@@ -39,13 +35,6 @@ export class DatasetDTO {
     dto.draft_revision = dataset.draftRevision ? RevisionDTO.fromRevision(dataset.draftRevision) : undefined;
 
     dto.measure = dataset.measure ? MeasureDTO.fromMeasure(dataset.measure) : undefined;
-    dto.team_id = dataset.teamId; // keep this because it means we don't need always hydrate the team relation
-
-    if (dataset.team) {
-      dto.team = SUPPORTED_LOCALES.map((locale) => {
-        return TeamDTO.fromTeam(dataset.team, locale);
-      });
-    }
 
     if (dataset.factTable) {
       dto.fact_table = dataset.factTable.map((column) => FactTableColumnDto.fromFactTableColumn(column));

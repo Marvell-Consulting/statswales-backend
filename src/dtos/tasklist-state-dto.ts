@@ -27,7 +27,6 @@ export interface TranslationStatus {
 }
 
 export interface PublishingStatus {
-  organisation: TaskStatus;
   when: TaskStatus;
 }
 
@@ -158,7 +157,6 @@ export class TasklistStateDTO {
 
   public static publishingStatus(dataset: Dataset, revision: Revision): PublishingStatus {
     return {
-      organisation: dataset.team ? TaskStatus.Completed : TaskStatus.NotStarted,
       when: revision.publishAt ? TaskStatus.Completed : TaskStatus.NotStarted
     };
   }

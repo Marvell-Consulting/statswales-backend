@@ -12,12 +12,12 @@ import {
 } from 'typeorm';
 
 import { User } from '../user/user';
-import { Team } from '../user/team';
 
 import { Revision } from './revision';
 import { Dimension } from './dimension';
 import { Measure } from './measure';
 import { FactTableColumn } from './fact-table-column';
+import { UserGroup } from '../user/user-group';
 
 @Entity({ name: 'dataset' })
 export class Dataset extends BaseEntity {
@@ -79,11 +79,11 @@ export class Dataset extends BaseEntity {
   @OneToMany(() => FactTableColumn, (factTableColumn) => factTableColumn.dataset, { cascade: true })
   factTable: FactTableColumn[] | null;
 
-  @Column({ name: 'team_id', type: 'uuid', nullable: true })
-  teamId?: string;
+  @Column({ name: 'user_group_id', type: 'uuid', nullable: true })
+  userGroupId?: string;
 
-  @Index('IDX_dataset_team_id')
-  @ManyToOne(() => Team, (team) => team.datasets, { nullable: true })
-  @JoinColumn({ name: 'team_id', foreignKeyConstraintName: 'FK_dataset_team_id' })
-  team: Team;
+  @Index('IDX_dataset_user_group_id')
+  @ManyToOne(() => UserGroup, (userGroup) => userGroup.datasets, { nullable: true })
+  @JoinColumn({ name: 'user_group_id', foreignKeyConstraintName: 'FK_dataset_user_group_id' })
+  userGroup: UserGroup;
 }

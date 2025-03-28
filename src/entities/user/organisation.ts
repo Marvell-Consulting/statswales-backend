@@ -1,14 +1,14 @@
 import { BaseEntity, CreateDateColumn, Entity, OneToMany, PrimaryGeneratedColumn, UpdateDateColumn } from 'typeorm';
 
-import { OrganisationInfo } from './organisation-info';
+import { OrganisationMetadata } from './organisation-metadata';
 
 @Entity({ name: 'organisation' })
 export class Organisation extends BaseEntity {
   @PrimaryGeneratedColumn('uuid', { primaryKeyConstraintName: 'PK_organisation_id' })
   id: string;
 
-  @OneToMany(() => OrganisationInfo, (info) => info.organisation, { cascade: true })
-  info: OrganisationInfo[];
+  @OneToMany(() => OrganisationMetadata, (meta) => meta.organisation, { cascade: true })
+  metadata: OrganisationMetadata[];
 
   @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
   createdAt: Date;

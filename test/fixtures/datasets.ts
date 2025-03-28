@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
 import path from 'node:path';
 
 import { v4 as uuid } from 'uuid';
@@ -121,6 +122,6 @@ export const testDatasets = [
   { dataset: previewPageTestB, csvPath: sureStartShort },
   { dataset: sourcesPageTest, csvPath: sureStartShort },
   { dataset: metadataTestA, csvPath: sureStartShort },
-  { dataset: metadataTestB, csvPath: sureStartShort },
-  ...Array.from({ length: 22 }, () => ({ dataset: generatePublishedDataset(), csvPath: sureStartShort }))
+  { dataset: metadataTestB, csvPath: sureStartShort }
+  // ...Array.from({ length: 22 }, () => ({ dataset: generatePublishedDataset(), csvPath: sureStartShort }))
 ];

@@ -6,10 +6,10 @@ export class OrganisationDTO {
   name?: string;
 
   static fromOrganisation(org: Organisation, lang: Locale): OrganisationDTO {
-    const info = org.info?.find((i) => lang.includes(i.language));
+    const meta = org.metadata?.find((i) => lang.includes(i.language));
     const dto = new OrganisationDTO();
     dto.id = org.id;
-    dto.name = info?.name;
+    dto.name = meta?.name;
     return dto;
   }
 }

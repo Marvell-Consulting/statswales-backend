@@ -1,3 +1,5 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
+
 import { plainToInstance } from 'class-transformer';
 import { validate, ValidationError } from 'class-validator';
 
