@@ -270,9 +270,9 @@ async function createMeasureTable(
     logger.debug(`Extracting SW3 measure lookup table to measure table using query ${buildMeasureViewQuery}`);
   }
   try {
-    const inertQuery = `INSERT INTO measure (${buildMeasureViewQuery});`;
-    logger.debug(`Extracting lookup table contents to measure using query:\n ${inertQuery}`);
-    await quack.exec(inertQuery);
+    const insertQuery = `INSERT INTO measure (${buildMeasureViewQuery});`;
+    logger.debug(`Extracting lookup table contents to measure using query:\n ${insertQuery}`);
+    await quack.exec(insertQuery);
     await quack.exec(`DROP TABLE ${lookupTable};`);
     const measureTable = await quack.all(`SELECT * FROM measure;`);
     logger.debug(`Creating measureTable from lookup using result:\n${JSON.stringify(measureTable, null, 2)}`);
