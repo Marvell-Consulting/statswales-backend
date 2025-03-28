@@ -1,18 +1,12 @@
-import fs from 'fs';
-
 import { Database } from 'duckdb-async';
 
-import { DataTable } from '../entities/dataset/data-table';
 import { Dataset } from '../entities/dataset/dataset';
 import { Dimension } from '../entities/dataset/dimension';
 import { CSVHeader, ViewDTO, ViewErrDTO } from '../dtos/view-dto';
 import { logger } from '../utils/logger';
-import { getFileImportAndSaveToDisk, loadFileIntoDatabase } from '../utils/file-utils';
-import { viewErrorGenerator } from '../utils/view-error-generator';
+import { viewErrorGenerators, viewGenerator } from '../utils/view-error-generators';
 import { DatasetRepository } from '../repositories/dataset';
 import { FactTableColumnType } from '../enums/fact-table-column-type';
-import { DatasetDTO } from '../dtos/dataset-dto';
-import { DataTableDto } from '../dtos/data-table-dto';
 import { ReferenceType } from '../enums/reference-type';
 import { DimensionType } from '../enums/dimension-type';
 
@@ -22,7 +16,7 @@ import {
   loadCorrectReferenceDataIntoReferenceDataTable,
   loadReferenceDataIntoCube
 } from './cube-handler';
-import { duckdb } from './duckdb';
+import { createEmptyCubeWithFactTable } from '../utils/create-fact-table';
 
 const sampleSize = 5;
 
@@ -58,9 +52,10 @@ async function validateUnknownReferenceDataItems(quack: Database, dataset: Datas
               LEFT JOIN reference_data on reference_data.item_id=CAST(fact_table."${dimension.factTableColumn}" AS VARCHAR)
               WHERE reference_data.item_id IS NULL;
         `);
-    return viewErrorGenerator(400, dataset.id, 'patch', 'errors.dimensionValidation.invalid_lookup_table', {
+    return viewErrorGenerators(400, dataset.id, 'patch', 'errors.dimension_validation.unknown_reference_data_items', {
       totalNonMatching: nonMatchedRows.length,
-      nonMatchingDataTableValues: nonMatchingDataTableValues.map((row) => Object.values(row)[0])
+      nonMatchingDataTableValues: nonMatchingDataTableValues.map((row) => Object.values(row)[0]),
+      mismatch: true
     });
   }
   return undefined;
@@ -89,9 +84,10 @@ async function validateAllItemsAreInCategory(
             JOIN categories ON categories.category=category_keys.category JOIN category_info ON categories.category=category_info.category AND lang='${lang.toLowerCase()}'
             WHERE categories.category!='${referenceDataType}' GROUP BY fact_table."${dimension.factTableColumn}", item_id;
         `);
-    return viewErrorGenerator(400, dataset.id, 'patch', 'errors.dimensionValidation.invalid_lookup_table', {
+    return viewErrorGenerators(400, dataset.id, 'patch', 'errors.dimension_validation.items_not_in_category', {
       totalNonMatching: nonMatchingDataTableValues.length,
-      nonMatchingDataTableValues: nonMatchingDataTableValues.map((row) => Object.values(row)[0])
+      nonMatchingDataTableValues: nonMatchingDataTableValues.map((row) => Object.values(row)[0]),
+      mismatch: true
     });
   }
   return undefined;
@@ -110,18 +106,18 @@ async function validateAllItemsAreInOneCategory(
     `);
   if (categoriesPresent.length > 1) {
     logger.error('The user has more than one type of category in reference data column');
-    return viewErrorGenerator(400, dataset.id, 'patch', 'errors.dimensionValidation.to_many_categories_present', {
+    return viewErrorGenerators(400, dataset.id, 'patch', 'errors.dimension_validation.to_many_categories_present', {
       totalNonMatching: categoriesPresent.length,
       nonMatchingDataTableValues: categoriesPresent.map((row) => Object.values(row)[0])
     });
   }
   if (categoriesPresent.length === 0) {
     logger.error('There users column can not be matched to anything in the reference data');
-    return viewErrorGenerator(
+    return viewErrorGenerators(
       400,
       dataset.id,
       'patch',
-      'errors.dimensionValidation.no_reference_data_categories_present',
+      'errors.dimension_validation.no_reference_data_categories_present',
       {}
     );
   }
@@ -129,26 +125,26 @@ async function validateAllItemsAreInOneCategory(
 }
 
 export const validateReferenceData = async (
-  factTable: DataTable,
   dataset: Dataset,
   dimension: Dimension,
   referenceDataType: ReferenceType | undefined,
   lang: string
 ): Promise<ViewDTO | ViewErrDTO> => {
-  const factTableName = 'fact_table';
-  const quack = await duckdb();
+  let quack: Database;
+  try {
+    quack = await createEmptyCubeWithFactTable(dataset);
+  } catch (error) {
+    logger.error(error, 'Something went wrong trying to create a new database');
+    return viewErrorGenerators(500, dataset.id, 'patch', 'errors.cube_builder.fact_table_creation_failed', {});
+  }
   try {
     // Load reference data in to cube
     await loadReferenceDataIntoCube(quack);
     await copyAllReferenceDataIntoTable(quack);
-    const factTableTmpFile = await getFileImportAndSaveToDisk(dataset, factTable);
-    logger.debug(`Loading fact table in to DuckDB`);
-    await loadFileIntoDatabase(quack, factTable, factTableTmpFile, factTableName);
-    fs.unlinkSync(factTableTmpFile);
   } catch (err) {
     await quack.close();
-    logger.error(`Something went wrong trying to load data in to DuckDB with the following error: ${err}`);
-    throw err;
+    logger.error(err, `Something went wrong trying to load the reference data into the cube`);
+    return viewErrorGenerators(500, dataset.id, 'patch', 'errors.cube_builder.reference_data_loading_failed', {});
   }
 
   let confirmedReferenceDataCategory = referenceDataType?.toString();
@@ -182,8 +178,14 @@ export const validateReferenceData = async (
     }
   } catch (error) {
     await quack.close();
-    logger.error(`Something went wrong trying to validate reference data with the following error: ${error}`);
-    throw new Error(`Something went wrong trying to validate reference data with the following error: ${error}`);
+    logger.error(error, `Something went wrong trying to validate reference data`);
+    return viewErrorGenerators(
+      500,
+      dataset.id,
+      'patch',
+      'errors.dimension_validation.reference_data_validation_failed.',
+      {}
+    );
   }
 
   const categoriesPresent = await quack.all(`SELECT DISTINCT category_keys.category_key FROM fact_table
@@ -201,7 +203,7 @@ export const validateReferenceData = async (
 
   try {
     logger.debug('Passed validation preparing to send back the preview');
-    const previewQuery = `
+    const allMatchesQuery = `
             SELECT DISTINCT fact_table."${dimension.factTableColumn}", reference_data_info.description
             FROM fact_table
             LEFT JOIN reference_data
@@ -212,12 +214,24 @@ export const validateReferenceData = async (
                 AND reference_data.version_no=reference_data_info.version_no
             WHERE reference_data_info.lang='${lang.toLowerCase()}';
         `;
+    const allMatches = await quack.all(allMatchesQuery);
+    const previewQuery = `
+            SELECT DISTINCT fact_table."${dimension.factTableColumn}", reference_data_info.description
+            FROM fact_table
+            LEFT JOIN reference_data
+                ON CAST(fact_table."${dimension.factTableColumn}" AS VARCHAR)=reference_data.item_id
+            JOIN reference_data_info
+                ON reference_data.item_id=reference_data_info.item_id
+                AND reference_data.category_key=reference_data_info.category_key
+                AND reference_data.version_no=reference_data_info.version_no
+            WHERE reference_data_info.lang='${lang.toLowerCase()}'
+            LIMIT ${sampleSize};
+        `;
     logger.debug(`Preview query = ${previewQuery}`);
     const dimensionTable = await quack.all(previewQuery);
     const tableHeaders = Object.keys(dimensionTable[0]);
     const dataArray = dimensionTable.map((row) => Object.values(row));
     const currentDataset = await DatasetRepository.getById(dataset.id, { dimensions: { metadata: true } });
-    const currentImport = await DataTable.findOneByOrFail({ id: factTable.id });
     const headers: CSVHeader[] = tableHeaders.map((header, index) => {
       return {
         index,
@@ -225,23 +239,22 @@ export const validateReferenceData = async (
         source_type: FactTableColumnType.Unknown
       };
     });
-    return {
-      dataset: DatasetDTO.fromDataset(currentDataset),
-      data_table: DataTableDto.fromDataTable(currentImport),
-      current_page: 1,
-      page_info: {
-        total_records: 1,
-        start_record: 1,
-        end_record: 10
-      },
-      page_size: 10,
-      total_pages: 1,
-      headers,
-      data: dataArray
+    const pageInfo = {
+      total_records: allMatches.length,
+      start_record: 1,
+      end_record: dataArray.length
     };
+    const pageSize = dataArray.length < sampleSize ? dataArray.length : sampleSize;
+    return viewGenerator(currentDataset, 1, pageInfo, pageSize, 1, headers, dataArray);
   } catch (error) {
-    logger.error(`Something went wrong trying to generate the preview of the lookup table with error: ${error}`);
-    throw error;
+    logger.error(error, `Something went wrong trying to generate the preview of the column`);
+    return viewErrorGenerators(
+      500,
+      dataset.id,
+      'patch',
+      'errors.dimension_validation.reference_data_preview_failed',
+      {}
+    );
   } finally {
     await quack.close();
   }
@@ -297,20 +310,13 @@ export const getReferenceDataDimensionPreview = async (
         source_type: FactTableColumnType.Unknown
       };
     });
-
-    return {
-      dataset: DatasetDTO.fromDataset(currentDataset),
-      current_page: 1,
-      page_info: {
-        total_records: totalRows,
-        start_record: 1,
-        end_record: sampleSize
-      },
-      page_size: sampleSize,
-      total_pages: 1,
-      headers,
-      data: dataArray
+    const pageInfo = {
+      total_records: totalRows,
+      start_record: 1,
+      end_record: dataArray.length
     };
+    const pageSize = dataArray.length < sampleSize ? dataArray.length : sampleSize;
+    return viewGenerator(currentDataset, 1, pageInfo, pageSize, 1, headers, dataArray);
   } catch (error) {
     logger.error(`Something went wrong trying to generate the preview of the lookup table with error: ${error}`);
     throw error;

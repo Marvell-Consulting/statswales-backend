@@ -87,10 +87,10 @@ describe('API Endpoints for viewing the contents of a dataset', () => {
     ]);
     expect(res.body.data[23]).toEqual([
       24,
-      1007,
-      '2022-23',
-      '01/04/2022',
-      '31/03/2023',
+      780,
+      '2021-22',
+      '01/04/2021',
+      '31/03/2022',
       'Isle of Anglesey',
       'Other Staff',
       null

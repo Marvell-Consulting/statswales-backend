@@ -11,6 +11,7 @@ import { FileType } from '../enums/file-type';
 
 import { logger } from './logger';
 import { getFileService } from './get-file-service';
+import { FileValidationErrorType, FileValidationException } from '../exceptions/validation-exception';
 
 export const convertBufferToUTF8 = (buffer: Buffer): Buffer => {
   const fileEncoding = detectCharacterEncoding(buffer)?.encoding;
@@ -64,7 +65,10 @@ export const loadFileIntoDatabase = async (
       createTableQuery = `CREATE TABLE ${tableName} AS SELECT * FROM st_read('${tempFile}');`;
       break;
     default:
-      throw new Error('Unknown file type');
+      throw new FileValidationException(
+        `File type is unknown or not supported`,
+        FileValidationErrorType.UnknownMimeType
+      );
   }
   logger.debug(`Creating table ${tableName} from ${fileImport.fileType} file with query: ${createTableQuery}`);
   await quack.exec(createTableQuery);

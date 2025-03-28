@@ -7,29 +7,45 @@ import { LookupTable } from '../entities/dataset/lookup-table';
 import { DataTable } from '../entities/dataset/data-table';
 import { LookupTablePatchDTO } from '../dtos/lookup-patch-dto';
 import { LookupTableExtractor } from '../extractors/lookup-table-extractor';
-import { columnIdentification, convertFactTableToLookupTable, lookForJoinColumn } from '../utils/lookup-table-utils';
+import {
+  columnIdentification,
+  convertDataTableToLookupTable,
+  lookForJoinColumn,
+  validateLookupTableLanguages,
+  validateLookupTableReferenceValues
+} from '../utils/lookup-table-utils';
 import { ColumnDescriptor } from '../extractors/column-descriptor';
 import { Dataset } from '../entities/dataset/dataset';
 import { CSVHeader, ViewDTO, ViewErrDTO } from '../dtos/view-dto';
 import { logger } from '../utils/logger';
 import { Dimension } from '../entities/dataset/dimension';
-import { getFileImportAndSaveToDisk, loadFileIntoDatabase } from '../utils/file-utils';
-import { viewErrorGenerator } from '../utils/view-error-generator';
+import { loadFileIntoDatabase } from '../utils/file-utils';
+import { viewErrorGenerators, viewGenerator } from '../utils/view-error-generators';
 import { DatasetRepository } from '../repositories/dataset';
 import { FactTableColumnType } from '../enums/fact-table-column-type';
-import { DatasetDTO } from '../dtos/dataset-dto';
-import { DataTableDto } from '../dtos/data-table-dto';
 
 import { cleanUpDimension } from './dimension-processor';
-import { duckdb } from './duckdb';
+import { Database } from 'duckdb-async';
+import { createEmptyCubeWithFactTable } from '../utils/create-fact-table';
+import { SUPPORTED_LOCALES } from '../middleware/translation';
+import { createLookupTableQuery, makeCubeSafeString } from './cube-handler';
+import { FactTableColumn } from '../entities/dataset/fact-table-column';
+import { CubeValidationException } from '../exceptions/cube-error-exception';
+import { Locale } from '../enums/locale';
+import { t } from 'i18next';
+import { FileValidationErrorType, FileValidationException } from '../exceptions/validation-exception';
+import { CubeValidationType } from '../enums/cube-validation-type';
+
+const sampleSize = 5;
 
 async function setupDimension(
   dimension: Dimension,
   lookupTable: LookupTable,
   protoLookupTable: DataTable,
   confirmedJoinColumn: string,
+  tableLanguage: Locale,
   tableMatcher?: LookupTablePatchDTO
-) {
+): Promise<Dimension> {
   // Clean up previously uploaded dimensions
   if (dimension.lookupTable) await cleanUpDimension(dimension);
   lookupTable.isStatsWales2Format = !protoLookupTable.dataTableDescriptions.find((info) =>
@@ -40,19 +56,24 @@ async function setupDimension(
   updateDimension.joinColumn = confirmedJoinColumn;
   updateDimension.lookupTable = lookupTable;
   logger.debug(`Creating extractor...`);
-  updateDimension.extractor = createExtractor(protoLookupTable, tableMatcher);
+  updateDimension.extractor = createExtractor(protoLookupTable, tableLanguage, tableMatcher);
   logger.debug('Saving the lookup table');
   await lookupTable.save();
   logger.debug('Saving the dimension');
   updateDimension.lookupTable = lookupTable;
   updateDimension.type = DimensionType.LookupTable;
-  await updateDimension.save();
+  return updateDimension;
 }
 
-function createExtractor(protoLookupTable: DataTable, tableMatcher?: LookupTablePatchDTO): LookupTableExtractor {
+function createExtractor(
+  protoLookupTable: DataTable,
+  tableLanguage: Locale,
+  tableMatcher?: LookupTablePatchDTO
+): LookupTableExtractor {
   if (tableMatcher?.description_columns) {
     logger.debug(`Table matcher is supplied using user supplied information to create extractor...`);
     return {
+      tableLanguage,
       sortColumn: tableMatcher.sort_column,
       hierarchyColumn: tableMatcher.hierarchy,
       descriptionColumns: tableMatcher.description_columns.map(
@@ -67,156 +88,250 @@ function createExtractor(protoLookupTable: DataTable, tableMatcher?: LookupTable
             .filter((info) => info.columnName === desc)
             .map((info) => columnIdentification(info))[0]
       ),
-      languageColumn: tableMatcher.language
+      languageColumn: tableMatcher.language,
+      isSW2Format: !tableMatcher.language
     };
   } else {
-    logger.debug(`Using lookup table to try try to generate the extractor...`);
-    const sortColumn = protoLookupTable.dataTableDescriptions.find(
-      (info) => info.columnName.toLowerCase().indexOf('sort') > -1
-    )?.columnName;
-    const hierarchyColumn = protoLookupTable.dataTableDescriptions.find(
-      (info) => info.columnName.toLowerCase().indexOf('hierarchy') > -1
-    )?.columnName;
-    const languageColumn = protoLookupTable.dataTableDescriptions.find(
-      (info) => info.columnName.toLowerCase().indexOf('lang') > -1
-    )?.columnName;
-    const filteredDescriptionColumns = protoLookupTable.dataTableDescriptions.filter(
-      (info) => info.columnName.toLowerCase().indexOf('description') > -1
-    );
-    if (filteredDescriptionColumns.length < 1) {
-      throw new Error('Could not identify description columns in lookup table');
-    }
-    const descriptionColumns = filteredDescriptionColumns.map((info) => columnIdentification(info));
-    const filteredNotesColumns = protoLookupTable.dataTableDescriptions.filter(
-      (info) => info.columnName.toLowerCase().indexOf('note') > -1
-    );
+    logger.debug('Detecting column types from column names');
+    const noteStr = t('lookup_column_headers.notes', { lng: tableLanguage });
+    const sortStr = t('lookup_column_headers.sort', { lng: tableLanguage });
+    const hierarchyStr = t('lookup_column_headers.hierarchy', { lng: tableLanguage });
+    const descriptionStr = t('lookup_column_headers.description', { lng: tableLanguage });
+    const langStr = t('lookup_column_headers.lang', { lng: tableLanguage });
     let notesColumns: ColumnDescriptor[] | undefined;
-    if (filteredNotesColumns.length > 0) {
-      notesColumns = filteredNotesColumns.map((info) => columnIdentification(info));
-    }
-    return {
-      sortColumn,
-      hierarchyColumn,
-      descriptionColumns,
+    if (protoLookupTable.dataTableDescriptions.filter((info) => info.columnName.toLowerCase().startsWith(noteStr)))
+      notesColumns = protoLookupTable.dataTableDescriptions
+        .filter((info) => info.columnName.toLowerCase().startsWith(noteStr))
+        .map((info) => columnIdentification(info));
+    const extractor: LookupTableExtractor = {
+      tableLanguage,
+      sortColumn: protoLookupTable.dataTableDescriptions.find((info) =>
+        info.columnName.toLowerCase().startsWith(sortStr)
+      )?.columnName,
+      languageColumn: protoLookupTable.dataTableDescriptions.find((info) =>
+        info.columnName.toLowerCase().startsWith(langStr)
+      )?.columnName,
+      hierarchyColumn: protoLookupTable.dataTableDescriptions.find((info) =>
+        info.columnName.toLowerCase().includes(hierarchyStr)
+      )?.columnName,
+      descriptionColumns: protoLookupTable.dataTableDescriptions
+        .filter((info) => info.columnName.toLowerCase().includes(descriptionStr))
+        .map((info) => columnIdentification(info)),
       notesColumns,
-      languageColumn
+      isSW2Format: !protoLookupTable.dataTableDescriptions.find((info) =>
+        info.columnName.toLowerCase().startsWith(langStr)
+      )
     };
+    logger.debug(`Extracted extractor from lookup table:\n${JSON.stringify(extractor, null, 2)}`);
+    if (extractor.descriptionColumns.length === 0) {
+      throw new FileValidationException(
+        'errors.measure_validation.no_description_columns',
+        FileValidationErrorType.InvalidCsv
+      );
+    }
+    return extractor;
   }
 }
 
+export const createLookupTableInCube = async (
+  quack: Database,
+  factTableColumn: FactTableColumn,
+  dimension: Dimension,
+  lookupTableName: string
+) => {
+  const extractor = dimension.extractor as LookupTableExtractor;
+  await quack.exec(createLookupTableQuery(factTableColumn));
+  if (extractor.isSW2Format) {
+    logger.debug('Lookup table is SW2 format');
+    const dataExtractorParts = [];
+    for (const locale of SUPPORTED_LOCALES) {
+      const descriptionCol = extractor.descriptionColumns.find(
+        (col) => col.lang.toLowerCase() === locale.toLowerCase()
+      );
+      const notesCol = extractor.notesColumns?.find((col) => col.lang.toLowerCase() === locale.toLowerCase());
+      const descriptionColStr = descriptionCol ? `"${descriptionCol.name}"` : 'NULL';
+      const notesColStr = notesCol ? `"${notesCol.name}"` : 'NULL';
+      const sortStr = extractor.sortColumn ? `"${extractor.sortColumn}"` : 'NULL';
+      const hierarchyCol = extractor.hierarchyColumn ? `"${extractor.hierarchyColumn}", ` : 'NULL';
+      dataExtractorParts.push(
+        `SELECT "${dimension.joinColumn}" as ${factTableColumn.columnName},
+        '${locale.toLowerCase()}' as language,
+        ${descriptionColStr} as description,
+        ${notesColStr} as notes,
+        ${sortStr} as sort_order,
+        ${hierarchyCol} as hierarchy
+        FROM ${lookupTableName}`
+      );
+    }
+    const builtInsertQuery = `INSERT INTO ${makeCubeSafeString(dimension.factTableColumn)}_lookup (${dataExtractorParts.join(' UNION ')});`;
+    logger.debug(`Built insert query: ${builtInsertQuery}`);
+    await quack.exec(builtInsertQuery);
+  } else {
+    const notesStr = extractor.notesColumns ? `"${extractor.notesColumns[0].name}"` : 'NULL';
+    const dataExtractorParts = `
+      SELECT
+        "${dimension.joinColumn}" as ${factTableColumn.columnName},
+        "${extractor.languageColumn}" as language,
+        "${extractor.descriptionColumns[0].name}" as description,
+        ${notesStr} as notes,
+        ${extractor.sortColumn ? `"${extractor.sortColumn}"` : 'NULL'} as sort_order,
+        ${extractor.hierarchyColumn ? `"${extractor.hierarchyColumn}"` : 'NULL'} as hierarchy
+      FROM ${lookupTableName}
+    `;
+    const builtInsertQuery = `INSERT INTO ${makeCubeSafeString(dimension.factTableColumn)}_lookup ${dataExtractorParts};`;
+    await quack.exec(builtInsertQuery);
+  }
+};
+
+export const checkForReferenceErrors = async (
+  quack: Database,
+  dataset: Dataset,
+  dimension: Dimension,
+  factTableColumn: FactTableColumn
+) => {
+  const referenceErrors = await validateLookupTableReferenceValues(
+    quack,
+    dataset,
+    dimension.factTableColumn,
+    factTableColumn.columnName,
+    `${makeCubeSafeString(dimension.factTableColumn)}_lookup`,
+    'fact_table',
+    'dimension'
+  );
+  if (referenceErrors) {
+    const err = new CubeValidationException('Validation failed');
+    err.type = CubeValidationType.DimensionNonMatchedRows;
+    throw err;
+  }
+  return undefined;
+};
+
 export const validateLookupTable = async (
   protoLookupTable: DataTable,
-  factTable: DataTable,
   dataset: Dataset,
   dimension: Dimension,
   buffer: Buffer,
+  language: string,
   tableMatcher?: LookupTablePatchDTO
 ): Promise<ViewDTO | ViewErrDTO> => {
-  const lookupTable = convertFactTableToLookupTable(protoLookupTable);
+  const lookupTable = convertDataTableToLookupTable(protoLookupTable);
   const factTableName = 'fact_table';
   const lookupTableName = 'preview_lookup';
-  const quack = await duckdb();
+  const factTableColumn = dataset.factTable?.find(
+    (col) => dimension.factTableColumn === col.columnName && col.columnType === FactTableColumnType.Dimension
+  );
+  if (!factTableColumn) {
+    logger.error(`Could not find the fact table column ${dimension.factTableColumn} in the dataset`);
+    return viewErrorGenerators(500, dataset.id, 'patch', 'errors.dimension_validation.fact_table_column_not_found', {
+      mismatch: false
+    });
+  }
+  const tableLanguageArr: Locale[] = [];
+
+  SUPPORTED_LOCALES.map((locale) => {
+    if (
+      protoLookupTable.dataTableDescriptions.find((col) =>
+        col.columnName.toLowerCase().includes(t('lookup_column_headers.description', { lng: locale.toLowerCase() }))
+      )
+    ) {
+      tableLanguageArr.push(locale);
+    }
+  });
+  if (tableLanguageArr.length < 1) {
+    return viewErrorGenerators(400, dataset.id, 'csv', 'errors.measure_validation.no_description_columns', {
+      mismatch: false
+    });
+  }
+  const tableLanguage = tableLanguageArr[0];
+
+  let quack: Database;
+  try {
+    quack = await createEmptyCubeWithFactTable(dataset);
+  } catch (error) {
+    logger.error(error, 'Something went wrong trying to create a new cube with a fact table');
+    return viewErrorGenerators(500, dataset.id, 'patch', 'errors.dimension_validation.fact_table_creation_failed', {});
+  }
+
   const lookupTableTmpFile = tmp.tmpNameSync({ postfix: `.${lookupTable.fileType}` });
   try {
     logger.debug(`Writing the lookup table to disk: ${lookupTableTmpFile}`);
     fs.writeFileSync(lookupTableTmpFile, buffer);
-    const factTableTmpFile = await getFileImportAndSaveToDisk(dataset, factTable);
-    logger.debug(`Loading fact table in to DuckDB`);
-    await loadFileIntoDatabase(quack, factTable, factTableTmpFile, factTableName);
-    logger.debug(`Loading lookup table in to DuckDB`);
+    logger.debug(`Loading lookup table into DuckDB`);
     await loadFileIntoDatabase(quack, lookupTable, lookupTableTmpFile, lookupTableName);
     fs.unlinkSync(lookupTableTmpFile);
-    fs.unlinkSync(factTableTmpFile);
   } catch (err) {
     await quack.close();
-    logger.error(`Something went wrong trying to load data in to DuckDB with the following error: ${err}`);
-    throw err;
+    logger.error(err, `Something went wrong trying to load the lookup table into the cube`);
+    return viewErrorGenerators(500, dataset.id, 'patch', 'errors.dimension_validation.lookup_table_loading_failed', {
+      mismatch: false
+    });
   }
 
   let confirmedJoinColumn: string | undefined;
   try {
-    confirmedJoinColumn = lookForJoinColumn(protoLookupTable, dimension.factTableColumn, tableMatcher);
+    confirmedJoinColumn = lookForJoinColumn(protoLookupTable, dimension.factTableColumn, tableLanguage, tableMatcher);
   } catch (_err) {
     await quack.close();
-    return viewErrorGenerator(400, dataset.id, 'patch', 'errors.dimensionValidation.no_join_column', {});
+    return viewErrorGenerators(400, dataset.id, 'patch', 'errors.lookup_validation.no_join_column', {
+      mismatch: false
+    });
   }
 
   if (!confirmedJoinColumn) {
     await quack.close();
-    return viewErrorGenerator(400, dataset.id, 'patch', 'errors.dimensionValidation.no_join_column', {});
-  }
-
-  try {
-    logger.debug(`Validating the lookup table`);
-    const nonMatchedRows = await quack.all(
-      `SELECT line_number, fact_table_column, ${lookupTableName}.${confirmedJoinColumn} as lookup_table_column
-            FROM (SELECT row_number() OVER () as line_number, "${dimension.factTableColumn}" as fact_table_column FROM
-            ${factTableName}) as fact_table LEFT JOIN ${lookupTableName} ON
-            CAST(fact_table.fact_table_column AS VARCHAR)=CAST(${lookupTableName}."${confirmedJoinColumn}" AS VARCHAR)
-            WHERE lookup_table_column IS NULL;`
-    );
-    logger.debug(`Number of rows from non matched rows query: ${nonMatchedRows.length}`);
-    const rows = await quack.all(`SELECT COUNT(*) as total_rows FROM ${factTableName}`);
-    if (nonMatchedRows.length === rows[0].total_rows) {
-      logger.error(`The user supplied an incorrect lookup table and none of the rows matched`);
-      const nonMatchedFactTableValues = await quack.all(
-        `SELECT DISTINCT ${dimension.factTableColumn} FROM ${factTableName};`
-      );
-      const nonMatchedLookupValues = await quack.all(
-        `SELECT DISTINCT ${lookupTableName}."${confirmedJoinColumn}" FROM ${lookupTableName};`
-      );
-      return viewErrorGenerator(400, dataset.id, 'patch', 'errors.dimensionValidation.invalid_lookup_table', {
-        totalNonMatching: rows[0].total_rows,
-        nonMatchingDataTableValues: nonMatchedFactTableValues.map((row) => Object.values(row)[0]),
-        nonMatchedLookupValues: nonMatchedLookupValues.map((row) => Object.values(row)[0])
-      });
-    }
-    if (nonMatchedRows.length > 0) {
-      const nonMatchingDataTableValues = await quack.all(
-        `SELECT DISTINCT fact_table_column FROM (SELECT "${dimension.factTableColumn}" as fact_table_column
-                FROM ${factTableName})as fact_table
-                LEFT JOIN ${lookupTableName}
-                ON CAST(fact_table.fact_table_column AS VARCHAR)=CAST(${lookupTableName}."${confirmedJoinColumn}" AS VARCHAR)
-                WHERE ${lookupTableName}."${confirmedJoinColumn}" IS NULL;`
-      );
-      const nonMatchingLookupValues = await quack.all(
-        `SELECT DISTINCT measure_table_column FROM (SELECT "${confirmedJoinColumn}" as measure_table_column
-                 FROM ${lookupTableName}) AS measure_table
-                 LEFT JOIN ${factTableName} ON CAST(measure_table.measure_table_column AS VARCHAR)=CAST(${factTableName}."${dimension.factTableColumn}" AS VARCHAR)
-                 WHERE ${factTableName}."${dimension.factTableColumn}" IS NULL;`
-      );
-      logger.error(
-        `The user supplied an incorrect or incomplete lookup table and ${nonMatchedRows.length} rows didn't match`
-      );
-      return viewErrorGenerator(400, dataset.id, 'patch', 'errors.dimensionValidation.invalid_lookup_table', {
-        totalNonMatching: nonMatchedRows.length,
-        nonMatchingDataTableValues: nonMatchingDataTableValues.map((row) => Object.values(row)[0]),
-        nonMatchedLookupValues: nonMatchingLookupValues.map((row) => Object.values(row)[0])
-      });
-    }
-  } catch (error) {
-    await quack.close();
-    logger.error(
-      `Something went wrong, most likely an incorrect join column name, while trying to validate the lookup table with error: ${error}`
-    );
-    const nonMatchedRows = await quack.all(`SELECT COUNT(*) AS total_rows FROM ${factTableName};`);
-    const nonMatchedValues = await quack.all(`SELECT DISTINCT ${dimension.factTableColumn} FROM ${factTableName};`);
-    return viewErrorGenerator(400, dataset.id, 'patch', 'errors.dimensionValidation.invalid_lookup_table', {
-      totalNonMatching: nonMatchedRows[0].total_rows,
-      nonMatchingDataTableValues: nonMatchedValues.map((row) => Object.values(row)[0])
+    return viewErrorGenerators(400, dataset.id, 'patch', 'errors.lookup_validation.no_join_column', {
+      mismatch: false
     });
   }
 
-  logger.debug(`Lookup table passed validation.  Setting up dimension.`);
-  await setupDimension(dimension, lookupTable, protoLookupTable, confirmedJoinColumn, tableMatcher);
+  const updatedDimension = await setupDimension(
+    dimension,
+    lookupTable,
+    protoLookupTable,
+    confirmedJoinColumn,
+    tableLanguage,
+    tableMatcher
+  );
+
+  await createLookupTableInCube(quack, factTableColumn, updatedDimension, lookupTableName);
+
+  const referenceErrors = await validateLookupTableReferenceValues(
+    quack,
+    dataset,
+    updatedDimension.factTableColumn,
+    factTableColumn.columnName,
+    `${makeCubeSafeString(dimension.factTableColumn)}_lookup`,
+    factTableName,
+    'dimension'
+  );
+  if (referenceErrors) {
+    await quack.close();
+    return referenceErrors;
+  }
+
+  const languageErrors = await validateLookupTableLanguages(
+    quack,
+    dataset,
+    factTableColumn.columnName,
+    `${makeCubeSafeString(dimension.factTableColumn)}_lookup`,
+    'dimension'
+  );
+  if (languageErrors) {
+    await quack.close();
+    return languageErrors;
+  }
+
+  logger.debug(`Lookup table passed validation.  Saving the dimension, lookup table and extractor.`);
+  await updatedDimension.save();
 
   try {
     logger.debug('Passed validation preparing to send back the preview');
-    const dimensionTable = await quack.all(`SELECT * FROM ${lookupTableName};`);
+    const dimensionTable = await quack.all(
+      `SELECT * FROM "${makeCubeSafeString(dimension.factTableColumn)}_lookup" WHERE language = '${language.toLowerCase()}' LIMIT ${sampleSize};`
+    );
     const tableHeaders = Object.keys(dimensionTable[0]);
     const dataArray = dimensionTable.map((row) => Object.values(row));
     const currentDataset = await DatasetRepository.getById(dataset.id);
-    const currentImport = await DataTable.findOneByOrFail({ id: factTable.id });
     const headers: CSVHeader[] = [];
     for (let i = 0; i < tableHeaders.length; i++) {
       let sourceType: FactTableColumnType;
@@ -228,23 +343,16 @@ export const validateLookupTable = async (
         source_type: sourceType
       });
     }
-    return {
-      dataset: DatasetDTO.fromDataset(currentDataset),
-      data_table: DataTableDto.fromDataTable(currentImport),
-      current_page: 1,
-      page_info: {
-        total_records: 1,
-        start_record: 1,
-        end_record: 10
-      },
-      page_size: 10,
-      total_pages: 1,
-      headers,
-      data: dataArray
+    const pageInfo = {
+      total_records: dimensionTable.length,
+      start_record: 1,
+      end_record: dataArray.length
     };
+    const pageSize = dimensionTable.length < sampleSize ? dimensionTable.length : sampleSize;
+    return viewGenerator(currentDataset, 1, pageInfo, pageSize, 1, headers, dataArray);
   } catch (error) {
-    logger.error(`Something went wrong trying to generate the preview of the lookup table with error: ${error}`);
-    throw error;
+    logger.error(error, `Something went wrong trying to generate the preview of the lookup.`);
+    return viewErrorGenerators(500, dataset.id, 'preview', 'errors.dimension.lookup_preview_generation_failed', {});
   } finally {
     await quack.close();
   }

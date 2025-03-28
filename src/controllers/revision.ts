@@ -24,26 +24,31 @@ import { RevisionRepository } from '../repositories/revision';
 import { DuckdbOutputType } from '../enums/duckdb-outputs';
 import {
   cleanUpCube,
-  createAndValidateDateDimension,
-  createAndValidateLookupTableDimension,
   createBaseCube,
+  createDateDimension,
+  createLookupTableDimension,
   loadCorrectReferenceDataIntoReferenceDataTable,
   loadReferenceDataIntoCube,
   makeCubeSafeString,
   updateFactTableValidator
 } from '../services/cube-handler';
-import { DEFAULT_PAGE_SIZE, getCSVPreview, uploadCSV } from '../services/csv-processor';
+import { DEFAULT_PAGE_SIZE, getCSVPreview, validateAndUploadCSV } from '../services/csv-processor';
 import { DataTableDescription } from '../entities/dataset/data-table-description';
 import { FactTableColumn } from '../entities/dataset/fact-table-column';
 import { DataTableAction } from '../enums/data-table-action';
 import { ColumnMatch } from '../interfaces/column-match';
 import { DimensionType } from '../enums/dimension-type';
-import { CubeValidationException, CubeValidationType } from '../exceptions/cube-error-exception';
+import { CubeValidationException } from '../exceptions/cube-error-exception';
 import { DimensionUpdateTask } from '../interfaces/revision-task';
 import { duckdb } from '../services/duckdb';
 import { Dataset } from '../entities/dataset/dataset';
 
 import { getCubePreview, outputCube } from './cube-controller';
+import { FileValidationException } from '../exceptions/validation-exception';
+import { FactTableColumnType } from '../enums/fact-table-column-type';
+import { checkForReferenceErrors } from '../services/lookup-table-handler';
+import { validateUpdatedDateDimension } from '../services/dimension-processor';
+import { CubeValidationType } from '../enums/cube-validation-type';
 
 export const getDataTable = async (req: Request, res: Response, next: NextFunction) => {
   try {
@@ -105,7 +110,7 @@ export const getRevisionPreview = async (req: Request, res: Response, next: Next
       cubeFile = await createBaseCube(dataset.id, revision.id);
     } catch (error) {
       logger.error(`Something went wrong trying to create the cube with the error: ${error}`);
-      next(new UnknownException('errors.cube_create_error'));
+      next(new UnknownException('errors.cube_builder.cube_build_failed'));
       return;
     }
   }
@@ -187,13 +192,18 @@ export const getRevisionInfo = async (req: Request, res: Response) => {
   res.json(RevisionDTO.fromRevision(revision));
 };
 
-async function attachUpdateDataTableToRevision(dataset: Dataset, revision: Revision, dataTable: DataTable, body: any) {
+async function attachUpdateDataTableToRevision(
+  dataset: Dataset,
+  revision: Revision,
+  dataTable: DataTable,
+  updateAction: DataTableAction,
+  columnMatcher?: ColumnMatch[]
+) {
   logger.debug('Attaching update data table to revision and validating cube');
   const start = performance.now();
 
   // Validate all the columns against the fact table
-  if (body.column_matching) {
-    const columnMatcher = JSON.parse(body.column_matching) as ColumnMatch[];
+  if (columnMatcher) {
     const matchedColumns: string[] = [];
     for (const col of columnMatcher) {
       const factTableCol: FactTableColumn | undefined = dataset.factTable?.find(
@@ -241,13 +251,7 @@ async function attachUpdateDataTableToRevision(dataset: Dataset, revision: Revis
     }
   }
 
-  logger.debug(`Setting the update action to: ${body.update_action || 'Add'}`);
-  let updateAction = DataTableAction.Add;
-
-  if (body.update_action) {
-    updateAction = body.update_action as DataTableAction;
-  }
-
+  logger.debug(`Setting the update action to: ${updateAction}`);
   dataTable.action = updateAction;
   revision.dataTable = dataTable;
   const quack = await duckdb();
@@ -265,14 +269,24 @@ async function attachUpdateDataTableToRevision(dataset: Dataset, revision: Revis
   }
 
   const dimensionUpdateTasks: DimensionUpdateTask[] = [];
-  await loadReferenceDataIntoCube(quack);
-
+  if (dataset.dimensions.find((dimension) => dimension.type === DimensionType.ReferenceData)) {
+    await loadReferenceDataIntoCube(quack);
+  }
   for (const dimension of dataset.dimensions) {
+    const factTableColumn = dataset.factTable.find(
+      (factTableColumn) =>
+        factTableColumn.columnName === dimension.id && factTableColumn.columnType === FactTableColumnType.Dimension
+    );
+    if (!factTableColumn) {
+      logger.error(`Could not find fact table column for dimension ${dimension.id}`);
+      throw new BadRequestException('errors.data_table_validation_error');
+    }
     try {
       switch (dimension.type) {
         case DimensionType.LookupTable:
           logger.debug(`Validating lookup table dimension: ${dimension.id}`);
-          await createAndValidateLookupTableDimension(quack, dataset, dimension);
+          await createLookupTableDimension(quack, dataset, dimension);
+          await checkForReferenceErrors(quack, dataset, dimension, factTableColumn);
           break;
         case DimensionType.ReferenceData:
           logger.debug(`Validating reference data dimension: ${dimension.id}`);
@@ -281,7 +295,8 @@ async function attachUpdateDataTableToRevision(dataset: Dataset, revision: Revis
         case DimensionType.DatePeriod:
         case DimensionType.Date:
           logger.debug(`Validating time dimension: ${dimension.id}`);
-          await createAndValidateDateDimension(quack, dimension.extractor, dimension.factTableColumn);
+          await createDateDimension(quack, dimension.extractor, factTableColumn);
+          await validateUpdatedDateDimension(quack, dataset, dimension, factTableColumn);
       }
     } catch (error) {
       logger.warn(`An error occurred validating dimension ${dimension.id}: ${error}`);
@@ -338,20 +353,20 @@ export const updateDataTable = async (req: Request, res: Response, next: NextFun
     }
     await DataTable.getRepository().remove(revision.dataTable);
   }
-
   let dataTable: DataTable;
-
   try {
-    const { buffer, mimetype, originalname } = req.file;
-    dataTable = await uploadCSV(buffer, mimetype, originalname, dataset.id);
+    const { mimetype, originalname } = req.file;
+    const uploadResult = await validateAndUploadCSV(req.file.buffer, mimetype, originalname, dataset.id);
+    dataTable = uploadResult.dataTable;
   } catch (err) {
-    logger.error(err, `An error occurred trying to upload the file`);
-    if ((err as Error).message.includes('Data Lake')) {
-      next(new UnknownException('errors.data_lake_error'));
+    const error = err as FileValidationException;
+    logger.error(error, `An error occurred trying to upload the file`);
+    if (error.status === 500) {
+      return next(new UnknownException(error.errorTag));
     } else {
-      next(new BadRequestException('errors.upload_error'));
+      const error = err as FileValidationException;
+      return next(new BadRequestException(error.errorTag));
     }
-    return;
   }
 
   try {
@@ -359,7 +374,9 @@ export const updateDataTable = async (req: Request, res: Response, next: NextFun
       logger.debug('Attaching data table to first revision');
       await RevisionRepository.save({ ...revision, dataTable });
     } else {
-      await attachUpdateDataTableToRevision(dataset, revision, dataTable, req.body);
+      const columnMatcher = JSON.parse(req.body.column_matching) as ColumnMatch[];
+      const updateAction = req.body.update_action ? (req.body.update_action as DataTableAction) : DataTableAction.Add;
+      await attachUpdateDataTableToRevision(dataset, revision, dataTable, updateAction, columnMatcher);
     }
     const updatedDataset = await DatasetRepository.getById(dataset.id);
     res.status(201);
@@ -485,8 +502,8 @@ export const downloadRevisionCubeFile = async (req: Request, res: Response, next
     try {
       cubeFile = await createBaseCube(dataset.id, revision.id);
     } catch (err) {
-      logger.error(`Something went wrong trying to create the cube with the error: ${err}`);
-      next(new UnknownException('errors.cube_create_error'));
+      logger.error(err, `Something went wrong trying to create the cube`);
+      next(new UnknownException('errors.cube_builder.cube_build_failed'));
       return;
     }
   }
@@ -517,8 +534,8 @@ export const downloadRevisionCubeAsJSON = async (req: Request, res: Response, ne
       logger.info('Creating fresh cube file.');
       cubeFile = await createBaseCube(dataset.id, revision.id);
     } catch (err) {
-      logger.error(`Something went wrong trying to create the cube with the error: ${err}`);
-      next(new UnknownException('errors.cube_create_error'));
+      logger.error(err, `Something went wrong trying to create the cube`);
+      next(new UnknownException('errors.cube_builder.cube_build_failed'));
       return;
     }
   }
@@ -562,7 +579,7 @@ export const downloadRevisionCubeAsCSV = async (req: Request, res: Response, nex
       cubeFile = await createBaseCube(dataset.id, revision.id);
     } catch (err) {
       logger.error(err, `Something went wrong trying to create the cube with the error`);
-      next(new UnknownException('errors.cube_create_error'));
+      next(new UnknownException('errors.cube_builder.cube_build_failed'));
       return;
     }
   }
@@ -605,8 +622,8 @@ export const downloadRevisionCubeAsParquet = async (req: Request, res: Response,
     try {
       cubeFile = await createBaseCube(dataset.id, revision.id);
     } catch (err) {
-      logger.error(`Something went wrong trying to create the cube with the error: ${err}`);
-      next(new UnknownException('errors.cube_create_error'));
+      logger.error(err, `Something went wrong trying to create the cube with the error: ${err}`);
+      next(new UnknownException('errors.cube_builder.cube_build_failed'));
       return;
     }
   }
@@ -649,8 +666,8 @@ export const downloadRevisionCubeAsExcel = async (req: Request, res: Response, n
     try {
       cubeFile = await createBaseCube(dataset.id, revision.id);
     } catch (err) {
-      logger.error(`Something went wrong trying to create the cube with the error: ${err}`);
-      next(new UnknownException('errors.cube_create_error'));
+      logger.error(err, `Something went wrong trying to create the cube with the error: ${err}`);
+      next(new UnknownException('errors.cube_builder.cube_build_failed'));
       return;
     }
   }

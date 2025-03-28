@@ -116,13 +116,14 @@ const sureStartShortDimensionDescriptor = [
     extractor: {
       sortColumn: 'sort_order',
       notesColumns: [
-        { lang: 'en', name: 'Notes_en' },
-        { lang: 'cy', name: 'Notes_cy' }
+        { lang: 'en-gb', name: 'Notes_en' },
+        { lang: 'cy-gb', name: 'Notes_cy' }
       ],
       descriptionColumns: [
-        { lang: 'en', name: 'Description_en' },
-        { lang: 'cy', name: 'Description_cy' }
-      ]
+        { lang: 'en-gb', name: 'Description_en' },
+        { lang: 'cy-gb', name: 'Description_cy' }
+      ],
+      isSW2Format: true
     },
     joinColumn: 'RowRefAlt'
   }

@@ -12,7 +12,6 @@ import { Dataset } from '../../src/entities/dataset/dataset';
 import { t } from '../../src/middleware/translation';
 import { DatasetDTO } from '../../src/dtos/dataset-dto';
 import { DataTableDto } from '../../src/dtos/data-table-dto';
-import { MAX_PAGE_SIZE, MIN_PAGE_SIZE } from '../../src/services/csv-processor';
 import { User } from '../../src/entities/user/user';
 import { SourceAssignmentDTO } from '../../src/dtos/source-assignment-dto';
 import { FactTableColumnType } from '../../src/enums/fact-table-column-type';
@@ -29,6 +28,7 @@ import { createFullDataset, createSmallDataset } from '../helpers/test-helper';
 import { getTestUser } from '../helpers/get-user';
 import { getAuthHeader } from '../helpers/auth-header';
 import BlobStorage from '../../src/services/blob-storage';
+import { MAX_PAGE_SIZE, MIN_PAGE_SIZE } from '../../src/validators/preview-validator';
 
 jest.mock('../../src/services/blob-storage');
 
@@ -130,7 +130,7 @@ describe('API Endpoints', () => {
         errors: [
           {
             field: 'page_number',
-            message: [
+            user_message: [
               {
                 lang: Locale.English,
                 message: t('errors.page_number_to_high', { lng: Locale.English, page_number: 1 })
@@ -140,8 +140,8 @@ describe('API Endpoints', () => {
                 message: t('errors.page_number_to_high', { lng: Locale.Welsh, page_number: 1 })
               }
             ],
-            tag: {
-              name: 'errors.page_number_to_high',
+            message: {
+              key: 'errors.page_number_to_high',
               params: { page_number: 1 }
             }
           }
@@ -169,7 +169,7 @@ describe('API Endpoints', () => {
         errors: [
           {
             field: 'page_size',
-            message: [
+            user_message: [
               {
                 lang: Locale.English,
                 message: t('errors.page_size', {
@@ -187,8 +187,8 @@ describe('API Endpoints', () => {
                 })
               }
             ],
-            tag: {
-              name: 'errors.page_size',
+            message: {
+              key: 'errors.page_size',
               params: { max_page_size: MAX_PAGE_SIZE, min_page_size: MIN_PAGE_SIZE }
             }
           }
@@ -216,7 +216,7 @@ describe('API Endpoints', () => {
         errors: [
           {
             field: 'page_size',
-            message: [
+            user_message: [
               {
                 lang: Locale.English,
                 message: t('errors.page_size', {
@@ -234,8 +234,8 @@ describe('API Endpoints', () => {
                 })
               }
             ],
-            tag: {
-              name: 'errors.page_size',
+            message: {
+              key: 'errors.page_size',
               params: { max_page_size: MAX_PAGE_SIZE, min_page_size: MIN_PAGE_SIZE }
             }
           }
@@ -288,17 +288,18 @@ describe('API Endpoints', () => {
         errors: [
           {
             field: 'csv',
-            message: [
+            user_message: [
               {
                 lang: Locale.English,
-                message: t('errors.download_from_filestore', { lng: Locale.English })
+                message: t('errors.datalake.failed_to_fetch_file', { lng: Locale.English })
               },
-              { lang: Locale.Welsh, message: t('errors.download_from_filestore', { lng: Locale.Welsh }) }
+              { lang: Locale.Welsh, message: t('errors.datalake.failed_to_fetch_file', { lng: Locale.Welsh }) }
             ],
-            tag: { name: 'errors.download_from_filestore', params: {} }
+            message: { key: 'errors.datalake.failed_to_fetch_file', params: {} }
           }
         ],
-        dataset_id: dataset1Id
+        dataset_id: dataset1Id,
+        extension: {}
       });
     });
 
@@ -440,7 +441,7 @@ describe('API Endpoints', () => {
         .set(getAuthHeader(user))
         .attach('csv', csvFile);
       expect(res.status).toBe(500);
-      expect(res.body).toEqual({ error: 'errors.data_lake_error' });
+      expect(res.body).toEqual({ error: 'errors.file_validation.datalake_upload_error' });
     });
   });
 

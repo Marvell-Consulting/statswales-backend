@@ -5,9 +5,9 @@ export interface ErrorMessage {
 
 export interface Error {
   field: string;
-  message: ErrorMessage[];
-  tag: {
-    name: string;
-    params: object;
+  message: {
+    key: string;
+    params?: object;
   };
+  user_message: ErrorMessage[];
 }

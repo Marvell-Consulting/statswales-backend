@@ -1,90 +1,116 @@
 {
-    "greeting": "Helo",
-    "alpha": "Alffa",
-    "menu": "Dewislen",
-    "upload-csv": "Lanlwythwch ffeil CSV",
-    "list-data-files": "Rhestrwch y Ffeiliau Data",
-    "feedback": "Mae hwn yn wasanaeth newydd – bydd eich adborth yn ein helpu i'w wella.",
-    "share-page": "Rhannu'r dudalen hon",
-    "top-of-page": "Yn ôl i frig y dudalen",
-    "status-field": "statws",
-    "app-running": "Mae'r ap yn rhedeg",
-    "health-notes": "Ehangu'r pwynt terfyn i wirio am gysylltiad â chronfa ddata a gwasanaethau eraill.",
-    "datalake-error": "Gwall wrth gysylltu â'r Llyn Data",
-    "pagination": {
-        "previous": "Blaenorol",
-        "next": "Nesaf",
-        "update": "Diweddariad"
-    },
-    "homepage": {
-        "title": "Croeso i Alffa StatsCymru",
-        "welcome": "Rydym yn mynd i ddefnyddio system Ddylunio GovUK nes y gallwn gael gafael ar GEL Llywodraeth Cymru",
-        "apitext": "Gallwch weld ein api trwy droi at "
-    },
+  "greeting": "Helo",
+  "alpha": "Alffa",
+  "menu": "Dewislen",
+  "upload-csv": "Lanlwythwch ffeil CSV",
+  "list-data-files": "Rhestrwch y Ffeiliau Data",
+  "feedback": "Mae hwn yn wasanaeth newydd – bydd eich adborth yn ein helpu i'w wella.",
+  "share-page": "Rhannu'r dudalen hon",
+  "top-of-page": "Yn ôl i frig y dudalen",
+  "status-field": "statws",
+  "app-running": "Mae'r ap yn rhedeg",
+  "health-notes": "Ehangu'r pwynt terfyn i wirio am gysylltiad â chronfa ddata a gwasanaethau eraill.",
+  "datalake-error": "Gwall wrth gysylltu â'r Llyn Data",
+  "pagination": {
+    "previous": "Blaenorol",
+    "next": "Nesaf",
+    "update": "Diweddariad"
+  },
+  "homepage": {
+    "title": "Croeso i Alffa StatsCymru",
+    "welcome": "Rydym yn mynd i ddefnyddio system Ddylunio GovUK nes y gallwn gael gafael ar GEL Llywodraeth Cymru",
+    "apitext": "Gallwch weld ein api trwy droi at "
+  },
+  "upload": {
+    "title": "Lanlwythwch ffeil CSV",
+    "description": "Lanlwythwch ffeil CSV i'r llyn data",
+    "datasetName": "Enw'r Set Ddata",
+    "selectCSV": "Dewiswch ffeil CSV",
+    "uploadBtn": "Lanlwythwch ffeil CSV"
+  },
+  "errors": {
+    "missing": "Enw ffeil ar Goll",
+    "problem": "Mae problem wedi codi",
+    "name_missing": "Ni ddarparwyd enw set ddata",
     "upload": {
-        "title": "Lanlwythwch ffeil CSV",
-        "description": "Lanlwythwch ffeil CSV i'r llyn data",
-        "datasetName": "Enw'r Set Ddata",
-        "selectCSV": "Dewiswch ffeil CSV",
-        "uploadBtn": "Lanlwythwch ffeil CSV"
+      "no_title": "Nid yw teitl ar gyfer y set ddata wedi’i ddarparu (GPT)",
+      "no-csv": "Ni ddarparwyd data CSV",
+      "no-csv-data": "Nid oes data CSV ar gael"
     },
-	"errors": {
-		"missing": "Enw ffeil ar Goll",
-		"problem": "Mae problem wedi codi",
-        "name_missing": "Ni ddarparwyd enw set ddata",
-        "upload": {
-            "no_title": "Nid yw teitl ar gyfer y set ddata wedi’i ddarparu (GPT)",
-            "no-csv": "Ni ddarparwyd data CSV",
-            "no-csv-data": "Nid oes data CSV ar gael"
-        },
-        "page_size": "Rhaid i faint y dudalen fod rhwng {{min_page_size}} a {{max_page_size}} (GPT)",
-        "page_number_to_high": "Rhaid i rif y dudalen fod yn llai na neu'n hafal i {{page_number}} (GPT)",
-        "page_number_to_low": "Rhaid i rif y dudalen fod yn fwy na 0 (GPT)",
-        "no_datafile": "Dim ffeil data ynghlwm wrth Set Ddata (GPT)",
-        "download_from_filestore": "Gwall wrth lawrlwytho ffeil o'r llyn data (GPT)"
-	},
-    "dimensionInfo": {
-        "footnotes": {
-            "title": "Nodiadau traed (GPT)",
-            "description": "Nodiadau traed ar gyfer y data (GPT)"
-        }
-    },
-    "list": {
-        "title": "Dangos y Data"
-    },
-    "display": {
-        "title": "Dangos Data ar gyfer"
-    },
-    "api": {
-        "available": "Mae'r API ar gael"
-    },
-	"header": {
-
-	},
-	"footer": {
-		"support-link": "Dolenni Cymorth",
-		"project-reports": "Adroddiadau Prosiect",
-		"github-repo": "Storfa GitHub",
-		"help": "Help",
-		"cookies": "Cwcis",
-		"contact": "Cysylltu",
-		"terms": "Amodau a thelerau",
-		"copyright-notice": "Mae'r holl gynnwys ar gael dan <a class=\"govuk-footer__link\" href=\"https://www.nationalarchives.gov.uk/doc/open-government-licence/version/3/\" rel=\"license\">Open Government Licence v3.0</a>, ac eithrio lle y nodir fel arall",
-		"crown-copyright": "© Hawlfraint y Goron",
-		"welsh-gov": "Llywodraeth Cymru"
-	},
-    "column_headers": {
-        "data_values": "Gwerthoedd Data",
-        "note_codes": "Codau Nodyn",
-        "start_date": "Dyddiad Cychwyn",
-        "end_date": "Dyddiad Gorffen",
-        "notes": "Nodiadau",
-        "measure": "Mesur"
-    },
-    "routes": {
-        "healthcheck": "gwiriad iechyd",
-        "upload": "lanlwytho",
-        "list": "rhestr",
-        "data": "data"
+    "page_size": "Rhaid i faint y dudalen fod rhwng {{min_page_size}} a {{max_page_size}} (GPT)",
+    "page_number_to_high": "Rhaid i rif y dudalen fod yn llai na neu'n hafal i {{page_number}} (GPT)",
+    "page_number_to_low": "Rhaid i rif y dudalen fod yn fwy na 0 (GPT)",
+    "no_datafile": "Dim ffeil data ynghlwm wrth Set Ddata (GPT)",
+    "download_from_filestore": "Gwall wrth lawrlwytho ffeil o'r llyn data (GPT)"
+  },
+  "dimensionInfo": {
+    "footnotes": {
+      "title": "Nodiadau traed (GPT)",
+      "description": "Nodiadau traed ar gyfer y data (GPT)"
     }
+  },
+  "list": {
+    "title": "Dangos y Data"
+  },
+  "display": {
+    "title": "Dangos Data ar gyfer"
+  },
+  "api": {
+    "available": "Mae'r API ar gael"
+  },
+  "header": {},
+  "footer": {
+    "support-link": "Dolenni Cymorth",
+    "project-reports": "Adroddiadau Prosiect",
+    "github-repo": "Storfa GitHub",
+    "help": "Help",
+    "cookies": "Cwcis",
+    "contact": "Cysylltu",
+    "terms": "Amodau a thelerau",
+    "copyright-notice": "Mae'r holl gynnwys ar gael dan <a class=\"govuk-footer__link\" href=\"https://www.nationalarchives.gov.uk/doc/open-government-licence/version/3/\" rel=\"license\">Open Government Licence v3.0</a>, ac eithrio lle y nodir fel arall",
+    "crown-copyright": "© Hawlfraint y Goron",
+    "welsh-gov": "Llywodraeth Cymru"
+  },
+  "column_headers": {
+    "data_values": "Gwerthoedd Data",
+    "note_codes": "Codau Nodyn",
+    "start_date": "Dyddiad Cychwyn",
+    "end_date": "Dyddiad Gorffen",
+    "notes": "Nodiadau",
+    "measure": "Mesur"
+  },
+  "routes": {
+    "healthcheck": "gwiriad iechyd",
+    "upload": "lanlwytho",
+    "list": "rhestr",
+    "data": "data"
+  },
+  "language": {
+    "en": "saesneg",
+    "cy": "cymraeg"
+  },
+  "lookup_column_headers": {
+    "refcode": "codcyf",
+    "description": "disgrifiad",
+    "notes": "nodyn",
+    "sort": "trefn",
+    "hierarchy": "hierarchaeth",
+    "measure": "mesur",
+    "type": "math",
+    "format": "fformat",
+    "decimal": "degol",
+    "lang": "iaith"
+  },
+  "formats": {
+    "decimal": "degol",
+    "float": "arnawf",
+    "integer": "cyfanrif",
+    "long": "hir",
+    "percentage": "canran",
+    "string": "llinyn",
+    "text": "testun",
+    "date": "dyddiad",
+    "datetime": "dyddiadamser",
+    "time": "amser"
+  }
 }

@@ -1,10 +1,4 @@
-export enum CubeValidationType {
-  FactTable = 'factTable',
-  DuplicateFact = 'duplicateFact',
-  Dimension = 'dimension',
-  DimensionNonMatchedRows = 'dimension_non_matched_rows',
-  Measure = 'measure'
-}
+import { CubeValidationType } from '../enums/cube-validation-type';
 
 export class CubeValidationException extends Error {
   public type: CubeValidationType;
