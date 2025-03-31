@@ -11,6 +11,7 @@ import { MeasureLookupTableExtractor } from '../extractors/measure-lookup-extrac
 import {
   columnIdentification,
   convertDataTableToLookupTable,
+  languageMatcherCaseStatement,
   lookForJoinColumn,
   validateLookupTableLanguages,
   validateLookupTableReferenceValues,
@@ -242,23 +243,11 @@ async function createMeasureTable(
       notesColumnDef = 'NULL';
     }
 
-    const measureMatcher: string[] = [];
-    SUPPORTED_LOCALES.map((locale) => {
-      const lang = locale.split('-')[0].toLowerCase();
-      const tLang = lang;
-      measureMatcher.push(`WHEN LOWER("${extractor.languageColumn}") LIKE '${lang}%' THEN '${locale.toLowerCase()}'`);
-      SUPPORTED_LOCALES.map((locale) => {
-        const lang = locale.split('-')[0].toLowerCase();
-        measureMatcher.push(
-          `WHEN LOWER("${extractor.languageColumn}") LIKE '%${t(`language.${lang}`, { lng: tLang }).toLowerCase()}%' THEN '${locale.toLowerCase()}'`
-        );
-      });
-    });
+    const measureMatcher = languageMatcherCaseStatement(extractor.languageColumn);
+
     buildMeasureViewQuery = `SELECT
                     "${joinColumn}" AS reference,
-                    CASE
-                      ${measureMatcher.join('\n')}
-                    END AS language,
+                    ${measureMatcher} AS language,
                     "${extractor.descriptionColumns[0].name}" AS description,
                     ${notesColumnDef} AS notes,
                     ${sortOrderDef} AS sort_order,

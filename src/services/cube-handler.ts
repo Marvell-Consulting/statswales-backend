@@ -36,6 +36,7 @@ import { dateDimensionReferenceTableCreator } from './time-matching';
 import { duckdb } from './duckdb';
 import { NumberExtractor, NumberType } from '../extractors/number-extractor';
 import { CubeValidationType } from '../enums/cube-validation-type';
+import { languageMatcherCaseStatement } from '../utils/lookup-table-utils';
 
 export const FACT_TABLE_NAME = 'fact_table';
 
@@ -421,11 +422,12 @@ export async function createLookupTableDimension(quack: Database, dataset: Datas
     logger.debug(`Built insert query: ${builtInsertQuery}`);
     await quack.exec(builtInsertQuery);
   } else {
+    const languageMatcher = languageMatcherCaseStatement(extractor.languageColumn);
     const notesStr = extractor.notesColumns ? `"${extractor.notesColumns[0].name}"` : 'NULL';
     const dataExtractorParts = `
       SELECT
         "${dimension.joinColumn}" as ${factTableColumn.columnName},
-        "${extractor.languageColumn}" as language,
+        ${languageMatcher} as language,
         "${extractor.descriptionColumns[0].name}" as description,
         ${notesStr} as notes,
         ${extractor.sortColumn ? `"${extractor.sortColumn}"` : 'NULL'} as sort_order,

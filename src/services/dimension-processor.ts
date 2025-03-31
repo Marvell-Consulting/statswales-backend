@@ -760,7 +760,6 @@ async function getPreviewWithoutExtractor(
     `SELECT COUNT(DISTINCT "${dimension.factTableColumn}") AS totalLines FROM ${tableName};`
   );
   const totalLines = Number(totals[0].totalLines);
-
   const preview = await quack.all(
     `SELECT DISTINCT "${dimension.factTableColumn}" FROM ${tableName} ORDER BY "${dimension.factTableColumn}" ASC LIMIT ${sampleSize};`
   );
@@ -808,7 +807,10 @@ async function getLookupPreviewWithExtractor(
   const lookupTableName = `lookup_table`;
   await loadFileIntoDatabase(quack, dimension.lookupTable, lookupTmpFile, lookupTableName);
   await createLookupTableInCube(quack, factTableColumn, dimension, lookupTableName);
-  const query = `SELECT * EXCLUDE(language) FROM ${makeCubeSafeString(dimension.factTableColumn)}_lookup where language = '${language.toLowerCase()}' ORDER BY sort_order LIMIT ${sampleSize};`;
+  const lookupTableSize = await quack.all(
+    `SELECT * FROM ${makeCubeSafeString(dimension.factTableColumn)}_lookup WHERE language = '${language.toLowerCase()}'`
+  );
+  const query = `SELECT * EXCLUDE(language) FROM ${makeCubeSafeString(dimension.factTableColumn)}_lookup WHERE language = '${language.toLowerCase()}' ORDER BY sort_order, "${dimension.factTableColumn}" LIMIT ${sampleSize};`;
   logger.debug(`Querying the cube to get the preview using query ${query}`);
   const dimensionTable = await quack.all(query);
   const tableHeaders = Object.keys(dimensionTable[0]);
@@ -824,7 +826,7 @@ async function getLookupPreviewWithExtractor(
     });
   }
   const pageInfo = {
-    total_records: dimensionTable.length,
+    total_records: lookupTableSize.length,
     start_record: 1,
     end_record: dataArray.length
   };

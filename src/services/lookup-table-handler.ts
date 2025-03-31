@@ -10,6 +10,7 @@ import { LookupTableExtractor } from '../extractors/lookup-table-extractor';
 import {
   columnIdentification,
   convertDataTableToLookupTable,
+  languageMatcherCaseStatement,
   lookForJoinColumn,
   validateLookupTableLanguages,
   validateLookupTableReferenceValues
@@ -167,11 +168,12 @@ export const createLookupTableInCube = async (
     logger.debug(`Built insert query: ${builtInsertQuery}`);
     await quack.exec(builtInsertQuery);
   } else {
+    const languageMatcher = languageMatcherCaseStatement(extractor.languageColumn);
     const notesStr = extractor.notesColumns ? `"${extractor.notesColumns[0].name}"` : 'NULL';
     const dataExtractorParts = `
       SELECT
         "${dimension.joinColumn}" as ${factTableColumn.columnName},
-        "${extractor.languageColumn}" as language,
+        ${languageMatcher} as language,
         "${extractor.descriptionColumns[0].name}" as description,
         ${notesStr} as notes,
         ${extractor.sortColumn ? `"${extractor.sortColumn}"` : 'NULL'} as sort_order,
@@ -325,10 +327,10 @@ export const validateLookupTable = async (
   await updatedDimension.save();
 
   try {
-    logger.debug('Passed validation preparing to send back the preview');
-    const dimensionTable = await quack.all(
-      `SELECT * FROM "${makeCubeSafeString(dimension.factTableColumn)}_lookup" WHERE language = '${language.toLowerCase()}' LIMIT ${sampleSize};`
-    );
+    const previewQuery = `SELECT * FROM "${makeCubeSafeString(dimension.factTableColumn)}_lookup" WHERE language = '${language.toLowerCase()}';`;
+    logger.debug(`Passed validation preparing to send back the preview using the following query:\n${previewQuery}`);
+    const dimensionTable = await quack.all(previewQuery);
+    logger.debug(`Preview query returned:\n${JSON.stringify(dimensionTable, null, 2)}`);
     const tableHeaders = Object.keys(dimensionTable[0]);
     const dataArray = dimensionTable.map((row) => Object.values(row));
     const currentDataset = await DatasetRepository.getById(dataset.id);
