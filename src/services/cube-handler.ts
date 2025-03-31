@@ -36,7 +36,7 @@ import { dateDimensionReferenceTableCreator } from './time-matching';
 import { duckdb } from './duckdb';
 import { NumberExtractor, NumberType } from '../extractors/number-extractor';
 import { CubeValidationType } from '../enums/cube-validation-type';
-import {languageMatcherCaseStatement} from "../utils/lookup-table-utils";
+import { languageMatcherCaseStatement } from '../utils/lookup-table-utils';
 
 export const FACT_TABLE_NAME = 'fact_table';
 

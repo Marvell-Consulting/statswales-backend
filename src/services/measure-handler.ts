@@ -10,7 +10,8 @@ import { MeasureLookupPatchDTO } from '../dtos/measure-lookup-patch-dto';
 import { MeasureLookupTableExtractor } from '../extractors/measure-lookup-extractor';
 import {
   columnIdentification,
-  convertDataTableToLookupTable, languageMatcherCaseStatement,
+  convertDataTableToLookupTable,
+  languageMatcherCaseStatement,
   lookForJoinColumn,
   validateLookupTableLanguages,
   validateLookupTableReferenceValues,

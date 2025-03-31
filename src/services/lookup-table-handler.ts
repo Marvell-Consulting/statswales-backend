@@ -9,7 +9,8 @@ import { LookupTablePatchDTO } from '../dtos/lookup-patch-dto';
 import { LookupTableExtractor } from '../extractors/lookup-table-extractor';
 import {
   columnIdentification,
-  convertDataTableToLookupTable, languageMatcherCaseStatement,
+  convertDataTableToLookupTable,
+  languageMatcherCaseStatement,
   lookForJoinColumn,
   validateLookupTableLanguages,
   validateLookupTableReferenceValues
