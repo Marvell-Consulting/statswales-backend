@@ -151,14 +151,14 @@ export const validateLookupTableLanguages = async (
   try {
     logger.debug(`Checking descriptions and notes are different between languages`);
     const duplicateDescriptionRows = await quack.all(`
-      SELECT description, COUNT(language) as lang_count
+      SELECT "${joinColumn}", description, COUNT(language) as lang_count
       FROM (SELECT * FROM "${lookupTableName}" where description IS NOT NULL)
-      GROUP BY description HAVING lang_count > 1
+      GROUP BY description, "${joinColumn}" HAVING lang_count > 1
     `);
     const duplicateNoteRows = await quack.all(`
-      SELECT notes, COUNT(language) as lang_count
+      SELECT "${joinColumn}", notes, COUNT(language) as lang_count
       FROM (SELECT * FROM "${lookupTableName}" WHERE notes IS NOT NULL)
-      GROUP BY notes HAVING lang_count > 1
+      GROUP BY notes, "${joinColumn}" HAVING lang_count > 1
     `);
     if (duplicateDescriptionRows.length > 0 || duplicateNoteRows.length > 0) {
       logger.error(`The lookup table has duplicate descriptions or notes`);
