@@ -47,6 +47,25 @@ export function columnIdentification(info: DataTableDescription) {
   };
 }
 
+export const languageMatcherCaseStatement = (languageColumn: string | undefined): string => {
+  if (!languageColumn) return `''`;
+  const languageMatcher: string[] = [];
+  SUPPORTED_LOCALES.map((locale) => {
+    const lang = locale.split('-')[0].toLowerCase();
+    const tLang = lang;
+    languageMatcher.push(`WHEN LOWER("${languageColumn}") LIKE '${lang}%' THEN '${locale.toLowerCase()}'`);
+    SUPPORTED_LOCALES.map((locale) => {
+      const lang = locale.split('-')[0].toLowerCase();
+      languageMatcher.push(
+        `WHEN LOWER("${languageColumn}") LIKE '%${t(`language.${lang}`, { lng: tLang }).toLowerCase()}%' THEN '${locale.toLowerCase()}'`
+      );
+    });
+  });
+  return `CASE
+  ${languageMatcher.join('\n')}
+  END`;
+};
+
 // Look for the join column.  If there's a table matcher we always use this
 // If the user has called the lookup table column the same as the fact table column use this
 // If they've used the exact name in the guidance e.g. ref_code, reference_code, refcode use this

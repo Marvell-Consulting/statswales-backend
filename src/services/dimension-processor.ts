@@ -808,7 +808,7 @@ async function getLookupPreviewWithExtractor(
   const lookupTableName = `lookup_table`;
   await loadFileIntoDatabase(quack, dimension.lookupTable, lookupTmpFile, lookupTableName);
   await createLookupTableInCube(quack, factTableColumn, dimension, lookupTableName);
-  const query = `SELECT * EXCLUDE(language) FROM ${makeCubeSafeString(dimension.factTableColumn)}_lookup where language = '${language.toLowerCase()}' ORDER BY sort_order LIMIT ${sampleSize};`;
+  const query = `SELECT * EXCLUDE(language) FROM ${makeCubeSafeString(dimension.factTableColumn)}_lookup where language = '${language.toLowerCase()}' ORDER BY sort_order, "${dimension.factTableColumn}";`;
   logger.debug(`Querying the cube to get the preview using query ${query}`);
   const dimensionTable = await quack.all(query);
   const tableHeaders = Object.keys(dimensionTable[0]);
