@@ -4,7 +4,7 @@ import { Locale } from '../../enums/locale';
 import { DatasetDTO } from '../dataset-dto';
 
 import { OrganisationDTO } from '../organisation-dto';
-import { UserDto } from './user-dto';
+import { UserDTO } from './user-dto';
 import { UserGroupMetadataDTO } from './user-group-metadata-dto';
 
 export class UserGroupDTO {
@@ -13,7 +13,7 @@ export class UserGroupDTO {
   metadata?: UserGroupMetadataDTO[];
   organisation_id?: string;
   organisation?: OrganisationDTO;
-  users: UserDto[];
+  users: UserDTO[];
   user_count?: number;
   datasets: DatasetDTO[];
   dataset_count?: number;
