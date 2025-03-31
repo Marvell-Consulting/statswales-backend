@@ -13,7 +13,6 @@ export const UserGroupRepository = dataSource.getRepository(UserGroup).extend({
       relations: {
         metadata: true,
         organisation: { metadata: true },
-        users: true,
         datasets: { endRevision: { metadata: true } }
       }
     });
@@ -27,8 +26,9 @@ export const UserGroupRepository = dataSource.getRepository(UserGroup).extend({
       .addSelect('COUNT(DISTINCT u.id)', 'user_count')
       .addSelect('COUNT(DISTINCT d.id)', 'dataset_count')
       .leftJoin('ug.metadata', 'ugm', 'ugm.language = :lang', { lang })
-      .leftJoin('ug.users', 'u')
       .leftJoin('ug.datasets', 'd')
+      .leftJoin('ug.groupRoles', 'ugr')
+      .leftJoin('ugr.user', 'u')
       .groupBy('ug.id, ugm.name, ugm.email, ug.prefix');
 
     const offset = (page - 1) * limit;
