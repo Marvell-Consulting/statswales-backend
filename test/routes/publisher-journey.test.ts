@@ -492,6 +492,10 @@ describe('API Endpoints', () => {
       const testFileImportId = crypto.randomUUID().toLowerCase();
       await createSmallDataset(testDatasetId, testRevisionId, testFileImportId, user);
 
+      const testFile2 = path.resolve(__dirname, `../sample-files/csv/sure-start-short.csv`);
+      const testFile2Buffer = fs.readFileSync(testFile2);
+      BlobStorage.prototype.loadBuffer = jest.fn().mockReturnValue(testFile2Buffer);
+
       const postProcessedImport = await DataTable.findOne({
         where: { id: testFileImportId },
         relations: ['dataTableDescriptions']
@@ -606,7 +610,18 @@ describe('API Endpoints', () => {
         throw new Error('Dataset not found');
       }
       expect(updatedDataset.dimensions.length).toBe(0);
-      expect(res.body).toEqual({ error: 'Only one DataValues source can be specified' });
+      expect(res.body).toEqual({
+        dataset_id: testDatasetId,
+        errors: [
+          {
+            field: 'none',
+            message: {
+              key: 'errors.source_assignment.too_many_data_values'
+            }
+          }
+        ],
+        status: 400
+      });
     });
 
     test('Create dimensions from user supplied JSON returns 400 if there is more than one set of Footnotes', async () => {
@@ -644,7 +659,18 @@ describe('API Endpoints', () => {
         throw new Error('Dataset not found');
       }
       expect(updatedDataset.dimensions.length).toBe(0);
-      expect(res.body).toEqual({ error: 'Only one Footnote source can be specified' });
+      expect(res.body).toEqual({
+        dataset_id: testDatasetId,
+        errors: [
+          {
+            field: 'none',
+            message: {
+              key: 'errors.source_assignment.too_many_footnotes'
+            }
+          }
+        ],
+        status: 400
+      });
     });
   });
 

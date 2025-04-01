@@ -102,25 +102,25 @@ export const validateSourceAssignment = (
         (info: DataTableDescription) => info.columnName === sourceInfo.column_name
       )
     ) {
-      throw new Error(`Source with id ${sourceInfo.column_name} not found`);
+      throw new SourceAssignmentException(`errors.source_assignment.invalid_column_name`);
     }
 
     switch (sourceInfo.column_type) {
       case FactTableColumnType.DataValues:
         if (dataValues) {
-          throw new SourceAssignmentException('errors.too_many_data_values');
+          throw new SourceAssignmentException('errors.source_assignment.too_many_data_values');
         }
         dataValues = sourceInfo;
         break;
       case FactTableColumnType.Measure:
         if (measure) {
-          throw new SourceAssignmentException('errors.too_many_measure');
+          throw new SourceAssignmentException('errors.source_assignment.too_many_measure');
         }
         measure = sourceInfo;
         break;
       case FactTableColumnType.NoteCodes:
         if (noteCodes) {
-          throw new SourceAssignmentException('errors.too_many_footnotes');
+          throw new SourceAssignmentException('errors.source_assignment.too_many_footnotes');
         }
         noteCodes = sourceInfo;
         break;
@@ -132,7 +132,7 @@ export const validateSourceAssignment = (
         ignore.push(sourceInfo);
         break;
       default:
-        throw new SourceAssignmentException(`errors.invalid_source_type`);
+        throw new SourceAssignmentException(`errors.source_assignment.invalid_source_type`);
     }
   });
 
