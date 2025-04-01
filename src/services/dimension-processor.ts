@@ -102,25 +102,25 @@ export const validateSourceAssignment = (
         (info: DataTableDescription) => info.columnName === sourceInfo.column_name
       )
     ) {
-      throw new Error(`Source with id ${sourceInfo.column_name} not found`);
+      throw new SourceAssignmentException(`errors.source_assignment.invalid_column_name`);
     }
 
     switch (sourceInfo.column_type) {
       case FactTableColumnType.DataValues:
         if (dataValues) {
-          throw new SourceAssignmentException('errors.too_many_data_values');
+          throw new SourceAssignmentException('errors.source_assignment.too_many_data_values');
         }
         dataValues = sourceInfo;
         break;
       case FactTableColumnType.Measure:
         if (measure) {
-          throw new SourceAssignmentException('errors.too_many_measure');
+          throw new SourceAssignmentException('errors.source_assignment.too_many_measure');
         }
         measure = sourceInfo;
         break;
       case FactTableColumnType.NoteCodes:
         if (noteCodes) {
-          throw new SourceAssignmentException('errors.too_many_footnotes');
+          throw new SourceAssignmentException('errors.source_assignment.too_many_footnotes');
         }
         noteCodes = sourceInfo;
         break;
@@ -132,7 +132,7 @@ export const validateSourceAssignment = (
         ignore.push(sourceInfo);
         break;
       default:
-        throw new SourceAssignmentException(`errors.invalid_source_type`);
+        throw new SourceAssignmentException(`errors.source_assignment.invalid_source_type`);
     }
   });
 
@@ -473,8 +473,7 @@ export const validateDateDimension = async (
   try {
     const preview = await quack.all(`SELECT DISTINCT "${dimension.factTableColumn}" FROM ${tableName};`);
     // Now validate everything matches
-    const nonMatchedRows = await quack.all(
-      `SELECT
+    const matchingQuery = `SELECT
         line_number, fact_table_date, "${makeCubeSafeString(factTableColumn.columnName)}_lookup"."${factTableColumn.columnName}"
       FROM (
         SELECT
@@ -484,8 +483,9 @@ export const validateDateDimension = async (
       ) as fact_table
       LEFT JOIN "${makeCubeSafeString(factTableColumn.columnName)}_lookup"
       ON fact_table.fact_table_date="${makeCubeSafeString(factTableColumn.columnName)}_lookup"."${factTableColumn.columnName}"
-      WHERE "${factTableColumn.columnName}" IS NULL;`
-    );
+      WHERE "${factTableColumn.columnName}" IS NULL;`;
+    logger.debug(`Matching query is:\n${matchingQuery}`);
+    const nonMatchedRows = await quack.all(matchingQuery);
     if (nonMatchedRows.length > 0) {
       if (nonMatchedRows.length === preview.length) {
         logger.error(`The user supplied an incorrect format and none of the rows matched.`);
@@ -498,8 +498,7 @@ export const validateDateDimension = async (
         logger.error(
           `There were ${nonMatchedRows.length} row(s) which didn't match based on the information given to us by the user`
         );
-        const nonMatchedRowSample = await quack.all(
-          `
+        const nonMatchingRowsQuery = `
             SELECT
               DISTINCT fact_table_date
             FROM (
@@ -508,9 +507,9 @@ export const validateDateDimension = async (
               FROM ${tableName}) AS fact_table
               LEFT JOIN "${makeCubeSafeString(factTableColumn.columnName)}_lookup"
               ON fact_table.fact_table_date="${makeCubeSafeString(factTableColumn.columnName)}_lookup"."${factTableColumn.columnName}"
-             WHERE "${factTableColumn.columnName}" IS NULL
-            );`
-        );
+             WHERE "${factTableColumn.columnName}" IS NULL;`;
+        logger.debug(`Non matching rows query is:\n${nonMatchingRowsQuery}`);
+        const nonMatchedRowSample = await quack.all(nonMatchingRowsQuery);
         const nonMatchingValues = nonMatchedRowSample
           .map((item) => item.fact_table_date)
           .filter((item, i, ar) => ar.indexOf(item) === i);

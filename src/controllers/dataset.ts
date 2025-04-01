@@ -17,7 +17,11 @@ import { arrayValidator, dtoValidator } from '../validators/dto-validator';
 import { RevisionMetadataDTO } from '../dtos/revistion-metadata-dto';
 import { cleanUpCube, createBaseCube } from '../services/cube-handler';
 import { DEFAULT_PAGE_SIZE } from '../services/csv-processor';
-import { createDimensionsFromSourceAssignment, validateSourceAssignment } from '../services/dimension-processor';
+import {
+  createDimensionsFromSourceAssignment,
+  ValidatedSourceAssignment,
+  validateSourceAssignment
+} from '../services/dimension-processor';
 import { SourceAssignmentException } from '../exceptions/source-assignment.exception';
 import { FactTableColumn } from '../entities/dataset/fact-table-column';
 import { Dataset } from '../entities/dataset/dataset';
@@ -29,6 +33,8 @@ import { RevisionTopic } from '../entities/dataset/revision-topic';
 import { TopicSelectionDTO } from '../dtos/topic-selection-dto';
 
 import { getCubePreview } from './cube-controller';
+import { factTableValidatorFromSource } from '../services/fact-table-validator';
+import { FactTableValidationException } from '../exceptions/fact-table-validation-exception';
 
 export const listAllDatasets = async (req: Request, res: Response, next: NextFunction) => {
   try {
@@ -266,8 +272,49 @@ export const updateSources = async (req: Request, res: Response, next: NextFunct
   }
 
   logger.debug(`Processing request to update dataset sources...`);
+  let validatedSourceAssignment: ValidatedSourceAssignment;
   try {
-    const validatedSourceAssignment = validateSourceAssignment(dataTable, sourceAssignment);
+    validatedSourceAssignment = validateSourceAssignment(dataTable, sourceAssignment);
+  } catch (err) {
+    const error = err as SourceAssignmentException;
+    res.status(error.status);
+    res.json({
+      status: error.status,
+      dataset_id: dataset.id,
+      errors: [
+        {
+          field: 'none',
+          message: {
+            key: error.message
+          }
+        }
+      ]
+    });
+    return;
+  }
+  try {
+    await factTableValidatorFromSource(dataset, validatedSourceAssignment);
+  } catch (err) {
+    const error = err as FactTableValidationException;
+    res.status(error.status);
+    res.json({
+      status: error.status,
+      dataset_id: dataset.id,
+      errors: [
+        {
+          field: 'none',
+          message: {
+            key: error.tag,
+            params: {}
+          }
+        }
+      ],
+      data: error.data,
+      headers: error.headers
+    });
+    return;
+  }
+  try {
     await createDimensionsFromSourceAssignment(dataset, dataTable, validatedSourceAssignment);
     const updatedDataset = await DatasetRepository.getById(dataset.id);
     res.json(DatasetDTO.fromDataset(updatedDataset));

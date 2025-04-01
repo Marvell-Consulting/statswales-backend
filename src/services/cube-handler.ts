@@ -37,6 +37,8 @@ import { duckdb } from './duckdb';
 import { NumberExtractor, NumberType } from '../extractors/number-extractor';
 import { CubeValidationType } from '../enums/cube-validation-type';
 import { languageMatcherCaseStatement } from '../utils/lookup-table-utils';
+import { FactTableValidationException } from '../exceptions/fact-table-validation-exception';
+import { FactTableValidationExceptionType } from '../enums/fact-table-validation-exception-type';
 
 export const FACT_TABLE_NAME = 'fact_table';
 
@@ -87,17 +89,6 @@ export const loadFileIntoCube = async (
   }
 };
 
-function parseKeyValueString<T extends Record<string, any>>(str: string): T {
-  return str.split(',').reduce((acc, pair) => {
-    // e.g. "YearCode: 201314"
-    const [key, value] = pair.split(':').map((part) => part.trim());
-    // Attempt to convert to a number if it looks numeric
-    const numValue = Number(value);
-    (acc as any)[key] = isNaN(numValue) ? value : numValue;
-    return acc;
-  }, {} as T);
-}
-
 // This function differs from loadFileIntoDatabase in that it only loads a file into an existing table
 export const loadFileDataTableIntoTable = async (
   quack: Database,
@@ -137,20 +128,29 @@ export const loadFileDataTableIntoTable = async (
     logger.debug(`Loading file data table into table ${tableName} with query: ${insertQuery}`);
     await quack.exec(insertQuery);
   } catch (error) {
-    logger.error(`Failed to load file into table using query ${insertQuery} with the following error: ${error}`);
+    logger.error(error, `Failed to load file into table using query ${insertQuery}`);
     const duckDBError = error as DuckDbError;
     if (duckDBError.errorType === 'Constraint') {
-      const err = new CubeValidationException('Failed to load data table in to the cube due to a duplicate fact');
-      err.type = CubeValidationType.DuplicateFact;
-      err.stack = duckDBError.stack;
-      const keyGrep = /"[^"]*"/gu;
-      const key = keyGrep.exec(duckDBError.message);
-      if (key) {
-        err.fact = parseKeyValueString(key[0]);
+      if (duckDBError.message.includes('NOT NULL constraint')) {
+        throw new FactTableValidationException(
+          'Fact with empty value in column(s) found in fact table.  Please check the data and try again.',
+          FactTableValidationExceptionType.EmptyValue,
+          400
+        );
       }
-      throw err;
+      if (duckDBError.message.includes('PRIMARY KEY or UNIQUE')) {
+        throw new FactTableValidationException(
+          'Dupllicate facts found in the fact table.  Please check the data and try again.',
+          FactTableValidationExceptionType.DuplicateFact,
+          400
+        );
+      }
     }
-    throw error;
+    throw new FactTableValidationException(
+      'An unknown error occurred trying to load data in to the fact table.  Please contact support.',
+      FactTableValidationExceptionType.UnknownError,
+      500
+    );
   }
 };
 
