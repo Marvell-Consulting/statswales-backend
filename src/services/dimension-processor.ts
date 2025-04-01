@@ -483,7 +483,7 @@ export const validateDateDimension = async (
       ) as fact_table
       LEFT JOIN "${makeCubeSafeString(factTableColumn.columnName)}_lookup"
       ON fact_table.fact_table_date="${makeCubeSafeString(factTableColumn.columnName)}_lookup"."${factTableColumn.columnName}"
-      WHERE "${factTableColumn.columnName}" IS NULL;`
+      WHERE "${factTableColumn.columnName}" IS NULL;`;
     logger.debug(`Matching query is:\n${matchingQuery}`);
     const nonMatchedRows = await quack.all(matchingQuery);
     if (nonMatchedRows.length > 0) {

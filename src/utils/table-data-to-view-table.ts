@@ -5,18 +5,11 @@ import { TableData } from 'duckdb-async';
 export const tableDataToViewTable = (tableData: TableData) => {
   const tableHeaders = Object.keys(tableData[0]);
   const dataArray = tableData.map((row) => Object.values(row));
-  const headers: CSVHeader[] = [];
-  for (let i = 0; i < tableHeaders.length; i++) {
-    let sourceType = FactTableColumnType.Unknown;
-    if (tableHeaders[i] === 'line_number') {
-      sourceType = FactTableColumnType.LineNumber;
-    }
-    headers.push({
-      index: i,
-      name: tableHeaders[i],
-      source_type: sourceType
-    });
-  }
+  const headers: CSVHeader[] = tableHeaders.map((header, idx) => ({
+    index: idx,
+    name: header,
+    sourceType: header === 'line_number' ? FactTableColumnType.LineNumber : FactTableColumnType.Unknown
+  }));
   return {
     headers,
     data: dataArray
