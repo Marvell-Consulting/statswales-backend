@@ -1,5 +1,5 @@
 export enum FactTableValidationExceptionType {
-  UnknownPresent = 'unknown_present',
+  UnknownSourcesStillPresent = 'unknown_present',
   FactTableCreationFailed = 'fact_table_creation_failed',
   NoDraftRevision = 'no_draft_revision',
   NoDataTable = 'no_data_table',

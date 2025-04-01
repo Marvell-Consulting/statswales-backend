@@ -10,6 +10,7 @@ import { FactTableValidationExceptionType } from '../enums/fact-table-validation
 import { getFileImportAndSaveToDisk } from '../utils/file-utils';
 import { SourceAssignmentDTO } from '../dtos/source-assignment-dto';
 import { tableDataToViewTable } from '../utils/table-data-to-view-table';
+import { Database } from 'duckdb-async';
 
 interface FactTableDefinition {
   factTableColumn: FactTableColumn;
@@ -73,7 +74,7 @@ export const factTableValidatorFromSource = async (
   if (factTableDefinition.find((def) => def.factTableColumnType === FactTableColumnType.Unknown)) {
     throw new FactTableValidationException(
       'Found unknowns when doing column matching.',
-      FactTableValidationExceptionType.UnknownPresent,
+      FactTableValidationExceptionType.UnknownSourcesStillPresent,
       400
     );
   }
@@ -131,28 +132,52 @@ export const factTableValidatorFromSource = async (
   try {
     await loadFileDataTableIntoTable(quack, dataTable, factTableDef, dataTableFile, FACT_TABLE_NAME);
   } catch (err) {
-    const error = err as FactTableValidationException;
+    let error = err as FactTableValidationException;
     logger.error(error, 'Failed to load data table into fact table');
+    // Attempt to load in the original data table.  If it fails nothing lost throw the original error
     try {
       await loadFileIntoCube(quack, dataTable, dataTableFile, 'data_table');
     } catch (extractionError) {
       logger.error(extractionError, 'Failed to extract data from data table.');
       throw error;
     }
+    // Attempt to augment the error with details of where the errors in the data table are
     if (error.type === FactTableValidationExceptionType.EmptyValue) {
-      try {
-        const brokenFacts = await quack.all(
-          `SELECT * FROM (SELECT row_number() OVER () as line_number, * FROM data_table) WHERE ${primaryKeyDef.join('IS NULL OR ')} IS NULL LIMIT 500;`
-        );
-        const { headers, data } = tableDataToViewTable(brokenFacts);
-        error.data = data;
-        error.headers = headers;
-      } catch (extractionErr) {
-        logger.error(extractionErr, 'Failed to extract data from data table.');
-      }
+      error = await identifyIncompleteFacts(quack, primaryKeyDef, error);
     } else if (error.type === FactTableValidationExceptionType.DuplicateFact) {
-      try {
-        const brokenFacts = await quack.all(`
+      error = await identifyDuplicateFacts(quack, primaryKeyDef, error);
+    }
+    throw error;
+  } finally {
+    await quack.close();
+  }
+};
+
+async function identifyIncompleteFacts(
+  quack: Database,
+  primaryKeyDef: string[],
+  error: FactTableValidationException
+): Promise<FactTableValidationException> {
+  try {
+    const brokenFacts = await quack.all(
+      `SELECT * FROM (SELECT row_number() OVER () as line_number, * FROM data_table) WHERE ${primaryKeyDef.join('IS NULL OR ')} IS NULL LIMIT 500;`
+    );
+    const { headers, data } = tableDataToViewTable(brokenFacts);
+    error.data = data;
+    error.headers = headers;
+  } catch (extractionErr) {
+    logger.error(extractionErr, 'Failed to extract data from data table.');
+  }
+  return error;
+}
+
+async function identifyDuplicateFacts(
+  quack: Database,
+  primaryKeyDef: string[],
+  error: FactTableValidationException
+): Promise<FactTableValidationException> {
+  try {
+    const brokenFacts = await quack.all(`
         SELECT  *
         FROM (SELECT row_number() OVER () as line_number, * FROM data_table)
         WHERE (${primaryKeyDef.join(', ')}) IN
@@ -164,13 +189,11 @@ export const factTableValidatorFromSource = async (
             )
         ) LIMIT 500;
       `);
-        const { headers, data } = tableDataToViewTable(brokenFacts);
-        error.data = data;
-        error.headers = headers;
-      } catch (extractionErr) {
-        logger.error(extractionErr, 'Failed to extract data from data table.');
-      }
-    }
-    throw error;
+    const { headers, data } = tableDataToViewTable(brokenFacts);
+    error.data = data;
+    error.headers = headers;
+  } catch (extractionErr) {
+    logger.error(extractionErr, 'Failed to extract data from data table.');
   }
-};
+  return error;
+}
