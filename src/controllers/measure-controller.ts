@@ -14,6 +14,9 @@ import { getMeasurePreview, validateMeasureLookupTable } from '../services/measu
 import { validateAndUploadCSV } from '../services/csv-processor';
 import { DimensionMetadataDTO } from '../dtos/dimension-metadata-dto';
 import { MeasureMetadata } from '../entities/dataset/measure-metadata';
+import { LookupTableDTO } from '../dtos/lookup-table-dto';
+import { Readable } from 'node:stream';
+import { MeasureDTO } from '../dtos/measure-dto';
 
 export const resetMeasure = async (req: Request, res: Response, next: NextFunction) => {
   const dataset = res.locals.dataset;
@@ -123,4 +126,78 @@ export const updateMeasureMetadata = async (req: Request, res: Response, next: N
   res.status(200);
   const dto = DimensionMetadataDTO.fromDimensionMetadata(updatedMeasureMetadata);
   res.json(dto);
+};
+
+export const getMeasureInfo = async (req: Request, res: Response) => {
+  const dataset = res.locals.dataset;
+  const measure = dataset.measure;
+  if (!measure) {
+    res.status(404);
+    res.json({ message: 'No measure found' });
+    return;
+  }
+  res.json(MeasureDTO.fromMeasure(measure));
+};
+
+export const getMeasureLookupTableInfo = async (req: Request, res: Response) => {
+  const dataset = res.locals.dataset;
+  const measure = dataset.measure;
+  if (!measure) {
+    res.status(404);
+    res.json({ message: 'No measure found' });
+    return;
+  }
+  const lookupTable = measure.lookupTable;
+  if (!lookupTable) {
+    res.status(404);
+    res.json({ message: 'No lookup table found' });
+  }
+  res.json(LookupTableDTO.fromLookupTable(lookupTable));
+};
+
+export const downloadMeasureLookupTable = async (req: Request, res: Response) => {
+  const dataset = res.locals.dataset;
+  const measure = dataset.measure;
+  if (!measure) {
+    res.status(404);
+    res.json({ message: 'No measure found' });
+    return;
+  }
+  const lookupTable: LookupTable = measure.lookupTable;
+  if (!lookupTable) {
+    res.status(404);
+    res.json({ message: 'No lookup table found' });
+    return;
+  }
+  let readable: Readable;
+  const filename = lookupTable.originalFilename || lookupTable.filename;
+  try {
+    readable = await req.fileService.loadStream(lookupTable.filename, dataset.id);
+  } catch (err) {
+    logger.error(err, `An error occurred trying to load the file ${filename} from the data lake`);
+    res.status(500);
+    res.json({ message: 'An error occurred trying to load the file' });
+    return;
+  }
+
+  res.writeHead(200, {
+    // eslint-disable-next-line @typescript-eslint/naming-convention
+    'Content-Type': `${lookupTable.mimeType}`,
+    // eslint-disable-next-line @typescript-eslint/naming-convention
+    'Content-Disposition': `attachment; filename=${filename}`
+  });
+  readable.pipe(res);
+
+  // Handle errors in the file stream
+  readable.on('error', (err) => {
+    logger.error('File stream error:', err);
+    // eslint-disable-next-line @typescript-eslint/naming-convention
+    res.writeHead(500, { 'Content-Type': 'text/plain' });
+    res.end('Server Error');
+  });
+
+  // Optionally listen for the end of the stream
+  readable.on('end', () => {
+    logger.debug('File stream ended');
+  });
 };

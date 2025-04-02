@@ -5,6 +5,9 @@ import multer from 'multer';
 
 import {
   attachLookupTableToMeasure,
+  downloadMeasureLookupTable,
+  getMeasureInfo,
+  getMeasureLookupTableInfo,
   getPreviewOfMeasure,
   resetMeasure,
   updateMeasureMetadata
@@ -31,3 +34,9 @@ router.get('/preview', getPreviewOfMeasure);
 // PATCH /:dataset_id/dimension/by-id/:dimension_id/meta
 // Updates the dimension metadata
 router.patch('/metadata', jsonParser, updateMeasureMetadata);
+
+router.get('/', getMeasureInfo);
+
+router.get('/lookup', getMeasureLookupTableInfo);
+
+router.get('/lookup/raw', downloadMeasureLookupTable);

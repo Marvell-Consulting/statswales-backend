@@ -15,6 +15,7 @@ import {
 import { FileStore } from '../config/file-store.enum';
 import { StorageService } from '../interfaces/storage-service';
 import { logger as parentLogger } from '../utils/logger';
+import { DataLakeFileEntry } from '../interfaces/datalake-file-entry';
 
 const logger = parentLogger.child({ module: 'DataLake' });
 
@@ -93,15 +94,15 @@ export default class DataLakeStorage implements StorageService {
     return this.getDirectoryClient(directory).deleteIfExists(true);
   }
 
-  public async listFiles(directory: string): Promise<Record<string, unknown>[]> {
+  public async listFiles(directory: string): Promise<DataLakeFileEntry[]> {
     const files = await this.fileSystemClient.listPaths({ path: directory });
-    const fileList = [];
+    const fileList: DataLakeFileEntry[] = [];
 
     for await (const file of files) {
       if (file.name === undefined) {
         continue;
       }
-      fileList.push({ name: basename(file.name), path: file.name, isDirectory: file.isDirectory });
+      fileList.push({ name: basename(file.name), path: file.name, isDirectory: file.isDirectory ?? false });
     }
 
     return fileList;

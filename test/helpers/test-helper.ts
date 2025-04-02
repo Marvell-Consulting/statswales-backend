@@ -133,6 +133,7 @@ const rowRefLookupTable = () => {
   const lookupTable = new LookupTable();
   lookupTable.id = crypto.randomUUID().toLowerCase();
   lookupTable.filename = 'RowRefLookupTable.csv';
+  lookupTable.originalFilename = 'RowRefLookupTable.csv';
   lookupTable.fileType = FileType.Csv;
   lookupTable.isStatsWales2Format = true;
   lookupTable.mimeType = 'text/csv';

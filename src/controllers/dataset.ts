@@ -35,6 +35,10 @@ import { TopicSelectionDTO } from '../dtos/topic-selection-dto';
 import { getCubePreview } from './cube-controller';
 import { factTableValidatorFromSource } from '../services/fact-table-validator';
 import { FactTableValidationException } from '../exceptions/fact-table-validation-exception';
+import JSZip from 'jszip';
+import { DataLakeFileEntry } from '../interfaces/datalake-file-entry';
+import { StorageService } from '../interfaces/storage-service';
+import { FileImportDto } from '../dtos/file-import';
 
 export const listAllDatasets = async (req: Request, res: Response, next: NextFunction) => {
   try {
@@ -335,4 +339,81 @@ export const getFactTableDefinition = async (req: Request, res: Response) => {
     dataset.factTable?.map((col: FactTableColumn) => FactTableColumnDto.fromFactTableColumn(col)) || [];
   res.status(200);
   res.json(factTableDto);
+};
+
+async function addDirectoryToZip(
+  zip: JSZip,
+  datasetFiles: Map<string, FileImportDto>,
+  directory: string,
+  fileService: StorageService
+) {
+  const directoryList = await fileService.listFiles(directory);
+  for (const fileEntry of directoryList) {
+    let filename: string;
+    if ((fileEntry as DataLakeFileEntry).name) {
+      const entry = fileEntry as DataLakeFileEntry;
+      if (entry.isDirectory) {
+        await addDirectoryToZip(zip, datasetFiles, `${directory}/${entry.name}`, fileService);
+        continue;
+      }
+      filename = (fileEntry as DataLakeFileEntry).name;
+    } else {
+      filename = fileEntry as string;
+    }
+    const originalFilename = datasetFiles.get(filename)?.filename || filename;
+    zip.file(originalFilename, await fileService.loadBuffer(filename, directory));
+  }
+}
+
+function collectFiles(dataset: Dataset): Map<string, FileImportDto> {
+  const files: Map<string, FileImportDto> = new Map<string, FileImportDto>();
+  if (dataset.measure.lookupTable) {
+    files.set(dataset.measure.lookupTable.filename, FileImportDto.fromFileImport(dataset.measure.lookupTable));
+  }
+  dataset.dimensions.forEach((dimension) => {
+    if (dimension.lookupTable) {
+      files.set(dimension.lookupTable.filename, FileImportDto.fromFileImport(dimension.lookupTable));
+    }
+  });
+  dataset.revisions.forEach((revision) => {
+    if (revision.dataTable) {
+      files.set(revision.dataTable.filename, FileImportDto.fromFileImport(revision.dataTable));
+    }
+  });
+  return files;
+}
+
+export const getEverythingFromDatalake = async (req: Request, res: Response) => {
+  const dataset: Dataset = res.locals.dataset;
+  const datasetFiles = collectFiles(dataset);
+  const zip = new JSZip();
+  try {
+    await addDirectoryToZip(zip, datasetFiles, dataset.id, req.fileService);
+  } catch (err) {
+    logger.error(err, `Failed to get files from datalake for dataset ${dataset.id}`);
+    res.status(500);
+    res.end();
+    return;
+  }
+  zip.file('dataset.json', JSON.stringify(DatasetDTO.fromDataset(dataset)));
+
+  res.writeHead(200, {
+    // eslint-disable-next-line @typescript-eslint/naming-convention
+    'Content-Type': `application/zip`,
+    // eslint-disable-next-line @typescript-eslint/naming-convention
+    'Content-Disposition': `attachment; filename=${dataset.id}.zip`
+  });
+  zip
+    .generateNodeStream({ type: 'nodebuffer', streamFiles: true })
+    .pipe(res)
+    .on('finish', () => {
+      res.end();
+    });
+};
+
+export const listAllFilesInDataset = async (req: Request, res: Response) => {
+  const dataset: Dataset = res.locals.dataset;
+  const datasetFiles = collectFiles(dataset);
+  const files = Array.from(datasetFiles.values());
+  res.json(files);
 };

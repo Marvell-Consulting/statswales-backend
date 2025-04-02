@@ -26,6 +26,9 @@ export class LookupTable extends BaseEntity implements FileImportInterface {
   @Column({ type: 'varchar', length: 255 })
   filename: string;
 
+  @Column({ name: 'original_filename', type: 'varchar', length: 255 })
+  originalFilename: string | null;
+
   @Column({ type: 'varchar', length: 255 })
   hash: string;
 

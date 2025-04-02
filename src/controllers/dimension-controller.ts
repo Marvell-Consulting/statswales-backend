@@ -23,6 +23,8 @@ import {
 import { validateLookupTable } from '../services/lookup-table-handler';
 import { validateReferenceData } from '../services/reference-data-handler';
 import { viewErrorGenerators } from '../utils/view-error-generators';
+import { LookupTableDTO } from '../dtos/lookup-table-dto';
+import { Readable } from 'node:stream';
 
 export const getDimensionInfo = async (req: Request, res: Response) => {
   res.json(DimensionDTO.fromDimension(res.locals.dimension));
@@ -173,4 +175,56 @@ export const updateDimensionMetadata = async (req: Request, res: Response) => {
   const updatedDimension = await Dimension.findOneByOrFail({ id: dimension.id });
   res.status(202);
   res.json(DimensionDTO.fromDimension(updatedDimension));
+};
+
+export const getDimensionLookupTableInfo = async (req: Request, res: Response) => {
+  const { dimension } = res.locals;
+  const lookupTable = dimension.lookupTable;
+  if (!lookupTable) {
+    res.status(404);
+    res.json({ message: 'No lookup table found' });
+    return;
+  }
+  res.json(LookupTableDTO.fromLookupTable(lookupTable));
+};
+
+export const downloadDimensionLookupTable = async (req: Request, res: Response) => {
+  const { dataset, dimension } = res.locals;
+  const lookupTable: LookupTable = dimension.lookupTable;
+  if (!lookupTable) {
+    res.status(404);
+    res.json({ message: 'No lookup table found' });
+    return;
+  }
+  let readable: Readable;
+  const filename = lookupTable.originalFilename || lookupTable.filename;
+  try {
+    readable = await req.fileService.loadStream(lookupTable.filename, dataset.id);
+  } catch (err) {
+    logger.error(err, `An error occurred trying to load the file ${filename} from the data lake`);
+    res.status(500);
+    res.json({ message: 'An error occurred trying to load the file' });
+    return;
+  }
+
+  res.writeHead(200, {
+    // eslint-disable-next-line @typescript-eslint/naming-convention
+    'Content-Type': `${lookupTable.mimeType}`,
+    // eslint-disable-next-line @typescript-eslint/naming-convention
+    'Content-Disposition': `attachment; filename=${filename}`
+  });
+  readable.pipe(res);
+
+  // Handle errors in the file stream
+  readable.on('error', (err) => {
+    logger.error('File stream error:', err);
+    // eslint-disable-next-line @typescript-eslint/naming-convention
+    res.writeHead(500, { 'Content-Type': 'text/plain' });
+    res.end('Server Error');
+  });
+
+  // Optionally listen for the end of the stream
+  readable.on('end', () => {
+    logger.debug('File stream ended');
+  });
 };

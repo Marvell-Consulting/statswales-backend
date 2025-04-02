@@ -5,6 +5,7 @@ export interface FileImportInterface {
   mimeType: string;
   fileType: FileType;
   filename: string;
+  originalFilename: string | null;
   hash: string;
   uploadedAt: Date;
 }
