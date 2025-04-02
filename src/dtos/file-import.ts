@@ -1,4 +1,5 @@
 import { FileImportInterface } from '../entities/dataset/file-import.interface';
+import { FileImportType } from '../enums/file-import-type';
 
 export class FileImportDto {
   filename: string;
@@ -6,6 +7,7 @@ export class FileImportDto {
   file_type: string;
   hash: string;
   uploaded_at?: string;
+  type: FileImportType;
 
   static fromFileImport(fileImport: FileImportInterface) {
     const dto = new FileImportDto();
@@ -14,6 +16,7 @@ export class FileImportDto {
     dto.file_type = fileImport.fileType;
     dto.hash = fileImport.hash;
     dto.uploaded_at = fileImport.uploadedAt?.toISOString();
+    dto.type = FileImportType.Unknown;
     return dto;
   }
 }

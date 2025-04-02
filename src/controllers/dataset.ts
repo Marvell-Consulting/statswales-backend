@@ -39,6 +39,7 @@ import JSZip from 'jszip';
 import { DataLakeFileEntry } from '../interfaces/datalake-file-entry';
 import { StorageService } from '../interfaces/storage-service';
 import { FileImportDto } from '../dtos/file-import';
+import { FileImportType } from '../enums/file-import-type';
 
 export const listAllDatasets = async (req: Request, res: Response, next: NextFunction) => {
   try {
@@ -368,16 +369,22 @@ async function addDirectoryToZip(
 function collectFiles(dataset: Dataset): Map<string, FileImportDto> {
   const files: Map<string, FileImportDto> = new Map<string, FileImportDto>();
   if (dataset.measure.lookupTable) {
-    files.set(dataset.measure.lookupTable.filename, FileImportDto.fromFileImport(dataset.measure.lookupTable));
+    const fileImport = FileImportDto.fromFileImport(dataset.measure.lookupTable);
+    fileImport.type = FileImportType.Measure;
+    files.set(dataset.measure.lookupTable.filename, fileImport);
   }
   dataset.dimensions.forEach((dimension) => {
     if (dimension.lookupTable) {
-      files.set(dimension.lookupTable.filename, FileImportDto.fromFileImport(dimension.lookupTable));
+      const fileImport = FileImportDto.fromFileImport(dimension.lookupTable);
+      fileImport.type = FileImportType.Dimension;
+      files.set(dimension.lookupTable.filename, fileImport);
     }
   });
   dataset.revisions.forEach((revision) => {
     if (revision.dataTable) {
-      files.set(revision.dataTable.filename, FileImportDto.fromFileImport(revision.dataTable));
+      const fileImport = FileImportDto.fromFileImport(revision.dataTable);
+      fileImport.type = FileImportType.DataTable;
+      files.set(revision.dataTable.filename, fileImport);
     }
   });
   return files;
