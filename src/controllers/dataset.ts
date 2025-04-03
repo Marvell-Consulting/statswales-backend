@@ -36,10 +36,7 @@ import { getCubePreview } from './cube-controller';
 import { factTableValidatorFromSource } from '../services/fact-table-validator';
 import { FactTableValidationException } from '../exceptions/fact-table-validation-exception';
 import JSZip from 'jszip';
-import { DataLakeFileEntry } from '../interfaces/datalake-file-entry';
-import { StorageService } from '../interfaces/storage-service';
-import { FileImportDto } from '../dtos/file-import';
-import { FileImportType } from '../enums/file-import-type';
+import { addDirectoryToZip, collectFiles } from '../utils/dataset-controller-utils';
 
 export const listAllDatasets = async (req: Request, res: Response, next: NextFunction) => {
   try {
@@ -342,55 +339,7 @@ export const getFactTableDefinition = async (req: Request, res: Response) => {
   res.json(factTableDto);
 };
 
-async function addDirectoryToZip(
-  zip: JSZip,
-  datasetFiles: Map<string, FileImportDto>,
-  directory: string,
-  fileService: StorageService
-) {
-  const directoryList = await fileService.listFiles(directory);
-  for (const fileEntry of directoryList) {
-    let filename: string;
-    if ((fileEntry as DataLakeFileEntry).name) {
-      const entry = fileEntry as DataLakeFileEntry;
-      if (entry.isDirectory) {
-        await addDirectoryToZip(zip, datasetFiles, `${directory}/${entry.name}`, fileService);
-        continue;
-      }
-      filename = (fileEntry as DataLakeFileEntry).name;
-    } else {
-      filename = fileEntry as string;
-    }
-    const originalFilename = datasetFiles.get(filename)?.filename || filename;
-    zip.file(originalFilename, await fileService.loadBuffer(filename, directory));
-  }
-}
-
-function collectFiles(dataset: Dataset): Map<string, FileImportDto> {
-  const files: Map<string, FileImportDto> = new Map<string, FileImportDto>();
-  if (dataset.measure.lookupTable) {
-    const fileImport = FileImportDto.fromFileImport(dataset.measure.lookupTable);
-    fileImport.type = FileImportType.Measure;
-    files.set(dataset.measure.lookupTable.filename, fileImport);
-  }
-  dataset.dimensions.forEach((dimension) => {
-    if (dimension.lookupTable) {
-      const fileImport = FileImportDto.fromFileImport(dimension.lookupTable);
-      fileImport.type = FileImportType.Dimension;
-      files.set(dimension.lookupTable.filename, fileImport);
-    }
-  });
-  dataset.revisions.forEach((revision) => {
-    if (revision.dataTable) {
-      const fileImport = FileImportDto.fromFileImport(revision.dataTable);
-      fileImport.type = FileImportType.DataTable;
-      files.set(revision.dataTable.filename, fileImport);
-    }
-  });
-  return files;
-}
-
-export const getEverythingFromDatalake = async (req: Request, res: Response) => {
+export const getAllFilesForDataset = async (req: Request, res: Response) => {
   const dataset: Dataset = res.locals.dataset;
   const datasetFiles = collectFiles(dataset);
   const zip = new JSZip();
