@@ -34,12 +34,14 @@ export const collectFiles = (dataset: Dataset): Map<string, FileImportDto> => {
   if (dataset.measure.lookupTable) {
     const fileImport = FileImportDto.fromFileImport(dataset.measure.lookupTable);
     fileImport.type = FileImportType.Measure;
+    fileImport.parent_id = dataset.id;
     files.set(dataset.measure.lookupTable.filename, fileImport);
   }
   dataset.dimensions.forEach((dimension) => {
     if (dimension.lookupTable) {
       const fileImport = FileImportDto.fromFileImport(dimension.lookupTable);
       fileImport.type = FileImportType.Dimension;
+      fileImport.parent_id = dimension.id;
       files.set(dimension.lookupTable.filename, fileImport);
     }
   });
@@ -47,6 +49,7 @@ export const collectFiles = (dataset: Dataset): Map<string, FileImportDto> => {
     if (revision.dataTable) {
       const fileImport = FileImportDto.fromFileImport(revision.dataTable);
       fileImport.type = FileImportType.DataTable;
+      fileImport.parent_id = revision.id;
       files.set(revision.dataTable.filename, fileImport);
     }
   });
