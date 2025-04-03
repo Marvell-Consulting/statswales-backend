@@ -1,6 +1,6 @@
 import { User } from '../../entities/user/user';
 import { UserGroupRole } from '../../entities/user/user-group-role';
-import { UserRole as UserRoleEnum } from '../../enums/user-role';
+import { GroupRole as UserRoleEnum } from '../../enums/group-role';
 import { Locale } from '../../enums/locale';
 import { UserGroupDTO } from './user-group-dto';
 import { UserGroupWithRolesDTO } from './user-group-with-roles-dto';

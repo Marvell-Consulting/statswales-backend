@@ -10,11 +10,12 @@ import { hasError, uuidValidator } from '../validators';
 import { arrayValidator, dtoValidator } from '../validators/dto-validator';
 import { UserGroupMetadataDTO } from '../dtos/user/user-group-metadata-dto';
 import { UserRepository } from '../repositories/user';
-import { UserRole } from '../enums/user-role';
+import { GroupRole } from '../enums/group-role';
 import { UserDTO } from '../dtos/user/user-dto';
 import { UserCreateDTO } from '../dtos/user/user-create-dto';
 import { QueryFailedError } from 'typeorm';
 import { BadRequestException } from '../exceptions/bad-request.exception';
+import { GlobalRole } from '../enums/global-role';
 
 export const loadUserGroup = async (req: Request, res: Response, next: NextFunction) => {
   const userGroupIdError = await hasError(uuidValidator('user_group_id'), req);
@@ -58,7 +59,10 @@ export const loadUser = async (req: Request, res: Response, next: NextFunction) 
 
 export const listRoles = async (req: Request, res: Response) => {
   logger.info('List roles');
-  res.json(Object.values(UserRole));
+  res.json({
+    global: Object.values(GlobalRole),
+    group: Object.values(GroupRole)
+  });
 };
 
 export const createUserGroup = async (req: Request, res: Response, next: NextFunction) => {
@@ -73,9 +77,20 @@ export const createUserGroup = async (req: Request, res: Response, next: NextFun
   }
 };
 
+export const getAllUserGroups = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    logger.info('get all user groups');
+    const groups = await UserGroupRepository.getAll();
+    res.json(groups.map((group) => UserGroupDTO.fromUserGroup(group, req.language as Locale)));
+  } catch (err) {
+    logger.error(err, 'Error getting groups');
+    next(new UnknownException());
+  }
+};
+
 export const listUserGroups = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    logger.info('List user groups');
+    logger.info('Listing user groups with user and dataset counts');
     const lang = req.language as Locale;
     const page = parseInt(req.query.page as string, 10) || 1;
     const limit = parseInt(req.query.limit as string, 10) || 20;

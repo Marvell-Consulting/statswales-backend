@@ -18,6 +18,15 @@ export const UserGroupRepository = dataSource.getRepository(UserGroup).extend({
     });
   },
 
+  async getAll(): Promise<UserGroup[]> {
+    return this.find({
+      relations: {
+        metadata: true,
+        organisation: { metadata: true }
+      }
+    });
+  },
+
   async listByLanguage(locale: Locale, page: number, limit: number): Promise<ResultsetWithCount<UserGroupListItemDTO>> {
     const lang = locale.includes('en') ? Locale.EnglishGb : Locale.WelshGb;
 

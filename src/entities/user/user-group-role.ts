@@ -1,7 +1,7 @@
 import { BaseEntity, Column, Entity, Index, JoinColumn, ManyToOne, PrimaryGeneratedColumn } from 'typeorm';
 import { User } from './user';
 import { UserGroup } from './user-group';
-import { UserRole } from '../../enums/user-role';
+import { GroupRole } from '../../enums/group-role';
 
 @Entity({ name: 'user_group_role' })
 export class UserGroupRole extends BaseEntity {
@@ -9,7 +9,7 @@ export class UserGroupRole extends BaseEntity {
   id: string;
 
   @Column({ name: 'roles', type: 'jsonb' })
-  roles: UserRole[];
+  roles: GroupRole[];
 
   @Index('IDX_user_group_role_user_id')
   @Column({ name: 'user_id', type: 'uuid' })
