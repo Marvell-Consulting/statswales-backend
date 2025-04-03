@@ -913,7 +913,7 @@ async function setupDimensions(
                 );
             });
             joinStatements.push(
-              `LEFT JOIN ${dimTable} on "${dimTable}"."${factTableColumn.columnName}"=${FACT_TABLE_NAME}."${factTableColumn.columnName}"`
+              `LEFT JOIN ${dimTable} ON "${dimTable}"."${factTableColumn.columnName}"=${FACT_TABLE_NAME}."${factTableColumn.columnName}" AND "${dimTable}"."language"='#LANG#'`
             );
             orderByStatements.push(`${dimTable}.end_date`);
           } else {

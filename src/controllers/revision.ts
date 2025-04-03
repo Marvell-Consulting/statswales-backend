@@ -137,6 +137,7 @@ export const downloadRawFactTable = async (req: Request, res: Response, next: Ne
   const { dataset, revision } = res.locals;
   logger.info('User requested to down files...');
   let readable: Readable;
+  logger.debug(`${JSON.stringify(revision)}`);
   if (!revision.dataTable) {
     logger.error("Revision doesn't have a data table, can't download file");
     next(new NotFoundException('errors.revision_id_invalid'));
@@ -169,8 +170,12 @@ export const downloadRawFactTable = async (req: Request, res: Response, next: Ne
     });
     return;
   }
-  // eslint-disable-next-line @typescript-eslint/naming-convention
-  res.writeHead(200, { 'Content-Type': 'text/csv' });
+  res.writeHead(200, {
+    // eslint-disable-next-line @typescript-eslint/naming-convention
+    'Content-Type': `${revision.dataTable.mimeType}`,
+    // eslint-disable-next-line @typescript-eslint/naming-convention
+    'Content-Disposition': `attachment; filename=${revision.dataTable.originalFilename}`
+  });
   readable.pipe(res);
 
   // Handle errors in the file stream

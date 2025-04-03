@@ -85,12 +85,14 @@ describe('API Endpoints for viewing the contents of a dataset', () => {
       'Health Visitor',
       'Average'
     ]);
+    // If this test fails don't just change the output to match.  It's failure implies something in the cube builder
+    // has changed the view significantly.  Probably a broken join statement.
     expect(res.body.data[23]).toEqual([
       24,
-      780,
-      '2021-22',
-      '01/04/2021',
-      '31/03/2022',
+      1007,
+      '2022-23',
+      '01/04/2022',
+      '31/03/2023',
       'Isle of Anglesey',
       'Other Staff',
       null

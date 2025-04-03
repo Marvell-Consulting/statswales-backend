@@ -35,6 +35,8 @@ import { TopicSelectionDTO } from '../dtos/topic-selection-dto';
 import { getCubePreview } from './cube-controller';
 import { factTableValidatorFromSource } from '../services/fact-table-validator';
 import { FactTableValidationException } from '../exceptions/fact-table-validation-exception';
+import JSZip from 'jszip';
+import { addDirectoryToZip, collectFiles } from '../utils/dataset-controller-utils';
 
 export const listAllDatasets = async (req: Request, res: Response, next: NextFunction) => {
   try {
@@ -335,4 +337,39 @@ export const getFactTableDefinition = async (req: Request, res: Response) => {
     dataset.factTable?.map((col: FactTableColumn) => FactTableColumnDto.fromFactTableColumn(col)) || [];
   res.status(200);
   res.json(factTableDto);
+};
+
+export const getAllFilesForDataset = async (req: Request, res: Response) => {
+  const dataset: Dataset = res.locals.dataset;
+  const datasetFiles = collectFiles(dataset);
+  const zip = new JSZip();
+  try {
+    await addDirectoryToZip(zip, datasetFiles, dataset.id, req.fileService);
+  } catch (err) {
+    logger.error(err, `Failed to get files from datalake for dataset ${dataset.id}`);
+    res.status(500);
+    res.end();
+    return;
+  }
+  zip.file('dataset.json', JSON.stringify(DatasetDTO.fromDataset(dataset)));
+
+  res.writeHead(200, {
+    // eslint-disable-next-line @typescript-eslint/naming-convention
+    'Content-Type': `application/zip`,
+    // eslint-disable-next-line @typescript-eslint/naming-convention
+    'Content-Disposition': `attachment; filename=${dataset.id}.zip`
+  });
+  zip
+    .generateNodeStream({ type: 'nodebuffer', streamFiles: true })
+    .pipe(res)
+    .on('finish', () => {
+      res.end();
+    });
+};
+
+export const listAllFilesInDataset = async (req: Request, res: Response) => {
+  const dataset: Dataset = res.locals.dataset;
+  const datasetFiles = collectFiles(dataset);
+  const files = Array.from(datasetFiles.values());
+  res.json(files);
 };

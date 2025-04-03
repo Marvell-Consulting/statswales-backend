@@ -41,7 +41,9 @@ import {
   updateTopics,
   updateSources,
   getDatasetById,
-  deleteDraftDatasetById
+  deleteDraftDatasetById,
+  listAllFilesInDataset,
+  getAllFilesForDataset
 } from '../controllers/dataset';
 import { rateLimiter } from '../middleware/rate-limiter';
 
@@ -221,3 +223,11 @@ router.get('/:dataset_id/topics', jsonParser, loadDataset(withDraftAndTopics), g
 // PATCH /dataset/:dataset_id/topics
 // Updates the topics for the dataset
 router.patch('/:dataset_id/topics', jsonParser, loadDataset(withDraftAndTopics), updateTopics);
+
+// GET /dataset/:dataset_id/download
+// Downloads everything from the datalake relating to this dataset as a zip file
+router.get('/:dataset_id/download', loadDataset(withDraftForCube), getAllFilesForDataset);
+
+// GET /dataset/:dataset_id/list-files
+// List all the files which are used to build the cube
+router.get('/:dataset_id/list-files', loadDataset(withDraftForCube), listAllFilesInDataset);

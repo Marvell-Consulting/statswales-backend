@@ -6,7 +6,9 @@ import multer from 'multer';
 import { logger } from '../utils/logger';
 import {
   attachLookupTableToDimension,
+  downloadDimensionLookupTable,
   getDimensionInfo,
+  getDimensionLookupTableInfo,
   resetDimension,
   sendDimensionPreview,
   updateDimension,
@@ -82,3 +84,7 @@ router.patch('/by-id/:dimension_id', jsonParser, loadDimension(), updateDimensio
 // PATCH /:dataset_id/dimension/by-id/:dimension_id/meta
 // Updates the dimension metadata
 router.patch('/by-id/:dimension_id/metadata', jsonParser, loadDimension(), updateDimensionMetadata);
+
+router.get('/by-id/:dimension_id/lookup', loadDimension(), getDimensionLookupTableInfo);
+
+router.get('/by-id/:dimension_id/lookup/raw', loadDimension(), downloadDimensionLookupTable);
