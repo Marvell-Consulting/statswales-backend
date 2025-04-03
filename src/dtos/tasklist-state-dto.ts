@@ -8,6 +8,8 @@ import { DimensionStatus } from '../interfaces/dimension-status';
 import { Revision } from '../entities/dataset/revision';
 import { EventLog } from '../entities/event-log';
 import { logger } from '../utils/logger';
+import { TranslationDTO } from './translations-dto';
+import { collectTranslations } from '../utils/collect-translations';
 
 export interface MetadataStatus {
   title: TaskStatus;
@@ -161,7 +163,11 @@ export class TasklistStateDTO {
     };
   }
 
-  public static translationStatus(revision: Revision, translationEvents?: EventLog[]): TranslationStatus {
+  public static translationStatus(
+    dataset: Dataset,
+    revision: Revision,
+    translationEvents?: EventLog[]
+  ): TranslationStatus {
     const lastExportedAt = translationEvents?.find((event) => event.action === 'export')?.createdAt;
     const lastImportedAt = translationEvents?.find((event) => event.action === 'import')?.createdAt;
 
@@ -182,8 +188,23 @@ export class TasklistStateDTO {
       });
     });
 
+    const lastExport = translationEvents?.find((event) => event.action === 'export');
+
+    const existingTranslations = collectTranslations(dataset);
+
+    // previously exported revisions did not include data, ignore these.
+    const exportStale = lastExport?.data?.translations.some((incoming: TranslationDTO) => {
+      const expected = existingTranslations.find((existing) => existing.key === incoming.key)?.english;
+      // previous export value has since been updated
+      return expected !== incoming.english;
+    });
+
     const translationRequired = !metadataSynced || !metaFullyTranslated;
-    const exportStatus = lastExportedAt ? TaskStatus.Completed : TaskStatus.NotStarted;
+    const exportStatus = lastExportedAt
+      ? exportStale
+        ? TaskStatus.Incomplete
+        : TaskStatus.Completed
+      : TaskStatus.NotStarted;
     const importStatus =
       lastImportedAt && lastImportedAt > lastMetaUpdateAt ? TaskStatus.Completed : TaskStatus.NotStarted;
 
@@ -209,7 +230,7 @@ export class TasklistStateDTO {
     dto.dimensions = TasklistStateDTO.dimensionStatus(dataset, revision, lang);
     dto.metadata = TasklistStateDTO.metadataStatus(revision, lang);
     dto.publishing = TasklistStateDTO.publishingStatus(dataset, revision);
-    dto.translation = TasklistStateDTO.translationStatus(revision, translationEvents);
+    dto.translation = TasklistStateDTO.translationStatus(dataset, revision, translationEvents);
 
     const dimensionsComplete = isUpdate || every(dto.dimensions, (dim) => dim.status === TaskStatus.Completed);
     const metadataComplete = isUpdate || every(dto.metadata, (status) => status === TaskStatus.Completed);

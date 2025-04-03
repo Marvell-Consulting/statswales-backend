@@ -40,3 +40,6 @@ yarn.lock
 
 # Ignore certs
 certs/*
+
+# Ignore IDE settings
+.vscode
