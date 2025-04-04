@@ -168,6 +168,21 @@ export class TasklistStateDTO {
     revision: Revision,
     translationEvents?: EventLog[]
   ): TranslationStatus {
+    const isUpdate = Boolean(revision.previousRevisionId);
+
+    if (isUpdate && revision.previousRevision) {
+      const newTranslations = collectTranslations(dataset);
+      const previousTranslations = collectTranslations(dataset, false, revision.previousRevision);
+
+      // Compare draft revision with previous version
+      if (isEqual(newTranslations, previousTranslations)) {
+        return {
+          import: TaskStatus.Unchanged,
+          export: TaskStatus.Unchanged
+        };
+      }
+    }
+
     const lastExportedAt = translationEvents?.find((event) => event.action === 'export')?.createdAt;
     const lastImportedAt = translationEvents?.find((event) => event.action === 'import')?.createdAt;
 
