@@ -25,6 +25,7 @@ export const withAll: FindOptionsRelations<Dataset> = {
     revisionTopics: { topic: true }
   },
   revisions: {
+    dataTable: true,
     metadata: true
   }
 };

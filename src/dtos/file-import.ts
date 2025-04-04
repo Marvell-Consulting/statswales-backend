@@ -8,6 +8,7 @@ export class FileImportDto {
   hash: string;
   uploaded_at?: string;
   type: FileImportType;
+  parent_id?: string;
 
   static fromFileImport(fileImport: FileImportInterface) {
     const dto = new FileImportDto();
