@@ -151,7 +151,7 @@ export const loadFileDataTableIntoTable = async (
       }
       if (duckDBError.message.includes('Duplicate key')) {
         throw new FactTableValidationException(
-          'Dupllicate facts found in the fact table.  Please check the data and try again.',
+          'Duplicate facts found in the fact table.  Please check the data and try again.',
           FactTableValidationExceptionType.DuplicateFact,
           400
         );
