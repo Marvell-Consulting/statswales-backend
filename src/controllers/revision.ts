@@ -1,27 +1,27 @@
 import fs from 'node:fs';
-import { Readable } from 'node:stream';
-import { performance } from 'node:perf_hooks';
+import {Readable} from 'node:stream';
+import {performance} from 'node:perf_hooks';
 
-import { NextFunction, Request, Response } from 'express';
+import {NextFunction, Request, Response} from 'express';
 import tmp from 'tmp';
-import { t } from 'i18next';
-import { isBefore, isValid } from 'date-fns';
+import {t} from 'i18next';
+import {isBefore, isValid} from 'date-fns';
 
-import { User } from '../entities/user/user';
-import { DataTableDto } from '../dtos/data-table-dto';
-import { UnknownException } from '../exceptions/unknown.exception';
-import { ViewErrDTO } from '../dtos/view-dto';
-import { Revision } from '../entities/dataset/revision';
-import { logger } from '../utils/logger';
-import { DataTable } from '../entities/dataset/data-table';
-import { Locale } from '../enums/locale';
-import { DatasetRepository } from '../repositories/dataset';
-import { DatasetDTO } from '../dtos/dataset-dto';
-import { BadRequestException } from '../exceptions/bad-request.exception';
-import { NotFoundException } from '../exceptions/not-found.exception';
-import { RevisionDTO } from '../dtos/revision-dto';
-import { RevisionRepository } from '../repositories/revision';
-import { DuckdbOutputType } from '../enums/duckdb-outputs';
+import {User} from '../entities/user/user';
+import {DataTableDto} from '../dtos/data-table-dto';
+import {UnknownException} from '../exceptions/unknown.exception';
+import {ViewErrDTO} from '../dtos/view-dto';
+import {Revision} from '../entities/dataset/revision';
+import {logger} from '../utils/logger';
+import {DataTable} from '../entities/dataset/data-table';
+import {Locale} from '../enums/locale';
+import {DatasetRepository} from '../repositories/dataset';
+import {DatasetDTO} from '../dtos/dataset-dto';
+import {BadRequestException} from '../exceptions/bad-request.exception';
+import {NotFoundException} from '../exceptions/not-found.exception';
+import {RevisionDTO} from '../dtos/revision-dto';
+import {RevisionRepository} from '../repositories/revision';
+import {DuckdbOutputType} from '../enums/duckdb-outputs';
 import {
   cleanUpCube,
   createBaseCube,
@@ -32,23 +32,24 @@ import {
   makeCubeSafeString,
   updateFactTableValidator
 } from '../services/cube-handler';
-import { DEFAULT_PAGE_SIZE, getCSVPreview, validateAndUploadCSV } from '../services/csv-processor';
-import { DataTableDescription } from '../entities/dataset/data-table-description';
-import { FactTableColumn } from '../entities/dataset/fact-table-column';
-import { DataTableAction } from '../enums/data-table-action';
-import { ColumnMatch } from '../interfaces/column-match';
-import { DimensionType } from '../enums/dimension-type';
-import { CubeValidationException } from '../exceptions/cube-error-exception';
-import { DimensionUpdateTask } from '../interfaces/revision-task';
-import { duckdb } from '../services/duckdb';
-import { Dataset } from '../entities/dataset/dataset';
+import {DEFAULT_PAGE_SIZE, getCSVPreview, validateAndUploadCSV} from '../services/csv-processor';
+import {DataTableDescription} from '../entities/dataset/data-table-description';
+import {FactTableColumn} from '../entities/dataset/fact-table-column';
+import {DataTableAction} from '../enums/data-table-action';
+import {ColumnMatch} from '../interfaces/column-match';
+import {DimensionType} from '../enums/dimension-type';
+import {CubeValidationException} from '../exceptions/cube-error-exception';
+import {DimensionUpdateTask} from '../interfaces/revision-task';
+import {duckdb} from '../services/duckdb';
+import {Dataset} from '../entities/dataset/dataset';
 
-import { getCubePreview, outputCube } from './cube-controller';
-import { FileValidationException } from '../exceptions/validation-exception';
-import { FactTableColumnType } from '../enums/fact-table-column-type';
-import { checkForReferenceErrors } from '../services/lookup-table-handler';
-import { validateUpdatedDateDimension } from '../services/dimension-processor';
-import { CubeValidationType } from '../enums/cube-validation-type';
+import {getCubePreview, outputCube} from './cube-controller';
+import {FileValidationException} from '../exceptions/validation-exception';
+import {FactTableColumnType} from '../enums/fact-table-column-type';
+import {checkForReferenceErrors} from '../services/lookup-table-handler';
+import {validateUpdatedDateDimension} from '../services/dimension-processor';
+import {CubeValidationType} from '../enums/cube-validation-type';
+import {FactTableValidationException} from '../exceptions/fact-table-validation-exception';
 
 export const getDataTable = async (req: Request, res: Response, next: NextFunction) => {
   try {
@@ -264,13 +265,16 @@ async function attachUpdateDataTableToRevision(
   try {
     await updateFactTableValidator(quack, dataset, revision);
   } catch (err) {
+    const error = err as CubeValidationException;
+    if (error.type === CubeValidationType.DuplicateFact) {
+      error.type = CubeValidationType.UnknownDuplicateFact;
+    }
     logger.debug('Closing DuckDB instance');
     const end = performance.now();
     const time = Math.round(end - start);
     logger.info(`Cube update validation took ${time}ms`);
     await quack.close();
-    logger.error(`An error occurred trying to validate the file with the following error: ${err}`);
-    throw new BadRequestException('errors.data_table_validation_error');
+    throw error;
   }
 
   const dimensionUpdateTasks: DimensionUpdateTask[] = [];
@@ -379,7 +383,9 @@ export const updateDataTable = async (req: Request, res: Response, next: NextFun
       logger.debug('Attaching data table to first revision');
       await RevisionRepository.save({ ...revision, dataTable });
     } else {
-      const columnMatcher = JSON.parse(req.body.column_matching) as ColumnMatch[];
+      const columnMatcher = req.body.column_matching
+        ? (JSON.parse(req.body.column_matching) as ColumnMatch[])
+        : undefined;
       const updateAction = req.body.update_action ? (req.body.update_action as DataTableAction) : DataTableAction.Add;
       await attachUpdateDataTableToRevision(dataset, revision, dataTable, updateAction, columnMatcher);
     }
@@ -387,7 +393,31 @@ export const updateDataTable = async (req: Request, res: Response, next: NextFun
     res.status(201);
     res.json(DatasetDTO.fromDataset(updatedDataset));
   } catch (err) {
-    next(err);
+    logger.error(err, `An error occurred trying to update the dataset`);
+    const error = err as FactTableValidationException;
+    if (error.type) {
+      res.status(error.status);
+      const viewErr: ViewErrDTO = {
+        status: error.status,
+        dataset_id: dataset.id,
+        errors: [
+          {
+            field: 'csv',
+            message: {
+              key: `errors.fact_table_validation.${error.type}`,
+              params: {}
+            },
+            user_message: [
+              {
+                lang: req.language,
+                message: t(`errors.fact_table_validation.${error.type}`, { lng: req.language })
+              }
+            ]
+          }
+        ]
+      };
+      res.json(viewErr);
+    }
   }
 };
 
