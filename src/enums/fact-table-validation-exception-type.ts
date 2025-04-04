@@ -6,5 +6,6 @@ export enum FactTableValidationExceptionType {
   FailedToLoadData = 'failed_to_load_data',
   EmptyValue = 'incomplete_fact',
   DuplicateFact = 'duplicate_fact',
-  UnknownError = 'unknown_error'
+  UnknownError = 'unknown_error',
+  UnknownFileType = 'unknown_file_type'
 }
