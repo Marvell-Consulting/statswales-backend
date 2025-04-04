@@ -40,6 +40,9 @@ export class User extends BaseEntity {
   @OneToMany(() => UserGroupRole, (userGroupRole) => userGroupRole.user)
   groupRoles: UserGroupRole[];
 
+  @Column({ name: 'global_roles', type: 'jsonb', default: [] })
+  globalRoles: string[];
+
   @Index('IDX_user_status')
   @Column({
     name: 'status',

@@ -8,7 +8,8 @@ export class UserGroupRole extends BaseEntity {
   @PrimaryGeneratedColumn('uuid', { primaryKeyConstraintName: 'PK_user_group_role_id' })
   id: string;
 
-  @Column({ name: 'roles', type: 'jsonb' })
+  @Index('IDX_user_group_role_roles')
+  @Column({ name: 'roles', type: 'jsonb', default: [] })
   roles: GroupRole[];
 
   @Index('IDX_user_group_role_user_id')
