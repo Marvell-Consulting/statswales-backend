@@ -417,7 +417,10 @@ export const updateDataTable = async (req: Request, res: Response, next: NextFun
         ]
       };
       res.json(viewErr);
+      return;
     }
+    logger.error(err, `An unknown error occurred trying to update the dataset`);
+    next(new UnknownException('errors.fact_table_validation.unknown_error'));
   }
 };
 
