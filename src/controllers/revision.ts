@@ -49,6 +49,7 @@ import { FactTableColumnType } from '../enums/fact-table-column-type';
 import { checkForReferenceErrors } from '../services/lookup-table-handler';
 import { validateUpdatedDateDimension } from '../services/dimension-processor';
 import { CubeValidationType } from '../enums/cube-validation-type';
+import { FactTableValidationException } from '../exceptions/fact-table-validation-exception';
 
 export const getDataTable = async (req: Request, res: Response, next: NextFunction) => {
   try {
@@ -264,13 +265,16 @@ async function attachUpdateDataTableToRevision(
   try {
     await updateFactTableValidator(quack, dataset, revision);
   } catch (err) {
+    const error = err as CubeValidationException;
+    if (error.type === CubeValidationType.DuplicateFact) {
+      error.type = CubeValidationType.UnknownDuplicateFact;
+    }
     logger.debug('Closing DuckDB instance');
     const end = performance.now();
     const time = Math.round(end - start);
     logger.info(`Cube update validation took ${time}ms`);
     await quack.close();
-    logger.error(`An error occurred trying to validate the file with the following error: ${err}`);
-    throw new BadRequestException('errors.data_table_validation_error');
+    throw error;
   }
 
   const dimensionUpdateTasks: DimensionUpdateTask[] = [];
@@ -379,7 +383,9 @@ export const updateDataTable = async (req: Request, res: Response, next: NextFun
       logger.debug('Attaching data table to first revision');
       await RevisionRepository.save({ ...revision, dataTable });
     } else {
-      const columnMatcher = JSON.parse(req.body.column_matching) as ColumnMatch[];
+      const columnMatcher = req.body.column_matching
+        ? (JSON.parse(req.body.column_matching) as ColumnMatch[])
+        : undefined;
       const updateAction = req.body.update_action ? (req.body.update_action as DataTableAction) : DataTableAction.Add;
       await attachUpdateDataTableToRevision(dataset, revision, dataTable, updateAction, columnMatcher);
     }
@@ -387,7 +393,34 @@ export const updateDataTable = async (req: Request, res: Response, next: NextFun
     res.status(201);
     res.json(DatasetDTO.fromDataset(updatedDataset));
   } catch (err) {
-    next(err);
+    logger.error(err, `An error occurred trying to update the dataset`);
+    const error = err as FactTableValidationException;
+    if (error.type) {
+      res.status(error.status);
+      const viewErr: ViewErrDTO = {
+        status: error.status,
+        dataset_id: dataset.id,
+        errors: [
+          {
+            field: 'csv',
+            message: {
+              key: `errors.fact_table_validation.${error.type}`,
+              params: {}
+            },
+            user_message: [
+              {
+                lang: req.language,
+                message: t(`errors.fact_table_validation.${error.type}`, { lng: req.language })
+              }
+            ]
+          }
+        ]
+      };
+      res.json(viewErr);
+      return;
+    }
+    logger.error(err, `An unknown error occurred trying to update the dataset`);
+    next(new UnknownException('errors.fact_table_validation.unknown_error'));
   }
 };
 

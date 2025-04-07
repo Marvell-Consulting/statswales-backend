@@ -122,7 +122,11 @@ export const loadFileDataTableIntoTable = async (
       insertQuery = `INSERT INTO ${tableName} ("${factTableDef.join('", "')}") SELECT "${dataTableColumnSelect.join('", "')}" FROM st_read('${tempFile}');`;
       break;
     default:
-      throw new Error('Unknown file type');
+      throw new FactTableValidationException(
+        'Fact with empty value in column(s) found in fact table.  Please check the data and try again.',
+        FactTableValidationExceptionType.UnknownFileType,
+        500
+      );
   }
   try {
     logger.debug(`Loading file data table into table ${tableName} with query: ${insertQuery}`);
@@ -141,6 +145,13 @@ export const loadFileDataTableIntoTable = async (
       if (duckDBError.message.includes('PRIMARY KEY or UNIQUE')) {
         throw new FactTableValidationException(
           'Dupllicate facts found in the fact table.  Please check the data and try again.',
+          FactTableValidationExceptionType.DuplicateFact,
+          400
+        );
+      }
+      if (duckDBError.message.includes('Duplicate key')) {
+        throw new FactTableValidationException(
+          'Duplicate facts found in the fact table.  Please check the data and try again.',
           FactTableValidationExceptionType.DuplicateFact,
           400
         );
@@ -488,6 +499,7 @@ async function loadFactTablesWithUpdates(
     }
 
     try {
+      logger.debug(`Performing action ${dataTable.action} on fact table`);
       switch (dataTable.action) {
         case DataTableAction.ReplaceAll:
           await quack.exec(`DELETE FROM ${FACT_TABLE_NAME};`);
@@ -584,9 +596,9 @@ export async function loadFactTables(
   }
 
   // Process all the fact tables
-  logger.debug(`Loading ${allFactTables.length} fact tables in to database`);
   try {
     if (dataValuesColumn && notesCodeColumn) {
+      logger.debug(`Loading ${allFactTables.length} fact tables in to database with updates`);
       await loadFactTablesWithUpdates(
         quack,
         dataset,
@@ -597,10 +609,12 @@ export async function loadFactTables(
         factIdentifiers
       );
     } else {
+      logger.debug(`Loading ${allFactTables.length} fact tables in to database without updates`);
       await loadFactTablesWithoutUpdates(quack, dataset, factTableDef, allFactTables);
     }
   } catch (error) {
-    if (error instanceof CubeValidationException) {
+    if (error instanceof FactTableValidationException) {
+      logger.debug(error, `Throwing Fact Table Validation Exception`);
       throw error;
     }
     logger.error(error, `Something went wrong trying to create the core fact table`);
@@ -608,7 +622,6 @@ export async function loadFactTables(
     err.type = CubeValidationType.FactTable;
     err.stack = (error as Error).stack;
     err.originalError = (error as Error).message;
-    await quack.close();
     throw err;
   }
 }
@@ -1166,32 +1179,50 @@ export const createBaseCube = async (datasetId: string, endRevisionId: string): 
 
   await createCubeMetadataTable(quack);
 
-  await loadFactTables(quack, dataset, endRevision, factTableDef, dataValuesColumn, notesCodeColumn, factIdentifiers);
+  try {
+    await loadFactTables(quack, dataset, endRevision, factTableDef, dataValuesColumn, notesCodeColumn, factIdentifiers);
+  } catch (err) {
+    logger.error(err, `Failed to load fact tables into the cube`);
+    await quack.close();
+    throw new Error(`Failed to load fact tables into the cube: ${err}`);
+  }
 
-  await setupMeasures(
-    quack,
-    dataset,
-    dataValuesColumn,
-    viewSelectStatementsMap,
-    rawSelectStatementsMap,
-    joinStatements,
-    orderByStatements,
-    measureColumn
-  );
+  try {
+    await setupMeasures(
+      quack,
+      dataset,
+      dataValuesColumn,
+      viewSelectStatementsMap,
+      rawSelectStatementsMap,
+      joinStatements,
+      orderByStatements,
+      measureColumn
+    );
+  } catch (err) {
+    logger.error(err, `Failed to setup measures`);
+    await quack.close();
+    throw new Error(`Failed to setup measures: ${err}`);
+  }
 
   if (referenceDataPresent(dataset)) {
     await loadReferenceDataIntoCube(quack);
   }
 
-  await setupDimensions(
-    quack,
-    dataset,
-    endRevision,
-    viewSelectStatementsMap,
-    rawSelectStatementsMap,
-    joinStatements,
-    orderByStatements
-  );
+  try {
+    await setupDimensions(
+      quack,
+      dataset,
+      endRevision,
+      viewSelectStatementsMap,
+      rawSelectStatementsMap,
+      joinStatements,
+      orderByStatements
+    );
+  } catch (err) {
+    logger.error(err, `Failed to setup dimensions`);
+    await quack.close();
+    throw new Error(`Failed to setup dimensions`);
+  }
 
   if (referenceDataPresent(dataset)) {
     await cleanUpReferenceDataTables(quack);
