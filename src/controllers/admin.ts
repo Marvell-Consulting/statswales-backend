@@ -163,6 +163,29 @@ export const updateUserRoles = async (req: Request, res: Response) => {
   const userId: string = res.locals.userId;
   try {
     const roleSelections = await arrayValidator(RoleSelectionDTO, req.body);
+
+    roleSelections.forEach((selection) => {
+      if (!selection.roles) {
+        throw new BadRequestException('errors.roles_required');
+      }
+
+      if (selection.type === 'group') {
+        if (!selection.groupId) {
+          throw new BadRequestException('errors.group_id_required');
+        }
+
+        if (!selection.roles.every((role: GroupRole) => Object.values(GroupRole).includes(role))) {
+          throw new BadRequestException('errors.role_invalid');
+        }
+      }
+
+      if (selection.type === 'global') {
+        if (!selection.roles.every((role: GlobalRole) => Object.values(GlobalRole).includes(role))) {
+          throw new BadRequestException('errors.role_invalid');
+        }
+      }
+    });
+
     const user = await UserRepository.updateUserRoles(userId, roleSelections);
     res.json(UserDTO.fromUser(user, req.language as Locale));
   } catch (err) {
