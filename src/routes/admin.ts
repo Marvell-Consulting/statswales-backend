@@ -31,4 +31,4 @@ adminRouter.get('/user', listUsers);
 adminRouter.post('/user', jsonParser, createUser);
 
 adminRouter.get('/user/:user_id', loadUser, getUserById);
-adminRouter.patch('/user/:user_id/role', loadUser, updateUserRoles);
+adminRouter.patch('/user/:user_id/role', loadUser, jsonParser, updateUserRoles);

@@ -1,4 +1,14 @@
-import { BaseEntity, Column, Entity, Index, JoinColumn, ManyToOne, PrimaryGeneratedColumn } from 'typeorm';
+import {
+  BaseEntity,
+  Column,
+  CreateDateColumn,
+  Entity,
+  Index,
+  JoinColumn,
+  ManyToOne,
+  PrimaryGeneratedColumn
+} from 'typeorm';
+
 import { User } from './user';
 import { UserGroup } from './user-group';
 import { GroupRole } from '../../enums/group-role';
@@ -16,7 +26,7 @@ export class UserGroupRole extends BaseEntity {
   @Column({ name: 'user_id', type: 'uuid' })
   userId: string;
 
-  @ManyToOne(() => User, (user) => user.groupRoles, { cascade: true, onDelete: 'CASCADE' })
+  @ManyToOne(() => User, (user) => user.groupRoles, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'user_id', foreignKeyConstraintName: 'FK_user_group_role_user_id' })
   user: User;
 
@@ -24,7 +34,10 @@ export class UserGroupRole extends BaseEntity {
   @Column({ name: 'group_id', type: 'uuid' })
   groupId: string;
 
-  @ManyToOne(() => UserGroup, (userGroup) => userGroup.groupRoles, { cascade: true, onDelete: 'CASCADE' })
+  @ManyToOne(() => UserGroup, (userGroup) => userGroup.groupRoles, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'group_id', foreignKeyConstraintName: 'FK_user_group_role_group_id' })
   group: UserGroup;
+
+  @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
+  createdAt: Date;
 }

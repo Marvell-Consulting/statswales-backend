@@ -8,8 +8,11 @@ import {
   PrimaryGeneratedColumn,
   UpdateDateColumn
 } from 'typeorm';
-import { UserGroupRole } from './user-group-role';
+
 import { UserStatus } from '../../enums/user-status';
+import { GlobalRole } from '../../enums/global-role';
+
+import { UserGroupRole } from './user-group-role';
 
 @Entity({ name: 'user' })
 @Index('IDX_user_provider_provider_user_id', ['provider', 'providerUserId'])
@@ -21,15 +24,12 @@ export class User extends BaseEntity {
   @Column({ name: 'provider', type: 'text' })
   provider: string;
 
-  @Column({ name: 'provider_user_id', nullable: true })
+  @Column({ name: 'provider_user_id', type: 'text', nullable: true })
   providerUserId?: string;
 
   @Index('UX_user_email', { unique: true })
   @Column({ name: 'email', type: 'text', nullable: false })
   email: string;
-
-  @Column({ name: 'email_verified', default: false })
-  emailVerified: boolean;
 
   @Column({ name: 'given_name', type: 'text', nullable: true })
   givenName?: string;
@@ -37,11 +37,11 @@ export class User extends BaseEntity {
   @Column({ name: 'family_name', type: 'text', nullable: true })
   familyName?: string;
 
-  @OneToMany(() => UserGroupRole, (userGroupRole) => userGroupRole.user)
+  @OneToMany(() => UserGroupRole, (userGroupRole) => userGroupRole.user, { cascade: true })
   groupRoles: UserGroupRole[];
 
   @Column({ name: 'global_roles', type: 'jsonb', default: [] })
-  globalRoles: string[];
+  globalRoles: GlobalRole[];
 
   @Index('IDX_user_status')
   @Column({

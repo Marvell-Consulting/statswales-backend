@@ -8,8 +8,7 @@ export const admin1: DeepPartial<User> = {
   providerUserId: 'test_admin_1',
   givenName: 'Tom',
   familyName: 'Admin',
-  email: 'tom.admin@example.com',
-  emailVerified: true
+  email: 'tom.admin@example.com'
 };
 
 export const publisher1: DeepPartial<User> = {
@@ -18,8 +17,7 @@ export const publisher1: DeepPartial<User> = {
   providerUserId: 'test_publisher_1',
   givenName: 'Joe',
   familyName: 'Publisher',
-  email: 'joe.publisher@example.com',
-  emailVerified: true
+  email: 'joe.publisher@example.com'
 };
 
 export const approver1: DeepPartial<User> = {
@@ -28,8 +26,7 @@ export const approver1: DeepPartial<User> = {
   providerUserId: 'test_approver_1',
   givenName: 'Frank',
   familyName: 'Approver',
-  email: 'frank.approver@example.com',
-  emailVerified: true
+  email: 'frank.approver@example.com'
 };
 
 export const testUsers = [admin1, publisher1, approver1];

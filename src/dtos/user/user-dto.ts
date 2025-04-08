@@ -5,6 +5,7 @@ import { Locale } from '../../enums/locale';
 import { UserGroupDTO } from './user-group-dto';
 import { UserGroupWithRolesDTO } from './user-group-with-roles-dto';
 import { UserStatus } from '../../enums/user-status';
+import { GlobalRole } from '../../enums/global-role';
 
 export class UserDTO {
   id: string;
@@ -14,6 +15,7 @@ export class UserDTO {
   given_name?: string;
   family_name?: string;
   full_name?: string;
+  global_roles: GlobalRole[];
   groups: UserGroupWithRolesDTO[];
   status: UserStatus;
   created_at: Date;
@@ -32,6 +34,8 @@ export class UserDTO {
     dto.status = user.status;
     dto.created_at = user.createdAt;
     dto.updated_at = user.updatedAt;
+
+    dto.global_roles = user.globalRoles?.map((role) => role as GlobalRole) || [];
 
     dto.groups = user.groupRoles?.map((userRole: UserGroupRole) => {
       return {

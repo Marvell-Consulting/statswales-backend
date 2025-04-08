@@ -16,6 +16,7 @@ import { UserCreateDTO } from '../dtos/user/user-create-dto';
 import { QueryFailedError } from 'typeorm';
 import { BadRequestException } from '../exceptions/bad-request.exception';
 import { GlobalRole } from '../enums/global-role';
+import { RoleSelectionDTO } from '../dtos/user/role-selection-dto';
 
 export const loadUserGroup = async (req: Request, res: Response, next: NextFunction) => {
   const userGroupIdError = await hasError(uuidValidator('user_group_id'), req);
@@ -158,6 +159,14 @@ export const getUserById = async (req: Request, res: Response) => {
   res.json(UserDTO.fromUser(user, req.language as Locale));
 };
 
-export const updateUserRoles = async (req: Request, res: Response, next: NextFunction) => {
-  next();
+export const updateUserRoles = async (req: Request, res: Response) => {
+  const userId: string = res.locals.userId;
+  try {
+    const roleSelections = await arrayValidator(RoleSelectionDTO, req.body);
+    const user = await UserRepository.updateUserRoles(userId, roleSelections);
+    res.json(UserDTO.fromUser(user, req.language as Locale));
+  } catch (err) {
+    logger.error(err, 'Error updating user roles');
+    throw new UnknownException();
+  }
 };

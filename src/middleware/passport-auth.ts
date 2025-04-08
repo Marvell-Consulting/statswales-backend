@@ -140,7 +140,6 @@ const initEntraId = async (userRepository: Repository<User>, entraIdConfig: Reco
               provider: 'entraid',
               providerUserId: userInfo.sub,
               email: userInfo.email,
-              emailVerified: undefined,
               givenName,
               familyName
             });
@@ -205,7 +204,6 @@ const initGoogle = async (userRepository: Repository<User>, googleConfig: Record
               provider: 'google',
               providerUserId: profile.id,
               email: profile._json.email,
-              emailVerified: profile._json.email_verified,
               givenName: profile.name?.givenName,
               familyName: profile.name?.familyName
             });
