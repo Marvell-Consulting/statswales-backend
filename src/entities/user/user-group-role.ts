@@ -13,6 +13,7 @@ import { User } from './user';
 import { UserGroup } from './user-group';
 import { GroupRole } from '../../enums/group-role';
 
+@Index('UX_user_group_role_user_id_group_id', ['userId', 'groupId'], { unique: true })
 @Entity({ name: 'user_group_role' })
 export class UserGroupRole extends BaseEntity {
   @PrimaryGeneratedColumn('uuid', { primaryKeyConstraintName: 'PK_user_group_role_id' })
