@@ -20,6 +20,7 @@ export class UserDTO {
   status: UserStatus;
   created_at: Date;
   updated_at: Date;
+  last_login_at: Date;
 
   static fromUser(user: User, lang: Locale): UserDTO {
     const dto = new UserDTO();
@@ -34,6 +35,7 @@ export class UserDTO {
     dto.status = user.status;
     dto.created_at = user.createdAt;
     dto.updated_at = user.updatedAt;
+    dto.last_login_at = user.lastLoginAt;
 
     dto.global_roles = user.globalRoles?.map((role) => role as GlobalRole) || [];
 

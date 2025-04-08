@@ -59,6 +59,9 @@ export class User extends BaseEntity {
   @UpdateDateColumn({ name: 'updated_at', type: 'timestamptz' })
   updatedAt: Date;
 
+  @Column({ name: 'last_login_at', type: 'timestamptz', nullable: true })
+  lastLoginAt: Date;
+
   get name(): string | undefined {
     return `${this.givenName || ''} ${this.familyName || ''}`.trim() || undefined;
   }
