@@ -35,7 +35,7 @@ export const UserRepository = dataSource.getRepository(User).extend({
           group: { metadata: true }
         }
       },
-      order: { familyName: 'ASC' },
+      order: { familyName: 'ASC', email: 'ASC' },
       skip: (page - 1) * limit,
       take: limit
     });
