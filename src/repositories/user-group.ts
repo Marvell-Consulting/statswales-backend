@@ -13,8 +13,19 @@ export const UserGroupRepository = dataSource.getRepository(UserGroup).extend({
       relations: {
         metadata: true,
         organisation: { metadata: true },
-        users: true,
         datasets: { endRevision: { metadata: true } }
+      }
+    });
+  },
+
+  async getAll(): Promise<UserGroup[]> {
+    return this.find({
+      relations: {
+        metadata: true,
+        organisation: { metadata: true }
+      },
+      order: {
+        metadata: { name: 'ASC' }
       }
     });
   },
@@ -27,9 +38,11 @@ export const UserGroupRepository = dataSource.getRepository(UserGroup).extend({
       .addSelect('COUNT(DISTINCT u.id)', 'user_count')
       .addSelect('COUNT(DISTINCT d.id)', 'dataset_count')
       .leftJoin('ug.metadata', 'ugm', 'ugm.language = :lang', { lang })
-      .leftJoin('ug.users', 'u')
       .leftJoin('ug.datasets', 'd')
-      .groupBy('ug.id, ugm.name, ugm.email, ug.prefix');
+      .leftJoin('ug.groupRoles', 'ugr')
+      .leftJoin('ugr.user', 'u')
+      .groupBy('ug.id, ugm.name, ugm.email, ug.prefix')
+      .orderBy('ugm.name', 'ASC');
 
     const offset = (page - 1) * limit;
     const countQuery = qb.clone();

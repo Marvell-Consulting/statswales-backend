@@ -5,8 +5,6 @@ import {
   Entity,
   Index,
   JoinColumn,
-  JoinTable,
-  ManyToMany,
   ManyToOne,
   OneToMany,
   PrimaryGeneratedColumn,
@@ -16,9 +14,9 @@ import {
 import { Dataset } from '../dataset/dataset';
 
 import { Organisation } from './organisation';
-import { User } from './user';
 import { UserGroupMetadata } from './user-group-metadata';
 import { UserGroupStatus } from '../../enums/user-group-status';
+import { UserGroupRole } from './user-group-role';
 
 @Entity({ name: 'user_group' })
 export class UserGroup extends BaseEntity {
@@ -42,21 +40,8 @@ export class UserGroup extends BaseEntity {
   @OneToMany(() => Dataset, (dataset) => dataset.userGroup)
   datasets?: Dataset[];
 
-  @ManyToMany(() => User, (user) => user.groups)
-  @JoinTable({
-    name: 'user_group_user',
-    joinColumn: {
-      name: 'user_group_id',
-      referencedColumnName: 'id',
-      foreignKeyConstraintName: 'FK_user_group_user_user_group_id'
-    },
-    inverseJoinColumn: {
-      name: 'user_id',
-      referencedColumnName: 'id',
-      foreignKeyConstraintName: 'FK_user_group_user_user_id'
-    }
-  })
-  users?: User[];
+  @OneToMany(() => UserGroupRole, (userGroupRole) => userGroupRole.group)
+  groupRoles?: UserGroupRole[];
 
   @Column({
     name: 'status',

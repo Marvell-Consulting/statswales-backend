@@ -4,40 +4,54 @@ import {
   CreateDateColumn,
   Entity,
   Index,
-  ManyToMany,
+  OneToMany,
   PrimaryGeneratedColumn,
   UpdateDateColumn
 } from 'typeorm';
-import { UserGroup } from './user-group';
+
+import { UserStatus } from '../../enums/user-status';
+import { GlobalRole } from '../../enums/global-role';
+
+import { UserGroupRole } from './user-group-role';
 
 @Entity({ name: 'user' })
-@Index('UX_user_provider_provider_user_id', ['provider', 'providerUserId'], { unique: true })
+@Index('IDX_user_provider_provider_user_id', ['provider', 'providerUserId'])
 export class User extends BaseEntity {
   @PrimaryGeneratedColumn('uuid', { primaryKeyConstraintName: 'PK_user_id' })
   id: string;
 
-  @Index('IX_user_provider')
-  @Column({ name: 'provider' })
+  @Index('IDX_user_provider')
+  @Column({ name: 'provider', type: 'text' })
   provider: string;
 
-  @Column({ name: 'provider_user_id' })
-  providerUserId: string;
+  @Column({ name: 'provider_user_id', type: 'text', nullable: true })
+  providerUserId?: string;
 
   @Index('UX_user_email', { unique: true })
-  @Column({ name: 'email' })
+  @Column({ name: 'email', type: 'text', nullable: false })
   email: string;
 
-  @Column({ name: 'email_verified', default: false })
-  emailVerified: boolean;
-
-  @Column({ name: 'given_name', nullable: true })
+  @Column({ name: 'given_name', type: 'text', nullable: true })
   givenName?: string;
 
-  @Column({ name: 'family_name', nullable: true })
+  @Column({ name: 'family_name', type: 'text', nullable: true })
   familyName?: string;
 
-  @ManyToMany(() => UserGroup, (userGroup) => userGroup.users)
-  groups: UserGroup[];
+  @OneToMany(() => UserGroupRole, (userGroupRole) => userGroupRole.user, { cascade: true })
+  groupRoles: UserGroupRole[];
+
+  @Column({ name: 'global_roles', type: 'jsonb', default: [] })
+  globalRoles: GlobalRole[];
+
+  @Index('IDX_user_status')
+  @Column({
+    name: 'status',
+    type: 'enum',
+    enum: Object.values(UserStatus),
+    default: UserStatus.Active,
+    nullable: false
+  })
+  status: UserStatus;
 
   @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
   createdAt: Date;
@@ -45,7 +59,10 @@ export class User extends BaseEntity {
   @UpdateDateColumn({ name: 'updated_at', type: 'timestamptz' })
   updatedAt: Date;
 
-  get name(): string {
-    return `${this.givenName} ${this.familyName}`;
+  @Column({ name: 'last_login_at', type: 'timestamptz', nullable: true })
+  lastLoginAt: Date;
+
+  get name(): string | undefined {
+    return `${this.givenName || ''} ${this.familyName || ''}`.trim() || undefined;
   }
 }

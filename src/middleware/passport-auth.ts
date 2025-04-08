@@ -107,48 +107,59 @@ const initEntraId = async (userRepository: Repository<User>, entraIdConfig: Reco
       async (tokenset: TokenSet, userInfo: UserinfoResponse, done: any): Promise<void> => {
         logger.debug('auth callback from entraid received');
 
-        if (userInfo.email === undefined) {
-          logger.error('entraid auth failed: account has no email address');
-          done(null, undefined, {
-            message: 'entraid account does not have an email, use another provider'
-          });
+        if (!userInfo?.sub || !userInfo?.email) {
+          logger.error('entraid auth failed: account is missing user id or email address and we need both');
+          done(null, undefined, { message: 'entraid account does not have a user id or email, cannot login' });
           return;
         }
 
         try {
+          // TODO: EntraID only provides full name, we might want to avoid splitting it?
+          const [givenName, familyName] = userInfo.name ? userInfo.name.split(' ') : [undefined, undefined];
+
           logger.debug('checking if user has previously logged in...');
-          const existingUser = await userRepository.findOneBy({ email: userInfo.email });
 
-          if (existingUser && existingUser.provider !== 'entraid') {
-            logger.warn(`entraid: email was previously used via another provider (${existingUser.provider})`);
+          const existingUserById = await userRepository.findOneBy({
+            provider: AuthProvider.EntraId,
+            providerUserId: userInfo.sub
+          });
 
-            // TODO: find a better way to merge providers rather than overwriting
-            existingUser.provider = 'entraid';
-            existingUser.providerUserId = userInfo.sub;
-            await existingUser.save();
-            done(null, existingUser);
+          if (existingUserById) {
+            logger.debug('user found by provider id, updating user record with latest details from entraid');
+
+            await userRepository
+              .merge(existingUserById, {
+                email: userInfo.email,
+                givenName,
+                familyName,
+                lastLoginAt: new Date()
+              })
+              .save();
+
+            done(null, existingUserById);
             return;
           }
 
-          if (!existingUser) {
-            logger.debug('no previous login found, creating new user');
+          logger.debug('no previous login found, falling back to email...');
+          const existingUserByEmail = await userRepository.findOneBy({ email: userInfo.email });
 
-            // TODO: EntraID only provides full name, we might want to avoid splitting it
-            const [givenName, familyName] = userInfo.name ? userInfo.name.split(' ') : [undefined, undefined];
+          if (existingUserByEmail) {
+            logger.debug('user found by email, associating user record with entraid account');
 
-            const user = await userRepository.save({
-              provider: 'entraid',
-              providerUserId: userInfo.sub,
-              email: userInfo.email,
-              emailVerified: undefined,
-              givenName,
-              familyName
-            });
-            done(null, user);
-            return;
+            await userRepository
+              .merge(existingUserByEmail, {
+                provider: AuthProvider.EntraId,
+                providerUserId: userInfo.sub,
+                givenName,
+                familyName,
+                lastLoginAt: new Date()
+              })
+              .save();
           }
-          logger.debug('existing user found');
-          done(null, existingUser);
+
+          logger.error('No matching user found, cannot log in');
+          done(null, undefined, { message: 'User not recognised' });
+          return;
         } catch (error) {
           logger.error(error);
           done(null, undefined, { message: 'Unknown error' });
@@ -193,6 +204,7 @@ const initGoogle = async (userRepository: Repository<User>, googleConfig: Record
             // TODO: find a better way to merge providers rather than overwriting
             existingUser.provider = 'google';
             existingUser.providerUserId = profile.id;
+            existingUser.lastLoginAt = new Date();
             await existingUser.save();
             done(null, existingUser);
             return;
@@ -205,9 +217,9 @@ const initGoogle = async (userRepository: Repository<User>, googleConfig: Record
               provider: 'google',
               providerUserId: profile.id,
               email: profile._json.email,
-              emailVerified: profile._json.email_verified,
               givenName: profile.name?.givenName,
-              familyName: profile.name?.familyName
+              familyName: profile.name?.familyName,
+              lastLoginAt: new Date()
             });
             done(null, user);
             return;
