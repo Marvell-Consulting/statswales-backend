@@ -6,6 +6,8 @@ import { DatasetDTO } from '../dataset-dto';
 import { OrganisationDTO } from '../organisation-dto';
 import { UserDTO } from './user-dto';
 import { UserGroupMetadataDTO } from './user-group-metadata-dto';
+import { UserGroupRole } from '../../entities/user/user-group-role';
+import { UserWithRolesDTO } from './user-with-roles-dto';
 
 export class UserGroupDTO {
   id: string;
@@ -13,9 +15,9 @@ export class UserGroupDTO {
   metadata?: UserGroupMetadataDTO[];
   organisation_id?: string;
   organisation?: OrganisationDTO;
-  users: UserDTO[];
+  users?: UserWithRolesDTO[];
   user_count?: number;
-  datasets: DatasetDTO[];
+  datasets?: DatasetDTO[];
   dataset_count?: number;
 
   static fromUserGroup(userGroup: UserGroup, lang: Locale): UserGroupDTO {
@@ -28,6 +30,10 @@ export class UserGroupDTO {
       : undefined;
 
     dto.metadata = userGroup.metadata?.map((meta) => UserGroupMetadataDTO.fromUserGroupMetadata(meta));
+
+    dto.users = userGroup.groupRoles?.map((userRole: UserGroupRole) => {
+      return { user: UserDTO.fromUser(userRole.user, lang), roles: userRole.roles };
+    });
 
     return dto;
   }

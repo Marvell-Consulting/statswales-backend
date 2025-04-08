@@ -1,6 +1,6 @@
 import { User } from '../../entities/user/user';
 import { UserGroupRole } from '../../entities/user/user-group-role';
-import { GroupRole as UserRoleEnum } from '../../enums/group-role';
+import { GroupRole } from '../../enums/group-role';
 import { Locale } from '../../enums/locale';
 import { UserGroupDTO } from './user-group-dto';
 import { UserGroupWithRolesDTO } from './user-group-with-roles-dto';
@@ -42,7 +42,7 @@ export class UserDTO {
     dto.groups = user.groupRoles?.map((userRole: UserGroupRole) => {
       return {
         group: UserGroupDTO.fromUserGroup(userRole.group, lang),
-        roles: userRole.roles.map((role) => role as UserRoleEnum)
+        roles: userRole.roles.map((role) => role as GroupRole)
       };
     });
 
