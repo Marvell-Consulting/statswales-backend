@@ -13,7 +13,8 @@ export const UserGroupRepository = dataSource.getRepository(UserGroup).extend({
       relations: {
         metadata: true,
         organisation: { metadata: true },
-        datasets: { endRevision: { metadata: true } }
+        datasets: { endRevision: { metadata: true } },
+        groupRoles: { user: true }
       }
     });
   },
