@@ -31,7 +31,7 @@ export const addDirectoryToZip = async (
 
 export const collectFiles = (dataset: Dataset): Map<string, FileImportDto> => {
   const files = new Map<string, FileImportDto>();
-  if (dataset.measure.lookupTable) {
+  if (dataset.measure && dataset.measure.lookupTable) {
     const fileImport = FileImportDto.fromFileImport(dataset.measure.lookupTable);
     fileImport.type = FileImportType.Measure;
     fileImport.parent_id = dataset.id;

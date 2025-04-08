@@ -1011,10 +1011,10 @@ async function setupDimensions(
               dimension.metadata.find((info) => info.language === locale)?.name || dimension.factTableColumn;
             viewSelectStatementsMap
               .get(locale)
-              ?.push(`CAST(${dimension.factTableColumn} AS VARCHAR) as "${columnName}"`);
+              ?.push(`CAST("${dimension.factTableColumn}" AS VARCHAR) as "${columnName}"`);
             rawSelectStatementsMap
               .get(locale)
-              ?.push(`CAST(${dimension.factTableColumn} AS VARCHAR) as "${columnName}"`);
+              ?.push(`CAST("${dimension.factTableColumn}" AS VARCHAR) as "${columnName}"`);
           });
           break;
         case DimensionType.Raw:
@@ -1022,8 +1022,8 @@ async function setupDimensions(
           SUPPORTED_LOCALES.map((locale) => {
             const columnName =
               dimension.metadata.find((info) => info.language === locale)?.name || dimension.factTableColumn;
-            viewSelectStatementsMap.get(locale)?.push(`${dimension.factTableColumn} as "${columnName}"`);
-            rawSelectStatementsMap.get(locale)?.push(`${dimension.factTableColumn} as "${columnName}"`);
+            viewSelectStatementsMap.get(locale)?.push(`"${dimension.factTableColumn}" as "${columnName}"`);
+            rawSelectStatementsMap.get(locale)?.push(`"${dimension.factTableColumn}" as "${columnName}"`);
           });
           break;
       }
