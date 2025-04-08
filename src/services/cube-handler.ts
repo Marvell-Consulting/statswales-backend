@@ -418,7 +418,7 @@ export async function createLookupTableDimension(quack: Database, dataset: Datas
       const descriptionColStr = descriptionCol ? `"${descriptionCol.name}"` : 'NULL';
       const notesColStr = notesCol ? `"${notesCol.name}"` : 'NULL';
       const sortStr = extractor.sortColumn ? `"${extractor.sortColumn}"` : 'NULL';
-      const hierarchyCol = extractor.hierarchyColumn ? `"${extractor.hierarchyColumn}", ` : 'NULL';
+      const hierarchyCol = extractor.hierarchyColumn ? `"${extractor.hierarchyColumn}"` : 'NULL';
       dataExtractorParts.push(
         `SELECT "${dimension.joinColumn}" as ${factTableColumn.columnName},
         '${locale.toLowerCase()}' as language,
