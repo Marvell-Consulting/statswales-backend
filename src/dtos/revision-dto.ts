@@ -20,7 +20,7 @@ export class RevisionDTO {
   data_table_id?: string;
   data_table?: DataTableDto;
   created_at: string;
-  created_by: string;
+  created_by?: string;
   updated_at: string;
   approved_at?: string;
   approved_by?: string;
