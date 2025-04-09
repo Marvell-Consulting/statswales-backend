@@ -14,6 +14,7 @@ export const duckdb = async (cubeFile = ':memory:') => {
   const duckdb = await Database.create(cubeFile);
   await duckdb.exec(`SET threads = ${config.duckdb.threads};`);
   await duckdb.exec(`SET memory_limit = '${config.duckdb.memory}';`);
+  await duckdb.exec("SET default_block_size = '16384';");
   await duckdb.exec("SET temp_directory='/tmp/duckdb_temp';");
   await duckdb.exec('SET preserve_insertion_order=false;');
   return duckdb;

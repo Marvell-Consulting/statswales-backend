@@ -167,6 +167,7 @@ export const loadFileDataTableIntoTable = async (
     await quack.exec(insertQuery);
     await loadTableDataIntoFactTable(quack, factTableDef, tableName, tempTableName);
     await quack.exec(`DROP TABLE ${tempTableName};`);
+    await quack.exec('CHECKPOINT;');
   } catch (error) {
     logger.error(error, `Failed to load file into table using query ${insertQuery}`);
     const duckDBError = error as DuckDbError;
@@ -539,6 +540,7 @@ async function loadFactTablesWithUpdates(
       switch (dataTable.action) {
         case DataTableAction.ReplaceAll:
           await quack.exec(`DELETE FROM ${FACT_TABLE_NAME};`);
+          await quack.exec('CHECKPOINT;');
           await loadFileDataTableIntoTable(quack, dataTable, factTableDef, factTableFile, FACT_TABLE_NAME);
           break;
         case DataTableAction.Add:
@@ -556,10 +558,12 @@ async function loadFactTablesWithUpdates(
           await quack.exec(
             `DELETE FROM update_table USING ${FACT_TABLE_NAME} WHERE ${setupFactTableUpdateJoins(FACT_TABLE_NAME, factIdentifiers, dataTable.dataTableDescriptions)};`
           );
+          await quack.exec('CHECKPOINT;');
           await quack.exec(
             `INSERT INTO ${FACT_TABLE_NAME} ("${factTableDef.join('", "')}") (SELECT "${dataTableColumnSelect.join('", "')}" FROM update_table);`
           );
           await quack.exec(`DROP TABLE update_table;`);
+          await quack.exec('CHECKPOINT;');
           break;
       }
     } finally {
@@ -583,6 +587,7 @@ async function loadFactTablesWithoutUpdates(
     switch (factTable.action) {
       case DataTableAction.ReplaceAll:
         await quack.exec(`DELETE FROM ${FACT_TABLE_NAME};`);
+        await quack.exec('CHECKPOINT;');
         await loadFileDataTableIntoTable(quack, factTable, factTableDef, factTableFile, FACT_TABLE_NAME);
         break;
       case DataTableAction.Add:

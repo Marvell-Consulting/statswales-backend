@@ -15,6 +15,7 @@ export async function createEmptyCubeWithFactTable(dataset: Dataset): Promise<Da
   }
   let quack: Database;
   const filename = tmp.tmpNameSync({ postfix: '.duckdb' });
+  logger.debug(`endRevision.onlineCubeFilename = ${endRevision.onlineCubeFilename}`);
   if (endRevision.onlineCubeFilename && endRevision.onlineCubeFilename.includes('protocube')) {
     logger.debug('Loading protocube file from blob storage');
     const fileService = getFileService();

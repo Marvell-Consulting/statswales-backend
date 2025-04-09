@@ -358,6 +358,7 @@ export const updateSources = async (req: Request, res: Response, next: NextFunct
     await req.fileService.saveBuffer(`${revision.id}-protocube.duckdb`, dataset.id, buffer);
     revision.onlineCubeFilename = `${revision.id}-protocube.duckdb`;
     fs.unlinkSync(duckdbFile);
+    await revision.save();
   } catch (err) {
     logger.error(err, 'Failed to save duckdb file to blob storage');
     res.status(500);

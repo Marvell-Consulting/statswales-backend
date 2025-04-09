@@ -76,7 +76,7 @@ export const getDataTablePreview = async (req: Request, res: Response, next: Nex
     return;
   }
 
-  const processedCSV = await getCSVPreview(dataset, revision.dataTable, page_number, page_size);
+  const processedCSV = await getCSVPreview(dataset, revision, revision.dataTable, page_number, page_size);
 
   if ((processedCSV as ViewErrDTO).errors) {
     const processErr = processedCSV as ViewErrDTO;
