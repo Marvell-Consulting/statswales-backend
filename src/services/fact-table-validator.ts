@@ -1,10 +1,17 @@
+import tmp from 'tmp';
+
 import { ValidatedSourceAssignment } from './dimension-processor';
 import { Dataset } from '../entities/dataset/dataset';
 import { duckdb } from './duckdb';
 import { FactTableColumn } from '../entities/dataset/fact-table-column';
 import { FactTableColumnType } from '../enums/fact-table-column-type';
 import { logger } from '../utils/logger';
-import { FACT_TABLE_NAME, loadFileDataTableIntoTable, loadFileIntoCube } from './cube-handler';
+import {
+  FACT_TABLE_NAME,
+  loadFileDataTableIntoTable,
+  loadFileIntoCube,
+  loadTableDataIntoFactTable
+} from './cube-handler';
 import { FactTableValidationException } from '../exceptions/fact-table-validation-exception';
 import { FactTableValidationExceptionType } from '../enums/fact-table-validation-exception-type';
 import { getFileImportAndSaveToDisk } from '../utils/file-utils';
@@ -21,8 +28,9 @@ interface FactTableDefinition {
 export const factTableValidatorFromSource = async (
   dataset: Dataset,
   validatedSourceAssignment: ValidatedSourceAssignment
-) => {
-  const quack = await duckdb();
+): Promise<string> => {
+  const duckdDBFile = tmp.tmpNameSync({ postfix: 'duckdb' });
+  const quack = await duckdb(duckdDBFile);
 
   if (!dataset.factTable) {
     throw new Error(`Unable to find fact table for dataset ${dataset.id}`);
@@ -130,17 +138,12 @@ export const factTableValidatorFromSource = async (
   logger.debug('Loading data table data into the new fact table to begin validation');
   const dataTableFile = await getFileImportAndSaveToDisk(dataset, dataTable);
   try {
-    await loadFileDataTableIntoTable(quack, dataTable, factTableDef, dataTableFile, FACT_TABLE_NAME);
+    await loadFileIntoCube(quack, dataTable, dataTableFile, 'data_table');
+    await loadTableDataIntoFactTable(quack, factTableDef, FACT_TABLE_NAME, 'data_table');
+    await quack.exec('DROP TABLE data_table;');
   } catch (err) {
     let error = err as FactTableValidationException;
     logger.error(error, 'Failed to load data table into fact table');
-    // Attempt to load in the original data table.  If it fails nothing lost throw the original error
-    try {
-      await loadFileIntoCube(quack, dataTable, dataTableFile, 'data_table');
-    } catch (extractionError) {
-      logger.error(extractionError, 'Failed to extract data from data table.');
-      throw error;
-    }
     // Attempt to augment the error with details of where the errors in the data table are
     if (error.type === FactTableValidationExceptionType.EmptyValue) {
       error = await identifyIncompleteFacts(quack, primaryKeyDef, error);
@@ -151,6 +154,7 @@ export const factTableValidatorFromSource = async (
   } finally {
     await quack.close();
   }
+  return duckdDBFile;
 };
 
 async function identifyIncompleteFacts(

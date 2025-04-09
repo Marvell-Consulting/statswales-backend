@@ -37,6 +37,7 @@ import { factTableValidatorFromSource } from '../services/fact-table-validator';
 import { FactTableValidationException } from '../exceptions/fact-table-validation-exception';
 import JSZip from 'jszip';
 import { addDirectoryToZip, collectFiles } from '../utils/dataset-controller-utils';
+import { t } from 'i18next';
 
 export const listAllDatasets = async (req: Request, res: Response, next: NextFunction) => {
   try {
@@ -100,6 +101,27 @@ export const uploadDataTable = async (req: Request, res: Response, next: NextFun
     res.json(dto);
   } catch (err) {
     logger.error(err, 'Failed to update the fact table');
+    res.status(500);
+    const error: ViewErrDTO = {
+      status: 500,
+      dataset_id: dataset.id,
+      errors: [
+        {
+          field: 'csv',
+          message: {
+            key: 'errors.unknown_error',
+            params: {}
+          },
+          user_message: [
+            {
+              lang: req.language,
+              message: t('errors.unknown_error', { lng: req.language })
+            }
+          ]
+        }
+      ]
+    };
+    res.json(error);
   }
 };
 
@@ -294,8 +316,9 @@ export const updateSources = async (req: Request, res: Response, next: NextFunct
     });
     return;
   }
+  let duckdbFile;
   try {
-    await factTableValidatorFromSource(dataset, validatedSourceAssignment);
+    duckdbFile = await factTableValidatorFromSource(dataset, validatedSourceAssignment);
   } catch (err) {
     const error = err as FactTableValidationException;
     res.status(error.status);
@@ -316,6 +339,30 @@ export const updateSources = async (req: Request, res: Response, next: NextFunct
     });
     return;
   }
+  try {
+    const buffer = fs.readFileSync(duckdbFile);
+    await req.fileService.saveBuffer(`${revision.id}-protocube.duckdb`, dataset.id, buffer);
+    revision.onlineCubeFilename = `${revision.id}-protocube.duckdb`;
+    fs.unlinkSync(duckdbFile);
+  } catch (err) {
+    logger.error(err, 'Failed to save duckdb file to blob storage');
+    res.status(500);
+    res.json({
+      status: 500,
+      dataset_id: dataset.id,
+      errors: [
+        {
+          field: 'none',
+          message: {
+            key: 'errors.fact_table_validation.unknown_error',
+            params: {}
+          }
+        }
+      ]
+    });
+    return;
+  }
+
   try {
     await createDimensionsFromSourceAssignment(dataset, dataTable, validatedSourceAssignment);
     const updatedDataset = await DatasetRepository.getById(dataset.id);

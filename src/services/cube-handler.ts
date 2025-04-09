@@ -89,6 +89,38 @@ export const loadFileIntoCube = async (
   }
 };
 
+export const loadTableDataIntoFactTable = async (
+  quack: Database,
+  factTableDef: string[],
+  factTableName: string,
+  originTableName: string
+) => {
+  const tableSize = await quack.all(`SELECT COUNT(*) as size
+                                     FROM ${originTableName};`);
+  const rowCount = Number(tableSize[0].count);
+  if (rowCount === 0) {
+    logger.debug(`No data to load into ${factTableName}`);
+    return;
+  }
+  logger.debug(`Loading data table into fact table`);
+  const batchSize = 200000;
+  let processedRows = 0;
+  while (processedRows < rowCount) {
+    await quack.exec(`
+      INSERT INTO ${factTableName}
+      SELECT ${factTableDef.join(', ')}
+      FROM ${originTableName} LIMIT ${batchSize}
+      OFFSET ${processedRows};
+    `);
+
+    processedRows += batchSize;
+    const currentRows = Math.min(processedRows, rowCount);
+    const percentComplete = Math.round((currentRows / rowCount) * 100);
+    logger.debug(`↳ Copied ${currentRows}/${rowCount} rows (${percentComplete}%)`);
+    if (processedRows >= rowCount) break;
+  }
+};
+
 // This function differs from loadFileIntoDatabase in that it only loads a file into an existing table
 export const loadFileDataTableIntoTable = async (
   quack: Database,
@@ -97,6 +129,7 @@ export const loadFileDataTableIntoTable = async (
   tempFile: string,
   tableName: string
 ) => {
+  const tempTableName = `temp_${tableName}`;
   let insertQuery: string;
   const dataTableColumnSelect: string[] = [];
   for (const factTableCol of factTableDef) {
@@ -109,17 +142,17 @@ export const loadFileDataTableIntoTable = async (
   switch (dataTable.fileType) {
     case FileType.Csv:
     case FileType.GzipCsv:
-      insertQuery = `INSERT INTO ${tableName} ("${factTableDef.join('", "')}") SELECT "${dataTableColumnSelect.join('", "')}" FROM read_csv('${tempFile}', auto_type_candidates = ['BOOLEAN', 'BIGINT', 'DOUBLE', 'VARCHAR']);`;
+      insertQuery = `INSERT INTO ${tempTableName} ("${factTableDef.join('", "')}") SELECT "${dataTableColumnSelect.join('", "')}" FROM read_csv('${tempFile}', auto_type_candidates = ['BOOLEAN', 'BIGINT', 'DOUBLE', 'VARCHAR']);`;
       break;
     case FileType.Parquet:
-      insertQuery = `INSERT INTO ${tableName} ("${factTableDef.join('", "')}") SELECT "${dataTableColumnSelect.join('", "')}" FROM ${tempFile};`;
+      insertQuery = `INSERT INTO ${tempTableName} ("${factTableDef.join('", "')}") SELECT "${dataTableColumnSelect.join('", "')}" FROM ${tempFile};`;
       break;
     case FileType.Json:
     case FileType.GzipJson:
-      insertQuery = `INSERT INTO ${tableName} ("${factTableDef.join('", "')}") SELECT "${dataTableColumnSelect.join('", "')}" FROM read_json_auto('${tempFile}');`;
+      insertQuery = `INSERT INTO ${tempTableName} ("${factTableDef.join('", "')}") SELECT "${dataTableColumnSelect.join('", "')}" FROM read_json_auto('${tempFile}');`;
       break;
     case FileType.Excel:
-      insertQuery = `INSERT INTO ${tableName} ("${factTableDef.join('", "')}") SELECT "${dataTableColumnSelect.join('", "')}" FROM st_read('${tempFile}');`;
+      insertQuery = `INSERT INTO ${tempTableName} ("${factTableDef.join('", "')}") SELECT "${dataTableColumnSelect.join('", "')}" FROM st_read('${tempFile}');`;
       break;
     default:
       throw new FactTableValidationException(
@@ -131,6 +164,8 @@ export const loadFileDataTableIntoTable = async (
   try {
     logger.debug(`Loading file data table into table ${tableName} with query: ${insertQuery}`);
     await quack.exec(insertQuery);
+    loadTableDataIntoFactTable(quack, factTableDef, tableName, tempTableName);
+    await quack.exec(`DROP TABLE ${tempTableName};`);
   } catch (error) {
     logger.error(error, `Failed to load file into table using query ${insertQuery}`);
     const duckDBError = error as DuckDbError;
@@ -1288,6 +1323,164 @@ export const createBaseCube = async (datasetId: string, endRevisionId: string): 
   const buildTime = Math.round(end - buildStart);
   logger.warn(`Cube function took ${functionTime}ms to complete and it took ${buildTime}ms to build the cube.`);
   return tmpFile;
+};
+
+// Builds a fresh cube from a protocube and returns the file pointer
+// to the duckdb file on disk.  This is based on the recipe in our cube miro
+// board and our candidate cube format repo.  It is limited to building a
+// simple default view based on the available locales.
+//
+// DO NOT put validation against columns which should be present here.
+// Function should be able to generate a cube just from a fact table or collection
+// of fact tables.
+export const createBaseCubeFromProtoCube = async (
+  datasetId: string,
+  endRevisionId: string,
+  protoCubeFile: string
+): Promise<string> => {
+  logger.debug(`Creating base cube for for revision: ${endRevisionId}`);
+  const functionStart = performance.now();
+  const viewSelectStatementsMap = new Map<Locale, string[]>();
+  const rawSelectStatementsMap = new Map<Locale, string[]>();
+  SUPPORTED_LOCALES.map((locale) => {
+    viewSelectStatementsMap.set(locale, []);
+    rawSelectStatementsMap.set(locale, []);
+  });
+  const joinStatements: string[] = [];
+  const orderByStatements: string[] = [];
+
+  const datasetRelations: FindOptionsRelations<Dataset> = {
+    dimensions: {
+      metadata: true,
+      lookupTable: true
+    },
+    factTable: true,
+    measure: {
+      metadata: true,
+      measureTable: true
+    },
+    revisions: {
+      dataTable: {
+        dataTableDescriptions: true
+      }
+    }
+  };
+
+  const endRevisionRelations: FindOptionsRelations<Revision> = {
+    dataTable: {
+      dataTableDescriptions: true
+    }
+  };
+
+  logger.debug(`Loading dataset with id: ${datasetId} using relations: ${JSON.stringify(datasetRelations)}`);
+  const dataset = await DatasetRepository.getById(datasetId, datasetRelations);
+  const endRevision = await RevisionRepository.getById(endRevisionId, endRevisionRelations);
+
+  const firstRevision = dataset.revisions.find((rev) => rev.revisionIndex === 1);
+  if (!firstRevision) {
+    const err = new CubeValidationException(
+      `Could not find first revision for dataset ${datasetId} in revision ${endRevisionId}`
+    );
+    err.type = CubeValidationType.NoFirstRevision;
+    err.datasetId = datasetId;
+    throw new Error(`Unable to find first revision for dataset ${dataset.id}`);
+  }
+
+  logger.debug('Creating an in-memory database to hold the cube using DuckDB 🐤');
+  const buildStart = performance.now();
+  const quack = await duckdb(protoCubeFile);
+
+  await createCubeMetadataTable(quack);
+
+  const notesCodeColumn = dataset.factTable?.find((field) => field.columnType === FactTableColumnType.NoteCodes);
+  const dataValuesColumn = dataset.factTable?.find((field) => field.columnType === FactTableColumnType.DataValues);
+  const measureColumn = dataset.factTable?.find((field) => field.columnType === FactTableColumnType.Measure);
+
+  try {
+    await setupMeasures(
+      quack,
+      dataset,
+      dataValuesColumn,
+      viewSelectStatementsMap,
+      rawSelectStatementsMap,
+      joinStatements,
+      orderByStatements,
+      measureColumn
+    );
+  } catch (err) {
+    logger.error(err, `Failed to setup measures`);
+    await quack.close();
+    throw new Error(`Failed to setup measures: ${err}`);
+  }
+
+  if (referenceDataPresent(dataset)) {
+    await loadReferenceDataIntoCube(quack);
+  }
+
+  try {
+    await setupDimensions(
+      quack,
+      dataset,
+      endRevision,
+      viewSelectStatementsMap,
+      rawSelectStatementsMap,
+      joinStatements,
+      orderByStatements
+    );
+  } catch (err) {
+    logger.error(err, `Failed to setup dimensions`);
+    await quack.close();
+    throw new Error(`Failed to setup dimensions`);
+  }
+
+  if (referenceDataPresent(dataset)) {
+    await cleanUpReferenceDataTables(quack);
+    joinStatements.push(`JOIN reference_data_info ON reference_data.item_id=reference_data_info.item_id`);
+    joinStatements.push(`    AND reference_data.category_key=reference_data_info.category_key`);
+    joinStatements.push(`    AND reference_data.version_no=reference_data_info.version_no`);
+    joinStatements.push(`    AND reference_data_info.lang='#LANG#'`);
+  }
+
+  logger.debug('Adding notes code column to the select statement.');
+  if (notesCodeColumn) {
+    await createNotesTable(quack, notesCodeColumn, viewSelectStatementsMap, rawSelectStatementsMap, joinStatements);
+  }
+
+  logger.info(`Creating default views...`);
+  // Build the default views
+  for (const locale of SUPPORTED_LOCALES) {
+    if (viewSelectStatementsMap.get(locale)?.length === 0) {
+      viewSelectStatementsMap.get(locale)?.push('*');
+    }
+    if (rawSelectStatementsMap.get(locale)?.length === 0) {
+      rawSelectStatementsMap.get(locale)?.push('*');
+    }
+    const defaultViewSQL = `CREATE TABLE default_view_${locale.toLowerCase().split('-')[0]} AS SELECT\n${viewSelectStatementsMap
+      .get(locale)
+      ?.join(
+        ',\n'
+      )} FROM ${FACT_TABLE_NAME}\n${joinStatements.join('\n').replace(/#LANG#/g, locale.toLowerCase())}\n ${orderByStatements.length > 0 ? `ORDER BY ${orderByStatements.join(', ')}` : ''};`;
+    logger.debug(defaultViewSQL);
+    await quack.exec(defaultViewSQL);
+    const rawViewSQL = `CREATE TABLE raw_view_${locale.toLowerCase().split('-')[0]} AS SELECT\n${rawSelectStatementsMap
+      .get(locale)
+      ?.join(
+        ',\n'
+      )} FROM ${FACT_TABLE_NAME}\n${joinStatements.join('\n').replace(/#LANG#/g, locale.toLowerCase())}\n ${orderByStatements.length > 0 ? `ORDER BY ${orderByStatements.join(', ')}` : ''};`;
+    logger.debug(rawViewSQL);
+    await quack.exec(rawViewSQL);
+  }
+
+  // Pass the file handle to the calling method
+  // If used for preview you just want the file
+  // If it's the end of the publishing step you'll
+  // want to upload the file to the data lake.
+  await quack.close();
+  const end = performance.now();
+  const functionTime = Math.round(end - functionStart);
+  const buildTime = Math.round(end - buildStart);
+  logger.warn(`Cube function took ${functionTime}ms to complete and it took ${buildTime}ms to build the cube.`);
+  return protoCubeFile;
 };
 
 export const cleanUpCube = async (tmpFile: string) => {
