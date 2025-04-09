@@ -26,7 +26,7 @@ const parseUploadedTranslations = async (fileBuffer: Buffer): Promise<Translatio
   const translations: TranslationDTO[] = [];
 
   const csvParser: AsyncIterable<TranslationDTO> = Readable.from(fileBuffer).pipe(
-    parse({ bom: true, columns: true, skip_records_with_empty_values: true })
+    parse({ bom: true, columns: true, trim: true, skip_records_with_empty_values: true })
   );
 
   for await (const row of csvParser) {
