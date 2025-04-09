@@ -25,6 +25,7 @@ import { DuckdbOutputType } from '../enums/duckdb-outputs';
 import {
   cleanUpCube,
   createBaseCube,
+  createBaseCubeFromProtoCube,
   createDateDimension,
   createLookupTableDimension,
   loadCorrectReferenceDataIntoReferenceDataTable,
@@ -75,7 +76,7 @@ export const getDataTablePreview = async (req: Request, res: Response, next: Nex
     return;
   }
 
-  const processedCSV = await getCSVPreview(dataset, revision.dataTable, page_number, page_size);
+  const processedCSV = await getCSVPreview(dataset, revision, revision.dataTable, page_number, page_size);
 
   if ((processedCSV as ViewErrDTO).errors) {
     const processErr = processedCSV as ViewErrDTO;
@@ -95,7 +96,7 @@ export const getRevisionPreview = async (req: Request, res: Response, next: Next
   const page_size: number = Number.parseInt(req.query.page_size as string, 10) || DEFAULT_PAGE_SIZE;
 
   let cubeFile: string;
-  if (revision.onlineCubeFilename) {
+  if (revision.onlineCubeFilename && !revision.onlineCubeFilename.includes('protocube')) {
     logger.debug('Loading cube from file store for preview');
     cubeFile = tmp.tmpNameSync({ postfix: '.duckdb' });
     try {
@@ -105,8 +106,14 @@ export const getRevisionPreview = async (req: Request, res: Response, next: Next
       logger.error('Something went wrong trying to download file from data lake');
       throw err;
     }
+  } else if (revision.onlineCubeFilename.includes('protocube')) {
+    logger.debug('Loading protocube from file store for preview');
+    const buffer = await req.fileService.loadBuffer(revision.onlineCubeFilename, dataset.id);
+    cubeFile = tmp.tmpNameSync({ postfix: '.duckdb' });
+    fs.writeFileSync(cubeFile, buffer);
+    await createBaseCubeFromProtoCube(dataset.id, revision.id, cubeFile);
   } else {
-    logger.debug('Creating fresh cube for preview');
+    logger.debug('Creating fresh cube for preview... This could take a few seconds');
     try {
       cubeFile = await createBaseCube(dataset.id, revision.id);
     } catch (error) {

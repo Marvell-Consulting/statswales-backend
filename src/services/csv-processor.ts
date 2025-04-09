@@ -22,6 +22,7 @@ import { DuckDBException } from '../exceptions/duckdb-exception';
 import { viewErrorGenerators, viewGenerator } from '../utils/view-error-generators';
 import { createEmptyCubeWithFactTable } from '../utils/create-fact-table';
 import { validateParams } from '../validators/preview-validator';
+import { Revision } from '../entities/dataset/revision';
 
 export const DEFAULT_PAGE_SIZE = 100;
 const sampleSize = 5;
@@ -191,14 +192,27 @@ export const validateAndUploadCSV = async (
 
 export const getCSVPreview = async (
   dataset: Dataset,
+  revision: Revision,
   importObj: DataTable,
   page: number,
   size: number
 ): Promise<ViewDTO | ViewErrDTO> => {
-  const tableName = 'preview_table';
+  let quack: Database;
+  const tableName = 'fact_table';
   const tempFile = tmp.tmpNameSync({ postfix: `.${importObj.fileType}` });
-  const quack = await duckdb();
-  try {
+  let cubeFile: string | undefined;
+  if (revision.onlineCubeFilename) {
+    cubeFile = tmp.tmpNameSync({ postfix: '.duckdb' });
+    const fileService = getFileService();
+    try {
+      const fileBuffer = await fileService.loadBuffer(revision.onlineCubeFilename, dataset.id);
+      fs.writeFileSync(cubeFile, fileBuffer);
+    } catch (error) {
+      logger.error(error, `Something went wrong trying to fetch the protocube from storage`);
+      return viewErrorGenerators(500, dataset.id, 'csv', 'errors.datalake.failed_to_fetch_file', {});
+    }
+    quack = await duckdb(cubeFile);
+  } else {
     let fileBuffer: Buffer;
     try {
       const fileService = getFileService();
@@ -207,8 +221,19 @@ export const getCSVPreview = async (
       logger.error(err, `Something went wrong trying to fetch the file from storage`);
       return viewErrorGenerators(500, dataset.id, 'csv', 'errors.datalake.failed_to_fetch_file', {});
     }
+
     fs.writeFileSync(tempFile, fileBuffer);
-    await loadFileIntoDatabase(quack, importObj, tempFile, tableName);
+    quack = await duckdb();
+    try {
+      await loadFileIntoDatabase(quack, importObj, tempFile, tableName);
+    } catch (error) {
+      await quack.close();
+      logger.error(error, `Something went wrong trying to load the file into the database`);
+      return viewErrorGenerators(500, dataset.id, 'csv', 'errors.preview.preview_failed', {});
+    }
+  }
+
+  try {
     const totalsQuery = `SELECT count(*) as totalLines, ceil(count(*)/${size}) as totalPages from ${tableName};`;
     const totals = await quack.all(totalsQuery);
     const totalPages = Number(totals[0].totalPages);
@@ -254,6 +279,7 @@ export const getCSVPreview = async (
     return viewErrorGenerators(500, dataset.id, 'csv', 'errors.preview.preview_failed', {});
   } finally {
     await quack.close();
+    if (cubeFile) fs.unlinkSync(cubeFile);
     if (fs.existsSync(tempFile)) fs.unlinkSync(tempFile);
   }
 };

@@ -495,6 +495,7 @@ describe('API Endpoints', () => {
       const testFile2 = path.resolve(__dirname, `../sample-files/csv/sure-start-short.csv`);
       const testFile2Buffer = fs.readFileSync(testFile2);
       BlobStorage.prototype.loadBuffer = jest.fn().mockReturnValue(testFile2Buffer);
+      BlobStorage.prototype.saveBuffer = jest.fn().mockReturnValue({});
 
       const postProcessedImport = await DataTable.findOne({
         where: { id: testFileImportId },

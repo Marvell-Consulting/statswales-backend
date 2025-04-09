@@ -15,7 +15,7 @@ import { BadRequestException } from '../exceptions/bad-request.exception';
 import { ViewErrDTO } from '../dtos/view-dto';
 import { arrayValidator, dtoValidator } from '../validators/dto-validator';
 import { RevisionMetadataDTO } from '../dtos/revistion-metadata-dto';
-import { cleanUpCube, createBaseCube } from '../services/cube-handler';
+import { cleanUpCube, createBaseCube, createBaseCubeFromProtoCube } from '../services/cube-handler';
 import { DEFAULT_PAGE_SIZE } from '../services/csv-processor';
 import {
   createDimensionsFromSourceAssignment,
@@ -37,6 +37,7 @@ import { factTableValidatorFromSource } from '../services/fact-table-validator';
 import { FactTableValidationException } from '../exceptions/fact-table-validation-exception';
 import JSZip from 'jszip';
 import { addDirectoryToZip, collectFiles } from '../utils/dataset-controller-utils';
+import { t } from 'i18next';
 
 export const listAllDatasets = async (req: Request, res: Response, next: NextFunction) => {
   try {
@@ -100,6 +101,27 @@ export const uploadDataTable = async (req: Request, res: Response, next: NextFun
     res.json(dto);
   } catch (err) {
     logger.error(err, 'Failed to update the fact table');
+    res.status(500);
+    const error: ViewErrDTO = {
+      status: 500,
+      dataset_id: dataset.id,
+      errors: [
+        {
+          field: 'csv',
+          message: {
+            key: 'errors.unknown_error',
+            params: {}
+          },
+          user_message: [
+            {
+              lang: req.language,
+              message: t('errors.unknown_error', { lng: req.language })
+            }
+          ]
+        }
+      ]
+    };
+    res.json(error);
   }
 };
 
@@ -113,19 +135,33 @@ export const cubePreview = async (req: Request, res: Response, next: NextFunctio
   }
 
   let cubeFile: string;
-  if (latestRevision.onlineCubeFilename) {
-    const fileBuffer = await req.fileService.loadBuffer(latestRevision.onlineCubeFilename, dataset.id);
+  if (latestRevision.onlineCubeFilename && !latestRevision.onlineCubeFilename.includes('protocube')) {
+    logger.debug('Loading cube from file store for preview');
     cubeFile = tmp.tmpNameSync({ postfix: '.duckdb' });
-    fs.writeFileSync(cubeFile, fileBuffer);
+    try {
+      const cubeBuffer = await req.fileService.loadBuffer(latestRevision.onlineCubeFilename, dataset.id);
+      fs.writeFileSync(cubeFile, cubeBuffer);
+    } catch (err) {
+      logger.error('Something went wrong trying to download file from data lake');
+      throw err;
+    }
+  } else if (latestRevision.onlineCubeFilename && latestRevision.onlineCubeFilename.includes('protocube')) {
+    logger.debug('Loading protocube from file store for preview');
+    const buffer = await req.fileService.loadBuffer(latestRevision.onlineCubeFilename, dataset.id);
+    cubeFile = tmp.tmpNameSync({ postfix: '.duckdb' });
+    fs.writeFileSync(cubeFile, buffer);
+    await createBaseCubeFromProtoCube(dataset.id, latestRevision.id, cubeFile);
   } else {
+    logger.debug('Creating fresh cube for preview... This could take a few seconds');
     try {
       cubeFile = await createBaseCube(dataset.id, latestRevision.id);
-    } catch (err) {
-      logger.error(`Something went wrong trying to create the cube with the error: ${err}`);
-      next(new UnknownException('errors.cube_create_error'));
+    } catch (error) {
+      logger.error(error, `Something went wrong trying to create the cube`);
+      next(new UnknownException('errors.cube_builder.cube_build_failed'));
       return;
     }
   }
+
   const start = performance.now();
   const page_number: number = Number.parseInt(req.query.page_number as string, 10) || 1;
   const page_size: number = Number.parseInt(req.query.page_size as string, 10) || DEFAULT_PAGE_SIZE;
@@ -294,8 +330,9 @@ export const updateSources = async (req: Request, res: Response, next: NextFunct
     });
     return;
   }
+  let duckdbFile;
   try {
-    await factTableValidatorFromSource(dataset, validatedSourceAssignment);
+    duckdbFile = await factTableValidatorFromSource(dataset, validatedSourceAssignment);
   } catch (err) {
     const error = err as FactTableValidationException;
     res.status(error.status);
@@ -316,6 +353,31 @@ export const updateSources = async (req: Request, res: Response, next: NextFunct
     });
     return;
   }
+  try {
+    const buffer = fs.readFileSync(duckdbFile);
+    await req.fileService.saveBuffer(`${revision.id}-protocube.duckdb`, dataset.id, buffer);
+    revision.onlineCubeFilename = `${revision.id}-protocube.duckdb`;
+    fs.unlinkSync(duckdbFile);
+    await revision.save();
+  } catch (err) {
+    logger.error(err, 'Failed to save duckdb file to blob storage');
+    res.status(500);
+    res.json({
+      status: 500,
+      dataset_id: dataset.id,
+      errors: [
+        {
+          field: 'none',
+          message: {
+            key: 'errors.fact_table_validation.unknown_error',
+            params: {}
+          }
+        }
+      ]
+    });
+    return;
+  }
+
   try {
     await createDimensionsFromSourceAssignment(dataset, dataTable, validatedSourceAssignment);
     const updatedDataset = await DatasetRepository.getById(dataset.id);
