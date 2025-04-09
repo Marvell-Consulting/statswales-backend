@@ -201,7 +201,7 @@ export const updateUserStatus = async (req: Request, res: Response, next: NextFu
   const userStatusError = await hasError(userStatusValidator(), req);
   if (userStatusError) {
     logger.error(userStatusError);
-    next(new NotFoundException('errors.user_status_invalid'));
+    next(new BadRequestException('errors.user_status_invalid'));
     return;
   }
 
