@@ -6,7 +6,7 @@ import { UserGroupDTO } from '../dtos/user/user-group-dto';
 import { UnknownException } from '../exceptions/unknown.exception';
 import { UserGroupRepository } from '../repositories/user-group';
 import { NotFoundException } from '../exceptions/not-found.exception';
-import { hasError, uuidValidator } from '../validators';
+import { hasError, userStatusValidator, uuidValidator } from '../validators';
 import { arrayValidator, dtoValidator } from '../validators/dto-validator';
 import { UserGroupMetadataDTO } from '../dtos/user/user-group-metadata-dto';
 import { UserRepository } from '../repositories/user';
@@ -17,6 +17,7 @@ import { QueryFailedError } from 'typeorm';
 import { BadRequestException } from '../exceptions/bad-request.exception';
 import { GlobalRole } from '../enums/global-role';
 import { RoleSelectionDTO } from '../dtos/user/role-selection-dto';
+import { UserStatus } from '../enums/user-status';
 
 export const loadUserGroup = async (req: Request, res: Response, next: NextFunction) => {
   const userGroupIdError = await hasError(uuidValidator('user_group_id'), req);
@@ -190,6 +191,28 @@ export const updateUserRoles = async (req: Request, res: Response) => {
     res.json(UserDTO.fromUser(user, req.language as Locale));
   } catch (err) {
     logger.error(err, 'Error updating user roles');
+    throw new UnknownException();
+  }
+};
+
+export const updateUserStatus = async (req: Request, res: Response, next: NextFunction) => {
+  const userId: string = res.locals.userId;
+
+  const userStatusError = await hasError(userStatusValidator(), req);
+  if (userStatusError) {
+    logger.error(userStatusError);
+    next(new NotFoundException('errors.user_status_invalid'));
+    return;
+  }
+
+  const status = req.body.status as UserStatus;
+
+  try {
+    logger.info(`Updating user status: ${userId}...`);
+    const user = await UserRepository.updateUserStatus(userId, status);
+    res.json(UserDTO.fromUser(user, req.language as Locale));
+  } catch (err) {
+    logger.error(err, 'Error updating user status');
     throw new UnknownException();
   }
 };
