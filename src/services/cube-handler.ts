@@ -95,9 +95,9 @@ export const loadTableDataIntoFactTable = async (
   factTableName: string,
   originTableName: string
 ) => {
-  const tableSize = await quack.all(`SELECT COUNT(*) as size
+  const tableSize = await quack.all(`SELECT CAST (COUNT(*) AS INTEGER) as table_size
                                      FROM ${originTableName};`);
-  const rowCount = Number(tableSize[0].count);
+  const rowCount = tableSize[0].table_size;
   if (rowCount === 0) {
     logger.debug(`No data to load into ${factTableName}`);
     return;
@@ -139,20 +139,21 @@ export const loadFileDataTableIntoTable = async (
     if (dataTableCol) dataTableColumnSelect.push(dataTableCol);
     else dataTableColumnSelect.push(factTableCol);
   }
+
   switch (dataTable.fileType) {
     case FileType.Csv:
     case FileType.GzipCsv:
-      insertQuery = `INSERT INTO ${tempTableName} ("${factTableDef.join('", "')}") SELECT "${dataTableColumnSelect.join('", "')}" FROM read_csv('${tempFile}', auto_type_candidates = ['BOOLEAN', 'BIGINT', 'DOUBLE', 'VARCHAR']);`;
+      insertQuery = `CREATE TABLE ${tempTableName} AS SELECT "${dataTableColumnSelect.join('", "')}" FROM read_csv('${tempFile}', auto_type_candidates = ['BOOLEAN', 'BIGINT', 'DOUBLE', 'VARCHAR']);`;
       break;
     case FileType.Parquet:
-      insertQuery = `INSERT INTO ${tempTableName} ("${factTableDef.join('", "')}") SELECT "${dataTableColumnSelect.join('", "')}" FROM ${tempFile};`;
+      insertQuery = `CREATE TABLE ${tempTableName} AS SELECT "${dataTableColumnSelect.join('", "')}" FROM ${tempFile};`;
       break;
     case FileType.Json:
     case FileType.GzipJson:
-      insertQuery = `INSERT INTO ${tempTableName} ("${factTableDef.join('", "')}") SELECT "${dataTableColumnSelect.join('", "')}" FROM read_json_auto('${tempFile}');`;
+      insertQuery = `CREATE TABLE ${tempTableName} AS SELECT "${dataTableColumnSelect.join('", "')}" FROM read_json_auto('${tempFile}');`;
       break;
     case FileType.Excel:
-      insertQuery = `INSERT INTO ${tempTableName} ("${factTableDef.join('", "')}") SELECT "${dataTableColumnSelect.join('", "')}" FROM st_read('${tempFile}');`;
+      insertQuery = `CREATE TABLE ${tempTableName} AS SELECT "${dataTableColumnSelect.join('", "')}" FROM st_read('${tempFile}');`;
       break;
     default:
       throw new FactTableValidationException(
@@ -164,7 +165,7 @@ export const loadFileDataTableIntoTable = async (
   try {
     logger.debug(`Loading file data table into table ${tableName} with query: ${insertQuery}`);
     await quack.exec(insertQuery);
-    loadTableDataIntoFactTable(quack, factTableDef, tableName, tempTableName);
+    await loadTableDataIntoFactTable(quack, factTableDef, tableName, tempTableName);
     await quack.exec(`DROP TABLE ${tempTableName};`);
   } catch (error) {
     logger.error(error, `Failed to load file into table using query ${insertQuery}`);

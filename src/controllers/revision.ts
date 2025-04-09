@@ -24,7 +24,8 @@ import { RevisionRepository } from '../repositories/revision';
 import { DuckdbOutputType } from '../enums/duckdb-outputs';
 import {
   cleanUpCube,
-  createBaseCube, createBaseCubeFromProtoCube,
+  createBaseCube,
+  createBaseCubeFromProtoCube,
   createDateDimension,
   createLookupTableDimension,
   loadCorrectReferenceDataIntoReferenceDataTable,
@@ -108,9 +109,9 @@ export const getRevisionPreview = async (req: Request, res: Response, next: Next
   } else if (revision.onlineCubeFilename.includes('protocube')) {
     logger.debug('Loading protocube from file store for preview');
     const buffer = await req.fileService.loadBuffer(revision.onlineCubeFilename, dataset.id);
-    const protoCubeFile = tmp.tmpNameSync({ postfix: '.duckdb' });
-    fs.writeFileSync(protoCubeFile, buffer);
-    cubeFile = await createBaseCubeFromProtoCube(dataset.id, revision.id, protoCubeFile);
+    cubeFile = tmp.tmpNameSync({ postfix: '.duckdb' });
+    fs.writeFileSync(cubeFile, buffer);
+    await createBaseCubeFromProtoCube(dataset.id, revision.id, cubeFile);
   } else {
     logger.debug('Creating fresh cube for preview... This could take a few seconds');
     try {

@@ -124,7 +124,7 @@ describe('API Endpoints for viewing the contents of a dataset', () => {
       .set(getAuthHeader(user))
       .query({ page_number: 2, page_size: 100 });
     expect(res.status).toBe(500);
-    expect(res.body).toEqual({ error: 'errors.cube_create_error' });
+    expect(res.body).toEqual({ error: 'errors.cube_builder.cube_build_failed' });
   });
 
   test('Get file view returns 404 when a not valid UUID is supplied', async () => {

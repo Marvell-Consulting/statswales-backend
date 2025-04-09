@@ -6,12 +6,7 @@ import { duckdb } from './duckdb';
 import { FactTableColumn } from '../entities/dataset/fact-table-column';
 import { FactTableColumnType } from '../enums/fact-table-column-type';
 import { logger } from '../utils/logger';
-import {
-  FACT_TABLE_NAME,
-  loadFileDataTableIntoTable,
-  loadFileIntoCube,
-  loadTableDataIntoFactTable
-} from './cube-handler';
+import { FACT_TABLE_NAME, loadFileIntoCube, loadTableDataIntoFactTable } from './cube-handler';
 import { FactTableValidationException } from '../exceptions/fact-table-validation-exception';
 import { FactTableValidationExceptionType } from '../enums/fact-table-validation-exception-type';
 import { getFileImportAndSaveToDisk } from '../utils/file-utils';
