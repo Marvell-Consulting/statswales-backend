@@ -38,6 +38,7 @@
   "devDependencies": {
     "@eslint/js": "^9.22.0",
     "@faker-js/faker": "^9.3.0",
+    "@tsconfig/node22": "^22.0.1",
     "@types/cookie-parser": "^1.4.8",
     "@types/cors": "^2.8.17",
     "@types/express": "^5.0.0",
