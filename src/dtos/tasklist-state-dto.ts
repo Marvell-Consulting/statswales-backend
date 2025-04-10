@@ -219,17 +219,20 @@ export class TasklistStateDTO {
     });
 
     const translationRequired = !metadataSynced || !metaFullyTranslated;
-    const exportStatus = lastExportedAt
-      ? exportStale
-        ? TaskStatus.Incomplete
-        : TaskStatus.Completed
-      : TaskStatus.NotStarted;
-    const importStatus =
-      lastImportedAt && lastImportedAt > lastMetaUpdateAt
-        ? exportStale || !relatedLinksTranslated
-          ? TaskStatus.Incomplete
-          : TaskStatus.Completed
-        : TaskStatus.NotStarted;
+
+    let exportStatus: TaskStatus;
+    if (lastExportedAt) {
+      exportStatus = exportStale ? TaskStatus.Incomplete : TaskStatus.Completed;
+    } else {
+      exportStatus = TaskStatus.NotStarted;
+    }
+
+    let importStatus: TaskStatus;
+    if (lastImportedAt && lastImportedAt > lastMetaUpdateAt) {
+      importStatus = exportStale || !relatedLinksTranslated ? TaskStatus.Incomplete : TaskStatus.Completed;
+    } else {
+      importStatus = TaskStatus.NotStarted;
+    }
 
     return {
       export: translationRequired ? exportStatus : TaskStatus.NotRequired,
