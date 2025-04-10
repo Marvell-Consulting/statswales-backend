@@ -203,6 +203,10 @@ export class TasklistStateDTO {
       });
     });
 
+    const relatedLinksTranslated = every(revision.relatedLinks, (link) => {
+      return link.labelEN && link.labelCY;
+    });
+
     const lastExport = translationEvents?.find((event) => event.action === 'export');
 
     const existingTranslations = collectTranslations(dataset);
@@ -221,7 +225,11 @@ export class TasklistStateDTO {
         : TaskStatus.Completed
       : TaskStatus.NotStarted;
     const importStatus =
-      lastImportedAt && lastImportedAt > lastMetaUpdateAt ? TaskStatus.Completed : TaskStatus.NotStarted;
+      lastImportedAt && lastImportedAt > lastMetaUpdateAt
+        ? exportStale || !relatedLinksTranslated
+          ? TaskStatus.Incomplete
+          : TaskStatus.Completed
+        : TaskStatus.NotStarted;
 
     return {
       export: translationRequired ? exportStatus : TaskStatus.NotRequired,
