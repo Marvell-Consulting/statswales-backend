@@ -106,12 +106,13 @@ export const loadTableDataIntoFactTable = async (
   const batchSize = 200000;
   let processedRows = 0;
   while (processedRows < rowCount) {
-    await quack.exec(`
+    const insertQuery = `
       INSERT INTO ${factTableName}
-      SELECT ${factTableDef.join(', ')}
+      SELECT "${factTableDef.join('", "')}"
       FROM ${originTableName} LIMIT ${batchSize}
       OFFSET ${processedRows};
-    `);
+    `;
+    await quack.exec(insertQuery);
 
     processedRows += batchSize;
     const currentRows = Math.min(processedRows, rowCount);
