@@ -17,8 +17,8 @@ services:
       POSTGRES_PASSWORD: postgres
       POSTGRES_DB: statswales-backend-test
 
-  redis:
-    image: redis:latest
+  valkey:
+    image: valkey/valkey:latest
     ports:
       - "6379:6379"
 
