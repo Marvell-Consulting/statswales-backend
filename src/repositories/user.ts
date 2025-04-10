@@ -7,6 +7,7 @@ import { UserGroupRole } from '../entities/user/user-group-role';
 import { GlobalRole } from '../enums/global-role';
 import { GroupRole } from '../enums/group-role';
 import { Locale } from '../enums/locale';
+import { UserStatus } from '../enums/user-status';
 import { ResultsetWithCount } from '../interfaces/resultset-with-count';
 
 export const UserRepository = dataSource.getRepository(User).extend({
@@ -72,5 +73,11 @@ export const UserRepository = dataSource.getRepository(User).extend({
     });
 
     return this.getById(userId);
+  },
+
+  async updateUserStatus(userId: string, status: UserStatus): Promise<User> {
+    const user = await this.findOneOrFail({ where: { id: userId } });
+    user.status = status;
+    return this.save(user);
   }
 });

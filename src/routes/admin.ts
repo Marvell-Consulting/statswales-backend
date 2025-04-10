@@ -2,6 +2,7 @@ import express, { Router } from 'express';
 import {
   listRoles,
   listUserGroups,
+  getAllUserGroups,
   loadUserGroup,
   createUserGroup,
   getUserGroupById,
@@ -11,7 +12,7 @@ import {
   getUserById,
   createUser,
   updateUserRoles,
-  getAllUserGroups
+  updateUserStatus
 } from '../controllers/admin';
 
 export const adminRouter = Router();
@@ -32,3 +33,5 @@ adminRouter.post('/user', jsonParser, createUser);
 
 adminRouter.get('/user/:user_id', loadUser, getUserById);
 adminRouter.patch('/user/:user_id/role', loadUser, jsonParser, updateUserRoles);
+
+adminRouter.patch('/user/:user_id/status', loadUser, jsonParser, updateUserStatus);
