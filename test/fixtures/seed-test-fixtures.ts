@@ -49,7 +49,12 @@ export default class SeedTestFixtures extends Seeder {
 
         if (revision && testDataset.csvPath) {
           const buffer = fs.readFileSync(testDataset.csvPath);
-          const dataTable: DataTable = await validateAndUploadCSV(buffer, 'text/csv', `test-fixture.csv`, dataset.id);
+          const { dataTable }: { dataTable: DataTable } = await validateAndUploadCSV(
+            buffer,
+            'text/csv',
+            `test-fixture.csv`,
+            dataset.id
+          );
 
           revision = await entityManager.getRepository(Revision).save({
             ...revision,
