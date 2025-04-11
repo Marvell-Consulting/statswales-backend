@@ -33,7 +33,7 @@ import { RevisionRepository } from '../repositories/revision';
 import { PeriodCovered } from '../interfaces/period-covered';
 
 import { dateDimensionReferenceTableCreator } from './time-matching';
-import { duckdb } from './duckdb';
+import {duckdb, DUCKDB_WRITE_TIMEOUT} from './duckdb';
 import { NumberExtractor, NumberType } from '../extractors/number-extractor';
 import { CubeValidationType } from '../enums/cube-validation-type';
 import { languageMatcherCaseStatement } from '../utils/lookup-table-utils';
@@ -1214,7 +1214,8 @@ export const createBaseCube = async (datasetId: string, endRevisionId: string): 
 
   logger.debug('Creating an in-memory database to hold the cube using DuckDB 🐤');
   const buildStart = performance.now();
-  const quack = await duckdb();
+  const tmpFile = tmp.tmpNameSync({ postfix: '.duckdb' });
+  const quack = await duckdb(tmpFile);
 
   const { measureColumn, notesCodeColumn, dataValuesColumn, factTableDef, factIdentifiers } =
     await createEmptyFactTableInCube(quack, dataset);
@@ -1303,32 +1304,12 @@ export const createBaseCube = async (datasetId: string, endRevisionId: string): 
     logger.debug(rawViewSQL);
     await quack.exec(rawViewSQL);
   }
-  const tmpFile = tmp.tmpNameSync({ postfix: '.db' });
-  try {
-    logger.debug(`Writing memory database to disk at ${tmpFile}`);
-    await quack.exec(`ATTACH '${tmpFile}' as outDB (BLOCK_SIZE 16384);`);
-    await quack.exec(`COPY FROM DATABASE memory TO outDB;`);
-    await quack.exec('DETACH outDB;');
-  } catch (err) {
-    logger.error(err, `Failed to write memory database to disk with error: ${err}`);
-    const error = new CubeValidationException('Failed to write memory database to disk');
-    error.type = CubeValidationType.CubeCreationFailed;
-    throw error;
-  } finally {
-    const end = performance.now();
-    const functionTime = Math.round(end - functionStart);
-    const buildTime = Math.round(end - buildStart);
-    logger.warn(`Cube function took ${functionTime}ms to complete and it took ${buildTime}ms to build the cube.`);
-    await quack.close();
-  }
-  // Pass the file handle to the calling method
-  // If used for preview you just want the file
-  // If it's the end of the publishing step you'll
-  // want to upload the file to the data lake.
   const end = performance.now();
   const functionTime = Math.round(end - functionStart);
   const buildTime = Math.round(end - buildStart);
   logger.warn(`Cube function took ${functionTime}ms to complete and it took ${buildTime}ms to build the cube.`);
+  await quack.close();
+  await new Promise((f) => setTimeout(f, DUCKDB_WRITE_TIMEOUT));
   return tmpFile;
 };
 
@@ -1487,6 +1468,7 @@ export const createBaseCubeFromProtoCube = async (
   const functionTime = Math.round(end - functionStart);
   const buildTime = Math.round(end - buildStart);
   logger.warn(`Cube function took ${functionTime}ms to complete and it took ${buildTime}ms to build the cube.`);
+  await new Promise((f) => setTimeout(f, DUCKDB_WRITE_TIMEOUT));
   return protoCubeFile;
 };
 
