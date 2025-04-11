@@ -2,7 +2,7 @@ import tmp from 'tmp';
 
 import { ValidatedSourceAssignment } from './dimension-processor';
 import { Dataset } from '../entities/dataset/dataset';
-import {duckdb, DUCKDB_WRITE_TIMEOUT} from './duckdb';
+import { duckdb, DUCKDB_WRITE_TIMEOUT } from './duckdb';
 import { FactTableColumn } from '../entities/dataset/fact-table-column';
 import { FactTableColumnType } from '../enums/fact-table-column-type';
 import { logger } from '../utils/logger';
@@ -136,12 +136,6 @@ export const factTableValidatorFromSource = async (
     await loadFileIntoCube(quack, dataTable, dataTableFile, 'data_table');
     await loadTableDataIntoFactTable(quack, factTableDef, FACT_TABLE_NAME, 'data_table');
     await quack.exec('DROP TABLE data_table;');
-    // const databases = await quack.all('SELECT database_name FROM duckdb_databases() WHERE database_name NOT IN (\'memory\', \'system\', \'temp\');');
-    // const dbName = databases[0].database_name;
-    // logger.debug(`Writing database ${dbName} to disk at ${duckdbSaveFile}`);
-    // await quack.exec(`ATTACH '${duckdbSaveFile}' as outDB (BLOCK_SIZE 16384);`);
-    // await quack.exec(`COPY FROM DATABASE "${dbName}" TO outDB;`);
-    // await quack.exec('DETACH outDB;');
   } catch (err) {
     let error = err as FactTableValidationException;
     logger.error(error, 'Failed to load data table into fact table');
@@ -182,7 +176,6 @@ async function identifyDuplicateFacts(
   quack: Database,
   primaryKeyDef: string[],
   error: FactTableValidationException
-
 ): Promise<FactTableValidationException> {
   try {
     const brokenFacts = await quack.all(`

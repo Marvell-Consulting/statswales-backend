@@ -33,7 +33,7 @@ import { RevisionRepository } from '../repositories/revision';
 import { PeriodCovered } from '../interfaces/period-covered';
 
 import { dateDimensionReferenceTableCreator } from './time-matching';
-import {duckdb, DUCKDB_WRITE_TIMEOUT} from './duckdb';
+import { duckdb, DUCKDB_WRITE_TIMEOUT } from './duckdb';
 import { NumberExtractor, NumberType } from '../extractors/number-extractor';
 import { CubeValidationType } from '../enums/cube-validation-type';
 import { languageMatcherCaseStatement } from '../utils/lookup-table-utils';

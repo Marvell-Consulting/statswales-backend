@@ -85,7 +85,8 @@ export const getDefaultConfig = (): AppConfig => {
     },
     duckdb: {
       threads: process.env.DUCKDB_THREADS ? parseInt(process.env.DUCKDB_THREADS, 10) : 1,
-      memory: process.env.DUCKDB_MEMORY || '125MB'
+      memory: process.env.DUCKDB_MEMORY || '125MB',
+      writeTimeOut: process.env.DUCKDB_WRITE_TIMEOUT ? parseInt(process.env.DUCKDB_WRITE_TIMEOUT, 10) : 150
     }
   };
 };
