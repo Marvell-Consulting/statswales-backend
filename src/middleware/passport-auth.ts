@@ -3,12 +3,15 @@ import { Issuer, Strategy as OpenIdStrategy, TokenSet, UserinfoResponse } from '
 import { Strategy as GoogleStrategy } from 'passport-google-oauth20';
 import { Strategy as JWTStrategy, ExtractJwt } from 'passport-jwt';
 import { DataSource, Repository } from 'typeorm';
+import { isEqual, pick } from 'lodash';
 
 import { logger } from '../utils/logger';
 import { User } from '../entities/user/user';
 import { appConfig } from '../config';
 import { AuthProvider } from '../enums/auth-providers';
 import { asyncLocalStorage } from '../services/async-local-storage';
+import { Locale } from '../enums/locale';
+import { UserDTO } from '../dtos/user/user-dto';
 
 const config = appConfig();
 
@@ -58,17 +61,32 @@ const initJwt = async (userRepository: Repository<User>, jwtConfig: Record<strin
       },
       async (jwtPayload, done): Promise<void> => {
         logger.debug('authenticating request with JWT...');
+        const jwtUser = jwtPayload.user;
 
         try {
           const user = await userRepository.findOne({
-            where: { id: jwtPayload?.user?.id },
-            relations: { groupRoles: { group: true } }
+            where: { id: jwtUser?.id },
+            relations: { groupRoles: { group: { metadata: true } } }
           });
 
           if (!user) {
             logger.error('jwt auth failed: user account could not be found');
             done(null, undefined, { message: 'User not recognised' });
             return;
+          }
+
+          // convert user dto to a plain object so we can compare with jwt payload
+          const refreshedUser = JSON.parse(JSON.stringify(UserDTO.fromUser(user, Locale.English)));
+
+          // compare the props that control permissions and force reauthentication if they are different
+          const permissionsProps = ['id', 'global_roles', 'groups', 'status'];
+          const jwtPerms = pick(jwtUser, permissionsProps);
+          const activePerms = pick(refreshedUser, permissionsProps);
+
+          if (!isEqual(jwtPerms, activePerms)) {
+            logger.warn('User permissions have changed, user should re-authenticate');
+            // done(null, undefined, { message: 'User permissions have changed, please re-authenticate' });
+            // return;
           }
 
           // store the user context for code that does not have access to the request object
@@ -128,7 +146,7 @@ const initEntraId = async (userRepository: Repository<User>, entraIdConfig: Reco
               provider: AuthProvider.EntraId,
               providerUserId: userInfo.sub
             },
-            relations: { groupRoles: { group: true } }
+            relations: { groupRoles: { group: { metadata: true } } }
           });
 
           if (existingUserById) {
@@ -150,7 +168,7 @@ const initEntraId = async (userRepository: Repository<User>, entraIdConfig: Reco
           logger.debug('no previous login found, falling back to email...');
           const existingUserByEmail = await userRepository.findOne({
             where: { email: userInfo.email },
-            relations: { groupRoles: { group: true } }
+            relations: { groupRoles: { group: { metadata: true } } }
           });
 
           if (existingUserByEmail) {
@@ -209,7 +227,7 @@ const initGoogle = async (userRepository: Repository<User>, googleConfig: Record
               provider: AuthProvider.Google,
               providerUserId: profile?.id
             },
-            relations: { groupRoles: { group: true } }
+            relations: { groupRoles: { group: { metadata: true } } }
           });
 
           if (existingUserById) {
@@ -231,7 +249,7 @@ const initGoogle = async (userRepository: Repository<User>, googleConfig: Record
           logger.debug('no previous login found, falling back to email...');
           const existingUserByEmail = await userRepository.findOne({
             where: { email: profile._json.email },
-            relations: { groupRoles: { group: true } }
+            relations: { groupRoles: { group: { metadata: true } } }
           });
 
           if (existingUserByEmail) {
