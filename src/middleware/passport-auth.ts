@@ -85,8 +85,8 @@ const initJwt = async (userRepository: Repository<User>, jwtConfig: Record<strin
 
           if (!isEqual(jwtPerms, activePerms)) {
             logger.warn('User permissions have changed, user should re-authenticate');
-            // done(null, undefined, { message: 'User permissions have changed, please re-authenticate' });
-            // return;
+            done(null, undefined, { message: 'User permissions have changed, please re-authenticate' });
+            return;
           }
 
           // store the user context for code that does not have access to the request object
