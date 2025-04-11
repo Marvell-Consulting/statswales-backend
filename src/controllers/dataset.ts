@@ -330,7 +330,7 @@ export const updateSources = async (req: Request, res: Response, next: NextFunct
     });
     return;
   }
-  let duckdbFile;
+  let duckdbFile: string;
   try {
     duckdbFile = await factTableValidatorFromSource(dataset, validatedSourceAssignment);
   } catch (err) {
@@ -354,7 +354,9 @@ export const updateSources = async (req: Request, res: Response, next: NextFunct
     return;
   }
   try {
+    logger.debug(`Saving duckdb file to blob storage: ${duckdbFile}`);
     const buffer = fs.readFileSync(duckdbFile);
+    logger.debug(`Buffer size: ${buffer.byteLength} bytes`);
     await req.fileService.saveBuffer(`${revision.id}-protocube.duckdb`, dataset.id, buffer);
     revision.onlineCubeFilename = `${revision.id}-protocube.duckdb`;
     fs.unlinkSync(duckdbFile);

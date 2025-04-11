@@ -7,6 +7,13 @@ const logger = parentLogger.child({ module: 'DuckDB' });
 
 const config = appConfig();
 
+export const DUCKDB_WRITE_TIMEOUT = config.duckdb.writeTimeOut;
+
+export const safelyCloseDuckDb = async (quack: Database) => {
+  await quack.close();
+  return new Promise((f) => setTimeout(f, DUCKDB_WRITE_TIMEOUT));
+};
+
 export const duckdb = async (cubeFile = ':memory:') => {
   logger.info(
     `Creating DuckDB instance with ${config.duckdb.threads} thread(s) and ${config.duckdb.memory} memory limit.`

@@ -82,6 +82,7 @@ export interface AppConfig {
   duckdb: {
     threads: number;
     memory: string;
+    writeTimeOut: number;
   };
 }
 

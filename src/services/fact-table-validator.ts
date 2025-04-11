@@ -2,7 +2,7 @@ import tmp from 'tmp';
 
 import { ValidatedSourceAssignment } from './dimension-processor';
 import { Dataset } from '../entities/dataset/dataset';
-import { duckdb } from './duckdb';
+import { duckdb, safelyCloseDuckDb } from './duckdb';
 import { FactTableColumn } from '../entities/dataset/fact-table-column';
 import { FactTableColumnType } from '../enums/fact-table-column-type';
 import { logger } from '../utils/logger';
@@ -24,8 +24,8 @@ export const factTableValidatorFromSource = async (
   dataset: Dataset,
   validatedSourceAssignment: ValidatedSourceAssignment
 ): Promise<string> => {
-  const duckdDBFile = tmp.tmpNameSync({ postfix: 'duckdb' });
-  const quack = await duckdb(duckdDBFile);
+  const duckdbSaveFile = tmp.tmpNameSync({ postfix: '.duckdb' });
+  const quack = await duckdb(duckdbSaveFile);
 
   if (!dataset.factTable) {
     throw new Error(`Unable to find fact table for dataset ${dataset.id}`);
@@ -145,11 +145,12 @@ export const factTableValidatorFromSource = async (
     } else if (error.type === FactTableValidationExceptionType.DuplicateFact) {
       error = await identifyDuplicateFacts(quack, primaryKeyDef, error);
     }
-    throw error;
   } finally {
-    await quack.close();
+    logger.debug('Closing duckdb database');
+    await safelyCloseDuckDb(quack);
+    logger.debug('Duckdb Closed');
   }
-  return duckdDBFile;
+  return duckdbSaveFile;
 };
 
 async function identifyIncompleteFacts(
