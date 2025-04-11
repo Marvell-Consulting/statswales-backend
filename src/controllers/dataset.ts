@@ -10,7 +10,7 @@ import { Locale } from '../enums/locale';
 import { logger } from '../utils/logger';
 import { UnknownException } from '../exceptions/unknown.exception';
 import { DatasetDTO } from '../dtos/dataset-dto';
-import { hasError, titleValidator } from '../validators';
+import { userGroupIdValidator, hasError, titleValidator } from '../validators';
 import { BadRequestException } from '../exceptions/bad-request.exception';
 import { ViewErrDTO } from '../dtos/view-dto';
 import { arrayValidator, dtoValidator } from '../validators/dto-validator';
@@ -76,8 +76,16 @@ export const createDataset = async (req: Request, res: Response, next: NextFunct
     return;
   }
 
+  const validUserGroupIds = req.user?.groupRoles.map((gr) => gr.groupId) as string[];
+  const groupIdError = await hasError(userGroupIdValidator(validUserGroupIds), req);
+  if (groupIdError) {
+    next(new BadRequestException('errors.user_group_id.invalid'));
+    return;
+  }
+
   try {
-    const dataset = await req.datasetService.createNew(req.body.title, req.user as User);
+    const { title, user_group_id } = req.body;
+    const dataset = await req.datasetService.createNew(title, user_group_id, req.user as User);
     res.status(201);
     res.json(DatasetDTO.fromDataset(dataset));
   } catch (err) {
