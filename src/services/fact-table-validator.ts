@@ -2,7 +2,7 @@ import tmp from 'tmp';
 
 import { ValidatedSourceAssignment } from './dimension-processor';
 import { Dataset } from '../entities/dataset/dataset';
-import { duckdb, DUCKDB_WRITE_TIMEOUT } from './duckdb';
+import { duckdb, safelyCloseDuckDb } from './duckdb';
 import { FactTableColumn } from '../entities/dataset/fact-table-column';
 import { FactTableColumnType } from '../enums/fact-table-column-type';
 import { logger } from '../utils/logger';
@@ -147,8 +147,7 @@ export const factTableValidatorFromSource = async (
     }
   } finally {
     logger.debug('Closing duckdb database');
-    await quack.close();
-    await new Promise((f) => setTimeout(f, DUCKDB_WRITE_TIMEOUT));
+    await safelyCloseDuckDb(quack);
     logger.debug('Duckdb Closed');
   }
   return duckdbSaveFile;

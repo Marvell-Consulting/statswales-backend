@@ -33,7 +33,7 @@ import { RevisionRepository } from '../repositories/revision';
 import { PeriodCovered } from '../interfaces/period-covered';
 
 import { dateDimensionReferenceTableCreator } from './time-matching';
-import { duckdb, DUCKDB_WRITE_TIMEOUT } from './duckdb';
+import { duckdb, safelyCloseDuckDb } from './duckdb';
 import { NumberExtractor, NumberType } from '../extractors/number-extractor';
 import { CubeValidationType } from '../enums/cube-validation-type';
 import { languageMatcherCaseStatement } from '../utils/lookup-table-utils';
@@ -1304,12 +1304,11 @@ export const createBaseCube = async (datasetId: string, endRevisionId: string): 
     logger.debug(rawViewSQL);
     await quack.exec(rawViewSQL);
   }
+  await safelyCloseDuckDb(quack);
   const end = performance.now();
   const functionTime = Math.round(end - functionStart);
   const buildTime = Math.round(end - buildStart);
   logger.warn(`Cube function took ${functionTime}ms to complete and it took ${buildTime}ms to build the cube.`);
-  await quack.close();
-  await new Promise((f) => setTimeout(f, DUCKDB_WRITE_TIMEOUT));
   return tmpFile;
 };
 
@@ -1463,12 +1462,11 @@ export const createBaseCubeFromProtoCube = async (
   // If used for preview you just want the file
   // If it's the end of the publishing step you'll
   // want to upload the file to the data lake.
-  await quack.close();
+  await safelyCloseDuckDb(quack);
   const end = performance.now();
   const functionTime = Math.round(end - functionStart);
   const buildTime = Math.round(end - buildStart);
   logger.warn(`Cube function took ${functionTime}ms to complete and it took ${buildTime}ms to build the cube.`);
-  await new Promise((f) => setTimeout(f, DUCKDB_WRITE_TIMEOUT));
   return protoCubeFile;
 };
 
