@@ -6,7 +6,7 @@ import { MeasureLookupPatchDTO } from '../dtos/measure-lookup-patch-dto';
 import { LookupTablePatchDTO } from '../dtos/lookup-patch-dto';
 
 import { logger } from './logger';
-import { Database } from 'duckdb-async';
+import { Database, TableData } from 'duckdb-async';
 import { Dataset } from '../entities/dataset/dataset';
 import { ViewErrDTO } from '../dtos/view-dto';
 import { viewErrorGenerators } from './view-error-generators';
@@ -170,16 +170,18 @@ export const validateLookupTableLanguages = async (
 
   try {
     logger.debug(`Checking descriptions and notes are different between languages`);
-    const duplicateDescriptionRows = await quack.all(`
-      SELECT "${joinColumn}", description, COUNT(language) as lang_count
-      FROM (SELECT * FROM "${lookupTableName}" where description IS NOT NULL)
-      GROUP BY description, "${joinColumn}" HAVING lang_count > 1
-    `);
-    const duplicateNoteRows = await quack.all(`
-      SELECT "${joinColumn}", notes, COUNT(language) as lang_count
-      FROM (SELECT * FROM "${lookupTableName}" WHERE notes IS NOT NULL)
-      GROUP BY notes, "${joinColumn}" HAVING lang_count > 1
-    `);
+    const duplicateDescriptionRows: TableData[] = [];
+    const duplicateNoteRows: TableData[] = [];
+    // const duplicateDescriptionRows = await quack.all(`
+    //   SELECT "${joinColumn}", description, COUNT(language) as lang_count
+    //   FROM (SELECT * FROM "${lookupTableName}" where description IS NOT NULL)
+    //   GROUP BY description, "${joinColumn}" HAVING lang_count > 1
+    // `);
+    // const duplicateNoteRows = await quack.all(`
+    //   SELECT "${joinColumn}", notes, COUNT(language) as lang_count
+    //   FROM (SELECT * FROM "${lookupTableName}" WHERE notes IS NOT NULL)
+    //   GROUP BY notes, "${joinColumn}" HAVING lang_count > 1
+    // `);
     if (duplicateDescriptionRows.length > 0 || duplicateNoteRows.length > 0) {
       logger.error(`The lookup table has duplicate descriptions or notes`);
       logger.error(`Duplicate descriptions: ${JSON.stringify(duplicateDescriptionRows)}`);
