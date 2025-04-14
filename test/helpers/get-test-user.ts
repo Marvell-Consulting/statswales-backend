@@ -7,7 +7,7 @@ import { User } from '../../src/entities/user/user';
 export const getTestUser = (givenName = 'test', familyName = 'user'): User => {
   const user = new User();
   user.email = `${givenName}.${familyName}@example.com`;
-  user.provider = 'test';
+  user.provider = 'local';
   user.providerUserId = randomUUID().toLowerCase();
   user.givenName = capitalize(givenName);
   user.familyName = capitalize(familyName);

@@ -3,7 +3,7 @@ import { Issuer, Strategy as OpenIdStrategy, TokenSet, UserinfoResponse } from '
 import { Strategy as GoogleStrategy } from 'passport-google-oauth20';
 import { Strategy as JWTStrategy, ExtractJwt } from 'passport-jwt';
 import { DataSource, Repository } from 'typeorm';
-import { isEqual, pick } from 'lodash';
+import { isEqual } from 'lodash';
 
 import { logger } from '../utils/logger';
 import { User } from '../entities/user/user';
@@ -12,6 +12,7 @@ import { AuthProvider } from '../enums/auth-providers';
 import { asyncLocalStorage } from '../services/async-local-storage';
 import { Locale } from '../enums/locale';
 import { UserDTO } from '../dtos/user/user-dto';
+import { getPermissionsForUser } from '../utils/get-permissions-for-user';
 
 const config = appConfig();
 
@@ -75,16 +76,14 @@ const initJwt = async (userRepository: Repository<User>, jwtConfig: Record<strin
             return;
           }
 
-          // convert user dto to a plain object so we can compare with jwt payload
-          const refreshedUser = JSON.parse(JSON.stringify(UserDTO.fromUser(user, Locale.English)));
-
           // compare the props that control permissions and force reauthentication if they are different
-          const permissionsProps = ['id', 'global_roles', 'groups', 'status'];
-          const jwtPerms = pick(jwtUser, permissionsProps);
-          const activePerms = pick(refreshedUser, permissionsProps);
+          // need to jsonify user object to convert to plain object for comparison
+          const refreshedUser = JSON.parse(JSON.stringify(UserDTO.fromUser(user, Locale.English)));
+          const activePerms = getPermissionsForUser(refreshedUser);
+          const jwtPerms = getPermissionsForUser(jwtUser);
 
           if (!isEqual(jwtPerms, activePerms)) {
-            logger.warn('User permissions have changed, user should re-authenticate');
+            logger.warn({ jwtPerms, activePerms }, 'User permissions have changed, user should re-authenticate');
             done(null, undefined, { message: 'User permissions have changed, please re-authenticate' });
             return;
           }

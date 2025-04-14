@@ -4,13 +4,13 @@ import app from '../../src/app';
 import { initDb } from '../../src/db/init';
 import DatabaseManager from '../../src/db/database-manager';
 import { initPassport } from '../../src/middleware/passport-auth';
-import { sanitiseUser } from '../../src/utils/sanitise-user';
 import { SUPPORTED_LOCALES } from '../../src/middleware/translation';
 import { Locale } from '../../src/enums/locale';
 import { logger } from '../../src/utils/logger';
 
-import { getTestUser } from '../helpers/get-user';
+import { getTestUser } from '../helpers/get-test-user';
 import { getAuthHeader } from '../helpers/auth-header';
+import { UserDTO } from '../../src/dtos/user/user-dto';
 
 jest.mock('../../src/services/blob-storage', () => {
   return function BlobStorage() {
@@ -123,7 +123,7 @@ describe('Healthcheck', () => {
       expect(res.status).toBe(200);
       expect(res.body).toEqual({
         message: 'success',
-        user: sanitiseUser(testUser)
+        user: UserDTO.fromUser(testUser, Locale.English)
       });
     });
   });

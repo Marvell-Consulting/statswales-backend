@@ -18,8 +18,8 @@ export class UserDTO {
   global_roles: GlobalRole[];
   groups: UserGroupWithRolesDTO[];
   status: UserStatus;
-  created_at: string;
-  updated_at: string;
+  created_at?: string;
+  updated_at?: string;
   last_login_at?: string;
 
   static fromUser(user: User, lang: Locale): UserDTO {
@@ -33,13 +33,13 @@ export class UserDTO {
     dto.family_name = user.familyName;
     dto.full_name = user.name;
     dto.status = user.status;
-    dto.created_at = user.createdAt.toISOString();
-    dto.updated_at = user.updatedAt.toISOString();
+    dto.created_at = user.createdAt?.toISOString();
+    dto.updated_at = user.updatedAt?.toISOString();
     dto.last_login_at = user.lastLoginAt?.toISOString();
 
     dto.global_roles = user.globalRoles?.map((role) => role as GlobalRole) || [];
 
-    dto.groups = user.groupRoles?.map((userRole: UserGroupRole) => {
+    dto.groups = (user.groupRoles || []).map((userRole: UserGroupRole) => {
       return {
         group: UserGroupDTO.fromUserGroup(userRole.group, lang),
         roles: userRole.roles.map((role) => role as GroupRole)
