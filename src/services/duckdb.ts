@@ -10,6 +10,7 @@ const config = appConfig();
 export const DUCKDB_WRITE_TIMEOUT = config.duckdb.writeTimeOut;
 
 export const safelyCloseDuckDb = async (quack: Database) => {
+  await quack.exec(`CHECKPOINT;`);
   await quack.close();
   return new Promise((f) => setTimeout(f, DUCKDB_WRITE_TIMEOUT));
 };
