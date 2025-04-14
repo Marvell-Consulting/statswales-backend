@@ -30,7 +30,8 @@
     "migration:create": "npm run typeorm migration:create",
     "seed:required": "npm run typeorm-seeding -- -d ./src/db/data-source.ts ./src/seeders/*.ts",
     "seed:e2e": "npm run typeorm-seeding -- -d ./src/db/data-source.ts ./test/fixtures/seed-test-fixtures.ts",
-    "seed:ci": "npm run typeorm-seeding -- -d ./src/db/data-source.ts ./test/fixtures/seed-test-fixtures.ts"
+    "seed:ci": "npm run typeorm-seeding -- -d ./src/db/data-source.ts ./test/fixtures/seed-test-fixtures.ts",
+    "assign-default-group": "npm run typeorm-seeding -- -d ./src/db/data-source.ts ./src/seeders/groups.ts"
   },
   "keywords": [],
   "author": "",
