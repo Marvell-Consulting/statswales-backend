@@ -57,11 +57,19 @@ export class EntitySubscriber implements EntitySubscriberInterface {
   private async logEvent(action: string, event: WriteEvent): Promise<void> {
     if (ignoreTables.includes(event?.metadata?.tableName)) return;
 
+    // some events don't have an id we can use, but the col is required
+    // switching to a different method of inserting / updating the entity might help if we need it
+    const entityId = get(event, 'entityId') || get(event, 'entity.id') || 'unknown';
+
+    if (entityId === 'unknown') {
+      logger.warn(`no id found for ${action} event`);
+    }
+
     try {
       const log: DeepPartial<EventLog> = {
         action,
         entity: event.metadata?.tableName,
-        entityId: get(event, 'entityId') || get(event, 'entity.id'),
+        entityId,
         data: event.entity ? this.normaliseEntity(event.entity) : undefined,
         userId: this.getUser()?.id,
         client: this.getClient()
@@ -78,9 +86,6 @@ export class EntitySubscriber implements EntitySubscriberInterface {
   }
 
   async afterUpdate(event: UpdateEvent<AnyEntity>): Promise<void> {
-    if (!event.entity) {
-      return;
-    }
     await this.logEvent('update', event);
   }
 
