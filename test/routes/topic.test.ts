@@ -9,7 +9,7 @@ import { Topic } from '../../src/entities/dataset/topic';
 import { TopicDTO } from '../../src/dtos/topic-dto';
 import { Locale } from '../../src/enums/locale';
 
-import { getTestUser } from '../helpers/get-user';
+import { getTestUser } from '../helpers/get-test-user';
 import { getAuthHeader } from '../helpers/auth-header';
 
 // Need to mock blob storage as it is included in services middleware for every route

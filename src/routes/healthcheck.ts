@@ -2,12 +2,13 @@ import { Request, Response, Router } from 'express';
 import passport from 'passport';
 import { isString } from 'lodash';
 
-import { sanitiseUser } from '../utils/sanitise-user';
 import { User } from '../entities/user/user';
 import { dataSource } from '../db/data-source';
 import { logger } from '../utils/logger';
 import { SUPPORTED_LOCALES } from '../middleware/translation';
 import { StorageService } from '../interfaces/storage-service';
+import { Locale } from '../enums/locale';
+import { UserDTO } from '../dtos/user/user-dto';
 
 const healthcheck = Router();
 
@@ -59,7 +60,7 @@ healthcheck.get('/language', (req, res) => {
 
 // for testing jwt auth is working
 healthcheck.get('/jwt', passport.authenticate('jwt', { session: false }), (req, res) => {
-  res.json({ message: 'success', user: sanitiseUser(req.user as User) });
+  res.json({ message: 'success', user: UserDTO.fromUser(req.user as User, req.language as Locale) });
 });
 
 export const healthcheckRouter = healthcheck;

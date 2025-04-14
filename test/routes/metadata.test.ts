@@ -22,7 +22,7 @@ import { logger } from '../../src/utils/logger';
 import { withMetadata } from '../../src/repositories/revision';
 
 import { createFullDataset } from '../helpers/test-helper';
-import { getTestUser } from '../helpers/get-user';
+import { getTestUser } from '../helpers/get-test-user';
 import { getAuthHeader } from '../helpers/auth-header';
 import BlobStorage from '../../src/services/blob-storage';
 

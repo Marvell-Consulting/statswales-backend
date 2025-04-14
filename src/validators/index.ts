@@ -23,3 +23,5 @@ export const pageNumberValidator = () => check('page_number').trim().notEmpty().
 export const pageSizeValidator = () => check('page_size').trim().notEmpty().isInt().toInt();
 
 export const userStatusValidator = () => body('status').isIn(Object.values(UserStatus));
+
+export const userGroupIdValidator = (userGroupIds: string[]) => body('user_group_id').isIn(userGroupIds);

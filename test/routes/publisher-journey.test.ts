@@ -25,10 +25,13 @@ import { RevisionRepository } from '../../src/repositories/revision';
 import { RevisionMetadataDTO } from '../../src/dtos/revistion-metadata-dto';
 
 import { createFullDataset, createSmallDataset } from '../helpers/test-helper';
-import { getTestUser } from '../helpers/get-user';
+import { getTestUser } from '../helpers/get-test-user';
 import { getAuthHeader } from '../helpers/auth-header';
 import BlobStorage from '../../src/services/blob-storage';
 import { MAX_PAGE_SIZE, MIN_PAGE_SIZE } from '../../src/validators/preview-validator';
+import { UserGroup } from '../../src/entities/user/user-group';
+import { GroupRole } from '../../src/enums/group-role';
+import { UserGroupRole } from '../../src/entities/user/user-group-role';
 
 jest.mock('../../src/services/blob-storage');
 
@@ -43,6 +46,8 @@ const revision1Id = '85f0e416-8bd1-4946-9e2c-1c958897c6ef';
 const import1Id = 'fa07be9d-3495-432d-8c1f-d0fc6daae359';
 const user: User = getTestUser('test', 'user');
 
+let userGroup: UserGroup;
+
 let datasetService: DatasetService;
 
 describe('API Endpoints', () => {
@@ -51,6 +56,15 @@ describe('API Endpoints', () => {
     try {
       dbManager = await initDb();
       await initPassport(dbManager.getDataSource());
+
+      userGroup = UserGroup.create({
+        metadata: [
+          { name: 'Test', language: Locale.EnglishGb },
+          { name: 'Test CY', language: Locale.WelshGb }
+        ]
+      });
+      await userGroup.save();
+      user.groupRoles = [UserGroupRole.create({ group: userGroup, roles: [GroupRole.Editor] })];
       await user.save();
       await createFullDataset(dataset1Id, revision1Id, import1Id, user);
       datasetService = new DatasetService(Locale.EnglishGb);
@@ -79,7 +93,7 @@ describe('API Endpoints', () => {
     });
 
     test('Creates and returns a dataset with a title', async () => {
-      const data = { title: 'My test datatset' };
+      const data = { title: 'My test datatset', user_group_id: userGroup.id };
       const res = await request(app).post('/dataset').set(getAuthHeader(user)).send(data);
       expect(res.status).toBe(201);
       const dataset = await DatasetRepository.getById(res.body.id, withDraftAndMetadata);
@@ -87,7 +101,7 @@ describe('API Endpoints', () => {
     });
 
     test('Upload returns 400 if no file attached', async () => {
-      const dataset = await datasetService.createNew('Test Dataset 1', user);
+      const dataset = await datasetService.createNew('Test Dataset 1', userGroup.id, user);
       const res = await request(app).post(`/dataset/${dataset.id}/data`).set(getAuthHeader(user));
       expect(res.status).toBe(400);
       expect(res.body).toEqual({ error: 'No CSV data provided' });
@@ -95,7 +109,7 @@ describe('API Endpoints', () => {
     });
 
     test('Upload returns 201 if a file is attached', async () => {
-      const dataset = await datasetService.createNew('Test Dataset 2', user);
+      const dataset = await datasetService.createNew('Test Dataset 2', userGroup.id, user);
       const csvFile = path.resolve(__dirname, `../sample-files/csv/sure-start-short.csv`);
       const res = await request(app)
         .post(`/dataset/${dataset.id}/data`)

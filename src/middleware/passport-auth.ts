@@ -3,12 +3,16 @@ import { Issuer, Strategy as OpenIdStrategy, TokenSet, UserinfoResponse } from '
 import { Strategy as GoogleStrategy } from 'passport-google-oauth20';
 import { Strategy as JWTStrategy, ExtractJwt } from 'passport-jwt';
 import { DataSource, Repository } from 'typeorm';
+import { isEqual } from 'lodash';
 
 import { logger } from '../utils/logger';
 import { User } from '../entities/user/user';
 import { appConfig } from '../config';
 import { AuthProvider } from '../enums/auth-providers';
 import { asyncLocalStorage } from '../services/async-local-storage';
+import { Locale } from '../enums/locale';
+import { UserDTO } from '../dtos/user/user-dto';
+import { getPermissionsForUser } from '../utils/get-permissions-for-user';
 
 const config = appConfig();
 
@@ -58,13 +62,29 @@ const initJwt = async (userRepository: Repository<User>, jwtConfig: Record<strin
       },
       async (jwtPayload, done): Promise<void> => {
         logger.debug('authenticating request with JWT...');
+        const jwtUser = jwtPayload.user;
 
         try {
-          const user = await userRepository.findOneBy({ id: jwtPayload?.user?.id });
+          const user = await userRepository.findOne({
+            where: { id: jwtUser?.id },
+            relations: { groupRoles: { group: { metadata: true } } }
+          });
 
           if (!user) {
             logger.error('jwt auth failed: user account could not be found');
             done(null, undefined, { message: 'User not recognised' });
+            return;
+          }
+
+          // compare the props that control permissions and force reauthentication if they are different
+          // need to jsonify user object to convert to plain object for comparison
+          const refreshedUser = JSON.parse(JSON.stringify(UserDTO.fromUser(user, Locale.English)));
+          const activePerms = getPermissionsForUser(refreshedUser);
+          const jwtPerms = getPermissionsForUser(jwtUser);
+
+          if (!isEqual(jwtPerms, activePerms)) {
+            logger.warn({ jwtPerms, activePerms }, 'User permissions have changed, user should re-authenticate');
+            done(null, undefined, { message: 'User permissions have changed, please re-authenticate' });
             return;
           }
 
@@ -114,14 +134,18 @@ const initEntraId = async (userRepository: Repository<User>, entraIdConfig: Reco
         }
 
         try {
-          // TODO: EntraID only provides full name, we might want to avoid splitting it?
+          // EntraID seems to only provide full name, splitting it this way might not give us the correct
+          // given/family name order depending on the user's culture
           const [givenName, familyName] = userInfo.name ? userInfo.name.split(' ') : [undefined, undefined];
 
           logger.debug('checking if user has previously logged in...');
 
-          const existingUserById = await userRepository.findOneBy({
-            provider: AuthProvider.EntraId,
-            providerUserId: userInfo.sub
+          const existingUserById = await userRepository.findOne({
+            where: {
+              provider: AuthProvider.EntraId,
+              providerUserId: userInfo.sub
+            },
+            relations: { groupRoles: { group: { metadata: true } } }
           });
 
           if (existingUserById) {
@@ -141,7 +165,10 @@ const initEntraId = async (userRepository: Repository<User>, entraIdConfig: Reco
           }
 
           logger.debug('no previous login found, falling back to email...');
-          const existingUserByEmail = await userRepository.findOneBy({ email: userInfo.email });
+          const existingUserByEmail = await userRepository.findOne({
+            where: { email: userInfo.email },
+            relations: { groupRoles: { group: { metadata: true } } }
+          });
 
           if (existingUserByEmail) {
             logger.debug('user found by email, associating user record with entraid account');
@@ -186,46 +213,61 @@ const initGoogle = async (userRepository: Repository<User>, googleConfig: Record
       async (accessToken, refreshToken, profile, done): Promise<void> => {
         logger.debug('auth callback from google received');
 
-        if (!profile?._json?.email) {
-          logger.error('google auth failed: account has no email address');
-          done(null, undefined, {
-            message: 'google account does not have an email, use another provider'
-          });
+        if (!profile?.id || !profile?._json?.email) {
+          logger.error('google auth failed: account is missing user id or email address and we need both');
+          done(null, undefined, { message: 'google account does not have a user id or email, cannot login' });
           return;
         }
 
         try {
           logger.debug('checking if user has previously logged in...');
-          const existingUser = await userRepository.findOneBy({ email: profile._json.email });
+          const existingUserById = await userRepository.findOne({
+            where: {
+              provider: AuthProvider.Google,
+              providerUserId: profile?.id
+            },
+            relations: { groupRoles: { group: { metadata: true } } }
+          });
 
-          if (existingUser && existingUser.provider !== 'google') {
-            logger.warn(`google: email was previously used via another provider (${existingUser.provider})`);
+          if (existingUserById) {
+            logger.debug('user found by provider id, updating user record with latest details from google');
 
-            // TODO: find a better way to merge providers rather than overwriting
-            existingUser.provider = 'google';
-            existingUser.providerUserId = profile.id;
-            existingUser.lastLoginAt = new Date();
-            await existingUser.save();
-            done(null, existingUser);
+            await userRepository
+              .merge(existingUserById, {
+                email: profile._json.email,
+                givenName: profile.name?.givenName,
+                familyName: profile.name?.familyName,
+                lastLoginAt: new Date()
+              })
+              .save();
+
+            done(null, existingUserById);
             return;
           }
 
-          if (!existingUser) {
-            logger.debug('no previous login found, creating new user');
+          logger.debug('no previous login found, falling back to email...');
+          const existingUserByEmail = await userRepository.findOne({
+            where: { email: profile._json.email },
+            relations: { groupRoles: { group: { metadata: true } } }
+          });
 
-            const user = await userRepository.save({
-              provider: 'google',
-              providerUserId: profile.id,
-              email: profile._json.email,
-              givenName: profile.name?.givenName,
-              familyName: profile.name?.familyName,
-              lastLoginAt: new Date()
-            });
-            done(null, user);
-            return;
+          if (existingUserByEmail) {
+            logger.debug('user found by email, associating user record with google account');
+
+            await userRepository
+              .merge(existingUserByEmail, {
+                provider: AuthProvider.Google,
+                providerUserId: profile.id,
+                givenName: profile.name?.givenName,
+                familyName: profile.name?.familyName,
+                lastLoginAt: new Date()
+              })
+              .save();
           }
-          logger.debug('existing user found');
-          done(null, existingUser);
+
+          logger.error('No matching user found, cannot log in');
+          done(null, undefined, { message: 'User not recognised' });
+          return;
         } catch (error) {
           logger.error(error);
           done(null, undefined, { message: 'Unknown error' });

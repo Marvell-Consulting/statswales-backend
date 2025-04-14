@@ -40,10 +40,10 @@ export class DatasetService {
     this.lang = lang;
   }
 
-  async createNew(title: string, createdBy: User): Promise<Dataset> {
+  async createNew(title: string, userGroupId: string, createdBy: User): Promise<Dataset> {
     logger.info(`Creating new dataset...`);
 
-    const dataset = await DatasetRepository.create({ createdBy }).save();
+    const dataset = await DatasetRepository.create({ createdBy, userGroupId }).save();
     const firstRev = await RevisionRepository.create({ dataset, createdBy, revisionIndex: 1 }).save();
     await RevisionRepository.createMetadata(firstRev, title, this.lang);
 

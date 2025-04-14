@@ -52,7 +52,7 @@ export const UserRepository = dataSource.getRepository(User).extend({
     await this.manager.transaction(async (transactionEm) => {
       const user = await transactionEm.findOneOrFail(User, {
         where: { id: userId },
-        relations: { groupRoles: true }
+        relations: { groupRoles: { group: { metadata: true } } }
       });
 
       // delete all existing group roles

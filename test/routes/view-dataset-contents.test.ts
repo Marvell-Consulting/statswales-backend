@@ -13,7 +13,7 @@ import { DatasetRepository } from '../../src/repositories/dataset';
 import { RevisionRepository } from '../../src/repositories/revision';
 
 import { createFullDataset } from '../helpers/test-helper';
-import { getTestUser } from '../helpers/get-user';
+import { getTestUser } from '../helpers/get-test-user';
 import { getAuthHeader } from '../helpers/auth-header';
 import BlobStorage from '../../src/services/blob-storage';
 

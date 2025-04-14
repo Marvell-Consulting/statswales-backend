@@ -18,7 +18,7 @@ if (config.auth.providers.includes(AuthProvider.EntraId)) {
   auth.get('/entraid/callback', loginEntraID);
 }
 
-// TODO: remove once EntraID is available for WG users
+// Should only be used in testing environments
 if (config.auth.providers.includes(AuthProvider.Local)) {
   auth.get('/local', loginLocal);
 }
