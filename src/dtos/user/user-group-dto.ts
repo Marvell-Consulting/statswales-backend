@@ -31,9 +31,14 @@ export class UserGroupDTO {
 
     dto.metadata = userGroup.metadata?.map((meta) => UserGroupMetadataDTO.fromUserGroupMetadata(meta));
 
-    dto.users = userGroup.groupRoles?.map((userRole: UserGroupRole) => {
-      return { user: UserDTO.fromUser(userRole.user, lang), roles: userRole.roles };
+    dto.users = (userGroup.groupRoles || [])?.map((userRole: UserGroupRole) => {
+      return {
+        user: UserDTO.fromUser(userRole.user, lang),
+        roles: userRole.roles
+      };
     });
+
+    dto.datasets = (userGroup.datasets || [])?.map((dataset) => DatasetDTO.fromDataset(dataset));
 
     return dto;
   }
