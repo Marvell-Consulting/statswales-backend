@@ -539,10 +539,15 @@ export const withdrawFromPublication = async (req: Request, res: Response, next:
 export const downloadRevisionCubeFile = async (req: Request, res: Response, next: NextFunction) => {
   const { dataset, revision } = res.locals;
   let cubeFile: string;
-  if (revision.onlineCubeFilename) {
+  if (revision.onlineCubeFilename && !revision.onlineCubeFilename.includes('proto')) {
     const fileBuffer = await req.fileService.loadBuffer(revision.onlineCubeFilename, dataset.id);
     cubeFile = tmp.tmpNameSync({ postfix: '.duckdb' });
     fs.writeFileSync(cubeFile, fileBuffer);
+  } else if (revision.onlineCubeFilename && revision.onlineCubeFilename.includes('proto')) {
+    const fileBuffer = await req.fileService.loadBuffer(revision.onlineCubeFilename, dataset.id);
+    cubeFile = tmp.tmpNameSync({ postfix: '.duckdb' });
+    fs.writeFileSync(cubeFile, fileBuffer);
+    cubeFile = await createBaseCubeFromProtoCube(dataset.id, revision, cubeFile);
   } else {
     try {
       cubeFile = await createBaseCube(dataset.id, revision.id);
@@ -570,13 +575,17 @@ export const downloadRevisionCubeAsJSON = async (req: Request, res: Response, ne
   const { dataset, revision } = res.locals;
   const lang = req.language.split('-')[0];
   let cubeFile: string;
-  if (revision.onlineCubeFilename) {
+  if (revision.onlineCubeFilename && !revision.onlineCubeFilename.includes('proto')) {
     const fileBuffer = await req.fileService.loadBuffer(revision.onlineCubeFilename, dataset.id);
     cubeFile = tmp.tmpNameSync({ postfix: '.duckdb' });
     fs.writeFileSync(cubeFile, fileBuffer);
+  } else if (revision.onlineCubeFilename && revision.onlineCubeFilename.includes('proto')) {
+    const fileBuffer = await req.fileService.loadBuffer(revision.onlineCubeFilename, dataset.id);
+    cubeFile = tmp.tmpNameSync({ postfix: '.duckdb' });
+    fs.writeFileSync(cubeFile, fileBuffer);
+    cubeFile = await createBaseCubeFromProtoCube(dataset.id, revision, cubeFile);
   } else {
     try {
-      logger.info('Creating fresh cube file.');
       cubeFile = await createBaseCube(dataset.id, revision.id);
     } catch (err) {
       logger.error(err, `Something went wrong trying to create the cube`);
@@ -615,15 +624,20 @@ export const downloadRevisionCubeAsCSV = async (req: Request, res: Response, nex
     return;
   }
   let cubeFile: string;
-  if (revision.onlineCubeFilename) {
+  if (revision.onlineCubeFilename && !revision.onlineCubeFilename.includes('proto')) {
     const fileBuffer = await req.fileService.loadBuffer(revision.onlineCubeFilename, dataset.id);
     cubeFile = tmp.tmpNameSync({ postfix: '.duckdb' });
     fs.writeFileSync(cubeFile, fileBuffer);
+  } else if (revision.onlineCubeFilename && revision.onlineCubeFilename.includes('proto')) {
+    const fileBuffer = await req.fileService.loadBuffer(revision.onlineCubeFilename, dataset.id);
+    cubeFile = tmp.tmpNameSync({ postfix: '.duckdb' });
+    fs.writeFileSync(cubeFile, fileBuffer);
+    cubeFile = await createBaseCubeFromProtoCube(dataset.id, revision, cubeFile);
   } else {
     try {
       cubeFile = await createBaseCube(dataset.id, revision.id);
     } catch (err) {
-      logger.error(err, `Something went wrong trying to create the cube with the error`);
+      logger.error(err, `Something went wrong trying to create the cube`);
       next(new UnknownException('errors.cube_builder.cube_build_failed'));
       return;
     }
@@ -659,15 +673,20 @@ export const downloadRevisionCubeAsParquet = async (req: Request, res: Response,
     return;
   }
   let cubeFile: string;
-  if (revision.onlineCubeFilename) {
+  if (revision.onlineCubeFilename && !revision.onlineCubeFilename.includes('proto')) {
     const fileBuffer = await req.fileService.loadBuffer(revision.onlineCubeFilename, dataset.id);
     cubeFile = tmp.tmpNameSync({ postfix: '.duckdb' });
     fs.writeFileSync(cubeFile, fileBuffer);
+  } else if (revision.onlineCubeFilename && revision.onlineCubeFilename.includes('proto')) {
+    const fileBuffer = await req.fileService.loadBuffer(revision.onlineCubeFilename, dataset.id);
+    cubeFile = tmp.tmpNameSync({ postfix: '.duckdb' });
+    fs.writeFileSync(cubeFile, fileBuffer);
+    cubeFile = await createBaseCubeFromProtoCube(dataset.id, revision, cubeFile);
   } else {
     try {
       cubeFile = await createBaseCube(dataset.id, revision.id);
     } catch (err) {
-      logger.error(err, `Something went wrong trying to create the cube with the error: ${err}`);
+      logger.error(err, `Something went wrong trying to create the cube`);
       next(new UnknownException('errors.cube_builder.cube_build_failed'));
       return;
     }
@@ -703,15 +722,20 @@ export const downloadRevisionCubeAsExcel = async (req: Request, res: Response, n
     return;
   }
   let cubeFile: string;
-  if (revision.onlineCubeFilename) {
+  if (revision.onlineCubeFilename && !revision.onlineCubeFilename.includes('proto')) {
     const fileBuffer = await req.fileService.loadBuffer(revision.onlineCubeFilename, dataset.id);
     cubeFile = tmp.tmpNameSync({ postfix: '.duckdb' });
     fs.writeFileSync(cubeFile, fileBuffer);
+  } else if (revision.onlineCubeFilename && revision.onlineCubeFilename.includes('proto')) {
+    const fileBuffer = await req.fileService.loadBuffer(revision.onlineCubeFilename, dataset.id);
+    cubeFile = tmp.tmpNameSync({ postfix: '.duckdb' });
+    fs.writeFileSync(cubeFile, fileBuffer);
+    cubeFile = await createBaseCubeFromProtoCube(dataset.id, revision, cubeFile);
   } else {
     try {
       cubeFile = await createBaseCube(dataset.id, revision.id);
     } catch (err) {
-      logger.error(err, `Something went wrong trying to create the cube with the error: ${err}`);
+      logger.error(err, `Something went wrong trying to create the cube`);
       next(new UnknownException('errors.cube_builder.cube_build_failed'));
       return;
     }
