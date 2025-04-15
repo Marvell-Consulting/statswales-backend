@@ -28,8 +28,6 @@ export const loadDimension = () => {
       return;
     }
 
-    // TODO: include user in query to prevent unauthorized access
-
     try {
       logger.debug(`Loading dataset ${req.params.dimension_id}...`);
       const dimension = await DimensionRepository.getById(req.params.dimension_id);
