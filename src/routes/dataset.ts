@@ -35,7 +35,7 @@ import {
   getTasklist,
   getTopics,
   getFactTableDefinition,
-  listAllDatasets,
+  listUserDatasets,
   updateMetadata,
   updateDataProviders,
   updateTopics,
@@ -50,6 +50,8 @@ import { rateLimiter } from '../middleware/rate-limiter';
 import { revisionRouter } from './revision';
 import { dimensionRouter } from './dimension';
 import { measureRouter } from './measure';
+import { ForbiddenException } from '../exceptions/forbidden.exception';
+import { getUserGroupIdsForUser } from '../utils/get-permissions-for-user';
 
 const jsonParser = express.json();
 const upload = multer({ storage: multer.memoryStorage() });
@@ -57,9 +59,8 @@ const upload = multer({ storage: multer.memoryStorage() });
 const router = Router();
 export const datasetRouter = router;
 
-// middleware that loads the dataset (with nested relations) and stores it in res.locals
-// leave relations undefined to load the default relations
-// pass an empty object to load no relations
+// middleware that loads the dataset (with nested relations) and stores it in res.locals.dataset
+// by default, no relations are loaded unless requested in via the relations param
 export const loadDataset = (relations?: FindOptionsRelations<Dataset>) => {
   return async (req: Request, res: Response, next: NextFunction) => {
     const datasetIdError = await hasError(datasetIdValidator(), req);
@@ -69,12 +70,19 @@ export const loadDataset = (relations?: FindOptionsRelations<Dataset>) => {
       return;
     }
 
-    // TODO: include user in query to prevent unauthorized access
-
     try {
       const start = performance.now();
       const dataset = await DatasetRepository.getById(req.params.dataset_id, relations);
       const end = performance.now();
+
+      // permissions check - dataset must belong to a group the user is a member of
+      const userGroupIds = getUserGroupIdsForUser(req.user!);
+
+      if (!dataset.userGroupId || !userGroupIds?.includes(dataset.userGroupId)) {
+        logger.warn('User does not have access to this dataset');
+        next(new ForbiddenException('errors.dataset_not_in_users_groups'));
+        return;
+      }
 
       res.locals.datasetId = dataset.id;
       res.locals.dataset = dataset;
@@ -121,8 +129,8 @@ router.use(
 );
 
 // GET /dataset/
-// Returns a list of all datasets
-router.get('/', listAllDatasets);
+// Returns a list of datasets the user can access
+router.get('/', listUserDatasets);
 
 // POST /dataset
 // Creates a new dataset with a title
