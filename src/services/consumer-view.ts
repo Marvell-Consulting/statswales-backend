@@ -1,4 +1,3 @@
-import { parquetMetadata, parquetReadObjects } from 'hyparquet';
 import { getFileService } from '../utils/get-file-service';
 import { Revision } from '../entities/dataset/revision';
 
@@ -9,6 +8,7 @@ export const getTableRowsNoFilterNoSort = async (
   start?: 0,
   end?: 100
 ) => {
+  const { parquetMetadata, parquetReadObjects } = await import('hyparquet');
   const fileService = getFileService();
   const stream = await fileService.loadStream(`${revision.id}_${lang}.parquet`, datasetId);
 
