@@ -97,6 +97,7 @@
     "express-rate-limit": "^7.5.0",
     "express-session": "^1.18.1",
     "express-validator": "^7.2.1",
+    "hyparquet": "^1.12.1",
     "i18next": "^24.2.1",
     "i18next-fs-backend": "^2.6.0",
     "i18next-http-middleware": "^3.7.1",
