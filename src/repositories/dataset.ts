@@ -121,7 +121,11 @@ export const DatasetRepository = dataSource.getRepository(Dataset).extend({
     logger.debug(`Listing datasets for user ${user.id}, language ${locale}, page ${page}, limit ${limit}`);
     const lang = locale.includes('en') ? Locale.EnglishGb : Locale.WelshGb;
 
-    const groupIds = getUserGroupIdsForUser(user);
+    const groupIds = getUserGroupIdsForUser(user) || [];
+
+    if (groupIds.length === 0) {
+      return { data: [], count: 0 };
+    }
 
     const qb = this.createQueryBuilder('d')
       .select(['d.id AS id', 'r.title AS title', 'r.title_alt AS title_alt', 'r.updated_at AS last_updated'])
