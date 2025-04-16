@@ -9,6 +9,7 @@ import { Dataset } from '../entities/dataset/dataset';
 // using hard coded uuids so that we can re-run the seeder for updates without creating new records
 const stage1Group: DeepPartial<UserGroup> = {
   id: '24bf9f9c-898a-4d23-ae1e-35a6ff30ee63',
+  organisationId: '4ef4facf-c488-4837-a65b-e66d4b525965', // Welsh Government
   metadata: [
     { name: 'Cam 1', email: 'cam1@example.com', language: Locale.WelshGb },
     { name: 'Stage 1', email: 'stage1@example.com', language: Locale.EnglishGb }
