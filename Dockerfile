@@ -16,4 +16,4 @@ ENV NODE_ENV=production
 EXPOSE 3000
 
 # Run any pending database migrations before starting the server
-CMD /usr/local/bin/npm run migration:run ; exec /usr/local/bin/node dist/server.js
+CMD /usr/local/bin/npm run migration:run && exec /usr/local/bin/node dist/server.js
