@@ -13,9 +13,12 @@ import { DatasetRepository } from '../../src/repositories/dataset';
 import { RevisionRepository } from '../../src/repositories/revision';
 
 import { createFullDataset } from '../helpers/test-helper';
-import { getTestUser } from '../helpers/get-test-user';
+import { getTestUser, getTestUserGroup } from '../helpers/get-test-user';
 import { getAuthHeader } from '../helpers/auth-header';
 import BlobStorage from '../../src/services/blob-storage';
+import { UserGroup } from '../../src/entities/user/user-group';
+import { UserGroupRole } from '../../src/entities/user/user-group-role';
+import { GroupRole } from '../../src/enums/group-role';
 
 jest.mock('../../src/services/blob-storage');
 
@@ -29,6 +32,7 @@ const dataset1Id = 'bdc40218-af89-424b-b86e-d21710bc92f1';
 const revision1Id = '85f0e416-8bd1-4946-9e2c-1c958897c6ef';
 const import1Id = 'fa07be9d-3495-432d-8c1f-d0fc6daae359';
 const user: User = getTestUser('test', 'user');
+let userGroup = getTestUserGroup('Test Group');
 
 describe('API Endpoints for viewing the contents of a dataset', () => {
   let dbManager: DatabaseManager;
@@ -36,6 +40,8 @@ describe('API Endpoints for viewing the contents of a dataset', () => {
     try {
       dbManager = await initDb();
       await initPassport(dbManager.getDataSource());
+      userGroup = await dbManager.getDataSource().getRepository(UserGroup).save(userGroup);
+      user.groupRoles = [UserGroupRole.create({ group: userGroup, roles: [GroupRole.Editor] })];
       await user.save();
       await createFullDataset(dataset1Id, revision1Id, import1Id, user);
     } catch (error) {
@@ -100,7 +106,7 @@ describe('API Endpoints for viewing the contents of a dataset', () => {
   });
 
   test('Get a dataset view returns 500 if there is no revision on the dataset', async () => {
-    const dataset = await DatasetRepository.create({ createdBy: user }).save();
+    const dataset = await DatasetRepository.create({ createdBy: user, userGroupId: userGroup.id }).save();
 
     const res = await request(app)
       .get(`/dataset/${dataset.id}/view`)
@@ -112,7 +118,7 @@ describe('API Endpoints for viewing the contents of a dataset', () => {
   });
 
   test('Get a dataset view returns 500 if there is no fact table on the dataset', async () => {
-    const dataset = await DatasetRepository.create({ createdBy: user }).save();
+    const dataset = await DatasetRepository.create({ createdBy: user, userGroupId: userGroup.id }).save();
     const revision = await RevisionRepository.create({ createdBy: user, dataset, revisionIndex: 1 }).save();
     await DatasetRepository.update(
       { id: dataset.id },

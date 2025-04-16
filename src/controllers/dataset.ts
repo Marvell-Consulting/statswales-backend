@@ -39,12 +39,13 @@ import JSZip from 'jszip';
 import { addDirectoryToZip, collectFiles } from '../utils/dataset-controller-utils';
 import { t } from 'i18next';
 
-export const listAllDatasets = async (req: Request, res: Response, next: NextFunction) => {
+export const listUserDatasets = async (req: Request, res: Response, next: NextFunction) => {
   try {
+    const user = req.user as User;
     const lang = req.language as Locale;
     const page = parseInt(req.query.page as string, 10) || 1;
     const limit = parseInt(req.query.limit as string, 10) || 20;
-    const results = await DatasetRepository.listByLanguage(lang, page, limit);
+    const results = await DatasetRepository.listForUser(user, lang, page, limit);
     res.json(results);
   } catch (err) {
     logger.error(err, 'Failed to fetch dataset list');

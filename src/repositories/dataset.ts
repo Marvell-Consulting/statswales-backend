@@ -12,6 +12,8 @@ import { DataTable } from '../entities/dataset/data-table';
 import { FactTableColumn } from '../entities/dataset/fact-table-column';
 import { FactTableColumnType } from '../enums/fact-table-column-type';
 import { PeriodCovered } from '../interfaces/period-covered';
+import { User } from '../entities/user/user';
+import { getUserGroupIdsForUser } from '../utils/get-permissions-for-user';
 
 export const withAll: FindOptionsRelations<Dataset> = {
   createdBy: true,
@@ -110,12 +112,20 @@ export const DatasetRepository = dataSource.getRepository(Dataset).extend({
     await dataSource.getRepository(FactTableColumn).save(factColumns);
   },
 
-  async listByLanguage(locale: Locale, page: number, limit: number): Promise<ResultsetWithCount<DatasetListItemDTO>> {
-    logger.debug(`Listing datasets for language ${locale}, page ${page}, limit ${limit}`);
+  async listForUser(
+    user: User,
+    locale: Locale,
+    page: number,
+    limit: number
+  ): Promise<ResultsetWithCount<DatasetListItemDTO>> {
+    logger.debug(`Listing datasets for user ${user.id}, language ${locale}, page ${page}, limit ${limit}`);
     const lang = locale.includes('en') ? Locale.EnglishGb : Locale.WelshGb;
 
+    const groupIds = getUserGroupIdsForUser(user);
+
     const qb = this.createQueryBuilder('d')
-      .select(['d.id as id', 'r.title as title', 'r.title_alt as title_alt', 'r.updated_at as last_updated'])
+      .select(['d.id AS id', 'r.title AS title', 'r.title_alt AS title_alt', 'r.updated_at AS last_updated'])
+      .addSelect(`ugm.name AS group_name`)
       .addSelect(
         `
                 CASE
@@ -151,7 +161,10 @@ export const DatasetRepository = dataSource.getRepository(Dataset).extend({
         'r',
         'r.dataset_id = d.id'
       )
-      .groupBy('d.id, r.title, r.title_alt, r.updated_at, r.approved_at, r.publish_at');
+      .innerJoin('d.userGroup', 'ug')
+      .innerJoin('ug.metadata', 'ugm', 'ugm.language = :lang', { lang })
+      .where('d.userGroupId IN (:...groupIds)', { groupIds })
+      .groupBy('d.id, r.title, ugm.name, r.title_alt, r.updated_at, r.approved_at, r.publish_at');
 
     const offset = (page - 1) * limit;
 

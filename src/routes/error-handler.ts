@@ -22,6 +22,11 @@ export const errorHandler: ErrorRequestHandler = (err: any, req: Request, res: R
       res.status(401);
       break;
 
+    case 403:
+      logger.error(`403 error detected for ${req.originalUrl}: ${message}`);
+      res.status(403);
+      break;
+
     case 404:
       logger.error(err, `404 error detected for ${req.originalUrl}: ${message}`);
       res.status(404);
