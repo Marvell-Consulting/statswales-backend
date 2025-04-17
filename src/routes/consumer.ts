@@ -2,7 +2,12 @@ import { NextFunction, Router, Request, Response } from 'express';
 import { FindOptionsRelations } from 'typeorm';
 
 import { logger } from '../utils/logger';
-import { listPublishedDatasets, getPublishedDatasetById, downloadPublishedDataset } from '../controllers/consumer';
+import {
+  listPublishedDatasets,
+  getPublishedDatasetById,
+  downloadPublishedDataset,
+  getPublishedDatasetView
+} from '../controllers/consumer';
 import { NotFoundException } from '../exceptions/not-found.exception';
 import { PublishedDatasetRepository } from '../repositories/published-dataset';
 import { hasError, datasetIdValidator } from '../validators';
@@ -42,6 +47,8 @@ consumerRouter.get('/list', listPublishedDatasets);
 // GET /published/:datasetId
 // Returns a published dataset as a json object
 consumerRouter.get('/:dataset_id', loadPublishedDataset(), getPublishedDatasetById);
+//13fe4647-c0a2-469b-a159-7ac5bfece4e9
+consumerRouter.get('/:dataset_id/view', loadPublishedDataset(), getPublishedDatasetView);
 
 // GET /published/:datasetId/revision/:revisionId/download/:format
 // Returns a published dataset as a file stream

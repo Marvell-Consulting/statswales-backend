@@ -15,6 +15,8 @@ import fs from 'node:fs';
 import { cleanUpCube } from '../services/cube-handler';
 import { outputCube } from './cube-controller';
 import { DuckdbOutputType } from '../enums/duckdb-outputs';
+import { createView } from '../services/consumer-view';
+import { DEFAULT_PAGE_SIZE } from '../services/csv-processor';
 
 export const listPublishedDatasets = async (req: Request, res: Response, next: NextFunction) => {
   logger.info('Listing published datasets...');
@@ -39,6 +41,20 @@ export const listPublishedDatasets = async (req: Request, res: Response, next: N
 export const getPublishedDatasetById = async (req: Request, res: Response) => {
   const dataset = await PublishedDatasetRepository.getById(res.locals.datasetId, withAll);
   res.json(ConsumerDatasetDTO.fromDataset(dataset));
+};
+
+export const getPublishedDatasetView = async (req: Request, res: Response) => {
+  const dataset = await PublishedDatasetRepository.getById(res.locals.datasetId, withAll);
+  const lang = req.language.split('-')[0];
+  if (!dataset.publishedRevision) {
+    throw new NotFoundException('errors.no_revision');
+  }
+  const pageNumber: number = Number.parseInt(req.query.page_number as string, 10) || 1;
+  const pageSize: number = Number.parseInt(req.query.page_size as string, 10) || DEFAULT_PAGE_SIZE;
+  const sortBy = req.query.sort_by as string;
+
+  const preview = await createView(dataset, dataset.publishedRevision, lang, pageNumber, pageSize, sortBy);
+  res.json(preview);
 };
 
 export const downloadPublishedDataset = async (req: Request, res: Response, next: NextFunction) => {
