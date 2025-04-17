@@ -22,7 +22,7 @@ export const publisher1: DeepPartial<User> = {
   givenName: 'Joe',
   familyName: 'Publisher',
   email: 'joe.publisher@example.com',
-  groupRoles: [{ groupId: stage1Group.id, roles: [GroupRole.Editor] }]
+  groupRoles: [{ id: '56e78eb3-f831-48ff-ab78-8183acab9060', groupId: stage1Group.id, roles: [GroupRole.Editor] }]
 };
 
 export const approver1: DeepPartial<User> = {
@@ -32,7 +32,7 @@ export const approver1: DeepPartial<User> = {
   givenName: 'Frank',
   familyName: 'Approver',
   email: 'frank.approver@example.com',
-  groupRoles: [{ groupId: stage1Group.id, roles: [GroupRole.Approver] }]
+  groupRoles: [{ id: '347b302e-ea1a-40b2-ad02-6bf5f4b85bc6', groupId: stage1Group.id, roles: [GroupRole.Approver] }]
 };
 
 export const testUsers = [admin1, publisher1, approver1];
