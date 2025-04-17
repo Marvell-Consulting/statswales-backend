@@ -35,7 +35,7 @@ export function getCIConfig(): AppConfig {
       password: process.env.TEST_DB_PASSWORD || 'postgres',
       database: process.env.TEST_DB_DATABASE || 'statswales-backend-test',
       ssl: false,
-      synchronize: true
+      synchronize: process.env.TEST_DB_SYNC === 'true' ? true : false
     },
     rateLimit: {
       windowMs: -1 // disable rate limiting in CI
