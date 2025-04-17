@@ -10,5 +10,6 @@ process.env.TEST_DB_PORT = '5433';
 process.env.TEST_DB_USERNAME = 'postgres';
 process.env.TEST_DB_PASSWORD = 'postgres';
 process.env.TEST_DB_DATABASE = 'statswales-backend-test';
+process.env.TEST_DB_SYNC = 'true';
 
 process.env.APP_ENV = 'ci';
