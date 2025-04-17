@@ -42,7 +42,7 @@ const stage1Group: DeepPartial<UserGroup> = {
   ]
 };
 
-export default class OrganisationSeeder extends Seeder {
+export default class OrgsAndGroupsSeeder extends Seeder {
   async run(dataSource: DataSource): Promise<void> {
     await this.seedOrganisations(dataSource);
     await this.seedUserGroups(dataSource);
@@ -57,6 +57,7 @@ export default class OrganisationSeeder extends Seeder {
   async seedUserGroups(dataSource: DataSource): Promise<UserGroup[]> {
     const defaultGroups: DeepPartial<UserGroup>[] = [stage1Group];
     const savedGroups = await dataSource.getRepository(UserGroup).save(defaultGroups);
+    logger.info(`Seeded ${savedGroups.length} groups`);
 
     logger.info('assigning any unassigned datasets to the stage 1 group');
     await dataSource.getRepository(Dataset).update({ userGroupId: IsNull() }, { userGroupId: stage1Group.id });
