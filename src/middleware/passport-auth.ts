@@ -182,6 +182,9 @@ const initEntraId = async (userRepository: Repository<User>, entraIdConfig: Reco
                 lastLoginAt: new Date()
               })
               .save();
+
+            done(null, existingUserByEmail);
+            return;
           }
 
           logger.error('No matching user found, cannot log in');
@@ -263,6 +266,9 @@ const initGoogle = async (userRepository: Repository<User>, googleConfig: Record
                 lastLoginAt: new Date()
               })
               .save();
+
+            done(null, existingUserByEmail);
+            return;
           }
 
           logger.error('No matching user found, cannot log in');
