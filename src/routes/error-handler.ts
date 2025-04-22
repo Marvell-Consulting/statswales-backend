@@ -8,7 +8,7 @@ export const errorHandler: ErrorRequestHandler = (err: any, req: Request, res: R
 
   switch (err.status) {
     case 400:
-      logger.error(err, `400 error detected for ${req.originalUrl}: ${message}`);
+      logger.warn(err, `400 error detected for ${req.originalUrl}: ${message}`);
       res.status(400);
       // TODO: flatten the validation errors to make them more friendly
       res.json({
@@ -18,17 +18,14 @@ export const errorHandler: ErrorRequestHandler = (err: any, req: Request, res: R
       return;
 
     case 401:
-      logger.error(`401 error detected for ${req.originalUrl}: ${message}`);
-      res.status(401);
-      break;
-
     case 403:
-      logger.error(`403 error detected for ${req.originalUrl}: ${message}`);
-      res.status(403);
+    case 405:
+      logger.error(`${err.status} error detected for ${req.originalUrl}: ${message}`);
+      res.status(err.status);
       break;
 
     case 404:
-      logger.error(err, `404 error detected for ${req.originalUrl}: ${message}`);
+      logger.warn(err, `404 error detected for ${req.originalUrl}: ${message}`);
       res.status(404);
       break;
 

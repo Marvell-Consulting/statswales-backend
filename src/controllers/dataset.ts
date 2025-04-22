@@ -38,6 +38,7 @@ import { FactTableValidationException } from '../exceptions/fact-table-validatio
 import JSZip from 'jszip';
 import { addDirectoryToZip, collectFiles } from '../utils/dataset-controller-utils';
 import { t } from 'i18next';
+import { NotAllowedException } from '../exceptions/not-allowed.exception';
 
 export const listUserDatasets = async (req: Request, res: Response, next: NextFunction) => {
   try {
@@ -57,11 +58,10 @@ export const getDatasetById = async (req: Request, res: Response) => {
   res.json(DatasetDTO.fromDataset(res.locals.dataset));
 };
 
-export const deleteDraftDatasetById = async (req: Request, res: Response) => {
+export const deleteDraftDatasetById = async (req: Request, res: Response, next: NextFunction) => {
   const dataset: Dataset = res.locals.dataset;
   if (dataset.publishedRevision) {
-    res.status(405);
-    res.end();
+    next(new NotAllowedException('Dataset is already published, cannot delete'));
     return;
   }
   await req.fileService.deleteDirectory(req.params.dataset_id);

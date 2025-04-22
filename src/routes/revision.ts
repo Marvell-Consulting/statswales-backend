@@ -21,7 +21,8 @@ import {
   approveForPublication,
   withdrawFromPublication,
   createNewRevision,
-  getDataTable
+  getDataTable,
+  deleteDraftRevision
 } from '../controllers/revision';
 import { Revision } from '../entities/dataset/revision';
 import { hasError, revisionIdValidator } from '../validators';
@@ -70,6 +71,10 @@ export const revisionRouter = router;
 // POST
 // Create a new revision for an update
 router.post('/', createNewRevision);
+
+// DELETE /dataset/:dataset_id/revision/id/:revision_id
+// Deletes a revision provided it is not published
+router.delete('/by-id/:revision_id', loadRevision(withMetadata), deleteDraftRevision);
 
 // GET /dataset/:dataset_id/revision/id/:revision_id
 // Returns details of a revision with metadata
