@@ -51,6 +51,7 @@ import { checkForReferenceErrors } from '../services/lookup-table-handler';
 import { validateUpdatedDateDimension } from '../services/dimension-processor';
 import { CubeValidationType } from '../enums/cube-validation-type';
 import { FactTableValidationException } from '../exceptions/fact-table-validation-exception';
+import { NotAllowedException } from '../exceptions/not-allowed.exception';
 
 export const getDataTable = async (req: Request, res: Response, next: NextFunction) => {
   try {
@@ -63,6 +64,25 @@ export const getDataTable = async (req: Request, res: Response, next: NextFuncti
   } catch (_err) {
     next(new UnknownException());
   }
+};
+
+export const deleteDraftRevision = async (req: Request, res: Response, next: NextFunction) => {
+  const { dataset, revision } = res.locals;
+
+  if (revision.revisionIndex !== 0) {
+    next(new NotAllowedException('Revision is not a draft, cannot delete'));
+    return;
+  }
+
+  try {
+    await req.datasetService.deleteDraftRevision(dataset.id, revision.id);
+  } catch (err) {
+    next(err);
+    return;
+  }
+
+  res.status(202);
+  res.end();
 };
 
 export const getDataTablePreview = async (req: Request, res: Response, next: NextFunction) => {

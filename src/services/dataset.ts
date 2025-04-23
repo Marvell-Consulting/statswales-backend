@@ -282,6 +282,21 @@ export class DatasetService {
     return DatasetRepository.getById(datasetId, withDraftAndMetadata);
   }
 
+  async deleteDraftRevision(datasetId: string, revisionId: string): Promise<void> {
+    const dataset = await DatasetRepository.getById(datasetId, { draftRevision: { previousRevision: true } });
+    const draft = dataset.draftRevision;
+
+    if (!draft || draft.id !== revisionId) {
+      logger.error(`Dataset does not have a draft revision or the revision id does not match the current draft`);
+      throw new BadRequestException('errors.delete_draft_revision.no_draft_revision');
+    }
+
+    dataset.draftRevision = null;
+    dataset.endRevision = draft.previousRevision;
+    await dataset.save();
+    await draft.remove();
+  }
+
   async getTasklistState(datasetId: string, locale: Locale): Promise<TasklistStateDTO> {
     const dataset = await DatasetRepository.getById(datasetId, withDraftForTasklistState);
     const revision = dataset.draftRevision!;
