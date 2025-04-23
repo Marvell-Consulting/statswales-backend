@@ -23,6 +23,7 @@ import { translationRouter } from './routes/translation';
 import { consumerRouter } from './routes/consumer';
 import { initServices } from './middleware/services';
 import { adminRouter } from './routes/admin';
+import { devRouter } from './routes/developer';
 
 const app: Application = express();
 const config = appConfig();
@@ -54,6 +55,9 @@ app.use('/translation', rateLimiter, passport.authenticate('jwt', { session: fal
 
 // admin routes
 app.use('/admin', rateLimiter, passport.authenticate('jwt', { session: false }), adminRouter);
+
+// developer routes
+app.use('/developer', rateLimiter, passport.authenticate('jwt', { session: false }), devRouter);
 
 app.use(errorHandler);
 

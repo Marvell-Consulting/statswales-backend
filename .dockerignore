@@ -1,0 +1,17 @@
+.editorconfig
+.docker
+.github
+.vscode
+.idea
+.DS_Store
+.git*
+.env-example
+.nvmrc
+.prettierrc
+node_modules
+dist
+coverage
+azure*
+docker-compose*
+eslint*
+jest*

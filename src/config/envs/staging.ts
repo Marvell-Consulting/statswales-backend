@@ -9,7 +9,7 @@ export function getStagingConfig(): AppConfig {
   return defineConfig({
     env: AppEnv.Staging,
     auth: {
-      providers: [AuthProvider.EntraId, AuthProvider.Local],
+      providers: [AuthProvider.EntraId],
       jwt: {
         cookieDomain: process.env.BACKEND_URL!.replace('api.', '')
       }

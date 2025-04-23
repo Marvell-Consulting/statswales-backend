@@ -38,13 +38,28 @@ import { FactTableValidationException } from '../exceptions/fact-table-validatio
 import JSZip from 'jszip';
 import { addDirectoryToZip, collectFiles } from '../utils/dataset-controller-utils';
 import { t } from 'i18next';
+import { NotAllowedException } from '../exceptions/not-allowed.exception';
+
+export const listUserDatasets = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const user = req.user as User;
+    const lang = req.language as Locale;
+    const page = parseInt(req.query.page as string, 10) || 1;
+    const limit = parseInt(req.query.limit as string, 10) || 20;
+    const results = await DatasetRepository.listForUser(user, lang, page, limit);
+    res.json(results);
+  } catch (err) {
+    logger.error(err, 'Failed to fetch dataset list');
+    next(new UnknownException());
+  }
+};
 
 export const listAllDatasets = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const lang = req.language as Locale;
     const page = parseInt(req.query.page as string, 10) || 1;
     const limit = parseInt(req.query.limit as string, 10) || 20;
-    const results = await DatasetRepository.listByLanguage(lang, page, limit);
+    const results = await DatasetRepository.listAll(lang, page, limit);
     res.json(results);
   } catch (err) {
     logger.error(err, 'Failed to fetch dataset list');
@@ -56,11 +71,10 @@ export const getDatasetById = async (req: Request, res: Response) => {
   res.json(DatasetDTO.fromDataset(res.locals.dataset));
 };
 
-export const deleteDraftDatasetById = async (req: Request, res: Response) => {
+export const deleteDraftDatasetById = async (req: Request, res: Response, next: NextFunction) => {
   const dataset: Dataset = res.locals.dataset;
   if (dataset.publishedRevision) {
-    res.status(405);
-    res.end();
+    next(new NotAllowedException('Dataset is already published, cannot delete'));
     return;
   }
   await req.fileService.deleteDirectory(req.params.dataset_id);

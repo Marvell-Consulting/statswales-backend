@@ -33,7 +33,10 @@ export const loginLocal: RequestHandler = async (req, res) => {
   try {
     logger.debug('checking if user exists...');
     const userRepository: Repository<User> = dataSource.getRepository('User');
-    const user = await userRepository.findOneByOrFail({ providerUserId: username, provider: 'local' });
+    const user = await userRepository.findOneOrFail({
+      where: { providerUserId: username, provider: 'local' },
+      relations: { groupRoles: { group: { metadata: true } } }
+    });
     logger.debug('existing user found');
 
     logger.info('local auth successful, creating JWT and returning user to the frontend');

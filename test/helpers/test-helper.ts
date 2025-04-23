@@ -51,6 +51,7 @@ export async function createSmallDataset(
   const dataset = await Dataset.create({
     id: datasetId,
     createdBy: user,
+    userGroupId: user?.groupRoles[0]?.groupId,
     factTable: dataTableDescriptions.map((desc) => {
       const isNoteCol = desc.columnName.toLowerCase().includes('note');
       const isDataCol = desc.columnName.toLowerCase().includes('data');
