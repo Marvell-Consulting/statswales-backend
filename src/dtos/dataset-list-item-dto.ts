@@ -6,6 +6,7 @@ export interface DatasetListItemDTO {
   title: string;
   group_name?: string;
   code?: string;
+  revision_by?: string;
   last_updated?: string;
   status?: DatasetStatus;
   publishing_status?: PublishingStatus;

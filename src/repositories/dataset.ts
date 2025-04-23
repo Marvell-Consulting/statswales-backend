@@ -1,4 +1,4 @@
-import { FindOneOptions, FindOptionsRelations } from 'typeorm';
+import { FindOneOptions, FindOptionsRelations, QueryBuilder } from 'typeorm';
 import { has, set } from 'lodash';
 
 import { logger } from '../utils/logger';
@@ -68,6 +68,50 @@ export const withDraftForTasklistState: FindOptionsRelations<Dataset> = {
   measure: { measureTable: true, metadata: true }
 };
 
+const listAllQuery = (qb: QueryBuilder<Dataset>, lang: Locale) => {
+  return qb
+    .select(['d.id AS id', 'r.title AS title', 'r.title_alt AS title_alt', 'r.updated_at AS last_updated'])
+    .addSelect(`ugm.name AS group_name`)
+    .addSelect(
+      `
+            CASE
+                WHEN d.live IS NOT NULL AND d.live < NOW() THEN 'live'
+                ELSE 'new'
+            END`,
+      'status'
+    )
+    .addSelect(
+      `
+            CASE
+                WHEN d.live IS NOT NULL AND d.live < NOW() AND r.approved_at IS NOT NULL AND r.publish_at < NOW() THEN 'published'
+                WHEN d.live IS NOT NULL AND d.live < NOW() AND r.approved_at IS NOT NULL AND r.publish_at > NOW() THEN 'update_scheduled'
+                WHEN d.live IS NOT NULL AND d.live > NOW() AND r.approved_at IS NOT NULL AND r.publish_at > NOW() THEN 'scheduled'
+                WHEN d.live IS NOT NULL AND d.live < NOW() AND r.approved_at IS NULL THEN 'update_incomplete'
+                WHEN d.live IS NULL AND r.approved_at IS NULL THEN 'incomplete'
+                ELSE 'incomplete'
+            END
+        `,
+      'publishing_status'
+    )
+    .innerJoin(
+      (subQuery) => {
+        // only join the latest revision for each dataset
+        return subQuery
+          .select('DISTINCT ON (rev.dataset_id) rev.*, rm1.title as title, rm2.title as title_alt')
+          .from(Revision, 'rev')
+          .innerJoin('rev.metadata', 'rm1', 'rm1.language = :lang', { lang })
+          .innerJoin('rev.metadata', 'rm2', 'rm2.language != :lang', { lang })
+          .orderBy('rev.dataset_id')
+          .addOrderBy('rev.created_at', 'DESC');
+      },
+      'r',
+      'r.dataset_id = d.id'
+    )
+    .innerJoin('d.userGroup', 'ug')
+    .innerJoin('ug.metadata', 'ugm', 'ugm.language = :lang', { lang })
+    .groupBy('d.id, r.title, ugm.name, r.title_alt, r.updated_at, r.approved_at, r.publish_at');
+};
+
 export const DatasetRepository = dataSource.getRepository(Dataset).extend({
   async getById(id: string, relations: FindOptionsRelations<Dataset> = {}): Promise<Dataset> {
     const findOptions: FindOneOptions<Dataset> = { where: { id }, relations };
@@ -112,6 +156,31 @@ export const DatasetRepository = dataSource.getRepository(Dataset).extend({
     await dataSource.getRepository(FactTableColumn).save(factColumns);
   },
 
+  async listAll(locale: Locale, page: number, limit: number): Promise<ResultsetWithCount<DatasetListItemDTO>> {
+    logger.debug(`Listing all datasets, language ${locale}, page ${page}, limit ${limit}`);
+    const lang = locale.includes('en') ? Locale.EnglishGb : Locale.WelshGb;
+
+    const query = listAllQuery(this.createQueryBuilder('d'), lang);
+    query.leftJoin(User, 'u', 'r.created_by = u.id');
+    query.addSelect(
+      `
+      CASE
+        WHEN u.givenName IS NOT NULL AND u.familyName IS NOT NULL THEN CONCAT(u.givenName, ' ', u.familyName)
+        ELSE u.email
+      END
+    `,
+      'revision_by'
+    );
+    query.addGroupBy('u.givenName, u.familyName, u.email');
+
+    const offset = (page - 1) * limit;
+    const countQuery = query.clone();
+    const resultQuery = query.orderBy('r.updated_at', 'DESC').offset(offset).limit(limit);
+    const [data, count] = await Promise.all([resultQuery.getRawMany(), countQuery.getCount()]);
+
+    return { data, count };
+  },
+
   async listForUser(
     user: User,
     locale: Locale,
@@ -127,53 +196,13 @@ export const DatasetRepository = dataSource.getRepository(Dataset).extend({
       return { data: [], count: 0 };
     }
 
-    const qb = this.createQueryBuilder('d')
-      .select(['d.id AS id', 'r.title AS title', 'r.title_alt AS title_alt', 'r.updated_at AS last_updated'])
-      .addSelect(`ugm.name AS group_name`)
-      .addSelect(
-        `
-                CASE
-                    WHEN d.live IS NOT NULL AND d.live < NOW() THEN 'live'
-                    ELSE 'new'
-                END`,
-        'status'
-      )
-      .addSelect(
-        `
-                CASE
-                    WHEN d.live IS NOT NULL AND d.live < NOW() AND r.approved_at IS NOT NULL AND r.publish_at < NOW() THEN 'published'
-                    WHEN d.live IS NOT NULL AND d.live < NOW() AND r.approved_at IS NOT NULL AND r.publish_at > NOW() THEN 'update_scheduled'
-                    WHEN d.live IS NOT NULL AND d.live > NOW() AND r.approved_at IS NOT NULL AND r.publish_at > NOW() THEN 'scheduled'
-                    WHEN d.live IS NOT NULL AND d.live < NOW() AND r.approved_at IS NULL THEN 'update_incomplete'
-                    WHEN d.live IS NULL AND r.approved_at IS NULL THEN 'incomplete'
-                    ELSE 'incomplete'
-                END
-            `,
-        'publishing_status'
-      )
-      .innerJoin(
-        (subQuery) => {
-          // only join the latest revision for each dataset
-          return subQuery
-            .select('DISTINCT ON (rev.dataset_id) rev.*, rm1.title as title, rm2.title as title_alt')
-            .from(Revision, 'rev')
-            .innerJoin('rev.metadata', 'rm1', 'rm1.language = :lang', { lang })
-            .innerJoin('rev.metadata', 'rm2', 'rm2.language != :lang', { lang })
-            .orderBy('rev.dataset_id')
-            .addOrderBy('rev.created_at', 'DESC');
-        },
-        'r',
-        'r.dataset_id = d.id'
-      )
-      .innerJoin('d.userGroup', 'ug')
-      .innerJoin('ug.metadata', 'ugm', 'ugm.language = :lang', { lang })
-      .where('d.userGroupId IN (:...groupIds)', { groupIds })
-      .groupBy('d.id, r.title, ugm.name, r.title_alt, r.updated_at, r.approved_at, r.publish_at');
+    const query = listAllQuery(this.createQueryBuilder('d'), lang);
+    query.where('d.userGroupId IN (:...groupIds)', { groupIds });
 
     const offset = (page - 1) * limit;
 
-    const countQuery = qb.clone();
-    const resultQuery = qb.orderBy('r.updated_at', 'DESC').offset(offset).limit(limit);
+    const countQuery = query.clone();
+    const resultQuery = query.orderBy('r.updated_at', 'DESC').offset(offset).limit(limit);
     const [data, count] = await Promise.all([resultQuery.getRawMany(), countQuery.getCount()]);
 
     return { data, count };

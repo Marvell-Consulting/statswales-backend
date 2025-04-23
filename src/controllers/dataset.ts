@@ -54,6 +54,19 @@ export const listUserDatasets = async (req: Request, res: Response, next: NextFu
   }
 };
 
+export const listAllDatasets = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const lang = req.language as Locale;
+    const page = parseInt(req.query.page as string, 10) || 1;
+    const limit = parseInt(req.query.limit as string, 10) || 20;
+    const results = await DatasetRepository.listAll(lang, page, limit);
+    res.json(results);
+  } catch (err) {
+    logger.error(err, 'Failed to fetch dataset list');
+    next(new UnknownException());
+  }
+};
+
 export const getDatasetById = async (req: Request, res: Response) => {
   res.json(DatasetDTO.fromDataset(res.locals.dataset));
 };
