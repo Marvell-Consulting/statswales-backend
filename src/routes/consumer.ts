@@ -47,7 +47,9 @@ consumerRouter.get('/list', listPublishedDatasets);
 // GET /published/:datasetId
 // Returns a published dataset as a json object
 consumerRouter.get('/:dataset_id', loadPublishedDataset(), getPublishedDatasetById);
-//13fe4647-c0a2-469b-a159-7ac5bfece4e9
+
+// GET /published/:datasetId/view
+// Returns a published dataset as a view of the data
 consumerRouter.get('/:dataset_id/view', loadPublishedDataset(), getPublishedDatasetView);
 
 // GET /published/:datasetId/revision/:revisionId/download/:format

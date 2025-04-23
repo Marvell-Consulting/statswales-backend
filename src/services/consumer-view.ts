@@ -65,7 +65,7 @@ export const createView = async (
     index: idx - 1,
     name,
     source_type: FactTableColumnType.Unknown
-  })); 
+  }));
   return {
     dataset: DatasetDTO.fromDataset(dataset),
     current_page: pageNumber,
