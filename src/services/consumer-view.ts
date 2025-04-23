@@ -61,14 +61,11 @@ export const createView = async (
   const data = await getTableRowsNoFilter(dataset.id, revision, lang, startRow, endRow, sortBy);
   const tableHeaders = Object.keys(data.rows[0]);
   const dataArray = data.rows.map((row) => Object.values(row));
-  const headers: CSVHeader[] = [];
-  for (let i = 0; i < tableHeaders.length; i++) {
-    headers.push({
-      index: i - 1,
-      name: tableHeaders[i],
-      source_type: FactTableColumnType.Unknown
-    });
-  }
+  const headers: CSVHeader[] = tableHeaders.map((name, idx) => ({
+    index: idx - 1,
+    name,
+    source_type: FactTableColumnType.Unknown
+  })); 
   return {
     dataset: DatasetDTO.fromDataset(dataset),
     current_page: pageNumber,
