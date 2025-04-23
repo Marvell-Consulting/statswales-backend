@@ -16,12 +16,7 @@ export const getTableRowsNoFilter = async (
 ) => {
   const { parquetMetadata, parquetQuery } = await import('hyparquet');
   const fileService = getFileService();
-  const stream = await fileService.loadStream(`${revision.id}_${lang}.parquet`, datasetId);
-  const chunks = [];
-  for await (const chunk of stream) {
-    chunks.push(chunk);
-  }
-  const buffer = Buffer.concat(chunks);
+  const buffer = await fileService.loadBuffer(`${revision.id}_${lang}.parquet`, datasetId);
   const arrayBuffer = buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength);
 
   const asyncBuffer = {
@@ -38,12 +33,7 @@ export const getTableRowsNoFilter = async (
 export const getTableMetadata = async (datasetId: string, revision: Revision, lang: string) => {
   const { parquetMetadata } = await import('hyparquet');
   const fileService = getFileService();
-  const stream = await fileService.loadStream(`${revision.id}_${lang}.parquet`, datasetId);
-  const chunks = [];
-  for await (const chunk of stream) {
-    chunks.push(chunk);
-  }
-  const buffer = Buffer.concat(chunks);
+  const buffer = await fileService.loadBuffer(`${revision.id}_${lang}.parquet`, datasetId);
   const arrayBuffer = buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength);
   return parquetMetadata(arrayBuffer);
 };
