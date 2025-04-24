@@ -32,6 +32,7 @@ import { createBaseCube, getCubeTimePeriods } from './cube-handler';
 import { validateAndUploadCSV } from './csv-processor';
 import { removeAllDimensions, removeMeasure } from './dimension-processor';
 import { getFileService } from '../utils/get-file-service';
+import { UserGroupRepository } from '../repositories/user-group';
 
 export class DatasetService {
   lang: Locale;
@@ -307,5 +308,12 @@ export class DatasetService {
     });
 
     return TasklistStateDTO.fromDataset(dataset, revision, locale, translationEvents);
+  }
+
+  async updateDatasetGroup(datasetId: string, userGroupId: string): Promise<Dataset> {
+    const dataset = await DatasetRepository.findOneByOrFail({ id: datasetId });
+    const userGroup = await UserGroupRepository.findOneByOrFail({ id: userGroupId });
+    dataset.userGroupId = userGroup.id;
+    return dataset.save();
   }
 }

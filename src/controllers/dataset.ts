@@ -39,6 +39,7 @@ import JSZip from 'jszip';
 import { addDirectoryToZip, collectFiles } from '../utils/dataset-controller-utils';
 import { t } from 'i18next';
 import { NotAllowedException } from '../exceptions/not-allowed.exception';
+import { GroupRole } from '../enums/group-role';
 
 export const listUserDatasets = async (req: Request, res: Response, next: NextFunction) => {
   try {
@@ -458,4 +459,29 @@ export const listAllFilesInDataset = async (req: Request, res: Response) => {
   const datasetFiles = collectFiles(dataset);
   const files = Array.from(datasetFiles.values());
   res.json(files);
+};
+
+export const updateDatasetGroup = async (req: Request, res: Response, next: NextFunction) => {
+  const dataset: Dataset = res.locals.dataset;
+
+  const validUserGroupIds = req.user?.groupRoles
+    .filter((gr) => gr.roles.includes(GroupRole.Approver))
+    .map((gr) => gr.groupId) as string[];
+
+  const groupIdError = await hasError(userGroupIdValidator(validUserGroupIds), req);
+
+  if (groupIdError) {
+    next(new BadRequestException('errors.user_group_id.invalid'));
+    return;
+  }
+
+  try {
+    const { user_group_id } = req.body;
+    const updatedDataset = await req.datasetService.updateDatasetGroup(dataset.id, user_group_id);
+    res.status(201);
+    res.json(DatasetDTO.fromDataset(updatedDataset));
+  } catch (err) {
+    logger.error(err, `Failed to update dataset group`);
+    next(new UnknownException());
+  }
 };

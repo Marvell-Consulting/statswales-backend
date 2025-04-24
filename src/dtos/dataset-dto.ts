@@ -20,6 +20,7 @@ export class DatasetDTO {
   measure?: MeasureDTO;
   start_date?: Date | null;
   end_date?: Date | null;
+  user_group_id?: string;
 
   static fromDataset(dataset: Dataset): DatasetDTO {
     const dto = new DatasetDTO();
@@ -42,6 +43,8 @@ export class DatasetDTO {
 
     dto.start_date = dataset.startDate;
     dto.end_date = dataset.endDate;
+
+    dto.user_group_id = dataset.userGroupId;
 
     return dto;
   }
