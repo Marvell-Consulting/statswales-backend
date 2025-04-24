@@ -10,6 +10,7 @@ import { Dataset } from '../../src/entities/dataset/dataset';
 import { publisher1 } from './users';
 import { Designation } from '../../src/enums/designation';
 import { RevisionMetadata } from '../../src/entities/dataset/revision-metadata';
+import { testGroup } from './group';
 
 export const uploadPageTest: DeepPartial<Dataset> = {
   id: '936c1ab4-2b33-4b13-8949-4316a156d24b',
@@ -20,7 +21,8 @@ export const uploadPageTest: DeepPartial<Dataset> = {
       { language: 'en-GB', title: 'Test - Upload' },
       { language: 'cy-GB', title: 'Test - Upload' }
     ]
-  }
+  },
+  userGroupId: testGroup.id
 };
 
 export const previewPageTestA: DeepPartial<Dataset> = {
@@ -32,7 +34,8 @@ export const previewPageTestA: DeepPartial<Dataset> = {
       { language: 'en-GB', title: 'Test - Preview A' },
       { language: 'en-CY', title: 'Test - Preview A' }
     ]
-  }
+  },
+  userGroupId: testGroup.id
 };
 
 export const previewPageTestB: DeepPartial<Dataset> = {
@@ -44,7 +47,8 @@ export const previewPageTestB: DeepPartial<Dataset> = {
       { language: 'en-GB', title: 'Test - Preview B' },
       { language: 'en-CY', title: 'Test - Preview B' }
     ]
-  }
+  },
+  userGroupId: testGroup.id
 };
 
 export const sourcesPageTest: DeepPartial<Dataset> = {
@@ -56,7 +60,8 @@ export const sourcesPageTest: DeepPartial<Dataset> = {
       { language: 'en-GB', title: 'Test - Sources' },
       { language: 'en-CY', title: 'Test - Sources' }
     ]
-  }
+  },
+  userGroupId: testGroup.id
 };
 
 export const metadataTestA: DeepPartial<Dataset> = {
@@ -68,7 +73,8 @@ export const metadataTestA: DeepPartial<Dataset> = {
       { language: 'en-GB', title: 'Test - Metadata A' },
       { language: 'en-CY', title: 'Test - Metadata A' }
     ]
-  }
+  },
+  userGroupId: testGroup.id
 };
 
 export const metadataTestB: DeepPartial<Dataset> = {
@@ -80,7 +86,8 @@ export const metadataTestB: DeepPartial<Dataset> = {
       { language: 'en-GB', title: 'Test - Metadata B' },
       { language: 'en-CY', title: 'Test - Metadata B' }
     ]
-  }
+  },
+  userGroupId: testGroup.id
 };
 
 const generatePublishedDataset = (): DeepPartial<Dataset> => {

@@ -2,8 +2,8 @@ import { DeepPartial } from 'typeorm';
 
 import { User } from '../../src/entities/user/user';
 import { GlobalRole } from '../../src/enums/global-role';
-import { stage1Group } from '../../src/seeders/orgs-and-groups';
 import { GroupRole } from '../../src/enums/group-role';
+import { testGroup } from './group';
 
 export const admin1: DeepPartial<User> = {
   id: '044d94c5-91ba-495e-a718-31c597a0a30b',
@@ -22,7 +22,7 @@ export const publisher1: DeepPartial<User> = {
   givenName: 'Joe',
   familyName: 'Publisher',
   email: 'joe.publisher@example.com',
-  groupRoles: [{ id: '56e78eb3-f831-48ff-ab78-8183acab9060', groupId: stage1Group.id, roles: [GroupRole.Editor] }]
+  groupRoles: [{ id: '56e78eb3-f831-48ff-ab78-8183acab9060', groupId: testGroup.id, roles: [GroupRole.Editor] }]
 };
 
 export const approver1: DeepPartial<User> = {
@@ -32,7 +32,7 @@ export const approver1: DeepPartial<User> = {
   givenName: 'Frank',
   familyName: 'Approver',
   email: 'frank.approver@example.com',
-  groupRoles: [{ id: '347b302e-ea1a-40b2-ad02-6bf5f4b85bc6', groupId: stage1Group.id, roles: [GroupRole.Approver] }]
+  groupRoles: [{ id: '347b302e-ea1a-40b2-ad02-6bf5f4b85bc6', groupId: testGroup.id, roles: [GroupRole.Approver] }]
 };
 
 export const testUsers = [admin1, publisher1, approver1];
