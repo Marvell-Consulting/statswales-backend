@@ -2,7 +2,7 @@ import { every, isEqual, max, pick, sortBy } from 'lodash';
 
 import { Dataset } from '../entities/dataset/dataset';
 import { DimensionType } from '../enums/dimension-type';
-import { TaskStatus } from '../enums/task-status';
+import { TaskListStatus } from '../enums/task-list-status';
 import { translatableMetadataKeys } from '../types/translatable-metadata';
 import { DimensionStatus } from '../interfaces/dimension-status';
 import { Revision } from '../entities/dataset/revision';
@@ -12,28 +12,28 @@ import { TranslationDTO } from './translations-dto';
 import { collectTranslations } from '../utils/collect-translations';
 
 export interface MetadataStatus {
-  title: TaskStatus;
-  summary: TaskStatus;
-  quality: TaskStatus;
-  collection: TaskStatus;
-  frequency: TaskStatus;
-  designation: TaskStatus;
-  related: TaskStatus;
-  sources: TaskStatus;
-  topics: TaskStatus;
+  title: TaskListStatus;
+  summary: TaskListStatus;
+  quality: TaskListStatus;
+  collection: TaskListStatus;
+  frequency: TaskListStatus;
+  designation: TaskListStatus;
+  related: TaskListStatus;
+  sources: TaskListStatus;
+  topics: TaskListStatus;
 }
 
 export interface TranslationStatus {
-  export: TaskStatus;
-  import: TaskStatus;
+  export: TaskListStatus;
+  import: TaskListStatus;
 }
 
 export interface PublishingStatus {
-  when: TaskStatus;
+  when: TaskListStatus;
 }
 
 export class TasklistStateDTO {
-  datatable: TaskStatus;
+  datatable: TaskListStatus;
   measure?: DimensionStatus;
   dimensions: DimensionStatus[];
 
@@ -49,10 +49,10 @@ export class TasklistStateDTO {
 
     if (isUpdate) {
       const uploadedAt = revision.dataTable?.uploadedAt;
-      return uploadedAt && uploadedAt > revision.createdAt ? TaskStatus.Updated : TaskStatus.Unchanged;
+      return uploadedAt && uploadedAt > revision.createdAt ? TaskListStatus.Updated : TaskListStatus.Unchanged;
     }
 
-    return revision?.dataTable ? TaskStatus.Completed : TaskStatus.NotStarted;
+    return revision?.dataTable ? TaskListStatus.Completed : TaskListStatus.NotStarted;
   }
 
   public static measureStatus(dataset: Dataset, revision: Revision, lang: string) {
@@ -60,12 +60,12 @@ export class TasklistStateDTO {
 
     const measure = dataset.measure;
     const isUpdate = Boolean(revision.previousRevisionId);
-    let status = TaskStatus.NotStarted;
+    let status = TaskListStatus.NotStarted;
 
     if (isUpdate) {
-      status = TaskStatus.Unchanged;
+      status = TaskListStatus.Unchanged;
     } else if (measure.joinColumn) {
-      status = TaskStatus.Completed;
+      status = TaskListStatus.Completed;
     }
 
     const name = measure.metadata?.find((meta) => meta.language.includes(lang))?.name ?? measure.factTableColumn;
@@ -80,17 +80,17 @@ export class TasklistStateDTO {
       if (dimension.type === DimensionType.NoteCodes) return dimensionStatus;
 
       const name = dimension.metadata.find((meta) => lang.includes(meta.language))?.name ?? 'unknown';
-      let status: TaskStatus;
+      let status: TaskListStatus;
 
       if (isUpdate) {
-        status = TaskStatus.Unchanged;
+        status = TaskListStatus.Unchanged;
         const updateTask = revision.tasks?.dimensions.find((task) => task.id === dimension.id);
 
         if (updateTask) {
-          status = updateTask.lookupTableUpdated ? TaskStatus.Updated : TaskStatus.Unchanged;
+          status = updateTask.lookupTableUpdated ? TaskListStatus.Updated : TaskListStatus.Unchanged;
         }
       } else {
-        status = dimension.extractor === null ? TaskStatus.NotStarted : TaskStatus.Completed;
+        status = dimension.extractor === null ? TaskListStatus.NotStarted : TaskListStatus.Completed;
       }
 
       dimensionStatus.push({ name, status, id: dimension.id, type: dimension.type });
@@ -129,37 +129,44 @@ export class TasklistStateDTO {
       );
 
       return {
-        title: isEqual(prevMeta.title, metadata.title) ? TaskStatus.Unchanged : TaskStatus.Updated,
-        summary: isEqual(prevMeta.summary, metadata.summary) ? TaskStatus.Unchanged : TaskStatus.Updated,
-        quality: isEqual(prevMeta.quality, metadata.quality) ? TaskStatus.Unchanged : TaskStatus.Updated,
-        collection: isEqual(prevMeta.collection, metadata.collection) ? TaskStatus.Unchanged : TaskStatus.Updated,
+        title: isEqual(prevMeta.title, metadata.title) ? TaskListStatus.Unchanged : TaskListStatus.Updated,
+        summary: isEqual(prevMeta.summary, metadata.summary) ? TaskListStatus.Unchanged : TaskListStatus.Updated,
+        quality: isEqual(prevMeta.quality, metadata.quality) ? TaskListStatus.Unchanged : TaskListStatus.Updated,
+        collection: isEqual(prevMeta.collection, metadata.collection)
+          ? TaskListStatus.Unchanged
+          : TaskListStatus.Updated,
         frequency: isEqual(prevRevision.updateFrequency, revision.updateFrequency)
-          ? TaskStatus.Unchanged
-          : TaskStatus.Updated,
-        designation: prevRevision.designation === revision.designation ? TaskStatus.Unchanged : TaskStatus.Updated,
-        sources: isEqual(providers, prevProviders) ? TaskStatus.Unchanged : TaskStatus.Updated,
-        topics: isEqual(topics, prevTopics) ? TaskStatus.Unchanged : TaskStatus.Updated,
-        related: isEqual(prevRevision.relatedLinks, revision.relatedLinks) ? TaskStatus.Unchanged : TaskStatus.Updated
+          ? TaskListStatus.Unchanged
+          : TaskListStatus.Updated,
+        designation:
+          prevRevision.designation === revision.designation ? TaskListStatus.Unchanged : TaskListStatus.Updated,
+        sources: isEqual(providers, prevProviders) ? TaskListStatus.Unchanged : TaskListStatus.Updated,
+        topics: isEqual(topics, prevTopics) ? TaskListStatus.Unchanged : TaskListStatus.Updated,
+        related: isEqual(prevRevision.relatedLinks, revision.relatedLinks)
+          ? TaskListStatus.Unchanged
+          : TaskListStatus.Updated
       };
     }
 
     return {
-      title: metadata?.title ? TaskStatus.Completed : TaskStatus.NotStarted,
-      summary: metadata?.summary ? TaskStatus.Completed : TaskStatus.NotStarted,
-      quality: metadata?.quality ? TaskStatus.Completed : TaskStatus.NotStarted,
-      collection: metadata?.collection ? TaskStatus.Completed : TaskStatus.NotStarted,
-      frequency: revision.updateFrequency ? TaskStatus.Completed : TaskStatus.NotStarted,
-      designation: revision?.designation ? TaskStatus.Completed : TaskStatus.NotStarted,
-      sources: revision?.revisionProviders?.length > 0 ? TaskStatus.Completed : TaskStatus.NotStarted,
-      topics: revision?.revisionTopics?.length > 0 ? TaskStatus.Completed : TaskStatus.NotStarted,
+      title: metadata?.title ? TaskListStatus.Completed : TaskListStatus.NotStarted,
+      summary: metadata?.summary ? TaskListStatus.Completed : TaskListStatus.NotStarted,
+      quality: metadata?.quality ? TaskListStatus.Completed : TaskListStatus.NotStarted,
+      collection: metadata?.collection ? TaskListStatus.Completed : TaskListStatus.NotStarted,
+      frequency: revision.updateFrequency ? TaskListStatus.Completed : TaskListStatus.NotStarted,
+      designation: revision?.designation ? TaskListStatus.Completed : TaskListStatus.NotStarted,
+      sources: revision?.revisionProviders?.length > 0 ? TaskListStatus.Completed : TaskListStatus.NotStarted,
+      topics: revision?.revisionTopics?.length > 0 ? TaskListStatus.Completed : TaskListStatus.NotStarted,
       related:
-        revision?.relatedLinks && revision.relatedLinks?.length > 0 ? TaskStatus.Completed : TaskStatus.NotStarted
+        revision?.relatedLinks && revision.relatedLinks?.length > 0
+          ? TaskListStatus.Completed
+          : TaskListStatus.NotStarted
     };
   }
 
   public static publishingStatus(dataset: Dataset, revision: Revision): PublishingStatus {
     return {
-      when: revision.publishAt ? TaskStatus.Completed : TaskStatus.NotStarted
+      when: revision.publishAt ? TaskListStatus.Completed : TaskListStatus.NotStarted
     };
   }
 
@@ -177,8 +184,8 @@ export class TasklistStateDTO {
       // Compare draft revision with previous version
       if (isEqual(newTranslations, previousTranslations)) {
         return {
-          import: TaskStatus.Unchanged,
-          export: TaskStatus.Unchanged
+          import: TaskListStatus.Unchanged,
+          export: TaskListStatus.Unchanged
         };
       }
     }
@@ -220,23 +227,23 @@ export class TasklistStateDTO {
 
     const translationRequired = !metadataSynced || !metaFullyTranslated;
 
-    let exportStatus: TaskStatus;
+    let exportStatus: TaskListStatus;
     if (lastExportedAt) {
-      exportStatus = exportStale ? TaskStatus.Incomplete : TaskStatus.Completed;
+      exportStatus = exportStale ? TaskListStatus.Incomplete : TaskListStatus.Completed;
     } else {
-      exportStatus = TaskStatus.NotStarted;
+      exportStatus = TaskListStatus.NotStarted;
     }
 
-    let importStatus: TaskStatus;
+    let importStatus: TaskListStatus;
     if (lastImportedAt && lastImportedAt > lastMetaUpdateAt) {
-      importStatus = exportStale || !relatedLinksTranslated ? TaskStatus.Incomplete : TaskStatus.Completed;
+      importStatus = exportStale || !relatedLinksTranslated ? TaskListStatus.Incomplete : TaskListStatus.Completed;
     } else {
-      importStatus = TaskStatus.NotStarted;
+      importStatus = TaskListStatus.NotStarted;
     }
 
     return {
-      export: translationRequired ? exportStatus : TaskStatus.NotRequired,
-      import: translationRequired ? importStatus : TaskStatus.NotRequired
+      export: translationRequired ? exportStatus : TaskListStatus.NotRequired,
+      import: translationRequired ? importStatus : TaskListStatus.NotRequired
     };
   }
 
@@ -258,10 +265,10 @@ export class TasklistStateDTO {
     dto.publishing = TasklistStateDTO.publishingStatus(dataset, revision);
     dto.translation = TasklistStateDTO.translationStatus(dataset, revision, translationEvents);
 
-    const dimensionsComplete = isUpdate || every(dto.dimensions, (dim) => dim.status === TaskStatus.Completed);
-    const metadataComplete = isUpdate || every(dto.metadata, (status) => status === TaskStatus.Completed);
-    const publishingComplete = every(dto.publishing, (status) => status === TaskStatus.Completed);
-    const translationsComplete = [TaskStatus.Completed, TaskStatus.Unchanged].includes(dto.translation.import);
+    const dimensionsComplete = isUpdate || every(dto.dimensions, (dim) => dim.status === TaskListStatus.Completed);
+    const metadataComplete = isUpdate || every(dto.metadata, (status) => status === TaskListStatus.Completed);
+    const publishingComplete = every(dto.publishing, (status) => status === TaskListStatus.Completed);
+    const translationsComplete = [TaskListStatus.Completed, TaskListStatus.Unchanged].includes(dto.translation.import);
 
     dto.canPublish = dimensionsComplete && metadataComplete && translationsComplete && publishingComplete;
 
