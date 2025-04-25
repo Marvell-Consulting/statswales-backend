@@ -116,7 +116,6 @@ export const getRevisionPreview = async (req: Request, res: Response, next: Next
   const page_size: number = Number.parseInt(req.query.page_size as string, 10) || DEFAULT_PAGE_SIZE;
 
   let cubeFile: string;
-  console.log(revision);
   if (revision.onlineCubeFilename && !revision.onlineCubeFilename.includes('protocube')) {
     logger.debug('Loading cube from file store for preview');
     cubeFile = tmp.tmpNameSync({ postfix: '.duckdb' });
