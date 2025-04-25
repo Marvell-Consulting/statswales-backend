@@ -43,7 +43,8 @@ import {
   getDatasetById,
   deleteDraftDatasetById,
   listAllFilesInDataset,
-  getAllFilesForDataset
+  getAllFilesForDataset,
+  updateDatasetGroup
 } from '../controllers/dataset';
 import { rateLimiter } from '../middleware/rate-limiter';
 
@@ -241,3 +242,7 @@ router.get('/:dataset_id/download', loadDataset(withDraftForCube), getAllFilesFo
 // GET /dataset/:dataset_id/list-files
 // List all the files which are used to build the cube
 router.get('/:dataset_id/list-files', loadDataset(withDraftForCube), listAllFilesInDataset);
+
+// PATCH /dataset/:dataset_id/group
+// Updates the user group for the dataset
+router.patch('/:dataset_id/group', jsonParser, loadDataset(), updateDatasetGroup);

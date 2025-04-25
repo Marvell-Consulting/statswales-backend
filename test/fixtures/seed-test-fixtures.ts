@@ -15,6 +15,8 @@ import { DataTable } from '../../src/entities/dataset/data-table';
 import { testUsers } from './users';
 import { testDatasets } from './datasets';
 import { Revision } from '../../src/entities/dataset/revision';
+import { UserGroup } from '../../src/entities/user/user-group';
+import { testGroup } from './group';
 
 const config = appConfig();
 
@@ -25,15 +27,22 @@ export default class SeedTestFixtures extends Seeder {
     if (![AppEnv.Local, AppEnv.Ci].includes(config.env)) {
       throw new Error('SeedTestFixtures is only intended to be run in local or test environments');
     }
-
+    await this.seedTestGroup(dataSource);
     await this.seedUsers(dataSource);
     await this.seedDatasets(dataSource);
+  }
+
+  async seedTestGroup(dataSource: DataSource) {
+    console.log(`seeding test group...`);
+    const entityManager = dataSource.createEntityManager();
+    const group = entityManager.create(UserGroup, testGroup);
+    await dataSource.getRepository(UserGroup).save(group);
   }
 
   async seedUsers(dataSource: DataSource): Promise<void> {
     console.log(`Seeding ${testUsers.length} test users...`);
     const entityManager = dataSource.createEntityManager();
-    const users = await entityManager.create(User, testUsers);
+    const users = entityManager.create(User, testUsers);
     await dataSource.getRepository(User).save(users);
   }
 

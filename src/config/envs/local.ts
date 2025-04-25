@@ -40,7 +40,7 @@ export function getLocalConfig(): AppConfig {
       windowMs: -1 // disable rate limiting on local
     },
     auth: {
-      providers: [AuthProvider.EntraId],
+      providers: [AuthProvider.EntraId, AuthProvider.Local],
       jwt: {
         secret: process.env.JWT_SECRET || 'jwtsecret',
         expiresIn: process.env.JWT_EXPIRES_IN || '6h',
