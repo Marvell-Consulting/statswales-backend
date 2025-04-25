@@ -1,4 +1,4 @@
-export enum TaskStatus {
+export enum TaskListStatus {
   CannotStart = 'cannot_start',
   Available = 'available',
   NotRequired = 'not_required',
