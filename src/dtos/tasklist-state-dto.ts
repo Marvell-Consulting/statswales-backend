@@ -261,7 +261,7 @@ export class TasklistStateDTO {
     const dimensionsComplete = isUpdate || every(dto.dimensions, (dim) => dim.status === TaskStatus.Completed);
     const metadataComplete = isUpdate || every(dto.metadata, (status) => status === TaskStatus.Completed);
     const publishingComplete = every(dto.publishing, (status) => status === TaskStatus.Completed);
-    const translationsComplete = dto.translation.import === TaskStatus.Completed;
+    const translationsComplete = [TaskStatus.Completed, TaskStatus.Unchanged].includes(dto.translation.import);
 
     dto.canPublish = dimensionsComplete && metadataComplete && translationsComplete && publishingComplete;
 
