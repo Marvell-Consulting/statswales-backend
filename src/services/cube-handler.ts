@@ -105,20 +105,59 @@ export const loadTableDataIntoFactTable = async (
   logger.debug(`Loading data table into fact table`);
   const batchSize = 200000;
   let processedRows = 0;
-  while (processedRows < rowCount) {
-    const insertQuery = `
+  let insertQuery = `
       INSERT INTO ${factTableName}
       SELECT "${factTableDef.join('", "')}"
       FROM ${originTableName} LIMIT ${batchSize}
       OFFSET ${processedRows};
     `;
-    await quack.exec(insertQuery);
+  try {
+    while (processedRows < rowCount) {
+      insertQuery = `
+      INSERT INTO ${factTableName}
+      SELECT "${factTableDef.join('", "')}"
+      FROM ${originTableName} LIMIT ${batchSize}
+      OFFSET ${processedRows};
+    `;
+      await quack.exec(insertQuery);
 
-    processedRows += batchSize;
-    const currentRows = Math.min(processedRows, rowCount);
-    const percentComplete = Math.round((currentRows / rowCount) * 100);
-    logger.debug(`↳ Copied ${currentRows}/${rowCount} rows (${percentComplete}%)`);
-    if (processedRows >= rowCount) break;
+      processedRows += batchSize;
+      const currentRows = Math.min(processedRows, rowCount);
+      const percentComplete = Math.round((currentRows / rowCount) * 100);
+      logger.debug(`↳ Copied ${currentRows}/${rowCount} rows (${percentComplete}%)`);
+      if (processedRows >= rowCount) break;
+    }
+  } catch (error) {
+    logger.error(error, `Failed to load file into table using query ${insertQuery}`);
+    const duckDBError = error as DuckDbError;
+    if (duckDBError.errorType === 'Constraint') {
+      if (duckDBError.message.includes('NOT NULL constraint')) {
+        throw new FactTableValidationException(
+          'Fact with empty value in column(s) found in fact table.  Please check the data and try again.',
+          FactTableValidationExceptionType.EmptyValue,
+          400
+        );
+      }
+      if (duckDBError.message.includes('PRIMARY KEY or UNIQUE')) {
+        throw new FactTableValidationException(
+          'Dupllicate facts found in the fact table.  Please check the data and try again.',
+          FactTableValidationExceptionType.DuplicateFact,
+          400
+        );
+      }
+      if (duckDBError.message.includes('Duplicate key')) {
+        throw new FactTableValidationException(
+          'Duplicate facts found in the fact table.  Please check the data and try again.',
+          FactTableValidationExceptionType.DuplicateFact,
+          400
+        );
+      }
+    }
+    throw new FactTableValidationException(
+      'An unknown error occurred trying to load data in to the fact table.  Please contact support.',
+      FactTableValidationExceptionType.UnknownError,
+      500
+    );
   }
 };
 

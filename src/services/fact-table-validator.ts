@@ -145,6 +145,7 @@ export const factTableValidatorFromSource = async (
     } else if (error.type === FactTableValidationExceptionType.DuplicateFact) {
       error = await identifyDuplicateFacts(quack, primaryKeyDef, error);
     }
+    throw error;
   } finally {
     logger.debug('Closing duckdb database');
     await safelyCloseDuckDb(quack);
