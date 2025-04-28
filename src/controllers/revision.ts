@@ -126,7 +126,7 @@ export const getRevisionPreview = async (req: Request, res: Response, next: Next
       logger.error('Something went wrong trying to download file from data lake');
       throw err;
     }
-  } else if (revision.onlineCubeFilename.includes('protocube')) {
+  } else if (revision.onlineCubeFilename?.includes('protocube')) {
     logger.debug('Loading protocube from file store for preview');
     const buffer = await req.fileService.loadBuffer(revision.onlineCubeFilename, dataset.id);
     cubeFile = tmp.tmpNameSync({ postfix: '.duckdb' });
