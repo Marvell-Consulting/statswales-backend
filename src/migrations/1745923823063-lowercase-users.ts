@@ -9,6 +9,7 @@ export class LowercaseUsers1745923823063 implements MigrationInterface {
     await queryRunner.query(`UPDATE "user" SET "email" = LOWER("email") WHERE "email" IS NOT NULL`);
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   public async down(queryRunner: QueryRunner): Promise<void> {
     // nothing to do
   }
