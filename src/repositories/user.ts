@@ -4,6 +4,7 @@ import { UserCreateDTO } from '../dtos/user/user-create-dto';
 import { UserDTO } from '../dtos/user/user-dto';
 import { User } from '../entities/user/user';
 import { UserGroupRole } from '../entities/user/user-group-role';
+import { AuthProvider } from '../enums/auth-providers';
 import { GlobalRole } from '../enums/global-role';
 import { GroupRole } from '../enums/group-role';
 import { Locale } from '../enums/locale';
@@ -22,8 +23,9 @@ export const UserRepository = dataSource.getRepository(User).extend({
     });
   },
 
-  async createUser(dto: UserCreateDTO): Promise<User> {
-    const user = User.create({ ...dto });
+  async createUser(dto: UserCreateDTO, provider = AuthProvider.EntraId): Promise<User> {
+    const email = dto.email.toLowerCase();
+    const user = User.create({ email, provider });
     return user.save();
   },
 

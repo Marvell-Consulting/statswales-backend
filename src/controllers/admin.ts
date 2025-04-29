@@ -142,7 +142,6 @@ export const createUser = async (req: Request, res: Response) => {
   try {
     logger.info('Creating new user...');
     const dto = await dtoValidator(UserCreateDTO, req.body);
-    dto.provider = 'entraid';
     const user = await UserRepository.createUser(dto);
     res.json(UserDTO.fromUser(user, req.language as Locale));
   } catch (err) {

@@ -24,7 +24,7 @@ export class UserGroupMetadataDTO {
     const dto = new UserGroupMetadataDTO();
     dto.id = meta.id;
     dto.name = meta.name;
-    dto.email = meta.email;
+    dto.email = meta.email?.toLowerCase();
     dto.language = meta.language;
     return dto;
   }
