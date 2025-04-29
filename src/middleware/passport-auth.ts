@@ -153,7 +153,7 @@ const initEntraId = async (userRepository: Repository<User>, entraIdConfig: Reco
 
             await userRepository
               .merge(existingUserById, {
-                email: userInfo.email,
+                email: userInfo.email.toLowerCase(),
                 givenName,
                 familyName,
                 lastLoginAt: new Date()
@@ -166,7 +166,7 @@ const initEntraId = async (userRepository: Repository<User>, entraIdConfig: Reco
 
           logger.debug('no previous login found, falling back to email...');
           const existingUserByEmail = await userRepository.findOne({
-            where: { email: userInfo.email },
+            where: { email: userInfo.email.toLowerCase() },
             relations: { groupRoles: { group: { metadata: true } } }
           });
 
@@ -237,7 +237,7 @@ const initGoogle = async (userRepository: Repository<User>, googleConfig: Record
 
             await userRepository
               .merge(existingUserById, {
-                email: profile._json.email,
+                email: profile._json.email.toLowerCase(),
                 givenName: profile.name?.givenName,
                 familyName: profile.name?.familyName,
                 lastLoginAt: new Date()
@@ -250,7 +250,7 @@ const initGoogle = async (userRepository: Repository<User>, googleConfig: Record
 
           logger.debug('no previous login found, falling back to email...');
           const existingUserByEmail = await userRepository.findOne({
-            where: { email: profile._json.email },
+            where: { email: profile._json.email.toLowerCase() },
             relations: { groupRoles: { group: { metadata: true } } }
           });
 
