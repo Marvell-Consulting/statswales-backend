@@ -26,6 +26,10 @@ export class Task extends BaseEntity {
   @Column({ name: 'status', type: 'text', nullable: false })
   status: TaskStatus;
 
+  @Index('IDX_task_open')
+  @Column({ name: 'open', type: 'boolean', nullable: false, default: true })
+  open: boolean;
+
   @Index('IDX_task_entity_entity_id', ['entity', 'entity_id'])
   @Column({ name: 'entity', type: 'text', nullable: true })
   entity?: string;

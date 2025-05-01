@@ -1,13 +1,14 @@
 import { MigrationInterface, QueryRunner } from 'typeorm';
 
-export class Tasks1745942366601 implements MigrationInterface {
-  name = 'Tasks1745942366601';
+export class Tasks1746026943611 implements MigrationInterface {
+  name = 'Tasks1746026943611';
 
   public async up(queryRunner: QueryRunner): Promise<void> {
     await queryRunner.query(
-      `CREATE TABLE "task" ("id" uuid NOT NULL DEFAULT uuid_generate_v4(), "action" text NOT NULL, "status" text NOT NULL, "entity" text, "entity_id" text, "comment" text, "created_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), "updated_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), "submitted_by" uuid, "response_by" uuid, CONSTRAINT "PK_task_id" PRIMARY KEY ("id"))`
+      `CREATE TABLE "task" ("id" uuid NOT NULL DEFAULT uuid_generate_v4(), "action" text NOT NULL, "status" text NOT NULL, "open" boolean NOT NULL DEFAULT true, "entity" text, "entity_id" text, "comment" text, "created_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), "updated_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), "submitted_by" uuid, "response_by" uuid, CONSTRAINT "PK_task_id" PRIMARY KEY ("id"))`
     );
     await queryRunner.query(`CREATE INDEX "IDX_task_status" ON "task" ("status") `);
+    await queryRunner.query(`CREATE INDEX "IDX_task_open" ON "task" ("open") `);
     await queryRunner.query(`CREATE INDEX "IDX_task_entity_entity_id" ON "task" ("entity") `);
     await queryRunner.query(`CREATE INDEX "IDX_task_submitted_by" ON "task" ("submitted_by") `);
     await queryRunner.query(`CREATE INDEX "IDX_task_response_by" ON "task" ("response_by") `);
@@ -25,6 +26,7 @@ export class Tasks1745942366601 implements MigrationInterface {
     await queryRunner.query(`DROP INDEX "public"."IDX_task_response_by"`);
     await queryRunner.query(`DROP INDEX "public"."IDX_task_submitted_by"`);
     await queryRunner.query(`DROP INDEX "public"."IDX_task_entity_entity_id"`);
+    await queryRunner.query(`DROP INDEX "public"."IDX_task_open"`);
     await queryRunner.query(`DROP INDEX "public"."IDX_task_status"`);
     await queryRunner.query(`DROP TABLE "task"`);
   }

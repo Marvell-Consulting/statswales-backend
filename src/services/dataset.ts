@@ -33,12 +33,17 @@ import { validateAndUploadCSV } from './csv-processor';
 import { removeAllDimensions, removeMeasure } from './dimension-processor';
 import { getFileService } from '../utils/get-file-service';
 import { UserGroupRepository } from '../repositories/user-group';
+import { TaskService } from './task';
+import { TaskAction } from '../enums/task-action';
+import { Task } from '../entities/task/task';
 
 export class DatasetService {
   lang: Locale;
+  taskService: TaskService;
 
   constructor(lang: Locale) {
     this.lang = lang;
+    this.taskService = new TaskService();
   }
 
   async createNew(title: string, userGroupId: string, createdBy: User): Promise<Dataset> {
@@ -222,6 +227,35 @@ export class DatasetService {
     return DatasetRepository.getById(datasetId, {});
   }
 
+  async submitForPublication(datasetId: string, revisionId: string, user: User): Promise<Task> {
+    const dataset = await DatasetRepository.findOneOrFail({
+      where: { id: datasetId },
+      relations: { draftRevision: true }
+    });
+
+    if (!dataset.draftRevision || dataset.draftRevision.id !== revisionId) {
+      throw new BadRequestException('errors.submit_for_publication.invalid_revision_id');
+    }
+
+    const task = await this.taskService.create('dataset', dataset.id, TaskAction.Publish, user);
+    console.log(task);
+
+    return task;
+  }
+
+  async withdrawFromPublication(datasetId: string, revisionId: string): Promise<Dataset> {
+    const revision = await RevisionRepository.withdrawPublication(revisionId);
+
+    if (revision.onlineCubeFilename) {
+      const fileService = getFileService();
+      await fileService.delete(revision.onlineCubeFilename, datasetId);
+    }
+
+    const withdrawnDataset = await DatasetRepository.withdraw(revision);
+
+    return withdrawnDataset;
+  }
+
   async approveForPublication(datasetId: string, revisionId: string, user: User): Promise<Dataset> {
     const start = performance.now();
 
@@ -249,19 +283,6 @@ export class DatasetService {
     const approvedDataset = await DatasetRepository.publish(scheduledRevision, periodCoverage);
 
     return approvedDataset;
-  }
-
-  async withdrawFromPublication(datasetId: string, revisionId: string): Promise<Dataset> {
-    const revision = await RevisionRepository.withdrawPublication(revisionId);
-
-    if (revision.onlineCubeFilename) {
-      const fileService = getFileService();
-      await fileService.delete(revision.onlineCubeFilename, datasetId);
-    }
-
-    const withdrawnDataset = await DatasetRepository.withdraw(revision);
-
-    return withdrawnDataset;
   }
 
   async createRevision(datasetId: string, createdBy: User): Promise<Dataset> {
