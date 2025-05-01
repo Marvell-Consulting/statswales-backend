@@ -72,6 +72,11 @@ export const getDatasetById = async (req: Request, res: Response) => {
   res.json(DatasetDTO.fromDataset(res.locals.dataset));
 };
 
+export const getDatasetOverviewById = async (req: Request, res: Response) => {
+  const dataset = await req.datasetService.getDatasetOverview(res.locals.datasetId);
+  res.json(DatasetDTO.fromDataset(dataset));
+};
+
 export const deleteDraftDatasetById = async (req: Request, res: Response, next: NextFunction) => {
   const dataset: Dataset = res.locals.dataset;
   if (dataset.publishedRevision) {

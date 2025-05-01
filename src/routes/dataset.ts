@@ -44,7 +44,8 @@ import {
   deleteDraftDatasetById,
   listAllFilesInDataset,
   getAllFilesForDataset,
-  updateDatasetGroup
+  updateDatasetGroup,
+  getDatasetOverviewById
 } from '../controllers/dataset';
 import { rateLimiter } from '../middleware/rate-limiter';
 
@@ -151,6 +152,10 @@ router.get('/:dataset_id', loadDataset({}), getDatasetById);
 // GET /dataset/:dataset_id/all
 // Returns the dataset with all available relations hydrated
 router.get('/:dataset_id/all', loadDataset(withAll), getDatasetById);
+
+// GET /dataset/:dataset_id/overview
+// Returns the dataset with info required to display the overview page
+router.get('/:dataset_id/overview', loadDataset(), getDatasetOverviewById);
 
 // GET /dataset/:dataset_id/data
 // Returns the dataset with the current draft revision and data table
