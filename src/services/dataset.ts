@@ -60,6 +60,10 @@ export class DatasetService {
     return DatasetRepository.getById(dataset.id, withDraftAndMetadata);
   }
 
+  async getDatasetOverview(datasetId: string): Promise<Dataset> {
+    return DatasetRepository.getById(datasetId, { endRevision: { metadata: true } });
+  }
+
   async updateMetadata(datasetId: string, metadata: RevisionMetadataDTO): Promise<Dataset> {
     const dataset = await DatasetRepository.getById(datasetId, withDraftAndMetadata);
     await RevisionRepository.updateMetadata(dataset.draftRevision!, metadata);
