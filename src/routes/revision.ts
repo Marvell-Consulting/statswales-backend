@@ -18,7 +18,7 @@ import {
   getRevisionPreview,
   removeFactTableFromRevision,
   updateRevisionPublicationDate,
-  approveForPublication,
+  submitForPublication,
   withdrawFromPublication,
   createNewRevision,
   getDataTable,
@@ -116,7 +116,7 @@ router.patch('/by-id/:revision_id/publish-at', loadRevision(), jsonParser, updat
 
 // POST /dataset/:dataset_id/revision/by-id/<revision id>/approve
 // Approve the dataset's latest revision for publication
-router.post('/by-id/:revision_id/approve', loadRevision(), approveForPublication);
+router.post('/by-id/:revision_id/submit', loadRevision(), submitForPublication);
 
 // POST /dataset/:dataset_id/revision/by-id/<revision id>/withdraw
 // Withdraw the dataset's latest revision from scheduled publication
