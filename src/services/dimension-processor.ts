@@ -135,6 +135,9 @@ export const validateSourceAssignment = (
         throw new SourceAssignmentException(`errors.source_assignment.invalid_source_type`);
     }
   });
+  if (!noteCodes) {
+    throw new SourceAssignmentException('errors.source_assignment.missing_footnotes');
+  }
 
   return { dataValues, measure, noteCodes, dimensions, ignore };
 };
