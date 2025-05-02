@@ -205,7 +205,7 @@ const approvedDataset: DeepPartial<Dataset> = {
   userGroupId: '24bf9f9c-898a-4d23-ae1e-35a6ff30ee63'
 };
 
-export default class SeedTestFixtures extends Seeder {
+export default class DatasetSeeder extends Seeder {
   async run(dataSource: DataSource): Promise<void> {
     await this.seedUser(dataSource);
     await this.seedDataset(dataSource);
