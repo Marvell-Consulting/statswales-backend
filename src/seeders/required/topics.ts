@@ -4,8 +4,8 @@ import { parse } from 'csv';
 import { Seeder } from '@jorgebodega/typeorm-seeding';
 import { DataSource } from 'typeorm';
 
-import { logger } from '../utils/logger';
-import { Topic } from '../entities/dataset/topic';
+import { logger } from '../../utils/logger';
+import { Topic } from '../../entities/dataset/topic';
 
 interface CSVRow {
   id: string;
@@ -23,7 +23,7 @@ export default class TopicSeeder extends Seeder {
 
   async seedTopics(dataSource: DataSource): Promise<void> {
     const em = dataSource.createEntityManager();
-    const csv = `${__dirname}/../resources/topics/topics.csv`;
+    const csv = `${__dirname}/../../resources/topics/topics.csv`;
     const parserOpts = { delimiter: ',', bom: true, skip_empty_lines: true, columns: true };
     const topics: Topic[] = [];
 

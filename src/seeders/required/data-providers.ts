@@ -5,10 +5,10 @@ import { Seeder } from '@jorgebodega/typeorm-seeding';
 import { DataSource } from 'typeorm';
 import { v4 as uuid } from 'uuid';
 
-import { Provider } from '../entities/dataset/provider';
-import { logger } from '../utils/logger';
-import { ProviderSource } from '../entities/dataset/provider-source';
-import { Locale } from '../enums/locale';
+import { Provider } from '../../entities/dataset/provider';
+import { logger } from '../../utils/logger';
+import { ProviderSource } from '../../entities/dataset/provider-source';
+import { Locale } from '../../enums/locale';
 
 interface CSVRow {
   original_id: string;
@@ -24,7 +24,7 @@ export default class DataProviderSeeder extends Seeder {
   }
 
   async seedProvidersAndSources(dataSource: DataSource): Promise<void> {
-    const csv = `${__dirname}/../resources/data-providers/provider_sources.csv`;
+    const csv = `${__dirname}/../../resources/data-providers/provider_sources.csv`;
     const parserOpts = { delimiter: ',', bom: true, skip_empty_lines: true, columns: true };
     const providers: Provider[] = [];
     const providerSources: ProviderSource[] = [];

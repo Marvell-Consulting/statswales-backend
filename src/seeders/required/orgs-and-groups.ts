@@ -1,11 +1,11 @@
 import { Seeder } from '@jorgebodega/typeorm-seeding';
 import { DataSource, DeepPartial, IsNull } from 'typeorm';
 
-import { logger } from '../utils/logger';
-import { Organisation } from '../entities/user/organisation';
-import { Locale } from '../enums/locale';
-import { Dataset } from '../entities/dataset/dataset';
-import { UserGroup } from '../entities/user/user-group';
+import { logger } from '../../utils/logger';
+import { Organisation } from '../../entities/user/organisation';
+import { Locale } from '../../enums/locale';
+import { Dataset } from '../../entities/dataset/dataset';
+import { UserGroup } from '../../entities/user/user-group';
 
 // using hard coded uuids so that we can re-run the seeder for updates without creating new records
 const organisations: DeepPartial<Organisation>[] = [
