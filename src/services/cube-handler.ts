@@ -1155,8 +1155,8 @@ export async function createEmptyFactTableInCube(quack: Database, dataset: Datas
           dataValuesColumn = field;
           break;
       }
-      factTableDef.push(field.columnName);
-      return `"${field.columnName}" ${field.columnDatatype}`;
+      factTableDef.push(field.columnName.toLowerCase());
+      return `"${field.columnName.toLowerCase()}" ${field.columnDatatype}`;
     });
 
   logger.info('Creating initial fact table in cube');

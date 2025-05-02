@@ -30,3 +30,19 @@ export const duckdb = async (cubeFile = ':memory:') => {
 
   return duckdb;
 };
+
+export const linkToPostgres = async (quack: Database, revisionId: string, use: boolean) => {
+  await quack.exec(`LOAD 'postgres';`);
+  await quack.exec(`CREATE SECRET (
+          TYPE postgres,
+          HOST '${config.database.host}',
+          PORT ${config.database.port},
+          DATABASE '${config.database.database}',
+          USER '${config.database.username}',
+          PASSWORD '${config.database.password}'
+      );`);
+  await quack.exec(`ATTACH '' AS postgres_db (TYPE postgres, SCHEMA "${revisionId}");`);
+  if (use) {
+    await quack.exec(`USE postgres_db;`);
+  }
+};
