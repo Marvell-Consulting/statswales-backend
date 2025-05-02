@@ -178,7 +178,7 @@ async function identifyDuplicateFacts(
   error: FactTableValidationException
 ): Promise<FactTableValidationException> {
   try {
-    const brokenFacts = await quack.all(`
+    const duplicateQuery = `
         SELECT  *
         FROM (SELECT row_number() OVER () as line_number, * FROM data_table)
         WHERE (${primaryKeyDef.join(', ')}) IN
@@ -188,8 +188,9 @@ async function identifyDuplicateFacts(
                 SELECT ${primaryKeyDef.join(', ')}, count(*) as fact_count
                 FROM data_table GROUP BY ${primaryKeyDef.join(', ')} HAVING fact_count > 1
             )
-        ) LIMIT 500;
-      `);
+        ) LIMIT 500;`;
+    logger.debug(`Running query to find duplicates:\n${duplicateQuery}`);
+    const brokenFacts = await quack.all(duplicateQuery);
     const { headers, data } = tableDataToViewTable(brokenFacts);
     error.data = data;
     error.headers = headers;
