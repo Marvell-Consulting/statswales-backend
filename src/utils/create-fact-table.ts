@@ -9,17 +9,18 @@ import tmp from 'tmp';
 import fs from 'fs';
 
 export async function createEmptyCubeWithFactTable(dataset: Dataset): Promise<Database> {
-  const endRevision = dataset.draftRevision;
-  if (!endRevision) {
+  const draftRevision = dataset.draftRevision;
+
+  if (!draftRevision) {
     throw new Error('No draft revision present on the dataset');
   }
+
   let quack: Database;
   const filename = tmp.tmpNameSync({ postfix: '.duckdb' });
-  logger.debug(`endRevision.onlineCubeFilename = ${endRevision.onlineCubeFilename}`);
-  if (endRevision.onlineCubeFilename && endRevision.onlineCubeFilename.includes('protocube')) {
-    logger.debug('Loading protocube file from blob storage');
+
+  if (draftRevision.onlineCubeFilename && draftRevision.onlineCubeFilename.includes('protocube')) {
     const fileService = getFileService();
-    const cubeFile = await fileService.loadBuffer(endRevision.onlineCubeFilename, dataset.id);
+    const cubeFile = await fileService.loadBuffer(draftRevision.onlineCubeFilename, dataset.id);
     fs.writeFileSync(filename, cubeFile);
     quack = await duckdb(filename);
   } else {
@@ -33,7 +34,7 @@ export async function createEmptyCubeWithFactTable(dataset: Dataset): Promise<Da
       await loadFactTables(
         quack,
         dataset,
-        endRevision,
+        draftRevision,
         factTableDef,
         dataValuesColumn,
         notesCodeColumn,

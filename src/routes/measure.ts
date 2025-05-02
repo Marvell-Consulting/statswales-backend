@@ -35,7 +35,8 @@ router.get('/preview', getPreviewOfMeasure);
 // Updates the dimension metadata
 router.patch('/metadata', jsonParser, updateMeasureMetadata);
 
-router.get('/', getMeasureInfo);
+// GET /dataset/:dataset_id/measure/info
+router.get('/info', getMeasureInfo);
 
 router.get('/lookup', getMeasureLookupTableInfo);
 
