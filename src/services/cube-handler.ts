@@ -393,7 +393,7 @@ export async function createDateDimension(quack: Database, extractor: object | n
   if (!extractor) {
     throw new Error('Extractor not supplied');
   }
-  const columnData = await quack.all(`SELECT "${factTableColumn.columnName}" FROM ${FACT_TABLE_NAME};`);
+  const columnData = await quack.all(`SELECT DISTINCT "${factTableColumn.columnName}" FROM ${FACT_TABLE_NAME};`);
   const dateDimensionTable = dateDimensionReferenceTableCreator(extractor, columnData);
   await quack.exec(createDatePeriodTableQuery(factTableColumn));
   // Create the date_dimension table
