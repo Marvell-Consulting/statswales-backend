@@ -28,7 +28,8 @@
     "migration:revert": "npm run typeorm migration:revert -- --dataSource=./src/db/data-source.ts",
     "migration:generate": "npm run typeorm migration:generate -- --dataSource=./src/db/data-source.ts",
     "migration:create": "npm run typeorm migration:create",
-    "seed:required": "npm run typeorm-seeding -- -d ./src/db/data-source.ts ./src/seeders/*.ts",
+    "seed:required": "npm run typeorm-seeding -- -d ./src/db/data-source.ts ./src/seeders/required/*.ts",
+    "seed:dataset": "npm run typeorm-seeding -- -d ./src/db/data-source.ts ./src/seeders/dataset.ts",
     "seed:e2e": "npm run typeorm-seeding -- -d ./src/db/data-source.ts ./test/fixtures/seed-test-fixtures.ts",
     "seed:ci": "npm run typeorm-seeding -- -d ./src/db/data-source.ts ./test/fixtures/seed-test-fixtures.ts",
     "assign-default-group": "npm run typeorm-seeding -- -d ./src/db/data-source.ts ./src/seeders/groups.ts"
