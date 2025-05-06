@@ -15,7 +15,6 @@ import {
   withAll,
   withDraftAndProviders,
   withDraftAndTopics,
-  withDraftAndDataTable,
   withDraftAndMeasure
 } from '../repositories/dataset';
 import { datasetIdValidator, hasError } from '../validators';
@@ -140,7 +139,7 @@ router.patch('/:dataset_id/metadata', jsonParser, loadDataset({}), updateMetadat
 
 // GET /dataset/:dataset_id/data
 // Returns the dataset with the current draft revision and data table
-router.get('/:dataset_id/data', loadDataset(withDraftAndDataTable), getDatasetById);
+router.get('/:dataset_id/data', loadDataset(withDraftForCube), getDatasetById);
 
 // POST /dataset/:dataset_id/data
 // Upload a data file to a dataset
