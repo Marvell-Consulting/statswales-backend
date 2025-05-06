@@ -714,14 +714,20 @@ interface NoteCodeItem {
 
 export const NoteCodes: NoteCodeItem[] = [
   { code: 'a', tag: 'average' },
+  { code: 'b', tag: 'break_in_series' },
   { code: 'c', tag: 'confidential' },
   { code: 'e', tag: 'estimated' },
   { code: 'f', tag: 'forecast' },
   { code: 'k', tag: 'low_figure' },
+  { code: 'ns', tag: 'not_statistically_significant' },
   { code: 'p', tag: 'provisional' },
   { code: 'r', tag: 'revised' },
+  { code: 's', tag: 'statistically_significant_at_level_1' },
+  { code: 'ss', tag: 'statistically_significant_at_level_2' },
+  { code: 'sss', tag: 'statistically_significant_at_level_3' },
   { code: 't', tag: 'total' },
   { code: 'u', tag: 'low_reliability' },
+  { code: 'w', tag: 'not_recorded' },
   { code: 'x', tag: 'missing_data' },
   { code: 'z', tag: 'not_applicable' }
 ];
