@@ -213,7 +213,7 @@ export const validateLookupTableReferenceValues = async (
   try {
     logger.debug(`Validating the lookup table`);
     const nonMatchedRows = await quack.all(
-      `SELECT line_number, fact_table_column, "${lookupTableName}".${joinColumn} as lookup_table_column
+      `SELECT line_number, fact_table_column, "${lookupTableName}"."${joinColumn}" as lookup_table_column
             FROM (SELECT row_number() OVER () as line_number, "${factTableColumn}" as fact_table_column FROM
             ${factTableName}) as fact_table LEFT JOIN "${lookupTableName}" ON
             CAST(fact_table.fact_table_column AS VARCHAR)=CAST("${lookupTableName}"."${joinColumn}" AS VARCHAR)
@@ -223,7 +223,7 @@ export const validateLookupTableReferenceValues = async (
     const rows = await quack.all(`SELECT COUNT(*) as total_rows FROM ${factTableName}`);
     if (nonMatchedRows.length === rows[0].total_rows) {
       logger.error(`The user supplied an incorrect lookup table and none of the rows matched`);
-      const nonMatchedFactTableValues = await quack.all(`SELECT DISTINCT ${factTableColumn} FROM ${factTableName};`);
+      const nonMatchedFactTableValues = await quack.all(`SELECT DISTINCT "${factTableColumn}" FROM ${factTableName};`);
       const nonMatchedLookupValues = await quack.all(`SELECT DISTINCT "${joinColumn}" FROM "${lookupTableName}";`);
       return viewErrorGenerators(400, dataset.id, 'patch', `errors.${validationType}_validation.no_reference_match`, {
         totalNonMatching: rows[0].total_rows,
