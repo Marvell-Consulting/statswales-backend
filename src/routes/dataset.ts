@@ -5,7 +5,6 @@ import 'reflect-metadata';
 import express, { NextFunction, Request, Response, Router } from 'express';
 import multer from 'multer';
 import { FindOptionsRelations } from 'typeorm';
-import passport from 'passport';
 
 import { logger } from '../utils/logger';
 import {
@@ -48,7 +47,6 @@ import {
   updateDatasetGroup,
   getDatasetOverviewById
 } from '../controllers/dataset';
-import { rateLimiter } from '../middleware/rate-limiter';
 
 import { revisionRouter } from './revision';
 import { dimensionRouter } from './dimension';
