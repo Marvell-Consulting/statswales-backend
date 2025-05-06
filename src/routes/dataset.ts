@@ -149,8 +149,8 @@ router.post('/:dataset_id/data', upload.single('csv'), loadDataset({}), uploadDa
 // Returns the dataset with the current draft and measure
 router.get('/:dataset_id/measure', loadDataset(withDraftAndMeasure), getDatasetById);
 
-// GET /dataset/:dataset_id/dimension
-// Returns the dataset with the current draft and dimension
+// GET /dataset/:dataset_id/dimensions
+// Returns the dataset with the dimensions hydrated
 router.get('/:dataset_id/dimensions', loadDataset(withDimensions), getDatasetById);
 
 // GET /dataset/:dataset_id/view
