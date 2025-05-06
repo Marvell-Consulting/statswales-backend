@@ -183,7 +183,7 @@ export const loadFileDataTableIntoTable = async (
   switch (dataTable.fileType) {
     case FileType.Csv:
     case FileType.GzipCsv:
-      insertQuery = `CREATE TABLE ${tempTableName} AS SELECT "${dataTableColumnSelect.join('", "')}" FROM read_csv('${tempFile}', auto_type_candidates = ['BOOLEAN', 'BIGINT', 'DOUBLE', 'VARCHAR']);`;
+      insertQuery = `CREATE TABLE ${tempTableName} AS SELECT "${dataTableColumnSelect.join('", "')}" FROM read_csv('${tempFile}', auto_type_candidates = ['BIGINT', 'DOUBLE', 'VARCHAR']);`;
       break;
     case FileType.Parquet:
       insertQuery = `CREATE TABLE ${tempTableName} AS SELECT "${dataTableColumnSelect.join('", "')}" FROM ${tempFile};`;
