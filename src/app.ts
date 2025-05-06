@@ -46,18 +46,20 @@ app.use('/auth', rateLimiter, authRouter);
 app.use('/healthcheck', rateLimiter, healthcheckRouter);
 app.use('/published', rateLimiter, consumerRouter);
 
+const jwtAuth = passport.authenticate('jwt', { session: false });
+
 // authenticated routes
-app.use('/dataset', rateLimiter, passport.authenticate('jwt', { session: false }), datasetRouter);
-app.use('/provider', rateLimiter, passport.authenticate('jwt', { session: false }), providerRouter);
-app.use('/topic', rateLimiter, passport.authenticate('jwt', { session: false }), topicRouter);
-app.use('/organisation', rateLimiter, passport.authenticate('jwt', { session: false }), organisationRouter);
-app.use('/translation', rateLimiter, passport.authenticate('jwt', { session: false }), translationRouter);
+app.use('/dataset', rateLimiter, jwtAuth, datasetRouter);
+app.use('/provider', rateLimiter, jwtAuth, providerRouter);
+app.use('/topic', rateLimiter, jwtAuth, topicRouter);
+app.use('/organisation', rateLimiter, jwtAuth, organisationRouter);
+app.use('/translation', rateLimiter, jwtAuth, translationRouter);
 
 // admin routes
-app.use('/admin', rateLimiter, passport.authenticate('jwt', { session: false }), adminRouter);
+app.use('/admin', rateLimiter, jwtAuth, adminRouter);
 
 // developer routes
-app.use('/developer', rateLimiter, passport.authenticate('jwt', { session: false }), devRouter);
+app.use('/developer', rateLimiter, jwtAuth, devRouter);
 
 app.use(errorHandler);
 

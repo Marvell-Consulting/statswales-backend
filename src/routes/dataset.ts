@@ -14,7 +14,9 @@ import {
   DatasetRepository,
   withAll,
   withDraftAndProviders,
-  withDraftAndTopics
+  withDraftAndTopics,
+  withDraftAndDataTable,
+  withDraftAndMeasure
 } from '../repositories/dataset';
 import { datasetIdValidator, hasError } from '../validators';
 import { NotFoundException } from '../exceptions/not-found.exception';
@@ -103,35 +105,6 @@ export const loadDataset = (relations?: FindOptionsRelations<Dataset>) => {
   };
 };
 
-router.use(
-  '/:dataset_id/revision',
-  rateLimiter,
-  passport.authenticate('jwt', { session: false }),
-  loadDataset({
-    dimensions: { metadata: true, lookupTable: true },
-    factTable: true,
-    measure: { measureTable: true, metadata: true },
-    revisions: { dataTable: { dataTableDescriptions: true } }
-  }),
-  revisionRouter
-);
-
-router.use(
-  '/:dataset_id/dimension',
-  rateLimiter,
-  passport.authenticate('jwt', { session: false }),
-  loadDataset(withDraftForCube),
-  dimensionRouter
-);
-
-router.use(
-  '/:dataset_id/measure',
-  rateLimiter,
-  passport.authenticate('jwt', { session: false }),
-  loadDataset(withDraftForCube),
-  measureRouter
-);
-
 // GET /dataset/
 // Returns a list of datasets the user can access
 router.get('/', listUserDatasets);
@@ -157,14 +130,26 @@ router.get('/:dataset_id/all', loadDataset(withAll), getDatasetById);
 // Returns the dataset with info required to display the overview page
 router.get('/:dataset_id/overview', loadDataset(), getDatasetOverviewById);
 
+// GET /dataset/:dataset_id/metadata
+// Returns the dataset with the current draft and metadata
+router.get('/:dataset_id/metadata', loadDataset(withDraftAndMetadata), getDatasetById);
+
+// PATCH /dataset/:dataset_id/metadata
+// Updates the dataset info with the provided data
+router.patch('/:dataset_id/metadata', jsonParser, loadDataset({}), updateMetadata);
+
 // GET /dataset/:dataset_id/data
 // Returns the dataset with the current draft revision and data table
-router.get('/:dataset_id/data', loadDataset(withDraftForCube), getDatasetById);
+router.get('/:dataset_id/data', loadDataset(withDraftAndDataTable), getDatasetById);
 
 // POST /dataset/:dataset_id/data
 // Upload a data file to a dataset
 // Returns a DTO object that includes the draft revision
 router.post('/:dataset_id/data', upload.single('csv'), loadDataset({}), uploadDataTable);
+
+// GET /dataset/:dataset_id/measure
+// Returns the dataset with the current draft and measure
+router.get('/:dataset_id/measure', loadDataset(withDraftAndMeasure), getDatasetById);
 
 // GET /dataset/:dataset_id/view
 // Returns a view of the data file attached to the import
@@ -189,14 +174,6 @@ router.get('/:dataset_id/cube/parquet', loadDataset(withDraftForCube), downloadC
 // GET /dataset/:dataset_id/cube/excel
 // Returns a CSV file representation of the default view of the cube
 router.get('/:dataset_id/cube/excel', loadDataset(withDraftForCube), downloadCubeAsExcel);
-
-// GET /dataset/:dataset_id/metadata
-// Returns the dataset with the current draft and metadata
-router.get('/:dataset_id/metadata', loadDataset(withDraftAndMetadata), getDatasetById);
-
-// PATCH /dataset/:dataset_id/metadata
-// Updates the dataset info with the provided data
-router.patch('/:dataset_id/metadata', jsonParser, loadDataset({}), updateMetadata);
 
 router.get('/:dataset_id/sources', loadDataset({ factTable: true }), getFactTableDefinition);
 
@@ -251,3 +228,32 @@ router.get('/:dataset_id/list-files', loadDataset(withDraftForCube), listAllFile
 // PATCH /dataset/:dataset_id/group
 // Updates the user group for the dataset
 router.patch('/:dataset_id/group', jsonParser, loadDataset(), updateDatasetGroup);
+
+router.use(
+  '/:dataset_id/revision',
+  rateLimiter,
+  passport.authenticate('jwt', { session: false }),
+  loadDataset({
+    dimensions: { metadata: true, lookupTable: true },
+    factTable: true,
+    measure: { measureTable: true, metadata: true },
+    revisions: { dataTable: { dataTableDescriptions: true } }
+  }),
+  revisionRouter
+);
+
+router.use(
+  '/:dataset_id/dimension',
+  rateLimiter,
+  passport.authenticate('jwt', { session: false }),
+  loadDataset(withDraftForCube),
+  dimensionRouter
+);
+
+router.use(
+  '/:dataset_id/measure',
+  rateLimiter,
+  passport.authenticate('jwt', { session: false }),
+  loadDataset(),
+  measureRouter
+);

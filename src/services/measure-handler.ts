@@ -144,7 +144,6 @@ function createExtractor(
         info.columnName.toLowerCase().startsWith(langStr)
       )
     };
-    logger.debug(`Extracted extractor from lookup table:\n${JSON.stringify(extractor, null, 2)}`);
     if (extractor.descriptionColumns.length === 0) {
       throw new FileValidationException(
         'errors.measure_validation.no_description_columns',
@@ -551,6 +550,7 @@ export const getMeasurePreview = async (dataset: Dataset, lang: string): Promise
   logger.debug(`Getting preview for measure: ${dataset.measure.id}`);
   const tableName = 'fact_table';
   let quack: Database;
+
   try {
     quack = await createEmptyCubeWithFactTable(dataset);
   } catch (error) {
@@ -559,9 +559,11 @@ export const getMeasurePreview = async (dataset: Dataset, lang: string): Promise
   }
 
   const measure = dataset.measure;
+
   if (!measure) {
     return viewErrorGenerators(500, dataset.id, 'measure', 'errors.dataset.measure_not_found', {});
   }
+
   try {
     if (measure.measureTable && measure.measureTable.length > 0) {
       return await getMeasurePreviewWithExtractor(dataset, measure, quack, lang);
@@ -571,9 +573,7 @@ export const getMeasurePreview = async (dataset: Dataset, lang: string): Promise
     }
   } catch (error) {
     logger.error(error, `Something went wrong trying to generate the preview of the measure`);
-    return viewErrorGenerators(500, dataset.id, 'csv', 'errors.measure.unknown_error', {
-      mismatch: false
-    });
+    return viewErrorGenerators(500, dataset.id, 'csv', 'errors.measure.unknown_error', { mismatch: false });
   } finally {
     await quack.close();
   }

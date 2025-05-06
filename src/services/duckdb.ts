@@ -16,14 +16,17 @@ export const safelyCloseDuckDb = async (quack: Database) => {
 };
 
 export const duckdb = async (cubeFile = ':memory:') => {
-  logger.info(
-    `Creating DuckDB instance with ${config.duckdb.threads} thread(s) and ${config.duckdb.memory} memory limit.`
-  );
+  const { threads, memory } = config.duckdb;
+
+  logger.debug(`Creating DuckDB instance with ${threads} thread(s) and ${memory} memory limit.`);
+
   const duckdb = await Database.create(cubeFile);
-  await duckdb.exec(`SET threads = ${config.duckdb.threads};`);
-  await duckdb.exec(`SET memory_limit = '${config.duckdb.memory}';`);
+
+  await duckdb.exec(`SET threads = ${threads};`);
+  await duckdb.exec(`SET memory_limit = '${memory}';`);
   await duckdb.exec("SET default_block_size = '16384';");
   await duckdb.exec("SET temp_directory='/tmp/duckdb_temp';");
   await duckdb.exec('SET preserve_insertion_order=false;');
+
   return duckdb;
 };
