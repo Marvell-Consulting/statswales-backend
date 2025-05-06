@@ -14,7 +14,8 @@ import {
   withAll,
   withDraftAndProviders,
   withDraftAndTopics,
-  withDraftAndMeasure
+  withDraftAndMeasure,
+  withDimensions
 } from '../repositories/dataset';
 import { datasetIdValidator, hasError } from '../validators';
 import { NotFoundException } from '../exceptions/not-found.exception';
@@ -147,6 +148,10 @@ router.post('/:dataset_id/data', upload.single('csv'), loadDataset({}), uploadDa
 // GET /dataset/:dataset_id/measure
 // Returns the dataset with the current draft and measure
 router.get('/:dataset_id/measure', loadDataset(withDraftAndMeasure), getDatasetById);
+
+// GET /dataset/:dataset_id/dimension
+// Returns the dataset with the current draft and dimension
+router.get('/:dataset_id/dimensions', loadDataset(withDimensions), getDatasetById);
 
 // GET /dataset/:dataset_id/view
 // Returns a view of the data file attached to the import

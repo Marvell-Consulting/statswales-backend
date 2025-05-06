@@ -54,6 +54,10 @@ export const withDraftAndMeasure: FindOptionsRelations<Dataset> = {
   measure: { metadata: true, measureTable: true, lookupTable: true }
 };
 
+export const withDimensions: FindOptionsRelations<Dataset> = {
+  dimensions: { metadata: true, lookupTable: true }
+};
+
 export const withDraftForCube: FindOptionsRelations<Dataset> = {
   factTable: true,
   draftRevision: { dataTable: { dataTableDescriptions: true } },
