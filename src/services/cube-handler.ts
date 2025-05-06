@@ -712,7 +712,7 @@ interface NoteCodeItem {
   tag: string;
 }
 
-const NoteCodes: NoteCodeItem[] = [
+export const NoteCodes: NoteCodeItem[] = [
   { code: 'a', tag: 'average' },
   { code: 'c', tag: 'confidential' },
   { code: 'e', tag: 'estimated' },
