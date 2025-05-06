@@ -104,6 +104,7 @@ function createExtractor(
       notesColumns = protoLookupTable.dataTableDescriptions
         .filter((info) => info.columnName.toLowerCase().startsWith(noteStr))
         .map((info) => columnIdentification(info));
+    if (notesColumns && notesColumns.length === 0) notesColumns = undefined;
     const extractor: LookupTableExtractor = {
       tableLanguage,
       sortColumn: protoLookupTable.dataTableDescriptions.find((info) =>
@@ -155,7 +156,7 @@ export const createLookupTableInCube = async (
       const sortStr = extractor.sortColumn ? `"${extractor.sortColumn}"` : 'NULL';
       const hierarchyCol = extractor.hierarchyColumn ? `"${extractor.hierarchyColumn}"` : 'NULL';
       dataExtractorParts.push(
-        `SELECT "${dimension.joinColumn}" as ${factTableColumn.columnName},
+        `SELECT "${dimension.joinColumn}" as "${factTableColumn.columnName}",
         '${locale.toLowerCase()}' as language,
         ${descriptionColStr} as description,
         ${notesColStr} as notes,
@@ -172,7 +173,7 @@ export const createLookupTableInCube = async (
     const notesStr = extractor.notesColumns ? `"${extractor.notesColumns[0].name}"` : 'NULL';
     const dataExtractorParts = `
       SELECT
-        "${dimension.joinColumn}" as ${factTableColumn.columnName},
+        "${dimension.joinColumn}" as "${factTableColumn.columnName}",
         ${languageMatcher} as language,
         "${extractor.descriptionColumns[0].name}" as description,
         ${notesStr} as notes,

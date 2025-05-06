@@ -514,7 +514,7 @@ export async function createLookupTableDimension(quack: Database, dataset: Datas
     const notesStr = extractor.notesColumns ? `"${extractor.notesColumns[0].name}"` : 'NULL';
     const dataExtractorParts = `
       SELECT
-        "${dimension.joinColumn}" as ${factTableColumn.columnName},
+        "${dimension.joinColumn}" as "${factTableColumn.columnName}",
         ${languageMatcher} as language,
         "${extractor.descriptionColumns[0].name}" as description,
         ${notesStr} as notes,
