@@ -230,8 +230,6 @@ router.patch('/:dataset_id/group', jsonParser, loadDataset(), updateDatasetGroup
 
 router.use(
   '/:dataset_id/revision',
-  rateLimiter,
-  passport.authenticate('jwt', { session: false }),
   loadDataset({
     dimensions: { metadata: true, lookupTable: true },
     factTable: true,
@@ -241,18 +239,6 @@ router.use(
   revisionRouter
 );
 
-router.use(
-  '/:dataset_id/dimension',
-  rateLimiter,
-  passport.authenticate('jwt', { session: false }),
-  loadDataset(withDraftForCube),
-  dimensionRouter
-);
+router.use('/:dataset_id/dimension', loadDataset(), dimensionRouter);
 
-router.use(
-  '/:dataset_id/measure',
-  rateLimiter,
-  passport.authenticate('jwt', { session: false }),
-  loadDataset(),
-  measureRouter
-);
+router.use('/:dataset_id/measure', loadDataset(), measureRouter);
