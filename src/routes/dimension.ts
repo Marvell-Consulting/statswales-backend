@@ -16,7 +16,6 @@ import {
 } from '../controllers/dimension-controller';
 import { dimensionIdValidator, hasError } from '../validators';
 import { NotFoundException } from '../exceptions/not-found.exception';
-import { Dimension } from '../entities/dataset/dimension';
 import { DimensionRepository } from '../repositories/dimension';
 
 export const loadDimension = async (req: Request, res: Response, next: NextFunction) => {
@@ -38,7 +37,7 @@ export const loadDimension = async (req: Request, res: Response, next: NextFunct
     return;
   }
 
-  if (!res.locals.dataset.dimensions.find((dim: Dimension) => dim.id === req.params.dimension_id)) {
+  if (res.locals.dimension.datasetId !== res.locals.datasetId) {
     logger.error('Dimension does not belong to dataset');
     next(new NotFoundException('errors.dimension_id_invalid'));
     return;

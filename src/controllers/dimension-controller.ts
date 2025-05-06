@@ -1,3 +1,5 @@
+import { Readable } from 'node:stream';
+
 import { NextFunction, Request, Response } from 'express';
 
 import { Dimension } from '../entities/dataset/dimension';
@@ -8,7 +10,6 @@ import { DimensionPatchDto } from '../dtos/dimension-partch-dto';
 import { ViewDTO, ViewErrDTO } from '../dtos/view-dto';
 import { DimensionDTO } from '../dtos/dimension-dto';
 import { LookupTable } from '../entities/dataset/lookup-table';
-import { getLatestRevision } from '../utils/latest';
 import { BadRequestException } from '../exceptions/bad-request.exception';
 import { UnknownException } from '../exceptions/unknown.exception';
 import { LookupTablePatchDTO } from '../dtos/lookup-patch-dto';
@@ -24,7 +25,9 @@ import { validateLookupTable } from '../services/lookup-table-handler';
 import { validateReferenceData } from '../services/reference-data-handler';
 import { viewErrorGenerators } from '../utils/view-error-generators';
 import { LookupTableDTO } from '../dtos/lookup-table-dto';
-import { Readable } from 'node:stream';
+import { DatasetRepository } from '../repositories/dataset';
+import { getLatestRevision } from '../utils/latest';
+import { Dataset } from '../entities/dataset/dataset';
 
 export const getDimensionInfo = async (req: Request, res: Response) => {
   res.json(DimensionDTO.fromDimension(res.locals.dimension));
@@ -35,38 +38,56 @@ export const resetDimension = async (req: Request, res: Response) => {
 
   dimension.type = DimensionType.Raw;
   dimension.extractor = null;
+
   if (dimension.lookuptable) {
     const lookupTable: LookupTable = dimension.lookupTable;
     await lookupTable.remove();
     dimension.lookuptable = null;
   }
+
   await dimension.save();
   const updatedDimension = await Dimension.findOneByOrFail({ id: dimension.id });
   res.status(202);
   res.json(DimensionDTO.fromDimension(updatedDimension));
 };
 
-export const sendDimensionPreview = async (req: Request, res: Response) => {
-  const { dataset, dimension } = res.locals;
-  const latestRevision = getLatestRevision(dataset);
+export const sendDimensionPreview = async (req: Request, res: Response, next: NextFunction) => {
+  const dimension = res.locals.dimension;
+  let dataset: Dataset;
 
-  logger.debug(`Latest revision is ${JSON.stringify(latestRevision)}`);
-  if (latestRevision?.tasks) {
-    const outstandingDimensionTask = latestRevision.tasks.dimensions.find((dim) => dim.id === dimension.id);
-    if (outstandingDimensionTask && !outstandingDimensionTask.lookupTableUpdated) {
-      dimension.type = DimensionType.Raw;
+  try {
+    dataset = await DatasetRepository.getById(res.locals.datasetId, {
+      factTable: true,
+      draftRevision: { dataTable: { dataTableDescriptions: true } },
+      revisions: { dataTable: { dataTableDescriptions: true } }
+    });
+
+    const latestRevision = getLatestRevision(dataset);
+    logger.debug(`Latest revision is ${JSON.stringify(latestRevision)}`);
+
+    if (latestRevision?.tasks) {
+      const outstandingDimensionTask = latestRevision.tasks.dimensions.find((dim) => dim.id === dimension.id);
+      if (outstandingDimensionTask && !outstandingDimensionTask.lookupTableUpdated) {
+        dimension.type = DimensionType.Raw;
+      }
     }
+
+    let preview: ViewDTO | ViewErrDTO;
+    if (dimension.type === DimensionType.Raw) {
+      preview = await getFactTableColumnPreview(dataset, dimension.factTableColumn);
+    } else {
+      preview = await getDimensionPreview(dataset, dimension, req.language);
+    }
+
+    if ((preview as ViewErrDTO).errors) {
+      res.status(500);
+    }
+
+    res.json(preview);
+  } catch (err) {
+    logger.error(err, `An error occurred trying to load the dimension preview`);
+    next(new UnknownException('errors.dimension_preview'));
   }
-  let preview: ViewDTO | ViewErrDTO;
-  if (dimension.type === DimensionType.Raw) {
-    preview = await getFactTableColumnPreview(dataset, dimension.factTableColumn);
-  } else {
-    preview = await getDimensionPreview(dataset, dimension, req.language);
-  }
-  if ((preview as ViewErrDTO).errors) {
-    res.status(500);
-  }
-  res.json(preview);
 };
 
 export const attachLookupTableToDimension = async (req: Request, res: Response, next: NextFunction) => {
@@ -74,10 +95,17 @@ export const attachLookupTableToDimension = async (req: Request, res: Response, 
     next(new BadRequestException('errors.upload.no_csv'));
     return;
   }
-  const { dataset, dimension } = res.locals;
+
+  const dimension = res.locals.dimension;
   const language = req.language.toLowerCase();
 
   try {
+    const dataset = await DatasetRepository.getById(res.locals.datasetId, {
+      factTable: true,
+      draftRevision: { dataTable: { dataTableDescriptions: true } },
+      revisions: { dataTable: { dataTableDescriptions: true } }
+    });
+
     const { dataTable, buffer } = await validateAndUploadCSV(
       req.file.buffer,
       req.file?.mimetype,
@@ -88,75 +116,97 @@ export const attachLookupTableToDimension = async (req: Request, res: Response, 
     const tableMatcher = req.body as LookupTablePatchDTO;
 
     const result = await validateLookupTable(dataTable, dataset, dimension, buffer, language, tableMatcher);
+
     if ((result as ViewErrDTO).status) {
       const error = result as ViewErrDTO;
       res.status(error.status);
       res.json(result);
       return;
     }
-    res.status(200);
+
     res.json(result);
   } catch (err) {
-    logger.error(`An error occurred trying to handle the lookup table: ${err}`);
+    logger.error(err, `An error occurred trying to handle the lookup table`);
     next(new UnknownException('errors.upload_error'));
   }
 };
 
-export const updateDimension = async (req: Request, res: Response) => {
-  const { dataset, dimension } = res.locals;
+export const updateDimension = async (req: Request, res: Response, next: NextFunction) => {
+  const dimension = res.locals.dimension;
   const language = req.language.toLowerCase();
-
   const dimensionPatchRequest = req.body as DimensionPatchDto;
   let preview: ViewDTO | ViewErrDTO;
 
   logger.debug(`User dimension type = ${JSON.stringify(dimensionPatchRequest)}`);
-  switch (dimensionPatchRequest.dimension_type) {
-    case DimensionType.DatePeriod:
-    case DimensionType.Date:
-      logger.debug('Matching a Dimension containing Dates');
-      preview = await createAndValidateDateDimension(dimensionPatchRequest, dataset, dimension, language);
-      break;
-    case DimensionType.ReferenceData:
-      logger.debug('Matching a Dimension containing Reference Data');
-      preview = await validateReferenceData(
-        dataset,
-        dimension,
-        dimensionPatchRequest.reference_type,
-        `${req.language}`
-      );
-      break;
-    case DimensionType.Text:
-      await setupTextDimension(dimension);
-      preview = await getFactTableColumnPreview(dataset, dimension.factTableColumn);
-      break;
-    case DimensionType.Numeric:
-      preview = await validateNumericDimension(dimensionPatchRequest, dataset, dimension);
-      break;
-    case DimensionType.LookupTable:
-      logger.debug('User requested to patch a lookup table?');
-      preview = viewErrorGenerators(
-        400,
-        dataset.id,
-        'dimension_type',
-        'errors.dimension_validation.lookup_not_supported',
-        {}
-      );
-      break;
-    default:
-      preview = viewErrorGenerators(400, dataset.id, 'dimension_type', 'errors.dimension_validation.unknown_type', {});
-  }
 
-  if ((preview as ViewErrDTO).errors) {
-    res.status((preview as ViewErrDTO).status);
-  } else {
-    res.status(202);
+  try {
+    const dataset = await DatasetRepository.getById(res.locals.datasetId, {
+      factTable: true,
+      draftRevision: { dataTable: { dataTableDescriptions: true } },
+      revisions: { dataTable: { dataTableDescriptions: true } }
+    });
+
+    switch (dimensionPatchRequest.dimension_type) {
+      case DimensionType.DatePeriod:
+      case DimensionType.Date:
+        logger.debug('Matching a Dimension containing Dates');
+        preview = await createAndValidateDateDimension(dimensionPatchRequest, dataset, dimension, language);
+        break;
+
+      case DimensionType.ReferenceData:
+        logger.debug('Matching a Dimension containing Reference Data');
+        preview = await validateReferenceData(
+          dataset,
+          dimension,
+          dimensionPatchRequest.reference_type,
+          `${req.language}`
+        );
+        break;
+
+      case DimensionType.Text:
+        await setupTextDimension(dimension);
+        preview = await getFactTableColumnPreview(dataset, dimension.factTableColumn);
+        break;
+
+      case DimensionType.Numeric:
+        preview = await validateNumericDimension(dimensionPatchRequest, dataset, dimension);
+        break;
+
+      case DimensionType.LookupTable:
+        logger.debug('User requested to patch a lookup table?');
+        preview = viewErrorGenerators(
+          400,
+          dataset.id,
+          'dimension_type',
+          'errors.dimension_validation.lookup_not_supported',
+          {}
+        );
+        break;
+
+      default:
+        preview = viewErrorGenerators(
+          400,
+          dataset.id,
+          'dimension_type',
+          'errors.dimension_validation.unknown_type',
+          {}
+        );
+    }
+
+    if ((preview as ViewErrDTO).errors) {
+      res.status((preview as ViewErrDTO).status);
+    } else {
+      res.status(202);
+    }
+    res.json(preview);
+  } catch (err) {
+    logger.error(err, `An error occurred trying to update the dimension`);
+    next(new UnknownException('errors.dimension_update'));
   }
-  res.json(preview);
 };
 
 export const updateDimensionMetadata = async (req: Request, res: Response) => {
-  const { dimension } = res.locals;
-
+  const dimension = res.locals.dimension;
   const update = req.body as DimensionMetadataDTO;
   let metadata = dimension.metadata.find((meta: DimensionMetadata) => meta.language === update.language);
 
@@ -178,8 +228,7 @@ export const updateDimensionMetadata = async (req: Request, res: Response) => {
 };
 
 export const getDimensionLookupTableInfo = async (req: Request, res: Response) => {
-  const { dimension } = res.locals;
-  const lookupTable = dimension.lookupTable;
+  const lookupTable = res.locals.dimension?.lookupTable;
   if (!lookupTable) {
     res.status(404);
     res.json({ message: 'No lookup table found' });
@@ -191,15 +240,18 @@ export const getDimensionLookupTableInfo = async (req: Request, res: Response) =
 export const downloadDimensionLookupTable = async (req: Request, res: Response) => {
   const { dataset, dimension } = res.locals;
   const lookupTable: LookupTable = dimension.lookupTable;
+
   if (!lookupTable) {
     res.status(404);
     res.json({ message: 'No lookup table found' });
     return;
   }
-  let readable: Readable;
+
   const filename = lookupTable.originalFilename || lookupTable.filename;
+  let stream: Readable;
+
   try {
-    readable = await req.fileService.loadStream(lookupTable.filename, dataset.id);
+    stream = await req.fileService.loadStream(lookupTable.filename, dataset.id);
   } catch (err) {
     logger.error(err, `An error occurred trying to load the file ${filename} from the data lake`);
     res.status(500);
@@ -213,10 +265,11 @@ export const downloadDimensionLookupTable = async (req: Request, res: Response) 
     // eslint-disable-next-line @typescript-eslint/naming-convention
     'Content-Disposition': `attachment; filename=${filename}`
   });
-  readable.pipe(res);
+
+  stream.pipe(res);
 
   // Handle errors in the file stream
-  readable.on('error', (err) => {
+  stream.on('error', (err) => {
     logger.error('File stream error:', err);
     // eslint-disable-next-line @typescript-eslint/naming-convention
     res.writeHead(500, { 'Content-Type': 'text/plain' });
@@ -224,7 +277,7 @@ export const downloadDimensionLookupTable = async (req: Request, res: Response) 
   });
 
   // Optionally listen for the end of the stream
-  readable.on('end', () => {
+  stream.on('end', () => {
     logger.debug('File stream ended');
   });
 };
