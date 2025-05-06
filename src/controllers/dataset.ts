@@ -360,7 +360,7 @@ export const updateSources = async (req: Request, res: Response, next: NextFunct
   }
   let duckdbFile: string;
   try {
-    duckdbFile = await factTableValidatorFromSource(dataset, validatedSourceAssignment);
+    duckdbFile = await factTableValidatorFromSource(dataset, revision, validatedSourceAssignment);
   } catch (err) {
     const error = err as FactTableValidationException;
     res.status(error.status);

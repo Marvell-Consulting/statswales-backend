@@ -13,6 +13,7 @@ import { getFileImportAndSaveToDisk } from '../utils/file-utils';
 import { SourceAssignmentDTO } from '../dtos/source-assignment-dto';
 import { tableDataToViewTable } from '../utils/table-data-to-view-table';
 import { Database } from 'duckdb-async';
+import { Revision } from '../entities/dataset/revision';
 
 interface FactTableDefinition {
   factTableColumn: FactTableColumn;
@@ -22,6 +23,7 @@ interface FactTableDefinition {
 
 export const factTableValidatorFromSource = async (
   dataset: Dataset,
+  revision: Revision,
   validatedSourceAssignment: ValidatedSourceAssignment
 ): Promise<string> => {
   const duckdbSaveFile = tmp.tmpNameSync({ postfix: '.duckdb' });
@@ -91,9 +93,9 @@ export const factTableValidatorFromSource = async (
     (a, b) => a.factTableColumn.columnIndex - b.factTableColumn.columnIndex
   );
 
-  const primaryKeyDef = primaryKeyColumns.map((def) => `"${def.factTableColumn.columnName}"`);
+  const primaryKeyDef = primaryKeyColumns.map((def) => `"${def.factTableColumn.columnName.toLowerCase()}"`);
   const factTableCreateDef = orderedFactTableDefinition.map(
-    (def) => `"${def.factTableColumn.columnName}" ${def.factTableColumn.columnDatatype}`
+    (def) => `"${def.factTableColumn.columnName.toLowerCase()}" ${def.factTableColumn.columnDatatype}`
   );
   const factTableDef = orderedFactTableDefinition.map((def) => def.factTableColumn.columnName);
   const factTableCreationQuery = `CREATE TABLE ${FACT_TABLE_NAME} (${factTableCreateDef.join(', ')}, PRIMARY KEY (${primaryKeyDef.join(', ')}));`;
@@ -111,15 +113,6 @@ export const factTableValidatorFromSource = async (
     );
   }
 
-  const revision = dataset.draftRevision;
-  if (!revision) {
-    await quack.close();
-    throw new FactTableValidationException(
-      'Unable to find draft revision',
-      FactTableValidationExceptionType.NoDraftRevision,
-      500
-    );
-  }
   const dataTable = revision.dataTable;
   if (!dataTable) {
     await quack.close();

@@ -33,6 +33,7 @@ import { validateAndUploadCSV } from './csv-processor';
 import { removeAllDimensions, removeMeasure } from './dimension-processor';
 import { getFileService } from '../utils/get-file-service';
 import { UserGroupRepository } from '../repositories/user-group';
+import { UnknownException } from '../exceptions/unknown.exception';
 
 export class DatasetService {
   lang: Locale;
@@ -46,6 +47,12 @@ export class DatasetService {
 
     const dataset = await DatasetRepository.create({ createdBy, userGroupId }).save();
     const firstRev = await RevisionRepository.create({ dataset, createdBy, revisionIndex: 1 }).save();
+    try {
+      await RevisionRepository.manager.query(`CREATE SCHEMA IF NOT EXISTS "${firstRev.id}";`);
+    } catch (error) {
+      logger.error(error, 'Failed to create schema for new revision');
+      throw new UnknownException('errors.database.failed_to_create_schema');
+    }
     await RevisionRepository.createMetadata(firstRev, title, this.lang);
 
     await DatasetRepository.save({
@@ -281,6 +288,13 @@ export class DatasetService {
 
     const newRevision = await RevisionRepository.deepCloneRevision(publishedRevision.id, createdBy);
     logger.info(`New draft revision created: ${newRevision.id}`);
+
+    try {
+      await RevisionRepository.manager.query(`CREATE SCHEMA IF NOT EXISTS "${newRevision.id}";`);
+    } catch (error) {
+      logger.error(error, 'Failed to create schema for new revision');
+      throw new UnknownException('errors.database.failed_to_create_schema');
+    }
 
     await DatasetRepository.save({ id: datasetId, draftRevision: newRevision, endRevision: newRevision });
 
