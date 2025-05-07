@@ -5,7 +5,6 @@ import 'reflect-metadata';
 import express, { NextFunction, Request, Response, Router } from 'express';
 import multer from 'multer';
 import { FindOptionsRelations } from 'typeorm';
-import passport from 'passport';
 
 import { logger } from '../utils/logger';
 import {
@@ -15,7 +14,8 @@ import {
   withAll,
   withDraftAndProviders,
   withDraftAndTopics,
-  withDraftAndMeasure
+  withDraftAndMeasure,
+  withDimensions
 } from '../repositories/dataset';
 import { datasetIdValidator, hasError } from '../validators';
 import { NotFoundException } from '../exceptions/not-found.exception';
@@ -48,7 +48,6 @@ import {
   updateDatasetGroup,
   getDatasetOverviewById
 } from '../controllers/dataset';
-import { rateLimiter } from '../middleware/rate-limiter';
 
 import { revisionRouter } from './revision';
 import { dimensionRouter } from './dimension';
@@ -150,6 +149,10 @@ router.post('/:dataset_id/data', upload.single('csv'), loadDataset({}), uploadDa
 // Returns the dataset with the current draft and measure
 router.get('/:dataset_id/measure', loadDataset(withDraftAndMeasure), getDatasetById);
 
+// GET /dataset/:dataset_id/dimensions
+// Returns the dataset with the dimensions hydrated
+router.get('/:dataset_id/dimensions', loadDataset(withDimensions), getDatasetById);
+
 // GET /dataset/:dataset_id/view
 // Returns a view of the data file attached to the import
 router.get('/:dataset_id/view', loadDataset(withDraftForCube), cubePreview);
@@ -230,8 +233,6 @@ router.patch('/:dataset_id/group', jsonParser, loadDataset(), updateDatasetGroup
 
 router.use(
   '/:dataset_id/revision',
-  rateLimiter,
-  passport.authenticate('jwt', { session: false }),
   loadDataset({
     dimensions: { metadata: true, lookupTable: true },
     factTable: true,
@@ -241,18 +242,6 @@ router.use(
   revisionRouter
 );
 
-router.use(
-  '/:dataset_id/dimension',
-  rateLimiter,
-  passport.authenticate('jwt', { session: false }),
-  loadDataset(withDraftForCube),
-  dimensionRouter
-);
+router.use('/:dataset_id/dimension', loadDataset(), dimensionRouter);
 
-router.use(
-  '/:dataset_id/measure',
-  rateLimiter,
-  passport.authenticate('jwt', { session: false }),
-  loadDataset(),
-  measureRouter
-);
+router.use('/:dataset_id/measure', loadDataset(), measureRouter);
