@@ -31,30 +31,33 @@ export const getCubePreview = async (
     const totalPages = Number(totals[0].totalPages);
     const totalLines = Number(totals[0].totalLines);
     const errors = validateParams(page, totalPages, size);
+
     if (errors.length > 0) {
-      return {
-        status: 400,
-        errors,
-        dataset_id: dataset.id
-      };
+      return { status: 400, errors, dataset_id: dataset.id };
     }
-    const previewQuery = `SELECT int_line_number, * FROM (SELECT row_number() OVER () as int_line_number, * FROM default_view_${lang}) LIMIT ${size} OFFSET ${(page - 1) * size}`;
+
+    const previewQuery = `
+      SELECT int_line_number, *
+      FROM (SELECT row_number() OVER () as int_line_number, * FROM default_view_${lang})
+      LIMIT ${size}
+      OFFSET ${(page - 1) * size}
+    `;
+
     const preview = await quack.all(previewQuery);
     const startLine = Number(preview[0].int_line_number);
     const lastLine = Number(preview[preview.length - 1].int_line_number);
     const tableHeaders = Object.keys(preview[0]);
     const dataArray = preview.map((row) => Object.values(row));
     const currentDataset = await DatasetRepository.getById(dataset.id);
-    const headers: CSVHeader[] = [];
-    for (let i = 0; i < tableHeaders.length; i++) {
-      headers.push({
-        index: i - 1,
-        name: tableHeaders[i],
-        source_type:
-          tableHeaders[i] === 'int_line_number' ? FactTableColumnType.LineNumber : FactTableColumnType.Unknown
-      });
-    }
+
+    const headers: CSVHeader[] = tableHeaders.map((header, idx) => ({
+      index: idx - 1,
+      name: header,
+      source_type: header === 'int_line_number' ? FactTableColumnType.LineNumber : FactTableColumnType.Unknown
+    }));
+
     logger.debug(`Closing cube file ${cubeFile}`);
+
     return {
       dataset: DatasetDTO.fromDataset(currentDataset),
       current_page: page,
@@ -70,11 +73,7 @@ export const getCubePreview = async (
     };
   } catch (err) {
     logger.error(`Something went wrong trying to create the cube preview with the error: ${err}`);
-    return {
-      status: 500,
-      errors: [],
-      dataset_id: dataset.id
-    };
+    return { status: 500, errors: [], dataset_id: dataset.id };
   } finally {
     await quack.close();
   }
@@ -84,29 +83,35 @@ export const outputCube = async (cubeFile: string, lang: string, mode: DuckdbOut
   const quack = await duckdb(cubeFile);
   try {
     const outputFile: FileResult = tmp.fileSync({ postfix: `.${mode}` });
+
     switch (mode) {
       case DuckdbOutputType.Csv:
         await quack.exec(`COPY default_view_${lang} TO '${outputFile.name}' (HEADER, DELIMITER ',');`);
         break;
+
       case DuckdbOutputType.Parquet:
         await quack.exec(`COPY default_view_${lang} TO '${outputFile.name}' (FORMAT PARQUET);`);
         break;
+
       case DuckdbOutputType.Excel:
         await quack.exec(`INSTALL spatial;`);
         await quack.exec('LOAD spatial;');
         await quack.exec(`COPY default_view_${lang} TO '${outputFile.name}' WITH (FORMAT GDAL, DRIVER 'xlsx');`);
         break;
+
       case DuckdbOutputType.Json:
         await quack.exec(`COPY default_view_${lang} TO '${outputFile.name}' (FORMAT JSON);`);
         break;
+
       case DuckdbOutputType.DuckDb:
         return cubeFile;
+
       default:
         throw new Error(`Format ${mode} not supported`);
     }
     return outputFile.name;
   } catch (err) {
-    logger.error(`Something went wrong trying to create the cube output file with the error: ${err}`);
+    logger.error(err, `Something went wrong trying to create the cube output file`);
     throw err;
   } finally {
     await quack.close();
