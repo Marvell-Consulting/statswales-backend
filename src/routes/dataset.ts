@@ -231,16 +231,7 @@ router.get('/:dataset_id/list-files', loadDataset(withDraftForCube), listAllFile
 // Updates the user group for the dataset
 router.patch('/:dataset_id/group', jsonParser, loadDataset(), updateDatasetGroup);
 
-router.use(
-  '/:dataset_id/revision',
-  loadDataset({
-    dimensions: { metadata: true, lookupTable: true },
-    factTable: true,
-    measure: { measureTable: true, metadata: true },
-    revisions: { dataTable: { dataTableDescriptions: true } }
-  }),
-  revisionRouter
-);
+router.use('/:dataset_id/revision', loadDataset(), revisionRouter);
 
 router.use('/:dataset_id/dimension', loadDataset(), dimensionRouter);
 

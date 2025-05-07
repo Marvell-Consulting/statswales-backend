@@ -19,6 +19,7 @@ export class DatasetDTO {
   start_revision?: RevisionDTO;
   end_revision?: RevisionDTO;
   draft_revision?: RevisionDTO;
+  draft_revision_id?: string;
   measure?: MeasureDTO;
   start_date?: Date | null;
   end_date?: Date | null;
@@ -36,6 +37,7 @@ export class DatasetDTO {
     dto.dimensions = dataset.dimensions?.map((dimension: Dimension) => DimensionDTO.fromDimension(dimension));
     dto.revisions = dataset.revisions?.map((revision: Revision) => RevisionDTO.fromRevision(revision));
 
+    dto.draft_revision_id = dataset.draftRevisionId;
     dto.draft_revision = dataset.draftRevision ? RevisionDTO.fromRevision(dataset.draftRevision) : undefined;
     dto.start_revision = dataset.startRevision ? RevisionDTO.fromRevision(dataset.startRevision) : undefined;
     dto.end_revision = dataset.endRevision ? RevisionDTO.fromRevision(dataset.endRevision) : undefined;
