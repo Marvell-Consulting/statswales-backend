@@ -6,13 +6,13 @@ import { duckdb, safelyCloseDuckDb } from './duckdb';
 import { FactTableColumn } from '../entities/dataset/fact-table-column';
 import { FactTableColumnType } from '../enums/fact-table-column-type';
 import { logger } from '../utils/logger';
-import { FACT_TABLE_NAME, loadFileIntoCube, loadTableDataIntoFactTable } from './cube-handler';
+import { FACT_TABLE_NAME, loadFileIntoCube, loadTableDataIntoFactTable, NoteCodes } from './cube-handler';
 import { FactTableValidationException } from '../exceptions/fact-table-validation-exception';
 import { FactTableValidationExceptionType } from '../enums/fact-table-validation-exception-type';
 import { getFileImportAndSaveToDisk } from '../utils/file-utils';
 import { SourceAssignmentDTO } from '../dtos/source-assignment-dto';
 import { tableDataToViewTable } from '../utils/table-data-to-view-table';
-import { Database } from 'duckdb-async';
+import { Database, TableData } from 'duckdb-async';
 
 interface FactTableDefinition {
   factTableColumn: FactTableColumn;
@@ -135,6 +135,7 @@ export const factTableValidatorFromSource = async (
   try {
     await loadFileIntoCube(quack, dataTable, dataTableFile, 'data_table');
     await loadTableDataIntoFactTable(quack, factTableDef, FACT_TABLE_NAME, 'data_table');
+    await validateNoteCodesColumn(quack, validatedSourceAssignment.noteCodes, FACT_TABLE_NAME);
     await quack.exec('DROP TABLE data_table;');
   } catch (err) {
     let error = err as FactTableValidationException;
@@ -153,6 +154,61 @@ export const factTableValidatorFromSource = async (
   }
   return duckdbSaveFile;
 };
+
+async function validateNoteCodesColumn(
+  quack: Database,
+  noteCodeColumn: SourceAssignmentDTO | null,
+  factTableName: string
+) {
+  let notesCodes: TableData;
+  try {
+    notesCodes = await quack.all(`
+      SELECT DISTINCT "${noteCodeColumn?.column_name}" as codes
+      FROM ${factTableName}
+      WHERE "${noteCodeColumn?.column_name}" IS NOT NULL;
+    `);
+  } catch (error) {
+    logger.error(error, 'Failed to extract or validate validate note codes');
+    throw new FactTableValidationException(
+      'Failed to extract note codes column',
+      FactTableValidationExceptionType.NoNoteCodes,
+      500
+    );
+  }
+  const allCodes = NoteCodes.map((noteCode) => noteCode.code);
+  const badCodes: string[] = [];
+  for (const noteCode of notesCodes) {
+    noteCode.codes.split(',').forEach((code: string) => {
+      const trimmedCode = code.trim().toLowerCase();
+      if (!allCodes.includes(trimmedCode)) {
+        logger.error(`Note code ${trimmedCode} is not a valid note code`);
+        badCodes.push(code.trim());
+      }
+    });
+  }
+  if (badCodes.length === 0) {
+    return;
+  }
+  const error = new FactTableValidationException(
+    'Bad note codes found in note codes column',
+    FactTableValidationExceptionType.BadNoteCodes,
+    400
+  );
+  try {
+    const badCodesString = badCodes.map((code) => `codes LIKE '%${code.toLowerCase()}%'`).join(' or ');
+    const brokeNoteCodeLines = await quack.all(`
+    SELECT * exclude(codes) FROM (
+      SELECT row_number() OVER () as line_number, *, lower(${noteCodeColumn?.column_name}) as codes FROM ${factTableName} WHERE ${badCodesString}
+    ) LIMIT 500;
+  `);
+    const { headers, data } = tableDataToViewTable(brokeNoteCodeLines);
+    error.data = data;
+    error.headers = headers;
+  } catch (extractionErr) {
+    logger.error(extractionErr, 'Failed to extract data from data table.');
+  }
+  throw error;
+}
 
 async function identifyIncompleteFacts(
   quack: Database,
