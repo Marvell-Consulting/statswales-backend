@@ -917,7 +917,7 @@ async function setupMeasures(
       rawSelectStatementsMap.get(locale)?.push(`measure.description as "${columnName}"`);
     });
     joinStatements.push(
-      `LEFT JOIN measure on measure.reference=${FACT_TABLE_NAME}.${dataset.measure.factTableColumn} AND measure.language='#LANG#'`
+      `LEFT JOIN measure on measure.reference=${FACT_TABLE_NAME}."${dataset.measure.factTableColumn}" AND measure.language='#LANG#'`
     );
     orderByStatements.push(`measure.sort_order, measure.reference`);
   } else {
