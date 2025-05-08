@@ -24,6 +24,7 @@
     "typeorm-seeding": "ts-node ./node_modules/@jorgebodega/typeorm-seeding/dist/cli.js",
     "migration:show": "npm run typeorm migration:show -- --dataSource=./src/db/data-source.ts",
     "migration:run": "npm run typeorm migration:run -- --dataSource=./src/db/data-source.ts",
+    "postmigration:run": "if [[ ${APP_ENV} == \"staging\" ]]; then npm run seed:dataset; fi",
     "migration:drop": "npm run typeorm schema:drop -- --dataSource=./src/db/data-source.ts",
     "migration:revert": "npm run typeorm migration:revert -- --dataSource=./src/db/data-source.ts",
     "migration:generate": "npm run typeorm migration:generate -- --dataSource=./src/db/data-source.ts",
