@@ -36,8 +36,7 @@ export const getCubePreview = async (
       return { status: 400, errors, dataset_id: dataset.id };
     }
     const previewQuery = `
-      SELECT int_line_number, *
-      FROM (SELECT row_number() OVER () as int_line_number, * FROM default_view_${lang})
+      SELECT * FROM default_view_${lang}
       LIMIT ${size}
       OFFSET ${(page - 1) * size}
     `;
