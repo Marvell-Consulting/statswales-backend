@@ -154,7 +154,7 @@ export const downloadCubeFile = async (req: Request, res: Response, next: NextFu
 };
 
 export const downloadCubeAsJSON = async (req: Request, res: Response, next: NextFunction) => {
-  const dataset = res.locals.dataset;
+  const dataset = await DatasetRepository.getById(res.locals.datasetId, withDraftForCube);
   const lang = req.language.split('-')[0];
   const latestRevision = getLatestRevision(dataset);
   if (!latestRevision) {
@@ -200,7 +200,7 @@ export const downloadCubeAsJSON = async (req: Request, res: Response, next: Next
 };
 
 export const downloadCubeAsCSV = async (req: Request, res: Response, next: NextFunction) => {
-  const dataset = res.locals.dataset;
+  const dataset = await DatasetRepository.getById(res.locals.datasetId, withDraftForCube);
   const lang = req.language.split('-')[0];
   const latestRevision = getLatestRevision(dataset);
   if (!latestRevision) {
@@ -245,7 +245,7 @@ export const downloadCubeAsCSV = async (req: Request, res: Response, next: NextF
 };
 
 export const downloadCubeAsParquet = async (req: Request, res: Response, next: NextFunction) => {
-  const dataset = res.locals.dataset;
+  const dataset = await DatasetRepository.getById(res.locals.datasetId, withDraftForCube);
   const lang = req.language.split('-')[0];
   const latestRevision = getLatestRevision(dataset);
   if (!latestRevision) {
@@ -290,7 +290,7 @@ export const downloadCubeAsParquet = async (req: Request, res: Response, next: N
 };
 
 export const downloadCubeAsExcel = async (req: Request, res: Response, next: NextFunction) => {
-  const dataset = res.locals.dataset;
+  const dataset = await DatasetRepository.getById(res.locals.datasetId, withDraftForCube);
   const lang = req.language.split('-')[0];
   const latestRevision = getLatestRevision(dataset);
   if (!latestRevision) {
