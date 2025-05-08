@@ -9,13 +9,9 @@ import { FindOptionsRelations } from 'typeorm';
 import { logger } from '../utils/logger';
 import {
   withDraftForCube,
-  withDraftAndMetadata,
   DatasetRepository,
-  withAll,
   withDraftAndProviders,
-  withDraftAndTopics,
-  withDraftAndMeasure,
-  withDimensions
+  withDraftAndTopics
 } from '../repositories/dataset';
 import { datasetIdValidator, hasError } from '../validators';
 import { NotFoundException } from '../exceptions/not-found.exception';
@@ -45,8 +41,7 @@ import {
   deleteDraftDatasetById,
   listAllFilesInDataset,
   getAllFilesForDataset,
-  updateDatasetGroup,
-  getDatasetOverviewById
+  updateDatasetGroup
 } from '../controllers/dataset';
 
 import { revisionRouter } from './revision';
@@ -117,41 +112,17 @@ router.post('/', jsonParser, createDataset);
 router.delete('/:dataset_id', loadDataset({}), deleteDraftDatasetById);
 
 // GET /dataset/:dataset_id
-// Returns the dataset with no relations hydrated (i.e. validates dataset exists)
+// Returns the dataset, optionally specify relations to load via 'hydrate' query param
 router.get('/:dataset_id', loadDataset({}), getDatasetById);
-
-// GET /dataset/:dataset_id/all
-// Returns the dataset with all available relations hydrated
-router.get('/:dataset_id/all', loadDataset(withAll), getDatasetById);
-
-// GET /dataset/:dataset_id/overview
-// Returns the dataset with info required to display the overview page
-router.get('/:dataset_id/overview', loadDataset(), getDatasetOverviewById);
-
-// GET /dataset/:dataset_id/metadata
-// Returns the dataset with the current draft and metadata
-router.get('/:dataset_id/metadata', loadDataset(withDraftAndMetadata), getDatasetById);
 
 // PATCH /dataset/:dataset_id/metadata
 // Updates the dataset info with the provided data
 router.patch('/:dataset_id/metadata', jsonParser, loadDataset({}), updateMetadata);
 
-// GET /dataset/:dataset_id/data
-// Returns the dataset with the current draft revision and data table
-router.get('/:dataset_id/data', loadDataset(withDraftForCube), getDatasetById);
-
 // POST /dataset/:dataset_id/data
 // Upload a data file to a dataset
 // Returns a DTO object that includes the draft revision
 router.post('/:dataset_id/data', upload.single('csv'), loadDataset({}), uploadDataTable);
-
-// GET /dataset/:dataset_id/measure
-// Returns the dataset with the current draft and measure
-router.get('/:dataset_id/measure', loadDataset(withDraftAndMeasure), getDatasetById);
-
-// GET /dataset/:dataset_id/dimensions
-// Returns the dataset with the dimensions hydrated
-router.get('/:dataset_id/dimensions', loadDataset(withDimensions), getDatasetById);
 
 // GET /dataset/:dataset_id/view
 // Returns a view of the data file attached to the import
@@ -229,10 +200,10 @@ router.get('/:dataset_id/list-files', loadDataset(withDraftForCube), listAllFile
 
 // PATCH /dataset/:dataset_id/group
 // Updates the user group for the dataset
-router.patch('/:dataset_id/group', jsonParser, loadDataset(), updateDatasetGroup);
+router.patch('/:dataset_id/group', jsonParser, loadDataset({}), updateDatasetGroup);
 
-router.use('/:dataset_id/revision', loadDataset(), revisionRouter);
+router.use('/:dataset_id/revision', loadDataset({}), revisionRouter);
 
-router.use('/:dataset_id/dimension', loadDataset(), dimensionRouter);
+router.use('/:dataset_id/dimension', loadDataset({}), dimensionRouter);
 
-router.use('/:dataset_id/measure', loadDataset(), measureRouter);
+router.use('/:dataset_id/measure', loadDataset({}), measureRouter);

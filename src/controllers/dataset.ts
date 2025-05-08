@@ -5,7 +5,14 @@ import tmp from 'tmp';
 import { last, sortBy } from 'lodash';
 
 import { User } from '../entities/user/user';
-import { DatasetRepository } from '../repositories/dataset';
+import {
+  DatasetRepository,
+  withAll,
+  withDimensions,
+  withDraftAndMeasure,
+  withDraftAndMetadata,
+  withDraftForCube
+} from '../repositories/dataset';
 import { Locale } from '../enums/locale';
 import { logger } from '../utils/logger';
 import { UnknownException } from '../exceptions/unknown.exception';
@@ -40,6 +47,7 @@ import { addDirectoryToZip, collectFiles } from '../utils/dataset-controller-uti
 import { t } from 'i18next';
 import { NotAllowedException } from '../exceptions/not-allowed.exception';
 import { GroupRole } from '../enums/group-role';
+import { DatasetInclude } from '../enums/dataset-include';
 
 export const listUserDatasets = async (req: Request, res: Response, next: NextFunction) => {
   try {
@@ -69,11 +77,37 @@ export const listAllDatasets = async (req: Request, res: Response, next: NextFun
 };
 
 export const getDatasetById = async (req: Request, res: Response) => {
-  res.json(DatasetDTO.fromDataset(res.locals.dataset));
-};
+  const datasetId: string = res.locals.datasetId;
+  const hydrate = req.query.hydrate as DatasetInclude;
+  let dataset: Dataset = res.locals.dataset;
 
-export const getDatasetOverviewById = async (req: Request, res: Response) => {
-  const dataset = await req.datasetService.getDatasetOverview(res.locals.datasetId);
+  switch (hydrate) {
+    case DatasetInclude.All:
+      // use as a last resort, this is the kitchen sink and very expensive / slow
+      dataset = await DatasetRepository.getById(datasetId, withAll);
+      break;
+
+    case DatasetInclude.Data:
+      dataset = await DatasetRepository.getById(datasetId, withDraftForCube);
+      break;
+
+    case DatasetInclude.Dimensions:
+      dataset = await DatasetRepository.getById(datasetId, withDimensions);
+      break;
+
+    case DatasetInclude.Measure:
+      dataset = await DatasetRepository.getById(datasetId, withDraftAndMeasure);
+      break;
+
+    case DatasetInclude.Meta:
+      dataset = await DatasetRepository.getById(datasetId, withDraftAndMetadata);
+      break;
+
+    case DatasetInclude.Overview:
+      dataset = await req.datasetService.getDatasetOverview(datasetId);
+      break;
+  }
+
   res.json(DatasetDTO.fromDataset(dataset));
 };
 
