@@ -471,10 +471,8 @@ export async function createLookupTableDimension(quack: Database, dataset: Datas
   if (!dimension.extractor) return;
   const factTableColumn = dataset.factTable?.find((col) => col.columnName === dimension.factTableColumn);
   if (!factTableColumn) {
-    const error = new CubeValidationException(`Fact table column ${dimension.factTableColumn} not found`);
-    error.type = CubeValidationType.FactTableColumnMissing;
-    error.datasetId = dataset.id;
-    throw error;
+    const errMsg = `Fact table column ${dimension.factTableColumn} not found`;
+    throw new CubeValidationException(errMsg, dataset.id, 'unknown', CubeValidationType.FactTableColumnMissing);
   }
   await quack.exec(createLookupTableQuery(factTableColumn));
   const extractor = dimension.extractor as LookupTableExtractor;
@@ -549,12 +547,27 @@ async function loadFactTablesWithUpdates(
   factTableDef: string[],
   dataValuesColumn: FactTableColumn,
   notesCodeColumn: FactTableColumn,
-  factIdentifiers: FactTableColumn[]
+  factIdentifiers: FactTableColumn[],
+  buildLog: string[]
 ) {
   for (const dataTable of allDataTables.sort((ftA, ftB) => ftA.uploadedAt.getTime() - ftB.uploadedAt.getTime())) {
-    logger.info(`Loading fact table data for fact table ${dataTable.id}`);
+    const startMsg = `Loading fact table data for data table ${dataTable.id}`;
+    logger.info(startMsg);
+    buildLog.push(`${Date.now()}: ${startMsg}`);
 
-    const factTableFile: string = await getFileImportAndSaveToDisk(dataset, dataTable);
+    let factTableFile: string;
+    try {
+      factTableFile = await getFileImportAndSaveToDisk(dataset, dataTable);
+    } catch (error) {
+      const errorMsg = `Something went wrong trying to get data table ${dataTable.id} from the data lake`;
+      logger.error(errorMsg);
+      buildLog.push(`${Date.now()}: ${errorMsg}`);
+      const err = new CubeValidationException(errorMsg, dataset.id, 'unknown', CubeValidationType.DataLakeError);
+      err.buildLog = buildLog;
+      err.originalError = error;
+      throw err;
+    }
+
     const updateTableDataCol = dataTable.dataTableDescriptions.find(
       (col) => col.factTableColumn === dataValuesColumn.columnName
     )?.columnName;
@@ -576,7 +589,9 @@ async function loadFactTablesWithUpdates(
     }
 
     try {
-      logger.debug(`Performing action ${dataTable.action} on fact table`);
+      const updateMsg = `Performing action ${dataTable.action} on fact table for data table ${dataTable.id}`;
+      logger.debug(updateMsg);
+      buildLog.push(`${Date.now()}: ${updateMsg}`);
       switch (dataTable.action) {
         case DataTableAction.ReplaceAll:
           await quack.exec(`DELETE FROM ${FACT_TABLE_NAME};`);
@@ -612,32 +627,6 @@ async function loadFactTablesWithUpdates(
   }
 }
 
-async function loadFactTablesWithoutUpdates(
-  quack: Database,
-  dataset: Dataset,
-  factTableDef: string[],
-  allFactTables: DataTable[]
-) {
-  logger.warn(
-    'There is no notes column present in this dataset.  Action allowed are limited to adding data and replacing all data'
-  );
-  for (const factTable of allFactTables.sort((ftA, ftB) => ftA.uploadedAt.getTime() - ftB.uploadedAt.getTime())) {
-    logger.info(`Loading fact table data for fact table ${factTable.id}`);
-    const factTableFile = await getFileImportAndSaveToDisk(dataset, factTable);
-    switch (factTable.action) {
-      case DataTableAction.ReplaceAll:
-        await quack.exec(`DELETE FROM ${FACT_TABLE_NAME};`);
-        await quack.exec('CHECKPOINT;');
-        await loadFileDataTableIntoTable(quack, factTable, factTableDef, factTableFile, FACT_TABLE_NAME);
-        break;
-      case DataTableAction.Add:
-        await loadFileDataTableIntoTable(quack, factTable, factTableDef, factTableFile, FACT_TABLE_NAME);
-        break;
-    }
-    fs.unlinkSync(factTableFile);
-  }
-}
-
 export async function loadFactTables(
   quack: Database,
   dataset: Dataset,
@@ -645,10 +634,13 @@ export async function loadFactTables(
   factTableDef: string[],
   dataValuesColumn: FactTableColumn | undefined,
   notesCodeColumn: FactTableColumn | undefined,
-  factIdentifiers: FactTableColumn[]
+  factIdentifiers: FactTableColumn[],
+  buildLog: string[]
 ): Promise<void> {
   // Find all the fact tables for the given revision
-  logger.debug('Finding all fact tables for this revision and those that came before');
+  const startMsg = 'Finding all fact tables for this revision and those that came before';
+  logger.debug(startMsg);
+  buildLog.push(`${Date.now()}: ${startMsg}`);
   const allFactTables: DataTable[] = [];
   if (endRevision.revisionIndex && endRevision.revisionIndex > 0) {
     // If we have a revision index we start here
@@ -659,10 +651,14 @@ export async function loadFactTables(
       if (revision.dataTable) allFactTables.push(revision.dataTable);
     });
   } else {
-    logger.debug('Must be a draft revision, so we need to find all revisions before this one');
+    const draftRevisionMsg = 'This is a draft revision, so we need to find all revisions before this one';
+    logger.debug(draftRevisionMsg);
+    buildLog.push(`${Date.now()}: ${draftRevisionMsg}`);
     // If we don't have a revision index we need to find the previous revision to this one that does
     if (endRevision.dataTable) {
-      logger.debug('Adding end revision to list of fact tables');
+      const addingRevisionMsg = 'Adding end revision to list of fact tables';
+      logger.debug(addingRevisionMsg);
+      buildLog.push(`${Date.now()}: ${addingRevisionMsg}`);
       allFactTables.push(endRevision.dataTable);
     }
     const validRevisions = dataset.revisions.filter((rev) => rev.revisionIndex > 0);
@@ -672,14 +668,25 @@ export async function loadFactTables(
   }
 
   if (allFactTables.length === 0) {
-    logger.error(`No fact tables found in this dataset to revision ${endRevision.id}`);
-    throw new Error(`No fact tables found in this dataset to revision ${endRevision.id}`);
+    const noFactTablesMsg = `No fact tables found in this dataset to revision ${endRevision.id}`;
+    logger.error(noFactTablesMsg);
+    buildLog.push(`${Date.now()}: ${noFactTablesMsg}`);
+    const err = new CubeValidationException(
+      noFactTablesMsg,
+      dataset.id,
+      endRevision.id,
+      CubeValidationType.NoDataTables
+    );
+    err.buildLog = buildLog;
+    throw err;
   }
 
   // Process all the fact tables
-  try {
-    if (dataValuesColumn && notesCodeColumn) {
-      logger.debug(`Loading ${allFactTables.length} fact tables in to database with updates`);
+  if (dataValuesColumn && notesCodeColumn) {
+    try {
+      const loadingFactTablesMsg = `Loading ${allFactTables.length} fact tables in to database with updates`;
+      logger.debug(loadingFactTablesMsg);
+      buildLog.push(`${Date.now()}: ${loadingFactTablesMsg}`);
       await loadFactTablesWithUpdates(
         quack,
         dataset,
@@ -687,22 +694,38 @@ export async function loadFactTables(
         factTableDef,
         dataValuesColumn,
         notesCodeColumn,
-        factIdentifiers
+        factIdentifiers,
+        buildLog
       );
-    } else {
-      logger.debug(`Loading ${allFactTables.length} fact tables in to database without updates`);
-      await loadFactTablesWithoutUpdates(quack, dataset, factTableDef, allFactTables);
+    } catch (error) {
+      if (error instanceof FactTableValidationException) {
+        logger.debug(error, `Throwing Fact Table Validation Exception`);
+        throw error;
+      }
+      const errMsg = `Something unexpected went wrong trying to load the fact tables`;
+      logger.error(error, errMsg);
+      buildLog.push(`${Date.now()}: ${errMsg}`);
+      const err = new CubeValidationException(
+        errMsg,
+        dataset.id,
+        endRevision.id,
+        CubeValidationType.UnknownErrLoadingFactTablesFailed
+      );
+      err.buildLog = buildLog;
+      err.originalError = error;
+      throw err;
     }
-  } catch (error) {
-    if (error instanceof FactTableValidationException) {
-      logger.debug(error, `Throwing Fact Table Validation Exception`);
-      throw error;
-    }
-    logger.error(error, `Something went wrong trying to create the core fact table`);
-    const err = new CubeValidationException('Something went wrong trying to create the core fact table');
-    err.type = CubeValidationType.FactTable;
-    err.stack = (error as Error).stack;
-    err.originalError = (error as Error).message;
+  } else {
+    const noNoteCodeColumnMsg = `No notes code column supplied, so no updates can be made to the fact tables`;
+    logger.error(noNoteCodeColumnMsg);
+    buildLog.push(`${Date.now()}: ${noNoteCodeColumnMsg}`);
+    const err = new CubeValidationException(
+      noNoteCodeColumnMsg,
+      dataset.id,
+      endRevision.id,
+      CubeValidationType.NoNotesCodeColumn
+    );
+    err.buildLog = buildLog;
     throw err;
   }
 }
@@ -972,11 +995,8 @@ async function setupDimensions(
         (col.columnType === FactTableColumnType.Dimension || col.columnType === FactTableColumnType.Unknown)
     );
     if (!factTableColumn) {
-      const error = new CubeValidationException(
-        `No fact table column found for dimension ${dimension.id} in dataset ${dataset.id}`
-      );
-      error.type = CubeValidationType.FactTableColumnMissing;
-      throw error;
+      const errMsg = `No fact table column found for dimension ${dimension.factTableColumn} in dataset ${dataset.id} for revision ${endRevision.id}`;
+      throw new CubeValidationException(errMsg, dataset.id, endRevision.id, CubeValidationType.Dimension);
     }
     logger.info(`Setting up dimension ${dimension.id} for fact table column ${dimension.factTableColumn}`);
     const dimTable = `${makeCubeSafeString(dimension.factTableColumn)}_lookup`;
@@ -1129,13 +1149,18 @@ function referenceDataPresent(dataset: Dataset) {
   return false;
 }
 
-export async function createEmptyFactTableInCube(quack: Database, dataset: Dataset) {
+export async function createEmptyFactTableInCube(quack: Database, dataset: Dataset, buildLog: string[]) {
   let notesCodeColumn: FactTableColumn | undefined;
   let dataValuesColumn: FactTableColumn | undefined;
   let measureColumn: FactTableColumn | undefined;
 
   if (!dataset.factTable) {
-    throw new Error(`Unable to find fact table for dataset ${dataset.id}`);
+    throw new CubeValidationException(
+      'No fact table on dataset',
+      dataset.id,
+      'unknown',
+      CubeValidationType.NoFactTable
+    );
   }
   const factTable = dataset.factTable.sort((colA, colB) => colA.columnIndex - colB.columnIndex);
   const compositeKey: string[] = [];
@@ -1165,19 +1190,32 @@ export async function createEmptyFactTableInCube(quack: Database, dataset: Datas
       return `"${field.columnName}" ${field.columnDatatype}`;
     });
 
-  logger.info('Creating initial fact table in cube');
+  const startMsg = 'Creating initial fact table in cube';
+  logger.info(startMsg);
+  buildLog.push(`${Date.now()}: ${startMsg}`);
   try {
     let key = '';
     if (compositeKey.length > 0) {
       key = `, PRIMARY KEY (${compositeKey.join(', ')})`;
     }
     const createTableQuery = `CREATE TABLE ${FACT_TABLE_NAME} (${factTableCreationDef.join(', ')}${key});`;
-    logger.debug(`Creating fact table with query: '${createTableQuery}'`);
+    const queryMsg = `Creating fact table ${FACT_TABLE_NAME}`;
+    logger.debug(queryMsg);
+    buildLog.push(`${Date.now()}: ${queryMsg}`);
     await quack.exec(createTableQuery);
   } catch (err) {
-    logger.error(`Failed to create fact table in cube: ${err}`);
+    logger.error(err, `Failed to create fact table in cube`);
+    buildLog.push(`${Date.now()}: ${JSON.stringify(err)}`);
     await quack.close();
-    throw new Error(`Failed to create fact table in cube: ${err}`);
+    const error = new CubeValidationException(
+      `Failed to create fact table in cube: ${err}`,
+      dataset.id,
+      'unknown',
+      CubeValidationType.FactTableCreateFailed
+    );
+    error.originalError = err;
+    error.buildLog = buildLog;
+    throw error;
   }
   return { measureColumn, notesCodeColumn, dataValuesColumn, factTableDef, factIdentifiers };
 }
@@ -1185,19 +1223,33 @@ export async function createEmptyFactTableInCube(quack: Database, dataset: Datas
 export const updateFactTableValidator = async (
   quack: Database,
   dataset: Dataset,
-  revision: Revision
+  revision: Revision,
+  buildLog: string[]
 ): Promise<Database> => {
   const { notesCodeColumn, dataValuesColumn, factTableDef, factIdentifiers } = await createEmptyFactTableInCube(
     quack,
-    dataset
+    dataset,
+    buildLog
   );
-  await loadFactTables(quack, dataset, revision, factTableDef, dataValuesColumn, notesCodeColumn, factIdentifiers);
+  await loadFactTables(
+    quack,
+    dataset,
+    revision,
+    factTableDef,
+    dataValuesColumn,
+    notesCodeColumn,
+    factIdentifiers,
+    buildLog
+  );
   return quack;
 };
 
-async function createCubeMetadataTable(quack: Database) {
+async function createCubeMetadataTable(quack: Database, buildLog: string[]) {
+  const query = `CREATE TABLE metadata (key VARCHAR, value VARCHAR);`;
+  const msg = `Creating cube metadata table with query ${query}`;
   logger.debug('Adding metadata table to the cube');
-  await quack.exec(`CREATE TABLE metadata (key VARCHAR, value VARCHAR);`);
+  buildLog.push(`${Date.now()}: ${msg}`);
+  await quack.exec(query);
 }
 
 // Builds a fresh cube based on all revisions and returns the file pointer
@@ -1213,6 +1265,7 @@ export const createBaseCube = async (datasetId: string, endRevisionId: string): 
   const functionStart = performance.now();
   const viewSelectStatementsMap = new Map<Locale, string[]>();
   const rawSelectStatementsMap = new Map<Locale, string[]>();
+  const buildLog: string[] = [];
   SUPPORTED_LOCALES.map((locale) => {
     viewSelectStatementsMap.set(locale, []);
     rawSelectStatementsMap.set(locale, []);
@@ -1249,12 +1302,12 @@ export const createBaseCube = async (datasetId: string, endRevisionId: string): 
 
   const firstRevision = dataset.revisions.find((rev) => rev.revisionIndex === 1);
   if (!firstRevision) {
-    const err = new CubeValidationException(
-      `Could not find first revision for dataset ${datasetId} in revision ${endRevisionId}`
+    throw new CubeValidationException(
+      `Could not find first revision for dataset ${datasetId} in revision ${endRevisionId}`,
+      datasetId,
+      'unknown',
+      CubeValidationType.NoFirstRevision
     );
-    err.type = CubeValidationType.NoFirstRevision;
-    err.datasetId = datasetId;
-    throw new Error(`Unable to find first revision for dataset ${dataset.id}`);
   }
 
   logger.debug('Creating an in-memory database to hold the cube using DuckDB 🐤');
@@ -1263,12 +1316,21 @@ export const createBaseCube = async (datasetId: string, endRevisionId: string): 
   const quack = await duckdb(tmpFile);
 
   const { measureColumn, notesCodeColumn, dataValuesColumn, factTableDef, factIdentifiers } =
-    await createEmptyFactTableInCube(quack, dataset);
+    await createEmptyFactTableInCube(quack, dataset, buildLog);
 
-  await createCubeMetadataTable(quack);
+  await createCubeMetadataTable(quack, buildLog);
 
   try {
-    await loadFactTables(quack, dataset, endRevision, factTableDef, dataValuesColumn, notesCodeColumn, factIdentifiers);
+    await loadFactTables(
+      quack,
+      dataset,
+      endRevision,
+      factTableDef,
+      dataValuesColumn,
+      notesCodeColumn,
+      factIdentifiers,
+      buildLog
+    );
   } catch (err) {
     logger.error(err, `Failed to load fact tables into the cube`);
     await quack.close();
@@ -1380,6 +1442,7 @@ export const createBaseCubeFromProtoCube = async (
   });
   const joinStatements: string[] = [];
   const orderByStatements: string[] = [];
+  const buildLog: string[] = [];
 
   const datasetRelations: FindOptionsRelations<Dataset> = {
     dimensions: {
@@ -1410,19 +1473,19 @@ export const createBaseCubeFromProtoCube = async (
 
   const firstRevision = dataset.revisions.find((rev) => rev.revisionIndex === 1);
   if (!firstRevision) {
-    const err = new CubeValidationException(
-      `Could not find first revision for dataset ${datasetId} in revision ${endRevisionId}`
+    throw new CubeValidationException(
+      `Could not find first revision for dataset ${datasetId} in revision ${endRevisionId}`,
+      datasetId,
+      endRevisionId,
+      CubeValidationType.NoFirstRevision
     );
-    err.type = CubeValidationType.NoFirstRevision;
-    err.datasetId = datasetId;
-    throw new Error(`Unable to find first revision for dataset ${dataset.id}`);
   }
 
   logger.debug('Creating an in-memory database to hold the cube using DuckDB 🐤');
   const buildStart = performance.now();
   const quack = await duckdb(protoCubeFile);
 
-  await createCubeMetadataTable(quack);
+  await createCubeMetadataTable(quack, buildLog);
 
   const notesCodeColumn = dataset.factTable?.find((field) => field.columnType === FactTableColumnType.NoteCodes);
   const dataValuesColumn = dataset.factTable?.find((field) => field.columnType === FactTableColumnType.DataValues);

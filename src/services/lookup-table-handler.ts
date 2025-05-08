@@ -202,9 +202,12 @@ export const checkForReferenceErrors = async (
     'dimension'
   );
   if (referenceErrors) {
-    const err = new CubeValidationException('Validation failed');
-    err.type = CubeValidationType.DimensionNonMatchedRows;
-    throw err;
+    throw new CubeValidationException(
+      'Validation failed',
+      dataset.id,
+      'unknown',
+      CubeValidationType.DimensionNonMatchedRows
+    );
   }
   return undefined;
 };

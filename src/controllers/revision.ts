@@ -289,12 +289,14 @@ async function attachUpdateDataTableToRevision(
   revision.dataTable = dataTable;
   const quack = await duckdb();
 
+  const buildLog: string[] = [];
   try {
-    await updateFactTableValidator(quack, dataset, revision);
+    await updateFactTableValidator(quack, dataset, revision, buildLog);
   } catch (err) {
     const error = err as CubeValidationException;
     if (error.type === CubeValidationType.DuplicateFact) {
       error.type = CubeValidationType.UnknownDuplicateFact;
+      error.buildLog = buildLog;
     }
     logger.debug('Closing DuckDB instance');
     const end = performance.now();
