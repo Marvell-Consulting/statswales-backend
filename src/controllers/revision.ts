@@ -42,9 +42,6 @@ import { DimensionType } from '../enums/dimension-type';
 import { CubeValidationException } from '../exceptions/cube-error-exception';
 import { DimensionUpdateTask } from '../interfaces/revision-task';
 import { duckdb } from '../services/duckdb';
-import { Dataset } from '../entities/dataset/dataset';
-
-import { getCubePreview, outputCube } from './cube-controller';
 import { FileValidationException } from '../exceptions/validation-exception';
 import { FactTableColumnType } from '../enums/fact-table-column-type';
 import { checkForReferenceErrors } from '../services/lookup-table-handler';
@@ -52,6 +49,9 @@ import { validateUpdatedDateDimension } from '../services/dimension-processor';
 import { CubeValidationType } from '../enums/cube-validation-type';
 import { FactTableValidationException } from '../exceptions/fact-table-validation-exception';
 import { NotAllowedException } from '../exceptions/not-allowed.exception';
+
+import { getCubePreview, outputCube } from './cube-controller';
+import { Dataset } from '../entities/dataset/dataset';
 
 export const getDataTable = async (req: Request, res: Response, next: NextFunction) => {
   try {
@@ -86,7 +86,8 @@ export const deleteDraftRevision = async (req: Request, res: Response, next: Nex
 };
 
 export const getDataTablePreview = async (req: Request, res: Response, next: NextFunction) => {
-  const { dataset, revision } = res.locals;
+  const datasetId: string = res.locals.datasetId;
+  const revision = res.locals.revision;
 
   const page_number: number = Number.parseInt(req.query.page_number as string, 10) || 1;
   const page_size: number = Number.parseInt(req.query.page_size as string, 10) || DEFAULT_PAGE_SIZE;
@@ -96,7 +97,7 @@ export const getDataTablePreview = async (req: Request, res: Response, next: Nex
     return;
   }
 
-  const processedCSV = await getCSVPreview(dataset, revision, revision.dataTable, page_number, page_size);
+  const processedCSV = await getCSVPreview(datasetId, revision, revision.dataTable, page_number, page_size);
 
   if ((processedCSV as ViewErrDTO).errors) {
     const processErr = processedCSV as ViewErrDTO;
@@ -107,7 +108,7 @@ export const getDataTablePreview = async (req: Request, res: Response, next: Nex
 };
 
 export const getRevisionPreview = async (req: Request, res: Response, next: NextFunction) => {
-  const dataset = res.locals.dataset;
+  const dataset: Dataset = res.locals.dataset;
   const revision = res.locals.revision;
   const lang = req.language.split('-')[0];
   const start = performance.now();
@@ -142,11 +143,14 @@ export const getRevisionPreview = async (req: Request, res: Response, next: Next
       return;
     }
   }
+
   const cubePreview = await getCubePreview(cubeFile, lang, dataset, page_number, page_size);
   const end = performance.now();
   const time = Math.round(end - start);
+
   logger.info(`Cube revision preview took ${time}ms`);
   await cleanUpCube(cubeFile);
+
   if ((cubePreview as ViewErrDTO).errors) {
     const processErr = cubePreview as ViewErrDTO;
     res.status(processErr.status);
@@ -162,10 +166,14 @@ export const confirmFactTable = async (req: Request, res: Response) => {
 };
 
 export const downloadRawFactTable = async (req: Request, res: Response, next: NextFunction) => {
-  const { dataset, revision } = res.locals;
+  const datasetId = res.locals.datasetId;
+  const revision = res.locals.revision;
+
   logger.info('User requested to down files...');
+
   let readable: Readable;
   logger.debug(`${JSON.stringify(revision)}`);
+
   if (!revision.dataTable) {
     logger.error("Revision doesn't have a data table, can't download file");
     next(new NotFoundException('errors.revision_id_invalid'));
@@ -173,7 +181,7 @@ export const downloadRawFactTable = async (req: Request, res: Response, next: Ne
   }
 
   try {
-    readable = await req.fileService.loadStream(revision.dataTable.filename, dataset.id);
+    readable = await req.fileService.loadStream(revision.dataTable.filename, datasetId);
   } catch (_err) {
     res.status(500);
     res.json({
@@ -194,7 +202,7 @@ export const downloadRawFactTable = async (req: Request, res: Response, next: Ne
           tag: { name: 'errors.download_from_filestore', params: {} }
         }
       ],
-      dataset_id: dataset.id
+      dataset_id: datasetId
     });
     return;
   }
@@ -226,7 +234,7 @@ export const getRevisionInfo = async (req: Request, res: Response) => {
 };
 
 async function attachUpdateDataTableToRevision(
-  dataset: Dataset,
+  datasetId: string,
   revision: Revision,
   dataTable: DataTable,
   updateAction: DataTableAction,
@@ -234,6 +242,13 @@ async function attachUpdateDataTableToRevision(
 ) {
   logger.debug('Attaching update data table to revision and validating cube');
   const start = performance.now();
+
+  const dataset = await DatasetRepository.getById(datasetId, {
+    factTable: true,
+    measure: { measureTable: true, metadata: true },
+    dimensions: { metadata: true, lookupTable: true },
+    revisions: { dataTable: { dataTableDescriptions: true } }
+  });
 
   // Validate all the columns against the fact table
   if (columnMatcher) {
@@ -313,7 +328,8 @@ async function attachUpdateDataTableToRevision(
   for (const dimension of dataset.dimensions) {
     const factTableColumn = dataset.factTable.find(
       (factTableColumn) =>
-        factTableColumn.columnName === dimension.id && factTableColumn.columnType === FactTableColumnType.Dimension
+        factTableColumn.columnName === dimension.factTableColumn &&
+        factTableColumn.columnType === FactTableColumnType.Dimension
     );
     if (!factTableColumn) {
       logger.error(`Could not find fact table column for dimension ${dimension.id}`);
@@ -372,7 +388,7 @@ async function attachUpdateDataTableToRevision(
 }
 
 export const updateDataTable = async (req: Request, res: Response, next: NextFunction) => {
-  const dataset: Dataset = res.locals.dataset;
+  const datasetId: string = res.locals.datasetId;
   const revision: Revision = res.locals.revision;
 
   logger.debug(`Updating data table for revision ${revision.id}`);
@@ -385,16 +401,17 @@ export const updateDataTable = async (req: Request, res: Response, next: NextFun
   if (revision.dataTable) {
     logger.debug(`Revision ${revision.id} already has a data table ${revision.dataTable.id}, removing it`);
     try {
-      await req.fileService.delete(revision.dataTable.filename, dataset.id);
+      await req.fileService.delete(revision.dataTable.filename, datasetId);
     } catch (err) {
       logger.warn(err, `Failed to delete data table file ${revision.dataTable.filename} from data lake`);
     }
     await DataTable.getRepository().remove(revision.dataTable);
   }
+
   let dataTable: DataTable;
   try {
     const { mimetype, originalname } = req.file;
-    const uploadResult = await validateAndUploadCSV(req.file.buffer, mimetype, originalname, dataset.id);
+    const uploadResult = await validateAndUploadCSV(req.file.buffer, mimetype, originalname, datasetId);
     dataTable = uploadResult.dataTable;
   } catch (err) {
     const error = err as FileValidationException;
@@ -416,9 +433,9 @@ export const updateDataTable = async (req: Request, res: Response, next: NextFun
         ? (JSON.parse(req.body.column_matching) as ColumnMatch[])
         : undefined;
       const updateAction = req.body.update_action ? (req.body.update_action as DataTableAction) : DataTableAction.Add;
-      await attachUpdateDataTableToRevision(dataset, revision, dataTable, updateAction, columnMatcher);
+      await attachUpdateDataTableToRevision(datasetId, revision, dataTable, updateAction, columnMatcher);
     }
-    const updatedDataset = await DatasetRepository.getById(dataset.id);
+    const updatedDataset = await DatasetRepository.getById(datasetId);
     res.status(201);
     res.json(DatasetDTO.fromDataset(updatedDataset));
   } catch (err) {
@@ -428,7 +445,7 @@ export const updateDataTable = async (req: Request, res: Response, next: NextFun
       res.status(error.status);
       const viewErr: ViewErrDTO = {
         status: error.status,
-        dataset_id: dataset.id,
+        dataset_id: datasetId,
         errors: [
           {
             field: 'csv',
@@ -454,7 +471,8 @@ export const updateDataTable = async (req: Request, res: Response, next: NextFun
 };
 
 export const removeFactTableFromRevision = async (req: Request, res: Response, next: NextFunction) => {
-  const { dataset, revision } = res.locals;
+  const datasetId = res.locals.datasetId;
+  const revision = res.locals.revision;
 
   if (!revision.dataTable) {
     logger.error("Revision doesn't have a data table, can't remove file");
@@ -464,8 +482,11 @@ export const removeFactTableFromRevision = async (req: Request, res: Response, n
 
   try {
     logger.warn('User has requested to remove a fact table from the filestore');
-    await req.fileService.delete(revision.dataTable.filename, dataset.id);
-    if (dataset.revisions.length === 1) {
+    await req.fileService.delete(revision.dataTable.filename, datasetId);
+
+    const dataset = await DatasetRepository.getById(datasetId, { factTable: true, revisions: true });
+
+    if (dataset.revisions.length === 1 && dataset.factTable) {
       for (const factTableCol of dataset.factTable) {
         await factTableCol.remove();
       }
@@ -481,8 +502,8 @@ export const removeFactTableFromRevision = async (req: Request, res: Response, n
 };
 
 export const updateRevisionPublicationDate = async (req: Request, res: Response, next: NextFunction) => {
-  const dataset = res.locals.dataset;
-  const revision = res.locals.revision;
+  const datasetId: string = res.locals.datasetId;
+  const revision: Revision = res.locals.revision;
 
   if (revision.approvedAt) {
     next(new BadRequestException('errors.publish_at.revision_already_approved'));
@@ -503,7 +524,7 @@ export const updateRevisionPublicationDate = async (req: Request, res: Response,
     }
 
     await RevisionRepository.updatePublishDate(revision, publishAt);
-    const updatedDataset = await DatasetRepository.getById(dataset.id, {});
+    const updatedDataset = await DatasetRepository.getById(datasetId, {});
 
     res.status(201);
     res.json(DatasetDTO.fromDataset(updatedDataset));
@@ -513,7 +534,8 @@ export const updateRevisionPublicationDate = async (req: Request, res: Response,
 };
 
 export const approveForPublication = async (req: Request, res: Response, next: NextFunction) => {
-  const { dataset, revision } = res.locals;
+  const datasetId: string = res.locals.datasetId;
+  const revision: Revision = res.locals.revision;
   const user = req.user as User;
 
   try {
@@ -521,14 +543,14 @@ export const approveForPublication = async (req: Request, res: Response, next: N
       throw new BadRequestException('errors.approve.revision_already_approved');
     }
 
-    const tasklistState = await req.datasetService.getTasklistState(dataset.id, req.language as Locale);
+    const tasklistState = await req.datasetService.getTasklistState(datasetId, req.language as Locale);
 
     if (!tasklistState.canPublish) {
       logger.error('Dataset is not ready for publication, check tasklist state');
       throw new BadRequestException('errors.approve.not_ready');
     }
 
-    const approvedDataset = await req.datasetService.approveForPublication(dataset.id, revision.id, user);
+    const approvedDataset = await req.datasetService.approveForPublication(datasetId, revision.id, user);
 
     res.status(201);
     res.json(DatasetDTO.fromDataset(approvedDataset));
@@ -539,7 +561,8 @@ export const approveForPublication = async (req: Request, res: Response, next: N
 
 export const withdrawFromPublication = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { dataset, revision } = res.locals;
+    const datasetId: string = res.locals.datasetId;
+    const revision: Revision = res.locals.revision;
 
     if (!revision.publishAt || !revision.approvedAt) {
       throw new BadRequestException('errors.withdraw.not_scheduled');
@@ -549,7 +572,7 @@ export const withdrawFromPublication = async (req: Request, res: Response, next:
       throw new BadRequestException('errors.withdraw.already_published');
     }
 
-    const withdrawnDataset = await req.datasetService.withdrawFromPublication(dataset.id, revision.id);
+    const withdrawnDataset = await req.datasetService.withdrawFromPublication(datasetId, revision.id);
     res.status(201);
     res.json(DatasetDTO.fromDataset(withdrawnDataset));
   } catch (err: unknown) {
@@ -559,56 +582,62 @@ export const withdrawFromPublication = async (req: Request, res: Response, next:
 };
 
 export const downloadRevisionCubeFile = async (req: Request, res: Response, next: NextFunction) => {
-  const { dataset, revision } = res.locals;
+  const datasetId: string = res.locals.datasetId;
+  const revision: Revision = res.locals.revision;
   let cubeFile: string;
-  if (revision.onlineCubeFilename && !revision.onlineCubeFilename.includes('proto')) {
-    const fileBuffer = await req.fileService.loadBuffer(revision.onlineCubeFilename, dataset.id);
+
+  if (revision.onlineCubeFilename) {
+    const fileBuffer = await req.fileService.loadBuffer(revision.onlineCubeFilename, datasetId);
     cubeFile = tmp.tmpNameSync({ postfix: '.duckdb' });
     fs.writeFileSync(cubeFile, fileBuffer);
-  } else if (revision.onlineCubeFilename && revision.onlineCubeFilename.includes('proto')) {
-    const fileBuffer = await req.fileService.loadBuffer(revision.onlineCubeFilename, dataset.id);
-    cubeFile = tmp.tmpNameSync({ postfix: '.duckdb' });
-    fs.writeFileSync(cubeFile, fileBuffer);
-    cubeFile = await createBaseCubeFromProtoCube(dataset.id, revision, cubeFile);
+
+    if (revision.onlineCubeFilename.includes('proto')) {
+      cubeFile = await createBaseCubeFromProtoCube(datasetId, revision.id, cubeFile);
+    }
   } else {
     try {
-      cubeFile = await createBaseCube(dataset.id, revision.id);
+      cubeFile = await createBaseCube(datasetId, revision.id);
     } catch (err) {
       logger.error(err, `Something went wrong trying to create the cube`);
       next(new UnknownException('errors.cube_builder.cube_build_failed'));
       return;
     }
   }
+
   const fileBuffer = Buffer.from(fs.readFileSync(cubeFile));
   logger.info(`Sending original cube file (size: ${fileBuffer.length}) from: ${cubeFile}`);
+
   res.writeHead(200, {
     // eslint-disable-next-line @typescript-eslint/naming-convention
     'Content-Type': 'application/octet-stream',
     // eslint-disable-next-line @typescript-eslint/naming-convention
-    'Content-disposition': `attachment;filename=${dataset.id}.duckdb`,
+    'Content-disposition': `attachment;filename=${datasetId}.duckdb`,
     // eslint-disable-next-line @typescript-eslint/naming-convention
     'Content-Length': fileBuffer.length
   });
+
   res.end(fileBuffer);
   await cleanUpCube(cubeFile);
 };
 
 export const downloadRevisionCubeAsJSON = async (req: Request, res: Response, next: NextFunction) => {
-  const { dataset, revision } = res.locals;
+  const datasetId: string = res.locals.datasetId;
+  const revision: Revision = res.locals.revision;
   const lang = req.language.split('-')[0];
   let cubeFile: string;
+
   if (revision.onlineCubeFilename && !revision.onlineCubeFilename.includes('proto')) {
-    const fileBuffer = await req.fileService.loadBuffer(revision.onlineCubeFilename, dataset.id);
+    const fileBuffer = await req.fileService.loadBuffer(revision.onlineCubeFilename, datasetId);
     cubeFile = tmp.tmpNameSync({ postfix: '.duckdb' });
     fs.writeFileSync(cubeFile, fileBuffer);
   } else if (revision.onlineCubeFilename && revision.onlineCubeFilename.includes('proto')) {
-    const fileBuffer = await req.fileService.loadBuffer(revision.onlineCubeFilename, dataset.id);
+    const fileBuffer = await req.fileService.loadBuffer(revision.onlineCubeFilename, datasetId);
     cubeFile = tmp.tmpNameSync({ postfix: '.duckdb' });
     fs.writeFileSync(cubeFile, fileBuffer);
-    cubeFile = await createBaseCubeFromProtoCube(dataset.id, revision, cubeFile);
+    cubeFile = await createBaseCubeFromProtoCube(datasetId, revision.id, cubeFile);
   } else {
     try {
-      cubeFile = await createBaseCube(dataset.id, revision.id);
+      cubeFile = await createBaseCube(datasetId, revision.id);
     } catch (err) {
       logger.error(err, `Something went wrong trying to create the cube`);
       next(new UnknownException('errors.cube_builder.cube_build_failed'));
@@ -639,25 +668,28 @@ export const downloadRevisionCubeAsJSON = async (req: Request, res: Response, ne
 };
 
 export const downloadRevisionCubeAsCSV = async (req: Request, res: Response, next: NextFunction) => {
-  const { dataset, revision } = res.locals;
+  const datasetId: string = res.locals.datasetId;
+  const revision: Revision = res.locals.revision;
   const lang = req.language.split('-')[0];
+
   if (!revision) {
     next(new UnknownException('errors.no_revision'));
     return;
   }
+
   let cubeFile: string;
   if (revision.onlineCubeFilename && !revision.onlineCubeFilename.includes('proto')) {
-    const fileBuffer = await req.fileService.loadBuffer(revision.onlineCubeFilename, dataset.id);
+    const fileBuffer = await req.fileService.loadBuffer(revision.onlineCubeFilename, datasetId);
     cubeFile = tmp.tmpNameSync({ postfix: '.duckdb' });
     fs.writeFileSync(cubeFile, fileBuffer);
   } else if (revision.onlineCubeFilename && revision.onlineCubeFilename.includes('proto')) {
-    const fileBuffer = await req.fileService.loadBuffer(revision.onlineCubeFilename, dataset.id);
+    const fileBuffer = await req.fileService.loadBuffer(revision.onlineCubeFilename, datasetId);
     cubeFile = tmp.tmpNameSync({ postfix: '.duckdb' });
     fs.writeFileSync(cubeFile, fileBuffer);
-    cubeFile = await createBaseCubeFromProtoCube(dataset.id, revision, cubeFile);
+    cubeFile = await createBaseCubeFromProtoCube(datasetId, revision.id, cubeFile);
   } else {
     try {
-      cubeFile = await createBaseCube(dataset.id, revision.id);
+      cubeFile = await createBaseCube(datasetId, revision.id);
     } catch (err) {
       logger.error(err, `Something went wrong trying to create the cube`);
       next(new UnknownException('errors.cube_builder.cube_build_failed'));
@@ -688,7 +720,9 @@ export const downloadRevisionCubeAsCSV = async (req: Request, res: Response, nex
 };
 
 export const downloadRevisionCubeAsParquet = async (req: Request, res: Response, next: NextFunction) => {
-  const { dataset, revision } = res.locals;
+  const datasetId: string = res.locals.datasetId;
+  const revision: Revision = res.locals.revision;
+
   const lang = req.language.split('-')[0];
   if (!revision) {
     next(new UnknownException('errors.no_revision'));
@@ -696,17 +730,17 @@ export const downloadRevisionCubeAsParquet = async (req: Request, res: Response,
   }
   let cubeFile: string;
   if (revision.onlineCubeFilename && !revision.onlineCubeFilename.includes('proto')) {
-    const fileBuffer = await req.fileService.loadBuffer(revision.onlineCubeFilename, dataset.id);
+    const fileBuffer = await req.fileService.loadBuffer(revision.onlineCubeFilename, datasetId);
     cubeFile = tmp.tmpNameSync({ postfix: '.duckdb' });
     fs.writeFileSync(cubeFile, fileBuffer);
   } else if (revision.onlineCubeFilename && revision.onlineCubeFilename.includes('proto')) {
-    const fileBuffer = await req.fileService.loadBuffer(revision.onlineCubeFilename, dataset.id);
+    const fileBuffer = await req.fileService.loadBuffer(revision.onlineCubeFilename, datasetId);
     cubeFile = tmp.tmpNameSync({ postfix: '.duckdb' });
     fs.writeFileSync(cubeFile, fileBuffer);
-    cubeFile = await createBaseCubeFromProtoCube(dataset.id, revision, cubeFile);
+    cubeFile = await createBaseCubeFromProtoCube(datasetId, revision.id, cubeFile);
   } else {
     try {
-      cubeFile = await createBaseCube(dataset.id, revision.id);
+      cubeFile = await createBaseCube(datasetId, revision.id);
     } catch (err) {
       logger.error(err, `Something went wrong trying to create the cube`);
       next(new UnknownException('errors.cube_builder.cube_build_failed'));
@@ -737,7 +771,9 @@ export const downloadRevisionCubeAsParquet = async (req: Request, res: Response,
 };
 
 export const downloadRevisionCubeAsExcel = async (req: Request, res: Response, next: NextFunction) => {
-  const { dataset, revision } = res.locals;
+  const datasetId: string = res.locals.datasetId;
+  const revision: Revision = res.locals.revision;
+
   const lang = req.language.split('-')[0];
   if (!revision) {
     next(new UnknownException('errors.no_revision'));
@@ -745,17 +781,17 @@ export const downloadRevisionCubeAsExcel = async (req: Request, res: Response, n
   }
   let cubeFile: string;
   if (revision.onlineCubeFilename && !revision.onlineCubeFilename.includes('proto')) {
-    const fileBuffer = await req.fileService.loadBuffer(revision.onlineCubeFilename, dataset.id);
+    const fileBuffer = await req.fileService.loadBuffer(revision.onlineCubeFilename, datasetId);
     cubeFile = tmp.tmpNameSync({ postfix: '.duckdb' });
     fs.writeFileSync(cubeFile, fileBuffer);
   } else if (revision.onlineCubeFilename && revision.onlineCubeFilename.includes('proto')) {
-    const fileBuffer = await req.fileService.loadBuffer(revision.onlineCubeFilename, dataset.id);
+    const fileBuffer = await req.fileService.loadBuffer(revision.onlineCubeFilename, datasetId);
     cubeFile = tmp.tmpNameSync({ postfix: '.duckdb' });
     fs.writeFileSync(cubeFile, fileBuffer);
-    cubeFile = await createBaseCubeFromProtoCube(dataset.id, revision, cubeFile);
+    cubeFile = await createBaseCubeFromProtoCube(datasetId, revision.id, cubeFile);
   } else {
     try {
-      cubeFile = await createBaseCube(dataset.id, revision.id);
+      cubeFile = await createBaseCube(datasetId, revision.id);
     } catch (err) {
       logger.error(err, `Something went wrong trying to create the cube`);
       next(new UnknownException('errors.cube_builder.cube_build_failed'));

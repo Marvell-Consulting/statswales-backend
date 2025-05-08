@@ -191,7 +191,7 @@ export const validateAndUploadCSV = async (
 };
 
 export const getCSVPreview = async (
-  dataset: Dataset,
+  datasetId: string,
   revision: Revision,
   importObj: DataTable,
   page: number,
@@ -201,25 +201,26 @@ export const getCSVPreview = async (
   const tableName = 'fact_table';
   const tempFile = tmp.tmpNameSync({ postfix: `.${importObj.fileType}` });
   let cubeFile: string | undefined;
+
   if (revision.onlineCubeFilename) {
     cubeFile = tmp.tmpNameSync({ postfix: '.duckdb' });
     const fileService = getFileService();
     try {
-      const fileBuffer = await fileService.loadBuffer(revision.onlineCubeFilename, dataset.id);
+      const fileBuffer = await fileService.loadBuffer(revision.onlineCubeFilename, datasetId);
       fs.writeFileSync(cubeFile, fileBuffer);
     } catch (error) {
       logger.error(error, `Something went wrong trying to fetch the protocube from storage`);
-      return viewErrorGenerators(500, dataset.id, 'csv', 'errors.datalake.failed_to_fetch_file', {});
+      return viewErrorGenerators(500, datasetId, 'csv', 'errors.datalake.failed_to_fetch_file', {});
     }
     quack = await duckdb(cubeFile);
   } else {
     let fileBuffer: Buffer;
     try {
       const fileService = getFileService();
-      fileBuffer = await fileService.loadBuffer(importObj.filename, dataset.id);
+      fileBuffer = await fileService.loadBuffer(importObj.filename, datasetId);
     } catch (err) {
       logger.error(err, `Something went wrong trying to fetch the file from storage`);
-      return viewErrorGenerators(500, dataset.id, 'csv', 'errors.datalake.failed_to_fetch_file', {});
+      return viewErrorGenerators(500, datasetId, 'csv', 'errors.datalake.failed_to_fetch_file', {});
     }
 
     fs.writeFileSync(tempFile, fileBuffer);
@@ -229,7 +230,7 @@ export const getCSVPreview = async (
     } catch (error) {
       await quack.close();
       logger.error(error, `Something went wrong trying to load the file into the database`);
-      return viewErrorGenerators(500, dataset.id, 'csv', 'errors.preview.preview_failed', {});
+      return viewErrorGenerators(500, datasetId, 'csv', 'errors.preview.preview_failed', {});
     }
   }
 
@@ -239,44 +240,43 @@ export const getCSVPreview = async (
     const totalPages = Number(totals[0].totalPages);
     const totalLines = Number(totals[0].totalLines);
     const errors = validateParams(page, totalPages, size);
+
     if (errors.length > 0) {
-      return {
-        status: 400,
-        errors,
-        dataset_id: dataset.id
-      };
+      return { status: 400, errors, dataset_id: datasetId };
     }
-    const previewQuery = `SELECT int_line_number, * from (SELECT row_number() OVER () as int_line_number, * FROM ${tableName}) LIMIT ${size} OFFSET ${(page - 1) * size}`;
+
+    const previewQuery = `
+      SELECT int_line_number, *
+      FROM (SELECT row_number() OVER () as int_line_number, * FROM ${tableName})
+      LIMIT ${size}
+      OFFSET ${(page - 1) * size}
+    `;
+
     const preview = await quack.all(previewQuery);
     const startLine = Number(preview[0].int_line_number);
     const lastLine = Number(preview[preview.length - 1].int_line_number);
     const tableHeaders = Object.keys(preview[0]);
     const dataArray = preview.map((row) => Object.values(row));
-    const currentDataset = await DatasetRepository.getById(dataset.id);
+    const dataset = await DatasetRepository.getById(datasetId, { factTable: true });
     const currentImport = await DataTable.findOneByOrFail({ id: importObj.id });
-    const headers: CSVHeader[] = [];
-    for (let i = 0; i < tableHeaders.length; i++) {
+
+    const headers: CSVHeader[] = tableHeaders.map((header, idx) => {
       let sourceType: FactTableColumnType;
-      if (tableHeaders[i] === 'int_line_number') sourceType = FactTableColumnType.LineNumber;
-      else
+
+      if (header === 'int_line_number') {
+        sourceType = FactTableColumnType.LineNumber;
+      } else {
         sourceType =
-          dataset.factTable?.find((info) => info.columnName === tableHeaders[i])?.columnType ||
-          FactTableColumnType.Unknown;
-      headers.push({
-        index: i - 1,
-        name: tableHeaders[i],
-        source_type: sourceType
-      });
-    }
-    const pageInfo = {
-      total_records: totalLines,
-      start_record: startLine,
-      end_record: lastLine
-    };
-    return viewGenerator(currentDataset, page, pageInfo, size, totalPages, headers, dataArray, currentImport);
+          dataset.factTable?.find((info) => info.columnName === header)?.columnType || FactTableColumnType.Unknown;
+      }
+      return { name: header, index: idx - 1, source_type: sourceType };
+    });
+
+    const pageInfo = { total_records: totalLines, start_record: startLine, end_record: lastLine };
+    return viewGenerator(dataset, page, pageInfo, size, totalPages, headers, dataArray, currentImport);
   } catch (error) {
     logger.error(error);
-    return viewErrorGenerators(500, dataset.id, 'csv', 'errors.preview.preview_failed', {});
+    return viewErrorGenerators(500, datasetId, 'csv', 'errors.preview.preview_failed', {});
   } finally {
     await quack.close();
     if (cubeFile) fs.unlinkSync(cubeFile);

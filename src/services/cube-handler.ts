@@ -1261,7 +1261,7 @@ async function createCubeMetadataTable(quack: Database, buildLog: string[]) {
 // Function should be able to generate a cube just from a fact table or collection
 // of fact tables.
 export const createBaseCube = async (datasetId: string, endRevisionId: string): Promise<string> => {
-  logger.debug(`Creating base cube for for revision: ${endRevisionId}`);
+  logger.debug(`Creating base cube for revision: ${endRevisionId}`);
   const functionStart = performance.now();
   const viewSelectStatementsMap = new Map<Locale, string[]>();
   const rawSelectStatementsMap = new Map<Locale, string[]>();
@@ -1432,7 +1432,7 @@ export const createBaseCubeFromProtoCube = async (
   endRevisionId: string,
   protoCubeFile: string
 ): Promise<string> => {
-  logger.debug(`Creating base cube for for revision: ${endRevisionId}`);
+  logger.debug(`Creating base cube from proto cube for revision: ${endRevisionId}`);
   const functionStart = performance.now();
   const viewSelectStatementsMap = new Map<Locale, string[]>();
   const rawSelectStatementsMap = new Map<Locale, string[]>();
