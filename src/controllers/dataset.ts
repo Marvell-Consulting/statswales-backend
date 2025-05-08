@@ -11,7 +11,10 @@ import {
   withDimensions,
   withDraftAndMeasure,
   withDraftAndMetadata,
-  withDraftForCube
+  withDraftAndProviders,
+  withDraftAndTopics,
+  withDraftForCube,
+  withFactTable
 } from '../repositories/dataset';
 import { Locale } from '../enums/locale';
 import { logger } from '../utils/logger';
@@ -188,7 +191,7 @@ export const uploadDataTable = async (req: Request, res: Response, next: NextFun
 };
 
 export const cubePreview = async (req: Request, res: Response, next: NextFunction) => {
-  const dataset = res.locals.dataset;
+  const dataset = await DatasetRepository.getById(res.locals.datasetId, withDraftForCube);
   const latestRevision = dataset.draftRevision ?? last(sortBy(dataset?.revisions, 'revisionIndex'));
 
   if (!latestRevision) {
@@ -258,20 +261,20 @@ export const updateMetadata = async (req: Request, res: Response, next: NextFunc
 };
 
 export const getTasklist = async (req: Request, res: Response, next: NextFunction) => {
-  const dataset = res.locals.dataset;
+  const datasetId = res.locals.datasetId;
   try {
-    const tasklistState = await req.datasetService.getTasklistState(dataset.id, req.language as Locale);
+    const tasklistState = await req.datasetService.getTasklistState(datasetId, req.language as Locale);
     res.json(tasklistState);
   } catch (err) {
-    logger.error(err, `There was a problem fetching the tasklist for dataset ${dataset.id}`);
+    logger.error(err, `There was a problem fetching the tasklist for dataset ${datasetId}`);
     next(new UnknownException('errors.tasklist_error'));
   }
 };
 
 export const getDataProviders = async (req: Request, res: Response, next: NextFunction) => {
-  const dataset = res.locals.dataset;
   try {
-    const providers = dataset.draftRevision.revisionProviders.map((provider: RevisionProvider) =>
+    const dataset = await DatasetRepository.getById(res.locals.datasetId, withDraftAndProviders);
+    const providers = dataset.draftRevision?.revisionProviders?.map((provider: RevisionProvider) =>
       RevisionProviderDTO.fromRevisionProvider(provider)
     );
     res.json(providers);
@@ -322,7 +325,8 @@ export const updateDataProviders = async (req: Request, res: Response, next: Nex
 
 export const getTopics = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const revisionTopics = res.locals.dataset?.draftRevision?.revisionTopics || [];
+    const dataset = await DatasetRepository.getById(res.locals.datasetId, withDraftAndTopics);
+    const revisionTopics = dataset?.draftRevision?.revisionTopics || [];
     const topics = revisionTopics.map((revTopic: RevisionTopic) => TopicDTO.fromTopic(revTopic.topic));
     res.json(topics);
   } catch (err) {
@@ -351,7 +355,7 @@ export const updateTopics = async (req: Request, res: Response, next: NextFuncti
 };
 
 export const updateSources = async (req: Request, res: Response, next: NextFunction) => {
-  const dataset: Dataset = res.locals.dataset;
+  const dataset = await DatasetRepository.getById(res.locals.datasetId, withDraftForCube);
   const revision = dataset.draftRevision;
   const dataTable = revision?.dataTable;
   const sourceAssignment = req.body;
@@ -458,7 +462,7 @@ export const updateSources = async (req: Request, res: Response, next: NextFunct
 };
 
 export const getFactTableDefinition = async (req: Request, res: Response) => {
-  const dataset: Dataset = res.locals.dataset;
+  const dataset = await DatasetRepository.getById(res.locals.datasetId, withFactTable);
   const factTableDto: FactTableColumnDto[] =
     dataset.factTable?.map((col: FactTableColumn) => FactTableColumnDto.fromFactTableColumn(col)) || [];
   res.status(200);
@@ -466,24 +470,26 @@ export const getFactTableDefinition = async (req: Request, res: Response) => {
 };
 
 export const getAllFilesForDataset = async (req: Request, res: Response) => {
-  const dataset: Dataset = res.locals.dataset;
-  const datasetFiles = collectFiles(dataset);
+  const datasetId: string = res.locals.datasetId;
   const zip = new JSZip();
+
   try {
+    const dataset = await DatasetRepository.getById(datasetId, withDraftForCube);
+    const datasetFiles = collectFiles(dataset);
     await addDirectoryToZip(zip, datasetFiles, dataset.id, req.fileService);
+    zip.file('dataset.json', JSON.stringify(DatasetDTO.fromDataset(dataset)));
   } catch (err) {
-    logger.error(err, `Failed to get files from datalake for dataset ${dataset.id}`);
+    logger.error(err, `Failed to get files from datalake for dataset ${datasetId}`);
     res.status(500);
     res.end();
     return;
   }
-  zip.file('dataset.json', JSON.stringify(DatasetDTO.fromDataset(dataset)));
 
   res.writeHead(200, {
     // eslint-disable-next-line @typescript-eslint/naming-convention
     'Content-Type': `application/zip`,
     // eslint-disable-next-line @typescript-eslint/naming-convention
-    'Content-Disposition': `attachment; filename=${dataset.id}.zip`
+    'Content-Disposition': `attachment; filename=${datasetId}.zip`
   });
   zip
     .generateNodeStream({ type: 'nodebuffer', streamFiles: true })
@@ -493,11 +499,18 @@ export const getAllFilesForDataset = async (req: Request, res: Response) => {
     });
 };
 
-export const listAllFilesInDataset = async (req: Request, res: Response) => {
-  const dataset: Dataset = res.locals.dataset;
-  const datasetFiles = collectFiles(dataset);
-  const files = Array.from(datasetFiles.values());
-  res.json(files);
+export const listAllFilesInDataset = async (req: Request, res: Response, next: NextFunction) => {
+  const datasetId: string = res.locals.datasetId;
+
+  try {
+    const dataset = await DatasetRepository.getById(datasetId, withDraftForCube);
+    const datasetFiles = collectFiles(dataset);
+    const files = Array.from(datasetFiles.values());
+    res.json(files);
+  } catch (err) {
+    logger.error(err, `Failed to list all files for ${datasetId}`);
+    next(new UnknownException('errors.list_files_error'));
+  }
 };
 
 export const updateDatasetGroup = async (req: Request, res: Response, next: NextFunction) => {
