@@ -7,7 +7,7 @@ import { Dataset } from '../entities/dataset/dataset';
 import { FactTableColumnType } from '../enums/fact-table-column-type';
 import { logger } from '../utils/logger';
 import { DuckdbOutputType } from '../enums/duckdb-outputs';
-import { DatasetRepository } from '../repositories/dataset';
+import { DatasetRepository, withDraftForCube } from '../repositories/dataset';
 import { CSVHeader, ViewDTO, ViewErrDTO } from '../dtos/view-dto';
 import { DatasetDTO } from '../dtos/dataset-dto';
 import { getLatestRevision } from '../utils/latest';
@@ -119,12 +119,14 @@ export const outputCube = async (cubeFile: string, lang: string, mode: DuckdbOut
 };
 
 export const downloadCubeFile = async (req: Request, res: Response, next: NextFunction) => {
-  const dataset = res.locals.dataset;
+  const dataset = await DatasetRepository.getById(res.locals.datasetId, withDraftForCube);
   const latestRevision = getLatestRevision(dataset);
+
   if (!latestRevision) {
     next(new UnknownException('errors.no_revision'));
     return;
   }
+
   let cubeBuffer: Buffer;
   if (latestRevision.onlineCubeFilename) {
     cubeBuffer = await req.fileService.loadBuffer(latestRevision.onlineCubeFilename, dataset.id);
@@ -138,6 +140,7 @@ export const downloadCubeFile = async (req: Request, res: Response, next: NextFu
       return;
     }
   }
+
   logger.info(`Sending original cube file (size: ${cubeBuffer.length})`);
   res.writeHead(200, {
     // eslint-disable-next-line @typescript-eslint/naming-convention
@@ -151,7 +154,7 @@ export const downloadCubeFile = async (req: Request, res: Response, next: NextFu
 };
 
 export const downloadCubeAsJSON = async (req: Request, res: Response, next: NextFunction) => {
-  const dataset = res.locals.dataset;
+  const dataset = await DatasetRepository.getById(res.locals.datasetId, withDraftForCube);
   const lang = req.language.split('-')[0];
   const latestRevision = getLatestRevision(dataset);
   if (!latestRevision) {
@@ -197,7 +200,7 @@ export const downloadCubeAsJSON = async (req: Request, res: Response, next: Next
 };
 
 export const downloadCubeAsCSV = async (req: Request, res: Response, next: NextFunction) => {
-  const dataset = res.locals.dataset;
+  const dataset = await DatasetRepository.getById(res.locals.datasetId, withDraftForCube);
   const lang = req.language.split('-')[0];
   const latestRevision = getLatestRevision(dataset);
   if (!latestRevision) {
@@ -242,7 +245,7 @@ export const downloadCubeAsCSV = async (req: Request, res: Response, next: NextF
 };
 
 export const downloadCubeAsParquet = async (req: Request, res: Response, next: NextFunction) => {
-  const dataset = res.locals.dataset;
+  const dataset = await DatasetRepository.getById(res.locals.datasetId, withDraftForCube);
   const lang = req.language.split('-')[0];
   const latestRevision = getLatestRevision(dataset);
   if (!latestRevision) {
@@ -287,7 +290,7 @@ export const downloadCubeAsParquet = async (req: Request, res: Response, next: N
 };
 
 export const downloadCubeAsExcel = async (req: Request, res: Response, next: NextFunction) => {
-  const dataset = res.locals.dataset;
+  const dataset = await DatasetRepository.getById(res.locals.datasetId, withDraftForCube);
   const lang = req.language.split('-')[0];
   const latestRevision = getLatestRevision(dataset);
   if (!latestRevision) {

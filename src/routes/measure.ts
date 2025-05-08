@@ -19,11 +19,15 @@ const upload = multer({ storage: multer.memoryStorage() });
 const router = Router();
 export const measureRouter = router;
 
-router.delete('/reset', resetMeasure);
+// GET /dataset/:dataset_id/measure
+router.get('/', getMeasureInfo);
 
 // POST /:dataset_id/measure
 // Attaches a measure lookup table to a dataset and validates it.
 router.post('/', upload.single('csv'), attachLookupTableToMeasure);
+
+// DELETE /dataset/:dataset_id/measure/reset
+router.delete('/reset', resetMeasure);
 
 // GET /dataset/:dataset_id/dimension/id/:dimension_id/preview
 // Returns details of a dimension and a preview of the data
@@ -34,9 +38,6 @@ router.get('/preview', getPreviewOfMeasure);
 // PATCH /:dataset_id/dimension/by-id/:dimension_id/meta
 // Updates the dimension metadata
 router.patch('/metadata', jsonParser, updateMeasureMetadata);
-
-// GET /dataset/:dataset_id/measure/info
-router.get('/info', getMeasureInfo);
 
 router.get('/lookup', getMeasureLookupTableInfo);
 

@@ -1,3 +1,5 @@
+import { performance } from 'node:perf_hooks';
+
 import { FindOneOptions, FindOptionsRelations, QueryBuilder } from 'typeorm';
 import { has, set } from 'lodash';
 
@@ -32,8 +34,17 @@ export const withAll: FindOptionsRelations<Dataset> = {
   }
 };
 
+export const withFactTable: FindOptionsRelations<Dataset> = {
+  factTable: true
+};
+
 export const withDraftAndMetadata: FindOptionsRelations<Dataset> = {
   draftRevision: { metadata: true }
+};
+
+export const withMetadataForTranslation: FindOptionsRelations<Dataset> = {
+  draftRevision: { metadata: true },
+  dimensions: { metadata: true }
 };
 
 export const withDraftAndProviders: FindOptionsRelations<Dataset> = {
@@ -128,6 +139,7 @@ const listAllQuery = (qb: QueryBuilder<Dataset>, lang: Locale) => {
 
 export const DatasetRepository = dataSource.getRepository(Dataset).extend({
   async getById(id: string, relations: FindOptionsRelations<Dataset> = {}): Promise<Dataset> {
+    const start = performance.now();
     const findOptions: FindOneOptions<Dataset> = { where: { id }, relations };
 
     if (has(relations, 'factTable')) {
@@ -138,7 +150,19 @@ export const DatasetRepository = dataSource.getRepository(Dataset).extend({
       set(findOptions, 'revisions.dataTable.dataTableDescriptions', { columnIndex: 'ASC' });
     }
 
-    return this.findOneOrFail(findOptions);
+    const dataset = await this.findOneOrFail(findOptions);
+
+    const end = performance.now();
+    const size = Math.round(Buffer.byteLength(JSON.stringify(dataset)) / 1024);
+    const time = Math.round(end - start);
+
+    if (size > 100 || time > 100) {
+      logger.warn(`LARGE/SLOW Dataset ${id} loaded { size: ${size}kb, time: ${time}ms }`);
+    } else {
+      logger.debug(`Dataset ${id} loaded { size: ${size}kb, time: ${time}ms }`);
+    }
+
+    return dataset;
   },
 
   async deleteById(id: string): Promise<void> {
