@@ -35,14 +35,11 @@ export const getCubePreview = async (
     if (errors.length > 0) {
       return { status: 400, errors, dataset_id: dataset.id };
     }
-
     const previewQuery = `
-      SELECT int_line_number, *
-      FROM (SELECT row_number() OVER () as int_line_number, * FROM default_view_${lang})
+      SELECT * FROM default_view_${lang}
       LIMIT ${size}
       OFFSET ${(page - 1) * size}
     `;
-
     const preview = await quack.all(previewQuery);
     const startLine = Number(preview[0].int_line_number);
     const lastLine = Number(preview[preview.length - 1].int_line_number);

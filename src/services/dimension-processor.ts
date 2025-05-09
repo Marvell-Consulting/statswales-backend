@@ -458,7 +458,7 @@ export const validateUpdatedDateDimension = async (
 ): Promise<undefined> => {
   const errors = await validateDateDimension(quack, dataset, dimension, factTableColumn);
   if (errors) {
-    const err = new CubeValidationException('Validation failed');
+    const err = new CubeValidationException('Validation failed', dataset.id, 'unkn', CubeValidationType.Dimension);
     err.type = CubeValidationType.DimensionNonMatchedRows;
     throw err;
   }

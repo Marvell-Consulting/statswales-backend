@@ -10,6 +10,7 @@ import fs from 'fs';
 
 export async function createEmptyCubeWithFactTable(dataset: Dataset): Promise<Database> {
   const draftRevision = dataset.draftRevision;
+  const buildLog: string[] = [];
 
   if (!draftRevision) {
     throw new Error('No draft revision present on the dataset');
@@ -29,7 +30,8 @@ export async function createEmptyCubeWithFactTable(dataset: Dataset): Promise<Da
     try {
       const { notesCodeColumn, dataValuesColumn, factTableDef, factIdentifiers } = await createEmptyFactTableInCube(
         quack,
-        dataset
+        dataset,
+        buildLog
       );
       await loadFactTables(
         quack,
@@ -38,7 +40,8 @@ export async function createEmptyCubeWithFactTable(dataset: Dataset): Promise<Da
         factTableDef,
         dataValuesColumn,
         notesCodeColumn,
-        factIdentifiers
+        factIdentifiers,
+        buildLog
       );
     } catch (error) {
       await quack.close();
