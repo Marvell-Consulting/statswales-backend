@@ -53,10 +53,16 @@ export class Dataset extends BaseEntity {
   @OneToMany(() => Revision, (revision) => revision.dataset, { cascade: true })
   revisions: Revision[];
 
+  @Column({ name: 'start_revision_id', type: 'uuid', nullable: true })
+  startRevisionId?: string;
+
   // the very first revision
   @OneToOne(() => Revision, (revision) => revision.dataset, { nullable: true })
   @JoinColumn({ name: 'start_revision_id', foreignKeyConstraintName: 'FK_dataset_start_revision_id' })
   startRevision: Revision | null;
+
+  @Column({ name: 'end_revision_id', type: 'uuid', nullable: true })
+  endRevisionId?: string;
 
   // the newest revision (including draft revision if in progress)
   @OneToOne(() => Revision, (revision) => revision.dataset, { nullable: true })
