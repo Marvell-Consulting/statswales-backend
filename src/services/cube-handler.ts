@@ -33,7 +33,7 @@ import { RevisionRepository } from '../repositories/revision';
 import { PeriodCovered } from '../interfaces/period-covered';
 
 import { dateDimensionReferenceTableCreator } from './time-matching';
-import { duckdb, safelyCloseDuckDb } from './duckdb';
+import { duckdb, safelyCloseDuckDb, duckDBFormat, duckDBEscape } from './duckdb';
 import { NumberExtractor, NumberType } from '../extractors/number-extractor';
 import { CubeValidationType } from '../enums/cube-validation-type';
 import { languageMatcherCaseStatement } from '../utils/lookup-table-utils';
@@ -49,7 +49,7 @@ export const makeCubeSafeString = (str: string): string => {
     .replace(/[^a-zA-Z_]/g, '');
 };
 
-export const createFactTableQuery = async (
+export const createDataTableQuery = async (
   tableName: string,
   tempFileName: string,
   fileType: FileType,
@@ -58,16 +58,25 @@ export const createFactTableQuery = async (
   switch (fileType) {
     case FileType.Csv:
     case FileType.GzipCsv:
-      return `CREATE TABLE ${tableName} AS SELECT * FROM read_csv('${tempFileName}', auto_type_candidates = ['BIGINT', 'DOUBLE', 'VARCHAR']);`;
+      return duckDBFormat(
+        `CREATE TABLE ?? AS SELECT * FROM read_csv(?, auto_type_candidates = ['BIGINT', 'DOUBLE', 'VARCHAR']);`,
+        [makeCubeSafeString(tableName), tempFileName]
+      );
     case FileType.Parquet:
-      return `CREATE TABLE ${tableName} AS SELECT * FROM '${tempFileName}';`;
+      return duckDBFormat(`CREATE TABLE ?? AS SELECT * FROM ?;`, [makeCubeSafeString(tableName), tempFileName]);
     case FileType.Json:
     case FileType.GzipJson:
-      return `CREATE TABLE ${tableName} AS SELECT * FROM read_json_auto('${tempFileName}');`;
+      return duckDBFormat(`CREATE TABLE ?? AS SELECT * FROM read_json_auto(?);`, [
+        makeCubeSafeString(tableName),
+        tempFileName
+      ]);
     case FileType.Excel:
       await quack.exec('INSTALL spatial;');
       await quack.exec('LOAD spatial;');
-      return `CREATE TABLE ${tableName} AS SELECT * FROM st_read('${tempFileName}');`;
+      return duckDBFormat(`CREATE TABLE ?? AS SELECT * FROM st_read(?);`, [
+        makeCubeSafeString(tableName),
+        tempFileName
+      ]);
     default:
       throw new Error('Unknown file type');
   }
@@ -80,7 +89,7 @@ export const loadFileIntoCube = async (
   tableName: string
 ) => {
   logger.debug(`Loading file in to the cube`);
-  const insertQuery = await createFactTableQuery(tableName, tempFile, fileImport.fileType, quack);
+  const insertQuery = await createDataTableQuery(tableName, tempFile, fileImport.fileType, quack);
   try {
     await quack.exec(insertQuery);
   } catch (error) {
@@ -95,8 +104,9 @@ export const loadTableDataIntoFactTable = async (
   factTableName: string,
   originTableName: string
 ) => {
-  const tableSize = await quack.all(`SELECT CAST (COUNT(*) AS INTEGER) as table_size
-                                     FROM ${originTableName};`);
+  const tableSize = await quack.all(
+    duckDBFormat('SELECT CAST (COUNT(*) AS INTEGER) as table_size FROM ??;', [originTableName])
+  );
   const rowCount = tableSize[0].table_size;
   if (rowCount === 0) {
     logger.debug(`No data to load into ${factTableName}`);
@@ -105,20 +115,22 @@ export const loadTableDataIntoFactTable = async (
   logger.debug(`Loading data table into fact table`);
   const batchSize = 200000;
   let processedRows = 0;
-  let insertQuery = `
-      INSERT INTO ${factTableName}
-      SELECT "${factTableDef.join('", "')}"
-      FROM ${originTableName} LIMIT ${batchSize}
-      OFFSET ${processedRows};
-    `;
+  let insertQuery = duckDBFormat('INSERT INTO ?? SELECT ?? FROM ?? LIMIT ? OFFSET ?;', [
+    factTableName,
+    factTableDef,
+    originTableName,
+    batchSize,
+    processedRows
+  ]);
   try {
     while (processedRows < rowCount) {
-      insertQuery = `
-      INSERT INTO ${factTableName}
-      SELECT "${factTableDef.join('", "')}"
-      FROM ${originTableName} LIMIT ${batchSize}
-      OFFSET ${processedRows};
-    `;
+      insertQuery = duckDBFormat('INSERT INTO ?? SELECT ?? FROM ?? LIMIT ? OFFSET ?;', [
+        factTableName,
+        factTableDef,
+        originTableName,
+        batchSize,
+        processedRows
+      ]);
       await quack.exec(insertQuery);
 
       processedRows += batchSize;
@@ -159,6 +171,7 @@ export const loadTableDataIntoFactTable = async (
       500
     );
   }
+  logger.debug(`Successfully loaded data table into fact table`);
 };
 
 // This function differs from loadFileIntoDatabase in that it only loads a file into an existing table
@@ -206,7 +219,7 @@ export const loadFileDataTableIntoTable = async (
     logger.debug(`Loading file data table into table ${tableName} with query: ${insertQuery}`);
     await quack.exec(insertQuery);
     await loadTableDataIntoFactTable(quack, factTableDef, tableName, tempTableName);
-    await quack.exec(`DROP TABLE ${tempTableName};`);
+    await quack.exec(duckDBFormat('DROP TABLE ??', [tempTableName]));
     await quack.exec('CHECKPOINT;');
   } catch (error) {
     logger.error(error, `Failed to load file into table using query ${insertQuery}`);
@@ -479,9 +492,7 @@ export async function createLookupTableDimension(quack: Database, dataset: Datas
   await quack.exec(createLookupTableQuery(factTableColumn));
   const extractor = dimension.extractor as LookupTableExtractor;
   const lookupTableFile = await getFileImportAndSaveToDisk(dataset, dimension.lookupTable);
-  const lookupTableName = dimension.lookupTable.isStatsWales2Format
-    ? `${makeCubeSafeString(dimension.factTableColumn)}_lookup_sw2`
-    : `${makeCubeSafeString(dimension.factTableColumn)}_lookup_sw3`;
+  const lookupTableName = `${makeCubeSafeString(dimension.factTableColumn)}_lookup_draft`
   await loadFileIntoCube(quack, dimension.lookupTable, lookupTableFile, lookupTableName);
 
   if (extractor.isSW2Format) {
@@ -492,41 +503,56 @@ export async function createLookupTableDimension(quack: Database, dataset: Datas
         (col) => col.lang.toLowerCase() === locale.toLowerCase()
       );
       const notesCol = extractor.notesColumns?.find((col) => col.lang.toLowerCase() === locale.toLowerCase());
-      const descriptionColStr = descriptionCol ? `"${descriptionCol.name}"` : 'NULL';
-      const notesColStr = notesCol ? `"${notesCol.name}"` : 'NULL';
-      const sortStr = extractor.sortColumn ? `"${extractor.sortColumn}"` : 'NULL';
-      const hierarchyCol = extractor.hierarchyColumn ? `"${extractor.hierarchyColumn}"` : 'NULL';
+      const descriptionColStr = descriptionCol ? descriptionCol.name : null;
+      const notesColStr = notesCol ? notesCol.name : null;
+      const sortStr = extractor.sortColumn ? extractor.sortColumn : null;
+      const hierarchyCol = extractor.hierarchyColumn ? extractor.hierarchyColumn : null;
       dataExtractorParts.push(
-        `SELECT "${dimension.joinColumn}" as ${factTableColumn.columnName},
-        '${locale.toLowerCase()}' as language,
-        ${descriptionColStr} as description,
-        ${notesColStr} as notes,
-        ${sortStr} as sort_order,
-        ${hierarchyCol} as hierarchy
-        FROM ${lookupTableName}`
+        duckDBFormat(
+          'SELECT ?? AS ??, ? as language, ?? as description, ?? as notes, ?? as sort_order, ?? as hierarchy FROM ??',
+          [
+            dimension.joinColumn,
+            factTableColumn.columnName,
+            locale.toLowerCase(),
+            descriptionColStr,
+            notesColStr,
+            sortStr,
+            hierarchyCol,
+            lookupTableName
+          ]
+        ).replaceAll('"null"', 'NULL')
       );
     }
-    const builtInsertQuery = `INSERT INTO ${makeCubeSafeString(dimension.factTableColumn)}_lookup (${dataExtractorParts.join(' UNION ')});`;
+    const builtInsertQuery = duckDBFormat(`INSERT INTO ?? ${dataExtractorParts.join(' UNION ')};`, [
+      `${makeCubeSafeString(dimension.factTableColumn)}_lookup`
+    ]);
+    // const builtInsertQuery = `INSERT INTO ${makeCubeSafeString(dimension.factTableColumn)}_lookup (${dataExtractorParts.join(' UNION ')});`;
     logger.debug(`Built insert query: ${builtInsertQuery}`);
     await quack.exec(builtInsertQuery);
   } else {
     const languageMatcher = languageMatcherCaseStatement(extractor.languageColumn);
-    const notesStr = extractor.notesColumns ? `"${extractor.notesColumns[0].name}"` : 'NULL';
-    const dataExtractorParts = `
-      SELECT
-        "${dimension.joinColumn}" as "${factTableColumn.columnName}",
-        ${languageMatcher} as language,
-        "${extractor.descriptionColumns[0].name}" as description,
-        ${notesStr} as notes,
-        ${extractor.sortColumn ? `"${extractor.sortColumn}"` : 'NULL'} as sort_order,
-        ${extractor.hierarchyColumn ? `"${extractor.hierarchyColumn}"` : 'NULL'} as hierarchy
-      FROM ${lookupTableName}
-    `;
-    const builtInsertQuery = `INSERT INTO ${makeCubeSafeString(dimension.factTableColumn)}_lookup ${dataExtractorParts};`;
+    const notesStr = extractor.notesColumns ? extractor.notesColumns[0].name : null;
+    const sortStr = extractor.sortColumn ? extractor.sortColumn : null;
+    const hierarchyStr = extractor.hierarchyColumn ? extractor.hierarchyColumn : null;
+    const dataExtractorParts = duckDBFormat(
+      `SELECT ?? AS ??, ${languageMatcher} as language, ?? as description, ?? as notes, ?? as sort_order, ?? as hierarchy FROM ??;`,
+      [
+        dimension.joinColumn,
+        factTableColumn.columnName,
+        extractor.descriptionColumns[0].name,
+        notesStr,
+        sortStr,
+        hierarchyStr,
+        lookupTableName
+      ]
+    );
+    const builtInsertQuery = duckDBFormat(`INSERT INTO ?? ${dataExtractorParts}`, [
+      `${makeCubeSafeString(dimension.factTableColumn)}_lookup`
+    ]);
     await quack.exec(builtInsertQuery);
   }
   logger.debug(`Dropping original lookup table ${lookupTableName}`);
-  await quack.exec(`DROP TABLE ${lookupTableName};`);
+  await quack.exec(duckDBFormat('DROP TABLE ??', [lookupTableName]));
 }
 
 function setupFactTableUpdateJoins(
@@ -537,7 +563,9 @@ function setupFactTableUpdateJoins(
   const joinParts: string[] = [];
   for (const factTableCol of factIdentifiers) {
     const dataTableCol = dataTableIdentifiers.find((col) => col.factTableColumn === factTableCol.columnName);
-    joinParts.push(`${factTableName}."${factTableCol.columnName}"=update_table."${dataTableCol?.columnName}"`);
+    joinParts.push(
+      duckDBFormat('??.??=update_table.??', [factTableName, factTableCol.columnName, dataTableCol?.columnName])
+    );
   }
   return joinParts.join(' AND ');
 }
@@ -559,13 +587,40 @@ async function loadFactTablesWithUpdates(
       (col) => col.factTableColumn === dataValuesColumn.columnName
     )?.columnName;
 
-    const updateQuery = `UPDATE ${FACT_TABLE_NAME} SET "${dataValuesColumn.columnName}"=update_table."${updateTableDataCol}",
-             "${notesCodeColumn.columnName}"=(CASE
-                WHEN ${FACT_TABLE_NAME}."${notesCodeColumn.columnName}" IS NULL THEN 'r'
-                WHEN ${FACT_TABLE_NAME}."${notesCodeColumn.columnName}" LIKE '%r%' THEN ${FACT_TABLE_NAME}."${notesCodeColumn.columnName}"
-                ELSE concat(${FACT_TABLE_NAME}."${notesCodeColumn.columnName}", ',r') END)
-             FROM update_table WHERE ${setupFactTableUpdateJoins(FACT_TABLE_NAME, factIdentifiers, dataTable.dataTableDescriptions)}
-             AND ${FACT_TABLE_NAME}."${dataValuesColumn.columnName}"!=update_table."${updateTableDataCol}";`;
+    const updateQuery = duckDBFormat(
+      `UPDATE ?? SET ??=update_table.??,
+      ??=(CASE
+      WHEN ??.?? IS NULL THEN 'r'
+      WHEN ??.?? LIKE '%r%' THEN ??.??
+      ELSE concat(??.??,'r') END)
+      FROM update_table WHERE ${setupFactTableUpdateJoins(FACT_TABLE_NAME, factIdentifiers, dataTable.dataTableDescriptions)}
+      AND ??.??!=update_table.??;`,
+      [
+        FACT_TABLE_NAME,
+        dataValuesColumn.columnName,
+        updateTableDataCol,
+        notesCodeColumn.columnName,
+        FACT_TABLE_NAME,
+        notesCodeColumn.columnName,
+        FACT_TABLE_NAME,
+        notesCodeColumn.columnName,
+        FACT_TABLE_NAME,
+        notesCodeColumn.columnName,
+        FACT_TABLE_NAME,
+        notesCodeColumn.columnName,
+        FACT_TABLE_NAME,
+        dataValuesColumn.columnName,
+        updateTableDataCol
+      ]
+    );
+    // const updateQuery = `
+    //           UPDATE ${FACT_TABLE_NAME} SET "${dataValuesColumn.columnName}"=update_table."${updateTableDataCol}",
+    //          "${notesCodeColumn.columnName}"=(CASE
+    //             WHEN ${FACT_TABLE_NAME}."${notesCodeColumn.columnName}" IS NULL THEN 'r'
+    //             WHEN ${FACT_TABLE_NAME}."${notesCodeColumn.columnName}" LIKE '%r%' THEN ${FACT_TABLE_NAME}."${notesCodeColumn.columnName}"
+    //             ELSE concat(${FACT_TABLE_NAME}."${notesCodeColumn.columnName}", ',r') END)
+    //          FROM update_table WHERE ${setupFactTableUpdateJoins(FACT_TABLE_NAME, factIdentifiers, dataTable.dataTableDescriptions)}
+    //          AND ${FACT_TABLE_NAME}."${dataValuesColumn.columnName}"!=update_table."${updateTableDataCol}";`;
     const dataTableColumnSelect: string[] = [];
 
     for (const factTableCol of factTableDef) {
@@ -579,7 +634,7 @@ async function loadFactTablesWithUpdates(
       logger.debug(`Performing action ${dataTable.action} on fact table`);
       switch (dataTable.action) {
         case DataTableAction.ReplaceAll:
-          await quack.exec(`DELETE FROM ${FACT_TABLE_NAME};`);
+          await quack.exec(duckDBFormat(`DELETE FROM ??;`, [FACT_TABLE_NAME]));
           await quack.exec('CHECKPOINT;');
           await loadFileDataTableIntoTable(quack, dataTable, factTableDef, factTableFile, FACT_TABLE_NAME);
           break;
@@ -596,45 +651,28 @@ async function loadFactTablesWithUpdates(
           logger.debug(`Executing update query: ${updateQuery}`);
           await quack.exec(updateQuery);
           await quack.exec(
-            `DELETE FROM update_table USING ${FACT_TABLE_NAME} WHERE ${setupFactTableUpdateJoins(FACT_TABLE_NAME, factIdentifiers, dataTable.dataTableDescriptions)};`
+            duckDBFormat(
+              `DELETE FROM update_table USING ?? WHERE ${setupFactTableUpdateJoins(FACT_TABLE_NAME, factIdentifiers, dataTable.dataTableDescriptions)}`,
+              [FACT_TABLE_NAME]
+            )
           );
           await quack.exec('CHECKPOINT;');
           await quack.exec(
-            `INSERT INTO ${FACT_TABLE_NAME} ("${factTableDef.join('", "')}") (SELECT "${dataTableColumnSelect.join('", "')}" FROM update_table);`
+            duckDBFormat(`INSERT INTO ?? (??) (SELECT ?? FROM update_table);`, [
+              FACT_TABLE_NAME,
+              factTableDef,
+              dataTableColumnSelect
+            ])
           );
           await quack.exec(`DROP TABLE update_table;`);
           await quack.exec('CHECKPOINT;');
           break;
       }
+    } catch (error) {
+      logger.error(error, `Something went wrong trying to create the core fact table`);
     } finally {
       fs.unlinkSync(factTableFile);
     }
-  }
-}
-
-async function loadFactTablesWithoutUpdates(
-  quack: Database,
-  dataset: Dataset,
-  factTableDef: string[],
-  allFactTables: DataTable[]
-) {
-  logger.warn(
-    'There is no notes column present in this dataset.  Action allowed are limited to adding data and replacing all data'
-  );
-  for (const factTable of allFactTables.sort((ftA, ftB) => ftA.uploadedAt.getTime() - ftB.uploadedAt.getTime())) {
-    logger.info(`Loading fact table data for fact table ${factTable.id}`);
-    const factTableFile = await getFileImportAndSaveToDisk(dataset, factTable);
-    switch (factTable.action) {
-      case DataTableAction.ReplaceAll:
-        await quack.exec(`DELETE FROM ${FACT_TABLE_NAME};`);
-        await quack.exec('CHECKPOINT;');
-        await loadFileDataTableIntoTable(quack, factTable, factTableDef, factTableFile, FACT_TABLE_NAME);
-        break;
-      case DataTableAction.Add:
-        await loadFileDataTableIntoTable(quack, factTable, factTableDef, factTableFile, FACT_TABLE_NAME);
-        break;
-    }
-    fs.unlinkSync(factTableFile);
   }
 }
 
@@ -690,8 +728,8 @@ export async function loadFactTables(
         factIdentifiers
       );
     } else {
-      logger.debug(`Loading ${allFactTables.length} fact tables in to database without updates`);
-      await loadFactTablesWithoutUpdates(quack, dataset, factTableDef, allFactTables);
+      logger.error(`There is no data values column or notes code column in the dataset`);
+      throw new CubeValidationException('There is no data values column or notes code column in the dataset');
     }
   } catch (error) {
     if (error instanceof FactTableValidationException) {
@@ -1162,16 +1200,20 @@ export async function createEmptyFactTableInCube(quack: Database, dataset: Datas
           break;
       }
       factTableDef.push(field.columnName);
-      return `"${field.columnName}" ${field.columnDatatype}`;
+      return `${duckDBEscape(field.columnName)} ${field.columnDatatype}`.replaceAll(`'`, `"`);
     });
 
   logger.info('Creating initial fact table in cube');
   try {
-    let key = '';
+    let createTableQuery: string = duckDBFormat(`CREATE TABLE ?? (${factTableCreationDef.join(',')});`, [
+      FACT_TABLE_NAME
+    ]);
     if (compositeKey.length > 0) {
-      key = `, PRIMARY KEY (${compositeKey.join(', ')})`;
+      createTableQuery = duckDBFormat(`CREATE TABLE ?? (${factTableCreationDef.join(',')}, PRIMARY KEY(??));`, [
+        FACT_TABLE_NAME,
+        compositeKey
+      ]);
     }
-    const createTableQuery = `CREATE TABLE ${FACT_TABLE_NAME} (${factTableCreationDef.join(', ')}${key});`;
     logger.debug(`Creating fact table with query: '${createTableQuery}'`);
     await quack.exec(createTableQuery);
   } catch (err) {
