@@ -11,6 +11,7 @@ import { publisher1 } from './users';
 import { Designation } from '../../src/enums/designation';
 import { RevisionMetadata } from '../../src/entities/dataset/revision-metadata';
 import { testGroup } from './group';
+import { Locale } from '../../src/enums/locale';
 
 export const uploadPageTest: DeepPartial<Dataset> = {
   id: '936c1ab4-2b33-4b13-8949-4316a156d24b',
@@ -18,8 +19,8 @@ export const uploadPageTest: DeepPartial<Dataset> = {
   draftRevision: {
     revisionIndex: 1,
     metadata: [
-      { language: 'en-GB', title: 'Test - Upload' },
-      { language: 'cy-GB', title: 'Test - Upload' }
+      { language: Locale.EnglishGb, title: 'Test - Upload' },
+      { language: Locale.WelshGb, title: 'Test - Upload' }
     ]
   },
   userGroupId: testGroup.id
@@ -31,8 +32,8 @@ export const previewPageTestA: DeepPartial<Dataset> = {
   draftRevision: {
     revisionIndex: 1,
     metadata: [
-      { language: 'en-GB', title: 'Test - Preview A' },
-      { language: 'en-CY', title: 'Test - Preview A' }
+      { language: Locale.EnglishGb, title: 'Test - Preview A' },
+      { language: Locale.WelshGb, title: 'Test - Preview A' }
     ]
   },
   userGroupId: testGroup.id
@@ -44,8 +45,8 @@ export const previewPageTestB: DeepPartial<Dataset> = {
   draftRevision: {
     revisionIndex: 1,
     metadata: [
-      { language: 'en-GB', title: 'Test - Preview B' },
-      { language: 'en-CY', title: 'Test - Preview B' }
+      { language: Locale.EnglishGb, title: 'Test - Preview B' },
+      { language: Locale.WelshGb, title: 'Test - Preview B' }
     ]
   },
   userGroupId: testGroup.id
@@ -57,8 +58,8 @@ export const sourcesPageTest: DeepPartial<Dataset> = {
   draftRevision: {
     revisionIndex: 1,
     metadata: [
-      { language: 'en-GB', title: 'Test - Sources' },
-      { language: 'en-CY', title: 'Test - Sources' }
+      { language: Locale.EnglishGb, title: 'Test - Sources' },
+      { language: Locale.WelshGb, title: 'Test - Sources' }
     ]
   },
   userGroupId: testGroup.id
@@ -70,8 +71,8 @@ export const metadataTestA: DeepPartial<Dataset> = {
   draftRevision: {
     revisionIndex: 1,
     metadata: [
-      { language: 'en-GB', title: 'Test - Metadata A' },
-      { language: 'en-CY', title: 'Test - Metadata A' }
+      { language: Locale.EnglishGb, title: 'Test - Metadata A' },
+      { language: Locale.WelshGb, title: 'Test - Metadata A' }
     ]
   },
   userGroupId: testGroup.id
@@ -83,8 +84,8 @@ export const metadataTestB: DeepPartial<Dataset> = {
   draftRevision: {
     revisionIndex: 1,
     metadata: [
-      { language: 'en-GB', title: 'Test - Metadata B' },
-      { language: 'en-CY', title: 'Test - Metadata B' }
+      { language: Locale.EnglishGb, title: 'Test - Metadata B' },
+      { language: Locale.WelshGb, title: 'Test - Metadata B' }
     ]
   },
   userGroupId: testGroup.id
@@ -113,8 +114,8 @@ const generatePublishedDataset = (): DeepPartial<Dataset> => {
       updateFrequency: faker.helpers.arrayElement(['NEVER', randDuration]),
       designation: faker.helpers.arrayElement(Object.values(Designation)),
       metadata: [
-        { language: 'en-GB', ...randMeta },
-        { language: 'en-CY', ...randMeta }
+        { language: Locale.EnglishGb, ...randMeta },
+        { language: Locale.WelshGb, ...randMeta }
       ]
     },
     live
