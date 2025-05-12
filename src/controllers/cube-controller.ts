@@ -37,8 +37,7 @@ export const getCubePreview = async (
     }
 
     const previewQuery = `
-      SELECT int_line_number, *
-      FROM (SELECT row_number() OVER () as int_line_number, * FROM default_view_${lang})
+      SELECT * FROM default_view_${lang}
       LIMIT ${size}
       OFFSET ${(page - 1) * size}
     `;
