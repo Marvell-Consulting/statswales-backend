@@ -1,7 +1,6 @@
 import BlobStorage from '../../src/services/blob-storage';
 import { User } from '../../src/entities/user/user';
 import { getTestUser, getTestUserGroup } from '../helpers/get-test-user';
-import { DatasetService } from '../../src/services/dataset';
 import DatabaseManager from '../../src/db/database-manager';
 import { initDb } from '../../src/db/init';
 import { initPassport } from '../../src/middleware/passport-auth';
@@ -9,7 +8,6 @@ import { UserGroup } from '../../src/entities/user/user-group';
 import { UserGroupRole } from '../../src/entities/user/user-group-role';
 import { GroupRole } from '../../src/enums/group-role';
 import { createFullDataset } from '../helpers/test-helper';
-import { Locale } from '../../src/enums/locale';
 import { logger } from '../../src/utils/logger';
 import { Dataset } from '../../src/entities/dataset/dataset';
 import { DatasetDTO } from '../../src/dtos/dataset-dto';
@@ -34,7 +32,7 @@ const import1Id = 'fa07be9d-3495-432d-8c1f-d0fc6daae359';
 const user: User = getTestUser('test', 'user');
 let userGroup = getTestUserGroup('Test Group');
 
-let datasetService: DatasetService;
+// let datasetService: DatasetService;
 
 describe('API Endpoints', () => {
   let dbManager: DatabaseManager;
@@ -46,7 +44,7 @@ describe('API Endpoints', () => {
       user.groupRoles = [UserGroupRole.create({ group: userGroup, roles: [GroupRole.Editor] })];
       await user.save();
       await createFullDataset(dataset1Id, revision1Id, import1Id, user);
-      datasetService = new DatasetService(Locale.EnglishGb);
+      // datasetService = new DatasetService(Locale.EnglishGb);
     } catch (error) {
       logger.error(error, 'Could not initialise test database');
       await dbManager.getDataSource().dropDatabase();

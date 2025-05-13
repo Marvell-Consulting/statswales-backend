@@ -142,7 +142,10 @@ export const createLookupTableInCube = async (
   lookupTableName: string
 ) => {
   const extractor = dimension.extractor as LookupTableExtractor;
-  await quack.exec(createLookupTableQuery(factTableColumn));
+  const dimensionTableName = `${makeCubeSafeString(factTableColumn.columnName).toLowerCase()}_lookup`;
+  await quack.exec(
+    createLookupTableQuery(dimensionTableName, factTableColumn.columnName, factTableColumn.columnDatatype)
+  );
   if (extractor.isSW2Format) {
     logger.debug('Lookup table is SW2 format');
     const dataExtractorParts = [];

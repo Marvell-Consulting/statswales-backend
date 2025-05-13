@@ -33,7 +33,7 @@ import { RevisionRepository } from '../repositories/revision';
 import { PeriodCovered } from '../interfaces/period-covered';
 
 import { dateDimensionReferenceTableCreator } from './time-matching';
-import { duckdb, safelyCloseDuckDb, duckDBFormat, duckDBEscape } from './duckdb';
+import { duckdb, duckDBEscape, duckDBFormat, safelyCloseDuckDb } from './duckdb';
 import { NumberExtractor, NumberType } from '../extractors/number-extractor';
 import { CubeValidationType } from '../enums/cube-validation-type';
 import { languageMatcherCaseStatement } from '../utils/lookup-table-utils';
@@ -377,15 +377,39 @@ export const loadCorrectReferenceDataIntoReferenceDataTable = async (quack: Data
   const extractor = dimension.extractor as ReferenceDataExtractor;
   for (const category of extractor.categories) {
     const categoryPresent = await quack.all(
-      `SELECT DISTINCT category_key FROM reference_data WHERE category_key='${category}';`
+      duckDBFormat('SELECT DISTINCT category_key FROM reference_data WHERE category_key=?', [category])
     );
     if (categoryPresent.length > 0) {
       continue;
     }
     logger.debug(`Copying ${category} reference data in to reference_data table`);
-    await quack.exec(`INSERT INTO reference_data (SELECT * FROM reference_data_all WHERE category_key='${category}');`);
+    await quack.exec(
+      duckDBFormat('INSERT INTO reference_data (SELECT * FROM reference_data_all WHERE category_key=?);', [category])
+    );
   }
 };
+
+async function setupReferenceDataDimension(
+  quack: Database,
+  dimension: Dimension,
+  viewSelectStatementsMap: Map<Locale, string[]>,
+  rawSelectStatementsMap: Map<Locale, string[]>,
+  joinStatements: string[]
+  // orderByStatements: string[]
+) {
+  await loadCorrectReferenceDataIntoReferenceDataTable(quack, dimension);
+  SUPPORTED_LOCALES.map((locale) => {
+    const columnName = dimension.metadata.find((info) => info.language === locale)?.name || dimension.factTableColumn;
+    viewSelectStatementsMap.get(locale)?.push(duckDBFormat('reference_data_info.description AS ??', [columnName]));
+    rawSelectStatementsMap.get(locale)?.push(duckDBFormat('reference_data_info.description as ??', [columnName]));
+  });
+  joinStatements.push(
+    duckDBFormat('LEFT JOIN reference_data on CAST(??.?? AS VARCHAR)=reference_data.item_id', [
+      FACT_TABLE_NAME,
+      dimension.factTableColumn
+    ])
+  );
+}
 
 export const createDatePeriodTableQuery = (factTableColumn: FactTableColumn) => {
   return `
@@ -465,23 +489,35 @@ export async function createDateDimension(quack: Database, extractor: object | n
   return `${makeCubeSafeString(factTableColumn.columnName)}_lookup`;
 }
 
-export const createLookupTableQuery = (factTableColumn: FactTableColumn) => {
-  return `CREATE TABLE ${makeCubeSafeString(factTableColumn.columnName)}_lookup (
-    "${factTableColumn.columnName}" ${factTableColumn.columnDatatype} NOT NULL,
-    language VARCHAR(5) NOT NULL,
-    description TEXT NOT NULL,
-    notes TEXT,
-    sort_order INTEGER,
-    hierarchy ${factTableColumn.columnDatatype}
-  );`;
+export const createLookupTableQuery = (
+  lookupTableName: string,
+  referemceColumnName: string,
+  referenceColumnType: string
+) => {
+  return duckDBFormat(
+    `
+    CREATE TABLE ?? (
+      ?? ${referenceColumnType} NOT NULL,
+      language VARCHAR(5) NOT NULL,
+      description TEXT NOT NULL,
+      notes TEXT,
+      sort_order INTEGER,
+      hierarchy ${referenceColumnType}
+    );
+  `,
+    [lookupTableName, referemceColumnName]
+  );
 };
 
-// This is a short version of the validate lookup table code found in the dimension process.
-// This concise version doesn't return any information on why the creation failed.  Just that it failed
-export async function createLookupTableDimension(quack: Database, dataset: Dataset, dimension: Dimension) {
-  logger.debug(`Creating and validating lookup table dimension ${dimension.factTableColumn}`);
-  if (!dimension.lookupTable) return;
-  if (!dimension.extractor) return;
+async function setupLookupTableDimension(
+  quack: Database,
+  dataset: Dataset,
+  dimension: Dimension,
+  viewSelectStatementsMap: Map<Locale, string[]>,
+  rawSelectStatementsMap: Map<Locale, string[]>,
+  joinStatements: string[],
+  orderByStatements: string[]
+) {
   const factTableColumn = dataset.factTable?.find((col) => col.columnName === dimension.factTableColumn);
   if (!factTableColumn) {
     const error = new CubeValidationException(`Fact table column ${dimension.factTableColumn} not found`);
@@ -489,12 +525,36 @@ export async function createLookupTableDimension(quack: Database, dataset: Datas
     error.datasetId = dataset.id;
     throw error;
   }
-  await quack.exec(createLookupTableQuery(factTableColumn));
+  const dimTable = `${makeCubeSafeString(dimension.factTableColumn)}_lookup`;
+  await createLookupTableDimension(quack, dataset, dimension, factTableColumn);
+  SUPPORTED_LOCALES.map((locale) => {
+    const columnName = dimension.metadata.find((info) => info.language === locale)?.name || dimension.factTableColumn;
+    viewSelectStatementsMap.get(locale)?.push(`${dimTable}.description as "${columnName}"`);
+    rawSelectStatementsMap.get(locale)?.push(`${dimTable}.description as "${columnName}"`);
+  });
+  joinStatements.push(
+    `LEFT JOIN "${dimTable}" on "${dimTable}"."${factTableColumn.columnName}"=${FACT_TABLE_NAME}."${factTableColumn.columnName}" AND "${dimTable}".language='#LANG#'`
+  );
+  orderByStatements.push(`"${dimTable}".sort_order`);
+}
+
+// This is a short version of the validate lookup table code found in the dimension process.
+// This concise version doesn't return any information on why the creation failed.  Just that it failed
+export async function createLookupTableDimension(
+  quack: Database,
+  dataset: Dataset,
+  dimension: Dimension,
+  factTableColumn: FactTableColumn
+) {
+  logger.debug(`Creating and validating lookup table dimension ${dimension.factTableColumn}`);
+  if (!dimension.lookupTable) return;
+  if (!dimension.extractor) return;
+  const dimTable = `${makeCubeSafeString(factTableColumn.columnName)}_lookup`;
+  await quack.exec(createLookupTableQuery(dimTable, factTableColumn.columnName, factTableColumn.columnDatatype));
   const extractor = dimension.extractor as LookupTableExtractor;
   const lookupTableFile = await getFileImportAndSaveToDisk(dataset, dimension.lookupTable);
-  const lookupTableName = `${makeCubeSafeString(dimension.factTableColumn)}_lookup_draft`
+  const lookupTableName = `${makeCubeSafeString(dimension.factTableColumn)}_lookup_draft`;
   await loadFileIntoCube(quack, dimension.lookupTable, lookupTableFile, lookupTableName);
-
   if (extractor.isSW2Format) {
     logger.debug('Lookup table is SW2 format');
     const dataExtractorParts = [];
@@ -523,9 +583,7 @@ export async function createLookupTableDimension(quack: Database, dataset: Datas
         ).replaceAll('"null"', 'NULL')
       );
     }
-    const builtInsertQuery = duckDBFormat(`INSERT INTO ?? ${dataExtractorParts.join(' UNION ')};`, [
-      `${makeCubeSafeString(dimension.factTableColumn)}_lookup`
-    ]);
+    const builtInsertQuery = duckDBFormat(`INSERT INTO ?? ${dataExtractorParts.join(' UNION ')};`, [dimTable]);
     // const builtInsertQuery = `INSERT INTO ${makeCubeSafeString(dimension.factTableColumn)}_lookup (${dataExtractorParts.join(' UNION ')});`;
     logger.debug(`Built insert query: ${builtInsertQuery}`);
     await quack.exec(builtInsertQuery);
@@ -546,9 +604,7 @@ export async function createLookupTableDimension(quack: Database, dataset: Datas
         lookupTableName
       ]
     );
-    const builtInsertQuery = duckDBFormat(`INSERT INTO ?? ${dataExtractorParts}`, [
-      `${makeCubeSafeString(dimension.factTableColumn)}_lookup`
-    ]);
+    const builtInsertQuery = duckDBFormat(`INSERT INTO ?? ${dataExtractorParts}`, [dimTable]);
     await quack.exec(builtInsertQuery);
   }
   logger.debug(`Dropping original lookup table ${lookupTableName}`);
@@ -613,14 +669,6 @@ async function loadFactTablesWithUpdates(
         updateTableDataCol
       ]
     );
-    // const updateQuery = `
-    //           UPDATE ${FACT_TABLE_NAME} SET "${dataValuesColumn.columnName}"=update_table."${updateTableDataCol}",
-    //          "${notesCodeColumn.columnName}"=(CASE
-    //             WHEN ${FACT_TABLE_NAME}."${notesCodeColumn.columnName}" IS NULL THEN 'r'
-    //             WHEN ${FACT_TABLE_NAME}."${notesCodeColumn.columnName}" LIKE '%r%' THEN ${FACT_TABLE_NAME}."${notesCodeColumn.columnName}"
-    //             ELSE concat(${FACT_TABLE_NAME}."${notesCodeColumn.columnName}", ',r') END)
-    //          FROM update_table WHERE ${setupFactTableUpdateJoins(FACT_TABLE_NAME, factIdentifiers, dataTable.dataTableDescriptions)}
-    //          AND ${FACT_TABLE_NAME}."${dataValuesColumn.columnName}"!=update_table."${updateTableDataCol}";`;
     const dataTableColumnSelect: string[] = [];
 
     for (const factTableCol of factTableDef) {
@@ -715,8 +763,8 @@ export async function loadFactTables(
   }
 
   // Process all the fact tables
-  try {
-    if (dataValuesColumn && notesCodeColumn) {
+  if (dataValuesColumn && notesCodeColumn) {
+    try {
       logger.debug(`Loading ${allFactTables.length} fact tables in to database with updates`);
       await loadFactTablesWithUpdates(
         quack,
@@ -727,21 +775,21 @@ export async function loadFactTables(
         notesCodeColumn,
         factIdentifiers
       );
-    } else {
-      logger.error(`There is no data values column or notes code column in the dataset`);
-      throw new CubeValidationException('There is no data values column or notes code column in the dataset');
+    } catch (error) {
+      if (error instanceof FactTableValidationException) {
+        logger.debug(error, `Throwing Fact Table Validation Exception`);
+        throw error;
+      }
+      logger.error(error, `Something went wrong trying to create the core fact table`);
+      const err = new CubeValidationException('Something went wrong trying to create the core fact table');
+      err.type = CubeValidationType.FactTable;
+      err.stack = (error as Error).stack;
+      err.originalError = (error as Error).message;
+      throw err;
     }
-  } catch (error) {
-    if (error instanceof FactTableValidationException) {
-      logger.debug(error, `Throwing Fact Table Validation Exception`);
-      throw error;
-    }
-    logger.error(error, `Something went wrong trying to create the core fact table`);
-    const err = new CubeValidationException('Something went wrong trying to create the core fact table');
-    err.type = CubeValidationType.FactTable;
-    err.stack = (error as Error).stack;
-    err.originalError = (error as Error).message;
-    throw err;
+  } else {
+    logger.error(`There is no data values column or notes code column in the dataset`);
+    throw new CubeValidationException('There is no data values column or notes code column in the dataset');
   }
 }
 
@@ -830,40 +878,40 @@ function measureFormats(): Map<string, MeasureFormat> {
   const measureFormats: Map<string, MeasureFormat> = new Map();
   measureFormats.set('decimal', {
     name: 'decimal',
-    method: "WHEN measure.reference = '|REF|' THEN printf('%,.|DEC|f', |COL|)"
+    method: "WHEN measure.reference = |REF| THEN printf('%,.|DEC|f', |COL|)"
   });
   measureFormats.set('float', {
     name: 'float',
-    method: "WHEN measure.reference = '|REF|' THEN printf('%,.|DEC|f', |COL|)"
+    method: "WHEN measure.reference = |REF| THEN printf('%,.|DEC|f', |COL|)"
   });
   measureFormats.set('integer', {
     name: 'integer',
-    method: "WHEN measure.reference = '|REF|' THEN printf('%,d', CAST(|COL| AS INTEGER))"
+    method: "WHEN measure.reference = |REF| THEN printf('%,d', CAST(|COL| AS INTEGER))"
   });
-  measureFormats.set('long', { name: 'long', method: "WHEN measure.reference = '|REF|' THEN printf('%f', |COL|)" });
+  measureFormats.set('long', { name: 'long', method: "WHEN measure.reference = |REF| THEN printf('%f', |COL|)" });
   measureFormats.set('percentage', {
     name: 'percentage',
-    method: "WHEN measure.reference = '|REF|' THEN printf('%f', |COL|)"
+    method: "WHEN measure.reference = |REF| THEN printf('%f', |COL|)"
   });
   measureFormats.set('string', {
     name: 'string',
-    method: "WHEN measure.reference = '|REF|' THEN printf('%s', CAST(|COL| AS VARCHAR))"
+    method: "WHEN measure.reference = |REF| THEN printf('%s', CAST(|COL| AS VARCHAR))"
   });
   measureFormats.set('text', {
     name: 'text',
-    method: "WHEN measure.reference = '|REF|' THEN printf('%s', CAST(|COL| AS VARCHAR))"
+    method: "WHEN measure.reference = |REF| THEN printf('%s', CAST(|COL| AS VARCHAR))"
   });
   measureFormats.set('date', {
     name: 'date',
-    method: "WHEN measure.reference = '|REF|' THEN printf('%s', CAST(|COL| AS VARCHAR))"
+    method: "WHEN measure.reference = |REF| THEN printf('%s', CAST(|COL| AS VARCHAR))"
   });
   measureFormats.set('datetime', {
     name: 'datetime',
-    method: "WHEN measure.reference = '|REF|' THEN printf('%s', CAST(|COL| AS VARCHAR))"
+    method: "WHEN measure.reference = |REF| THEN printf('%s', CAST(|COL| AS VARCHAR))"
   });
   measureFormats.set('time', {
     name: 'time',
-    method: "WHEN measure.reference = '|REF|' THEN printf('%s', CAST(|COL| AS VARCHAR))"
+    method: "WHEN measure.reference = |REF| THEN printf('%s', CAST(|COL| AS VARCHAR))"
   });
   return measureFormats;
 }
@@ -906,38 +954,76 @@ export async function createMeasureLookupTable(
   }
 }
 
+function setupMeasureNoDataValues(
+  viewSelectStatementsMap: Map<Locale, string[]>,
+  rawSelectStatementsMap: Map<Locale, string[]>,
+  measureColumn?: FactTableColumn,
+  dataValuesColumn?: FactTableColumn
+) {
+  SUPPORTED_LOCALES.map((locale) => {
+    if (dataValuesColumn) {
+      viewSelectStatementsMap
+        .get(locale)
+        ?.push(
+          duckDBFormat('??.?? AS ??', [
+            FACT_TABLE_NAME,
+            dataValuesColumn?.columnName,
+            t('column_headers.data_values', { lng: locale })
+          ])
+        );
+      rawSelectStatementsMap
+        .get(locale)
+        ?.push(
+          duckDBFormat('??.?? AS ??', [
+            FACT_TABLE_NAME,
+            dataValuesColumn?.columnName,
+            t('column_headers.data_values', { lng: locale })
+          ])
+        );
+    }
+    if (measureColumn) {
+      viewSelectStatementsMap.get(locale)?.push(duckDBFormat('??.??', [FACT_TABLE_NAME, measureColumn.columnName]));
+      rawSelectStatementsMap.get(locale)?.push(duckDBFormat('??.??', [FACT_TABLE_NAME, measureColumn.columnName]));
+    }
+  });
+}
+
 async function setupMeasures(
   quack: Database,
   dataset: Dataset,
-  dataValuesColumn: FactTableColumn | undefined,
+  dataValuesColumn: FactTableColumn,
+  measureColumn: FactTableColumn,
   viewSelectStatementsMap: Map<Locale, string[]>,
   rawSelectStatementsMap: Map<Locale, string[]>,
   joinStatements: string[],
-  orderByStatements: string[],
-  measureColumn?: FactTableColumn
+  orderByStatements: string[]
 ) {
   logger.info('Setting up measure table if present...');
   logger.debug(`Dataset Measure = ${JSON.stringify(dataset.measure)}`);
   logger.debug(`Measure column = ${JSON.stringify(measureColumn)}`);
   // Process the column that represents the measure
-  if (measureColumn && dataset.measure && dataset.measure.measureTable && dataset.measure.measureTable.length > 0) {
+  if (dataset.measure && dataset.measure.measureTable && dataset.measure.measureTable.length > 0) {
     logger.debug('Measure present in dataset.  Creating measure table...');
     await createMeasureLookupTable(quack, measureColumn, dataset.measure.measureTable);
     logger.debug('Creating query part to format the data value correctly');
 
-    const uniqueReferences = await quack.all('SELECT DISTINCT reference, format, sort_order, decimals FROM measure;');
-    const caseStatement: string[] = ['CASE'];
+    const uniqueReferences = await quack.all(
+      duckDBFormat('SELECT DISTINCT reference, format, sort_order, decimals FROM measure;')
+    );
+    const caseStatements: string[] = ['CASE'];
     for (const row of uniqueReferences) {
-      caseStatement.push(
-        measureFormats()
-          .get(row.format.toLowerCase())
-          ?.method.replace('|REF|', row.reference)
-          .replace('|DEC|', row.decimals ? row.decimals : '0')
-          .replace('|COL|', `${FACT_TABLE_NAME}."${dataValuesColumn?.columnName}"`) || ''
-      );
+      const statement = measureFormats()
+        .get(row.format.toLowerCase())
+        ?.method.replace('|REF|', duckDBEscape(row.reference))
+        .replace('|DEC|', row.decimals ? row.decimals : 0)
+        .replace('|COL|', duckDBFormat('??.??', [FACT_TABLE_NAME, dataValuesColumn.columnName]));
+      if (statement) caseStatements.push(statement);
+      else logger.warn(`Failed to create case statement measure row: ${JSON.stringify(row)}`);
     }
-    caseStatement.push(`ELSE CAST(${FACT_TABLE_NAME}."${dataValuesColumn?.columnName}" AS VARCHAR) END`);
-    logger.debug(`Data view case statement ended up as: ${caseStatement.join('\n')}`);
+    caseStatements.push(
+      duckDBFormat('ELSE CAST(??.?? AS VARCHAR) END', [FACT_TABLE_NAME, dataValuesColumn?.columnName])
+    );
+    logger.debug(`Data view case statement ended up as: ${caseStatements.join('\n')}`);
     SUPPORTED_LOCALES.map((locale) => {
       const columnName =
         dataset.measure.metadata.find((info) => info.language === locale)?.name || dataset.measure.factTableColumn;
@@ -945,39 +1031,159 @@ async function setupMeasures(
         rawSelectStatementsMap
           .get(locale)
           ?.push(
-            `${FACT_TABLE_NAME}."${dataValuesColumn?.columnName}" as "${t('column_headers.data_values', { lng: locale })}"`
+            duckDBFormat('??.?? AS ??', [
+              FACT_TABLE_NAME,
+              dataValuesColumn.columnName,
+              t('column_headers.data_values', { lng: locale })
+            ])
           );
         viewSelectStatementsMap
           .get(locale)
-          ?.push(`${caseStatement.join('\n')} as "${t('column_headers.data_values', { lng: locale })}"`);
+          ?.push(
+            duckDBFormat(`${caseStatements.join('\n')} AS ??`, [t('column_headers.data_values', { lng: locale })])
+          );
       }
-      viewSelectStatementsMap.get(locale)?.push(`measure.description as "${columnName}"`);
-      rawSelectStatementsMap.get(locale)?.push(`measure.description as "${columnName}"`);
+      viewSelectStatementsMap.get(locale)?.push(duckDBFormat('measure.description AS ??', [columnName]));
+      rawSelectStatementsMap.get(locale)?.push(duckDBFormat('measure.description AS ??', [columnName]));
     });
     joinStatements.push(
-      `LEFT JOIN measure on measure.reference=${FACT_TABLE_NAME}."${dataset.measure.factTableColumn}" AND measure.language='#LANG#'`
+      duckDBFormat('LEFT JOIN measure on measure.reference=??.?? AND measure.language=#LANG#', [
+        FACT_TABLE_NAME,
+        dataset.measure.factTableColumn
+      ])
     );
     orderByStatements.push(`measure.sort_order, measure.reference`);
   } else {
-    SUPPORTED_LOCALES.map((locale) => {
-      if (dataValuesColumn) {
-        viewSelectStatementsMap
-          .get(locale)
-          ?.push(
-            `${FACT_TABLE_NAME}."${dataValuesColumn?.columnName}" as "${t('column_headers.data_values', { lng: locale })}"`
-          );
-        rawSelectStatementsMap
-          .get(locale)
-          ?.push(
-            `${FACT_TABLE_NAME}."${dataValuesColumn?.columnName}" as "${t('column_headers.data_values', { lng: locale })}"`
-          );
-      }
-      if (measureColumn) {
-        viewSelectStatementsMap.get(locale)?.push(`${FACT_TABLE_NAME}."${measureColumn.columnName}"`);
-        rawSelectStatementsMap.get(locale)?.push(`${FACT_TABLE_NAME}."${measureColumn.columnName}"`);
-      }
-    });
+    setupMeasureNoDataValues(viewSelectStatementsMap, rawSelectStatementsMap, measureColumn, dataValuesColumn);
   }
+}
+
+function rawDimensionProcessor(
+  dimension: Dimension,
+  viewSelectStatementsMap: Map<Locale, string[]>,
+  rawSelectStatementsMap: Map<Locale, string[]>
+) {
+  SUPPORTED_LOCALES.map((locale) => {
+    const columnName = dimension.metadata.find((info) => info.language === locale)?.name || dimension.factTableColumn;
+    viewSelectStatementsMap.get(locale)?.push(duckDBFormat('?? AS ??', [dimension.factTableColumn, columnName]));
+    rawSelectStatementsMap.get(locale)?.push(duckDBFormat('?? AS ??', [dimension.factTableColumn, columnName]));
+  });
+}
+
+async function dateDimensionProcessor(
+  quack: Database,
+  factTableColumn: FactTableColumn,
+  dimension: Dimension,
+  viewSelectStatementsMap: Map<Locale, string[]>,
+  rawSelectStatementsMap: Map<Locale, string[]>,
+  joinStatements: string[],
+  orderByStatements: string[]
+) {
+  const dimTable = `${makeCubeSafeString(dimension.factTableColumn)}_lookup`;
+  await createDateDimension(quack, dimension.extractor, factTableColumn);
+  SUPPORTED_LOCALES.map((locale) => {
+    const columnName = dimension.metadata.find((info) => info.language === locale)?.name || dimension.factTableColumn;
+    viewSelectStatementsMap.get(locale)?.push(duckDBFormat('??.description AS ??', [dimTable, columnName]));
+    viewSelectStatementsMap
+      .get(locale)
+      ?.push(
+        duckDBFormat("strftime(??.start_date, '%d/%m/%Y') AS ??", [
+          dimTable,
+          t('column_headers.start_date', { lng: locale })
+        ])
+      );
+    viewSelectStatementsMap
+      .get(locale)
+      ?.push(
+        duckDBFormat("strftime(??.end_date, '%d/%m/%Y') AS ??", [
+          dimTable,
+          t('column_headers.end_date', { lng: locale })
+        ])
+      );
+    rawSelectStatementsMap.get(locale)?.push(duckDBFormat('??.description AS ??', [dimTable, columnName]));
+    rawSelectStatementsMap
+      .get(locale)
+      ?.push(
+        duckDBFormat("strftime(??.start_date, '%d/%m/%Y') AS ??", [
+          dimTable,
+          t('column_headers.start_date', { lng: locale })
+        ])
+      );
+    rawSelectStatementsMap
+      .get(locale)
+      ?.push(
+        duckDBFormat("strftime(??.end_date, '%d/%m/%Y') AS ??", [
+          dimTable,
+          t('column_headers.end_date', { lng: locale })
+        ])
+      );
+  });
+  joinStatements.push(
+    duckDBFormat("LEFT JOIN ?? ON ??.??=??.?? AND ??.language='#LANG#'", [
+      dimTable,
+      dimTable,
+      factTableColumn.columnName,
+      FACT_TABLE_NAME,
+      factTableColumn.columnName,
+      dimTable
+    ])
+  );
+  orderByStatements.push(duckDBFormat('??.end_date', [dimTable]));
+}
+
+function setupNumericDimension(
+  dimension: Dimension,
+  viewSelectStatementsMap: Map<Locale, string[]>,
+  rawSelectStatementsMap: Map<Locale, string[]>
+) {
+  SUPPORTED_LOCALES.map((locale) => {
+    const columnName = dimension.metadata.find((info) => info.language === locale)?.name || dimension.factTableColumn;
+    if ((dimension.extractor as NumberExtractor).type === NumberType.Integer) {
+      viewSelectStatementsMap
+        .get(locale)
+        ?.push(duckDBFormat('CAST(??.?? AS INTEGER) AS ??', [FACT_TABLE_NAME, dimension.factTableColumn, columnName]));
+      rawSelectStatementsMap
+        .get(locale)
+        ?.push(duckDBFormat('CAST(??.?? AS INTEGER) AS ??', [FACT_TABLE_NAME, dimension.factTableColumn, columnName]));
+    } else {
+      viewSelectStatementsMap
+        .get(locale)
+        ?.push(
+          duckDBFormat('CAST(CAST(??.?? AS DECIMAL(18,?)) AS VARCHAR) AS ??', [
+            FACT_TABLE_NAME,
+            dimension.factTableColumn,
+            (dimension.extractor as NumberExtractor).decimalPlaces,
+            columnName
+          ])
+        );
+      rawSelectStatementsMap
+        .get(locale)
+        ?.push(
+          duckDBFormat('CAST(??.?? AS DECIMAL(18,?)) AS ??', [
+            FACT_TABLE_NAME,
+            dimension.factTableColumn,
+            (dimension.extractor as NumberExtractor).decimalPlaces,
+            columnName
+          ])
+        );
+    }
+  });
+}
+
+function setupTextDimension(
+  dimension: Dimension,
+  viewSelectStatementsMap: Map<Locale, string[]>,
+  rawSelectStatementsMap: Map<Locale, string[]>
+) {
+  SUPPORTED_LOCALES.map((locale) => {
+    const columnName = dimension.metadata.find((info) => info.language === locale)?.name || dimension.factTableColumn;
+    viewSelectStatementsMap
+      .get(locale)
+      ?.push(duckDBFormat('CAST(?? AS VARCHAR) AS ??', [dimension.factTableColumn, columnName]));
+    rawSelectStatementsMap
+      .get(locale)
+      ?.push(duckDBFormat('CAST(?? AS VARCHAR) AS ??', [dimension.factTableColumn, columnName]));
+  });
 }
 
 async function setupDimensions(
@@ -1017,50 +1223,22 @@ async function setupDimensions(
       throw error;
     }
     logger.info(`Setting up dimension ${dimension.id} for fact table column ${dimension.factTableColumn}`);
-    const dimTable = `${makeCubeSafeString(dimension.factTableColumn)}_lookup`;
     try {
       switch (dimension.type) {
         case DimensionType.DatePeriod:
         case DimensionType.Date:
           if (dimension.extractor) {
-            await createDateDimension(quack, dimension.extractor, factTableColumn);
-            SUPPORTED_LOCALES.map((locale) => {
-              const columnName =
-                dimension.metadata.find((info) => info.language === locale)?.name || dimension.factTableColumn;
-              viewSelectStatementsMap.get(locale)?.push(`${dimTable}.description as "${columnName}"`);
-              viewSelectStatementsMap
-                .get(locale)
-                ?.push(
-                  `strftime(${dimTable}.start_date, '%d/%m/%Y') as "${t('column_headers.start_date', { lng: locale })}"`
-                );
-              viewSelectStatementsMap
-                .get(locale)
-                ?.push(
-                  `strftime(${dimTable}.end_date, '%d/%m/%Y') as "${t('column_headers.end_date', { lng: locale })}"`
-                );
-              rawSelectStatementsMap.get(locale)?.push(`${dimTable}.description as "${columnName}"`);
-              rawSelectStatementsMap
-                .get(locale)
-                ?.push(
-                  `strftime(${dimTable}.start_date, '%d/%m/%Y') as "${t('column_headers.start_date', { lng: locale })}"`
-                );
-              rawSelectStatementsMap
-                .get(locale)
-                ?.push(
-                  `strftime(${dimTable}.end_date, '%d/%m/%Y') as "${t('column_headers.end_date', { lng: locale })}"`
-                );
-            });
-            joinStatements.push(
-              `LEFT JOIN ${dimTable} ON "${dimTable}"."${factTableColumn.columnName}"=${FACT_TABLE_NAME}."${factTableColumn.columnName}" AND "${dimTable}"."language"='#LANG#'`
+            await dateDimensionProcessor(
+              quack,
+              factTableColumn,
+              dimension,
+              viewSelectStatementsMap,
+              rawSelectStatementsMap,
+              joinStatements,
+              orderByStatements
             );
-            orderByStatements.push(`${dimTable}.end_date`);
           } else {
-            SUPPORTED_LOCALES.map((locale) => {
-              const columnName =
-                dimension.metadata.find((info) => info.language === locale)?.name || dimension.factTableColumn;
-              viewSelectStatementsMap.get(locale)?.push(`"${dimension.factTableColumn}" as "${columnName}"`);
-              rawSelectStatementsMap.get(locale)?.push(`"${dimension.factTableColumn}" as "${columnName}"`);
-            });
+            rawDimensionProcessor(dimension, viewSelectStatementsMap, rawSelectStatementsMap);
           }
           break;
         case DimensionType.LookupTable:
@@ -1071,85 +1249,38 @@ async function setupDimensions(
             const updateInProgressDimension = endRevision.tasks.dimensions.find((dim) => dim.id === dimension.id);
             if (updateInProgressDimension && !updateInProgressDimension.lookupTableUpdated) {
               logger.warn(`Skipping dimension ${dimension.id} as it has not been updated`);
-              SUPPORTED_LOCALES.map((locale) => {
-                const columnName =
-                  dimension.metadata.find((info) => info.language === locale)?.name || dimension.factTableColumn;
-                viewSelectStatementsMap.get(locale)?.push(`"${dimension.factTableColumn}" as "${columnName}"`);
-                rawSelectStatementsMap.get(locale)?.push(`"${dimension.factTableColumn}" as "${columnName}"`);
-              });
-              continue;
+              rawDimensionProcessor(dimension, viewSelectStatementsMap, rawSelectStatementsMap);
+              break;
             }
           }
-
-          await createLookupTableDimension(quack, dataset, dimension);
-          SUPPORTED_LOCALES.map((locale) => {
-            const columnName =
-              dimension.metadata.find((info) => info.language === locale)?.name || dimension.factTableColumn;
-            viewSelectStatementsMap.get(locale)?.push(`${dimTable}.description as "${columnName}"`);
-            rawSelectStatementsMap.get(locale)?.push(`${dimTable}.description as "${columnName}"`);
-          });
-          joinStatements.push(
-            `LEFT JOIN "${dimTable}" on "${dimTable}"."${factTableColumn.columnName}"=${FACT_TABLE_NAME}."${factTableColumn.columnName}" AND "${dimTable}".language='#LANG#'`
+          await setupLookupTableDimension(
+            quack,
+            dataset,
+            dimension,
+            viewSelectStatementsMap,
+            rawSelectStatementsMap,
+            joinStatements,
+            orderByStatements
           );
-          orderByStatements.push(`"${dimTable}".sort_order`);
           break;
         case DimensionType.ReferenceData:
-          await loadCorrectReferenceDataIntoReferenceDataTable(quack, dimension);
-          SUPPORTED_LOCALES.map((locale) => {
-            const columnName =
-              dimension.metadata.find((info) => info.language === locale)?.name || dimension.factTableColumn;
-            viewSelectStatementsMap.get(locale)?.push(`reference_data_info.description as "${columnName}"`);
-            rawSelectStatementsMap.get(locale)?.push(`reference_data_info.description as "${columnName}"`);
-          });
-          joinStatements.push(
-            `LEFT JOIN reference_data on CAST(${FACT_TABLE_NAME}."${dimension.factTableColumn}" AS VARCHAR)=reference_data.item_id`
+          await setupReferenceDataDimension(
+            quack,
+            dimension,
+            viewSelectStatementsMap,
+            rawSelectStatementsMap,
+            joinStatements
           );
           break;
         case DimensionType.Numeric:
-          SUPPORTED_LOCALES.map((locale) => {
-            const columnName =
-              dimension.metadata.find((info) => info.language === locale)?.name || dimension.factTableColumn;
-            if ((dimension.extractor as NumberExtractor).type === NumberType.Integer) {
-              viewSelectStatementsMap
-                .get(locale)
-                ?.push(`CAST(${FACT_TABLE_NAME}."${dimension.factTableColumn}" AS INTEGER) AS "${columnName}"`);
-              rawSelectStatementsMap
-                .get(locale)
-                ?.push(`CAST(${FACT_TABLE_NAME}."${dimension.factTableColumn}" AS INTEGER) AS "${columnName}"`);
-            } else {
-              viewSelectStatementsMap
-                .get(locale)
-                ?.push(
-                  `CAST(CAST(${FACT_TABLE_NAME}."${dimension.factTableColumn}" AS DECIMAL(18, ${(dimension.extractor as NumberExtractor).decimalPlaces})) AS VARCHAR) AS "${columnName}"`
-                );
-              rawSelectStatementsMap
-                .get(locale)
-                ?.push(
-                  `CAST(${FACT_TABLE_NAME}."${dimension.factTableColumn}" AS DECIMAL(18, ${(dimension.extractor as NumberExtractor).decimalPlaces})) AS "${columnName}"`
-                );
-            }
-          });
+          setupNumericDimension(dimension, viewSelectStatementsMap, rawSelectStatementsMap);
           break;
         case DimensionType.Text:
-          SUPPORTED_LOCALES.map((locale) => {
-            const columnName =
-              dimension.metadata.find((info) => info.language === locale)?.name || dimension.factTableColumn;
-            viewSelectStatementsMap
-              .get(locale)
-              ?.push(`CAST("${dimension.factTableColumn}" AS VARCHAR) as "${columnName}"`);
-            rawSelectStatementsMap
-              .get(locale)
-              ?.push(`CAST("${dimension.factTableColumn}" AS VARCHAR) as "${columnName}"`);
-          });
+          setupTextDimension(dimension, viewSelectStatementsMap, rawSelectStatementsMap);
           break;
         case DimensionType.Raw:
         case DimensionType.Symbol:
-          SUPPORTED_LOCALES.map((locale) => {
-            const columnName =
-              dimension.metadata.find((info) => info.language === locale)?.name || dimension.factTableColumn;
-            viewSelectStatementsMap.get(locale)?.push(`"${dimension.factTableColumn}" as "${columnName}"`);
-            rawSelectStatementsMap.get(locale)?.push(`"${dimension.factTableColumn}" as "${columnName}"`);
-          });
+          rawDimensionProcessor(dimension, viewSelectStatementsMap, rawSelectStatementsMap);
           break;
       }
     } catch (err) {
@@ -1242,15 +1373,24 @@ async function createCubeMetadataTable(quack: Database) {
   await quack.exec(`CREATE TABLE metadata (key VARCHAR, value VARCHAR);`);
 }
 
-// Builds a fresh cube based on all revisions and returns the file pointer
+// Builds a fresh cube from either from a protocube or completely from scratch
+// based on if a protocube is supplied and returns the file pointer
 // to the duckdb file on disk.  This is based on the recipe in our cube miro
 // board and our candidate cube format repo.  It is limited to building a
 // simple default view based on the available locales.
 //
+// If no protocube is supplied a new fact table is created based on all
+// revisions containing an index number until we reach the specified end
+// revision.
+//
 // DO NOT put validation against columns which should be present here.
 // Function should be able to generate a cube just from a fact table or collection
 // of fact tables.
-export const createBaseCube = async (datasetId: string, endRevisionId: string): Promise<string> => {
+export const createBaseCubeFromProtoCube = async (
+  datasetId: string,
+  endRevisionId: string,
+  protoCubeFile?: string
+): Promise<string> => {
   logger.debug(`Creating base cube for revision: ${endRevisionId}`);
   const functionStart = performance.now();
   const viewSelectStatementsMap = new Map<Locale, string[]>();
@@ -1299,170 +1439,37 @@ export const createBaseCube = async (datasetId: string, endRevisionId: string): 
     throw new Error(`Unable to find first revision for dataset ${dataset.id}`);
   }
 
-  logger.debug('Creating an in-memory database to hold the cube using DuckDB 🐤');
   const buildStart = performance.now();
-  const tmpFile = tmp.tmpNameSync({ postfix: '.duckdb' });
-  const quack = await duckdb(tmpFile);
+  let quack: Database;
+  if (protoCubeFile) {
+    logger.debug(`Loading protocube from file: ${protoCubeFile} to DuckDB 🐤`);
+    quack = await duckdb(protoCubeFile);
+  } else {
+    logger.debug('Creating an in-memory database to hold the cube using DuckDB 🐤');
+    protoCubeFile = tmp.tmpNameSync({ postfix: '.duckdb' });
+    quack = await duckdb(protoCubeFile);
 
-  const { measureColumn, notesCodeColumn, dataValuesColumn, factTableDef, factIdentifiers } =
-    await createEmptyFactTableInCube(quack, dataset);
-
-  await createCubeMetadataTable(quack);
-
-  try {
-    await loadFactTables(quack, dataset, endRevision, factTableDef, dataValuesColumn, notesCodeColumn, factIdentifiers);
-  } catch (err) {
-    logger.error(err, `Failed to load fact tables into the cube`);
-    await quack.close();
-    throw new Error(`Failed to load fact tables into the cube: ${err}`);
-  }
-
-  try {
-    await setupMeasures(
+    const { notesCodeColumn, dataValuesColumn, factTableDef, factIdentifiers } = await createEmptyFactTableInCube(
       quack,
-      dataset,
-      dataValuesColumn,
-      viewSelectStatementsMap,
-      rawSelectStatementsMap,
-      joinStatements,
-      orderByStatements,
-      measureColumn
+      dataset
     );
-  } catch (err) {
-    logger.error(err, `Failed to setup measures`);
-    await quack.close();
-    throw new Error(`Failed to setup measures: ${err}`);
-  }
 
-  if (referenceDataPresent(dataset)) {
-    await loadReferenceDataIntoCube(quack);
-  }
-
-  try {
-    await setupDimensions(
-      quack,
-      dataset,
-      endRevision,
-      viewSelectStatementsMap,
-      rawSelectStatementsMap,
-      joinStatements,
-      orderByStatements
-    );
-  } catch (err) {
-    logger.error(err, `Failed to setup dimensions`);
-    await quack.close();
-    throw new Error(`Failed to setup dimensions`);
-  }
-
-  if (referenceDataPresent(dataset)) {
-    await cleanUpReferenceDataTables(quack);
-    joinStatements.push(`JOIN reference_data_info ON reference_data.item_id=reference_data_info.item_id`);
-    joinStatements.push(`    AND reference_data.category_key=reference_data_info.category_key`);
-    joinStatements.push(`    AND reference_data.version_no=reference_data_info.version_no`);
-    joinStatements.push(`    AND reference_data_info.lang='#LANG#'`);
-  }
-
-  logger.debug('Adding notes code column to the select statement.');
-  if (notesCodeColumn) {
-    await createNotesTable(quack, notesCodeColumn, viewSelectStatementsMap, rawSelectStatementsMap, joinStatements);
-  }
-
-  logger.info(`Creating default views...`);
-  // Build the default views
-  for (const locale of SUPPORTED_LOCALES) {
-    if (viewSelectStatementsMap.get(locale)?.length === 0) {
-      viewSelectStatementsMap.get(locale)?.push('*');
+    try {
+      await loadFactTables(
+        quack,
+        dataset,
+        endRevision,
+        factTableDef,
+        dataValuesColumn,
+        notesCodeColumn,
+        factIdentifiers
+      );
+    } catch (err) {
+      logger.error(err, `Failed to load fact tables into the cube`);
+      await quack.close();
+      throw new Error(`Failed to load fact tables into the cube: ${err}`);
     }
-    if (rawSelectStatementsMap.get(locale)?.length === 0) {
-      rawSelectStatementsMap.get(locale)?.push('*');
-    }
-    const defaultViewSQL = `CREATE TABLE default_view_${locale.toLowerCase().split('-')[0]} AS SELECT\n${viewSelectStatementsMap
-      .get(locale)
-      ?.join(
-        ',\n'
-      )} FROM ${FACT_TABLE_NAME}\n${joinStatements.join('\n').replace(/#LANG#/g, locale.toLowerCase())}\n ${orderByStatements.length > 0 ? `ORDER BY ${orderByStatements.join(', ')}` : ''};`;
-    logger.debug(defaultViewSQL);
-    await quack.exec(defaultViewSQL);
-    const rawViewSQL = `CREATE TABLE raw_view_${locale.toLowerCase().split('-')[0]} AS SELECT\n${rawSelectStatementsMap
-      .get(locale)
-      ?.join(
-        ',\n'
-      )} FROM ${FACT_TABLE_NAME}\n${joinStatements.join('\n').replace(/#LANG#/g, locale.toLowerCase())}\n ${orderByStatements.length > 0 ? `ORDER BY ${orderByStatements.join(', ')}` : ''};`;
-    logger.debug(rawViewSQL);
-    await quack.exec(rawViewSQL);
   }
-  await safelyCloseDuckDb(quack);
-  const end = performance.now();
-  const functionTime = Math.round(end - functionStart);
-  const buildTime = Math.round(end - buildStart);
-  logger.warn(`Cube function took ${functionTime}ms to complete and it took ${buildTime}ms to build the cube.`);
-  return tmpFile;
-};
-
-// Builds a fresh cube from a protocube and returns the file pointer
-// to the duckdb file on disk.  This is based on the recipe in our cube miro
-// board and our candidate cube format repo.  It is limited to building a
-// simple default view based on the available locales.
-//
-// DO NOT put validation against columns which should be present here.
-// Function should be able to generate a cube just from a fact table or collection
-// of fact tables.
-export const createBaseCubeFromProtoCube = async (
-  datasetId: string,
-  endRevisionId: string,
-  protoCubeFile: string
-): Promise<string> => {
-  logger.debug(`Creating base cube from proto cube for revision: ${endRevisionId}`);
-  const functionStart = performance.now();
-  const viewSelectStatementsMap = new Map<Locale, string[]>();
-  const rawSelectStatementsMap = new Map<Locale, string[]>();
-  SUPPORTED_LOCALES.map((locale) => {
-    viewSelectStatementsMap.set(locale, []);
-    rawSelectStatementsMap.set(locale, []);
-  });
-  const joinStatements: string[] = [];
-  const orderByStatements: string[] = [];
-
-  const datasetRelations: FindOptionsRelations<Dataset> = {
-    dimensions: {
-      metadata: true,
-      lookupTable: true
-    },
-    factTable: true,
-    measure: {
-      metadata: true,
-      measureTable: true
-    },
-    revisions: {
-      dataTable: {
-        dataTableDescriptions: true
-      }
-    }
-  };
-
-  const endRevisionRelations: FindOptionsRelations<Revision> = {
-    dataTable: {
-      dataTableDescriptions: true
-    }
-  };
-
-  logger.debug(`Loading dataset with id: ${datasetId} using relations: ${JSON.stringify(datasetRelations)}`);
-  const dataset = await DatasetRepository.getById(datasetId, datasetRelations);
-  const endRevision = await RevisionRepository.getById(endRevisionId, endRevisionRelations);
-
-  const firstRevision = dataset.revisions.find((rev) => rev.revisionIndex === 1);
-  if (!firstRevision) {
-    const err = new CubeValidationException(
-      `Could not find first revision for dataset ${datasetId} in revision ${endRevisionId}`
-    );
-    err.type = CubeValidationType.NoFirstRevision;
-    err.datasetId = datasetId;
-    throw new Error(`Unable to find first revision for dataset ${dataset.id}`);
-  }
-
-  logger.debug('Creating an in-memory database to hold the cube using DuckDB 🐤');
-  const buildStart = performance.now();
-  const quack = await duckdb(protoCubeFile);
 
   await createCubeMetadataTable(quack);
 
@@ -1470,21 +1477,25 @@ export const createBaseCubeFromProtoCube = async (
   const dataValuesColumn = dataset.factTable?.find((field) => field.columnType === FactTableColumnType.DataValues);
   const measureColumn = dataset.factTable?.find((field) => field.columnType === FactTableColumnType.Measure);
 
-  try {
-    await setupMeasures(
-      quack,
-      dataset,
-      dataValuesColumn,
-      viewSelectStatementsMap,
-      rawSelectStatementsMap,
-      joinStatements,
-      orderByStatements,
-      measureColumn
-    );
-  } catch (err) {
-    logger.error(err, `Failed to setup measures`);
-    await quack.close();
-    throw new Error(`Failed to setup measures: ${err}`);
+  if (measureColumn && dataValuesColumn) {
+    try {
+      await setupMeasures(
+        quack,
+        dataset,
+        dataValuesColumn,
+        measureColumn,
+        viewSelectStatementsMap,
+        rawSelectStatementsMap,
+        joinStatements,
+        orderByStatements
+      );
+    } catch (err) {
+      logger.error(err, `Failed to setup measures`);
+      await quack.close();
+      throw new Error(`Failed to setup measures: ${err}`);
+    }
+  } else {
+    setupMeasureNoDataValues(viewSelectStatementsMap, rawSelectStatementsMap, measureColumn, dataValuesColumn);
   }
 
   if (referenceDataPresent(dataset)) {
@@ -1522,33 +1533,35 @@ export const createBaseCubeFromProtoCube = async (
 
   logger.info(`Creating default views...`);
   // Build the default views
-  for (const locale of SUPPORTED_LOCALES) {
-    if (viewSelectStatementsMap.get(locale)?.length === 0) {
-      viewSelectStatementsMap.get(locale)?.push('*');
-    }
-    if (rawSelectStatementsMap.get(locale)?.length === 0) {
-      rawSelectStatementsMap.get(locale)?.push('*');
-    }
-    const defaultViewSQL = `CREATE TABLE default_view_${locale.toLowerCase().split('-')[0]} AS SELECT\n${viewSelectStatementsMap
-      .get(locale)
-      ?.join(
-        ',\n'
-      )} FROM ${FACT_TABLE_NAME}\n${joinStatements.join('\n').replace(/#LANG#/g, locale.toLowerCase())}\n ${orderByStatements.length > 0 ? `ORDER BY ${orderByStatements.join(', ')}` : ''};`;
-    logger.debug(defaultViewSQL);
-    await quack.exec(defaultViewSQL);
-    const rawViewSQL = `CREATE TABLE raw_view_${locale.toLowerCase().split('-')[0]} AS SELECT\n${rawSelectStatementsMap
-      .get(locale)
-      ?.join(
-        ',\n'
-      )} FROM ${FACT_TABLE_NAME}\n${joinStatements.join('\n').replace(/#LANG#/g, locale.toLowerCase())}\n ${orderByStatements.length > 0 ? `ORDER BY ${orderByStatements.join(', ')}` : ''};`;
-    logger.debug(rawViewSQL);
-    await quack.exec(rawViewSQL);
-  }
+  try {
+    for (const locale of SUPPORTED_LOCALES) {
+      if (viewSelectStatementsMap.get(locale)?.length === 0) {
+        viewSelectStatementsMap.get(locale)?.push('*');
+      }
+      if (rawSelectStatementsMap.get(locale)?.length === 0) {
+        rawSelectStatementsMap.get(locale)?.push('*');
+      }
+      const lang = locale.toLowerCase().split('-')[0];
 
-  // Pass the file handle to the calling method
-  // If used for preview you just want the file
-  // If it's the end of the publishing step you'll
-  // want to upload the file to the data lake.
+      const defaultViewSQL = `CREATE TABLE default_view_${lang} AS
+      SELECT ${viewSelectStatementsMap.get(locale)?.join(',\n')}
+      FROM ${FACT_TABLE_NAME} ${joinStatements.join('\n').replace(/#LANG#/g, locale.toLowerCase())} ${orderByStatements.length > 0 ? `ORDER BY ${orderByStatements.join(', ')}` : ''};`;
+      logger.debug(defaultViewSQL);
+      await quack.exec(defaultViewSQL);
+
+      const rawViewSQL = `CREATE TABLE raw_view_${lang} AS
+      SELECT ${rawSelectStatementsMap.get(locale)?.join(',\n')}
+      FROM ${FACT_TABLE_NAME} ${joinStatements.join('\n').replace(/#LANG#/g, locale.toLowerCase())} ${orderByStatements.length > 0 ? `ORDER BY ${orderByStatements.join(', ')}` : ''};`;
+      logger.debug(rawViewSQL);
+      await quack.exec(rawViewSQL);
+    }
+  } catch (error) {
+    logger.error(error, 'Something went wrong trying to create the default views in the cube.');
+    await quack.close();
+    const exception = new CubeValidationException('Cube Build Failed');
+    exception.type = CubeValidationType.CubeCreationFailed;
+    throw exception;
+  }
   await safelyCloseDuckDb(quack);
   const end = performance.now();
   const functionTime = Math.round(end - functionStart);

@@ -14,7 +14,7 @@ import { SUPPORTED_LOCALES } from '../middleware/translation';
 import { MeasureLookupTableExtractor } from '../extractors/measure-lookup-extractor';
 import { DataValueFormat } from '../enums/data-value-format';
 import { t } from 'i18next';
-import { duckdb, duckDBFormat } from '../services/duckdb';
+import { duckDBFormat } from '../services/duckdb';
 
 export function convertDataTableToLookupTable(dataTable: DataTable) {
   const lookupTable = new LookupTable();
