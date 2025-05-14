@@ -36,6 +36,7 @@ import { UserGroupRepository } from '../repositories/user-group';
 import { TaskService } from './task';
 import { TaskAction } from '../enums/task-action';
 import { Task } from '../entities/task/task';
+import { TaskStatus } from '../enums/task-status';
 
 export class DatasetService {
   lang: Locale;
@@ -66,7 +67,10 @@ export class DatasetService {
   }
 
   async getDatasetOverview(datasetId: string): Promise<Dataset> {
-    return DatasetRepository.getById(datasetId, { endRevision: { metadata: true } });
+    return DatasetRepository.getById(datasetId, {
+      endRevision: { metadata: true },
+      tasks: { createdBy: true, updatedBy: true }
+    });
   }
 
   async updateMetadata(datasetId: string, metadata: RevisionMetadataDTO): Promise<Dataset> {
@@ -228,32 +232,30 @@ export class DatasetService {
   }
 
   async submitForPublication(datasetId: string, revisionId: string, user: User): Promise<Task> {
-    const dataset = await DatasetRepository.findOneOrFail({
-      where: { id: datasetId },
-      relations: { draftRevision: true }
-    });
+    const dataset = await DatasetRepository.getById(datasetId, { draftRevision: true });
 
     if (!dataset.draftRevision || dataset.draftRevision.id !== revisionId) {
       throw new BadRequestException('errors.submit_for_publication.invalid_revision_id');
     }
 
-    const task = await this.taskService.create('dataset', dataset.id, TaskAction.Publish, user);
-    console.log(task);
-
-    return task;
+    return await this.taskService.create(datasetId, TaskAction.Publish, user, undefined, { revisionId });
   }
 
-  async withdrawFromPublication(datasetId: string, revisionId: string): Promise<Dataset> {
-    const revision = await RevisionRepository.withdrawPublication(revisionId);
+  async withdrawFromPublication(datasetId: string, revisionId: string, user: User): Promise<Task> {
+    const pendingPublication = await this.getPendingPublishTask(datasetId);
+
+    if (!pendingPublication) {
+      throw new BadRequestException('errors.withdraw.no_pending_publication');
+    }
+
+    const revision = await RevisionRepository.revertToDraft(revisionId);
 
     if (revision.onlineCubeFilename) {
       const fileService = getFileService();
       await fileService.delete(revision.onlineCubeFilename, datasetId);
     }
 
-    const withdrawnDataset = await DatasetRepository.withdraw(revision);
-
-    return withdrawnDataset;
+    return await this.taskService.withdraw(pendingPublication.id, user);
   }
 
   async approveForPublication(datasetId: string, revisionId: string, user: User): Promise<Dataset> {
@@ -340,5 +342,19 @@ export class DatasetService {
     const userGroup = await UserGroupRepository.findOneByOrFail({ id: userGroupId });
     dataset.userGroupId = userGroup.id;
     return dataset.save();
+  }
+
+  async getOpenTasks(datasetId: string): Promise<Task[]> {
+    return this.taskService.getTasksForDataset(datasetId, true);
+  }
+
+  async getAllTasks(datasetId: string): Promise<Task[]> {
+    return this.taskService.getTasksForDataset(datasetId);
+  }
+
+  async getPendingPublishTask(datasetId: string): Promise<Task | undefined> {
+    return (await this.getOpenTasks(datasetId)).find(
+      (task) => task.action === TaskAction.Publish && [TaskStatus.Requested, TaskStatus.Approved].includes(task.status)
+    );
   }
 }

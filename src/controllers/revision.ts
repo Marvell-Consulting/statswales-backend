@@ -546,10 +546,11 @@ export const submitForPublication = async (req: Request, res: Response, next: Ne
       throw new BadRequestException('errors.submit_for_publication.not_ready');
     }
 
-    const task = await req.datasetService.submitForPublication(datasetId, revision.id, user);
+    await req.datasetService.submitForPublication(datasetId, revision.id, user);
+    const dataset = await DatasetRepository.getById(datasetId);
 
     res.status(201);
-    res.json(DatasetDTO.fromDataset(dataset, task));
+    res.json(DatasetDTO.fromDataset(dataset));
   } catch (err: unknown) {
     next(err);
   }
@@ -559,16 +560,10 @@ export const withdrawFromPublication = async (req: Request, res: Response, next:
   try {
     const datasetId: string = res.locals.datasetId;
     const revision: Revision = res.locals.revision;
+    const user = req.user as User;
 
-    if (!revision.publishAt || !revision.approvedAt) {
-      throw new BadRequestException('errors.withdraw.not_scheduled');
-    }
-
-    if (isBefore(revision.publishAt, new Date())) {
-      throw new BadRequestException('errors.withdraw.already_published');
-    }
-
-    const withdrawnDataset = await req.datasetService.withdrawFromPublication(datasetId, revision.id);
+    await req.datasetService.withdrawFromPublication(datasetId, revision.id, user);
+    const withdrawnDataset = await DatasetRepository.getById(datasetId);
     res.status(201);
     res.json(DatasetDTO.fromDataset(withdrawnDataset));
   } catch (err: unknown) {

@@ -28,9 +28,9 @@ export class DatasetDTO {
   start_date?: Date | null;
   end_date?: Date | null;
   user_group_id?: string;
-  open_task?: TaskDTO;
+  tasks?: TaskDTO[];
 
-  static fromDataset(dataset: Dataset, task?: Task): DatasetDTO {
+  static fromDataset(dataset: Dataset): DatasetDTO {
     const dto = new DatasetDTO();
     dto.id = dataset.id;
     dto.created_at = dataset.createdAt.toISOString();
@@ -61,7 +61,7 @@ export class DatasetDTO {
 
     dto.user_group_id = dataset.userGroupId;
 
-    dto.open_task = task ? TaskDTO.fromTask(task) : undefined;
+    dto.tasks = dataset.tasks?.map((task: Task) => TaskDTO.fromTask(task)) || [];
 
     return dto;
   }

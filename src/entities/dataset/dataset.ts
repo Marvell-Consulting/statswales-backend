@@ -12,12 +12,13 @@ import {
 } from 'typeorm';
 
 import { User } from '../user/user';
+import { UserGroup } from '../user/user-group';
+import { Task } from '../task/task';
 
 import { Revision } from './revision';
 import { Dimension } from './dimension';
 import { Measure } from './measure';
 import { FactTableColumn } from './fact-table-column';
-import { UserGroup } from '../user/user-group';
 
 @Entity({ name: 'dataset' })
 export class Dataset extends BaseEntity {
@@ -77,6 +78,9 @@ export class Dataset extends BaseEntity {
   @JoinColumn({ name: 'draft_revision_id', foreignKeyConstraintName: 'FK_dataset_draft_revision_id' })
   draftRevision: Revision | null;
 
+  @Column({ name: 'published_revision_id', type: 'uuid', nullable: true })
+  publishedRevisionId?: string;
+
   // the most recent published aka "live" revision or NULL if unpublished
   @OneToOne(() => Revision, (revision) => revision.dataset, { nullable: true })
   @JoinColumn({ name: 'published_revision_id', foreignKeyConstraintName: 'FK_dataset_published_revision_id' })
@@ -95,4 +99,7 @@ export class Dataset extends BaseEntity {
   @ManyToOne(() => UserGroup, (userGroup) => userGroup.datasets, { nullable: true })
   @JoinColumn({ name: 'user_group_id', foreignKeyConstraintName: 'FK_dataset_user_group_id' })
   userGroup: UserGroup;
+
+  @OneToMany(() => Task, (task) => task.dataset, { cascade: true })
+  tasks?: Task[];
 }
