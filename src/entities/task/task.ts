@@ -13,6 +13,11 @@ import {
 import { User } from '../user/user';
 import { TaskAction } from '../../enums/task-action';
 import { TaskStatus } from '../../enums/task-status';
+import { Dataset } from '../dataset/dataset';
+
+export interface TaskMetadata {
+  [key: string]: any;
+}
 
 @Entity({ name: 'task' })
 export class Task extends BaseEntity {
@@ -30,12 +35,16 @@ export class Task extends BaseEntity {
   @Column({ name: 'open', type: 'boolean', nullable: false, default: true })
   open: boolean;
 
-  @Index('IDX_task_entity_entity_id', ['entity', 'entity_id'])
-  @Column({ name: 'entity', type: 'text', nullable: true })
-  entity?: string;
+  @Index('IDX_task_dataset_id')
+  @Column({ name: 'dataset_id', type: 'text', nullable: true })
+  datasetId?: string;
 
-  @Column({ name: 'entity_id', type: 'text', nullable: true })
-  entityId?: string;
+  @ManyToOne(() => Dataset, (dataset) => dataset.tasks, { nullable: true })
+  @JoinColumn({ name: 'dataset_id', foreignKeyConstraintName: 'FK_task_dataset_id' })
+  dataset?: Dataset;
+
+  @Column({ name: 'metadata', type: 'jsonb', nullable: true })
+  metadata?: TaskMetadata;
 
   @Column({ name: 'comment', type: 'text', nullable: true })
   comment?: string;
@@ -46,13 +55,13 @@ export class Task extends BaseEntity {
   @UpdateDateColumn({ name: 'updated_at', type: 'timestamptz' })
   updatedAt: Date;
 
-  @Index('IDX_task_submitted_by')
+  @Index('IDX_task_created_by')
   @ManyToOne(() => User, { nullable: true })
-  @JoinColumn({ name: 'submitted_by', foreignKeyConstraintName: 'FK_task_submitted_by' })
-  submittedBy: User | null;
+  @JoinColumn({ name: 'created_by', foreignKeyConstraintName: 'FK_task_created_by' })
+  createdBy: User | null;
 
-  @Index('IDX_task_response_by')
+  @Index('IDX_task_updated_by')
   @ManyToOne(() => User)
-  @JoinColumn({ name: 'response_by', foreignKeyConstraintName: 'FK_task_response_by' })
-  responseBy: User | null;
+  @JoinColumn({ name: 'updated_by', foreignKeyConstraintName: 'FK_task_updated_by' })
+  updatedBy: User | null;
 }
