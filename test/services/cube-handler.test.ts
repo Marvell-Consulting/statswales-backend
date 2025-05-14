@@ -1,3 +1,5 @@
+import { format as pgformat } from '@scaleleap/pg-format';
+
 import BlobStorage from '../../src/services/blob-storage';
 import { User } from '../../src/entities/user/user';
 import { getTestUser, getTestUserGroup } from '../helpers/get-test-user';
@@ -11,7 +13,7 @@ import { createFullDataset } from '../helpers/test-helper';
 import { logger } from '../../src/utils/logger';
 import { Dataset } from '../../src/entities/dataset/dataset';
 import { DatasetDTO } from '../../src/dtos/dataset-dto';
-import { duckdb, duckDBFormat } from '../../src/services/duckdb';
+import { duckdb } from '../../src/services/duckdb';
 import { createDataTableQuery, loadFileIntoCube, loadTableDataIntoFactTable } from '../../src/services/cube-handler';
 import { FileType } from '../../src/enums/file-type';
 import path from 'node:path';
@@ -68,7 +70,7 @@ describe('API Endpoints', () => {
       const val = await createDataTableQuery('test_table', 'my_temp_file.csv', FileType.Csv, quack);
       await quack.close();
       expect(val).toBe(
-        "CREATE TABLE \"test_table\" AS SELECT * FROM read_csv('my_temp_file.csv', auto_type_candidates = ['BIGINT', 'DOUBLE', 'VARCHAR']);"
+        "CREATE TABLE test_table AS SELECT * FROM read_csv('my_temp_file.csv', auto_type_candidates = ['BIGINT', 'DOUBLE', 'VARCHAR']);"
       );
     });
     test('for CSV Gzip type files', async () => {
@@ -76,26 +78,26 @@ describe('API Endpoints', () => {
       const val = await createDataTableQuery('test_table', 'my_temp_file.csv.gz', FileType.GzipCsv, quack);
       await quack.close();
       expect(val).toBe(
-        "CREATE TABLE \"test_table\" AS SELECT * FROM read_csv('my_temp_file.csv.gz', auto_type_candidates = ['BIGINT', 'DOUBLE', 'VARCHAR']);"
+        "CREATE TABLE test_table AS SELECT * FROM read_csv('my_temp_file.csv.gz', auto_type_candidates = ['BIGINT', 'DOUBLE', 'VARCHAR']);"
       );
     });
     test('for Parquet type files', async () => {
       const quack = await duckdb();
       const val = await createDataTableQuery('test_table', 'my_temp_file.parquet', FileType.Parquet, quack);
       await quack.close();
-      expect(val).toBe('CREATE TABLE "test_table" AS SELECT * FROM \'my_temp_file.parquet\';');
+      expect(val).toBe("CREATE TABLE test_table AS SELECT * FROM 'my_temp_file.parquet';");
     });
     test('for Gzip JSON type files', async () => {
       const quack = await duckdb();
       const val = await createDataTableQuery('test_table', 'my_temp_file.json.gz', FileType.GzipJson, quack);
       await quack.close();
-      expect(val).toBe('CREATE TABLE "test_table" AS SELECT * FROM read_json_auto(\'my_temp_file.json.gz\');');
+      expect(val).toBe("CREATE TABLE test_table AS SELECT * FROM read_json_auto('my_temp_file.json.gz');");
     });
     test('for Excel type files', async () => {
       const quack = await duckdb();
       const val = await createDataTableQuery('test_table', 'my_temp_file.xlsx', FileType.Excel, quack);
       await quack.close();
-      expect(val).toBe('CREATE TABLE "test_table" AS SELECT * FROM st_read(\'my_temp_file.xlsx\');');
+      expect(val).toBe("CREATE TABLE test_table AS SELECT * FROM st_read('my_temp_file.xlsx');");
     });
     test('for unknown type files', async () => {
       const quack = await duckdb();
@@ -155,10 +157,12 @@ describe('API Endpoints', () => {
         '"Measure" INTEGER',
         '"NoteCodes" VARCHAR'
       ];
-      const factTableQuery = duckDBFormat(`CREATE TABLE ?? (${factTableCols.join(',')}, PRIMARY KEY (??));`, [
+      const factTableQuery = pgformat(
+        'CREATE TABLE %I (%s, PRIMARY KEY (%I));',
         'fact_table',
+        factTableCols.join(','),
         primaryKey
-      ]);
+      );
       await quack.exec(factTableQuery);
       await loadFileIntoCube(quack, testFileInterface, testFilePath, originalTableName);
       await loadTableDataIntoFactTable(quack, factTableDef, factTableName, originalTableName);

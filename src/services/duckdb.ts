@@ -1,5 +1,4 @@
 import { Database } from 'duckdb-async';
-import { format as sqlFormat, escape } from 'sqlstring';
 
 import { logger as parentLogger } from '../utils/logger';
 import { appConfig } from '../config';
@@ -30,12 +29,4 @@ export const duckdb = async (cubeFile = ':memory:') => {
   await duckdb.exec('SET preserve_insertion_order=false;');
 
   return duckdb;
-};
-
-export const duckDBFormat = (sql: string, args?: object | any[], stringifyObjects?: boolean, timeZone?: string) => {
-  return sqlFormat(sql, args, stringifyObjects, timeZone).replaceAll('`', '"');
-};
-
-export const duckDBEscape = (value: string): string => {
-  return escape(value).replaceAll('`', '"');
 };

@@ -270,11 +270,11 @@ describe('API Endpoints', () => {
       expect(res.body.page_size).toBe(100);
       expect(res.body.headers).toEqual([
         { index: -1, name: 'int_line_number', source_type: 'line_number' },
-        { index: 0, name: 'YearCode', source_type: 'unknown' },
-        { index: 1, name: 'AreaCode', source_type: 'unknown' },
+        { index: 0, name: 'YearCode', source_type: 'dimension' },
+        { index: 1, name: 'AreaCode', source_type: 'dimension' },
         { index: 2, name: 'Data', source_type: 'data_values' },
-        { index: 3, name: 'RowRef', source_type: 'unknown' },
-        { index: 4, name: 'Measure', source_type: 'unknown' },
+        { index: 3, name: 'RowRef', source_type: 'dimension' },
+        { index: 4, name: 'Measure', source_type: 'measure' },
         { index: 5, name: 'NoteCodes', source_type: 'note_codes' }
       ]);
       expect(res.body.data[0]).toEqual([1, 202223, 512, 1.442546584, 2, 2, null]);

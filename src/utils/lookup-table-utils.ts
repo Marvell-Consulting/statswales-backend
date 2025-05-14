@@ -1,3 +1,5 @@
+import { format as pgformat } from '@scaleleap/pg-format';
+
 import { DataTable } from '../entities/dataset/data-table';
 import { LookupTable } from '../entities/dataset/lookup-table';
 import { DataTableDescription } from '../entities/dataset/data-table-description';
@@ -14,7 +16,6 @@ import { SUPPORTED_LOCALES } from '../middleware/translation';
 import { MeasureLookupTableExtractor } from '../extractors/measure-lookup-extractor';
 import { DataValueFormat } from '../enums/data-value-format';
 import { t } from 'i18next';
-import { duckDBFormat } from '../services/duckdb';
 
 export function convertDataTableToLookupTable(dataTable: DataTable) {
   const lookupTable = new LookupTable();
@@ -55,17 +56,16 @@ export const languageMatcherCaseStatement = (languageColumn: string | undefined)
   SUPPORTED_LOCALES.map((locale) => {
     const lang = locale.split('-')[0].toLowerCase();
     const tLang = lang;
-    languageMatcher.push(
-      duckDBFormat('WHEN LOWER(??) LIKE ? THEN ?', [languageColumn, `%${lang}%`, locale.toLowerCase()])
-    );
+    languageMatcher.push(pgformat('WHEN LOWER(%I) LIKE %L THEN %L', languageColumn, `%${lang}%`, locale.toLowerCase()));
     SUPPORTED_LOCALES.map((locale) => {
       const lang = locale.split('-')[0].toLowerCase();
       languageMatcher.push(
-        duckDBFormat('WHEN LOWER(??) LIKE ? THEN ?', [
+        pgformat(
+          'WHEN LOWER(%I) LIKE %L THEN %L',
           languageColumn,
           `%${t(`language.${lang}`, { lng: tLang }).toLowerCase()}%`,
           locale.toLowerCase()
-        ])
+        )
       );
     });
   });

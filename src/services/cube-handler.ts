@@ -8,6 +8,7 @@ import { t } from 'i18next';
 import { FindOptionsRelations } from 'typeorm';
 import { toZonedTime } from 'date-fns-tz';
 import { formatISO } from 'date-fns';
+import { format as pgformat } from '@scaleleap/pg-format';
 
 import { FileType } from '../enums/file-type';
 import { FileImportInterface } from '../entities/dataset/file-import.interface';
@@ -33,7 +34,7 @@ import { RevisionRepository } from '../repositories/revision';
 import { PeriodCovered } from '../interfaces/period-covered';
 
 import { dateDimensionReferenceTableCreator } from './time-matching';
-import { duckdb, duckDBEscape, duckDBFormat, safelyCloseDuckDb } from './duckdb';
+import { duckdb, safelyCloseDuckDb } from './duckdb';
 import { NumberExtractor, NumberType } from '../extractors/number-extractor';
 import { CubeValidationType } from '../enums/cube-validation-type';
 import { languageMatcherCaseStatement } from '../utils/lookup-table-utils';
@@ -58,25 +59,24 @@ export const createDataTableQuery = async (
   switch (fileType) {
     case FileType.Csv:
     case FileType.GzipCsv:
-      return duckDBFormat(
-        `CREATE TABLE ?? AS SELECT * FROM read_csv(?, auto_type_candidates = ['BIGINT', 'DOUBLE', 'VARCHAR']);`,
-        [makeCubeSafeString(tableName), tempFileName]
-      );
-    case FileType.Parquet:
-      return duckDBFormat(`CREATE TABLE ?? AS SELECT * FROM ?;`, [makeCubeSafeString(tableName), tempFileName]);
-    case FileType.Json:
-    case FileType.GzipJson:
-      return duckDBFormat(`CREATE TABLE ?? AS SELECT * FROM read_json_auto(?);`, [
+      return pgformat(
+        "CREATE TABLE %I AS SELECT * FROM read_csv(%L, auto_type_candidates = ['BIGINT', 'DOUBLE', 'VARCHAR']);",
         makeCubeSafeString(tableName),
         tempFileName
-      ]);
+      );
+    case FileType.Parquet:
+      return pgformat('CREATE TABLE %I AS SELECT * FROM %L;', makeCubeSafeString(tableName), tempFileName);
+    case FileType.Json:
+    case FileType.GzipJson:
+      return pgformat(
+        'CREATE TABLE %I AS SELECT * FROM read_json_auto(%L);',
+        makeCubeSafeString(tableName),
+        tempFileName
+      );
     case FileType.Excel:
       await quack.exec('INSTALL spatial;');
       await quack.exec('LOAD spatial;');
-      return duckDBFormat(`CREATE TABLE ?? AS SELECT * FROM st_read(?);`, [
-        makeCubeSafeString(tableName),
-        tempFileName
-      ]);
+      return pgformat('CREATE TABLE %I AS SELECT * FROM st_read(%L);', makeCubeSafeString(tableName), tempFileName);
     default:
       throw new Error('Unknown file type');
   }
@@ -105,7 +105,7 @@ export const loadTableDataIntoFactTable = async (
   originTableName: string
 ) => {
   const tableSize = await quack.all(
-    duckDBFormat('SELECT CAST (COUNT(*) AS INTEGER) as table_size FROM ??;', [originTableName])
+    pgformat('SELECT CAST (COUNT(*) AS INTEGER) as table_size FROM %I;', originTableName)
   );
   const rowCount = tableSize[0].table_size;
   if (rowCount === 0) {
@@ -115,22 +115,24 @@ export const loadTableDataIntoFactTable = async (
   logger.debug(`Loading data table into fact table`);
   const batchSize = 200000;
   let processedRows = 0;
-  let insertQuery = duckDBFormat('INSERT INTO ?? SELECT ?? FROM ?? LIMIT ? OFFSET ?;', [
+  let insertQuery = pgformat(
+    'INSERT INTO %I SELECT %I FROM %I LIMIT %L OFFSET ?;',
     factTableName,
     factTableDef,
     originTableName,
     batchSize,
     processedRows
-  ]);
+  );
   try {
     while (processedRows < rowCount) {
-      insertQuery = duckDBFormat('INSERT INTO ?? SELECT ?? FROM ?? LIMIT ? OFFSET ?;', [
+      insertQuery = pgformat(
+        'INSERT INTO %I SELECT %I FROM %I LIMIT %L OFFSET %L;',
         factTableName,
         factTableDef,
         originTableName,
         batchSize,
         processedRows
-      ]);
+      );
       await quack.exec(insertQuery);
 
       processedRows += batchSize;
@@ -196,17 +198,34 @@ export const loadFileDataTableIntoTable = async (
   switch (dataTable.fileType) {
     case FileType.Csv:
     case FileType.GzipCsv:
-      insertQuery = `CREATE TABLE ${tempTableName} AS SELECT "${dataTableColumnSelect.join('", "')}" FROM read_csv('${tempFile}', auto_type_candidates = ['BIGINT', 'DOUBLE', 'VARCHAR']);`;
+      insertQuery = pgformat(
+        "CREATE TABLE %I AS SELECT %I FROM read_csv(%L, auto_type_candidates = ['BIGINT', 'DOUBLE', 'VARCHAR']);",
+        tempTableName,
+        dataTableColumnSelect,
+        tempFile
+      );
       break;
     case FileType.Parquet:
-      insertQuery = `CREATE TABLE ${tempTableName} AS SELECT "${dataTableColumnSelect.join('", "')}" FROM ${tempFile};`;
+      insertQuery = pgformat('CREATE TABLE %I AS SELECT %I FROM %L;', tempTableName, dataTableColumnSelect, tempFile);
       break;
     case FileType.Json:
     case FileType.GzipJson:
-      insertQuery = `CREATE TABLE ${tempTableName} AS SELECT "${dataTableColumnSelect.join('", "')}" FROM read_json_auto('${tempFile}');`;
+      insertQuery = pgformat(
+        'CREATE TABLE %I AS SELECT %I FROM read_json_auto(%L);',
+        tempTableName,
+        dataTableColumnSelect,
+        tempFile
+      );
       break;
     case FileType.Excel:
-      insertQuery = `CREATE TABLE ${tempTableName} AS SELECT "${dataTableColumnSelect.join('", "')}" FROM st_read('${tempFile}');`;
+      await quack.exec('INSTALL spatial;');
+      await quack.exec('LOAD spatial;');
+      insertQuery = pgformat(
+        'CREATE TABLE %I AS SELECT %I FROM st_read(%L);',
+        tempTableName,
+        dataTableColumnSelect,
+        tempFile
+      );
       break;
     default:
       throw new FactTableValidationException(
@@ -219,7 +238,7 @@ export const loadFileDataTableIntoTable = async (
     logger.debug(`Loading file data table into table ${tableName} with query: ${insertQuery}`);
     await quack.exec(insertQuery);
     await loadTableDataIntoFactTable(quack, factTableDef, tableName, tempTableName);
-    await quack.exec(duckDBFormat('DROP TABLE ??', [tempTableName]));
+    await quack.exec(pgformat('DROP TABLE %I', tempTableName));
     await quack.exec('CHECKPOINT;');
   } catch (error) {
     logger.error(error, `Failed to load file into table using query ${insertQuery}`);
@@ -377,14 +396,14 @@ export const loadCorrectReferenceDataIntoReferenceDataTable = async (quack: Data
   const extractor = dimension.extractor as ReferenceDataExtractor;
   for (const category of extractor.categories) {
     const categoryPresent = await quack.all(
-      duckDBFormat('SELECT DISTINCT category_key FROM reference_data WHERE category_key=?', [category])
+      pgformat('SELECT DISTINCT category_key FROM reference_data WHERE category_key=%L', category)
     );
     if (categoryPresent.length > 0) {
       continue;
     }
     logger.debug(`Copying ${category} reference data in to reference_data table`);
     await quack.exec(
-      duckDBFormat('INSERT INTO reference_data (SELECT * FROM reference_data_all WHERE category_key=?);', [category])
+      pgformat('INSERT INTO reference_data (SELECT * FROM reference_data_all WHERE category_key=%L);', category)
     );
   }
 };
@@ -400,14 +419,15 @@ async function setupReferenceDataDimension(
   await loadCorrectReferenceDataIntoReferenceDataTable(quack, dimension);
   SUPPORTED_LOCALES.map((locale) => {
     const columnName = dimension.metadata.find((info) => info.language === locale)?.name || dimension.factTableColumn;
-    viewSelectStatementsMap.get(locale)?.push(duckDBFormat('reference_data_info.description AS ??', [columnName]));
-    rawSelectStatementsMap.get(locale)?.push(duckDBFormat('reference_data_info.description as ??', [columnName]));
+    viewSelectStatementsMap.get(locale)?.push(pgformat('reference_data_info.description AS %I', columnName));
+    rawSelectStatementsMap.get(locale)?.push(pgformat('reference_data_info.description AS %I', columnName));
   });
   joinStatements.push(
-    duckDBFormat('LEFT JOIN reference_data on CAST(??.?? AS VARCHAR)=reference_data.item_id', [
+    pgformat(
+      'LEFT JOIN reference_data on CAST(%I.%I AS VARCHAR)=reference_data.item_id',
       FACT_TABLE_NAME,
       dimension.factTableColumn
-    ])
+    )
   );
 }
 
@@ -491,21 +511,15 @@ export async function createDateDimension(quack: Database, extractor: object | n
 
 export const createLookupTableQuery = (
   lookupTableName: string,
-  referemceColumnName: string,
+  referenceColumnName: string,
   referenceColumnType: string
 ) => {
-  return duckDBFormat(
-    `
-    CREATE TABLE ?? (
-      ?? ${referenceColumnType} NOT NULL,
-      language VARCHAR(5) NOT NULL,
-      description TEXT NOT NULL,
-      notes TEXT,
-      sort_order INTEGER,
-      hierarchy ${referenceColumnType}
-    );
-  `,
-    [lookupTableName, referemceColumnName]
+  return pgformat(
+    'CREATE TABLE %I (%I %s NOT NULL, language VARCHAR(5) NOT NULL, description TEXT NOT NULL, notes TEXT, sort_order INTEGER, hierarchy %s);',
+    lookupTableName,
+    referenceColumnName,
+    referenceColumnType,
+    referenceColumnType
   );
 };
 
@@ -563,52 +577,48 @@ export async function createLookupTableDimension(
         (col) => col.lang.toLowerCase() === locale.toLowerCase()
       );
       const notesCol = extractor.notesColumns?.find((col) => col.lang.toLowerCase() === locale.toLowerCase());
-      const descriptionColStr = descriptionCol ? descriptionCol.name : null;
-      const notesColStr = notesCol ? notesCol.name : null;
-      const sortStr = extractor.sortColumn ? extractor.sortColumn : null;
-      const hierarchyCol = extractor.hierarchyColumn ? extractor.hierarchyColumn : null;
+      const notesColStr = notesCol ? pgformat('%I', notesCol.name) : 'NULL';
+      const sortStr = extractor.sortColumn ? pgformat('%I', extractor.sortColumn) : 'NULL';
+      const hierarchyCol = extractor.hierarchyColumn ? pgformat('%I', extractor.hierarchyColumn) : 'NULL';
       dataExtractorParts.push(
-        duckDBFormat(
-          'SELECT ?? AS ??, ? as language, ?? as description, ?? as notes, ?? as sort_order, ?? as hierarchy FROM ??',
-          [
-            dimension.joinColumn,
-            factTableColumn.columnName,
-            locale.toLowerCase(),
-            descriptionColStr,
-            notesColStr,
-            sortStr,
-            hierarchyCol,
-            lookupTableName
-          ]
-        ).replaceAll('"null"', 'NULL')
+        pgformat(
+          'SELECT %I AS %I, %L as language, %I as description, %s as notes, %s as sort_order, %s as hierarchy FROM %I',
+          dimension.joinColumn,
+          factTableColumn.columnName,
+          locale.toLowerCase(),
+          descriptionCol?.name,
+          notesColStr,
+          sortStr,
+          hierarchyCol,
+          lookupTableName
+        )
       );
     }
-    const builtInsertQuery = duckDBFormat(`INSERT INTO ?? ${dataExtractorParts.join(' UNION ')};`, [dimTable]);
+    const builtInsertQuery = pgformat(`INSERT INTO %I %s;`, dimTable, dataExtractorParts.join(' UNION '));
     // const builtInsertQuery = `INSERT INTO ${makeCubeSafeString(dimension.factTableColumn)}_lookup (${dataExtractorParts.join(' UNION ')});`;
     logger.debug(`Built insert query: ${builtInsertQuery}`);
     await quack.exec(builtInsertQuery);
   } else {
     const languageMatcher = languageMatcherCaseStatement(extractor.languageColumn);
-    const notesStr = extractor.notesColumns ? extractor.notesColumns[0].name : null;
-    const sortStr = extractor.sortColumn ? extractor.sortColumn : null;
-    const hierarchyStr = extractor.hierarchyColumn ? extractor.hierarchyColumn : null;
-    const dataExtractorParts = duckDBFormat(
-      `SELECT ?? AS ??, ${languageMatcher} as language, ?? as description, ?? as notes, ?? as sort_order, ?? as hierarchy FROM ??;`,
-      [
-        dimension.joinColumn,
-        factTableColumn.columnName,
-        extractor.descriptionColumns[0].name,
-        notesStr,
-        sortStr,
-        hierarchyStr,
-        lookupTableName
-      ]
+    const notesStr = extractor.notesColumns ? pgformat('%I', extractor.notesColumns[0].name) : 'NULL';
+    const sortStr = extractor.sortColumn ? pgformat('%I', extractor.sortColumn) : 'NULL';
+    const hierarchyStr = extractor.hierarchyColumn ? pgformat('%I', extractor.hierarchyColumn) : 'NULL';
+    const dataExtractorParts = pgformat(
+      `SELECT %I AS %I, %L as language, %I as description, %s as notes, %s as sort_order, %s as hierarchy FROM %I;`,
+      dimension.joinColumn,
+      factTableColumn.columnName,
+      languageMatcher,
+      extractor.descriptionColumns[0].name,
+      notesStr,
+      sortStr,
+      hierarchyStr,
+      lookupTableName
     );
-    const builtInsertQuery = duckDBFormat(`INSERT INTO ?? ${dataExtractorParts}`, [dimTable]);
+    const builtInsertQuery = pgformat(`INSERT INTO %I %s`, dimTable, dataExtractorParts);
     await quack.exec(builtInsertQuery);
   }
   logger.debug(`Dropping original lookup table ${lookupTableName}`);
-  await quack.exec(duckDBFormat('DROP TABLE ??', [lookupTableName]));
+  await quack.exec(pgformat('DROP TABLE %I', lookupTableName));
 }
 
 function setupFactTableUpdateJoins(
@@ -619,9 +629,7 @@ function setupFactTableUpdateJoins(
   const joinParts: string[] = [];
   for (const factTableCol of factIdentifiers) {
     const dataTableCol = dataTableIdentifiers.find((col) => col.factTableColumn === factTableCol.columnName);
-    joinParts.push(
-      duckDBFormat('??.??=update_table.??', [factTableName, factTableCol.columnName, dataTableCol?.columnName])
-    );
+    joinParts.push(pgformat('%I.%I=update_table.%I', factTableName, factTableCol.columnName, dataTableCol?.columnName));
   }
   return joinParts.join(' AND ');
 }
@@ -643,31 +651,30 @@ async function loadFactTablesWithUpdates(
       (col) => col.factTableColumn === dataValuesColumn.columnName
     )?.columnName;
 
-    const updateQuery = duckDBFormat(
-      `UPDATE ?? SET ??=update_table.??,
-      ??=(CASE
-      WHEN ??.?? IS NULL THEN 'r'
-      WHEN ??.?? LIKE '%r%' THEN ??.??
-      ELSE concat(??.??,'r') END)
-      FROM update_table WHERE ${setupFactTableUpdateJoins(FACT_TABLE_NAME, factIdentifiers, dataTable.dataTableDescriptions)}
-      AND ??.??!=update_table.??;`,
-      [
-        FACT_TABLE_NAME,
-        dataValuesColumn.columnName,
-        updateTableDataCol,
-        notesCodeColumn.columnName,
-        FACT_TABLE_NAME,
-        notesCodeColumn.columnName,
-        FACT_TABLE_NAME,
-        notesCodeColumn.columnName,
-        FACT_TABLE_NAME,
-        notesCodeColumn.columnName,
-        FACT_TABLE_NAME,
-        notesCodeColumn.columnName,
-        FACT_TABLE_NAME,
-        dataValuesColumn.columnName,
-        updateTableDataCol
-      ]
+    const updateQuery = pgformat(
+      `UPDATE %I SET %I=update_table.%I,
+      %I=(CASE
+      WHEN %I.%I IS NULL THEN 'r'
+      WHEN %I.%I LIKE '%r%' THEN %I.%I
+      ELSE concat(%I.%I,'r') END)
+      FROM update_table WHERE %s
+      AND %I.%I!=update_table.%I;`,
+      FACT_TABLE_NAME,
+      dataValuesColumn.columnName,
+      updateTableDataCol,
+      notesCodeColumn.columnName,
+      FACT_TABLE_NAME,
+      notesCodeColumn.columnName,
+      FACT_TABLE_NAME,
+      notesCodeColumn.columnName,
+      FACT_TABLE_NAME,
+      notesCodeColumn.columnName,
+      FACT_TABLE_NAME,
+      notesCodeColumn.columnName,
+      setupFactTableUpdateJoins(FACT_TABLE_NAME, factIdentifiers, dataTable.dataTableDescriptions),
+      FACT_TABLE_NAME,
+      dataValuesColumn.columnName,
+      updateTableDataCol
     );
     const dataTableColumnSelect: string[] = [];
 
@@ -682,7 +689,7 @@ async function loadFactTablesWithUpdates(
       logger.debug(`Performing action ${dataTable.action} on fact table`);
       switch (dataTable.action) {
         case DataTableAction.ReplaceAll:
-          await quack.exec(duckDBFormat(`DELETE FROM ??;`, [FACT_TABLE_NAME]));
+          await quack.exec(pgformat('DELETE FROM %I;', FACT_TABLE_NAME));
           await quack.exec('CHECKPOINT;');
           await loadFileDataTableIntoTable(quack, dataTable, factTableDef, factTableFile, FACT_TABLE_NAME);
           break;
@@ -692,27 +699,29 @@ async function loadFactTablesWithUpdates(
         case DataTableAction.Revise:
           await loadFileIntoCube(quack, dataTable, factTableFile, 'update_table');
           await quack.exec(updateQuery);
-          await quack.exec(`DROP TABLE update_table;`);
+          await quack.exec('DROP TABLE update_table;');
           break;
         case DataTableAction.AddRevise:
           await loadFileIntoCube(quack, dataTable, factTableFile, 'update_table');
           logger.debug(`Executing update query: ${updateQuery}`);
           await quack.exec(updateQuery);
           await quack.exec(
-            duckDBFormat(
-              `DELETE FROM update_table USING ?? WHERE ${setupFactTableUpdateJoins(FACT_TABLE_NAME, factIdentifiers, dataTable.dataTableDescriptions)}`,
-              [FACT_TABLE_NAME]
+            pgformat(
+              `DELETE FROM update_table USING %I WHERE %s`,
+              FACT_TABLE_NAME,
+              setupFactTableUpdateJoins(FACT_TABLE_NAME, factIdentifiers, dataTable.dataTableDescriptions)
             )
           );
           await quack.exec('CHECKPOINT;');
           await quack.exec(
-            duckDBFormat(`INSERT INTO ?? (??) (SELECT ?? FROM update_table);`, [
+            pgformat(
+              'INSERT INTO %I (%I) (SELECT %I FROM update_table);',
               FACT_TABLE_NAME,
               factTableDef,
               dataTableColumnSelect
-            ])
+            )
           );
-          await quack.exec(`DROP TABLE update_table;`);
+          await quack.exec('DROP TABLE update_table;');
           await quack.exec('CHECKPOINT;');
           break;
       }
@@ -965,25 +974,27 @@ function setupMeasureNoDataValues(
       viewSelectStatementsMap
         .get(locale)
         ?.push(
-          duckDBFormat('??.?? AS ??', [
+          pgformat(
+            '%I.%I AS %I',
             FACT_TABLE_NAME,
             dataValuesColumn?.columnName,
             t('column_headers.data_values', { lng: locale })
-          ])
+          )
         );
       rawSelectStatementsMap
         .get(locale)
         ?.push(
-          duckDBFormat('??.?? AS ??', [
+          pgformat(
+            '%I.%I AS %I',
             FACT_TABLE_NAME,
             dataValuesColumn?.columnName,
             t('column_headers.data_values', { lng: locale })
-          ])
+          )
         );
     }
     if (measureColumn) {
-      viewSelectStatementsMap.get(locale)?.push(duckDBFormat('??.??', [FACT_TABLE_NAME, measureColumn.columnName]));
-      rawSelectStatementsMap.get(locale)?.push(duckDBFormat('??.??', [FACT_TABLE_NAME, measureColumn.columnName]));
+      viewSelectStatementsMap.get(locale)?.push(pgformat('%I.%I', FACT_TABLE_NAME, measureColumn.columnName));
+      rawSelectStatementsMap.get(locale)?.push(pgformat('%I.%I', FACT_TABLE_NAME, measureColumn.columnName));
     }
   });
 }
@@ -1008,21 +1019,19 @@ async function setupMeasures(
     logger.debug('Creating query part to format the data value correctly');
 
     const uniqueReferences = await quack.all(
-      duckDBFormat('SELECT DISTINCT reference, format, sort_order, decimals FROM measure;')
+      pgformat('SELECT DISTINCT reference, format, sort_order, decimals FROM measure;')
     );
     const caseStatements: string[] = ['CASE'];
     for (const row of uniqueReferences) {
       const statement = measureFormats()
         .get(row.format.toLowerCase())
-        ?.method.replace('|REF|', duckDBEscape(row.reference))
+        ?.method.replace('|REF|', pgformat('%L', row.reference))
         .replace('|DEC|', row.decimals ? row.decimals : 0)
-        .replace('|COL|', duckDBFormat('??.??', [FACT_TABLE_NAME, dataValuesColumn.columnName]));
+        .replace('|COL|', pgformat('%I.%I', FACT_TABLE_NAME, dataValuesColumn.columnName));
       if (statement) caseStatements.push(statement);
       else logger.warn(`Failed to create case statement measure row: ${JSON.stringify(row)}`);
     }
-    caseStatements.push(
-      duckDBFormat('ELSE CAST(??.?? AS VARCHAR) END', [FACT_TABLE_NAME, dataValuesColumn?.columnName])
-    );
+    caseStatements.push(pgformat('ELSE CAST(%I.%I AS VARCHAR) END', FACT_TABLE_NAME, dataValuesColumn?.columnName));
     logger.debug(`Data view case statement ended up as: ${caseStatements.join('\n')}`);
     SUPPORTED_LOCALES.map((locale) => {
       const columnName =
@@ -1031,26 +1040,26 @@ async function setupMeasures(
         rawSelectStatementsMap
           .get(locale)
           ?.push(
-            duckDBFormat('??.?? AS ??', [
+            pgformat(
+              '%I.%I AS %I',
               FACT_TABLE_NAME,
               dataValuesColumn.columnName,
               t('column_headers.data_values', { lng: locale })
-            ])
+            )
           );
         viewSelectStatementsMap
           .get(locale)
-          ?.push(
-            duckDBFormat(`${caseStatements.join('\n')} AS ??`, [t('column_headers.data_values', { lng: locale })])
-          );
+          ?.push(pgformat(`%s AS %I`, caseStatements.join('\n'), t('column_headers.data_values', { lng: locale })));
       }
-      viewSelectStatementsMap.get(locale)?.push(duckDBFormat('measure.description AS ??', [columnName]));
-      rawSelectStatementsMap.get(locale)?.push(duckDBFormat('measure.description AS ??', [columnName]));
+      viewSelectStatementsMap.get(locale)?.push(pgformat('measure.description AS %I', columnName));
+      rawSelectStatementsMap.get(locale)?.push(pgformat('measure.description AS %I', columnName));
     });
     joinStatements.push(
-      duckDBFormat('LEFT JOIN measure on measure.reference=??.?? AND measure.language=#LANG#', [
+      pgformat(
+        'LEFT JOIN measure on measure.reference=%I.%I AND measure.language=#LANG#',
         FACT_TABLE_NAME,
         dataset.measure.factTableColumn
-      ])
+      )
     );
     orderByStatements.push(`measure.sort_order, measure.reference`);
   } else {
@@ -1065,8 +1074,8 @@ function rawDimensionProcessor(
 ) {
   SUPPORTED_LOCALES.map((locale) => {
     const columnName = dimension.metadata.find((info) => info.language === locale)?.name || dimension.factTableColumn;
-    viewSelectStatementsMap.get(locale)?.push(duckDBFormat('?? AS ??', [dimension.factTableColumn, columnName]));
-    rawSelectStatementsMap.get(locale)?.push(duckDBFormat('?? AS ??', [dimension.factTableColumn, columnName]));
+    viewSelectStatementsMap.get(locale)?.push(pgformat('%I AS %I', dimension.factTableColumn, columnName));
+    rawSelectStatementsMap.get(locale)?.push(pgformat('%I AS %I', dimension.factTableColumn, columnName));
   });
 }
 
@@ -1083,52 +1092,41 @@ async function dateDimensionProcessor(
   await createDateDimension(quack, dimension.extractor, factTableColumn);
   SUPPORTED_LOCALES.map((locale) => {
     const columnName = dimension.metadata.find((info) => info.language === locale)?.name || dimension.factTableColumn;
-    viewSelectStatementsMap.get(locale)?.push(duckDBFormat('??.description AS ??', [dimTable, columnName]));
+    viewSelectStatementsMap.get(locale)?.push(pgformat('%I.description AS %I', dimTable, columnName));
     viewSelectStatementsMap
       .get(locale)
       ?.push(
-        duckDBFormat("strftime(??.start_date, '%d/%m/%Y') AS ??", [
-          dimTable,
-          t('column_headers.start_date', { lng: locale })
-        ])
+        pgformat("strftime(%I.start_date, '%d/%m/%Y') AS %I", dimTable, t('column_headers.start_date', { lng: locale }))
       );
     viewSelectStatementsMap
       .get(locale)
       ?.push(
-        duckDBFormat("strftime(??.end_date, '%d/%m/%Y') AS ??", [
-          dimTable,
-          t('column_headers.end_date', { lng: locale })
-        ])
+        pgformat("strftime(%I.end_date, '%d/%m/%Y') AS %I", dimTable, t('column_headers.end_date', { lng: locale }))
       );
-    rawSelectStatementsMap.get(locale)?.push(duckDBFormat('??.description AS ??', [dimTable, columnName]));
+    rawSelectStatementsMap.get(locale)?.push(pgformat('%I.description AS %I', dimTable, columnName));
     rawSelectStatementsMap
       .get(locale)
       ?.push(
-        duckDBFormat("strftime(??.start_date, '%d/%m/%Y') AS ??", [
-          dimTable,
-          t('column_headers.start_date', { lng: locale })
-        ])
+        pgformat("strftime(%I.start_date, '%d/%m/%Y') AS %I", dimTable, t('column_headers.start_date', { lng: locale }))
       );
     rawSelectStatementsMap
       .get(locale)
       ?.push(
-        duckDBFormat("strftime(??.end_date, '%d/%m/%Y') AS ??", [
-          dimTable,
-          t('column_headers.end_date', { lng: locale })
-        ])
+        pgformat("strftime(%I.end_date, '%d/%m/%Y') AS %I", dimTable, t('column_headers.end_date', { lng: locale }))
       );
   });
   joinStatements.push(
-    duckDBFormat("LEFT JOIN ?? ON ??.??=??.?? AND ??.language='#LANG#'", [
+    pgformat(
+      "LEFT JOIN %I ON %I.%I=%I.%I AND %I.language='#LANG#'",
       dimTable,
       dimTable,
       factTableColumn.columnName,
       FACT_TABLE_NAME,
       factTableColumn.columnName,
       dimTable
-    ])
+    )
   );
-  orderByStatements.push(duckDBFormat('??.end_date', [dimTable]));
+  orderByStatements.push(pgformat('%I.end_date', dimTable));
 }
 
 function setupNumericDimension(
@@ -1141,30 +1139,32 @@ function setupNumericDimension(
     if ((dimension.extractor as NumberExtractor).type === NumberType.Integer) {
       viewSelectStatementsMap
         .get(locale)
-        ?.push(duckDBFormat('CAST(??.?? AS INTEGER) AS ??', [FACT_TABLE_NAME, dimension.factTableColumn, columnName]));
+        ?.push(pgformat('CAST(%I.%I AS INTEGER) AS %I', FACT_TABLE_NAME, dimension.factTableColumn, columnName));
       rawSelectStatementsMap
         .get(locale)
-        ?.push(duckDBFormat('CAST(??.?? AS INTEGER) AS ??', [FACT_TABLE_NAME, dimension.factTableColumn, columnName]));
+        ?.push(pgformat('CAST(%I.%I AS INTEGER) AS %I', FACT_TABLE_NAME, dimension.factTableColumn, columnName));
     } else {
       viewSelectStatementsMap
         .get(locale)
         ?.push(
-          duckDBFormat('CAST(CAST(??.?? AS DECIMAL(18,?)) AS VARCHAR) AS ??', [
+          pgformat(
+            'CAST(CAST(%I.%I AS DECIMAL(18,%L)) AS VARCHAR) AS %I',
             FACT_TABLE_NAME,
             dimension.factTableColumn,
             (dimension.extractor as NumberExtractor).decimalPlaces,
             columnName
-          ])
+          )
         );
       rawSelectStatementsMap
         .get(locale)
         ?.push(
-          duckDBFormat('CAST(??.?? AS DECIMAL(18,?)) AS ??', [
+          pgformat(
+            'CAST(%I.%I AS DECIMAL(18,%L)) AS %I',
             FACT_TABLE_NAME,
             dimension.factTableColumn,
             (dimension.extractor as NumberExtractor).decimalPlaces,
             columnName
-          ])
+          )
         );
     }
   });
@@ -1179,10 +1179,10 @@ function setupTextDimension(
     const columnName = dimension.metadata.find((info) => info.language === locale)?.name || dimension.factTableColumn;
     viewSelectStatementsMap
       .get(locale)
-      ?.push(duckDBFormat('CAST(?? AS VARCHAR) AS ??', [dimension.factTableColumn, columnName]));
+      ?.push(pgformat('CAST(%I AS VARCHAR) AS %I', dimension.factTableColumn, columnName));
     rawSelectStatementsMap
       .get(locale)
-      ?.push(duckDBFormat('CAST(?? AS VARCHAR) AS ??', [dimension.factTableColumn, columnName]));
+      ?.push(pgformat('CAST(%I AS VARCHAR) AS %I', dimension.factTableColumn, columnName));
   });
 }
 
@@ -1320,7 +1320,7 @@ export async function createEmptyFactTableInCube(quack: Database, dataset: Datas
         // eslint-disable-next-line no-fallthrough
         case FactTableColumnType.Dimension:
         case FactTableColumnType.Time:
-          compositeKey.push(`"${field.columnName}"`);
+          compositeKey.push(field.columnName);
           factIdentifiers.push(field);
           break;
         case FactTableColumnType.NoteCodes:
@@ -1331,19 +1331,19 @@ export async function createEmptyFactTableInCube(quack: Database, dataset: Datas
           break;
       }
       factTableDef.push(field.columnName);
-      return `${duckDBEscape(field.columnName)} ${field.columnDatatype}`.replaceAll(`'`, `"`);
+      return pgformat('%I %s', field.columnName, field.columnDatatype);
     });
 
   logger.info('Creating initial fact table in cube');
   try {
-    let createTableQuery: string = duckDBFormat(`CREATE TABLE ?? (${factTableCreationDef.join(',')});`, [
-      FACT_TABLE_NAME
-    ]);
+    let createTableQuery: string = pgformat(`CREATE TABLE %I (%s);`, FACT_TABLE_NAME, factTableCreationDef.join(','));
     if (compositeKey.length > 0) {
-      createTableQuery = duckDBFormat(`CREATE TABLE ?? (${factTableCreationDef.join(',')}, PRIMARY KEY(??));`, [
+      createTableQuery = pgformat(
+        'CREATE TABLE %I (%s, PRIMARY KEY(%I));',
         FACT_TABLE_NAME,
+        factTableCreationDef,
         compositeKey
-      ]);
+      );
     }
     logger.debug(`Creating fact table with query: '${createTableQuery}'`);
     await quack.exec(createTableQuery);

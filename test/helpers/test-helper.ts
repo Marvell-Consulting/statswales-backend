@@ -31,6 +31,9 @@ export async function createSmallDataset(
   let mimeType = 'text/csv';
 
   const dataTableDescriptions = await extractTableInformation(testFileBuffer, fileType);
+  dataTableDescriptions.forEach((desc) => {
+    desc.factTableColumn = desc.columnName;
+  });
 
   switch (fileType) {
     case FileType.Csv:
@@ -55,7 +58,15 @@ export async function createSmallDataset(
     factTable: dataTableDescriptions.map((desc) => {
       const isNoteCol = desc.columnName.toLowerCase().includes('note');
       const isDataCol = desc.columnName.toLowerCase().includes('data');
-      const columnType = isNoteCol ? FactTableColumnType.NoteCodes : FactTableColumnType.Unknown;
+      const isMeasureCol = desc.columnName.toLowerCase().includes('measure');
+      let columnType = FactTableColumnType.Dimension;
+      if (isNoteCol) {
+        columnType = FactTableColumnType.NoteCodes;
+      } else if (isDataCol) {
+        columnType = FactTableColumnType.DataValues;
+      } else if (isMeasureCol) {
+        columnType = FactTableColumnType.Measure;
+      }
       const columnDatatype = isNoteCol ? 'VARCHAR' : desc.columnDatatype;
 
       return FactTableColumn.create({
