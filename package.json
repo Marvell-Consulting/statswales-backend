@@ -56,7 +56,6 @@
     "@types/passport-jwt": "^4.0.1",
     "@types/redis": "^4.0.10",
     "@types/shelljs": "^0.8.15",
-    "@types/sqlstring": "^2.3.2",
     "@types/supertest": "^6.0.2",
     "@types/tmp": "^0.2.6",
     "@types/uuid": "^10.0.0",

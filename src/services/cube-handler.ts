@@ -414,7 +414,6 @@ async function setupReferenceDataDimension(
   viewSelectStatementsMap: Map<Locale, string[]>,
   rawSelectStatementsMap: Map<Locale, string[]>,
   joinStatements: string[]
-  // orderByStatements: string[]
 ) {
   await loadCorrectReferenceDataIntoReferenceDataTable(quack, dimension);
   SUPPORTED_LOCALES.map((locale) => {
@@ -547,13 +546,11 @@ async function setupLookupTableDimension(
     rawSelectStatementsMap.get(locale)?.push(`${dimTable}.description as "${columnName}"`);
   });
   joinStatements.push(
-    `LEFT JOIN "${dimTable}" on "${dimTable}"."${factTableColumn.columnName}"=${FACT_TABLE_NAME}."${factTableColumn.columnName}" AND "${dimTable}".language='#LANG#'`
+    `LEFT JOIN "${dimTable}" on "${dimTable}"."${factTableColumn.columnName}"=${FACT_TABLE_NAME}."${factTableColumn.columnName}" AND "${dimTable}".language=#LANG#`
   );
   orderByStatements.push(`"${dimTable}".sort_order`);
 }
 
-// This is a short version of the validate lookup table code found in the dimension process.
-// This concise version doesn't return any information on why the creation failed.  Just that it failed
 export async function createLookupTableDimension(
   quack: Database,
   dataset: Dataset,
@@ -639,8 +636,8 @@ async function loadFactTablesWithUpdates(
   dataset: Dataset,
   allDataTables: DataTable[],
   factTableDef: string[],
-  dataValuesColumn: FactTableColumn,
-  notesCodeColumn: FactTableColumn,
+  dataValuesColumn: FactTableColumn | undefined,
+  notesCodeColumn: FactTableColumn | undefined,
   factIdentifiers: FactTableColumn[]
 ) {
   for (const dataTable of allDataTables.sort((ftA, ftB) => ftA.uploadedAt.getTime() - ftB.uploadedAt.getTime())) {
@@ -648,34 +645,37 @@ async function loadFactTablesWithUpdates(
 
     const factTableFile: string = await getFileImportAndSaveToDisk(dataset, dataTable);
     const updateTableDataCol = dataTable.dataTableDescriptions.find(
-      (col) => col.factTableColumn === dataValuesColumn.columnName
+      (col) => col.factTableColumn === dataValuesColumn?.columnName
     )?.columnName;
 
-    const updateQuery = pgformat(
-      `UPDATE %I SET %I=update_table.%I,
+    let updateQuery = '';
+    if (dataValuesColumn && notesCodeColumn) {
+      updateQuery = pgformat(
+        `UPDATE %I SET %I=update_table.%I,
       %I=(CASE
       WHEN %I.%I IS NULL THEN 'r'
       WHEN %I.%I LIKE '%r%' THEN %I.%I
       ELSE concat(%I.%I,'r') END)
       FROM update_table WHERE %s
       AND %I.%I!=update_table.%I;`,
-      FACT_TABLE_NAME,
-      dataValuesColumn.columnName,
-      updateTableDataCol,
-      notesCodeColumn.columnName,
-      FACT_TABLE_NAME,
-      notesCodeColumn.columnName,
-      FACT_TABLE_NAME,
-      notesCodeColumn.columnName,
-      FACT_TABLE_NAME,
-      notesCodeColumn.columnName,
-      FACT_TABLE_NAME,
-      notesCodeColumn.columnName,
-      setupFactTableUpdateJoins(FACT_TABLE_NAME, factIdentifiers, dataTable.dataTableDescriptions),
-      FACT_TABLE_NAME,
-      dataValuesColumn.columnName,
-      updateTableDataCol
-    );
+        FACT_TABLE_NAME,
+        dataValuesColumn.columnName,
+        updateTableDataCol,
+        notesCodeColumn.columnName,
+        FACT_TABLE_NAME,
+        notesCodeColumn.columnName,
+        FACT_TABLE_NAME,
+        notesCodeColumn.columnName,
+        FACT_TABLE_NAME,
+        notesCodeColumn.columnName,
+        FACT_TABLE_NAME,
+        notesCodeColumn.columnName,
+        setupFactTableUpdateJoins(FACT_TABLE_NAME, factIdentifiers, dataTable.dataTableDescriptions),
+        FACT_TABLE_NAME,
+        dataValuesColumn.columnName,
+        updateTableDataCol
+      );
+    }
     const dataTableColumnSelect: string[] = [];
 
     for (const factTableCol of factTableDef) {
@@ -772,33 +772,28 @@ export async function loadFactTables(
   }
 
   // Process all the fact tables
-  if (dataValuesColumn && notesCodeColumn) {
-    try {
-      logger.debug(`Loading ${allFactTables.length} fact tables in to database with updates`);
-      await loadFactTablesWithUpdates(
-        quack,
-        dataset,
-        allFactTables.reverse(),
-        factTableDef,
-        dataValuesColumn,
-        notesCodeColumn,
-        factIdentifiers
-      );
-    } catch (error) {
-      if (error instanceof FactTableValidationException) {
-        logger.debug(error, `Throwing Fact Table Validation Exception`);
-        throw error;
-      }
-      logger.error(error, `Something went wrong trying to create the core fact table`);
-      const err = new CubeValidationException('Something went wrong trying to create the core fact table');
-      err.type = CubeValidationType.FactTable;
-      err.stack = (error as Error).stack;
-      err.originalError = (error as Error).message;
-      throw err;
+  try {
+    logger.debug(`Loading ${allFactTables.length} fact tables in to database with updates`);
+    await loadFactTablesWithUpdates(
+      quack,
+      dataset,
+      allFactTables.reverse(),
+      factTableDef,
+      dataValuesColumn,
+      notesCodeColumn,
+      factIdentifiers
+    );
+  } catch (error) {
+    if (error instanceof FactTableValidationException) {
+      logger.debug(error, `Throwing Fact Table Validation Exception`);
+      throw error;
     }
-  } else {
-    logger.error(`There is no data values column or notes code column in the dataset`);
-    throw new CubeValidationException('There is no data values column or notes code column in the dataset');
+    logger.error(error, `Something went wrong trying to create the core fact table`);
+    const err = new CubeValidationException('Something went wrong trying to create the core fact table');
+    err.type = CubeValidationType.FactTable;
+    err.stack = (error as Error).stack;
+    err.originalError = (error as Error).message;
+    throw err;
   }
 }
 
@@ -874,7 +869,7 @@ async function createNotesTable(
       ?.push(`all_notes.description as "${t('column_headers.notes', { lng: locale })}"`);
   }
   joinStatements.push(
-    `LEFT JOIN all_notes on all_notes.code=fact_table."${notesColumn.columnName}" AND all_notes.language='#LANG#'`
+    `LEFT JOIN all_notes on all_notes.code=fact_table."${notesColumn.columnName}" AND all_notes.language=#LANG#`
   );
 }
 
@@ -887,40 +882,43 @@ function measureFormats(): Map<string, MeasureFormat> {
   const measureFormats: Map<string, MeasureFormat> = new Map();
   measureFormats.set('decimal', {
     name: 'decimal',
-    method: "WHEN measure.reference = |REF| THEN printf('%,.|DEC|f', |COL|)"
+    method: "WHEN measure.reference = |REF| THEN printf('%,.|DEC|f', TRY_CAST(|COL| AS DECIMAL))"
   });
   measureFormats.set('float', {
     name: 'float',
-    method: "WHEN measure.reference = |REF| THEN printf('%,.|DEC|f', |COL|)"
+    method: "WHEN measure.reference = |REF| THEN printf('%,.|DEC|f', TRY_CAST(|COL| AS DECIMAL))"
   });
   measureFormats.set('integer', {
     name: 'integer',
-    method: "WHEN measure.reference = |REF| THEN printf('%,d', CAST(|COL| AS INTEGER))"
+    method: "WHEN measure.reference = |REF| THEN printf('%,d', TRY_CAST(|COL| AS BIGINT))"
   });
-  measureFormats.set('long', { name: 'long', method: "WHEN measure.reference = |REF| THEN printf('%f', |COL|)" });
+  measureFormats.set('long', {
+    name: 'long',
+    method: "WHEN measure.reference = |REF| THEN printf('%f', TRY_CAST(|COL| AS DECIMAL))"
+  });
   measureFormats.set('percentage', {
     name: 'percentage',
-    method: "WHEN measure.reference = |REF| THEN printf('%f', |COL|)"
+    method: "WHEN measure.reference = |REF| THEN printf('%,.|DEC|f %%', TRY_CAST(|COL| AS DECIMAL))"
   });
   measureFormats.set('string', {
     name: 'string',
-    method: "WHEN measure.reference = |REF| THEN printf('%s', CAST(|COL| AS VARCHAR))"
+    method: "WHEN measure.reference = |REF| THEN printf('%s', TRY_CAST(|COL| AS VARCHAR))"
   });
   measureFormats.set('text', {
     name: 'text',
-    method: "WHEN measure.reference = |REF| THEN printf('%s', CAST(|COL| AS VARCHAR))"
+    method: "WHEN measure.reference = |REF| THEN printf('%s', TRY_CAST(|COL| AS VARCHAR))"
   });
   measureFormats.set('date', {
     name: 'date',
-    method: "WHEN measure.reference = |REF| THEN printf('%s', CAST(|COL| AS VARCHAR))"
+    method: "WHEN measure.reference = |REF| THEN printf('%s', TRY_CAST(|COL| AS VARCHAR))"
   });
   measureFormats.set('datetime', {
     name: 'datetime',
-    method: "WHEN measure.reference = |REF| THEN printf('%s', CAST(|COL| AS VARCHAR))"
+    method: "WHEN measure.reference = |REF| THEN printf('%s', TRY_CAST(|COL| AS VARCHAR))"
   });
   measureFormats.set('time', {
     name: 'time',
-    method: "WHEN measure.reference = |REF| THEN printf('%s', CAST(|COL| AS VARCHAR))"
+    method: "WHEN measure.reference = |REF| THEN printf('%s', TRY_CAST(|COL| AS VARCHAR))"
   });
   return measureFormats;
 }
@@ -1117,7 +1115,7 @@ async function dateDimensionProcessor(
   });
   joinStatements.push(
     pgformat(
-      "LEFT JOIN %I ON %I.%I=%I.%I AND %I.language='#LANG#'",
+      'LEFT JOIN %I ON %I.%I=%I.%I AND %I.language=#LANG#',
       dimTable,
       dimTable,
       factTableColumn.columnName,
@@ -1523,7 +1521,7 @@ export const createBaseCubeFromProtoCube = async (
     joinStatements.push(`JOIN reference_data_info ON reference_data.item_id=reference_data_info.item_id`);
     joinStatements.push(`    AND reference_data.category_key=reference_data_info.category_key`);
     joinStatements.push(`    AND reference_data.version_no=reference_data_info.version_no`);
-    joinStatements.push(`    AND reference_data_info.lang='#LANG#'`);
+    joinStatements.push(`    AND reference_data_info.lang=#LANG#`);
   }
 
   logger.debug('Adding notes code column to the select statement.');
@@ -1543,15 +1541,25 @@ export const createBaseCubeFromProtoCube = async (
       }
       const lang = locale.toLowerCase().split('-')[0];
 
-      const defaultViewSQL = `CREATE TABLE default_view_${lang} AS
-      SELECT ${viewSelectStatementsMap.get(locale)?.join(',\n')}
-      FROM ${FACT_TABLE_NAME} ${joinStatements.join('\n').replace(/#LANG#/g, locale.toLowerCase())} ${orderByStatements.length > 0 ? `ORDER BY ${orderByStatements.join(', ')}` : ''};`;
+      const defaultViewSQL = pgformat(
+        'CREATE TABLE %I AS SELECT %s FROM %I %s %s',
+        `default_view_${lang}`,
+        viewSelectStatementsMap.get(locale)?.join(',\n'),
+        FACT_TABLE_NAME,
+        joinStatements.join('\n').replace(/#LANG#/g, pgformat('%L', locale.toLowerCase())),
+        orderByStatements.length > 0 ? `ORDER BY ${orderByStatements.join(', ')}` : ''
+      );
       logger.debug(defaultViewSQL);
       await quack.exec(defaultViewSQL);
 
-      const rawViewSQL = `CREATE TABLE raw_view_${lang} AS
-      SELECT ${rawSelectStatementsMap.get(locale)?.join(',\n')}
-      FROM ${FACT_TABLE_NAME} ${joinStatements.join('\n').replace(/#LANG#/g, locale.toLowerCase())} ${orderByStatements.length > 0 ? `ORDER BY ${orderByStatements.join(', ')}` : ''};`;
+      const rawViewSQL = pgformat(
+        'CREATE TABLE %I AS SELECT %s FROM %I %s %s',
+        `raw_view_${lang}`,
+        rawSelectStatementsMap.get(locale)?.join(',\n'),
+        FACT_TABLE_NAME,
+        joinStatements.join('\n').replace(/#LANG#/g, pgformat('%L', locale.toLowerCase())),
+        orderByStatements.length > 0 ? `ORDER BY ${orderByStatements.join(', ')}` : ''
+      );
       logger.debug(rawViewSQL);
       await quack.exec(rawViewSQL);
     }
