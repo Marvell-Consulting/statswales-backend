@@ -25,7 +25,7 @@ import { BadRequestException } from '../exceptions/bad-request.exception';
 import { ViewErrDTO } from '../dtos/view-dto';
 import { arrayValidator, dtoValidator } from '../validators/dto-validator';
 import { RevisionMetadataDTO } from '../dtos/revistion-metadata-dto';
-import { cleanUpCube, createBaseCube, createBaseCubeFromProtoCube } from '../services/cube-handler';
+import { cleanUpCube, createBaseCubeFromProtoCube } from '../services/cube-handler';
 import { DEFAULT_PAGE_SIZE } from '../services/csv-processor';
 import {
   createDimensionsFromSourceAssignment,
@@ -219,7 +219,7 @@ export const cubePreview = async (req: Request, res: Response, next: NextFunctio
   } else {
     logger.debug('Creating fresh cube for preview... This could take a few seconds');
     try {
-      cubeFile = await createBaseCube(dataset.id, latestRevision.id);
+      cubeFile = await createBaseCubeFromProtoCube(dataset.id, latestRevision.id);
     } catch (error) {
       logger.error(error, `Something went wrong trying to create the cube`);
       next(new UnknownException('errors.cube_builder.cube_build_failed'));

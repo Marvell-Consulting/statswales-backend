@@ -1,3 +1,5 @@
+import { format as pgformat } from '@scaleleap/pg-format';
+
 import { DataTable } from '../entities/dataset/data-table';
 import { LookupTable } from '../entities/dataset/lookup-table';
 import { DataTableDescription } from '../entities/dataset/data-table-description';
@@ -54,11 +56,16 @@ export const languageMatcherCaseStatement = (languageColumn: string | undefined)
   SUPPORTED_LOCALES.map((locale) => {
     const lang = locale.split('-')[0].toLowerCase();
     const tLang = lang;
-    languageMatcher.push(`WHEN LOWER("${languageColumn}") LIKE '${lang}%' THEN '${locale.toLowerCase()}'`);
+    languageMatcher.push(pgformat('WHEN LOWER(%I) LIKE %L THEN %L', languageColumn, `%${lang}%`, locale.toLowerCase()));
     SUPPORTED_LOCALES.map((locale) => {
       const lang = locale.split('-')[0].toLowerCase();
       languageMatcher.push(
-        `WHEN LOWER("${languageColumn}") LIKE '%${t(`language.${lang}`, { lng: tLang }).toLowerCase()}%' THEN '${locale.toLowerCase()}'`
+        pgformat(
+          'WHEN LOWER(%I) LIKE %L THEN %L',
+          languageColumn,
+          `%${t(`language.${lang}`, { lng: tLang }).toLowerCase()}%`,
+          locale.toLowerCase()
+        )
       );
     });
   });

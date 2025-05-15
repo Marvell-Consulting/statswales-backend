@@ -24,7 +24,6 @@ import { RevisionRepository } from '../repositories/revision';
 import { DuckdbOutputType } from '../enums/duckdb-outputs';
 import {
   cleanUpCube,
-  createBaseCube,
   createBaseCubeFromProtoCube,
   createDateDimension,
   createLookupTableDimension,
@@ -136,7 +135,7 @@ export const getRevisionPreview = async (req: Request, res: Response, next: Next
   } else {
     logger.debug('Creating fresh cube for preview... This could take a few seconds');
     try {
-      cubeFile = await createBaseCube(dataset.id, revision.id);
+      cubeFile = await createBaseCubeFromProtoCube(dataset.id, revision.id);
     } catch (error) {
       logger.error(`Something went wrong trying to create the cube with the error: ${error}`);
       next(new UnknownException('errors.cube_builder.cube_build_failed'));
@@ -337,7 +336,7 @@ async function attachUpdateDataTableToRevision(
       switch (dimension.type) {
         case DimensionType.LookupTable:
           logger.debug(`Validating lookup table dimension: ${dimension.id}`);
-          await createLookupTableDimension(quack, dataset, dimension);
+          await createLookupTableDimension(quack, dataset, dimension, factTableColumn);
           await checkForReferenceErrors(quack, dataset, dimension, factTableColumn);
           break;
         case DimensionType.ReferenceData:
@@ -594,7 +593,7 @@ export const downloadRevisionCubeFile = async (req: Request, res: Response, next
     }
   } else {
     try {
-      cubeFile = await createBaseCube(datasetId, revision.id);
+      cubeFile = await createBaseCubeFromProtoCube(datasetId, revision.id);
     } catch (err) {
       logger.error(err, `Something went wrong trying to create the cube`);
       next(new UnknownException('errors.cube_builder.cube_build_failed'));
@@ -635,7 +634,7 @@ export const downloadRevisionCubeAsJSON = async (req: Request, res: Response, ne
     cubeFile = await createBaseCubeFromProtoCube(datasetId, revision.id, cubeFile);
   } else {
     try {
-      cubeFile = await createBaseCube(datasetId, revision.id);
+      cubeFile = await createBaseCubeFromProtoCube(datasetId, revision.id);
     } catch (err) {
       logger.error(err, `Something went wrong trying to create the cube`);
       next(new UnknownException('errors.cube_builder.cube_build_failed'));
@@ -687,7 +686,7 @@ export const downloadRevisionCubeAsCSV = async (req: Request, res: Response, nex
     cubeFile = await createBaseCubeFromProtoCube(datasetId, revision.id, cubeFile);
   } else {
     try {
-      cubeFile = await createBaseCube(datasetId, revision.id);
+      cubeFile = await createBaseCubeFromProtoCube(datasetId, revision.id);
     } catch (err) {
       logger.error(err, `Something went wrong trying to create the cube`);
       next(new UnknownException('errors.cube_builder.cube_build_failed'));
@@ -738,7 +737,7 @@ export const downloadRevisionCubeAsParquet = async (req: Request, res: Response,
     cubeFile = await createBaseCubeFromProtoCube(datasetId, revision.id, cubeFile);
   } else {
     try {
-      cubeFile = await createBaseCube(datasetId, revision.id);
+      cubeFile = await createBaseCubeFromProtoCube(datasetId, revision.id);
     } catch (err) {
       logger.error(err, `Something went wrong trying to create the cube`);
       next(new UnknownException('errors.cube_builder.cube_build_failed'));
@@ -789,7 +788,7 @@ export const downloadRevisionCubeAsExcel = async (req: Request, res: Response, n
     cubeFile = await createBaseCubeFromProtoCube(datasetId, revision.id, cubeFile);
   } else {
     try {
-      cubeFile = await createBaseCube(datasetId, revision.id);
+      cubeFile = await createBaseCubeFromProtoCube(datasetId, revision.id);
     } catch (err) {
       logger.error(err, `Something went wrong trying to create the cube`);
       next(new UnknownException('errors.cube_builder.cube_build_failed'));

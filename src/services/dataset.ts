@@ -28,7 +28,7 @@ import { BadRequestException } from '../exceptions/bad-request.exception';
 import { TasklistStateDTO } from '../dtos/tasklist-state-dto';
 import { EventLog } from '../entities/event-log';
 
-import { createBaseCube, getCubeTimePeriods } from './cube-handler';
+import { createBaseCubeFromProtoCube, getCubeTimePeriods } from './cube-handler';
 import { validateAndUploadCSV } from './csv-processor';
 import { removeAllDimensions, removeMeasure } from './dimension-processor';
 import { getFileService } from '../utils/get-file-service';
@@ -226,7 +226,7 @@ export class DatasetService {
     const start = performance.now();
 
     const dataset = await DatasetRepository.getById(datasetId, {});
-    const cubeFilePath = await createBaseCube(datasetId, revisionId);
+    const cubeFilePath = await createBaseCubeFromProtoCube(datasetId, revisionId);
     const periodCoverage = await getCubeTimePeriods(cubeFilePath);
 
     const fileService = getFileService();

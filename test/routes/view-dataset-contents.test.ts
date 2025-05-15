@@ -73,15 +73,17 @@ describe('API Endpoints for viewing the contents of a dataset', () => {
     expect(res.body.page_size).toBe(100);
     expect(res.body.headers).toEqual([
       { index: -1, name: 'Data Values', source_type: 'unknown' },
-      { index: 0, name: 'YearCode', source_type: 'unknown' },
-      { index: 1, name: 'Start Date', source_type: 'unknown' },
-      { index: 2, name: 'End Date', source_type: 'unknown' },
-      { index: 3, name: 'AreaCode', source_type: 'unknown' },
-      { index: 4, name: 'RowRef', source_type: 'unknown' },
-      { index: 5, name: 'Notes', source_type: 'unknown' }
+      { index: 0, name: 'Measure', source_type: 'unknown' },
+      { index: 1, name: 'YearCode', source_type: 'unknown' },
+      { index: 2, name: 'Start Date', source_type: 'unknown' },
+      { index: 3, name: 'End Date', source_type: 'unknown' },
+      { index: 4, name: 'AreaCode', source_type: 'unknown' },
+      { index: 5, name: 'RowRef', source_type: 'unknown' },
+      { index: 6, name: 'Notes', source_type: 'unknown' }
     ]);
     expect(res.body.data[0]).toEqual([
       4.030567686,
+      2,
       '2021-22',
       '01/04/2021',
       '31/03/2022',
@@ -93,6 +95,7 @@ describe('API Endpoints for viewing the contents of a dataset', () => {
     // has changed the view significantly.  Probably a broken join statement.
     expect(res.body.data[23]).toEqual([
       1007,
+      1,
       '2022-23',
       '01/04/2022',
       '31/03/2023',

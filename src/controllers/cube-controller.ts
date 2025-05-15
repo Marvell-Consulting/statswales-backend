@@ -12,7 +12,7 @@ import { CSVHeader, ViewDTO, ViewErrDTO } from '../dtos/view-dto';
 import { DatasetDTO } from '../dtos/dataset-dto';
 import { getLatestRevision } from '../utils/latest';
 import { UnknownException } from '../exceptions/unknown.exception';
-import { createBaseCube } from '../services/cube-handler';
+import { createBaseCubeFromProtoCube } from '../services/cube-handler';
 import { duckdb } from '../services/duckdb';
 import { validateParams } from '../validators/preview-validator';
 
@@ -131,7 +131,7 @@ export const downloadCubeFile = async (req: Request, res: Response, next: NextFu
     cubeBuffer = await req.fileService.loadBuffer(latestRevision.onlineCubeFilename, dataset.id);
   } else {
     try {
-      const cubeFile = await createBaseCube(dataset.id, latestRevision.id);
+      const cubeFile = await createBaseCubeFromProtoCube(dataset.id, latestRevision.id);
       cubeBuffer = Buffer.from(fs.readFileSync(cubeFile));
     } catch (err) {
       logger.error(`Something went wrong trying to create the cube with the error: ${err}`);
@@ -168,7 +168,7 @@ export const downloadCubeAsJSON = async (req: Request, res: Response, next: Next
   } else {
     try {
       logger.info('Creating fresh cube file.');
-      cubeFile = await createBaseCube(dataset.id, latestRevision.id);
+      cubeFile = await createBaseCubeFromProtoCube(dataset.id, latestRevision.id);
     } catch (err) {
       logger.error(`Something went wrong trying to create the cube with the error: ${err}`);
       next(new UnknownException('errors.cube_create_error'));
@@ -213,7 +213,7 @@ export const downloadCubeAsCSV = async (req: Request, res: Response, next: NextF
     fs.writeFileSync(cubeFile, fileBuffer);
   } else {
     try {
-      cubeFile = await createBaseCube(dataset.id, latestRevision.id);
+      cubeFile = await createBaseCubeFromProtoCube(dataset.id, latestRevision.id);
     } catch (err) {
       logger.error(`Something went wrong trying to create the cube with the error: ${err}`);
       next(new UnknownException('errors.cube_create_error'));
@@ -258,7 +258,7 @@ export const downloadCubeAsParquet = async (req: Request, res: Response, next: N
     fs.writeFileSync(cubeFile, fileBuffer);
   } else {
     try {
-      cubeFile = await createBaseCube(dataset.id, latestRevision.id);
+      cubeFile = await createBaseCubeFromProtoCube(dataset.id, latestRevision.id);
     } catch (err) {
       logger.error(`Something went wrong trying to create the cube with the error: ${err}`);
       next(new UnknownException('errors.cube_create_error'));
@@ -303,7 +303,7 @@ export const downloadCubeAsExcel = async (req: Request, res: Response, next: Nex
     fs.writeFileSync(cubeFile, fileBuffer);
   } else {
     try {
-      cubeFile = await createBaseCube(dataset.id, latestRevision.id);
+      cubeFile = await createBaseCubeFromProtoCube(dataset.id, latestRevision.id);
     } catch (err) {
       logger.error(`Something went wrong trying to create the cube with the error: ${err}`);
       next(new UnknownException('errors.cube_create_error'));
