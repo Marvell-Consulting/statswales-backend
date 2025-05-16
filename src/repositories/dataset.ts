@@ -44,7 +44,8 @@ export const withDraftAndMetadata: FindOptionsRelations<Dataset> = {
 
 export const withMetadataForTranslation: FindOptionsRelations<Dataset> = {
   draftRevision: { metadata: true },
-  dimensions: { metadata: true }
+  dimensions: { metadata: true },
+  measure: { metadata: true }
 };
 
 export const withDraftAndProviders: FindOptionsRelations<Dataset> = {
