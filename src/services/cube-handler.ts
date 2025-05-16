@@ -416,18 +416,28 @@ async function setupReferenceDataDimension(
   joinStatements: string[]
 ) {
   await loadCorrectReferenceDataIntoReferenceDataTable(quack, dimension);
+  const refDataInfo = `${makeCubeSafeString(dimension.factTableColumn)}_reference_data_info`;
+  const refDataTbl = `${makeCubeSafeString(dimension.factTableColumn)}_reference_data`;
   SUPPORTED_LOCALES.map((locale) => {
     const columnName = dimension.metadata.find((info) => info.language === locale)?.name || dimension.factTableColumn;
-    viewSelectStatementsMap.get(locale)?.push(pgformat('reference_data_info.description AS %I', columnName));
-    rawSelectStatementsMap.get(locale)?.push(pgformat('reference_data_info.description AS %I', columnName));
+    viewSelectStatementsMap.get(locale)?.push(pgformat('%I.description AS %I', refDataInfo, columnName));
+    rawSelectStatementsMap.get(locale)?.push(pgformat('%I.description AS %I', refDataInfo, columnName));
   });
   joinStatements.push(
     pgformat(
-      'LEFT JOIN reference_data on CAST(%I.%I AS VARCHAR)=reference_data.item_id',
+      'LEFT JOIN reference_data AS %I on CAST(%I.%I AS VARCHAR)=%I.item_id',
+      refDataTbl,
       FACT_TABLE_NAME,
-      dimension.factTableColumn
+      dimension.factTableColumn,
+      refDataTbl
     )
   );
+  joinStatements.push(
+    pgformat(`JOIN reference_data_info AS %I ON %I.item_id=%I.item_id`, refDataInfo, refDataTbl, refDataInfo)
+  );
+  joinStatements.push(pgformat(`    AND %I.category_key=%I.category_key`, refDataTbl, refDataInfo));
+  joinStatements.push(pgformat(`    AND %I.version_no=%I.version_no`, refDataTbl, refDataInfo));
+  joinStatements.push(pgformat(`    AND %I.lang=#LANG#`, refDataInfo));
 }
 
 export const createDatePeriodTableQuery = (factTableColumn: FactTableColumn) => {
@@ -1518,10 +1528,6 @@ export const createBaseCubeFromProtoCube = async (
 
   if (referenceDataPresent(dataset)) {
     await cleanUpReferenceDataTables(quack);
-    joinStatements.push(`JOIN reference_data_info ON reference_data.item_id=reference_data_info.item_id`);
-    joinStatements.push(`    AND reference_data.category_key=reference_data_info.category_key`);
-    joinStatements.push(`    AND reference_data.version_no=reference_data_info.version_no`);
-    joinStatements.push(`    AND reference_data_info.lang=#LANG#`);
   }
 
   logger.debug('Adding notes code column to the select statement.');
