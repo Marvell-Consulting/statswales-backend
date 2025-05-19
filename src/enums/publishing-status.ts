@@ -1,7 +1,9 @@
 export enum PublishingStatus {
-  Published = 'published',
   Incomplete = 'incomplete',
   UpdateIncomplete = 'update_incomplete',
+  PendingApproval = 'pending_approval',
+  ChangesRequested = 'changes_requested',
   Scheduled = 'scheduled',
-  UpdateScheduled = 'update_scheduled'
+  UpdateScheduled = 'update_scheduled',
+  Published = 'published'
 }

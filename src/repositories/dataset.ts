@@ -111,6 +111,7 @@ const listAllQuery = (qb: QueryBuilder<Dataset>, lang: Locale) => {
       `
         CASE
           WHEN t.action = 'publish' AND t.status = 'requested' THEN 'pending_approval'
+          WHEN t.action = 'publish' AND t.status = 'rejected' THEN 'changes_requested'
           WHEN d.live IS NOT NULL AND d.live < NOW() AND r.approved_at IS NOT NULL AND r.publish_at < NOW() THEN 'published'
           WHEN d.live IS NOT NULL AND d.live < NOW() AND r.approved_at IS NOT NULL AND r.publish_at > NOW() THEN 'update_scheduled'
           WHEN d.live IS NOT NULL AND d.live > NOW() AND r.approved_at IS NOT NULL AND r.publish_at > NOW() THEN 'scheduled'
