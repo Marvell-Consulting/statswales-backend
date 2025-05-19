@@ -63,7 +63,7 @@ export const sendDimensionPreview = async (req: Request, res: Response, next: Ne
     });
 
     const latestRevision = getLatestRevision(dataset);
-    logger.debug(`Latest revision is ${JSON.stringify(latestRevision)}`);
+    logger.debug(`Latest revision is ${latestRevision?.id}`);
 
     if (latestRevision?.tasks) {
       const outstandingDimensionTask = latestRevision.tasks.dimensions.find((dim) => dim.id === dimension.id);

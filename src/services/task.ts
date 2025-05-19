@@ -1,8 +1,11 @@
+import { FindOptionsRelations } from 'typeorm';
+
 import { logger } from '../utils/logger';
 import { Task, TaskMetadata } from '../entities/task/task';
 import { TaskAction } from '../enums/task-action';
 import { TaskStatus } from '../enums/task-status';
 import { User } from '../entities/user/user';
+import { TaskDecisionDTO } from '../dtos/task-decision-dto';
 
 export class TaskService {
   async create(
@@ -21,6 +24,11 @@ export class TaskService {
     return await task.save();
   }
 
+  async getById(taskId: string, relations: FindOptionsRelations<Task> = {}): Promise<Task> {
+    logger.info(`Getting task ${taskId}`);
+    return await Task.findOneOrFail({ where: { id: taskId }, relations });
+  }
+
   async withdraw(taskId: string, user: User): Promise<Task> {
     logger.info(`Withdrawing task ${taskId}`);
     const task = await Task.findOneByOrFail({ id: taskId });
@@ -28,10 +36,26 @@ export class TaskService {
     return await updatedTask.save();
   }
 
-  async resolve(taskId: string, status: TaskStatus, open: boolean, user: User): Promise<Task> {
-    logger.info(`Resolving task ${taskId} with status ${status}`);
+  async decision(taskId: string, decision: TaskDecisionDTO, user: User): Promise<Task> {
+    logger.info(`Decision received for task ${taskId}: ${decision.decision}`);
+
+    if (decision.decision === 'approve') {
+      // task is resolved and closed
+      return await this.update(taskId, TaskStatus.Approved, false, user);
+    }
+
+    if (decision.decision === 'reject') {
+      // leave task open so it can be re-submitted
+      return await this.update(taskId, TaskStatus.Rejected, true, user, decision.reason);
+    }
+
+    return this.getById(taskId);
+  }
+
+  async update(taskId: string, status: TaskStatus, open: boolean, user: User, comment?: string): Promise<Task> {
+    logger.info(`Updating task ${taskId} with status ${status}`);
     const task = await Task.findOneByOrFail({ id: taskId });
-    const updatedTask = Task.merge(task, { status, open, updatedBy: user });
+    const updatedTask = Task.merge(task, { status, open, updatedBy: user, comment });
 
     return await updatedTask.save();
   }

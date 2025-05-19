@@ -238,6 +238,13 @@ export class DatasetService {
       throw new BadRequestException('errors.submit_for_publication.invalid_revision_id');
     }
 
+    const rejectedPublishTask = await this.getRejectedPublishTask(datasetId);
+
+    if (rejectedPublishTask) {
+      // resubmission of a rejected task
+      return await this.taskService.update(rejectedPublishTask.id, TaskStatus.Requested, true, user);
+    }
+
     return await this.taskService.create(datasetId, TaskAction.Publish, user, undefined, { revisionId });
   }
 
@@ -258,7 +265,7 @@ export class DatasetService {
     return await this.taskService.withdraw(pendingPublication.id, user);
   }
 
-  async approveForPublication(datasetId: string, revisionId: string, user: User): Promise<Dataset> {
+  async approvePublication(datasetId: string, revisionId: string, user: User): Promise<Dataset> {
     const start = performance.now();
 
     const dataset = await DatasetRepository.getById(datasetId, {});
@@ -285,6 +292,17 @@ export class DatasetService {
     const approvedDataset = await DatasetRepository.publish(scheduledRevision, periodCoverage);
 
     return approvedDataset;
+  }
+
+  async rejectPublication(datasetId: string, revisionId: string): Promise<Dataset> {
+    const revision = await RevisionRepository.revertToDraft(revisionId);
+
+    if (revision.onlineCubeFilename) {
+      const fileService = getFileService();
+      await fileService.delete(revision.onlineCubeFilename, datasetId);
+    }
+
+    return DatasetRepository.getById(datasetId, {});
   }
 
   async createRevision(datasetId: string, createdBy: User): Promise<Dataset> {
@@ -355,6 +373,12 @@ export class DatasetService {
   async getPendingPublishTask(datasetId: string): Promise<Task | undefined> {
     return (await this.getOpenTasks(datasetId)).find(
       (task) => task.action === TaskAction.Publish && [TaskStatus.Requested, TaskStatus.Approved].includes(task.status)
+    );
+  }
+
+  async getRejectedPublishTask(datasetId: string): Promise<Task | undefined> {
+    return (await this.getOpenTasks(datasetId)).find(
+      (task) => task.action === TaskAction.Publish && task.status === TaskStatus.Rejected
     );
   }
 }
