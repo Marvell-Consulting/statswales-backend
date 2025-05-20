@@ -85,7 +85,8 @@ export const getPreviewOfMeasure = async (req: Request, res: Response, next: Nex
   const dataset = await DatasetRepository.getById(res.locals.datasetId, {
     factTable: true,
     measure: { metadata: true, measureTable: true, lookupTable: true },
-    draftRevision: { dataTable: true }
+    draftRevision: { dataTable: { dataTableDescriptions: true } },
+    revisions: { dataTable: { dataTableDescriptions: true } }
   });
 
   if (!dataset.measure) {
