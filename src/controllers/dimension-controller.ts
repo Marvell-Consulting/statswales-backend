@@ -28,6 +28,7 @@ import { LookupTableDTO } from '../dtos/lookup-table-dto';
 import { DatasetRepository } from '../repositories/dataset';
 import { getLatestRevision } from '../utils/latest';
 import { Dataset } from '../entities/dataset/dataset';
+import { createBaseCubeFromProtoCube } from '../services/cube-handler';
 
 export const getDimensionInfo = async (req: Request, res: Response) => {
   res.json(DimensionDTO.fromDimension(res.locals.dimension));
@@ -116,6 +117,13 @@ export const attachLookupTableToDimension = async (req: Request, res: Response, 
     const tableMatcher = req.body as LookupTablePatchDTO;
 
     const result = await validateLookupTable(dataTable, dataset, dimension, buffer, language, tableMatcher);
+    try {
+      if (dataset.draftRevision?.id) {
+        await createBaseCubeFromProtoCube(dataset.id, dataset.draftRevision.id);
+      }
+    } catch (error) {
+
+    }
 
     if ((result as ViewErrDTO).status) {
       const error = result as ViewErrDTO;
