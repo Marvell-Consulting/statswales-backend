@@ -33,12 +33,20 @@ import { validateAndUploadCSV } from './csv-processor';
 import { removeAllDimensions, removeMeasure } from './dimension-processor';
 import { getFileService } from '../utils/get-file-service';
 import { UserGroupRepository } from '../repositories/user-group';
+import { TaskService } from './task';
+import { TaskAction } from '../enums/task-action';
+import { Task } from '../entities/task/task';
+import { TaskStatus } from '../enums/task-status';
+import { getPublishingStatus } from '../utils/dataset-status';
+import { PublishingStatus as PubStatus } from '../enums/publishing-status';
 
 export class DatasetService {
   lang: Locale;
+  taskService: TaskService;
 
   constructor(lang: Locale) {
     this.lang = lang;
+    this.taskService = new TaskService();
   }
 
   async createNew(title: string, userGroupId: string, createdBy: User): Promise<Dataset> {
@@ -61,7 +69,10 @@ export class DatasetService {
   }
 
   async getDatasetOverview(datasetId: string): Promise<Dataset> {
-    return DatasetRepository.getById(datasetId, { endRevision: { metadata: true } });
+    return DatasetRepository.getById(datasetId, {
+      endRevision: { metadata: true },
+      tasks: { createdBy: true, updatedBy: true }
+    });
   }
 
   async updateMetadata(datasetId: string, metadata: RevisionMetadataDTO): Promise<Dataset> {
@@ -222,7 +233,46 @@ export class DatasetService {
     return DatasetRepository.getById(datasetId, {});
   }
 
-  async approveForPublication(datasetId: string, revisionId: string, user: User): Promise<Dataset> {
+  async submitForPublication(datasetId: string, revisionId: string, user: User): Promise<void> {
+    const dataset = await DatasetRepository.getById(datasetId, { draftRevision: true });
+
+    if (!dataset.draftRevision || dataset.draftRevision.id !== revisionId) {
+      throw new BadRequestException('errors.submit_for_publication.invalid_revision_id');
+    }
+
+    const rejectedPublishTask = await this.getRejectedPublishTask(datasetId);
+
+    if (rejectedPublishTask) {
+      // resubmission of a rejected task
+      await this.taskService.update(rejectedPublishTask.id, TaskStatus.Requested, true, user);
+    }
+
+    await this.taskService.create(datasetId, TaskAction.Publish, user, undefined, { revisionId });
+  }
+
+  async withdrawFromPublication(datasetId: string, revisionId: string, user: User): Promise<void> {
+    const dataset = await DatasetRepository.getById(datasetId, { endRevision: true, tasks: true });
+    const publishingStatus = getPublishingStatus(dataset, dataset.endRevision!);
+
+    if (![PubStatus.PendingApproval, PubStatus.Scheduled, PubStatus.UpdateScheduled].includes(publishingStatus)) {
+      throw new BadRequestException('errors.withdraw.no_pending_publication');
+    }
+
+    const draftRevision = await RevisionRepository.revertToDraft(revisionId);
+
+    if (draftRevision.onlineCubeFilename) {
+      const fileService = getFileService();
+      await fileService.delete(draftRevision.onlineCubeFilename, datasetId);
+    }
+
+    const pendingPublicationTask = await this.getPendingPublishTask(datasetId);
+
+    if (pendingPublicationTask) {
+      await this.taskService.withdraw(pendingPublicationTask.id, user);
+    }
+  }
+
+  async approvePublication(datasetId: string, revisionId: string, user: User): Promise<Dataset> {
     const start = performance.now();
 
     const dataset = await DatasetRepository.getById(datasetId, {});
@@ -251,17 +301,13 @@ export class DatasetService {
     return approvedDataset;
   }
 
-  async withdrawFromPublication(datasetId: string, revisionId: string): Promise<Dataset> {
-    const revision = await RevisionRepository.withdrawPublication(revisionId);
+  async rejectPublication(datasetId: string, revisionId: string): Promise<void> {
+    const revision = await RevisionRepository.revertToDraft(revisionId);
 
     if (revision.onlineCubeFilename) {
       const fileService = getFileService();
       await fileService.delete(revision.onlineCubeFilename, datasetId);
     }
-
-    const withdrawnDataset = await DatasetRepository.withdraw(revision);
-
-    return withdrawnDataset;
   }
 
   async createRevision(datasetId: string, createdBy: User): Promise<Dataset> {
@@ -319,5 +365,25 @@ export class DatasetService {
     const userGroup = await UserGroupRepository.findOneByOrFail({ id: userGroupId });
     dataset.userGroupId = userGroup.id;
     return dataset.save();
+  }
+
+  async getOpenTasks(datasetId: string): Promise<Task[]> {
+    return this.taskService.getTasksForDataset(datasetId, true);
+  }
+
+  async getAllTasks(datasetId: string): Promise<Task[]> {
+    return this.taskService.getTasksForDataset(datasetId);
+  }
+
+  async getPendingPublishTask(datasetId: string): Promise<Task | undefined> {
+    return (await this.getOpenTasks(datasetId)).find(
+      (task) => task.action === TaskAction.Publish && [TaskStatus.Requested, TaskStatus.Approved].includes(task.status)
+    );
+  }
+
+  async getRejectedPublishTask(datasetId: string): Promise<Task | undefined> {
+    return (await this.getOpenTasks(datasetId)).find(
+      (task) => task.action === TaskAction.Publish && task.status === TaskStatus.Rejected
+    );
   }
 }

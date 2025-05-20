@@ -14,6 +14,8 @@ import { RevisionProvider } from '../entities/dataset/revision-provider';
 import { RevisionTopic } from '../entities/dataset/revision-topic';
 
 import { DataTableRepository } from './data-table';
+import { isBefore } from 'date-fns';
+import { BadRequestException } from '../exceptions/bad-request.exception';
 
 export const withDataTable: FindOptionsRelations<Revision> = {
   dataTable: {
@@ -112,23 +114,33 @@ export const RevisionRepository = dataSource.getRepository(Revision).extend({
     return scheduledRevision;
   },
 
-  async withdrawPublication(revisionId: string): Promise<Revision> {
-    const approvedRevision = await dataSource.getRepository(Revision).findOneOrFail({
+  async revertToDraft(revisionId: string): Promise<Revision> {
+    const revision = await dataSource.getRepository(Revision).findOneOrFail({
       where: { id: revisionId },
       relations: { dataset: true }
     });
 
-    approvedRevision.approvedAt = null;
-    approvedRevision.approvedBy = null;
-    approvedRevision.onlineCubeFilename = null;
-    await approvedRevision.save();
-
-    if (approvedRevision.revisionIndex === 1) {
-      approvedRevision.dataset.live = null;
-      await approvedRevision.dataset.save();
+    if (isBefore(revision.publishAt, new Date())) {
+      throw new BadRequestException('errors.withdraw.already_published');
     }
 
-    return approvedRevision;
+    revision.approvedAt = null;
+    revision.approvedBy = null;
+    revision.onlineCubeFilename = null;
+    await revision.save();
+
+    const dataset = revision.dataset;
+
+    if (revision.revisionIndex === 1) {
+      dataset.live = null;
+    }
+
+    dataset.draftRevisionId = revision.id;
+    dataset.publishedRevisionId = revision.previousRevisionId;
+
+    await revision.dataset.save();
+
+    return revision;
   },
 
   async deepCloneRevision(revisionId: string, createdBy: User): Promise<Revision> {

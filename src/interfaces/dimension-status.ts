@@ -1,8 +1,8 @@
-import { TaskStatus } from '../enums/task-status';
+import { TaskListStatus } from '../enums/task-list-status';
 
 export interface DimensionStatus {
   id: string;
   name: string;
-  status: TaskStatus;
+  status: TaskListStatus;
   type: string;
 }

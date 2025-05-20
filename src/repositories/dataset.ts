@@ -31,7 +31,8 @@ export const withAll: FindOptionsRelations<Dataset> = {
   revisions: {
     dataTable: true,
     metadata: true
-  }
+  },
+  tasks: true
 };
 
 export const withFactTable: FindOptionsRelations<Dataset> = {
@@ -100,22 +101,24 @@ const listAllQuery = (qb: QueryBuilder<Dataset>, lang: Locale) => {
     .addSelect(`ugm.name AS group_name`)
     .addSelect(
       `
-            CASE
-                WHEN d.live IS NOT NULL AND d.live < NOW() THEN 'live'
-                ELSE 'new'
-            END`,
+        CASE
+          WHEN d.live IS NOT NULL AND d.live < NOW() THEN 'live'
+          ELSE 'new'
+        END`,
       'status'
     )
     .addSelect(
       `
-            CASE
-                WHEN d.live IS NOT NULL AND d.live < NOW() AND r.approved_at IS NOT NULL AND r.publish_at < NOW() THEN 'published'
-                WHEN d.live IS NOT NULL AND d.live < NOW() AND r.approved_at IS NOT NULL AND r.publish_at > NOW() THEN 'update_scheduled'
-                WHEN d.live IS NOT NULL AND d.live > NOW() AND r.approved_at IS NOT NULL AND r.publish_at > NOW() THEN 'scheduled'
-                WHEN d.live IS NOT NULL AND d.live < NOW() AND r.approved_at IS NULL THEN 'update_incomplete'
-                WHEN d.live IS NULL AND r.approved_at IS NULL THEN 'incomplete'
-                ELSE 'incomplete'
-            END
+        CASE
+          WHEN t.action = 'publish' AND t.status = 'requested' THEN 'pending_approval'
+          WHEN t.action = 'publish' AND t.status = 'rejected' THEN 'changes_requested'
+          WHEN d.live IS NOT NULL AND d.live < NOW() AND r.approved_at IS NOT NULL AND r.publish_at < NOW() THEN 'published'
+          WHEN d.live IS NOT NULL AND d.live < NOW() AND r.approved_at IS NOT NULL AND r.publish_at > NOW() THEN 'update_scheduled'
+          WHEN d.live IS NOT NULL AND d.live > NOW() AND r.approved_at IS NOT NULL AND r.publish_at > NOW() THEN 'scheduled'
+          WHEN d.live IS NOT NULL AND d.live < NOW() AND r.approved_at IS NULL THEN 'update_incomplete'
+          WHEN d.live IS NULL AND r.approved_at IS NULL THEN 'incomplete'
+          ELSE 'incomplete'
+        END
         `,
       'publishing_status'
     )
@@ -135,7 +138,8 @@ const listAllQuery = (qb: QueryBuilder<Dataset>, lang: Locale) => {
     )
     .innerJoin('d.userGroup', 'ug')
     .innerJoin('ug.metadata', 'ugm', 'ugm.language = :lang', { lang })
-    .groupBy('d.id, r.title, ugm.name, r.title_alt, r.updated_at, r.approved_at, r.publish_at');
+    .leftJoin('d.tasks', 't', 't.open = true')
+    .groupBy('d.id, r.title, ugm.name, r.title_alt, r.updated_at, r.approved_at, r.publish_at, t.action, t.status');
 };
 
 export const DatasetRepository = dataSource.getRepository(Dataset).extend({
@@ -258,15 +262,6 @@ export const DatasetRepository = dataSource.getRepository(Dataset).extend({
     if (revision.revisionIndex === 1) {
       dataset.live = revision.publishAt; // set the first published date if this is the first rev
     }
-
-    return DatasetRepository.save(dataset);
-  },
-
-  async withdraw(revision: Revision): Promise<Dataset> {
-    const dataset = revision.dataset;
-
-    dataset.draftRevision = revision;
-    dataset.publishedRevision = revision.previousRevision;
 
     return DatasetRepository.save(dataset);
   }

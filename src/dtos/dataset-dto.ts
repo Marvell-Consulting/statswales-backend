@@ -6,6 +6,8 @@ import { DimensionDTO } from './dimension-dto';
 import { RevisionDTO } from './revision-dto';
 import { MeasureDTO } from './measure-dto';
 import { FactTableColumnDto } from './fact-table-column-dto';
+import { TaskDTO } from './task-dto';
+import { Task } from '../entities/task/task';
 
 export class DatasetDTO {
   id: string;
@@ -26,6 +28,7 @@ export class DatasetDTO {
   start_date?: Date | null;
   end_date?: Date | null;
   user_group_id?: string;
+  tasks?: TaskDTO[];
 
   static fromDataset(dataset: Dataset): DatasetDTO {
     const dto = new DatasetDTO();
@@ -57,6 +60,8 @@ export class DatasetDTO {
     dto.end_date = dataset.endDate;
 
     dto.user_group_id = dataset.userGroupId;
+
+    dto.tasks = dataset.tasks?.map((task: Task) => TaskDTO.fromTask(task)) || [];
 
     return dto;
   }

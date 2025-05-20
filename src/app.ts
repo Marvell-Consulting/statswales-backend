@@ -24,6 +24,7 @@ import { consumerRouter } from './routes/consumer';
 import { initServices } from './middleware/services';
 import { adminRouter } from './routes/admin';
 import { devRouter } from './routes/developer';
+import { taskRouter } from './routes/task';
 
 const app: Application = express();
 const config = appConfig();
@@ -54,6 +55,7 @@ app.use('/provider', rateLimiter, jwtAuth, providerRouter);
 app.use('/topic', rateLimiter, jwtAuth, topicRouter);
 app.use('/organisation', rateLimiter, jwtAuth, organisationRouter);
 app.use('/translation', rateLimiter, jwtAuth, translationRouter);
+app.use('/task', rateLimiter, jwtAuth, taskRouter);
 
 // admin routes
 app.use('/admin', rateLimiter, jwtAuth, adminRouter);
