@@ -3,7 +3,7 @@ import { TaskDTO } from '../dtos/task-dto';
 import { TaskService } from '../services/task';
 import { BadRequestException } from '../exceptions/bad-request.exception';
 import { ForbiddenException } from '../exceptions/forbidden.exception';
-import { getApproverUserGroups, isApproverForDataset } from '../utils/get-permissions-for-user';
+import { isApproverForDataset } from '../utils/get-permissions-for-user';
 import { User } from '../entities/user/user';
 import { logger } from '../utils/logger';
 import { TaskDecisionDTO } from '../dtos/task-decision-dto';
@@ -12,7 +12,6 @@ import { TaskAction } from '../enums/task-action';
 import { TaskStatus } from '../enums/task-status';
 
 export const getTask = async (req: Request, res: Response) => {
-  getApproverUserGroups(req.user!);
   res.json(TaskDTO.fromTask(res.locals.task));
 };
 
