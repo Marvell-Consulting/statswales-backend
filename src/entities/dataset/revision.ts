@@ -16,6 +16,7 @@ import { User } from '../user/user';
 import { RevisionTask } from '../../interfaces/revision-task';
 import { RelatedLink } from '../../dtos/related-link-dto';
 import { Designation } from '../../enums/designation';
+import { CubeType } from '../../enums/cube-type';
 
 import { Dataset } from './dataset';
 import { DataTable } from './data-table';
@@ -103,4 +104,13 @@ export class Revision extends BaseEntity {
 
   @OneToMany(() => RevisionTopic, (revisionTopic) => revisionTopic.revision, { cascade: true })
   revisionTopics: RevisionTopic[];
+
+  @Column({
+    name: 'cube_type',
+    type: 'enum',
+    enum: Object.values(CubeType),
+    nullable: true,
+    default: CubeType.DuckDBCube
+  })
+  cubeType: CubeType | null;
 }

@@ -1,4 +1,5 @@
 import { Database } from 'duckdb-async';
+import { format as pgformat } from '@scaleleap/pg-format';
 
 import { logger as parentLogger } from '../utils/logger';
 import { appConfig } from '../config';
@@ -20,13 +21,42 @@ export const duckdb = async (cubeFile = ':memory:') => {
 
   logger.debug(`Creating DuckDB instance with ${threads} thread(s) and ${memory} memory limit.`);
 
-  const duckdb = await Database.create(cubeFile);
+  const duckdb = await Database.create(':memory:');
 
-  await duckdb.exec(`SET threads = ${threads};`);
-  await duckdb.exec(`SET memory_limit = '${memory}';`);
+  await duckdb.exec(pgformat('SET threads = %L;', threads));
+  await duckdb.exec(pgformat('SET memory_limit = %L;', memory));
   await duckdb.exec("SET default_block_size = '16384';");
   await duckdb.exec("SET temp_directory='/tmp/duckdb_temp';");
   await duckdb.exec('SET preserve_insertion_order=false;');
 
+  if (cubeFile !== ':memory:') {
+    await duckdb.exec(pgformat('ATTACH %L AS cube_file;', cubeFile));
+    await duckdb.exec('USE cube_file;');
+  }
+
   return duckdb;
+};
+
+export const linkToPostgres = async (quack: Database, revisionId: string, recreate: boolean) => {
+  await quack.exec(`LOAD 'postgres';`);
+  await quack.exec(`CREATE SECRET (
+           TYPE postgres,
+           HOST '${config.database.host}',
+           PORT ${config.database.port},
+           DATABASE '${config.database.database}',
+           USER '${config.database.username}',
+           PASSWORD '${config.database.password}'
+       );`);
+  if (recreate) {
+    logger.debug(`Recreating empty schema for revision ${revisionId}`);
+    await quack.exec(`ATTACH '' AS postgres_db (TYPE postgres);`);
+    await quack.exec(`USE postgres_db;`);
+    await quack.exec(pgformat(`DROP SCHEMA IF EXISTS %I CASCADE;`, revisionId));
+    await quack.exec(pgformat(`CREATE SCHEMA %I;`, revisionId));
+    await quack.exec('USE memory;');
+    await quack.exec('DETACH postgres_db;');
+  }
+  await quack.exec(`ATTACH '' AS data_tables_db (TYPE postgres, SCHEMA data_tables);`);
+  await quack.exec(pgformat(`ATTACH '' AS postgres_db (TYPE postgres, SCHEMA %I);`, revisionId));
+  await quack.exec(`USE postgres_db;`);
 };

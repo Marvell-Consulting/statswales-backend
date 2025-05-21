@@ -15,6 +15,8 @@ import { UnknownException } from '../exceptions/unknown.exception';
 import { createBaseCubeFromProtoCube } from '../services/cube-handler';
 import { duckdb } from '../services/duckdb';
 import { validateParams } from '../validators/preview-validator';
+import { format as pgformat } from '@scaleleap/pg-format/lib/pg-format';
+import { Pool, QueryResult } from 'pg';
 
 export const getCubePreview = async (
   cubeFile: string,
@@ -77,6 +79,73 @@ export const getCubePreview = async (
     return { status: 500, errors: [], dataset_id: dataset.id };
   } finally {
     await quack.close();
+  }
+};
+
+export const getPostgresCubePreview = async (
+  pool: Pool,
+  revisionId: string,
+  lang: string,
+  dataset: Dataset,
+  page: number,
+  size: number
+): Promise<ViewDTO | ViewErrDTO> => {
+  try {
+    await pool.query(`SET search_path TO "${revisionId}";`);
+    const result = await pool
+      .query(`SELECT NOW();`)
+      .then((result) => {
+        logger.debug('result ' + JSON.stringify(result.rows));
+        return result;
+      })
+      .catch((err) => {
+      logger.error(`Something went wrong trying to create the cube preview with the error: ${err}`);
+    });
+    logger.debug(result.rows);
+    const totalsQuery = `SELECT count(*) as totalLines, ceil(count(*)/${size}) as totalPages from "${revisionId}".default_view_${lang};`;
+    const totals = await pool.query(totalsQuery);
+    logger.debug(totals);
+    const totalPages = Number(totals.rows[0].totalPages);
+    const totalLines = Number(totals.rows[0].totalLines);
+    const errors = validateParams(page, totalPages, size);
+
+    if (errors.length > 0) {
+      return { status: 400, errors, dataset_id: dataset.id };
+    }
+
+    const queryResult: QueryResult<unknown[]> = await pool.query(
+      pgformat('SELECT * FROM %I.%I LIMIT %L OFFSET %L', revisionId, `default_view_${lang}`, size, (page - 1) * size)
+    );
+    const preview = queryResult.rows;
+
+    const startLine = size * (page - 1) + 1;
+    const lastLine = page * size + size;
+    const tableHeaders = Object.keys(preview[0]);
+    const dataArray = preview.map((row) => Object.values(row));
+    const currentDataset = await DatasetRepository.getById(dataset.id);
+
+    const headers: CSVHeader[] = tableHeaders.map((header, idx) => ({
+      index: idx - 1,
+      name: header,
+      source_type: header === 'int_line_number' ? FactTableColumnType.LineNumber : FactTableColumnType.Unknown
+    }));
+
+    return {
+      dataset: DatasetDTO.fromDataset(currentDataset),
+      current_page: page,
+      page_info: {
+        total_records: totalLines,
+        start_record: startLine,
+        end_record: lastLine
+      },
+      page_size: size,
+      total_pages: totalPages,
+      headers,
+      data: dataArray
+    };
+  } catch (err) {
+    logger.error(`Something went wrong trying to create the cube preview with the error: ${err}`);
+    return { status: 500, errors: [], dataset_id: dataset.id };
   }
 };
 
