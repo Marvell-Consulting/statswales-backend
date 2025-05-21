@@ -34,12 +34,13 @@ import { RevisionRepository } from '../repositories/revision';
 import { PeriodCovered } from '../interfaces/period-covered';
 
 import { dateDimensionReferenceTableCreator } from './time-matching';
-import { duckdb, safelyCloseDuckDb } from './duckdb';
+import { duckdb, linkToPostgres, safelyCloseDuckDb } from './duckdb';
 import { NumberExtractor, NumberType } from '../extractors/number-extractor';
 import { CubeValidationType } from '../enums/cube-validation-type';
 import { languageMatcherCaseStatement } from '../utils/lookup-table-utils';
 import { FactTableValidationException } from '../exceptions/fact-table-validation-exception';
 import { FactTableValidationExceptionType } from '../enums/fact-table-validation-exception-type';
+import { CubeType } from '../enums/cube-type';
 
 export const FACT_TABLE_NAME = 'fact_table';
 
@@ -1328,7 +1329,7 @@ export async function createEmptyFactTableInCube(quack: Database, dataset: Datas
         // eslint-disable-next-line no-fallthrough
         case FactTableColumnType.Dimension:
         case FactTableColumnType.Time:
-          compositeKey.push(field.columnName);
+          compositeKey.push(field.columnName.toLowerCase());
           factIdentifiers.push(field);
           break;
         case FactTableColumnType.NoteCodes:
@@ -1339,7 +1340,7 @@ export async function createEmptyFactTableInCube(quack: Database, dataset: Datas
           break;
       }
       factTableDef.push(field.columnName);
-      return pgformat('%I %s', field.columnName, field.columnDatatype);
+      return pgformat('%I %s', field.columnName.toLowerCase(), field.columnDatatype);
     });
 
   logger.info('Creating initial fact table in cube');
@@ -1456,34 +1457,25 @@ export const createBaseCubeFromProtoCube = async (
     logger.debug('Creating an in-memory database to hold the cube using DuckDB 🐤');
     protoCubeFile = tmp.tmpNameSync({ postfix: '.duckdb' });
     quack = await duckdb(protoCubeFile);
-
-    const { notesCodeColumn, dataValuesColumn, factTableDef, factIdentifiers } = await createEmptyFactTableInCube(
-      quack,
-      dataset
-    );
-
-    try {
-      await loadFactTables(
-        quack,
-        dataset,
-        endRevision,
-        factTableDef,
-        dataValuesColumn,
-        notesCodeColumn,
-        factIdentifiers
-      );
-    } catch (err) {
-      logger.error(err, `Failed to load fact tables into the cube`);
-      await quack.close();
-      throw new Error(`Failed to load fact tables into the cube: ${err}`);
-    }
   }
 
-  await createCubeMetadataTable(quack);
+  await linkToPostgres(quack, endRevision.id, true);
+
+  const { factTableDef, factIdentifiers } = await createEmptyFactTableInCube(quack, dataset);
 
   const notesCodeColumn = dataset.factTable?.find((field) => field.columnType === FactTableColumnType.NoteCodes);
   const dataValuesColumn = dataset.factTable?.find((field) => field.columnType === FactTableColumnType.DataValues);
   const measureColumn = dataset.factTable?.find((field) => field.columnType === FactTableColumnType.Measure);
+
+  try {
+    await loadFactTables(quack, dataset, endRevision, factTableDef, dataValuesColumn, notesCodeColumn, factIdentifiers);
+  } catch (err) {
+    logger.error(err, `Failed to load fact tables into the cube`);
+    await quack.close();
+    throw new Error(`Failed to load fact tables into the cube: ${err}`);
+  }
+
+  await createCubeMetadataTable(quack);
 
   if (measureColumn && dataValuesColumn) {
     try {
@@ -1581,6 +1573,8 @@ export const createBaseCubeFromProtoCube = async (
   const functionTime = Math.round(end - functionStart);
   const buildTime = Math.round(end - buildStart);
   logger.warn(`Cube function took ${functionTime}ms to complete and it took ${buildTime}ms to build the cube.`);
+  endRevision.cubeType = CubeType.PostgresCube;
+  await endRevision.save();
   return protoCubeFile;
 };
 
