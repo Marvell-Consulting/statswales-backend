@@ -245,6 +245,7 @@ export class DatasetService {
     if (rejectedPublishTask) {
       // resubmission of a rejected task
       await this.taskService.update(rejectedPublishTask.id, TaskStatus.Requested, true, user);
+      return;
     }
 
     await this.taskService.create(datasetId, TaskAction.Publish, user, undefined, { revisionId });
