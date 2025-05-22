@@ -1,15 +1,20 @@
-FROM node:22-alpine
+FROM node:22-slim
 
-# Install build tools and distutils for node-gyp compatibility
-RUN apk add --no-cache python3 py3-setuptools make g++ curl
+# Install build tools and ICU libs (adjust as needed for your app)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    python3 \
+    curl \
+    libicu-dev \
+    && rm -rf /var/lib/apt/lists/*
 
 # Create a non-root user and group
-RUN addgroup -S appgroup && adduser -S appuser -G appgroup
+RUN groupadd --system appgroup && useradd --system --gid appgroup --create-home appuser
 
 WORKDIR /app
 
 COPY package*.json ./
-RUN npm install
+RUN npm ci
 
 COPY . ./
 RUN npm run build
