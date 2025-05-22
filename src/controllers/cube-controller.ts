@@ -36,15 +36,17 @@ export const getCubePreview = async (
       return { status: 400, errors, dataset_id: dataset.id };
     }
 
+    const offset = (page - 1) * size;
+
     const previewQuery = `
       SELECT * FROM default_view_${lang}
       LIMIT ${size}
-      OFFSET ${(page - 1) * size}
+      OFFSET ${offset}
     `;
 
     const preview = await quack.all(previewQuery);
-    const startLine = Number(preview[0].int_line_number);
-    const lastLine = Number(preview[preview.length - 1].int_line_number);
+    const startLine = offset + 1;
+    const lastLine = offset + preview.length;
     const tableHeaders = Object.keys(preview[0]);
     const dataArray = preview.map((row) => Object.values(row));
     const currentDataset = await DatasetRepository.getById(dataset.id);
