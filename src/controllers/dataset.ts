@@ -551,7 +551,7 @@ export const getHistory = async (req: Request, res: Response, next: NextFunction
       return {
         ...eventLogDTO,
         data: {
-          ...eventLogDTO.data,
+          ...(eventLogDTO.data || {}),
           isUpdate: dataset.startRevisionId !== eventLogDTO.data?.metadata?.revisionId
         }
       };
