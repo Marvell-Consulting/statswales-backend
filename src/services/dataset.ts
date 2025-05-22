@@ -39,6 +39,7 @@ import { Task } from '../entities/task/task';
 import { TaskStatus } from '../enums/task-status';
 import { getPublishingStatus } from '../utils/dataset-status';
 import { PublishingStatus as PubStatus } from '../enums/publishing-status';
+import { JsonContains } from 'typeorm';
 
 export class DatasetService {
   lang: Locale;
@@ -243,9 +244,9 @@ export class DatasetService {
     const rejectedPublishTask = await this.getRejectedPublishTask(datasetId);
 
     if (rejectedPublishTask) {
-      // resubmission of a rejected task
-      await this.taskService.update(rejectedPublishTask.id, TaskStatus.Requested, true, user);
-      return;
+      const comment = null; // clear the rejection comment
+      await this.taskService.update(rejectedPublishTask.id, TaskStatus.Requested, true, user, comment);
+      return; // resubmission of a rejected task
     }
 
     await this.taskService.create(datasetId, TaskAction.Publish, user, undefined, { revisionId });
@@ -386,5 +387,16 @@ export class DatasetService {
     return (await this.getOpenTasks(datasetId)).find(
       (task) => task.action === TaskAction.Publish && task.status === TaskStatus.Rejected
     );
+  }
+
+  async getHistory(datasetId: string): Promise<EventLog[]> {
+    return EventLog.find({
+      where: [
+        { entity: 'dataset', entityId: datasetId },
+        { entity: 'task', data: JsonContains({ datasetId }) }
+      ],
+      order: { createdAt: 'DESC' },
+      relations: { user: true }
+    });
   }
 }

@@ -1,4 +1,14 @@
-import { BaseEntity, Column, CreateDateColumn, Entity, Index, PrimaryGeneratedColumn } from 'typeorm';
+import {
+  BaseEntity,
+  Column,
+  CreateDateColumn,
+  Entity,
+  Index,
+  JoinColumn,
+  ManyToOne,
+  PrimaryGeneratedColumn
+} from 'typeorm';
+import { User } from './user/user';
 
 @Entity({ name: 'event_log' })
 export class EventLog extends BaseEntity {
@@ -21,6 +31,10 @@ export class EventLog extends BaseEntity {
   @Index('IDX_event_log_user_id')
   @Column({ name: 'user_id', type: 'uuid', nullable: true })
   userId?: string; // the user that triggered the event
+
+  @ManyToOne(() => User, { nullable: true })
+  @JoinColumn({ name: 'user_id', foreignKeyConstraintName: 'FK_event_log_user_id' })
+  user?: User;
 
   @Column({ name: 'client', type: 'text', nullable: true })
   client?: string; // the client that initiated the event, e.g. sw3-frontend (or "system" if not an api call)
