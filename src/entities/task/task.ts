@@ -47,7 +47,7 @@ export class Task extends BaseEntity {
   metadata?: TaskMetadata;
 
   @Column({ name: 'comment', type: 'text', nullable: true })
-  comment?: string;
+  comment?: string | null;
 
   @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
   createdAt: Date;

@@ -52,7 +52,7 @@ export class TaskService {
     return this.getById(taskId);
   }
 
-  async update(taskId: string, status: TaskStatus, open: boolean, user: User, comment?: string): Promise<Task> {
+  async update(taskId: string, status: TaskStatus, open: boolean, user: User, comment?: string | null): Promise<Task> {
     logger.info(`Updating task ${taskId} with status ${status}`);
     const task = await Task.findOneByOrFail({ id: taskId });
     const updatedTask = Task.merge(task, { status, open, updatedBy: user, comment });

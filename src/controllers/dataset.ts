@@ -51,6 +51,8 @@ import { t } from 'i18next';
 import { NotAllowedException } from '../exceptions/not-allowed.exception';
 import { GroupRole } from '../enums/group-role';
 import { DatasetInclude } from '../enums/dataset-include';
+import { EventLogDTO } from '../dtos/event-log-dto';
+import { EventLog } from '../entities/event-log';
 
 export const listUserDatasets = async (req: Request, res: Response, next: NextFunction) => {
   try {
@@ -535,5 +537,29 @@ export const updateDatasetGroup = async (req: Request, res: Response, next: Next
   } catch (err) {
     logger.error(err, `Failed to update dataset group`);
     next(new UnknownException());
+  }
+};
+
+export const getHistory = async (req: Request, res: Response, next: NextFunction) => {
+  const { dataset, datasetId } = res.locals;
+
+  try {
+    const history = await req.datasetService.getHistory(datasetId);
+
+    const eventLogDTOs = history.map((log: EventLog) => {
+      const eventLogDTO = EventLogDTO.fromEventLog(log);
+      return {
+        ...eventLogDTO,
+        data: {
+          ...(eventLogDTO.data || {}),
+          isUpdate: dataset.startRevisionId !== eventLogDTO.data?.metadata?.revisionId
+        }
+      };
+    });
+
+    res.json(eventLogDTOs);
+  } catch (err) {
+    logger.error(err, `There was a problem fetching the history for dataset ${datasetId}`);
+    next(new UnknownException('errors.dataset_history'));
   }
 };

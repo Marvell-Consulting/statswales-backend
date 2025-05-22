@@ -28,7 +28,8 @@ import {
   deleteDraftDatasetById,
   listAllFilesInDataset,
   getAllFilesForDataset,
-  updateDatasetGroup
+  updateDatasetGroup,
+  getHistory
 } from '../controllers/dataset';
 import { datasetAuth } from '../middleware/dataset-auth';
 
@@ -149,6 +150,10 @@ datasetRouter.get('/:dataset_id/list-files', listAllFilesInDataset);
 // PATCH /dataset/:dataset_id/group
 // Updates the user group for the dataset
 datasetRouter.patch('/:dataset_id/group', jsonParser, updateDatasetGroup);
+
+// GET /dataset/:dataset_id/history
+// List the event history for this dataset
+datasetRouter.get('/:dataset_id/history', getHistory);
 
 // apply revision child routes
 datasetRouter.use('/:dataset_id/revision', revisionRouter);

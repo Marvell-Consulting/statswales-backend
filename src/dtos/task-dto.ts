@@ -22,7 +22,7 @@ export class TaskDTO {
     dto.status = task.status;
     dto.open = task.open;
     dto.dataset_id = task.datasetId;
-    dto.comment = task.comment;
+    dto.comment = task.comment ? task.comment : undefined;
     dto.metadata = task.metadata;
     dto.created_at = task.createdAt.toISOString();
     dto.updated_at = task.updatedAt.toISOString();
