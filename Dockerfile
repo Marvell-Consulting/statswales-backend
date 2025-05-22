@@ -1,7 +1,7 @@
 FROM node:22-slim
 
 # Install build tools and ICU libs (adjust as needed for your app)
-RUN apt-get update && apt-get install -y --no-install-recommends \
+RUN apt update && apt upgrade -y && apt install -y --no-install-recommends \
     build-essential \
     python3 \
     curl \
