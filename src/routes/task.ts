@@ -22,7 +22,7 @@ const taskAuth = async (req: Request, res: Response, next: NextFunction) => {
 
   try {
     const taskService = new TaskService();
-    const task = await taskService.getById(req.params.task_id, { dataset: true });
+    const task = await taskService.getById(req.params.task_id, { dataset: true, createdBy: true, updatedBy: true });
     const dataset = task.dataset;
     const userGroupIds = getUserGroupIdsForUser(req.user!);
 
