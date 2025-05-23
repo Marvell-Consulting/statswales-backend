@@ -6,6 +6,7 @@ import { DataTableAction } from '../../enums/data-table-action';
 import { Revision } from './revision';
 import { DataTableDescription } from './data-table-description';
 import { FileImportInterface } from './file-import.interface';
+import { SourceLocation } from '../../enums/source-location';
 
 @Entity({ name: 'data_table', orderBy: { uploadedAt: 'ASC' } })
 export class DataTable extends BaseEntity implements FileImportInterface {
@@ -35,6 +36,15 @@ export class DataTable extends BaseEntity implements FileImportInterface {
 
   @Column({ type: 'enum', enum: Object.values(DataTableAction), nullable: false })
   action: DataTableAction;
+
+  @Column({
+    name: 'source_location',
+    type: 'enum',
+    enum: Object.values(SourceLocation),
+    nullable: false,
+    default: SourceLocation.Datalake
+  })
+  sourceLocation: SourceLocation;
 
   @OneToMany(() => DataTableDescription, (factTableInfo) => factTableInfo.factTable, { cascade: true })
   dataTableDescriptions: DataTableDescription[];
