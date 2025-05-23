@@ -22,6 +22,7 @@ import { DataTable } from './data-table';
 import { RevisionMetadata } from './revision-metadata';
 import { RevisionProvider } from './revision-provider';
 import { RevisionTopic } from './revision-topic';
+import { CubeType } from '../../enums/cube_type';
 
 @Entity({ name: 'revision', orderBy: { createdAt: 'ASC' } })
 export class Revision extends BaseEntity {
@@ -103,4 +104,7 @@ export class Revision extends BaseEntity {
 
   @OneToMany(() => RevisionTopic, (revisionTopic) => revisionTopic.revision, { cascade: true })
   revisionTopics: RevisionTopic[];
+
+  @Column({ type: 'enum', name: 'cube_type', enum: Object.values(CubeType), nullable: true })
+  cubeType: CubeType | null;
 }

@@ -34,7 +34,7 @@ import { RevisionRepository } from '../repositories/revision';
 import { PeriodCovered } from '../interfaces/period-covered';
 
 import { dateDimensionReferenceTableCreator } from './time-matching';
-import { duckdb, safelyCloseDuckDb } from './duckdb';
+import { duckdb, linkToPostgres, safelyCloseDuckDb } from './duckdb';
 import { NumberExtractor, NumberType } from '../extractors/number-extractor';
 import { CubeValidationType } from '../enums/cube-validation-type';
 import { languageMatcherCaseStatement } from '../utils/lookup-table-utils';
@@ -1328,7 +1328,7 @@ export async function createEmptyFactTableInCube(quack: Database, dataset: Datas
         // eslint-disable-next-line no-fallthrough
         case FactTableColumnType.Dimension:
         case FactTableColumnType.Time:
-          compositeKey.push(field.columnName);
+          compositeKey.push(field.columnName.toLowerCase());
           factIdentifiers.push(field);
           break;
         case FactTableColumnType.NoteCodes:
@@ -1338,8 +1338,8 @@ export async function createEmptyFactTableInCube(quack: Database, dataset: Datas
           dataValuesColumn = field;
           break;
       }
-      factTableDef.push(field.columnName);
-      return pgformat('%I %s', field.columnName, field.columnDatatype);
+      factTableDef.push(field.columnName.toLowerCase());
+      return pgformat('%I %s', field.columnName.toLowerCase(), field.columnDatatype);
     });
 
   logger.info('Creating initial fact table in cube');
@@ -1449,34 +1449,47 @@ export const createBaseCubeFromProtoCube = async (
 
   const buildStart = performance.now();
   let quack: Database;
-  if (protoCubeFile) {
-    logger.debug(`Loading protocube from file: ${protoCubeFile} to DuckDB 🐤`);
-    quack = await duckdb(protoCubeFile);
-  } else {
-    logger.debug('Creating an in-memory database to hold the cube using DuckDB 🐤');
-    protoCubeFile = tmp.tmpNameSync({ postfix: '.duckdb' });
-    quack = await duckdb(protoCubeFile);
+  try {
+    if (protoCubeFile) {
+      logger.debug(`Loading protocube from file: ${protoCubeFile} to DuckDB 🐤`);
+      quack = await duckdb(protoCubeFile);
+      await linkToPostgres(quack, endRevision.id, true);
+      await quack.exec('USE cube_file');
+      await quack.exec(`CREATE TABLE postgres_db.fact_table AS SELECT * FROM fact_table;`);
+      await quack.exec(`USE postgres_db;`);
+      await quack.exec('DETACH cube_file');
+    } else {
+      logger.debug('Creating an in-memory database to hold the cube using DuckDB 🐤');
+      protoCubeFile = tmp.tmpNameSync({ postfix: '.duckdb' });
+      quack = await duckdb(protoCubeFile);
+      await linkToPostgres(quack, endRevision.id, true);
+      await quack.exec(`USE postgres_db;`);
 
-    const { notesCodeColumn, dataValuesColumn, factTableDef, factIdentifiers } = await createEmptyFactTableInCube(
-      quack,
-      dataset
-    );
-
-    try {
-      await loadFactTables(
+      const { notesCodeColumn, dataValuesColumn, factTableDef, factIdentifiers } = await createEmptyFactTableInCube(
         quack,
-        dataset,
-        endRevision,
-        factTableDef,
-        dataValuesColumn,
-        notesCodeColumn,
-        factIdentifiers
+        dataset
       );
-    } catch (err) {
-      logger.error(err, `Failed to load fact tables into the cube`);
-      await quack.close();
-      throw new Error(`Failed to load fact tables into the cube: ${err}`);
+
+      try {
+        await loadFactTables(
+          quack,
+          dataset,
+          endRevision,
+          factTableDef,
+          dataValuesColumn,
+          notesCodeColumn,
+          factIdentifiers
+        );
+      } catch (err) {
+        logger.error(err, `Failed to load fact tables into the cube`);
+        await quack.close();
+        throw new Error(`Failed to load fact tables into the cube: ${err}`);
+      }
     }
+  } catch (error) {
+    logger.error(error, `Failed to create base cube for revision ${endRevisionId}`);
+    await quack.close();
+    throw new Error(`Failed to create base cube for revision ${endRevisionId}: ${error}`);
   }
 
   await createCubeMetadataTable(quack);
