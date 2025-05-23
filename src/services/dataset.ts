@@ -40,7 +40,12 @@ import { TaskStatus } from '../enums/task-status';
 import { getPublishingStatus } from '../utils/dataset-status';
 import { PublishingStatus as PubStatus } from '../enums/publishing-status';
 import { In, JsonContains } from 'typeorm';
-import { omitDatasetUpdates, flagUpdateTask, injectSimulatedEvents } from '../utils/dataset-history';
+import {
+  omitDatasetUpdates,
+  flagUpdateTask,
+  generateSimulatedEvents,
+  omitRevisionUpdates
+} from '../utils/dataset-history';
 
 export class DatasetService {
   lang: Locale;
@@ -404,8 +409,12 @@ export class DatasetService {
       relations: { user: true }
     });
 
-    return injectSimulatedEvents(dataset, history)
+    history.push(...generateSimulatedEvents(dataset));
+    history.sort((a, b) => (a.createdAt > b.createdAt ? -1 : 1)); // resort desc for generated events
+
+    return history
       .filter(omitDatasetUpdates)
+      .filter(omitRevisionUpdates)
       .map((event) => flagUpdateTask(dataset, event));
   }
 }
