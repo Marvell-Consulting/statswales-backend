@@ -39,7 +39,13 @@ import { Task } from '../entities/task/task';
 import { TaskStatus } from '../enums/task-status';
 import { getPublishingStatus } from '../utils/dataset-status';
 import { PublishingStatus as PubStatus } from '../enums/publishing-status';
-import { JsonContains } from 'typeorm';
+import { In, JsonContains } from 'typeorm';
+import {
+  omitDatasetUpdates,
+  flagUpdateTask,
+  generateSimulatedEvents,
+  omitRevisionUpdates
+} from '../utils/dataset-history';
 
 export class DatasetService {
   lang: Locale;
@@ -390,13 +396,25 @@ export class DatasetService {
   }
 
   async getHistory(datasetId: string): Promise<EventLog[]> {
-    return EventLog.find({
+    const dataset = await DatasetRepository.getById(datasetId, { revisions: true });
+    const revisionIds = dataset.revisions.map((rev) => rev.id);
+
+    const history = await EventLog.find({
       where: [
         { entity: 'dataset', entityId: datasetId },
+        { entity: 'revision', entityId: In(revisionIds) },
         { entity: 'task', data: JsonContains({ datasetId }) }
       ],
       order: { createdAt: 'DESC' },
       relations: { user: true }
     });
+
+    history.push(...generateSimulatedEvents(dataset));
+    history.sort((a, b) => (a.createdAt > b.createdAt ? -1 : 1)); // resort desc for generated events
+
+    return history
+      .filter(omitDatasetUpdates)
+      .filter(omitRevisionUpdates)
+      .map((event) => flagUpdateTask(dataset, event));
   }
 }

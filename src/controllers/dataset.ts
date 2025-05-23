@@ -541,21 +541,11 @@ export const updateDatasetGroup = async (req: Request, res: Response, next: Next
 };
 
 export const getHistory = async (req: Request, res: Response, next: NextFunction) => {
-  const { dataset, datasetId } = res.locals;
+  const datasetId = res.locals.datasetId;
 
   try {
     const history = await req.datasetService.getHistory(datasetId);
-
-    const eventLogDTOs = history.map((log: EventLog) => {
-      const eventLogDTO = EventLogDTO.fromEventLog(log);
-      return {
-        ...eventLogDTO,
-        data: {
-          ...(eventLogDTO.data || {}),
-          isUpdate: dataset.startRevisionId !== eventLogDTO.data?.metadata?.revisionId
-        }
-      };
-    });
+    const eventLogDTOs = history.map((event: EventLog) => EventLogDTO.fromEventLog(event));
 
     res.json(eventLogDTOs);
   } catch (err) {
