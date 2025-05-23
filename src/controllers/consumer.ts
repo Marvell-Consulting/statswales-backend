@@ -17,6 +17,7 @@ import { outputCube } from './cube-controller';
 import { DuckdbOutputType } from '../enums/duckdb-outputs';
 import { createView } from '../services/consumer-view';
 import { DEFAULT_PAGE_SIZE } from '../services/csv-processor';
+import { TopicDTO } from '../dtos/topic-dto';
 
 export const listPublishedDatasets = async (req: Request, res: Response, next: NextFunction) => {
   logger.info('Listing published datasets...');
@@ -124,4 +125,16 @@ export const downloadPublishedDataset = async (req: Request, res: Response, next
     logger.debug('File stream ended');
     cleanUpCube(cubeFile);
   });
+};
+
+export const listPublishedTopics = async (req: Request, res: Response, next: NextFunction) => {
+  logger.info('fetching topics with at least one published dataset');
+  try {
+    const topics = await PublishedDatasetRepository.listPublishedTopics();
+    const topicDTOs = topics.map((topic) => TopicDTO.fromTopic(topic, req.language as Locale));
+    res.json(topicDTOs);
+  } catch (error) {
+    logger.error(error, 'Error listing published topics');
+    next(new UnknownException());
+  }
 };

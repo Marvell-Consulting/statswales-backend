@@ -6,7 +6,8 @@ import {
   listPublishedDatasets,
   getPublishedDatasetById,
   downloadPublishedDataset,
-  getPublishedDatasetView
+  getPublishedDatasetView,
+  listPublishedTopics
 } from '../controllers/consumer';
 import { NotFoundException } from '../exceptions/not-found.exception';
 import { PublishedDatasetRepository } from '../repositories/published-dataset';
@@ -39,6 +40,10 @@ export const loadPublishedDataset = (relations?: FindOptionsRelations<Dataset>) 
     next();
   };
 };
+
+// GET /published/topics
+// Returns a list of all topics with at least one published dataset
+consumerRouter.get('/topics', listPublishedTopics);
 
 // GET /published/list
 // Returns a list of all active datasets e.g. ones with imports

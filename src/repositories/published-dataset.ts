@@ -1,4 +1,4 @@
-import { FindOneOptions, And, Not, IsNull, LessThan, FindOptionsRelations } from 'typeorm';
+import { FindOneOptions, And, Not, IsNull, LessThan, FindOptionsRelations, In } from 'typeorm';
 import { has, set } from 'lodash';
 
 import { dataSource } from '../db/data-source';
@@ -6,6 +6,8 @@ import { Dataset } from '../entities/dataset/dataset';
 import { DatasetListItemDTO } from '../dtos/dataset-list-item-dto';
 import { ResultsetWithCount } from '../interfaces/resultset-with-count';
 import { Locale } from '../enums/locale';
+import { listPublishedTopics } from '../controllers/consumer';
+import { Topic } from '../entities/dataset/topic';
 
 export const withAll: FindOptionsRelations<Dataset> = {
   createdBy: true,
@@ -65,5 +67,22 @@ export const PublishedDatasetRepository = dataSource.getRepository(Dataset).exte
     const [data, count] = await Promise.all([resultQuery.getRawMany(), countQuery.getCount()]);
 
     return { data, count };
+  },
+
+  async listPublishedTopics(topicPath?: string): Promise<Topic[]> {
+    const latestPublishedRevisions = await this.createQueryBuilder('d')
+      .select('d.published_revision_id')
+      .where('d.live IS NOT NULL')
+      .andWhere('d.live < NOW()')
+      .andWhere('d.published_revision_id IS NOT NULL')
+      .getRawMany();
+
+    const revisionIds = latestPublishedRevisions.map((revision) => revision.published_revision_id);
+
+    return this.manager.getRepository(Topic).find({
+      where: {
+        revisionTopics: { revisionId: In(revisionIds) }
+      }
+    });
   }
 });

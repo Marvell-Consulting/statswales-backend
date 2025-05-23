@@ -15,7 +15,7 @@ topicRouter.get('/', async (req: Request, res: Response, next: NextFunction) => 
     const topicDTOs = topics.map((topic) => TopicDTO.fromTopic(topic, req.language as Locale));
     res.json(topicDTOs);
   } catch (error) {
-    logger.error('Error listing topics', error);
+    logger.error(error, 'Error listing topics');
     next(new UnknownException());
   }
 });
