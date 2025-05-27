@@ -43,7 +43,7 @@ export const loadPublishedDataset = (relations?: FindOptionsRelations<Dataset>) 
 
 // GET /published/topics
 // Returns a list of all topics with at least one published dataset
-consumerRouter.get('/topics', listPublishedTopics);
+consumerRouter.get('/topic{/:topic_id}', listPublishedTopics);
 
 // GET /published/list
 // Returns a list of all active datasets e.g. ones with imports

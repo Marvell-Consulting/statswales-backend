@@ -18,6 +18,8 @@ import { DuckdbOutputType } from '../enums/duckdb-outputs';
 import { createView } from '../services/consumer-view';
 import { DEFAULT_PAGE_SIZE } from '../services/csv-processor';
 import { TopicDTO } from '../dtos/topic-dto';
+import { PublishedTopicsDTO } from '../dtos/published-topics-dto';
+import { TopicRepository } from '../repositories/topic';
 
 export const listPublishedDatasets = async (req: Request, res: Response, next: NextFunction) => {
   logger.info('Listing published datasets...');
@@ -129,10 +131,37 @@ export const downloadPublishedDataset = async (req: Request, res: Response, next
 
 export const listPublishedTopics = async (req: Request, res: Response, next: NextFunction) => {
   logger.info('fetching topics with at least one published dataset');
+  const topicId = req.params.topic_id;
+  const lang = req.language as Locale;
+
+  if (topicId && !/\d+/.test(topicId)) {
+    logger.error('invalid topic id');
+    next(new BadRequestException('errors.invalid_topic_id'));
+    return;
+  }
+
   try {
-    const topics = await PublishedDatasetRepository.listPublishedTopics();
-    const topicDTOs = topics.map((topic) => TopicDTO.fromTopic(topic, req.language as Locale));
-    res.json(topicDTOs);
+    const topic = topicId ? await TopicRepository.findOneByOrFail({ id: parseInt(topicId, 10) }) : undefined;
+    const subTopics = await PublishedDatasetRepository.listPublishedTopics(topicId);
+    const parents = topic ? await TopicRepository.getParents(topic.path) : undefined;
+    const isLeafTopic = topic && subTopics.length === 0;
+    let datasets;
+
+    if (isLeafTopic) {
+      // if this is a leaf topic (no children) then also fetch datasets
+      const page = parseInt(req.query.page as string, 10) || 1;
+      const limit = parseInt(req.query.limit as string, 10) || 1000;
+      datasets = await PublishedDatasetRepository.listPublishedByTopic(topicId, lang, page, limit);
+    }
+
+    const data: PublishedTopicsDTO = {
+      selectedTopic: topic ? TopicDTO.fromTopic(topic, lang) : undefined,
+      children: subTopics ? subTopics.map((topic) => TopicDTO.fromTopic(topic, lang)) : undefined,
+      parents: parents ? parents.map((parent) => TopicDTO.fromTopic(parent, lang)) : undefined,
+      datasets
+    };
+
+    res.json(data);
   } catch (error) {
     logger.error(error, 'Error listing published topics');
     next(new UnknownException());
