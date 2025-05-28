@@ -15,7 +15,7 @@ export class AddCubeType1747838732179 implements MigrationInterface {
     await queryRunner.query(
       `ALTER TABLE "revision" ADD "cube_type" "public"."revision_cube_type_enum" DEFAULT 'duckdb_cube'`
     );
-    await queryRunner.query(`CREATE SCHEMA data_tables;`);
+    await queryRunner.createSchema('data_tables', true);
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {
@@ -23,6 +23,6 @@ export class AddCubeType1747838732179 implements MigrationInterface {
     await queryRunner.query(`DROP TYPE "public"."revision_cube_type_enum"`);
     await queryRunner.query(`ALTER TABLE "data_table" DROP COLUMN "source_location"`);
     await queryRunner.query(`DROP TYPE "public"."data_table_source_location_enum"`);
-    await queryRunner.query(`DROP SCHEMA data_tables CASCADE;`);
+    await queryRunner.dropSchema('data_tables', true);
   }
 }

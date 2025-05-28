@@ -39,7 +39,7 @@ export const duckdb = async (cubeFile = ':memory:') => {
 
 export const linkToPostgres = async (quack: Database, revisionId: string, recreate: boolean) => {
   await quack.exec(`LOAD 'postgres';`);
-  await quack.exec(`CREATE SECRET (
+  await quack.exec(`CREATE OR REPLACE SECRET (
            TYPE postgres,
            HOST '${config.database.host}',
            PORT ${config.database.port},
@@ -59,4 +59,19 @@ export const linkToPostgres = async (quack: Database, revisionId: string, recrea
   await quack.exec(`ATTACH '' AS data_tables_db (TYPE postgres, SCHEMA data_tables);`);
   await quack.exec(pgformat(`ATTACH '' AS postgres_db (TYPE postgres, SCHEMA %I);`, revisionId));
   await quack.exec(`USE postgres_db;`);
+};
+
+export const linkToPostgresDataTables = async (quack: Database) => {
+  logger.debug('Linking to postgres data tables schema');
+  await quack.exec(`LOAD 'postgres';`);
+  await quack.exec(`CREATE OR REPLACE SECRET (
+           TYPE postgres,
+           HOST '${config.database.host}',
+           PORT ${config.database.port},
+           DATABASE '${config.database.database}',
+           USER '${config.database.username}',
+           PASSWORD '${config.database.password}'
+       );`);
+  await quack.exec(`ATTACH '' AS data_tables_db (TYPE postgres, SCHEMA data_tables);`);
+  await quack.exec(`USE data_tables_db;`);
 };

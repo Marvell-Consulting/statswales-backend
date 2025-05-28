@@ -16,7 +16,6 @@ import {
   loadCorrectReferenceDataIntoReferenceDataTable,
   loadReferenceDataIntoCube
 } from './cube-handler';
-import { createEmptyCubeWithFactTable } from '../utils/create-fact-table';
 
 const sampleSize = 5;
 

@@ -62,7 +62,8 @@ export default class SeedTestFixtures extends Seeder {
             buffer,
             'text/csv',
             `test-fixture.csv`,
-            dataset.id
+            dataset.id,
+            'data_table'
           );
 
           revision = await entityManager.getRepository(Revision).save({

@@ -398,9 +398,8 @@ export const updateSources = async (req: Request, res: Response, next: NextFunct
     });
     return;
   }
-  let duckdbFile: string;
   try {
-    duckdbFile = await factTableValidatorFromSource(dataset, validatedSourceAssignment);
+    await factTableValidatorFromSource(dataset, validatedSourceAssignment);
   } catch (err) {
     const error = err as FactTableValidationException;
     res.status(error.status);
@@ -421,36 +420,11 @@ export const updateSources = async (req: Request, res: Response, next: NextFunct
     });
     return;
   }
-  try {
-    logger.debug(`Saving duckdb file to blob storage: ${duckdbFile}`);
-    const buffer = fs.readFileSync(duckdbFile);
-    logger.debug(`Buffer size: ${buffer.byteLength} bytes`);
-    await req.fileService.saveBuffer(`${revision.id}-protocube.duckdb`, dataset.id, buffer);
-    revision.onlineCubeFilename = `${revision.id}-protocube.duckdb`;
-    fs.unlinkSync(duckdbFile);
-    await revision.save();
-  } catch (err) {
-    logger.error(err, 'Failed to save duckdb file to blob storage');
-    res.status(500);
-    res.json({
-      status: 500,
-      dataset_id: dataset.id,
-      errors: [
-        {
-          field: 'none',
-          message: {
-            key: 'errors.fact_table_validation.unknown_error',
-            params: {}
-          }
-        }
-      ]
-    });
-    return;
-  }
 
   try {
     await createDimensionsFromSourceAssignment(dataset, dataTable, validatedSourceAssignment);
     const updatedDataset = await DatasetRepository.getById(dataset.id);
+    await createBaseCubeFromProtoCube(updatedDataset.id, revision.id);
     res.json(DatasetDTO.fromDataset(updatedDataset));
   } catch (err) {
     logger.error(err, `An error occurred trying to process the source assignments: ${err}`);

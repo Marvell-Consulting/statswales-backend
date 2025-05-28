@@ -16,7 +16,6 @@ import { DimensionPatchDto } from '../dtos/dimension-partch-dto';
 import { CSVHeader, ViewDTO, ViewErrDTO } from '../dtos/view-dto';
 import { DateExtractor } from '../extractors/date-extractor';
 import { DatasetRepository } from '../repositories/dataset';
-import { getFileImportAndSaveToDisk, loadFileIntoDatabase } from '../utils/file-utils';
 import { LookupTable } from '../entities/dataset/lookup-table';
 import { FactTableColumn } from '../entities/dataset/fact-table-column';
 import { MeasureRow } from '../entities/dataset/measure-row';
@@ -27,14 +26,13 @@ import { getReferenceDataDimensionPreview } from './reference-data-handler';
 import { NumberExtractor, NumberType } from '../extractors/number-extractor';
 import { viewErrorGenerators, viewGenerator } from '../utils/view-error-generators';
 import { getFileService } from '../utils/get-file-service';
-import { createEmptyCubeWithFactTable } from '../utils/create-fact-table';
-import { createLookupTableInCube } from './lookup-table-handler';
 import { createDatePeriodTableQuery, makeCubeSafeString } from './cube-handler';
 import { t } from 'i18next';
 import { CubeValidationException } from '../exceptions/cube-error-exception';
 import { CubeValidationType } from '../enums/cube-validation-type';
+import { duckdb, linkToPostgres } from './duckdb';
+import { format as pgformat } from '@scaleleap/pg-format/lib/pg-format';
 
-const createDateDimensionTable = `CREATE TABLE date_dimension (date_code VARCHAR, description VARCHAR, start_date datetime, end_date datetime, date_type varchar);`;
 const sampleSize = 5;
 
 export interface ValidatedSourceAssignment {
@@ -358,11 +356,11 @@ export const validateNumericDimension = async (
   };
 
   const tableName = 'fact_table';
-  let quack: Database;
+  const quack = await duckdb();
   try {
-    quack = await createEmptyCubeWithFactTable(dataset);
+    await linkToPostgres(quack, dataset.draftRevision!.id, false);
   } catch (error) {
-    logger.error(error, 'Something went wrong trying to create a new database');
+    logger.error(error, 'Something went wrong trying to link to postgres database');
     return viewErrorGenerators(500, dataset.id, 'patch', 'errors.cube_builder.fact_table_creation_failed', {});
   }
 
@@ -543,11 +541,13 @@ export const createAndValidateDateDimension = async (
       mismatch: false
     });
   }
-  let quack: Database;
+  const quack = await duckdb();
+  const lookupTableName = `${makeCubeSafeString(factTableColumn.columnName)}_lookup`;
   try {
-    quack = await createEmptyCubeWithFactTable(dataset);
+    await linkToPostgres(quack, dataset.draftRevision!.id, false);
+    await quack.exec(pgformat(`DROP TABLE IF EXISTS %I.%I;`, dataset.draftRevision!.id, lookupTableName));
   } catch (error) {
-    logger.error(error, 'Something went wrong trying to create a new database');
+    logger.error(error, 'Something went wrong trying to link to postgres database');
     return viewErrorGenerators(500, dataset.id, 'patch', 'errors.cube_builder.fact_table_creation_failed', {});
   }
   // Use the extracted data to try to create a reference table based on the user supplied information
@@ -562,9 +562,16 @@ export const createAndValidateDateDimension = async (
     dateFormat: dimensionPatchRequest.date_format
   };
   logger.debug(`Extractor created with: ${JSON.stringify(extractor)}`);
-  const previewQuery = `SELECT DISTINCT "${dimension.factTableColumn}" FROM ${tableName}`;
+  const previewQuery = pgformat(
+    'SELECT DISTINCT %I FROM %I.%I;',
+    dimension.factTableColumn,
+    dataset.draftRevision!.id,
+    tableName
+  );
+  logger.debug(`Preview query is: ${previewQuery}`);
   const preview = await quack.all(previewQuery);
   try {
+    logger.debug(`Preview is: ${JSON.stringify(preview)}`);
     dateDimensionTable = dateDimensionReferenceTableCreator(extractor, preview);
     logger.debug(
       `Date dimension table created with the following JSON: ${JSON.stringify(dateDimensionTable, null, 2)}`
@@ -660,33 +667,33 @@ export const createAndValidateDateDimension = async (
 
 async function getDatePreviewWithExtractor(
   dataset: Dataset,
-  extractor: object,
   factTableColumn: string,
-  quack: Database,
-  tableName: string
+  quack: Database
 ): Promise<ViewDTO> {
-  const columnData = await quack.all(`SELECT DISTINCT "${factTableColumn}" FROM ${tableName}`);
-  const dateDimensionTable = dateDimensionReferenceTableCreator(extractor, columnData);
-  await quack.exec(createDateDimensionTable);
-  // Create the date_dimension table
-  const stmt = await quack.prepare('INSERT INTO date_dimension VALUES (?,?,?,?,?);');
-  dateDimensionTable.map(async (row) => {
-    await stmt.run(row.dateCode, row.description, row.start, row.end, row.type);
-  });
-  await stmt.finalize();
-  const countQuery = `SELECT COUNT(DISTINCT date_dimension.date_code) AS total_rows FROM date_dimension`;
-  const countResult = await quack.all(countQuery);
-  const totalRows = countResult[0].total_rows;
-
-  const previewQuery = `
-        SELECT DISTINCT(date_dimension.date_code), date_dimension.description, date_dimension.start_date, date_dimension.end_date, date_dimension.date_type
-        FROM date_dimension
-        RIGHT JOIN "${tableName}" ON CAST("${tableName}"."${factTableColumn}" AS VARCHAR)=CAST(date_dimension.date_code AS VARCHAR)
+  const tableName = `${makeCubeSafeString(factTableColumn)}_lookup`;
+  const totalsQuery = await quack.all(
+    pgformat('SELECT COUNT(DISTINCT %I) AS totalLines FROM %I;', factTableColumn, 'fact_table')
+  );
+  const previewQuery = pgformat(
+    `
+        SELECT DISTINCT(%I.date_code), %I.description, %I.start_date, %I.end_date, %I.date_type
+        FROM %I
+        RIGHT JOIN fact_table ON CAST(fact_table.%I AS VARCHAR)=CAST(%I.date_code AS VARCHAR)
         ORDER BY end_date ASC
-        LIMIT ${sampleSize}
-    `;
+        LIMIT %L
+    `,
+    tableName,
+    tableName,
+    tableName,
+    tableName,
+    tableName,
+    dataset.draftRevision!.id,
+    tableName,
+    factTableColumn,
+    tableName,
+    sampleSize
+  );
   const previewResult = await quack.all(previewQuery);
-
   const tableHeaders = Object.keys(previewResult[0]);
   const dataArray = previewResult.map((row) => Object.values(row));
   const currentDataset = await DatasetRepository.getById(dataset.id);
@@ -700,7 +707,7 @@ async function getDatePreviewWithExtractor(
     });
   }
   const pageInfo = {
-    total_records: totalRows,
+    total_records: totalsQuery[0].totalLines,
     start_record: 1,
     end_record: dataArray.length
   };
@@ -787,24 +794,6 @@ async function getLookupPreviewWithExtractor(
   quack: Database,
   language: string
 ) {
-  if (!dimension.lookupTable) {
-    throw new Error(`Lookup table does does not exist on dimension ${dimension.id}`);
-  }
-  const factTableColumn = dataset.factTable?.find(
-    (col) => dimension.factTableColumn === col.columnName && col.columnType === FactTableColumnType.Dimension
-  );
-  if (!factTableColumn) {
-    logger.error(`Could not find the fact table column ${dimension.factTableColumn} in the dataset`);
-    return viewErrorGenerators(500, dataset.id, 'patch', 'errors.dimension_validation.fact_table_column_not_found', {
-      mismatch: false
-    });
-  }
-
-  logger.debug(`Generating lookup table preview for dimension ${dimension.id}`);
-  const lookupTmpFile = await getFileImportAndSaveToDisk(dataset, dimension.lookupTable);
-  const lookupTableName = `lookup_table`;
-  await loadFileIntoDatabase(quack, dimension.lookupTable, lookupTmpFile, lookupTableName);
-  await createLookupTableInCube(quack, factTableColumn, dimension, lookupTableName);
   const lookupTableSize = await quack.all(
     `SELECT * FROM ${makeCubeSafeString(dimension.factTableColumn)}_lookup WHERE language = '${language.toLowerCase()}'`
   );
@@ -835,12 +824,12 @@ async function getLookupPreviewWithExtractor(
 export const getDimensionPreview = async (dataset: Dataset, dimension: Dimension, lang: string) => {
   logger.info(`Getting dimension preview for ${dimension.id}`);
   const tableName = 'fact_table';
-  let quack: Database;
+  const quack = await duckdb();
   try {
-    quack = await createEmptyCubeWithFactTable(dataset);
+    await linkToPostgres(quack, dataset.draftRevision!.id, false);
   } catch (error) {
-    logger.error(error, 'Something went wrong trying to create the cube for the preview');
-    return viewErrorGenerators(500, dataset.id, 'none', 'errors.dimension.preview_failed', {});
+    logger.error(error, 'Something went wrong trying to link to postgres database');
+    return viewErrorGenerators(500, dataset.id, 'patch', 'errors.cube_builder.fact_table_creation_failed', {});
   }
 
   let viewDto: ViewDTO | ViewErrDTO;
@@ -850,13 +839,7 @@ export const getDimensionPreview = async (dataset: Dataset, dimension: Dimension
         case DimensionType.Date:
         case DimensionType.DatePeriod:
           logger.debug('Previewing a date type dimension');
-          viewDto = await getDatePreviewWithExtractor(
-            dataset,
-            dimension.extractor,
-            dimension.factTableColumn,
-            quack,
-            tableName
-          );
+          viewDto = await getDatePreviewWithExtractor(dataset, dimension.factTableColumn, quack);
           break;
 
         case DimensionType.LookupTable:

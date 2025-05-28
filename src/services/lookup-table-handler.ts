@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 
 import tmp from 'tmp';
+import { format as pgformat } from '@scaleleap/pg-format';
 
 import { DimensionType } from '../enums/dimension-type';
 import { LookupTable } from '../entities/dataset/lookup-table';
@@ -27,7 +28,6 @@ import { FactTableColumnType } from '../enums/fact-table-column-type';
 
 import { cleanUpDimension } from './dimension-processor';
 import { Database } from 'duckdb-async';
-import { createEmptyCubeWithFactTable } from '../utils/create-fact-table';
 import { SUPPORTED_LOCALES } from '../middleware/translation';
 import { createLookupTableQuery, makeCubeSafeString } from './cube-handler';
 import { FactTableColumn } from '../entities/dataset/fact-table-column';
@@ -36,6 +36,7 @@ import { Locale } from '../enums/locale';
 import { t } from 'i18next';
 import { FileValidationErrorType, FileValidationException } from '../exceptions/validation-exception';
 import { CubeValidationType } from '../enums/cube-validation-type';
+import { duckdb, linkToPostgres } from './duckdb';
 
 const sampleSize = 5;
 
@@ -220,6 +221,11 @@ export const validateLookupTable = async (
   language: string,
   tableMatcher?: LookupTablePatchDTO
 ): Promise<ViewDTO | ViewErrDTO> => {
+  const revision = dataset.draftRevision;
+  if (!revision?.id) {
+    logger.error(`Could not find the draft revision for dataset ${dataset.id}`);
+    throw new Error('Could not find the draft revision for dataset');
+  }
   const lookupTable = convertDataTableToLookupTable(protoLookupTable);
   const factTableName = 'fact_table';
   const lookupTableName = 'preview_lookup';
@@ -250,13 +256,10 @@ export const validateLookupTable = async (
   }
   const tableLanguage = tableLanguageArr[0];
 
-  let quack: Database;
-  try {
-    quack = await createEmptyCubeWithFactTable(dataset);
-  } catch (error) {
-    logger.error(error, 'Something went wrong trying to create a new cube with a fact table');
-    return viewErrorGenerators(500, dataset.id, 'patch', 'errors.dimension_validation.fact_table_creation_failed', {});
-  }
+  const quack = await duckdb();
+  await linkToPostgres(quack, revision.id, false);
+  await quack.exec(pgformat(`DROP TABLE IF EXISTS %I`, `${makeCubeSafeString(dimension.factTableColumn)}_lookup`));
+  await quack.exec(pgformat('DROP TABLE IF EXISTS %I', lookupTableName));
 
   const lookupTableTmpFile = tmp.tmpNameSync({ postfix: `.${lookupTable.fileType}` });
   try {
@@ -318,6 +321,7 @@ export const validateLookupTable = async (
   const languageErrors = await validateLookupTableLanguages(
     quack,
     dataset,
+    revision.id,
     factTableColumn.columnName,
     `${makeCubeSafeString(dimension.factTableColumn)}_lookup`,
     'dimension'

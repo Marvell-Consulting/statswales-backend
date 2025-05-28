@@ -1,15 +1,15 @@
 import tmp from 'tmp';
 
+import { format as pgformat } from '@scaleleap/pg-format';
 import { ValidatedSourceAssignment } from './dimension-processor';
 import { Dataset } from '../entities/dataset/dataset';
-import { duckdb, safelyCloseDuckDb } from './duckdb';
+import { duckdb, linkToPostgres, linkToPostgresDataTables, safelyCloseDuckDb } from './duckdb';
 import { FactTableColumn } from '../entities/dataset/fact-table-column';
 import { FactTableColumnType } from '../enums/fact-table-column-type';
 import { logger } from '../utils/logger';
-import { FACT_TABLE_NAME, loadFileIntoCube, loadTableDataIntoFactTable, NoteCodes } from './cube-handler';
+import { FACT_TABLE_NAME, loadTableDataIntoFactTableFromPostgres, NoteCodes } from './cube-handler';
 import { FactTableValidationException } from '../exceptions/fact-table-validation-exception';
 import { FactTableValidationExceptionType } from '../enums/fact-table-validation-exception-type';
-import { getFileImportAndSaveToDisk } from '../utils/file-utils';
 import { SourceAssignmentDTO } from '../dtos/source-assignment-dto';
 import { tableDataToViewTable } from '../utils/table-data-to-view-table';
 import { Database, TableData } from 'duckdb-async';
@@ -24,8 +24,26 @@ export const factTableValidatorFromSource = async (
   dataset: Dataset,
   validatedSourceAssignment: ValidatedSourceAssignment
 ): Promise<string> => {
+  const revision = dataset.draftRevision;
+  if (!revision) {
+    throw new FactTableValidationException(
+      'Unable to find draft revision',
+      FactTableValidationExceptionType.NoDraftRevision,
+      500
+    );
+  }
   const duckdbSaveFile = tmp.tmpNameSync({ postfix: '.duckdb' });
   const quack = await duckdb(duckdbSaveFile);
+  try {
+    await linkToPostgres(quack, revision.id, true);
+  } catch (error) {
+    logger.error(error, 'Failed to link to postgtres schemas');
+    throw new FactTableValidationException(
+      'Postgres linking fialed',
+      FactTableValidationExceptionType.UnknownError,
+      500
+    );
+  }
 
   if (!dataset.factTable) {
     throw new Error(`Unable to find fact table for dataset ${dataset.id}`);
@@ -91,16 +109,26 @@ export const factTableValidatorFromSource = async (
     (a, b) => a.factTableColumn.columnIndex - b.factTableColumn.columnIndex
   );
 
-  const primaryKeyDef = primaryKeyColumns.map((def) => `"${def.factTableColumn.columnName}"`);
-  const factTableCreateDef = orderedFactTableDefinition.map(
-    (def) => `"${def.factTableColumn.columnName}" ${def.factTableColumn.columnDatatype}`
-  );
+  const primaryKeyDef = primaryKeyColumns.map((def) => def.factTableColumn.columnName);
+  const factTableCreateDef = orderedFactTableDefinition.map((def) => {
+    if (def.factTableColumnType === FactTableColumnType.Ignore) {
+      return '';
+    }
+    return `"${def.factTableColumn.columnName}" ${def.factTableColumn.columnDatatype === 'DOUBLE' ? 'DOUBLE PRECISION' : def.factTableColumn.columnDatatype}`;
+  });
   const factTableDef = orderedFactTableDefinition.map((def) => def.factTableColumn.columnName);
-  const factTableCreationQuery = `CREATE TABLE ${FACT_TABLE_NAME} (${factTableCreateDef.join(', ')}, PRIMARY KEY (${primaryKeyDef.join(', ')}));`;
+  const factTableCreationQuery = pgformat(
+    `CREATE TABLE %I.%I (%s, PRIMARY KEY (%I));`,
+    revision.id,
+    FACT_TABLE_NAME,
+    factTableCreateDef.join(', '),
+    primaryKeyDef
+  );
+  const createQuery = pgformat(`CALL postgres_execute('postgres_db', %L);`, factTableCreationQuery);
 
-  logger.debug(`Creating initial fact table in cube using query:\n${factTableCreationQuery}`);
+  logger.debug(`Creating initial fact table in cube using query:\n${createQuery}`);
   try {
-    await quack.exec(factTableCreationQuery);
+    await quack.exec(createQuery);
   } catch (err) {
     logger.error(err, `Failed to create fact table in cube`);
     await quack.close();
@@ -111,15 +139,6 @@ export const factTableValidatorFromSource = async (
     );
   }
 
-  const revision = dataset.draftRevision;
-  if (!revision) {
-    await quack.close();
-    throw new FactTableValidationException(
-      'Unable to find draft revision',
-      FactTableValidationExceptionType.NoDraftRevision,
-      500
-    );
-  }
   const dataTable = revision.dataTable;
   if (!dataTable) {
     await quack.close();
@@ -130,13 +149,9 @@ export const factTableValidatorFromSource = async (
     );
   }
 
-  logger.debug('Loading data table data into the new fact table to begin validation');
-  const dataTableFile = await getFileImportAndSaveToDisk(dataset, dataTable);
   try {
-    await loadFileIntoCube(quack, dataTable, dataTableFile, 'data_table');
-    await loadTableDataIntoFactTable(quack, factTableDef, FACT_TABLE_NAME, 'data_table');
+    await loadTableDataIntoFactTableFromPostgres(quack, factTableDef, FACT_TABLE_NAME, dataTable.id);
     await validateNoteCodesColumn(quack, validatedSourceAssignment.noteCodes, FACT_TABLE_NAME);
-    await quack.exec('DROP TABLE data_table;');
   } catch (err) {
     let error = err as FactTableValidationException;
     logger.error(error, 'Failed to load data table into fact table');

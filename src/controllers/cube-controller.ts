@@ -91,20 +91,9 @@ export const getPostgresCubePreview = async (
   size: number
 ): Promise<ViewDTO | ViewErrDTO> => {
   try {
-    await pool.query(`SET search_path TO "${revisionId}";`);
-    const result = await pool
-      .query(`SELECT NOW();`)
-      .then((result) => {
-        logger.debug('result ' + JSON.stringify(result.rows));
-        return result;
-      })
-      .catch((err) => {
-      logger.error(`Something went wrong trying to create the cube preview with the error: ${err}`);
-    });
-    logger.debug(result.rows);
-    const totalsQuery = `SELECT count(*) as totalLines, ceil(count(*)/${size}) as totalPages from "${revisionId}".default_view_${lang};`;
+    const totalsQuery = `SELECT count(*) as "totalLines", ceil(count(*)/${size}) as "totalPages" from "${revisionId}".default_view_${lang};`;
     const totals = await pool.query(totalsQuery);
-    logger.debug(totals);
+    logger.debug(JSON.stringify(totals.rows));
     const totalPages = Number(totals.rows[0].totalPages);
     const totalLines = Number(totals.rows[0].totalLines);
     const errors = validateParams(page, totalPages, size);
@@ -129,7 +118,6 @@ export const getPostgresCubePreview = async (
       name: header,
       source_type: header === 'int_line_number' ? FactTableColumnType.LineNumber : FactTableColumnType.Unknown
     }));
-
     return {
       dataset: DatasetDTO.fromDataset(currentDataset),
       current_page: page,
@@ -144,7 +132,7 @@ export const getPostgresCubePreview = async (
       data: dataArray
     };
   } catch (err) {
-    logger.error(`Something went wrong trying to create the cube preview with the error: ${err}`);
+    logger.error(err, `Something went wrong trying to create the cube preview`);
     return { status: 500, errors: [], dataset_id: dataset.id };
   }
 };
