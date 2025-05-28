@@ -1,4 +1,4 @@
-import { FindOneOptions, And, Not, IsNull, LessThan, FindOptionsRelations } from 'typeorm';
+import { FindOneOptions, And, Not, IsNull, LessThan, FindOptionsRelations, In, Like, Raw } from 'typeorm';
 import { has, set } from 'lodash';
 
 import { dataSource } from '../db/data-source';
@@ -6,6 +6,7 @@ import { Dataset } from '../entities/dataset/dataset';
 import { DatasetListItemDTO } from '../dtos/dataset-list-item-dto';
 import { ResultsetWithCount } from '../interfaces/resultset-with-count';
 import { Locale } from '../enums/locale';
+import { Topic } from '../entities/dataset/topic';
 
 export const withAll: FindOptionsRelations<Dataset> = {
   createdBy: true,
@@ -56,6 +57,53 @@ export const PublishedDatasetRepository = dataSource.getRepository(Dataset).exte
       .where('rm.language LIKE :lang', { lang: `${lang}%` })
       .andWhere('d.live IS NOT NULL')
       .andWhere('d.live < NOW()')
+      .groupBy('d.id, rm.title, d.live')
+      .orderBy('d.live', 'DESC');
+
+    const offset = (page - 1) * limit;
+    const countQuery = qb.clone();
+    const resultQuery = qb.orderBy('d.live', 'DESC').offset(offset).limit(limit);
+    const [data, count] = await Promise.all([resultQuery.getRawMany(), countQuery.getCount()]);
+
+    return { data, count };
+  },
+
+  async listPublishedTopics(topicId?: string): Promise<Topic[]> {
+    const latestPublishedRevisions = await this.createQueryBuilder('d')
+      .select('d.published_revision_id')
+      .where('d.live IS NOT NULL')
+      .andWhere('d.live < NOW()')
+      .andWhere('d.published_revision_id IS NOT NULL')
+      .getRawMany();
+
+    const revisionIds = latestPublishedRevisions.map((revision) => revision.published_revision_id);
+
+    // if no topicId provided, fetch topics where path equals the id (i.e. root level topics)
+    const path = topicId ? { path: Like(`${topicId}.%`) } : { path: Raw('"Topic"."id"::text') };
+
+    return this.manager.getRepository(Topic).find({
+      where: {
+        revisionTopics: { revisionId: In(revisionIds) },
+        ...path
+      }
+    });
+  },
+
+  async listPublishedByTopic(
+    topicId: string,
+    lang: Locale,
+    page: number,
+    limit: number
+  ): Promise<ResultsetWithCount<DatasetListItemDTO>> {
+    const qb = this.createQueryBuilder('d')
+      .select(['d.id as id', 'rm.title as title', 'd.live as published_date'])
+      .innerJoin('d.publishedRevision', 'r')
+      .innerJoin('r.metadata', 'rm')
+      .innerJoin('r.revisionTopics', 'rt')
+      .where('rm.language LIKE :lang', { lang: `${lang}%` })
+      .andWhere('d.live IS NOT NULL')
+      .andWhere('d.live < NOW()')
+      .andWhere('rt.topicId = :topicId', { topicId })
       .groupBy('d.id, rm.title, d.live')
       .orderBy('d.live', 'DESC');
 
