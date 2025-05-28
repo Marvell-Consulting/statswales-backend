@@ -2,18 +2,17 @@ import { NextFunction, Request, Response } from 'express';
 
 import { logger } from '../utils/logger';
 import { Locale } from '../enums/locale';
-import { ResultsetWithCount } from '../interfaces/resultset-with-count';
-import { DatasetListItemDTO } from '../dtos/dataset-list-item-dto';
 import { UnknownException } from '../exceptions/unknown.exception';
 import { PublishedDatasetRepository, withAll } from '../repositories/published-dataset';
 import { NotFoundException } from '../exceptions/not-found.exception';
 import { ConsumerDatasetDTO } from '../dtos/consumer-dataset-dto';
-import { DownloadFormat } from '../enums/download-format';
 import { BadRequestException } from '../exceptions/bad-request.exception';
 import { outputCube } from './cube-controller';
 import { DuckdbOutputType } from '../enums/duckdb-outputs';
 import { createView, getFilters } from '../services/consumer-view';
 import { DEFAULT_PAGE_SIZE } from '../services/csv-processor';
+import { getDownloadHeaders } from '../utils/download-headers';
+import { hasError, formatValidator } from '../validators';
 import { TopicDTO } from '../dtos/topic-dto';
 import { PublishedTopicsDTO } from '../dtos/published-topics-dto';
 import { TopicRepository } from '../repositories/topic';
@@ -27,11 +26,7 @@ export const listPublishedDatasets = async (req: Request, res: Response, next: N
     const page = parseInt(req.query.page as string, 10) || 1;
     const limit = parseInt(req.query.limit as string, 10) || 10;
 
-    const results: ResultsetWithCount<DatasetListItemDTO> = await PublishedDatasetRepository.listPublishedByLanguage(
-      lang,
-      page,
-      limit
-    );
+    const results = await PublishedDatasetRepository.listPublishedByLanguage(lang, page, limit);
 
     res.json(results);
   } catch (err) {
@@ -48,9 +43,11 @@ export const getPublishedDatasetById = async (req: Request, res: Response) => {
 export const getPublishedDatasetView = async (req: Request, res: Response) => {
   const dataset = await PublishedDatasetRepository.getById(res.locals.datasetId, withAll);
   const lang = req.language.split('-')[0];
+
   if (!dataset.publishedRevision) {
     throw new NotFoundException('errors.no_revision');
   }
+
   const pageNumber: number = Number.parseInt(req.query.page_number as string, 10) || 1;
   const pageSize: number = Number.parseInt(req.query.page_size as string, 10) || DEFAULT_PAGE_SIZE;
   const sortByQuery = req.query.sort_by ? (JSON.parse(req.query.sort_by as string) as SortByInterface[]) : undefined;
@@ -65,6 +62,7 @@ export const getPublishedDatasetView = async (req: Request, res: Response) => {
     sortByQuery,
     filterQuery
   );
+
   res.json(preview);
 };
 
@@ -82,49 +80,25 @@ export const getPublishedDatasetFilters = async (req: Request, res: Response) =>
 };
 
 export const downloadPublishedDataset = async (req: Request, res: Response, next: NextFunction) => {
-  const dataset = await PublishedDatasetRepository.getById(res.locals.datasetId, withAll);
-  const format = req.params.format;
+  const formatError = await hasError(formatValidator(), req);
 
-  if (!format) {
-    throw new BadRequestException('file format must be specified (csv, parquet, excel, duckdb)');
+  if (formatError) {
+    next(new BadRequestException('file format must be specified (csv, parquet, excel, duckdb)'));
+    return;
   }
 
+  const format = req.params.format;
   const lang = req.language.split('-')[0];
+  const dataset = await PublishedDatasetRepository.getById(res.locals.datasetId, withAll);
   const revision = dataset.publishedRevision;
+
   if (!revision?.onlineCubeFilename) {
     next(new NotFoundException('errors.no_revision'));
     return;
   }
+
   const fileBuffer = await outputCube(format as DuckdbOutputType, dataset.id, revision.id, lang, req.fileService);
-  let contentType = '';
-  switch (format) {
-    case DownloadFormat.Csv:
-      contentType = '\ttext/csv; charset=utf-8';
-      break;
-    case DownloadFormat.Parquet:
-      contentType = '\tapplication/vnd.apache.parquet';
-      break;
-    case DownloadFormat.Xlsx:
-      contentType = '\tapplication/vnd.ms-excel';
-      break;
-    case DownloadFormat.DuckDb:
-      contentType = '\tapplication/octet-stream';
-      break;
-    case DownloadFormat.Json:
-      contentType = '\tapplication/json; charset=utf-8';
-      break;
-    default:
-      next(new NotFoundException('invalid file format'));
-      return;
-  }
-  res.writeHead(200, {
-    // eslint-disable-next-line @typescript-eslint/naming-convention
-    'Content-Type': contentType,
-    // eslint-disable-next-line @typescript-eslint/naming-convention
-    'Content-disposition': `attachment;filename=${dataset.id}.duckdb`,
-    // eslint-disable-next-line @typescript-eslint/naming-convention
-    'Content-Length': fileBuffer.length
-  });
+  res.writeHead(200, getDownloadHeaders(dataset.id, format, fileBuffer.length));
   res.end(fileBuffer);
 };
 
