@@ -38,11 +38,25 @@ export const generateSimulatedEvents = (dataset: Dataset): EventLog[] => {
       id: `simulated-${uuid()}`,
       entity: 'dataset',
       action: 'publish',
-      createdAt: goLiveDate
+      createdAt: goLiveDate,
+      user: { givenName: 'system' }
     });
 
     events.push(goLiveEvent);
   }
+
+  dataset.revisions?.forEach((revision) => {
+    if (revision.revisionIndex > 1 && revision.publishAt && isBefore(revision.publishAt, now)) {
+      const revisionPublishedEvent = EventLog.create({
+        id: `simulated-${uuid()}`,
+        entity: 'revision',
+        action: 'publish',
+        createdAt: revision.publishAt,
+        user: { givenName: 'system' }
+      });
+      events.push(revisionPublishedEvent);
+    }
+  });
 
   return events;
 };
