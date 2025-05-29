@@ -29,11 +29,29 @@ export class TaskService {
     return await Task.findOneOrFail({ where: { id: taskId }, relations });
   }
 
-  async withdraw(taskId: string, user: User): Promise<Task> {
-    logger.info(`Withdrawing task ${taskId}`);
+  async withdrawPending(taskId: string, user: User): Promise<Task> {
+    logger.info(`Withdrawing pending task ${taskId}`);
     const task = await Task.findOneByOrFail({ id: taskId });
     const updatedTask = Task.merge(task, { status: TaskStatus.Withdrawn, open: false, updatedBy: user });
     return await updatedTask.save();
+  }
+
+  async withdrawApproved(datasetId: string, revisionId: string, user: User): Promise<Task> {
+    logger.info(`Withdrawing an approved but unpublished dataset`);
+
+    // if the dataset was previously approved then the existing publish task was already closed, so we can't update it.
+    // so instead create an extra closed withdraw task so that the event still appears in the dataset history
+    const task = Task.create({
+      datasetId,
+      action: TaskAction.Publish,
+      status: TaskStatus.Withdrawn,
+      open: false,
+      metadata: { revisionId, note: 'previously approved' },
+      createdBy: user,
+      updatedBy: user
+    });
+
+    return task.save();
   }
 
   async decision(taskId: string, decision: TaskDecisionDTO, user: User): Promise<Task> {
