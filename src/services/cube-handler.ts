@@ -41,6 +41,7 @@ import { languageMatcherCaseStatement } from '../utils/lookup-table-utils';
 import { FactTableValidationException } from '../exceptions/fact-table-validation-exception';
 import { FactTableValidationExceptionType } from '../enums/fact-table-validation-exception-type';
 import { CubeType } from '../enums/cube-type';
+import { DateExtractor } from '../extractors/date-extractor';
 
 export const FACT_TABLE_NAME = 'fact_table';
 
@@ -512,7 +513,7 @@ export async function createDateDimension(quack: Database, extractor: object | n
     throw new Error('Extractor not supplied');
   }
   const columnData = await quack.all(`SELECT DISTINCT "${factTableColumn.columnName}" FROM ${FACT_TABLE_NAME};`);
-  const dateDimensionTable = dateDimensionReferenceTableCreator(extractor, columnData);
+  const dateDimensionTable = dateDimensionReferenceTableCreator(extractor as DateExtractor, columnData);
   await quack.exec(createDatePeriodTableQuery(factTableColumn));
   // Create the date_dimension table
   const stmt = await quack.prepare(
@@ -527,7 +528,7 @@ export async function createDateDimension(quack: Database, extractor: object | n
         locale.toLowerCase(),
         row.description,
         null,
-        t(`date_type.${row.type}`, { lng: locale }),
+        t(row.type, { lng: locale }),
         row.start,
         row.end
       );
@@ -1351,12 +1352,12 @@ async function setupDimensions(
   }
 }
 
-function referenceDataPresent(dataset: Dataset) {
-  if (dataset.dimensions.find((dim) => dim.type === DimensionType.ReferenceData)) {
-    return true;
-  }
-  return false;
-}
+// function referenceDataPresent(dataset: Dataset) {
+//   if (dataset.dimensions.find((dim) => dim.type === DimensionType.ReferenceData)) {
+//     return true;
+//   }
+//   return false;
+// }
 
 export async function createEmptyFactTableInCube(quack: Database, dataset: Dataset, revision: Revision) {
   let notesCodeColumn: FactTableColumn | undefined;
@@ -1554,9 +1555,7 @@ export const createBaseCubeFromProtoCube = async (
     setupMeasureNoDataValues(viewSelectStatementsMap, rawSelectStatementsMap, measureColumn, dataValuesColumn);
   }
 
-  if (referenceDataPresent(dataset)) {
-    await loadReferenceDataIntoCube(quack);
-  }
+  await loadReferenceDataIntoCube(quack);
 
   try {
     await setupDimensions(
@@ -1572,10 +1571,6 @@ export const createBaseCubeFromProtoCube = async (
     logger.error(err, `Failed to setup dimensions`);
     await quack.close();
     throw new Error(`Failed to setup dimensions`);
-  }
-
-  if (referenceDataPresent(dataset)) {
-    await cleanUpReferenceDataTables(quack);
   }
 
   logger.debug('Adding notes code column to the select statement.');

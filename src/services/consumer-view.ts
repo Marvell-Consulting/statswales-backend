@@ -5,8 +5,6 @@ import { CSVHeader, ViewDTO, ViewErrDTO } from '../dtos/view-dto';
 import { FactTableColumnType } from '../enums/fact-table-column-type';
 import { DatasetDTO } from '../dtos/dataset-dto';
 import { Dataset } from '../entities/dataset/dataset';
-import { Pool } from 'pg';
-import { format as pgformat } from '@scaleleap/pg-format';
 
 export const getTableRowsNoFilter = async (
   datasetId: string,

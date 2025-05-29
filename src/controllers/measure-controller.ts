@@ -18,7 +18,6 @@ import { Readable } from 'node:stream';
 import { MeasureDTO } from '../dtos/measure-dto';
 import { DatasetRepository } from '../repositories/dataset';
 import { createBaseCubeFromProtoCube } from '../services/cube-handler';
-import { duckdb, linkToPostgres } from '../services/duckdb';
 
 export const resetMeasure = async (req: Request, res: Response, next: NextFunction) => {
   const dataset = res.locals.dataset;

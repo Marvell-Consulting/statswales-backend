@@ -11,11 +11,7 @@ import { ReferenceType } from '../enums/reference-type';
 import { DimensionType } from '../enums/dimension-type';
 
 import { cleanUpDimension } from './dimension-processor';
-import {
-  cleanUpReferenceDataTables,
-  loadCorrectReferenceDataIntoReferenceDataTable,
-  loadReferenceDataIntoCube
-} from './cube-handler';
+import { duckdb, linkToPostgres } from './duckdb';
 
 const sampleSize = 5;
 
@@ -129,16 +125,15 @@ export const validateReferenceData = async (
   referenceDataType: ReferenceType | undefined,
   lang: string
 ): Promise<ViewDTO | ViewErrDTO> => {
-  let quack: Database;
+  const quack = await duckdb();
   try {
-    quack = await createEmptyCubeWithFactTable(dataset);
+    await linkToPostgres(quack, dataset.draftRevision!.id, false);
   } catch (error) {
-    logger.error(error, 'Something went wrong trying to create a new database');
+    logger.error(error, 'Something went wrong trying to link to postgres database');
     return viewErrorGenerators(500, dataset.id, 'patch', 'errors.cube_builder.fact_table_creation_failed', {});
   }
   try {
     // Load reference data in to cube
-    await loadReferenceDataIntoCube(quack);
     await copyAllReferenceDataIntoTable(quack);
   } catch (err) {
     await quack.close();
@@ -266,10 +261,6 @@ export const getReferenceDataDimensionPreview = async (
   tableName: string,
   lang: string
 ) => {
-  logger.debug('Loading correct reference data into empty Cube');
-  await loadReferenceDataIntoCube(quack);
-  await loadCorrectReferenceDataIntoReferenceDataTable(quack, dimension);
-  await cleanUpReferenceDataTables(quack);
   try {
     logger.debug('Passed validation preparing to send back the preview');
 

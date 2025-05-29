@@ -106,7 +106,7 @@ export const getDataTablePreview = async (req: Request, res: Response, next: Nex
   res.json(processedCSV);
 };
 
-export const getRevisionPreview = async (req: Request, res: Response, next: NextFunction) => {
+export const getRevisionPreview = async (req: Request, res: Response) => {
   const dataset: Dataset = res.locals.dataset;
   const revision = res.locals.revision;
   const lang = req.language.split('-')[0];

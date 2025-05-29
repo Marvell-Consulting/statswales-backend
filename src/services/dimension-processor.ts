@@ -32,6 +32,7 @@ import { CubeValidationException } from '../exceptions/cube-error-exception';
 import { CubeValidationType } from '../enums/cube-validation-type';
 import { duckdb, linkToPostgres } from './duckdb';
 import { format as pgformat } from '@scaleleap/pg-format/lib/pg-format';
+import { YearType } from '../enums/year-type';
 
 const sampleSize = 5;
 
@@ -554,7 +555,7 @@ export const createAndValidateDateDimension = async (
   logger.debug(`Dimension patch request is: ${JSON.stringify(dimensionPatchRequest)}`);
   let dateDimensionTable: DateReferenceDataItem[] = [];
   const extractor: DateExtractor = {
-    type: dimensionPatchRequest.date_type,
+    type: dimensionPatchRequest.date_type || YearType.Calendar,
     yearFormat: dimensionPatchRequest.year_format,
     quarterFormat: dimensionPatchRequest.quarter_format,
     quarterTotalIsFifthQuart: dimensionPatchRequest.fifth_quarter,
@@ -600,7 +601,7 @@ export const createAndValidateDateDimension = async (
           locale.toLowerCase(),
           row.description,
           null,
-          t(`date_type.${row.type}`, { lng: locale }),
+          t(row.type, { lng: locale }),
           row.start,
           row.end
         );
@@ -676,13 +677,14 @@ async function getDatePreviewWithExtractor(
   );
   const previewQuery = pgformat(
     `
-        SELECT DISTINCT(%I.date_code), %I.description, %I.start_date, %I.end_date, %I.date_type
-        FROM %I
-        RIGHT JOIN fact_table ON CAST(fact_table.%I AS VARCHAR)=CAST(%I.date_code AS VARCHAR)
+        SELECT DISTINCT(%I.%I), %I.description, %I.start_date, %I.end_date, %I.date_type
+        FROM %I.%I
+        RIGHT JOIN fact_table ON CAST(fact_table.%I AS VARCHAR)=CAST(%I.%I AS VARCHAR)
         ORDER BY end_date ASC
         LIMIT %L
     `,
     tableName,
+    factTableColumn,
     tableName,
     tableName,
     tableName,
@@ -691,6 +693,7 @@ async function getDatePreviewWithExtractor(
     tableName,
     factTableColumn,
     tableName,
+    factTableColumn,
     sampleSize
   );
   const previewResult = await quack.all(previewQuery);

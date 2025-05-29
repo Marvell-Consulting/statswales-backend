@@ -246,7 +246,6 @@ export const updateDimensionMetadata = async (req: Request, res: Response) => {
   }
   await metadata.save();
   const updatedDimension = await Dimension.findOneByOrFail({ id: dimension.id });
-  console.log(`dataset id = ${dataset?.id} and revision id = ${dataset.draftRevision?.id}`);
   await createBaseCubeFromProtoCube(dataset.id, dataset.draftRevision!.id);
   res.status(202);
   res.json(DimensionDTO.fromDimension(updatedDimension));

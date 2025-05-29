@@ -30,7 +30,7 @@ export async function createSmallDataset(
   const testFileBuffer = fs.readFileSync(testFile);
   let mimeType = 'text/csv';
 
-  const dataTableDescriptions = await extractTableInformation(testFileBuffer, fileType);
+  const dataTableDescriptions = await extractTableInformation(testFileBuffer, fileType, 'lookup_table');
   dataTableDescriptions.forEach((desc) => {
     desc.factTableColumn = desc.columnName;
   });

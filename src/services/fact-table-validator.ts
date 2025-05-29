@@ -3,7 +3,7 @@ import tmp from 'tmp';
 import { format as pgformat } from '@scaleleap/pg-format';
 import { ValidatedSourceAssignment } from './dimension-processor';
 import { Dataset } from '../entities/dataset/dataset';
-import { duckdb, linkToPostgres, linkToPostgresDataTables, safelyCloseDuckDb } from './duckdb';
+import { duckdb, linkToPostgres, safelyCloseDuckDb } from './duckdb';
 import { FactTableColumn } from '../entities/dataset/fact-table-column';
 import { FactTableColumnType } from '../enums/fact-table-column-type';
 import { logger } from '../utils/logger';
