@@ -14,8 +14,9 @@ import { RevisionProvider } from '../entities/dataset/revision-provider';
 import { RevisionTopic } from '../entities/dataset/revision-topic';
 
 import { DataTableRepository } from './data-table';
-import { isBefore } from 'date-fns';
 import { BadRequestException } from '../exceptions/bad-request.exception';
+import { getPublishingStatus } from '../utils/dataset-status';
+import { PublishingStatus } from '../enums/publishing-status';
 
 export const withDataTable: FindOptionsRelations<Revision> = {
   dataTable: {
@@ -120,7 +121,7 @@ export const RevisionRepository = dataSource.getRepository(Revision).extend({
       relations: { dataset: true }
     });
 
-    if (isBefore(revision.publishAt, new Date())) {
+    if (getPublishingStatus(revision.dataset, revision) === PublishingStatus.Published) {
       throw new BadRequestException('errors.withdraw.already_published');
     }
 
@@ -138,7 +139,7 @@ export const RevisionRepository = dataSource.getRepository(Revision).extend({
     dataset.draftRevisionId = revision.id;
     dataset.publishedRevisionId = revision.previousRevisionId;
 
-    await revision.dataset.save();
+    await dataset.save();
 
     return revision;
   },
