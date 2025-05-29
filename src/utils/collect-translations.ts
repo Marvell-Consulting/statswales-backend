@@ -17,11 +17,10 @@ export const collectTranslations = (dataset: Dataset, includeIds = false, revisi
 
   const translations: TranslationDTO[] = [
     ...(dataset.dimensions || []).map((dimension) => {
-      const factTableColumn = dimension.factTableColumn;
       const dimMetaEN = dimension.metadata?.find((meta) => meta.language.includes('en'));
       const dimMetaCY = dimension.metadata?.find((meta) => meta.language.includes('cy'));
-      const dimNameEN = dimMetaEN?.name === factTableColumn ? '' : dimMetaEN?.name;
-      const dimNameCY = dimMetaCY?.name === factTableColumn ? '' : dimMetaCY?.name;
+      const dimNameEN = dimMetaEN?.name;
+      const dimNameCY = dimMetaCY?.name;
 
       return {
         type: 'dimension',
@@ -37,8 +36,8 @@ export const collectTranslations = (dataset: Dataset, includeIds = false, revisi
             const factTableColumn = measure.factTableColumn;
             const measureMetaEN = measure.metadata.find((m) => m.language.includes('en'));
             const measureMetaCY = measure.metadata.find((m) => m.language.includes('cy'));
-            const measureNameEN = measureMetaEN?.name === factTableColumn ? '' : measureMetaEN?.name;
-            const measureNameCY = measureMetaCY?.name === factTableColumn ? '' : measureMetaCY?.name;
+            const measureNameEN = measureMetaEN?.name;
+            const measureNameCY = measureMetaCY?.name;
             return {
               type: 'measure',
               key: factTableColumn,

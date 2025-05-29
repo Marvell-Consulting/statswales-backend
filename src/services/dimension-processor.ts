@@ -154,9 +154,7 @@ async function createUpdateDimension(dataset: Dataset, columnDescriptor: SourceA
     dataset,
     type: DimensionType.Raw,
     factTableColumn: columnInfo.columnName,
-    metadata: SUPPORTED_LOCALES.map((language: string) =>
-      DimensionMetadata.create({ language, name: columnInfo.columnName })
-    )
+    metadata: SUPPORTED_LOCALES.map((language: string) => DimensionMetadata.create({ language, name: '' }))
   }).save();
 }
 
@@ -216,9 +214,7 @@ async function createUpdateMeasure(dataset: Dataset, columnAssignment: SourceAss
   await Measure.create({
     dataset,
     factTableColumn: columnInfo.columnName,
-    metadata: SUPPORTED_LOCALES.map((language: string) =>
-      MeasureMetadata.create({ language, name: columnInfo.columnName })
-    )
+    metadata: SUPPORTED_LOCALES.map((language: string) => MeasureMetadata.create({ language, name: '' }))
   }).save();
 }
 
