@@ -1,5 +1,5 @@
 import { set } from 'lodash';
-import { isBefore } from 'date-fns';
+import { addSeconds, isBefore, max } from 'date-fns';
 import { v4 as uuid } from 'uuid';
 
 import { Dataset } from '../entities/dataset/dataset';
@@ -31,14 +31,18 @@ export const generateSimulatedEvents = (dataset: Dataset): EventLog[] => {
   const events: EventLog[] = [];
   const now = new Date();
 
-  const goLiveDate = dataset.live && isBefore(dataset.live, now) ? dataset.live : undefined;
+  const firstPublished = dataset.live && isBefore(dataset.live, now) ? dataset.live : undefined;
+  const firstRev = dataset.revisions?.find((rev) => rev.id === dataset.startRevisionId);
 
-  if (goLiveDate) {
+  if (firstPublished && firstRev) {
+    // make sure the "first published" log entry appears after the first revision was approved
+    const firstPublishedDate = addSeconds(max([firstRev.approvedAt!, dataset.live!]), 1);
+
     const goLiveEvent = EventLog.create({
       id: `simulated-${uuid()}`,
       entity: 'dataset',
       action: 'publish',
-      createdAt: goLiveDate,
+      createdAt: firstPublishedDate,
       user: { givenName: 'system' }
     });
 
@@ -47,11 +51,15 @@ export const generateSimulatedEvents = (dataset: Dataset): EventLog[] => {
 
   dataset.revisions?.forEach((revision) => {
     if (revision.revisionIndex > 1 && revision.publishAt && isBefore(revision.publishAt, now)) {
+      // make sure the "update published" log entry appears after the revision was approved
+      const revisionPublishedDate = addSeconds(max([revision.approvedAt!, revision.publishAt]), 1);
+
       const revisionPublishedEvent = EventLog.create({
         id: `simulated-${uuid()}`,
         entity: 'revision',
         action: 'publish',
-        createdAt: revision.publishAt,
+        data: { revisionIndex: revision.revisionIndex },
+        createdAt: revisionPublishedDate,
         user: { givenName: 'system' }
       });
       events.push(revisionPublishedEvent);
