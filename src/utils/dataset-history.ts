@@ -51,6 +51,7 @@ export const generateSimulatedEvents = (dataset: Dataset): EventLog[] => {
         id: `simulated-${uuid()}`,
         entity: 'revision',
         action: 'publish',
+        data: { revisionIndex: revision.revisionIndex },
         createdAt: revision.publishAt,
         user: { givenName: 'system' }
       });
