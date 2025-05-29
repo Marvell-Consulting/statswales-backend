@@ -276,7 +276,9 @@ export class DatasetService {
     const pendingPublicationTask = await this.getPendingPublishTask(datasetId);
 
     if (pendingPublicationTask) {
-      await this.taskService.withdraw(pendingPublicationTask.id, user);
+      await this.taskService.withdrawPending(pendingPublicationTask.id, user);
+    } else {
+      await this.taskService.withdrawApproved(datasetId, draftRevision.id, user);
     }
   }
 
@@ -385,7 +387,7 @@ export class DatasetService {
 
   async getPendingPublishTask(datasetId: string): Promise<Task | undefined> {
     return (await this.getOpenTasks(datasetId)).find(
-      (task) => task.action === TaskAction.Publish && [TaskStatus.Requested, TaskStatus.Approved].includes(task.status)
+      (task) => task.action === TaskAction.Publish && task.status === TaskStatus.Requested
     );
   }
 
