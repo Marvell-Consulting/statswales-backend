@@ -611,7 +611,7 @@ export async function createLookupTableDimension(
     const sortStr = extractor.sortColumn ? pgformat('%I', extractor.sortColumn) : 'NULL';
     const hierarchyStr = extractor.hierarchyColumn ? pgformat('%I', extractor.hierarchyColumn) : 'NULL';
     const dataExtractorParts = pgformat(
-      `SELECT %I AS %I, %L as language, %I as description, %s as notes, %s as sort_order, %s as hierarchy FROM %I;`,
+      `SELECT %I AS %I, %s as language, %I as description, %s as notes, %s as sort_order, %s as hierarchy FROM %I;`,
       dimension.joinColumn,
       factTableColumn.columnName,
       languageMatcher,
