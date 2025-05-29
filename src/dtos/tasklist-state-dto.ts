@@ -68,7 +68,7 @@ export class TasklistStateDTO {
       status = TaskListStatus.Completed;
     }
 
-    const name = measure.metadata?.find((meta) => meta.language.includes(lang))?.name ?? measure.factTableColumn;
+    const name = measure.metadata?.find((meta) => meta.language.includes(lang))?.name || measure.factTableColumn;
 
     return { type: 'measure', id: measure.id, name, status };
   }
@@ -79,7 +79,7 @@ export class TasklistStateDTO {
     return dataset.dimensions?.reduce((dimensionStatus: DimensionStatus[], dimension) => {
       if (dimension.type === DimensionType.NoteCodes) return dimensionStatus;
 
-      const name = dimension.metadata.find((meta) => lang.includes(meta.language))?.name ?? 'unknown';
+      const name = dimension.metadata.find((meta) => lang.includes(meta.language))?.name || dimension.factTableColumn;
       let status: TaskListStatus;
 
       if (isUpdate) {
