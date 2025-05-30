@@ -18,6 +18,7 @@ import { convertDataTableToLookupTable } from '../utils/lookup-table-utils';
 import { Provider } from '../entities/dataset/provider';
 import DataLakeStorage from '../services/datalake-storage';
 import { appConfig } from '../config';
+import { getFileService } from '../utils/get-file-service';
 
 const user: DeepPartial<User> = {
   id: 'fceaeab9-d515-4f90-ba25-38ffb3dab3b9',
@@ -282,7 +283,7 @@ export default class DatasetSeeder extends Seeder {
         '709e463a-c6b3-45fa-91a3-88d432764f6b-protocube.duckdb'
       ];
 
-      const client = new DataLakeStorage(config.storage.datalake);
+      const client = getFileService();
 
       for (const file of duckdbFiles) {
         const uploadBuffer = fs.readFileSync(path.join(__dirname, `./resources/${file}`));
