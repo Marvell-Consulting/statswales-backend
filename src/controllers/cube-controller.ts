@@ -16,7 +16,8 @@ import { createBaseCubeFromProtoCube } from '../services/cube-handler';
 import { duckdb } from '../services/duckdb';
 import { validateParams } from '../validators/preview-validator';
 import { format as pgformat } from '@scaleleap/pg-format/lib/pg-format';
-import { Pool, QueryResult } from 'pg';
+import { QueryResult } from 'pg';
+import { pool } from '../app';
 
 export const getCubePreview = async (
   cubeFile: string,
@@ -83,7 +84,6 @@ export const getCubePreview = async (
 };
 
 export const getPostgresCubePreview = async (
-  pool: Pool,
   revisionId: string,
   lang: string,
   dataset: Dataset,

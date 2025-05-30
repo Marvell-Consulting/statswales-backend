@@ -202,7 +202,7 @@ export const cubePreview = async (req: Request, res: Response, next: NextFunctio
   const start = performance.now();
   const page_number: number = Number.parseInt(req.query.page_number as string, 10) || 1;
   const page_size: number = Number.parseInt(req.query.page_size as string, 10) || DEFAULT_PAGE_SIZE;
-  const cubePreview = await getPostgresCubePreview(req.pool, latestRevision.id, lang, dataset, page_number, page_size);
+  const cubePreview = await getPostgresCubePreview(latestRevision.id, lang, dataset, page_number, page_size);
   const end = performance.now();
   const time = Math.round(end - start);
   logger.info(`Generating preview of cube took ${time}ms`);

@@ -117,7 +117,7 @@ export const getRevisionPreview = async (req: Request, res: Response) => {
 
   try {
     const end = performance.now();
-    const cubePreview = await getPostgresCubePreview(req.pool, revision.id, lang, dataset, page_number, page_size);
+    const cubePreview = await getPostgresCubePreview(revision.id, lang, dataset, page_number, page_size);
     const time = Math.round(end - start);
     logger.info(`Cube revision preview took ${time}ms`);
 

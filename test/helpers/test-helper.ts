@@ -19,6 +19,7 @@ import { RevisionMetadata } from '../../src/entities/dataset/revision-metadata';
 import { DimensionRepository } from '../../src/repositories/dimension';
 import { DatasetRepository } from '../../src/repositories/dataset';
 import { duckdb, linkToPostgres, linkToPostgresDataTables } from '../../src/services/duckdb';
+import { logger } from '../../src/utils/logger';
 
 export async function createSmallDataset(
   datasetId: string,
@@ -167,7 +168,13 @@ const rowRefLookupTable = () => {
 async function createTestCube(revisionId: string, dataTableId: string) {
   const cubeFiles = path.resolve(__dirname, '../sample-files/test-cube');
   const quack = await duckdb();
-  await linkToPostgres(quack, revisionId, true);
+  try {
+    await linkToPostgres(quack, revisionId, true);
+  } catch (err) {
+    logger.error(err, 'Failed to link to postgres');
+    await quack.close();
+    throw err;
+  }
   const createCubeSchema = `
 CREATE TABLE "${revisionId}".all_notes(code VARCHAR, "language" VARCHAR, description VARCHAR);
 CREATE TABLE "${revisionId}".categories(category VARCHAR PRIMARY KEY);
@@ -209,8 +216,15 @@ COPY postgres_db.reference_data_info FROM '${cubeFiles}/reference_data_info.csv'
 COPY postgres_db.rowref_lookup FROM '${cubeFiles}/rowref_lookup.csv' (FORMAT 'csv', force_not_null ('RowRef', 'language', 'description'), quote '"', delimiter ',', header 1);
 COPY postgres_db.yearcode_lookup FROM '${cubeFiles}/yearcode_lookup.csv' (FORMAT 'csv', quote '"', delimiter ',', header 1);
   `;
-  await quack.exec(importSQL);
-  await quack.close();
+  try {
+    await quack.exec(importSQL);
+  } catch (err) {
+    logger.error(err, 'Failed to import test cube data');
+    throw err;
+  } finally {
+    await quack.close();
+  }
+
   const quack2 = await duckdb();
   await linkToPostgresDataTables(quack2);
   const createDataTableSQL = `CREATE TABLE data_tables_db."${dataTableId}"
@@ -222,10 +236,16 @@ COPY postgres_db.yearcode_lookup FROM '${cubeFiles}/yearcode_lookup.csv' (FORMAT
                                 "Measure"   BIGINT,
                                 "NoteCodes" VARCHAR
                               );`;
-  await quack2.exec(createDataTableSQL);
-  const loadQuery = `COPY data_tables_db."${dataTableId}" FROM '${cubeFiles}/fact_table.csv' (FORMAT 'csv', quote '"', delimiter ',', header 1);`;
-  await quack2.exec(loadQuery);
-  await quack2.close();
+  try {
+    await quack2.exec(createDataTableSQL);
+    const loadQuery = `COPY data_tables_db."${dataTableId}" FROM '${cubeFiles}/fact_table.csv' (FORMAT 'csv', quote '"', delimiter ',', header 1);`;
+    await quack2.exec(loadQuery);
+  } catch (err) {
+    logger.error(err, 'Failed to create test data table');
+    throw err;
+  } finally {
+    await quack2.close();
+  }
 }
 
 export async function createFullDataset(

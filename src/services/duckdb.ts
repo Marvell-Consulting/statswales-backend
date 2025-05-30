@@ -47,7 +47,6 @@ export const linkToPostgres = async (quack: Database, revisionId: string, recrea
            USER '${config.database.username}',
            PASSWORD '${config.database.password}'
        );`;
-  logger.debug('Creating secret for postgres connection.');
   await quack.exec(secret);
   if (recreate) {
     logger.debug(`Recreating empty schema for revision ${revisionId}`);
@@ -61,6 +60,7 @@ export const linkToPostgres = async (quack: Database, revisionId: string, recrea
   await quack.exec(`ATTACH '' AS data_tables_db (TYPE postgres, SCHEMA data_tables);`);
   await quack.exec(pgformat(`ATTACH '' AS postgres_db (TYPE postgres, SCHEMA %I);`, revisionId));
   await quack.exec(`USE postgres_db;`);
+  logger.debug('Linking to postgres schema successful');
 };
 
 export const linkToPostgresDataTables = async (quack: Database) => {
