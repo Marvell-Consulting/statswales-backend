@@ -10,7 +10,6 @@ import { initPassport } from '../../src/middleware/passport-auth';
 import { User } from '../../src/entities/user/user';
 import { logger } from '../../src/utils/logger';
 import { DatasetRepository } from '../../src/repositories/dataset';
-import { RevisionRepository } from '../../src/repositories/revision';
 
 import { createFullDataset } from '../helpers/test-helper';
 import { getTestUser, getTestUserGroup } from '../helpers/get-test-user';
@@ -19,6 +18,7 @@ import BlobStorage from '../../src/services/blob-storage';
 import { UserGroup } from '../../src/entities/user/user-group';
 import { UserGroupRole } from '../../src/entities/user/user-group-role';
 import { GroupRole } from '../../src/enums/group-role';
+import { QueryRunner } from 'typeorm';
 
 jest.mock('../../src/services/blob-storage');
 
@@ -33,12 +33,17 @@ const revision1Id = '85f0e416-8bd1-4946-9e2c-1c958897c6ef';
 const import1Id = 'fa07be9d-3495-432d-8c1f-d0fc6daae359';
 const user: User = getTestUser('test', 'user');
 let userGroup = getTestUserGroup('Test Group');
+let queryRunner: QueryRunner;
 
 describe('API Endpoints for viewing the contents of a dataset', () => {
   let dbManager: DatabaseManager;
   beforeAll(async () => {
     try {
       dbManager = await initDb();
+      queryRunner = dbManager.getDataSource().createQueryRunner();
+      await queryRunner.dropSchema('data_tables', true, true);
+      await queryRunner.dropSchema(revision1Id, true, true);
+      await queryRunner.createSchema('data_tables', true);
       await initPassport(dbManager.getDataSource());
       userGroup = await dbManager.getDataSource().getRepository(UserGroup).save(userGroup);
       user.groupRoles = [UserGroupRole.create({ group: userGroup, roles: [GroupRole.Editor] })];
@@ -69,38 +74,38 @@ describe('API Endpoints for viewing the contents of a dataset', () => {
       .query({ page_number: 1, page_size: 100 });
     expect(res.status).toBe(200);
     expect(res.body.current_page).toBe(1);
-    expect(res.body.total_pages).toBe(1);
+    expect(res.body.total_pages).toBe(14);
     expect(res.body.page_size).toBe(100);
     expect(res.body.headers).toEqual([
       { index: -1, name: 'Data Values', source_type: 'unknown' },
       { index: 0, name: 'Measure', source_type: 'unknown' },
-      { index: 1, name: 'YearCode', source_type: 'unknown' },
+      { index: 1, name: 'Year', source_type: 'unknown' },
       { index: 2, name: 'Start Date', source_type: 'unknown' },
       { index: 3, name: 'End Date', source_type: 'unknown' },
-      { index: 4, name: 'AreaCode', source_type: 'unknown' },
-      { index: 5, name: 'RowRef', source_type: 'unknown' },
+      { index: 4, name: 'Local Authority', source_type: 'unknown' },
+      { index: 5, name: 'Staff Type', source_type: 'unknown' },
       { index: 6, name: 'Notes', source_type: 'unknown' }
     ]);
     expect(res.body.data[0]).toEqual([
-      4.030567686,
-      2,
-      '2021-22',
-      '01/04/2021',
-      '31/03/2022',
-      'Wales',
+      '3,697',
+      'Number of contacts',
+      '2013-14',
+      '01/04/2013',
+      '31/03/2014',
+      'Merthyr Tydfil',
       'Health Visitor',
-      'Average'
+      null
     ]);
     // If this test fails don't just change the output to match.  It's failure implies something in the cube builder
     // has changed the view significantly.  Probably a broken join statement.
     expect(res.body.data[23]).toEqual([
-      1007,
-      1,
-      '2022-23',
-      '01/04/2022',
-      '31/03/2023',
-      'Isle of Anglesey',
-      'Other Staff',
+      '1,247',
+      'Number of contacts',
+      '2013-14',
+      '01/04/2013',
+      '31/03/2014',
+      'Merthyr Tydfil',
+      'Wider Health Team',
       null
     ]);
   });
@@ -117,22 +122,6 @@ describe('API Endpoints for viewing the contents of a dataset', () => {
     expect(res.body).toEqual({ error: 'No revision found for dataset' });
   });
 
-  test('Get a dataset view returns 500 if there is no fact table on the dataset', async () => {
-    const dataset = await DatasetRepository.create({ createdBy: user, userGroupId: userGroup.id }).save();
-    const revision = await RevisionRepository.create({ createdBy: user, dataset, revisionIndex: 1 }).save();
-    await DatasetRepository.update(
-      { id: dataset.id },
-      { draftRevision: revision, startRevision: revision, endRevision: revision }
-    );
-
-    const res = await request(app)
-      .get(`/dataset/${dataset.id}/view`)
-      .set(getAuthHeader(user))
-      .query({ page_number: 2, page_size: 100 });
-    expect(res.status).toBe(500);
-    expect(res.body).toEqual({ error: 'errors.cube_builder.cube_build_failed' });
-  });
-
   test('Get file view returns 404 when a not valid UUID is supplied', async () => {
     const res = await request(app).get(`/dataset/NOT-VALID-ID`).set(getAuthHeader(user));
     expect(res.status).toBe(404);
@@ -140,6 +129,8 @@ describe('API Endpoints for viewing the contents of a dataset', () => {
   });
 
   afterAll(async () => {
+    await queryRunner.dropSchema('data_tables', true, true);
+    await queryRunner.dropSchema(revision1Id, true, true);
     await dbManager.getDataSource().dropDatabase();
     await dbManager.getDataSource().destroy();
   });

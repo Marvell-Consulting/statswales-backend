@@ -39,14 +39,16 @@ export const duckdb = async (cubeFile = ':memory:') => {
 
 export const linkToPostgres = async (quack: Database, revisionId: string, recreate: boolean) => {
   await quack.exec(`LOAD 'postgres';`);
-  await quack.exec(`CREATE OR REPLACE SECRET (
+  const secret = `CREATE OR REPLACE SECRET (
            TYPE postgres,
            HOST '${config.database.host}',
            PORT ${config.database.port},
            DATABASE '${config.database.database}',
            USER '${config.database.username}',
            PASSWORD '${config.database.password}'
-       );`);
+       );`;
+  logger.debug(`Creating secret for postgres connection: ${secret}`);
+  await quack.exec(secret);
   if (recreate) {
     logger.debug(`Recreating empty schema for revision ${revisionId}`);
     await quack.exec(`ATTACH '' AS postgres_db (TYPE postgres);`);

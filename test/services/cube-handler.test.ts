@@ -19,6 +19,7 @@ import { FileType } from '../../src/enums/file-type';
 import path from 'node:path';
 import { FileImportInterface } from '../../src/entities/dataset/file-import.interface';
 import { randomUUID } from 'node:crypto';
+import { QueryRunner } from 'typeorm';
 
 jest.mock('../../src/services/blob-storage');
 
@@ -35,6 +36,7 @@ const user: User = getTestUser('test', 'user');
 let userGroup = getTestUserGroup('Test Group');
 
 // let datasetService: DatasetService;
+let queryRunner: QueryRunner;
 
 describe('API Endpoints', () => {
   let dbManager: DatabaseManager;
@@ -42,6 +44,10 @@ describe('API Endpoints', () => {
     try {
       dbManager = await initDb();
       await initPassport(dbManager.getDataSource());
+      queryRunner = dbManager.getDataSource().createQueryRunner();
+      await queryRunner.dropSchema('data_tables', true, true);
+      await queryRunner.dropSchema(revision1Id, true, true);
+      await queryRunner.createSchema('data_tables', true);
       userGroup = await dbManager.getDataSource().getRepository(UserGroup).save(userGroup);
       user.groupRoles = [UserGroupRole.create({ group: userGroup, roles: [GroupRole.Editor] })];
       await user.save();
@@ -173,6 +179,8 @@ describe('API Endpoints', () => {
   });
 
   afterAll(async () => {
+    await queryRunner.dropSchema('data_tables', true, true);
+    await queryRunner.dropSchema(revision1Id, true, true);
     await dbManager.getDataSource().dropDatabase();
     await dbManager.getDataSource().destroy();
   });
