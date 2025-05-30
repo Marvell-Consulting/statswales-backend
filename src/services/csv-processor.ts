@@ -181,7 +181,7 @@ export const validateAndUploadCSV = async (
     const fileService = getFileService();
     await fileService.saveBuffer(dataTable.filename, datasetId, uploadBuffer);
   } catch (err) {
-    logger.error(`Something went wrong trying to upload the file to the Data Lake with the following error: ${err}`);
+    logger.error(err, `Something went wrong trying to upload the file to the Data Lake`);
     throw new FileValidationException('Error uploading file to blob storage', FileValidationErrorType.datalake, 500);
   }
 
