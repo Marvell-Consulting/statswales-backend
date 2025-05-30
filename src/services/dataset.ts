@@ -274,7 +274,14 @@ export class DatasetService {
     const dataset = await DatasetRepository.getById(datasetId, { endRevision: true, tasks: true });
     const publishingStatus = getPublishingStatus(dataset, dataset.endRevision!);
 
-    if (![PubStatus.PendingApproval, PubStatus.Scheduled, PubStatus.UpdateScheduled].includes(publishingStatus)) {
+    if (
+      ![
+        PubStatus.PendingApproval,
+        PubStatus.UpdatePendingApproval,
+        PubStatus.Scheduled,
+        PubStatus.UpdateScheduled
+      ].includes(publishingStatus)
+    ) {
       throw new BadRequestException('errors.withdraw.no_pending_publication');
     }
 
