@@ -230,7 +230,8 @@ export default class DatasetSeeder extends Seeder {
         buffer,
         'text/csv',
         'QryHLTH1250_Data.csv',
-        dataset.id
+        dataset.id,
+        'data_table'
       );
 
       const rowRefLookupTableBuffer = fs.readFileSync(
@@ -240,7 +241,8 @@ export default class DatasetSeeder extends Seeder {
         rowRefLookupTableBuffer,
         'text/csv',
         'QryHLTH1250_RowRef-fixed.csv',
-        dataset.id
+        dataset.id,
+        'data_table'
       );
 
       const measureLookupTableBuffer = fs.readFileSync(
@@ -250,7 +252,8 @@ export default class DatasetSeeder extends Seeder {
         measureLookupTableBuffer,
         'text/csv',
         'QryHLTH1250_Measure-fixed.csv',
-        dataset.id
+        dataset.id,
+        'data_table'
       );
 
       const provider = await entityManager.getRepository(Provider).findOne({

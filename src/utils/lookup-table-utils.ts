@@ -133,13 +133,22 @@ export const lookForJoinColumn = (
 export const validateLookupTableLanguages = async (
   quack: Database,
   dataset: Dataset,
+  revisionId: string,
   joinColumn: string,
   lookupTableName: string,
   validationType: string
 ): Promise<ViewErrDTO | undefined> => {
   try {
     logger.debug(`Adding primary key of ${joinColumn} and language to lookup table`);
-    await quack.exec(`ALTER TABLE "${lookupTableName}" ADD PRIMARY KEY ("${joinColumn}", language);`);
+    const alterTableQuery = pgformat(
+      'ALTER TABLE %I.%I ADD PRIMARY KEY (%I, language);',
+      revisionId,
+      lookupTableName,
+      joinColumn
+    );
+    const execQuery = pgformat(`CALL postgres_execute(%I, %L);`, 'postgres_db', alterTableQuery);
+    logger.debug(`Executing query: ${execQuery}`);
+    await quack.exec(execQuery);
   } catch (error) {
     logger.error(error, `Something went wrong trying to add primary key to lookup table`);
     return viewErrorGenerators(400, dataset.id, 'patch', `errors.${validationType}_validation.primary_key_failed`, {});

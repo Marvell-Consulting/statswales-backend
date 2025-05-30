@@ -98,7 +98,7 @@ export class DatasetService {
     const { buffer, mimetype, originalname } = file;
 
     logger.debug('Uploading new fact table file to filestore');
-    const { dataTable } = await validateAndUploadCSV(buffer, mimetype, originalname, datasetId);
+    const { dataTable } = await validateAndUploadCSV(buffer, mimetype, originalname, datasetId, 'data_table');
 
     dataTable.action = DataTableAction.ReplaceAll;
     dataTable.dataTableDescriptions.forEach((col) => {
@@ -112,7 +112,7 @@ export class DatasetService {
 
     await RevisionRepository.replaceDataTable(dataset.draftRevision!, dataTable);
     await DatasetRepository.replaceFactTable(dataset, dataTable);
-
+    await createBaseCubeFromProtoCube(datasetId, dataset.draftRevision!.id);
     return DatasetRepository.getById(datasetId, {});
   }
 

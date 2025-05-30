@@ -25,13 +25,17 @@ const formatsDict: AllFormats = {
     { type: YearType.Financial, yearFormat: 'YYYYYY' }
   ],
   quarters: [
-    { quarterFormat: 'QX' },
-    { quarterFormat: '_QX' },
-    { quarterFormat: 'X' },
-    { quarterFormat: '_X' },
-    { quarterFormat: '-X' }
+    { type: YearType.Financial, quarterFormat: 'QX' },
+    { type: YearType.Financial, quarterFormat: '_QX' },
+    { type: YearType.Financial, quarterFormat: 'X' },
+    { type: YearType.Financial, quarterFormat: '_X' },
+    { type: YearType.Financial, quarterFormat: '-X' }
   ],
-  months: [{ monthFormat: 'MMM' }, { monthFormat: 'mMM' }, { monthFormat: 'mm' }],
+  months: [
+    { type: YearType.Financial, monthFormat: 'MMM' },
+    { type: YearType.Financial, monthFormat: 'mMM' },
+    { type: YearType.Financial, monthFormat: 'mm' }
+  ],
   specific: [
     { type: YearType.PointInTime, dateFormat: 'dd/MM/yyyy' },
     { type: YearType.PointInTime, dateFormat: 'dd/MM/yyyy hh:mm:ss' },

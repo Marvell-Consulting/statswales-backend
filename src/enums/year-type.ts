@@ -4,5 +4,6 @@ export enum YearType {
   Academic = 'academic',
   Calendar = 'calendar',
   Meteorological = 'meteorological',
+  Rolling = 'rolling',
   PointInTime = 'pointInTime'
 }

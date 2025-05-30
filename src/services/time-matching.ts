@@ -22,10 +22,17 @@ export interface DateReferenceDataItem {
   start: Date;
   end: Date;
   type: string;
+  hierarchy?: string;
+}
+
+enum GeneratorType {
+  Year = 'year',
+  Quarter = 'quarter',
+  Month = 'month'
 }
 
 // Date parsing methods start here
-function yearType(type: YearType | undefined): YearTypeDetails {
+function yearType(type: YearType, startDay = 1, startMonth = 1): YearTypeDetails {
   switch (type) {
     case YearType.Financial:
       return { start: '04-01T00:00:00Z', type: YearType.Financial };
@@ -35,8 +42,10 @@ function yearType(type: YearType | undefined): YearTypeDetails {
       return { start: '09-01T00:00:00Z', type: YearType.Academic };
     case YearType.Meteorological:
       return { start: '03-01T00:00:00Z', type: YearType.Meteorological };
-    default:
+    case YearType.Calendar:
       return { start: '01-01T00:00:00Z', type: YearType.Calendar };
+    default:
+      return { start: `${startDay}-${startMonth}T00:00:00Z`, type: YearType.Rolling };
   }
 }
 
@@ -96,49 +105,35 @@ function createAllTypesOfPeriod(dateFormat: DateExtractor, dataColumn: TableData
   logger.debug(`date extractor = ${JSON.stringify(dateFormat)}`);
   if (dateFormat.quarterFormat && dateFormat.quarterTotalIsFifthQuart) {
     logger.debug('5th quarter used to represent whole year totals');
-    return periodTableCreator(dateFormat, dataColumn);
+    return periodTableCreator(dateFormat, dataColumn, GeneratorType.Quarter);
   } else {
     // We always need years generate those first
     logger.debug('Creating table for year');
-    const yearExtractor: DateExtractor = {
-      type: dateFormat.type,
-      yearFormat: dateFormat.yearFormat
-    };
-    referenceTable = referenceTable.concat(periodTableCreator(yearExtractor, dataColumn));
+    referenceTable = referenceTable.concat(periodTableCreator(dateFormat, dataColumn, GeneratorType.Year));
     // If monthFormat is present create month entries
     if (dateFormat.monthFormat) {
       logger.debug('Month format present... creating month entries');
-      const monthExtractor: DateExtractor = {
-        type: dateFormat.type,
-        yearFormat: dateFormat.yearFormat,
-        monthFormat: dateFormat.monthFormat
-      };
-      referenceTable = referenceTable.concat(periodTableCreator(monthExtractor, dataColumn));
+      referenceTable = referenceTable.concat(periodTableCreator(dateFormat, dataColumn, GeneratorType.Month));
     }
     // If quarterFormat is present create quarters
     if (dateFormat.quarterFormat) {
       logger.debug('Quarter format present... creating quarter entries');
-      const quarterExtractor: DateExtractor = {
-        type: dateFormat.type,
-        yearFormat: dateFormat.yearFormat,
-        quarterFormat: dateFormat.quarterFormat
-      };
-      referenceTable = referenceTable.concat(periodTableCreator(quarterExtractor, dataColumn));
+      referenceTable = referenceTable.concat(periodTableCreator(dateFormat, dataColumn, GeneratorType.Quarter));
     }
   }
   return referenceTable;
 }
 
-function periodTableCreator(dateFormat: DateExtractor, dataColumn: TableData) {
+function periodTableCreator(dateFormat: DateExtractor, dataColumn: TableData, generationType: GeneratorType) {
   let subType = 'year';
   let formatObj;
   try {
     formatObj = yearFormats(dateFormat.yearFormat ? dateFormat.yearFormat : 'YYYY');
-    if (dateFormat.quarterFormat) {
-      formatObj = quarterFormats(dateFormat.quarterFormat, formatObj.formatStr);
+    if (generationType === GeneratorType.Quarter) {
+      formatObj = quarterFormats(dateFormat.quarterFormat!, formatObj.formatStr);
       subType = 'quarter';
-    } else if (dateFormat.monthFormat) {
-      formatObj = monthFormats(dateFormat.monthFormat, formatObj.formatStr);
+    } else if (generationType === GeneratorType.Month) {
+      formatObj = monthFormats(dateFormat.monthFormat!, formatObj.formatStr);
       subType = 'month';
     }
   } catch (error) {
@@ -199,7 +194,7 @@ function periodTableCreator(dateFormat: DateExtractor, dataColumn: TableData) {
       description,
       start: year,
       end: sub(add(year, { months: formatObj.increment }), { seconds: 1 }),
-      type: `${dateFormat.type}_${subType}`
+      type: `date_format.${subType}.${dateFormat.type}`
     });
 
     if (dateFormat.quarterTotalIsFifthQuart && quarterIndex === 4) {
@@ -215,7 +210,7 @@ function periodTableCreator(dateFormat: DateExtractor, dataColumn: TableData) {
         description,
         start: year,
         end: sub(add(year, { months: 12 }), { seconds: 1 }),
-        type: `${dateFormat.type}_year`
+        type: `date_format.year.${dateFormat.type}`
       });
     }
 

@@ -35,7 +35,7 @@ export interface ViewDTO {
   page_size: number;
   total_pages: number;
   headers: CSVHeader[];
-  data: string[][];
+  data: string[][] | unknown[][];
   extension?: object;
 }
 

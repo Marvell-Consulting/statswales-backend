@@ -1,0 +1,5 @@
+reference,language,description,notes,sort_order,format,decimals,measure_type,hierarchy
+1,cy-gb,Nifer y cysylltiadau,,1,integer,,,
+2,en-gb,Contacts per child,Contacts per child receiving services,2,float,1,,
+2,cy-gb,Cysylltiadau fesul plentyn,Nifer cyfartalog y cysylltiadau fesul plentyn,2,float,1,,
+1,en-gb,Number of contacts,,1,integer,,,

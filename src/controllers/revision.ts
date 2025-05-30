@@ -49,7 +49,7 @@ import { CubeValidationType } from '../enums/cube-validation-type';
 import { FactTableValidationException } from '../exceptions/fact-table-validation-exception';
 import { NotAllowedException } from '../exceptions/not-allowed.exception';
 
-import { getCubePreview, outputCube } from './cube-controller';
+import { getPostgresCubePreview, outputCube } from './cube-controller';
 import { Dataset } from '../entities/dataset/dataset';
 
 export const getDataTable = async (req: Request, res: Response, next: NextFunction) => {
@@ -96,7 +96,7 @@ export const getDataTablePreview = async (req: Request, res: Response, next: Nex
     return;
   }
 
-  const processedCSV = await getCSVPreview(datasetId, revision, revision.dataTable, page_number, page_size);
+  const processedCSV = await getCSVPreview(datasetId, revision.dataTable, page_number, page_size);
 
   if ((processedCSV as ViewErrDTO).errors) {
     const processErr = processedCSV as ViewErrDTO;
@@ -106,7 +106,7 @@ export const getDataTablePreview = async (req: Request, res: Response, next: Nex
   res.json(processedCSV);
 };
 
-export const getRevisionPreview = async (req: Request, res: Response, next: NextFunction) => {
+export const getRevisionPreview = async (req: Request, res: Response) => {
   const dataset: Dataset = res.locals.dataset;
   const revision = res.locals.revision;
   const lang = req.language.split('-')[0];
@@ -115,47 +115,21 @@ export const getRevisionPreview = async (req: Request, res: Response, next: Next
   const page_number: number = Number.parseInt(req.query.page_number as string, 10) || 1;
   const page_size: number = Number.parseInt(req.query.page_size as string, 10) || DEFAULT_PAGE_SIZE;
 
-  let cubeFile: string;
-  if (revision.onlineCubeFilename && !revision.onlineCubeFilename.includes('protocube')) {
-    logger.debug('Loading cube from file store for preview');
-    cubeFile = tmp.tmpNameSync({ postfix: '.duckdb' });
-    try {
-      const cubeBuffer = await req.fileService.loadBuffer(revision.onlineCubeFilename, dataset.id);
-      fs.writeFileSync(cubeFile, cubeBuffer);
-    } catch (err) {
-      logger.error('Something went wrong trying to download file from data lake');
-      throw err;
+  try {
+    const end = performance.now();
+    const cubePreview = await getPostgresCubePreview(revision.id, lang, dataset, page_number, page_size);
+    const time = Math.round(end - start);
+    logger.info(`Cube revision preview took ${time}ms`);
+
+    if ((cubePreview as ViewErrDTO).errors) {
+      const processErr = cubePreview as ViewErrDTO;
+      res.status(processErr.status);
     }
-  } else if (revision.onlineCubeFilename?.includes('protocube')) {
-    logger.debug('Loading protocube from file store for preview');
-    const buffer = await req.fileService.loadBuffer(revision.onlineCubeFilename, dataset.id);
-    cubeFile = tmp.tmpNameSync({ postfix: '.duckdb' });
-    fs.writeFileSync(cubeFile, buffer);
-    await createBaseCubeFromProtoCube(dataset.id, revision.id, cubeFile);
-  } else {
-    logger.debug('Creating fresh cube for preview... This could take a few seconds');
-    try {
-      cubeFile = await createBaseCubeFromProtoCube(dataset.id, revision.id);
-    } catch (error) {
-      logger.error(`Something went wrong trying to create the cube with the error: ${error}`);
-      next(new UnknownException('errors.cube_builder.cube_build_failed'));
-      return;
-    }
+
+    res.json(cubePreview);
+  } catch (err) {
+    logger.error(err, `An error occurred trying to get the cube preview`);
   }
-
-  const cubePreview = await getCubePreview(cubeFile, lang, dataset, page_number, page_size);
-  const end = performance.now();
-  const time = Math.round(end - start);
-
-  logger.info(`Cube revision preview took ${time}ms`);
-  await cleanUpCube(cubeFile);
-
-  if ((cubePreview as ViewErrDTO).errors) {
-    const processErr = cubePreview as ViewErrDTO;
-    res.status(processErr.status);
-  }
-
-  res.json(cubePreview);
 };
 
 export const confirmFactTable = async (req: Request, res: Response) => {
@@ -408,7 +382,7 @@ export const updateDataTable = async (req: Request, res: Response, next: NextFun
   let dataTable: DataTable;
   try {
     const { mimetype, originalname } = req.file;
-    const uploadResult = await validateAndUploadCSV(req.file.buffer, mimetype, originalname, datasetId);
+    const uploadResult = await validateAndUploadCSV(req.file.buffer, mimetype, originalname, datasetId, 'data_table');
     dataTable = uploadResult.dataTable;
   } catch (err) {
     const error = err as FileValidationException;

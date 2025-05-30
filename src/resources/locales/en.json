@@ -161,5 +161,31 @@
     "date": "date",
     "datetime": "datatime",
     "time": "time"
+  },
+  "date_format": {
+    "year": {
+      "calendar": "Calendar Year",
+      "financial": "Financial Year",
+      "tax": "Tax Year",
+      "meteorological": "Meteorological Year",
+      "academic": "Academic Year",
+      "rolling": "Rolling Year"
+    },
+    "quarter": {
+      "calendar": "Calendar Quarter",
+      "financial": "Financial Quarter",
+      "tax": "Tax Quarter",
+      "meteorological": "Meteorological Season",
+      "academic": "Academic Quarter",
+      "rolling": "Rolling Quarter"
+    },
+    "month": {
+      "calendar": "Calendar Month",
+      "financial": "Financial Month",
+      "tax": "Tax Month",
+      "meteorological": "Meteorological Month",
+      "academic": "Academic Month",
+      "rolling": "Rolling Month"
+    }
   }
 }
