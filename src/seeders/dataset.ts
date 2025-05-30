@@ -16,7 +16,6 @@ import { DimensionType } from '../enums/dimension-type';
 import { FactTableColumnType } from '../enums/fact-table-column-type';
 import { convertDataTableToLookupTable } from '../utils/lookup-table-utils';
 import { Provider } from '../entities/dataset/provider';
-import DataLakeStorage from '../services/datalake-storage';
 import { appConfig } from '../config';
 import { getFileService } from '../utils/get-file-service';
 
@@ -283,11 +282,11 @@ export default class DatasetSeeder extends Seeder {
         '709e463a-c6b3-45fa-91a3-88d432764f6b-protocube.duckdb'
       ];
 
-      const client = getFileService();
+      const fileSerivice = getFileService();
 
       for (const file of duckdbFiles) {
         const uploadBuffer = fs.readFileSync(path.join(__dirname, `./resources/${file}`));
-        await client.saveBuffer(file, dataset.id, uploadBuffer);
+        await fileSerivice.saveBuffer(file, dataset.id, uploadBuffer);
       }
 
       await entityManager.getRepository(Dataset).save({
