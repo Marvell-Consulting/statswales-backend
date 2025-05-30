@@ -16,7 +16,6 @@ import { DimensionType } from '../enums/dimension-type';
 import { FactTableColumnType } from '../enums/fact-table-column-type';
 import { convertDataTableToLookupTable } from '../utils/lookup-table-utils';
 import { Provider } from '../entities/dataset/provider';
-import { appConfig } from '../config';
 import { getFileService } from '../utils/get-file-service';
 
 const user: DeepPartial<User> = {
@@ -34,8 +33,6 @@ const user: DeepPartial<User> = {
     }
   ]
 };
-
-const config = appConfig();
 
 const approvedDataset: DeepPartial<Dataset> = {
   id: 'f12bed26-18ac-4cb9-bcdb-24ed155f29a1',
