@@ -188,11 +188,13 @@ export class DatasetService {
   async updateTranslations(datasetId: string, translations: TranslationDTO[]): Promise<Dataset> {
     const dataset = await DatasetRepository.getById(datasetId, {
       draftRevision: { metadata: true },
-      dimensions: { metadata: true }
+      dimensions: { metadata: true },
+      measure: { metadata: true }
     });
 
     const revision = dataset.draftRevision!;
     const dimensions = dataset.dimensions;
+    const measure = dataset.measure;
 
     // set all metadata updated_at to the same time, we can use this later to flag untranslated changes
     const now = new Date();
@@ -236,6 +238,16 @@ export class DatasetService {
     });
 
     await RevisionRepository.save(revision);
+
+    logger.debug(`Updating measure translations...`);
+    const measureTranslation = translations.find((t) => t.type === 'measure')!;
+    await Promise.all(
+      measure.metadata.map(async (metadata) => {
+        metadata.name =
+          (metadata.language === Locale.EnglishGb ? measureTranslation.english : measureTranslation.cymraeg) ?? '';
+        await metadata.save();
+      })
+    );
 
     return DatasetRepository.getById(datasetId, {});
   }

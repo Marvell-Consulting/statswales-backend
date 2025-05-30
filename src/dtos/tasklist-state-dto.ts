@@ -190,8 +190,8 @@ export class TasklistStateDTO {
       }
     }
 
-    const lastExportedAt = translationEvents?.find((event) => event.action === 'export')?.createdAt;
-    const lastImportedAt = translationEvents?.find((event) => event.action === 'import')?.createdAt;
+    const lastExport = translationEvents?.find((event) => event.action === 'export');
+    const lastImport = translationEvents?.find((event) => event.action === 'import');
 
     const metaEN = revision.metadata?.find((meta) => meta.language.includes('en'));
     const metaCY = revision.metadata?.find((meta) => meta.language.includes('cy'));
@@ -214,8 +214,6 @@ export class TasklistStateDTO {
       return link.labelEN && link.labelCY;
     });
 
-    const lastExport = translationEvents?.find((event) => event.action === 'export');
-
     const existingTranslations = collectTranslations(dataset);
 
     // previously exported revisions did not include data, ignore these.
@@ -226,17 +224,25 @@ export class TasklistStateDTO {
     });
 
     const translationRequired = !metadataSynced || !metaFullyTranslated;
+    const importStale = lastExport?.createdAt && lastImport?.createdAt && lastExport.createdAt > lastImport.createdAt;
 
     let exportStatus: TaskListStatus;
-    if (lastExportedAt) {
+    if (lastExport) {
       exportStatus = exportStale ? TaskListStatus.Incomplete : TaskListStatus.Completed;
     } else {
       exportStatus = TaskListStatus.NotStarted;
     }
 
+    const importedSinceMetaUpdate = lastImport?.createdAt && lastImport.createdAt > lastMetaUpdateAt;
+    // TODO: we should store the import in the same format as the export.
+    const importMatchesExport = isEqual(lastImport?.data, lastExport?.data?.translations);
+
+    const requiresImport = importStale && !importMatchesExport;
+
     let importStatus: TaskListStatus;
-    if (lastImportedAt && lastImportedAt > lastMetaUpdateAt) {
-      importStatus = exportStale || !relatedLinksTranslated ? TaskListStatus.Incomplete : TaskListStatus.Completed;
+    if (importedSinceMetaUpdate) {
+      importStatus =
+        exportStale || !relatedLinksTranslated || requiresImport ? TaskListStatus.Incomplete : TaskListStatus.Completed;
     } else {
       importStatus = TaskListStatus.NotStarted;
     }
