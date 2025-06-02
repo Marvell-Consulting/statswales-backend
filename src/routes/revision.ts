@@ -22,7 +22,8 @@ import {
   withdrawFromPublication,
   createNewRevision,
   getDataTable,
-  deleteDraftRevision, regenerateRevisionCube
+  deleteDraftRevision,
+  regenerateRevisionCube
 } from '../controllers/revision';
 import { Revision } from '../entities/dataset/revision';
 import { hasError, revisionIdValidator } from '../validators';

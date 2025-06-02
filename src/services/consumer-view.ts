@@ -1,4 +1,3 @@
-import { getFileService } from '../utils/get-file-service';
 import { Revision } from '../entities/dataset/revision';
 import { validateParams } from '../validators/preview-validator';
 import { CSVHeader, ViewDTO, ViewErrDTO } from '../dtos/view-dto';
@@ -30,7 +29,9 @@ export const createView = async (
   }
   let filterQuery = '';
   if (filter && filter.length > 0) {
-    filterQuery = filter.map((whereClause) => pgformat('%I in (%L)', whereClause.columnName, whereClause.values)).join(' and ');
+    filterQuery = filter
+      .map((whereClause) => pgformat('%I in (%L)', whereClause.columnName, whereClause.values))
+      .join(' and ');
   }
   logger.debug(`revision ID: ${revision.id}, view: default_view_${lang}`);
   const baseQuery = pgformat(

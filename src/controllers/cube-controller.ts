@@ -1,18 +1,12 @@
 import { NextFunction, Request, Response } from 'express';
 
 import { Dataset } from '../entities/dataset/dataset';
-import { FactTableColumnType } from '../enums/fact-table-column-type';
 import { logger } from '../utils/logger';
 import { DuckdbOutputType } from '../enums/duckdb-outputs';
 import { DatasetRepository, withDraftForCube } from '../repositories/dataset';
-import { CSVHeader, ViewDTO, ViewErrDTO } from '../dtos/view-dto';
-import { DatasetDTO } from '../dtos/dataset-dto';
+import { ViewDTO, ViewErrDTO } from '../dtos/view-dto';
 import { getLatestRevision } from '../utils/latest';
 import { UnknownException } from '../exceptions/unknown.exception';
-import { validateParams } from '../validators/preview-validator';
-import { format as pgformat } from '@scaleleap/pg-format/lib/pg-format';
-import { QueryResult } from 'pg';
-import { pool } from '../app';
 import { StorageService } from '../interfaces/storage-service';
 import { SortByInterface } from '../interfaces/sort-by-interface';
 import { FilterInterface } from '../interfaces/filterInterface';
@@ -26,7 +20,7 @@ export const getPostgresCubePreview = async (
   page: number,
   size: number,
   sortBy: SortByInterface[],
-  filter?: FilterInterface[],
+  filter?: FilterInterface[]
 ): Promise<ViewDTO | ViewErrDTO> => {
   try {
     return createView(dataset, revision, lang, page, size, sortBy, filter);

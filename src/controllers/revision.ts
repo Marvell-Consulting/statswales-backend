@@ -48,6 +48,8 @@ import { NotAllowedException } from '../exceptions/not-allowed.exception';
 
 import { getPostgresCubePreview, outputCube } from './cube-controller';
 import { Dataset } from '../entities/dataset/dataset';
+import { SortByInterface } from '../interfaces/sort-by-interface';
+import { FilterInterface } from '../interfaces/filterInterface';
 
 export const getDataTable = async (req: Request, res: Response, next: NextFunction) => {
   try {
@@ -111,10 +113,19 @@ export const getRevisionPreview = async (req: Request, res: Response) => {
 
   const page_number: number = Number.parseInt(req.query.page_number as string, 10) || 1;
   const page_size: number = Number.parseInt(req.query.page_size as string, 10) || DEFAULT_PAGE_SIZE;
-
+  const sortByQuery = JSON.parse(req.query.sort_by as string) as SortByInterface[];
+  const filter = JSON.parse(req.query.filter as string) as FilterInterface[];
   try {
     const end = performance.now();
-    const cubePreview = await getPostgresCubePreview(revision, lang, dataset, page_number, page_size);
+    const cubePreview = await getPostgresCubePreview(
+      revision,
+      lang,
+      dataset,
+      page_number,
+      page_size,
+      sortByQuery,
+      filter
+    );
     const time = Math.round(end - start);
     logger.info(`Cube revision preview took ${time}ms`);
 
