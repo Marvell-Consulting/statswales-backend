@@ -28,7 +28,7 @@ import { LookupTableDTO } from '../dtos/lookup-table-dto';
 import { DatasetRepository } from '../repositories/dataset';
 import { getLatestRevision } from '../utils/latest';
 import { Dataset } from '../entities/dataset/dataset';
-import { createBaseCubeFromProtoCube } from '../services/cube-handler';
+import { createAllCubeFiles } from '../services/cube-handler';
 import { getFileService } from '../utils/get-file-service';
 
 export const getDimensionInfo = async (req: Request, res: Response) => {
@@ -126,7 +126,7 @@ export const attachLookupTableToDimension = async (req: Request, res: Response, 
     const tableMatcher = req.body as LookupTablePatchDTO;
 
     const result = await validateLookupTable(dataTable, dataset, dimension, buffer, language, tableMatcher);
-    await createBaseCubeFromProtoCube(dataset.id, dataset.draftRevision!.id);
+    await createAllCubeFiles(dataset.id, dataset.draftRevision!.id, req.fileService);
     if ((result as ViewErrDTO).status) {
       const error = result as ViewErrDTO;
       res.status(error.status);
@@ -203,7 +203,7 @@ export const updateDimension = async (req: Request, res: Response, next: NextFun
         );
     }
     try {
-      await createBaseCubeFromProtoCube(dataset.id, dataset.draftRevision!.id);
+      await createAllCubeFiles(dataset.id, dataset.draftRevision!.id, req.fileService);
     } catch (error) {
       logger.error(error, `An error occurred trying to create a base cube`);
       res.status(500);
@@ -246,7 +246,7 @@ export const updateDimensionMetadata = async (req: Request, res: Response) => {
   }
   await metadata.save();
   const updatedDimension = await Dimension.findOneByOrFail({ id: dimension.id });
-  await createBaseCubeFromProtoCube(dataset.id, dataset.draftRevision!.id);
+  await createAllCubeFiles(dataset.id, dataset.draftRevision!.id, req.fileService);
   res.status(202);
   res.json(DimensionDTO.fromDimension(updatedDimension));
 };

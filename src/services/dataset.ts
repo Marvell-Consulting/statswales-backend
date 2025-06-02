@@ -1,5 +1,3 @@
-import fs from 'node:fs';
-
 import { RevisionMetadataDTO } from '../dtos/revistion-metadata-dto';
 import { TranslationDTO } from '../dtos/translations-dto';
 import { Dataset } from '../entities/dataset/dataset';
@@ -20,15 +18,12 @@ import { RevisionProvider } from '../entities/dataset/revision-provider';
 import { RevisionTopic } from '../entities/dataset/revision-topic';
 import { DimensionRepository } from '../repositories/dimension';
 import { RevisionMetadata } from '../entities/dataset/revision-metadata';
-import { outputCube } from '../controllers/cube-controller';
-import { DuckdbOutputType } from '../enums/duckdb-outputs';
-import { SUPPORTED_LOCALES } from '../middleware/translation';
 import { isPublished } from '../utils/revision';
 import { BadRequestException } from '../exceptions/bad-request.exception';
 import { TasklistStateDTO } from '../dtos/tasklist-state-dto';
 import { EventLog } from '../entities/event-log';
 
-import { createBaseCubeFromProtoCube, getCubeTimePeriods } from './cube-handler';
+import { createAllCubeFiles, getCubeTimePeriods } from './cube-handler';
 import { validateAndUploadCSV } from './csv-processor';
 import { removeAllDimensions, removeMeasure } from './dimension-processor';
 import { getFileService } from '../utils/get-file-service';
@@ -46,6 +41,7 @@ import {
   generateSimulatedEvents,
   omitRevisionUpdates
 } from '../utils/dataset-history';
+import { StorageService } from '../interfaces/storage-service';
 
 export class DatasetService {
   lang: Locale;
@@ -89,7 +85,7 @@ export class DatasetService {
     return DatasetRepository.getById(dataset.id, {});
   }
 
-  async updateFactTable(datasetId: string, file: Express.Multer.File): Promise<Dataset> {
+  async updateFactTable(datasetId: string, file: Express.Multer.File, fileService: StorageService): Promise<Dataset> {
     const dataset = await DatasetRepository.getById(datasetId, {
       factTable: true,
       draftRevision: { dataTable: true }
@@ -112,7 +108,7 @@ export class DatasetService {
 
     await RevisionRepository.replaceDataTable(dataset.draftRevision!, dataTable);
     await DatasetRepository.replaceFactTable(dataset, dataTable);
-    await createBaseCubeFromProtoCube(datasetId, dataset.draftRevision!.id);
+    await createAllCubeFiles(datasetId, dataset.draftRevision!.id, fileService);
     return DatasetRepository.getById(datasetId, {});
   }
 
@@ -301,30 +297,21 @@ export class DatasetService {
     }
   }
 
-  async approvePublication(datasetId: string, revisionId: string, user: User): Promise<Dataset> {
+  async approvePublication(
+    datasetId: string,
+    revisionId: string,
+    user: User,
+    storageService: StorageService
+  ): Promise<Dataset> {
     const start = performance.now();
-
-    const dataset = await DatasetRepository.getById(datasetId, {});
-    const cubeFilePath = await createBaseCubeFromProtoCube(datasetId, revisionId);
-    const periodCoverage = await getCubeTimePeriods(cubeFilePath);
-
-    const fileService = getFileService();
-    const cubeBuffer = fs.readFileSync(cubeFilePath);
-    const onlineCubeFilename = `${revisionId}.duckdb`;
-    await fileService.saveBuffer(onlineCubeFilename, dataset.id, cubeBuffer);
-
-    for (const locale of SUPPORTED_LOCALES) {
-      const lang = locale.split('-')[0].toLowerCase();
-      logger.debug(`Creating parquet file for language "${lang}" and uploading to data lake`);
-      const parquetFilePath = await outputCube(cubeFilePath, lang, DuckdbOutputType.Parquet);
-      await fileService.saveBuffer(`${revisionId}_${lang}.parquet`, dataset.id, fs.readFileSync(parquetFilePath));
-    }
+    await createAllCubeFiles(datasetId, revisionId, storageService);
+    const periodCoverage = await getCubeTimePeriods(revisionId);
 
     const end = performance.now();
     const time = Math.round(end - start);
     logger.info(`Cube and parquet file creation took ${time}ms (including uploading to data lake)`);
 
-    const scheduledRevision = await RevisionRepository.approvePublication(revisionId, onlineCubeFilename, user);
+    const scheduledRevision = await RevisionRepository.approvePublication(revisionId, `${revisionId}.duckdb`, user);
     const approvedDataset = await DatasetRepository.publish(scheduledRevision, periodCoverage);
 
     return approvedDataset;

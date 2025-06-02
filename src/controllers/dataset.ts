@@ -22,7 +22,7 @@ import { BadRequestException } from '../exceptions/bad-request.exception';
 import { ViewErrDTO } from '../dtos/view-dto';
 import { arrayValidator, dtoValidator } from '../validators/dto-validator';
 import { RevisionMetadataDTO } from '../dtos/revistion-metadata-dto';
-import { createBaseCubeFromProtoCube } from '../services/cube-handler';
+import { createAllCubeFiles } from '../services/cube-handler';
 import { DEFAULT_PAGE_SIZE } from '../services/csv-processor';
 import {
   createDimensionsFromSourceAssignment,
@@ -50,6 +50,8 @@ import { GroupRole } from '../enums/group-role';
 import { DatasetInclude } from '../enums/dataset-include';
 import { EventLogDTO } from '../dtos/event-log-dto';
 import { EventLog } from '../entities/event-log';
+import { SortByInterface } from '../interfaces/sort-by-interface';
+import { FilterInterface } from '../interfaces/filterInterface';
 
 export const listUserDatasets = async (req: Request, res: Response, next: NextFunction) => {
   try {
@@ -159,7 +161,7 @@ export const uploadDataTable = async (req: Request, res: Response, next: NextFun
   }
 
   try {
-    const updatedDataset = await req.datasetService.updateFactTable(dataset.id, req.file);
+    const updatedDataset = await req.datasetService.updateFactTable(dataset.id, req.file, req.fileService);
     const dto = DatasetDTO.fromDataset(updatedDataset);
     res.status(201);
     res.json(dto);
@@ -202,7 +204,17 @@ export const cubePreview = async (req: Request, res: Response, next: NextFunctio
   const start = performance.now();
   const page_number: number = Number.parseInt(req.query.page_number as string, 10) || 1;
   const page_size: number = Number.parseInt(req.query.page_size as string, 10) || DEFAULT_PAGE_SIZE;
-  const cubePreview = await getPostgresCubePreview(latestRevision.id, lang, dataset, page_number, page_size);
+  const sortByQuery = JSON.parse(req.query.sort_by as string) as SortByInterface[];
+  const filter = JSON.parse(req.query.filter as string) as FilterInterface[];
+  const cubePreview = await getPostgresCubePreview(
+    latestRevision,
+    lang,
+    dataset,
+    page_number,
+    page_size,
+    sortByQuery,
+    filter
+  );
   const end = performance.now();
   const time = Math.round(end - start);
   logger.info(`Generating preview of cube took ${time}ms`);
@@ -393,7 +405,7 @@ export const updateSources = async (req: Request, res: Response, next: NextFunct
   try {
     await createDimensionsFromSourceAssignment(dataset, dataTable, validatedSourceAssignment);
     const updatedDataset = await DatasetRepository.getById(dataset.id);
-    await createBaseCubeFromProtoCube(updatedDataset.id, revision.id);
+    await createAllCubeFiles(updatedDataset.id, revision.id, req.fileService);
     res.json(DatasetDTO.fromDataset(updatedDataset));
   } catch (err) {
     logger.error(err, `An error occurred trying to process the source assignments: ${err}`);

@@ -110,13 +110,15 @@ export const factTableValidatorFromSource = async (
   );
 
   const primaryKeyDef = primaryKeyColumns.map((def) => def.factTableColumn.columnName);
-  const factTableCreateDef = orderedFactTableDefinition.map((def) => {
-    if (def.factTableColumnType === FactTableColumnType.Ignore) {
-      return '';
-    }
-    return `"${def.factTableColumn.columnName}" ${def.factTableColumn.columnDatatype === 'DOUBLE' ? 'DOUBLE PRECISION' : def.factTableColumn.columnDatatype}`;
-  });
-  const factTableDef = orderedFactTableDefinition.map((def) => def.factTableColumn.columnName);
+  const factTableCreateDef = orderedFactTableDefinition
+    .filter((def) => def.factTableColumnType !== FactTableColumnType.Ignore)
+    .map(
+      (def) =>
+        `"${def.factTableColumn.columnName}" ${def.factTableColumn.columnDatatype === 'DOUBLE' ? 'DOUBLE PRECISION' : def.factTableColumn.columnDatatype}`
+    );
+  const factTableDef = orderedFactTableDefinition
+    .filter((def) => def.factTableColumnType !== FactTableColumnType.Ignore)
+    .map((def) => def.factTableColumn.columnName);
   const factTableCreationQuery = pgformat(
     `CREATE TABLE %I.%I (%s, PRIMARY KEY (%I));`,
     revision.id,

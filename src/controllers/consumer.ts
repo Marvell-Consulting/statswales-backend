@@ -10,9 +10,6 @@ import { NotFoundException } from '../exceptions/not-found.exception';
 import { ConsumerDatasetDTO } from '../dtos/consumer-dataset-dto';
 import { DownloadFormat } from '../enums/download-format';
 import { BadRequestException } from '../exceptions/bad-request.exception';
-import tmp from 'tmp';
-import fs from 'node:fs';
-import { cleanUpCube } from '../services/cube-handler';
 import { outputCube } from './cube-controller';
 import { DuckdbOutputType } from '../enums/duckdb-outputs';
 import { createView } from '../services/consumer-view';
@@ -20,6 +17,8 @@ import { DEFAULT_PAGE_SIZE } from '../services/csv-processor';
 import { TopicDTO } from '../dtos/topic-dto';
 import { PublishedTopicsDTO } from '../dtos/published-topics-dto';
 import { TopicRepository } from '../repositories/topic';
+import { SortByInterface } from '../interfaces/sort-by-interface';
+import { FilterInterface } from '../interfaces/filterInterface';
 
 export const listPublishedDatasets = async (req: Request, res: Response, next: NextFunction) => {
   logger.info('Listing published datasets...');
@@ -54,9 +53,10 @@ export const getPublishedDatasetView = async (req: Request, res: Response) => {
   }
   const pageNumber: number = Number.parseInt(req.query.page_number as string, 10) || 1;
   const pageSize: number = Number.parseInt(req.query.page_size as string, 10) || DEFAULT_PAGE_SIZE;
-  const sortBy = req.query.sort_by as string;
+  const sortBy = JSON.parse(req.query.sort_by as string) as SortByInterface[];
+  const filter = JSON.parse(req.query.filter as string) as FilterInterface[];
 
-  const preview = await createView(dataset, dataset.publishedRevision, lang, pageNumber, pageSize, sortBy);
+  const preview = await createView(dataset, dataset.publishedRevision, lang, pageNumber, pageSize, sortBy, filter);
   res.json(preview);
 };
 
@@ -74,59 +74,37 @@ export const downloadPublishedDataset = async (req: Request, res: Response, next
     next(new NotFoundException('errors.no_revision'));
     return;
   }
-  const fileBuffer = await req.fileService.loadBuffer(revision.onlineCubeFilename, dataset.id);
-  const cubeFile = tmp.tmpNameSync({ postfix: '.duckdb' });
-  fs.writeFileSync(cubeFile, fileBuffer);
-  let downloadFile: string;
-  if ((format as DownloadFormat) === DownloadFormat.DuckDb) {
-    downloadFile = cubeFile;
-  } else {
-    downloadFile = await outputCube(cubeFile, lang, format as DuckdbOutputType);
-  }
-  const downloadStream = fs.createReadStream(downloadFile);
+  const fileBuffer = await outputCube(format as DuckdbOutputType, dataset.id, revision.id, lang, req.fileService);
+  let contentType = '';
   switch (format) {
     case DownloadFormat.Csv:
-      // eslint-disable-next-line @typescript-eslint/naming-convention
-      res.writeHead(200, { 'Content-Type': '\ttext/csv' });
+      contentType = '\ttext/csv; charset=utf-8';
       break;
     case DownloadFormat.Parquet:
-      // eslint-disable-next-line @typescript-eslint/naming-convention
-      res.writeHead(200, { 'Content-Type': '\tapplication/vnd.apache.parquet' });
+      contentType = '\tapplication/vnd.apache.parquet';
       break;
     case DownloadFormat.Xlsx:
-      // eslint-disable-next-line @typescript-eslint/naming-convention
-      res.writeHead(200, { 'Content-Type': '\tapplication/vnd.ms-excel' });
+      contentType = '\tapplication/vnd.ms-excel';
       break;
     case DownloadFormat.DuckDb:
-      // eslint-disable-next-line @typescript-eslint/naming-convention
-      res.writeHead(200, { 'Content-Type': '\tapplication/octet-stream' });
+      contentType = '\tapplication/octet-stream';
       break;
     case DownloadFormat.Json:
-      // eslint-disable-next-line @typescript-eslint/naming-convention
-      res.writeHead(200, { 'Content-Type': '\tapplication/json' });
+      contentType = '\tapplication/json; charset=utf-8';
       break;
     default:
       next(new NotFoundException('invalid file format'));
       return;
   }
-  downloadStream.pipe(res);
-
-  // Handle errors in the file stream
-  downloadStream.on('error', (err) => {
-    logger.error(err, `File stream error: ${err}`);
+  res.writeHead(200, {
     // eslint-disable-next-line @typescript-eslint/naming-convention
-    res.writeHead(500, { 'Content-Type': 'text/plain' });
-    fs.unlinkSync(downloadFile);
-    res.end('Server Error');
-    cleanUpCube(cubeFile);
+    'Content-Type': contentType,
+    // eslint-disable-next-line @typescript-eslint/naming-convention
+    'Content-disposition': `attachment;filename=${dataset.id}.duckdb`,
+    // eslint-disable-next-line @typescript-eslint/naming-convention
+    'Content-Length': fileBuffer.length
   });
-
-  // Optionally listen for the end of the stream
-  downloadStream.on('end', () => {
-    fs.unlinkSync(downloadFile);
-    logger.debug('File stream ended');
-    cleanUpCube(cubeFile);
-  });
+  res.end(fileBuffer);
 };
 
 export const listPublishedTopics = async (req: Request, res: Response, next: NextFunction) => {

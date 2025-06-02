@@ -1,6 +1,3 @@
-import fs from 'node:fs';
-
-import tmp, { FileResult } from 'tmp';
 import { NextFunction, Request, Response } from 'express';
 
 import { Dataset } from '../entities/dataset/dataset';
@@ -12,167 +9,46 @@ import { CSVHeader, ViewDTO, ViewErrDTO } from '../dtos/view-dto';
 import { DatasetDTO } from '../dtos/dataset-dto';
 import { getLatestRevision } from '../utils/latest';
 import { UnknownException } from '../exceptions/unknown.exception';
-import { createBaseCubeFromProtoCube } from '../services/cube-handler';
-import { duckdb } from '../services/duckdb';
 import { validateParams } from '../validators/preview-validator';
 import { format as pgformat } from '@scaleleap/pg-format/lib/pg-format';
 import { QueryResult } from 'pg';
 import { pool } from '../app';
-
-export const getCubePreview = async (
-  cubeFile: string,
-  lang: string,
-  dataset: Dataset,
-  page: number,
-  size: number
-): Promise<ViewDTO | ViewErrDTO> => {
-  logger.debug(`Opening cube file ${cubeFile}`);
-  const quack = await duckdb(cubeFile);
-  try {
-    const totalsQuery = `SELECT count(*) as totalLines, ceil(count(*)/${size}) as totalPages from default_view_${lang};`;
-    const totals = await quack.all(totalsQuery);
-    const totalPages = Number(totals[0].totalPages);
-    const totalLines = Number(totals[0].totalLines);
-    const errors = validateParams(page, totalPages, size);
-
-    if (errors.length > 0) {
-      return { status: 400, errors, dataset_id: dataset.id };
-    }
-
-    const offset = (page - 1) * size;
-
-    const previewQuery = `
-      SELECT * FROM default_view_${lang}
-      LIMIT ${size}
-      OFFSET ${offset}
-    `;
-
-    const preview = await quack.all(previewQuery);
-    const startLine = offset + 1;
-    const lastLine = offset + preview.length;
-    const tableHeaders = Object.keys(preview[0]);
-    const dataArray = preview.map((row) => Object.values(row));
-    const currentDataset = await DatasetRepository.getById(dataset.id);
-
-    const headers: CSVHeader[] = tableHeaders.map((header, idx) => ({
-      index: idx - 1,
-      name: header,
-      source_type: header === 'int_line_number' ? FactTableColumnType.LineNumber : FactTableColumnType.Unknown
-    }));
-
-    logger.debug(`Closing cube file ${cubeFile}`);
-
-    return {
-      dataset: DatasetDTO.fromDataset(currentDataset),
-      current_page: page,
-      page_info: {
-        total_records: totalLines,
-        start_record: startLine,
-        end_record: lastLine
-      },
-      page_size: size,
-      total_pages: totalPages,
-      headers,
-      data: dataArray
-    };
-  } catch (err) {
-    logger.error(`Something went wrong trying to create the cube preview with the error: ${err}`);
-    return { status: 500, errors: [], dataset_id: dataset.id };
-  } finally {
-    await quack.close();
-  }
-};
+import { StorageService } from '../interfaces/storage-service';
+import { SortByInterface } from '../interfaces/sort-by-interface';
+import { FilterInterface } from '../interfaces/filterInterface';
+import { createView } from '../services/consumer-view';
+import { Revision } from '../entities/dataset/revision';
 
 export const getPostgresCubePreview = async (
-  revisionId: string,
+  revision: Revision,
   lang: string,
   dataset: Dataset,
   page: number,
-  size: number
+  size: number,
+  sortBy: SortByInterface[],
+  filter?: FilterInterface[],
 ): Promise<ViewDTO | ViewErrDTO> => {
   try {
-    const totalsQuery = `SELECT count(*) as "totalLines", ceil(count(*)/${size}) as "totalPages" from "${revisionId}".default_view_${lang};`;
-    const totals = await pool.query(totalsQuery);
-    logger.debug(JSON.stringify(totals.rows));
-    const totalPages = Number(totals.rows[0].totalPages);
-    const totalLines = Number(totals.rows[0].totalLines);
-    const errors = validateParams(page, totalPages, size);
-
-    if (errors.length > 0) {
-      return { status: 400, errors, dataset_id: dataset.id };
-    }
-
-    const queryResult: QueryResult<unknown[]> = await pool.query(
-      pgformat('SELECT * FROM %I.%I LIMIT %L OFFSET %L', revisionId, `default_view_${lang}`, size, (page - 1) * size)
-    );
-    const preview = queryResult.rows;
-
-    const startLine = size * (page - 1) + 1;
-    const lastLine = page * size + size;
-    const tableHeaders = Object.keys(preview[0]);
-    const dataArray = preview.map((row) => Object.values(row));
-    const currentDataset = await DatasetRepository.getById(dataset.id);
-
-    const headers: CSVHeader[] = tableHeaders.map((header, idx) => ({
-      index: idx - 1,
-      name: header,
-      source_type: header === 'int_line_number' ? FactTableColumnType.LineNumber : FactTableColumnType.Unknown
-    }));
-    return {
-      dataset: DatasetDTO.fromDataset(currentDataset),
-      current_page: page,
-      page_info: {
-        total_records: totalLines,
-        start_record: startLine,
-        end_record: lastLine
-      },
-      page_size: size,
-      total_pages: totalPages,
-      headers,
-      data: dataArray
-    };
+    return createView(dataset, revision, lang, page, size, sortBy, filter);
   } catch (err) {
     logger.error(err, `Something went wrong trying to create the cube preview`);
     return { status: 500, errors: [], dataset_id: dataset.id };
   }
 };
 
-export const outputCube = async (cubeFile: string, lang: string, mode: DuckdbOutputType) => {
-  const quack = await duckdb(cubeFile);
+export const outputCube = async (
+  mode: DuckdbOutputType,
+  datasetId: string,
+  revisionId: string,
+  lang: string,
+  storageService: StorageService
+) => {
   try {
-    const outputFile: FileResult = tmp.fileSync({ postfix: `.${mode}` });
-
-    switch (mode) {
-      case DuckdbOutputType.Csv:
-        await quack.exec(`COPY default_view_${lang} TO '${outputFile.name}' (HEADER, DELIMITER ',');`);
-        break;
-
-      case DuckdbOutputType.Parquet:
-        await quack.exec(`COPY default_view_${lang} TO '${outputFile.name}' (FORMAT PARQUET);`);
-        break;
-
-      case DuckdbOutputType.Excel:
-        await quack.exec(`INSTALL spatial;`);
-        await quack.exec('LOAD spatial;');
-        await quack.exec(`COPY default_view_${lang} TO '${outputFile.name}' WITH (FORMAT GDAL, DRIVER 'xlsx');`);
-        break;
-
-      case DuckdbOutputType.Json:
-        await quack.exec(`COPY default_view_${lang} TO '${outputFile.name}' (FORMAT JSON);`);
-        break;
-
-      case DuckdbOutputType.DuckDb:
-        return cubeFile;
-
-      default:
-        throw new Error(`Format ${mode} not supported`);
-    }
-    return outputFile.name;
+    if (mode === DuckdbOutputType.DuckDb) return storageService.loadBuffer(`${revisionId}.${mode}`, datasetId);
+    else return storageService.loadBuffer(`${revisionId}_${lang}.${mode}`, datasetId);
   } catch (err) {
     logger.error(err, `Something went wrong trying to create the cube output file`);
     throw err;
-  } finally {
-    await quack.close();
   }
 };
 
@@ -185,19 +61,13 @@ export const downloadCubeFile = async (req: Request, res: Response, next: NextFu
     return;
   }
 
-  let cubeBuffer: Buffer;
-  if (latestRevision.onlineCubeFilename) {
-    cubeBuffer = await req.fileService.loadBuffer(latestRevision.onlineCubeFilename, dataset.id);
-  } else {
-    try {
-      const cubeFile = await createBaseCubeFromProtoCube(dataset.id, latestRevision.id);
-      cubeBuffer = Buffer.from(fs.readFileSync(cubeFile));
-    } catch (err) {
-      logger.error(`Something went wrong trying to create the cube with the error: ${err}`);
-      next(new UnknownException('errors.cube_create_error'));
-      return;
-    }
-  }
+  const cubeBuffer = await outputCube(
+    DuckdbOutputType.DuckDb,
+    dataset.id,
+    latestRevision.id,
+    req.language.split('-')[0],
+    req.fileService
+  );
 
   logger.info(`Sending original cube file (size: ${cubeBuffer.length})`);
   res.writeHead(200, {
@@ -213,182 +83,98 @@ export const downloadCubeFile = async (req: Request, res: Response, next: NextFu
 
 export const downloadCubeAsJSON = async (req: Request, res: Response, next: NextFunction) => {
   const dataset = await DatasetRepository.getById(res.locals.datasetId, withDraftForCube);
-  const lang = req.language.split('-')[0];
   const latestRevision = getLatestRevision(dataset);
   if (!latestRevision) {
     next(new UnknownException('errors.no_revision'));
     return;
   }
-  let cubeFile: string;
-  if (latestRevision.onlineCubeFilename) {
-    const fileBuffer = await req.fileService.loadBuffer(latestRevision.onlineCubeFilename, dataset.id);
-    cubeFile = tmp.tmpNameSync({ postfix: '.duckdb' });
-    fs.writeFileSync(cubeFile, fileBuffer);
-  } else {
-    try {
-      logger.info('Creating fresh cube file.');
-      cubeFile = await createBaseCubeFromProtoCube(dataset.id, latestRevision.id);
-    } catch (err) {
-      logger.error(`Something went wrong trying to create the cube with the error: ${err}`);
-      next(new UnknownException('errors.cube_create_error'));
-      return;
-    }
-  }
-  const downloadFile = await outputCube(cubeFile, lang, DuckdbOutputType.Json);
-  fs.unlinkSync(cubeFile);
-  const downloadStream = fs.createReadStream(downloadFile);
-  // eslint-disable-next-line @typescript-eslint/naming-convention
-  res.writeHead(200, { 'Content-Type': '\tapplication/json' });
-  downloadStream.pipe(res);
-
-  // Handle errors in the file stream
-  downloadStream.on('error', (err) => {
-    logger.error('File stream error:', err);
+  const cubeBuffer = await outputCube(
+    DuckdbOutputType.Json,
+    dataset.id,
+    latestRevision.id,
+    req.language.split('-')[0],
+    req.fileService
+  );
+  res.writeHead(200, {
     // eslint-disable-next-line @typescript-eslint/naming-convention
-    res.writeHead(500, { 'Content-Type': 'text/plain' });
-    fs.unlinkSync(downloadFile);
-    res.end('Server Error');
+    'Content-Type': 'application/json; charset=utf-8',
+    // eslint-disable-next-line @typescript-eslint/naming-convention
+    'Content-disposition': `attachment;filename=${dataset.id}.json`,
+    // eslint-disable-next-line @typescript-eslint/naming-convention
+    'Content-Length': cubeBuffer.length
   });
-
-  // Optionally listen for the end of the stream
-  downloadStream.on('end', () => {
-    fs.unlinkSync(downloadFile);
-    logger.debug('File stream ended');
-  });
+  res.end(cubeBuffer);
 };
 
 export const downloadCubeAsCSV = async (req: Request, res: Response, next: NextFunction) => {
   const dataset = await DatasetRepository.getById(res.locals.datasetId, withDraftForCube);
-  const lang = req.language.split('-')[0];
   const latestRevision = getLatestRevision(dataset);
   if (!latestRevision) {
     next(new UnknownException('errors.no_revision'));
     return;
   }
-  let cubeFile: string;
-  if (latestRevision.onlineCubeFilename) {
-    const fileBuffer = await req.fileService.loadBuffer(latestRevision.onlineCubeFilename, dataset.id);
-    cubeFile = tmp.tmpNameSync({ postfix: '.duckdb' });
-    fs.writeFileSync(cubeFile, fileBuffer);
-  } else {
-    try {
-      cubeFile = await createBaseCubeFromProtoCube(dataset.id, latestRevision.id);
-    } catch (err) {
-      logger.error(`Something went wrong trying to create the cube with the error: ${err}`);
-      next(new UnknownException('errors.cube_create_error'));
-      return;
-    }
-  }
-  const downloadFile = await outputCube(cubeFile, lang, DuckdbOutputType.Csv);
-  fs.unlinkSync(cubeFile);
-  const downloadStream = fs.createReadStream(downloadFile);
-  // eslint-disable-next-line @typescript-eslint/naming-convention
-  res.writeHead(200, { 'Content-Type': '\ttext/csv' });
-  downloadStream.pipe(res);
-
-  // Handle errors in the file stream
-  downloadStream.on('error', (err) => {
-    logger.error('File stream error:', err);
+  const cubeBuffer = await outputCube(
+    DuckdbOutputType.Csv,
+    dataset.id,
+    latestRevision.id,
+    req.language.split('-')[0],
+    req.fileService
+  );
+  res.writeHead(200, {
     // eslint-disable-next-line @typescript-eslint/naming-convention
-    res.writeHead(500, { 'Content-Type': 'text/plain' });
-    fs.unlinkSync(downloadFile);
-    res.end('Server Error');
+    'Content-Type': 'text/csv; charset=utf-8',
+    // eslint-disable-next-line @typescript-eslint/naming-convention
+    'Content-disposition': `attachment;filename=${dataset.id}.csv`,
+    // eslint-disable-next-line @typescript-eslint/naming-convention
+    'Content-Length': cubeBuffer.length
   });
-
-  // Optionally listen for the end of the stream
-  downloadStream.on('end', () => {
-    fs.unlinkSync(downloadFile);
-    logger.debug('File stream ended');
-  });
+  res.end(cubeBuffer);
 };
 
 export const downloadCubeAsParquet = async (req: Request, res: Response, next: NextFunction) => {
   const dataset = await DatasetRepository.getById(res.locals.datasetId, withDraftForCube);
-  const lang = req.language.split('-')[0];
   const latestRevision = getLatestRevision(dataset);
   if (!latestRevision) {
     next(new UnknownException('errors.no_revision'));
     return;
   }
-  let cubeFile: string;
-  if (latestRevision.onlineCubeFilename) {
-    const fileBuffer = await req.fileService.loadBuffer(latestRevision.onlineCubeFilename, dataset.id);
-    cubeFile = tmp.tmpNameSync({ postfix: '.duckdb' });
-    fs.writeFileSync(cubeFile, fileBuffer);
-  } else {
-    try {
-      cubeFile = await createBaseCubeFromProtoCube(dataset.id, latestRevision.id);
-    } catch (err) {
-      logger.error(`Something went wrong trying to create the cube with the error: ${err}`);
-      next(new UnknownException('errors.cube_create_error'));
-      return;
-    }
-  }
-  const downloadFile = await outputCube(cubeFile, lang, DuckdbOutputType.Parquet);
-  fs.unlinkSync(cubeFile);
-  const downloadStream = fs.createReadStream(downloadFile);
-  // eslint-disable-next-line @typescript-eslint/naming-convention
-  res.writeHead(200, { 'Content-Type': '\tapplication/vnd.apache.parquet' });
-  downloadStream.pipe(res);
-
-  // Handle errors in the file stream
-  downloadStream.on('error', (err) => {
-    logger.error('File stream error:', err);
+  const cubeBuffer = await outputCube(
+    DuckdbOutputType.Csv,
+    dataset.id,
+    latestRevision.id,
+    req.language.split('-')[0],
+    req.fileService
+  );
+  res.writeHead(200, {
     // eslint-disable-next-line @typescript-eslint/naming-convention
-    res.writeHead(500, { 'Content-Type': 'text/plain' });
-    fs.unlinkSync(downloadFile);
-    res.end('Server Error');
-  });
-
-  // Optionally listen for the end of the stream
-  downloadStream.on('end', () => {
-    fs.unlinkSync(downloadFile);
-    logger.debug('File stream ended');
+    'Content-Type': 'application/vnd.apache.parquet',
+    // eslint-disable-next-line @typescript-eslint/naming-convention
+    'Content-disposition': `attachment;filename=${dataset.id}.csv`,
+    // eslint-disable-next-line @typescript-eslint/naming-convention
+    'Content-Length': cubeBuffer.length
   });
 };
 
 export const downloadCubeAsExcel = async (req: Request, res: Response, next: NextFunction) => {
   const dataset = await DatasetRepository.getById(res.locals.datasetId, withDraftForCube);
-  const lang = req.language.split('-')[0];
   const latestRevision = getLatestRevision(dataset);
   if (!latestRevision) {
     next(new UnknownException('errors.no_revision'));
     return;
   }
-  let cubeFile: string;
-  if (latestRevision.onlineCubeFilename) {
-    const fileBuffer = await req.fileService.loadBuffer(latestRevision.onlineCubeFilename, dataset.id);
-    cubeFile = tmp.tmpNameSync({ postfix: '.duckdb' });
-    fs.writeFileSync(cubeFile, fileBuffer);
-  } else {
-    try {
-      cubeFile = await createBaseCubeFromProtoCube(dataset.id, latestRevision.id);
-    } catch (err) {
-      logger.error(`Something went wrong trying to create the cube with the error: ${err}`);
-      next(new UnknownException('errors.cube_create_error'));
-      return;
-    }
-  }
-  const downloadFile = await outputCube(cubeFile, lang, DuckdbOutputType.Excel);
-  logger.info(`Cube file located at: ${cubeFile}`);
-  // fs.unlinkSync(cubeFile);
-  const downloadStream = fs.createReadStream(downloadFile);
-  // eslint-disable-next-line @typescript-eslint/naming-convention
-  res.writeHead(200, { 'Content-Type': '\tapplication/vnd.ms-excel' });
-  downloadStream.pipe(res);
-
-  // Handle errors in the file stream
-  downloadStream.on('error', (err) => {
-    logger.error('File stream error:', err);
+  const cubeBuffer = await outputCube(
+    DuckdbOutputType.Csv,
+    dataset.id,
+    latestRevision.id,
+    req.language.split('-')[0],
+    req.fileService
+  );
+  res.writeHead(200, {
     // eslint-disable-next-line @typescript-eslint/naming-convention
-    res.writeHead(500, { 'Content-Type': 'text/plain' });
-    fs.unlinkSync(downloadFile);
-    res.end('Server Error');
-  });
-
-  // Optionally listen for the end of the stream
-  downloadStream.on('end', () => {
-    fs.unlinkSync(downloadFile);
-    logger.debug('File stream ended');
+    'Content-Type': 'application/vnd.ms-excel',
+    // eslint-disable-next-line @typescript-eslint/naming-convention
+    'Content-disposition': `attachment;filename=${dataset.id}.csv`,
+    // eslint-disable-next-line @typescript-eslint/naming-convention
+    'Content-Length': cubeBuffer.length
   });
 };
