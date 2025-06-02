@@ -1,6 +1,6 @@
 {
   "extends": "@tsconfig/node22/tsconfig.json",
-  "exclude": ["./coverage", "./dist", "./test", "jest.config.ts", "eslint.config.mjs", "./tools"],
+  "exclude": ["./coverage", "./dist", "./test", "jest.config.ts", "eslint.config.mjs", "./scripts"],
   "compilerOptions": {
     "rootDir": "src" /* Specify the root folder within your source files. */,
     "resolveJsonModule": true /* Enable importing .json files. */,

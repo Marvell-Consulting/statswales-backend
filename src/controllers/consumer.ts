@@ -20,7 +20,18 @@ import { SortByInterface } from '../interfaces/sort-by-interface';
 import { FilterInterface } from '../interfaces/filterInterface';
 
 export const listPublishedDatasets = async (req: Request, res: Response, next: NextFunction) => {
+  /*
+    #swagger.summary = 'List all published datasets'
+    #swagger.description = 'Returns a paginated list of published datasets.'
+    #swagger.autoQuery = false
+    #swagger.parameters['$ref'] = [
+      '#/components/parameters/language',
+      '#/components/parameters/page',
+      '#/components/parameters/limit'
+    ]
+  */
   logger.info('Listing published datasets...');
+
   try {
     const lang = req.language as Locale;
     const page = parseInt(req.query.page as string, 10) || 1;
@@ -102,8 +113,57 @@ export const downloadPublishedDataset = async (req: Request, res: Response, next
   res.end(fileBuffer);
 };
 
-export const listPublishedTopics = async (req: Request, res: Response, next: NextFunction) => {
-  logger.info('fetching topics with at least one published dataset');
+export const listRootTopics = async (req: Request, res: Response, next: NextFunction) => {
+  /*
+    #swagger.summary = 'List root (top-level) topics'
+    #swagger.description = 'Datasets are hierarchically organized into topics. Each topic can have zero or more
+      sub-topics. This endpoint returns a list of the root topics that have at least one published dataset.'
+    #swagger.autoQuery = false
+    #swagger.parameters['$ref'] = ['#/components/parameters/language']
+  */
+
+  logger.info('fetching root level topics with at least one published dataset');
+
+  try {
+    const lang = req.language as Locale;
+    const subTopics = await PublishedDatasetRepository.listPublishedTopics();
+
+    const data: PublishedTopicsDTO = {
+      selectedTopic: undefined,
+      children: subTopics ? subTopics.map((topic) => TopicDTO.fromTopic(topic, lang)) : undefined,
+      parents: undefined,
+      datasets: undefined
+    };
+
+    res.json(data);
+  } catch (error) {
+    logger.error(error, 'Error listing published topics');
+    next(new UnknownException());
+  }
+};
+
+export const listSubTopics = async (req: Request, res: Response, next: NextFunction) => {
+  /*
+    #swagger.summary = 'List sub-topics for a given topic'
+    #swagger.description = 'Datasets are hierarchically organized into topics. Each topic can have zero or more
+      sub-topics. This endpoint returns a list of the sub-topics of the topic specified by `topic_id` in the path.
+      If the topic has no sub-topics, it will return the datasets for that topic instead.'
+    #swagger.autoQuery = false
+    #swagger.parameters['$ref'] = [
+      '#/components/parameters/language',
+      '#/components/parameters/page',
+      '#/components/parameters/limit'
+    ]
+    #swagger.parameters['topic_id'] = {
+      in: 'path',
+      description: 'The ID of the topic to list child-topics for.',
+      required: true,
+      type: 'string',
+      example: '1'
+    }
+  */
+
+  logger.info('fetching sub-topics with at least one published dataset');
   const topicId = req.params.topic_id;
   const lang = req.language as Locale;
 

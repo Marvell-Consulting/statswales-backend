@@ -5,7 +5,7 @@ export enum Locale {
   WelshGb = 'cy-GB'
 }
 
-export const SupportedLanguagues = Object.freeze({
+export const SupportedLanguages = Object.freeze({
   English: { code: Locale.English, name: 'English', locale: Locale.EnglishGb },
   Welsh: { code: Locale.Welsh, name: 'Welsh', locale: Locale.WelshGb }
 });
