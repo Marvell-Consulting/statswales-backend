@@ -7,6 +7,5 @@ declare module 'express-serve-static-core' {
     user?: User;
     fileService: StorageService;
     datasetService: DatasetService;
-    pool: Pool;
   }
 }

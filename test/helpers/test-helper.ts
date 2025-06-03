@@ -227,15 +227,17 @@ COPY postgres_db.yearcode_lookup FROM '${cubeFiles}/yearcode_lookup.csv' (FORMAT
 
   const quack2 = await duckdb();
   await linkToPostgresDataTables(quack2);
-  const createDataTableSQL = `CREATE TABLE data_tables_db."${dataTableId}"
-                              (
-                                "YearCode"  BIGINT,
-                                "AreaCode"  BIGINT,
-                                "Data"      DOUBLE PRECISION,
-                                "RowRef"    BIGINT,
-                                "Measure"   BIGINT,
-                                "NoteCodes" VARCHAR
-                              );`;
+  const createDataTableSQL = `
+    CREATE TABLE data_tables_db."${dataTableId}"
+      (
+        "YearCode"  BIGINT,
+        "AreaCode"  BIGINT,
+        "Data"      DOUBLE PRECISION,
+        "RowRef"    BIGINT,
+        "Measure"   BIGINT,
+        "NoteCodes" VARCHAR
+      );
+    `;
   try {
     await quack2.exec(createDataTableSQL);
     const loadQuery = `COPY data_tables_db."${dataTableId}" FROM '${cubeFiles}/fact_table.csv' (FORMAT 'csv', quote '"', delimiter ',', header 1);`;

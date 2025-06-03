@@ -80,7 +80,7 @@ export async function extractTableInformation(
     );
   }
 
-  if (type === 'data_table')
+  if (type === 'data_table') {
     try {
       logger.debug(`Copying data table to postgres using data table id: ${dataTable.id}`);
       await linkToPostgresDataTables(quack);
@@ -91,6 +91,7 @@ export async function extractTableInformation(
       await quack.close();
       fs.unlinkSync(tempFile);
     }
+  }
 
   try {
     tableHeaders = await quack.all(
