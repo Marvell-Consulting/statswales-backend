@@ -173,6 +173,18 @@ async function updateDataValueColumn(dataset: Dataset, dataValueColumnDto: Sourc
 
 async function removeIgnoreAndUnknownColumns(dataset: Dataset, ignoreColumns: SourceAssignmentDTO[]) {
   let factTableColumns: FactTableColumn[] = [];
+  factTableColumns = await FactTableColumn.findBy({ id: dataset.id });
+  logger.debug('Unprocessed columns in fact table: ' + JSON.stringify(factTableColumns, null, 2));
+  for (const column of ignoreColumns) {
+    const factTableCol = factTableColumns.find((columnInfo) => columnInfo.columnName === column.column_name);
+    if (!factTableCol) {
+      continue;
+    }
+    logger.debug(`Updating column ${column.column_name} from fact table`);
+    factTableCol.columnType = FactTableColumnType.Ignore;
+    await factTableCol.save();
+  }
+
   try {
     factTableColumns = await FactTableColumn.findBy({ id: dataset.id, columnDatatype: FactTableColumnType.Unknown });
     logger.debug(
@@ -180,20 +192,6 @@ async function removeIgnoreAndUnknownColumns(dataset: Dataset, ignoreColumns: So
     );
   } catch (error) {
     logger.error(error, `Something went wrong trying to find columns in fact table with error: ${error}`);
-  }
-
-  if (!factTableColumns.length && ignoreColumns.length === 0) {
-    logger.debug(`No columns unknown column left and no columns to be ignored.`);
-    return;
-  }
-
-  for (const column of ignoreColumns) {
-    logger.debug(`Removing column ${column.column_name} from fact table`);
-    const factTableCol = factTableColumns.find((columnInfo) => columnInfo.columnName === column.column_name);
-    if (!factTableCol) {
-      continue;
-    }
-    await factTableCol.remove();
   }
 
   const unknownColumns = await FactTableColumn.findBy({ id: dataset.id, columnDatatype: FactTableColumnType.Unknown });
@@ -330,8 +328,6 @@ export const createDimensionsFromSourceAssignment = async (
       error,
       `There were unknown columns left after removing ignore columns.  Unwinding dimension and measure creation.`
     );
-    await cleanupDimensionMeasureAndFactTable(dataset);
-    await createBaseFactTable(dataset, dataTable);
     throw error;
   }
 

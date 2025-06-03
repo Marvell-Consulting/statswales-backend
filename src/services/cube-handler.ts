@@ -34,7 +34,7 @@ import { RevisionRepository } from '../repositories/revision';
 import { PeriodCovered } from '../interfaces/period-covered';
 
 import { dateDimensionReferenceTableCreator } from './time-matching';
-import { duckdb, linkToPostgres, safelyCloseDuckDb } from './duckdb';
+import { duckdb, linkToPostgres, linkToPostgresDataTables, safelyCloseDuckDb } from './duckdb';
 import { NumberExtractor, NumberType } from '../extractors/number-extractor';
 import { CubeValidationType } from '../enums/cube-validation-type';
 import { languageMatcherCaseStatement } from '../utils/lookup-table-utils';
@@ -42,6 +42,9 @@ import { FactTableValidationException } from '../exceptions/fact-table-validatio
 import { FactTableValidationExceptionType } from '../enums/fact-table-validation-exception-type';
 import { CubeType } from '../enums/cube-type';
 import { DateExtractor } from '../extractors/date-extractor';
+import { StorageService } from '../interfaces/storage-service';
+import { pool } from '../app';
+import { QueryResult } from 'pg';
 
 export const FACT_TABLE_NAME = 'fact_table';
 
@@ -1359,7 +1362,12 @@ async function setupDimensions(
 //   return false;
 // }
 
-export async function createEmptyFactTableInCube(quack: Database, dataset: Dataset, revision: Revision) {
+export async function createEmptyFactTableInCube(
+  quack: Database,
+  dataset: Dataset,
+  revision: Revision,
+  type: 'postgres' | 'duckdb'
+) {
   let notesCodeColumn: FactTableColumn | undefined;
   let dataValuesColumn: FactTableColumn | undefined;
   let measureColumn: FactTableColumn | undefined;
@@ -1392,37 +1400,56 @@ export async function createEmptyFactTableInCube(quack: Database, dataset: Datas
           break;
       }
       factTableDef.push(field.columnName);
-      return pgformat(
-        '%I %s',
-        field.columnName,
-        field.columnDatatype === 'DOUBLE' ? 'DOUBLE PRECISION' : field.columnDatatype
-      );
+      if (type === 'postgres') {
+        return pgformat(
+          '%I %s',
+          field.columnName,
+          field.columnDatatype === 'DOUBLE' ? 'DOUBLE PRECISION' : field.columnDatatype
+        );
+      } else {
+        return pgformat('%I %s', field.columnName, field.columnDatatype);
+      }
     });
 
   logger.info('Creating initial fact table in cube');
-  try {
-    let factTableCreationQuery = pgformat(
-      `CREATE TABLE %I.%I (%s);`,
-      revision.id,
-      FACT_TABLE_NAME,
-      factTableCreationDef.join(', ')
-    );
-    if (compositeKey.length > 0) {
-      factTableCreationQuery = pgformat(
-        'CREATE TABLE %I.%I (%s, PRIMARY KEY(%I));',
+  if (type === 'postgres') {
+    try {
+      let factTableCreationQuery = pgformat(
+        `CREATE TABLE %I.%I (%s);`,
         revision.id,
         FACT_TABLE_NAME,
-        factTableCreationDef,
-        compositeKey
+        factTableCreationDef.join(', ')
       );
+      if (compositeKey.length > 0) {
+        factTableCreationQuery = pgformat(
+          'CREATE TABLE %I.%I (%s, PRIMARY KEY(%I));',
+          revision.id,
+          FACT_TABLE_NAME,
+          factTableCreationDef,
+          compositeKey
+        );
+      }
+      const createQuery = pgformat(`CALL postgres_execute('postgres_db', %L);`, factTableCreationQuery);
+      logger.debug(`Creating fact table with query: '${createQuery}'`);
+      await quack.exec(createQuery);
+    } catch (err) {
+      logger.error(err, `Failed to create fact table in cube`);
+      await quack.close();
+      throw new Error(`Failed to create fact table in cube: ${err}`);
     }
-    const createQuery = pgformat(`CALL postgres_execute('postgres_db', %L);`, factTableCreationQuery);
-    logger.debug(`Creating fact table with query: '${createQuery}'`);
-    await quack.exec(createQuery);
-  } catch (err) {
-    logger.error(`Failed to create fact table in cube: ${err}`);
-    await quack.close();
-    throw new Error(`Failed to create fact table in cube: ${err}`);
+  } else {
+    try {
+      const factTableCreationQuery = pgformat(
+        `CREATE TABLE %I (%s);`,
+        FACT_TABLE_NAME,
+        factTableCreationDef.join(', ')
+      );
+      await quack.exec(factTableCreationQuery);
+    } catch (err) {
+      logger.error(err, `Failed to create fact table in cube`);
+      await quack.close();
+      throw new Error(`Failed to create fact table in cube: ${err}`);
+    }
   }
   return { measureColumn, notesCodeColumn, dataValuesColumn, factTableDef, factIdentifiers };
 }
@@ -1430,12 +1457,14 @@ export async function createEmptyFactTableInCube(quack: Database, dataset: Datas
 export const updateFactTableValidator = async (
   quack: Database,
   dataset: Dataset,
-  revision: Revision
+  revision: Revision,
+  cubeType: 'postgres' | 'duckdb'
 ): Promise<Database> => {
   const { notesCodeColumn, dataValuesColumn, factTableDef, factIdentifiers } = await createEmptyFactTableInCube(
     quack,
     dataset,
-    revision
+    revision,
+    cubeType
   );
   await loadFactTables(quack, dataset, revision, factTableDef, dataValuesColumn, notesCodeColumn, factIdentifiers);
   return quack;
@@ -1459,11 +1488,7 @@ async function createCubeMetadataTable(quack: Database) {
 // DO NOT put validation against columns which should be present here.
 // Function should be able to generate a cube just from a fact table or collection
 // of fact tables.
-export const createBaseCubeFromProtoCube = async (
-  datasetId: string,
-  endRevisionId: string,
-  protoCubeFile?: string
-): Promise<string> => {
+export const createBasePostgresCube = async (datasetId: string, endRevisionId: string): Promise<string> => {
   logger.debug(`Creating base cube for revision: ${endRevisionId}`);
   const functionStart = performance.now();
   const viewSelectStatementsMap = new Map<Locale, string[]>();
@@ -1514,11 +1539,11 @@ export const createBaseCubeFromProtoCube = async (
 
   const buildStart = performance.now();
   logger.debug('Creating an in-memory database to hold the cube using DuckDB 🐤');
-  protoCubeFile = tmp.tmpNameSync({ postfix: '.duckdb' });
+  const protoCubeFile = tmp.tmpNameSync({ postfix: '.duckdb' });
   const quack = await duckdb(protoCubeFile);
   await linkToPostgres(quack, endRevision.id, true);
 
-  const { factTableDef, factIdentifiers } = await createEmptyFactTableInCube(quack, dataset, endRevision);
+  const { factTableDef, factIdentifiers } = await createEmptyFactTableInCube(quack, dataset, endRevision, 'postgres');
 
   const notesCodeColumn = dataset.factTable?.find((field) => field.columnType === FactTableColumnType.NoteCodes);
   const dataValuesColumn = dataset.factTable?.find((field) => field.columnType === FactTableColumnType.DataValues);
@@ -1629,37 +1654,218 @@ export const createBaseCubeFromProtoCube = async (
   return protoCubeFile;
 };
 
-export const cleanUpCube = async (tmpFile: string) => {
+export const createBaseDuckDBFile = async (datasetId: string, endRevisionId: string): Promise<string> => {
+  logger.debug(`Creating base cube for revision: ${endRevisionId}`);
+  const functionStart = performance.now();
+  const viewSelectStatementsMap = new Map<Locale, string[]>();
+  const rawSelectStatementsMap = new Map<Locale, string[]>();
+  SUPPORTED_LOCALES.map((locale) => {
+    viewSelectStatementsMap.set(locale, []);
+    rawSelectStatementsMap.set(locale, []);
+  });
+  const joinStatements: string[] = [];
+  const orderByStatements: string[] = [];
+
+  const datasetRelations: FindOptionsRelations<Dataset> = {
+    dimensions: {
+      metadata: true,
+      lookupTable: true
+    },
+    factTable: true,
+    measure: {
+      metadata: true,
+      measureTable: true
+    },
+    revisions: {
+      dataTable: {
+        dataTableDescriptions: true
+      }
+    }
+  };
+
+  const endRevisionRelations: FindOptionsRelations<Revision> = {
+    dataTable: {
+      dataTableDescriptions: true
+    }
+  };
+
+  logger.debug(`Loading dataset with id: ${datasetId} using relations: ${JSON.stringify(datasetRelations)}`);
+  const dataset = await DatasetRepository.getById(datasetId, datasetRelations);
+  const endRevision = await RevisionRepository.getById(endRevisionId, endRevisionRelations);
+
+  const firstRevision = dataset.revisions.find((rev) => rev.revisionIndex === 1);
+  if (!firstRevision) {
+    const err = new CubeValidationException(
+      `Could not find first revision for dataset ${datasetId} in revision ${endRevisionId}`
+    );
+    err.type = CubeValidationType.NoFirstRevision;
+    err.datasetId = datasetId;
+    throw new Error(`Unable to find first revision for dataset ${dataset.id}`);
+  }
+
+  const buildStart = performance.now();
+  logger.debug('Creating an in-memory database to hold the cube using DuckDB 🐤');
+  const protoCubeFile = tmp.tmpNameSync({ postfix: '.duckdb' });
+  const quack = await duckdb(protoCubeFile);
+  await linkToPostgresDataTables(quack);
+  await quack.exec('USE cube_file;');
+
+  const { factTableDef, factIdentifiers } = await createEmptyFactTableInCube(quack, dataset, endRevision, 'duckdb');
+
+  const notesCodeColumn = dataset.factTable?.find((field) => field.columnType === FactTableColumnType.NoteCodes);
+  const dataValuesColumn = dataset.factTable?.find((field) => field.columnType === FactTableColumnType.DataValues);
+  const measureColumn = dataset.factTable?.find((field) => field.columnType === FactTableColumnType.Measure);
+
+  try {
+    await loadFactTables(quack, dataset, endRevision, factTableDef, dataValuesColumn, notesCodeColumn, factIdentifiers);
+  } catch (err) {
+    logger.error(err, `Failed to load fact tables into the cube`);
+    await quack.close();
+    throw new Error(`Failed to load fact tables into the cube: ${err}`);
+  }
+
+  await createCubeMetadataTable(quack);
+
+  if (measureColumn && dataValuesColumn) {
+    try {
+      await setupMeasures(
+        quack,
+        dataset,
+        dataValuesColumn,
+        measureColumn,
+        viewSelectStatementsMap,
+        rawSelectStatementsMap,
+        joinStatements,
+        orderByStatements
+      );
+    } catch (err) {
+      logger.error(err, `Failed to setup measures`);
+      await quack.close();
+      throw new Error(`Failed to setup measures: ${err}`);
+    }
+  } else {
+    setupMeasureNoDataValues(viewSelectStatementsMap, rawSelectStatementsMap, measureColumn, dataValuesColumn);
+  }
+
+  await loadReferenceDataIntoCube(quack);
+
+  try {
+    await setupDimensions(
+      quack,
+      dataset,
+      endRevision,
+      viewSelectStatementsMap,
+      rawSelectStatementsMap,
+      joinStatements,
+      orderByStatements
+    );
+  } catch (err) {
+    logger.error(err, `Failed to setup dimensions`);
+    await quack.close();
+    throw new Error(`Failed to setup dimensions`);
+  }
+
+  logger.debug('Adding notes code column to the select statement.');
+  if (notesCodeColumn) {
+    await createNotesTable(quack, notesCodeColumn, viewSelectStatementsMap, rawSelectStatementsMap, joinStatements);
+  }
+
+  logger.info(`Creating default views...`);
+  // Build the default views
+  try {
+    for (const locale of SUPPORTED_LOCALES) {
+      if (viewSelectStatementsMap.get(locale)?.length === 0) {
+        viewSelectStatementsMap.get(locale)?.push('*');
+      }
+      if (rawSelectStatementsMap.get(locale)?.length === 0) {
+        rawSelectStatementsMap.get(locale)?.push('*');
+      }
+      const lang = locale.toLowerCase().split('-')[0];
+
+      const defaultViewSQL = pgformat(
+        'CREATE TABLE %I AS SELECT %s FROM %I %s %s',
+        `default_view_${lang}`,
+        viewSelectStatementsMap.get(locale)?.join(',\n'),
+        FACT_TABLE_NAME,
+        joinStatements.join('\n').replace(/#LANG#/g, pgformat('%L', locale.toLowerCase())),
+        orderByStatements.length > 0 ? `ORDER BY ${orderByStatements.join(', ')}` : ''
+      );
+      logger.debug(defaultViewSQL);
+      await quack.exec(defaultViewSQL);
+
+      const rawViewSQL = pgformat(
+        'CREATE TABLE %I AS SELECT %s FROM %I %s %s',
+        `raw_view_${lang}`,
+        rawSelectStatementsMap.get(locale)?.join(',\n'),
+        FACT_TABLE_NAME,
+        joinStatements.join('\n').replace(/#LANG#/g, pgformat('%L', locale.toLowerCase())),
+        orderByStatements.length > 0 ? `ORDER BY ${orderByStatements.join(', ')}` : ''
+      );
+      logger.debug(rawViewSQL);
+      await quack.exec(rawViewSQL);
+    }
+  } catch (error) {
+    logger.error(error, 'Something went wrong trying to create the default views in the cube.');
+    await quack.close();
+    const exception = new CubeValidationException('Cube Build Failed');
+    exception.type = CubeValidationType.CubeCreationFailed;
+    throw exception;
+  }
+  await safelyCloseDuckDb(quack);
+  const end = performance.now();
+  const functionTime = Math.round(end - functionStart);
+  const buildTime = Math.round(end - buildStart);
+  logger.warn(`Cube function took ${functionTime}ms to complete and it took ${buildTime}ms to build the cube.`);
+  endRevision.cubeType = CubeType.PostgresCube;
+  await endRevision.save();
+  return protoCubeFile;
+};
+
+export const createAllCubeFiles = async (
+  datasetId: string,
+  endRevisionId: string,
+  storageService: StorageService
+): Promise<void> => {
+  await createBasePostgresCube(datasetId, endRevisionId);
+  const cubeFile = await createBaseDuckDBFile(datasetId, endRevisionId);
+  await storageService.saveBuffer(`${endRevisionId}.duckdb`, datasetId, fs.readFileSync(cubeFile));
   logger.debug('Cleaning up cube file');
-  if (fs.existsSync(tmpFile)) {
-    fs.unlink(tmpFile, async (err) => {
-      if (err) logger.error(`Unable to remove file ${tmpFile} with error: ${err}`);
+  if (fs.existsSync(cubeFile)) {
+    fs.unlink(cubeFile, async (err) => {
+      if (err) logger.error(`Unable to remove file ${cubeFile} with error: ${err}`);
     });
   }
+  const quack = await duckdb();
+  await linkToPostgres(quack, endRevisionId, false);
+  /*
+  TODO Write code to to use native libraries to produce parquet, csv, excel and json outputs
+   */
+  for (const locale of SUPPORTED_LOCALES) {
+    const lang = locale.toLowerCase().split('-')[0];
+    const xlsxFile = tmp.tmpNameSync({ postfix: '.xlsx' });
+    const parquetFile = tmp.tmpNameSync({ postfix: '.parquet' });
+    const csvFile = tmp.tmpNameSync({ postfix: '.csv' });
+    const jsonFile = tmp.tmpNameSync({ postfix: '.json' });
+    await quack.exec('INSTALL spatial;');
+    await quack.exec('LOAD spatial;');
+    await quack.exec(`COPY default_view_${lang} TO '${xlsxFile}' WITH (FORMAT GDAL, DRIVER 'xlsx');`);
+    await quack.exec(`COPY default_view_${lang} TO '${csvFile}' (HEADER, DELIMITER ',');`);
+    await quack.exec(`COPY default_view_${lang} TO '${parquetFile}' (FORMAT PARQUET);`);
+    await quack.exec(`COPY default_view_${lang} TO '${jsonFile}' (FORMAT JSON);`);
+    await storageService.saveBuffer(`${endRevisionId}_${lang}.xlsx`, datasetId, fs.readFileSync(xlsxFile));
+    await storageService.saveBuffer(`${endRevisionId}_${lang}.csv`, datasetId, fs.readFileSync(csvFile));
+    await storageService.saveBuffer(`${endRevisionId}_${lang}.parquet`, datasetId, fs.readFileSync(parquetFile));
+    await storageService.saveBuffer(`${endRevisionId}_${lang}.json`, datasetId, fs.readFileSync(jsonFile));
+  }
+  await quack.close();
 };
 
-export const getCubeTimePeriods = async (cubeFile: string): Promise<PeriodCovered> => {
-  const quack = await duckdb(cubeFile);
-  try {
-    const periodCoverage = await quack.all(`SELECT key, value FROM metadata`);
-    return periodCoverage.reduce(
-      (acc, curr) => {
-        acc[curr.key] = new Date(Date.parse(curr.value));
-        return acc;
-      },
-      {} as Record<string, Date>
-    ) as PeriodCovered;
-  } finally {
-    await quack.close();
-  }
-};
-
-export const getCubeDataTable = async (cubeFile: string, lang: string) => {
-  const quack = await duckdb(cubeFile);
-  try {
-    const defaultView = await quack.all(`SELECT * FROM default_view_${lang};`);
-    return defaultView;
-  } finally {
-    await quack.close();
-  }
+export const getCubeTimePeriods = async (revisionId: string): Promise<PeriodCovered> => {
+  const periodCoverage: QueryResult<{ key: string; value: string }> = await pool.query(
+    pgformat(`SELECT key, value FROM %I.metadata WHERE key in ('start_date', 'end_date')`, revisionId)
+  );
+  return {
+    start_date: new Date(periodCoverage.rows[0].value),
+    end_date: new Date(periodCoverage.rows[1].value)
+  };
 };

@@ -38,7 +38,7 @@ export const taskDecision = async (req: Request, res: Response, next: NextFuncti
     // handle the decision
     if (task.action === TaskAction.Publish && task.status === TaskStatus.Requested) {
       if (dto.decision === 'approve') {
-        await req.datasetService.approvePublication(dataset.id, dataset.draftRevisionId, user);
+        await req.datasetService.approvePublication(dataset.id, dataset.draftRevisionId, user, req.fileService);
       }
       if (dto.decision === 'reject') {
         await req.datasetService.rejectPublication(dataset.id, dataset.draftRevisionId);
