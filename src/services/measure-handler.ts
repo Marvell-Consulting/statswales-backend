@@ -586,7 +586,11 @@ async function getMeasurePreviewWithExtractor(dataset: Dataset, measure: Measure
   const quack = await duckdb();
   try {
     await linkToPostgres(quack, revision.id, false);
-    const query = `SELECT * EXCLUDE(language) FROM measure WHERE language = '${lang.toLowerCase()}' ORDER BY sort_order, reference LIMIT ${sampleSize};`;
+    const query = pgformat(
+      `SELECT * EXCLUDE(language) FROM measure WHERE language = %L ORDER BY sort_order, reference LIMIT %Lga ;`,
+      lang.toLowerCase(),
+      sampleSize
+    );
     logger.debug(`Querying the cube to get the preview using query: ${query}`);
     const measureTable = await quack.all(query);
     const tableHeaders = Object.keys(measureTable[0]);

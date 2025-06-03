@@ -48,7 +48,7 @@ export const resetDimension = async (req: Request, res: Response) => {
       const fileService = getFileService();
       await fileService.delete(lookupTable.filename, dimension.dataset.id);
     } catch (err) {
-      logger.warn(`Something went wrong trying to remove previously uploaded lookup table with error: ${err}`);
+      logger.warn(err, `Something went wrong trying to remove previously uploaded lookup table`);
     }
     await lookupTable.remove();
     dimension.lookuptable = null;
