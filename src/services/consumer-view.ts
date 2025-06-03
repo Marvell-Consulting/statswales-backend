@@ -12,13 +12,13 @@ import { DatasetRepository } from '../repositories/dataset';
 import { SortByInterface } from '../interfaces/sort-by-interface';
 import { FilterInterface } from '../interfaces/filterInterface';
 
-export interface FilterValues {
+interface FilterValues {
   reference: string;
   description: string;
   children?: FilterValues[];
 }
 
-export interface FilterTable {
+interface FilterTable {
   columnName: string;
   factTableColumn: string;
   values: FilterValues[];
@@ -119,18 +119,20 @@ export const createView = async (
   filter?: FilterInterface[]
 ): Promise<ViewDTO | ViewErrDTO> => {
   let sortByQuery = '';
-  if (sortBy && sortBy.length > 1) {
+  if (sortBy && sortBy.length > 0) {
+    logger.debug('Multiple sort by columns are present. Creating sort by query');
     sortByQuery = sortBy
-      .map((sort) => pgformat(`%I %s`, sort.column, sort.direction ? sort.direction : 'DESC'))
+      .map((sort) => pgformat(`%I %s`, sort.column, sort.direction ? sort.direction : 'ASC'))
       .join(', ');
   }
   let filterQuery = '';
   if (filter && filter.length > 0) {
+    logger.debug('Filters are present. Creating filter query');
     filterQuery = filter
       .map((whereClause) => pgformat('%I in (%L)', whereClause.columnName, whereClause.values))
       .join(' and ');
   }
-  logger.debug(`revision ID: ${revision.id}, view: default_view_${lang}`);
+
   const baseQuery = pgformat(
     'SELECT * FROM %I.%I %s %s',
     revision.id,
@@ -148,7 +150,7 @@ export const createView = async (
     );
     logger.debug(`Totals query: ${totalsQuery}`);
     const totals = await pool.query(totalsQuery);
-    const totalPages = Number(totals.rows[0].totalPages);
+    const totalPages = Number(totals.rows[0].totalPages) > 0 ? Number(totals.rows[0].totalPages) : 1;
     const totalLines = Number(totals.rows[0].totalLines);
     const errors = validateParams(pageNumber, totalPages, pageSize);
 
@@ -156,9 +158,9 @@ export const createView = async (
       return { status: 400, errors, dataset_id: dataset.id };
     }
 
-    const queryResult: QueryResult<unknown[]> = await pool.query(
-      pgformat('%s LIMIT %L OFFSET %L', baseQuery, pageSize, (pageNumber - 1) * pageSize)
-    );
+    const dataQuery = pgformat('%s LIMIT %L OFFSET %L', baseQuery, pageSize, (pageNumber - 1) * pageSize);
+    logger.debug(`Data query: ${dataQuery}`);
+    const queryResult: QueryResult<unknown[]> = await pool.query(dataQuery);
     const preview = queryResult.rows;
 
     const startLine = pageSize * (pageNumber - 1) + 1;
