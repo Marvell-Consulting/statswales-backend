@@ -12,7 +12,7 @@ import { DownloadFormat } from '../enums/download-format';
 import { BadRequestException } from '../exceptions/bad-request.exception';
 import { outputCube } from './cube-controller';
 import { DuckdbOutputType } from '../enums/duckdb-outputs';
-import { createView } from '../services/consumer-view';
+import { createView, getFilters } from '../services/consumer-view';
 import { DEFAULT_PAGE_SIZE } from '../services/csv-processor';
 import { TopicDTO } from '../dtos/topic-dto';
 import { PublishedTopicsDTO } from '../dtos/published-topics-dto';
@@ -66,6 +66,17 @@ export const getPublishedDatasetView = async (req: Request, res: Response) => {
     filterQuery
   );
   res.json(preview);
+};
+
+export const getPublishedDatasetFilters = async (req: Request, res: Response) => {
+  const dataset = await PublishedDatasetRepository.getById(res.locals.datasetId, withAll);
+  const lang = req.language.toLowerCase();
+  if (!dataset.publishedRevision) {
+    throw new NotFoundException('errors.no_revision');
+  }
+
+  const filters = await getFilters(dataset.publishedRevision, lang);
+  res.json(filters);
 };
 
 export const downloadPublishedDataset = async (req: Request, res: Response, next: NextFunction) => {

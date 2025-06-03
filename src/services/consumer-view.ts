@@ -12,6 +12,103 @@ import { DatasetRepository } from '../repositories/dataset';
 import { SortByInterface } from '../interfaces/sort-by-interface';
 import { FilterInterface } from '../interfaces/filterInterface';
 
+export interface FilterValues {
+  reference: string;
+  description: string;
+  children?: FilterValues[];
+}
+
+export interface FilterTable {
+  columnName: string;
+  factTableColumn: string;
+  values: FilterValues[];
+}
+
+interface FilterRow {
+  reference: string;
+  language: string;
+  fact_table_column: string;
+  dimension_name: string;
+  description: string;
+  hierarchy: string;
+}
+
+export function transformHierarchy(factTableColumn: string, columnName: string, input: FilterRow[]): FilterTable {
+  const nodeMap = new Map<string, FilterValues>(); // reference → node
+  const childrenMap = new Map<string, FilterValues[]>(); // parentRef → children
+  const roots: FilterValues[] = [];
+
+  // First, create node instances for all inputs
+  for (const row of input) {
+    const node: FilterValues = {
+      reference: row.reference,
+      description: row.description
+    };
+    nodeMap.set(row.reference, node);
+
+    // Queue up children by parent ref
+    if (row.hierarchy) {
+      if (!childrenMap.has(row.hierarchy)) {
+        childrenMap.set(row.hierarchy, []);
+      }
+      childrenMap.get(row.hierarchy)!.push(node);
+    }
+  }
+
+  // Link children to their parents
+  for (const [parentRef, children] of childrenMap) {
+    const parentNode = nodeMap.get(parentRef);
+    if (parentNode) {
+      parentNode.children = parentNode.children || [];
+      parentNode.children.push(...children);
+    }
+  }
+
+  // Find root nodes: those that are NOT a child of anyone
+  const childRefs = new Set<string>();
+  for (const children of childrenMap.values()) {
+    for (const child of children) {
+      childRefs.add(child.reference);
+    }
+  }
+
+  for (const [ref, node] of nodeMap.entries()) {
+    if (!childRefs.has(ref)) {
+      roots.push(node);
+    }
+  }
+  return {
+    factTableColumn: factTableColumn,
+    columnName: columnName,
+    values: roots
+  };
+}
+
+export const getFilters = async (revision: Revision, language: string): Promise<FilterTable[]> => {
+  const filterTableQuery = pgformat('SELECT * FROM %I.filter_table WHERE language = %L;', revision.id, language);
+  const filterTable: QueryResult<FilterRow> = await pool.query(filterTableQuery);
+  const columnData = new Map<string, FilterRow[]>();
+  for (const row of filterTable.rows) {
+    let data = columnData.get(row.fact_table_column);
+    if (data) {
+      data.push(row);
+    } else {
+      data = [row];
+    }
+    columnData.set(row.fact_table_column, data);
+  }
+  const filterData: FilterTable[] = [];
+  for (const col of columnData.keys()) {
+    const data = columnData.get(col);
+    if (!data) {
+      continue;
+    }
+    const hierarchy = transformHierarchy(data[0].fact_table_column, data[0].dimension_name, data);
+    filterData.push(hierarchy);
+  }
+  return filterData;
+};
+
 export const createView = async (
   dataset: Dataset,
   revision: Revision,

@@ -494,6 +494,33 @@ async function setupReferenceDataDimension(
   joinStatements.push(pgformat(`    AND %I.category_key=%I.category_key`, refDataTbl, refDataInfo));
   joinStatements.push(pgformat(`    AND %I.version_no=%I.version_no`, refDataTbl, refDataInfo));
   joinStatements.push(pgformat(`    AND %I.lang=#LANG#`, refDataInfo));
+  for (const locale of SUPPORTED_LOCALES) {
+    const columnName = dimension.metadata.find((info) => info.language === locale)?.name || dimension.factTableColumn;
+    const query = pgformat(
+      `
+      INSERT INTO filter_table
+      SELECT DISTINCT
+        %I as reference,
+        %L as language,
+        %L as fact_table_column,
+        %L as dimension_name,
+        reference_data_info.description as description,
+        NULL as hierarchy
+      FROM fact_table
+      LEFT JOIN reference_data on CAST(fact_table.%I AS VARCHAR)=reference_data.item_id
+      JOIN reference_data_info ON reference_data.item_id=reference_data_info.item_id
+      AND reference_data_info.lang=%L;
+      `,
+      dimension.factTableColumn,
+      locale.toLowerCase(),
+      dimension.factTableColumn,
+      columnName,
+      dimension.factTableColumn,
+      locale.toLowerCase()
+    );
+    logger.debug(`Query = ${query}`);
+    await quack.exec(query);
+  }
 }
 
 export const createDatePeriodTableQuery = (factTableColumn: FactTableColumn) => {
@@ -626,7 +653,7 @@ async function setupLookupTableDimension(
         dimension.factTableColumn,
         columnName,
         dimTable,
-        locale.toLowerCase(),
+        locale.toLowerCase()
       )
     );
   }
@@ -1583,7 +1610,7 @@ async function createFilterTable(quack: Database, revisionID: string, type: 'pos
                 fact_table_column VARCHAR,
                 dimension_name VARCHAR,
                 description VARCHAR,
-                hieracrchy VARCHAR,
+                hierarchy VARCHAR,
                 PRIMARY KEY (reference, language, fact_table_column)
             );
       `,
@@ -1887,6 +1914,8 @@ export const createBaseDuckDBFile = async (datasetId: string, endRevisionId: str
   if (notesCodeColumn) {
     await createNotesTable(quack, notesCodeColumn, viewSelectStatementsMap, rawSelectStatementsMap, joinStatements);
   }
+
+  await quack.exec('DROP TABLE filter_table;');
 
   logger.info(`Creating default views...`);
   // Build the default views

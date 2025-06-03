@@ -7,7 +7,8 @@ import {
   getPublishedDatasetById,
   downloadPublishedDataset,
   getPublishedDatasetView,
-  listPublishedTopics
+  listPublishedTopics,
+  getPublishedDatasetFilters
 } from '../controllers/consumer';
 import { NotFoundException } from '../exceptions/not-found.exception';
 import { PublishedDatasetRepository } from '../repositories/published-dataset';
@@ -56,6 +57,8 @@ consumerRouter.get('/:dataset_id', loadPublishedDataset(), getPublishedDatasetBy
 // GET /published/:datasetId/view
 // Returns a published dataset as a view of the data
 consumerRouter.get('/:dataset_id/view', loadPublishedDataset(), getPublishedDatasetView);
+
+consumerRouter.get('/:dataset_id/view/filters', loadPublishedDataset(), getPublishedDatasetFilters);
 
 // GET /published/:datasetId/revision/:revisionId/download/:format
 // Returns a published dataset as a file stream

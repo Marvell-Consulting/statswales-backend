@@ -23,7 +23,8 @@ import {
   createNewRevision,
   getDataTable,
   deleteDraftRevision,
-  regenerateRevisionCube
+  regenerateRevisionCube,
+  getRevisionPreviewFilters
 } from '../controllers/revision';
 import { Revision } from '../entities/dataset/revision';
 import { hasError, revisionIdValidator } from '../validators';
@@ -88,6 +89,8 @@ router.get('/by-id/:revision_id', loadRevision(withMetadata), getRevisionInfo);
 // GET /dataset/:dataset_id/revision/id/:revision_id/preview
 // Returns details of a revision with its imports
 router.get('/by-id/:revision_id/preview', loadRevision(withMetadata), getRevisionPreview);
+
+router.get('/by-id/:revision_id/preview/filters', loadRevision(), getRevisionPreviewFilters);
 
 // POST /dataset/:dataset_id/revision/id/:revision_id/data-table
 // Upload an updated data file for the revision

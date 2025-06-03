@@ -1,9 +1,11 @@
 import { Readable } from 'node:stream';
 import { performance } from 'node:perf_hooks';
+import fs from 'fs';
 
 import { NextFunction, Request, Response } from 'express';
 import { t } from 'i18next';
 import { isBefore, isValid } from 'date-fns';
+import tmp from 'tmp';
 
 import { User } from '../entities/user/user';
 import { DataTableDto } from '../dtos/data-table-dto';
@@ -25,6 +27,7 @@ import {
   createDateDimension,
   createLookupTableDimension,
   loadCorrectReferenceDataIntoReferenceDataTable,
+  loadFileIntoCube,
   loadReferenceDataIntoCube,
   makeCubeSafeString,
   updateFactTableValidator
@@ -37,7 +40,7 @@ import { ColumnMatch } from '../interfaces/column-match';
 import { DimensionType } from '../enums/dimension-type';
 import { CubeValidationException } from '../exceptions/cube-error-exception';
 import { DimensionUpdateTask } from '../interfaces/revision-task';
-import { duckdb } from '../services/duckdb';
+import { duckdb, linkToPostgresDataTables } from '../services/duckdb';
 import { FileValidationException } from '../exceptions/validation-exception';
 import { FactTableColumnType } from '../enums/fact-table-column-type';
 import { checkForReferenceErrors } from '../services/lookup-table-handler';
@@ -50,6 +53,8 @@ import { getPostgresCubePreview, outputCube } from './cube-controller';
 import { Dataset } from '../entities/dataset/dataset';
 import { SortByInterface } from '../interfaces/sort-by-interface';
 import { FilterInterface } from '../interfaces/filterInterface';
+import { FindOptionsRelations } from 'typeorm';
+import { getFilters } from '../services/consumer-view';
 
 export const getDataTable = async (req: Request, res: Response, next: NextFunction) => {
   try {
@@ -138,6 +143,17 @@ export const getRevisionPreview = async (req: Request, res: Response) => {
   } catch (err) {
     logger.error(err, `An error occurred trying to get the cube preview`);
   }
+};
+
+export const getRevisionPreviewFilters = async (req: Request, res: Response) => {
+  const revision: Revision = res.locals.revision;
+  const lang = req.language.length < 5 ? `${req.language}-gb` : req.language.toLowerCase();
+  if (!revision) {
+    throw new NotFoundException('errors.no_revision');
+  }
+
+  const filters = await getFilters(revision, lang);
+  res.json(filters);
 };
 
 export const confirmFactTable = async (req: Request, res: Response) => {
@@ -557,6 +573,33 @@ export const withdrawFromPublication = async (req: Request, res: Response, next:
 export const regenerateRevisionCube = async (req: Request, res: Response, next: NextFunction) => {
   const datasetId: string = res.locals.datasetId;
   const revision: Revision = res.locals.revision;
+
+  const datasetRelations: FindOptionsRelations<Dataset> = {
+    revisions: {
+      dataTable: true
+    }
+  };
+  const dataset = await DatasetRepository.getById(datasetId, datasetRelations);
+  const revisionTree = dataset.revisions
+    .map((rev) => {
+      if (rev.id === revision.id) return rev;
+      else if (rev.revisionIndex > -1) return rev;
+      else return undefined;
+    })
+    .filter((rev) => !!rev)
+    .filter((rev) => (rev?.dataTable ? true : false));
+
+  const quack = await duckdb();
+  await linkToPostgresDataTables(quack);
+  for (const rev of revisionTree) {
+    logger.debug(`Recreating datatable ${rev.dataTable!.id} in postgres data_tables database`);
+    const tmpFile = tmp.fileSync({ postfix: rev.dataTable!.fileType });
+    const buf = await req.fileService.loadBuffer(rev.dataTable!.filename, datasetId);
+    fs.writeFileSync(tmpFile.name, buf);
+    await loadFileIntoCube(quack, rev.dataTable!, tmpFile.name, rev.dataTable!.id);
+    tmpFile.removeCallback();
+  }
+  await quack.close();
 
   try {
     await createAllCubeFiles(datasetId, revision.id, req.fileService);
