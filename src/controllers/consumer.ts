@@ -29,6 +29,14 @@ export const listPublishedDatasets = async (req: Request, res: Response, next: N
       '#/components/parameters/page',
       '#/components/parameters/limit'
     ]
+    #swagger.responses[200] = {
+      description: 'A paginated list of published datasets.',
+      content: {
+        'application/json': {
+          schema: { $ref: "#/components/schemas/DatasetsWithCount" }
+        }
+      }
+    }
   */
   logger.info('Listing published datasets...');
 
@@ -47,6 +55,15 @@ export const listPublishedDatasets = async (req: Request, res: Response, next: N
 };
 
 export const getPublishedDatasetById = async (req: Request, res: Response) => {
+  /*
+    #swagger.summary = 'Get a published dataset by ID'
+    #swagger.description = 'Returns a single published dataset with all it\'s nested properities.'
+    #swagger.parameters['$ref'] = ['#/components/parameters/dataset_id']
+    #swagger.responses[200] = {
+      description: 'A published dataset',
+      schema: { $ref: "#/components/schemas/Dataset" }
+    }
+  */
   const dataset = await PublishedDatasetRepository.getById(res.locals.datasetId, withAll);
   res.json(ConsumerDatasetDTO.fromDataset(dataset));
 };
@@ -120,8 +137,12 @@ export const listRootTopics = async (req: Request, res: Response, next: NextFunc
       sub-topics. This endpoint returns a list of the root topics that have at least one published dataset.'
     #swagger.autoQuery = false
     #swagger.parameters['$ref'] = ['#/components/parameters/language']
+    #swagger.responses[200] = {
+      description: 'An object containing all root level topics (children). For root topics, the path is always equal
+        to the id.',
+      schema: { $ref: "#/components/schemas/RootTopics" }
+    }
   */
-
   logger.info('fetching root level topics with at least one published dataset');
 
   try {
@@ -144,7 +165,7 @@ export const listRootTopics = async (req: Request, res: Response, next: NextFunc
 
 export const listSubTopics = async (req: Request, res: Response, next: NextFunction) => {
   /*
-    #swagger.summary = 'List sub-topics for a given topic'
+    #swagger.summary = 'List of sub-topics for a given topic'
     #swagger.description = 'Datasets are hierarchically organized into topics. Each topic can have zero or more
       sub-topics. This endpoint returns a list of the sub-topics of the topic specified by `topic_id` in the path.
       If the topic has no sub-topics, it will return the datasets for that topic instead.'
@@ -161,8 +182,12 @@ export const listSubTopics = async (req: Request, res: Response, next: NextFunct
       type: 'string',
       example: '1'
     }
+    #swagger.responses[200] = {
+      description: 'An object containing the selected topic, any sub-topics (children), any parent topics (parents)
+        and if it has no sub-topics, any associated datasets. For sub-topics, the path includes the parent ids.',
+      schema: { $ref: "#/components/schemas/PublishedTopics" }
+    }
   */
-
   logger.info('fetching sub-topics with at least one published dataset');
   const topicId = req.params.topic_id;
   const lang = req.language as Locale;
