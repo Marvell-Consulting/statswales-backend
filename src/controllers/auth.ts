@@ -11,7 +11,6 @@ import { User } from '../entities/user/user';
 import { AuthProvider } from '../enums/auth-providers';
 import { dataSource } from '../db/data-source';
 import { UserDTO } from '../dtos/user/user-dto';
-import { Locale } from '../enums/locale';
 
 const config = appConfig();
 const domain = new URL(config.auth.jwt.cookieDomain).hostname;
@@ -40,7 +39,7 @@ export const loginLocal: RequestHandler = async (req, res) => {
     logger.debug('existing user found');
 
     logger.info('local auth successful, creating JWT and returning user to the frontend');
-    const payload = { user: UserDTO.fromUser(user, req.language as Locale) };
+    const payload = { user: UserDTO.fromUserForJWT(user) };
     const { secret, expiresIn, secure } = config.auth.jwt;
     const token = jwt.sign(payload, secret, { expiresIn });
 
@@ -73,7 +72,7 @@ export const loginGoogle: RequestHandler = (req, res, next) => {
 
       logger.info('google auth successful, creating JWT and returning user to the frontend');
 
-      const payload = { user: UserDTO.fromUser(user, req.language as Locale) };
+      const payload = { user: UserDTO.fromUserForJWT(user) };
       const { secret, expiresIn, secure } = config.auth.jwt;
       const token = jwt.sign(payload, secret, { expiresIn });
 
@@ -104,7 +103,7 @@ export const loginEntraID: RequestHandler = (req, res, next) => {
 
       logger.info('entraid auth successful, creating JWT and returning user to the frontend');
 
-      const payload = { user: UserDTO.fromUser(user, req.language as Locale) };
+      const payload = { user: UserDTO.fromUserForJWT(user) };
       const { secret, expiresIn, secure } = config.auth.jwt;
       const token = jwt.sign(payload, secret, { expiresIn });
 
