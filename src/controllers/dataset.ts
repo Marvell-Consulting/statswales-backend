@@ -204,8 +204,8 @@ export const cubePreview = async (req: Request, res: Response, next: NextFunctio
   const start = performance.now();
   const page_number: number = Number.parseInt(req.query.page_number as string, 10) || 1;
   const page_size: number = Number.parseInt(req.query.page_size as string, 10) || DEFAULT_PAGE_SIZE;
-  const sortByQuery = JSON.parse(req.query.sort_by as string) as SortByInterface[];
-  const filter = JSON.parse(req.query.filter as string) as FilterInterface[];
+  const sortByQuery = req.query.sort_by ? (JSON.parse(req.query.sort_by as string) as SortByInterface[]) : undefined;
+  const filterQuery = req.query.filter ? (JSON.parse(req.query.filter as string) as FilterInterface[]) : undefined;
   const cubePreview = await getPostgresCubePreview(
     latestRevision,
     lang,
@@ -213,7 +213,7 @@ export const cubePreview = async (req: Request, res: Response, next: NextFunctio
     page_number,
     page_size,
     sortByQuery,
-    filter
+    filterQuery
   );
   const end = performance.now();
   const time = Math.round(end - start);

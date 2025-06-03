@@ -53,10 +53,18 @@ export const getPublishedDatasetView = async (req: Request, res: Response) => {
   }
   const pageNumber: number = Number.parseInt(req.query.page_number as string, 10) || 1;
   const pageSize: number = Number.parseInt(req.query.page_size as string, 10) || DEFAULT_PAGE_SIZE;
-  const sortBy = JSON.parse(req.query.sort_by as string) as SortByInterface[];
-  const filter = JSON.parse(req.query.filter as string) as FilterInterface[];
+  const sortByQuery = req.query.sort_by ? (JSON.parse(req.query.sort_by as string) as SortByInterface[]) : undefined;
+  const filterQuery = req.query.filter ? (JSON.parse(req.query.filter as string) as FilterInterface[]) : undefined;
 
-  const preview = await createView(dataset, dataset.publishedRevision, lang, pageNumber, pageSize, sortBy, filter);
+  const preview = await createView(
+    dataset,
+    dataset.publishedRevision,
+    lang,
+    pageNumber,
+    pageSize,
+    sortByQuery,
+    filterQuery
+  );
   res.json(preview);
 };
 

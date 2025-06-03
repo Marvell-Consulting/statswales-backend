@@ -19,7 +19,7 @@ export const getPostgresCubePreview = async (
   dataset: Dataset,
   page: number,
   size: number,
-  sortBy: SortByInterface[],
+  sortBy?: SortByInterface[],
   filter?: FilterInterface[]
 ): Promise<ViewDTO | ViewErrDTO> => {
   try {

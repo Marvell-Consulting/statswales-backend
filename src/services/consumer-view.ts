@@ -35,13 +35,11 @@ export const createView = async (
   }
   logger.debug(`revision ID: ${revision.id}, view: default_view_${lang}`);
   const baseQuery = pgformat(
-    'SELECT * FROM %I.%I %s %s LIMIT %L OFFSET %L',
+    'SELECT * FROM %I.%I %s %s',
     revision.id,
     `default_view_${lang}`,
     filterQuery ? `WHERE ${filterQuery}` : '',
-    sortByQuery ? `ORDER BY ${sortByQuery}` : '',
-    pageSize,
-    (pageNumber - 1) * pageSize
+    sortByQuery ? `ORDER BY ${sortByQuery}` : ''
   );
   logger.debug(`Base query: ${baseQuery}`);
 
@@ -61,7 +59,9 @@ export const createView = async (
       return { status: 400, errors, dataset_id: dataset.id };
     }
 
-    const queryResult: QueryResult<unknown[]> = await pool.query(baseQuery);
+    const queryResult: QueryResult<unknown[]> = await pool.query(
+      pgformat('%s LIMIT %L OFFSET %L', baseQuery, pageSize, (pageNumber - 1) * pageSize)
+    );
     const preview = queryResult.rows;
 
     const startLine = pageSize * (pageNumber - 1) + 1;
