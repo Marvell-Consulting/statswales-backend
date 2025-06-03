@@ -25,6 +25,7 @@ import { initServices } from './middleware/services';
 import { adminRouter } from './routes/admin';
 import { devRouter } from './routes/developer';
 import { taskRouter } from './routes/task';
+import { userRouter } from './routes/user';
 import { Pool } from 'pg';
 
 const app: Application = express();
@@ -69,6 +70,7 @@ app.use('/topic', rateLimiter, jwtAuth, topicRouter);
 app.use('/organisation', rateLimiter, jwtAuth, organisationRouter);
 app.use('/translation', rateLimiter, jwtAuth, translationRouter);
 app.use('/task', rateLimiter, jwtAuth, taskRouter);
+app.use('/user', rateLimiter, jwtAuth, userRouter);
 
 // admin routes
 app.use('/admin', rateLimiter, jwtAuth, adminRouter);
