@@ -11,11 +11,24 @@ import { User } from '../entities/user/user';
 import { AuthProvider } from '../enums/auth-providers';
 import { dataSource } from '../db/data-source';
 import { UserDTO } from '../dtos/user/user-dto';
-import { Locale } from '../enums/locale';
 
 const config = appConfig();
 const domain = new URL(config.auth.jwt.cookieDomain).hostname;
 logger.debug(`JWT cookie domain is '${domain}'`);
+
+const checkTokenFitsInCookie = (token: string): void => {
+  const maxCookieSize = 4096; // Maximum size of a cookie in bytes
+  const tokenSize = Buffer.byteLength(token, 'utf8');
+
+  if (tokenSize > maxCookieSize) {
+    // our JWTs include a list of the user groups and roles - if the user has many groups the JWT can become too large
+    // to fit in a cookie. This is a limitation of cookies, not JWTs themselves.
+    // TODO: Consider using a different mechanism
+    throw new Error(`JWT token size (${tokenSize} bytes) exceeds the maximum cookie size (${maxCookieSize} bytes).`);
+  } else {
+    logger.debug(`JWT token is ${tokenSize} bytes (max: ${maxCookieSize})`);
+  }
+};
 
 // should only ever be used in testing environments
 export const loginLocal: RequestHandler = async (req, res) => {
@@ -40,9 +53,10 @@ export const loginLocal: RequestHandler = async (req, res) => {
     logger.debug('existing user found');
 
     logger.info('local auth successful, creating JWT and returning user to the frontend');
-    const payload = { user: UserDTO.fromUser(user, req.language as Locale) };
+    const payload = { user: UserDTO.fromUserForJWT(user) };
     const { secret, expiresIn, secure } = config.auth.jwt;
     const token = jwt.sign(payload, secret, { expiresIn });
+    checkTokenFitsInCookie(token);
 
     res.cookie('jwt', token, { secure, httpOnly: true, domain });
     res.redirect(returnURL);
@@ -73,9 +87,10 @@ export const loginGoogle: RequestHandler = (req, res, next) => {
 
       logger.info('google auth successful, creating JWT and returning user to the frontend');
 
-      const payload = { user: UserDTO.fromUser(user, req.language as Locale) };
+      const payload = { user: UserDTO.fromUserForJWT(user) };
       const { secret, expiresIn, secure } = config.auth.jwt;
       const token = jwt.sign(payload, secret, { expiresIn });
+      checkTokenFitsInCookie(token);
 
       res.cookie('jwt', token, { secure, httpOnly: true, domain });
       res.redirect(returnURL);
@@ -103,10 +118,10 @@ export const loginEntraID: RequestHandler = (req, res, next) => {
       }
 
       logger.info('entraid auth successful, creating JWT and returning user to the frontend');
-
-      const payload = { user: UserDTO.fromUser(user, req.language as Locale) };
+      const payload = { user: UserDTO.fromUserForJWT(user) };
       const { secret, expiresIn, secure } = config.auth.jwt;
       const token = jwt.sign(payload, secret, { expiresIn });
+      checkTokenFitsInCookie(token);
 
       res.cookie('jwt', token, { secure, httpOnly: true, domain });
       res.redirect(returnURL);

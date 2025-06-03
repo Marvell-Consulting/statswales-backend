@@ -48,4 +48,25 @@ export class UserDTO {
 
     return dto;
   }
+
+  // Create a minimal UserDTO for JWT purposes to keep the size down
+  static fromUserForJWT(user: User): UserDTO {
+    const dto = new UserDTO();
+
+    dto.id = user.id;
+    dto.email = user.email;
+    dto.full_name = user.name;
+    dto.status = user.status;
+
+    dto.global_roles = user.globalRoles?.map((role) => role as GlobalRole) || [];
+
+    dto.groups = (user.groupRoles || []).map((userRole: UserGroupRole) => {
+      return {
+        group: { id: userRole.groupId },
+        roles: userRole.roles.map((role) => role as GroupRole)
+      };
+    });
+
+    return dto;
+  }
 }

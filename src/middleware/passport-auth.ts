@@ -10,7 +10,6 @@ import { User } from '../entities/user/user';
 import { appConfig } from '../config';
 import { AuthProvider } from '../enums/auth-providers';
 import { asyncLocalStorage } from '../services/async-local-storage';
-import { Locale } from '../enums/locale';
 import { UserDTO } from '../dtos/user/user-dto';
 import { getPermissionsForUserDTO } from '../utils/get-permissions-for-user';
 
@@ -78,7 +77,7 @@ const initJwt = async (userRepository: Repository<User>, jwtConfig: Record<strin
 
           // compare the props that control permissions and force reauthentication if they are different
           // need to jsonify user object to convert to plain object for comparison
-          const refreshedUser = JSON.parse(JSON.stringify(UserDTO.fromUser(user, Locale.English)));
+          const refreshedUser = JSON.parse(JSON.stringify(UserDTO.fromUserForJWT(user)));
           const activePerms = getPermissionsForUserDTO(refreshedUser);
           const jwtPerms = getPermissionsForUserDTO(jwtUser);
 
