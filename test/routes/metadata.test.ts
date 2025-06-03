@@ -28,6 +28,7 @@ import BlobStorage from '../../src/services/blob-storage';
 import { UserGroup } from '../../src/entities/user/user-group';
 import { UserGroupRole } from '../../src/entities/user/user-group-role';
 import { GroupRole } from '../../src/enums/group-role';
+import { QueryRunner } from 'typeorm';
 
 jest.mock('../../src/services/blob-storage');
 
@@ -36,12 +37,17 @@ const revision1Id = '85f0e416-8bd1-4946-9e2c-1c958897c6ef';
 const dataTableId = 'fa07be9d-3495-432d-8c1f-d0fc6daae359';
 const user: User = getTestUser('test', 'user');
 let userGroup = getTestUserGroup('Test Group');
+let queryRunner: QueryRunner;
 
 describe('API Endpoints for viewing dataset objects', () => {
   let dbManager: DatabaseManager;
   beforeAll(async () => {
     try {
       dbManager = await initDb();
+      queryRunner = dbManager.getDataSource().createQueryRunner();
+      await queryRunner.dropSchema('data_tables', true, true);
+      await queryRunner.dropSchema(revision1Id, true, true);
+      await queryRunner.createSchema('data_tables', true);
       await initPassport(dbManager.getDataSource());
       userGroup = await dbManager.getDataSource().getRepository(UserGroup).save(userGroup);
       user.groupRoles = [UserGroupRole.create({ group: userGroup, roles: [GroupRole.Editor] })];
@@ -263,6 +269,7 @@ describe('API Endpoints for viewing dataset objects', () => {
   });
 
   afterAll(async () => {
+    await queryRunner.dropSchema('data_tables', true, true);
     await dbManager.getDataSource().dropDatabase();
     await dbManager.getDataSource().destroy();
   });

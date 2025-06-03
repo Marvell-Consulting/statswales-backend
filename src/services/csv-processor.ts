@@ -1,7 +1,8 @@
 import { createHash, randomUUID } from 'node:crypto';
 import fs from 'fs';
 
-import { Database, TableData } from 'duckdb-async';
+import { TableData } from 'duckdb-async';
+import { format as pgformat } from '@scaleleap/pg-format';
 import tmp from 'tmp';
 
 import { logger as parentLogger } from '../utils/logger';
@@ -13,57 +14,61 @@ import { DatasetRepository } from '../repositories/dataset';
 import { FileType } from '../enums/file-type';
 import { DataTableDescription } from '../entities/dataset/data-table-description';
 import { DataTableAction } from '../enums/data-table-action';
-import { convertBufferToUTF8, loadFileIntoDatabase } from '../utils/file-utils';
+import { convertBufferToUTF8 } from '../utils/file-utils';
 
-import { duckdb } from './duckdb';
+import { duckdb, linkToPostgres, linkToPostgresDataTables } from './duckdb';
 import { getFileService } from '../utils/get-file-service';
 import { FileValidationErrorType, FileValidationException } from '../exceptions/validation-exception';
 import { DuckDBException } from '../exceptions/duckdb-exception';
 import { viewErrorGenerators, viewGenerator } from '../utils/view-error-generators';
-import { createEmptyCubeWithFactTable } from '../utils/create-fact-table';
 import { validateParams } from '../validators/preview-validator';
-import { Revision } from '../entities/dataset/revision';
+import { SourceLocation } from '../enums/source-location';
 
 export const DEFAULT_PAGE_SIZE = 100;
 const sampleSize = 5;
 
 const logger = parentLogger.child({ module: 'CSVProcessor' });
 
-export async function extractTableInformation(fileBuffer: Buffer, fileType: FileType): Promise<DataTableDescription[]> {
-  const tableName = 'preview_table';
+export async function extractTableInformation(
+  fileBuffer: Buffer,
+  dataTable: DataTable,
+  type: 'data_table' | 'lookup_table'
+): Promise<DataTableDescription[]> {
+  let tableName = 'preview_table';
   const quack = await duckdb();
-  const tempFile = tmp.tmpNameSync({ postfix: `.${fileType}` });
+  const tempFile = tmp.tmpNameSync({ postfix: `.${dataTable.fileType}` });
   let tableHeaders: TableData;
   let createTableQuery: string;
   fs.writeFileSync(tempFile, fileBuffer);
-  switch (fileType) {
+  switch (dataTable.fileType) {
     case FileType.Csv:
     case FileType.GzipCsv:
-      createTableQuery = `CREATE TABLE ${tableName} AS SELECT * FROM read_csv('${tempFile}', auto_type_candidates = ['BIGINT', 'DOUBLE', 'VARCHAR']);`;
+      createTableQuery = `CREATE TABLE %I AS SELECT * FROM read_csv(%L, auto_type_candidates = ['BIGINT', 'DOUBLE', 'VARCHAR']);`;
       break;
     case FileType.Parquet:
-      createTableQuery = `CREATE TABLE ${tableName} AS SELECT * FROM '${tempFile}';`;
+      createTableQuery = `CREATE TABLE %I AS SELECT * FROM %L;`;
       break;
     case FileType.Json:
     case FileType.GzipJson:
-      createTableQuery = `CREATE TABLE ${tableName} AS SELECT * FROM read_json_auto('${tempFile}');`;
+      createTableQuery = `CREATE TABLE %I AS SELECT * FROM read_json_auto(%L);`;
       break;
     case FileType.Excel:
       await quack.exec('INSTALL spatial;');
       await quack.exec('LOAD spatial;');
-      createTableQuery = `CREATE TABLE ${tableName} AS SELECT * FROM st_read('${tempFile}');`;
+      createTableQuery = `CREATE TABLE %I AS SELECT * FROM st_read(%L);`;
       break;
     default:
       throw new Error('Unknown file type');
   }
   try {
-    logger.debug(`Executing query to create base fact table: ${createTableQuery}`);
-    await quack.exec(createTableQuery);
-    tableHeaders = await quack.all(
-      `SELECT (row_number() OVER ())-1 as index, column_name, column_type FROM (DESCRIBE ${tableName});`
-    );
+    logger.debug(`Executing query to create base fact table: ${pgformat(createTableQuery, tableName, tempFile)}`);
+    await quack.exec(pgformat(createTableQuery, tableName, tempFile));
   } catch (error) {
     logger.error(error, `Something went wrong trying to extract table information using DuckDB.`);
+    logger.debug('Closing DuckDB Memory Database');
+    await quack.close();
+    logger.debug(`Removing temp file ${tempFile} from disk`);
+    fs.unlinkSync(tempFile);
     if ((error as DuckDBException).stack.includes('Invalid unicode')) {
       throw new FileValidationException(`File is encoding is not supported`, FileValidationErrorType.InvalidUnicode);
     } else if ((error as DuckDBException).stack.includes('CSV Error on Line')) {
@@ -73,18 +78,44 @@ export async function extractTableInformation(fileBuffer: Buffer, fileType: File
       `Unknown error occurred, please refer to the log for more information`,
       FileValidationErrorType.unknown
     );
+  }
+
+  if (type === 'data_table') {
+    try {
+      logger.debug(`Copying data table to postgres using data table id: ${dataTable.id}`);
+      await linkToPostgresDataTables(quack);
+      await quack.exec(pgformat(createTableQuery, dataTable.id, tempFile));
+      tableName = dataTable.id;
+    } catch (error) {
+      logger.error(error, 'Something went wrong saving data table to postgres');
+      await quack.close();
+      fs.unlinkSync(tempFile);
+    }
+  }
+
+  try {
+    tableHeaders = await quack.all(
+      pgformat(`SELECT (row_number() OVER ())-1 as index, column_name, column_type FROM (DESCRIBE %I);`, tableName)
+    );
+  } catch (error) {
+    logger.error(error, 'Something went wrong trying to extract table information using DuckDB.');
+    throw new FileValidationException(
+      `Unknown error occurred, please refer to the log for more information`,
+      FileValidationErrorType.unknown
+    );
   } finally {
-    logger.debug('Closing DuckDB Memory Database');
     await quack.close();
-    logger.debug(`Removing temp file ${tempFile} from disk`);
     fs.unlinkSync(tempFile);
   }
+
   if (tableHeaders.length === 0) {
     throw new FileValidationException(`Failed to parse CSV into columns`, FileValidationErrorType.InvalidCsv);
   }
-  if (tableHeaders.length === 1 && fileType === FileType.Csv) {
+
+  if (tableHeaders.length === 1 && dataTable.fileType === FileType.Csv) {
     throw new FileValidationException(`Failed to parse CSV into columns`, FileValidationErrorType.InvalidCsv);
   }
+
   return tableHeaders.map((header) => {
     const info = new DataTableDescription();
     info.columnName = header.column_name;
@@ -98,7 +129,8 @@ export const validateAndUploadCSV = async (
   fileBuffer: Buffer,
   filetype: string,
   originalName: string,
-  datasetId: string
+  datasetId: string,
+  type: 'data_table' | 'lookup_table'
 ): Promise<{ dataTable: DataTable; buffer: Buffer }> => {
   let uploadBuffer = fileBuffer;
   const dataTable = new DataTable();
@@ -165,7 +197,7 @@ export const validateAndUploadCSV = async (
 
   try {
     logger.debug('Extracting table information from file');
-    dataTableDescriptions = await extractTableInformation(uploadBuffer, dataTable.fileType);
+    dataTableDescriptions = await extractTableInformation(uploadBuffer, dataTable, type);
   } catch (error) {
     logger.error(error, `Something went wrong trying to read the users upload.`);
     // Error is of type FileValidationException
@@ -174,6 +206,7 @@ export const validateAndUploadCSV = async (
   dataTable.dataTableDescriptions = dataTableDescriptions;
   dataTable.filename = `${dataTable.id}.${extension}`;
   dataTable.action = DataTableAction.AddRevise;
+  if (type) dataTable.sourceLocation = SourceLocation.Postgres;
   const hash = createHash('sha256');
   hash.update(uploadBuffer);
 
@@ -192,50 +225,25 @@ export const validateAndUploadCSV = async (
 
 export const getCSVPreview = async (
   datasetId: string,
-  revision: Revision,
   importObj: DataTable,
   page: number,
   size: number
 ): Promise<ViewDTO | ViewErrDTO> => {
-  let quack: Database;
-  const tableName = 'fact_table';
+  let tableName = 'fact_table';
   const tempFile = tmp.tmpNameSync({ postfix: `.${importObj.fileType}` });
   let cubeFile: string | undefined;
 
-  if (revision.onlineCubeFilename) {
-    cubeFile = tmp.tmpNameSync({ postfix: '.duckdb' });
-    const fileService = getFileService();
-    try {
-      const fileBuffer = await fileService.loadBuffer(revision.onlineCubeFilename, datasetId);
-      fs.writeFileSync(cubeFile, fileBuffer);
-    } catch (error) {
-      logger.error(error, `Something went wrong trying to fetch the protocube from storage`);
-      return viewErrorGenerators(500, datasetId, 'csv', 'errors.datalake.failed_to_fetch_file', {});
-    }
-    quack = await duckdb(cubeFile);
-  } else {
-    let fileBuffer: Buffer;
-    try {
-      const fileService = getFileService();
-      fileBuffer = await fileService.loadBuffer(importObj.filename, datasetId);
-    } catch (err) {
-      logger.error(err, `Something went wrong trying to fetch the file from storage`);
-      return viewErrorGenerators(500, datasetId, 'csv', 'errors.datalake.failed_to_fetch_file', {});
-    }
-
-    fs.writeFileSync(tempFile, fileBuffer);
-    quack = await duckdb();
-    try {
-      await loadFileIntoDatabase(quack, importObj, tempFile, tableName);
-    } catch (error) {
-      await quack.close();
-      logger.error(error, `Something went wrong trying to load the file into the database`);
-      return viewErrorGenerators(500, datasetId, 'csv', 'errors.preview.preview_failed', {});
-    }
-  }
+  logger.debug('Getting table query from postgres');
+  const quack = await duckdb();
+  await linkToPostgresDataTables(quack);
+  tableName = importObj.id;
 
   try {
-    const totalsQuery = `SELECT count(*) as totalLines, ceil(count(*)/${size}) as totalPages from ${tableName};`;
+    const totalsQuery = pgformat(
+      `SELECT count(*) as totalLines, ceil(count(*)/%L) as totalPages from %I;`,
+      size,
+      tableName
+    );
     const totals = await quack.all(totalsQuery);
     const totalPages = Number(totals[0].totalPages);
     const totalLines = Number(totals[0].totalLines);
@@ -245,12 +253,17 @@ export const getCSVPreview = async (
       return { status: 400, errors, dataset_id: datasetId };
     }
 
-    const previewQuery = `
+    const previewQuery = pgformat(
+      `
       SELECT int_line_number, *
-      FROM (SELECT row_number() OVER () as int_line_number, * FROM ${tableName})
-      LIMIT ${size}
-      OFFSET ${(page - 1) * size}
-    `;
+      FROM (SELECT row_number() OVER () as int_line_number, * FROM %I)
+      LIMIT %L
+      OFFSET %L
+    `,
+      tableName,
+      size,
+      (page - 1) * size
+    );
 
     const preview = await quack.all(previewQuery);
     const startLine = Number(preview[0].int_line_number);
@@ -290,15 +303,15 @@ export const getFactTableColumnPreview = async (
 ): Promise<ViewDTO | ViewErrDTO> => {
   logger.debug(`Getting fact table column preview for ${columnName}`);
   const tableName = 'fact_table';
-  let quack: Database;
+  const quack = await duckdb();
   try {
-    quack = await createEmptyCubeWithFactTable(dataset);
+    await linkToPostgres(quack, dataset.draftRevision!.id, false);
   } catch (error) {
-    logger.error(error, 'Something went wrong trying to create a new database');
+    logger.error(error, 'Something went wrong trying to link to postgres database');
     return viewErrorGenerators(500, dataset.id, 'patch', 'errors.cube_builder.fact_table_creation_failed', {});
   }
   try {
-    const totals = await quack.all(`SELECT COUNT(DISTINCT "${columnName}") AS totalLines FROM ${tableName};`);
+    const totals = await quack.all(`SELECT COUNT(DISTINCT "${columnName}") AS "totalLines" FROM ${tableName};`);
     const totalLines = Number(totals[0].totalLines);
     const previewQuery = `SELECT DISTINCT "${columnName}" FROM ${tableName} LIMIT ${sampleSize}`;
     const preview = await quack.all(previewQuery);

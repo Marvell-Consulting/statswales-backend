@@ -1,7 +1,4 @@
-import fs from 'fs';
-
 import { NextFunction, Request, Response } from 'express';
-import tmp from 'tmp';
 import { last, sortBy } from 'lodash';
 
 import { User } from '../entities/user/user';
@@ -25,7 +22,7 @@ import { BadRequestException } from '../exceptions/bad-request.exception';
 import { ViewErrDTO } from '../dtos/view-dto';
 import { arrayValidator, dtoValidator } from '../validators/dto-validator';
 import { RevisionMetadataDTO } from '../dtos/revistion-metadata-dto';
-import { cleanUpCube, createBaseCubeFromProtoCube } from '../services/cube-handler';
+import { createBaseCubeFromProtoCube } from '../services/cube-handler';
 import { DEFAULT_PAGE_SIZE } from '../services/csv-processor';
 import {
   createDimensionsFromSourceAssignment,
@@ -42,7 +39,7 @@ import { TopicDTO } from '../dtos/topic-dto';
 import { RevisionTopic } from '../entities/dataset/revision-topic';
 import { TopicSelectionDTO } from '../dtos/topic-selection-dto';
 
-import { getCubePreview } from './cube-controller';
+import { getPostgresCubePreview } from './cube-controller';
 import { factTableValidatorFromSource } from '../services/fact-table-validator';
 import { FactTableValidationException } from '../exceptions/fact-table-validation-exception';
 import JSZip from 'jszip';
@@ -195,48 +192,20 @@ export const uploadDataTable = async (req: Request, res: Response, next: NextFun
 export const cubePreview = async (req: Request, res: Response, next: NextFunction) => {
   const dataset = await DatasetRepository.getById(res.locals.datasetId, withDraftForCube);
   const latestRevision = dataset.draftRevision ?? last(sortBy(dataset?.revisions, 'revisionIndex'));
+  const lang = req.language.split('-')[0];
 
   if (!latestRevision) {
     next(new UnknownException('errors.no_revision'));
     return;
   }
 
-  let cubeFile: string;
-  if (latestRevision.onlineCubeFilename && !latestRevision.onlineCubeFilename.includes('protocube')) {
-    logger.debug('Loading cube from file store for preview');
-    cubeFile = tmp.tmpNameSync({ postfix: '.duckdb' });
-    try {
-      const cubeBuffer = await req.fileService.loadBuffer(latestRevision.onlineCubeFilename, dataset.id);
-      fs.writeFileSync(cubeFile, cubeBuffer);
-    } catch (err) {
-      logger.error('Something went wrong trying to download file from data lake');
-      throw err;
-    }
-  } else if (latestRevision.onlineCubeFilename && latestRevision.onlineCubeFilename.includes('protocube')) {
-    logger.debug('Loading protocube from file store for preview');
-    const buffer = await req.fileService.loadBuffer(latestRevision.onlineCubeFilename, dataset.id);
-    cubeFile = tmp.tmpNameSync({ postfix: '.duckdb' });
-    fs.writeFileSync(cubeFile, buffer);
-    await createBaseCubeFromProtoCube(dataset.id, latestRevision.id, cubeFile);
-  } else {
-    logger.debug('Creating fresh cube for preview... This could take a few seconds');
-    try {
-      cubeFile = await createBaseCubeFromProtoCube(dataset.id, latestRevision.id);
-    } catch (error) {
-      logger.error(error, `Something went wrong trying to create the cube`);
-      next(new UnknownException('errors.cube_builder.cube_build_failed'));
-      return;
-    }
-  }
-
   const start = performance.now();
   const page_number: number = Number.parseInt(req.query.page_number as string, 10) || 1;
   const page_size: number = Number.parseInt(req.query.page_size as string, 10) || DEFAULT_PAGE_SIZE;
-  const cubePreview = await getCubePreview(cubeFile, req.language.split('-')[0], dataset, page_number, page_size);
+  const cubePreview = await getPostgresCubePreview(latestRevision.id, lang, dataset, page_number, page_size);
   const end = performance.now();
   const time = Math.round(end - start);
   logger.info(`Generating preview of cube took ${time}ms`);
-  await cleanUpCube(cubeFile);
   if ((cubePreview as ViewErrDTO).errors) {
     res.status(500);
   }
@@ -398,9 +367,8 @@ export const updateSources = async (req: Request, res: Response, next: NextFunct
     });
     return;
   }
-  let duckdbFile: string;
   try {
-    duckdbFile = await factTableValidatorFromSource(dataset, validatedSourceAssignment);
+    await factTableValidatorFromSource(dataset, validatedSourceAssignment);
   } catch (err) {
     const error = err as FactTableValidationException;
     res.status(error.status);
@@ -421,36 +389,11 @@ export const updateSources = async (req: Request, res: Response, next: NextFunct
     });
     return;
   }
-  try {
-    logger.debug(`Saving duckdb file to blob storage: ${duckdbFile}`);
-    const buffer = fs.readFileSync(duckdbFile);
-    logger.debug(`Buffer size: ${buffer.byteLength} bytes`);
-    await req.fileService.saveBuffer(`${revision.id}-protocube.duckdb`, dataset.id, buffer);
-    revision.onlineCubeFilename = `${revision.id}-protocube.duckdb`;
-    fs.unlinkSync(duckdbFile);
-    await revision.save();
-  } catch (err) {
-    logger.error(err, 'Failed to save duckdb file to blob storage');
-    res.status(500);
-    res.json({
-      status: 500,
-      dataset_id: dataset.id,
-      errors: [
-        {
-          field: 'none',
-          message: {
-            key: 'errors.fact_table_validation.unknown_error',
-            params: {}
-          }
-        }
-      ]
-    });
-    return;
-  }
 
   try {
     await createDimensionsFromSourceAssignment(dataset, dataTable, validatedSourceAssignment);
     const updatedDataset = await DatasetRepository.getById(dataset.id);
+    await createBaseCubeFromProtoCube(updatedDataset.id, revision.id);
     res.json(DatasetDTO.fromDataset(updatedDataset));
   } catch (err) {
     logger.error(err, `An error occurred trying to process the source assignments: ${err}`);

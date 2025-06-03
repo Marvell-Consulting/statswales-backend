@@ -17,6 +17,7 @@ import { LookupTableDTO } from '../dtos/lookup-table-dto';
 import { Readable } from 'node:stream';
 import { MeasureDTO } from '../dtos/measure-dto';
 import { DatasetRepository } from '../repositories/dataset';
+import { createBaseCubeFromProtoCube } from '../services/cube-handler';
 
 export const resetMeasure = async (req: Request, res: Response, next: NextFunction) => {
   const dataset = res.locals.dataset;
@@ -44,6 +45,7 @@ export const resetMeasure = async (req: Request, res: Response, next: NextFuncti
   measure.joinColumn = null;
   logger.debug('Saving measure and returning dataset');
   await measure.save();
+  await createBaseCubeFromProtoCube(dataset.id, dataset.draftRevision!.id);
   const updateDataset = await Dataset.findOneByOrFail({ id: dataset.id });
   const dto = DatasetDTO.fromDataset(updateDataset);
   res.json(dto);
@@ -64,16 +66,24 @@ export const attachLookupTableToMeasure = async (req: Request, res: Response, ne
   const { buffer: fileBuffer, mimetype, originalname } = req.file;
 
   try {
-    const { dataTable, buffer } = await validateAndUploadCSV(fileBuffer, mimetype, originalname, dataset.id);
+    const { dataTable, buffer } = await validateAndUploadCSV(
+      fileBuffer,
+      mimetype,
+      originalname,
+      dataset.id,
+      'lookup_table'
+    );
     const lang = req.language.toLowerCase();
     const tableMatcher = req.body as MeasureLookupPatchDTO;
 
     const result = await validateMeasureLookupTable(dataTable, dataset, buffer, lang, tableMatcher);
+    await createBaseCubeFromProtoCube(dataset.id, dataset.draftRevision!.id);
     res.status((result as ViewErrDTO).status || 200);
 
     logger.debug(`Result of the lookup table validation is ${JSON.stringify(result, null, 2)}`);
     res.json(result);
   } catch (err) {
+    await createBaseCubeFromProtoCube(dataset.id, dataset.draftRevision!.id);
     logger.error(err, `An error occurred trying to process and upload the file`);
     next(new UnknownException('errors.upload_error'));
   }

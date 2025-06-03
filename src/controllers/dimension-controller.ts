@@ -28,6 +28,8 @@ import { LookupTableDTO } from '../dtos/lookup-table-dto';
 import { DatasetRepository } from '../repositories/dataset';
 import { getLatestRevision } from '../utils/latest';
 import { Dataset } from '../entities/dataset/dataset';
+import { createBaseCubeFromProtoCube } from '../services/cube-handler';
+import { getFileService } from '../utils/get-file-service';
 
 export const getDimensionInfo = async (req: Request, res: Response) => {
   res.json(DimensionDTO.fromDimension(res.locals.dimension));
@@ -41,6 +43,13 @@ export const resetDimension = async (req: Request, res: Response) => {
 
   if (dimension.lookuptable) {
     const lookupTable: LookupTable = dimension.lookupTable;
+    logger.debug(`Removing previously uploaded lookup table from dimension`);
+    try {
+      const fileService = getFileService();
+      await fileService.delete(lookupTable.filename, dimension.dataset.id);
+    } catch (err) {
+      logger.warn(err, `Something went wrong trying to remove previously uploaded lookup table`);
+    }
     await lookupTable.remove();
     dimension.lookuptable = null;
   }
@@ -110,13 +119,14 @@ export const attachLookupTableToDimension = async (req: Request, res: Response, 
       req.file.buffer,
       req.file?.mimetype,
       req.file?.originalname,
-      res.locals.datasetId
+      res.locals.datasetId,
+      'lookup_table'
     );
 
     const tableMatcher = req.body as LookupTablePatchDTO;
 
     const result = await validateLookupTable(dataTable, dataset, dimension, buffer, language, tableMatcher);
-
+    await createBaseCubeFromProtoCube(dataset.id, dataset.draftRevision!.id);
     if ((result as ViewErrDTO).status) {
       const error = result as ViewErrDTO;
       res.status(error.status);
@@ -192,6 +202,16 @@ export const updateDimension = async (req: Request, res: Response, next: NextFun
           {}
         );
     }
+    try {
+      await createBaseCubeFromProtoCube(dataset.id, dataset.draftRevision!.id);
+    } catch (error) {
+      logger.error(error, `An error occurred trying to create a base cube`);
+      res.status(500);
+      res.json(
+        viewErrorGenerators(500, dataset.id, 'dimension_type', 'errors.dimension_validation.cube_creation_failed', {})
+      );
+      return;
+    }
 
     if ((preview as ViewErrDTO).errors) {
       res.status((preview as ViewErrDTO).status);
@@ -207,6 +227,9 @@ export const updateDimension = async (req: Request, res: Response, next: NextFun
 
 export const updateDimensionMetadata = async (req: Request, res: Response) => {
   const dimension = res.locals.dimension;
+  const dataset = await DatasetRepository.getById(res.locals.datasetId, {
+    draftRevision: { dataTable: { dataTableDescriptions: true } }
+  });
   const update = req.body as DimensionMetadataDTO;
   let metadata = dimension.metadata.find((meta: DimensionMetadata) => meta.language === update.language);
 
@@ -223,6 +246,7 @@ export const updateDimensionMetadata = async (req: Request, res: Response) => {
   }
   await metadata.save();
   const updatedDimension = await Dimension.findOneByOrFail({ id: dimension.id });
+  await createBaseCubeFromProtoCube(dataset.id, dataset.draftRevision!.id);
   res.status(202);
   res.json(DimensionDTO.fromDimension(updatedDimension));
 };

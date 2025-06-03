@@ -34,12 +34,14 @@ import { RevisionRepository } from '../repositories/revision';
 import { PeriodCovered } from '../interfaces/period-covered';
 
 import { dateDimensionReferenceTableCreator } from './time-matching';
-import { duckdb, safelyCloseDuckDb } from './duckdb';
+import { duckdb, linkToPostgres, safelyCloseDuckDb } from './duckdb';
 import { NumberExtractor, NumberType } from '../extractors/number-extractor';
 import { CubeValidationType } from '../enums/cube-validation-type';
 import { languageMatcherCaseStatement } from '../utils/lookup-table-utils';
 import { FactTableValidationException } from '../exceptions/fact-table-validation-exception';
 import { FactTableValidationExceptionType } from '../enums/fact-table-validation-exception-type';
+import { CubeType } from '../enums/cube-type';
+import { DateExtractor } from '../extractors/date-extractor';
 
 export const FACT_TABLE_NAME = 'fact_table';
 
@@ -96,6 +98,57 @@ export const loadFileIntoCube = async (
     logger.error(`Failed to load file in to the cube using query ${insertQuery} with the following error: ${error}`);
     throw error;
   }
+};
+
+export const loadTableDataIntoFactTableFromPostgres = async (
+  quack: Database,
+  factTableDef: string[],
+  factTableName: string,
+  dataTableId: string
+) => {
+  logger.debug('Loading data table from postgres into fact table');
+  const insertQuery = pgformat(
+    'INSERT INTO %I SELECT %I FROM %I.%I;',
+    factTableName,
+    factTableDef,
+    'data_tables_db',
+    dataTableId
+  );
+  try {
+    await quack.exec(insertQuery);
+  } catch (error) {
+    logger.error(error, `Failed to load file into table using query ${insertQuery}`);
+    const duckDBError = error as DuckDbError;
+    if (duckDBError.errorType === 'Constraint') {
+      if (duckDBError.message.includes('NOT NULL constraint')) {
+        throw new FactTableValidationException(
+          'Fact with empty value in column(s) found in fact table.  Please check the data and try again.',
+          FactTableValidationExceptionType.EmptyValue,
+          400
+        );
+      }
+      if (duckDBError.message.includes('PRIMARY KEY or UNIQUE')) {
+        throw new FactTableValidationException(
+          'Dupllicate facts found in the fact table.  Please check the data and try again.',
+          FactTableValidationExceptionType.DuplicateFact,
+          400
+        );
+      }
+      if (duckDBError.message.includes('Duplicate key')) {
+        throw new FactTableValidationException(
+          'Duplicate facts found in the fact table.  Please check the data and try again.',
+          FactTableValidationExceptionType.DuplicateFact,
+          400
+        );
+      }
+    }
+    throw new FactTableValidationException(
+      'An unknown error occurred trying to load data in to the fact table.  Please contact support.',
+      FactTableValidationExceptionType.UnknownError,
+      500
+    );
+  }
+  logger.debug(`Successfully loaded data table into fact table`);
 };
 
 export const loadTableDataIntoFactTable = async (
@@ -460,7 +513,7 @@ export async function createDateDimension(quack: Database, extractor: object | n
     throw new Error('Extractor not supplied');
   }
   const columnData = await quack.all(`SELECT DISTINCT "${factTableColumn.columnName}" FROM ${FACT_TABLE_NAME};`);
-  const dateDimensionTable = dateDimensionReferenceTableCreator(extractor, columnData);
+  const dateDimensionTable = dateDimensionReferenceTableCreator(extractor as DateExtractor, columnData);
   await quack.exec(createDatePeriodTableQuery(factTableColumn));
   // Create the date_dimension table
   const stmt = await quack.prepare(
@@ -475,7 +528,7 @@ export async function createDateDimension(quack: Database, extractor: object | n
         locale.toLowerCase(),
         row.description,
         null,
-        t(`date_type.${row.type}`, { lng: locale }),
+        t(row.type, { lng: locale }),
         row.start,
         row.end
       );
@@ -652,8 +705,6 @@ async function loadFactTablesWithUpdates(
 ) {
   for (const dataTable of allDataTables.sort((ftA, ftB) => ftA.uploadedAt.getTime() - ftB.uploadedAt.getTime())) {
     logger.info(`Loading fact table data for fact table ${dataTable.id}`);
-
-    const factTableFile: string = await getFileImportAndSaveToDisk(dataset, dataTable);
     const updateTableDataCol = dataTable.dataTableDescriptions.find(
       (col) => col.factTableColumn === dataValuesColumn?.columnName
     )?.columnName;
@@ -701,18 +752,22 @@ async function loadFactTablesWithUpdates(
         case DataTableAction.ReplaceAll:
           await quack.exec(pgformat('DELETE FROM %I;', FACT_TABLE_NAME));
           await quack.exec('CHECKPOINT;');
-          await loadFileDataTableIntoTable(quack, dataTable, factTableDef, factTableFile, FACT_TABLE_NAME);
+          await loadTableDataIntoFactTableFromPostgres(quack, factTableDef, FACT_TABLE_NAME, dataTable.id);
           break;
         case DataTableAction.Add:
-          await loadFileDataTableIntoTable(quack, dataTable, factTableDef, factTableFile, FACT_TABLE_NAME);
+          await loadTableDataIntoFactTableFromPostgres(quack, factTableDef, FACT_TABLE_NAME, dataTable.id);
           break;
         case DataTableAction.Revise:
-          await loadFileIntoCube(quack, dataTable, factTableFile, 'update_table');
+          await quack.exec(
+            pgformat('CREATE TABLE update_table AS SELECT * FROM %I.%I;', 'date_tables_db', dataTable.id)
+          );
           await quack.exec(updateQuery);
           await quack.exec('DROP TABLE update_table;');
           break;
         case DataTableAction.AddRevise:
-          await loadFileIntoCube(quack, dataTable, factTableFile, 'update_table');
+          await quack.exec(
+            pgformat('CREATE TABLE update_table AS SELECT * FROM %I.%I;', 'date_tables_db', dataTable.id)
+          );
           logger.debug(`Executing update query: ${updateQuery}`);
           await quack.exec(updateQuery);
           await quack.exec(
@@ -737,8 +792,6 @@ async function loadFactTablesWithUpdates(
       }
     } catch (error) {
       logger.error(error, `Something went wrong trying to create the core fact table`);
-    } finally {
-      fs.unlinkSync(factTableFile);
     }
   }
 }
@@ -1299,14 +1352,14 @@ async function setupDimensions(
   }
 }
 
-function referenceDataPresent(dataset: Dataset) {
-  if (dataset.dimensions.find((dim) => dim.type === DimensionType.ReferenceData)) {
-    return true;
-  }
-  return false;
-}
+// function referenceDataPresent(dataset: Dataset) {
+//   if (dataset.dimensions.find((dim) => dim.type === DimensionType.ReferenceData)) {
+//     return true;
+//   }
+//   return false;
+// }
 
-export async function createEmptyFactTableInCube(quack: Database, dataset: Dataset) {
+export async function createEmptyFactTableInCube(quack: Database, dataset: Dataset, revision: Revision) {
   let notesCodeColumn: FactTableColumn | undefined;
   let dataValuesColumn: FactTableColumn | undefined;
   let measureColumn: FactTableColumn | undefined;
@@ -1339,22 +1392,33 @@ export async function createEmptyFactTableInCube(quack: Database, dataset: Datas
           break;
       }
       factTableDef.push(field.columnName);
-      return pgformat('%I %s', field.columnName, field.columnDatatype);
+      return pgformat(
+        '%I %s',
+        field.columnName,
+        field.columnDatatype === 'DOUBLE' ? 'DOUBLE PRECISION' : field.columnDatatype
+      );
     });
 
   logger.info('Creating initial fact table in cube');
   try {
-    let createTableQuery: string = pgformat(`CREATE TABLE %I (%s);`, FACT_TABLE_NAME, factTableCreationDef.join(','));
+    let factTableCreationQuery = pgformat(
+      `CREATE TABLE %I.%I (%s);`,
+      revision.id,
+      FACT_TABLE_NAME,
+      factTableCreationDef.join(', ')
+    );
     if (compositeKey.length > 0) {
-      createTableQuery = pgformat(
-        'CREATE TABLE %I (%s, PRIMARY KEY(%I));',
+      factTableCreationQuery = pgformat(
+        'CREATE TABLE %I.%I (%s, PRIMARY KEY(%I));',
+        revision.id,
         FACT_TABLE_NAME,
         factTableCreationDef,
         compositeKey
       );
     }
-    logger.debug(`Creating fact table with query: '${createTableQuery}'`);
-    await quack.exec(createTableQuery);
+    const createQuery = pgformat(`CALL postgres_execute('postgres_db', %L);`, factTableCreationQuery);
+    logger.debug(`Creating fact table with query: '${createQuery}'`);
+    await quack.exec(createQuery);
   } catch (err) {
     logger.error(`Failed to create fact table in cube: ${err}`);
     await quack.close();
@@ -1370,7 +1434,8 @@ export const updateFactTableValidator = async (
 ): Promise<Database> => {
   const { notesCodeColumn, dataValuesColumn, factTableDef, factIdentifiers } = await createEmptyFactTableInCube(
     quack,
-    dataset
+    dataset,
+    revision
   );
   await loadFactTables(quack, dataset, revision, factTableDef, dataValuesColumn, notesCodeColumn, factIdentifiers);
   return quack;
@@ -1448,42 +1513,26 @@ export const createBaseCubeFromProtoCube = async (
   }
 
   const buildStart = performance.now();
-  let quack: Database;
-  if (protoCubeFile) {
-    logger.debug(`Loading protocube from file: ${protoCubeFile} to DuckDB 🐤`);
-    quack = await duckdb(protoCubeFile);
-  } else {
-    logger.debug('Creating an in-memory database to hold the cube using DuckDB 🐤');
-    protoCubeFile = tmp.tmpNameSync({ postfix: '.duckdb' });
-    quack = await duckdb(protoCubeFile);
+  logger.debug('Creating an in-memory database to hold the cube using DuckDB 🐤');
+  protoCubeFile = tmp.tmpNameSync({ postfix: '.duckdb' });
+  const quack = await duckdb(protoCubeFile);
+  await linkToPostgres(quack, endRevision.id, true);
 
-    const { notesCodeColumn, dataValuesColumn, factTableDef, factIdentifiers } = await createEmptyFactTableInCube(
-      quack,
-      dataset
-    );
-
-    try {
-      await loadFactTables(
-        quack,
-        dataset,
-        endRevision,
-        factTableDef,
-        dataValuesColumn,
-        notesCodeColumn,
-        factIdentifiers
-      );
-    } catch (err) {
-      logger.error(err, `Failed to load fact tables into the cube`);
-      await quack.close();
-      throw new Error(`Failed to load fact tables into the cube: ${err}`);
-    }
-  }
-
-  await createCubeMetadataTable(quack);
+  const { factTableDef, factIdentifiers } = await createEmptyFactTableInCube(quack, dataset, endRevision);
 
   const notesCodeColumn = dataset.factTable?.find((field) => field.columnType === FactTableColumnType.NoteCodes);
   const dataValuesColumn = dataset.factTable?.find((field) => field.columnType === FactTableColumnType.DataValues);
   const measureColumn = dataset.factTable?.find((field) => field.columnType === FactTableColumnType.Measure);
+
+  try {
+    await loadFactTables(quack, dataset, endRevision, factTableDef, dataValuesColumn, notesCodeColumn, factIdentifiers);
+  } catch (err) {
+    logger.error(err, `Failed to load fact tables into the cube`);
+    await quack.close();
+    throw new Error(`Failed to load fact tables into the cube: ${err}`);
+  }
+
+  await createCubeMetadataTable(quack);
 
   if (measureColumn && dataValuesColumn) {
     try {
@@ -1506,9 +1555,7 @@ export const createBaseCubeFromProtoCube = async (
     setupMeasureNoDataValues(viewSelectStatementsMap, rawSelectStatementsMap, measureColumn, dataValuesColumn);
   }
 
-  if (referenceDataPresent(dataset)) {
-    await loadReferenceDataIntoCube(quack);
-  }
+  await loadReferenceDataIntoCube(quack);
 
   try {
     await setupDimensions(
@@ -1524,10 +1571,6 @@ export const createBaseCubeFromProtoCube = async (
     logger.error(err, `Failed to setup dimensions`);
     await quack.close();
     throw new Error(`Failed to setup dimensions`);
-  }
-
-  if (referenceDataPresent(dataset)) {
-    await cleanUpReferenceDataTables(quack);
   }
 
   logger.debug('Adding notes code column to the select statement.');
@@ -1581,6 +1624,8 @@ export const createBaseCubeFromProtoCube = async (
   const functionTime = Math.round(end - functionStart);
   const buildTime = Math.round(end - buildStart);
   logger.warn(`Cube function took ${functionTime}ms to complete and it took ${buildTime}ms to build the cube.`);
+  endRevision.cubeType = CubeType.PostgresCube;
+  await endRevision.save();
   return protoCubeFile;
 };
 

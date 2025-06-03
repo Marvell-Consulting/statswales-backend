@@ -32,6 +32,7 @@ import { MAX_PAGE_SIZE, MIN_PAGE_SIZE } from '../../src/validators/preview-valid
 import { UserGroup } from '../../src/entities/user/user-group';
 import { GroupRole } from '../../src/enums/group-role';
 import { UserGroupRole } from '../../src/entities/user/user-group-role';
+import { QueryRunner } from 'typeorm';
 
 jest.mock('../../src/services/blob-storage');
 
@@ -48,12 +49,17 @@ const user: User = getTestUser('test', 'user');
 let userGroup = getTestUserGroup('Test Group');
 
 let datasetService: DatasetService;
+let queryRunner: QueryRunner;
 
 describe('API Endpoints', () => {
   let dbManager: DatabaseManager;
   beforeAll(async () => {
     try {
       dbManager = await initDb();
+      queryRunner = dbManager.getDataSource().createQueryRunner();
+      await queryRunner.dropSchema('data_tables', true, true);
+      await queryRunner.dropSchema(revision1Id, true, true);
+      await queryRunner.createSchema('data_tables', true);
       await initPassport(dbManager.getDataSource());
       userGroup = await dbManager.getDataSource().getRepository(UserGroup).save(userGroup);
       user.groupRoles = [UserGroupRole.create({ group: userGroup, roles: [GroupRole.Editor] })];
@@ -139,20 +145,21 @@ describe('API Endpoints', () => {
             user_message: [
               {
                 lang: Locale.English,
-                message: t('errors.page_number_to_high', { lng: Locale.English, page_number: 1 })
+                message: t('errors.page_number_to_high', { lng: Locale.English, page_number: 15 })
               },
               {
                 lang: Locale.Welsh,
-                message: t('errors.page_number_to_high', { lng: Locale.Welsh, page_number: 1 })
+                message: t('errors.page_number_to_high', { lng: Locale.Welsh, page_number: 15 })
               }
             ],
             message: {
               key: 'errors.page_number_to_high',
-              params: { page_number: 1 }
+              params: { page_number: 15 }
             }
           }
         ]
       });
+      await queryRunner.dropSchema(testRevisionId, true, true);
     });
 
     test('Get file preview returns 400 if page_size is too high', async () => {
@@ -200,6 +207,7 @@ describe('API Endpoints', () => {
           }
         ]
       });
+      await queryRunner.dropSchema(testRevisionId, true, true);
     });
 
     test('Get file preview returns 400 if page_size is too low', async () => {
@@ -247,6 +255,7 @@ describe('API Endpoints', () => {
           }
         ]
       });
+      await queryRunner.dropSchema(testRevisionId, true, true);
     });
 
     test('Get preview of an import returns 200 and correct page data', async () => {
@@ -266,7 +275,7 @@ describe('API Endpoints', () => {
 
       expect(res.status).toBe(200);
       expect(res.body.current_page).toBe(1);
-      expect(res.body.total_pages).toBe(1);
+      expect(res.body.total_pages).toBe(15);
       expect(res.body.page_size).toBe(100);
       expect(res.body.headers).toEqual([
         { index: -1, name: 'int_line_number', source_type: 'line_number' },
@@ -277,36 +286,9 @@ describe('API Endpoints', () => {
         { index: 4, name: 'Measure', source_type: 'measure' },
         { index: 5, name: 'NoteCodes', source_type: 'note_codes' }
       ]);
-      expect(res.body.data[0]).toEqual([1, 202223, 512, 1.442546584, 2, 2, null]);
-      expect(res.body.data[23]).toEqual([24, 202122, 596, 137527, 1, 1, 't']);
-    });
-
-    test('Get preview of an import returns 500 if a file storage error occurs', async () => {
-      BlobStorage.prototype.loadBuffer = jest.fn().mockRejectedValue(new Error('A Data Lake error occurred'));
-
-      const res = await request(app)
-        .get(`/dataset/${dataset1Id}/revision/by-id/${revision1Id}/data-table/preview`)
-        .set(getAuthHeader(user))
-        .query({ page_number: 2, page_size: 100 });
-      expect(res.status).toBe(500);
-      expect(res.body).toEqual({
-        status: 500,
-        errors: [
-          {
-            field: 'csv',
-            user_message: [
-              {
-                lang: Locale.English,
-                message: t('errors.datalake.failed_to_fetch_file', { lng: Locale.English })
-              },
-              { lang: Locale.Welsh, message: t('errors.datalake.failed_to_fetch_file', { lng: Locale.Welsh }) }
-            ],
-            message: { key: 'errors.datalake.failed_to_fetch_file', params: {} }
-          }
-        ],
-        dataset_id: dataset1Id,
-        extension: {}
-      });
+      expect(res.body.data[0]).toEqual([1, 201314, 512, 1.111801242, 2, 2, null]);
+      expect(res.body.data[23]).toEqual([24, 201314, 522, 4636, 1, 1, null]);
+      await queryRunner.dropSchema(testRevisionId, true, true);
     });
 
     test('Get preview of an import returns 404 when a non-existant import is requested', async () => {
@@ -322,6 +304,7 @@ describe('API Endpoints', () => {
         .set(getAuthHeader(user));
       expect(res.status).toBe(404);
       expect(res.body).toEqual({ error: 'errors.no_data_table' });
+      await queryRunner.dropSchema(testRevisionId, true, true);
     });
   });
 
@@ -358,6 +341,7 @@ describe('API Endpoints', () => {
       }
 
       expect(revision.dataTable).toBe(null);
+      await queryRunner.dropSchema(testRevisionId, true, true);
     });
 
     test('Upload returns 400 if no file attached', async () => {
@@ -378,6 +362,7 @@ describe('API Endpoints', () => {
 
       expect(res.status).toBe(400);
       expect(res.body).toEqual({ error: 'No CSV data provided' });
+      await queryRunner.dropSchema(testRevisionId, true, true);
     });
 
     test('Upload returns 201 if a file is attached', async () => {
@@ -422,6 +407,7 @@ describe('API Endpoints', () => {
       expect(res.status).toBe(201);
       expect(res.body).toEqual(datasetDTO);
       await Dataset.remove(dataset);
+      await queryRunner.dropSchema(testRevisionId, true, true);
     });
 
     test('Upload returns 500 if an error occurs with file storage', async () => {
@@ -448,6 +434,7 @@ describe('API Endpoints', () => {
         .attach('csv', csvFile);
       expect(res.status).toBe(500);
       expect(res.body).toEqual({ error: 'errors.file_validation.datalake_upload_error' });
+      await queryRunner.dropSchema(testRevisionId, true, true);
     });
   });
 
@@ -471,6 +458,7 @@ describe('API Endpoints', () => {
       const dto = DataTableDto.fromDataTable(postRunFileImport);
       expect(res.status).toBe(200);
       expect(res.body).toEqual(dto);
+      await queryRunner.dropSchema(testRevisionId, true, true);
     });
 
     test('Returns 200 with an import dto listing the no additional sources are created if sources are already present', async () => {
@@ -571,6 +559,7 @@ describe('API Endpoints', () => {
       }
       const dimensions = updatedDataset.dimensions;
       expect(dimensions.length).toBe(3);
+      await queryRunner.dropSchema(testRevisionId, true, true);
     });
 
     test('Create dimensions from user supplied JSON returns 400 if the body is empty', async () => {
@@ -581,6 +570,7 @@ describe('API Endpoints', () => {
       const res = await request(app).patch(`/dataset/${testDatasetId}/sources`).send().set(getAuthHeader(user));
       expect(res.status).toBe(400);
       expect(res.body).toEqual({ error: 'Could not assign source types to import' });
+      await queryRunner.dropSchema(testRevisionId, true, true);
     });
 
     test('Create dimensions from user supplied JSON returns 400 if there is more than one set of Data Values', async () => {
@@ -629,6 +619,7 @@ describe('API Endpoints', () => {
         ],
         status: 400
       });
+      await queryRunner.dropSchema(testRevisionId, true, true);
     });
 
     test('Create dimensions from user supplied JSON returns 400 if there is more than one set of Footnotes', async () => {
@@ -678,6 +669,7 @@ describe('API Endpoints', () => {
         ],
         status: 400
       });
+      await queryRunner.dropSchema(testRevisionId, true, true);
     });
   });
 
@@ -704,6 +696,7 @@ describe('API Endpoints', () => {
         const metaEN = updatedDataset.draftRevision?.metadata.find((meta) => meta.language.includes('en'));
 
         expect(metaEN?.title).toEqual(meta.title);
+        await queryRunner.dropSchema(testRevisionId, true, true);
       });
 
       test('Can update the Welsh title', async () => {
@@ -727,13 +720,15 @@ describe('API Endpoints', () => {
         const metaCY = updatedDataset.draftRevision?.metadata.find((meta) => meta.language.includes('cy'));
 
         expect(metaCY?.title).toEqual(meta.title);
+        await queryRunner.dropSchema(testRevisionId, true, true);
       });
     });
   });
 
   test('Ensure Delete a dataset really deletes the dataset', async () => {
     const datasetID = crypto.randomUUID().toLowerCase();
-    const testDataset = await createSmallDataset(datasetID, crypto.randomUUID(), crypto.randomUUID(), user);
+    const testRevisionId = crypto.randomUUID().toLowerCase();
+    const testDataset = await createSmallDataset(datasetID, testRevisionId, crypto.randomUUID(), user);
     expect(testDataset).not.toBeNull();
     expect(testDataset.id).toBe(datasetID);
     const datesetFromDb = await Dataset.findOneBy({ id: datasetID });
@@ -744,6 +739,7 @@ describe('API Endpoints', () => {
     expect(res.status).toBe(202);
     const dataset = await Dataset.findOneBy({ id: datasetID });
     expect(dataset).toBeNull();
+    await queryRunner.dropSchema(testRevisionId, true, true);
   });
 
   describe('Publishing', () => {
@@ -756,6 +752,10 @@ describe('API Endpoints', () => {
         revisionId = crypto.randomUUID().toLowerCase();
         const factTableId = crypto.randomUUID().toLowerCase();
         await createSmallDataset(datasetId, revisionId, factTableId, user);
+      });
+
+      afterEach(async () => {
+        await queryRunner.dropSchema(revisionId, true, true);
       });
 
       test('Set publish_at fails with 404 if revision id invalid', async () => {
@@ -806,6 +806,10 @@ describe('API Endpoints', () => {
   });
 
   afterAll(async () => {
+    const queryRunner = dbManager.getDataSource().createQueryRunner();
+    await queryRunner.dropSchema('data_tables', true, true);
+    await queryRunner.dropSchema(revision1Id, true, true);
+    await queryRunner.release();
     await dbManager.getDataSource().dropDatabase();
     await dbManager.getDataSource().destroy();
   });

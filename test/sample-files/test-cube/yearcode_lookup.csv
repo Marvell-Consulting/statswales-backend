@@ -1,0 +1,23 @@
+YearCode,language,description,hierarchy,date_type,start_date,end_date
+201314,en-gb,2013-14,,date_type.financial_year,2013-04-01 00:00:00,2014-03-31 23:59:59
+201415,en-gb,2014-15,,date_type.financial_year,2014-04-01 00:00:00,2015-03-31 23:59:59
+201516,en-gb,2015-16,,date_type.financial_year,2015-04-01 00:00:00,2016-03-31 23:59:59
+201617,en-gb,2016-17,,date_type.financial_year,2016-04-01 00:00:00,2017-03-31 23:59:59
+201718,en-gb,2017-18,,date_type.financial_year,2017-04-01 00:00:00,2018-03-31 23:59:59
+201819,en-gb,2018-19,,date_type.financial_year,2018-04-01 00:00:00,2019-03-31 23:59:59
+201920,en-gb,2019-20,,date_type.financial_year,2019-04-01 00:00:00,2020-03-31 23:59:59
+202021,en-gb,2020-21,,date_type.financial_year,2020-04-01 00:00:00,2021-03-31 23:59:59
+202122,en-gb,2021-22,,date_type.financial_year,2021-04-01 00:00:00,2022-03-31 23:59:59
+202223,en-gb,2022-23,,date_type.financial_year,2022-04-01 00:00:00,2023-03-31 23:59:59
+202324,en-gb,2023-24,,date_type.financial_year,2023-04-01 00:00:00,2024-03-31 23:59:59
+201314,cy-gb,2013-14,,date_type.financial_year,2013-04-01 00:00:00,2014-03-31 23:59:59
+201415,cy-gb,2014-15,,date_type.financial_year,2014-04-01 00:00:00,2015-03-31 23:59:59
+201516,cy-gb,2015-16,,date_type.financial_year,2015-04-01 00:00:00,2016-03-31 23:59:59
+201617,cy-gb,2016-17,,date_type.financial_year,2016-04-01 00:00:00,2017-03-31 23:59:59
+201718,cy-gb,2017-18,,date_type.financial_year,2017-04-01 00:00:00,2018-03-31 23:59:59
+201819,cy-gb,2018-19,,date_type.financial_year,2018-04-01 00:00:00,2019-03-31 23:59:59
+201920,cy-gb,2019-20,,date_type.financial_year,2019-04-01 00:00:00,2020-03-31 23:59:59
+202021,cy-gb,2020-21,,date_type.financial_year,2020-04-01 00:00:00,2021-03-31 23:59:59
+202122,cy-gb,2021-22,,date_type.financial_year,2021-04-01 00:00:00,2022-03-31 23:59:59
+202223,cy-gb,2022-23,,date_type.financial_year,2022-04-01 00:00:00,2023-03-31 23:59:59
+202324,cy-gb,2023-24,,date_type.financial_year,2023-04-01 00:00:00,2024-03-31 23:59:59
