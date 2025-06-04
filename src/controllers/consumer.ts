@@ -69,7 +69,9 @@ export const getPublishedDatasetView = async (req: Request, res: Response) => {
 };
 
 export const getPublishedDatasetFilters = async (req: Request, res: Response) => {
-  const dataset = await PublishedDatasetRepository.getById(res.locals.datasetId, withAll);
+  const dataset = await PublishedDatasetRepository.getById(res.locals.datasetId, {
+    publishedRevision: true
+  });
   const lang = req.language.toLowerCase();
   if (!dataset.publishedRevision) {
     throw new NotFoundException('errors.no_revision');
