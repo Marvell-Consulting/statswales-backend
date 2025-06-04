@@ -27,7 +27,7 @@ class DatabaseManager {
   }
 
   async initializeDataSource(): Promise<void> {
-    this.logger.debug(`DB '${this.dataSource.options.database}' initializing...`);
+    this.logger.debug(`Application DB '${this.dataSource.options.database}' initializing...`);
 
     if (!this.dataSource.isInitialized) {
       try {
@@ -38,7 +38,7 @@ class DatabaseManager {
       }
     }
 
-    this.logger.info(`DB '${this.dataSource.options.database}' initialized`);
+    this.logger.info(`Application DB '${this.dataSource.options.database}' initialized`);
     this.entityManager = this.dataSource.createEntityManager();
   }
 }
