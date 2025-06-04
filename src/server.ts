@@ -15,11 +15,15 @@ Promise.resolve()
     const dbManager = await initDb();
     await initEntitySubscriber(dbManager.getDataSource());
 
-    const cubeDB = getCubeDB();
-    const cubeClient = await cubeDB.connect();
-    await cubeClient.query('SELECT NOW()');
-    cubeClient.release();
-    logger.info('Cube DB initialized');
+    try {
+      const cubeDB = getCubeDB();
+      const cubeClient = await cubeDB.connect();
+      await cubeClient.query('SELECT NOW()');
+      cubeClient.release();
+      logger.info('Cube DB initialized');
+    } catch (error) {
+      logger.error(error, 'Error initializing Cube DB');
+    }
 
     await initPassport(dbManager.getDataSource());
   })
