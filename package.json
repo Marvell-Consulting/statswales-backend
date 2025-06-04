@@ -59,7 +59,6 @@
     "@types/redis": "^4.0.10",
     "@types/shelljs": "^0.8.15",
     "@types/supertest": "^6.0.2",
-    "@types/swagger-jsdoc": "^6.0.4",
     "@types/swagger-ui-express": "^4.1.8",
     "@types/tmp": "^0.2.6",
     "@types/uuid": "^10.0.0",
