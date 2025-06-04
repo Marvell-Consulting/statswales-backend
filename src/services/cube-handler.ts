@@ -61,6 +61,7 @@ export const createDataTableQuery = async (
   fileType: FileType,
   quack: Database
 ): Promise<string> => {
+  logger.debug(`Creating data table ${tableName} with file ${tempFileName} and file type ${fileType}`);
   switch (fileType) {
     case FileType.Csv:
     case FileType.GzipCsv:

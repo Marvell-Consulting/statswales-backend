@@ -27,12 +27,16 @@ import {
   createDateDimension,
   createLookupTableDimension,
   loadCorrectReferenceDataIntoReferenceDataTable,
-  loadFileIntoCube,
   loadReferenceDataIntoCube,
   makeCubeSafeString,
   updateFactTableValidator
 } from '../services/cube-handler';
-import { DEFAULT_PAGE_SIZE, getCSVPreview, validateAndUploadCSV } from '../services/csv-processor';
+import {
+  DEFAULT_PAGE_SIZE,
+  extractTableInformation,
+  getCSVPreview,
+  validateAndUploadCSV
+} from '../services/csv-processor';
 import { DataTableDescription } from '../entities/dataset/data-table-description';
 import { FactTableColumn } from '../entities/dataset/fact-table-column';
 import { DataTableAction } from '../enums/data-table-action';
@@ -40,7 +44,7 @@ import { ColumnMatch } from '../interfaces/column-match';
 import { DimensionType } from '../enums/dimension-type';
 import { CubeValidationException } from '../exceptions/cube-error-exception';
 import { DimensionUpdateTask } from '../interfaces/revision-task';
-import { duckdb, linkToPostgresDataTables } from '../services/duckdb';
+import { duckdb } from '../services/duckdb';
 import { FileValidationException } from '../exceptions/validation-exception';
 import { FactTableColumnType } from '../enums/fact-table-column-type';
 import { checkForReferenceErrors } from '../services/lookup-table-handler';
@@ -587,19 +591,16 @@ export const regenerateRevisionCube = async (req: Request, res: Response, next: 
       else return undefined;
     })
     .filter((rev) => !!rev)
-    .filter((rev) => (rev?.dataTable ? true : false));
+    .filter((rev) => !!rev?.dataTable);
 
-  const quack = await duckdb();
-  await linkToPostgresDataTables(quack);
   for (const rev of revisionTree) {
     logger.debug(`Recreating datatable ${rev.dataTable!.id} in postgres data_tables database`);
     const tmpFile = tmp.fileSync({ postfix: rev.dataTable!.fileType });
     const buf = await req.fileService.loadBuffer(rev.dataTable!.filename, datasetId);
     fs.writeFileSync(tmpFile.name, buf);
-    await loadFileIntoCube(quack, rev.dataTable!, tmpFile.name, rev.dataTable!.id);
+    await extractTableInformation(buf, rev.dataTable!, 'data_table');
     tmpFile.removeCallback();
   }
-  await quack.close();
 
   try {
     await createAllCubeFiles(datasetId, revision.id, req.fileService);
