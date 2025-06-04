@@ -29,9 +29,9 @@ export const datasetAuth = async (req: Request, res: Response, next: NextFunctio
       logger.warn(`User does not have access to dataset ${dataset.id}`);
       next(new ForbiddenException('errors.dataset_not_in_users_groups'));
       return;
+    } else {
+      logger.debug(`User has access to dataset ${dataset.id} via group ${dataset.userGroupId}`);
     }
-
-    logger.debug(`User has access to dataset ${dataset.id} via group ${dataset.userGroupId}`);
 
     res.locals.datasetId = dataset.id;
     res.locals.dataset = dataset;
