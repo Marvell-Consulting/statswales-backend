@@ -84,6 +84,7 @@ export async function extractTableInformation(
     try {
       logger.debug(`Copying data table to postgres using data table id: ${dataTable.id}`);
       await linkToPostgresDataTables(quack);
+      await quack.exec(pgformat(`DROP TABLE IF EXISTS %I;`, dataTable.id));
       await quack.exec(pgformat(createTableQuery, dataTable.id, tempFile));
       tableName = dataTable.id;
     } catch (error) {

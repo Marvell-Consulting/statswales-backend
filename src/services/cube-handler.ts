@@ -61,6 +61,7 @@ export const createDataTableQuery = async (
   fileType: FileType,
   quack: Database
 ): Promise<string> => {
+  logger.debug(`Creating data table ${tableName} with file ${tempFileName} and file type ${fileType}`);
   switch (fileType) {
     case FileType.Csv:
     case FileType.GzipCsv:
@@ -494,6 +495,33 @@ async function setupReferenceDataDimension(
   joinStatements.push(pgformat(`    AND %I.category_key=%I.category_key`, refDataTbl, refDataInfo));
   joinStatements.push(pgformat(`    AND %I.version_no=%I.version_no`, refDataTbl, refDataInfo));
   joinStatements.push(pgformat(`    AND %I.lang=#LANG#`, refDataInfo));
+  for (const locale of SUPPORTED_LOCALES) {
+    const columnName = dimension.metadata.find((info) => info.language === locale)?.name || dimension.factTableColumn;
+    const query = pgformat(
+      `
+      INSERT INTO filter_table
+      SELECT DISTINCT
+        %I as reference,
+        %L as language,
+        %L as fact_table_column,
+        %L as dimension_name,
+        reference_data_info.description as description,
+        NULL as hierarchy
+      FROM fact_table
+      LEFT JOIN reference_data on CAST(fact_table.%I AS VARCHAR)=reference_data.item_id
+      JOIN reference_data_info ON reference_data.item_id=reference_data_info.item_id
+      AND reference_data_info.lang=%L;
+      `,
+      dimension.factTableColumn,
+      locale.toLowerCase(),
+      dimension.factTableColumn,
+      columnName,
+      dimension.factTableColumn,
+      locale.toLowerCase()
+    );
+    logger.debug(`Query = ${query}`);
+    await quack.exec(query);
+  }
 }
 
 export const createDatePeriodTableQuery = (factTableColumn: FactTableColumn) => {
@@ -615,6 +643,21 @@ async function setupLookupTableDimension(
     `LEFT JOIN "${dimTable}" on "${dimTable}"."${factTableColumn.columnName}"=${FACT_TABLE_NAME}."${factTableColumn.columnName}" AND "${dimTable}".language=#LANG#`
   );
   orderByStatements.push(`"${dimTable}".sort_order`);
+  for (const locale of SUPPORTED_LOCALES) {
+    const columnName = dimension.metadata.find((info) => info.language === locale)?.name || dimension.factTableColumn;
+    await quack.exec(
+      pgformat(
+        `INSERT INTO filter_table
+         SELECT DISTINCT CAST(%I AS VARCHAR), language, %L, %L, description, hierarchy
+         FROM %I WHERE language = %L`,
+        dimension.factTableColumn,
+        dimension.factTableColumn,
+        columnName,
+        dimTable,
+        locale.toLowerCase()
+      )
+    );
+  }
 }
 
 export async function createLookupTableDimension(
@@ -1126,12 +1169,25 @@ async function setupMeasures(
       )
     );
     orderByStatements.push(`measure.sort_order, measure.reference`);
+    for (const locale of SUPPORTED_LOCALES) {
+      const columnName =
+        dataset.measure.metadata.find((info) => info.language === locale)?.name || dataset.measure.factTableColumn;
+      await quack.exec(
+        pgformat(
+          `INSERT INTO filter_table SELECT CAST(reference AS VARCHAR), language, %L, %L, description, CAST(hierarchy AS VARCHAR) FROM measure WHERE language = %L`,
+          measureColumn.columnName,
+          columnName,
+          locale.toLowerCase()
+        )
+      );
+    }
   } else {
     setupMeasureNoDataValues(viewSelectStatementsMap, rawSelectStatementsMap, measureColumn, dataValuesColumn);
   }
 }
 
-function rawDimensionProcessor(
+async function rawDimensionProcessor(
+  quack: Database,
   dimension: Dimension,
   viewSelectStatementsMap: Map<Locale, string[]>,
   rawSelectStatementsMap: Map<Locale, string[]>
@@ -1141,6 +1197,22 @@ function rawDimensionProcessor(
     viewSelectStatementsMap.get(locale)?.push(pgformat('%I AS %I', dimension.factTableColumn, columnName));
     rawSelectStatementsMap.get(locale)?.push(pgformat('%I AS %I', dimension.factTableColumn, columnName));
   });
+  for (const locale of SUPPORTED_LOCALES) {
+    const columnName = dimension.metadata.find((info) => info.language === locale)?.name || dimension.factTableColumn;
+    await quack.exec(
+      pgformat(
+        `INSERT INTO filter_table
+         SELECT DISTINCT CAST(%I AS VARCHAR), %L, %L, %I, CAST (%I AS VARCHAR), NULL
+         FROM %I`,
+        dimension.factTableColumn,
+        locale.toLowerCase(),
+        dimension.factTableColumn,
+        columnName,
+        dimension.factTableColumn,
+        FACT_TABLE_NAME
+      )
+    );
+  }
 }
 
 async function dateDimensionProcessor(
@@ -1191,9 +1263,26 @@ async function dateDimensionProcessor(
     )
   );
   orderByStatements.push(pgformat('%I.end_date', dimTable));
+  for (const locale of SUPPORTED_LOCALES) {
+    const columnName = dimension.metadata.find((info) => info.language === locale)?.name || dimension.factTableColumn;
+    await quack.exec(
+      pgformat(
+        `INSERT INTO filter_table
+         SELECT CAST(%I AS VARCHAR), language, %L, %L, description, CAST (hierarchy AS VARCHAR)
+         FROM %I
+         WHERE language = %L`,
+        factTableColumn.columnName,
+        factTableColumn.columnName,
+        columnName,
+        dimTable,
+        locale.toLowerCase()
+      )
+    );
+  }
 }
 
-function setupNumericDimension(
+async function setupNumericDimension(
+  quack: Database,
   dimension: Dimension,
   viewSelectStatementsMap: Map<Locale, string[]>,
   rawSelectStatementsMap: Map<Locale, string[]>
@@ -1232,9 +1321,26 @@ function setupNumericDimension(
         );
     }
   });
+  for (const locale of SUPPORTED_LOCALES) {
+    const columnName = dimension.metadata.find((info) => info.language === locale)?.name || dimension.factTableColumn;
+    await quack.exec(
+      pgformat(
+        `INSERT INTO filter_table
+         SELECT DISTINCT CAST(%I AS VARCHAR), %L, %L, %I, CAST (%I AS VARCHAR), NULL
+         FROM %I`,
+        dimension.factTableColumn,
+        locale.toLowerCase(),
+        dimension.factTableColumn,
+        columnName,
+        dimension.factTableColumn,
+        FACT_TABLE_NAME
+      )
+    );
+  }
 }
 
-function setupTextDimension(
+async function setupTextDimension(
+  quack: Database,
   dimension: Dimension,
   viewSelectStatementsMap: Map<Locale, string[]>,
   rawSelectStatementsMap: Map<Locale, string[]>
@@ -1248,6 +1354,22 @@ function setupTextDimension(
       .get(locale)
       ?.push(pgformat('CAST(%I AS VARCHAR) AS %I', dimension.factTableColumn, columnName));
   });
+  for (const locale of SUPPORTED_LOCALES) {
+    const columnName = dimension.metadata.find((info) => info.language === locale)?.name || dimension.factTableColumn;
+    await quack.exec(
+      pgformat(
+        `INSERT INTO filter_table
+         SELECT DISTINCT CAST(%I AS VARCHAR), %L, %L, %I, CAST (%I AS VARCHAR), NULL
+         FROM %I`,
+        dimension.factTableColumn,
+        locale.toLowerCase(),
+        dimension.factTableColumn,
+        columnName,
+        dimension.factTableColumn,
+        FACT_TABLE_NAME
+      )
+    );
+  }
 }
 
 async function setupDimensions(
@@ -1302,7 +1424,7 @@ async function setupDimensions(
               orderByStatements
             );
           } else {
-            rawDimensionProcessor(dimension, viewSelectStatementsMap, rawSelectStatementsMap);
+            await rawDimensionProcessor(quack, dimension, viewSelectStatementsMap, rawSelectStatementsMap);
           }
           break;
         case DimensionType.LookupTable:
@@ -1313,7 +1435,7 @@ async function setupDimensions(
             const updateInProgressDimension = endRevision.tasks.dimensions.find((dim) => dim.id === dimension.id);
             if (updateInProgressDimension && !updateInProgressDimension.lookupTableUpdated) {
               logger.warn(`Skipping dimension ${dimension.id} as it has not been updated`);
-              rawDimensionProcessor(dimension, viewSelectStatementsMap, rawSelectStatementsMap);
+              await rawDimensionProcessor(quack, dimension, viewSelectStatementsMap, rawSelectStatementsMap);
               break;
             }
           }
@@ -1337,14 +1459,14 @@ async function setupDimensions(
           );
           break;
         case DimensionType.Numeric:
-          setupNumericDimension(dimension, viewSelectStatementsMap, rawSelectStatementsMap);
+          await setupNumericDimension(quack, dimension, viewSelectStatementsMap, rawSelectStatementsMap);
           break;
         case DimensionType.Text:
-          setupTextDimension(dimension, viewSelectStatementsMap, rawSelectStatementsMap);
+          await setupTextDimension(quack, dimension, viewSelectStatementsMap, rawSelectStatementsMap);
           break;
         case DimensionType.Raw:
         case DimensionType.Symbol:
-          rawDimensionProcessor(dimension, viewSelectStatementsMap, rawSelectStatementsMap);
+          await rawDimensionProcessor(quack, dimension, viewSelectStatementsMap, rawSelectStatementsMap);
           break;
       }
     } catch (err) {
@@ -1475,6 +1597,30 @@ async function createCubeMetadataTable(quack: Database) {
   await quack.exec(`CREATE TABLE metadata (key VARCHAR, value VARCHAR);`);
 }
 
+async function createFilterTable(quack: Database, revisionID: string, type: 'postgres' | 'duckdb'): Promise<void> {
+  logger.debug('Creating filter table to the cube');
+  let tableName = pgformat('%I.filter_table', revisionID);
+  if (type === 'duckdb') {
+    tableName = 'filter_table';
+  }
+  const createFilterQuery = pgformat(
+    `
+            CREATE TABLE %s (
+                reference VARCHAR,
+                language VARCHAR,
+                fact_table_column VARCHAR,
+                dimension_name VARCHAR,
+                description VARCHAR,
+                hierarchy VARCHAR,
+                PRIMARY KEY (reference, language, fact_table_column)
+            );
+      `,
+    tableName,
+    revisionID
+  );
+  await quack.exec(createFilterQuery);
+}
+
 // Builds a fresh cube from either from a protocube or completely from scratch
 // based on if a protocube is supplied and returns the file pointer
 // to the duckdb file on disk.  This is based on the recipe in our cube miro
@@ -1544,7 +1690,7 @@ export const createBasePostgresCube = async (datasetId: string, endRevisionId: s
   await linkToPostgres(quack, endRevision.id, true);
 
   const { factTableDef, factIdentifiers } = await createEmptyFactTableInCube(quack, dataset, endRevision, 'postgres');
-
+  await createFilterTable(quack, endRevision.id, 'postgres');
   const notesCodeColumn = dataset.factTable?.find((field) => field.columnType === FactTableColumnType.NoteCodes);
   const dataValuesColumn = dataset.factTable?.find((field) => field.columnType === FactTableColumnType.DataValues);
   const measureColumn = dataset.factTable?.find((field) => field.columnType === FactTableColumnType.Measure);
@@ -1711,7 +1857,7 @@ export const createBaseDuckDBFile = async (datasetId: string, endRevisionId: str
   await quack.exec('USE cube_file;');
 
   const { factTableDef, factIdentifiers } = await createEmptyFactTableInCube(quack, dataset, endRevision, 'duckdb');
-
+  await createFilterTable(quack, endRevision.id, 'duckdb');
   const notesCodeColumn = dataset.factTable?.find((field) => field.columnType === FactTableColumnType.NoteCodes);
   const dataValuesColumn = dataset.factTable?.find((field) => field.columnType === FactTableColumnType.DataValues);
   const measureColumn = dataset.factTable?.find((field) => field.columnType === FactTableColumnType.Measure);
@@ -1770,6 +1916,8 @@ export const createBaseDuckDBFile = async (datasetId: string, endRevisionId: str
     await createNotesTable(quack, notesCodeColumn, viewSelectStatementsMap, rawSelectStatementsMap, joinStatements);
   }
 
+  await quack.exec('DROP TABLE filter_table;');
+
   logger.info(`Creating default views...`);
   // Build the default views
   try {
@@ -1826,15 +1974,29 @@ export const createAllCubeFiles = async (
   endRevisionId: string,
   storageService: StorageService
 ): Promise<void> => {
-  await createBasePostgresCube(datasetId, endRevisionId);
-  const cubeFile = await createBaseDuckDBFile(datasetId, endRevisionId);
-  await storageService.saveBuffer(`${endRevisionId}.duckdb`, datasetId, fs.readFileSync(cubeFile));
-  logger.debug('Cleaning up cube file');
-  if (fs.existsSync(cubeFile)) {
-    fs.unlink(cubeFile, async (err) => {
-      if (err) logger.error(`Unable to remove file ${cubeFile} with error: ${err}`);
-    });
+  try {
+    logger.debug('Creating cube in postgres.');
+    await createBasePostgresCube(datasetId, endRevisionId);
+  } catch (err) {
+    logger.error(err, 'Failed to create cube in Postgres');
+    throw err;
   }
+
+  try {
+    logger.debug('Creating duckdb cube file.');
+    const cubeFile = await createBaseDuckDBFile(datasetId, endRevisionId);
+    await storageService.saveBuffer(`${endRevisionId}.duckdb`, datasetId, fs.readFileSync(cubeFile));
+    logger.debug('Cleaning up cube file');
+    if (fs.existsSync(cubeFile)) {
+      fs.unlink(cubeFile, async (err) => {
+        if (err) logger.error(`Unable to remove file ${cubeFile} with error: ${err}`);
+      });
+    }
+  } catch (err) {
+    logger.error(err, 'Failed to create duckdb cube file');
+    throw err;
+  }
+
   const quack = await duckdb();
   await linkToPostgres(quack, endRevisionId, false);
   /*

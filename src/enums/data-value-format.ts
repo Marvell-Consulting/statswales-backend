@@ -1,6 +1,6 @@
 export enum DataValueFormat {
   Decimal = 'decimal',
-  Float = 'float ',
+  Float = 'float',
   Integer = 'integer',
   Long = 'long',
   Percentage = 'percentage',

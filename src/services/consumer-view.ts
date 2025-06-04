@@ -12,6 +12,103 @@ import { DatasetRepository } from '../repositories/dataset';
 import { SortByInterface } from '../interfaces/sort-by-interface';
 import { FilterInterface } from '../interfaces/filterInterface';
 
+interface FilterValues {
+  reference: string;
+  description: string;
+  children?: FilterValues[];
+}
+
+interface FilterTable {
+  columnName: string;
+  factTableColumn: string;
+  values: FilterValues[];
+}
+
+interface FilterRow {
+  reference: string;
+  language: string;
+  fact_table_column: string;
+  dimension_name: string;
+  description: string;
+  hierarchy: string;
+}
+
+export function transformHierarchy(factTableColumn: string, columnName: string, input: FilterRow[]): FilterTable {
+  const nodeMap = new Map<string, FilterValues>(); // reference → node
+  const childrenMap = new Map<string, FilterValues[]>(); // parentRef → children
+  const roots: FilterValues[] = [];
+
+  // First, create node instances for all inputs
+  for (const row of input) {
+    const node: FilterValues = {
+      reference: row.reference,
+      description: row.description
+    };
+    nodeMap.set(row.reference, node);
+
+    // Queue up children by parent ref
+    if (row.hierarchy) {
+      if (!childrenMap.has(row.hierarchy)) {
+        childrenMap.set(row.hierarchy, []);
+      }
+      childrenMap.get(row.hierarchy)!.push(node);
+    }
+  }
+
+  // Link children to their parents
+  for (const [parentRef, children] of childrenMap) {
+    const parentNode = nodeMap.get(parentRef);
+    if (parentNode) {
+      parentNode.children = parentNode.children || [];
+      parentNode.children.push(...children);
+    }
+  }
+
+  // Find root nodes: those that are NOT a child of anyone
+  const childRefs = new Set<string>();
+  for (const children of childrenMap.values()) {
+    for (const child of children) {
+      childRefs.add(child.reference);
+    }
+  }
+
+  for (const [ref, node] of nodeMap.entries()) {
+    if (!childRefs.has(ref)) {
+      roots.push(node);
+    }
+  }
+  return {
+    factTableColumn: factTableColumn,
+    columnName: columnName,
+    values: roots
+  };
+}
+
+export const getFilters = async (revision: Revision, language: string): Promise<FilterTable[]> => {
+  const filterTableQuery = pgformat('SELECT * FROM %I.filter_table WHERE language = %L;', revision.id, language);
+  const filterTable: QueryResult<FilterRow> = await pool.query(filterTableQuery);
+  const columnData = new Map<string, FilterRow[]>();
+  for (const row of filterTable.rows) {
+    let data = columnData.get(row.fact_table_column);
+    if (data) {
+      data.push(row);
+    } else {
+      data = [row];
+    }
+    columnData.set(row.fact_table_column, data);
+  }
+  const filterData: FilterTable[] = [];
+  for (const col of columnData.keys()) {
+    const data = columnData.get(col);
+    if (!data) {
+      continue;
+    }
+    const hierarchy = transformHierarchy(data[0].fact_table_column, data[0].dimension_name, data);
+    filterData.push(hierarchy);
+  }
+  return filterData;
+};
+
 export const createView = async (
   dataset: Dataset,
   revision: Revision,
@@ -22,18 +119,20 @@ export const createView = async (
   filter?: FilterInterface[]
 ): Promise<ViewDTO | ViewErrDTO> => {
   let sortByQuery = '';
-  if (sortBy && sortBy.length > 1) {
+  if (sortBy && sortBy.length > 0) {
+    logger.debug('Multiple sort by columns are present. Creating sort by query');
     sortByQuery = sortBy
-      .map((sort) => pgformat(`%I %s`, sort.column, sort.direction ? sort.direction : 'DESC'))
+      .map((sort) => pgformat(`%I %s`, sort.column, sort.direction ? sort.direction : 'ASC'))
       .join(', ');
   }
   let filterQuery = '';
   if (filter && filter.length > 0) {
+    logger.debug('Filters are present. Creating filter query');
     filterQuery = filter
       .map((whereClause) => pgformat('%I in (%L)', whereClause.columnName, whereClause.values))
       .join(' and ');
   }
-  logger.debug(`revision ID: ${revision.id}, view: default_view_${lang}`);
+
   const baseQuery = pgformat(
     'SELECT * FROM %I.%I %s %s',
     revision.id,
@@ -51,7 +150,7 @@ export const createView = async (
     );
     logger.debug(`Totals query: ${totalsQuery}`);
     const totals = await pool.query(totalsQuery);
-    const totalPages = Number(totals.rows[0].totalPages);
+    const totalPages = Number(totals.rows[0].totalPages) > 0 ? Number(totals.rows[0].totalPages) : 1;
     const totalLines = Number(totals.rows[0].totalLines);
     const errors = validateParams(pageNumber, totalPages, pageSize);
 
@@ -59,9 +158,9 @@ export const createView = async (
       return { status: 400, errors, dataset_id: dataset.id };
     }
 
-    const queryResult: QueryResult<unknown[]> = await pool.query(
-      pgformat('%s LIMIT %L OFFSET %L', baseQuery, pageSize, (pageNumber - 1) * pageSize)
-    );
+    const dataQuery = pgformat('%s LIMIT %L OFFSET %L', baseQuery, pageSize, (pageNumber - 1) * pageSize);
+    logger.debug(`Data query: ${dataQuery}`);
+    const queryResult: QueryResult<unknown[]> = await pool.query(dataQuery);
     const preview = queryResult.rows;
 
     const startLine = pageSize * (pageNumber - 1) + 1;

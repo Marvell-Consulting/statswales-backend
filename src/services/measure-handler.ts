@@ -265,7 +265,7 @@ async function createMeasureTable(
     for (const locale of SUPPORTED_LOCALES) {
       await quack.exec(
         pgformat(
-          'UPDATE %I.measure SET languague = %L WHERE language = lower(%I)',
+          'UPDATE %I.measure SET language = %L WHERE language = lower(%L)',
           revisionId,
           locale.toLowerCase(),
           locale.split('-')[0]
@@ -273,7 +273,7 @@ async function createMeasureTable(
       );
       await quack.exec(
         pgformat(
-          'UPDATE %I.measure SET languague = %L WHERE language = lower(%I)',
+          'UPDATE %I.measure SET language = %L WHERE language = lower(%L)',
           revisionId,
           locale.toLowerCase(),
           locale.toLowerCase()
@@ -282,7 +282,7 @@ async function createMeasureTable(
       for (const sublocale of SUPPORTED_LOCALES) {
         await quack.exec(
           pgformat(
-            'UPDATE %I.measure SET languague = %L WHERE language = lower(%I)',
+            'UPDATE %I.measure SET language = %L WHERE language = lower(%L)',
             revisionId,
             sublocale.toLowerCase(),
             t(`language.${sublocale.split('-')[0]}`, { lng: locale })
@@ -587,7 +587,7 @@ async function getMeasurePreviewWithExtractor(dataset: Dataset, measure: Measure
   try {
     await linkToPostgres(quack, revision.id, false);
     const query = pgformat(
-      `SELECT * EXCLUDE(language) FROM measure WHERE language = %L ORDER BY sort_order, reference LIMIT %Lga ;`,
+      `SELECT * EXCLUDE(language) FROM measure WHERE language = %L ORDER BY sort_order, reference LIMIT %L;`,
       lang.toLowerCase(),
       sampleSize
     );
