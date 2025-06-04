@@ -7,8 +7,9 @@ import {
   getPublishedDatasetById,
   downloadPublishedDataset,
   getPublishedDatasetView,
-  listPublishedTopics,
-  getPublishedDatasetFilters
+  getPublishedDatasetFilters,
+  listRootTopics,
+  listSubTopics
 } from '../controllers/consumer';
 import { NotFoundException } from '../exceptions/not-found.exception';
 import { PublishedDatasetRepository } from '../repositories/published-dataset';
@@ -42,24 +43,14 @@ export const loadPublishedDataset = (relations?: FindOptionsRelations<Dataset>) 
   };
 };
 
-// GET /published/topics
-// Returns a list of all topics with at least one published dataset
-consumerRouter.get('/topic{/:topic_id}', listPublishedTopics);
+consumerRouter.get('/topic', listRootTopics);
+consumerRouter.get('/topic/:topic_id', listSubTopics);
 
-// GET /published/list
-// Returns a list of all active datasets e.g. ones with imports
 consumerRouter.get('/list', listPublishedDatasets);
 
-// GET /published/:datasetId
-// Returns a published dataset as a json object
 consumerRouter.get('/:dataset_id', loadPublishedDataset(), getPublishedDatasetById);
 
-// GET /published/:datasetId/view
-// Returns a published dataset as a view of the data
 consumerRouter.get('/:dataset_id/view', loadPublishedDataset(), getPublishedDatasetView);
-
 consumerRouter.get('/:dataset_id/view/filters', loadPublishedDataset(), getPublishedDatasetFilters);
 
-// GET /published/:datasetId/revision/:revisionId/download/:format
-// Returns a published dataset as a file stream
 consumerRouter.get('/:dataset_id/download/:format', loadPublishedDataset(), downloadPublishedDataset);
