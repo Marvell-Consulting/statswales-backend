@@ -505,7 +505,10 @@ export const validateMeasureLookupTable = async (
     const dimensionTable = await quack.all(
       `SELECT * EXCLUDE(language) FROM measure WHERE language = '${lang.toLowerCase()}' ORDER BY sort_order, reference;`
     );
-    logger.debug(`Measure preview query result: ${JSON.stringify(dimensionTable, null, 2)}`);
+
+    // logger.debug(`Measure preview query result: ${JSON.stringify(dimensionTable, null, 2)}`);
+    // this is throwing "TypeError: Converting circular structure to JSON"
+
     const tableHeaders = Object.keys(dimensionTable[0]);
     const dataArray = dimensionTable.map((row) => Object.values(row));
     const currentDataset = await DatasetRepository.getById(dataset.id);
@@ -528,7 +531,7 @@ export const validateMeasureLookupTable = async (
     const pageSize = dataArray.length;
     return viewGenerator(currentDataset, 1, pageInfo, pageSize, 1, headers, dataArray);
   } catch (error) {
-    logger.error(`Something went wrong trying to generate the preview of the lookup table with error: ${error}`);
+    logger.error(error, `Something went wrong trying to generate the preview of the lookup table`);
     return viewErrorGenerators(500, dataset.id, 'csv', 'errors.dimension.unknown_error', {
       mismatch: false
     });
