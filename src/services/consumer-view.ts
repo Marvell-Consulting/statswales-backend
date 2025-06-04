@@ -4,13 +4,13 @@ import { CSVHeader, ViewDTO, ViewErrDTO } from '../dtos/view-dto';
 import { FactTableColumnType } from '../enums/fact-table-column-type';
 import { DatasetDTO } from '../dtos/dataset-dto';
 import { Dataset } from '../entities/dataset/dataset';
-import { pool } from '../app';
 import { logger } from '../utils/logger';
 import { QueryResult } from 'pg';
 import { format as pgformat } from '@scaleleap/pg-format/lib/pg-format';
 import { DatasetRepository } from '../repositories/dataset';
 import { SortByInterface } from '../interfaces/sort-by-interface';
 import { FilterInterface } from '../interfaces/filterInterface';
+import { getCubeDB } from '../db/cube-db';
 
 interface FilterValues {
   reference: string;
@@ -85,8 +85,9 @@ export function transformHierarchy(factTableColumn: string, columnName: string, 
 }
 
 export const getFilters = async (revision: Revision, language: string): Promise<FilterTable[]> => {
+  const cubeDB = getCubeDB();
   const filterTableQuery = pgformat('SELECT * FROM %I.filter_table WHERE language = %L;', revision.id, language);
-  const filterTable: QueryResult<FilterRow> = await pool.query(filterTableQuery);
+  const filterTable: QueryResult<FilterRow> = await cubeDB.query(filterTableQuery);
   const columnData = new Map<string, FilterRow[]>();
   for (const row of filterTable.rows) {
     let data = columnData.get(row.fact_table_column);
@@ -143,13 +144,14 @@ export const createView = async (
   logger.debug(`Base query: ${baseQuery}`);
 
   try {
+    const cubeDB = getCubeDB();
     const totalsQuery = pgformat(
       'SELECT count(*) as "totalLines", ceil(count(*)/%L) as "totalPages" from (%s);',
       pageSize,
       baseQuery
     );
     logger.debug(`Totals query: ${totalsQuery}`);
-    const totals = await pool.query(totalsQuery);
+    const totals = await cubeDB.query(totalsQuery);
     const totalPages = Number(totals.rows[0].totalPages) > 0 ? Number(totals.rows[0].totalPages) : 1;
     const totalLines = Number(totals.rows[0].totalLines);
     const errors = validateParams(pageNumber, totalPages, pageSize);
@@ -160,7 +162,7 @@ export const createView = async (
 
     const dataQuery = pgformat('%s LIMIT %L OFFSET %L', baseQuery, pageSize, (pageNumber - 1) * pageSize);
     logger.debug(`Data query: ${dataQuery}`);
-    const queryResult: QueryResult<unknown[]> = await pool.query(dataQuery);
+    const queryResult: QueryResult<unknown[]> = await cubeDB.query(dataQuery);
     const preview = queryResult.rows;
 
     const startLine = pageSize * (pageNumber - 1) + 1;

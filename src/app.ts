@@ -26,24 +26,10 @@ import { adminRouter } from './routes/admin';
 import { devRouter } from './routes/developer';
 import { taskRouter } from './routes/task';
 import { userRouter } from './routes/user';
-import { Pool } from 'pg';
 
 const app: Application = express();
 const config = appConfig();
 checkConfig();
-
-export const pool = new Pool({
-  host: appConfig().database.host,
-  port: appConfig().database.port,
-  ssl: appConfig().database.ssl,
-  database: appConfig().database.database,
-  user: appConfig().database.username,
-  password: appConfig().database.password,
-  max: 10, // set pool max size to 10
-  idleTimeoutMillis: 1000, // close idle clients after 1 second
-  connectionTimeoutMillis: 1000, // return an error after 1 second if connection could not be established
-  maxUses: 7500 // close (and replace) a connection after it has been used 7500 times (see below for discussion)
-});
 
 logger.info(`App config loaded for '${config.env}' env`);
 

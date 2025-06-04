@@ -43,8 +43,8 @@ import { FactTableValidationExceptionType } from '../enums/fact-table-validation
 import { CubeType } from '../enums/cube-type';
 import { DateExtractor } from '../extractors/date-extractor';
 import { StorageService } from '../interfaces/storage-service';
-import { pool } from '../app';
 import { QueryResult } from 'pg';
+import { getCubeDB } from '../db/cube-db';
 
 export const FACT_TABLE_NAME = 'fact_table';
 
@@ -1999,9 +1999,8 @@ export const createAllCubeFiles = async (
 
   const quack = await duckdb();
   await linkToPostgres(quack, endRevisionId, false);
-  /*
-  TODO Write code to to use native libraries to produce parquet, csv, excel and json outputs
-   */
+
+  // TODO Write code to to use native libraries to produce parquet, csv, excel and json outputs
   for (const locale of SUPPORTED_LOCALES) {
     const lang = locale.toLowerCase().split('-')[0];
     const xlsxFile = tmp.tmpNameSync({ postfix: '.xlsx' });
@@ -2023,7 +2022,8 @@ export const createAllCubeFiles = async (
 };
 
 export const getCubeTimePeriods = async (revisionId: string): Promise<PeriodCovered> => {
-  const periodCoverage: QueryResult<{ key: string; value: string }> = await pool.query(
+  const cubeDB = getCubeDB();
+  const periodCoverage: QueryResult<{ key: string; value: string }> = await cubeDB.query(
     pgformat(`SELECT key, value FROM %I.metadata WHERE key in ('start_date', 'end_date')`, revisionId)
   );
   return {

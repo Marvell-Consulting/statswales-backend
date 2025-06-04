@@ -6,6 +6,11 @@ import { appConfig } from '../config';
 
 const config = appConfig();
 
+/**
+ * Data source configuration for TypeORM.
+ *
+ * This is the main application database configuration. For the cube databases, see pool.ts.
+ */
 const dataSourceOpts: DataSourceOptions = {
   type: 'postgres',
   host: config.database.host,
