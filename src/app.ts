@@ -33,12 +33,13 @@ const config = appConfig();
 checkConfig();
 
 export const pool = new Pool({
+  host: appConfig().database.host,
+  port: appConfig().database.port,
+  ssl: appConfig().database.ssl,
   database: appConfig().database.database,
   user: appConfig().database.username,
   password: appConfig().database.password,
-  port: appConfig().database.port,
-  ssl: appConfig().database.ssl,
-  max: 20, // set pool max size to 20
+  max: 10, // set pool max size to 10
   idleTimeoutMillis: 1000, // close idle clients after 1 second
   connectionTimeoutMillis: 1000, // return an error after 1 second if connection could not be established
   maxUses: 7500 // close (and replace) a connection after it has been used 7500 times (see below for discussion)
