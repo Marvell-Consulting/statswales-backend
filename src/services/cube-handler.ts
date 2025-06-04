@@ -1202,7 +1202,7 @@ async function rawDimensionProcessor(
     await quack.exec(
       pgformat(
         `INSERT INTO filter_table
-         SELECT DISTINCT CAST(%I AS VARCHAR), %L, %L, %I, CAST (%I AS VARCHAR), NULL
+         SELECT DISTINCT CAST(%I AS VARCHAR), %L, %L, %L, CAST (%I AS VARCHAR), NULL
          FROM %I`,
         dimension.factTableColumn,
         locale.toLowerCase(),
@@ -1326,7 +1326,7 @@ async function setupNumericDimension(
     await quack.exec(
       pgformat(
         `INSERT INTO filter_table
-         SELECT DISTINCT CAST(%I AS VARCHAR), %L, %L, %I, CAST (%I AS VARCHAR), NULL
+         SELECT DISTINCT CAST(%I AS VARCHAR), %L, %L, %L, CAST (%I AS VARCHAR), NULL
          FROM %I`,
         dimension.factTableColumn,
         locale.toLowerCase(),
@@ -1359,7 +1359,7 @@ async function setupTextDimension(
     await quack.exec(
       pgformat(
         `INSERT INTO filter_table
-         SELECT DISTINCT CAST(%I AS VARCHAR), %L, %L, %I, CAST (%I AS VARCHAR), NULL
+         SELECT DISTINCT CAST(%I AS VARCHAR), %L, %L, %L, CAST (%I AS VARCHAR), NULL
          FROM %I`,
         dimension.factTableColumn,
         locale.toLowerCase(),
