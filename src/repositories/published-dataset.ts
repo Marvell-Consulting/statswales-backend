@@ -1,6 +1,9 @@
+import { performance } from 'node:perf_hooks';
+
 import { FindOneOptions, And, Not, IsNull, LessThan, FindOptionsRelations, In, Like, Raw } from 'typeorm';
 import { has, set } from 'lodash';
 
+import { logger } from '../utils/logger';
 import { dataSource } from '../db/data-source';
 import { Dataset } from '../entities/dataset/dataset';
 import { DatasetListItemDTO } from '../dtos/dataset-list-item-dto';
@@ -23,6 +26,7 @@ export const withAll: FindOptionsRelations<Dataset> = {
 
 export const PublishedDatasetRepository = dataSource.getRepository(Dataset).extend({
   async getById(id: string, relations: FindOptionsRelations<Dataset> = {}): Promise<Dataset> {
+    const start = performance.now();
     const now = new Date();
 
     const findOptions: FindOneOptions<Dataset> = {
@@ -42,7 +46,19 @@ export const PublishedDatasetRepository = dataSource.getRepository(Dataset).exte
       set(findOptions, 'order', { revisions: { publishAt: 'DESC' } });
     }
 
-    return this.findOneOrFail(findOptions);
+    const dataset = await this.findOneOrFail(findOptions);
+
+    const end = performance.now();
+    const size = Math.round(Buffer.byteLength(JSON.stringify(dataset)) / 1024);
+    const time = Math.round(end - start);
+
+    if (size > 50 || time > 200) {
+      logger.warn(`LARGE/SLOW Dataset ${id} loaded { size: ${size}kb, time: ${time}ms }`);
+    } else {
+      logger.debug(`Dataset ${id} loaded { size: ${size}kb, time: ${time}ms }`);
+    }
+
+    return dataset;
   },
 
   async listPublishedByLanguage(
