@@ -69,6 +69,27 @@ export const getPublishedDatasetById = async (req: Request, res: Response) => {
 };
 
 export const getPublishedDatasetView = async (req: Request, res: Response) => {
+  /*
+    #swagger.summary = 'Get the data view for a published dataset'
+    #swagger.description = 'Returns a paginated view of a published dataset, with optional sorting and filtering.'
+    #swagger.autoQuery = false
+    #swagger.parameters['$ref'] = [
+      '#/components/parameters/dataset_id',
+      '#/components/parameters/language',
+      '#/components/parameters/page_number',
+      '#/components/parameters/page_size',
+      '#/components/parameters/sort_by',
+      '#/components/parameters/filter'
+    ]
+    #swagger.responses[200] = {
+      description: 'A paginated view of the dataset.',
+      content: {
+        'application/json': {
+          schema: { $ref: "#/components/schemas/DatasetView" }
+        }
+      }
+    }
+  */
   const dataset = await PublishedDatasetRepository.getById(res.locals.datasetId, withAll);
   const lang = req.language.split('-')[0];
 
@@ -108,6 +129,28 @@ export const getPublishedDatasetFilters = async (req: Request, res: Response) =>
 };
 
 export const downloadPublishedDataset = async (req: Request, res: Response, next: NextFunction) => {
+  /*
+    #swagger.summary = 'Download a published dataset as a file'
+    #swagger.description = 'Downloads a published dataset in one of several supported formats.'
+    #swagger.autoQuery = false
+    #swagger.parameters['$ref'] = [
+      '#/components/parameters/dataset_id',
+      '#/components/parameters/language',
+      '#/components/parameters/format'
+    ]
+    #swagger.responses[200] = {
+      description: 'The dataset file in the specified format.',
+      content: {
+        'application/octet-stream': {
+          schema: {
+            type: 'string',
+            format: 'binary',
+            example: 'data.csv'
+          }
+        }
+      }
+    }
+  */
   const formatError = await hasError(formatValidator(), req);
 
   if (formatError) {

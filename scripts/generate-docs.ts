@@ -60,6 +60,15 @@ const doc = {
         type: 'string',
         format: 'uuid',
         example: '141baa8a-2ed0-45cb-ad4a-83de8c2333b5'
+      },
+      format: {
+        name: 'format',
+        in: 'query',
+        description: 'Format of the response data. Supported formats: ',
+        required: true,
+        type: 'string',
+        enum: ['json', 'csv', 'xlsx', 'parquet', 'duckdb'],
+        example: 'csv'
       }
     },
     // eslint-disable-next-line @typescript-eslint/naming-convention
@@ -275,6 +284,39 @@ const doc = {
             }
           ],
           count: 57
+        }
+      },
+      DatasetView: {
+        type: 'object',
+        properties: {
+          dataset: { $ref: '#/components/schemas/Dataset' },
+          current_page: { type: 'integer', description: 'Current page number' },
+          page_info: {
+            type: 'object',
+            properties: {
+              total_records: { type: 'integer', description: 'Total number of records in the dataset' },
+              start_record: { type: 'integer', description: 'Starting record number for the current page' },
+              end_record: { type: 'integer', description: 'Ending record number for the current page' }
+            }
+          },
+          page_size: { type: 'integer', description: 'Number of records per page' },
+          total_pages: { type: 'integer', description: 'Total number of pages available' },
+          headers: {
+            type: 'array',
+            items: {
+              type: 'object',
+              properties: {
+                index: { type: 'integer', description: 'Index of the header' },
+                name: { type: 'string', description: 'Name of the header' },
+                source_type: { type: 'string', description: 'Source type of the header' }
+              }
+            }
+          },
+          data: {
+            type: 'array',
+            description: 'Tabular data for the dataset',
+            items: { type: 'array', items: { type: 'string' } }
+          }
         }
       },
       Topic: {

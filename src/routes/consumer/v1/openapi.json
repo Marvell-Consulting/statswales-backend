@@ -149,76 +149,69 @@
     },
     "/{dataset_id}/view": {
       "get": {
-        "description": "",
+        "summary": "Get the data view for a published dataset",
+        "description": "Returns a paginated view of a published dataset, with optional sorting and filtering.",
         "parameters": [
           {
-            "name": "dataset_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
+            "$ref": "#/components/parameters/dataset_id"
           },
           {
-            "name": "page_number",
-            "in": "query",
-            "schema": {
-              "type": "string"
-            }
+            "$ref": "#/components/parameters/language"
           },
           {
-            "name": "page_size",
-            "in": "query",
-            "schema": {
-              "type": "string"
-            }
+            "$ref": "#/components/parameters/page_number"
           },
           {
-            "name": "sort_by",
-            "in": "query",
-            "schema": {
-              "type": "string"
-            }
+            "$ref": "#/components/parameters/page_size"
           },
           {
-            "name": "filter",
-            "in": "query",
-            "schema": {
-              "type": "string"
-            }
+            "$ref": "#/components/parameters/sort_by"
+          },
+          {
+            "$ref": "#/components/parameters/filter"
           }
         ],
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "A paginated view of the dataset.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DatasetView"
+                }
+              }
+            }
           }
         }
       }
     },
     "/{dataset_id}/download/{format}": {
       "get": {
-        "description": "",
+        "summary": "Download a published dataset as a file",
+        "description": "Downloads a published dataset in one of several supported formats.",
         "parameters": [
           {
-            "name": "dataset_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
+            "$ref": "#/components/parameters/dataset_id"
           },
           {
-            "name": "format",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
+            "$ref": "#/components/parameters/language"
+          },
+          {
+            "$ref": "#/components/parameters/format"
           }
         ],
         "responses": {
-          "default": {
-            "description": ""
+          "200": {
+            "description": "The dataset file in the specified format.",
+            "content": {
+              "application/octet-stream": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary",
+                  "example": "data.csv"
+                }
+              }
+            }
           }
         }
       }
@@ -258,6 +251,21 @@
         "type": "string",
         "format": "uuid",
         "example": "141baa8a-2ed0-45cb-ad4a-83de8c2333b5"
+      },
+      "format": {
+        "name": "format",
+        "in": "query",
+        "description": "Format of the response data. Supported formats: ",
+        "required": true,
+        "type": "string",
+        "enum": [
+          "json",
+          "csv",
+          "xlsx",
+          "parquet",
+          "duckdb"
+        ],
+        "example": "csv"
       }
     },
     "schemas": {
@@ -459,7 +467,7 @@
                 "summary": "Amcangyfrifon poblogaeth flynyddol ar gyfer Cymru"
               }
             ],
-            "rounding_applied": true,
+            "rounding_applied": false,
             "update_frequency": {
               "is_updated": true,
               "frequency_value": 1,
@@ -534,6 +542,73 @@
             }
           ],
           "count": 57
+        }
+      },
+      "DatasetView": {
+        "type": "object",
+        "properties": {
+          "dataset": {
+            "$ref": "#/components/schemas/Dataset"
+          },
+          "current_page": {
+            "type": "integer",
+            "description": "Current page number"
+          },
+          "page_info": {
+            "type": "object",
+            "properties": {
+              "total_records": {
+                "type": "integer",
+                "description": "Total number of records in the dataset"
+              },
+              "start_record": {
+                "type": "integer",
+                "description": "Starting record number for the current page"
+              },
+              "end_record": {
+                "type": "integer",
+                "description": "Ending record number for the current page"
+              }
+            }
+          },
+          "page_size": {
+            "type": "integer",
+            "description": "Number of records per page"
+          },
+          "total_pages": {
+            "type": "integer",
+            "description": "Total number of pages available"
+          },
+          "headers": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "index": {
+                  "type": "integer",
+                  "description": "Index of the header"
+                },
+                "name": {
+                  "type": "string",
+                  "description": "Name of the header"
+                },
+                "source_type": {
+                  "type": "string",
+                  "description": "Source type of the header"
+                }
+              }
+            }
+          },
+          "data": {
+            "type": "array",
+            "description": "Tabular data for the dataset",
+            "items": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          }
         }
       },
       "Topic": {
