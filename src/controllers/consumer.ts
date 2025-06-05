@@ -116,10 +116,14 @@ export const getPublishedDatasetView = async (req: Request, res: Response) => {
 };
 
 export const getPublishedDatasetFilters = async (req: Request, res: Response) => {
-  const dataset = await PublishedDatasetRepository.getById(res.locals.datasetId, {
-    publishedRevision: true
-  });
+  /*
+    #swagger.summary = 'Get the available filters for the dataset view'
+    #swagger.description = 'Returns a list of available filters for the dataset view, based on the dimensions available.'
+    #swagger.autoQuery = false
+  */
+  const dataset = await PublishedDatasetRepository.getById(res.locals.datasetId, { publishedRevision: true });
   const lang = req.language.toLowerCase();
+
   if (!dataset.publishedRevision) {
     throw new NotFoundException('errors.no_revision');
   }

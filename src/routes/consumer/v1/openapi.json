@@ -11,12 +11,8 @@
   },
   "servers": [
     {
-      "description": "Local",
-      "url": "https://localhost:3001/v1"
-    },
-    {
-      "description": "Production",
-      "url": "https://api.stats.gov.wales/v1"
+      "description": "Development",
+      "url": "https://api.dev.stats.cymru/v1"
     }
   ],
   "paths": {
@@ -181,6 +177,27 @@
                 }
               }
             }
+          }
+        }
+      }
+    },
+    "/{dataset_id}/view/filters": {
+      "get": {
+        "summary": "Get the available filters for the dataset view",
+        "description": "Returns a list of available filters for the dataset view, based on the dimensions available.",
+        "parameters": [
+          {
+            "name": "dataset_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
           }
         }
       }
