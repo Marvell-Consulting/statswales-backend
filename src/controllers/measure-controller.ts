@@ -80,7 +80,7 @@ export const attachLookupTableToMeasure = async (req: Request, res: Response, ne
     await createAllCubeFiles(dataset.id, dataset.draftRevision!.id, req.fileService);
     res.status((result as ViewErrDTO).status || 200);
 
-    logger.debug(`Result of the lookup table validation is ${JSON.stringify(result, null, 2)}`);
+    // logger.debug(`Result of the lookup table validation is ${JSON.stringify(result, null, 2)}`);
     res.json(result);
   } catch (err) {
     await createAllCubeFiles(dataset.id, dataset.draftRevision!.id, req.fileService);

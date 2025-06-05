@@ -1117,8 +1117,9 @@ async function setupMeasures(
   orderByStatements: string[]
 ) {
   logger.info('Setting up measure table if present...');
-  logger.debug(`Dataset Measure = ${JSON.stringify(dataset.measure)}`);
-  logger.debug(`Measure column = ${JSON.stringify(measureColumn)}`);
+  // logger.debug(`Dataset Measure = ${JSON.stringify(dataset.measure)}`);
+  // logger.debug(`Measure column = ${JSON.stringify(measureColumn)}`);
+
   // Process the column that represents the measure
   if (dataset.measure && dataset.measure.measureTable && dataset.measure.measureTable.length > 0) {
     logger.debug('Measure present in dataset.  Creating measure table...');
@@ -1135,8 +1136,11 @@ async function setupMeasures(
         ?.method.replace('|REF|', pgformat('%L', row.reference))
         .replace('|DEC|', row.decimals ? row.decimals : 0)
         .replace('|COL|', pgformat('%I.%I', FACT_TABLE_NAME, dataValuesColumn.columnName));
-      if (statement) caseStatements.push(statement);
-      else logger.warn(`Failed to create case statement measure row: ${JSON.stringify(row)}`);
+      if (statement) {
+        caseStatements.push(statement);
+      } else {
+        logger.warn(`Failed to create case statement measure row: ${JSON.stringify(row)}`);
+      }
     }
     caseStatements.push(pgformat('ELSE CAST(%I.%I AS VARCHAR) END', FACT_TABLE_NAME, dataValuesColumn?.columnName));
     logger.debug(`Data view case statement ended up as: ${caseStatements.join('\n')}`);
@@ -1669,11 +1673,10 @@ export const createBasePostgresCube = async (datasetId: string, endRevisionId: s
     }
   };
 
-  logger.debug(`Loading dataset with id: ${datasetId} using relations: ${JSON.stringify(datasetRelations)}`);
   const dataset = await DatasetRepository.getById(datasetId, datasetRelations);
   const endRevision = await RevisionRepository.getById(endRevisionId, endRevisionRelations);
-
   const firstRevision = dataset.revisions.find((rev) => rev.revisionIndex === 1);
+
   if (!firstRevision) {
     const err = new CubeValidationException(
       `Could not find first revision for dataset ${datasetId} in revision ${endRevisionId}`
@@ -1835,7 +1838,6 @@ export const createBaseDuckDBFile = async (datasetId: string, endRevisionId: str
     }
   };
 
-  logger.debug(`Loading dataset with id: ${datasetId} using relations: ${JSON.stringify(datasetRelations)}`);
   const dataset = await DatasetRepository.getById(datasetId, datasetRelations);
   const endRevision = await RevisionRepository.getById(endRevisionId, endRevisionRelations);
 

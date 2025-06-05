@@ -67,7 +67,7 @@ function generateAllSampleCSVs(filePath: string) {
         yearFormat: year.yearFormat,
         monthFormat: month.monthFormat
       };
-      logger.debug(`Creating specific month table based on: ${JSON.stringify(ext, null, 2)}`);
+      logger.debug(`Creating specific month table based on: ${JSON.stringify(ext)}`);
       const refTable = dateDimensionReferenceTableCreator(ext, dateColumn);
       let csv = 'DateCode,Data\n';
       refTable.map((row) => {

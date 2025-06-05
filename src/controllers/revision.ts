@@ -173,7 +173,7 @@ export const downloadRawFactTable = async (req: Request, res: Response, next: Ne
   logger.info('User requested to down files...');
 
   let readable: Readable;
-  logger.debug(`${JSON.stringify(revision)}`);
+  // logger.debug(`${JSON.stringify(revision)}`);
 
   if (!revision.dataTable) {
     logger.error("Revision doesn't have a data table, can't download file");

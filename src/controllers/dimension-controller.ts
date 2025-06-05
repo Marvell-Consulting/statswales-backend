@@ -147,7 +147,7 @@ export const updateDimension = async (req: Request, res: Response, next: NextFun
   const dimensionPatchRequest = req.body as DimensionPatchDto;
   let preview: ViewDTO | ViewErrDTO;
 
-  logger.debug(`User dimension type = ${JSON.stringify(dimensionPatchRequest)}`);
+  // logger.debug(`User dimension type = ${JSON.stringify(dimensionPatchRequest)}`);
 
   try {
     const dataset = await DatasetRepository.getById(res.locals.datasetId, {
