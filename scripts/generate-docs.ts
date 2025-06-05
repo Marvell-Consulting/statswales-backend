@@ -1,4 +1,3 @@
-import 'dotenv/config';
 import path from 'node:path';
 
 import swaggerAutogen from 'swagger-autogen';
@@ -22,10 +21,7 @@ const doc = {
       email: 'StatsWales@gov.wales'
     }
   },
-  servers: [
-    { description: 'Local', url: 'https://localhost:3001/v1' },
-    { description: 'Production', url: 'https://api.stats.gov.wales/v1' }
-  ],
+  servers: [{ description: 'Development', url: 'https://api.dev.stats.cymru/v1' }],
   components: {
     parameters: {
       language: {
