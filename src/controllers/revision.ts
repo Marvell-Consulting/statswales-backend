@@ -594,7 +594,7 @@ export const regenerateRevisionCube = async (req: Request, res: Response, next: 
     .filter((rev) => !!rev?.dataTable);
 
   for (const rev of revisionTree) {
-    logger.debug(`Recreating datatable ${rev.dataTable!.id} in postgres data_tables database`);
+    logger.debug(`Recreating datatable ${rev.dataTable?.id} in postgres data_tables database`);
     const tmpFile = tmp.fileSync({ postfix: rev.dataTable!.fileType });
     const buf = await req.fileService.loadBuffer(rev.dataTable!.filename, datasetId);
     fs.writeFileSync(tmpFile.name, buf);

@@ -189,7 +189,7 @@ export const validateReferenceData = async (
         WHERE categories.category='${confirmedReferenceDataCategory}';
     `);
 
-  logger.debug(`Column passed reference data checks.  Setting up dimension.`);
+  logger.debug(`Column passed reference data checks. Setting up dimension.`);
   await setupDimension(
     dimension,
     categoriesPresent.map((row) => Object.values(row)[0])
@@ -210,18 +210,18 @@ export const validateReferenceData = async (
         `;
     const allMatches = await quack.all(allMatchesQuery);
     const previewQuery = `
-            SELECT DISTINCT fact_table."${dimension.factTableColumn}", reference_data_info.description
-            FROM fact_table
-            LEFT JOIN reference_data
-                ON CAST(fact_table."${dimension.factTableColumn}" AS VARCHAR)=reference_data.item_id
-            JOIN reference_data_info
-                ON reference_data.item_id=reference_data_info.item_id
-                AND reference_data.category_key=reference_data_info.category_key
-                AND reference_data.version_no=reference_data_info.version_no
-            WHERE reference_data_info.lang='${lang.toLowerCase()}'
-            LIMIT ${sampleSize};
-        `;
-    logger.debug(`Preview query = ${previewQuery}`);
+      SELECT DISTINCT fact_table."${dimension.factTableColumn}", reference_data_info.description
+      FROM fact_table
+      LEFT JOIN reference_data
+          ON CAST(fact_table."${dimension.factTableColumn}" AS VARCHAR)=reference_data.item_id
+      JOIN reference_data_info
+          ON reference_data.item_id=reference_data_info.item_id
+          AND reference_data.category_key=reference_data_info.category_key
+          AND reference_data.version_no=reference_data_info.version_no
+      WHERE reference_data_info.lang='${lang.toLowerCase()}'
+      LIMIT ${sampleSize};
+    `;
+    // logger.debug(`Preview query = ${previewQuery}`);
     const dimensionTable = await quack.all(previewQuery);
     const tableHeaders = Object.keys(dimensionTable[0]);
     const dataArray = dimensionTable.map((row) => Object.values(row));

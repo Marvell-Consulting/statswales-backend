@@ -128,7 +128,8 @@ export const factTableValidatorFromSource = async (
   );
   const createQuery = pgformat(`CALL postgres_execute('postgres_db', %L);`, factTableCreationQuery);
 
-  logger.debug(`Creating initial fact table in cube using query:\n${createQuery}`);
+  // logger.debug(`Creating initial fact table in cube using query:\n${createQuery}`);
+
   try {
     await quack.exec(createQuery);
   } catch (err) {
@@ -262,7 +263,9 @@ async function identifyDuplicateFacts(
                 FROM data_table GROUP BY ${primaryKeyDef.join(', ')} HAVING fact_count > 1
             )
         ) LIMIT 500;`;
-    logger.debug(`Running query to find duplicates:\n${duplicateQuery}`);
+
+    // logger.debug(`Running query to find duplicates:\n${duplicateQuery}`);
+
     const brokenFacts = await quack.all(duplicateQuery);
     const { headers, data } = tableDataToViewTable(brokenFacts);
     error.data = data;

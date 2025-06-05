@@ -147,6 +147,7 @@ export const createLookupTableInCube = async (
   await quack.exec(
     createLookupTableQuery(dimensionTableName, factTableColumn.columnName, factTableColumn.columnDatatype)
   );
+
   if (extractor.isSW2Format) {
     logger.debug('Lookup table is SW2 format');
     const dataExtractorParts = [];
@@ -169,8 +170,11 @@ export const createLookupTableInCube = async (
         FROM ${lookupTableName}`
       );
     }
-    const builtInsertQuery = `INSERT INTO ${makeCubeSafeString(dimension.factTableColumn)}_lookup (${dataExtractorParts.join(' UNION ')});`;
-    logger.debug(`Built insert query: ${builtInsertQuery}`);
+    const builtInsertQuery = `
+      INSERT INTO ${makeCubeSafeString(dimension.factTableColumn)}_lookup (${dataExtractorParts.join(' UNION ')});
+    `;
+
+    // logger.debug(`Built insert query: ${builtInsertQuery}`);
     await quack.exec(builtInsertQuery);
   } else {
     const languageMatcher = languageMatcherCaseStatement(extractor.languageColumn);
@@ -185,7 +189,9 @@ export const createLookupTableInCube = async (
         ${extractor.hierarchyColumn ? `"${extractor.hierarchyColumn}"` : 'NULL'} as hierarchy
       FROM ${lookupTableName}
     `;
-    const builtInsertQuery = `INSERT INTO ${makeCubeSafeString(dimension.factTableColumn)}_lookup ${dataExtractorParts};`;
+    const builtInsertQuery = `
+      INSERT INTO ${makeCubeSafeString(dimension.factTableColumn)}_lookup ${dataExtractorParts};
+    `;
     await quack.exec(builtInsertQuery);
   }
 };
@@ -331,12 +337,17 @@ export const validateLookupTable = async (
     return languageErrors;
   }
 
-  logger.debug(`Lookup table passed validation.  Saving the dimension, lookup table and extractor.`);
+  logger.debug(`Lookup table passed validation. Saving the dimension, lookup table and extractor.`);
   await updatedDimension.save();
 
   try {
-    const previewQuery = `SELECT * FROM "${makeCubeSafeString(dimension.factTableColumn)}_lookup" WHERE language = '${language.toLowerCase()}';`;
-    logger.debug(`Passed validation preparing to send back the preview using the following query:\n${previewQuery}`);
+    const previewQuery = `
+      SELECT *
+      FROM "${makeCubeSafeString(dimension.factTableColumn)}_lookup"
+      WHERE language = '${language.toLowerCase()}';
+    `;
+
+    // logger.debug(`Passed validation preparing to send back the preview using the following query:\n${previewQuery}`);
     const dimensionTable = await quack.all(previewQuery);
     // logger.debug(`Preview query returned:\n${JSON.stringify(dimensionTable, null, 2)}`);
     const tableHeaders = Object.keys(dimensionTable[0]);
