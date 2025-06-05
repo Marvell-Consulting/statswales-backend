@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from 'node:crypto';
-import { unlink, writeFile, access } from 'node:fs/promises';
+import { unlink, writeFile } from 'node:fs/promises';
 
 import { TableData } from 'duckdb-async';
 import { format as pgformat } from '@scaleleap/pg-format';
@@ -23,18 +23,12 @@ import { DuckDBException } from '../exceptions/duckdb-exception';
 import { viewErrorGenerators, viewGenerator } from '../utils/view-error-generators';
 import { validateParams } from '../validators/preview-validator';
 import { SourceLocation } from '../enums/source-location';
+import { asyncFileExists } from '../utils/async-file-exists';
 
 export const DEFAULT_PAGE_SIZE = 100;
 const sampleSize = 5;
 
 const logger = parentLogger.child({ module: 'CSVProcessor' });
-
-const fileExists = async (filePath: string): Promise<boolean> => {
-  return access(filePath).then(
-    () => true,
-    () => false
-  );
-};
 
 export async function extractTableInformation(
   fileBuffer: Buffer,
@@ -307,7 +301,7 @@ export const getCSVPreview = async (
     if (cubeFile) {
       await unlink(cubeFile);
     }
-    if (await fileExists(tempFile)) {
+    if (await asyncFileExists(tempFile)) {
       await unlink(tempFile);
     }
   }
