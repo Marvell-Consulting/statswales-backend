@@ -236,7 +236,7 @@ async function createMeasureTable(
       );
     }
     buildMeasureViewQuery = `${viewComponents.join('\nUNION\n')}`;
-    logger.debug(`Extracting SW2 measure lookup table to measure table using query ${buildMeasureViewQuery}`);
+    // logger.debug(`Extracting SW2 measure lookup table to measure table using query ${buildMeasureViewQuery}`);
   } else {
     // logger.debug(`Extractor = ${JSON.stringify(extractor, null, 2)}`);
     if (extractor.notesColumns && extractor.notesColumns.length > 0) {
@@ -247,18 +247,20 @@ async function createMeasureTable(
 
     const measureMatcher = languageMatcherCaseStatement(extractor.languageColumn);
 
-    buildMeasureViewQuery = `SELECT
-                    "${joinColumn}" AS reference,
-                    ${measureMatcher} AS language,
-                    "${extractor.descriptionColumns[0].name}" AS description,
-                    ${notesColumnDef} AS notes,
-                    ${sortOrderDef} AS sort_order,
-                    ${formatColumn} AS format,
-                    ${decimalColumnDef} AS decimals,
-                    ${measureTypeDef} AS measure_type,
-                    ${hierarchyDef} AS hierarchy
-                FROM ${lookupTable}\n`;
-    logger.debug(`Extracting SW3 measure lookup table to measure table using query ${buildMeasureViewQuery}`);
+    buildMeasureViewQuery = `
+      SELECT
+        "${joinColumn}" AS reference,
+        ${measureMatcher} AS language,
+        "${extractor.descriptionColumns[0].name}" AS description,
+        ${notesColumnDef} AS notes,
+        ${sortOrderDef} AS sort_order,
+        ${formatColumn} AS format,
+        ${decimalColumnDef} AS decimals,
+        ${measureTypeDef} AS measure_type,
+        ${hierarchyDef} AS hierarchy
+      FROM ${lookupTable}
+    `;
+    // logger.debug(`Extracting SW3 measure lookup table to measure table using query ${buildMeasureViewQuery}`);
   }
   try {
     const insertQuery = `INSERT INTO measure (${buildMeasureViewQuery});`;
@@ -290,7 +292,7 @@ async function createMeasureTable(
         );
       }
     }
-    logger.debug(`Extracting lookup table contents to measure using query:\n ${insertQuery}`);
+    // logger.debug(`Extracting lookup table contents to measure using query:\n ${insertQuery}`);
     await quack.exec(insertQuery);
     await quack.exec(`DROP TABLE ${lookupTable};`);
     // const measureTable = await quack.all(`SELECT * FROM measure;`);
@@ -494,7 +496,7 @@ export const validateMeasureLookupTable = async (
     return tableValidationErrors;
   }
 
-  logger.debug(`Measure table validation successful.  Now saving measure.`);
+  logger.debug(`Measure table validation successful. Now saving measure.`);
   // Clean up previously uploaded measure
   await cleanUpMeasure(dataset.measure.id);
   if (updatedMeasure.lookupTable) await updatedMeasure.lookupTable.save();
@@ -594,7 +596,7 @@ async function getMeasurePreviewWithExtractor(dataset: Dataset, measure: Measure
       lang.toLowerCase(),
       sampleSize
     );
-    logger.debug(`Querying the cube to get the preview using query: ${query}`);
+    // logger.debug(`Querying the cube to get the preview using query: ${query}`);
     const measureTable = await quack.all(query);
     const tableHeaders = Object.keys(measureTable[0]);
     const dataArray = measureTable.map((row) => Object.values(row));

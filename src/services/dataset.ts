@@ -238,10 +238,10 @@ export class DatasetService {
     logger.debug(`Updating measure translations...`);
     const measureTranslation = translations.find((t) => t.type === 'measure')!;
     await Promise.all(
-      measure.metadata.map(async (metadata) => {
+      measure.metadata.map((metadata) => {
         metadata.name =
           (metadata.language === Locale.EnglishGb ? measureTranslation.english : measureTranslation.cymraeg) ?? '';
-        await metadata.save();
+        metadata.save();
       })
     );
 

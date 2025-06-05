@@ -141,7 +141,7 @@ export const createView = async (
     filterQuery ? `WHERE ${filterQuery}` : '',
     sortByQuery ? `ORDER BY ${sortByQuery}` : ''
   );
-  logger.debug(`Base query: ${baseQuery}`);
+  // logger.debug(`Base query: ${baseQuery}`);
 
   try {
     const cubeDB = getCubeDB();
@@ -150,7 +150,7 @@ export const createView = async (
       pageSize,
       baseQuery
     );
-    logger.debug(`Totals query: ${totalsQuery}`);
+    // logger.debug(`Totals query: ${totalsQuery}`);
     const totals = await cubeDB.query(totalsQuery);
     const totalPages = Number(totals.rows[0].totalPages) > 0 ? Number(totals.rows[0].totalPages) : 1;
     const totalLines = Number(totals.rows[0].totalLines);
@@ -161,7 +161,7 @@ export const createView = async (
     }
 
     const dataQuery = pgformat('%s LIMIT %L OFFSET %L', baseQuery, pageSize, (pageNumber - 1) * pageSize);
-    logger.debug(`Data query: ${dataQuery}`);
+    // logger.debug(`Data query: ${dataQuery}`);
     const queryResult: QueryResult<unknown[]> = await cubeDB.query(dataQuery);
     const preview = queryResult.rows;
 

@@ -61,7 +61,7 @@ export async function extractTableInformation(
       throw new Error('Unknown file type');
   }
   try {
-    logger.debug(`Executing query to create base fact table: ${pgformat(createTableQuery, tableName, tempFile)}`);
+    logger.debug(`Creating base fact table`);
     await quack.exec(pgformat(createTableQuery, tableName, tempFile));
   } catch (error) {
     logger.error(error, `Something went wrong trying to extract table information using DuckDB.`);

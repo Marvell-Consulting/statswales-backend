@@ -70,6 +70,6 @@ export const loadFileIntoDatabase = async (
         FileValidationErrorType.UnknownMimeType
       );
   }
-  logger.debug(`Creating table ${tableName} from ${fileImport.fileType} file with query: ${createTableQuery}`);
+  logger.debug(`Creating table ${tableName} from ${fileImport.fileType} file`);
   await quack.exec(createTableQuery);
 };

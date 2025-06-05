@@ -191,7 +191,7 @@ async function removeIgnoreAndUnknownColumns(dataset: Dataset, ignoreColumns: So
     factTableColumns = await FactTableColumn.findBy({ id: dataset.id, columnDatatype: FactTableColumnType.Unknown });
     logger.debug(`Found ${factTableColumns.length} columns in fact table...`);
   } catch (error) {
-    logger.error(error, `Something went wrong trying to find columns in fact table with error: ${error}`);
+    logger.error(error, `Something went wrong trying to find columns in fact table`);
   }
 
   const unknownColumns = await FactTableColumn.findBy({ id: dataset.id, columnDatatype: FactTableColumnType.Unknown });
@@ -311,12 +311,10 @@ export const createDimensionsFromSourceAssignment = async (
     await createUpdateMeasure(dataset, measure);
   }
 
-  await Promise.all(
-    dimensions.map(async (dimensionCreationDTO: SourceAssignmentDTO) => {
-      logger.debug(`Creating dimension column: ${JSON.stringify(dimensionCreationDTO)}`);
-      await createUpdateDimension(dataset, dimensionCreationDTO);
-    })
-  );
+  for (const dimensionCreationDTO of dimensions) {
+    logger.debug(`Creating dimension column: ${JSON.stringify(dimensionCreationDTO)}`);
+    await createUpdateDimension(dataset, dimensionCreationDTO);
+  }
 
   try {
     if (ignore) {
@@ -478,7 +476,8 @@ export const validateDateDimension = async (
       LEFT JOIN "${makeCubeSafeString(factTableColumn.columnName)}_lookup"
       ON fact_table.fact_table_date="${makeCubeSafeString(factTableColumn.columnName)}_lookup"."${factTableColumn.columnName}"
       WHERE "${factTableColumn.columnName}" IS NULL;`;
-    logger.debug(`Matching query is:\n${matchingQuery}`);
+    // logger.debug(`Matching query is:\n${matchingQuery}`);
+
     const nonMatchedRows = await quack.all(matchingQuery);
     if (nonMatchedRows.length > 0) {
       if (nonMatchedRows.length === preview.length) {
@@ -502,7 +501,8 @@ export const validateDateDimension = async (
               LEFT JOIN "${makeCubeSafeString(factTableColumn.columnName)}_lookup"
               ON fact_table.fact_table_date="${makeCubeSafeString(factTableColumn.columnName)}_lookup"."${factTableColumn.columnName}"
              WHERE "${factTableColumn.columnName}" IS NULL;`;
-        logger.debug(`Non matching rows query is:\n${nonMatchingRowsQuery}`);
+
+        // logger.debug(`Non matching rows query is:\n${nonMatchingRowsQuery}`);
         const nonMatchedRowSample = await quack.all(nonMatchingRowsQuery);
         const nonMatchingValues = nonMatchedRowSample
           .map((item) => item.fact_table_date)
@@ -564,7 +564,7 @@ export const createAndValidateDateDimension = async (
     dataset.draftRevision!.id,
     tableName
   );
-  logger.debug(`Preview query is: ${previewQuery}`);
+  // logger.debug(`Preview query is: ${previewQuery}`);
   const preview = await quack.all(previewQuery);
   try {
     // logger.debug(`Preview is: ${JSON.stringify(preview)}`);
@@ -584,23 +584,19 @@ export const createAndValidateDateDimension = async (
 
   try {
     await quack.exec(createDatePeriodTableQuery(factTableColumn));
+    const safeColumnName = makeCubeSafeString(factTableColumn.columnName);
+
     const stmt = await quack.prepare(
-      `INSERT INTO ${makeCubeSafeString(factTableColumn.columnName)}_lookup
+      `INSERT INTO ${safeColumnName}_lookup
     ("${factTableColumn.columnName}", language, description, hierarchy, date_type, start_date, end_date) VALUES (?,?,?,?,?,?,?);`
     );
     for (const locale of SUPPORTED_LOCALES) {
-      logger.debug(`populating ${makeCubeSafeString(factTableColumn.columnName)}_lookup table for locale ${locale}`);
-      dateDimensionTable.map(async (row) => {
-        await stmt.run(
-          row.dateCode,
-          locale.toLowerCase(),
-          row.description,
-          null,
-          t(row.type, { lng: locale }),
-          row.start,
-          row.end
-        );
-      });
+      logger.debug(`populating ${safeColumnName}_lookup table for locale ${locale}`);
+      const lang = locale.toLowerCase();
+
+      for (const row of dateDimensionTable) {
+        await stmt.run(row.dateCode, lang, row.description, null, t(row.type, { lng: locale }), row.start, row.end);
+      }
     }
     await stmt.finalize();
   } catch (error) {
@@ -731,7 +727,7 @@ async function getPreviewWithNumberExtractor(
   );
   const totalLines = Number(totals[0].totalLines);
 
-  logger.debug(`query = ${query}`);
+  // logger.debug(`query = ${query}`);
   const preview = await quack.all(query);
   const tableHeaders = Object.keys(preview[0]);
   const dataArray = preview.map((row) => Object.values(row));
@@ -792,11 +788,19 @@ async function getLookupPreviewWithExtractor(
   quack: Database,
   language: string
 ) {
+  const safeColName = makeCubeSafeString(dimension.factTableColumn);
   const lookupTableSize = await quack.all(
-    `SELECT * FROM ${makeCubeSafeString(dimension.factTableColumn)}_lookup WHERE language = '${language.toLowerCase()}'`
+    `SELECT * FROM ${safeColName}_lookup WHERE language = '${language.toLowerCase()}'`
   );
-  const query = `SELECT * EXCLUDE(language) FROM ${makeCubeSafeString(dimension.factTableColumn)}_lookup WHERE language = '${language.toLowerCase()}' ORDER BY sort_order, "${dimension.factTableColumn}" LIMIT ${sampleSize};`;
-  logger.debug(`Querying the cube to get the preview using query ${query}`);
+  const query = `
+    SELECT * EXCLUDE(language)
+    FROM ${safeColName}_lookup
+    WHERE language = '${language.toLowerCase()}'
+    ORDER BY sort_order, "${dimension.factTableColumn}"
+    LIMIT ${sampleSize};
+  `;
+
+  // logger.debug(`Querying the cube to get the preview using query ${query}`);
   const dimensionTable = await quack.all(query);
   const tableHeaders = Object.keys(dimensionTable[0]);
   const dataArray = dimensionTable.map((row) => Object.values(row));
@@ -870,7 +874,7 @@ export const getDimensionPreview = async (dataset: Dataset, dimension: Dimension
     }
     return viewDto;
   } catch (error) {
-    logger.error(`Something went wrong trying to create dimension preview with the following error: ${error}`);
+    logger.error(error, `Something went wrong trying to create dimension preview`);
     return viewErrorGenerators(500, dataset.id, 'none', 'errors.dimension.preview_failed', {});
   } finally {
     await quack.close();

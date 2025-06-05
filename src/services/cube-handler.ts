@@ -519,7 +519,7 @@ async function setupReferenceDataDimension(
       dimension.factTableColumn,
       locale.toLowerCase()
     );
-    logger.debug(`Query = ${query}`);
+    // logger.debug(`Query = ${query}`);
     await quack.exec(query);
   }
 }
@@ -543,51 +543,48 @@ export async function createDateDimension(quack: Database, extractor: object | n
   if (!extractor) {
     throw new Error('Extractor not supplied');
   }
-  const columnData = await quack.all(`SELECT DISTINCT "${factTableColumn.columnName}" FROM ${FACT_TABLE_NAME};`);
+  const safeColumnName = makeCubeSafeString(factTableColumn.columnName);
+  const columnData = await quack.all(`SELECT DISTINCT "${safeColumnName}" FROM ${FACT_TABLE_NAME};`);
   const dateDimensionTable = dateDimensionReferenceTableCreator(extractor as DateExtractor, columnData);
   await quack.exec(createDatePeriodTableQuery(factTableColumn));
+
   // Create the date_dimension table
   const stmt = await quack.prepare(
-    `INSERT INTO ${makeCubeSafeString(factTableColumn.columnName)}_lookup
+    `INSERT INTO ${safeColumnName}_lookup
     ("${factTableColumn.columnName}", language, description, hierarchy, date_type, start_date, end_date) VALUES (?,?,?,?,?,?,?);`
   );
   for (const locale of SUPPORTED_LOCALES) {
-    logger.debug(`populating ${makeCubeSafeString(factTableColumn.columnName)}_lookup table for locale ${locale}`);
-    dateDimensionTable.map(async (row) => {
-      await stmt.run(
-        row.dateCode,
-        locale.toLowerCase(),
-        row.description,
-        null,
-        t(row.type, { lng: locale }),
-        row.start,
-        row.end
-      );
-    });
+    logger.debug(`populating ${safeColumnName}_lookup table for locale ${locale}`);
+    const lang = locale.toLowerCase();
+
+    // TODO: updated async in .map() to promise.all... can this be parallelized or should it be sequential?
+    await Promise.all(
+      dateDimensionTable.map((row) => {
+        stmt.run(row.dateCode, lang, row.description, null, t(row.type, { lng: locale }), row.start, row.end);
+      })
+    );
   }
 
   await stmt.finalize();
   const periodCoverage = await quack.all(
-    `SELECT MIN(start_date) as startDate, MAX(end_date) as endDate FROM ${makeCubeSafeString(factTableColumn.columnName)}_lookup;`
+    `SELECT MIN(start_date) as startDate, MAX(end_date) as endDate FROM ${safeColumnName}_lookup;`
   );
-  logger.debug(
-    `Period coverage: ${toZonedTime(periodCoverage[0].startDate, 'UTC')} to ${toZonedTime(periodCoverage[0].endDate, 'UTC')}`
-  );
+
+  const zonedStartDate = toZonedTime(periodCoverage[0].startDate, 'UTC');
+  const zonedEndDate = toZonedTime(periodCoverage[0].endDate, 'UTC');
+  logger.debug(`Period coverage: ${zonedStartDate} to ${zonedEndDate}`);
+
   await quack.exec(`CREATE TABLE IF NOT EXISTS metadata (key VARCHAR, value VARCHAR);`);
   const metaDataCoverage = await quack.all("SELECT * FROM metadata WHERE key = 'start_data' OR key = 'end_date';");
   if (metaDataCoverage.length > 0) {
     for (const metaData of metaDataCoverage) {
       if (metaData.key === 'start_date') {
         if (periodCoverage[0].startDate < metaData.value) {
-          await quack.exec(
-            `UPDATE metadata SET value='${formatISO(toZonedTime(periodCoverage[0].startDate, 'UTC'))}' WHERE key='start_data';`
-          );
+          await quack.exec(`UPDATE metadata SET value='${formatISO(zonedStartDate)}' WHERE key='start_data';`);
         }
       } else if (metaData.key === 'end_date') {
         if (periodCoverage[0].endDate > metaData.value) {
-          await quack.exec(
-            `UPDATE metadata SET value='${formatISO(toZonedTime(periodCoverage[0].endDate, 'UTC'))}' WHERE key='end_date';`
-          );
+          await quack.exec(`UPDATE metadata SET value='${formatISO(zonedEndDate)}' WHERE key='end_date';`);
         }
       }
     }
@@ -702,7 +699,7 @@ export async function createLookupTableDimension(
     }
     const builtInsertQuery = pgformat(`INSERT INTO %I %s;`, dimTable, dataExtractorParts.join(' UNION '));
     // const builtInsertQuery = `INSERT INTO ${makeCubeSafeString(dimension.factTableColumn)}_lookup (${dataExtractorParts.join(' UNION ')});`;
-    logger.debug(`Built insert query: ${builtInsertQuery}`);
+    // logger.debug(`Built insert query: ${builtInsertQuery}`);
     await quack.exec(builtInsertQuery);
   } else {
     const languageMatcher = languageMatcherCaseStatement(extractor.languageColumn);
@@ -814,7 +811,7 @@ async function loadFactTablesWithUpdates(
           await quack.exec(
             pgformat('CREATE TABLE update_table AS SELECT * FROM %I.%I;', 'date_tables_db', dataTable.id)
           );
-          logger.debug(`Executing update query: ${updateQuery}`);
+          // logger.debug(`Executing update query: ${updateQuery}`);
           await quack.exec(updateQuery);
           await quack.exec(
             pgformat(
@@ -1122,8 +1119,9 @@ async function setupMeasures(
 
   // Process the column that represents the measure
   if (dataset.measure && dataset.measure.measureTable && dataset.measure.measureTable.length > 0) {
-    logger.debug('Measure present in dataset.  Creating measure table...');
+    logger.debug('Measure present in dataset. Creating measure table...');
     await createMeasureLookupTable(quack, measureColumn, dataset.measure.measureTable);
+
     logger.debug('Creating query part to format the data value correctly');
 
     const uniqueReferences = await quack.all(
@@ -1142,8 +1140,10 @@ async function setupMeasures(
         logger.warn(`Failed to create case statement measure row: ${JSON.stringify(row)}`);
       }
     }
+
     caseStatements.push(pgformat('ELSE CAST(%I.%I AS VARCHAR) END', FACT_TABLE_NAME, dataValuesColumn?.columnName));
-    logger.debug(`Data view case statement ended up as: ${caseStatements.join('\n')}`);
+    // logger.debug(`Data view case statement ended up as: ${caseStatements.join('\n')}`);
+
     SUPPORTED_LOCALES.map((locale) => {
       const columnName =
         dataset.measure.metadata.find((info) => info.language === locale)?.name || dataset.measure.factTableColumn;
@@ -1556,7 +1556,7 @@ export async function createEmptyFactTableInCube(
         );
       }
       const createQuery = pgformat(`CALL postgres_execute('postgres_db', %L);`, factTableCreationQuery);
-      logger.debug(`Creating fact table with query: '${createQuery}'`);
+      // logger.debug(`Creating fact table with query: '${createQuery}'`);
       await quack.exec(createQuery);
     } catch (err) {
       logger.error(err, `Failed to create fact table in cube`);
@@ -1772,7 +1772,7 @@ export const createBasePostgresCube = async (datasetId: string, endRevisionId: s
         joinStatements.join('\n').replace(/#LANG#/g, pgformat('%L', locale.toLowerCase())),
         orderByStatements.length > 0 ? `ORDER BY ${orderByStatements.join(', ')}` : ''
       );
-      logger.debug(defaultViewSQL);
+      // logger.debug(defaultViewSQL);
       await quack.exec(defaultViewSQL);
 
       const rawViewSQL = pgformat(
@@ -1783,7 +1783,7 @@ export const createBasePostgresCube = async (datasetId: string, endRevisionId: s
         joinStatements.join('\n').replace(/#LANG#/g, pgformat('%L', locale.toLowerCase())),
         orderByStatements.length > 0 ? `ORDER BY ${orderByStatements.join(', ')}` : ''
       );
-      logger.debug(rawViewSQL);
+      // logger.debug(rawViewSQL);
       await quack.exec(rawViewSQL);
     }
   } catch (error) {
@@ -1940,7 +1940,7 @@ export const createBaseDuckDBFile = async (datasetId: string, endRevisionId: str
         joinStatements.join('\n').replace(/#LANG#/g, pgformat('%L', locale.toLowerCase())),
         orderByStatements.length > 0 ? `ORDER BY ${orderByStatements.join(', ')}` : ''
       );
-      logger.debug(defaultViewSQL);
+      // logger.debug(defaultViewSQL);
       await quack.exec(defaultViewSQL);
 
       const rawViewSQL = pgformat(
@@ -1951,7 +1951,7 @@ export const createBaseDuckDBFile = async (datasetId: string, endRevisionId: str
         joinStatements.join('\n').replace(/#LANG#/g, pgformat('%L', locale.toLowerCase())),
         orderByStatements.length > 0 ? `ORDER BY ${orderByStatements.join(', ')}` : ''
       );
-      logger.debug(rawViewSQL);
+      // logger.debug(rawViewSQL);
       await quack.exec(rawViewSQL);
     }
   } catch (error) {
