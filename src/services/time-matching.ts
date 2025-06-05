@@ -285,18 +285,18 @@ function specificDateTableCreator(dateFormat: DateExtractor, dataColumn: TableDa
   return referenceTable;
 }
 
-export function dateDimensionReferenceTableCreator(dateFormat: DateExtractor, dataColumn: TableData) {
+export function dateDimensionReferenceTableCreator(extractor: DateExtractor, dataColumn: TableData) {
   const columnData = [];
 
   for (const row of dataColumn) {
     columnData.push(Object.values(row)[0]);
   }
 
-  if (dateFormat.dateFormat) {
+  if (extractor.dateFormat) {
     logger.debug('Creating specific date table...');
-    return specificDateTableCreator(dateFormat, columnData);
+    return specificDateTableCreator(extractor, columnData);
   } else {
     logger.debug('Creating period table...');
-    return createAllTypesOfPeriod(dateFormat, columnData);
+    return createAllTypesOfPeriod(extractor, columnData);
   }
 }

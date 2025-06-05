@@ -312,9 +312,9 @@ export const createDimensionsFromSourceAssignment = async (
   }
 
   await Promise.all(
-    dimensions.map(async (dimensionCreationDTO: SourceAssignmentDTO) => {
+    dimensions.map((dimensionCreationDTO: SourceAssignmentDTO) => {
       logger.debug(`Creating dimension column: ${JSON.stringify(dimensionCreationDTO)}`);
-      await createUpdateDimension(dataset, dimensionCreationDTO);
+      createUpdateDimension(dataset, dimensionCreationDTO);
     })
   );
 
@@ -584,23 +584,22 @@ export const createAndValidateDateDimension = async (
 
   try {
     await quack.exec(createDatePeriodTableQuery(factTableColumn));
+    const safeColumnName = makeCubeSafeString(factTableColumn.columnName);
+
     const stmt = await quack.prepare(
-      `INSERT INTO ${makeCubeSafeString(factTableColumn.columnName)}_lookup
+      `INSERT INTO ${safeColumnName}_lookup
     ("${factTableColumn.columnName}", language, description, hierarchy, date_type, start_date, end_date) VALUES (?,?,?,?,?,?,?);`
     );
     for (const locale of SUPPORTED_LOCALES) {
-      logger.debug(`populating ${makeCubeSafeString(factTableColumn.columnName)}_lookup table for locale ${locale}`);
-      dateDimensionTable.map(async (row) => {
-        await stmt.run(
-          row.dateCode,
-          locale.toLowerCase(),
-          row.description,
-          null,
-          t(row.type, { lng: locale }),
-          row.start,
-          row.end
-        );
-      });
+      logger.debug(`populating ${safeColumnName}_lookup table for locale ${locale}`);
+      const lang = locale.toLowerCase();
+
+      // TODO: updated async in .map() to promise.all... can this be parallelized or should it be sequential?
+      await Promise.all(
+        dateDimensionTable.map((row) => {
+          stmt.run(row.dateCode, lang, row.description, null, t(row.type, { lng: locale }), row.start, row.end);
+        })
+      );
     }
     await stmt.finalize();
   } catch (error) {
