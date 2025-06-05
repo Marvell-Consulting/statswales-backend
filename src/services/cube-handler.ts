@@ -1,5 +1,5 @@
-import fs from 'node:fs';
-import path from 'path';
+import { readFile, unlink } from 'node:fs/promises';
+import path from 'node:path';
 import { performance } from 'node:perf_hooks';
 
 import { Database, DuckDbError } from 'duckdb-async';
@@ -45,6 +45,7 @@ import { DateExtractor } from '../extractors/date-extractor';
 import { StorageService } from '../interfaces/storage-service';
 import { QueryResult } from 'pg';
 import { getCubeDB } from '../db/cube-db';
+import { asyncFileExists } from '../utils/async-file-exists';
 
 export const FACT_TABLE_NAME = 'fact_table';
 
@@ -1987,12 +1988,11 @@ export const createAllCubeFiles = async (
   try {
     logger.debug('Creating duckdb cube file.');
     const cubeFile = await createBaseDuckDBFile(datasetId, endRevisionId);
-    await storageService.saveBuffer(`${endRevisionId}.duckdb`, datasetId, fs.readFileSync(cubeFile));
+    const buffer = await readFile(cubeFile);
+    await storageService.saveBuffer(`${endRevisionId}.duckdb`, datasetId, buffer);
     logger.debug('Cleaning up cube file');
-    if (fs.existsSync(cubeFile)) {
-      fs.unlink(cubeFile, async (err) => {
-        if (err) logger.error(`Unable to remove file ${cubeFile} with error: ${err}`);
-      });
+    if (await asyncFileExists(cubeFile)) {
+      await unlink(cubeFile);
     }
   } catch (err) {
     logger.error(err, 'Failed to create duckdb cube file');
@@ -2002,24 +2002,29 @@ export const createAllCubeFiles = async (
   const quack = await duckdb();
   await linkToPostgres(quack, endRevisionId, false);
 
-  // TODO Write code to to use native libraries to produce parquet, csv, excel and json outputs
-  for (const locale of SUPPORTED_LOCALES) {
-    const lang = locale.toLowerCase().split('-')[0];
-    const xlsxFile = tmp.tmpNameSync({ postfix: '.xlsx' });
-    const parquetFile = tmp.tmpNameSync({ postfix: '.parquet' });
-    const csvFile = tmp.tmpNameSync({ postfix: '.csv' });
-    const jsonFile = tmp.tmpNameSync({ postfix: '.json' });
-    await quack.exec('INSTALL spatial;');
-    await quack.exec('LOAD spatial;');
-    await quack.exec(`COPY default_view_${lang} TO '${xlsxFile}' WITH (FORMAT GDAL, DRIVER 'xlsx');`);
-    await quack.exec(`COPY default_view_${lang} TO '${csvFile}' (HEADER, DELIMITER ',');`);
-    await quack.exec(`COPY default_view_${lang} TO '${parquetFile}' (FORMAT PARQUET);`);
-    await quack.exec(`COPY default_view_${lang} TO '${jsonFile}' (FORMAT JSON);`);
-    await storageService.saveBuffer(`${endRevisionId}_${lang}.xlsx`, datasetId, fs.readFileSync(xlsxFile));
-    await storageService.saveBuffer(`${endRevisionId}_${lang}.csv`, datasetId, fs.readFileSync(csvFile));
-    await storageService.saveBuffer(`${endRevisionId}_${lang}.parquet`, datasetId, fs.readFileSync(parquetFile));
-    await storageService.saveBuffer(`${endRevisionId}_${lang}.json`, datasetId, fs.readFileSync(jsonFile));
+  try {
+    // TODO Write code to to use native libraries to produce parquet, csv, excel and json outputs
+    for (const locale of SUPPORTED_LOCALES) {
+      const lang = locale.toLowerCase().split('-')[0];
+      const xlsxFile = tmp.tmpNameSync({ postfix: '.xlsx' });
+      const parquetFile = tmp.tmpNameSync({ postfix: '.parquet' });
+      const csvFile = tmp.tmpNameSync({ postfix: '.csv' });
+      const jsonFile = tmp.tmpNameSync({ postfix: '.json' });
+      await quack.exec('INSTALL spatial;');
+      await quack.exec('LOAD spatial;');
+      await quack.exec(`COPY default_view_${lang} TO '${xlsxFile}' WITH (FORMAT GDAL, DRIVER 'xlsx');`);
+      await quack.exec(`COPY default_view_${lang} TO '${csvFile}' (HEADER, DELIMITER ',');`);
+      await quack.exec(`COPY default_view_${lang} TO '${parquetFile}' (FORMAT PARQUET);`);
+      await quack.exec(`COPY default_view_${lang} TO '${jsonFile}' (FORMAT JSON);`);
+      await storageService.saveBuffer(`${endRevisionId}_${lang}.xlsx`, datasetId, await readFile(xlsxFile));
+      await storageService.saveBuffer(`${endRevisionId}_${lang}.csv`, datasetId, await readFile(csvFile));
+      await storageService.saveBuffer(`${endRevisionId}_${lang}.parquet`, datasetId, await readFile(parquetFile));
+      await storageService.saveBuffer(`${endRevisionId}_${lang}.json`, datasetId, await readFile(jsonFile));
+    }
+  } catch (err) {
+    logger.error(err, 'Failed to create cube files');
   }
+
   await quack.close();
 };
 

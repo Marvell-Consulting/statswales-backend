@@ -1,4 +1,4 @@
-import fs from 'node:fs';
+import { writeFile } from 'node:fs/promises';
 
 import tmp from 'tmp';
 import { Database } from 'duckdb-async';
@@ -35,7 +35,7 @@ export const getFileImportAndSaveToDisk = async (
   const fileService = getFileService();
   const importTmpFile = tmp.tmpNameSync({ postfix: `.${importFile.fileType}` });
   const buffer = await fileService.loadBuffer(importFile.filename, dataset.id);
-  fs.writeFileSync(importTmpFile, buffer);
+  await writeFile(importTmpFile, buffer);
   return importTmpFile;
 };
 

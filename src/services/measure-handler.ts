@@ -1,4 +1,4 @@
-import fs from 'fs';
+import { writeFile, unlink } from 'node:fs/promises';
 
 import { Database, DuckDbError } from 'duckdb-async';
 import { format as pgformat } from '@scaleleap/pg-format';
@@ -404,9 +404,9 @@ export const validateMeasureLookupTable = async (
 
   const lookupTableTmpFile = tmp.tmpNameSync({ postfix: `.${lookupTable.fileType}` });
   try {
-    fs.writeFileSync(lookupTableTmpFile, buffer);
+    await writeFile(lookupTableTmpFile, buffer);
     await loadFileIntoDatabase(quack, lookupTable, lookupTableTmpFile, lookupTableName);
-    fs.unlinkSync(lookupTableTmpFile);
+    await unlink(lookupTableTmpFile);
   } catch (err) {
     await quack.close();
     logger.error(err, `Something went wrong trying to load data in to DuckDB with the following error: ${err}`);
