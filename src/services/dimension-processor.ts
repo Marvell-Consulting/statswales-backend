@@ -94,7 +94,8 @@ export const validateSourceAssignment = (
   let measure: SourceAssignmentDTO | null = null;
   const dimensions: SourceAssignmentDTO[] = [];
   const ignore: SourceAssignmentDTO[] = [];
-  logger.debug(`Validating source assignment from: ${JSON.stringify(sourceAssignment, null, 2)}`);
+  // logger.debug(`Validating source assignment from: ${JSON.stringify(sourceAssignment, null, 2)}`);
+
   sourceAssignment.map((sourceInfo) => {
     if (
       !fileImport.dataTableDescriptions?.find(
@@ -174,7 +175,8 @@ async function updateDataValueColumn(dataset: Dataset, dataValueColumnDto: Sourc
 async function removeIgnoreAndUnknownColumns(dataset: Dataset, ignoreColumns: SourceAssignmentDTO[]) {
   let factTableColumns: FactTableColumn[] = [];
   factTableColumns = await FactTableColumn.findBy({ id: dataset.id });
-  logger.debug('Unprocessed columns in fact table: ' + JSON.stringify(factTableColumns, null, 2));
+  logger.debug('Unprocessed columns in fact table');
+
   for (const column of ignoreColumns) {
     const factTableCol = factTableColumns.find((columnInfo) => columnInfo.columnName === column.column_name);
     if (!factTableCol) {
@@ -187,9 +189,7 @@ async function removeIgnoreAndUnknownColumns(dataset: Dataset, ignoreColumns: So
 
   try {
     factTableColumns = await FactTableColumn.findBy({ id: dataset.id, columnDatatype: FactTableColumnType.Unknown });
-    logger.debug(
-      `Found ${factTableColumns.length} columns in fact table... ${JSON.stringify(factTableColumns, null, 2)}`
-    );
+    logger.debug(`Found ${factTableColumns.length} columns in fact table...`);
   } catch (error) {
     logger.error(error, `Something went wrong trying to find columns in fact table with error: ${error}`);
   }
@@ -548,7 +548,6 @@ export const createAndValidateDateDimension = async (
     return viewErrorGenerators(500, dataset.id, 'patch', 'errors.cube_builder.fact_table_creation_failed', {});
   }
   // Use the extracted data to try to create a reference table based on the user supplied information
-  logger.debug(`Dimension patch request is: ${JSON.stringify(dimensionPatchRequest)}`);
   let dateDimensionTable: DateReferenceDataItem[] = [];
   const extractor: DateExtractor = {
     type: dimensionPatchRequest.date_type || YearType.Calendar,
@@ -558,7 +557,7 @@ export const createAndValidateDateDimension = async (
     monthFormat: dimensionPatchRequest.month_format,
     dateFormat: dimensionPatchRequest.date_format
   };
-  logger.debug(`Extractor created with: ${JSON.stringify(extractor)}`);
+  logger.debug(`Extractor created: ${JSON.stringify(extractor)}`);
   const previewQuery = pgformat(
     'SELECT DISTINCT %I FROM %I.%I;',
     dimension.factTableColumn,
@@ -568,11 +567,11 @@ export const createAndValidateDateDimension = async (
   logger.debug(`Preview query is: ${previewQuery}`);
   const preview = await quack.all(previewQuery);
   try {
-    logger.debug(`Preview is: ${JSON.stringify(preview)}`);
+    // logger.debug(`Preview is: ${JSON.stringify(preview)}`);
     dateDimensionTable = dateDimensionReferenceTableCreator(extractor, preview);
-    logger.debug(
-      `Date dimension table created with the following JSON: ${JSON.stringify(dateDimensionTable, null, 2)}`
-    );
+    // logger.debug(
+    //   `Date dimension table created with the following JSON: ${JSON.stringify(dateDimensionTable, null, 2)}`
+    // );
   } catch (error) {
     logger.error(error, `Something went wrong trying to create the date reference table`);
     await quack.close();

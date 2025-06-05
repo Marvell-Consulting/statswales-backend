@@ -162,7 +162,7 @@ export const DatasetRepository = dataSource.getRepository(Dataset).extend({
     const size = Math.round(Buffer.byteLength(JSON.stringify(dataset)) / 1024);
     const time = Math.round(end - start);
 
-    if (size > 100 || time > 100) {
+    if (size > 50 || time > 200) {
       logger.warn(`LARGE/SLOW Dataset ${id} loaded { size: ${size}kb, time: ${time}ms }`);
     } else {
       logger.debug(`Dataset ${id} loaded { size: ${size}kb, time: ${time}ms }`);

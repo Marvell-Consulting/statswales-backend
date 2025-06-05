@@ -125,7 +125,7 @@ export const lookForJoinColumn = (
     if (possibleJoinColumns.length === 0) {
       throw new Error('Could not find a column to join against the fact table.');
     }
-    logger.debug(`Found the following join column ${JSON.stringify(possibleJoinColumns)}`);
+    // logger.debug(`Found the following join column ${JSON.stringify(possibleJoinColumns)}`);
     return possibleJoinColumns[0].columnName;
   }
 };
@@ -164,7 +164,7 @@ export const validateLookupTableLanguages = async (
     if (missingLanguageRows.length > 0) {
       const missingLanguages: string[] = [];
       SUPPORTED_LOCALES.forEach((locale) => {
-        logger.debug(`Checking if ${locale.toLowerCase()} is missing from ${JSON.stringify(missingLanguageRows)}`);
+        // logger.debug(`Checking if ${locale.toLowerCase()} is missing from ${JSON.stringify(missingLanguageRows)}`);
         if (!missingLanguageRows.find((row) => row.languages.includes(locale.split('-')[0].toLowerCase()))) {
           missingLanguages.push(`languages.${locale.split('-')[0]}`);
         }
@@ -200,8 +200,8 @@ export const validateLookupTableLanguages = async (
     // `);
     if (duplicateDescriptionRows.length > 0 || duplicateNoteRows.length > 0) {
       logger.error(`The lookup table has duplicate descriptions or notes`);
-      logger.error(`Duplicate descriptions: ${JSON.stringify(duplicateDescriptionRows)}`);
-      logger.error(`Duplicate notes: ${JSON.stringify(duplicateNoteRows)}`);
+      // logger.error(`Duplicate descriptions: ${JSON.stringify(duplicateDescriptionRows)}`);
+      // logger.error(`Duplicate notes: ${JSON.stringify(duplicateNoteRows)}`);
       return viewErrorGenerators(
         400,
         dataset.id,
@@ -308,7 +308,7 @@ async function checkFormatColumn(quack: Database, extractor: MeasureLookupTableE
   const unmatchedFormats: string[] = [];
   logger.debug('Format column is present.  Validating it contains only known formats.');
   const formats = await quack.all(`SELECT DISTINCT format FROM ${lookupTableName};`);
-  logger.debug(`Formats = ${JSON.stringify(Object.values(DataValueFormat), null, 2)}`);
+  // logger.debug(`Formats = ${JSON.stringify(Object.values(DataValueFormat), null, 2)}`);
   for (const format of Object.values(formats.map((format) => format.format))) {
     if (Object.values(DataValueFormat).indexOf(format.toLowerCase()) === -1) unmatchedFormats.push(format);
   }
@@ -325,9 +325,7 @@ export const validateMeasureTableContent = async (
     logger.debug('Formats column is present.  Validating all formats present are valid.');
     const unMatchedFormats = await checkFormatColumn(quack, extractor, lookupTableName);
     if (unMatchedFormats.length > 0) {
-      logger.debug(
-        `Found invalid formats while validating format column.  Formats found: ${JSON.stringify(unMatchedFormats)}`
-      );
+      logger.debug(`Found invalid formats while validating format column`);
       return viewErrorGenerators(400, datasetId, 'patch', 'errors.measure_validation.invalid_formats_present', {
         totalNonMatching: unMatchedFormats.length,
         nonMatchingValues: unMatchedFormats,
@@ -339,9 +337,7 @@ export const validateMeasureTableContent = async (
   if (extractor.decimalColumn && extractor.decimalColumn.toLowerCase().includes('decimal')) {
     const unmatchedDecimals = await checkDecimalColumn(quack, extractor, lookupTableName);
     if (unmatchedDecimals.length > 0) {
-      logger.debug(
-        `Found invalid formats while validating decimals column.  Formats found: ${JSON.stringify(unmatchedDecimals)}`
-      );
+      logger.debug(`Found invalid formats while validating decimals column`);
       return viewErrorGenerators(400, datasetId, 'patch', 'errors.measure_validation.invalid_decimals_present', {
         totalNonMatching: unmatchedDecimals.length,
         nonMatchingValues: unmatchedDecimals,

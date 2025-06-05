@@ -169,7 +169,7 @@ async function updateMeasure(
   updateMeasure.lookupTable = lookupTable;
   updateMeasure.extractor = extractor;
 
-  logger.debug(`Saving measure table to database using rows ${JSON.stringify(measureTable, null, 2)}`);
+  // logger.debug(`Saving measure table to database using rows ${JSON.stringify(measureTable, null, 2)}`);
   for (const row of measureTable) {
     row.id = updateMeasure.id;
     row.measure = updateMeasure;
@@ -238,7 +238,7 @@ async function createMeasureTable(
     buildMeasureViewQuery = `${viewComponents.join('\nUNION\n')}`;
     logger.debug(`Extracting SW2 measure lookup table to measure table using query ${buildMeasureViewQuery}`);
   } else {
-    logger.debug(`Extractor = ${JSON.stringify(extractor, null, 2)}`);
+    // logger.debug(`Extractor = ${JSON.stringify(extractor, null, 2)}`);
     if (extractor.notesColumns && extractor.notesColumns.length > 0) {
       notesColumnDef = `"${extractor.notesColumns[0].name}"`;
     } else {
@@ -293,8 +293,8 @@ async function createMeasureTable(
     logger.debug(`Extracting lookup table contents to measure using query:\n ${insertQuery}`);
     await quack.exec(insertQuery);
     await quack.exec(`DROP TABLE ${lookupTable};`);
-    const measureTable = await quack.all(`SELECT * FROM measure;`);
-    logger.debug(`Creating measureTable from lookup using result:\n${JSON.stringify(measureTable, null, 2)}`);
+    // const measureTable = await quack.all(`SELECT * FROM measure;`);
+    // logger.debug(`Creating measureTable from lookup using result:\n${JSON.stringify(measureTable, null, 2)}`);
   } catch (err) {
     logger.error(err, `Something went wrong trying to extract the lookup tables contents to measure.`);
     const error = err as DuckDbError;
@@ -334,7 +334,7 @@ async function createMeasureTable(
   }
 
   const tableContents = await quack.all(`SELECT * FROM measure;`);
-  logger.debug(`Creating measureTable from lookup using result:\n${JSON.stringify(tableContents, null, 2)}`);
+  // logger.debug(`Creating measureTable from lookup using result:\n${JSON.stringify(tableContents, null, 2)}`);
   for (const row of tableContents) {
     const item = new MeasureRow();
     item.reference = row.reference;
@@ -505,7 +505,10 @@ export const validateMeasureLookupTable = async (
     const dimensionTable = await quack.all(
       `SELECT * EXCLUDE(language) FROM measure WHERE language = '${lang.toLowerCase()}' ORDER BY sort_order, reference;`
     );
-    logger.debug(`Measure preview query result: ${JSON.stringify(dimensionTable, null, 2)}`);
+
+    // logger.debug(`Measure preview query result: ${JSON.stringify(dimensionTable, null, 2)}`);
+    // this is throwing "TypeError: Converting circular structure to JSON"
+
     const tableHeaders = Object.keys(dimensionTable[0]);
     const dataArray = dimensionTable.map((row) => Object.values(row));
     const currentDataset = await DatasetRepository.getById(dataset.id);
@@ -528,7 +531,7 @@ export const validateMeasureLookupTable = async (
     const pageSize = dataArray.length;
     return viewGenerator(currentDataset, 1, pageInfo, pageSize, 1, headers, dataArray);
   } catch (error) {
-    logger.error(`Something went wrong trying to generate the preview of the lookup table with error: ${error}`);
+    logger.error(error, `Something went wrong trying to generate the preview of the lookup table`);
     return viewErrorGenerators(500, dataset.id, 'csv', 'errors.dimension.unknown_error', {
       mismatch: false
     });

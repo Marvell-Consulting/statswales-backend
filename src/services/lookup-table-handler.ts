@@ -125,7 +125,7 @@ function createExtractor(
         info.columnName.toLowerCase().startsWith(langStr)
       )
     };
-    logger.debug(`Extracted extractor from lookup table:\n${JSON.stringify(extractor, null, 2)}`);
+    // logger.debug(`Extracted extractor from lookup table:\n${JSON.stringify(extractor, null, 2)}`);
     if (extractor.descriptionColumns.length === 0) {
       throw new FileValidationException(
         'errors.measure_validation.no_description_columns',
@@ -338,7 +338,7 @@ export const validateLookupTable = async (
     const previewQuery = `SELECT * FROM "${makeCubeSafeString(dimension.factTableColumn)}_lookup" WHERE language = '${language.toLowerCase()}';`;
     logger.debug(`Passed validation preparing to send back the preview using the following query:\n${previewQuery}`);
     const dimensionTable = await quack.all(previewQuery);
-    logger.debug(`Preview query returned:\n${JSON.stringify(dimensionTable, null, 2)}`);
+    // logger.debug(`Preview query returned:\n${JSON.stringify(dimensionTable, null, 2)}`);
     const tableHeaders = Object.keys(dimensionTable[0]);
     const dataArray = dimensionTable.map((row) => Object.values(row));
     const currentDataset = await DatasetRepository.getById(dataset.id);
