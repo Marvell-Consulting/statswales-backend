@@ -1,0 +1,705 @@
+{
+  "openapi": "3.1.1",
+  "info": {
+    "version": "1.0.0",
+    "title": "StatsWales 3 Consumer API",
+    "description": "This website provides documentation for StatsWales 3 public API.",
+    "contact": {
+      "name": "StatsWales Support",
+      "email": "StatsWales@gov.wales"
+    }
+  },
+  "servers": [
+    {
+      "description": "Local",
+      "url": "https://localhost:3001/v1"
+    },
+    {
+      "description": "Production",
+      "url": "https://api.stats.gov.wales/v1"
+    }
+  ],
+  "paths": {
+    "/": {
+      "get": {
+        "summary": "List all published datasets",
+        "description": "Returns a paginated list of published datasets.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/language"
+          },
+          {
+            "$ref": "#/components/parameters/page"
+          },
+          {
+            "$ref": "#/components/parameters/limit"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A paginated list of published datasets.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DatasetsWithCount"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/topic": {
+      "get": {
+        "summary": "List root (top-level) topics",
+        "description": "Datasets are hierarchically organized into topics. Each topic can have zero or more  sub-topics. This endpoint returns a list of the root topics that have at least one published dataset.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/language"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "An object containing all root level topics (children). For root topics, the path is always equal  to the id.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RootTopics"
+                }
+              },
+              "application/xml": {
+                "schema": {
+                  "$ref": "#/components/schemas/RootTopics"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/topic/{topic_id}": {
+      "get": {
+        "summary": "List of sub-topics for a given topic",
+        "description": "Datasets are hierarchically organized into topics. Each topic can have zero or more  sub-topics. This endpoint returns a list of the sub-topics of the topic specified by `topic_id` in the path.  If the topic has no sub-topics, it will return the datasets for that topic instead.",
+        "parameters": [
+          {
+            "name": "topic_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/language"
+          },
+          {
+            "$ref": "#/components/parameters/page"
+          },
+          {
+            "$ref": "#/components/parameters/limit"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "An object containing the selected topic, any sub-topics (children), any parent topics (parents)  and if it has no sub-topics, any associated datasets. For sub-topics, the path includes the parent ids.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublishedTopics"
+                }
+              },
+              "application/xml": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublishedTopics"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/{dataset_id}": {
+      "get": {
+        "summary": "Get a published dataset by ID",
+        "description": "Returns a single published dataset with all it\\'s nested properities.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/dataset_id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A published dataset",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Dataset"
+                }
+              },
+              "application/xml": {
+                "schema": {
+                  "$ref": "#/components/schemas/Dataset"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/{dataset_id}/view": {
+      "get": {
+        "summary": "Get the data view for a published dataset",
+        "description": "Returns a paginated view of a published dataset, with optional sorting and filtering.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/dataset_id"
+          },
+          {
+            "$ref": "#/components/parameters/language"
+          },
+          {
+            "$ref": "#/components/parameters/page_number"
+          },
+          {
+            "$ref": "#/components/parameters/page_size"
+          },
+          {
+            "$ref": "#/components/parameters/sort_by"
+          },
+          {
+            "$ref": "#/components/parameters/filter"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A paginated view of the dataset.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DatasetView"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/{dataset_id}/download/{format}": {
+      "get": {
+        "summary": "Download a published dataset as a file",
+        "description": "Downloads a published dataset in one of several supported formats.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/dataset_id"
+          },
+          {
+            "$ref": "#/components/parameters/language"
+          },
+          {
+            "$ref": "#/components/parameters/format"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The dataset file in the specified format.",
+            "content": {
+              "application/octet-stream": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary",
+                  "example": "data.csv"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "parameters": {
+      "language": {
+        "name": "accept-language",
+        "in": "header",
+        "description": "Language for the response. Supported languages: \"cy\" for Welsh, \"en\" for English",
+        "required": false,
+        "type": "string",
+        "default": "en"
+      },
+      "page": {
+        "name": "page",
+        "in": "query",
+        "description": "Page number for pagination",
+        "required": false,
+        "type": "integer",
+        "default": 1
+      },
+      "limit": {
+        "name": "limit",
+        "in": "query",
+        "description": "Number of datasets per page",
+        "required": false,
+        "type": "integer",
+        "default": 10
+      },
+      "dataset_id": {
+        "name": "dataset_id",
+        "in": "path",
+        "description": "The unique identifier of the dataset to retrieve",
+        "required": true,
+        "type": "string",
+        "format": "uuid",
+        "example": "141baa8a-2ed0-45cb-ad4a-83de8c2333b5"
+      },
+      "format": {
+        "name": "format",
+        "in": "query",
+        "description": "Format of the response data. Supported formats: ",
+        "required": true,
+        "type": "string",
+        "enum": [
+          "json",
+          "csv",
+          "xlsx",
+          "parquet",
+          "duckdb"
+        ],
+        "example": "csv"
+      }
+    },
+    "schemas": {
+      "Revision": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Unique identifier for the revision"
+          },
+          "revision_index": {
+            "type": "integer",
+            "description": "Version number, starting from 1"
+          },
+          "dataset_id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Unique identifier for the dataset this revision belongs to"
+          },
+          "previous_revision_id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Unique identifier for the previous revision, if any"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Creation date of the revision in ISO 8601 format"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Last update date of the revision in ISO 8601 format"
+          },
+          "publish_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Publication date of the revision in ISO 8601 format"
+          },
+          "metadata": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "language": {
+                  "type": "string",
+                  "description": "Language of the metadata, e.g., \"en\" for English, \"cy\" for Welsh"
+                },
+                "title": {
+                  "type": "string",
+                  "description": "Title of the revision in the specified language"
+                },
+                "summary": {
+                  "type": "string",
+                  "description": "Summary of the revision in the specified language"
+                },
+                "collection": {
+                  "type": "string",
+                  "description": "Collection name for the revision in the specified language"
+                },
+                "quality": {
+                  "type": "string",
+                  "description": "Quality information for the revision in the specified language"
+                },
+                "rounding_description": {
+                  "type": "string",
+                  "description": "Description of rounding applied to the data in this revision"
+                }
+              }
+            },
+            "description": "Array of metadata key-value pairs for the revision"
+          },
+          "rounding_applied": {
+            "type": "boolean",
+            "description": "Indicates if rounding was applied to the data in this revision"
+          },
+          "update_frequency": {
+            "type": "object",
+            "properties": {
+              "is_updated": {
+                "type": "boolean",
+                "description": "Indicates if the dataset is updated regularly"
+              },
+              "frequency_value": {
+                "type": "integer",
+                "description": "The numeric value of the update frequency"
+              },
+              "frequency_unit": {
+                "type": "string",
+                "description": "The unit of the update frequency",
+                "enum": [
+                  "day",
+                  "week",
+                  "month",
+                  "year"
+                ]
+              }
+            }
+          },
+          "designation": {
+            "type": "string",
+            "description": "The designation of the revision"
+          },
+          "related_links": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "description": "Unique identifier for the related link"
+                },
+                "url": {
+                  "type": "string",
+                  "format": "uri",
+                  "description": "URL of the related link"
+                },
+                "label_en": {
+                  "type": "string",
+                  "description": "Label of the related link in English"
+                },
+                "label_cy": {
+                  "type": "string",
+                  "description": "Label of the related link in Welsh"
+                },
+                "created_at": {
+                  "type": "string",
+                  "format": "date-time",
+                  "description": "Creation date of the related link in ISO 8601 format"
+                }
+              }
+            }
+          },
+          "topics": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Topic"
+            }
+          }
+        }
+      },
+      "Dataset": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Unique identifier for the dataset"
+          },
+          "live": {
+            "type": "string",
+            "format": "date-time",
+            "description": "First publication date of the dataset in ISO 8601 format"
+          },
+          "start_date": {
+            "type": "string",
+            "format": "date",
+            "description": "Start date of the dataset in ISO 8601 format"
+          },
+          "end_date": {
+            "type": "string",
+            "format": "date",
+            "description": "End date of the dataset in ISO 8601 format"
+          },
+          "published_revision": {
+            "$ref": "#/components/schemas/Revision"
+          },
+          "revisions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Revision"
+            }
+          },
+          "dimensions": {}
+        },
+        "example": {
+          "id": "141baa8a-2ed0-45cb-ad4a-83de8c2333b5",
+          "live": "2023-01-01T00:00:00Z",
+          "start_date": "2020-01-01",
+          "end_date": "2023-12-31",
+          "published_revision": {
+            "id": "d1f2e3a4-5678-90ab-cdef-1234567890ab",
+            "revision_index": 5,
+            "dataset_id": "141baa8a-2ed0-45cb-ad4a-83de8c2333b5",
+            "previous_revision_id": "c0b1a2d3-4567-89ab-cdef-1234567890ab",
+            "created_at": "2023-01-01T00:00:00Z",
+            "updated_at": "2023-01-02T00:00:00Z",
+            "publish_at": "2023-01-03T00:00:00Z",
+            "metadata": [
+              {
+                "language": "en",
+                "title": "Population Estimates",
+                "summary": "Annual population estimates for Wales"
+              },
+              {
+                "language": "cy",
+                "title": "Amcangyfrifon poblogaeth",
+                "summary": "Amcangyfrifon poblogaeth flynyddol ar gyfer Cymru"
+              }
+            ],
+            "rounding_applied": false,
+            "update_frequency": {
+              "is_updated": true,
+              "frequency_value": 1,
+              "frequency_unit": "year"
+            },
+            "designation": "official",
+            "related_links": [
+              {
+                "id": "ert23",
+                "url": "https://example.com/population-estimates",
+                "label_en": "Population Estimates Data",
+                "label_cy": "Data Amcangyfrifon Poblogaeth",
+                "created_at": "2023-01-01T00:00:00Z"
+              }
+            ],
+            "topics": [
+              {
+                "id": 1,
+                "path": "1",
+                "name": "Population",
+                "name_en": "Population",
+                "name_cy": "Poblogaeth"
+              }
+            ]
+          }
+        }
+      },
+      "DatasetListItem": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Unique identifier for the dataset"
+          },
+          "title": {
+            "type": "string",
+            "description": "Title of the dataset (in the language requested via accept-language header)"
+          },
+          "published_date": {
+            "type": "string",
+            "format": "date-time",
+            "description": "First publication date of the dataset in ISO 8601 format"
+          }
+        }
+      },
+      "DatasetsWithCount": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DatasetListItem"
+            }
+          },
+          "count": {
+            "type": "integer",
+            "description": "Total number of datasets"
+          }
+        },
+        "example": {
+          "data": [
+            {
+              "id": "141baa8a-2ed0-45cb-ad4a-83de8c2333b5",
+              "title": "Population Estimates",
+              "published_date": "2023-01-01T00:00:00Z"
+            },
+            {
+              "id": "0ff18b56-0a4f-4ac3-a198-197aa48cc9e1",
+              "title": "Economic Indicators",
+              "published_date": "2023-02-01T00:00:00Z"
+            }
+          ],
+          "count": 57
+        }
+      },
+      "DatasetView": {
+        "type": "object",
+        "properties": {
+          "dataset": {
+            "$ref": "#/components/schemas/Dataset"
+          },
+          "current_page": {
+            "type": "integer",
+            "description": "Current page number"
+          },
+          "page_info": {
+            "type": "object",
+            "properties": {
+              "total_records": {
+                "type": "integer",
+                "description": "Total number of records in the dataset"
+              },
+              "start_record": {
+                "type": "integer",
+                "description": "Starting record number for the current page"
+              },
+              "end_record": {
+                "type": "integer",
+                "description": "Ending record number for the current page"
+              }
+            }
+          },
+          "page_size": {
+            "type": "integer",
+            "description": "Number of records per page"
+          },
+          "total_pages": {
+            "type": "integer",
+            "description": "Total number of pages available"
+          },
+          "headers": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "index": {
+                  "type": "integer",
+                  "description": "Index of the header"
+                },
+                "name": {
+                  "type": "string",
+                  "description": "Name of the header"
+                },
+                "source_type": {
+                  "type": "string",
+                  "description": "Source type of the header"
+                }
+              }
+            }
+          },
+          "data": {
+            "type": "array",
+            "description": "Tabular data for the dataset",
+            "items": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      },
+      "Topic": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "description": "ID of the topic",
+            "example": 92
+          },
+          "path": {
+            "type": "string",
+            "description": "Path of the topic",
+            "example": "92"
+          },
+          "name": {
+            "type": "string",
+            "description": "Name in the current language",
+            "example": "Transport"
+          },
+          "name_en": {
+            "type": "string",
+            "description": "Name of the topic in English",
+            "example": "Transport"
+          },
+          "name_cy": {
+            "type": "string",
+            "description": "Name of the topic in Welsh",
+            "example": "Trafnidiaeth"
+          }
+        }
+      },
+      "RootTopics": {
+        "type": "object",
+        "properties": {
+          "children": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Topic"
+            }
+          }
+        },
+        "example": {
+          "children": [
+            {
+              "id": 1,
+              "path": "1",
+              "name": "Busnes, economi a'r farchnad lafur",
+              "name_en": "Business, economy and labour market",
+              "name_cy": "Busnes, economi a'r farchnad lafur"
+            },
+            {
+              "id": 13,
+              "path": "13",
+              "name": "Addysg a hyfforddiant",
+              "name_en": "Education and training",
+              "name_cy": "Addysg a hyfforddiant"
+            },
+            {
+              "id": 23,
+              "path": "23",
+              "name": "Amgylchedd, ynni ac amaethyddiaeth",
+              "name_en": "Environment, energy and agriculture",
+              "name_cy": "Amgylchedd, ynni ac amaethyddiaeth"
+            }
+          ]
+        }
+      },
+      "PublishedTopics": {
+        "type": "object",
+        "properties": {
+          "selectedTopic": {
+            "$ref": "#/components/schemas/Topic"
+          },
+          "children": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Topic"
+            }
+          },
+          "parents": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Topic"
+            }
+          },
+          "datasets": {
+            "$ref": "#/components/schemas/DatasetsWithCount"
+          }
+        }
+      }
+    }
+  }
+}

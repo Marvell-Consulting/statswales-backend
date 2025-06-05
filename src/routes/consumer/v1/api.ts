@@ -1,22 +1,21 @@
 import { NextFunction, Router, Request, Response } from 'express';
 import { FindOptionsRelations } from 'typeorm';
 
-import { logger } from '../utils/logger';
+import { logger } from '../../../utils/logger';
 import {
   listPublishedDatasets,
   getPublishedDatasetById,
   downloadPublishedDataset,
   getPublishedDatasetView,
-  getPublishedDatasetFilters,
-  listRootTopics,
-  listSubTopics
-} from '../controllers/consumer';
-import { NotFoundException } from '../exceptions/not-found.exception';
-import { PublishedDatasetRepository } from '../repositories/published-dataset';
-import { hasError, datasetIdValidator } from '../validators';
-import { Dataset } from '../entities/dataset/dataset';
+  listSubTopics,
+  listRootTopics
+} from '../../../controllers/consumer';
+import { NotFoundException } from '../../../exceptions/not-found.exception';
+import { PublishedDatasetRepository } from '../../../repositories/published-dataset';
+import { hasError, datasetIdValidator } from '../../../validators';
+import { Dataset } from '../../../entities/dataset/dataset';
 
-export const consumerRouter = Router();
+export const publicApiRouter = Router();
 
 export const loadPublishedDataset = (relations?: FindOptionsRelations<Dataset>) => {
   return async (req: Request, res: Response, next: NextFunction) => {
@@ -43,14 +42,11 @@ export const loadPublishedDataset = (relations?: FindOptionsRelations<Dataset>) 
   };
 };
 
-consumerRouter.get('/topic', listRootTopics);
-consumerRouter.get('/topic/:topic_id', listSubTopics);
+publicApiRouter.get('/', listPublishedDatasets);
 
-consumerRouter.get('/list', listPublishedDatasets);
+publicApiRouter.get('/topic', listRootTopics);
+publicApiRouter.get('/topic/:topic_id', listSubTopics);
 
-consumerRouter.get('/:dataset_id', loadPublishedDataset(), getPublishedDatasetById);
-
-consumerRouter.get('/:dataset_id/view', loadPublishedDataset(), getPublishedDatasetView);
-consumerRouter.get('/:dataset_id/view/filters', loadPublishedDataset(), getPublishedDatasetFilters);
-
-consumerRouter.get('/:dataset_id/download/:format', loadPublishedDataset(), downloadPublishedDataset);
+publicApiRouter.get('/:dataset_id', loadPublishedDataset(), getPublishedDatasetById);
+publicApiRouter.get('/:dataset_id/view', loadPublishedDataset(), getPublishedDatasetView);
+publicApiRouter.get('/:dataset_id/download/:format', loadPublishedDataset(), downloadPublishedDataset);

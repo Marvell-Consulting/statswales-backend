@@ -20,12 +20,13 @@ import { providerRouter } from './routes/provider';
 import { topicRouter } from './routes/topic';
 import { organisationRouter } from './routes/organisation';
 import { translationRouter } from './routes/translation';
-import { consumerRouter } from './routes/consumer';
 import { initServices } from './middleware/services';
 import { adminRouter } from './routes/admin';
 import { devRouter } from './routes/developer';
 import { taskRouter } from './routes/task';
 import { userRouter } from './routes/user';
+import { publicApiRouter } from './routes/consumer/v1/api';
+import { apiDocRouter } from './routes/consumer/v1/docs';
 
 const app: Application = express();
 const config = appConfig();
@@ -46,7 +47,8 @@ app.use(initServices);
 // public routes
 app.use('/auth', rateLimiter, authRouter);
 app.use('/healthcheck', rateLimiter, healthcheckRouter);
-app.use('/published', rateLimiter, consumerRouter);
+app.use('/v1/docs', rateLimiter, apiDocRouter);
+app.use('/v1', rateLimiter, publicApiRouter);
 
 const jwtAuth = passport.authenticate('jwt', { session: false });
 

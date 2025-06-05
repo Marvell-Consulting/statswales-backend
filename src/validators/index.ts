@@ -1,6 +1,7 @@
 import { Request } from 'express';
 import { body, check, param, ValidationChain } from 'express-validator';
 import { UserStatus } from '../enums/user-status';
+import { DownloadFormat } from '../enums/download-format';
 
 export const hasError = async (validator: ValidationChain, req: Request) => {
   return !(await validator.run(req)).isEmpty();
@@ -25,3 +26,5 @@ export const pageSizeValidator = () => check('page_size').trim().notEmpty().isIn
 export const userStatusValidator = () => body('status').isIn(Object.values(UserStatus));
 
 export const userGroupIdValidator = (userGroupIds: string[]) => body('user_group_id').isIn(userGroupIds);
+
+export const formatValidator = () => param('format').trim().notEmpty().isIn(Object.values(DownloadFormat));
