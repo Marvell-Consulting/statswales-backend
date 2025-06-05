@@ -311,12 +311,10 @@ export const createDimensionsFromSourceAssignment = async (
     await createUpdateMeasure(dataset, measure);
   }
 
-  await Promise.all(
-    dimensions.map((dimensionCreationDTO: SourceAssignmentDTO) => {
-      logger.debug(`Creating dimension column: ${JSON.stringify(dimensionCreationDTO)}`);
-      createUpdateDimension(dataset, dimensionCreationDTO);
-    })
-  );
+  for (const dimensionCreationDTO of dimensions) {
+    logger.debug(`Creating dimension column: ${JSON.stringify(dimensionCreationDTO)}`);
+    await createUpdateDimension(dataset, dimensionCreationDTO);
+  }
 
   try {
     if (ignore) {
@@ -596,12 +594,9 @@ export const createAndValidateDateDimension = async (
       logger.debug(`populating ${safeColumnName}_lookup table for locale ${locale}`);
       const lang = locale.toLowerCase();
 
-      // TODO: updated async in .map() to promise.all... can this be parallelized or should it be sequential?
-      await Promise.all(
-        dateDimensionTable.map((row) => {
-          stmt.run(row.dateCode, lang, row.description, null, t(row.type, { lng: locale }), row.start, row.end);
-        })
-      );
+      for (const row of dateDimensionTable) {
+        await stmt.run(row.dateCode, lang, row.description, null, t(row.type, { lng: locale }), row.start, row.end);
+      }
     }
     await stmt.finalize();
   } catch (error) {
