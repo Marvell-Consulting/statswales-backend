@@ -167,6 +167,25 @@ export const createView = async (
 
     const startLine = pageSize * (pageNumber - 1) + 1;
     const lastLine = pageNumber * pageSize + pageSize;
+
+    // PATCH: Handle empty preview result
+    if (!preview || preview.length === 0) {
+      const currentDataset = await DatasetRepository.getById(dataset.id);
+      return {
+        dataset: DatasetDTO.fromDataset(currentDataset),
+        current_page: pageNumber,
+        page_info: {
+          total_records: totalLines,
+          start_record: 0,
+          end_record: 0
+        },
+        page_size: pageSize,
+        total_pages: totalPages,
+        headers: [],
+        data: []
+      };
+    }
+
     const tableHeaders = Object.keys(preview[0]);
     const dataArray = preview.map((row) => Object.values(row));
     const currentDataset = await DatasetRepository.getById(dataset.id);
