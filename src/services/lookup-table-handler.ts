@@ -1,4 +1,4 @@
-import fs from 'node:fs';
+import { writeFile, unlink } from 'node:fs/promises';
 
 import tmp from 'tmp';
 import { format as pgformat } from '@scaleleap/pg-format';
@@ -270,10 +270,10 @@ export const validateLookupTable = async (
   const lookupTableTmpFile = tmp.tmpNameSync({ postfix: `.${lookupTable.fileType}` });
   try {
     logger.debug(`Writing the lookup table to disk: ${lookupTableTmpFile}`);
-    fs.writeFileSync(lookupTableTmpFile, buffer);
+    await writeFile(lookupTableTmpFile, buffer);
     logger.debug(`Loading lookup table into DuckDB`);
     await loadFileIntoDatabase(quack, lookupTable, lookupTableTmpFile, lookupTableName);
-    fs.unlinkSync(lookupTableTmpFile);
+    await unlink(lookupTableTmpFile);
   } catch (err) {
     await quack.close();
     logger.error(err, `Something went wrong trying to load the lookup table into the cube`);

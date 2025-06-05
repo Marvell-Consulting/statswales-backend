@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from 'node:crypto';
-import fs from 'fs';
+import { unlink, writeFile, access } from 'node:fs/promises';
 
 import { TableData } from 'duckdb-async';
 import { format as pgformat } from '@scaleleap/pg-format';
@@ -29,6 +29,13 @@ const sampleSize = 5;
 
 const logger = parentLogger.child({ module: 'CSVProcessor' });
 
+const fileExists = async (filePath: string): Promise<boolean> => {
+  return access(filePath).then(
+    () => true,
+    () => false
+  );
+};
+
 export async function extractTableInformation(
   fileBuffer: Buffer,
   dataTable: DataTable,
@@ -39,7 +46,9 @@ export async function extractTableInformation(
   const tempFile = tmp.tmpNameSync({ postfix: `.${dataTable.fileType}` });
   let tableHeaders: TableData;
   let createTableQuery: string;
-  fs.writeFileSync(tempFile, fileBuffer);
+
+  await writeFile(tempFile, fileBuffer);
+
   switch (dataTable.fileType) {
     case FileType.Csv:
     case FileType.GzipCsv:
@@ -67,8 +76,10 @@ export async function extractTableInformation(
     logger.error(error, `Something went wrong trying to extract table information using DuckDB.`);
     logger.debug('Closing DuckDB Memory Database');
     await quack.close();
+
     logger.debug(`Removing temp file ${tempFile} from disk`);
-    fs.unlinkSync(tempFile);
+    await unlink(tempFile);
+
     if ((error as DuckDBException).stack.includes('Invalid unicode')) {
       throw new FileValidationException(`File is encoding is not supported`, FileValidationErrorType.InvalidUnicode);
     } else if ((error as DuckDBException).stack.includes('CSV Error on Line')) {
@@ -90,7 +101,7 @@ export async function extractTableInformation(
     } catch (error) {
       logger.error(error, 'Something went wrong saving data table to postgres');
       await quack.close();
-      fs.unlinkSync(tempFile);
+      await unlink(tempFile);
     }
   }
 
@@ -106,7 +117,7 @@ export async function extractTableInformation(
     );
   } finally {
     await quack.close();
-    fs.unlinkSync(tempFile);
+    await unlink(tempFile);
   }
 
   if (tableHeaders.length === 0) {
@@ -293,8 +304,12 @@ export const getCSVPreview = async (
     return viewErrorGenerators(500, datasetId, 'csv', 'errors.preview.preview_failed', {});
   } finally {
     await quack.close();
-    if (cubeFile) fs.unlinkSync(cubeFile);
-    if (fs.existsSync(tempFile)) fs.unlinkSync(tempFile);
+    if (cubeFile) {
+      await unlink(cubeFile);
+    }
+    if (await fileExists(tempFile)) {
+      await unlink(tempFile);
+    }
   }
 };
 

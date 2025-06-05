@@ -1,6 +1,6 @@
 import { Readable } from 'node:stream';
 import { performance } from 'node:perf_hooks';
-import fs from 'fs';
+import { writeFile } from 'node:fs/promises';
 
 import { NextFunction, Request, Response } from 'express';
 import { t } from 'i18next';
@@ -597,7 +597,7 @@ export const regenerateRevisionCube = async (req: Request, res: Response, next: 
     logger.debug(`Recreating datatable ${rev.dataTable?.id} in postgres data_tables database`);
     const tmpFile = tmp.fileSync({ postfix: rev.dataTable!.fileType });
     const buf = await req.fileService.loadBuffer(rev.dataTable!.filename, datasetId);
-    fs.writeFileSync(tmpFile.name, buf);
+    await writeFile(tmpFile.name, buf);
     await extractTableInformation(buf, rev.dataTable!, 'data_table');
     tmpFile.removeCallback();
   }
