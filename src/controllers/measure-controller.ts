@@ -10,7 +10,7 @@ import { NotFoundException } from '../exceptions/not-found.exception';
 import { BadRequestException } from '../exceptions/bad-request.exception';
 import { UnknownException } from '../exceptions/unknown.exception';
 import { getMeasurePreview, validateMeasureLookupTable } from '../services/measure-handler';
-import { validateAndUploadCSV } from '../services/csv-processor';
+import { validateAndUpload } from '../services/csv-processor';
 import { DimensionMetadataDTO } from '../dtos/dimension-metadata-dto';
 import { MeasureMetadata } from '../entities/dataset/measure-metadata';
 import { LookupTableDTO } from '../dtos/lookup-table-dto';
@@ -45,7 +45,7 @@ export const resetMeasure = async (req: Request, res: Response, next: NextFuncti
   measure.joinColumn = null;
   logger.debug('Saving measure and returning dataset');
   await measure.save();
-  await createAllCubeFiles(dataset.id, dataset.draftRevision!.id, req.fileService);
+  await createAllCubeFiles(dataset.id, dataset.draftRevision!.id);
   const updateDataset = await Dataset.findOneByOrFail({ id: dataset.id });
   const dto = DatasetDTO.fromDataset(updateDataset);
   res.json(dto);
@@ -63,27 +63,18 @@ export const attachLookupTableToMeasure = async (req: Request, res: Response, ne
     draftRevision: { dataTable: true }
   });
 
-  const { buffer: fileBuffer, mimetype, originalname } = req.file;
-
   try {
-    const { dataTable, buffer } = await validateAndUploadCSV(
-      fileBuffer,
-      mimetype,
-      originalname,
-      dataset.id,
-      'lookup_table'
-    );
+    const { dataTable, buffer } = await validateAndUpload(req.file, dataset.id, 'lookup_table');
     const lang = req.language.toLowerCase();
     const tableMatcher = req.body as MeasureLookupPatchDTO;
-
     const result = await validateMeasureLookupTable(dataTable, dataset, buffer, lang, tableMatcher);
-    await createAllCubeFiles(dataset.id, dataset.draftRevision!.id, req.fileService);
+    await createAllCubeFiles(dataset.id, dataset.draftRevision!.id);
     res.status((result as ViewErrDTO).status || 200);
 
     // logger.debug(`Result of the lookup table validation is ${JSON.stringify(result, null, 2)}`);
     res.json(result);
   } catch (err) {
-    await createAllCubeFiles(dataset.id, dataset.draftRevision!.id, req.fileService);
+    await createAllCubeFiles(dataset.id, dataset.draftRevision!.id);
     logger.error(err, `An error occurred trying to process and upload the file`);
     next(new UnknownException('errors.upload_error'));
   }

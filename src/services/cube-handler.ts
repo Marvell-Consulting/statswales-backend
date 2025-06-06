@@ -42,10 +42,10 @@ import { FactTableValidationException } from '../exceptions/fact-table-validatio
 import { FactTableValidationExceptionType } from '../enums/fact-table-validation-exception-type';
 import { CubeType } from '../enums/cube-type';
 import { DateExtractor } from '../extractors/date-extractor';
-import { StorageService } from '../interfaces/storage-service';
 import { QueryResult } from 'pg';
 import { getCubeDB } from '../db/cube-db';
 import { asyncFileExists } from '../utils/async-file-exists';
+import { getFileService } from '../utils/get-file-service';
 
 export const FACT_TABLE_NAME = 'fact_table';
 
@@ -1972,11 +1972,7 @@ export const createBaseDuckDBFile = async (datasetId: string, endRevisionId: str
   return protoCubeFile;
 };
 
-export const createAllCubeFiles = async (
-  datasetId: string,
-  endRevisionId: string,
-  storageService: StorageService
-): Promise<void> => {
+export const createAllCubeFiles = async (datasetId: string, endRevisionId: string): Promise<void> => {
   try {
     logger.debug('Creating cube in postgres.');
     await createBasePostgresCube(datasetId, endRevisionId);
@@ -1985,13 +1981,16 @@ export const createAllCubeFiles = async (
     throw err;
   }
 
+  const fileService = getFileService();
+
   try {
     logger.debug('Creating duckdb cube file.');
     const cubeFile = await createBaseDuckDBFile(datasetId, endRevisionId);
     const buffer = await readFile(cubeFile);
-    await storageService.saveBuffer(`${endRevisionId}.duckdb`, datasetId, buffer);
-    logger.debug('Cleaning up cube file');
+    await fileService.saveBuffer(`${endRevisionId}.duckdb`, datasetId, buffer);
+
     if (await asyncFileExists(cubeFile)) {
+      logger.debug('Cleaning up cube file');
       await unlink(cubeFile);
     }
   } catch (err) {
@@ -2016,10 +2015,10 @@ export const createAllCubeFiles = async (
       await quack.exec(`COPY default_view_${lang} TO '${csvFile}' (HEADER, DELIMITER ',');`);
       await quack.exec(`COPY default_view_${lang} TO '${parquetFile}' (FORMAT PARQUET);`);
       await quack.exec(`COPY default_view_${lang} TO '${jsonFile}' (FORMAT JSON);`);
-      await storageService.saveBuffer(`${endRevisionId}_${lang}.xlsx`, datasetId, await readFile(xlsxFile));
-      await storageService.saveBuffer(`${endRevisionId}_${lang}.csv`, datasetId, await readFile(csvFile));
-      await storageService.saveBuffer(`${endRevisionId}_${lang}.parquet`, datasetId, await readFile(parquetFile));
-      await storageService.saveBuffer(`${endRevisionId}_${lang}.json`, datasetId, await readFile(jsonFile));
+      await fileService.saveBuffer(`${endRevisionId}_${lang}.xlsx`, datasetId, await readFile(xlsxFile));
+      await fileService.saveBuffer(`${endRevisionId}_${lang}.csv`, datasetId, await readFile(csvFile));
+      await fileService.saveBuffer(`${endRevisionId}_${lang}.parquet`, datasetId, await readFile(parquetFile));
+      await fileService.saveBuffer(`${endRevisionId}_${lang}.json`, datasetId, await readFile(jsonFile));
     }
   } catch (err) {
     logger.error(err, 'Failed to create cube files');

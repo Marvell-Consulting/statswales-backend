@@ -4,10 +4,17 @@ import { StorageService } from '../interfaces/storage-service';
 import BlobStorage from '../services/blob-storage';
 import DataLakeStorage from '../services/datalake-storage';
 
-export const getFileService = (): StorageService => {
-  const config = appConfig();
+const config = appConfig();
 
-  return config.storage.store === FileStore.Blob
-    ? new BlobStorage(config.storage.blob)
-    : new DataLakeStorage(config.storage.datalake);
+let fileService: StorageService | undefined;
+
+export const getFileService = (): StorageService => {
+  if (!fileService) {
+    fileService =
+      config.storage.store === FileStore.Blob
+        ? new BlobStorage(config.storage.blob)
+        : new DataLakeStorage(config.storage.datalake);
+  }
+
+  return fileService;
 };
