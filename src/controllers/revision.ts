@@ -35,7 +35,7 @@ import {
   DEFAULT_PAGE_SIZE,
   extractTableInformation,
   getCSVPreview,
-  validateAndUploadCSV
+  validateAndUpload
 } from '../services/csv-processor';
 import { DataTableDescription } from '../entities/dataset/data-table-description';
 import { FactTableColumn } from '../entities/dataset/fact-table-column';
@@ -169,9 +169,7 @@ export const confirmFactTable = async (req: Request, res: Response) => {
 export const downloadRawFactTable = async (req: Request, res: Response, next: NextFunction) => {
   const datasetId = res.locals.datasetId;
   const revision = res.locals.revision;
-
   logger.info('User requested to down files...');
-
   let readable: Readable;
   // logger.debug(`${JSON.stringify(revision)}`);
 
@@ -207,6 +205,7 @@ export const downloadRawFactTable = async (req: Request, res: Response, next: Ne
     });
     return;
   }
+
   res.writeHead(200, {
     // eslint-disable-next-line @typescript-eslint/naming-convention
     'Content-Type': `${revision.dataTable.mimeType}`,
@@ -409,8 +408,7 @@ export const updateDataTable = async (req: Request, res: Response, next: NextFun
 
   let dataTable: DataTable;
   try {
-    const { mimetype, originalname } = req.file;
-    const uploadResult = await validateAndUploadCSV(req.file.buffer, mimetype, originalname, datasetId, 'data_table');
+    const uploadResult = await validateAndUpload(req.file, datasetId, 'data_table');
     dataTable = uploadResult.dataTable;
   } catch (err) {
     const error = err as FileValidationException;
@@ -603,7 +601,7 @@ export const regenerateRevisionCube = async (req: Request, res: Response, next: 
   }
 
   try {
-    await createAllCubeFiles(datasetId, revision.id, req.fileService);
+    await createAllCubeFiles(datasetId, revision.id);
   } catch (err) {
     logger.error(err, `Something went wrong trying to create the cube`);
     next(new UnknownException('errors.cube_builder.cube_build_failed'));

@@ -8,6 +8,6 @@ import { getFileService } from '../utils/get-file-service';
 // see @types/express/index.d.ts for details
 export const initServices = (req: Request, res: Response, next: NextFunction): void => {
   req.fileService = getFileService();
-  req.datasetService = new DatasetService(req.language as Locale);
+  req.datasetService = new DatasetService(req.language as Locale, req.fileService);
   next();
 };
