@@ -169,9 +169,7 @@ export const confirmFactTable = async (req: Request, res: Response) => {
 export const downloadRawFactTable = async (req: Request, res: Response, next: NextFunction) => {
   const datasetId = res.locals.datasetId;
   const revision = res.locals.revision;
-
   logger.info('User requested to down files...');
-
   let readable: Readable;
   // logger.debug(`${JSON.stringify(revision)}`);
 
@@ -207,6 +205,7 @@ export const downloadRawFactTable = async (req: Request, res: Response, next: Ne
     });
     return;
   }
+
   res.writeHead(200, {
     // eslint-disable-next-line @typescript-eslint/naming-convention
     'Content-Type': `${revision.dataTable.mimeType}`,

@@ -1,17 +1,17 @@
 /* eslint-disable no-console */
-import fs from 'node:fs';
+import { readFile } from 'node:fs/promises';
+import path from 'node:path';
 
-import { Seeder } from '@jorgebodega/typeorm-seeding';
 import { DataSource, DeepPartial } from 'typeorm';
 import { omit } from 'lodash';
+import { Seeder } from '@jorgebodega/typeorm-seeding';
+
 import { User } from '../../src/entities/user/user';
 import { Dataset } from '../../src/entities/dataset/dataset';
 import { validateAndUpload } from '../../src/services/csv-processor';
-import { DataTable } from '../../src/entities/dataset/data-table';
 import { Revision } from '../../src/entities/dataset/revision';
 import { GroupRole } from '../enums/group-role';
 import { Designation } from '../enums/designation';
-import path from 'node:path';
 import { DimensionType } from '../enums/dimension-type';
 import { FactTableColumnType } from '../enums/fact-table-column-type';
 import { convertDataTableToLookupTable } from '../utils/lookup-table-utils';
@@ -225,36 +225,17 @@ export default class DatasetSeeder extends Seeder {
       const partialDataset = omit(approvedDataset, 'publishedRevision', 'dimensions', 'measure');
       const dataset = await entityManager.getRepository(Dataset).create(partialDataset).save();
 
-      const buffer = fs.readFileSync(path.join(__dirname, 'resources', 'QryHLTH1250_Data.csv'));
-      const { dataTable }: { dataTable: DataTable } = await validateAndUpload(
-        buffer,
-        'text/csv',
-        'QryHLTH1250_Data.csv',
-        dataset.id,
-        'data_table'
-      );
+      const dataFile = { originalname: 'QryHLTH1250_Data.csv', mimetype: 'text/csv' } as any;
+      dataFile.buffer = await readFile(path.join(__dirname, 'resources', dataFile.originalname));
+      const { dataTable } = await validateAndUpload(dataFile, dataset.id, 'data_table');
 
-      const rowRefLookupTableBuffer = fs.readFileSync(
-        path.join(__dirname, 'resources', 'QryHLTH1250_RowRef-fixed.csv')
-      );
-      const { dataTable: protoRowRefLookupTable }: { dataTable: DataTable } = await validateAndUpload(
-        rowRefLookupTableBuffer,
-        'text/csv',
-        'QryHLTH1250_RowRef-fixed.csv',
-        dataset.id,
-        'data_table'
-      );
+      const rowRefFile = { originalname: 'QryHLTH1250_RowRef-fixed.csv', mimetype: 'text/csv' } as any;
+      rowRefFile.buffer = await readFile(path.join(__dirname, 'resources', rowRefFile.originalname));
+      const { dataTable: protoRowRefLookupTable } = await validateAndUpload(rowRefFile, dataset.id, 'lookup_table');
 
-      const measureLookupTableBuffer = fs.readFileSync(
-        path.join(__dirname, 'resources', 'QryHLTH1250_RowRef-fixed.csv')
-      );
-      const { dataTable: protoMeasureLookupTable }: { dataTable: DataTable } = await validateAndUpload(
-        measureLookupTableBuffer,
-        'text/csv',
-        'QryHLTH1250_Measure-fixed.csv',
-        dataset.id,
-        'data_table'
-      );
+      const measureFile = { originalname: 'QryHLTH1250_Measure-fixed.csv', mimetype: 'text/csv' } as any;
+      measureFile.buffer = await readFile(path.join(__dirname, 'resources', measureFile.originalname));
+      const { dataTable: protoMeasureLookupTable } = await validateAndUpload(measureFile, dataset.id, 'lookup_table');
 
       const provider = await entityManager.getRepository(Provider).findOne({
         where: { name: 'British Transport Police' }
@@ -282,11 +263,11 @@ export default class DatasetSeeder extends Seeder {
         '709e463a-c6b3-45fa-91a3-88d432764f6b-protocube.duckdb'
       ];
 
-      const fileSerivice = getFileService();
+      const fileService = getFileService();
 
       for (const file of duckdbFiles) {
-        const uploadBuffer = fs.readFileSync(path.join(__dirname, `./resources/${file}`));
-        await fileSerivice.saveBuffer(file, dataset.id, uploadBuffer);
+        const uploadBuffer = await readFile(path.join(__dirname, `./resources/${file}`));
+        await fileService.saveBuffer(file, dataset.id, uploadBuffer);
       }
 
       await entityManager.getRepository(Dataset).save({
