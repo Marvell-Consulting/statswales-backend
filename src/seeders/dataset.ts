@@ -6,7 +6,7 @@ import { DataSource, DeepPartial } from 'typeorm';
 import { omit } from 'lodash';
 import { User } from '../../src/entities/user/user';
 import { Dataset } from '../../src/entities/dataset/dataset';
-import { validateAndUploadCSV } from '../../src/services/csv-processor';
+import { validateAndUpload } from '../../src/services/csv-processor';
 import { DataTable } from '../../src/entities/dataset/data-table';
 import { Revision } from '../../src/entities/dataset/revision';
 import { GroupRole } from '../enums/group-role';
@@ -226,7 +226,7 @@ export default class DatasetSeeder extends Seeder {
       const dataset = await entityManager.getRepository(Dataset).create(partialDataset).save();
 
       const buffer = fs.readFileSync(path.join(__dirname, 'resources', 'QryHLTH1250_Data.csv'));
-      const { dataTable }: { dataTable: DataTable } = await validateAndUploadCSV(
+      const { dataTable }: { dataTable: DataTable } = await validateAndUpload(
         buffer,
         'text/csv',
         'QryHLTH1250_Data.csv',
@@ -237,7 +237,7 @@ export default class DatasetSeeder extends Seeder {
       const rowRefLookupTableBuffer = fs.readFileSync(
         path.join(__dirname, 'resources', 'QryHLTH1250_RowRef-fixed.csv')
       );
-      const { dataTable: protoRowRefLookupTable }: { dataTable: DataTable } = await validateAndUploadCSV(
+      const { dataTable: protoRowRefLookupTable }: { dataTable: DataTable } = await validateAndUpload(
         rowRefLookupTableBuffer,
         'text/csv',
         'QryHLTH1250_RowRef-fixed.csv',
@@ -248,7 +248,7 @@ export default class DatasetSeeder extends Seeder {
       const measureLookupTableBuffer = fs.readFileSync(
         path.join(__dirname, 'resources', 'QryHLTH1250_RowRef-fixed.csv')
       );
-      const { dataTable: protoMeasureLookupTable }: { dataTable: DataTable } = await validateAndUploadCSV(
+      const { dataTable: protoMeasureLookupTable }: { dataTable: DataTable } = await validateAndUpload(
         measureLookupTableBuffer,
         'text/csv',
         'QryHLTH1250_Measure-fixed.csv',
