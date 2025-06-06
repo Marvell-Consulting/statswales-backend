@@ -161,7 +161,7 @@ export const uploadDataTable = async (req: Request, res: Response, next: NextFun
   }
 
   try {
-    const updatedDataset = await req.datasetService.updateFactTable(dataset.id, req.file, req.fileService);
+    const updatedDataset = await req.datasetService.updateFactTable(dataset.id, req.file);
     const dto = DatasetDTO.fromDataset(updatedDataset);
     res.status(201);
     res.json(dto);
@@ -405,7 +405,7 @@ export const updateSources = async (req: Request, res: Response, next: NextFunct
   try {
     await createDimensionsFromSourceAssignment(dataset, dataTable, validatedSourceAssignment);
     const updatedDataset = await DatasetRepository.getById(dataset.id);
-    await createAllCubeFiles(updatedDataset.id, revision.id, req.fileService);
+    await createAllCubeFiles(updatedDataset.id, revision.id);
     res.json(DatasetDTO.fromDataset(updatedDataset));
   } catch (err) {
     logger.error(err, `An error occurred trying to process the source assignments: ${err}`);

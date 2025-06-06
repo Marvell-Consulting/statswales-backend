@@ -1,3 +1,5 @@
+import { In, JsonContains } from 'typeorm';
+
 import { RevisionMetadataDTO } from '../dtos/revistion-metadata-dto';
 import { TranslationDTO } from '../dtos/translations-dto';
 import { Dataset } from '../entities/dataset/dataset';
@@ -24,7 +26,7 @@ import { TasklistStateDTO } from '../dtos/tasklist-state-dto';
 import { EventLog } from '../entities/event-log';
 
 import { createAllCubeFiles, getCubeTimePeriods } from './cube-handler';
-import { validateAndUploadCSV } from './csv-processor';
+import { validateAndUpload } from './csv-processor';
 import { removeAllDimensions, removeMeasure } from './dimension-processor';
 import { getFileService } from '../utils/get-file-service';
 import { UserGroupRepository } from '../repositories/user-group';
@@ -34,7 +36,7 @@ import { Task } from '../entities/task/task';
 import { TaskStatus } from '../enums/task-status';
 import { getPublishingStatus } from '../utils/dataset-status';
 import { PublishingStatus as PubStatus } from '../enums/publishing-status';
-import { In, JsonContains } from 'typeorm';
+
 import {
   omitDatasetUpdates,
   flagUpdateTask,
@@ -46,10 +48,12 @@ import { StorageService } from '../interfaces/storage-service';
 export class DatasetService {
   lang: Locale;
   taskService: TaskService;
+  fileService: StorageService;
 
-  constructor(lang: Locale) {
+  constructor(lang: Locale, fileService: StorageService) {
     this.lang = lang;
     this.taskService = new TaskService();
+    this.fileService = fileService;
   }
 
   async createNew(title: string, userGroupId: string, createdBy: User): Promise<Dataset> {
@@ -85,18 +89,17 @@ export class DatasetService {
     return DatasetRepository.getById(dataset.id, {});
   }
 
-  async updateFactTable(datasetId: string, file: Express.Multer.File, fileService: StorageService): Promise<Dataset> {
+  async updateFactTable(datasetId: string, file: Express.Multer.File): Promise<Dataset> {
     const dataset = await DatasetRepository.getById(datasetId, {
       factTable: true,
       draftRevision: { dataTable: true }
     });
 
-    const { buffer, mimetype, originalname } = file;
-
     logger.debug('Uploading new fact table file to filestore');
-    const { dataTable } = await validateAndUploadCSV(buffer, mimetype, originalname, datasetId, 'data_table');
+    const { dataTable } = await validateAndUpload(file, datasetId, 'data_table');
 
     dataTable.action = DataTableAction.ReplaceAll;
+
     dataTable.dataTableDescriptions.forEach((col) => {
       col.factTableColumn = col.columnName;
     });
@@ -108,7 +111,8 @@ export class DatasetService {
 
     await RevisionRepository.replaceDataTable(dataset.draftRevision!, dataTable);
     await DatasetRepository.replaceFactTable(dataset, dataTable);
-    await createAllCubeFiles(datasetId, dataset.draftRevision!.id, fileService);
+    await createAllCubeFiles(datasetId, dataset.draftRevision!.id);
+
     return DatasetRepository.getById(datasetId, {});
   }
 
@@ -297,14 +301,9 @@ export class DatasetService {
     }
   }
 
-  async approvePublication(
-    datasetId: string,
-    revisionId: string,
-    user: User,
-    storageService: StorageService
-  ): Promise<Dataset> {
+  async approvePublication(datasetId: string, revisionId: string, user: User): Promise<Dataset> {
     const start = performance.now();
-    await createAllCubeFiles(datasetId, revisionId, storageService);
+    await createAllCubeFiles(datasetId, revisionId);
     const periodCoverage = await getCubeTimePeriods(revisionId);
 
     const end = performance.now();

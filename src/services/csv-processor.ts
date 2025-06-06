@@ -24,6 +24,7 @@ import { viewErrorGenerators, viewGenerator } from '../utils/view-error-generato
 import { validateParams } from '../validators/preview-validator';
 import { SourceLocation } from '../enums/source-location';
 import { asyncFileExists } from '../utils/async-file-exists';
+import { UploadTableType } from '../interfaces/upload-table-type';
 
 export const DEFAULT_PAGE_SIZE = 100;
 const sampleSize = 5;
@@ -131,37 +132,43 @@ export async function extractTableInformation(
   });
 }
 
-export const validateAndUploadCSV = async (
-  fileBuffer: Buffer,
-  filetype: string,
-  originalName: string,
+type DataTableAndBuffer = { dataTable: DataTable; buffer: Buffer };
+
+export const validateAndUpload = async (
+  file: Express.Multer.File,
   datasetId: string,
-  type: 'data_table' | 'lookup_table'
-): Promise<{ dataTable: DataTable; buffer: Buffer }> => {
-  let uploadBuffer = fileBuffer;
+  type: UploadTableType
+): Promise<DataTableAndBuffer> => {
+  const { buffer, mimetype, originalname } = file;
+
   const dataTable = new DataTable();
   dataTable.id = randomUUID().toLowerCase();
-  dataTable.mimeType = filetype;
-  dataTable.originalFilename = originalName;
-  let extension: string;
+  dataTable.mimeType = mimetype;
+  dataTable.originalFilename = originalname;
 
-  switch (filetype) {
+  let extension: string;
+  let uploadBuffer = buffer;
+
+  switch (mimetype) {
     case 'application/csv':
     case 'text/csv':
       extension = 'csv';
       dataTable.fileType = FileType.Csv;
-      uploadBuffer = convertBufferToUTF8(fileBuffer);
+      uploadBuffer = convertBufferToUTF8(buffer);
       break;
+
     case 'application/vnd.apache.parquet':
     case 'application/parquet':
       extension = 'parquet';
       dataTable.fileType = FileType.Parquet;
       break;
+
     case 'application/json':
       extension = 'json';
       dataTable.fileType = FileType.Json;
-      uploadBuffer = convertBufferToUTF8(fileBuffer);
+      uploadBuffer = convertBufferToUTF8(buffer);
       break;
+
     case 'application/vnd.ms-excel':
     case 'application/msexcel':
     case 'application/x-msexcel':
@@ -174,8 +181,9 @@ export const validateAndUploadCSV = async (
       extension = 'xlsx';
       dataTable.fileType = FileType.Excel;
       break;
+
     case 'application/x-gzip':
-      switch (originalName.split('.').reverse()[1]) {
+      switch (originalname.split('.').reverse()[1]) {
         case 'json':
           extension = 'json.gz';
           dataTable.fileType = FileType.GzipJson;
@@ -186,15 +194,16 @@ export const validateAndUploadCSV = async (
           break;
         default:
           throw new FileValidationException(
-            `unsupported format ${originalName.split('.').reverse()[1]}`,
+            `unsupported format ${originalname.split('.').reverse()[1]}`,
             FileValidationErrorType.UnknownFileFormat
           );
       }
       break;
+
     default:
-      logger.error(`Unknown mimetype of ${filetype}`);
+      logger.error(`Unknown mimetype of ${mimetype}`);
       throw new FileValidationException(
-        `Mimetype ${filetype} is unknown or not supported`,
+        `Mimetype ${mimetype} is unknown or not supported`,
         FileValidationErrorType.UnknownMimeType
       );
   }
@@ -209,6 +218,7 @@ export const validateAndUploadCSV = async (
     // Error is of type FileValidationException
     throw error;
   }
+
   dataTable.dataTableDescriptions = dataTableDescriptions;
   dataTable.filename = `${dataTable.id}.${extension}`;
   dataTable.action = DataTableAction.AddRevise;
@@ -226,6 +236,7 @@ export const validateAndUploadCSV = async (
 
   dataTable.hash = hash.digest('hex');
   dataTable.uploadedAt = new Date();
+
   return { dataTable: dataTable, buffer: uploadBuffer };
 };
 
