@@ -31,7 +31,7 @@
     "migration:create": "npm run typeorm migration:create",
     "seed:required": "npm run typeorm-seeding -- -d ./src/db/data-source.ts ./src/seeders/required/*.ts",
     "seed:dataset": "npm run typeorm-seeding -- -d ./src/db/data-source.ts ./src/seeders/dataset.ts",
-    "seed:e2e": "npm run typeorm-seeding -- -d ./src/db/data-source.ts ./test/fixtures/seed-test-fixtures.ts",
+    "seed:e2e": "npm run seed:ci",
     "seed:ci": "npm run typeorm-seeding -- -d ./src/db/data-source.ts ./test/fixtures/seed-test-fixtures.ts",
     "assign-default-group": "npm run typeorm-seeding -- -d ./src/db/data-source.ts ./src/seeders/groups.ts"
   },
@@ -55,7 +55,6 @@
     "@types/passport-google-oauth20": "^2.0.16",
     "@types/passport-jwt": "^4.0.1",
     "@types/pg-pool": "^2.0.6",
-    "@types/redis": "^4.0.11",
     "@types/shelljs": "^0.8.16",
     "@types/supertest": "^6.0.3",
     "@types/swagger-ui-express": "^4.1.8",
