@@ -1,4 +1,5 @@
 import { appConfig } from '../config';
+import { AppEnv } from '../config/env.enum';
 import { FileStore } from '../config/file-store.enum';
 import { StorageService } from '../interfaces/storage-service';
 import BlobStorage from '../services/blob-storage';
@@ -9,7 +10,7 @@ const config = appConfig();
 let fileService: StorageService | undefined;
 
 export const getFileService = (): StorageService => {
-  if (!fileService) {
+  if (!fileService || config.env === AppEnv.Ci) {
     fileService =
       config.storage.store === FileStore.Blob
         ? new BlobStorage(config.storage.blob)

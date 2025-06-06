@@ -33,6 +33,7 @@ import { UserGroup } from '../../src/entities/user/user-group';
 import { GroupRole } from '../../src/enums/group-role';
 import { UserGroupRole } from '../../src/entities/user/user-group-role';
 import { QueryRunner } from 'typeorm';
+import { getFileService } from '../../src/utils/get-file-service';
 
 jest.mock('../../src/services/blob-storage');
 
@@ -65,7 +66,8 @@ describe('API Endpoints', () => {
       user.groupRoles = [UserGroupRole.create({ group: userGroup, roles: [GroupRole.Editor] })];
       await user.save();
       await createFullDataset(dataset1Id, revision1Id, import1Id, user);
-      datasetService = new DatasetService(Locale.EnglishGb);
+      const fileService = getFileService();
+      datasetService = new DatasetService(Locale.EnglishGb, fileService);
     } catch (error) {
       logger.error(error, 'Could not initialise test database');
       await dbManager.getDataSource().dropDatabase();
@@ -314,6 +316,7 @@ describe('API Endpoints', () => {
       const testRevisionId = crypto.randomUUID().toLowerCase();
       const testFileImportId = crypto.randomUUID().toLowerCase();
       await createSmallDataset(testDatasetId, testRevisionId, testFileImportId, user);
+
       BlobStorage.prototype.delete = jest.fn().mockReturnValue(true);
 
       const res = await request(app)
