@@ -1,5 +1,6 @@
 import path from 'node:path';
-import fs from 'node:fs';
+import { createReadStream } from 'node:fs';
+import { readFile } from 'node:fs/promises';
 
 import request from 'supertest';
 import { t } from 'i18next';
@@ -41,6 +42,7 @@ let queryRunner: QueryRunner;
 
 describe('API Endpoints for viewing dataset objects', () => {
   let dbManager: DatabaseManager;
+
   beforeAll(async () => {
     try {
       dbManager = await initDb();
@@ -207,6 +209,7 @@ describe('API Endpoints for viewing dataset objects', () => {
       const res = await request(app).get(
         `/dataset/${dataset1Id}/revision/by-id/${revision1Id}/data-table/by-id/${dataTableId}/preview`
       );
+
       expect(res.status).toBe(401);
       expect(res.body).toEqual({});
     });
@@ -219,30 +222,44 @@ describe('API Endpoints for viewing dataset objects', () => {
       const res = await request(app)
         .get(`/dataset/${dataset1Id}/revision/by-id/${revision1Id}/data-table`)
         .set(getAuthHeader(user));
+
       const expectedDTO = DataTableDto.fromDataTable(dataTable);
       expect(res.status).toBe(200);
       expect(res.body).toEqual(expectedDTO);
     });
 
     describe('Getting a raw file out of a file import', () => {
+      const loadStreamMock = jest.fn();
+
+      beforeEach(() => {
+        BlobStorage.prototype.loadStream = loadStreamMock;
+      });
+
       test('Get file from a revision and import returns 200 and complete file data if stored in the Data Lake', async () => {
         const testFile2 = path.resolve(__dirname, `../sample-files/csv/test-data-2.csv`);
-        const testFileStream = fs.createReadStream(testFile2);
-        const testFile2Buffer = fs.readFileSync(testFile2);
-        BlobStorage.prototype.loadStream = jest.fn().mockReturnValue(Promise.resolve(testFileStream));
+        const testFileStream = createReadStream(testFile2);
+        const testFile2Buffer = await readFile(testFile2);
+        loadStreamMock.mockImplementation(() => {
+          return Promise.resolve(testFileStream);
+        });
 
         const res = await request(app)
           .get(`/dataset/${dataset1Id}/revision/by-id/${revision1Id}/data-table/raw`)
           .set(getAuthHeader(user));
+
         expect(res.status).toBe(200);
         expect(res.text).toEqual(testFile2Buffer.toString());
       });
 
       test('Get file from a revision and import returns 500 if an error with the Data Lake occurs', async () => {
-        BlobStorage.prototype.loadStream = jest.fn().mockRejectedValue(Error('Unknown Data Lake Error'));
+        loadStreamMock.mockImplementation(() => {
+          return Promise.reject(Error('Unknown Data Lake Error'));
+        });
+
         const res = await request(app)
           .get(`/dataset/${dataset1Id}/revision/by-id/${revision1Id}/data-table/raw`)
           .set(getAuthHeader(user));
+
         expect(res.status).toBe(500);
         expect(res.body).toEqual({
           status: 500,
