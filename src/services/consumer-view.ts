@@ -117,39 +117,46 @@ export const getFilters = async (revision: Revision, language: string): Promise<
   }
 };
 
-export const createView = async (
-  dataset: Dataset,
+function createBaseQuery(
   revision: Revision,
   lang: string,
-  pageNumber: number,
-  pageSize: number,
   sortBy?: SortByInterface[],
-  filter?: FilterInterface[]
-): Promise<ViewDTO | ViewErrDTO> => {
-  let sortByQuery = '';
+  filterBy?: FilterInterface[]
+): string {
+  let sortByQuery: string | undefined;
   if (sortBy && sortBy.length > 0) {
     logger.debug('Multiple sort by columns are present. Creating sort by query');
     sortByQuery = sortBy
       .map((sort) => pgformat(`%I %s`, sort.column, sort.direction ? sort.direction : 'ASC'))
       .join(', ');
   }
-  let filterQuery = '';
-  if (filter && filter.length > 0) {
+  let filterQuery: string | undefined;
+  if (filterBy && filterBy.length > 0) {
     logger.debug('Filters are present. Creating filter query');
-    filterQuery = filter
+    filterQuery = filterBy
       .map((whereClause) => pgformat('%I in (%L)', whereClause.columnName, whereClause.values))
       .join(' and ');
   }
 
-  const baseQuery = pgformat(
+  return pgformat(
     'SELECT * FROM %I.%I %s %s',
     revision.id,
     `default_view_${lang}`,
     filterQuery ? `WHERE ${filterQuery}` : '',
     sortByQuery ? `ORDER BY ${sortByQuery}` : ''
   );
-  // logger.debug(`Base query: ${baseQuery}`);
+}
 
+export const createFrontendView = async (
+  dataset: Dataset,
+  revision: Revision,
+  lang: string,
+  pageNumber: number,
+  pageSize: number,
+  sortBy?: SortByInterface[],
+  filterBy?: FilterInterface[]
+): Promise<ViewDTO | ViewErrDTO> => {
+  const baseQuery = createBaseQuery(revision, lang, sortBy, filterBy);
   const connection = await getCubeDB().connect();
   try {
     const totalsQuery = pgformat(
@@ -157,7 +164,6 @@ export const createView = async (
       pageSize,
       baseQuery
     );
-    // logger.debug(`Totals query: ${totalsQuery}`);
     const totals = await connection.query(totalsQuery);
     const totalPages = Number(totals.rows[0].totalPages) > 0 ? Number(totals.rows[0].totalPages) : 1;
     const totalLines = Number(totals.rows[0].totalLines);

@@ -7,8 +7,7 @@ import {
   downloadCubeAsCSV,
   downloadCubeAsExcel,
   downloadCubeAsJSON,
-  downloadCubeAsParquet,
-  downloadCubeFile
+  downloadCubeAsParquet
 } from '../controllers/cube-controller';
 import {
   addDataProvider,
@@ -79,7 +78,7 @@ datasetRouter.get('/:dataset_id/view', cubePreview);
 
 // GET /dataset/:dataset_id/cube
 // Returns the latest revision of the dataset as a DuckDB File
-datasetRouter.get('/:dataset_id/cube', downloadCubeFile);
+// datasetRouter.get('/:dataset_id/cube', downloadCubeFile);
 
 // GET /dataset/:dataset_id/cube/json
 // Returns a JSON file representation of the default view of the cube

@@ -9,7 +9,7 @@ import { ConsumerDatasetDTO } from '../dtos/consumer-dataset-dto';
 import { BadRequestException } from '../exceptions/bad-request.exception';
 import { outputCube } from './cube-controller';
 import { DuckdbOutputType } from '../enums/duckdb-outputs';
-import { createView, getFilters } from '../services/consumer-view';
+import { createFrontendView, getFilters } from '../services/consumer-view';
 import { DEFAULT_PAGE_SIZE } from '../services/csv-processor';
 import { getDownloadHeaders } from '../utils/download-headers';
 import { hasError, formatValidator } from '../validators';
@@ -102,7 +102,7 @@ export const getPublishedDatasetView = async (req: Request, res: Response) => {
   const sortByQuery = req.query.sort_by ? (JSON.parse(req.query.sort_by as string) as SortByInterface[]) : undefined;
   const filterQuery = req.query.filter ? (JSON.parse(req.query.filter as string) as FilterInterface[]) : undefined;
 
-  const preview = await createView(
+  const preview = await createFrontendView(
     dataset,
     dataset.publishedRevision,
     lang,

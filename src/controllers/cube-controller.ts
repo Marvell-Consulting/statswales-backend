@@ -10,7 +10,7 @@ import { UnknownException } from '../exceptions/unknown.exception';
 import { StorageService } from '../interfaces/storage-service';
 import { SortByInterface } from '../interfaces/sort-by-interface';
 import { FilterInterface } from '../interfaces/filterInterface';
-import { createView } from '../services/consumer-view';
+import { createFrontendView } from '../services/consumer-view';
 import { Revision } from '../entities/dataset/revision';
 
 export const getPostgresCubePreview = async (
@@ -23,7 +23,7 @@ export const getPostgresCubePreview = async (
   filter?: FilterInterface[]
 ): Promise<ViewDTO | ViewErrDTO> => {
   try {
-    return createView(dataset, revision, lang, page, size, sortBy, filter);
+    return createFrontendView(dataset, revision, lang, page, size, sortBy, filter);
   } catch (err) {
     logger.error(err, `Something went wrong trying to create the cube preview`);
     return { status: 500, errors: [], dataset_id: dataset.id };
@@ -38,42 +38,41 @@ export const outputCube = async (
   storageService: StorageService
 ) => {
   try {
-    if (mode === DuckdbOutputType.DuckDb) return storageService.loadBuffer(`${revisionId}.${mode}`, datasetId);
-    else return storageService.loadBuffer(`${revisionId}_${lang}.${mode}`, datasetId);
+    return storageService.loadBuffer(`${revisionId}_${lang}.${mode}`, datasetId);
   } catch (err) {
     logger.error(err, `Something went wrong trying to create the cube output file`);
     throw err;
   }
 };
 
-export const downloadCubeFile = async (req: Request, res: Response, next: NextFunction) => {
-  const dataset = await DatasetRepository.getById(res.locals.datasetId, withDraftForCube);
-  const latestRevision = getLatestRevision(dataset);
-
-  if (!latestRevision) {
-    next(new UnknownException('errors.no_revision'));
-    return;
-  }
-
-  const cubeBuffer = await outputCube(
-    DuckdbOutputType.DuckDb,
-    dataset.id,
-    latestRevision.id,
-    req.language.split('-')[0],
-    req.fileService
-  );
-
-  logger.info(`Sending original cube file (size: ${cubeBuffer.length})`);
-  res.writeHead(200, {
-    // eslint-disable-next-line @typescript-eslint/naming-convention
-    'Content-Type': 'application/octet-stream',
-    // eslint-disable-next-line @typescript-eslint/naming-convention
-    'Content-disposition': `attachment;filename=${dataset.id}.duckdb`,
-    // eslint-disable-next-line @typescript-eslint/naming-convention
-    'Content-Length': cubeBuffer.length
-  });
-  res.end(cubeBuffer);
-};
+// export const downloadCubeFile = async (req: Request, res: Response, next: NextFunction) => {
+//   const dataset = await DatasetRepository.getById(res.locals.datasetId, withDraftForCube);
+//   const latestRevision = getLatestRevision(dataset);
+//
+//   if (!latestRevision) {
+//     next(new UnknownException('errors.no_revision'));
+//     return;
+//   }
+//
+//   const cubeBuffer = await outputCube(
+//     DuckdbOutputType.DuckDb,
+//     dataset.id,
+//     latestRevision.id,
+//     req.language.split('-')[0],
+//     req.fileService
+//   );
+//
+//   logger.info(`Sending original cube file (size: ${cubeBuffer.length})`);
+//   res.writeHead(200, {
+//     // eslint-disable-next-line @typescript-eslint/naming-convention
+//     'Content-Type': 'application/octet-stream',
+//     // eslint-disable-next-line @typescript-eslint/naming-convention
+//     'Content-disposition': `attachment;filename=${dataset.id}.duckdb`,
+//     // eslint-disable-next-line @typescript-eslint/naming-convention
+//     'Content-Length': cubeBuffer.length
+//   });
+//   res.end(cubeBuffer);
+// };
 
 export const downloadCubeAsJSON = async (req: Request, res: Response, next: NextFunction) => {
   const dataset = await DatasetRepository.getById(res.locals.datasetId, withDraftForCube);
