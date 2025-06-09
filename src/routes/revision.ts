@@ -29,7 +29,7 @@ import { Revision } from '../entities/dataset/revision';
 import { hasError, revisionIdValidator } from '../validators';
 import { logger } from '../utils/logger';
 import { NotFoundException } from '../exceptions/not-found.exception';
-import { RevisionRepository, withMetadata } from '../repositories/revision';
+import { RevisionRepository, withMetadataAndProviders } from '../repositories/revision';
 
 // middleware that loads the revision and stores it in res.locals
 // leave relations undefined to load the default relations
@@ -83,11 +83,11 @@ router.post('/by-id/:revision_id', loadRevision(), regenerateRevisionCube);
 
 // GET /dataset/:dataset_id/revision/id/:revision_id
 // Returns details of a revision with metadata
-router.get('/by-id/:revision_id', loadRevision(withMetadata), getRevisionInfo);
+router.get('/by-id/:revision_id', loadRevision(withMetadataAndProviders), getRevisionInfo);
 
 // GET /dataset/:dataset_id/revision/id/:revision_id/preview
 // Returns details of a revision with its imports
-router.get('/by-id/:revision_id/preview', loadRevision(withMetadata), getRevisionPreview);
+router.get('/by-id/:revision_id/preview', loadRevision(), getRevisionPreview);
 
 router.get('/by-id/:revision_id/preview/filters', loadRevision(), getRevisionPreviewFilters);
 
