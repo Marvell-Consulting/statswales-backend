@@ -2005,18 +2005,22 @@ export const createAllCubeFiles = async (datasetId: string, endRevisionId: strin
       await quack.exec('LOAD spatial;');
       await quack.exec(`COPY default_view_${lang} TO '${xlsxFileName}' WITH (FORMAT GDAL, DRIVER 'xlsx');`);
       await fileService.saveBuffer(`${endRevisionId}_${lang}.xlsx`, datasetId, await readFile(xlsxFileName));
+      await unlink(xlsxFileName);
 
       const parquetFileName = await asyncTmpName({ postfix: '.parquet' });
       await quack.exec(`COPY default_view_${lang} TO '${parquetFileName}' (FORMAT PARQUET);`);
       await fileService.saveBuffer(`${endRevisionId}_${lang}.parquet`, datasetId, await readFile(parquetFileName));
+      await unlink(parquetFileName);
 
       const csvFileName = await asyncTmpName({ postfix: '.csv' });
       await quack.exec(`COPY default_view_${lang} TO '${csvFileName}' (HEADER, DELIMITER ',');`);
       await fileService.saveBuffer(`${endRevisionId}_${lang}.csv`, datasetId, await readFile(csvFileName));
+      await unlink(csvFileName);
 
       const jsonFileName = await asyncTmpName({ postfix: '.json' });
       await quack.exec(`COPY default_view_${lang} TO '${jsonFileName}' (FORMAT JSON);`);
       await fileService.saveBuffer(`${endRevisionId}_${lang}.json`, datasetId, await readFile(jsonFileName));
+      await unlink(jsonFileName);
     }
   } catch (err) {
     logger.error(err, 'Failed to create cube files');
