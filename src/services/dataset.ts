@@ -28,7 +28,6 @@ import { EventLog } from '../entities/event-log';
 import { createAllCubeFiles, getCubeTimePeriods } from './cube-handler';
 import { validateAndUpload } from './csv-processor';
 import { removeAllDimensions, removeMeasure } from './dimension-processor';
-import { getFileService } from '../utils/get-file-service';
 import { UserGroupRepository } from '../repositories/user-group';
 import { TaskService } from './task';
 import { TaskAction } from '../enums/task-action';
@@ -288,8 +287,7 @@ export class DatasetService {
     const draftRevision = await RevisionRepository.revertToDraft(revisionId);
 
     if (draftRevision.onlineCubeFilename) {
-      const fileService = getFileService();
-      await fileService.delete(draftRevision.onlineCubeFilename, datasetId);
+      await this.fileService.delete(draftRevision.onlineCubeFilename, datasetId);
     }
 
     const pendingPublicationTask = await this.getPendingPublishTask(datasetId);
@@ -320,8 +318,7 @@ export class DatasetService {
     const revision = await RevisionRepository.revertToDraft(revisionId);
 
     if (revision.onlineCubeFilename) {
-      const fileService = getFileService();
-      await fileService.delete(revision.onlineCubeFilename, datasetId);
+      await this.fileService.delete(revision.onlineCubeFilename, datasetId);
     }
   }
 
