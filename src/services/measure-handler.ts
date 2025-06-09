@@ -2,7 +2,6 @@ import { writeFile, unlink } from 'node:fs/promises';
 
 import { Database, DuckDbError } from 'duckdb-async';
 import { format as pgformat } from '@scaleleap/pg-format';
-import tmp from 'tmp';
 import { t } from 'i18next';
 
 import { LookupTable } from '../entities/dataset/lookup-table';
@@ -39,6 +38,7 @@ import { Locale } from '../enums/locale';
 import { DataValueFormat } from '../enums/data-value-format';
 import { duckdb, linkToPostgres } from './duckdb';
 import { Revision } from '../entities/dataset/revision';
+import { asyncTmpName } from '../utils/async-tmp';
 
 const sampleSize = 5;
 
@@ -402,7 +402,8 @@ export const validateMeasureLookupTable = async (
     return viewErrorGenerators(500, dataset.id, 'patch', 'errors.cube_builder.fact_table_creation_failed', {});
   }
 
-  const lookupTableTmpFile = tmp.tmpNameSync({ postfix: `.${lookupTable.fileType}` });
+  const lookupTableTmpFile = await asyncTmpName({ postfix: `.${lookupTable.fileType}` });
+
   try {
     await writeFile(lookupTableTmpFile, buffer);
     await loadFileIntoDatabase(quack, lookupTable, lookupTableTmpFile, lookupTableName);

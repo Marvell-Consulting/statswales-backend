@@ -1,5 +1,3 @@
-import tmp from 'tmp';
-
 import { format as pgformat } from '@scaleleap/pg-format';
 import { ValidatedSourceAssignment } from './dimension-processor';
 import { Dataset } from '../entities/dataset/dataset';
@@ -13,6 +11,7 @@ import { FactTableValidationExceptionType } from '../enums/fact-table-validation
 import { SourceAssignmentDTO } from '../dtos/source-assignment-dto';
 import { tableDataToViewTable } from '../utils/table-data-to-view-table';
 import { Database, TableData } from 'duckdb-async';
+import { asyncTmpName } from '../utils/async-tmp';
 
 interface FactTableDefinition {
   factTableColumn: FactTableColumn;
@@ -25,6 +24,7 @@ export const factTableValidatorFromSource = async (
   validatedSourceAssignment: ValidatedSourceAssignment
 ): Promise<string> => {
   const revision = dataset.draftRevision;
+
   if (!revision) {
     throw new FactTableValidationException(
       'Unable to find draft revision',
@@ -32,8 +32,10 @@ export const factTableValidatorFromSource = async (
       500
     );
   }
-  const duckdbSaveFile = tmp.tmpNameSync({ postfix: '.duckdb' });
+
+  const duckdbSaveFile = await asyncTmpName({ postfix: '.duckdb' });
   const quack = await duckdb(duckdbSaveFile);
+
   try {
     await linkToPostgres(quack, revision.id, true);
   } catch (error) {
@@ -170,6 +172,7 @@ export const factTableValidatorFromSource = async (
     await safelyCloseDuckDb(quack);
     logger.debug('Duckdb Closed');
   }
+
   return duckdbSaveFile;
 };
 

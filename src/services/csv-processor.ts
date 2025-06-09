@@ -1,9 +1,8 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { unlink, writeFile } from 'node:fs/promises';
 
-import { TableData } from 'duckdb-async';
+import { Database, TableData } from 'duckdb-async';
 import { format as pgformat } from '@scaleleap/pg-format';
-import tmp from 'tmp';
 
 import { logger as parentLogger } from '../utils/logger';
 import { DataTable } from '../entities/dataset/data-table';
@@ -23,13 +22,36 @@ import { DuckDBException } from '../exceptions/duckdb-exception';
 import { viewErrorGenerators, viewGenerator } from '../utils/view-error-generators';
 import { validateParams } from '../validators/preview-validator';
 import { SourceLocation } from '../enums/source-location';
-import { asyncFileExists } from '../utils/async-file-exists';
 import { UploadTableType } from '../interfaces/upload-table-type';
+import { asyncTmpName } from '../utils/async-tmp';
 
 export const DEFAULT_PAGE_SIZE = 100;
 const sampleSize = 5;
 
 const logger = parentLogger.child({ module: 'CSVProcessor' });
+
+const getCreateTableQuery = async (fileType: FileType, quack: Database): Promise<string> => {
+  switch (fileType) {
+    case FileType.Csv:
+    case FileType.GzipCsv:
+      return `CREATE TABLE %I AS SELECT * FROM read_csv(%L, auto_type_candidates = ['BIGINT', 'DOUBLE', 'VARCHAR']);`;
+
+    case FileType.Parquet:
+      return `CREATE TABLE %I AS SELECT * FROM %L;`;
+
+    case FileType.Json:
+    case FileType.GzipJson:
+      return `CREATE TABLE %I AS SELECT * FROM read_json_auto(%L);`;
+
+    case FileType.Excel:
+      await quack.exec('INSTALL spatial;');
+      await quack.exec('LOAD spatial;');
+      return `CREATE TABLE %I AS SELECT * FROM st_read(%L);`;
+
+    default:
+      throw new Error('Unknown file type');
+  }
+};
 
 export async function extractTableInformation(
   fileBuffer: Buffer,
@@ -38,42 +60,32 @@ export async function extractTableInformation(
 ): Promise<DataTableDescription[]> {
   let tableName = 'preview_table';
   const quack = await duckdb();
-  const tempFile = tmp.tmpNameSync({ postfix: `.${dataTable.fileType}` });
   let tableHeaders: TableData;
+  let tempFilePath: string = '';
   let createTableQuery: string;
 
-  await writeFile(tempFile, fileBuffer);
-
-  switch (dataTable.fileType) {
-    case FileType.Csv:
-    case FileType.GzipCsv:
-      createTableQuery = `CREATE TABLE %I AS SELECT * FROM read_csv(%L, auto_type_candidates = ['BIGINT', 'DOUBLE', 'VARCHAR']);`;
-      break;
-    case FileType.Parquet:
-      createTableQuery = `CREATE TABLE %I AS SELECT * FROM %L;`;
-      break;
-    case FileType.Json:
-    case FileType.GzipJson:
-      createTableQuery = `CREATE TABLE %I AS SELECT * FROM read_json_auto(%L);`;
-      break;
-    case FileType.Excel:
-      await quack.exec('INSTALL spatial;');
-      await quack.exec('LOAD spatial;');
-      createTableQuery = `CREATE TABLE %I AS SELECT * FROM st_read(%L);`;
-      break;
-    default:
-      throw new Error('Unknown file type');
+  try {
+    tempFilePath = await asyncTmpName({ postfix: `.${dataTable.fileType}` });
+    await writeFile(tempFilePath, fileBuffer);
+    createTableQuery = await getCreateTableQuery(dataTable.fileType, quack);
+  } catch (error) {
+    logger.error(error, 'Something went wrong creating a temporary file for DuckDB');
+    throw new FileValidationException(
+      `Failed to create temporary file for DuckDB processing`,
+      FileValidationErrorType.unknown
+    );
   }
+
   try {
     logger.debug(`Creating base fact table`);
-    await quack.exec(pgformat(createTableQuery, tableName, tempFile));
+    await quack.exec(pgformat(createTableQuery, tableName, tempFilePath));
   } catch (error) {
     logger.error(error, `Something went wrong trying to extract table information using DuckDB.`);
     logger.debug('Closing DuckDB Memory Database');
     await quack.close();
 
-    logger.debug(`Removing temp file ${tempFile} from disk`);
-    await unlink(tempFile);
+    logger.debug(`Removing temp file ${tempFilePath} from disk`);
+    await unlink(tempFilePath);
 
     if ((error as DuckDBException).stack.includes('Invalid unicode')) {
       throw new FileValidationException(`File is encoding is not supported`, FileValidationErrorType.InvalidUnicode);
@@ -91,12 +103,12 @@ export async function extractTableInformation(
       logger.debug(`Copying data table to postgres using data table id: ${dataTable.id}`);
       await linkToPostgresDataTables(quack);
       await quack.exec(pgformat(`DROP TABLE IF EXISTS %I;`, dataTable.id));
-      await quack.exec(pgformat(createTableQuery, dataTable.id, tempFile));
+      await quack.exec(pgformat(createTableQuery, dataTable.id, tempFilePath));
       tableName = dataTable.id;
     } catch (error) {
       logger.error(error, 'Something went wrong saving data table to postgres');
       await quack.close();
-      await unlink(tempFile);
+      await unlink(tempFilePath);
     }
   }
 
@@ -112,7 +124,7 @@ export async function extractTableInformation(
     );
   } finally {
     await quack.close();
-    await unlink(tempFile);
+    await unlink(tempFilePath);
   }
 
   if (tableHeaders.length === 0) {
@@ -242,18 +254,16 @@ export const validateAndUpload = async (
 
 export const getCSVPreview = async (
   datasetId: string,
-  importObj: DataTable,
+  dataTable: DataTable,
   page: number,
   size: number
 ): Promise<ViewDTO | ViewErrDTO> => {
   let tableName = 'fact_table';
-  const tempFile = tmp.tmpNameSync({ postfix: `.${importObj.fileType}` });
-  let cubeFile: string | undefined;
 
   logger.debug('Getting table query from postgres');
   const quack = await duckdb();
   await linkToPostgresDataTables(quack);
-  tableName = importObj.id;
+  tableName = dataTable.id;
 
   try {
     const totalsQuery = pgformat(
@@ -288,7 +298,7 @@ export const getCSVPreview = async (
     const tableHeaders = Object.keys(preview[0]);
     const dataArray = preview.map((row) => Object.values(row));
     const dataset = await DatasetRepository.getById(datasetId, { factTable: true });
-    const currentImport = await DataTable.findOneByOrFail({ id: importObj.id });
+    const currentImport = await DataTable.findOneByOrFail({ id: dataTable.id });
 
     const headers: CSVHeader[] = tableHeaders.map((header, idx) => {
       let sourceType: FactTableColumnType;
@@ -309,12 +319,6 @@ export const getCSVPreview = async (
     return viewErrorGenerators(500, datasetId, 'csv', 'errors.preview.preview_failed', {});
   } finally {
     await quack.close();
-    if (cubeFile) {
-      await unlink(cubeFile);
-    }
-    if (await asyncFileExists(tempFile)) {
-      await unlink(tempFile);
-    }
   }
 };
 
