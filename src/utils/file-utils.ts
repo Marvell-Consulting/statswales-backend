@@ -1,6 +1,5 @@
 import { writeFile } from 'node:fs/promises';
 
-import tmp from 'tmp';
 import { Database } from 'duckdb-async';
 import iconv from 'iconv-lite';
 import detectCharacterEncoding from 'detect-character-encoding';
@@ -12,6 +11,7 @@ import { FileType } from '../enums/file-type';
 import { logger } from './logger';
 import { getFileService } from './get-file-service';
 import { FileValidationErrorType, FileValidationException } from '../exceptions/validation-exception';
+import { asyncTmpName } from './async-tmp';
 
 export const convertBufferToUTF8 = (buffer: Buffer): Buffer => {
   const fileEncoding = detectCharacterEncoding(buffer)?.encoding;
@@ -33,7 +33,7 @@ export const getFileImportAndSaveToDisk = async (
   importFile: FileImportInterface
 ): Promise<string> => {
   const fileService = getFileService();
-  const importTmpFile = tmp.tmpNameSync({ postfix: `.${importFile.fileType}` });
+  const importTmpFile = await asyncTmpName({ postfix: `.${importFile.fileType}` });
   const buffer = await fileService.loadBuffer(importFile.filename, dataset.id);
   await writeFile(importTmpFile, buffer);
   return importTmpFile;

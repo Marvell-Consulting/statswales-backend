@@ -3,7 +3,6 @@ import path from 'node:path';
 import { performance } from 'node:perf_hooks';
 
 import { Database, DuckDbError } from 'duckdb-async';
-import tmp from 'tmp';
 import { t } from 'i18next';
 import { FindOptionsRelations } from 'typeorm';
 import { toZonedTime } from 'date-fns-tz';
@@ -46,6 +45,7 @@ import { QueryResult } from 'pg';
 import { getCubeDB } from '../db/cube-db';
 import { asyncFileExists } from '../utils/async-file-exists';
 import { getFileService } from '../utils/get-file-service';
+import { asyncTmpName } from '../utils/async-tmp';
 
 export const FACT_TABLE_NAME = 'fact_table';
 
@@ -1644,34 +1644,24 @@ export const createBasePostgresCube = async (datasetId: string, endRevisionId: s
   const functionStart = performance.now();
   const viewSelectStatementsMap = new Map<Locale, string[]>();
   const rawSelectStatementsMap = new Map<Locale, string[]>();
+
   SUPPORTED_LOCALES.map((locale) => {
     viewSelectStatementsMap.set(locale, []);
     rawSelectStatementsMap.set(locale, []);
   });
+
   const joinStatements: string[] = [];
   const orderByStatements: string[] = [];
 
   const datasetRelations: FindOptionsRelations<Dataset> = {
-    dimensions: {
-      metadata: true,
-      lookupTable: true
-    },
     factTable: true,
-    measure: {
-      metadata: true,
-      measureTable: true
-    },
-    revisions: {
-      dataTable: {
-        dataTableDescriptions: true
-      }
-    }
+    dimensions: { metadata: true, lookupTable: true },
+    measure: { metadata: true, measureTable: true },
+    revisions: { dataTable: { dataTableDescriptions: true } }
   };
 
   const endRevisionRelations: FindOptionsRelations<Revision> = {
-    dataTable: {
-      dataTableDescriptions: true
-    }
+    dataTable: { dataTableDescriptions: true }
   };
 
   const dataset = await DatasetRepository.getById(datasetId, datasetRelations);
@@ -1689,8 +1679,8 @@ export const createBasePostgresCube = async (datasetId: string, endRevisionId: s
 
   const buildStart = performance.now();
   logger.debug('Creating an in-memory database to hold the cube using DuckDB 🐤');
-  const protoCubeFile = tmp.tmpNameSync({ postfix: '.duckdb' });
-  const quack = await duckdb(protoCubeFile);
+  const protoCubeFileName = await asyncTmpName({ postfix: '.duckdb' });
+  const quack = await duckdb(protoCubeFileName);
   await linkToPostgres(quack, endRevision.id, true);
 
   const { factTableDef, factIdentifiers } = await createEmptyFactTableInCube(quack, dataset, endRevision, 'postgres');
@@ -1749,6 +1739,7 @@ export const createBasePostgresCube = async (datasetId: string, endRevisionId: s
   }
 
   logger.debug('Adding notes code column to the select statement.');
+
   if (notesCodeColumn) {
     await createNotesTable(quack, notesCodeColumn, viewSelectStatementsMap, rawSelectStatementsMap, joinStatements);
   }
@@ -1794,6 +1785,7 @@ export const createBasePostgresCube = async (datasetId: string, endRevisionId: s
     exception.type = CubeValidationType.CubeCreationFailed;
     throw exception;
   }
+
   await safelyCloseDuckDb(quack);
   const end = performance.now();
   const functionTime = Math.round(end - functionStart);
@@ -1801,7 +1793,8 @@ export const createBasePostgresCube = async (datasetId: string, endRevisionId: s
   logger.warn(`Cube function took ${functionTime}ms to complete and it took ${buildTime}ms to build the cube.`);
   endRevision.cubeType = CubeType.PostgresCube;
   await endRevision.save();
-  return protoCubeFile;
+
+  return protoCubeFileName;
 };
 
 export const createBaseDuckDBFile = async (datasetId: string, endRevisionId: string): Promise<string> => {
@@ -1854,8 +1847,8 @@ export const createBaseDuckDBFile = async (datasetId: string, endRevisionId: str
 
   const buildStart = performance.now();
   logger.debug('Creating an in-memory database to hold the cube using DuckDB 🐤');
-  const protoCubeFile = tmp.tmpNameSync({ postfix: '.duckdb' });
-  const quack = await duckdb(protoCubeFile);
+  const protoCubeFileName = await asyncTmpName({ postfix: '.duckdb' });
+  const quack = await duckdb(protoCubeFileName);
   await linkToPostgresDataTables(quack);
   await quack.exec('USE cube_file;');
 
@@ -1969,7 +1962,8 @@ export const createBaseDuckDBFile = async (datasetId: string, endRevisionId: str
   logger.warn(`Cube function took ${functionTime}ms to complete and it took ${buildTime}ms to build the cube.`);
   endRevision.cubeType = CubeType.PostgresCube;
   await endRevision.save();
-  return protoCubeFile;
+
+  return protoCubeFileName;
 };
 
 export const createAllCubeFiles = async (datasetId: string, endRevisionId: string): Promise<void> => {
@@ -2005,20 +1999,24 @@ export const createAllCubeFiles = async (datasetId: string, endRevisionId: strin
     // TODO Write code to to use native libraries to produce parquet, csv, excel and json outputs
     for (const locale of SUPPORTED_LOCALES) {
       const lang = locale.toLowerCase().split('-')[0];
-      const xlsxFile = tmp.tmpNameSync({ postfix: '.xlsx' });
-      const parquetFile = tmp.tmpNameSync({ postfix: '.parquet' });
-      const csvFile = tmp.tmpNameSync({ postfix: '.csv' });
-      const jsonFile = tmp.tmpNameSync({ postfix: '.json' });
+
+      const xlsxFileName = await asyncTmpName({ postfix: '.xlsx' });
       await quack.exec('INSTALL spatial;');
       await quack.exec('LOAD spatial;');
-      await quack.exec(`COPY default_view_${lang} TO '${xlsxFile}' WITH (FORMAT GDAL, DRIVER 'xlsx');`);
-      await quack.exec(`COPY default_view_${lang} TO '${csvFile}' (HEADER, DELIMITER ',');`);
-      await quack.exec(`COPY default_view_${lang} TO '${parquetFile}' (FORMAT PARQUET);`);
-      await quack.exec(`COPY default_view_${lang} TO '${jsonFile}' (FORMAT JSON);`);
-      await fileService.saveBuffer(`${endRevisionId}_${lang}.xlsx`, datasetId, await readFile(xlsxFile));
-      await fileService.saveBuffer(`${endRevisionId}_${lang}.csv`, datasetId, await readFile(csvFile));
-      await fileService.saveBuffer(`${endRevisionId}_${lang}.parquet`, datasetId, await readFile(parquetFile));
-      await fileService.saveBuffer(`${endRevisionId}_${lang}.json`, datasetId, await readFile(jsonFile));
+      await quack.exec(`COPY default_view_${lang} TO '${xlsxFileName}' WITH (FORMAT GDAL, DRIVER 'xlsx');`);
+      await fileService.saveBuffer(`${endRevisionId}_${lang}.xlsx`, datasetId, await readFile(xlsxFileName));
+
+      const parquetFileName = await asyncTmpName({ postfix: '.parquet' });
+      await quack.exec(`COPY default_view_${lang} TO '${parquetFileName}' (FORMAT PARQUET);`);
+      await fileService.saveBuffer(`${endRevisionId}_${lang}.parquet`, datasetId, await readFile(parquetFileName));
+
+      const csvFileName = await asyncTmpName({ postfix: '.csv' });
+      await quack.exec(`COPY default_view_${lang} TO '${csvFileName}' (HEADER, DELIMITER ',');`);
+      await fileService.saveBuffer(`${endRevisionId}_${lang}.csv`, datasetId, await readFile(csvFileName));
+
+      const jsonFileName = await asyncTmpName({ postfix: '.json' });
+      await quack.exec(`COPY default_view_${lang} TO '${jsonFileName}' (FORMAT JSON);`);
+      await fileService.saveBuffer(`${endRevisionId}_${lang}.json`, datasetId, await readFile(jsonFileName));
     }
   } catch (err) {
     logger.error(err, 'Failed to create cube files');

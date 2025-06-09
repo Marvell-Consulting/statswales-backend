@@ -1,6 +1,5 @@
 import { writeFile, unlink } from 'node:fs/promises';
 
-import tmp from 'tmp';
 import { format as pgformat } from '@scaleleap/pg-format';
 
 import { DimensionType } from '../enums/dimension-type';
@@ -37,6 +36,7 @@ import { t } from 'i18next';
 import { FileValidationErrorType, FileValidationException } from '../exceptions/validation-exception';
 import { CubeValidationType } from '../enums/cube-validation-type';
 import { duckdb, linkToPostgres } from './duckdb';
+import { asyncTmpName } from '../utils/async-tmp';
 
 const sampleSize = 5;
 
@@ -266,8 +266,8 @@ export const validateLookupTable = async (
   await linkToPostgres(quack, revision.id, false);
   await quack.exec(pgformat(`DROP TABLE IF EXISTS %I`, `${makeCubeSafeString(dimension.factTableColumn)}_lookup`));
   await quack.exec(pgformat('DROP TABLE IF EXISTS %I', lookupTableName));
+  const lookupTableTmpFile = await asyncTmpName({ postfix: `.${lookupTable.fileType}` });
 
-  const lookupTableTmpFile = tmp.tmpNameSync({ postfix: `.${lookupTable.fileType}` });
   try {
     logger.debug(`Writing the lookup table to disk: ${lookupTableTmpFile}`);
     await writeFile(lookupTableTmpFile, buffer);

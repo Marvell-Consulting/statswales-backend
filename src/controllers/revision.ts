@@ -5,7 +5,6 @@ import { writeFile } from 'node:fs/promises';
 import { NextFunction, Request, Response } from 'express';
 import { t } from 'i18next';
 import { isBefore, isValid } from 'date-fns';
-import tmp from 'tmp';
 
 import { User } from '../entities/user/user';
 import { DataTableDto } from '../dtos/data-table-dto';
@@ -59,6 +58,7 @@ import { SortByInterface } from '../interfaces/sort-by-interface';
 import { FilterInterface } from '../interfaces/filterInterface';
 import { FindOptionsRelations } from 'typeorm';
 import { getFilters } from '../services/consumer-view';
+import { asyncTmpName } from '../utils/async-tmp';
 
 export const getDataTable = async (req: Request, res: Response, next: NextFunction) => {
   try {
@@ -593,11 +593,17 @@ export const regenerateRevisionCube = async (req: Request, res: Response, next: 
 
   for (const rev of revisionTree) {
     logger.debug(`Recreating datatable ${rev.dataTable?.id} in postgres data_tables database`);
-    const tmpFile = tmp.fileSync({ postfix: rev.dataTable!.fileType });
-    const buf = await req.fileService.loadBuffer(rev.dataTable!.filename, datasetId);
-    await writeFile(tmpFile.name, buf);
-    await extractTableInformation(buf, rev.dataTable!, 'data_table');
-    tmpFile.removeCallback();
+
+    const tempFilePath = await asyncTmpName({ postfix: rev.dataTable!.fileType });
+
+    // load the file from datalake
+    const buffer = await req.fileService.loadBuffer(rev.dataTable!.filename, datasetId);
+
+    // write the file to a temp file, but where is this temp file used?
+    await writeFile(tempFilePath, buffer);
+
+    // extract the table info from the buffer
+    await extractTableInformation(buffer, rev.dataTable!, 'data_table');
   }
 
   try {
