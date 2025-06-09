@@ -85,37 +85,29 @@ export function transformHierarchy(factTableColumn: string, columnName: string, 
 }
 
 export const getFilters = async (revision: Revision, language: string): Promise<FilterTable[]> => {
-  const connection = await getCubeDB().connect();
-  try {
-    const filterTableQuery = pgformat('SELECT * FROM %I.filter_table WHERE language = %L;', revision.id, language);
-    const filterTable: QueryResult<FilterRow> = await connection.query(filterTableQuery);
-    const columnData = new Map<string, FilterRow[]>();
-    for (const row of filterTable.rows) {
-      let data = columnData.get(row.fact_table_column);
-      if (data) {
-        data.push(row);
-      } else {
-        data = [row];
-      }
-      columnData.set(row.fact_table_column, data);
+  const cubeDB = getCubeDB();
+  const filterTableQuery = pgformat('SELECT * FROM %I.filter_table WHERE language = %L;', revision.id, language);
+  const filterTable: QueryResult<FilterRow> = await cubeDB.query(filterTableQuery);
+  const columnData = new Map<string, FilterRow[]>();
+  for (const row of filterTable.rows) {
+    let data = columnData.get(row.fact_table_column);
+    if (data) {
+      data.push(row);
+    } else {
+      data = [row];
     }
-    const filterData: FilterTable[] = [];
-    for (const col of columnData.keys()) {
-      const data = columnData.get(col);
-      if (!data) {
-        continue;
-      }
-      const hierarchy = transformHierarchy(data[0].fact_table_column, data[0].dimension_name, data);
-      filterData.push(hierarchy);
-    }
-    connection.release();
-    return filterData;
-  } catch (err) {
-    logger.error(err, 'Something went wrong trying to get the filter table from the database server');
-    throw err;
-  } finally {
-    connection.release();
+    columnData.set(row.fact_table_column, data);
   }
+  const filterData: FilterTable[] = [];
+  for (const col of columnData.keys()) {
+    const data = columnData.get(col);
+    if (!data) {
+      continue;
+    }
+    const hierarchy = transformHierarchy(data[0].fact_table_column, data[0].dimension_name, data);
+    filterData.push(hierarchy);
+  }
+  return filterData;
 };
 
 export const createView = async (
@@ -151,15 +143,15 @@ export const createView = async (
   );
   // logger.debug(`Base query: ${baseQuery}`);
 
-  const connection = await getCubeDB().connect();
   try {
+    const cubeDB = getCubeDB();
     const totalsQuery = pgformat(
       'SELECT count(*) as "totalLines", ceil(count(*)/%L) as "totalPages" from (%s);',
       pageSize,
       baseQuery
     );
     // logger.debug(`Totals query: ${totalsQuery}`);
-    const totals = await connection.query(totalsQuery);
+    const totals = await cubeDB.query(totalsQuery);
     const totalPages = Number(totals.rows[0].totalPages) > 0 ? Number(totals.rows[0].totalPages) : 1;
     const totalLines = Number(totals.rows[0].totalLines);
     const errors = validateParams(pageNumber, totalPages, pageSize);
@@ -170,7 +162,7 @@ export const createView = async (
 
     const dataQuery = pgformat('%s LIMIT %L OFFSET %L', baseQuery, pageSize, (pageNumber - 1) * pageSize);
     // logger.debug(`Data query: ${dataQuery}`);
-    const queryResult: QueryResult<unknown[]> = await connection.query(dataQuery);
+    const queryResult: QueryResult<unknown[]> = await cubeDB.query(dataQuery);
     const preview = queryResult.rows;
 
     const startLine = pageSize * (pageNumber - 1) + 1;
@@ -219,7 +211,5 @@ export const createView = async (
   } catch (err) {
     logger.error(err, `Something went wrong trying to create the cube preview`);
     return { status: 500, errors: [], dataset_id: dataset.id };
-  } finally {
-    connection.release();
   }
 };
