@@ -1,11 +1,9 @@
 import { Readable } from 'node:stream';
 import { performance } from 'node:perf_hooks';
-import { writeFile } from 'node:fs/promises';
 
 import { NextFunction, Request, Response } from 'express';
 import { t } from 'i18next';
 import { isBefore, isValid } from 'date-fns';
-import tmp from 'tmp';
 
 import { User } from '../entities/user/user';
 import { DataTableDto } from '../dtos/data-table-dto';
@@ -35,7 +33,7 @@ import {
   DEFAULT_PAGE_SIZE,
   extractTableInformation,
   getCSVPreview,
-  validateAndUploadCSV
+  validateAndUpload
 } from '../services/csv-processor';
 import { DataTableDescription } from '../entities/dataset/data-table-description';
 import { FactTableColumn } from '../entities/dataset/fact-table-column';
@@ -169,9 +167,7 @@ export const confirmFactTable = async (req: Request, res: Response) => {
 export const downloadRawFactTable = async (req: Request, res: Response, next: NextFunction) => {
   const datasetId = res.locals.datasetId;
   const revision = res.locals.revision;
-
   logger.info('User requested to down files...');
-
   let readable: Readable;
   // logger.debug(`${JSON.stringify(revision)}`);
 
@@ -207,6 +203,7 @@ export const downloadRawFactTable = async (req: Request, res: Response, next: Ne
     });
     return;
   }
+
   res.writeHead(200, {
     // eslint-disable-next-line @typescript-eslint/naming-convention
     'Content-Type': `${revision.dataTable.mimeType}`,
@@ -409,8 +406,7 @@ export const updateDataTable = async (req: Request, res: Response, next: NextFun
 
   let dataTable: DataTable;
   try {
-    const { mimetype, originalname } = req.file;
-    const uploadResult = await validateAndUploadCSV(req.file.buffer, mimetype, originalname, datasetId, 'data_table');
+    const uploadResult = await validateAndUpload(req.file, datasetId, 'data_table');
     dataTable = uploadResult.dataTable;
   } catch (err) {
     const error = err as FileValidationException;
@@ -595,15 +591,12 @@ export const regenerateRevisionCube = async (req: Request, res: Response, next: 
 
   for (const rev of revisionTree) {
     logger.debug(`Recreating datatable ${rev.dataTable?.id} in postgres data_tables database`);
-    const tmpFile = tmp.fileSync({ postfix: rev.dataTable!.fileType });
-    const buf = await req.fileService.loadBuffer(rev.dataTable!.filename, datasetId);
-    await writeFile(tmpFile.name, buf);
-    await extractTableInformation(buf, rev.dataTable!, 'data_table');
-    tmpFile.removeCallback();
+    const buffer = await req.fileService.loadBuffer(rev.dataTable!.filename, datasetId);
+    await extractTableInformation(buffer, rev.dataTable!, 'data_table');
   }
 
   try {
-    await createAllCubeFiles(datasetId, revision.id, req.fileService);
+    await createAllCubeFiles(datasetId, revision.id);
   } catch (err) {
     logger.error(err, `Something went wrong trying to create the cube`);
     next(new UnknownException('errors.cube_builder.cube_build_failed'));

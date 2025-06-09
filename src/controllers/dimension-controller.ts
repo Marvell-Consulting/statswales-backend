@@ -14,7 +14,7 @@ import { BadRequestException } from '../exceptions/bad-request.exception';
 import { UnknownException } from '../exceptions/unknown.exception';
 import { LookupTablePatchDTO } from '../dtos/lookup-patch-dto';
 import { DimensionMetadataDTO } from '../dtos/dimension-metadata-dto';
-import { getFactTableColumnPreview, validateAndUploadCSV } from '../services/csv-processor';
+import { getFactTableColumnPreview, validateAndUpload } from '../services/csv-processor';
 import {
   getDimensionPreview,
   setupTextDimension,
@@ -105,28 +105,23 @@ export const attachLookupTableToDimension = async (req: Request, res: Response, 
     return;
   }
 
-  const dimension = res.locals.dimension;
+  const { datasetId, dimension } = res.locals;
   const language = req.language.toLowerCase();
 
   try {
-    const dataset = await DatasetRepository.getById(res.locals.datasetId, {
+    const dataset = await DatasetRepository.getById(datasetId, {
       factTable: true,
       draftRevision: { dataTable: { dataTableDescriptions: true } },
       revisions: { dataTable: { dataTableDescriptions: true } }
     });
 
-    const { dataTable, buffer } = await validateAndUploadCSV(
-      req.file.buffer,
-      req.file?.mimetype,
-      req.file?.originalname,
-      res.locals.datasetId,
-      'lookup_table'
-    );
+    const { dataTable, buffer } = await validateAndUpload(req.file, datasetId, 'lookup_table');
 
     const tableMatcher = req.body as LookupTablePatchDTO;
 
     const result = await validateLookupTable(dataTable, dataset, dimension, buffer, language, tableMatcher);
-    await createAllCubeFiles(dataset.id, dataset.draftRevision!.id, req.fileService);
+    await createAllCubeFiles(dataset.id, dataset.draftRevision!.id);
+
     if ((result as ViewErrDTO).status) {
       const error = result as ViewErrDTO;
       res.status(error.status);
@@ -203,7 +198,7 @@ export const updateDimension = async (req: Request, res: Response, next: NextFun
         );
     }
     try {
-      await createAllCubeFiles(dataset.id, dataset.draftRevision!.id, req.fileService);
+      await createAllCubeFiles(dataset.id, dataset.draftRevision!.id);
     } catch (error) {
       logger.error(error, `An error occurred trying to create a base cube`);
       res.status(500);
@@ -246,7 +241,7 @@ export const updateDimensionMetadata = async (req: Request, res: Response) => {
   }
   await metadata.save();
   const updatedDimension = await Dimension.findOneByOrFail({ id: dimension.id });
-  await createAllCubeFiles(dataset.id, dataset.draftRevision!.id, req.fileService);
+  await createAllCubeFiles(dataset.id, dataset.draftRevision!.id);
   res.status(202);
   res.json(DimensionDTO.fromDimension(updatedDimension));
 };

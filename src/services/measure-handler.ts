@@ -2,7 +2,6 @@ import { writeFile, unlink } from 'node:fs/promises';
 
 import { Database, DuckDbError } from 'duckdb-async';
 import { format as pgformat } from '@scaleleap/pg-format';
-import tmp from 'tmp';
 import { t } from 'i18next';
 
 import { LookupTable } from '../entities/dataset/lookup-table';
@@ -39,6 +38,7 @@ import { Locale } from '../enums/locale';
 import { DataValueFormat } from '../enums/data-value-format';
 import { duckdb, linkToPostgres } from './duckdb';
 import { Revision } from '../entities/dataset/revision';
+import { asyncTmpName } from '../utils/async-tmp';
 
 const sampleSize = 5;
 
@@ -51,7 +51,7 @@ async function cleanUpMeasure(measureId: string) {
       const fileService = getFileService();
       await fileService.delete(measure.lookupTable.filename, measure.dataset.id);
     } catch (err) {
-      logger.warn(`Something went wrong trying to remove previously uploaded lookup table with error: ${err}`);
+      logger.warn(err, `Something went wrong trying to remove previously uploaded lookup table`);
     }
   }
 
@@ -68,9 +68,7 @@ async function cleanUpMeasure(measureId: string) {
       await LookupTable.delete({ id: lookupTableId });
     }
   } catch (err) {
-    logger.error(
-      `Something has gone wrong trying to unlink the previous lookup table from the measure with the following error: ${err}`
-    );
+    logger.error(err, `Something has gone wrong trying to unlink the previous lookup table from the measure`);
     throw err;
   }
 }
@@ -402,17 +400,19 @@ export const validateMeasureLookupTable = async (
     return viewErrorGenerators(500, dataset.id, 'patch', 'errors.cube_builder.fact_table_creation_failed', {});
   }
 
-  const lookupTableTmpFile = tmp.tmpNameSync({ postfix: `.${lookupTable.fileType}` });
+  const lookupTableTmpFile = await asyncTmpName({ postfix: `.${lookupTable.fileType}` });
+
   try {
     await writeFile(lookupTableTmpFile, buffer);
     await loadFileIntoDatabase(quack, lookupTable, lookupTableTmpFile, lookupTableName);
-    await unlink(lookupTableTmpFile);
   } catch (err) {
     await quack.close();
     logger.error(err, `Something went wrong trying to load data in to DuckDB with the following error: ${err}`);
     return viewErrorGenerators(500, dataset.id, 'csv', 'errors.dimension.unknown_error', {
       mismatch: false
     });
+  } finally {
+    await unlink(lookupTableTmpFile);
   }
 
   let confirmedJoinColumn: string | undefined;
