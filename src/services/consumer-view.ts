@@ -108,7 +108,6 @@ export const getFilters = async (revision: Revision, language: string): Promise<
       const hierarchy = transformHierarchy(data[0].fact_table_column, data[0].dimension_name, data);
       filterData.push(hierarchy);
     }
-    connection.release();
     return filterData;
   } catch (err) {
     logger.error(err, 'Something went wrong trying to get the filter table from the database server');
