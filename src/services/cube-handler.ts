@@ -43,7 +43,6 @@ import { CubeType } from '../enums/cube-type';
 import { DateExtractor } from '../extractors/date-extractor';
 import { QueryResult } from 'pg';
 import { getCubeDB } from '../db/cube-db';
-import { asyncFileExists } from '../utils/async-file-exists';
 import { getFileService } from '../utils/get-file-service';
 import { asyncTmpName } from '../utils/async-tmp';
 
@@ -1975,26 +1974,26 @@ export const createAllCubeFiles = async (datasetId: string, endRevisionId: strin
     throw err;
   }
 
-  const fileService = getFileService();
-
-  try {
-    logger.debug('Creating duckdb cube file.');
-    const cubeFile = await createBaseDuckDBFile(datasetId, endRevisionId);
-    const buffer = await readFile(cubeFile);
-    await fileService.saveBuffer(`${endRevisionId}.duckdb`, datasetId, buffer);
-
-    if (await asyncFileExists(cubeFile)) {
-      logger.debug('Cleaning up cube file');
-      await unlink(cubeFile);
-    }
-  } catch (err) {
-    logger.error(err, 'Failed to create duckdb cube file');
-    throw err;
-  }
+  // Disabling creating duckdb file until we can move to a worker
+  //
+  // try {
+  //   logger.debug('Creating duckdb cube file.');
+  //   const cubeFile = await createBaseDuckDBFile(datasetId, endRevisionId);
+  //   const buffer = await readFile(cubeFile);
+  //   await fileService.saveBuffer(`${endRevisionId}.duckdb`, datasetId, buffer);
+  //
+  //   if (await asyncFileExists(cubeFile)) {
+  //     logger.debug('Cleaning up cube file');
+  //     await unlink(cubeFile);
+  //   }
+  // } catch (err) {
+  //   logger.error(err, 'Failed to create duckdb cube file');
+  //   throw err;
+  // }
 
   const quack = await duckdb();
   await linkToPostgres(quack, endRevisionId, false);
-
+  const fileService = getFileService();
   try {
     // TODO Write code to to use native libraries to produce parquet, csv, excel and json outputs
     for (const locale of SUPPORTED_LOCALES) {
@@ -2025,7 +2024,6 @@ export const createAllCubeFiles = async (datasetId: string, endRevisionId: strin
   } catch (err) {
     logger.error(err, 'Failed to create cube files');
   }
-
   await quack.close();
 };
 

@@ -606,29 +606,29 @@ export const regenerateRevisionCube = async (req: Request, res: Response, next: 
   res.json({ message: 'Cube regeneration in postgres successful' });
 };
 
-export const downloadRevisionCubeFile = async (req: Request, res: Response) => {
-  const datasetId: string = res.locals.datasetId;
-  const revision: Revision = res.locals.revision;
-
-  const cubeBuffer = await outputCube(
-    DuckdbOutputType.DuckDb,
-    datasetId,
-    revision.id,
-    req.language.split('-')[0],
-    req.fileService
-  );
-
-  logger.info(`Sending original cube file (size: ${cubeBuffer.length})`);
-  res.writeHead(200, {
-    // eslint-disable-next-line @typescript-eslint/naming-convention
-    'Content-Type': 'application/octet-stream',
-    // eslint-disable-next-line @typescript-eslint/naming-convention
-    'Content-disposition': `attachment;filename=${datasetId}.duckdb`,
-    // eslint-disable-next-line @typescript-eslint/naming-convention
-    'Content-Length': cubeBuffer.length
-  });
-  res.end(cubeBuffer);
-};
+// export const downloadRevisionCubeFile = async (req: Request, res: Response) => {
+//   const datasetId: string = res.locals.datasetId;
+//   const revision: Revision = res.locals.revision;
+//
+//   const cubeBuffer = await outputCube(
+//     DuckdbOutputType.DuckDb,
+//     datasetId,
+//     revision.id,
+//     req.language.split('-')[0],
+//     req.fileService
+//   );
+//
+//   logger.info(`Sending original cube file (size: ${cubeBuffer.length})`);
+//   res.writeHead(200, {
+//     // eslint-disable-next-line @typescript-eslint/naming-convention
+//     'Content-Type': 'application/octet-stream',
+//     // eslint-disable-next-line @typescript-eslint/naming-convention
+//     'Content-disposition': `attachment;filename=${datasetId}.duckdb`,
+//     // eslint-disable-next-line @typescript-eslint/naming-convention
+//     'Content-Length': cubeBuffer.length
+//   });
+//   res.end(cubeBuffer);
+// };
 
 export const downloadRevisionCubeAsJSON = async (req: Request, res: Response, next: NextFunction) => {
   const datasetId: string = res.locals.datasetId;

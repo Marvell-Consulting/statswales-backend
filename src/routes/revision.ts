@@ -12,7 +12,6 @@ import {
   downloadRevisionCubeAsExcel,
   downloadRevisionCubeAsJSON,
   downloadRevisionCubeAsParquet,
-  downloadRevisionCubeFile,
   getDataTablePreview,
   getRevisionInfo,
   getRevisionPreview,
@@ -132,7 +131,7 @@ router.post('/by-id/:revision_id/withdraw', loadRevision(), withdrawFromPublicat
 
 // GET /dataset/:dataset_id/revision/by-id/:revision_id/cube
 // Returns the specific revision of the dataset as a DuckDB File
-router.get('/by-id/:revision_id/cube', loadRevision(), downloadRevisionCubeFile);
+// router.get('/by-id/:revision_id/cube', loadRevision(), downloadRevisionCubeFile);
 
 // GET /dataset/:dataset_id/revision/by-id/:revision_id/cube/json
 // Returns the specific revision of the dataset as a JSON file
