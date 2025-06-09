@@ -51,7 +51,7 @@ async function cleanUpMeasure(measureId: string) {
       const fileService = getFileService();
       await fileService.delete(measure.lookupTable.filename, measure.dataset.id);
     } catch (err) {
-      logger.warn(`Something went wrong trying to remove previously uploaded lookup table with error: ${err}`);
+      logger.warn(err, `Something went wrong trying to remove previously uploaded lookup table`);
     }
   }
 
@@ -68,9 +68,7 @@ async function cleanUpMeasure(measureId: string) {
       await LookupTable.delete({ id: lookupTableId });
     }
   } catch (err) {
-    logger.error(
-      `Something has gone wrong trying to unlink the previous lookup table from the measure with the following error: ${err}`
-    );
+    logger.error(err, `Something has gone wrong trying to unlink the previous lookup table from the measure`);
     throw err;
   }
 }
