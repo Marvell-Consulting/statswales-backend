@@ -273,13 +273,14 @@ export const validateLookupTable = async (
     await writeFile(lookupTableTmpFile, buffer);
     logger.debug(`Loading lookup table into DuckDB`);
     await loadFileIntoDatabase(quack, lookupTable, lookupTableTmpFile, lookupTableName);
-    await unlink(lookupTableTmpFile);
   } catch (err) {
     await quack.close();
     logger.error(err, `Something went wrong trying to load the lookup table into the cube`);
     return viewErrorGenerators(500, dataset.id, 'patch', 'errors.dimension_validation.lookup_table_loading_failed', {
       mismatch: false
     });
+  } finally {
+    await unlink(lookupTableTmpFile);
   }
 
   let confirmedJoinColumn: string | undefined;

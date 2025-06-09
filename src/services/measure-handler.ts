@@ -407,13 +407,14 @@ export const validateMeasureLookupTable = async (
   try {
     await writeFile(lookupTableTmpFile, buffer);
     await loadFileIntoDatabase(quack, lookupTable, lookupTableTmpFile, lookupTableName);
-    await unlink(lookupTableTmpFile);
   } catch (err) {
     await quack.close();
     logger.error(err, `Something went wrong trying to load data in to DuckDB with the following error: ${err}`);
     return viewErrorGenerators(500, dataset.id, 'csv', 'errors.dimension.unknown_error', {
       mismatch: false
     });
+  } finally {
+    await unlink(lookupTableTmpFile);
   }
 
   let confirmedJoinColumn: string | undefined;
