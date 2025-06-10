@@ -575,12 +575,12 @@ export async function createDateDimension(quack: Database, extractor: object | n
   logger.debug(`Period coverage: ${zonedStartDate} to ${zonedEndDate}`);
 
   await quack.exec(`CREATE TABLE IF NOT EXISTS metadata (key VARCHAR, value VARCHAR);`);
-  const metaDataCoverage = await quack.all("SELECT * FROM metadata WHERE key in ('start_data', 'end_date');");
+  const metaDataCoverage = await quack.all("SELECT * FROM metadata WHERE key in ('start_date', 'end_date');");
   if (metaDataCoverage.length > 0) {
     for (const metaData of metaDataCoverage) {
       if (metaData.key === 'start_date') {
         if (periodCoverage[0].startDate < metaData.value) {
-          await quack.exec(`UPDATE metadata SET value='${formatISO(zonedStartDate)}' WHERE key='start_data';`);
+          await quack.exec(`UPDATE metadata SET value='${formatISO(zonedStartDate)}' WHERE key='start_date';`);
         }
       } else if (metaData.key === 'end_date') {
         if (periodCoverage[0].endDate > metaData.value) {
