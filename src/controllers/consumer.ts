@@ -21,16 +21,16 @@ import { FilterInterface } from '../interfaces/filterInterface';
 
 export const listPublishedDatasets = async (req: Request, res: Response, next: NextFunction) => {
   /*
-    #swagger.summary = 'List all published datasets'
-    #swagger.description = 'Returns a paginated list of published datasets.'
+    #swagger.summary = 'Get a list of all published datasets'
+    #swagger.description = 'This endpoint returns a list of all published datasets.'
     #swagger.autoQuery = false
     #swagger.parameters['$ref'] = [
       '#/components/parameters/language',
-      '#/components/parameters/page',
-      '#/components/parameters/limit'
+      '#/components/parameters/page_number',
+      '#/components/parameters/page_size'
     ]
     #swagger.responses[200] = {
-      description: 'A paginated list of published datasets.',
+      description: 'A paginated list of all published datasets',
       content: {
         'application/json': {
           schema: { $ref: "#/components/schemas/DatasetsWithCount" }
@@ -42,8 +42,8 @@ export const listPublishedDatasets = async (req: Request, res: Response, next: N
 
   try {
     const lang = req.language as Locale;
-    const page = parseInt(req.query.page as string, 10) || 1;
-    const limit = parseInt(req.query.limit as string, 10) || 10;
+    const page = parseInt(req.query.page_number as string, 10) || 1;
+    const limit = parseInt(req.query.page_size as string, 10) || 10;
 
     const results = await PublishedDatasetRepository.listPublishedByLanguage(lang, page, limit);
 
@@ -56,11 +56,14 @@ export const listPublishedDatasets = async (req: Request, res: Response, next: N
 
 export const getPublishedDatasetById = async (req: Request, res: Response) => {
   /*
-    #swagger.summary = 'Get a published dataset by ID'
-    #swagger.description = 'Returns a single published dataset with all it\'s nested properities.'
-    #swagger.parameters['$ref'] = ['#/components/parameters/dataset_id']
+    #swagger.summary = `Get a published dataset's metadata`
+    #swagger.description = 'This endpoint returns all metadata for a published dataset.'
+    #swagger.parameters['$ref'] = [
+      '#/components/parameters/language',
+      '#/components/parameters/dataset_id'
+    ]
     #swagger.responses[200] = {
-      description: 'A published dataset',
+      description: 'A json object containing all metadata for a published dataset',
       schema: { $ref: "#/components/schemas/Dataset" }
     }
   */
@@ -70,19 +73,20 @@ export const getPublishedDatasetById = async (req: Request, res: Response) => {
 
 export const getPublishedDatasetView = async (req: Request, res: Response) => {
   /*
-    #swagger.summary = 'Get the data view for a published dataset'
-    #swagger.description = 'Returns a paginated view of a published dataset, with optional sorting and filtering.'
+    #swagger.summary = 'Get a paginated view of a published dataset'
+    #swagger.description = 'This endpoint returns a paginated view of a published dataset, with optional sorting and
+      filtering.'
     #swagger.autoQuery = false
     #swagger.parameters['$ref'] = [
-      '#/components/parameters/dataset_id',
       '#/components/parameters/language',
+      '#/components/parameters/dataset_id',
       '#/components/parameters/page_number',
       '#/components/parameters/page_size',
       '#/components/parameters/sort_by',
       '#/components/parameters/filter'
     ]
     #swagger.responses[200] = {
-      description: 'A paginated view of the dataset.',
+      description: 'A paginated view of a published dataset, with optional sorting and filtering',
       content: {
         'application/json': {
           schema: { $ref: "#/components/schemas/DatasetView" }
@@ -117,9 +121,21 @@ export const getPublishedDatasetView = async (req: Request, res: Response) => {
 
 export const getPublishedDatasetFilters = async (req: Request, res: Response) => {
   /*
-    #swagger.summary = 'Get the available filters for the dataset view'
-    #swagger.description = 'Returns a list of available filters for the dataset view, based on the dimensions available.'
+    #swagger.summary = 'Get a list of the filters available for a paginated view of a published dataset'
+    #swagger.description = 'This endpoint returns a list of the filters available for a paginated view of a published
+      dataset. These are based on the variables used in the dataset, for example local authorities or financial years.'
     #swagger.autoQuery = false
+    #swagger.parameters['$ref'] = [
+      '#/components/parameters/language'
+    ]
+    #swagger.responses[200] = {
+      description: 'A list of the filters available for a paginated view of a published dataset',
+      content: {
+        'application/json': {
+          schema: { $ref: "#/components/schemas/Filters" }
+        }
+      }
+    }
   */
   const dataset = await PublishedDatasetRepository.getById(res.locals.datasetId, { publishedRevision: true });
   const lang = req.language.toLowerCase();
@@ -135,22 +151,18 @@ export const getPublishedDatasetFilters = async (req: Request, res: Response) =>
 export const downloadPublishedDataset = async (req: Request, res: Response, next: NextFunction) => {
   /*
     #swagger.summary = 'Download a published dataset as a file'
-    #swagger.description = 'Downloads a published dataset in one of several supported formats.'
+    #swagger.description = 'This endpoint returns a published dataset file in a specified format.'
     #swagger.autoQuery = false
     #swagger.parameters['$ref'] = [
-      '#/components/parameters/dataset_id',
       '#/components/parameters/language',
+      '#/components/parameters/dataset_id',
       '#/components/parameters/format'
     ]
     #swagger.responses[200] = {
-      description: 'The dataset file in the specified format.',
+      description: 'A published dataset file in a specified format',
       content: {
         'application/octet-stream': {
-          schema: {
-            type: 'string',
-            format: 'binary',
-            example: 'data.csv'
-          }
+          schema: { type: 'string', format: 'binary', example: 'data.csv' }
         }
       }
     }
@@ -179,14 +191,14 @@ export const downloadPublishedDataset = async (req: Request, res: Response, next
 
 export const listRootTopics = async (req: Request, res: Response, next: NextFunction) => {
   /*
-    #swagger.summary = 'List root (top-level) topics'
-    #swagger.description = 'Datasets are hierarchically organized into topics. Each topic can have zero or more
-      sub-topics. This endpoint returns a list of the root topics that have at least one published dataset.'
+    #swagger.summary = 'Get a list of top-level topics'
+    #swagger.description = 'Datasets are tagged to topics. There are top-level topics, such as 'Health and social care',
+      which can have sub-topics, such as 'Dental services'. This endpoint returns a list of all top-level topics that
+      have at least one published dataset tagged to them.'
     #swagger.autoQuery = false
     #swagger.parameters['$ref'] = ['#/components/parameters/language']
     #swagger.responses[200] = {
-      description: 'An object containing all root level topics (children). For root topics, the path is always equal
-        to the id.',
+      description: 'A list of all top-level topics that have at least one published dataset tagged to them.',
       schema: { $ref: "#/components/schemas/RootTopics" }
     }
   */
@@ -212,10 +224,11 @@ export const listRootTopics = async (req: Request, res: Response, next: NextFunc
 
 export const listSubTopics = async (req: Request, res: Response, next: NextFunction) => {
   /*
-    #swagger.summary = 'List of sub-topics for a given topic'
-    #swagger.description = 'Datasets are hierarchically organized into topics. Each topic can have zero or more
-      sub-topics. This endpoint returns a list of the sub-topics of the topic specified by `topic_id` in the path.
-      If the topic has no sub-topics, it will return the datasets for that topic instead.'
+    #swagger.summary = 'Get a list of sub-topics for a given top-level topic'
+    #swagger.description = 'Datasets are tagged to topics. There are top-level topics, such as 'Health and social care',
+      which can have sub-topics, such as 'Dental services'. This endpoint returns a list of the sub-topics for a given
+      top-level topic_id. If the top-level topic has no sub-topics, the endpoint will return a list of the published
+      datasets for that topic instead.'
     #swagger.autoQuery = false
     #swagger.parameters['$ref'] = [
       '#/components/parameters/language',
@@ -230,8 +243,8 @@ export const listSubTopics = async (req: Request, res: Response, next: NextFunct
       example: '1'
     }
     #swagger.responses[200] = {
-      description: 'An object containing the selected topic, any sub-topics (children), any parent topics (parents)
-        and if it has no sub-topics, any associated datasets. For sub-topics, the path includes the parent ids.',
+      description: 'A list of the sub-topics for a given top-level topic, or a list of the published datasets for a
+        given top-level topic if it has no sub-topics',
       schema: { $ref: "#/components/schemas/PublishedTopics" }
     }
   */
