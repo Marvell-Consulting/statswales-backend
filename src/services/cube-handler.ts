@@ -575,7 +575,7 @@ export async function createDateDimension(quack: Database, extractor: object | n
   logger.debug(`Period coverage: ${zonedStartDate} to ${zonedEndDate}`);
 
   await quack.exec(`CREATE TABLE IF NOT EXISTS metadata (key VARCHAR, value VARCHAR);`);
-  const metaDataCoverage = await quack.all("SELECT * FROM metadata WHERE key = 'start_data' OR key = 'end_date';");
+  const metaDataCoverage = await quack.all("SELECT * FROM metadata WHERE key in ('start_data', 'end_date');");
   if (metaDataCoverage.length > 0) {
     for (const metaData of metaDataCoverage) {
       if (metaData.key === 'start_date') {
@@ -2028,12 +2028,25 @@ export const createAllCubeFiles = async (datasetId: string, endRevisionId: strin
 };
 
 export const getCubeTimePeriods = async (revisionId: string): Promise<PeriodCovered> => {
-  const cubeDB = getCubeDB();
-  const periodCoverage: QueryResult<{ key: string; value: string }> = await cubeDB.query(
-    pgformat(`SELECT key, value FROM %I.metadata WHERE key in ('start_date', 'end_date')`, revisionId)
+  const connection = await getCubeDB().connect();
+  const periodCoverage: QueryResult<{ key: string; value: string }> = await connection.query(
+    pgformat(
+      `SELECT key, value
+              FROM %I.metadata
+              WHERE key in ('start_date', 'end_date')`,
+      revisionId
+    )
   );
-  return {
-    start_date: new Date(periodCoverage.rows[0].value),
-    end_date: new Date(periodCoverage.rows[1].value)
-  };
+  connection.release();
+  if (periodCoverage.rows.length > 0) {
+    return {
+      start_date: new Date(periodCoverage.rows[0].value),
+      end_date: new Date(periodCoverage.rows[1].value)
+    };
+  } else {
+    return {
+      start_date: null,
+      end_date: null
+    };
+  }
 };
