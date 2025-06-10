@@ -14,12 +14,9 @@ const outputFile = path.join(__dirname, '../src/routes/consumer/v1/openapi.json'
 const doc = {
   info: {
     version: '1.0.0',
-    title: 'StatsWales 3 Consumer API',
-    description: 'This website provides documentation for StatsWales 3 public API.',
-    contact: {
-      name: 'StatsWales Support',
-      email: 'StatsWales@gov.wales'
-    }
+    title: 'StatsWales public API',
+    description: `This page will help you use the public API for StatsWales. If you need any other support,
+      <a href="mailto:StatsWales@gov.wales">contact StatsWales<a>.`
   },
   servers: [{ description: 'Development', url: 'https://api.dev.stats.cymru/v1' }],
   components: {
@@ -27,44 +24,53 @@ const doc = {
       language: {
         name: 'accept-language',
         in: 'header',
-        description: 'Language for the response. Supported languages: "cy" for Welsh, "en" for English',
+        description: 'Language to use for the response, either "cy-gb" for Welsh or "en-gb" for English',
         required: false,
-        type: 'string',
-        default: 'en'
-      },
-      page: {
-        name: 'page',
-        in: 'query',
-        description: 'Page number for pagination',
-        required: false,
-        type: 'integer',
-        default: 1
-      },
-      limit: {
-        name: 'limit',
-        in: 'query',
-        description: 'Number of datasets per page',
-        required: false,
-        type: 'integer',
-        default: 10
+        schema: { type: 'string', enum: ['cy-gb', 'en-gb'], default: 'en-gb' }
       },
       dataset_id: {
         name: 'dataset_id',
         in: 'path',
-        description: 'The unique identifier of the dataset to retrieve',
+        description: 'The unique identifier of the desired dataset',
         required: true,
-        type: 'string',
-        format: 'uuid',
+        schema: { type: 'string', format: 'uuid' },
         example: '141baa8a-2ed0-45cb-ad4a-83de8c2333b5'
       },
       format: {
         name: 'format',
         in: 'query',
-        description: 'Format of the response data. Supported formats: ',
+        description: 'File format for the download',
         required: true,
-        type: 'string',
-        enum: ['json', 'csv', 'xlsx', 'parquet', 'duckdb'],
+        schema: { type: 'string', enum: ['json', 'csv', 'xlsx', 'parquet', 'duckdb'], default: 'json' },
         example: 'csv'
+      },
+      page_number: {
+        name: 'page_number',
+        in: 'query',
+        description: 'Page number for pagination',
+        required: false,
+        schema: { type: 'integer', default: 1 }
+      },
+      page_size: {
+        name: 'page_size',
+        in: 'query',
+        description: 'Number of datasets per page',
+        required: false,
+        schema: { type: 'integer', default: 10 }
+      },
+      sort_by: {
+        name: 'sort_by',
+        in: 'query',
+        description: 'Column to sort the resultset by',
+        required: false,
+        schema: { type: 'string' }
+      },
+      filter: {
+        name: 'filter',
+        in: 'query',
+        description: 'Properties to filter the resultset by',
+        required: false,
+        schema: { type: 'object' }
       }
     },
     // eslint-disable-next-line @typescript-eslint/naming-convention
@@ -364,6 +370,49 @@ const doc = {
           parents: { type: 'array', items: { $ref: '#/components/schemas/Topic' } },
           datasets: { $ref: '#/components/schemas/DatasetsWithCount' }
         }
+      },
+      Filter: {
+        type: 'object',
+        properties: {
+          factTableColumn: { type: 'string' },
+          columnName: { type: 'string' },
+          values: {
+            type: 'array',
+            items: {
+              type: 'object',
+              properties: {
+                reference: { type: 'string' },
+                description: { type: 'string' }
+              }
+            }
+          }
+        }
+      },
+      Filters: {
+        type: 'array',
+        items: { $ref: '#/components/schemas/Filter' },
+        example: [
+          {
+            factTableColumn: 'YearCode',
+            columnName: 'Year',
+            values: [
+              { reference: '2020', description: '2020' },
+              { reference: '2021', description: '2021' },
+              { reference: '2022', description: '2022' },
+              { reference: '2023', description: '2023' }
+            ]
+          },
+          {
+            factTableColumn: 'AreaCode',
+            columnName: 'Area',
+            values: [
+              { reference: 'K02000001', description: 'United Kingdom' },
+              { reference: 'K03000001', description: 'Great Britain' },
+              { reference: 'E92000001', description: 'England' },
+              { reference: 'E12000001', description: 'North East' }
+            ]
+          }
+        ]
       }
     }
   }

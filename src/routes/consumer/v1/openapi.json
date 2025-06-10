@@ -2,12 +2,8 @@
   "openapi": "3.1.1",
   "info": {
     "version": "1.0.0",
-    "title": "StatsWales 3 Consumer API",
-    "description": "This website provides documentation for StatsWales 3 public API.",
-    "contact": {
-      "name": "StatsWales Support",
-      "email": "StatsWales@gov.wales"
-    }
+    "title": "StatsWales public API",
+    "description": "This page will help you use the public API for StatsWales. If you need any other support,\n      <a href=\"mailto:StatsWales@gov.wales\">contact StatsWales<a>."
   },
   "servers": [
     {
@@ -18,22 +14,22 @@
   "paths": {
     "/": {
       "get": {
-        "summary": "List all published datasets",
-        "description": "Returns a paginated list of published datasets.",
+        "summary": "Get a list of all published datasets",
+        "description": "This endpoint returns a list of all published datasets.",
         "parameters": [
           {
             "$ref": "#/components/parameters/language"
           },
           {
-            "$ref": "#/components/parameters/page"
+            "$ref": "#/components/parameters/page_number"
           },
           {
-            "$ref": "#/components/parameters/limit"
+            "$ref": "#/components/parameters/page_size"
           }
         ],
         "responses": {
           "200": {
-            "description": "A paginated list of published datasets.",
+            "description": "A paginated list of all published datasets",
             "content": {
               "application/json": {
                 "schema": {
@@ -47,8 +43,8 @@
     },
     "/topic": {
       "get": {
-        "summary": "List root (top-level) topics",
-        "description": "Datasets are hierarchically organized into topics. Each topic can have zero or more  sub-topics. This endpoint returns a list of the root topics that have at least one published dataset.",
+        "summary": "Get a list of top-level topics",
+        "description": "Datasets are tagged to topics. There are top-level topics, such as ",
         "parameters": [
           {
             "$ref": "#/components/parameters/language"
@@ -56,7 +52,7 @@
         ],
         "responses": {
           "200": {
-            "description": "An object containing all root level topics (children). For root topics, the path is always equal  to the id.",
+            "description": "A list of all top-level topics that have at least one published dataset tagged to them.",
             "content": {
               "application/json": {
                 "schema": {
@@ -75,8 +71,8 @@
     },
     "/topic/{topic_id}": {
       "get": {
-        "summary": "List of sub-topics for a given topic",
-        "description": "Datasets are hierarchically organized into topics. Each topic can have zero or more  sub-topics. This endpoint returns a list of the sub-topics of the topic specified by `topic_id` in the path.  If the topic has no sub-topics, it will return the datasets for that topic instead.",
+        "summary": "Get a list of sub-topics for a given top-level topic",
+        "description": "Datasets are tagged to topics. There are top-level topics, such as ",
         "parameters": [
           {
             "name": "topic_id",
@@ -98,7 +94,7 @@
         ],
         "responses": {
           "200": {
-            "description": "An object containing the selected topic, any sub-topics (children), any parent topics (parents)  and if it has no sub-topics, any associated datasets. For sub-topics, the path includes the parent ids.",
+            "description": "A list of the sub-topics for a given top-level topic, or a list of the published datasets for a  given top-level topic if it has no sub-topics",
             "content": {
               "application/json": {
                 "schema": {
@@ -117,16 +113,19 @@
     },
     "/{dataset_id}": {
       "get": {
-        "summary": "Get a published dataset by ID",
-        "description": "Returns a single published dataset with all it\\'s nested properities.",
+        "summary": "Get a published dataset's metadata",
+        "description": "This endpoint returns all metadata for a published dataset.",
         "parameters": [
+          {
+            "$ref": "#/components/parameters/language"
+          },
           {
             "$ref": "#/components/parameters/dataset_id"
           }
         ],
         "responses": {
           "200": {
-            "description": "A published dataset",
+            "description": "A json object containing all metadata for a published dataset",
             "content": {
               "application/json": {
                 "schema": {
@@ -145,14 +144,14 @@
     },
     "/{dataset_id}/view": {
       "get": {
-        "summary": "Get the data view for a published dataset",
-        "description": "Returns a paginated view of a published dataset, with optional sorting and filtering.",
+        "summary": "Get a paginated view of a published dataset",
+        "description": "This endpoint returns a paginated view of a published dataset, with optional sorting and  filtering.",
         "parameters": [
           {
-            "$ref": "#/components/parameters/dataset_id"
+            "$ref": "#/components/parameters/language"
           },
           {
-            "$ref": "#/components/parameters/language"
+            "$ref": "#/components/parameters/dataset_id"
           },
           {
             "$ref": "#/components/parameters/page_number"
@@ -169,7 +168,7 @@
         ],
         "responses": {
           "200": {
-            "description": "A paginated view of the dataset.",
+            "description": "A paginated view of a published dataset, with optional sorting and filtering",
             "content": {
               "application/json": {
                 "schema": {
@@ -183,8 +182,8 @@
     },
     "/{dataset_id}/view/filters": {
       "get": {
-        "summary": "Get the available filters for the dataset view",
-        "description": "Returns a list of available filters for the dataset view, based on the dimensions available.",
+        "summary": "Get a list of the filters available for a paginated view of a published dataset",
+        "description": "This endpoint returns a list of the filters available for a paginated view of a published  dataset. These are based on the variables used in the dataset, for example local authorities or financial years.",
         "parameters": [
           {
             "name": "dataset_id",
@@ -193,11 +192,21 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/language"
           }
         ],
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "A list of the filters available for a paginated view of a published dataset",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Filters"
+                }
+              }
+            }
           }
         }
       }
@@ -205,13 +214,13 @@
     "/{dataset_id}/download/{format}": {
       "get": {
         "summary": "Download a published dataset as a file",
-        "description": "Downloads a published dataset in one of several supported formats.",
+        "description": "This endpoint returns a published dataset file in a specified format.",
         "parameters": [
           {
-            "$ref": "#/components/parameters/dataset_id"
+            "$ref": "#/components/parameters/language"
           },
           {
-            "$ref": "#/components/parameters/language"
+            "$ref": "#/components/parameters/dataset_id"
           },
           {
             "$ref": "#/components/parameters/format"
@@ -219,7 +228,7 @@
         ],
         "responses": {
           "200": {
-            "description": "The dataset file in the specified format.",
+            "description": "A published dataset file in a specified format",
             "content": {
               "application/octet-stream": {
                 "schema": {
@@ -239,50 +248,83 @@
       "language": {
         "name": "accept-language",
         "in": "header",
-        "description": "Language for the response. Supported languages: \"cy\" for Welsh, \"en\" for English",
+        "description": "Language to use for the response, either \"cy-gb\" for Welsh or \"en-gb\" for English",
         "required": false,
-        "type": "string",
-        "default": "en"
-      },
-      "page": {
-        "name": "page",
-        "in": "query",
-        "description": "Page number for pagination",
-        "required": false,
-        "type": "integer",
-        "default": 1
-      },
-      "limit": {
-        "name": "limit",
-        "in": "query",
-        "description": "Number of datasets per page",
-        "required": false,
-        "type": "integer",
-        "default": 10
+        "schema": {
+          "type": "string",
+          "enum": [
+            "cy-gb",
+            "en-gb"
+          ],
+          "default": "en-gb"
+        }
       },
       "dataset_id": {
         "name": "dataset_id",
         "in": "path",
-        "description": "The unique identifier of the dataset to retrieve",
+        "description": "The unique identifier of the desired dataset",
         "required": true,
-        "type": "string",
-        "format": "uuid",
+        "schema": {
+          "type": "string",
+          "format": "uuid"
+        },
         "example": "141baa8a-2ed0-45cb-ad4a-83de8c2333b5"
       },
       "format": {
         "name": "format",
         "in": "query",
-        "description": "Format of the response data. Supported formats: ",
+        "description": "File format for the download",
         "required": true,
-        "type": "string",
-        "enum": [
-          "json",
-          "csv",
-          "xlsx",
-          "parquet",
-          "duckdb"
-        ],
+        "schema": {
+          "type": "string",
+          "enum": [
+            "json",
+            "csv",
+            "xlsx",
+            "parquet",
+            "duckdb"
+          ],
+          "default": "json"
+        },
         "example": "csv"
+      },
+      "page_number": {
+        "name": "page_number",
+        "in": "query",
+        "description": "Page number for pagination",
+        "required": false,
+        "schema": {
+          "type": "integer",
+          "default": 1
+        }
+      },
+      "page_size": {
+        "name": "page_size",
+        "in": "query",
+        "description": "Number of datasets per page",
+        "required": false,
+        "schema": {
+          "type": "integer",
+          "default": 10
+        }
+      },
+      "sort_by": {
+        "name": "sort_by",
+        "in": "query",
+        "description": "Column to sort the resultset by",
+        "required": false,
+        "schema": {
+          "type": "string"
+        }
+      },
+      "filter": {
+        "name": "filter",
+        "in": "query",
+        "description": "Properties to filter the resultset by",
+        "required": false,
+        "schema": {
+          "type": "object"
+        }
       }
     },
     "schemas": {
@@ -716,6 +758,83 @@
             "$ref": "#/components/schemas/DatasetsWithCount"
           }
         }
+      },
+      "Filter": {
+        "type": "object",
+        "properties": {
+          "factTableColumn": {
+            "type": "string"
+          },
+          "columnName": {
+            "type": "string"
+          },
+          "values": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "reference": {
+                  "type": "string"
+                },
+                "description": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      },
+      "Filters": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/Filter"
+        },
+        "example": [
+          {
+            "factTableColumn": "YearCode",
+            "columnName": "Year",
+            "values": [
+              {
+                "reference": "2020",
+                "description": "2020"
+              },
+              {
+                "reference": "2021",
+                "description": "2021"
+              },
+              {
+                "reference": "2022",
+                "description": "2022"
+              },
+              {
+                "reference": "2023",
+                "description": "2023"
+              }
+            ]
+          },
+          {
+            "factTableColumn": "AreaCode",
+            "columnName": "Area",
+            "values": [
+              {
+                "reference": "K02000001",
+                "description": "United Kingdom"
+              },
+              {
+                "reference": "K03000001",
+                "description": "Great Britain"
+              },
+              {
+                "reference": "E92000001",
+                "description": "England"
+              },
+              {
+                "reference": "E12000001",
+                "description": "North East"
+              }
+            ]
+          }
+        ]
       }
     }
   }
