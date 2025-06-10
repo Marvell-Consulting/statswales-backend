@@ -8,12 +8,26 @@ import { UserDTO } from './user-dto';
 import { UserGroupMetadataDTO } from './user-group-metadata-dto';
 import { UserGroupRole } from '../../entities/user/user-group-role';
 import { UserWithRolesDTO } from './user-with-roles-dto';
+import { IsOptional, IsString, IsUUID, ValidateNested } from 'class-validator';
+import { Type } from 'class-transformer';
 
 export class UserGroupDTO {
+  @IsUUID(4)
   id: string;
+
+  @IsString()
+  @IsOptional()
   prefix?: string;
+
+  @Type(() => UserGroupMetadataDTO)
+  @ValidateNested({ each: true })
+  @IsOptional()
   metadata?: UserGroupMetadataDTO[];
+
+  @IsUUID(4)
+  @IsOptional()
   organisation_id?: string;
+
   organisation?: OrganisationDTO;
   users?: UserWithRolesDTO[];
   user_count?: number;

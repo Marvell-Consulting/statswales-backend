@@ -74,6 +74,11 @@ export const createUserGroup = async (req: Request, res: Response, next: NextFun
     const group = await UserGroupRepository.createGroup(meta);
     res.json(UserGroupDTO.fromUserGroup(group, req.language as Locale));
   } catch (err) {
+    if (err instanceof BadRequestException) {
+      next(err);
+      return;
+    }
+
     logger.error(err, 'Error creating group');
     next(new UnknownException());
   }
@@ -110,7 +115,7 @@ export const getUserGroupById = async (req: Request, res: Response) => {
   res.json(UserGroupDTO.fromUserGroup(group, req.language as Locale));
 };
 
-export const updateUserGroup = async (req: Request, res: Response) => {
+export const updateUserGroup = async (req: Request, res: Response, next: NextFunction) => {
   let group = res.locals.userGroup;
 
   try {
@@ -118,6 +123,11 @@ export const updateUserGroup = async (req: Request, res: Response) => {
     group = await UserGroupRepository.updateGroup(group, dto);
     res.json(UserGroupDTO.fromUserGroup(group, req.language as Locale));
   } catch (err) {
+    if (err instanceof BadRequestException) {
+      next(err);
+      return;
+    }
+
     logger.error(err, 'Error updating group');
     throw new UnknownException();
   }
