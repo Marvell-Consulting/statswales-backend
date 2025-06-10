@@ -42,10 +42,10 @@ export const listPublishedDatasets = async (req: Request, res: Response, next: N
 
   try {
     const lang = req.language as Locale;
-    const page = parseInt(req.query.page_number as string, 10) || 1;
-    const limit = parseInt(req.query.page_size as string, 10) || 10;
+    const pageNumber = parseInt(req.query.page_number as string, 10) || 1;
+    const pageSize = parseInt(req.query.page_size as string, 10) || 10;
 
-    const results = await PublishedDatasetRepository.listPublishedByLanguage(lang, page, limit);
+    const results = await PublishedDatasetRepository.listPublishedByLanguage(lang, pageNumber, pageSize);
 
     res.json(results);
   } catch (err) {
@@ -232,16 +232,10 @@ export const listSubTopics = async (req: Request, res: Response, next: NextFunct
     #swagger.autoQuery = false
     #swagger.parameters['$ref'] = [
       '#/components/parameters/language',
-      '#/components/parameters/page',
-      '#/components/parameters/limit'
+      '#/components/parameters/topic_id',
+      '#/components/parameters/page_number',
+      '#/components/parameters/page_size'
     ]
-    #swagger.parameters['topic_id'] = {
-      in: 'path',
-      description: 'The ID of the topic to list child-topics for.',
-      required: true,
-      type: 'string',
-      example: '1'
-    }
     #swagger.responses[200] = {
       description: 'A list of the sub-topics for a given top-level topic, or a list of the published datasets for a
         given top-level topic if it has no sub-topics',
@@ -267,9 +261,9 @@ export const listSubTopics = async (req: Request, res: Response, next: NextFunct
 
     if (isLeafTopic) {
       // if this is a leaf topic (no children) then also fetch datasets
-      const page = parseInt(req.query.page as string, 10) || 1;
-      const limit = parseInt(req.query.limit as string, 10) || 1000;
-      datasets = await PublishedDatasetRepository.listPublishedByTopic(topicId, lang, page, limit);
+      const pageNumber = parseInt(req.query.page_number as string, 10) || 1;
+      const pageSize = parseInt(req.query.page_size as string, 10) || 1000;
+      datasets = await PublishedDatasetRepository.listPublishedByTopic(topicId, lang, pageNumber, pageSize);
     }
 
     const data: PublishedTopicsDTO = {

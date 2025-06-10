@@ -36,6 +36,14 @@ const doc = {
         schema: { type: 'string', format: 'uuid' },
         example: '141baa8a-2ed0-45cb-ad4a-83de8c2333b5'
       },
+      topic_id: {
+        name: 'topic_id',
+        in: 'path',
+        description: 'The unique identifier of the desired topic',
+        required: true,
+        schema: { type: 'integer' },
+        example: '91'
+      },
       format: {
         name: 'format',
         in: 'query',
@@ -61,14 +69,14 @@ const doc = {
       sort_by: {
         name: 'sort_by',
         in: 'query',
-        description: 'Column to sort the resultset by',
+        description: 'Column to sort the data by',
         required: false,
         schema: { type: 'string' }
       },
       filter: {
         name: 'filter',
         in: 'query',
-        description: 'Properties to filter the resultset by',
+        description: 'Properties to filter the data by',
         required: false,
         schema: { type: 'object' }
       }
@@ -331,6 +339,16 @@ const doc = {
           name_cy: { type: 'string', description: 'Name of the topic in Welsh', example: 'Trafnidiaeth' }
         }
       },
+      SubTopic: {
+        type: 'object',
+        properties: {
+          id: { type: 'integer', description: 'ID of the topic', example: 93 },
+          path: { type: 'string', description: 'Path of the topic', example: '92.93' },
+          name: { type: 'string', description: 'Name in the current language', example: 'Air' },
+          name_en: { type: 'string', description: 'Name of the topic in English', example: 'Air' },
+          name_cy: { type: 'string', description: 'Name of the topic in Welsh', example: 'Awyr' }
+        }
+      },
       RootTopics: {
         type: 'object',
         properties: {
@@ -365,8 +383,8 @@ const doc = {
       PublishedTopics: {
         type: 'object',
         properties: {
-          selectedTopic: { $ref: '#/components/schemas/Topic' },
-          children: { type: 'array', items: { $ref: '#/components/schemas/Topic' } },
+          selectedTopic: { $ref: '#/components/schemas/SubTopic' },
+          children: { type: 'array', items: [] },
           parents: { type: 'array', items: { $ref: '#/components/schemas/Topic' } },
           datasets: { $ref: '#/components/schemas/DatasetsWithCount' }
         }
