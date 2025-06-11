@@ -57,6 +57,8 @@ import { SortByInterface } from '../interfaces/sort-by-interface';
 import { FilterInterface } from '../interfaces/filterInterface';
 import { FindOptionsRelations } from 'typeorm';
 import { getFilters } from '../services/consumer-view';
+import fs from 'node:fs';
+import { asyncTmpName } from '../utils/async-tmp';
 
 export const getDataTable = async (req: Request, res: Response, next: NextFunction) => {
   const revision: Revision = res.locals.revision;
@@ -413,8 +415,7 @@ export const updateDataTable = async (req: Request, res: Response, next: NextFun
 
   let dataTable: DataTable;
   try {
-    const uploadResult = await validateAndUpload(req.file, datasetId, 'data_table');
-    dataTable = uploadResult.dataTable;
+    dataTable = await validateAndUpload(req.file, datasetId, 'data_table');
   } catch (err) {
     const error = err as FileValidationException;
     logger.error(error, `An error occurred trying to upload the file`);
@@ -424,6 +425,10 @@ export const updateDataTable = async (req: Request, res: Response, next: NextFun
       const error = err as FileValidationException;
       return next(new BadRequestException(error.errorTag));
     }
+  } finally {
+    fs.unlink(req.file.path, (err) => {
+      logger.warn(err, 'Something went wrong trying to remove multer temporary file');
+    });
   }
 
   try {
@@ -597,9 +602,28 @@ export const regenerateRevisionCube = async (req: Request, res: Response, next: 
     .filter((rev) => !!rev?.dataTable);
 
   for (const rev of revisionTree) {
+    if (!rev) {
+      continue;
+    }
     logger.debug(`Recreating datatable ${rev.dataTable?.id} in postgres data_tables database`);
-    const buffer = await req.fileService.loadBuffer(rev.dataTable!.filename, datasetId);
-    await extractTableInformation(buffer, rev.dataTable!, 'data_table');
+    const tmpFile = await asyncTmpName({ postfix: rev.dataTable!.filename.split('.').reverse()[0] });
+    const downloadStream = await req.fileService.loadStream(rev.dataTable!.filename, dataset.id);
+    const writeStream = fs.createWriteStream(tmpFile);
+    downloadStream.pipe(writeStream);
+
+    const fileObj: Express.Multer.File = {
+      originalname: rev.dataTable!.originalFilename || 'unknown',
+      mimetype: rev.dataTable!.mimeType,
+      path: tmpFile,
+      fieldname: '',
+      encoding: '',
+      size: 0,
+      stream: new Readable(),
+      destination: '',
+      filename: '',
+      buffer: Buffer.alloc(0)
+    };
+    await extractTableInformation(fileObj, rev.dataTable!, 'data_table');
   }
 
   try {

@@ -20,6 +20,7 @@ import { DimensionRepository } from '../../src/repositories/dimension';
 import { DatasetRepository } from '../../src/repositories/dataset';
 import { duckdb, linkToPostgres, linkToPostgresDataTables } from '../../src/services/duckdb';
 import { logger } from '../../src/utils/logger';
+import { Readable } from 'node:stream';
 
 export async function createSmallDataset(
   datasetId: string,
@@ -42,7 +43,20 @@ export async function createSmallDataset(
   dataTable.fileType = fileType;
   dataTable.mimeType = mimeType;
 
-  const dataTableDescriptions = await extractTableInformation(testFileBuffer, dataTable, 'lookup_table');
+  const fileObj: Express.Multer.File = {
+    originalname: path.basename(testFile),
+    mimetype: mimeType,
+    path: testFile,
+    fieldname: '',
+    encoding: '',
+    size: 0,
+    stream: new Readable(),
+    destination: '',
+    filename: '',
+    buffer: Buffer.alloc(0)
+  };
+
+  const dataTableDescriptions = await extractTableInformation(fileObj, dataTable, 'lookup_table');
   dataTableDescriptions.forEach((desc) => {
     desc.factTableColumn = desc.columnName;
   });
