@@ -9,8 +9,7 @@ import {
   DatasetRepository,
   withDraftAndMetadata,
   withDraftAndProviders,
-  withDraftAndTopics,
-  withDraftForTasklistState
+  withDraftAndTopics
 } from '../repositories/dataset';
 import { RevisionRepository } from '../repositories/revision';
 import { logger } from '../utils/logger';
@@ -361,13 +360,43 @@ export class DatasetService {
   }
 
   async getTasklistState(datasetId: string, locale: Locale): Promise<TasklistStateDTO> {
-    const dataset = await DatasetRepository.getById(datasetId, withDraftForTasklistState);
-    const revision = dataset.draftRevision!;
+    logger.debug(`Generating tasklist state for: ${datasetId}`);
+
+    const dataset = await DatasetRepository.getById(datasetId, {
+      dimensions: { metadata: true },
+      measure: { metadata: true }
+    });
+
+    const revision = await RevisionRepository.getById(dataset.draftRevisionId!, {
+      metadata: true,
+      dataTable: true,
+      revisionProviders: true,
+      revisionTopics: true
+    });
+
+    if (!revision) {
+      throw new BadRequestException('errors.get_tasklist_state.no_draft_revision');
+    }
+
+    dataset.draftRevision = revision;
+
+    if (revision.previousRevisionId) {
+      const previousRevision = await RevisionRepository.getById(revision.previousRevisionId, {
+        metadata: true,
+        dataTable: true,
+        revisionProviders: true,
+        revisionTopics: true
+      });
+
+      revision.previousRevision = previousRevision;
+    }
 
     const translationEvents = await EventLog.getRepository().find({
       where: { entity: 'translations', entityId: revision.id },
       order: { createdAt: 'DESC' }
     });
+
+    logger.debug(`Found ${translationEvents.length} translation events for revision: ${revision.id}`);
 
     return TasklistStateDTO.fromDataset(dataset, revision, locale, translationEvents);
   }
