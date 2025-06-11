@@ -94,7 +94,7 @@ export class DatasetService {
     });
 
     logger.debug('Uploading new fact table file to filestore');
-    const { dataTable } = await validateAndUpload(file, datasetId, 'data_table');
+    const dataTable = await validateAndUpload(file, datasetId, 'data_table');
 
     dataTable.action = DataTableAction.ReplaceAll;
 

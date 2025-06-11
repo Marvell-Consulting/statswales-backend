@@ -54,6 +54,7 @@ import { EventLogDTO } from '../dtos/event-log-dto';
 import { EventLog } from '../entities/event-log';
 import { SortByInterface } from '../interfaces/sort-by-interface';
 import { FilterInterface } from '../interfaces/filterInterface';
+import fs from 'node:fs';
 
 export const listUserDatasets = async (req: Request, res: Response, next: NextFunction) => {
   try {
@@ -198,6 +199,10 @@ export const uploadDataTable = async (req: Request, res: Response, next: NextFun
       ]
     };
     res.json(error);
+  } finally {
+    fs.unlink(req.file.path, (err) => {
+      logger.warn(err, 'Failed to delete uploaded file');
+    });
   }
 };
 

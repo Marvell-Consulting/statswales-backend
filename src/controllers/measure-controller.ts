@@ -18,6 +18,7 @@ import { Readable } from 'node:stream';
 import { MeasureDTO } from '../dtos/measure-dto';
 import { DatasetRepository } from '../repositories/dataset';
 import { createAllCubeFiles } from '../services/cube-handler';
+import fs from 'node:fs';
 
 export const resetMeasure = async (req: Request, res: Response, next: NextFunction) => {
   const dataset = res.locals.dataset;
@@ -64,10 +65,10 @@ export const attachLookupTableToMeasure = async (req: Request, res: Response, ne
   });
 
   try {
-    const { dataTable, buffer } = await validateAndUpload(req.file, dataset.id, 'lookup_table');
+    const dataTable = await validateAndUpload(req.file, dataset.id, 'lookup_table');
     const lang = req.language.toLowerCase();
     const tableMatcher = req.body as MeasureLookupPatchDTO;
-    const result = await validateMeasureLookupTable(dataTable, dataset, buffer, lang, tableMatcher);
+    const result = await validateMeasureLookupTable(dataTable, dataset, req.file, lang, tableMatcher);
     await createAllCubeFiles(dataset.id, dataset.draftRevision!.id);
     res.status((result as ViewErrDTO).status || 200);
 
@@ -77,6 +78,10 @@ export const attachLookupTableToMeasure = async (req: Request, res: Response, ne
     await createAllCubeFiles(dataset.id, dataset.draftRevision!.id);
     logger.error(err, `An error occurred trying to process and upload the file`);
     next(new UnknownException('errors.upload_error'));
+  } finally {
+    fs.unlink(req.file.path, (err) => {
+      logger.warn(err, 'Something went wrong trying to remove multer temporary file');
+    });
   }
 };
 

@@ -64,7 +64,17 @@ export const loadRevision = (relations?: FindOptionsRelations<Revision>) => {
 };
 
 const jsonParser = express.json();
-const upload = multer({ storage: multer.memoryStorage() });
+const storage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    cb(null, '/tmp/multer-storage');
+  },
+  filename: function (req, file, cb) {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
+    cb(null, file.fieldname + '-' + uniqueSuffix + '.' + file.originalname.split('.').reverse()[0]);
+  }
+});
+
+const upload = multer({ storage });
 
 const router = Router();
 export const revisionRouter = router;
