@@ -1,5 +1,7 @@
 export enum DatasetInclude {
-  All = 'all',
+  Preview = 'preview',
+  Developer = 'developer',
+  LatestRevision = 'latest',
   Meta = 'metadata',
   Data = 'data',
   Measure = 'measure',

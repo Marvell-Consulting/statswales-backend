@@ -59,14 +59,21 @@ import { FindOptionsRelations } from 'typeorm';
 import { getFilters } from '../services/consumer-view';
 
 export const getDataTable = async (req: Request, res: Response, next: NextFunction) => {
+  const revision: Revision = res.locals.revision;
+
+  if (!revision.dataTableId) {
+    throw new NotFoundException('errors.revision.no_data_table');
+  }
+
   try {
     const dataTable = await DataTable.findOneOrFail({
-      where: { id: req.params.id },
+      where: { id: revision.dataTableId },
       relations: { dataTableDescriptions: true, revision: true }
     });
     const dto = DataTableDto.fromDataTable(dataTable);
     res.json(dto);
   } catch (_err) {
+    logger.error(_err, `There was a problem fetching the data table for revision ${revision.id}`);
     next(new UnknownException());
   }
 };

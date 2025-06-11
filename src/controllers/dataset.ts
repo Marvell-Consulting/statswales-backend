@@ -4,14 +4,16 @@ import { last, sortBy } from 'lodash';
 import { User } from '../entities/user/user';
 import {
   DatasetRepository,
-  withAll,
+  withDeveloperPreview,
   withDimensions,
   withDraftAndMeasure,
   withDraftAndMetadata,
   withDraftAndProviders,
   withDraftAndTopics,
   withDraftForCube,
-  withFactTable
+  withFactTable,
+  withLatestRevision,
+  withStandardPreview
 } from '../repositories/dataset';
 import { Locale } from '../enums/locale';
 import { logger } from '../utils/logger';
@@ -83,12 +85,20 @@ export const listAllDatasets = async (req: Request, res: Response, next: NextFun
 export const getDatasetById = async (req: Request, res: Response) => {
   const datasetId: string = res.locals.datasetId;
   const hydrate = req.query.hydrate as DatasetInclude;
-  let dataset: Dataset = res.locals.dataset;
+
+  let dataset: Dataset = res.locals.dataset; // plain dataset without any relations
 
   switch (hydrate) {
-    case DatasetInclude.All:
-      // use as a last resort, this is the kitchen sink and very expensive / slow
-      dataset = await DatasetRepository.getById(datasetId, withAll);
+    case DatasetInclude.Preview:
+      dataset = await DatasetRepository.getById(datasetId, withStandardPreview);
+      break;
+
+    case DatasetInclude.Developer:
+      dataset = await DatasetRepository.getById(datasetId, withDeveloperPreview);
+      break;
+
+    case DatasetInclude.LatestRevision:
+      dataset = await DatasetRepository.getById(datasetId, withLatestRevision);
       break;
 
     case DatasetInclude.Data:
