@@ -17,22 +17,24 @@ import { PeriodCovered } from '../interfaces/period-covered';
 import { User } from '../entities/user/user';
 import { getUserGroupIdsForUser } from '../utils/get-permissions-for-user';
 
-export const withAll: FindOptionsRelations<Dataset> = {
+export const withStandardPreview: FindOptionsRelations<Dataset> = {
+  createdBy: true,
+  dimensions: { metadata: true },
+  measure: { metadata: true },
+  revisions: true,
+  tasks: true
+};
+
+export const withDeveloperPreview: FindOptionsRelations<Dataset> = {
   createdBy: true,
   factTable: true,
-  dimensions: { metadata: true, lookupTable: true },
-  measure: { lookupTable: true, measureTable: true },
-  draftRevision: {
-    metadata: true,
-    dataTable: true,
-    revisionProviders: { provider: true },
-    revisionTopics: { topic: true }
-  },
-  revisions: {
-    dataTable: true,
-    metadata: true
-  },
-  tasks: true
+  dimensions: { metadata: true },
+  measure: { metadata: true, measureTable: true, lookupTable: true },
+  revisions: { metadata: true }
+};
+
+export const withLatestRevision: FindOptionsRelations<Dataset> = {
+  endRevision: { metadata: true }
 };
 
 export const withFactTable: FindOptionsRelations<Dataset> = {
@@ -77,22 +79,6 @@ export const withDraftForCube: FindOptionsRelations<Dataset> = {
   dimensions: { metadata: true, lookupTable: true },
   measure: { metadata: true, measureTable: true, lookupTable: true },
   revisions: { dataTable: { dataTableDescriptions: true } }
-};
-
-export const withDraftForTasklistState: FindOptionsRelations<Dataset> = {
-  draftRevision: {
-    metadata: true,
-    dataTable: true,
-    revisionProviders: true,
-    revisionTopics: true,
-    previousRevision: {
-      metadata: true,
-      revisionProviders: true,
-      revisionTopics: true
-    }
-  },
-  dimensions: { metadata: true },
-  measure: { measureTable: true, metadata: true }
 };
 
 const listAllQuery = (qb: QueryBuilder<Dataset>, lang: Locale) => {
