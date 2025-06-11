@@ -224,21 +224,25 @@ export const listRootTopics = async (req: Request, res: Response, next: NextFunc
 
 export const listSubTopics = async (req: Request, res: Response, next: NextFunction) => {
   /*
-    #swagger.summary = 'Get a list of sub-topics for a given top-level topic'
+    #swagger.summary = 'Get a list of what sits under a given topic'
     #swagger.description = `Datasets are tagged to topics. There are top-level topics, such as 'Health and social care',
-      which can have sub-topics, such as 'Dental services'. This endpoint returns a list of the sub-topics for a given
-      top-level topic_id. If the top-level topic has no sub-topics, the endpoint will return a list of the published
-      datasets for that topic instead.`
+      which can have sub-topics, such as 'Dental services'. For a given topic_id, this endpoint returns a list of what
+      sits under that topic - either sub-topics or published datasets tagged directly to that topic.`
     #swagger.autoQuery = false
+     #swagger.parameters['page_size'] = {
+      description: 'Number of datasets per page when datasets are returned',
+      in: 'query',
+      type: 'integer',
+      default: 1000
+    }
     #swagger.parameters['$ref'] = [
       '#/components/parameters/language',
       '#/components/parameters/topic_id',
-      '#/components/parameters/page_number',
-      '#/components/parameters/page_size'
+      '#/components/parameters/page_number'
     ]
     #swagger.responses[200] = {
-      description: 'A list of the sub-topics for a given top-level topic, or a list of the published datasets for a
-        given top-level topic if it has no sub-topics',
+      description: 'A list of what sits under a given topic - either sub-topics or published datasets tagged directly
+       to that topic.',
       schema: { $ref: "#/components/schemas/PublishedTopics" }
     }
   */
