@@ -44,7 +44,7 @@
     "/topic": {
       "get": {
         "summary": "Get a list of top-level topics",
-        "description": "Datasets are tagged to topics. There are top-level topics, such as ",
+        "description": "Datasets are tagged to topics. There are top-level topics, such as 'Health and social care',  which can have sub-topics, such as 'Dental services'. This endpoint returns a list of all top-level topics that  have at least one published dataset tagged to them.",
         "parameters": [
           {
             "$ref": "#/components/parameters/language"
@@ -72,7 +72,7 @@
     "/topic/{topic_id}": {
       "get": {
         "summary": "Get a list of sub-topics for a given top-level topic",
-        "description": "Datasets are tagged to topics. There are top-level topics, such as ",
+        "description": "Datasets are tagged to topics. There are top-level topics, such as 'Health and social care',  which can have sub-topics, such as 'Dental services'. This endpoint returns a list of the sub-topics for a given  top-level topic_id. If the top-level topic has no sub-topics, the endpoint will return a list of the published  datasets for that topic instead.",
         "parameters": [
           {
             "$ref": "#/components/parameters/language"

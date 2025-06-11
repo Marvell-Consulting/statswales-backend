@@ -192,9 +192,9 @@ export const downloadPublishedDataset = async (req: Request, res: Response, next
 export const listRootTopics = async (req: Request, res: Response, next: NextFunction) => {
   /*
     #swagger.summary = 'Get a list of top-level topics'
-    #swagger.description = 'Datasets are tagged to topics. There are top-level topics, such as 'Health and social care',
+    #swagger.description = `Datasets are tagged to topics. There are top-level topics, such as 'Health and social care',
       which can have sub-topics, such as 'Dental services'. This endpoint returns a list of all top-level topics that
-      have at least one published dataset tagged to them.'
+      have at least one published dataset tagged to them.`
     #swagger.autoQuery = false
     #swagger.parameters['$ref'] = ['#/components/parameters/language']
     #swagger.responses[200] = {
@@ -225,10 +225,10 @@ export const listRootTopics = async (req: Request, res: Response, next: NextFunc
 export const listSubTopics = async (req: Request, res: Response, next: NextFunction) => {
   /*
     #swagger.summary = 'Get a list of sub-topics for a given top-level topic'
-    #swagger.description = 'Datasets are tagged to topics. There are top-level topics, such as 'Health and social care',
+    #swagger.description = `Datasets are tagged to topics. There are top-level topics, such as 'Health and social care',
       which can have sub-topics, such as 'Dental services'. This endpoint returns a list of the sub-topics for a given
       top-level topic_id. If the top-level topic has no sub-topics, the endpoint will return a list of the published
-      datasets for that topic instead.'
+      datasets for that topic instead.`
     #swagger.autoQuery = false
     #swagger.parameters['$ref'] = [
       '#/components/parameters/language',
