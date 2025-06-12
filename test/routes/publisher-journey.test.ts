@@ -426,7 +426,7 @@ describe('API Endpoints', () => {
 
       await fileImport.remove();
 
-      BlobStorage.prototype.saveBuffer = jest.fn().mockImplementation(() => {
+      BlobStorage.prototype.saveStream = jest.fn().mockImplementation(() => {
         throw new Error('Test error');
       });
 

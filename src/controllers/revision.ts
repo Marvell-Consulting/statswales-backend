@@ -426,8 +426,12 @@ export const updateDataTable = async (req: Request, res: Response, next: NextFun
       return next(new BadRequestException(error.errorTag));
     }
   } finally {
-    fs.unlink(req.file.path, (err) => {
-      logger.warn(err, 'Something went wrong trying to remove multer temporary file');
+    const file = req.file;
+    fs.stat(file.path, (err) => {
+      if (err) logger.warn(`An error occurred checking for multer file`);
+      fs.unlink(file.path, (err) => {
+        logger.warn(err, 'Something went wrong trying to remove multer temporary file');
+      });
     });
   }
 
