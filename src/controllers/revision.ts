@@ -59,6 +59,8 @@ import { FindOptionsRelations } from 'typeorm';
 import { getFilters } from '../services/consumer-view';
 import fs from 'node:fs';
 import { asyncTmpName } from '../utils/async-tmp';
+import { multerStorageDir } from '../config/multer-storage';
+import path from 'node:path';
 
 export const getDataTable = async (req: Request, res: Response, next: NextFunction) => {
   const revision: Revision = res.locals.revision;
@@ -429,9 +431,16 @@ export const updateDataTable = async (req: Request, res: Response, next: NextFun
     const file = req.file;
     fs.stat(file.path, (err) => {
       if (err) logger.warn(`An error occurred checking for multer file`);
-      fs.unlink(file.path, (err) => {
-        logger.warn(err, 'Something went wrong trying to remove multer temporary file');
-      });
+      const resolvedPath = path.resolve(multerStorageDir, file.path);
+      if (!resolvedPath.startsWith(multerStorageDir)) {
+        logger.error('Invalid file path detected, skipping deletion');
+      } else {
+        fs.unlink(resolvedPath, (err) => {
+          if (err) {
+            logger.warn(err, 'Failed to delete uploaded file');
+          }
+        });
+      }
     });
   }
 

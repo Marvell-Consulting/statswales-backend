@@ -30,6 +30,7 @@ import { hasError, revisionIdValidator } from '../validators';
 import { logger } from '../utils/logger';
 import { NotFoundException } from '../exceptions/not-found.exception';
 import { RevisionRepository, withMetadataAndProviders } from '../repositories/revision';
+import { storageConfig } from '../config/multer-storage';
 
 // middleware that loads the revision and stores it in res.locals
 // leave relations undefined to load the default relations
@@ -64,17 +65,8 @@ export const loadRevision = (relations?: FindOptionsRelations<Revision>) => {
 };
 
 const jsonParser = express.json();
-const storage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    cb(null, '/tmp/multer-storage');
-  },
-  filename: function (req, file, cb) {
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
-    cb(null, file.fieldname + '-' + uniqueSuffix + '.' + file.originalname.split('.').reverse()[0]);
-  }
-});
 
-const upload = multer({ storage });
+const upload = multer({ storage: storageConfig });
 
 const router = Router();
 export const revisionRouter = router;

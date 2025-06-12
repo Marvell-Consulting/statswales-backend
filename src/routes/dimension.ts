@@ -17,6 +17,7 @@ import {
 import { dimensionIdValidator, hasError } from '../validators';
 import { NotFoundException } from '../exceptions/not-found.exception';
 import { DimensionRepository } from '../repositories/dimension';
+import { storageConfig } from '../config/multer-storage';
 
 export const loadDimension = async (req: Request, res: Response, next: NextFunction) => {
   const dimensionIdError = await hasError(dimensionIdValidator(), req);
@@ -47,17 +48,7 @@ export const loadDimension = async (req: Request, res: Response, next: NextFunct
 };
 
 const jsonParser = express.json();
-const storage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    cb(null, '/tmp/multer-storage');
-  },
-  filename: function (req, file, cb) {
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
-    cb(null, file.fieldname + '-' + uniqueSuffix + '.' + file.originalname.split('.').reverse()[0]);
-  }
-});
-
-const upload = multer({ storage });
+const upload = multer({ storage: storageConfig });
 
 const router = Router();
 export const dimensionRouter = router;
