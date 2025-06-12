@@ -23,6 +23,7 @@ export function convertDataTableToLookupTable(dataTable: DataTable) {
   lookupTable.fileType = dataTable.fileType;
   lookupTable.filename = dataTable.filename;
   lookupTable.mimeType = dataTable.mimeType;
+  lookupTable.encoding = dataTable.encoding;
   lookupTable.originalFilename = dataTable.originalFilename;
   lookupTable.hash = dataTable.hash;
   return lookupTable;
