@@ -32,7 +32,7 @@ const getCreateTableQuery = async (fileType: FileType, quack: Database): Promise
   switch (fileType) {
     case FileType.Csv:
     case FileType.GzipCsv:
-      return `CREATE TABLE %I AS SELECT * FROM read_csv(%L, auto_type_candidates = ['BIGINT', 'DOUBLE', 'VARCHAR']);`;
+      return `CREATE TABLE %I AS SELECT * FROM read_csv(%L, auto_type_candidates = ['BIGINT', 'DOUBLE', 'VARCHAR'], encoding = %L);`;
 
     case FileType.Parquet:
       return `CREATE TABLE %I AS SELECT * FROM %L;`;
@@ -73,7 +73,18 @@ export async function extractTableInformation(
 
   try {
     logger.debug(`Creating base fact table`);
-    await quack.exec(pgformat(createTableQuery, tableName, file.path));
+    if (dataTable.fileType === FileType.Csv) {
+      try {
+        dataTable.encoding = 'utf-8';
+        await quack.exec(pgformat(createTableQuery, tableName, file.path, dataTable.encoding));
+      } catch (err) {
+        dataTable.encoding = 'latin-1';
+        logger.warn(err, 'Failed to import file into duckDB with UTF-8 encoding trying latin-1');
+        await quack.exec(pgformat(createTableQuery, tableName, file.path, dataTable.encoding));
+      }
+    } else {
+      await quack.exec(pgformat(createTableQuery, tableName, file.path));
+    }
   } catch (error) {
     logger.error(error, `Something went wrong trying to extract table information using DuckDB.`);
     logger.debug('Closing DuckDB Memory Database');
@@ -95,7 +106,11 @@ export async function extractTableInformation(
       logger.debug(`Copying data table to postgres using data table id: ${dataTable.id}`);
       await linkToPostgresDataTables(quack);
       await quack.exec(pgformat(`DROP TABLE IF EXISTS %I;`, dataTable.id));
-      await quack.exec(pgformat(createTableQuery, dataTable.id, file.path));
+      if (dataTable.fileType === FileType.Csv) {
+        await quack.exec(pgformat(createTableQuery, dataTable.id, file.path, dataTable.encoding));
+      } else {
+        await quack.exec(pgformat(createTableQuery, dataTable.id, file.path));
+      }
       tableName = dataTable.id;
     } catch (error) {
       logger.error(error, 'Something went wrong saving data table to postgres');

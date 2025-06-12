@@ -1,6 +1,7 @@
 import { writeFile } from 'node:fs/promises';
 
 import { Database } from 'duckdb-async';
+import { format as pgformat } from '@scaleleap/pg-format';
 
 import { Dataset } from '../entities/dataset/dataset';
 import { FileImportInterface } from '../entities/dataset/file-import.interface';
@@ -33,19 +34,24 @@ export const loadFileIntoDatabase = async (
   switch (fileImport.fileType) {
     case FileType.Csv:
     case FileType.GzipCsv:
-      createTableQuery = `CREATE TABLE ${tableName} AS SELECT * FROM read_csv('${tempFile}', auto_type_candidates = ['BIGINT', 'DOUBLE', 'VARCHAR']);`;
+      createTableQuery = pgformat(
+        `CREATE TABLE %I AS SELECT * FROM read_csv(%L, auto_type_candidates = ['BIGINT', 'DOUBLE', 'VARCHAR'], encoding = %L);`,
+        tableName,
+        tempFile,
+        fileImport.encoding
+      );
       break;
     case FileType.Parquet:
-      createTableQuery = `CREATE TABLE ${tableName} AS SELECT * FROM '${tempFile}';`;
+      createTableQuery = pgformat(`CREATE TABLE %I AS SELECT * FROM %L;`, tableName, tempFile);
       break;
     case FileType.Json:
     case FileType.GzipJson:
-      createTableQuery = `CREATE TABLE ${tableName} AS SELECT * FROM read_json_auto('${tempFile}');`;
+      createTableQuery = pgformat(`CREATE TABLE %I AS SELECT * FROM read_json_auto(%L);`, tableName, tempFile);
       break;
     case FileType.Excel:
       await quack.exec('INSTALL spatial;');
       await quack.exec('LOAD spatial;');
-      createTableQuery = `CREATE TABLE ${tableName} AS SELECT * FROM st_read('${tempFile}');`;
+      createTableQuery = pgformat(`CREATE TABLE %I AS SELECT * FROM st_read(%L);`, tableName, tempFile);
       break;
     default:
       throw new FileValidationException(
