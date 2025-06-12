@@ -1,8 +1,6 @@
 import { writeFile } from 'node:fs/promises';
 
 import { Database } from 'duckdb-async';
-import iconv from 'iconv-lite';
-import detectCharacterEncoding from 'detect-character-encoding';
 
 import { Dataset } from '../entities/dataset/dataset';
 import { FileImportInterface } from '../entities/dataset/file-import.interface';
@@ -12,21 +10,6 @@ import { logger } from './logger';
 import { getFileService } from './get-file-service';
 import { FileValidationErrorType, FileValidationException } from '../exceptions/validation-exception';
 import { asyncTmpName } from './async-tmp';
-
-export const convertBufferToUTF8 = (buffer: Buffer): Buffer => {
-  const fileEncoding = detectCharacterEncoding(buffer)?.encoding;
-  if (!fileEncoding) {
-    logger.warn('Could not detect file encoding for the file');
-    throw new Error('errors.csv.invalid');
-  }
-  logger.debug(`File encoding detected as ${fileEncoding}`);
-  if (fileEncoding !== 'UTF-8') {
-    logger.warn(`File is not UTF-8 encoded... File appears to be ${fileEncoding}... Going to try to recode it`);
-    const decodedString = iconv.decode(buffer, fileEncoding);
-    return Buffer.from(decodedString);
-  }
-  return buffer;
-};
 
 export const getFileImportAndSaveToDisk = async (
   dataset: Dataset,

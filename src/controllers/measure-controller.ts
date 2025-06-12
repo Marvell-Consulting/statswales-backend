@@ -19,6 +19,8 @@ import { MeasureDTO } from '../dtos/measure-dto';
 import { DatasetRepository } from '../repositories/dataset';
 import { createAllCubeFiles } from '../services/cube-handler';
 import fs from 'node:fs';
+import path from 'node:path';
+import { multerStorageDir } from '../config/multer-storage';
 
 export const resetMeasure = async (req: Request, res: Response, next: NextFunction) => {
   const dataset = res.locals.dataset;
@@ -79,8 +81,19 @@ export const attachLookupTableToMeasure = async (req: Request, res: Response, ne
     logger.error(err, `An error occurred trying to process and upload the file`);
     next(new UnknownException('errors.upload_error'));
   } finally {
-    fs.unlink(req.file.path, (err) => {
-      logger.warn(err, 'Something went wrong trying to remove multer temporary file');
+    const file = req.file;
+    fs.stat(file.path, (err) => {
+      if (err) logger.warn(`An error occurred checking for multer file`);
+      const resolvedPath = path.resolve(multerStorageDir, file.path);
+      if (!resolvedPath.startsWith(multerStorageDir)) {
+        logger.error('Invalid file path detected, skipping deletion');
+      } else {
+        fs.unlink(resolvedPath, (err) => {
+          if (err) {
+            logger.warn(err, 'Failed to delete uploaded file');
+          }
+        });
+      }
     });
   }
 };
