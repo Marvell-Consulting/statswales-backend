@@ -66,7 +66,7 @@ export const createDataTableQuery = async (
     case FileType.Csv:
     case FileType.GzipCsv:
       return pgformat(
-        "CREATE TABLE %I AS SELECT * FROM read_csv(%L, auto_type_candidates = ['BIGINT', 'DOUBLE', 'VARCHAR']);",
+        "CREATE TABLE %I AS SELECT * FROM read_csv(%L, auto_type_candidates = ['BIGINT', 'DOUBLE', 'VARCHAR'], sample_size = -1);",
         makeCubeSafeString(tableName),
         tempFileName
       );
@@ -256,7 +256,7 @@ export const loadFileDataTableIntoTable = async (
     case FileType.Csv:
     case FileType.GzipCsv:
       insertQuery = pgformat(
-        "CREATE TABLE %I AS SELECT %I FROM read_csv(%L, auto_type_candidates = ['BIGINT', 'DOUBLE', 'VARCHAR']);",
+        "CREATE TABLE %I AS SELECT %I FROM read_csv(%L, auto_type_candidates = ['BIGINT', 'DOUBLE', 'VARCHAR'], sample_size = -1);",
         tempTableName,
         dataTableColumnSelect,
         tempFile

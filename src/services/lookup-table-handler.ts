@@ -1,5 +1,3 @@
-import { writeFile, unlink } from 'node:fs/promises';
-
 import { format as pgformat } from '@scaleleap/pg-format';
 
 import { DimensionType } from '../enums/dimension-type';
@@ -36,7 +34,6 @@ import { t } from 'i18next';
 import { FileValidationErrorType, FileValidationException } from '../exceptions/validation-exception';
 import { CubeValidationType } from '../enums/cube-validation-type';
 import { duckdb, linkToPostgres } from './duckdb';
-import { asyncTmpName } from '../utils/async-tmp';
 
 const sampleSize = 5;
 
@@ -223,7 +220,7 @@ export const validateLookupTable = async (
   protoLookupTable: DataTable,
   dataset: Dataset,
   dimension: Dimension,
-  buffer: Buffer,
+  file: Express.Multer.File,
   language: string,
   tableMatcher?: LookupTablePatchDTO
 ): Promise<ViewDTO | ViewErrDTO> => {
@@ -266,21 +263,16 @@ export const validateLookupTable = async (
   await linkToPostgres(quack, revision.id, false);
   await quack.exec(pgformat(`DROP TABLE IF EXISTS %I`, `${makeCubeSafeString(dimension.factTableColumn)}_lookup`));
   await quack.exec(pgformat('DROP TABLE IF EXISTS %I', lookupTableName));
-  const lookupTableTmpFile = await asyncTmpName({ postfix: `.${lookupTable.fileType}` });
 
   try {
-    logger.debug(`Writing the lookup table to disk: ${lookupTableTmpFile}`);
-    await writeFile(lookupTableTmpFile, buffer);
     logger.debug(`Loading lookup table into DuckDB`);
-    await loadFileIntoDatabase(quack, lookupTable, lookupTableTmpFile, lookupTableName);
+    await loadFileIntoDatabase(quack, lookupTable, file.path, lookupTableName);
   } catch (err) {
     await quack.close();
     logger.error(err, `Something went wrong trying to load the lookup table into the cube`);
     return viewErrorGenerators(500, dataset.id, 'patch', 'errors.dimension_validation.lookup_table_loading_failed', {
       mismatch: false
     });
-  } finally {
-    await unlink(lookupTableTmpFile);
   }
 
   let confirmedJoinColumn: string | undefined;

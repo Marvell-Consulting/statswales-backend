@@ -20,6 +20,9 @@ export class LookupTable extends BaseEntity implements FileImportInterface {
   @Column({ name: 'mime_type', type: 'varchar', length: 255 })
   mimeType: string;
 
+  @Column({ type: 'varchar', nullable: true })
+  encoding: 'utf-8' | 'latin-1' | null;
+
   @Column({ name: 'filetype', type: 'enum', enum: Object.values(FileType), nullable: false })
   fileType: FileType;
 

@@ -1,5 +1,5 @@
+import fs from 'fs';
 import { createHash, randomUUID } from 'node:crypto';
-import { unlink, writeFile } from 'node:fs/promises';
 
 import { Database, TableData } from 'duckdb-async';
 import { format as pgformat } from '@scaleleap/pg-format';
@@ -13,7 +13,6 @@ import { DatasetRepository } from '../repositories/dataset';
 import { FileType } from '../enums/file-type';
 import { DataTableDescription } from '../entities/dataset/data-table-description';
 import { DataTableAction } from '../enums/data-table-action';
-import { convertBufferToUTF8 } from '../utils/file-utils';
 
 import { duckdb, linkToPostgres, linkToPostgresDataTables } from './duckdb';
 import { getFileService } from '../utils/get-file-service';
@@ -23,7 +22,6 @@ import { viewErrorGenerators, viewGenerator } from '../utils/view-error-generato
 import { validateParams } from '../validators/preview-validator';
 import { SourceLocation } from '../enums/source-location';
 import { UploadTableType } from '../interfaces/upload-table-type';
-import { asyncTmpName } from '../utils/async-tmp';
 
 export const DEFAULT_PAGE_SIZE = 100;
 const sampleSize = 5;
@@ -34,7 +32,7 @@ const getCreateTableQuery = async (fileType: FileType, quack: Database): Promise
   switch (fileType) {
     case FileType.Csv:
     case FileType.GzipCsv:
-      return `CREATE TABLE %I AS SELECT * FROM read_csv(%L, auto_type_candidates = ['BIGINT', 'DOUBLE', 'VARCHAR']);`;
+      return `CREATE TABLE %I AS SELECT * FROM read_csv(%L, auto_type_candidates = ['BIGINT', 'DOUBLE', 'VARCHAR'], encoding = %L, sample_size = -1);`;
 
     case FileType.Parquet:
       return `CREATE TABLE %I AS SELECT * FROM %L;`;
@@ -54,19 +52,16 @@ const getCreateTableQuery = async (fileType: FileType, quack: Database): Promise
 };
 
 export async function extractTableInformation(
-  fileBuffer: Buffer,
+  file: Express.Multer.File,
   dataTable: DataTable,
   type: 'data_table' | 'lookup_table'
 ): Promise<DataTableDescription[]> {
   let tableName = 'preview_table';
   const quack = await duckdb();
   let tableHeaders: TableData;
-  let tempFilePath: string = '';
   let createTableQuery: string;
 
   try {
-    tempFilePath = await asyncTmpName({ postfix: `.${dataTable.fileType}` });
-    await writeFile(tempFilePath, fileBuffer);
     createTableQuery = await getCreateTableQuery(dataTable.fileType, quack);
   } catch (error) {
     logger.error(error, 'Something went wrong creating a temporary file for DuckDB');
@@ -78,17 +73,25 @@ export async function extractTableInformation(
 
   try {
     logger.debug(`Creating base fact table`);
-    await quack.exec(pgformat(createTableQuery, tableName, tempFilePath));
+    if (dataTable.fileType === FileType.Csv) {
+      try {
+        dataTable.encoding = 'utf-8';
+        await quack.exec(pgformat(createTableQuery, tableName, file.path, dataTable.encoding));
+      } catch (err) {
+        dataTable.encoding = 'latin-1';
+        logger.warn(err, 'Failed to import file into duckDB with UTF-8 encoding trying latin-1');
+        await quack.exec(pgformat(createTableQuery, tableName, file.path, dataTable.encoding));
+      }
+    } else {
+      await quack.exec(pgformat(createTableQuery, tableName, file.path));
+    }
   } catch (error) {
     logger.error(error, `Something went wrong trying to extract table information using DuckDB.`);
     logger.debug('Closing DuckDB Memory Database');
     await quack.close();
 
-    logger.debug(`Removing temp file ${tempFilePath} from disk`);
-    await unlink(tempFilePath);
-
     if ((error as DuckDBException).stack.includes('Invalid unicode')) {
-      throw new FileValidationException(`File is encoding is not supported`, FileValidationErrorType.InvalidUnicode);
+      throw new FileValidationException(`File encoding is not supported`, FileValidationErrorType.InvalidUnicode);
     } else if ((error as DuckDBException).stack.includes('CSV Error on Line')) {
       throw new FileValidationException(`Errors in CSV file`, FileValidationErrorType.InvalidCsv);
     }
@@ -103,12 +106,15 @@ export async function extractTableInformation(
       logger.debug(`Copying data table to postgres using data table id: ${dataTable.id}`);
       await linkToPostgresDataTables(quack);
       await quack.exec(pgformat(`DROP TABLE IF EXISTS %I;`, dataTable.id));
-      await quack.exec(pgformat(createTableQuery, dataTable.id, tempFilePath));
+      if (dataTable.fileType === FileType.Csv) {
+        await quack.exec(pgformat(createTableQuery, dataTable.id, file.path, dataTable.encoding));
+      } else {
+        await quack.exec(pgformat(createTableQuery, dataTable.id, file.path));
+      }
       tableName = dataTable.id;
     } catch (error) {
       logger.error(error, 'Something went wrong saving data table to postgres');
       await quack.close();
-      await unlink(tempFilePath);
     }
   }
 
@@ -124,7 +130,6 @@ export async function extractTableInformation(
     );
   } finally {
     await quack.close();
-    await unlink(tempFilePath);
   }
 
   if (tableHeaders.length === 0) {
@@ -144,14 +149,12 @@ export async function extractTableInformation(
   });
 }
 
-type DataTableAndBuffer = { dataTable: DataTable; buffer: Buffer };
-
 export const validateAndUpload = async (
   file: Express.Multer.File,
   datasetId: string,
   type: UploadTableType
-): Promise<DataTableAndBuffer> => {
-  const { buffer, mimetype, originalname } = file;
+): Promise<DataTable> => {
+  const { mimetype, originalname } = file;
 
   const dataTable = new DataTable();
   dataTable.id = randomUUID().toLowerCase();
@@ -159,14 +162,12 @@ export const validateAndUpload = async (
   dataTable.originalFilename = originalname;
 
   let extension: string;
-  let uploadBuffer = buffer;
 
   switch (mimetype) {
     case 'application/csv':
     case 'text/csv':
       extension = 'csv';
       dataTable.fileType = FileType.Csv;
-      uploadBuffer = convertBufferToUTF8(buffer);
       break;
 
     case 'application/vnd.apache.parquet':
@@ -178,7 +179,6 @@ export const validateAndUpload = async (
     case 'application/json':
       extension = 'json';
       dataTable.fileType = FileType.Json;
-      uploadBuffer = convertBufferToUTF8(buffer);
       break;
 
     case 'application/vnd.ms-excel':
@@ -224,7 +224,7 @@ export const validateAndUpload = async (
 
   try {
     logger.debug('Extracting table information from file');
-    dataTableDescriptions = await extractTableInformation(uploadBuffer, dataTable, type);
+    dataTableDescriptions = await extractTableInformation(file, dataTable, type);
   } catch (error) {
     logger.error(error, `Something went wrong trying to read the users upload.`);
     // Error is of type FileValidationException
@@ -236,20 +236,26 @@ export const validateAndUpload = async (
   dataTable.action = DataTableAction.AddRevise;
   if (type) dataTable.sourceLocation = SourceLocation.Postgres;
   const hash = createHash('sha256');
-  hash.update(uploadBuffer);
+
+  dataTable.hash = await new Promise((resolve, reject) => {
+    const stream = fs.createReadStream(file.path);
+    stream.on('error', (err) => reject(err));
+    stream.on('data', (chunk) => hash.update(chunk));
+    stream.on('end', () => resolve(hash.digest('hex')));
+  });
 
   try {
+    const uploadStream = fs.createReadStream(file.path);
     const fileService = getFileService();
-    await fileService.saveBuffer(dataTable.filename, datasetId, uploadBuffer);
+    await fileService.saveStream(dataTable.filename, datasetId, uploadStream);
   } catch (err) {
     logger.error(err, `Something went wrong trying to upload the file to the Data Lake`);
     throw new FileValidationException('Error uploading file to blob storage', FileValidationErrorType.datalake, 500);
   }
 
-  dataTable.hash = hash.digest('hex');
   dataTable.uploadedAt = new Date();
 
-  return { dataTable: dataTable, buffer: uploadBuffer };
+  return dataTable;
 };
 
 export const getCSVPreview = async (

@@ -17,6 +17,7 @@ import {
 import { dimensionIdValidator, hasError } from '../validators';
 import { NotFoundException } from '../exceptions/not-found.exception';
 import { DimensionRepository } from '../repositories/dimension';
+import { storageConfig } from '../config/multer-storage';
 
 export const loadDimension = async (req: Request, res: Response, next: NextFunction) => {
   const dimensionIdError = await hasError(dimensionIdValidator(), req);
@@ -47,7 +48,7 @@ export const loadDimension = async (req: Request, res: Response, next: NextFunct
 };
 
 const jsonParser = express.json();
-const upload = multer({ storage: multer.memoryStorage() });
+const upload = multer({ storage: storageConfig });
 
 const router = Router();
 export const dimensionRouter = router;

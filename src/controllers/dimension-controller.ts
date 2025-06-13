@@ -30,6 +30,9 @@ import { getLatestRevision } from '../utils/latest';
 import { Dataset } from '../entities/dataset/dataset';
 import { createAllCubeFiles } from '../services/cube-handler';
 import { getFileService } from '../utils/get-file-service';
+import fs from 'node:fs';
+import path from 'node:path';
+import { multerStorageDir } from '../config/multer-storage';
 
 export const getDimensionInfo = async (req: Request, res: Response) => {
   res.json(DimensionDTO.fromDimension(res.locals.dimension));
@@ -115,11 +118,11 @@ export const attachLookupTableToDimension = async (req: Request, res: Response, 
       revisions: { dataTable: { dataTableDescriptions: true } }
     });
 
-    const { dataTable, buffer } = await validateAndUpload(req.file, datasetId, 'lookup_table');
+    const dataTable = await validateAndUpload(req.file, datasetId, 'lookup_table');
 
     const tableMatcher = req.body as LookupTablePatchDTO;
 
-    const result = await validateLookupTable(dataTable, dataset, dimension, buffer, language, tableMatcher);
+    const result = await validateLookupTable(dataTable, dataset, dimension, req.file, language, tableMatcher);
     await createAllCubeFiles(dataset.id, dataset.draftRevision!.id);
 
     if ((result as ViewErrDTO).status) {
@@ -133,6 +136,21 @@ export const attachLookupTableToDimension = async (req: Request, res: Response, 
   } catch (err) {
     logger.error(err, `An error occurred trying to handle the lookup table`);
     next(new UnknownException('errors.upload_error'));
+  } finally {
+    const file = req.file;
+    fs.stat(file.path, (err) => {
+      if (err) logger.warn(`An error occurred checking for multer file`);
+      const resolvedPath = path.resolve(multerStorageDir, file.path);
+      if (!resolvedPath.startsWith(multerStorageDir)) {
+        logger.error('Invalid file path detected, skipping deletion');
+      } else {
+        fs.unlink(resolvedPath, (err) => {
+          if (err) {
+            logger.warn(err, 'Failed to delete uploaded file');
+          }
+        });
+      }
+    });
   }
 };
 

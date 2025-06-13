@@ -54,6 +54,9 @@ import { EventLogDTO } from '../dtos/event-log-dto';
 import { EventLog } from '../entities/event-log';
 import { SortByInterface } from '../interfaces/sort-by-interface';
 import { FilterInterface } from '../interfaces/filterInterface';
+import fs from 'node:fs';
+import path from 'node:path';
+import { multerStorageDir } from '../config/multer-storage';
 
 export const listUserDatasets = async (req: Request, res: Response, next: NextFunction) => {
   try {
@@ -198,6 +201,21 @@ export const uploadDataTable = async (req: Request, res: Response, next: NextFun
       ]
     };
     res.json(error);
+  } finally {
+    const file = req.file;
+    fs.stat(file.path, (err) => {
+      if (err) logger.warn(`An error occurred checking for multer file`);
+      const resolvedPath = path.resolve(multerStorageDir, file.path);
+      if (!resolvedPath.startsWith(multerStorageDir)) {
+        logger.error('Invalid file path detected, skipping deletion');
+      } else {
+        fs.unlink(resolvedPath, (err) => {
+          if (err) {
+            logger.warn(err, 'Failed to delete uploaded file');
+          }
+        });
+      }
+    });
   }
 };
 
