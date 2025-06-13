@@ -1965,68 +1965,68 @@ export const createBaseDuckDBFile = async (datasetId: string, endRevisionId: str
   return protoCubeFileName;
 };
 
-class CubeBuilderTaskRunner {
-  runTask(datasetId: string, endRevisionId: string): void {
-    void this.createBaseFiles(datasetId, endRevisionId);
-  }
+// export const createCubeFile = async (datasetId: string, endRevisionId: string) => {
+//   const fileService = getFileService();
 
-  private async createCubeFile() {
-    // try {
-    //   logger.debug('Creating duckdb cube file.');
-    //   const cubeFile = await createBaseDuckDBFile(datasetId, endRevisionId);
-    //   const buffer = await readFile(cubeFile);
-    //   await fileService.saveBuffer(`${endRevisionId}.duckdb`, datasetId, buffer);
-    //
-    //   if (await asyncFileExists(cubeFile)) {
-    //     logger.debug('Cleaning up cube file');
-    //     await unlink(cubeFile);
-    //   }
-    // } catch (err) {
-    //   logger.error(err, 'Failed to create duckdb cube file');
-    //   throw err;
-    // }
-  }
+//   try {
+//     logger.debug('Creating duckdb cube file.');
+//     const cubeFile = await createBaseDuckDBFile(datasetId, endRevisionId);
+//     const buffer = await readFile(cubeFile);
+//     await fileService.saveBuffer(`${endRevisionId}.duckdb`, datasetId, buffer);
 
-  private async createBaseFiles(datasetId: string, endRevisionId: string) {
-    logger.debug('Creating download files for whole dataset');
-    const quack = await duckdb();
-    await linkToPostgres(quack, endRevisionId, false);
-    const fileService = getFileService();
-    try {
-      // TODO Write code to to use native libraries to produce parquet, csv, excel and json outputs
-      for (const locale of SUPPORTED_LOCALES) {
-        const lang = locale.toLowerCase().split('-')[0];
+//     if (await asyncFileExists(cubeFile)) {
+//       logger.debug('Cleaning up cube file');
+//       await unlink(cubeFile);
+//     }
+//   } catch (err) {
+//     logger.error(err, 'Failed to create duckdb cube file');
+//     throw err;
+//   }
+// };
 
-        const xlsxFileName = await asyncTmpName({ postfix: '.xlsx' });
-        logger.debug(`Creating and uploading Excel file for local ${locale}`);
-        await quack.exec('INSTALL spatial;');
-        await quack.exec('LOAD spatial;');
-        await quack.exec(`COPY default_view_${lang} TO '${xlsxFileName}' WITH (FORMAT GDAL, DRIVER 'xlsx');`);
-        await fileService.saveBuffer(`${endRevisionId}_${lang}.xlsx`, datasetId, await readFile(xlsxFileName));
-        await unlink(xlsxFileName);
-        logger.debug(`Creating and uploading parquet file for local ${locale}`);
-        const parquetFileName = await asyncTmpName({ postfix: '.parquet' });
-        await quack.exec(`COPY default_view_${lang} TO '${parquetFileName}' (FORMAT PARQUET);`);
-        await fileService.saveBuffer(`${endRevisionId}_${lang}.parquet`, datasetId, await readFile(parquetFileName));
-        await unlink(parquetFileName);
-        logger.debug(`Creating and uploading CSV file for locale ${locale}`);
-        const csvFileName = await asyncTmpName({ postfix: '.csv' });
-        await quack.exec(`COPY default_view_${lang} TO '${csvFileName}' (HEADER, DELIMITER ',');`);
-        await fileService.saveBuffer(`${endRevisionId}_${lang}.csv`, datasetId, await readFile(csvFileName));
-        await unlink(csvFileName);
-        logger.debug(`Creating and uploading JSON file for locale ${locale}`);
-        const jsonFileName = await asyncTmpName({ postfix: '.json' });
-        await quack.exec(`COPY default_view_${lang} TO '${jsonFileName}' (FORMAT JSON);`);
-        await fileService.saveBuffer(`${endRevisionId}_${lang}.json`, datasetId, await readFile(jsonFileName));
-        await unlink(jsonFileName);
-      }
-    } catch (err) {
-      logger.error(err, 'Failed to create cube files');
+export const createFilesForDownload = async (datasetId: string, endRevisionId: string) => {
+  logger.debug('Creating download files for whole dataset');
+  const quack = await duckdb();
+  await linkToPostgres(quack, endRevisionId, false);
+  const fileService = getFileService();
+
+  try {
+    // TODO Write code to to use native libraries to produce parquet, csv, excel and json outputs
+    for (const locale of SUPPORTED_LOCALES) {
+      const lang = locale.toLowerCase().split('-')[0];
+
+      const xlsxFileName = await asyncTmpName({ postfix: '.xlsx' });
+      logger.debug(`Creating and uploading Excel file for local ${locale}`);
+      await quack.exec('INSTALL spatial;');
+      await quack.exec('LOAD spatial;');
+      await quack.exec(`COPY default_view_${lang} TO '${xlsxFileName}' WITH (FORMAT GDAL, DRIVER 'xlsx');`);
+      await fileService.saveBuffer(`${endRevisionId}_${lang}.xlsx`, datasetId, await readFile(xlsxFileName));
+      await unlink(xlsxFileName);
+
+      logger.debug(`Creating and uploading parquet file for local ${locale}`);
+      const parquetFileName = await asyncTmpName({ postfix: '.parquet' });
+      await quack.exec(`COPY default_view_${lang} TO '${parquetFileName}' (FORMAT PARQUET);`);
+      await fileService.saveBuffer(`${endRevisionId}_${lang}.parquet`, datasetId, await readFile(parquetFileName));
+      await unlink(parquetFileName);
+
+      logger.debug(`Creating and uploading CSV file for locale ${locale}`);
+      const csvFileName = await asyncTmpName({ postfix: '.csv' });
+      await quack.exec(`COPY default_view_${lang} TO '${csvFileName}' (HEADER, DELIMITER ',');`);
+      await fileService.saveBuffer(`${endRevisionId}_${lang}.csv`, datasetId, await readFile(csvFileName));
+      await unlink(csvFileName);
+
+      logger.debug(`Creating and uploading JSON file for locale ${locale}`);
+      const jsonFileName = await asyncTmpName({ postfix: '.json' });
+      await quack.exec(`COPY default_view_${lang} TO '${jsonFileName}' (FORMAT JSON);`);
+      await fileService.saveBuffer(`${endRevisionId}_${lang}.json`, datasetId, await readFile(jsonFileName));
+      await unlink(jsonFileName);
     }
-    logger.debug('File creation done... Closing duckdb');
-    await quack.close();
+  } catch (err) {
+    logger.error(err, 'Failed to create cube files');
   }
-}
+  logger.debug('File creation done... Closing duckdb');
+  await quack.close();
+};
 
 export const createAllCubeFiles = async (datasetId: string, endRevisionId: string): Promise<void> => {
   try {
@@ -2036,8 +2036,8 @@ export const createAllCubeFiles = async (datasetId: string, endRevisionId: strin
     logger.error(err, 'Failed to create cube in Postgres');
     throw err;
   }
-  const cubeBuilderTaskRunner = new CubeBuilderTaskRunner();
-  cubeBuilderTaskRunner.runTask(datasetId, endRevisionId);
+  // don't wait for this, can happen in the background so we can send the response earlier
+  void createFilesForDownload(datasetId, endRevisionId);
 };
 
 export const getCubeTimePeriods = async (revisionId: string): Promise<PeriodCovered> => {
