@@ -32,7 +32,7 @@ const getCreateTableQuery = async (fileType: FileType, quack: Database): Promise
   switch (fileType) {
     case FileType.Csv:
     case FileType.GzipCsv:
-      return `CREATE TABLE %I AS SELECT * FROM read_csv(%L, auto_type_candidates = ['BIGINT', 'DOUBLE', 'VARCHAR'], encoding = %L);`;
+      return `CREATE TABLE %I AS SELECT * FROM read_csv(%L, auto_type_candidates = ['BIGINT', 'DOUBLE', 'VARCHAR'], encoding = %L, sample_size = -1);`;
 
     case FileType.Parquet:
       return `CREATE TABLE %I AS SELECT * FROM %L;`;
@@ -91,7 +91,7 @@ export async function extractTableInformation(
     await quack.close();
 
     if ((error as DuckDBException).stack.includes('Invalid unicode')) {
-      throw new FileValidationException(`File is encoding is not supported`, FileValidationErrorType.InvalidUnicode);
+      throw new FileValidationException(`File encoding is not supported`, FileValidationErrorType.InvalidUnicode);
     } else if ((error as DuckDBException).stack.includes('CSV Error on Line')) {
       throw new FileValidationException(`Errors in CSV file`, FileValidationErrorType.InvalidCsv);
     }

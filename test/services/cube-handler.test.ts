@@ -76,7 +76,7 @@ describe('API Endpoints', () => {
       const val = await createDataTableQuery('test_table', 'my_temp_file.csv', FileType.Csv, quack);
       await quack.close();
       expect(val).toBe(
-        "CREATE TABLE test_table AS SELECT * FROM read_csv('my_temp_file.csv', auto_type_candidates = ['BIGINT', 'DOUBLE', 'VARCHAR']);"
+        "CREATE TABLE test_table AS SELECT * FROM read_csv('my_temp_file.csv', auto_type_candidates = ['BIGINT', 'DOUBLE', 'VARCHAR'], sample_size = -1);"
       );
     });
     test('for CSV Gzip type files', async () => {
@@ -84,7 +84,7 @@ describe('API Endpoints', () => {
       const val = await createDataTableQuery('test_table', 'my_temp_file.csv.gz', FileType.GzipCsv, quack);
       await quack.close();
       expect(val).toBe(
-        "CREATE TABLE test_table AS SELECT * FROM read_csv('my_temp_file.csv.gz', auto_type_candidates = ['BIGINT', 'DOUBLE', 'VARCHAR']);"
+        "CREATE TABLE test_table AS SELECT * FROM read_csv('my_temp_file.csv.gz', auto_type_candidates = ['BIGINT', 'DOUBLE', 'VARCHAR'], sample_size = -1);"
       );
     });
     test('for Parquet type files', async () => {

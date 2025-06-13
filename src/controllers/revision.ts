@@ -61,6 +61,7 @@ import fs from 'node:fs';
 import { asyncTmpName } from '../utils/async-tmp';
 import { multerStorageDir } from '../config/multer-storage';
 import path from 'node:path';
+import { FileType } from '../enums/file-type';
 
 export const getDataTable = async (req: Request, res: Response, next: NextFunction) => {
   const revision: Revision = res.locals.revision;
@@ -622,6 +623,8 @@ export const regenerateRevisionCube = async (req: Request, res: Response, next: 
     const tmpFile = await asyncTmpName({ postfix: rev.dataTable!.filename.split('.').reverse()[0] });
     const downloadStream = await req.fileService.loadStream(rev.dataTable!.filename, dataset.id);
     const writeStream = fs.createWriteStream(tmpFile);
+    const dataTable = rev.dataTable!;
+    const origEncoding = dataTable.encoding;
     downloadStream.pipe(writeStream);
 
     const fileObj: Express.Multer.File = {
@@ -636,7 +639,18 @@ export const regenerateRevisionCube = async (req: Request, res: Response, next: 
       filename: '',
       buffer: Buffer.alloc(0)
     };
-    await extractTableInformation(fileObj, rev.dataTable!, 'data_table');
+
+    try {
+      await extractTableInformation(fileObj, rev.dataTable!, 'data_table');
+    } catch (err) {
+      logger.error(err, 'Something went wrong trying to process the CSV again and save to data_tables schema');
+      next(err);
+      return;
+    }
+
+    if (dataTable.fileType === FileType.Csv && dataTable.encoding !== origEncoding) {
+      await dataTable.save();
+    }
   }
 
   try {
