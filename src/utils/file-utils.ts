@@ -35,7 +35,7 @@ export const loadFileIntoDatabase = async (
     case FileType.Csv:
     case FileType.GzipCsv:
       createTableQuery = pgformat(
-        `CREATE TABLE %I AS SELECT * FROM read_csv(%L, auto_type_candidates = ['BIGINT', 'DOUBLE', 'VARCHAR'], encoding = %L);`,
+        `CREATE TABLE %I AS SELECT * FROM read_csv(%L, auto_type_candidates = ['BIGINT', 'DOUBLE', 'VARCHAR'], encoding = %L, sample_size = -1);`,
         tableName,
         tempFile,
         fileImport.encoding
