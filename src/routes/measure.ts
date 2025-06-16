@@ -12,9 +12,11 @@ import {
   resetMeasure,
   updateMeasureMetadata
 } from '../controllers/measure-controller';
+import { storageConfig } from '../config/multer-storage';
 
 const jsonParser = express.json();
-const upload = multer({ storage: multer.memoryStorage() });
+
+const upload = multer({ storage: storageConfig });
 
 const router = Router();
 export const measureRouter = router;

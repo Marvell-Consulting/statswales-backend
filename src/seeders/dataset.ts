@@ -227,15 +227,15 @@ export default class DatasetSeeder extends Seeder {
 
       const dataFile = { originalname: 'QryHLTH1250_Data.csv', mimetype: 'text/csv' } as any;
       dataFile.buffer = await readFile(path.join(__dirname, 'resources', dataFile.originalname));
-      const { dataTable } = await validateAndUpload(dataFile, dataset.id, 'data_table');
+      const dataTable = await validateAndUpload(dataFile, dataset.id, 'data_table');
 
       const rowRefFile = { originalname: 'QryHLTH1250_RowRef-fixed.csv', mimetype: 'text/csv' } as any;
       rowRefFile.buffer = await readFile(path.join(__dirname, 'resources', rowRefFile.originalname));
-      const { dataTable: protoRowRefLookupTable } = await validateAndUpload(rowRefFile, dataset.id, 'lookup_table');
+      const protoRowRefLookupTable = await validateAndUpload(rowRefFile, dataset.id, 'lookup_table');
 
       const measureFile = { originalname: 'QryHLTH1250_Measure-fixed.csv', mimetype: 'text/csv' } as any;
       measureFile.buffer = await readFile(path.join(__dirname, 'resources', measureFile.originalname));
-      const { dataTable: protoMeasureLookupTable } = await validateAndUpload(measureFile, dataset.id, 'lookup_table');
+      const protoMeasureLookupTable = await validateAndUpload(measureFile, dataset.id, 'lookup_table');
 
       const provider = await entityManager.getRepository(Provider).findOne({
         where: { name: 'British Transport Police' }

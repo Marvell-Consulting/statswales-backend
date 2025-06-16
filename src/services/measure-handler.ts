@@ -1,5 +1,3 @@
-import { writeFile, unlink } from 'node:fs/promises';
-
 import { Database, DuckDbError } from 'duckdb-async';
 import { format as pgformat } from '@scaleleap/pg-format';
 import { t } from 'i18next';
@@ -38,7 +36,6 @@ import { Locale } from '../enums/locale';
 import { DataValueFormat } from '../enums/data-value-format';
 import { duckdb, linkToPostgres } from './duckdb';
 import { Revision } from '../entities/dataset/revision';
-import { asyncTmpName } from '../utils/async-tmp';
 
 const sampleSize = 5;
 
@@ -354,7 +351,7 @@ async function createMeasureTable(
 export const validateMeasureLookupTable = async (
   protoLookupTable: DataTable,
   dataset: Dataset,
-  buffer: Buffer,
+  path: string,
   lang: string,
   tableMatcher?: MeasureLookupPatchDTO
 ): Promise<ViewDTO | ViewErrDTO> => {
@@ -400,19 +397,14 @@ export const validateMeasureLookupTable = async (
     return viewErrorGenerators(500, dataset.id, 'patch', 'errors.cube_builder.fact_table_creation_failed', {});
   }
 
-  const lookupTableTmpFile = await asyncTmpName({ postfix: `.${lookupTable.fileType}` });
-
   try {
-    await writeFile(lookupTableTmpFile, buffer);
-    await loadFileIntoDatabase(quack, lookupTable, lookupTableTmpFile, lookupTableName);
+    await loadFileIntoDatabase(quack, lookupTable, path, lookupTableName);
   } catch (err) {
     await quack.close();
     logger.error(err, `Something went wrong trying to load data in to DuckDB with the following error: ${err}`);
     return viewErrorGenerators(500, dataset.id, 'csv', 'errors.dimension.unknown_error', {
       mismatch: false
     });
-  } finally {
-    await unlink(lookupTableTmpFile);
   }
 
   let confirmedJoinColumn: string | undefined;

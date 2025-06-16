@@ -7,6 +7,8 @@ import { logger } from './utils/logger';
 import { initDb, initEntitySubscriber } from './db/init';
 import { initPassport } from './middleware/passport-auth';
 import { getCubeDB } from './db/cube-db';
+import fs from 'node:fs';
+import { multerStorageDir } from './config/multer-storage';
 
 const PORT = appConfig().backend.port;
 
@@ -26,6 +28,11 @@ Promise.resolve()
     }
 
     await initPassport(dbManager.getDataSource());
+  })
+  .then(() => {
+    if (!fs.existsSync(multerStorageDir)) {
+      fs.mkdirSync(multerStorageDir);
+    }
   })
   .then(() => {
     app.listen(PORT, async () => {

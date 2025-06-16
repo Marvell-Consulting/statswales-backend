@@ -1,8 +1,7 @@
 import { writeFile } from 'node:fs/promises';
 
 import { Database } from 'duckdb-async';
-import iconv from 'iconv-lite';
-import detectCharacterEncoding from 'detect-character-encoding';
+import { format as pgformat } from '@scaleleap/pg-format';
 
 import { Dataset } from '../entities/dataset/dataset';
 import { FileImportInterface } from '../entities/dataset/file-import.interface';
@@ -12,21 +11,6 @@ import { logger } from './logger';
 import { getFileService } from './get-file-service';
 import { FileValidationErrorType, FileValidationException } from '../exceptions/validation-exception';
 import { asyncTmpName } from './async-tmp';
-
-export const convertBufferToUTF8 = (buffer: Buffer): Buffer => {
-  const fileEncoding = detectCharacterEncoding(buffer)?.encoding;
-  if (!fileEncoding) {
-    logger.warn('Could not detect file encoding for the file');
-    throw new Error('errors.csv.invalid');
-  }
-  logger.debug(`File encoding detected as ${fileEncoding}`);
-  if (fileEncoding !== 'UTF-8') {
-    logger.warn(`File is not UTF-8 encoded... File appears to be ${fileEncoding}... Going to try to recode it`);
-    const decodedString = iconv.decode(buffer, fileEncoding);
-    return Buffer.from(decodedString);
-  }
-  return buffer;
-};
 
 export const getFileImportAndSaveToDisk = async (
   dataset: Dataset,
@@ -50,19 +34,24 @@ export const loadFileIntoDatabase = async (
   switch (fileImport.fileType) {
     case FileType.Csv:
     case FileType.GzipCsv:
-      createTableQuery = `CREATE TABLE ${tableName} AS SELECT * FROM read_csv('${tempFile}', auto_type_candidates = ['BIGINT', 'DOUBLE', 'VARCHAR']);`;
+      createTableQuery = pgformat(
+        `CREATE TABLE %I AS SELECT * FROM read_csv(%L, auto_type_candidates = ['BIGINT', 'DOUBLE', 'VARCHAR'], encoding = %L, sample_size = -1);`,
+        tableName,
+        tempFile,
+        fileImport.encoding
+      );
       break;
     case FileType.Parquet:
-      createTableQuery = `CREATE TABLE ${tableName} AS SELECT * FROM '${tempFile}';`;
+      createTableQuery = pgformat(`CREATE TABLE %I AS SELECT * FROM %L;`, tableName, tempFile);
       break;
     case FileType.Json:
     case FileType.GzipJson:
-      createTableQuery = `CREATE TABLE ${tableName} AS SELECT * FROM read_json_auto('${tempFile}');`;
+      createTableQuery = pgformat(`CREATE TABLE %I AS SELECT * FROM read_json_auto(%L);`, tableName, tempFile);
       break;
     case FileType.Excel:
       await quack.exec('INSTALL spatial;');
       await quack.exec('LOAD spatial;');
-      createTableQuery = `CREATE TABLE ${tableName} AS SELECT * FROM st_read('${tempFile}');`;
+      createTableQuery = pgformat(`CREATE TABLE %I AS SELECT * FROM st_read(%L);`, tableName, tempFile);
       break;
     default:
       throw new FileValidationException(

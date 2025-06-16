@@ -35,9 +35,10 @@ import { datasetAuth } from '../middleware/dataset-auth';
 import { revisionRouter } from './revision';
 import { dimensionRouter } from './dimension';
 import { measureRouter } from './measure';
+import { storageConfig } from '../config/multer-storage';
 
 const jsonParser = express.json();
-const upload = multer({ storage: multer.memoryStorage() });
+const upload = multer({ storage: storageConfig });
 
 export const datasetRouter = Router();
 
