@@ -1475,7 +1475,6 @@ async function setupDimensions(
       }
     } catch (err) {
       logger.error(err, `Something went wrong trying to load dimension ${dimension.id} in to the cube`);
-      await quack.close();
       throw new Error(`Could not load dimensions ${dimension.id} in to the cube with the following error: ${err}`);
     }
   }
@@ -1560,7 +1559,6 @@ export async function createEmptyFactTableInCube(
       await quack.exec(createQuery);
     } catch (err) {
       logger.error(err, `Failed to create fact table in cube`);
-      await quack.close();
       throw new Error(`Failed to create fact table in cube: ${err}`);
     }
   } else {
@@ -1573,7 +1571,6 @@ export async function createEmptyFactTableInCube(
       await quack.exec(factTableCreationQuery);
     } catch (err) {
       logger.error(err, `Failed to create fact table in cube`);
-      await quack.close();
       throw new Error(`Failed to create fact table in cube: ${err}`);
     }
   }
@@ -1638,7 +1635,11 @@ async function createFilterTable(quack: Database, revisionID: string, type: 'pos
 // DO NOT put validation against columns which should be present here.
 // Function should be able to generate a cube just from a fact table or collection
 // of fact tables.
-export const createBasePostgresCube = async (datasetId: string, endRevisionId: string): Promise<string> => {
+export const createBasePostgresCube = async (
+  quack: Database,
+  datasetId: string,
+  endRevisionId: string
+): Promise<void> => {
   logger.debug(`Creating base cube for revision: ${endRevisionId}`);
   const functionStart = performance.now();
   const viewSelectStatementsMap = new Map<Locale, string[]>();
@@ -1678,8 +1679,6 @@ export const createBasePostgresCube = async (datasetId: string, endRevisionId: s
 
   const buildStart = performance.now();
   logger.debug('Creating an in-memory database to hold the cube using DuckDB 🐤');
-  const protoCubeFileName = await asyncTmpName({ postfix: '.duckdb' });
-  const quack = await duckdb(protoCubeFileName);
   await linkToPostgres(quack, endRevision.id, true);
 
   const { factTableDef, factIdentifiers } = await createEmptyFactTableInCube(quack, dataset, endRevision, 'postgres');
@@ -1692,7 +1691,6 @@ export const createBasePostgresCube = async (datasetId: string, endRevisionId: s
     await loadFactTables(quack, dataset, endRevision, factTableDef, dataValuesColumn, notesCodeColumn, factIdentifiers);
   } catch (err) {
     logger.error(err, `Failed to load fact tables into the cube`);
-    await quack.close();
     throw new Error(`Failed to load fact tables into the cube: ${err}`);
   }
 
@@ -1712,7 +1710,6 @@ export const createBasePostgresCube = async (datasetId: string, endRevisionId: s
       );
     } catch (err) {
       logger.error(err, `Failed to setup measures`);
-      await quack.close();
       throw new Error(`Failed to setup measures: ${err}`);
     }
   } else {
@@ -1733,7 +1730,6 @@ export const createBasePostgresCube = async (datasetId: string, endRevisionId: s
     );
   } catch (err) {
     logger.error(err, `Failed to setup dimensions`);
-    await quack.close();
     throw new Error(`Failed to setup dimensions`);
   }
 
@@ -1763,7 +1759,7 @@ export const createBasePostgresCube = async (datasetId: string, endRevisionId: s
         joinStatements.join('\n').replace(/#LANG#/g, pgformat('%L', locale.toLowerCase())),
         orderByStatements.length > 0 ? `ORDER BY ${orderByStatements.join(', ')}` : ''
       );
-      // logger.debug(defaultViewSQL);
+      logger.debug(defaultViewSQL);
       await quack.exec(defaultViewSQL);
 
       const rawViewSQL = pgformat(
@@ -1774,26 +1770,22 @@ export const createBasePostgresCube = async (datasetId: string, endRevisionId: s
         joinStatements.join('\n').replace(/#LANG#/g, pgformat('%L', locale.toLowerCase())),
         orderByStatements.length > 0 ? `ORDER BY ${orderByStatements.join(', ')}` : ''
       );
-      // logger.debug(rawViewSQL);
+      logger.debug(rawViewSQL);
       await quack.exec(rawViewSQL);
     }
   } catch (error) {
     logger.error(error, 'Something went wrong trying to create the default views in the cube.');
-    await quack.close();
     const exception = new CubeValidationException('Cube Build Failed');
     exception.type = CubeValidationType.CubeCreationFailed;
     throw exception;
   }
 
-  await safelyCloseDuckDb(quack);
   const end = performance.now();
   const functionTime = Math.round(end - functionStart);
   const buildTime = Math.round(end - buildStart);
   logger.warn(`Cube function took ${functionTime}ms to complete and it took ${buildTime}ms to build the cube.`);
   endRevision.cubeType = CubeType.PostgresCube;
   await endRevision.save();
-
-  return protoCubeFileName;
 };
 
 export const createBaseDuckDBFile = async (datasetId: string, endRevisionId: string): Promise<string> => {
@@ -1861,7 +1853,6 @@ export const createBaseDuckDBFile = async (datasetId: string, endRevisionId: str
     await loadFactTables(quack, dataset, endRevision, factTableDef, dataValuesColumn, notesCodeColumn, factIdentifiers);
   } catch (err) {
     logger.error(err, `Failed to load fact tables into the cube`);
-    await quack.close();
     throw new Error(`Failed to load fact tables into the cube: ${err}`);
   }
 
@@ -1881,7 +1872,6 @@ export const createBaseDuckDBFile = async (datasetId: string, endRevisionId: str
       );
     } catch (err) {
       logger.error(err, `Failed to setup measures`);
-      await quack.close();
       throw new Error(`Failed to setup measures: ${err}`);
     }
   } else {
@@ -1902,7 +1892,6 @@ export const createBaseDuckDBFile = async (datasetId: string, endRevisionId: str
     );
   } catch (err) {
     logger.error(err, `Failed to setup dimensions`);
-    await quack.close();
     throw new Error(`Failed to setup dimensions`);
   }
 
@@ -1933,7 +1922,7 @@ export const createBaseDuckDBFile = async (datasetId: string, endRevisionId: str
         joinStatements.join('\n').replace(/#LANG#/g, pgformat('%L', locale.toLowerCase())),
         orderByStatements.length > 0 ? `ORDER BY ${orderByStatements.join(', ')}` : ''
       );
-      // logger.debug(defaultViewSQL);
+      logger.debug(defaultViewSQL);
       await quack.exec(defaultViewSQL);
 
       const rawViewSQL = pgformat(
@@ -1944,17 +1933,15 @@ export const createBaseDuckDBFile = async (datasetId: string, endRevisionId: str
         joinStatements.join('\n').replace(/#LANG#/g, pgformat('%L', locale.toLowerCase())),
         orderByStatements.length > 0 ? `ORDER BY ${orderByStatements.join(', ')}` : ''
       );
-      // logger.debug(rawViewSQL);
+      logger.debug(rawViewSQL);
       await quack.exec(rawViewSQL);
     }
   } catch (error) {
     logger.error(error, 'Something went wrong trying to create the default views in the cube.');
-    await quack.close();
     const exception = new CubeValidationException('Cube Build Failed');
     exception.type = CubeValidationType.CubeCreationFailed;
     throw exception;
   }
-  await safelyCloseDuckDb(quack);
   const end = performance.now();
   const functionTime = Math.round(end - functionStart);
   const buildTime = Math.round(end - buildStart);
@@ -1984,13 +1971,10 @@ export const createBaseDuckDBFile = async (datasetId: string, endRevisionId: str
 //   }
 // };
 
-export const createFilesForDownload = async (datasetId: string, endRevisionId: string) => {
+export const createFilesForDownload = async (quack: Database, datasetId: string, endRevisionId: string) => {
   logger.debug('Creating download files for whole dataset');
-  const quack = await duckdb();
-  await linkToPostgres(quack, endRevisionId, false);
-  const fileService = getFileService();
-
   try {
+    const fileService = getFileService();
     // TODO Write code to to use native libraries to produce parquet, csv, excel and json outputs
     for (const locale of SUPPORTED_LOCALES) {
       const lang = locale.toLowerCase().split('-')[0];
@@ -2021,23 +2005,29 @@ export const createFilesForDownload = async (datasetId: string, endRevisionId: s
       await fileService.saveBuffer(`${endRevisionId}_${lang}.json`, datasetId, await readFile(jsonFileName));
       await unlink(jsonFileName);
     }
+    logger.debug('File creation done... Closing duckdb');
   } catch (err) {
     logger.error(err, 'Failed to create cube files');
+  } finally {
+    await safelyCloseDuckDb(quack);
   }
-  logger.debug('File creation done... Closing duckdb');
-  await quack.close();
+  logger.debug('Async processes completed.');
 };
 
 export const createAllCubeFiles = async (datasetId: string, endRevisionId: string): Promise<void> => {
+  const protoCubeFileName = await asyncTmpName({ postfix: '.duckdb' });
+  const quack = await duckdb(protoCubeFileName);
   try {
     logger.debug('Creating cube in postgres.');
-    await createBasePostgresCube(datasetId, endRevisionId);
+    await createBasePostgresCube(quack, datasetId, endRevisionId);
   } catch (err) {
+    await quack.close();
     logger.error(err, 'Failed to create cube in Postgres');
     throw err;
   }
   // don't wait for this, can happen in the background so we can send the response earlier
-  void createFilesForDownload(datasetId, endRevisionId);
+  logger.debug('Running async process...');
+  void createFilesForDownload(quack, datasetId, endRevisionId);
 };
 
 export const getCubeTimePeriods = async (revisionId: string): Promise<PeriodCovered> => {
