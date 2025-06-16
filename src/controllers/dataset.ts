@@ -1,5 +1,9 @@
 import { NextFunction, Request, Response } from 'express';
 import { last, sortBy } from 'lodash';
+import { stat, unlink } from 'node:fs/promises';
+import path from 'node:path';
+import { t } from 'i18next';
+import JSZip from 'jszip';
 
 import { User } from '../entities/user/user';
 import {
@@ -44,9 +48,7 @@ import { TopicSelectionDTO } from '../dtos/topic-selection-dto';
 import { getPostgresCubePreview } from './cube-controller';
 import { factTableValidatorFromSource } from '../services/fact-table-validator';
 import { FactTableValidationException } from '../exceptions/fact-table-validation-exception';
-import JSZip from 'jszip';
 import { addDirectoryToZip, collectFiles } from '../utils/dataset-controller-utils';
-import { t } from 'i18next';
 import { NotAllowedException } from '../exceptions/not-allowed.exception';
 import { GroupRole } from '../enums/group-role';
 import { DatasetInclude } from '../enums/dataset-include';
@@ -54,8 +56,6 @@ import { EventLogDTO } from '../dtos/event-log-dto';
 import { EventLog } from '../entities/event-log';
 import { SortByInterface } from '../interfaces/sort-by-interface';
 import { FilterInterface } from '../interfaces/filterInterface';
-import fs from 'node:fs';
-import path from 'node:path';
 import { multerStorageDir } from '../config/multer-storage';
 
 export const listUserDatasets = async (req: Request, res: Response, next: NextFunction) => {
@@ -202,20 +202,13 @@ export const uploadDataTable = async (req: Request, res: Response, next: NextFun
     };
     res.json(error);
   } finally {
-    const file = req.file;
-    fs.stat(file.path, (err) => {
-      if (err) logger.warn(`An error occurred checking for multer file`);
-      const resolvedPath = path.resolve(multerStorageDir, file.path);
-      if (!resolvedPath.startsWith(multerStorageDir)) {
-        logger.error('Invalid file path detected, skipping deletion');
-      } else {
-        fs.unlink(resolvedPath, (err) => {
-          if (err) {
-            logger.warn(err, 'Failed to delete uploaded file');
-          }
-        });
-      }
-    });
+    const resolvedPath = path.resolve(multerStorageDir, req.file.path);
+    await stat(resolvedPath)
+      .then(async () => {
+        logger.info(`Deleting temporary file: ${resolvedPath}`);
+        return unlink(resolvedPath);
+      })
+      .catch(() => logger.debug(`File ${resolvedPath} already cleaned up`));
   }
 };
 

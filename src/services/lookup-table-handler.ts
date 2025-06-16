@@ -220,7 +220,7 @@ export const validateLookupTable = async (
   protoLookupTable: DataTable,
   dataset: Dataset,
   dimension: Dimension,
-  file: Express.Multer.File,
+  path: string,
   language: string,
   tableMatcher?: LookupTablePatchDTO
 ): Promise<ViewDTO | ViewErrDTO> => {
@@ -266,7 +266,7 @@ export const validateLookupTable = async (
 
   try {
     logger.debug(`Loading lookup table into DuckDB`);
-    await loadFileIntoDatabase(quack, lookupTable, file.path, lookupTableName);
+    await loadFileIntoDatabase(quack, lookupTable, path, lookupTableName);
   } catch (err) {
     await quack.close();
     logger.error(err, `Something went wrong trying to load the lookup table into the cube`);

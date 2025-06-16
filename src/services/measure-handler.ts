@@ -351,7 +351,7 @@ async function createMeasureTable(
 export const validateMeasureLookupTable = async (
   protoLookupTable: DataTable,
   dataset: Dataset,
-  file: Express.Multer.File,
+  path: string,
   lang: string,
   tableMatcher?: MeasureLookupPatchDTO
 ): Promise<ViewDTO | ViewErrDTO> => {
@@ -398,7 +398,7 @@ export const validateMeasureLookupTable = async (
   }
 
   try {
-    await loadFileIntoDatabase(quack, lookupTable, file.path, lookupTableName);
+    await loadFileIntoDatabase(quack, lookupTable, path, lookupTableName);
   } catch (err) {
     await quack.close();
     logger.error(err, `Something went wrong trying to load data in to DuckDB with the following error: ${err}`);

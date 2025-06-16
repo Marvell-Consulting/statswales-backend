@@ -1,5 +1,6 @@
 import { Readable } from 'node:stream';
 import { performance } from 'node:perf_hooks';
+import { pipeline } from 'node:stream/promises';
 
 import { NextFunction, Request, Response } from 'express';
 import { t } from 'i18next';
@@ -625,7 +626,11 @@ export const regenerateRevisionCube = async (req: Request, res: Response, next: 
     const writeStream = fs.createWriteStream(tmpFile);
     const dataTable = rev.dataTable!;
     const origEncoding = dataTable.encoding;
-    downloadStream.pipe(writeStream);
+    await pipeline(downloadStream, writeStream).catch((err) => {
+      logger.error(err, `An error occurred trying to save tmp local files for revision ${rev.id}`);
+      next(new UnknownException('errors.download_from_filestore'));
+      return;
+    });
 
     const fileObj: Express.Multer.File = {
       originalname: rev.dataTable!.originalFilename || 'unknown',

@@ -1,4 +1,6 @@
 import { NextFunction, Request, Response } from 'express';
+import path from 'node:path';
+import { stat, unlink } from 'node:fs/promises';
 
 import { LookupTable } from '../entities/dataset/lookup-table';
 import { logger } from '../utils/logger';
@@ -18,8 +20,6 @@ import { Readable } from 'node:stream';
 import { MeasureDTO } from '../dtos/measure-dto';
 import { DatasetRepository } from '../repositories/dataset';
 import { createAllCubeFiles } from '../services/cube-handler';
-import fs from 'node:fs';
-import path from 'node:path';
 import { multerStorageDir } from '../config/multer-storage';
 
 export const resetMeasure = async (req: Request, res: Response, next: NextFunction) => {
@@ -70,7 +70,7 @@ export const attachLookupTableToMeasure = async (req: Request, res: Response, ne
     const dataTable = await validateAndUpload(req.file, dataset.id, 'lookup_table');
     const lang = req.language.toLowerCase();
     const tableMatcher = req.body as MeasureLookupPatchDTO;
-    const result = await validateMeasureLookupTable(dataTable, dataset, req.file, lang, tableMatcher);
+    const result = await validateMeasureLookupTable(dataTable, dataset, req.file.path, lang, tableMatcher);
     await createAllCubeFiles(dataset.id, dataset.draftRevision!.id);
     res.status((result as ViewErrDTO).status || 200);
 
@@ -81,20 +81,13 @@ export const attachLookupTableToMeasure = async (req: Request, res: Response, ne
     logger.error(err, `An error occurred trying to process and upload the file`);
     next(new UnknownException('errors.upload_error'));
   } finally {
-    const file = req.file;
-    fs.stat(file.path, (err) => {
-      if (err) logger.warn(`An error occurred checking for multer file`);
-      const resolvedPath = path.resolve(multerStorageDir, file.path);
-      if (!resolvedPath.startsWith(multerStorageDir)) {
-        logger.error('Invalid file path detected, skipping deletion');
-      } else {
-        fs.unlink(resolvedPath, (err) => {
-          if (err) {
-            logger.warn(err, 'Failed to delete uploaded file');
-          }
-        });
-      }
-    });
+    const resolvedPath = path.resolve(multerStorageDir, req.file.path);
+    await stat(resolvedPath)
+      .then(async () => {
+        logger.info(`Deleting temporary file: ${resolvedPath}`);
+        return unlink(resolvedPath);
+      })
+      .catch(() => logger.debug(`File ${resolvedPath} already cleaned up`));
   }
 };
 
