@@ -7,7 +7,7 @@
   },
   "servers": [
     {
-      "description": "Development",
+      "description": "Public API",
       "url": "{{backendURL}}"
     }
   ],
