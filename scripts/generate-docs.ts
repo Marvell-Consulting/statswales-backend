@@ -18,7 +18,7 @@ const doc = {
     description: `This page will help you use the public API for StatsWales. If you need any other support,
       <a href="mailto:StatsWales@gov.wales">contact StatsWales<a>.`
   },
-  servers: [{ description: 'Development', url: 'https://api.dev.stats.cymru/v1' }],
+  servers: [{ description: 'Public API', url: '{{backendURL}}' }],
   components: {
     parameters: {
       language: {
