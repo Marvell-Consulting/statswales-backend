@@ -8,7 +8,7 @@
   "servers": [
     {
       "description": "Development",
-      "url": "https://api.dev.stats.cymru/v1"
+      "url": "{{backendURL}}"
     }
   ],
   "paths": {
