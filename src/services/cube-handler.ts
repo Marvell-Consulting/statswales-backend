@@ -1546,12 +1546,20 @@ export async function createEmptyFactTableInCube(
         factTableCreationDef.join(', ')
       );
       if (compositeKey.length > 0) {
+        // Disables primary key on fact table
+        // factTableCreationQuery = pgformat(
+        //   'CREATE TABLE %I.%I (%s, PRIMARY KEY(%I));',
+        //   revision.id,
+        //   FACT_TABLE_NAME,
+        //   factTableCreationDef,
+        //   compositeKey
+        // );
+        // Creates fact table without primary key
         factTableCreationQuery = pgformat(
-          'CREATE TABLE %I.%I (%s, PRIMARY KEY(%I));',
+          `CREATE TABLE %I.%I (%s);`,
           revision.id,
           FACT_TABLE_NAME,
-          factTableCreationDef,
-          compositeKey
+          factTableCreationDef.join(', ')
         );
       }
       const createQuery = pgformat(`CALL postgres_execute('postgres_db', %L);`, factTableCreationQuery);
