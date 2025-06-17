@@ -25,7 +25,8 @@ export function getLocalConfig(): AppConfig {
       redisUrl: process.env.REDIS_URL || 'redis://localhost'
     },
     logger: {
-      level: (process.env.LOG_LEVEL as Level) || 'debug'
+      level: (process.env.LOG_LEVEL as Level) || 'debug',
+      memUsage: process.env.MEM_USAGE ? process.env.MEM_USAGE.toLowerCase() == 'true' : false
     },
     database: {
       host: process.env.DB_HOST || 'localhost',

@@ -45,6 +45,7 @@ import { QueryResult } from 'pg';
 import { getCubeDB } from '../db/cube-db';
 import { getFileService } from '../utils/get-file-service';
 import { asyncTmpName } from '../utils/async-tmp';
+import { performanceReporting } from '../utils/performance-reporting';
 
 export const FACT_TABLE_NAME = 'fact_table';
 
@@ -1399,6 +1400,7 @@ async function setupDimensions(
     };
   });
   for (const dim of orderedDimension.sort((dimA, dimB) => dimA.index - dimB.index)) {
+    const dimStart = performance.now();
     const dimension = dim.dimension;
     const factTableColumn = dataset.factTable?.find(
       (col) =>
@@ -1477,6 +1479,7 @@ async function setupDimensions(
       logger.error(err, `Something went wrong trying to load dimension ${dimension.id} in to the cube`);
       throw new Error(`Could not load dimensions ${dimension.id} in to the cube with the following error: ${err}`);
     }
+    performanceReporting(Math.round(performance.now() - dimStart), 1000, `Setting up ${dimension.type} dimension type`);
   }
 }
 
@@ -1493,6 +1496,7 @@ export async function createEmptyFactTableInCube(
   revision: Revision,
   type: 'postgres' | 'duckdb'
 ) {
+  const start = performance.now();
   let notesCodeColumn: FactTableColumn | undefined;
   let dataValuesColumn: FactTableColumn | undefined;
   let measureColumn: FactTableColumn | undefined;
@@ -1500,6 +1504,7 @@ export async function createEmptyFactTableInCube(
   if (!dataset.factTable) {
     throw new Error(`Unable to find fact table for dataset ${dataset.id}`);
   }
+
   const factTable = dataset.factTable.sort((colA, colB) => colA.columnIndex - colB.columnIndex);
   const compositeKey: string[] = [];
   const factIdentifiers: FactTableColumn[] = [];
@@ -1582,6 +1587,9 @@ export async function createEmptyFactTableInCube(
       throw new Error(`Failed to create fact table in cube: ${err}`);
     }
   }
+  const end = performance.now();
+  const timing = Math.round(end - start);
+  logger.debug(`createEmptyFactTableInCube: ${timing}ms`);
   return { measureColumn, notesCodeColumn, dataValuesColumn, factTableDef, factIdentifiers };
 }
 
@@ -1607,6 +1615,7 @@ async function createCubeMetadataTable(quack: Database) {
 }
 
 async function createFilterTable(quack: Database, revisionID: string, type: 'postgres' | 'duckdb'): Promise<void> {
+  const start = performance.now();
   logger.debug('Creating filter table to the cube');
   let tableName = pgformat('%I.filter_table', revisionID);
   if (type === 'duckdb') {
@@ -1628,6 +1637,9 @@ async function createFilterTable(quack: Database, revisionID: string, type: 'pos
     revisionID
   );
   await quack.exec(createFilterQuery);
+  const end = performance.now();
+  const timing = Math.round(end - start);
+  logger.debug(`createFilterTable: ${timing}ms`);
 }
 
 // Builds a fresh cube from either from a protocube or completely from scratch
@@ -1690,20 +1702,22 @@ export const createBasePostgresCube = async (
   await linkToPostgres(quack, endRevision.id, true);
 
   const { factTableDef, factIdentifiers } = await createEmptyFactTableInCube(quack, dataset, endRevision, 'postgres');
+  await createCubeMetadataTable(quack);
   await createFilterTable(quack, endRevision.id, 'postgres');
   const notesCodeColumn = dataset.factTable?.find((field) => field.columnType === FactTableColumnType.NoteCodes);
   const dataValuesColumn = dataset.factTable?.find((field) => field.columnType === FactTableColumnType.DataValues);
   const measureColumn = dataset.factTable?.find((field) => field.columnType === FactTableColumnType.Measure);
-
+  performanceReporting(Math.round(performance.now() - functionStart), 1000, 'Base table creation');
   try {
+    const loadFactTablesStart = performance.now();
     await loadFactTables(quack, dataset, endRevision, factTableDef, dataValuesColumn, notesCodeColumn, factIdentifiers);
+    performanceReporting(Math.round(performance.now() - loadFactTablesStart), 1000, 'Loading all the data tables');
   } catch (err) {
     logger.error(err, `Failed to load fact tables into the cube`);
     throw new Error(`Failed to load fact tables into the cube: ${err}`);
   }
 
-  await createCubeMetadataTable(quack);
-
+  const measureSetupMark = performance.now();
   if (measureColumn && dataValuesColumn) {
     try {
       await setupMeasures(
@@ -1723,9 +1737,17 @@ export const createBasePostgresCube = async (
   } else {
     setupMeasureNoDataValues(viewSelectStatementsMap, rawSelectStatementsMap, measureColumn, dataValuesColumn);
   }
+  performanceReporting(Math.round(performance.now() - measureSetupMark), 1000, 'Setting up the measure');
 
+  const loadReferenceDataMark = performance.now();
   await loadReferenceDataIntoCube(quack);
+  performanceReporting(
+    Math.round(performance.now() - loadReferenceDataMark),
+    1000,
+    'Loading reference data in to cube'
+  );
 
+  const dimensionSetupMark = performance.now();
   try {
     await setupDimensions(
       quack,
@@ -1740,14 +1762,17 @@ export const createBasePostgresCube = async (
     logger.error(err, `Failed to setup dimensions`);
     throw new Error(`Failed to setup dimensions`);
   }
+  performanceReporting(Math.round(performance.now() - dimensionSetupMark), 1000, 'Setting up the dimensions in total');
 
+  const noteCodeCreation = performance.now();
   logger.debug('Adding notes code column to the select statement.');
-
   if (notesCodeColumn) {
     await createNotesTable(quack, notesCodeColumn, viewSelectStatementsMap, rawSelectStatementsMap, joinStatements);
   }
+  performanceReporting(Math.round(performance.now() - noteCodeCreation), 1000, 'Setting up the note codes');
 
   logger.info(`Creating default views...`);
+  const viewCreation = performance.now();
   // Build the default views
   try {
     for (const locale of SUPPORTED_LOCALES) {
@@ -1782,16 +1807,19 @@ export const createBasePostgresCube = async (
       await quack.exec(rawViewSQL);
     }
   } catch (error) {
+    performanceReporting(Math.round(performance.now() - viewCreation), 3000, 'Setting up the default views');
     logger.error(error, 'Something went wrong trying to create the default views in the cube.');
     const exception = new CubeValidationException('Cube Build Failed');
     exception.type = CubeValidationType.CubeCreationFailed;
     throw exception;
   }
+  performanceReporting(Math.round(performance.now() - viewCreation), 3000, 'Setting up the default views');
 
   const end = performance.now();
   const functionTime = Math.round(end - functionStart);
   const buildTime = Math.round(end - buildStart);
-  logger.warn(`Cube function took ${functionTime}ms to complete and it took ${buildTime}ms to build the cube.`);
+  performanceReporting(buildTime, 5000, 'Cube build process');
+  performanceReporting(functionTime, 5000, 'Cube build function in total');
   endRevision.cubeType = CubeType.PostgresCube;
   await endRevision.save();
 };
