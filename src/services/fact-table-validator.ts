@@ -121,12 +121,20 @@ export const factTableValidatorFromSource = async (
   const factTableDef = orderedFactTableDefinition
     .filter((def) => def.factTableColumnType !== FactTableColumnType.Ignore)
     .map((def) => def.factTableColumn.columnName);
+  // Commented out for testing
+  // const factTableCreationQuery = pgformat(
+  //   `CREATE TABLE %I.%I (%s, PRIMARY KEY (%I));`,
+  //   revision.id,
+  //   FACT_TABLE_NAME,
+  //   factTableCreateDef.join(', '),
+  //   primaryKeyDef
+  // );
+  // No primary key table creation
   const factTableCreationQuery = pgformat(
-    `CREATE TABLE %I.%I (%s, PRIMARY KEY (%I));`,
+    `CREATE TABLE %I.%I (%s);`,
     revision.id,
     FACT_TABLE_NAME,
-    factTableCreateDef.join(', '),
-    primaryKeyDef
+    factTableCreateDef.join(', ')
   );
   const createQuery = pgformat(`CALL postgres_execute('postgres_db', %L);`, factTableCreationQuery);
 
