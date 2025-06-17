@@ -26,7 +26,7 @@ export function getLocalConfig(): AppConfig {
     },
     logger: {
       level: (process.env.LOG_LEVEL as Level) || 'debug',
-      memUsage: process.env.MEM_USUAGE ? process.env.MEM_USUAGE.toLowerCase() == 'true' : false
+      memUsage: process.env.MEM_USAGE ? process.env.MEM_USAGE.toLowerCase() == 'true' : false
     },
     database: {
       host: process.env.DB_HOST || 'localhost',

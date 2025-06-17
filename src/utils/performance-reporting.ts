@@ -5,9 +5,9 @@ const config = appConfig();
 
 export const performanceReporting = (totalTime: number, targetNumber: number, method: string) => {
   if (totalTime > targetNumber) {
-    logger.warn(`${method} took ${targetNumber} ms`);
+    logger.warn(`${method} took ${totalTime} ms`);
   } else {
-    logger.debug(`${method} took ${targetNumber} ms`);
+    logger.debug(`${method} took ${totalTime} ms`);
   }
   if (config.logger.memUsage) {
     for (const [key, value] of Object.entries(process.memoryUsage())) {

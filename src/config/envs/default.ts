@@ -34,7 +34,7 @@ export const getDefaultConfig = (): AppConfig => {
     },
     logger: {
       level: (process.env.LOG_LEVEL as Level) || 'info',
-      memUsage: process.env.MEM_USUAGE ? process.env.MEM_USUAGE.toLowerCase() == 'true' : false
+      memUsage: process.env.MEM_USAGE ? process.env.MEM_USAGE.toLowerCase() == 'true' : false
     },
     rateLimit: {
       windowMs: 60000,
