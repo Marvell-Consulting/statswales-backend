@@ -1,3 +1,5 @@
+import { performance } from 'node:perf_hooks';
+
 import { Database } from 'duckdb-async';
 import { format as pgformat } from '@scaleleap/pg-format';
 
@@ -38,6 +40,7 @@ export const duckdb = async (cubeFile = ':memory:'): Promise<Database> => {
 };
 
 export const linkToPostgres = async (quack: Database, revisionId: string, recreate: boolean) => {
+  const start = performance.now();
   await quack.exec(`LOAD 'postgres';`);
 
   const secret = `CREATE OR REPLACE SECRET (
@@ -65,6 +68,9 @@ export const linkToPostgres = async (quack: Database, revisionId: string, recrea
   await quack.exec(pgformat(`ATTACH '' AS postgres_db (TYPE postgres, SCHEMA %I);`, revisionId));
   await quack.exec(`USE postgres_db;`);
   logger.debug('Linking to postgres schema successful');
+  const end = performance.now();
+  const timing = Math.round(end - start);
+  logger.debug(`linkToPostgres: ${timing}ms`);
 };
 
 export const linkToPostgresDataTables = async (quack: Database) => {

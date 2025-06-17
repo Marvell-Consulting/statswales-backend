@@ -1493,6 +1493,7 @@ export async function createEmptyFactTableInCube(
   revision: Revision,
   type: 'postgres' | 'duckdb'
 ) {
+  const start = performance.now();
   let notesCodeColumn: FactTableColumn | undefined;
   let dataValuesColumn: FactTableColumn | undefined;
   let measureColumn: FactTableColumn | undefined;
@@ -1500,6 +1501,7 @@ export async function createEmptyFactTableInCube(
   if (!dataset.factTable) {
     throw new Error(`Unable to find fact table for dataset ${dataset.id}`);
   }
+
   const factTable = dataset.factTable.sort((colA, colB) => colA.columnIndex - colB.columnIndex);
   const compositeKey: string[] = [];
   const factIdentifiers: FactTableColumn[] = [];
@@ -1582,6 +1584,9 @@ export async function createEmptyFactTableInCube(
       throw new Error(`Failed to create fact table in cube: ${err}`);
     }
   }
+  const end = performance.now();
+  const timing = Math.round(end - start);
+  logger.debug(`createEmptyFactTableInCube: ${timing}ms`);
   return { measureColumn, notesCodeColumn, dataValuesColumn, factTableDef, factIdentifiers };
 }
 
@@ -1607,6 +1612,7 @@ async function createCubeMetadataTable(quack: Database) {
 }
 
 async function createFilterTable(quack: Database, revisionID: string, type: 'postgres' | 'duckdb'): Promise<void> {
+  const start = performance.now();
   logger.debug('Creating filter table to the cube');
   let tableName = pgformat('%I.filter_table', revisionID);
   if (type === 'duckdb') {
@@ -1628,6 +1634,9 @@ async function createFilterTable(quack: Database, revisionID: string, type: 'pos
     revisionID
   );
   await quack.exec(createFilterQuery);
+  const end = performance.now();
+  const timing = Math.round(end - start);
+  logger.debug(`createFilterTable: ${timing}ms`);
 }
 
 // Builds a fresh cube from either from a protocube or completely from scratch
