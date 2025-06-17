@@ -32,6 +32,7 @@ export interface AppConfig {
   };
   logger: {
     level: Level | 'silent';
+    memUsage: boolean;
   };
   rateLimit: {
     windowMs: number;

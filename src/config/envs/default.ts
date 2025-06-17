@@ -33,7 +33,8 @@ export const getDefaultConfig = (): AppConfig => {
       redisPassword: process.env.REDIS_ACCESS_KEY
     },
     logger: {
-      level: (process.env.LOG_LEVEL as Level) || 'info'
+      level: (process.env.LOG_LEVEL as Level) || 'info',
+      memUsage: process.env.MEM_USUAGE ? process.env.MEM_USUAGE.toLowerCase() == 'true' : false
     },
     rateLimit: {
       windowMs: 60000,
