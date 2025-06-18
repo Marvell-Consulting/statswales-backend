@@ -985,47 +985,51 @@ interface MeasureFormat {
   method: string;
 }
 
-function measureFormats(): Map<string, MeasureFormat> {
+function postgresMeasureFormats(): Map<string, MeasureFormat> {
   const measureFormats: Map<string, MeasureFormat> = new Map();
   measureFormats.set('decimal', {
     name: 'decimal',
-    method: "WHEN measure.reference = |REF| THEN printf('%,.|DEC|f', TRY_CAST(|COL| AS DECIMAL))"
+    method:
+      "WHEN measure.reference = |REF| THEN format('%s', TO_CHAR(ROUND(CAST(|COL| AS DECIMAL), '|DEC|'), '999,999,990|ZEROS|'))"
   });
   measureFormats.set('float', {
     name: 'float',
-    method: "WHEN measure.reference = |REF| THEN printf('%,.|DEC|f', TRY_CAST(|COL| AS DECIMAL))"
+    method:
+      "WHEN measure.reference = |REF| THEN format('%s', TO_CHAR(ROUND(CAST(|COL| AS DECIMAL), '|DEC|'), '999,999,990|ZEROS|'))"
   });
   measureFormats.set('integer', {
     name: 'integer',
-    method: "WHEN measure.reference = |REF| THEN printf('%,d', TRY_CAST(|COL| AS BIGINT))"
+    method: "WHEN measure.reference = |REF| THEN format('%s', CAST(|COL| AS BIGINT))"
   });
   measureFormats.set('long', {
     name: 'long',
-    method: "WHEN measure.reference = |REF| THEN printf('%f', TRY_CAST(|COL| AS DECIMAL))"
+    method:
+      "WHEN measure.reference = |REF| THEN format('%s', TO_CHAR(ROUND(CAST(|COL| AS DECIMAL), '|DEC|'), '999,999,990|ZEROS|'))"
   });
   measureFormats.set('percentage', {
     name: 'percentage',
-    method: "WHEN measure.reference = |REF| THEN printf('%,.|DEC|f %%', TRY_CAST(|COL| AS DECIMAL))"
+    method:
+      "WHEN measure.reference = |REF| THEN format('%s', TO_CHAR(ROUND(CAST(|COL| AS DECIMAL), '|DEC|'), '999,999,990|ZEROS|'))"
   });
   measureFormats.set('string', {
     name: 'string',
-    method: "WHEN measure.reference = |REF| THEN printf('%s', TRY_CAST(|COL| AS VARCHAR))"
+    method: "WHEN measure.reference = |REF| THEN format('%s', CAST(|COL| AS VARCHAR))"
   });
   measureFormats.set('text', {
     name: 'text',
-    method: "WHEN measure.reference = |REF| THEN printf('%s', TRY_CAST(|COL| AS VARCHAR))"
+    method: "WHEN measure.reference = |REF| THEN format('%s', CAST(|COL| AS VARCHAR))"
   });
   measureFormats.set('date', {
     name: 'date',
-    method: "WHEN measure.reference = |REF| THEN printf('%s', TRY_CAST(|COL| AS VARCHAR))"
+    method: "WHEN measure.reference = |REF| THEN format('%s', CAST(|COL| AS VARCHAR))"
   });
   measureFormats.set('datetime', {
     name: 'datetime',
-    method: "WHEN measure.reference = |REF| THEN printf('%s', TRY_CAST(|COL| AS VARCHAR))"
+    method: "WHEN measure.reference = |REF| THEN format('%s', CAST(|COL| AS VARCHAR))"
   });
   measureFormats.set('time', {
     name: 'time',
-    method: "WHEN measure.reference = |REF| THEN printf('%s', TRY_CAST(|COL| AS VARCHAR))"
+    method: "WHEN measure.reference = |REF| THEN format('%s', CAST(|COL| AS VARCHAR))"
   });
   return measureFormats;
 }
@@ -1130,10 +1134,11 @@ async function setupMeasures(
     );
     const caseStatements: string[] = ['CASE'];
     for (const row of uniqueReferences) {
-      const statement = measureFormats()
+      const statement = postgresMeasureFormats()
         .get(row.format.toLowerCase())
         ?.method.replace('|REF|', pgformat('%L', row.reference))
         .replace('|DEC|', row.decimals ? row.decimals : 0)
+        .replace('|ZEROS|', row.decimals ? `.${'0'.repeat(row.decimals)}` : '')
         .replace('|COL|', pgformat('%I.%I', FACT_TABLE_NAME, dataValuesColumn.columnName));
       if (statement) {
         caseStatements.push(statement);
@@ -1234,27 +1239,28 @@ async function dateDimensionProcessor(
   SUPPORTED_LOCALES.map((locale) => {
     const columnName = dimension.metadata.find((info) => info.language === locale)?.name || dimension.factTableColumn;
     viewSelectStatementsMap.get(locale)?.push(pgformat('%I.description AS %I', dimTable, columnName));
-    viewSelectStatementsMap
-      .get(locale)
-      ?.push(
-        pgformat("strftime(%I.start_date, '%d/%m/%Y') AS %I", dimTable, t('column_headers.start_date', { lng: locale }))
-      );
-    viewSelectStatementsMap
-      .get(locale)
-      ?.push(
-        pgformat("strftime(%I.end_date, '%d/%m/%Y') AS %I", dimTable, t('column_headers.end_date', { lng: locale }))
-      );
+    // Leaving commented out for now.  Code will need to be adjusted if we choose to expose the underlying dates for periods
+    // viewSelectStatementsMap
+    //   .get(locale)
+    //   ?.push(
+    //     pgformat("strftime(%I.start_date, '%d/%m/%Y') AS %I", dimTable, t('column_headers.start_date', { lng: locale }))
+    //   );
+    // viewSelectStatementsMap
+    //   .get(locale)
+    //   ?.push(
+    //     pgformat("strftime(%I.end_date, '%d/%m/%Y') AS %I", dimTable, t('column_headers.end_date', { lng: locale }))
+    //   );
     rawSelectStatementsMap.get(locale)?.push(pgformat('%I.description AS %I', dimTable, columnName));
-    rawSelectStatementsMap
-      .get(locale)
-      ?.push(
-        pgformat("strftime(%I.start_date, '%d/%m/%Y') AS %I", dimTable, t('column_headers.start_date', { lng: locale }))
-      );
-    rawSelectStatementsMap
-      .get(locale)
-      ?.push(
-        pgformat("strftime(%I.end_date, '%d/%m/%Y') AS %I", dimTable, t('column_headers.end_date', { lng: locale }))
-      );
+    // rawSelectStatementsMap
+    //   .get(locale)
+    //   ?.push(
+    //     pgformat("strftime(%I.start_date, '%d/%m/%Y') AS %I", dimTable, t('column_headers.start_date', { lng: locale }))
+    //   );
+    // rawSelectStatementsMap
+    //   .get(locale)
+    //   ?.push(
+    //     pgformat("strftime(%I.end_date, '%d/%m/%Y') AS %I", dimTable, t('column_headers.end_date', { lng: locale }))
+    //   );
   });
   joinStatements.push(
     pgformat(
@@ -1771,6 +1777,8 @@ export const createBasePostgresCube = async (
   }
   performanceReporting(Math.round(performance.now() - noteCodeCreation), 1000, 'Setting up the note codes');
 
+  const connection = await getCubeDB().connect();
+  await connection.query(pgformat(`SET search_path TO %I;`, endRevision.id));
   logger.info(`Creating default views...`);
   const viewCreation = performance.now();
   // Build the default views
@@ -1785,7 +1793,7 @@ export const createBasePostgresCube = async (
       const lang = locale.toLowerCase().split('-')[0];
 
       const defaultViewSQL = pgformat(
-        'CREATE TABLE %I AS SELECT %s FROM %I %s %s',
+        'CREATE VIEW %I AS SELECT %s FROM %I %s %s',
         `default_view_${lang}`,
         viewSelectStatementsMap.get(locale)?.join(',\n'),
         FACT_TABLE_NAME,
@@ -1793,10 +1801,10 @@ export const createBasePostgresCube = async (
         orderByStatements.length > 0 ? `ORDER BY ${orderByStatements.join(', ')}` : ''
       );
       logger.debug(defaultViewSQL);
-      await quack.exec(defaultViewSQL);
+      await connection.query(defaultViewSQL);
 
       const rawViewSQL = pgformat(
-        'CREATE TABLE %I AS SELECT %s FROM %I %s %s',
+        'CREATE VIEW %I AS SELECT %s FROM %I %s %s',
         `raw_view_${lang}`,
         rawSelectStatementsMap.get(locale)?.join(',\n'),
         FACT_TABLE_NAME,
@@ -1804,7 +1812,7 @@ export const createBasePostgresCube = async (
         orderByStatements.length > 0 ? `ORDER BY ${orderByStatements.join(', ')}` : ''
       );
       logger.debug(rawViewSQL);
-      await quack.exec(rawViewSQL);
+      await connection.query(rawViewSQL);
     }
   } catch (error) {
     performanceReporting(Math.round(performance.now() - viewCreation), 3000, 'Setting up the default views');
@@ -1812,9 +1820,10 @@ export const createBasePostgresCube = async (
     const exception = new CubeValidationException('Cube Build Failed');
     exception.type = CubeValidationType.CubeCreationFailed;
     throw exception;
+  } finally {
+    connection.release();
   }
   performanceReporting(Math.round(performance.now() - viewCreation), 3000, 'Setting up the default views');
-
   const end = performance.now();
   const functionTime = Math.round(end - functionStart);
   const buildTime = Math.round(end - buildStart);
