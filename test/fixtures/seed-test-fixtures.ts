@@ -1,5 +1,4 @@
 /* eslint-disable no-console */
-import fs from 'node:fs';
 
 import { Seeder } from '@jorgebodega/typeorm-seeding';
 import { DataSource } from 'typeorm';
@@ -10,7 +9,6 @@ import { Dataset } from '../../src/entities/dataset/dataset';
 import { appConfig } from '../../src/config';
 import { AppEnv } from '../../src/config/env.enum';
 import { validateAndUpload } from '../../src/services/csv-processor';
-import { DataTable } from '../../src/entities/dataset/data-table';
 
 import { testUsers } from './users';
 import { testDatasets } from './datasets';
@@ -57,14 +55,12 @@ export default class SeedTestFixtures extends Seeder {
         const dataset = await entityManager.getRepository(Dataset).create(partialDataset).save();
 
         if (revision && testDataset.csvPath) {
-          const buffer = fs.readFileSync(testDataset.csvPath);
           const file = {
-            buffer,
             mimetype: 'text/csv',
             originalname: 'test-fixture.csv',
-            size: buffer.length
+            path: testDataset.csvPath
           } as any;
-          const { dataTable }: { dataTable: DataTable } = await validateAndUpload(file, dataset.id, 'data_table');
+          const dataTable = await validateAndUpload(file, dataset.id, 'data_table');
 
           revision = await entityManager.getRepository(Revision).save({
             ...revision,
