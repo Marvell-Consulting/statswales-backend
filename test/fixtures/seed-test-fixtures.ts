@@ -64,7 +64,7 @@ export default class SeedTestFixtures extends Seeder {
             originalname: 'test-fixture.csv',
             size: buffer.length
           } as any;
-          const { dataTable }: { dataTable: DataTable } = await validateAndUpload(file, dataset.id, 'data_table');
+          const dataTable: DataTable = await validateAndUpload(file, dataset.id, 'data_table');
 
           revision = await entityManager.getRepository(Revision).save({
             ...revision,
