@@ -120,6 +120,7 @@ export const getFilters = async (revision: Revision, language: string): Promise<
 function createBaseQuery(
   revision: Revision,
   lang: string,
+  materialized: boolean,
   sortBy?: SortByInterface[],
   filterBy?: FilterInterface[]
 ): string {
@@ -141,7 +142,7 @@ function createBaseQuery(
   return pgformat(
     'SELECT * FROM %I.%I %s %s',
     revision.id,
-    `default_view_${lang}`,
+    materialized ? `materialized_default_view_${lang}` : `default_view_${lang}`,
     filterQuery ? `WHERE ${filterQuery}` : '',
     sortByQuery ? `ORDER BY ${sortByQuery}` : ''
   );
@@ -156,8 +157,22 @@ export const createFrontendView = async (
   sortBy?: SortByInterface[],
   filterBy?: FilterInterface[]
 ): Promise<ViewDTO | ViewErrDTO> => {
-  const baseQuery = createBaseQuery(revision, lang, sortBy, filterBy);
   const connection = await getCubeDB().connect();
+  await connection.query(pgformat(`SET search_path TO %I;`, revision.id));
+  const availableMaterializedView = await connection.query(
+    pgformat(
+      `select * from pg_matviews where matviewname = %L AND schemaname = %L;`,
+      `materialized_default_view_${lang}`,
+      revision.id
+    )
+  );
+  let baseQuery: string;
+  if (availableMaterializedView.rows.length > 0) {
+    baseQuery = createBaseQuery(revision, lang, true, sortBy, filterBy);
+  } else {
+    baseQuery = createBaseQuery(revision, lang, false, sortBy, filterBy);
+  }
+
   try {
     const totalsQuery = pgformat(
       'SELECT count(*) as "totalLines", ceil(count(*)/%L) as "totalPages" from (%s);',

@@ -2059,6 +2059,41 @@ export const createFilesForDownload = async (quack: Database, datasetId: string,
   logger.debug('Async processes completed.');
 };
 
+export const createMaterialisedView = async (revisionId: string) => {
+  const connection = await getCubeDB().connect();
+  await connection.query(pgformat(`SET search_path TO %I;`, revisionId));
+  logger.info(`Creating default views...`);
+  const viewCreation = performance.now();
+  // Build the default views
+  try {
+    for (const locale of SUPPORTED_LOCALES) {
+      const lang = locale.toLowerCase().split('-')[0];
+
+      const defaultViewSQL = pgformat(
+        'CREATE MATERIALIZED VIEW %I AS SELECT * FROM %I;',
+        `materialized_default_view_${lang}`,
+        `default_view_${lang}`
+      );
+      logger.debug(defaultViewSQL);
+      await connection.query(defaultViewSQL);
+
+      const rawViewSQL = pgformat(
+        'CREATE MATERIALIZED VIEW %I AS SELECT * FROM %I;',
+        `materialized_raw_view_${lang}`,
+        `raw_view_${lang}`
+      );
+      logger.debug(rawViewSQL);
+      await connection.query(rawViewSQL);
+    }
+  } catch (error) {
+    performanceReporting(Math.round(performance.now() - viewCreation), 3000, 'Setting up the materialized views');
+    logger.error(error, 'Something went wrong trying to create the materialized views in the cube.');
+  } finally {
+    connection.release();
+  }
+  performanceReporting(Math.round(performance.now() - viewCreation), 3000, 'Setting up the materialized views');
+};
+
 export const createAllCubeFiles = async (datasetId: string, endRevisionId: string): Promise<void> => {
   const protoCubeFileName = await asyncTmpName({ postfix: '.duckdb' });
   const quack = await duckdb(protoCubeFileName);
@@ -2073,6 +2108,7 @@ export const createAllCubeFiles = async (datasetId: string, endRevisionId: strin
   // don't wait for this, can happen in the background so we can send the response earlier
   logger.debug('Running async process...');
   void createFilesForDownload(quack, datasetId, endRevisionId);
+  void createMaterialisedView(endRevisionId);
 };
 
 export const getCubeTimePeriods = async (revisionId: string): Promise<PeriodCovered> => {
