@@ -44,6 +44,7 @@ BlobStorage.prototype.listFiles = jest
 
 BlobStorage.prototype.saveBuffer = jest.fn();
 
+const createdRevisions: string[] = [];
 const dataset1Id = 'bdc40218-af89-424b-b86e-d21710bc92f1';
 const revision1Id = '85f0e416-8bd1-4946-9e2c-1c958897c6ef';
 const import1Id = 'fa07be9d-3495-432d-8c1f-d0fc6daae359';
@@ -70,6 +71,7 @@ describe('API Endpoints', () => {
       user.groupRoles = [UserGroupRole.create({ group: userGroup, roles: [GroupRole.Editor] })];
       await user.save();
       await createFullDataset(dataset1Id, revision1Id, import1Id, user);
+      createdRevisions.push(revision1Id);
       const fileService = getFileService();
       datasetService = new DatasetService(Locale.EnglishGb, fileService);
     } catch (error) {
@@ -122,6 +124,7 @@ describe('API Endpoints', () => {
 
       const datasetWithUpload = await DatasetRepository.getById(dataset.id);
       const datasetDTO = DatasetDTO.fromDataset(datasetWithUpload);
+      createdRevisions.push(datasetDTO.start_revision_id!);
       expect(res.status).toBe(201);
       expect(res.body).toEqual(datasetDTO);
       await Dataset.remove(dataset);
@@ -165,7 +168,7 @@ describe('API Endpoints', () => {
           }
         ]
       });
-      await queryRunner.dropSchema(testRevisionId, true, true);
+      createdRevisions.push(testRevisionId);
     });
 
     test('Get file preview returns 400 if page_size is too high', async () => {
@@ -213,7 +216,7 @@ describe('API Endpoints', () => {
           }
         ]
       });
-      await queryRunner.dropSchema(testRevisionId, true, true);
+      createdRevisions.push(testRevisionId);
     });
 
     test('Get file preview returns 400 if page_size is too low', async () => {
@@ -261,7 +264,7 @@ describe('API Endpoints', () => {
           }
         ]
       });
-      await queryRunner.dropSchema(testRevisionId, true, true);
+      createdRevisions.push(testRevisionId);
     });
 
     test('Get preview of an import returns 200 and correct page data', async () => {
@@ -294,7 +297,7 @@ describe('API Endpoints', () => {
       ]);
       expect(res.body.data[0]).toEqual([1, 201314, 512, 1.111801242, 2, 2, null]);
       expect(res.body.data[23]).toEqual([24, 201314, 522, 4636, 1, 1, null]);
-      await queryRunner.dropSchema(testRevisionId, true, true);
+      createdRevisions.push(testRevisionId);
     });
 
     test('Get preview of an import returns 404 when a non-existant import is requested', async () => {
@@ -310,7 +313,7 @@ describe('API Endpoints', () => {
         .set(getAuthHeader(user));
       expect(res.status).toBe(404);
       expect(res.body).toEqual({ error: 'errors.no_data_table' });
-      await queryRunner.dropSchema(testRevisionId, true, true);
+      createdRevisions.push(testRevisionId);
     });
   });
 
@@ -348,7 +351,7 @@ describe('API Endpoints', () => {
       }
 
       expect(revision.dataTable).toBe(null);
-      await queryRunner.dropSchema(testRevisionId, true, true);
+      createdRevisions.push(testRevisionId);
     });
 
     test('Upload returns 400 if no file attached', async () => {
@@ -369,7 +372,7 @@ describe('API Endpoints', () => {
 
       expect(res.status).toBe(400);
       expect(res.body).toEqual({ error: 'No CSV data provided' });
-      await queryRunner.dropSchema(testRevisionId, true, true);
+      createdRevisions.push(testRevisionId);
     });
 
     test('Upload returns 201 if a file is attached', async () => {
@@ -414,7 +417,7 @@ describe('API Endpoints', () => {
       expect(res.status).toBe(201);
       expect(res.body).toEqual(datasetDTO);
       await Dataset.remove(dataset);
-      await queryRunner.dropSchema(testRevisionId, true, true);
+      createdRevisions.push(testRevisionId);
     });
 
     test('Upload returns 500 if an error occurs with file storage', async () => {
@@ -441,7 +444,7 @@ describe('API Endpoints', () => {
         .attach('csv', csvFile);
       expect(res.status).toBe(500);
       expect(res.body).toEqual({ error: 'errors.file_validation.datalake_upload_error' });
-      await queryRunner.dropSchema(testRevisionId, true, true);
+      createdRevisions.push(testRevisionId);
     });
   });
 
@@ -465,7 +468,7 @@ describe('API Endpoints', () => {
       const dto = DataTableDto.fromDataTable(postRunFileImport);
       expect(res.status).toBe(200);
       expect(res.body).toEqual(dto);
-      await queryRunner.dropSchema(testRevisionId, true, true);
+      createdRevisions.push(testRevisionId);
     });
 
     test('Returns 200 with an import dto listing the no additional sources are created if sources are already present', async () => {
@@ -566,7 +569,7 @@ describe('API Endpoints', () => {
       }
       const dimensions = updatedDataset.dimensions;
       expect(dimensions.length).toBe(3);
-      await queryRunner.dropSchema(testRevisionId, true, true);
+      createdRevisions.push(testRevisionId);
     });
 
     test('Create dimensions from user supplied JSON returns 400 if the body is empty', async () => {
@@ -577,7 +580,7 @@ describe('API Endpoints', () => {
       const res = await request(app).patch(`/dataset/${testDatasetId}/sources`).send().set(getAuthHeader(user));
       expect(res.status).toBe(400);
       expect(res.body).toEqual({ error: 'Could not assign source types to import' });
-      await queryRunner.dropSchema(testRevisionId, true, true);
+      createdRevisions.push(testRevisionId);
     });
 
     test('Create dimensions from user supplied JSON returns 400 if there is more than one set of Data Values', async () => {
@@ -626,7 +629,7 @@ describe('API Endpoints', () => {
         ],
         status: 400
       });
-      await queryRunner.dropSchema(testRevisionId, true, true);
+      createdRevisions.push(testRevisionId);
     });
 
     test('Create dimensions from user supplied JSON returns 400 if there is more than one set of Footnotes', async () => {
@@ -676,7 +679,7 @@ describe('API Endpoints', () => {
         ],
         status: 400
       });
-      await queryRunner.dropSchema(testRevisionId, true, true);
+      createdRevisions.push(testRevisionId);
     });
   });
 
@@ -703,7 +706,7 @@ describe('API Endpoints', () => {
         const metaEN = updatedDataset.draftRevision?.metadata.find((meta) => meta.language.includes('en'));
 
         expect(metaEN?.title).toEqual(meta.title);
-        await queryRunner.dropSchema(testRevisionId, true, true);
+        createdRevisions.push(testRevisionId);
       });
 
       test('Can update the Welsh title', async () => {
@@ -727,7 +730,7 @@ describe('API Endpoints', () => {
         const metaCY = updatedDataset.draftRevision?.metadata.find((meta) => meta.language.includes('cy'));
 
         expect(metaCY?.title).toEqual(meta.title);
-        await queryRunner.dropSchema(testRevisionId, true, true);
+        createdRevisions.push(testRevisionId);
       });
     });
   });
@@ -746,7 +749,7 @@ describe('API Endpoints', () => {
     expect(res.status).toBe(202);
     const dataset = await Dataset.findOneBy({ id: datasetID });
     expect(dataset).toBeNull();
-    await queryRunner.dropSchema(testRevisionId, true, true);
+    createdRevisions.push(testRevisionId);
   });
 
   describe('Publishing', () => {
@@ -815,7 +818,13 @@ describe('API Endpoints', () => {
   afterAll(async () => {
     const queryRunner = dbManager.getDataSource().createQueryRunner();
     await queryRunner.dropSchema('data_tables', true, true);
-    await queryRunner.dropSchema(revision1Id, true, true);
+    for (const revID of createdRevisions) {
+      try {
+        await queryRunner.dropSchema(revID, true, true);
+      } catch (_) {
+        /* empty */
+      }
+    }
     await queryRunner.release();
     await dbManager.getDataSource().dropDatabase();
     await dbManager.getDataSource().destroy();

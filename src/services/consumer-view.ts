@@ -142,7 +142,7 @@ function createBaseQuery(
   return pgformat(
     'SELECT * FROM %I.%I %s %s',
     revision.id,
-    materialized ? `materialized_default_view_${lang}` : `default_view_${lang}`,
+    materialized ? `default_mat_view_${lang}` : `default_view_${lang}`,
     filterQuery ? `WHERE ${filterQuery}` : '',
     sortByQuery ? `ORDER BY ${sortByQuery}` : ''
   );
@@ -162,7 +162,7 @@ export const createFrontendView = async (
   const availableMaterializedView = await connection.query(
     pgformat(
       `select * from pg_matviews where matviewname = %L AND schemaname = %L;`,
-      `materialized_default_view_${lang}`,
+      `default_mat_view_${lang}`,
       revision.id
     )
   );

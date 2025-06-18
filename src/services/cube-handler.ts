@@ -1618,6 +1618,9 @@ export const updateFactTableValidator = async (
 async function createCubeMetadataTable(quack: Database) {
   logger.debug('Adding metadata table to the cube');
   await quack.exec(`CREATE TABLE metadata (key VARCHAR, value VARCHAR);`);
+  await quack.exec(pgformat('INSERT INTO metadata VALUES (%L, %L);', 'build_id', crypto.randomUUID()));
+  await quack.exec(pgformat('INSERT INTO metadata VALUES (%L, %L);', 'build_start', new Date().toISOString()));
+  await quack.exec(pgformat('INSERT INTO metadata VALUES (%L, %L);', 'build_status', 'incomplete'));
 }
 
 async function createFilterTable(quack: Database, revisionID: string, type: 'postgres' | 'duckdb'): Promise<void> {
@@ -1719,6 +1722,7 @@ export const createBasePostgresCube = async (
     await loadFactTables(quack, dataset, endRevision, factTableDef, dataValuesColumn, notesCodeColumn, factIdentifiers);
     performanceReporting(Math.round(performance.now() - loadFactTablesStart), 1000, 'Loading all the data tables');
   } catch (err) {
+    await quack.exec(`UPDATE metadata SET value = 'failed' WHERE key = 'build_status'`);
     logger.error(err, `Failed to load fact tables into the cube`);
     throw new Error(`Failed to load fact tables into the cube: ${err}`);
   }
@@ -1737,6 +1741,7 @@ export const createBasePostgresCube = async (
         orderByStatements
       );
     } catch (err) {
+      await quack.exec(`UPDATE metadata SET value = 'failed' WHERE key = 'build_status'`);
       logger.error(err, `Failed to setup measures`);
       throw new Error(`Failed to setup measures: ${err}`);
     }
@@ -1765,6 +1770,7 @@ export const createBasePostgresCube = async (
       orderByStatements
     );
   } catch (err) {
+    await quack.exec(`UPDATE metadata SET value = 'failed' WHERE key = 'build_status'`);
     logger.error(err, `Failed to setup dimensions`);
     throw new Error(`Failed to setup dimensions`);
   }
@@ -1800,8 +1806,8 @@ export const createBasePostgresCube = async (
         joinStatements.join('\n').replace(/#LANG#/g, pgformat('%L', locale.toLowerCase())),
         orderByStatements.length > 0 ? `ORDER BY ${orderByStatements.join(', ')}` : ''
       );
-      logger.debug(defaultViewSQL);
       await connection.query(defaultViewSQL);
+      await connection.query(pgformat(`INSERT INTO metadata VALUES (%L, %L)`, `default_view_${lang}`, defaultViewSQL));
 
       const rawViewSQL = pgformat(
         'CREATE VIEW %I AS SELECT %s FROM %I %s %s',
@@ -1811,10 +1817,12 @@ export const createBasePostgresCube = async (
         joinStatements.join('\n').replace(/#LANG#/g, pgformat('%L', locale.toLowerCase())),
         orderByStatements.length > 0 ? `ORDER BY ${orderByStatements.join(', ')}` : ''
       );
-      logger.debug(rawViewSQL);
       await connection.query(rawViewSQL);
+      await connection.query(pgformat(`INSERT INTO metadata VALUES (%L, %L)`, `raw_view_${lang}`, rawViewSQL));
     }
+    await connection.query(`UPDATE metadata SET value = 'awaiting_materialization' WHERE key = 'build_status'`);
   } catch (error) {
+    await connection.query(`UPDATE metadata SET value = 'failed' WHERE key = 'build_status'`);
     performanceReporting(Math.round(performance.now() - viewCreation), 3000, 'Setting up the default views');
     logger.error(error, 'Something went wrong trying to create the default views in the cube.');
     const exception = new CubeValidationException('Cube Build Failed');
@@ -2071,7 +2079,7 @@ export const createMaterialisedView = async (revisionId: string) => {
 
       const defaultViewSQL = pgformat(
         'CREATE MATERIALIZED VIEW %I AS SELECT * FROM %I;',
-        `materialized_default_view_${lang}`,
+        `default_mat_view_${lang}`,
         `default_view_${lang}`
       );
       logger.debug(defaultViewSQL);
@@ -2079,13 +2087,20 @@ export const createMaterialisedView = async (revisionId: string) => {
 
       const rawViewSQL = pgformat(
         'CREATE MATERIALIZED VIEW %I AS SELECT * FROM %I;',
-        `materialized_raw_view_${lang}`,
+        `raw_mat_view_${lang}`,
         `raw_view_${lang}`
       );
       logger.debug(rawViewSQL);
       await connection.query(rawViewSQL);
     }
+    await connection.query(`UPDATE metadata SET value = 'complete' WHERE key = 'build_status'`);
+    await connection.query(`INSERT INTO metadata VALUES('build_finished', '${new Date().toISOString()}')`);
   } catch (error) {
+    try {
+      await connection.query(`UPDATE metadata SET value = 'failed' WHERE key = 'build_status'`);
+    } catch (err) {
+      logger.error(err, 'Apparently cube no longer exists');
+    }
     performanceReporting(Math.round(performance.now() - viewCreation), 3000, 'Setting up the materialized views');
     logger.error(error, 'Something went wrong trying to create the materialized views in the cube.');
   } finally {
@@ -2107,8 +2122,8 @@ export const createAllCubeFiles = async (datasetId: string, endRevisionId: strin
   }
   // don't wait for this, can happen in the background so we can send the response earlier
   logger.debug('Running async process...');
-  void createFilesForDownload(quack, datasetId, endRevisionId);
   void createMaterialisedView(endRevisionId);
+  void createFilesForDownload(quack, datasetId, endRevisionId);
 };
 
 export const getCubeTimePeriods = async (revisionId: string): Promise<PeriodCovered> => {
