@@ -47,3 +47,4 @@ jobs:
     - run: npm run lint:ci
     - run: npm run build
     - run: npm run test:ci
+    - run: npm run seed:ci # only used for the e2e tests on the frontend, but run it here to ensure it's not broken
