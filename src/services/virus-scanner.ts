@@ -2,7 +2,7 @@ import crypto from 'node:crypto';
 import { Transform } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import { createWriteStream, WriteStream } from 'node:fs';
-import { unlink } from 'node:fs/promises';
+import { stat, unlink } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { performance } from 'node:perf_hooks';
@@ -67,7 +67,7 @@ const getTmpFileStream = (tmpFile: TempFile, onFinish: SuccessCallback): WriteSt
 // Note: This function assumes that the request has been processed by a middleware that populates req.files with the
 // uploaded files streams. If we want to handle multiple files in a single request, we would need to iterate over
 // req.files, see https://github.com/rafasofizada/pechkin/blob/master/examples/express.js
-export const uploadAvScan = async (req: Request, success: SuccessCallback): Promise<void> => {
+export const uploadAvScan = async (req: Request): Promise<TempFile> => {
   const start = performance.now();
   const iterable = ((await req.files?.next()) as any) || {};
   const { stream, filename, mimeType } = iterable.value || {};
@@ -88,42 +88,29 @@ export const uploadAvScan = async (req: Request, success: SuccessCallback): Prom
     throw new UnknownException('errors.upload.initialization_failure');
   }
 
-  logger.warn('BEFORE PIPELINE');
-
   await pipeline(stream, virusScanner, tmpFileStream).catch((err: any) => {
-    logger.warn('PIPELINE CATCH');
     logger.error(err, 'There was a problem streaming the file upload');
     throw new UnknownException('errors.upload.stream_failure');
   });
 
-  logger.warn('AFTER PIPELINE');
+  // wait for the scan to complete before returning the temporary file
+  return new Promise((resolve, reject) => {
+    virusScanner.on('scan-complete', async (result) => {
+      if (result.isInfected) {
+        logger.error(`File ${filename} is infected with virus: ${result.viruses.join(', ')}`);
 
-  virusScanner.on('scan-complete', async (result) => {
-    logger.warn('SCAN COMPLETE');
+        // delete the infected temp file
+        await stat(tmpFile.path)
+          .then(() => unlink(tmpFile.path))
+          .catch(() => {});
 
-    if (result.isInfected) {
-      logger.error(`File ${filename} is infected with virus: ${result.viruses.join(', ')}`);
-      // Clean up the temporary file if it exists
-      if (tmpFile?.path) {
-        try {
-          await unlink(tmpFile.path);
-          logger.debug(`Infected file ${tmpFile.path} deleted`);
-        } catch (unlinkErr) {
-          logger.error(unlinkErr, `Failed to delete infected file ${tmpFile.path}`);
-        }
+        reject(new BadRequestException('errors.upload.infected'));
+        return;
       }
-      throw new BadRequestException('errors.upload.infected');
-    }
 
-    const time = Math.round(performance.now() - start);
-    logger.info(`AV Scan complete. File "${filename}" is clean, took ${time}ms`);
-
-    return success(tmpFile);
+      const time = Math.round(performance.now() - start);
+      logger.info(`AV Scan complete. File "${filename}" is clean, took ${time}ms`);
+      resolve(tmpFile);
+    });
   });
-
-  // // wait for the scan to complete
-  // await new Promise((resolve, reject) => {
-  //   virusScanner.on('scan-complete', resolve);
-  //   virusScanner.on('error', reject);
-  // });
 };

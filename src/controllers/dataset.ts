@@ -167,44 +167,49 @@ export const createDataset = async (req: Request, res: Response, next: NextFunct
 
 export const uploadDataTable = async (req: Request, res: Response, next: NextFunction) => {
   const dataset: Dataset = res.locals.dataset;
+  let tmpFile: TempFile;
 
-  await uploadAvScan(req, async (tmpFile: TempFile) => {
-    try {
-      const updatedDataset = await req.datasetService.updateFactTable(dataset.id, tmpFile);
-      const dto = DatasetDTO.fromDataset(updatedDataset);
-      res.status(201).json(dto);
-      return;
-    } catch (err) {
-      logger.error(err, 'Failed to update the fact table');
-      const error: ViewErrDTO = {
-        status: 500,
-        dataset_id: dataset.id,
-        errors: [
-          {
-            field: 'csv',
-            message: {
-              key: 'errors.unknown_error',
-              params: {}
-            },
-            user_message: [
-              {
-                lang: req.language,
-                message: t('errors.unknown_error', { lng: req.language })
-              }
-            ]
-          }
-        ]
-      };
-      res.status(500).json(error);
-    } finally {
-      stat(tmpFile.path)
-        .then(() => unlink(tmpFile.path))
-        .catch(() => {}); // ignore errors, tmp file already cleaned up
-    }
-  }).catch((err: any) => {
-    logger.error(err, 'There was a problem in the promise chain');
+  try {
+    tmpFile = await uploadAvScan(req);
+  } catch (err: any) {
+    logger.error(err, 'There was a problem uploading the data table file');
     next(err);
-  });
+    return;
+  }
+
+  try {
+    const updatedDataset = await req.datasetService.updateFactTable(dataset.id, tmpFile);
+    const dto = DatasetDTO.fromDataset(updatedDataset);
+    res.status(201).json(dto);
+    return;
+  } catch (err) {
+    logger.error(err, 'Failed to update the fact table');
+    const error: ViewErrDTO = {
+      status: 500,
+      dataset_id: dataset.id,
+      errors: [
+        {
+          field: 'csv',
+          message: {
+            key: 'errors.unknown_error',
+            params: {}
+          },
+          user_message: [
+            {
+              lang: req.language,
+              message: t('errors.unknown_error', { lng: req.language })
+            }
+          ]
+        }
+      ]
+    };
+    res.status(500).json(error);
+    return;
+  } finally {
+    stat(tmpFile.path)
+      .then(() => unlink(tmpFile.path))
+      .catch(() => {}); // ignore errors, tmp file already cleaned up
+  }
 };
 
 export const cubePreview = async (req: Request, res: Response, next: NextFunction) => {
