@@ -88,6 +88,11 @@ export const getDefaultConfig = (): AppConfig => {
       threads: process.env.DUCKDB_THREADS ? parseInt(process.env.DUCKDB_THREADS, 10) : 1,
       memory: process.env.DUCKDB_MEMORY || '125MB',
       writeTimeOut: process.env.DUCKDB_WRITE_TIMEOUT ? parseInt(process.env.DUCKDB_WRITE_TIMEOUT, 10) : 150
+    },
+    clamav: {
+      host: process.env.CLAMAV_HOST || 'localhost',
+      port: parseInt(process.env.CLAMAV_PORT || '3310', 10),
+      timeout: parseInt(process.env.CLAMAV_TIMEOUT || '60000', 10)
     }
   };
 };

@@ -1,7 +1,6 @@
 import { NextFunction, Request, Response } from 'express';
 import { last, sortBy } from 'lodash';
 import { stat, unlink } from 'node:fs/promises';
-import path from 'node:path';
 import { t } from 'i18next';
 import JSZip from 'jszip';
 
@@ -56,7 +55,8 @@ import { EventLogDTO } from '../dtos/event-log-dto';
 import { EventLog } from '../entities/event-log';
 import { SortByInterface } from '../interfaces/sort-by-interface';
 import { FilterInterface } from '../interfaces/filterInterface';
-import { multerStorageDir } from '../config/multer-storage';
+import { uploadAvScan } from '../services/virus-scanner';
+import { TempFile } from '../interfaces/temp-file';
 
 export const listUserDatasets = async (req: Request, res: Response, next: NextFunction) => {
   try {
@@ -168,48 +168,43 @@ export const createDataset = async (req: Request, res: Response, next: NextFunct
 export const uploadDataTable = async (req: Request, res: Response, next: NextFunction) => {
   const dataset: Dataset = res.locals.dataset;
 
-  if (!req.file) {
-    next(new BadRequestException('errors.upload.no_csv'));
-    return;
-  }
-
-  try {
-    const updatedDataset = await req.datasetService.updateFactTable(dataset.id, req.file);
-    const dto = DatasetDTO.fromDataset(updatedDataset);
-    res.status(201);
-    res.json(dto);
-  } catch (err) {
-    logger.error(err, 'Failed to update the fact table');
-    res.status(500);
-    const error: ViewErrDTO = {
-      status: 500,
-      dataset_id: dataset.id,
-      errors: [
-        {
-          field: 'csv',
-          message: {
-            key: 'errors.unknown_error',
-            params: {}
-          },
-          user_message: [
-            {
-              lang: req.language,
-              message: t('errors.unknown_error', { lng: req.language })
-            }
-          ]
-        }
-      ]
-    };
-    res.json(error);
-  } finally {
-    const resolvedPath = path.resolve(multerStorageDir, req.file.path);
-    await stat(resolvedPath)
-      .then(async () => {
-        logger.info(`Deleting temporary file: ${resolvedPath}`);
-        return unlink(resolvedPath);
-      })
-      .catch(() => logger.debug(`File ${resolvedPath} already cleaned up`));
-  }
+  await uploadAvScan(req, async (tmpFile: TempFile) => {
+    try {
+      const updatedDataset = await req.datasetService.updateFactTable(dataset.id, tmpFile);
+      const dto = DatasetDTO.fromDataset(updatedDataset);
+      res.status(201).json(dto);
+      return;
+    } catch (err) {
+      logger.error(err, 'Failed to update the fact table');
+      const error: ViewErrDTO = {
+        status: 500,
+        dataset_id: dataset.id,
+        errors: [
+          {
+            field: 'csv',
+            message: {
+              key: 'errors.unknown_error',
+              params: {}
+            },
+            user_message: [
+              {
+                lang: req.language,
+                message: t('errors.unknown_error', { lng: req.language })
+              }
+            ]
+          }
+        ]
+      };
+      res.status(500).json(error);
+    } finally {
+      stat(tmpFile.path)
+        .then(() => unlink(tmpFile.path))
+        .catch(() => {}); // ignore errors, tmp file already cleaned up
+    }
+  }).catch((err: any) => {
+    logger.error(err, 'There was a problem in the promise chain');
+    next(err);
+  });
 };
 
 export const cubePreview = async (req: Request, res: Response, next: NextFunction) => {

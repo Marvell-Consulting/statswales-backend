@@ -626,6 +626,7 @@ export const regenerateRevisionCube = async (req: Request, res: Response, next: 
     const writeStream = fs.createWriteStream(tmpFile);
     const dataTable = rev.dataTable!;
     const origEncoding = dataTable.encoding;
+
     await pipeline(downloadStream, writeStream).catch((err) => {
       logger.error(err, `An error occurred trying to save tmp local files for revision ${rev.id}`);
       next(new UnknownException('errors.download_from_filestore'));

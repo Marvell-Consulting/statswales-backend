@@ -85,6 +85,11 @@ export interface AppConfig {
     memory: string;
     writeTimeOut: number;
   };
+  clamav: {
+    host: string;
+    port: number;
+    timeout: number;
+  };
 }
 
 // list any optional properties here so we can ignore missing values when we check the config on boot
