@@ -27,17 +27,7 @@ const getAVPassthrough = async (): Promise<Transform> => {
 
   logger.debug(`ClamAV scanner initialized with host: ${host}, port: ${port}, timeout: ${timeout}`);
 
-  const av = clamscan.passthrough();
-
-  av.on('error', (err) => {
-    throw err;
-  });
-
-  av.on('timeout', () => {
-    throw new Error('Virus scan timed out');
-  });
-
-  return av;
+  return clamscan.passthrough();
 };
 
 type SuccessCallback = (tmpFile: TempFile) => void;
@@ -73,7 +63,7 @@ export const uploadAvScan = async (req: Request): Promise<TempFile> => {
   const { stream, filename, mimeType } = iterable.value || {};
 
   if (!stream || !filename || !mimeType) {
-    throw new BadRequestException('errors.upload.file_missing');
+    throw new BadRequestException('errors.file_upload.missing');
   }
 
   let virusScanner: Transform;
@@ -85,30 +75,39 @@ export const uploadAvScan = async (req: Request): Promise<TempFile> => {
     tmpFileStream = getTmpFileStream(tmpFile, (finished: TempFile) => (tmpFile = finished));
   } catch (err) {
     logger.error(err, 'There was a problem initializing the virus scanner or temporary file stream');
-    throw new UnknownException('errors.upload.initialization_failure');
+    throw new UnknownException('errors.file_upload.stream_failure');
   }
 
-  await pipeline(stream, virusScanner, tmpFileStream).catch((err: any) => {
+  // pipeline will not error on infected files, need to wait for 'scan-complete' event to know the result
+  // it will wait for the file to finish writing before resolving the promise though
+  await pipeline(stream, virusScanner, tmpFileStream).catch((err: unknown) => {
     logger.error(err, 'There was a problem streaming the file upload');
-    throw new UnknownException('errors.upload.stream_failure');
+    throw new UnknownException('errors.file_upload.stream_failure');
   });
 
   // wait for the scan to complete before returning the temporary file
   return new Promise((resolve, reject) => {
-    virusScanner.on('scan-complete', async (result) => {
-      if (result.isInfected) {
-        logger.error(`File ${filename} is infected with virus: ${result.viruses.join(', ')}`);
+    virusScanner.on('timeout', () => reject(new UnknownException('errors.file_upload.av_timeout')));
 
-        // delete the infected temp file
+    virusScanner.on('error', (err) => {
+      logger.error(err, 'There was a problem with the virus scanner');
+      reject(new UnknownException('errors.file_upload.scan_failure'));
+    });
+
+    virusScanner.on('scan-complete', async (result) => {
+      const time = Math.round(performance.now() - start);
+
+      if (result.isInfected) {
         await stat(tmpFile.path)
-          .then(() => unlink(tmpFile.path))
+          .then(() => unlink(tmpFile.path)) // delete the infected temp file
           .catch(() => {});
 
-        reject(new BadRequestException('errors.upload.infected'));
+        const viruses = result.viruses.join(', ');
+        logger.warn(`AV Scan complete. File ${filename} is infected with: ${viruses}, took ${time}ms`);
+        reject(new BadRequestException('errors.file_upload.infected'));
         return;
       }
 
-      const time = Math.round(performance.now() - start);
       logger.info(`AV Scan complete. File "${filename}" is clean, took ${time}ms`);
       resolve(tmpFile);
     });
