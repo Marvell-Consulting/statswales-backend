@@ -9,6 +9,7 @@ import { performance } from 'node:perf_hooks';
 
 import { Request } from 'express';
 import NodeClam from 'clamscan';
+import { Internal } from 'pechkin/dist/types.js';
 
 import { appConfig } from '../config';
 import { logger } from '../utils/logger';
@@ -40,7 +41,7 @@ const getTmpFileStream = (tmpFile: TempFile, onFinish: SuccessCallback): WriteSt
   const filePath = path.resolve(tmp, randomName);
   const outputFile = createWriteStream(filePath, { flags: 'w' });
 
-  outputFile.on('error', (err: any) => {
+  outputFile.on('error', (err) => {
     throw err;
   });
 
@@ -52,6 +53,8 @@ const getTmpFileStream = (tmpFile: TempFile, onFinish: SuccessCallback): WriteSt
   return outputFile;
 };
 
+type FileIterator = { value?: Internal.File };
+
 // Handles file upload and virus scanning. Expects a single file in the request, streams it to the ClamAV scanner,
 // and writes the file to a temporary location. If the file is infected, it throws an error and deletes the file.
 // Note: This function assumes that the request has been processed by a middleware that populates req.files with the
@@ -59,7 +62,7 @@ const getTmpFileStream = (tmpFile: TempFile, onFinish: SuccessCallback): WriteSt
 // req.files, see https://github.com/rafasofizada/pechkin/blob/master/examples/express.js
 export const uploadAvScan = async (req: Request): Promise<TempFile> => {
   const start = performance.now();
-  const iterable = ((await req.files?.next()) as any) || {};
+  const iterable = ((await req.files?.next()) as FileIterator) || {};
   const { stream, filename, mimeType } = iterable.value || {};
 
   if (!stream || !filename || !mimeType) {
@@ -98,10 +101,7 @@ export const uploadAvScan = async (req: Request): Promise<TempFile> => {
       const time = Math.round(performance.now() - start);
 
       if (result.isInfected) {
-        await stat(tmpFile.path)
-          .then(() => unlink(tmpFile.path)) // delete the infected temp file
-          .catch(() => {});
-
+        cleanupTmpFile(tmpFile);
         const viruses = result.viruses.join(', ');
         logger.warn(`AV Scan complete. File ${filename} is infected with: ${viruses}, took ${time}ms`);
         reject(new BadRequestException('errors.file_upload.infected'));
@@ -112,4 +112,11 @@ export const uploadAvScan = async (req: Request): Promise<TempFile> => {
       resolve(tmpFile);
     });
   });
+};
+
+// treat this as fire and forget, don't wait for it to complete
+export const cleanupTmpFile = async (tmpFile: TempFile): Promise<void> => {
+  stat(tmpFile.path)
+    .then(() => unlink(tmpFile.path))
+    .catch(() => {}); // ignore errors
 };
