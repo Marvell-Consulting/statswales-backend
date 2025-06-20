@@ -1,4 +1,4 @@
-import fs from 'fs';
+import fs from 'node:fs';
 import { createHash, randomUUID } from 'node:crypto';
 
 import { Database, TableData } from 'duckdb-async';

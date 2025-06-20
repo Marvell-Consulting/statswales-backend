@@ -1,6 +1,5 @@
 import { NextFunction, Request, Response } from 'express';
 import { last, sortBy } from 'lodash';
-import { stat, unlink } from 'node:fs/promises';
 import { t } from 'i18next';
 import JSZip from 'jszip';
 
@@ -55,7 +54,7 @@ import { EventLogDTO } from '../dtos/event-log-dto';
 import { EventLog } from '../entities/event-log';
 import { SortByInterface } from '../interfaces/sort-by-interface';
 import { FilterInterface } from '../interfaces/filterInterface';
-import { uploadAvScan } from '../services/virus-scanner';
+import { cleanupTmpFile, uploadAvScan } from '../services/virus-scanner';
 import { TempFile } from '../interfaces/temp-file';
 
 export const listUserDatasets = async (req: Request, res: Response, next: NextFunction) => {
@@ -171,7 +170,7 @@ export const uploadDataTable = async (req: Request, res: Response, next: NextFun
 
   try {
     tmpFile = await uploadAvScan(req);
-  } catch (err: any) {
+  } catch (err) {
     logger.error(err, 'There was a problem uploading the data table file');
     next(err);
     return;
@@ -184,31 +183,22 @@ export const uploadDataTable = async (req: Request, res: Response, next: NextFun
     return;
   } catch (err) {
     logger.error(err, 'Failed to update the fact table');
+    const lang = req.language as Locale;
     const error: ViewErrDTO = {
       status: 500,
       dataset_id: dataset.id,
       errors: [
         {
           field: 'csv',
-          message: {
-            key: 'errors.unknown_error',
-            params: {}
-          },
-          user_message: [
-            {
-              lang: req.language,
-              message: t('errors.unknown_error', { lng: req.language })
-            }
-          ]
+          message: { key: 'errors.unknown_error', params: {} },
+          user_message: [{ lang, message: t('errors.unknown_error', { lng: lang }) }]
         }
       ]
     };
     res.status(500).json(error);
     return;
   } finally {
-    stat(tmpFile.path)
-      .then(() => unlink(tmpFile.path))
-      .catch(() => {}); // ignore errors, tmp file already cleaned up
+    cleanupTmpFile(tmpFile);
   }
 };
 

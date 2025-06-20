@@ -1,6 +1,4 @@
 import { Readable } from 'node:stream';
-import { stat, unlink } from 'node:fs/promises';
-import path from 'node:path';
 
 import { NextFunction, Request, Response } from 'express';
 
@@ -12,7 +10,6 @@ import { DimensionPatchDto } from '../dtos/dimension-partch-dto';
 import { ViewDTO, ViewErrDTO } from '../dtos/view-dto';
 import { DimensionDTO } from '../dtos/dimension-dto';
 import { LookupTable } from '../entities/dataset/lookup-table';
-import { BadRequestException } from '../exceptions/bad-request.exception';
 import { UnknownException } from '../exceptions/unknown.exception';
 import { LookupTablePatchDTO } from '../dtos/lookup-patch-dto';
 import { DimensionMetadataDTO } from '../dtos/dimension-metadata-dto';
@@ -32,7 +29,8 @@ import { getLatestRevision } from '../utils/latest';
 import { Dataset } from '../entities/dataset/dataset';
 import { createAllCubeFiles } from '../services/cube-handler';
 import { getFileService } from '../utils/get-file-service';
-import { multerStorageDir } from '../config/multer-storage';
+import { TempFile } from '../interfaces/temp-file';
+import { cleanupTmpFile, uploadAvScan } from '../services/virus-scanner';
 
 export const getDimensionInfo = async (req: Request, res: Response) => {
   res.json(DimensionDTO.fromDimension(res.locals.dimension));
@@ -103,8 +101,13 @@ export const sendDimensionPreview = async (req: Request, res: Response, next: Ne
 };
 
 export const attachLookupTableToDimension = async (req: Request, res: Response, next: NextFunction) => {
-  if (!req.file) {
-    next(new BadRequestException('errors.upload.no_csv'));
+  let tmpFile: TempFile;
+
+  try {
+    tmpFile = await uploadAvScan(req);
+  } catch (err) {
+    logger.error(err, 'There was a problem uploading the measure lookup');
+    next(err);
     return;
   }
 
@@ -118,11 +121,9 @@ export const attachLookupTableToDimension = async (req: Request, res: Response, 
       revisions: { dataTable: { dataTableDescriptions: true } }
     });
 
-    const dataTable = await validateAndUpload(req.file, datasetId, 'lookup_table');
-
+    const dataTable = await validateAndUpload(tmpFile, datasetId, 'lookup_table');
     const tableMatcher = req.body as LookupTablePatchDTO;
-
-    const result = await validateLookupTable(dataTable, dataset, dimension, req.file.path, language, tableMatcher);
+    const result = await validateLookupTable(dataTable, dataset, dimension, tmpFile.path, language, tableMatcher);
     await createAllCubeFiles(dataset.id, dataset.draftRevision!.id);
 
     if ((result as ViewErrDTO).status) {
@@ -137,13 +138,7 @@ export const attachLookupTableToDimension = async (req: Request, res: Response, 
     logger.error(err, `An error occurred trying to handle the lookup table`);
     next(new UnknownException('errors.upload_error'));
   } finally {
-    const resolvedPath = path.resolve(multerStorageDir, req.file.path);
-    await stat(resolvedPath)
-      .then(async () => {
-        logger.info(`Deleting temporary file: ${resolvedPath}`);
-        return unlink(resolvedPath);
-      })
-      .catch(() => logger.debug(`File ${resolvedPath} already cleaned up`));
+    cleanupTmpFile(tmpFile);
   }
 };
 
@@ -152,8 +147,6 @@ export const updateDimension = async (req: Request, res: Response, next: NextFun
   const language = req.language.toLowerCase();
   const dimensionPatchRequest = req.body as DimensionPatchDto;
   let preview: ViewDTO | ViewErrDTO;
-
-  // logger.debug(`User dimension type = ${JSON.stringify(dimensionPatchRequest)}`);
 
   try {
     const dataset = await DatasetRepository.getById(res.locals.datasetId, {

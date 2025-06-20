@@ -1,12 +1,10 @@
 import { Router } from 'express';
-import multer from 'multer';
 
 import { datasetAuth } from '../middleware/dataset-auth';
 import { applyImport, translationPreview, translationExport, validateImport } from '../controllers/translation';
+import { fileStreaming } from '../middleware/file-streaming';
 
 export const translationRouter = Router();
-
-const upload = multer({ storage: multer.memoryStorage() });
 
 // ****** DATASET AUTHORISATION MIDDLEWARE ****** //
 // applies auth check for dataset for the current user
@@ -23,7 +21,7 @@ translationRouter.get('/:dataset_id/export', translationExport);
 
 // POST /translation/:dataset_id/import
 // Validates the imported translations from a CSV file
-translationRouter.post('/:dataset_id/import', upload.single('csv'), validateImport);
+translationRouter.post('/:dataset_id/import', fileStreaming(), validateImport);
 
 // PATCH /translation/:dataset_id/import
 // Applies the imported translations to the dataset

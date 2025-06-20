@@ -1,7 +1,6 @@
 import 'reflect-metadata';
 
 import express, { NextFunction, Request, Response, Router } from 'express';
-import multer from 'multer';
 
 import { logger } from '../utils/logger';
 import {
@@ -17,7 +16,7 @@ import {
 import { dimensionIdValidator, hasError } from '../validators';
 import { NotFoundException } from '../exceptions/not-found.exception';
 import { DimensionRepository } from '../repositories/dimension';
-import { storageConfig } from '../config/multer-storage';
+import { fileStreaming } from '../middleware/file-streaming';
 
 export const loadDimension = async (req: Request, res: Response, next: NextFunction) => {
   const dimensionIdError = await hasError(dimensionIdValidator(), req);
@@ -48,7 +47,6 @@ export const loadDimension = async (req: Request, res: Response, next: NextFunct
 };
 
 const jsonParser = express.json();
-const upload = multer({ storage: storageConfig });
 
 const router = Router();
 export const dimensionRouter = router;
@@ -70,7 +68,7 @@ router.get('/by-id/:dimension_id/preview', loadDimension, sendDimensionPreview);
 // POST /:dataset_id/dimension/by-id/:dimension_id/lookup
 // Attaches a lookup table to do a dimension and validates
 // the lookup table.
-router.post('/by-id/:dimension_id/lookup', upload.single('csv'), loadDimension, attachLookupTableToDimension);
+router.post('/by-id/:dimension_id/lookup', fileStreaming(), loadDimension, attachLookupTableToDimension);
 
 // PATCH /dataset/:dataset_id/dimension/id/:dimension_id/
 // Takes a patch request and validates the request against the fact table

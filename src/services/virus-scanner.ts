@@ -103,12 +103,12 @@ export const uploadAvScan = async (req: Request): Promise<TempFile> => {
       if (result.isInfected) {
         cleanupTmpFile(tmpFile);
         const viruses = result.viruses.join(', ');
-        logger.warn(`AV Scan complete. File ${filename} is infected with: ${viruses}, took ${time}ms`);
+        logger.warn(`AV Scan complete. File "${filename}" is infected with: "${viruses}", time: ${time}ms`);
         reject(new BadRequestException('errors.file_upload.infected'));
         return;
       }
 
-      logger.info(`AV Scan complete. File "${filename}" is clean, took ${time}ms`);
+      logger.info(`AV Scan complete. File "${filename}" is clean, time: ${time}ms`);
       resolve(tmpFile);
     });
   });

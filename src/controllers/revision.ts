@@ -1,3 +1,4 @@
+import fs from 'node:fs';
 import { Readable } from 'node:stream';
 import { performance } from 'node:perf_hooks';
 import { pipeline } from 'node:stream/promises';
@@ -58,11 +59,10 @@ import { SortByInterface } from '../interfaces/sort-by-interface';
 import { FilterInterface } from '../interfaces/filterInterface';
 import { FindOptionsRelations } from 'typeorm';
 import { getFilters } from '../services/consumer-view';
-import fs from 'node:fs';
 import { asyncTmpName } from '../utils/async-tmp';
-import { multerStorageDir } from '../config/multer-storage';
-import path from 'node:path';
 import { FileType } from '../enums/file-type';
+import { cleanupTmpFile, uploadAvScan } from '../services/virus-scanner';
+import { TempFile } from '../interfaces/temp-file';
 
 export const getDataTable = async (req: Request, res: Response, next: NextFunction) => {
   const revision: Revision = res.locals.revision;
@@ -402,8 +402,13 @@ export const updateDataTable = async (req: Request, res: Response, next: NextFun
 
   logger.debug(`Updating data table for revision ${revision.id}`);
 
-  if (!req.file) {
-    next(new BadRequestException('errors.upload.no_csv'));
+  let tmpFile: TempFile;
+
+  try {
+    tmpFile = await uploadAvScan(req);
+  } catch (err) {
+    logger.error(err, 'There was a problem uploading the data table file');
+    next(err);
     return;
   }
 
@@ -419,31 +424,18 @@ export const updateDataTable = async (req: Request, res: Response, next: NextFun
 
   let dataTable: DataTable;
   try {
-    dataTable = await validateAndUpload(req.file, datasetId, 'data_table');
+    dataTable = await validateAndUpload(tmpFile, datasetId, 'data_table');
   } catch (err) {
     const error = err as FileValidationException;
     logger.error(error, `An error occurred trying to upload the file`);
+
     if (error.status === 500) {
       return next(new UnknownException(error.errorTag));
-    } else {
-      const error = err as FileValidationException;
-      return next(new BadRequestException(error.errorTag));
     }
+
+    return next(new BadRequestException(error.errorTag));
   } finally {
-    const file = req.file;
-    fs.stat(file.path, (err) => {
-      if (err) logger.warn(`An error occurred checking for multer file`);
-      const resolvedPath = path.resolve(multerStorageDir, file.path);
-      if (!resolvedPath.startsWith(multerStorageDir)) {
-        logger.error('Invalid file path detected, skipping deletion');
-      } else {
-        fs.unlink(resolvedPath, (err) => {
-          if (err) {
-            logger.warn(err, 'Failed to delete uploaded file');
-          }
-        });
-      }
-    });
+    cleanupTmpFile(tmpFile);
   }
 
   try {
