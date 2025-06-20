@@ -613,9 +613,9 @@ export const regenerateRevisionCube = async (req: Request, res: Response, next: 
       continue;
     }
     logger.debug(`Recreating datatable ${rev.dataTable?.id} in postgres data_tables database`);
-    const tmpFile = await asyncTmpName({ postfix: rev.dataTable!.filename.split('.').reverse()[0] });
+    const tmpFilePath = await asyncTmpName({ postfix: rev.dataTable!.filename.split('.').reverse()[0] });
     const downloadStream = await req.fileService.loadStream(rev.dataTable!.filename, dataset.id);
-    const writeStream = fs.createWriteStream(tmpFile);
+    const writeStream = fs.createWriteStream(tmpFilePath);
     const dataTable = rev.dataTable!;
     const origEncoding = dataTable.encoding;
 
@@ -625,21 +625,14 @@ export const regenerateRevisionCube = async (req: Request, res: Response, next: 
       return;
     });
 
-    const fileObj: Express.Multer.File = {
+    const tmpFile: TempFile = {
       originalname: rev.dataTable!.originalFilename || 'unknown',
       mimetype: rev.dataTable!.mimeType,
-      path: tmpFile,
-      fieldname: '',
-      encoding: '',
-      size: 0,
-      stream: new Readable(),
-      destination: '',
-      filename: '',
-      buffer: Buffer.alloc(0)
+      path: tmpFilePath
     };
 
     try {
-      await extractTableInformation(fileObj, rev.dataTable!, 'data_table');
+      await extractTableInformation(tmpFile, rev.dataTable!, 'data_table');
     } catch (err) {
       logger.error(err, 'Something went wrong trying to process the CSV again and save to data_tables schema');
       next(err);
