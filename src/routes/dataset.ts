@@ -1,7 +1,6 @@
 import 'reflect-metadata';
 
 import express, { Router } from 'express';
-import multer from 'multer';
 
 import {
   downloadCubeAsCSV,
@@ -31,14 +30,13 @@ import {
   getHistory
 } from '../controllers/dataset';
 import { datasetAuth } from '../middleware/dataset-auth';
+import { fileStreaming } from '../middleware/file-streaming';
 
 import { revisionRouter } from './revision';
 import { dimensionRouter } from './dimension';
 import { measureRouter } from './measure';
-import { storageConfig } from '../config/multer-storage';
 
 const jsonParser = express.json();
-const upload = multer({ storage: storageConfig });
 
 export const datasetRouter = Router();
 
@@ -71,7 +69,7 @@ datasetRouter.patch('/:dataset_id/metadata', jsonParser, updateMetadata);
 // POST /dataset/:dataset_id/data
 // Upload a data file to a dataset
 // Returns a DTO object that includes the draft revision
-datasetRouter.post('/:dataset_id/data', upload.single('csv'), uploadDataTable);
+datasetRouter.post('/:dataset_id/data', fileStreaming(), uploadDataTable);
 
 // GET /dataset/:dataset_id/view
 // Returns a view of the data file attached to the import

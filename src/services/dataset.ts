@@ -42,6 +42,7 @@ import {
   omitRevisionUpdates
 } from '../utils/dataset-history';
 import { StorageService } from '../interfaces/storage-service';
+import { TempFile } from '../interfaces/temp-file';
 
 export class DatasetService {
   lang: Locale;
@@ -87,7 +88,7 @@ export class DatasetService {
     return DatasetRepository.getById(dataset.id, {});
   }
 
-  async updateFactTable(datasetId: string, file: Express.Multer.File): Promise<Dataset> {
+  async updateFactTable(datasetId: string, file: TempFile): Promise<Dataset> {
     const dataset = await DatasetRepository.getById(datasetId, {
       factTable: true,
       draftRevision: { dataTable: true }

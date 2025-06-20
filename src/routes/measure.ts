@@ -1,7 +1,6 @@
 import 'reflect-metadata';
 
 import express, { Router } from 'express';
-import multer from 'multer';
 
 import {
   attachLookupTableToMeasure,
@@ -12,11 +11,9 @@ import {
   resetMeasure,
   updateMeasureMetadata
 } from '../controllers/measure-controller';
-import { storageConfig } from '../config/multer-storage';
+import { fileStreaming } from '../middleware/file-streaming';
 
 const jsonParser = express.json();
-
-const upload = multer({ storage: storageConfig });
 
 const router = Router();
 export const measureRouter = router;
@@ -26,7 +23,7 @@ router.get('/', getMeasureInfo);
 
 // POST /:dataset_id/measure
 // Attaches a measure lookup table to a dataset and validates it.
-router.post('/', upload.single('csv'), attachLookupTableToMeasure);
+router.post('/', fileStreaming(), attachLookupTableToMeasure);
 
 // DELETE /dataset/:dataset_id/measure/reset
 router.delete('/reset', resetMeasure);

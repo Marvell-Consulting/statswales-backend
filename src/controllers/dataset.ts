@@ -1,7 +1,5 @@
 import { NextFunction, Request, Response } from 'express';
 import { last, sortBy } from 'lodash';
-import { stat, unlink } from 'node:fs/promises';
-import path from 'node:path';
 import { t } from 'i18next';
 import JSZip from 'jszip';
 
@@ -56,7 +54,8 @@ import { EventLogDTO } from '../dtos/event-log-dto';
 import { EventLog } from '../entities/event-log';
 import { SortByInterface } from '../interfaces/sort-by-interface';
 import { FilterInterface } from '../interfaces/filterInterface';
-import { multerStorageDir } from '../config/multer-storage';
+import { cleanupTmpFile, uploadAvScan } from '../services/virus-scanner';
+import { TempFile } from '../interfaces/temp-file';
 
 export const listUserDatasets = async (req: Request, res: Response, next: NextFunction) => {
   try {
@@ -167,48 +166,39 @@ export const createDataset = async (req: Request, res: Response, next: NextFunct
 
 export const uploadDataTable = async (req: Request, res: Response, next: NextFunction) => {
   const dataset: Dataset = res.locals.dataset;
+  let tmpFile: TempFile;
 
-  if (!req.file) {
-    next(new BadRequestException('errors.upload.no_csv'));
+  try {
+    tmpFile = await uploadAvScan(req);
+  } catch (err) {
+    logger.error(err, 'There was a problem uploading the data table file');
+    next(err);
     return;
   }
 
   try {
-    const updatedDataset = await req.datasetService.updateFactTable(dataset.id, req.file);
+    const updatedDataset = await req.datasetService.updateFactTable(dataset.id, tmpFile);
     const dto = DatasetDTO.fromDataset(updatedDataset);
-    res.status(201);
-    res.json(dto);
+    res.status(201).json(dto);
+    return;
   } catch (err) {
     logger.error(err, 'Failed to update the fact table');
-    res.status(500);
+    const lang = req.language as Locale;
     const error: ViewErrDTO = {
       status: 500,
       dataset_id: dataset.id,
       errors: [
         {
           field: 'csv',
-          message: {
-            key: 'errors.unknown_error',
-            params: {}
-          },
-          user_message: [
-            {
-              lang: req.language,
-              message: t('errors.unknown_error', { lng: req.language })
-            }
-          ]
+          message: { key: 'errors.unknown_error', params: {} },
+          user_message: [{ lang, message: t('errors.unknown_error', { lng: lang }) }]
         }
       ]
     };
-    res.json(error);
+    res.status(500).json(error);
+    return;
   } finally {
-    const resolvedPath = path.resolve(multerStorageDir, req.file.path);
-    await stat(resolvedPath)
-      .then(async () => {
-        logger.info(`Deleting temporary file: ${resolvedPath}`);
-        return unlink(resolvedPath);
-      })
-      .catch(() => logger.debug(`File ${resolvedPath} already cleaned up`));
+    cleanupTmpFile(tmpFile);
   }
 };
 

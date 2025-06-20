@@ -1,7 +1,6 @@
 import 'reflect-metadata';
 
 import express, { NextFunction, Request, Response, Router } from 'express';
-import multer from 'multer';
 import { FindOptionsRelations } from 'typeorm';
 
 import {
@@ -30,7 +29,7 @@ import { hasError, revisionIdValidator } from '../validators';
 import { logger } from '../utils/logger';
 import { NotFoundException } from '../exceptions/not-found.exception';
 import { RevisionRepository, withMetadataAndProviders } from '../repositories/revision';
-import { storageConfig } from '../config/multer-storage';
+import { fileStreaming } from '../middleware/file-streaming';
 
 // middleware that loads the revision and stores it in res.locals
 // leave relations undefined to load the default relations
@@ -66,8 +65,6 @@ export const loadRevision = (relations?: FindOptionsRelations<Revision>) => {
 
 const jsonParser = express.json();
 
-const upload = multer({ storage: storageConfig });
-
 const router = Router();
 export const revisionRouter = router;
 
@@ -95,7 +92,7 @@ router.get('/by-id/:revision_id/preview/filters', loadRevision(), getRevisionPre
 
 // POST /dataset/:dataset_id/revision/id/:revision_id/data-table
 // Upload an updated data file for the revision
-router.post('/by-id/:revision_id/data-table', loadRevision(), upload.single('csv'), updateDataTable);
+router.post('/by-id/:revision_id/data-table', loadRevision(), fileStreaming(), updateDataTable);
 
 // GET /dataset/:dataset_id/revision/by-id/:revision_id/data-table
 // Returns details of a data-table

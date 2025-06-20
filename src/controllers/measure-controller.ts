@@ -1,6 +1,4 @@
 import { NextFunction, Request, Response } from 'express';
-import path from 'node:path';
-import { stat, unlink } from 'node:fs/promises';
 
 import { LookupTable } from '../entities/dataset/lookup-table';
 import { logger } from '../utils/logger';
@@ -9,7 +7,6 @@ import { ViewErrDTO } from '../dtos/view-dto';
 import { DatasetDTO } from '../dtos/dataset-dto';
 import { MeasureLookupPatchDTO } from '../dtos/measure-lookup-patch-dto';
 import { NotFoundException } from '../exceptions/not-found.exception';
-import { BadRequestException } from '../exceptions/bad-request.exception';
 import { UnknownException } from '../exceptions/unknown.exception';
 import { getMeasurePreview, validateMeasureLookupTable } from '../services/measure-handler';
 import { validateAndUpload } from '../services/csv-processor';
@@ -20,7 +17,8 @@ import { Readable } from 'node:stream';
 import { MeasureDTO } from '../dtos/measure-dto';
 import { DatasetRepository } from '../repositories/dataset';
 import { createAllCubeFiles } from '../services/cube-handler';
-import { multerStorageDir } from '../config/multer-storage';
+import { cleanupTmpFile, uploadAvScan } from '../services/virus-scanner';
+import { TempFile } from '../interfaces/temp-file';
 
 export const resetMeasure = async (req: Request, res: Response, next: NextFunction) => {
   const dataset = res.locals.dataset;
@@ -55,8 +53,13 @@ export const resetMeasure = async (req: Request, res: Response, next: NextFuncti
 };
 
 export const attachLookupTableToMeasure = async (req: Request, res: Response, next: NextFunction) => {
-  if (!req.file) {
-    next(new BadRequestException('errors.upload.no_csv'));
+  let tmpFile: TempFile;
+
+  try {
+    tmpFile = await uploadAvScan(req);
+  } catch (err) {
+    logger.error(err, 'There was a problem uploading the measure lookup');
+    next(err);
     return;
   }
 
@@ -67,10 +70,10 @@ export const attachLookupTableToMeasure = async (req: Request, res: Response, ne
   });
 
   try {
-    const dataTable = await validateAndUpload(req.file, dataset.id, 'lookup_table');
+    const dataTable = await validateAndUpload(tmpFile, dataset.id, 'lookup_table');
     const lang = req.language.toLowerCase();
     const tableMatcher = req.body as MeasureLookupPatchDTO;
-    const result = await validateMeasureLookupTable(dataTable, dataset, req.file.path, lang, tableMatcher);
+    const result = await validateMeasureLookupTable(dataTable, dataset, tmpFile.path, lang, tableMatcher);
     await createAllCubeFiles(dataset.id, dataset.draftRevision!.id);
     res.status((result as ViewErrDTO).status || 200);
 
@@ -81,13 +84,7 @@ export const attachLookupTableToMeasure = async (req: Request, res: Response, ne
     logger.error(err, `An error occurred trying to process and upload the file`);
     next(new UnknownException('errors.upload_error'));
   } finally {
-    const resolvedPath = path.resolve(multerStorageDir, req.file.path);
-    await stat(resolvedPath)
-      .then(async () => {
-        logger.info(`Deleting temporary file: ${resolvedPath}`);
-        return unlink(resolvedPath);
-      })
-      .catch(() => logger.debug(`File ${resolvedPath} already cleaned up`));
+    cleanupTmpFile(tmpFile);
   }
 };
 

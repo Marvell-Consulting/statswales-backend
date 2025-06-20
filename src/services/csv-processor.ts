@@ -1,4 +1,4 @@
-import fs from 'fs';
+import fs from 'node:fs';
 import { createHash, randomUUID } from 'node:crypto';
 
 import { Database, TableData } from 'duckdb-async';
@@ -22,6 +22,7 @@ import { viewErrorGenerators, viewGenerator } from '../utils/view-error-generato
 import { validateParams } from '../validators/preview-validator';
 import { SourceLocation } from '../enums/source-location';
 import { UploadTableType } from '../interfaces/upload-table-type';
+import { TempFile } from '../interfaces/temp-file';
 
 export const DEFAULT_PAGE_SIZE = 100;
 const sampleSize = 5;
@@ -52,7 +53,7 @@ const getCreateTableQuery = async (fileType: FileType, quack: Database): Promise
 };
 
 export async function extractTableInformation(
-  file: Express.Multer.File,
+  file: TempFile,
   dataTable: DataTable,
   type: 'data_table' | 'lookup_table'
 ): Promise<DataTableDescription[]> {
@@ -150,7 +151,7 @@ export async function extractTableInformation(
 }
 
 export const validateAndUpload = async (
-  file: Express.Multer.File,
+  file: TempFile,
   datasetId: string,
   type: UploadTableType
 ): Promise<DataTable> => {
