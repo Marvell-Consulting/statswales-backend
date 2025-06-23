@@ -1,5 +1,5 @@
 import crypto from 'node:crypto';
-import { Transform } from 'node:stream';
+import { Transform, PassThrough } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import { createWriteStream, WriteStream } from 'node:fs';
 import { stat, unlink } from 'node:fs/promises';
@@ -16,11 +16,17 @@ import { logger } from '../utils/logger';
 import { BadRequestException } from '../exceptions/bad-request.exception';
 import { UnknownException } from '../exceptions/unknown.exception';
 import { TempFile } from '../interfaces/temp-file';
+import { AppEnv } from '../config/env.enum';
+
+const { env, clamav } = appConfig();
 
 // This stream transform will not wait for the scan to be performed before passing the stream through.
 const getAVPassthrough = async (): Promise<Transform> => {
-  const config = appConfig();
-  const { host, port, timeout } = config.clamav;
+  if (env === AppEnv.Ci) {
+    return new PassThrough(); // skip the virus scanner in CI environments, this is a noop stream handler
+  }
+
+  const { host, port, timeout } = clamav;
 
   const clamscan = await new NodeClam().init({
     clamdscan: { host, port, timeout, localFallback: false }
@@ -87,6 +93,11 @@ export const uploadAvScan = async (req: Request): Promise<TempFile> => {
     logger.error(err, 'There was a problem streaming the file upload');
     throw new UnknownException('errors.file_upload.stream_failure');
   });
+
+  if (env === AppEnv.Ci) {
+    logger.info(`Skipping AV scan in CI environment for file "${filename}"`);
+    return tmpFile;
+  }
 
   // wait for the scan to complete before returning the temporary file
   return new Promise((resolve, reject) => {
