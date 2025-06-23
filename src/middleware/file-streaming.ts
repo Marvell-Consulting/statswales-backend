@@ -1,8 +1,8 @@
-import { logger } from '@azure/storage-blob';
 import { Request, Response, NextFunction } from 'express';
 import { parseFormData } from 'pechkin';
-
 import { Internal } from 'pechkin/dist/types.js';
+
+import { logger } from '../utils/logger';
 import { BadRequestException } from '../exceptions/bad-request.exception';
 
 // Pechkin is a wrapper around busboy that makes it awaitable and provides a more convenient API for handling
