@@ -1,7 +1,9 @@
+import { logger } from '@azure/storage-blob';
 import { Request, Response, NextFunction } from 'express';
 import { parseFormData } from 'pechkin';
 
 import { Internal } from 'pechkin/dist/types.js';
+import { BadRequestException } from '../exceptions/bad-request.exception';
 
 // Pechkin is a wrapper around busboy that makes it awaitable and provides a more convenient API for handling
 // file uploads in Express.js applications.
@@ -18,8 +20,9 @@ export const fileStreaming = (
       req.body = fields;
       req.files = files;
       return next();
-    } catch (err) {
-      return next(err);
+    } catch (err: any) {
+      logger.error(err, 'error attempting to parse multipart/form-data');
+      return next(new BadRequestException('errors.upload.failed_to_parse'));
     }
   };
 };
