@@ -1,5 +1,5 @@
 import path from 'node:path';
-import * as fs from 'node:fs';
+import fs from 'node:fs';
 
 import request from 'supertest';
 import { addYears, subYears } from 'date-fns';
@@ -110,7 +110,7 @@ describe('API Endpoints', () => {
       const dataset = await datasetService.createNew('Test Dataset 1', userGroup.id!, user);
       const res = await request(app).post(`/dataset/${dataset.id}/data`).set(getAuthHeader(user));
       expect(res.status).toBe(400);
-      expect(res.body).toEqual({ error: 'No CSV data provided' });
+      expect(res.body).toEqual({ error: 'errors.upload.failed_to_parse' });
       await Dataset.remove(dataset);
     });
 
@@ -371,7 +371,7 @@ describe('API Endpoints', () => {
         .set(getAuthHeader(user));
 
       expect(res.status).toBe(400);
-      expect(res.body).toEqual({ error: 'No CSV data provided' });
+      expect(res.body).toEqual({ error: 'errors.upload.failed_to_parse' });
       createdRevisions.push(testRevisionId);
     });
 
@@ -427,10 +427,7 @@ describe('API Endpoints', () => {
       await createSmallDataset(testDatasetId, testRevisionId, testFileImportId, user);
 
       const fileImport = await DataTable.findOneBy({ id: testFileImportId });
-      if (!fileImport) {
-        throw new Error('File Import not found');
-      }
-
+      if (!fileImport) throw new Error('File Import not found');
       await fileImport.remove();
 
       BlobStorage.prototype.saveStream = jest.fn().mockImplementation(() => {

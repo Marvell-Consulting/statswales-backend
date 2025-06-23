@@ -30,3 +30,9 @@ services:
       - "10000:10000"
       - "10001:10001"
       - "10002:10002"
+
+  clamav:
+    image: clamav/clamav:latest
+    platform: linux/amd64 # no arm64 image currently available, force amd64
+    ports:
+      - '3310:3310'
