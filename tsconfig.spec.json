@@ -1,9 +1,6 @@
 {
   "extends": "./tsconfig.json",
   "compilerOptions": {
-    // get rid of the nag
-    // >  ts-jest[ts-compiler] (WARN) Using hybrid module kind (Node16/18/Next) is only supported in
-    // >  "isolatedModules: true". Please set "isolatedModules: true" in your tsconfig.json.
     "isolatedModules": true
   }
 }
