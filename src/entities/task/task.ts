@@ -16,6 +16,7 @@ import { TaskStatus } from '../../enums/task-status';
 import { Dataset } from '../dataset/dataset';
 
 export interface TaskMetadata {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   [key: string]: any;
 }
 

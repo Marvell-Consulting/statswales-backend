@@ -12,6 +12,7 @@ import { AuthProvider } from '../enums/auth-providers';
 import { asyncLocalStorage } from '../services/async-local-storage';
 import { UserDTO } from '../dtos/user/user-dto';
 import { getPermissionsForUserDTO } from '../utils/get-permissions-for-user';
+import { EntraIdConfig, GoogleConfig, JWTConfig } from '../config/app-config.interface';
 
 const config = appConfig();
 
@@ -47,7 +48,7 @@ export const initPassport = async (dataSource: DataSource): Promise<void> => {
   logger.info('Authentication providers initialized');
 };
 
-const initJwt = async (userRepository: Repository<User>, jwtConfig: Record<string, any>): Promise<void> => {
+const initJwt = async (userRepository: Repository<User>, jwtConfig: JWTConfig): Promise<void> => {
   if (!jwtConfig.secret) {
     throw new Error('JWT configuration is missing');
   }
@@ -92,7 +93,7 @@ const initJwt = async (userRepository: Repository<User>, jwtConfig: Record<strin
 
           logger.info('user successfully authenticated');
           done(null, user);
-        } catch (err: any) {
+        } catch (err) {
           logger.error(err);
           done(null, undefined, { message: 'Unknown error' });
         }
@@ -101,7 +102,7 @@ const initJwt = async (userRepository: Repository<User>, jwtConfig: Record<strin
   );
 };
 
-const initEntraId = async (userRepository: Repository<User>, entraIdConfig: Record<string, any>): Promise<void> => {
+const initEntraId = async (userRepository: Repository<User>, entraIdConfig: EntraIdConfig): Promise<void> => {
   if (!entraIdConfig.url || !entraIdConfig.clientId || !entraIdConfig.clientSecret) {
     throw new Error('EntraId configuration is missing');
   }
@@ -198,7 +199,7 @@ const initEntraId = async (userRepository: Repository<User>, entraIdConfig: Reco
   );
 };
 
-const initGoogle = async (userRepository: Repository<User>, googleConfig: Record<string, any>): Promise<void> => {
+const initGoogle = async (userRepository: Repository<User>, googleConfig: GoogleConfig): Promise<void> => {
   if (!googleConfig.clientId || !googleConfig.clientSecret) {
     throw new Error('Google configuration is missing');
   }

@@ -20,6 +20,7 @@ export const fileStreaming = (
       req.body = fields;
       req.files = files;
       return next();
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (err: any) {
       logger.error(err, 'error attempting to parse multipart/form-data');
       return next(new BadRequestException('errors.upload.failed_to_parse'));

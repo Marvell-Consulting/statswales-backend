@@ -24,7 +24,7 @@ export default tseslint.config(
       rules: {
         'no-console': 'error',
         'line-comment-position': 'off',
-        'no-warning-comments': 'warn',
+        'no-warning-comments': 'off', // allow todo comments
         '@typescript-eslint/no-explicit-any': 'warn',
         '@typescript-eslint/member-ordering': 'off',
         '@typescript-eslint/naming-convention': [

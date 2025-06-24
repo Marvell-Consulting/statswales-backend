@@ -26,6 +26,7 @@ export class EventLog extends BaseEntity {
   entityId: string; // the id of the entity that was affected
 
   @Column({ name: 'data', type: 'jsonb', nullable: true })
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   data?: Record<string, any>; // the new values of the record that was changed
 
   @Index('IDX_event_log_user_id')
