@@ -22,12 +22,12 @@ const checkStorage = async (fileService: StorageService): Promise<boolean> => {
   return true;
 };
 
-const timeout = (timer: number, service: string) =>
+const timeout = (timer: number, service: string): Promise<string> =>
   new Promise((resolve) => {
     setTimeout(resolve, timer, `${service} timeout`);
   });
 
-const stillAlive = async (req: Request, res: Response) => {
+const stillAlive = async (req: Request, res: Response): Promise<void> => {
   try {
     const timeoutMs = 1000;
     const results = await Promise.all([

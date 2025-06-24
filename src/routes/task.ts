@@ -12,7 +12,7 @@ export const taskRouter = Router();
 
 const jsonParser = express.json();
 
-const taskAuth = async (req: Request, res: Response, next: NextFunction) => {
+const taskAuth = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   const taskIdError = await hasError(uuidValidator('task_id'), req);
   if (taskIdError) {
     logger.error(taskIdError);

@@ -3,7 +3,7 @@ import { appConfig } from '../config';
 
 const config = appConfig();
 
-export const performanceReporting = (totalTime: number, targetNumber: number, method: string) => {
+export const performanceReporting = (totalTime: number, targetNumber: number, method: string): void => {
   if (totalTime > targetNumber) {
     logger.warn(`${method} took ${totalTime} ms`);
   } else {

@@ -12,7 +12,7 @@ export class MeasureRowDto {
   measure_type?: string;
   hierarchy?: string;
 
-  static fromMeasureRow(row: MeasureRow) {
+  static fromMeasureRow(row: MeasureRow): MeasureRowDto {
     const dto = new MeasureRowDto();
     dto.measure_id = row.id;
     dto.language = row.language;

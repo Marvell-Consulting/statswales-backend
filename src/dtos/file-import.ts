@@ -10,7 +10,7 @@ export class FileImportDto {
   type: FileImportType;
   parent_id?: string;
 
-  static fromFileImport(fileImport: FileImportInterface) {
+  static fromFileImport(fileImport: FileImportInterface): FileImportDto {
     const dto = new FileImportDto();
     dto.filename = fileImport.originalFilename || fileImport.filename;
     dto.mime_type = fileImport.mimeType;

@@ -29,7 +29,7 @@ export const loadFileIntoDatabase = async (
   fileImport: FileImportInterface,
   tempFile: string,
   tableName: string
-) => {
+): Promise<void> => {
   let createTableQuery: string;
   switch (fileImport.fileType) {
     case FileType.Csv:

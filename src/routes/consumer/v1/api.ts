@@ -19,7 +19,7 @@ import { Dataset } from '../../../entities/dataset/dataset';
 export const publicApiRouter = Router();
 
 export const loadPublishedDataset = (relations?: FindOptionsRelations<Dataset>) => {
-  return async (req: Request, res: Response, next: NextFunction) => {
+  return async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     const datasetIdError = await hasError(datasetIdValidator(), req);
 
     if (datasetIdError) {

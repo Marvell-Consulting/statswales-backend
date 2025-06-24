@@ -44,7 +44,7 @@ export class TasklistStateDTO {
   canPublish: boolean;
   isUpdate: boolean;
 
-  public static dataTableStatus(revision: Revision) {
+  public static dataTableStatus(revision: Revision): TaskListStatus {
     const isUpdate = Boolean(revision.previousRevisionId);
 
     if (isUpdate) {
@@ -55,7 +55,7 @@ export class TasklistStateDTO {
     return revision?.dataTable ? TaskListStatus.Completed : TaskListStatus.NotStarted;
   }
 
-  public static measureStatus(dataset: Dataset, revision: Revision, lang: string) {
+  public static measureStatus(dataset: Dataset, revision: Revision, lang: string): DimensionStatus | undefined {
     if (!dataset.measure) return undefined;
 
     const measure = dataset.measure;

@@ -15,7 +15,7 @@ import { duckdb, linkToPostgres } from './duckdb';
 
 const sampleSize = 5;
 
-async function setupDimension(dimension: Dimension, categories: string[]) {
+async function setupDimension(dimension: Dimension, categories: string[]): Promise<void> {
   // Clean up previously uploaded dimensions
   if (dimension.extractor) await cleanUpDimension(dimension);
   const updateDimension = await Dimension.findOneByOrFail({ id: dimension.id });
@@ -29,12 +29,16 @@ async function setupDimension(dimension: Dimension, categories: string[]) {
   await updateDimension.save();
 }
 
-async function copyAllReferenceDataIntoTable(quack: Database) {
+async function copyAllReferenceDataIntoTable(quack: Database): Promise<void> {
   logger.debug('Copying all reference data to the reference_data table.');
   await quack.exec(`INSERT INTO reference_data (SELECT * FROM reference_data_all);`);
 }
 
-async function validateUnknownReferenceDataItems(quack: Database, dataset: Dataset, dimension: Dimension) {
+async function validateUnknownReferenceDataItems(
+  quack: Database,
+  dataset: Dataset,
+  dimension: Dimension
+): Promise<ViewErrDTO | undefined> {
   const nonMatchedRows = await quack.all(`
               SELECT fact_table."${dimension.factTableColumn}", reference_data.item_id FROM fact_table
               LEFT JOIN reference_data on reference_data.item_id=CAST(fact_table."${dimension.factTableColumn}" AS VARCHAR)
@@ -62,7 +66,7 @@ async function validateAllItemsAreInCategory(
   dimension: Dimension,
   referenceDataType: ReferenceType,
   lang: string
-) {
+): Promise<ViewErrDTO | undefined> {
   const nonMatchedRows = await quack.all(`
               SELECT fact_table."${dimension.factTableColumn}", reference_data.item_id, reference_data.category_key FROM fact_table
               LEFT JOIN reference_data on reference_data.item_id=CAST(fact_table."${dimension.factTableColumn}" AS VARCHAR)
@@ -260,7 +264,7 @@ export const getReferenceDataDimensionPreview = async (
   quack: Database,
   tableName: string,
   lang: string
-) => {
+): Promise<ViewDTO> => {
   try {
     logger.debug('Passed validation preparing to send back the preview');
 

@@ -49,7 +49,12 @@ function yearType(type: YearType, startDay = 1, startMonth = 1): YearTypeDetails
   }
 }
 
-function yearFormats(yearFormat: string) {
+interface DateFormat {
+  formatStr: string;
+  increment: number;
+}
+
+function yearFormats(yearFormat: string): DateFormat {
   const increment = 12;
   switch (yearFormat.toUpperCase()) {
     case 'YYYYYYYY':
@@ -70,7 +75,7 @@ function yearFormats(yearFormat: string) {
   throw new Error('Unknown year format');
 }
 
-function quarterFormats(quarterFormat: string, yearFormat: string) {
+function quarterFormats(quarterFormat: string, yearFormat: string): DateFormat {
   const increment = 3;
   switch (quarterFormat) {
     case 'QX':
@@ -87,7 +92,7 @@ function quarterFormats(quarterFormat: string, yearFormat: string) {
   throw new Error('Unknown quarter format');
 }
 
-function monthFormats(monthFormat: string, yearFormat: string) {
+function monthFormats(monthFormat: string, yearFormat: string): DateFormat {
   const increment = 1;
   switch (monthFormat) {
     case 'MMM':
@@ -100,7 +105,7 @@ function monthFormats(monthFormat: string, yearFormat: string) {
   throw new Error('Unknown month format');
 }
 
-function createAllTypesOfPeriod(dateFormat: DateExtractor, dataColumn: TableData) {
+function createAllTypesOfPeriod(dateFormat: DateExtractor, dataColumn: TableData): DateReferenceDataItem[] {
   let referenceTable: DateReferenceDataItem[] = [];
   logger.debug(`date extractor = ${JSON.stringify(dateFormat)}`);
   if (dateFormat.quarterFormat && dateFormat.quarterTotalIsFifthQuart) {
@@ -124,7 +129,11 @@ function createAllTypesOfPeriod(dateFormat: DateExtractor, dataColumn: TableData
   return referenceTable;
 }
 
-function periodTableCreator(dateFormat: DateExtractor, dataColumn: TableData, generationType: GeneratorType) {
+function periodTableCreator(
+  dateFormat: DateExtractor,
+  dataColumn: TableData,
+  generationType: GeneratorType
+): DateReferenceDataItem[] {
   let subType = 'year';
   let formatObj;
   try {
@@ -232,7 +241,7 @@ function periodTableCreator(dateFormat: DateExtractor, dataColumn: TableData, ge
   return referenceTable;
 }
 
-function specificDateTableCreator(dateFormat: DateExtractor, dataColumn: TableData) {
+function specificDateTableCreator(dateFormat: DateExtractor, dataColumn: TableData): DateReferenceDataItem[] {
   const referenceTable: DateReferenceDataItem[] = [];
   dataColumn.map((row) => {
     const value = row.toString();
@@ -285,7 +294,10 @@ function specificDateTableCreator(dateFormat: DateExtractor, dataColumn: TableDa
   return referenceTable;
 }
 
-export function dateDimensionReferenceTableCreator(extractor: DateExtractor, dataColumn: TableData) {
+export function dateDimensionReferenceTableCreator(
+  extractor: DateExtractor,
+  dataColumn: TableData
+): DateReferenceDataItem[] {
   const columnData = [];
 
   for (const row of dataColumn) {

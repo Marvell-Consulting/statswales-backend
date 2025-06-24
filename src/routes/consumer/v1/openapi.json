@@ -43,71 +43,30 @@
     },
     "/topic": {
       "get": {
-        "summary": "Get a list of top-level topics",
-        "description": "Datasets are tagged to topics. There are top-level topics, such as 'Health and social care',  which can have sub-topics, such as 'Dental services'. This endpoint returns a list of all top-level topics that  have at least one published dataset tagged to them.",
-        "parameters": [
-          {
-            "$ref": "#/components/parameters/language"
-          }
-        ],
+        "description": "",
         "responses": {
-          "200": {
-            "description": "A list of all top-level topics that have at least one published dataset tagged to them.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/RootTopics"
-                }
-              },
-              "application/xml": {
-                "schema": {
-                  "$ref": "#/components/schemas/RootTopics"
-                }
-              }
-            }
+          "default": {
+            "description": ""
           }
         }
       }
     },
     "/topic/{topic_id}": {
       "get": {
-        "summary": "Get a list of what sits under a given topic",
-        "description": "Datasets are tagged to topics. There are top-level topics, such as 'Health and social care',  which can have sub-topics, such as 'Dental services'. For a given topic_id, this endpoint returns a list of what  sits under that topic - either sub-topics or published datasets tagged directly to that topic.",
+        "description": "",
         "parameters": [
           {
-            "name": "page_size",
-            "description": "Number of datasets per page when datasets are returned",
-            "in": "query",
-            "default": 1000,
+            "name": "topic_id",
+            "in": "path",
+            "required": true,
             "schema": {
-              "type": "integer"
+              "type": "string"
             }
-          },
-          {
-            "$ref": "#/components/parameters/language"
-          },
-          {
-            "$ref": "#/components/parameters/topic_id"
-          },
-          {
-            "$ref": "#/components/parameters/page_number"
           }
         ],
         "responses": {
-          "200": {
-            "description": "A list of what sits under a given topic - either sub-topics or published datasets tagged directly  to that topic.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/PublishedTopics"
-                }
-              },
-              "application/xml": {
-                "schema": {
-                  "$ref": "#/components/schemas/PublishedTopics"
-                }
-              }
-            }
+          "default": {
+            "description": ""
           }
         }
       }

@@ -12,7 +12,7 @@ const config = appConfig();
 
 export const DUCKDB_WRITE_TIMEOUT = config.duckdb.writeTimeOut;
 
-export const safelyCloseDuckDb = async (quack: Database) => {
+export const safelyCloseDuckDb = async (quack: Database): Promise<void> => {
   await quack.exec(`CHECKPOINT;`);
   await quack.close();
   return new Promise((f) => setTimeout(f, DUCKDB_WRITE_TIMEOUT));
@@ -39,7 +39,7 @@ export const duckdb = async (cubeFile = ':memory:'): Promise<Database> => {
   return duckdb;
 };
 
-export const linkToPostgres = async (quack: Database, revisionId: string, recreate: boolean) => {
+export const linkToPostgres = async (quack: Database, revisionId: string, recreate: boolean): Promise<void> => {
   const start = performance.now();
   await quack.exec(`LOAD 'postgres';`);
 
@@ -73,7 +73,7 @@ export const linkToPostgres = async (quack: Database, revisionId: string, recrea
   logger.debug(`linkToPostgres: ${timing}ms`);
 };
 
-export const linkToPostgresDataTables = async (quack: Database) => {
+export const linkToPostgresDataTables = async (quack: Database): Promise<void> => {
   logger.debug('Linking to postgres data tables schema');
   await quack.exec(`LOAD 'postgres';`);
   await quack.exec(`

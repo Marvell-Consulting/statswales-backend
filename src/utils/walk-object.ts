@@ -12,12 +12,12 @@ export interface WalkObjectCallback {
 // eslint-disable-next-line @typescript-eslint/no-empty-object-type
 export interface UnknownObject extends Record<string | number | symbol, unknown> {}
 
-export const isObject = (item: unknown) => {
+export const isObject = (item: unknown): boolean => {
   return typeof item === 'object' && !Array.isArray(item) && item !== null;
 };
 
-export const walkObject = (root: UnknownObject, fn: WalkObjectCallback) => {
-  const walk = (obj: UnknownObject, location: (string | number)[] = []) => {
+export const walkObject = (root: UnknownObject, fn: WalkObjectCallback): void => {
+  const walk = (obj: UnknownObject, location: (string | number)[] = []): void => {
     Object.keys(obj).forEach((key) => {
       // Value is an array, call walk on each item in the array
       if (Array.isArray(obj[key])) {

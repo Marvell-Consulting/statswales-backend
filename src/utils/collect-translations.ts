@@ -32,7 +32,7 @@ export const collectTranslations = (dataset: Dataset, includeIds = false, revisi
     }),
     ...(dataset.measure
       ? [
-          ((measure) => {
+          ((measure): TranslationDTO => {
             const factTableColumn = measure.factTableColumn;
             const measureMetaEN = measure.metadata.find((m) => m.language.includes('en'));
             const measureMetaCY = measure.metadata.find((m) => m.language.includes('cy'));

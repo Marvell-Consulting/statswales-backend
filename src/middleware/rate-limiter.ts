@@ -5,7 +5,7 @@ import { appConfig } from '../config';
 
 const config = appConfig();
 
-const bypass = (re: Request, res: Response, next: NextFunction) => next();
+const bypass = (re: Request, res: Response, next: NextFunction): void => next();
 
 const limit = rateLimit({
   windowMs: config.rateLimit.windowMs,

@@ -188,7 +188,7 @@ async function validateNoteCodesColumn(
   quack: Database,
   noteCodeColumn: SourceAssignmentDTO | null,
   factTableName: string
-) {
+): Promise<void> {
   let notesCodes: TableData;
   try {
     notesCodes = await quack.all(`

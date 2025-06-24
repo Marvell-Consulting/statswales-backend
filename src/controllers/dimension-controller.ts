@@ -32,11 +32,11 @@ import { getFileService } from '../utils/get-file-service';
 import { TempFile } from '../interfaces/temp-file';
 import { cleanupTmpFile, uploadAvScan } from '../services/virus-scanner';
 
-export const getDimensionInfo = async (req: Request, res: Response) => {
+export const getDimensionInfo = async (req: Request, res: Response): Promise<void> => {
   res.json(DimensionDTO.fromDimension(res.locals.dimension));
 };
 
-export const resetDimension = async (req: Request, res: Response) => {
+export const resetDimension = async (req: Request, res: Response): Promise<void> => {
   const dimension = res.locals.dimension;
 
   dimension.type = DimensionType.Raw;
@@ -61,7 +61,7 @@ export const resetDimension = async (req: Request, res: Response) => {
   res.json(DimensionDTO.fromDimension(updatedDimension));
 };
 
-export const sendDimensionPreview = async (req: Request, res: Response, next: NextFunction) => {
+export const sendDimensionPreview = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   const dimension = res.locals.dimension;
   let dataset: Dataset;
 
@@ -100,7 +100,7 @@ export const sendDimensionPreview = async (req: Request, res: Response, next: Ne
   }
 };
 
-export const attachLookupTableToDimension = async (req: Request, res: Response, next: NextFunction) => {
+export const attachLookupTableToDimension = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   let tmpFile: TempFile;
 
   try {
@@ -142,7 +142,7 @@ export const attachLookupTableToDimension = async (req: Request, res: Response, 
   }
 };
 
-export const updateDimension = async (req: Request, res: Response, next: NextFunction) => {
+export const updateDimension = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   const dimension = res.locals.dimension;
   const language = req.language.toLowerCase();
   const dimensionPatchRequest = req.body as DimensionPatchDto;
@@ -224,7 +224,7 @@ export const updateDimension = async (req: Request, res: Response, next: NextFun
   }
 };
 
-export const updateDimensionMetadata = async (req: Request, res: Response) => {
+export const updateDimensionMetadata = async (req: Request, res: Response): Promise<void> => {
   const dimension = res.locals.dimension;
   const dataset = await DatasetRepository.getById(res.locals.datasetId, {
     draftRevision: { dataTable: { dataTableDescriptions: true } }
@@ -250,7 +250,7 @@ export const updateDimensionMetadata = async (req: Request, res: Response) => {
   res.json(DimensionDTO.fromDimension(updatedDimension));
 };
 
-export const getDimensionLookupTableInfo = async (req: Request, res: Response) => {
+export const getDimensionLookupTableInfo = async (req: Request, res: Response): Promise<void> => {
   const lookupTable = res.locals.dimension?.lookupTable;
   if (!lookupTable) {
     res.status(404);
@@ -260,7 +260,7 @@ export const getDimensionLookupTableInfo = async (req: Request, res: Response) =
   res.json(LookupTableDTO.fromLookupTable(lookupTable));
 };
 
-export const downloadDimensionLookupTable = async (req: Request, res: Response) => {
+export const downloadDimensionLookupTable = async (req: Request, res: Response): Promise<void> => {
   const { dataset, dimension } = res.locals;
   const lookupTable: LookupTable = dimension.lookupTable;
 

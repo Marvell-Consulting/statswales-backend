@@ -20,7 +20,7 @@ export class UserGroupMetadataDTO {
   @IsEnum(Locale)
   language?: string;
 
-  static fromUserGroupMetadata(meta: UserGroupMetadata) {
+  static fromUserGroupMetadata(meta: UserGroupMetadata): UserGroupMetadataDTO {
     const dto = new UserGroupMetadataDTO();
     dto.id = meta.id;
     dto.name = meta.name;

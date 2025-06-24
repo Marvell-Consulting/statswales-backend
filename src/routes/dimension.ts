@@ -18,7 +18,7 @@ import { NotFoundException } from '../exceptions/not-found.exception';
 import { DimensionRepository } from '../repositories/dimension';
 import { fileStreaming } from '../middleware/file-streaming';
 
-export const loadDimension = async (req: Request, res: Response, next: NextFunction) => {
+export const loadDimension = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   const dimensionIdError = await hasError(dimensionIdValidator(), req);
   if (dimensionIdError) {
     logger.error(dimensionIdError);

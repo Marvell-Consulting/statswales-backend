@@ -6,7 +6,7 @@ import { validate, ValidationError } from 'class-validator';
 import { BadRequestException } from '../exceptions/bad-request.exception';
 
 // converts a plain object (e.g. req.body json) to an instance of the expected DTO and validates it
-export const dtoValidator = async (expectedDTO: any, requestObject: object) => {
+export const dtoValidator = async (expectedDTO: any, requestObject: object): Promise<any> => {
   const dto: any = plainToInstance(expectedDTO, requestObject);
   const errors = await validate(dto);
 
@@ -17,7 +17,7 @@ export const dtoValidator = async (expectedDTO: any, requestObject: object) => {
   return dto;
 };
 
-export const arrayValidator = async (expectedDTO: any, value: any[]) => {
+export const arrayValidator = async (expectedDTO: any, value: any[]): Promise<any[]> => {
   let errors: ValidationError[] = [];
   const dtos = [];
 
