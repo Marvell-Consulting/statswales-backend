@@ -5,7 +5,7 @@
 // we return a string
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-(BigInt.prototype as any).toJSON = function () {
+(BigInt.prototype as any).toJSON = function (): number | string {
   if (this < Number.MAX_SAFE_INTEGER) return Number(this);
   return this.toString();
 };

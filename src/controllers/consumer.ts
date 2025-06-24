@@ -7,6 +7,7 @@ import { PublishedDatasetRepository, withAll } from '../repositories/published-d
 import { NotFoundException } from '../exceptions/not-found.exception';
 import { ConsumerDatasetDTO } from '../dtos/consumer-dataset-dto';
 import { BadRequestException } from '../exceptions/bad-request.exception';
+import { outputCube } from '../services/cube-handler';
 import { DuckdbOutputType } from '../enums/duckdb-outputs';
 import {
   createFrontendView,
@@ -23,7 +24,7 @@ import { TopicRepository } from '../repositories/topic';
 import { SortByInterface } from '../interfaces/sort-by-interface';
 import { FilterInterface } from '../interfaces/filterInterface';
 
-export const listPublishedDatasets = async (req: Request, res: Response, next: NextFunction) => {
+export const listPublishedDatasets = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   /*
     #swagger.summary = 'Get a list of all published datasets'
     #swagger.description = 'This endpoint returns a list of all published datasets.'
@@ -58,7 +59,7 @@ export const listPublishedDatasets = async (req: Request, res: Response, next: N
   }
 };
 
-export const getPublishedDatasetById = async (req: Request, res: Response) => {
+export const getPublishedDatasetById = async (req: Request, res: Response): Promise<void> => {
   /*
     #swagger.summary = `Get a published dataset's metadata`
     #swagger.description = 'This endpoint returns all metadata for a published dataset.'
@@ -75,7 +76,7 @@ export const getPublishedDatasetById = async (req: Request, res: Response) => {
   res.json(ConsumerDatasetDTO.fromDataset(dataset));
 };
 
-export const getPublishedDatasetView = async (req: Request, res: Response) => {
+export const getPublishedDatasetView = async (req: Request, res: Response): Promise<void> => {
   /*
     #swagger.summary = 'Get a paginated view of a published dataset'
     #swagger.description = 'This endpoint returns a paginated view of a published dataset, with optional sorting and
@@ -123,7 +124,7 @@ export const getPublishedDatasetView = async (req: Request, res: Response) => {
   res.json(preview);
 };
 
-export const getPublishedDatasetFilters = async (req: Request, res: Response) => {
+export const getPublishedDatasetFilters = async (req: Request, res: Response): Promise<void> => {
   /*
     #swagger.summary = 'Get a list of the filters available for a paginated view of a published dataset'
     #swagger.description = 'This endpoint returns a list of the filters available for a paginated view of a published
@@ -152,7 +153,7 @@ export const getPublishedDatasetFilters = async (req: Request, res: Response) =>
   res.json(filters);
 };
 
-export const downloadPublishedDataset = async (req: Request, res: Response, next: NextFunction) => {
+export const downloadPublishedDataset = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   /*
     #swagger.summary = 'Download a published dataset as a file'
     #swagger.description = 'This endpoint returns a published dataset file in a specified format.'
@@ -210,7 +211,7 @@ export const downloadPublishedDataset = async (req: Request, res: Response, next
   }
 };
 
-export const listRootTopics = async (req: Request, res: Response, next: NextFunction) => {
+export const listRootTopics = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   /*
     #swagger.summary = 'Get a list of top-level topics'
     #swagger.description = `Datasets are tagged to topics. There are top-level topics, such as 'Health and social care',
@@ -243,7 +244,7 @@ export const listRootTopics = async (req: Request, res: Response, next: NextFunc
   }
 };
 
-export const listSubTopics = async (req: Request, res: Response, next: NextFunction) => {
+export const listSubTopics = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   /*
     #swagger.summary = 'Get a list of what sits under a given topic'
     #swagger.description = `Datasets are tagged to topics. There are top-level topics, such as 'Health and social care',

@@ -53,7 +53,8 @@ import { CubeValidationType } from '../enums/cube-validation-type';
 import { FactTableValidationException } from '../exceptions/fact-table-validation-exception';
 import { NotAllowedException } from '../exceptions/not-allowed.exception';
 
-import { getPostgresCubePreview, outputCube } from './cube-controller';
+import { getPostgresCubePreview } from '../services/cube-handler';
+import { outputCube } from '../services/cube-handler';
 import { Dataset } from '../entities/dataset/dataset';
 import { SortByInterface } from '../interfaces/sort-by-interface';
 import { FilterInterface } from '../interfaces/filterInterface';
@@ -69,7 +70,7 @@ import { FileType } from '../enums/file-type';
 import { cleanupTmpFile, uploadAvScan } from '../services/virus-scanner';
 import { TempFile } from '../interfaces/temp-file';
 
-export const getDataTable = async (req: Request, res: Response, next: NextFunction) => {
+export const getDataTable = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   const revision: Revision = res.locals.revision;
 
   if (!revision.dataTableId) {
@@ -89,7 +90,7 @@ export const getDataTable = async (req: Request, res: Response, next: NextFuncti
   }
 };
 
-export const deleteDraftRevision = async (req: Request, res: Response, next: NextFunction) => {
+export const deleteDraftRevision = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   const { dataset, revision } = res.locals;
 
   if (revision.revisionIndex !== 0) {
@@ -108,7 +109,7 @@ export const deleteDraftRevision = async (req: Request, res: Response, next: Nex
   res.end();
 };
 
-export const getDataTablePreview = async (req: Request, res: Response, next: NextFunction) => {
+export const getDataTablePreview = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   const datasetId: string = res.locals.datasetId;
   const revision = res.locals.revision;
 
@@ -130,7 +131,7 @@ export const getDataTablePreview = async (req: Request, res: Response, next: Nex
   res.json(processedCSV);
 };
 
-export const getRevisionPreview = async (req: Request, res: Response) => {
+export const getRevisionPreview = async (req: Request, res: Response): Promise<void> => {
   const dataset: Dataset = res.locals.dataset;
   const revision = res.locals.revision;
   const lang = req.language.split('-')[0];
@@ -165,7 +166,7 @@ export const getRevisionPreview = async (req: Request, res: Response) => {
   }
 };
 
-export const getRevisionPreviewFilters = async (req: Request, res: Response) => {
+export const getRevisionPreviewFilters = async (req: Request, res: Response): Promise<void> => {
   const revision: Revision = res.locals.revision;
   const lang = req.language.length < 5 ? `${req.language}-gb` : req.language.toLowerCase();
   if (!revision) {
@@ -176,13 +177,13 @@ export const getRevisionPreviewFilters = async (req: Request, res: Response) => 
   res.json(filters);
 };
 
-export const confirmFactTable = async (req: Request, res: Response) => {
+export const confirmFactTable = async (req: Request, res: Response): Promise<void> => {
   const revision = res.locals.revision;
   const dto = DataTableDto.fromDataTable(revision.dataTable);
   res.json(dto);
 };
 
-export const downloadRawFactTable = async (req: Request, res: Response, next: NextFunction) => {
+export const downloadRawFactTable = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   const datasetId = res.locals.datasetId;
   const revision = res.locals.revision;
   logger.info('User requested to down files...');
@@ -244,7 +245,7 @@ export const downloadRawFactTable = async (req: Request, res: Response, next: Ne
   });
 };
 
-export const getRevisionInfo = async (req: Request, res: Response) => {
+export const getRevisionInfo = async (req: Request, res: Response): Promise<void> => {
   const revision = res.locals.revision;
   res.json(RevisionDTO.fromRevision(revision));
 };
@@ -255,7 +256,7 @@ async function attachUpdateDataTableToRevision(
   dataTable: DataTable,
   updateAction: DataTableAction,
   columnMatcher?: ColumnMatch[]
-) {
+): Promise<void> {
   logger.debug('Attaching update data table to revision and validating cube');
   const start = performance.now();
 
@@ -401,7 +402,7 @@ async function attachUpdateDataTableToRevision(
   await dataTable.save();
 }
 
-export const updateDataTable = async (req: Request, res: Response, next: NextFunction) => {
+export const updateDataTable = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   const datasetId: string = res.locals.datasetId;
   const revision: Revision = res.locals.revision;
 
@@ -489,7 +490,7 @@ export const updateDataTable = async (req: Request, res: Response, next: NextFun
   }
 };
 
-export const removeFactTableFromRevision = async (req: Request, res: Response, next: NextFunction) => {
+export const removeFactTableFromRevision = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   const datasetId = res.locals.datasetId;
   const revision = res.locals.revision;
 
@@ -520,7 +521,7 @@ export const removeFactTableFromRevision = async (req: Request, res: Response, n
   }
 };
 
-export const updateRevisionPublicationDate = async (req: Request, res: Response, next: NextFunction) => {
+export const updateRevisionPublicationDate = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   const datasetId: string = res.locals.datasetId;
   const revision: Revision = res.locals.revision;
 
@@ -552,7 +553,7 @@ export const updateRevisionPublicationDate = async (req: Request, res: Response,
   }
 };
 
-export const submitForPublication = async (req: Request, res: Response, next: NextFunction) => {
+export const submitForPublication = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   const datasetId: string = res.locals.datasetId;
   const revision: Revision = res.locals.revision;
   const user = req.user as User;
@@ -578,7 +579,7 @@ export const submitForPublication = async (req: Request, res: Response, next: Ne
   }
 };
 
-export const withdrawFromPublication = async (req: Request, res: Response, next: NextFunction) => {
+export const withdrawFromPublication = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
     const datasetId: string = res.locals.datasetId;
     const revision: Revision = res.locals.revision;
@@ -594,7 +595,7 @@ export const withdrawFromPublication = async (req: Request, res: Response, next:
   }
 };
 
-export const regenerateRevisionCube = async (req: Request, res: Response, next: NextFunction) => {
+export const regenerateRevisionCube = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   const datasetId: string = res.locals.datasetId;
   const revision: Revision = res.locals.revision;
 
@@ -710,7 +711,7 @@ export const downloadRevisionCubeAsCSV = async (req: Request, res: Response, nex
   }
 };
 
-export const downloadRevisionCubeAsParquet = async (req: Request, res: Response, next: NextFunction) => {
+export const downloadRevisionCubeAsParquet = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   const datasetId: string = res.locals.datasetId;
   const revision: Revision = res.locals.revision;
 
@@ -752,7 +753,7 @@ export const downloadRevisionCubeAsExcel = async (req: Request, res: Response, n
   }
 };
 
-export const createNewRevision = async (req: Request, res: Response, next: NextFunction) => {
+export const createNewRevision = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   const user = req.user as User;
 
   try {

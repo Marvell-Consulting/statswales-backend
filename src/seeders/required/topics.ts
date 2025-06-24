@@ -27,7 +27,7 @@ export default class TopicSeeder extends Seeder {
     const parserOpts = { delimiter: ',', bom: true, skip_empty_lines: true, columns: true };
     const topics: Topic[] = [];
 
-    const parseCSV = async () => {
+    const parseCSV = async (): Promise<void> => {
       const csvParser: AsyncIterable<CSVRow> = fs.createReadStream(csv).pipe(parse(parserOpts));
 
       for await (const row of csvParser) {

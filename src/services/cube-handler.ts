@@ -46,6 +46,12 @@ import { getCubeDB } from '../db/cube-db';
 import { getFileService } from '../utils/get-file-service';
 import { asyncTmpName } from '../utils/async-tmp';
 import { performanceReporting } from '../utils/performance-reporting';
+import { DuckdbOutputType } from '../enums/duckdb-outputs';
+import { StorageService } from '../interfaces/storage-service';
+import { ViewDTO, ViewErrDTO } from '../dtos/view-dto';
+import { FilterInterface } from '../interfaces/filterInterface';
+import { SortByInterface } from '../interfaces/sort-by-interface';
+import { createFrontendView } from './consumer-view';
 
 export const FACT_TABLE_NAME = 'fact_table';
 
@@ -94,7 +100,7 @@ export const loadFileIntoCube = async (
   fileImport: FileImportInterface,
   tempFile: string,
   tableName: string
-) => {
+): Promise<void> => {
   logger.debug(`Loading file in to the cube`);
   const insertQuery = await createDataTableQuery(tableName, tempFile, fileImport.fileType, quack);
   try {
@@ -110,7 +116,7 @@ export const loadTableDataIntoFactTableFromPostgres = async (
   factTableDef: string[],
   factTableName: string,
   dataTableId: string
-) => {
+): Promise<void> => {
   logger.debug('Loading data table from postgres into fact table');
   const insertQuery = pgformat(
     'INSERT INTO %I SELECT %I FROM %I.%I;',
@@ -161,7 +167,7 @@ export const loadTableDataIntoFactTable = async (
   factTableDef: string[],
   factTableName: string,
   originTableName: string
-) => {
+): Promise<void> => {
   const tableSize = await quack.all(
     pgformat('SELECT CAST (COUNT(*) AS INTEGER) as table_size FROM %I;', originTableName)
   );
@@ -241,7 +247,7 @@ export const loadFileDataTableIntoTable = async (
   factTableDef: string[],
   tempFile: string,
   tableName: string
-) => {
+): Promise<void> => {
   const tempTableName = `temp_${tableName}`;
   let insertQuery: string;
   const dataTableColumnSelect: string[] = [];
@@ -332,7 +338,7 @@ export const loadFileDataTableIntoTable = async (
   }
 };
 
-async function createReferenceDataTablesInCube(quack: Database) {
+async function createReferenceDataTablesInCube(quack: Database): Promise<void> {
   logger.debug('Creating empty reference data tables');
   try {
     logger.debug('Creating categories tables');
@@ -404,7 +410,7 @@ async function createReferenceDataTablesInCube(quack: Database) {
   }
 }
 
-export async function loadReferenceDataFromCSV(quack: Database) {
+export async function loadReferenceDataFromCSV(quack: Database): Promise<void> {
   logger.debug(`Loading reference data from CSV`);
   logger.debug(`Loading categories from CSV`);
   await quack.exec(
@@ -434,13 +440,13 @@ export async function loadReferenceDataFromCSV(quack: Database) {
   await quack.exec(`COPY hierarchy FROM '${path.resolve(__dirname, `../resources/reference-data/v1/hierarchy.csv`)}';`);
 }
 
-export const loadReferenceDataIntoCube = async (quack: Database) => {
+export const loadReferenceDataIntoCube = async (quack: Database): Promise<void> => {
   await createReferenceDataTablesInCube(quack);
   await loadReferenceDataFromCSV(quack);
   logger.debug(`Reference data tables created and populated successfully.`);
 };
 
-export const cleanUpReferenceDataTables = async (quack: Database) => {
+export const cleanUpReferenceDataTables = async (quack: Database): Promise<void> => {
   await quack.exec('DROP TABLE reference_data_all;');
   await quack.exec('DELETE FROM reference_data_info WHERE item_id NOT IN (SELECT item_id FROM reference_data);');
   await quack.exec('DELETE FROM category_keys WHERE category_key NOT IN (SELECT category_key FROM reference_data);');
@@ -450,7 +456,10 @@ export const cleanUpReferenceDataTables = async (quack: Database) => {
   await quack.exec('DELETE FROM hierarchy WHERE item_id NOT IN (SELECT item_id FROM reference_data);');
 };
 
-export const loadCorrectReferenceDataIntoReferenceDataTable = async (quack: Database, dimension: Dimension) => {
+export const loadCorrectReferenceDataIntoReferenceDataTable = async (
+  quack: Database,
+  dimension: Dimension
+): Promise<void> => {
   const extractor = dimension.extractor as ReferenceDataExtractor;
   for (const category of extractor.categories) {
     const categoryPresent = await quack.all(
@@ -472,7 +481,7 @@ async function setupReferenceDataDimension(
   viewSelectStatementsMap: Map<Locale, string[]>,
   rawSelectStatementsMap: Map<Locale, string[]>,
   joinStatements: string[]
-) {
+): Promise<void> {
   await loadCorrectReferenceDataIntoReferenceDataTable(quack, dimension);
   const refDataInfo = `${makeCubeSafeString(dimension.factTableColumn)}_reference_data_info`;
   const refDataTbl = `${makeCubeSafeString(dimension.factTableColumn)}_reference_data`;
@@ -525,7 +534,7 @@ async function setupReferenceDataDimension(
   }
 }
 
-export const createDatePeriodTableQuery = (factTableColumn: FactTableColumn) => {
+export const createDatePeriodTableQuery = (factTableColumn: FactTableColumn): string => {
   return `
   CREATE TABLE ${makeCubeSafeString(factTableColumn.columnName)}_lookup (
     "${factTableColumn.columnName}" ${factTableColumn.columnDatatype},
@@ -540,7 +549,11 @@ export const createDatePeriodTableQuery = (factTableColumn: FactTableColumn) => 
 
 // This is a short version of validate date dimension code found in the dimension processor.
 // This concise version doesn't return any information on why the creation failed.  Just that it failed
-export async function createDateDimension(quack: Database, extractor: object | null, factTableColumn: FactTableColumn) {
+export async function createDateDimension(
+  quack: Database,
+  extractor: object | null,
+  factTableColumn: FactTableColumn
+): Promise<string> {
   if (!extractor) {
     throw new Error('Extractor not supplied');
   }
@@ -604,7 +617,7 @@ export const createLookupTableQuery = (
   lookupTableName: string,
   referenceColumnName: string,
   referenceColumnType: string
-) => {
+): string => {
   return pgformat(
     'CREATE TABLE %I (%I %s NOT NULL, language VARCHAR(5) NOT NULL, description TEXT NOT NULL, notes TEXT, sort_order INTEGER, hierarchy %s);',
     lookupTableName,
@@ -622,7 +635,7 @@ async function setupLookupTableDimension(
   rawSelectStatementsMap: Map<Locale, string[]>,
   joinStatements: string[],
   orderByStatements: string[]
-) {
+): Promise<void> {
   const factTableColumn = dataset.factTable?.find((col) => col.columnName === dimension.factTableColumn);
   if (!factTableColumn) {
     const error = new CubeValidationException(`Fact table column ${dimension.factTableColumn} not found`);
@@ -663,7 +676,7 @@ export async function createLookupTableDimension(
   dataset: Dataset,
   dimension: Dimension,
   factTableColumn: FactTableColumn
-) {
+): Promise<void> {
   logger.debug(`Creating and validating lookup table dimension ${dimension.factTableColumn}`);
   if (!dimension.lookupTable) return;
   if (!dimension.extractor) return;
@@ -746,7 +759,7 @@ async function loadFactTablesWithUpdates(
   dataValuesColumn: FactTableColumn | undefined,
   notesCodeColumn: FactTableColumn | undefined,
   factIdentifiers: FactTableColumn[]
-) {
+): Promise<void> {
   for (const dataTable of allDataTables.sort((ftA, ftB) => ftA.uploadedAt.getTime() - ftB.uploadedAt.getTime())) {
     logger.info(`Loading fact table data for fact table ${dataTable.id}`);
     const updateTableDataCol = dataTable.dataTableDescriptions.find(
@@ -1034,7 +1047,7 @@ function postgresMeasureFormats(): Map<string, MeasureFormat> {
   return measureFormats;
 }
 
-export const measureTableCreateStatement = (joinColumnType: string) => {
+export const measureTableCreateStatement = (joinColumnType: string): string => {
   return `
     CREATE TABLE measure (
       reference ${joinColumnType},
@@ -1054,7 +1067,7 @@ export async function createMeasureLookupTable(
   quack: Database,
   measureColumn: FactTableColumn,
   measureTable: MeasureRow[]
-) {
+): Promise<void> {
   await quack.exec(measureTableCreateStatement(measureColumn.columnDatatype));
   const stmt = await quack.prepare('INSERT INTO measure VALUES (?,?,?,?,?,?,?,?,?);');
   for (const row of measureTable) {
@@ -1077,7 +1090,7 @@ function setupMeasureNoDataValues(
   rawSelectStatementsMap: Map<Locale, string[]>,
   measureColumn?: FactTableColumn,
   dataValuesColumn?: FactTableColumn
-) {
+): void {
   SUPPORTED_LOCALES.map((locale) => {
     if (dataValuesColumn) {
       viewSelectStatementsMap
@@ -1117,7 +1130,7 @@ async function setupMeasures(
   rawSelectStatementsMap: Map<Locale, string[]>,
   joinStatements: string[],
   orderByStatements: string[]
-) {
+): Promise<void> {
   logger.info('Setting up measure table if present...');
   // logger.debug(`Dataset Measure = ${JSON.stringify(dataset.measure)}`);
   // logger.debug(`Measure column = ${JSON.stringify(measureColumn)}`);
@@ -1201,7 +1214,7 @@ async function rawDimensionProcessor(
   dimension: Dimension,
   viewSelectStatementsMap: Map<Locale, string[]>,
   rawSelectStatementsMap: Map<Locale, string[]>
-) {
+): Promise<void> {
   SUPPORTED_LOCALES.map((locale) => {
     const columnName = dimension.metadata.find((info) => info.language === locale)?.name || dimension.factTableColumn;
     viewSelectStatementsMap.get(locale)?.push(pgformat('%I AS %I', dimension.factTableColumn, columnName));
@@ -1233,7 +1246,7 @@ async function dateDimensionProcessor(
   rawSelectStatementsMap: Map<Locale, string[]>,
   joinStatements: string[],
   orderByStatements: string[]
-) {
+): Promise<void> {
   const dimTable = `${makeCubeSafeString(dimension.factTableColumn)}_lookup`;
   await createDateDimension(quack, dimension.extractor, factTableColumn);
   SUPPORTED_LOCALES.map((locale) => {
@@ -1297,7 +1310,7 @@ async function setupNumericDimension(
   dimension: Dimension,
   viewSelectStatementsMap: Map<Locale, string[]>,
   rawSelectStatementsMap: Map<Locale, string[]>
-) {
+): Promise<void> {
   SUPPORTED_LOCALES.map((locale) => {
     const columnName = dimension.metadata.find((info) => info.language === locale)?.name || dimension.factTableColumn;
     if ((dimension.extractor as NumberExtractor).type === NumberType.Integer) {
@@ -1355,7 +1368,7 @@ async function setupTextDimension(
   dimension: Dimension,
   viewSelectStatementsMap: Map<Locale, string[]>,
   rawSelectStatementsMap: Map<Locale, string[]>
-) {
+): Promise<void> {
   SUPPORTED_LOCALES.map((locale) => {
     const columnName = dimension.metadata.find((info) => info.language === locale)?.name || dimension.factTableColumn;
     viewSelectStatementsMap
@@ -1391,7 +1404,7 @@ async function setupDimensions(
   rawSelectStatementsMap: Map<Locale, string[]>,
   joinStatements: string[],
   orderByStatements: string[]
-) {
+): Promise<void> {
   logger.info('Setting up dimension tables...');
   const factTable = dataset.factTable;
   if (!factTable)
@@ -1496,12 +1509,20 @@ async function setupDimensions(
 //   return false;
 // }
 
+interface FactTableInfo {
+  measureColumn?: FactTableColumn;
+  notesCodeColumn?: FactTableColumn;
+  dataValuesColumn?: FactTableColumn;
+  factTableDef: string[];
+  factIdentifiers: FactTableColumn[];
+}
+
 export async function createEmptyFactTableInCube(
   quack: Database,
   dataset: Dataset,
   revision: Revision,
   type: 'postgres' | 'duckdb'
-) {
+): Promise<FactTableInfo> {
   const start = performance.now();
   let notesCodeColumn: FactTableColumn | undefined;
   let dataValuesColumn: FactTableColumn | undefined;
@@ -1615,7 +1636,7 @@ export const updateFactTableValidator = async (
   return quack;
 };
 
-async function createCubeMetadataTable(quack: Database) {
+async function createCubeMetadataTable(quack: Database): Promise<void> {
   logger.debug('Adding metadata table to the cube');
   await quack.exec(`CREATE TABLE metadata (key VARCHAR, value VARCHAR);`);
   await quack.exec(pgformat('INSERT INTO metadata VALUES (%L, %L);', 'build_id', crypto.randomUUID()));
@@ -1632,16 +1653,16 @@ async function createFilterTable(quack: Database, revisionID: string, type: 'pos
   }
   const createFilterQuery = pgformat(
     `
-            CREATE TABLE %s (
-                reference VARCHAR,
-                language VARCHAR,
-                fact_table_column VARCHAR,
-                dimension_name VARCHAR,
-                description VARCHAR,
-                hierarchy VARCHAR,
-                PRIMARY KEY (reference, language, fact_table_column)
-            );
-      `,
+      CREATE TABLE %s (
+          reference VARCHAR,
+          language VARCHAR,
+          fact_table_column VARCHAR,
+          dimension_name VARCHAR,
+          description VARCHAR,
+          hierarchy VARCHAR,
+          PRIMARY KEY (reference, language, fact_table_column)
+      );
+    `,
     tableName,
     revisionID
   );
@@ -2024,7 +2045,11 @@ export const createBaseDuckDBFile = async (datasetId: string, endRevisionId: str
 //   }
 // };
 
-export const createFilesForDownload = async (quack: Database, datasetId: string, endRevisionId: string) => {
+export const createFilesForDownload = async (
+  quack: Database,
+  datasetId: string,
+  endRevisionId: string
+): Promise<void> => {
   logger.debug('Creating download files for whole dataset');
   try {
     const fileService = getFileService();
@@ -2046,7 +2071,7 @@ export const createFilesForDownload = async (quack: Database, datasetId: string,
   logger.debug('Async processes completed.');
 };
 
-export const createMaterialisedView = async (revisionId: string) => {
+export const createMaterialisedView = async (revisionId: string): Promise<void> => {
   const connection = await getCubeDB().connect();
   await connection.query(pgformat(`SET search_path TO %I;`, revisionId));
   logger.info(`Creating default views...`);
@@ -2126,5 +2151,36 @@ export const getCubeTimePeriods = async (revisionId: string): Promise<PeriodCove
       start_date: null,
       end_date: null
     };
+  }
+};
+export const outputCube = async (
+  mode: DuckdbOutputType,
+  datasetId: string,
+  revisionId: string,
+  lang: string,
+  storageService: StorageService
+): Promise<Buffer> => {
+  try {
+    return storageService.loadBuffer(`${revisionId}_${lang}.${mode}`, datasetId);
+  } catch (err) {
+    logger.error(err, `Something went wrong trying to create the cube output file`);
+    throw err;
+  }
+};
+
+export const getPostgresCubePreview = async (
+  revision: Revision,
+  lang: string,
+  dataset: Dataset,
+  page: number,
+  size: number,
+  sortBy?: SortByInterface[],
+  filter?: FilterInterface[]
+): Promise<ViewDTO | ViewErrDTO> => {
+  try {
+    return createFrontendView(dataset, revision, lang, page, size, sortBy, filter);
+  } catch (err) {
+    logger.error(err, `Something went wrong trying to create the cube preview`);
+    return { status: 500, errors: [], dataset_id: dataset.id };
   }
 };

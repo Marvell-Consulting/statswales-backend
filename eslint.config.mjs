@@ -25,7 +25,7 @@ export default tseslint.config(
         'no-console': 'error',
         'line-comment-position': 'off',
         'no-warning-comments': 'off', // allow todo comments
-        '@typescript-eslint/no-explicit-any': 'warn',
+        '@typescript-eslint/no-explicit-any': 'error',
         '@typescript-eslint/member-ordering': 'off',
         '@typescript-eslint/naming-convention': [
           'error',
@@ -55,12 +55,13 @@ export default tseslint.config(
             ignoreRestSiblings: true
           }
         ],
+        '@typescript-eslint/explicit-function-return-type': 'error'
       }
     },
     {
       files: ['**/entities/**/*.ts'],
       rules: {
-        'import/no-cycle': 'off',
+        'import/no-cycle': 'off'
       }
     },
     {
@@ -72,7 +73,8 @@ export default tseslint.config(
     {
       files: ['test/**/*.ts'],
       rules: {
-        '@typescript-eslint/no-explicit-any': 'off'
+        '@typescript-eslint/no-explicit-any': 'off',
+        '@typescript-eslint/explicit-function-return-type': 'off'
       }
     }
   ]

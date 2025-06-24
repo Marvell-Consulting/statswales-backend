@@ -112,7 +112,7 @@ export default class BlobStorage implements StorageService {
   }
 
   public async deleteDirectory(directory: string): Promise<void> {
-    const deleteBlobFn = async (blob: BlobItem) => {
+    const deleteBlobFn = async (blob: BlobItem): Promise<void> => {
       await this.getBlockBlobClient(blob.name).deleteIfExists();
     };
     await this.listHierarchical(this.containerClient, directory, deleteBlobFn);
@@ -120,7 +120,7 @@ export default class BlobStorage implements StorageService {
 
   public async listFiles(directory: string): Promise<string[]> {
     const files: string[] = [];
-    const listBlobFn = async (blob: BlobItem) =>
+    const listBlobFn = async (blob: BlobItem): Promise<void> =>
       Promise.resolve().then(() => {
         files.push(blob.name);
         return;
