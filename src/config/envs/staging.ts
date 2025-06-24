@@ -13,6 +13,10 @@ export function getStagingConfig(): AppConfig {
       jwt: {
         cookieDomain: process.env.JWT_COOKIE_DOMAIN || process.env.BACKEND_URL!.replace('api.', '')
       }
+    },
+    clamav: {
+      host: 'clamav',
+      port: 3310
     }
   });
 }
