@@ -44,7 +44,7 @@ export interface ValidatedSourceAssignment {
   ignore: SourceAssignmentDTO[];
 }
 
-export const cleanUpDimension = async (dimension: Dimension) => {
+export const cleanUpDimension = async (dimension: Dimension): Promise<void> => {
   dimension.extractor = null;
   dimension.joinColumn = null;
   dimension.type = DimensionType.Raw;
@@ -75,7 +75,7 @@ export const cleanUpDimension = async (dimension: Dimension) => {
   }
 };
 
-export const setupTextDimension = async (dimension: Dimension) => {
+export const setupTextDimension = async (dimension: Dimension): Promise<void> => {
   if (dimension.extractor) await cleanUpDimension(dimension);
   const updateDimension = await Dimension.findOneByOrFail({ id: dimension.id });
   updateDimension.type = DimensionType.Text;
@@ -158,7 +158,7 @@ async function createUpdateDimension(dataset: Dataset, columnDescriptor: SourceA
   }).save();
 }
 
-async function updateDataValueColumn(dataset: Dataset, dataValueColumnDto: SourceAssignmentDTO) {
+async function updateDataValueColumn(dataset: Dataset, dataValueColumnDto: SourceAssignmentDTO): Promise<void> {
   const column = await FactTableColumn.findOneByOrFail({
     columnName: dataValueColumnDto.column_name,
     id: dataset.id
@@ -172,7 +172,7 @@ async function updateDataValueColumn(dataset: Dataset, dataValueColumnDto: Sourc
   await column.save();
 }
 
-async function removeIgnoreAndUnknownColumns(dataset: Dataset, ignoreColumns: SourceAssignmentDTO[]) {
+async function removeIgnoreAndUnknownColumns(dataset: Dataset, ignoreColumns: SourceAssignmentDTO[]): Promise<void> {
   let factTableColumns: FactTableColumn[] = [];
   factTableColumns = await FactTableColumn.findBy({ id: dataset.id });
   logger.debug('Unprocessed columns in fact table');
@@ -215,7 +215,7 @@ async function createUpdateMeasure(dataset: Dataset, columnAssignment: SourceAss
   }).save();
 }
 
-async function createUpdateNoteCodes(dataset: Dataset, columnAssignment: SourceAssignmentDTO) {
+async function createUpdateNoteCodes(dataset: Dataset, columnAssignment: SourceAssignmentDTO): Promise<void> {
   const columnInfo = await FactTableColumn.findOneByOrFail({
     columnName: columnAssignment.column_name,
     id: dataset.id
@@ -240,7 +240,7 @@ async function createBaseFactTable(dataset: Dataset, dataTable: DataTable): Prom
   await FactTableColumn.save(factTable);
 }
 
-export async function removeAllDimensions(dataset: Dataset) {
+export async function removeAllDimensions(dataset: Dataset): Promise<void> {
   logger.warn(`Removing all dimensions for dataset ${dataset.id}`);
   if (dataset.dimensions) {
     for (const dimension of dataset.dimensions) {
@@ -260,7 +260,7 @@ export async function removeAllDimensions(dataset: Dataset) {
   await Dimension.getRepository().delete({ dataset });
 }
 
-export async function removeMeasure(dataset: Dataset) {
+export async function removeMeasure(dataset: Dataset): Promise<void> {
   logger.warn(`Removing measure for dataset ${dataset.id}`);
   if (dataset.measure) {
     if (dataset.measure.lookupTable) {
@@ -787,7 +787,7 @@ async function getLookupPreviewWithExtractor(
   dimension: Dimension,
   quack: Database,
   language: string
-) {
+): Promise<ViewDTO> {
   const safeColName = makeCubeSafeString(dimension.factTableColumn);
   const lookupTableSize = await quack.all(
     `SELECT * FROM ${safeColName}_lookup WHERE language = '${language.toLowerCase()}'`
@@ -823,7 +823,11 @@ async function getLookupPreviewWithExtractor(
   return viewGenerator(currentDataset, 1, pageInfo, pageSize, 1, headers, dataArray);
 }
 
-export const getDimensionPreview = async (dataset: Dataset, dimension: Dimension, lang: string) => {
+export const getDimensionPreview = async (
+  dataset: Dataset,
+  dimension: Dimension,
+  lang: string
+): Promise<ViewDTO | ViewErrDTO> => {
   logger.info(`Getting dimension preview for ${dimension.id}`);
   const tableName = 'fact_table';
   const quack = await duckdb();

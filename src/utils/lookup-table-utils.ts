@@ -17,7 +17,7 @@ import { MeasureLookupTableExtractor } from '../extractors/measure-lookup-extrac
 import { DataValueFormat } from '../enums/data-value-format';
 import { t } from 'i18next';
 
-export function convertDataTableToLookupTable(dataTable: DataTable) {
+export function convertDataTableToLookupTable(dataTable: DataTable): LookupTable {
   const lookupTable = new LookupTable();
   lookupTable.id = dataTable.id;
   lookupTable.fileType = dataTable.fileType;
@@ -29,7 +29,12 @@ export function convertDataTableToLookupTable(dataTable: DataTable) {
   return lookupTable;
 }
 
-export function columnIdentification(info: DataTableDescription) {
+interface ColumnIdentification {
+  name: string;
+  lang: string;
+}
+
+export function columnIdentification(info: DataTableDescription): ColumnIdentification {
   let columnLang = 'zz';
   for (const locale of SUPPORTED_LOCALES) {
     const lang = locale.split('-')[0].toLowerCase();
@@ -293,7 +298,11 @@ export const validateLookupTableReferenceValues = async (
   return undefined;
 };
 
-async function checkDecimalColumn(quack: Database, extractor: MeasureLookupTableExtractor, lookupTableName: string) {
+async function checkDecimalColumn(
+  quack: Database,
+  extractor: MeasureLookupTableExtractor,
+  lookupTableName: string
+): Promise<string[]> {
   const unmatchedFormats: string[] = [];
   logger.debug('Decimal column is present. Validating contains only positive integers.');
   const formats = await quack.all(`SELECT decimals FROM ${lookupTableName};`);
@@ -303,7 +312,11 @@ async function checkDecimalColumn(quack: Database, extractor: MeasureLookupTable
   return unmatchedFormats;
 }
 
-async function checkFormatColumn(quack: Database, extractor: MeasureLookupTableExtractor, lookupTableName: string) {
+async function checkFormatColumn(
+  quack: Database,
+  extractor: MeasureLookupTableExtractor,
+  lookupTableName: string
+): Promise<string[]> {
   const unmatchedFormats: string[] = [];
   logger.debug('Format column is present. Validating it contains only known formats.');
   const formats = await quack.all(`SELECT DISTINCT format FROM ${lookupTableName};`);

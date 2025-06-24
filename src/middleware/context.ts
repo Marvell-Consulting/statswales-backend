@@ -10,7 +10,8 @@ import { asyncLocalStorage } from '../services/async-local-storage';
 // const x = context.get('x')
 // @see https://medium.com/wix-engineering/solving-the-async-context-challenge-in-node-js-088864aa715e
 // for a more complete example
-export const requestContext = async (req: Request, res: Response, next: NextFunction) => {
+export const requestContext = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const store = new Map<string, any>();
   store.set('requestId', uuid());
   asyncLocalStorage.run(store, next);

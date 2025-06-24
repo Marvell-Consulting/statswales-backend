@@ -5,6 +5,7 @@ export class EventLogDTO {
   action: string;
   entity: string;
   entity_id: string;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   data?: Record<string, any>;
   user_id?: string;
   client?: string;

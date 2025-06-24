@@ -43,7 +43,7 @@ import { TopicDTO } from '../dtos/topic-dto';
 import { RevisionTopic } from '../entities/dataset/revision-topic';
 import { TopicSelectionDTO } from '../dtos/topic-selection-dto';
 
-import { getPostgresCubePreview } from './cube-controller';
+import { getPostgresCubePreview } from '../services/cube-handler';
 import { factTableValidatorFromSource } from '../services/fact-table-validator';
 import { FactTableValidationException } from '../exceptions/fact-table-validation-exception';
 import { addDirectoryToZip, collectFiles } from '../utils/dataset-controller-utils';
@@ -57,7 +57,7 @@ import { FilterInterface } from '../interfaces/filterInterface';
 import { cleanupTmpFile, uploadAvScan } from '../services/virus-scanner';
 import { TempFile } from '../interfaces/temp-file';
 
-export const listUserDatasets = async (req: Request, res: Response, next: NextFunction) => {
+export const listUserDatasets = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
     const user = req.user as User;
     const lang = req.language as Locale;
@@ -71,7 +71,7 @@ export const listUserDatasets = async (req: Request, res: Response, next: NextFu
   }
 };
 
-export const listAllDatasets = async (req: Request, res: Response, next: NextFunction) => {
+export const listAllDatasets = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
     const lang = req.language as Locale;
     const page = parseInt(req.query.page as string, 10) || 1;
@@ -84,7 +84,7 @@ export const listAllDatasets = async (req: Request, res: Response, next: NextFun
   }
 };
 
-export const getDatasetById = async (req: Request, res: Response) => {
+export const getDatasetById = async (req: Request, res: Response): Promise<void> => {
   const datasetId: string = res.locals.datasetId;
   const hydrate = req.query.hydrate as DatasetInclude;
 
@@ -127,7 +127,7 @@ export const getDatasetById = async (req: Request, res: Response) => {
   res.json(DatasetDTO.fromDataset(dataset));
 };
 
-export const deleteDraftDatasetById = async (req: Request, res: Response, next: NextFunction) => {
+export const deleteDraftDatasetById = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   const dataset: Dataset = res.locals.dataset;
   if (dataset.publishedRevision) {
     next(new NotAllowedException('Dataset is already published, cannot delete'));
@@ -139,7 +139,7 @@ export const deleteDraftDatasetById = async (req: Request, res: Response, next: 
   res.end();
 };
 
-export const createDataset = async (req: Request, res: Response, next: NextFunction) => {
+export const createDataset = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   const titleError = await hasError(titleValidator(), req);
   if (titleError) {
     next(new BadRequestException('errors.no_title'));
@@ -164,7 +164,7 @@ export const createDataset = async (req: Request, res: Response, next: NextFunct
   }
 };
 
-export const uploadDataTable = async (req: Request, res: Response, next: NextFunction) => {
+export const uploadDataTable = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   const dataset: Dataset = res.locals.dataset;
   let tmpFile: TempFile;
 
@@ -202,7 +202,7 @@ export const uploadDataTable = async (req: Request, res: Response, next: NextFun
   }
 };
 
-export const cubePreview = async (req: Request, res: Response, next: NextFunction) => {
+export const cubePreview = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   const dataset = await DatasetRepository.getById(res.locals.datasetId, withDraftForCube);
   const latestRevision = dataset.draftRevision ?? last(sortBy(dataset?.revisions, 'revisionIndex'));
   const lang = req.language.split('-')[0];
@@ -235,7 +235,7 @@ export const cubePreview = async (req: Request, res: Response, next: NextFunctio
   res.json(cubePreview);
 };
 
-export const updateMetadata = async (req: Request, res: Response, next: NextFunction) => {
+export const updateMetadata = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
     const metadata = await dtoValidator(RevisionMetadataDTO, req.body);
     const updatedDataset = await req.datasetService.updateMetadata(res.locals.datasetId, metadata);
@@ -254,7 +254,7 @@ export const updateMetadata = async (req: Request, res: Response, next: NextFunc
   }
 };
 
-export const getTasklist = async (req: Request, res: Response, next: NextFunction) => {
+export const getTasklist = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   const datasetId = res.locals.datasetId;
   try {
     const tasklistState = await req.datasetService.getTasklistState(datasetId, req.language as Locale);
@@ -265,7 +265,7 @@ export const getTasklist = async (req: Request, res: Response, next: NextFunctio
   }
 };
 
-export const getDataProviders = async (req: Request, res: Response, next: NextFunction) => {
+export const getDataProviders = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
     const dataset = await DatasetRepository.getById(res.locals.datasetId, withDraftAndProviders);
     const providers = dataset.draftRevision?.revisionProviders?.map((provider: RevisionProvider) =>
@@ -277,7 +277,7 @@ export const getDataProviders = async (req: Request, res: Response, next: NextFu
   }
 };
 
-export const addDataProvider = async (req: Request, res: Response, next: NextFunction) => {
+export const addDataProvider = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
     const provider = await dtoValidator(RevisionProviderDTO, req.body);
     const updatedDataset = await req.datasetService.addDataProvider(res.locals.datasetId, provider);
@@ -297,7 +297,7 @@ export const addDataProvider = async (req: Request, res: Response, next: NextFun
   }
 };
 
-export const updateDataProviders = async (req: Request, res: Response, next: NextFunction) => {
+export const updateDataProviders = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
     const providers = await arrayValidator(RevisionProviderDTO, req.body);
     const updatedDataset = await req.datasetService.updateDataProviders(res.locals.datasetId, providers);
@@ -317,7 +317,7 @@ export const updateDataProviders = async (req: Request, res: Response, next: Nex
   }
 };
 
-export const getTopics = async (req: Request, res: Response, next: NextFunction) => {
+export const getTopics = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
     const dataset = await DatasetRepository.getById(res.locals.datasetId, withDraftAndTopics);
     const revisionTopics = dataset?.draftRevision?.revisionTopics || [];
@@ -328,7 +328,7 @@ export const getTopics = async (req: Request, res: Response, next: NextFunction)
   }
 };
 
-export const updateTopics = async (req: Request, res: Response, next: NextFunction) => {
+export const updateTopics = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
     const datasetId = res.locals.datasetId;
     const datasetTopics = await dtoValidator(TopicSelectionDTO, req.body);
@@ -348,7 +348,7 @@ export const updateTopics = async (req: Request, res: Response, next: NextFuncti
   }
 };
 
-export const updateSources = async (req: Request, res: Response, next: NextFunction) => {
+export const updateSources = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   const dataset = await DatasetRepository.getById(res.locals.datasetId, withDraftForCube);
   const revision = dataset.draftRevision;
   const dataTable = revision?.dataTable;
@@ -429,7 +429,7 @@ export const updateSources = async (req: Request, res: Response, next: NextFunct
   }
 };
 
-export const getFactTableDefinition = async (req: Request, res: Response) => {
+export const getFactTableDefinition = async (req: Request, res: Response): Promise<void> => {
   const dataset = await DatasetRepository.getById(res.locals.datasetId, withFactTable);
   const factTableDto: FactTableColumnDto[] =
     dataset.factTable?.map((col: FactTableColumn) => FactTableColumnDto.fromFactTableColumn(col)) || [];
@@ -437,7 +437,7 @@ export const getFactTableDefinition = async (req: Request, res: Response) => {
   res.json(factTableDto);
 };
 
-export const getAllFilesForDataset = async (req: Request, res: Response) => {
+export const getAllFilesForDataset = async (req: Request, res: Response): Promise<void> => {
   const datasetId: string = res.locals.datasetId;
   const zip = new JSZip();
 
@@ -467,7 +467,7 @@ export const getAllFilesForDataset = async (req: Request, res: Response) => {
     });
 };
 
-export const listAllFilesInDataset = async (req: Request, res: Response, next: NextFunction) => {
+export const listAllFilesInDataset = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   const datasetId: string = res.locals.datasetId;
 
   try {
@@ -481,7 +481,7 @@ export const listAllFilesInDataset = async (req: Request, res: Response, next: N
   }
 };
 
-export const updateDatasetGroup = async (req: Request, res: Response, next: NextFunction) => {
+export const updateDatasetGroup = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   const dataset: Dataset = res.locals.dataset;
 
   const validUserGroupIds = req.user?.groupRoles
@@ -506,7 +506,7 @@ export const updateDatasetGroup = async (req: Request, res: Response, next: Next
   }
 };
 
-export const getHistory = async (req: Request, res: Response, next: NextFunction) => {
+export const getHistory = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   const datasetId = res.locals.datasetId;
 
   try {

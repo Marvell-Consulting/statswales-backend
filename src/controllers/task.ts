@@ -11,11 +11,11 @@ import { dtoValidator } from '../validators/dto-validator';
 import { TaskAction } from '../enums/task-action';
 import { TaskStatus } from '../enums/task-status';
 
-export const getTask = async (req: Request, res: Response) => {
+export const getTask = async (req: Request, res: Response): Promise<void> => {
   res.json(TaskDTO.fromTask(res.locals.task));
 };
 
-export const taskDecision = async (req: Request, res: Response, next: NextFunction) => {
+export const taskDecision = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   const taskService = new TaskService();
   const task = res.locals.task;
   const dataset = task.dataset;

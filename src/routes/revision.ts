@@ -35,7 +35,7 @@ import { fileStreaming } from '../middleware/file-streaming';
 // leave relations undefined to load the default relations
 // pass an empty object to load no relations
 export const loadRevision = (relations?: FindOptionsRelations<Revision>) => {
-  return async (req: Request, res: Response, next: NextFunction) => {
+  return async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     const revisionIdError = await hasError(revisionIdValidator(), req);
     if (revisionIdError) {
       logger.error(revisionIdError);

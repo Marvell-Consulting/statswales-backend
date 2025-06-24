@@ -3,7 +3,9 @@ import { ErrorRequestHandler, NextFunction, Request, Response } from 'express';
 import { logger } from '../utils/logger';
 import { t } from '../middleware/translation';
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export const errorHandler: ErrorRequestHandler = (err: any, req: Request, res: Response, _next: NextFunction) => {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const message = 'message' in err ? (err as any).message : 'errors.unknown_error';
 
   switch (err.status) {

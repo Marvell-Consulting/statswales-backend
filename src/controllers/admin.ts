@@ -19,7 +19,7 @@ import { GlobalRole } from '../enums/global-role';
 import { RoleSelectionDTO } from '../dtos/user/role-selection-dto';
 import { UserStatus } from '../enums/user-status';
 
-export const loadUserGroup = async (req: Request, res: Response, next: NextFunction) => {
+export const loadUserGroup = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   const userGroupIdError = await hasError(uuidValidator('user_group_id'), req);
   if (userGroupIdError) {
     logger.error(userGroupIdError);
@@ -39,7 +39,7 @@ export const loadUserGroup = async (req: Request, res: Response, next: NextFunct
   next();
 };
 
-export const loadUser = async (req: Request, res: Response, next: NextFunction) => {
+export const loadUser = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   const userIdError = await hasError(uuidValidator('user_id'), req);
   if (userIdError) {
     logger.error(userIdError);
@@ -59,7 +59,7 @@ export const loadUser = async (req: Request, res: Response, next: NextFunction) 
   next();
 };
 
-export const listRoles = async (req: Request, res: Response) => {
+export const listRoles = async (req: Request, res: Response): Promise<void> => {
   logger.info('List roles');
   res.json({
     global: Object.values(GlobalRole),
@@ -67,7 +67,7 @@ export const listRoles = async (req: Request, res: Response) => {
   });
 };
 
-export const createUserGroup = async (req: Request, res: Response, next: NextFunction) => {
+export const createUserGroup = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
     logger.info('Create new user group');
     const meta = await arrayValidator(UserGroupMetadataDTO, req.body);
@@ -84,7 +84,7 @@ export const createUserGroup = async (req: Request, res: Response, next: NextFun
   }
 };
 
-export const getAllUserGroups = async (req: Request, res: Response, next: NextFunction) => {
+export const getAllUserGroups = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
     logger.info('get all user groups');
     const groups = await UserGroupRepository.getAll();
@@ -95,7 +95,7 @@ export const getAllUserGroups = async (req: Request, res: Response, next: NextFu
   }
 };
 
-export const listUserGroups = async (req: Request, res: Response, next: NextFunction) => {
+export const listUserGroups = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
     logger.info('Listing user groups with user and dataset counts');
     const lang = req.language as Locale;
@@ -109,13 +109,13 @@ export const listUserGroups = async (req: Request, res: Response, next: NextFunc
   }
 };
 
-export const getUserGroupById = async (req: Request, res: Response) => {
+export const getUserGroupById = async (req: Request, res: Response): Promise<void> => {
   const group = res.locals.userGroup;
   logger.debug(`Loading group: ${req.params.user_group_id}...`);
   res.json(UserGroupDTO.fromUserGroup(group, req.language as Locale));
 };
 
-export const updateUserGroup = async (req: Request, res: Response, next: NextFunction) => {
+export const updateUserGroup = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   let group = res.locals.userGroup;
 
   try {
@@ -133,7 +133,7 @@ export const updateUserGroup = async (req: Request, res: Response, next: NextFun
   }
 };
 
-export const listUsers = async (req: Request, res: Response) => {
+export const listUsers = async (req: Request, res: Response): Promise<void> => {
   const page = parseInt(req.query.page as string, 10) || 1;
   const limit = parseInt(req.query.limit as string, 10) || 20;
 
@@ -148,7 +148,7 @@ export const listUsers = async (req: Request, res: Response) => {
   }
 };
 
-export const createUser = async (req: Request, res: Response) => {
+export const createUser = async (req: Request, res: Response): Promise<void> => {
   try {
     logger.info('Creating new user...');
     const dto = await dtoValidator(UserCreateDTO, req.body);
@@ -163,13 +163,13 @@ export const createUser = async (req: Request, res: Response) => {
   }
 };
 
-export const getUserById = async (req: Request, res: Response) => {
+export const getUserById = async (req: Request, res: Response): Promise<void> => {
   const user = res.locals.user;
   logger.debug(`Loading user: ${req.params.user_id}...`);
   res.json(UserDTO.fromUser(user, req.language as Locale));
 };
 
-export const updateUserRoles = async (req: Request, res: Response) => {
+export const updateUserRoles = async (req: Request, res: Response): Promise<void> => {
   const userId: string = res.locals.userId;
   try {
     const roleSelections = await arrayValidator(RoleSelectionDTO, req.body);
@@ -204,7 +204,7 @@ export const updateUserRoles = async (req: Request, res: Response) => {
   }
 };
 
-export const updateUserStatus = async (req: Request, res: Response, next: NextFunction) => {
+export const updateUserStatus = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   const userId: string = res.locals.userId;
 
   const userStatusError = await hasError(userStatusValidator(), req);

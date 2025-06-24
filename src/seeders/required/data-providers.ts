@@ -31,7 +31,7 @@ export default class DataProviderSeeder extends Seeder {
     const english = Locale.EnglishGb.toLowerCase();
     const welsh = Locale.WelshGb.toLowerCase();
 
-    const parseCSV = async () => {
+    const parseCSV = async (): Promise<void> => {
       const csvParser: AsyncIterable<CSVRow> = fs.createReadStream(csv).pipe(parse(parserOpts));
 
       for await (const row of csvParser) {
