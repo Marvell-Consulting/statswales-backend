@@ -196,7 +196,7 @@ export const createFrontendView = async (
   if (availableMaterializedView.rows.length > 0) {
     baseQuery = createBaseQuery(revision, lang, true, 'default', sortBy, filterBy);
   } else {
-    baseQuery = createBaseQuery(revision, lang, false,'default', sortBy, filterBy);
+    baseQuery = createBaseQuery(revision, lang, false, 'default', sortBy, filterBy);
   }
 
   try {
