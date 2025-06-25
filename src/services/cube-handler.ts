@@ -2031,32 +2031,11 @@ export const createFilesForDownload = async (quack: Database, datasetId: string,
     // TODO Write code to to use native libraries to produce parquet, csv, excel and json outputs
     for (const locale of SUPPORTED_LOCALES) {
       const lang = locale.toLowerCase().split('-')[0];
-
-      const xlsxFileName = await asyncTmpName({ postfix: '.xlsx' });
-      logger.debug(`Creating and uploading Excel file for local ${locale}`);
-      await quack.exec('INSTALL spatial;');
-      await quack.exec('LOAD spatial;');
-      await quack.exec(`COPY default_view_${lang} TO '${xlsxFileName}' WITH (FORMAT GDAL, DRIVER 'xlsx');`);
-      await fileService.saveBuffer(`${endRevisionId}_${lang}.xlsx`, datasetId, await readFile(xlsxFileName));
-      await unlink(xlsxFileName);
-
       logger.debug(`Creating and uploading parquet file for local ${locale}`);
       const parquetFileName = await asyncTmpName({ postfix: '.parquet' });
       await quack.exec(`COPY default_view_${lang} TO '${parquetFileName}' (FORMAT PARQUET);`);
       await fileService.saveBuffer(`${endRevisionId}_${lang}.parquet`, datasetId, await readFile(parquetFileName));
       await unlink(parquetFileName);
-
-      logger.debug(`Creating and uploading CSV file for locale ${locale}`);
-      const csvFileName = await asyncTmpName({ postfix: '.csv' });
-      await quack.exec(`COPY default_view_${lang} TO '${csvFileName}' (HEADER, DELIMITER ',');`);
-      await fileService.saveBuffer(`${endRevisionId}_${lang}.csv`, datasetId, await readFile(csvFileName));
-      await unlink(csvFileName);
-
-      logger.debug(`Creating and uploading JSON file for locale ${locale}`);
-      const jsonFileName = await asyncTmpName({ postfix: '.json' });
-      await quack.exec(`COPY default_view_${lang} TO '${jsonFileName}' (FORMAT JSON);`);
-      await fileService.saveBuffer(`${endRevisionId}_${lang}.json`, datasetId, await readFile(jsonFileName));
-      await unlink(jsonFileName);
     }
     logger.debug('File creation done... Closing duckdb');
   } catch (err) {
