@@ -7,11 +7,15 @@ import { PublishedDatasetRepository, withAll } from '../repositories/published-d
 import { NotFoundException } from '../exceptions/not-found.exception';
 import { ConsumerDatasetDTO } from '../dtos/consumer-dataset-dto';
 import { BadRequestException } from '../exceptions/bad-request.exception';
-import { outputCube } from './cube-controller';
 import { DuckdbOutputType } from '../enums/duckdb-outputs';
-import { createFrontendView, getFilters } from '../services/consumer-view';
+import {
+  createFrontendView,
+  createStreamingCSVFilteredView,
+  createStreamingExcelFilteredView,
+  createStreamingJSONFilteredView,
+  getFilters
+} from '../services/consumer-view';
 import { DEFAULT_PAGE_SIZE } from '../services/csv-processor';
-import { getDownloadHeaders } from '../utils/download-headers';
 import { hasError, formatValidator } from '../validators';
 import { TopicDTO } from '../dtos/topic-dto';
 import { PublishedTopicsDTO } from '../dtos/published-topics-dto';
@@ -177,6 +181,8 @@ export const downloadPublishedDataset = async (req: Request, res: Response, next
   const format = req.params.format;
   const lang = req.language.split('-')[0];
   const dataset = await PublishedDatasetRepository.getById(res.locals.datasetId, withAll);
+  const sortByQuery = req.query.sort_by ? (JSON.parse(req.query.sort_by as string) as SortByInterface[]) : undefined;
+  const filterQuery = req.query.filter ? (JSON.parse(req.query.filter as string) as FilterInterface[]) : undefined;
   const revision = dataset.publishedRevision;
 
   if (!revision?.onlineCubeFilename) {
@@ -184,9 +190,24 @@ export const downloadPublishedDataset = async (req: Request, res: Response, next
     return;
   }
 
-  const fileBuffer = await outputCube(format as DuckdbOutputType, dataset.id, revision.id, lang, req.fileService);
-  res.writeHead(200, getDownloadHeaders(dataset.id, format, fileBuffer.length));
-  res.end(fileBuffer);
+  try {
+    switch (format as DuckdbOutputType) {
+      case DuckdbOutputType.Csv:
+        createStreamingCSVFilteredView(res, revision, lang, sortByQuery, filterQuery);
+        break;
+      case DuckdbOutputType.Json:
+        createStreamingJSONFilteredView(res, revision, lang, sortByQuery, filterQuery);
+        break;
+      case DuckdbOutputType.Excel:
+        createStreamingExcelFilteredView(res, revision, lang, sortByQuery, filterQuery);
+        break;
+      default:
+        next(new BadRequestException('file format currently not supported'));
+    }
+  } catch (err) {
+    logger.error(err, 'An error occurred trying to download published dataset');
+    next(new UnknownException());
+  }
 };
 
 export const listRootTopics = async (req: Request, res: Response, next: NextFunction) => {

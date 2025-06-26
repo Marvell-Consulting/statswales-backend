@@ -999,7 +999,7 @@ function postgresMeasureFormats(): Map<string, MeasureFormat> {
   });
   measureFormats.set('integer', {
     name: 'integer',
-    method: "WHEN measure.reference = |REF| THEN format('%s', CAST(|COL| AS BIGINT))"
+    method: "WHEN measure.reference = |REF| THEN format('%s', TO_CHAR(CAST(|COL| AS BIGINT), '999,999,990'))"
   });
   measureFormats.set('long', {
     name: 'long',
