@@ -300,7 +300,7 @@ export const createStreamingJSONFilteredView = async (
     res.write('[');
     let firstRow = true;
     while (rows.length > 0) {
-      rows.map((row) => {
+      rows.forEach((row) => {
         if (firstRow) {
           firstRow = false;
         } else {
