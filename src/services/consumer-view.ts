@@ -346,13 +346,17 @@ export const createStreamingCSVFilteredView = async (
     let rows = await cursor.read(CURSOR_ROW_LIMIT);
     res.setHeader('content-type', 'text/csv');
     res.flushHeaders();
-    const stream = csvFormat({ delimiter: ',', headers: true });
-    stream.pipe(res);
-    while (rows.length > 0) {
-      rows.map((row) => {
-        stream.write(row);
-      });
-      rows = await cursor.read(CURSOR_ROW_LIMIT);
+    if (rows.length > 0) {
+      const stream = csvFormat({ delimiter: ',', headers: true });
+      stream.pipe(res);
+      while (rows.length > 0) {
+        rows.map((row) => {
+          stream.write(row);
+        });
+        rows = await cursor.read(CURSOR_ROW_LIMIT);
+      }
+    } else {
+      res.write('\n');
     }
     res.end();
   } catch (error) {
@@ -403,20 +407,22 @@ export const createStreamingExcelFilteredView = async (
     let sheetCount = 1;
     let totalRows = 0;
     let worksheet = workbook.addWorksheet(`Sheet-${sheetCount}`);
-    worksheet.addRow(Object.keys(rows[0]));
-    while (rows.length > 0) {
-      for (const row of rows) {
-        if (row === null) break;
-        worksheet.addRow(Object.values(row)).commit();
+    if (rows.length > 0) {
+      worksheet.addRow(Object.keys(rows[0]));
+      while (rows.length > 0) {
+        for (const row of rows) {
+          if (row === null) break;
+          worksheet.addRow(Object.values(row)).commit();
+        }
+        totalRows += CURSOR_ROW_LIMIT;
+        if (totalRows > EXCEL_ROW_LIMIT) {
+          worksheet.commit();
+          sheetCount++;
+          totalRows = 0;
+          worksheet = workbook.addWorksheet(`Sheet-${sheetCount}`);
+        }
+        rows = await cursor.read(CURSOR_ROW_LIMIT);
       }
-      totalRows += CURSOR_ROW_LIMIT;
-      if (totalRows > EXCEL_ROW_LIMIT) {
-        worksheet.commit();
-        sheetCount++;
-        totalRows = 0;
-        worksheet = workbook.addWorksheet(`Sheet-${sheetCount}`);
-      }
-      rows = await cursor.read(CURSOR_ROW_LIMIT);
     }
     worksheet.commit();
     await workbook.commit();

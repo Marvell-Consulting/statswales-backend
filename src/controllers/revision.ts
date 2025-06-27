@@ -687,14 +687,10 @@ export const regenerateRevisionCube = async (req: Request, res: Response, next: 
 export const downloadRevisionCubeAsJSON = async (req: Request, res: Response, next: NextFunction) => {
   const revision = res.locals.revision;
   const lang = req.language.split('-')[0];
-  const start = performance.now();
   const sortByQuery = req.query.sort_by ? (JSON.parse(req.query.sort_by as string) as SortByInterface[]) : undefined;
   const filterQuery = req.query.filter ? (JSON.parse(req.query.filter as string) as FilterInterface[]) : undefined;
   try {
-    const end = performance.now();
     createStreamingJSONFilteredView(res, revision, lang, sortByQuery, filterQuery);
-    const time = Math.round(end - start);
-    logger.info(`Cube revision preview took ${time}ms`);
   } catch (err) {
     logger.error(err);
     next(err);
@@ -704,14 +700,10 @@ export const downloadRevisionCubeAsJSON = async (req: Request, res: Response, ne
 export const downloadRevisionCubeAsCSV = async (req: Request, res: Response, next: NextFunction) => {
   const revision = res.locals.revision;
   const lang = req.language.split('-')[0];
-  const start = performance.now();
   const sortByQuery = req.query.sort_by ? (JSON.parse(req.query.sort_by as string) as SortByInterface[]) : undefined;
   const filterQuery = req.query.filter ? (JSON.parse(req.query.filter as string) as FilterInterface[]) : undefined;
   try {
-    const end = performance.now();
     createStreamingCSVFilteredView(res, revision, lang, sortByQuery, filterQuery);
-    const time = Math.round(end - start);
-    logger.info(`Cube revision preview took ${time}ms`);
   } catch (err) {
     logger.error(err);
     next(err);
@@ -750,14 +742,10 @@ export const downloadRevisionCubeAsParquet = async (req: Request, res: Response,
 export const downloadRevisionCubeAsExcel = async (req: Request, res: Response, next: NextFunction) => {
   const revision = res.locals.revision;
   const lang = req.language.split('-')[0];
-  const start = performance.now();
   const sortByQuery = req.query.sort_by ? (JSON.parse(req.query.sort_by as string) as SortByInterface[]) : undefined;
   const filterQuery = req.query.filter ? (JSON.parse(req.query.filter as string) as FilterInterface[]) : undefined;
   try {
-    const end = performance.now();
     createStreamingExcelFilteredView(res, revision, lang, sortByQuery, filterQuery);
-    const time = Math.round(end - start);
-    logger.info(`Cube revision preview took ${time}ms`);
   } catch (err) {
     logger.error(err);
     next(err);
