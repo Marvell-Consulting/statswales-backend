@@ -1,3 +1,10 @@
+import { Response } from 'express';
+import ExcelJS from 'exceljs';
+import { QueryResult } from 'pg';
+import Cursor from 'pg-cursor';
+import { format as pgformat } from '@scaleleap/pg-format/lib/pg-format';
+import { format as csvFormat } from '@fast-csv/format';
+
 import { Revision } from '../entities/dataset/revision';
 import { validateParams } from '../validators/preview-validator';
 import { CSVHeader, ViewDTO, ViewErrDTO } from '../dtos/view-dto';
@@ -5,12 +12,13 @@ import { FactTableColumnType } from '../enums/fact-table-column-type';
 import { DatasetDTO } from '../dtos/dataset-dto';
 import { Dataset } from '../entities/dataset/dataset';
 import { logger } from '../utils/logger';
-import { QueryResult } from 'pg';
-import { format as pgformat } from '@scaleleap/pg-format/lib/pg-format';
 import { DatasetRepository } from '../repositories/dataset';
 import { SortByInterface } from '../interfaces/sort-by-interface';
 import { FilterInterface } from '../interfaces/filterInterface';
 import { getCubeDB } from '../db/cube-db';
+
+const EXCEL_ROW_LIMIT = 1048576;
+const CURSOR_ROW_LIMIT = 500;
 
 interface FilterValues {
   reference: string;
@@ -121,28 +129,46 @@ function createBaseQuery(
   revision: Revision,
   lang: string,
   materialized: boolean,
+  view: 'raw' | 'default',
   sortBy?: SortByInterface[],
   filterBy?: FilterInterface[]
 ): string {
   let sortByQuery: string | undefined;
-  if (sortBy && sortBy.length > 0) {
-    logger.debug('Multiple sort by columns are present. Creating sort by query');
-    sortByQuery = sortBy
-      .map((sort) => pgformat(`%I %s`, sort.column, sort.direction ? sort.direction : 'ASC'))
-      .join(', ');
+  try {
+    if (sortBy && sortBy.length > 0) {
+      logger.debug('Multiple sort by columns are present. Creating sort by query');
+      sortByQuery = sortBy
+        .map((sort) => pgformat(`%I %s`, sort.column, sort.direction ? sort.direction : 'ASC'))
+        .join(', ');
+    }
+  } catch (err) {
+    logger.error(
+      err,
+      `Something went wrong trying to create the order by portion of the query.  User supplied ${JSON.stringify(sortBy)}`
+    );
+    throw err;
   }
+
   let filterQuery: string | undefined;
-  if (filterBy && filterBy.length > 0) {
-    logger.debug('Filters are present. Creating filter query');
-    filterQuery = filterBy
-      .map((whereClause) => pgformat('%I in (%L)', whereClause.columnName, whereClause.values))
-      .join(' and ');
+  try {
+    if (filterBy && filterBy.length > 0) {
+      logger.debug('Filters are present. Creating filter query');
+      filterQuery = filterBy
+        .map((whereClause) => pgformat('%I in (%L)', whereClause.columnName, whereClause.values))
+        .join(' and ');
+    }
+  } catch (err) {
+    logger.error(
+      err,
+      `Something went wrong trying to create the where clause portion of the query.  User supplied ${JSON.stringify(filterBy)}`
+    );
+    throw err;
   }
 
   return pgformat(
     'SELECT * FROM %I.%I %s %s',
     revision.id,
-    materialized ? `default_mat_view_${lang}` : `default_view_${lang}`,
+    materialized ? `${view}_mat_view_${lang}` : `${view}_view_${lang}`,
     filterQuery ? `WHERE ${filterQuery}` : '',
     sortByQuery ? `ORDER BY ${sortByQuery}` : ''
   );
@@ -168,9 +194,9 @@ export const createFrontendView = async (
   );
   let baseQuery: string;
   if (availableMaterializedView.rows.length > 0) {
-    baseQuery = createBaseQuery(revision, lang, true, sortBy, filterBy);
+    baseQuery = createBaseQuery(revision, lang, true, 'default', sortBy, filterBy);
   } else {
-    baseQuery = createBaseQuery(revision, lang, false, sortBy, filterBy);
+    baseQuery = createBaseQuery(revision, lang, false, 'default', sortBy, filterBy);
   }
 
   try {
@@ -239,6 +265,169 @@ export const createFrontendView = async (
   } catch (err) {
     logger.error(err, `Something went wrong trying to create the cube preview`);
     return { status: 500, errors: [], dataset_id: dataset.id };
+  } finally {
+    connection.release();
+  }
+};
+
+export const createStreamingJSONFilteredView = async (
+  res: Response,
+  revision: Revision,
+  lang: string,
+  sortBy?: SortByInterface[],
+  filterBy?: FilterInterface[]
+): Promise<void> => {
+  const connection = await getCubeDB().connect();
+  await connection.query(pgformat(`SET search_path TO %I;`, revision.id));
+  const availableMaterializedView = await connection.query(
+    pgformat(
+      `select * from pg_matviews where matviewname = %L AND schemaname = %L;`,
+      `default_mat_view_${lang}`,
+      revision.id
+    )
+  );
+  let baseQuery: string;
+  if (availableMaterializedView.rows.length > 0) {
+    baseQuery = createBaseQuery(revision, lang, true, 'raw', sortBy, filterBy);
+  } else {
+    baseQuery = createBaseQuery(revision, lang, false, 'raw', sortBy, filterBy);
+  }
+  try {
+    const cursor = connection.query(new Cursor(baseQuery));
+    let rows = await cursor.read(CURSOR_ROW_LIMIT);
+    res.setHeader('content-type', 'application/json');
+    res.flushHeaders();
+    res.write('[');
+    let firstRow = true;
+    while (rows.length > 0) {
+      rows.forEach((row) => {
+        if (firstRow) {
+          firstRow = false;
+        } else {
+          res.write(',\n');
+        }
+        res.write(JSON.stringify(row));
+      });
+      rows = await cursor.read(CURSOR_ROW_LIMIT);
+    }
+    res.write(']');
+    res.end();
+  } catch (error) {
+    logger.error(error, 'Something went wrong trying to read from the view of the cube');
+  } finally {
+    connection.release();
+  }
+};
+
+export const createStreamingCSVFilteredView = async (
+  res: Response,
+  revision: Revision,
+  lang: string,
+  sortBy?: SortByInterface[],
+  filterBy?: FilterInterface[]
+): Promise<void> => {
+  const connection = await getCubeDB().connect();
+  await connection.query(pgformat(`SET search_path TO %I;`, revision.id));
+  const availableMaterializedView = await connection.query(
+    pgformat(
+      `select * from pg_matviews where matviewname = %L AND schemaname = %L;`,
+      `default_mat_view_${lang}`,
+      revision.id
+    )
+  );
+  let baseQuery: string;
+  if (availableMaterializedView.rows.length > 0) {
+    baseQuery = createBaseQuery(revision, lang, true, 'raw', sortBy, filterBy);
+  } else {
+    baseQuery = createBaseQuery(revision, lang, false, 'raw', sortBy, filterBy);
+  }
+  try {
+    const cursor = connection.query(new Cursor(baseQuery));
+    let rows = await cursor.read(CURSOR_ROW_LIMIT);
+    res.setHeader('content-type', 'text/csv');
+    res.flushHeaders();
+    if (rows.length > 0) {
+      const stream = csvFormat({ delimiter: ',', headers: true });
+      stream.pipe(res);
+      while (rows.length > 0) {
+        rows.map((row) => {
+          stream.write(row);
+        });
+        rows = await cursor.read(CURSOR_ROW_LIMIT);
+      }
+    } else {
+      res.write('\n');
+    }
+    res.end();
+  } catch (error) {
+    logger.error(error, 'Something went wrong trying to read from the view of the cube');
+  } finally {
+    connection.release();
+  }
+};
+
+export const createStreamingExcelFilteredView = async (
+  res: Response,
+  revision: Revision,
+  lang: string,
+  sortBy?: SortByInterface[],
+  filterBy?: FilterInterface[]
+): Promise<void> => {
+  const connection = await getCubeDB().connect();
+  await connection.query(pgformat(`SET search_path TO %I;`, revision.id));
+  const availableMaterializedView = await connection.query(
+    pgformat(
+      `select * from pg_matviews where matviewname = %L AND schemaname = %L;`,
+      `default_mat_view_${lang}`,
+      revision.id
+    )
+  );
+  let baseQuery: string;
+  if (availableMaterializedView.rows.length > 0) {
+    baseQuery = createBaseQuery(revision, lang, true, 'raw', sortBy, filterBy);
+  } else {
+    baseQuery = createBaseQuery(revision, lang, false, 'raw', sortBy, filterBy);
+  }
+  try {
+    const cursor = connection.query(new Cursor(baseQuery));
+    let rows = await cursor.read(CURSOR_ROW_LIMIT);
+    res.writeHead(200, {
+      // eslint-disable-next-line @typescript-eslint/naming-convention
+      'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      // eslint-disable-next-line @typescript-eslint/naming-convention
+      'Content-disposition': `attachment;filename=${revision.id}.xlsx`
+    });
+    res.flushHeaders();
+    const workbook = new ExcelJS.stream.xlsx.WorkbookWriter({
+      filename: `${revision.id}.xlsx`,
+      useStyles: true,
+      useSharedStrings: true,
+      stream: res
+    });
+    let sheetCount = 1;
+    let totalRows = 0;
+    let worksheet = workbook.addWorksheet(`Sheet-${sheetCount}`);
+    if (rows.length > 0) {
+      worksheet.addRow(Object.keys(rows[0]));
+      while (rows.length > 0) {
+        for (const row of rows) {
+          if (row === null) break;
+          worksheet.addRow(Object.values(row)).commit();
+        }
+        totalRows += CURSOR_ROW_LIMIT;
+        if (totalRows > EXCEL_ROW_LIMIT) {
+          worksheet.commit();
+          sheetCount++;
+          totalRows = 0;
+          worksheet = workbook.addWorksheet(`Sheet-${sheetCount}`);
+        }
+        rows = await cursor.read(CURSOR_ROW_LIMIT);
+      }
+    }
+    worksheet.commit();
+    await workbook.commit();
+  } catch (error) {
+    logger.error(error, 'Something went wrong trying to read from the view of the cube');
   } finally {
     connection.release();
   }
