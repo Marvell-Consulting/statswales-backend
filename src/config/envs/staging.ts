@@ -15,7 +15,7 @@ export function getStagingConfig(): AppConfig {
       }
     },
     clamav: {
-      host: 'clamav',
+      host: process.env.CLAMAV_HOST || 'clamav',
       port: 3310
     }
   });
