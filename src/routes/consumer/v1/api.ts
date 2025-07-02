@@ -1,5 +1,6 @@
 import { NextFunction, Router, Request, Response } from 'express';
 import { FindOptionsRelations } from 'typeorm';
+import cors from 'cors';
 
 import { logger } from '../../../utils/logger';
 import {
@@ -42,6 +43,8 @@ export const loadPublishedDataset = (relations?: FindOptionsRelations<Dataset>) 
     next();
   };
 };
+
+publicApiRouter.use(cors()); // allow browser XMLHttpRequests from any domain
 
 publicApiRouter.get('/', listPublishedDatasets);
 
