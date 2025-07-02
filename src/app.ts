@@ -3,6 +3,7 @@ import 'reflect-metadata';
 import express, { Application } from 'express';
 import passport from 'passport';
 import cookieParser from 'cookie-parser';
+import cors from 'cors';
 
 import './utils/bigint-patcher';
 import { logger, httpLogger } from './utils/logger';
@@ -43,6 +44,7 @@ app.use(cookieParser());
 app.use(session);
 app.use(requestContext);
 app.use(initServices);
+app.use(cors());
 
 // public routes
 app.use('/auth', rateLimiter, authRouter);
