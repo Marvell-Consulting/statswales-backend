@@ -60,7 +60,7 @@ export const listPublishedDatasets = async (req: Request, res: Response, next: N
 
 export const getPublishedDatasetById = async (req: Request, res: Response): Promise<void> => {
   /*
-    #swagger.summary = `Get a published dataset's metadata`
+    #swagger.summary = "Get a published dataset's metadata"
     #swagger.description = 'This endpoint returns all metadata for a published dataset.'
     #swagger.parameters['$ref'] = [
       '#/components/parameters/language',
@@ -213,9 +213,9 @@ export const downloadPublishedDataset = async (req: Request, res: Response, next
 export const listRootTopics = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   /*
     #swagger.summary = 'Get a list of top-level topics'
-    #swagger.description = `Datasets are tagged to topics. There are top-level topics, such as 'Health and social care',
+    #swagger.description = "Datasets are tagged to topics. There are top-level topics, such as 'Health and social care',
       which can have sub-topics, such as 'Dental services'. This endpoint returns a list of all top-level topics that
-      have at least one published dataset tagged to them.`
+      have at least one published dataset tagged to them."
     #swagger.autoQuery = false
     #swagger.parameters['$ref'] = ['#/components/parameters/language']
     #swagger.responses[200] = {
@@ -246,9 +246,9 @@ export const listRootTopics = async (req: Request, res: Response, next: NextFunc
 export const listSubTopics = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   /*
     #swagger.summary = 'Get a list of what sits under a given topic'
-    #swagger.description = `Datasets are tagged to topics. There are top-level topics, such as 'Health and social care',
-      which can have sub-topics, such as 'Dental services'. For a given topic_id, this endpoint returns a list of what
-      sits under that topic - either sub-topics or published datasets tagged directly to that topic.`
+    #swagger.description = "Datasets are tagged to topics. There are top-level topics, such as 'Health and social
+      care', which can have sub-topics, such as 'Dental services'. For a given topic_id, this endpoint returns a
+      list of what sits under that topic - either sub-topics or published datasets tagged directly to that topic."
     #swagger.autoQuery = false
      #swagger.parameters['page_size'] = {
       description: 'Number of datasets per page when datasets are returned',
