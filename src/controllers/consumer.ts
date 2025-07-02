@@ -305,9 +305,9 @@ export const listSubTopics = async (req: Request, res: Response, next: NextFunct
   }
 };
 
-export const keepThisFunction = (req: Request, res: Response, next: NextFunction): void => {
-  // Swagger-autogen has started to completely ignore the docs for listRootTopics and listSubTopics actions unless an
-  // additional function is present. Absolutely bizarre and I do not know why, but at this point I do not have
-  // the time or inclination to debug third-party code to work out the reason.
-  next();
+export const fixSwaggerDocGenerationWeirdness = (): void => {
+  // Since we added return types to the functions above, Swagger-autogen has started to completely ignore the docs
+  // for listRootTopics and listSubTopics actions. It's very strange and I do not know exactly why, possibly to do with
+  // the code parser and colons?? At this point I do not have the time or inclination to debug third-party code to work
+  // out the reason, and adding this useless function seems to fix the issue!
 };
