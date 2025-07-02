@@ -7,7 +7,6 @@ import { PublishedDatasetRepository, withAll } from '../repositories/published-d
 import { NotFoundException } from '../exceptions/not-found.exception';
 import { ConsumerDatasetDTO } from '../dtos/consumer-dataset-dto';
 import { BadRequestException } from '../exceptions/bad-request.exception';
-import { outputCube } from '../services/cube-handler';
 import { DuckdbOutputType } from '../enums/duckdb-outputs';
 import {
   createFrontendView,

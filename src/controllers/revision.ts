@@ -685,7 +685,7 @@ export const regenerateRevisionCube = async (req: Request, res: Response, next: 
 //   res.end(cubeBuffer);
 // };
 
-export const downloadRevisionCubeAsJSON = async (req: Request, res: Response, next: NextFunction) => {
+export const downloadRevisionCubeAsJSON = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   const revision = res.locals.revision;
   const lang = req.language.split('-')[0];
   const sortByQuery = req.query.sort_by ? (JSON.parse(req.query.sort_by as string) as SortByInterface[]) : undefined;
@@ -698,7 +698,7 @@ export const downloadRevisionCubeAsJSON = async (req: Request, res: Response, ne
   }
 };
 
-export const downloadRevisionCubeAsCSV = async (req: Request, res: Response, next: NextFunction) => {
+export const downloadRevisionCubeAsCSV = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   const revision = res.locals.revision;
   const lang = req.language.split('-')[0];
   const sortByQuery = req.query.sort_by ? (JSON.parse(req.query.sort_by as string) as SortByInterface[]) : undefined;
@@ -740,7 +740,7 @@ export const downloadRevisionCubeAsParquet = async (req: Request, res: Response,
   res.end(cubeBuffer);
 };
 
-export const downloadRevisionCubeAsExcel = async (req: Request, res: Response, next: NextFunction) => {
+export const downloadRevisionCubeAsExcel = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   const revision = res.locals.revision;
   const lang = req.language.split('-')[0];
   const sortByQuery = req.query.sort_by ? (JSON.parse(req.query.sort_by as string) as SortByInterface[]) : undefined;
