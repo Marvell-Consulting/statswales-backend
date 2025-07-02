@@ -304,3 +304,10 @@ export const listSubTopics = async (req: Request, res: Response, next: NextFunct
     next(new UnknownException());
   }
 };
+
+export const keepThisFunction = (req: Request, res: Response, next: NextFunction): void => {
+  // Swagger-autogen has started to completely ignore the docs for listRootTopics and listSubTopics actions unless an
+  // additional function is present. Absolutely bizarre and I do not know why, but at this point I do not have
+  // the time or inclination to debug third-party code to work out the reason.
+  next();
+};
