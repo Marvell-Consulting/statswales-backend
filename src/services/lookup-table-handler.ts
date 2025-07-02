@@ -138,7 +138,7 @@ export const createLookupTableInCube = async (
   factTableColumn: FactTableColumn,
   dimension: Dimension,
   lookupTableName: string
-) => {
+): Promise<void> => {
   const extractor = dimension.extractor as LookupTableExtractor;
   const dimensionTableName = `${makeCubeSafeString(factTableColumn.columnName).toLowerCase()}_lookup`;
   await quack.exec(
@@ -198,7 +198,7 @@ export const checkForReferenceErrors = async (
   dataset: Dataset,
   dimension: Dimension,
   factTableColumn: FactTableColumn
-) => {
+): Promise<void> => {
   const referenceErrors = await validateLookupTableReferenceValues(
     quack,
     dataset,
@@ -213,7 +213,6 @@ export const checkForReferenceErrors = async (
     err.type = CubeValidationType.DimensionNonMatchedRows;
     throw err;
   }
-  return undefined;
 };
 
 export const validateLookupTable = async (

@@ -14,15 +14,17 @@ export const fileStreaming = (
   fileFieldConfigOverride?: Internal.FileFieldConfigOverride,
   busboyConfig?: Internal.BusboyConfig
 ) => {
-  return async (req: Request, res: Response, next: NextFunction) => {
+  return async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const { fields, files } = await parseFormData(req, config, fileFieldConfigOverride, busboyConfig);
       req.body = fields;
       req.files = files;
       return next();
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (err: any) {
       logger.error(err, 'error attempting to parse multipart/form-data');
-      return next(new BadRequestException('errors.upload.failed_to_parse'));
+      next(new BadRequestException('errors.upload.failed_to_parse'));
+      return;
     }
   };
 };

@@ -39,7 +39,7 @@ import { Revision } from '../entities/dataset/revision';
 
 const sampleSize = 5;
 
-async function cleanUpMeasure(measureId: string) {
+async function cleanUpMeasure(measureId: string): Promise<void> {
   const measure = await Measure.findOneByOrFail({ id: measureId });
   logger.info(`Cleaning up previous measure lookup table`);
   if (measure.lookupTable) {
@@ -157,7 +157,7 @@ async function updateMeasure(
   confirmedJoinColumn: string,
   measureTable: MeasureRow[],
   extractor: MeasureLookupTableExtractor
-) {
+): Promise<Measure> {
   lookupTable.isStatsWales2Format = extractor.isSW2Format;
   const updateMeasure = await Measure.findOneByOrFail({ id: dataset.measure.id });
   updateMeasure.joinColumn = confirmedJoinColumn;
@@ -181,7 +181,7 @@ async function createMeasureTable(
   joinColumn: string,
   lookupTable: string,
   extractor: MeasureLookupTableExtractor
-) {
+): Promise<MeasureRow[]> {
   logger.debug(`Creating empty measure table`);
   await quack.exec(measureTableCreateStatement(measureColumn.columnDatatype));
 
@@ -578,7 +578,12 @@ async function getMeasurePreviewWithoutExtractor(
   }
 }
 
-async function getMeasurePreviewWithExtractor(dataset: Dataset, measure: Measure, revision: Revision, lang: string) {
+async function getMeasurePreviewWithExtractor(
+  dataset: Dataset,
+  measure: Measure,
+  revision: Revision,
+  lang: string
+): Promise<ViewDTO> {
   logger.debug(`Generating lookup table preview for measure ${measure.id}`);
   const quack = await duckdb();
   try {

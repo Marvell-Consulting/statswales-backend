@@ -23,7 +23,7 @@ const checkTokenFitsInCookie = (token: string): void => {
   if (tokenSize > maxCookieSize) {
     // our JWTs include a list of the user groups and roles - if the user has many groups the JWT can become too large
     // to fit in a cookie. This is a limitation of cookies, not JWTs themselves.
-    // TODO: Consider using a different mechanism
+    // TODO: Consider using a different mechanism to fetch and store user roles/groups on the frontend
     throw new Error(`JWT token size (${tokenSize} bytes) exceeds the maximum cookie size (${maxCookieSize} bytes).`);
   } else {
     logger.debug(`JWT token is ${tokenSize} bytes (max: ${maxCookieSize})`);

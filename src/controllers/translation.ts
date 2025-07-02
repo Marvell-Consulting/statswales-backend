@@ -34,7 +34,7 @@ const parseTranslationsFromStream = async (stream: Readable | ReadStream): Promi
   });
 };
 
-export const translationPreview = async (req: Request, res: Response, next: NextFunction) => {
+export const translationPreview = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
     logger.info('Previewing translations for export...');
     const dataset = await DatasetRepository.getById(res.locals.datasetId, withMetadataForTranslation);
@@ -46,7 +46,7 @@ export const translationPreview = async (req: Request, res: Response, next: Next
   }
 };
 
-export const translationExport = async (req: Request, res: Response, next: NextFunction) => {
+export const translationExport = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
     logger.info('Exporting translations to CSV...');
     const dataset = await DatasetRepository.getById(res.locals.datasetId, withMetadataForTranslation);
@@ -70,7 +70,7 @@ export const translationExport = async (req: Request, res: Response, next: NextF
   }
 };
 
-export const validateImport = async (req: Request, res: Response, next: NextFunction) => {
+export const validateImport = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   logger.info('Validating imported translations CSV...');
   let tmpFile: TempFile;
 
@@ -134,7 +134,7 @@ export const validateImport = async (req: Request, res: Response, next: NextFunc
   }
 };
 
-export const applyImport = async (req: Request, res: Response, next: NextFunction) => {
+export const applyImport = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   logger.info('Updating translations from CSV...');
   const datasetId = res.locals.datasetId;
 

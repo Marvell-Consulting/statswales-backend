@@ -17,6 +17,7 @@ import { FactTableColumnType } from '../enums/fact-table-column-type';
 import { convertDataTableToLookupTable } from '../utils/lookup-table-utils';
 import { Provider } from '../entities/dataset/provider';
 import { getFileService } from '../utils/get-file-service';
+import { TempFile } from '../interfaces/temp-file';
 
 const user: DeepPartial<User> = {
   id: 'fceaeab9-d515-4f90-ba25-38ffb3dab3b9',
@@ -225,16 +226,25 @@ export default class DatasetSeeder extends Seeder {
       const partialDataset = omit(approvedDataset, 'publishedRevision', 'dimensions', 'measure');
       const dataset = await entityManager.getRepository(Dataset).create(partialDataset).save();
 
-      const dataFile = { originalname: 'QryHLTH1250_Data.csv', mimetype: 'text/csv' } as any;
-      dataFile.buffer = await readFile(path.join(__dirname, 'resources', dataFile.originalname));
+      const dataFile = {
+        originalname: 'QryHLTH1250_Data.csv',
+        mimetype: 'text/csv',
+        path: path.join(__dirname, 'resources', 'QryHLTH1250_Data.csv')
+      } as TempFile;
       const dataTable = await validateAndUpload(dataFile, dataset.id, 'data_table');
 
-      const rowRefFile = { originalname: 'QryHLTH1250_RowRef-fixed.csv', mimetype: 'text/csv' } as any;
-      rowRefFile.buffer = await readFile(path.join(__dirname, 'resources', rowRefFile.originalname));
+      const rowRefFile = {
+        originalname: 'QryHLTH1250_RowRef-fixed.csv',
+        mimetype: 'text/csv',
+        path: path.join(__dirname, 'resources', 'QryHLTH1250_RowRef-fixed.csv')
+      } as TempFile;
       const protoRowRefLookupTable = await validateAndUpload(rowRefFile, dataset.id, 'lookup_table');
 
-      const measureFile = { originalname: 'QryHLTH1250_Measure-fixed.csv', mimetype: 'text/csv' } as any;
-      measureFile.buffer = await readFile(path.join(__dirname, 'resources', measureFile.originalname));
+      const measureFile = {
+        originalname: 'QryHLTH1250_Measure-fixed.csv',
+        mimetype: 'text/csv',
+        path: path.join(__dirname, 'resources', 'QryHLTH1250_Measure-fixed.csv')
+      } as TempFile;
       const protoMeasureLookupTable = await validateAndUpload(measureFile, dataset.id, 'lookup_table');
 
       const provider = await entityManager.getRepository(Provider).findOne({

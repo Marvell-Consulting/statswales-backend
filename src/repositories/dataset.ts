@@ -1,6 +1,6 @@
 import { performance } from 'node:perf_hooks';
 
-import { FindOneOptions, FindOptionsRelations, QueryBuilder } from 'typeorm';
+import { FindOneOptions, FindOptionsRelations, QueryBuilder, SelectQueryBuilder } from 'typeorm';
 import { has, set } from 'lodash';
 
 import { logger } from '../utils/logger';
@@ -81,7 +81,7 @@ export const withDraftForCube: FindOptionsRelations<Dataset> = {
   revisions: { dataTable: { dataTableDescriptions: true } }
 };
 
-const listAllQuery = (qb: QueryBuilder<Dataset>, lang: Locale) => {
+const listAllQuery = (qb: QueryBuilder<Dataset>, lang: Locale): SelectQueryBuilder<Dataset> => {
   return qb
     .select(['d.id AS id', 'r.title AS title', 'r.title_alt AS title_alt', 'r.updated_at AS last_updated'])
     .addSelect(`ugm.name AS group_name`)

@@ -7,6 +7,24 @@ import { AppEnv } from './env.enum';
 import { SessionStore } from './session-store.enum';
 import { FileStore } from './file-store.enum';
 
+export interface JWTConfig {
+  secret: string;
+  expiresIn: string;
+  secure: boolean;
+  cookieDomain: string;
+}
+
+export interface EntraIdConfig {
+  url: string;
+  clientId: string;
+  clientSecret: string;
+}
+
+export interface GoogleConfig {
+  clientId: string;
+  clientSecret: string;
+}
+
 export interface AppConfig {
   env: AppEnv;
   frontend: {
@@ -49,21 +67,9 @@ export interface AppConfig {
   };
   auth: {
     providers: AuthProvider[];
-    jwt: {
-      secret: string;
-      expiresIn: string;
-      secure: boolean;
-      cookieDomain: string;
-    };
-    google: {
-      clientId: string;
-      clientSecret: string;
-    };
-    entraid: {
-      url: string;
-      clientId: string;
-      clientSecret: string;
-    };
+    jwt: JWTConfig;
+    google: GoogleConfig;
+    entraid: EntraIdConfig;
   };
   storage: {
     store: FileStore;

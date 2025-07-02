@@ -20,7 +20,7 @@ import { createAllCubeFiles } from '../services/cube-handler';
 import { cleanupTmpFile, uploadAvScan } from '../services/virus-scanner';
 import { TempFile } from '../interfaces/temp-file';
 
-export const resetMeasure = async (req: Request, res: Response, next: NextFunction) => {
+export const resetMeasure = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   const dataset = res.locals.dataset;
   const measure = dataset.measure;
   if (!measure) {
@@ -52,7 +52,7 @@ export const resetMeasure = async (req: Request, res: Response, next: NextFuncti
   res.json(dto);
 };
 
-export const attachLookupTableToMeasure = async (req: Request, res: Response, next: NextFunction) => {
+export const attachLookupTableToMeasure = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   let tmpFile: TempFile;
 
   try {
@@ -88,7 +88,7 @@ export const attachLookupTableToMeasure = async (req: Request, res: Response, ne
   }
 };
 
-export const getPreviewOfMeasure = async (req: Request, res: Response, next: NextFunction) => {
+export const getPreviewOfMeasure = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   const lang = req.language.toLowerCase();
 
   const dataset = await DatasetRepository.getById(res.locals.datasetId, {
@@ -112,7 +112,7 @@ export const getPreviewOfMeasure = async (req: Request, res: Response, next: Nex
   }
 };
 
-export const updateMeasureMetadata = async (req: Request, res: Response, next: NextFunction) => {
+export const updateMeasureMetadata = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   const dataset = await DatasetRepository.getById(res.locals.datasetId, {
     measure: { metadata: true }
   });
@@ -144,7 +144,7 @@ export const updateMeasureMetadata = async (req: Request, res: Response, next: N
   res.json(DimensionMetadataDTO.fromDimensionMetadata(updatedMeasureMetadata));
 };
 
-export const getMeasureInfo = async (req: Request, res: Response) => {
+export const getMeasureInfo = async (req: Request, res: Response): Promise<void> => {
   const dataset = await DatasetRepository.getById(res.locals.datasetId, {
     measure: { metadata: true, measureTable: true, lookupTable: true }
   });
@@ -158,7 +158,7 @@ export const getMeasureInfo = async (req: Request, res: Response) => {
   res.json(MeasureDTO.fromMeasure(dataset.measure));
 };
 
-export const getMeasureLookupTableInfo = async (req: Request, res: Response) => {
+export const getMeasureLookupTableInfo = async (req: Request, res: Response): Promise<void> => {
   const dataset = await DatasetRepository.getById(res.locals.datasetId, {
     measure: { lookupTable: true }
   });
@@ -172,7 +172,7 @@ export const getMeasureLookupTableInfo = async (req: Request, res: Response) => 
   res.json(LookupTableDTO.fromLookupTable(dataset.measure.lookupTable));
 };
 
-export const downloadMeasureLookupTable = async (req: Request, res: Response) => {
+export const downloadMeasureLookupTable = async (req: Request, res: Response): Promise<void> => {
   const dataset = await DatasetRepository.getById(res.locals.datasetId, {
     measure: { lookupTable: true }
   });

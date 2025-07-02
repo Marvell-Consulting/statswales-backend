@@ -1,49 +1,10 @@
 import { NextFunction, Request, Response } from 'express';
 
-import { Dataset } from '../entities/dataset/dataset';
-import { logger } from '../utils/logger';
 import { DuckdbOutputType } from '../enums/duckdb-outputs';
 import { DatasetRepository, withDraftForCube } from '../repositories/dataset';
-import { ViewDTO, ViewErrDTO } from '../dtos/view-dto';
 import { getLatestRevision } from '../utils/latest';
 import { UnknownException } from '../exceptions/unknown.exception';
-import { StorageService } from '../interfaces/storage-service';
-import { SortByInterface } from '../interfaces/sort-by-interface';
-import { FilterInterface } from '../interfaces/filterInterface';
-import { createFrontendView } from '../services/consumer-view';
-import { Revision } from '../entities/dataset/revision';
-
-export const getPostgresCubePreview = async (
-  revision: Revision,
-  lang: string,
-  dataset: Dataset,
-  page: number,
-  size: number,
-  sortBy?: SortByInterface[],
-  filter?: FilterInterface[]
-): Promise<ViewDTO | ViewErrDTO> => {
-  try {
-    return createFrontendView(dataset, revision, lang, page, size, sortBy, filter);
-  } catch (err) {
-    logger.error(err, `Something went wrong trying to create the cube preview`);
-    return { status: 500, errors: [], dataset_id: dataset.id };
-  }
-};
-
-export const outputCube = async (
-  mode: DuckdbOutputType,
-  datasetId: string,
-  revisionId: string,
-  lang: string,
-  storageService: StorageService
-) => {
-  try {
-    return storageService.loadBuffer(`${revisionId}_${lang}.${mode}`, datasetId);
-  } catch (err) {
-    logger.error(err, `Something went wrong trying to create the cube output file`);
-    throw err;
-  }
-};
+import { outputCube } from '../services/cube-handler';
 
 // export const downloadCubeFile = async (req: Request, res: Response, next: NextFunction) => {
 //   const dataset = await DatasetRepository.getById(res.locals.datasetId, withDraftForCube);
@@ -74,7 +35,7 @@ export const outputCube = async (
 //   res.end(cubeBuffer);
 // };
 
-export const downloadCubeAsJSON = async (req: Request, res: Response, next: NextFunction) => {
+export const downloadCubeAsJSON = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   const dataset = await DatasetRepository.getById(res.locals.datasetId, withDraftForCube);
   const latestRevision = getLatestRevision(dataset);
   if (!latestRevision) {
@@ -99,7 +60,7 @@ export const downloadCubeAsJSON = async (req: Request, res: Response, next: Next
   res.end(cubeBuffer);
 };
 
-export const downloadCubeAsCSV = async (req: Request, res: Response, next: NextFunction) => {
+export const downloadCubeAsCSV = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   const dataset = await DatasetRepository.getById(res.locals.datasetId, withDraftForCube);
   const latestRevision = getLatestRevision(dataset);
   if (!latestRevision) {
@@ -124,7 +85,7 @@ export const downloadCubeAsCSV = async (req: Request, res: Response, next: NextF
   res.end(cubeBuffer);
 };
 
-export const downloadCubeAsParquet = async (req: Request, res: Response, next: NextFunction) => {
+export const downloadCubeAsParquet = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   const dataset = await DatasetRepository.getById(res.locals.datasetId, withDraftForCube);
   const latestRevision = getLatestRevision(dataset);
   if (!latestRevision) {
@@ -148,7 +109,7 @@ export const downloadCubeAsParquet = async (req: Request, res: Response, next: N
   });
 };
 
-export const downloadCubeAsExcel = async (req: Request, res: Response, next: NextFunction) => {
+export const downloadCubeAsExcel = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   const dataset = await DatasetRepository.getById(res.locals.datasetId, withDraftForCube);
   const latestRevision = getLatestRevision(dataset);
   if (!latestRevision) {

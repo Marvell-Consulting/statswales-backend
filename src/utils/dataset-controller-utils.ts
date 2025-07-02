@@ -10,7 +10,7 @@ export const addDirectoryToZip = async (
   datasetFiles: Map<string, FileImportDto>,
   directory: string,
   fileService: StorageService
-) => {
+): Promise<void> => {
   const directoryList = await fileService.listFiles(directory);
   for (const fileEntry of directoryList) {
     let filename: string;

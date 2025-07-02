@@ -5,7 +5,7 @@ import { optionalProperties } from './app-config.interface';
 
 import { appConfig } from '.';
 
-export const checkConfig = () => {
+export const checkConfig = (): void => {
   const config = appConfig() as unknown as UnknownObject;
 
   logger.info('Checking app config...');

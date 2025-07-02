@@ -9,7 +9,7 @@ import { hasError, datasetIdValidator } from '../validators';
 import { GlobalRole } from '../enums/global-role';
 
 // middleware that loads the dataset, checks the user can view it, and stores it in res.locals.dataset
-export const datasetAuth = async (req: Request, res: Response, next: NextFunction) => {
+export const datasetAuth = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   const datasetIdError = await hasError(datasetIdValidator(), req);
   if (datasetIdError) {
     logger.error(datasetIdError);
