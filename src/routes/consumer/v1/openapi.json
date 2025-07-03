@@ -225,6 +225,12 @@
           },
           {
             "$ref": "#/components/parameters/format"
+          },
+          {
+            "$ref": "#/components/parameters/sort_by"
+          },
+          {
+            "$ref": "#/components/parameters/filter"
           }
         ],
         "responses": {
@@ -322,20 +328,24 @@
       "sort_by": {
         "name": "sort_by",
         "in": "query",
-        "description": "Column to sort the data by",
+        "description": "Columns to sort the data by. The value should be a JSON array of objects sent as a URL encoded\n        string.",
         "required": false,
         "schema": {
-          "type": "string"
-        }
+          "type": "string",
+          "description": "JSON string containing an array of sort objects"
+        },
+        "example": "[{\"columnName\": \"Year\",\"direction\": \"ASC\"},{\"columnName\": \"Measure\",\"direction\": \"DESC\"}]"
       },
       "filter": {
         "name": "filter",
         "in": "query",
-        "description": "Properties to filter the data by",
+        "description": "Properties to filter the data by. The value should be a JSON array of objects sent as a URL\n        encoded string.",
         "required": false,
         "schema": {
-          "type": "object"
-        }
+          "type": "string",
+          "description": "JSON string containing an array of filter objects"
+        },
+        "example": "[{\"columnName\": \"Area\", \"values\": [\"England\",\"Wales\"]}, {\"columnName\": \"Year\", \"values\": [\"2020\"]}]"
       }
     },
     "schemas": {
