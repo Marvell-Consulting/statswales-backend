@@ -138,7 +138,7 @@ function createBaseQuery(
     if (sortBy && sortBy.length > 0) {
       logger.debug('Multiple sort by columns are present. Creating sort by query');
       sortByQuery = sortBy
-        .map((sort) => pgformat(`%I %s`, sort.column, sort.direction ? sort.direction : 'ASC'))
+        .map((sort) => pgformat(`%I %s`, sort.columnName, sort.direction ? sort.direction : 'ASC'))
         .join(', ');
     }
   } catch (err) {

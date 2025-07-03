@@ -1,4 +1,4 @@
 export interface SortByInterface {
-  column: string;
+  columnName: string;
   direction?: 'ASC' | 'DESC';
 }
