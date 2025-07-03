@@ -107,8 +107,22 @@ export const getPublishedDatasetView = async (req: Request, res: Response): Prom
 
   const pageNumber: number = Number.parseInt(req.query.page_number as string, 10) || 1;
   const pageSize: number = Number.parseInt(req.query.page_size as string, 10) || DEFAULT_PAGE_SIZE;
-  const sortByQuery = req.query.sort_by ? (JSON.parse(req.query.sort_by as string) as SortByInterface[]) : undefined;
-  const filterQuery = req.query.filter ? (JSON.parse(req.query.filter as string) as FilterInterface[]) : undefined;
+  let sortBy: SortByInterface[] | undefined;
+  let filter: FilterInterface[] | undefined;
+
+  try {
+    sortBy = req.query.sort_by ? (JSON.parse(req.query.sort_by as string) as SortByInterface[]) : undefined;
+  } catch (err) {
+    logger.warn(err, 'Error parsing sort_by query parameters');
+    throw new BadRequestException('errors.sort_by.invalid');
+  }
+
+  try {
+    filter = req.query.filter ? (JSON.parse(req.query.filter as string) as FilterInterface[]) : undefined;
+  } catch (err) {
+    logger.warn(err, 'Error parsing filter query parameters');
+    throw new BadRequestException('errors.filter.invalid');
+  }
 
   const preview = await createFrontendView(
     dataset,
@@ -116,8 +130,8 @@ export const getPublishedDatasetView = async (req: Request, res: Response): Prom
     lang,
     pageNumber,
     pageSize,
-    sortByQuery,
-    filterQuery
+    sortBy,
+    filter
   );
 
   res.json(preview);
@@ -160,7 +174,9 @@ export const downloadPublishedDataset = async (req: Request, res: Response, next
     #swagger.parameters['$ref'] = [
       '#/components/parameters/language',
       '#/components/parameters/dataset_id',
-      '#/components/parameters/format'
+      '#/components/parameters/format',
+      '#/components/parameters/sort_by',
+      '#/components/parameters/filter'
     ]
     #swagger.responses[200] = {
       description: 'A published dataset file in a specified format',
@@ -181,8 +197,23 @@ export const downloadPublishedDataset = async (req: Request, res: Response, next
   const format = req.params.format;
   const lang = req.language.split('-')[0];
   const dataset = await PublishedDatasetRepository.getById(res.locals.datasetId, withAll);
-  const sortByQuery = req.query.sort_by ? (JSON.parse(req.query.sort_by as string) as SortByInterface[]) : undefined;
-  const filterQuery = req.query.filter ? (JSON.parse(req.query.filter as string) as FilterInterface[]) : undefined;
+  let sortBy: SortByInterface[] | undefined;
+  let filter: FilterInterface[] | undefined;
+
+  try {
+    sortBy = req.query.sort_by ? (JSON.parse(req.query.sort_by as string) as SortByInterface[]) : undefined;
+  } catch (err) {
+    logger.warn(err, 'Error parsing sort_by query parameters');
+    throw new BadRequestException('errors.sort_by.invalid');
+  }
+
+  try {
+    filter = req.query.filter ? (JSON.parse(req.query.filter as string) as FilterInterface[]) : undefined;
+  } catch (err) {
+    logger.warn(err, 'Error parsing filter query parameters');
+    throw new BadRequestException('errors.filter.invalid');
+  }
+
   const revision = dataset.publishedRevision;
 
   if (!revision?.onlineCubeFilename) {
@@ -193,13 +224,13 @@ export const downloadPublishedDataset = async (req: Request, res: Response, next
   try {
     switch (format as DuckdbOutputType) {
       case DuckdbOutputType.Csv:
-        createStreamingCSVFilteredView(res, revision, lang, sortByQuery, filterQuery);
+        createStreamingCSVFilteredView(res, revision, lang, sortBy, filter);
         break;
       case DuckdbOutputType.Json:
-        createStreamingJSONFilteredView(res, revision, lang, sortByQuery, filterQuery);
+        createStreamingJSONFilteredView(res, revision, lang, sortBy, filter);
         break;
       case DuckdbOutputType.Excel:
-        createStreamingExcelFilteredView(res, revision, lang, sortByQuery, filterQuery);
+        createStreamingExcelFilteredView(res, revision, lang, sortBy, filter);
         break;
       default:
         next(new BadRequestException('file format currently not supported'));
