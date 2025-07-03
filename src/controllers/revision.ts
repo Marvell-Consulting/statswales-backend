@@ -26,9 +26,11 @@ import {
   createAllCubeFiles,
   createDateDimension,
   createLookupTableDimension,
+  getPostgresCubePreview,
   loadCorrectReferenceDataIntoReferenceDataTable,
   loadReferenceDataIntoCube,
   makeCubeSafeString,
+  outputCube,
   updateFactTableValidator
 } from '../services/cube-handler';
 import {
@@ -44,7 +46,7 @@ import { ColumnMatch } from '../interfaces/column-match';
 import { DimensionType } from '../enums/dimension-type';
 import { CubeValidationException } from '../exceptions/cube-error-exception';
 import { DimensionUpdateTask } from '../interfaces/revision-task';
-import { duckdb } from '../services/duckdb';
+import { duckdb, linkToPostgres } from '../services/duckdb';
 import { FileValidationException } from '../exceptions/validation-exception';
 import { FactTableColumnType } from '../enums/fact-table-column-type';
 import { checkForReferenceErrors } from '../services/lookup-table-handler';
@@ -52,9 +54,6 @@ import { validateUpdatedDateDimension } from '../services/dimension-processor';
 import { CubeValidationType } from '../enums/cube-validation-type';
 import { FactTableValidationException } from '../exceptions/fact-table-validation-exception';
 import { NotAllowedException } from '../exceptions/not-allowed.exception';
-
-import { getPostgresCubePreview } from '../services/cube-handler';
-import { outputCube } from '../services/cube-handler';
 import { Dataset } from '../entities/dataset/dataset';
 import { SortByInterface } from '../interfaces/sort-by-interface';
 import { FilterInterface } from '../interfaces/filterInterface';
@@ -320,14 +319,12 @@ async function attachUpdateDataTableToRevision(
   dataTable.action = updateAction;
   revision.dataTable = dataTable;
   const quack = await duckdb();
+  await linkToPostgres(quack, revision.id, true);
 
   try {
     await updateFactTableValidator(quack, dataset, revision, 'postgres');
   } catch (err) {
     const error = err as CubeValidationException;
-    if (error.type === CubeValidationType.DuplicateFact) {
-      error.type = CubeValidationType.UnknownDuplicateFact;
-    }
     logger.debug('Closing DuckDB instance');
     const end = performance.now();
     const time = Math.round(end - start);
