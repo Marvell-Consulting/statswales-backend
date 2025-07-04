@@ -11,7 +11,7 @@ import { AppEnv } from '../../config/env.enum';
 import { validateAndUpload } from '../../services/csv-processor';
 
 import { testUsers } from './fixtures/users';
-import { testDatasets } from './fixtures/datasets';
+import { setupTmpCsv, testDatasets } from './fixtures/datasets';
 import { Revision } from '../../entities/dataset/revision';
 import { UserGroup } from '../../entities/user/user-group';
 import { testGroup } from './fixtures/group';
@@ -48,6 +48,8 @@ export default class SeedTestFixtures extends Seeder {
   async seedDatasets(dataSource: DataSource): Promise<void> {
     console.log(`Seeding ${testDatasets.length} test datasets...`);
     const entityManager = dataSource.createEntityManager();
+
+    setupTmpCsv();
 
     for (const testDataset of testDatasets) {
       try {

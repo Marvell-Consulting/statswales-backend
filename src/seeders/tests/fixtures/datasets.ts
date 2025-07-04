@@ -151,7 +151,10 @@ const csvData = `YearCode,AreaCode,Data,RowRef,Measure,NoteCodes
 `;
 
 const tmpFilePath = path.join(__dirname, `./sure-start-short.csv`);
-fs.writeFileSync(tmpFilePath, csvData);
+
+export const setupTmpCsv = (): void => {
+  fs.writeFileSync(tmpFilePath, csvData);
+};
 
 export const testDatasets = [
   { dataset: uploadPageTest },
