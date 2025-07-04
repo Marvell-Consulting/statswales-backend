@@ -1,15 +1,8 @@
-FROM node:22-slim
+# This is a multi-stage Dockerfile for the StatsWales backend application.
 
-# Install build tools and ICU libs (adjust as needed for your app)
-RUN apt update && apt upgrade -y && apt install -y --no-install-recommends \
-    build-essential \
-    python3 \
-    curl \
-    libicu-dev \
-    && rm -rf /var/lib/apt/lists/*
-
-# Create a non-root user and group
-RUN groupadd --system appgroup && useradd --system --gid appgroup --create-home appuser
+# This is the initial build image
+# It installs the dependencies and transpiles the TypeScript code to JavaScript.
+FROM node:22-slim AS builder
 
 WORKDIR /app
 
@@ -19,7 +12,20 @@ RUN npm ci
 COPY . ./
 RUN npm run build
 
-RUN chown -R appuser:appgroup /app
+# This is the deployable image
+FROM node:22-slim AS runner
+
+RUN apt update && apt upgrade -y && apt install -y --no-install-recommends curl
+
+WORKDIR /app
+
+COPY package*.json ./
+
+# install only production dependencies
+RUN npm ci --omit=dev
+
+# copy in the built application source from the builder image
+COPY --from=builder --chown=node:node /app/dist ./dist
 
 HEALTHCHECK --interval=5m --timeout=3s \
     CMD curl --fail http://localhost:3000 || exit 1
@@ -27,6 +33,7 @@ HEALTHCHECK --interval=5m --timeout=3s \
 ENV NODE_ENV=production
 EXPOSE 3000
 
-USER appuser
+# set the user to non-root (node)
+USER node
 
-CMD ["sh", "-c", "npm run migration:run && exec node dist/server.js"]
+CMD ["sh", "-c", "npm run migration:run-prod && exec node dist/server.js"]
