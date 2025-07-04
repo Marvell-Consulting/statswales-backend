@@ -77,7 +77,7 @@ There are a number of fixtures (e.g. test users and sample datasets) used by the
 `/test/fixtures`. These must be loaded into the dev or test database before the e2e tests are run:
 
 ```bash
-npm run seed:e2e
+npm run seed:ci
 ```
 
 ## Data migrations

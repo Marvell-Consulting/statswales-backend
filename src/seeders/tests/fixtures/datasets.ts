@@ -1,17 +1,18 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 import path from 'node:path';
+import fs from 'node:fs';
 
 import { v4 as uuid } from 'uuid';
 import { DeepPartial } from 'typeorm';
 import { faker } from '@faker-js/faker';
 
-import { Dataset } from '../../src/entities/dataset/dataset';
+import { Dataset } from '../../../entities/dataset/dataset';
 
 import { publisher1 } from './users';
-import { Designation } from '../../src/enums/designation';
-import { RevisionMetadata } from '../../src/entities/dataset/revision-metadata';
+import { Designation } from '../../../enums/designation';
+import { RevisionMetadata } from '../../../entities/dataset/revision-metadata';
 import { testGroup } from './group';
-import { Locale } from '../../src/enums/locale';
+import { Locale } from '../../../enums/locale';
 
 export const uploadPageTest: DeepPartial<Dataset> = {
   id: '936c1ab4-2b33-4b13-8949-4316a156d24b',
@@ -122,14 +123,45 @@ const generatePublishedDataset = (): DeepPartial<Dataset> => {
   };
 };
 
-const sureStartShort = path.join(__dirname, `../sample-files/csv/sure-start-short.csv`);
+const csvData = `YearCode,AreaCode,Data,RowRef,Measure,NoteCodes
+202223,512,1.442546584,2,2,
+202223,512,1.563664596,3,2,
+202223,512,3.220496894,1,2,
+202223,512,929.0,2,1,
+202223,512,1007.0,3,1,
+202223,512,2074.0,1,1,
+202223,596,0.93745237,3,2,a
+202223,596,1.635044737,2,2,a
+202223,596,3.53077987,1,2,a
+202223,596,33213.0,3,1,t
+202223,596,57928.0,2,1,t
+202223,596,125092.0,1,1,t
+202122,512,1.190839695,3,2,
+202122,512,1.253435115,2,2,
+202122,512,3.458015267,1,2,
+202122,512,780.0,3,1,
+202122,512,821.0,2,1,
+202122,512,2265.0,1,1,
+202122,596,1.060637144,3,2,a
+202122,596,1.507751824,2,2,a
+202122,596,4.030567686,1,2,a
+202122,596,36190.0,3,1,t
+202122,596,51446.0,2,1,t
+202122,596,137527.0,1,1,t
+`;
+
+const tmpFilePath = path.join(__dirname, `./sure-start-short.csv`);
+
+export const setupTmpCsv = (): void => {
+  fs.writeFileSync(tmpFilePath, csvData);
+};
 
 export const testDatasets = [
   { dataset: uploadPageTest },
-  { dataset: previewPageTestA, csvPath: sureStartShort },
-  { dataset: previewPageTestB, csvPath: sureStartShort },
-  { dataset: sourcesPageTest, csvPath: sureStartShort },
-  { dataset: metadataTestA, csvPath: sureStartShort },
-  { dataset: metadataTestB, csvPath: sureStartShort }
+  { dataset: previewPageTestA, csvPath: tmpFilePath },
+  { dataset: previewPageTestB, csvPath: tmpFilePath },
+  { dataset: sourcesPageTest, csvPath: tmpFilePath },
+  { dataset: metadataTestA, csvPath: tmpFilePath },
+  { dataset: metadataTestB, csvPath: tmpFilePath }
   // ...Array.from({ length: 22 }, () => ({ dataset: generatePublishedDataset(), csvPath: sureStartShort }))
 ];
