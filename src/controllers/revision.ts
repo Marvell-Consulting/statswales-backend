@@ -397,6 +397,7 @@ async function attachUpdateDataTableToRevision(
 
   dataTable.revision = revision;
   await dataTable.save();
+  await createAllCubeFiles(dataset.id, revision.id);
 }
 
 export const updateDataTable = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
