@@ -1515,6 +1515,7 @@ interface FactTableInfo {
   dataValuesColumn?: FactTableColumn;
   factTableDef: string[];
   factIdentifiers: FactTableColumn[];
+  compositeKey: string[];
 }
 
 export async function createEmptyFactTableInCube(
@@ -1617,7 +1618,7 @@ export async function createEmptyFactTableInCube(
   const end = performance.now();
   const timing = Math.round(end - start);
   logger.debug(`createEmptyFactTableInCube: ${timing}ms`);
-  return { measureColumn, notesCodeColumn, dataValuesColumn, factTableDef, factIdentifiers };
+  return { measureColumn, notesCodeColumn, dataValuesColumn, factTableDef, factIdentifiers, compositeKey };
 }
 
 export const updateFactTableValidator = async (
@@ -1626,13 +1627,38 @@ export const updateFactTableValidator = async (
   revision: Revision,
   cubeType: 'postgres' | 'duckdb'
 ): Promise<Database> => {
-  const { notesCodeColumn, dataValuesColumn, factTableDef, factIdentifiers } = await createEmptyFactTableInCube(
-    quack,
-    dataset,
-    revision,
-    cubeType
-  );
+  const { notesCodeColumn, dataValuesColumn, factTableDef, factIdentifiers, compositeKey } =
+    await createEmptyFactTableInCube(quack, dataset, revision, cubeType);
   await loadFactTables(quack, dataset, revision, factTableDef, dataValuesColumn, notesCodeColumn, factIdentifiers);
+  try {
+    const alterTableQuery = pgformat(
+      'ALTER TABLE %I.%I ADD PRIMARY KEY (%I)',
+      revision.id,
+      FACT_TABLE_NAME,
+      compositeKey
+    );
+    logger.debug(`Alter Table query = ${alterTableQuery}`);
+    await quack.exec(pgformat(`CALL postgres_execute('postgres_db', %L);`, alterTableQuery));
+  } catch (error) {
+    logger.error(error, `Failed to add primary key to the fact table`);
+    if ((error as Error).message.includes('could not create unique index')) {
+      const exception = new CubeValidationException('Duplicate facts present');
+      exception.type = CubeValidationType.UnknownDuplicateFact;
+      exception.revisionId = revision.id;
+      throw exception;
+    } else if ((error as Error).message.includes('contains null values')) {
+      const exception = new CubeValidationException('Incomplete facts present in fact table');
+      exception.type = CubeValidationType.UnknownDuplicateFact;
+      exception.revisionId = revision.id;
+      throw exception;
+    } else {
+      const exception = new CubeValidationException(
+        'An unknown error occured trying to add the primary key to the fact table'
+      );
+      exception.type = CubeValidationType.UnknownError;
+      exception.revisionId = revision.id;
+    }
+  }
   return quack;
 };
 
