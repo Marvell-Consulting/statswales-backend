@@ -1,16 +1,11 @@
-/* eslint-disable @typescript-eslint/no-unused-vars */
 import path from 'node:path';
 import fs from 'node:fs';
 
-// import { v4 as uuid } from 'uuid';
 import { DeepPartial } from 'typeorm';
-// import { faker } from '@faker-js/faker';
 
 import { Dataset } from '../../../entities/dataset/dataset';
 
 import { publisher1 } from './users';
-// import { Designation } from '../../../enums/designation';
-// import { RevisionMetadata } from '../../../entities/dataset/revision-metadata';
 import { testGroup } from './group';
 import { Locale } from '../../../enums/locale';
 
@@ -92,37 +87,6 @@ export const metadataTestB: DeepPartial<Dataset> = {
   userGroupId: testGroup.id
 };
 
-// const generatePublishedDataset = (): DeepPartial<Dataset> => {
-//   const randDuration = `P${faker.number.int({ min: 1, max: 3 })}${faker.string.fromCharacters(['Y', 'M', 'D'])}`;
-
-//   const randMeta: Partial<RevisionMetadata> = {
-//     title: faker.book.title(),
-//     summary: faker.lorem.paragraph({ min: 1, max: 3 }),
-//     collection: faker.lorem.paragraph({ min: 1, max: 3 }),
-//     quality: faker.lorem.paragraph({ min: 1, max: 3 }),
-//     roundingDescription: faker.lorem.paragraph({ min: 1, max: 3 })
-//   };
-
-//   const live = faker.date.recent({ days: 365 });
-
-//   return {
-//     id: uuid(),
-//     createdBy: publisher1,
-//     publishedRevision: {
-//       revisionIndex: 1,
-//       updatedAt: live,
-//       roundingApplied: faker.datatype.boolean(),
-//       updateFrequency: faker.helpers.arrayElement(['NEVER', randDuration]),
-//       designation: faker.helpers.arrayElement(Object.values(Designation)),
-//       metadata: [
-//         { language: Locale.EnglishGb, ...randMeta },
-//         { language: Locale.WelshGb, ...randMeta }
-//       ]
-//     },
-//     live
-//   };
-// };
-
 const csvData = `YearCode,AreaCode,Data,RowRef,Measure,NoteCodes
 202223,512,1.442546584,2,2,
 202223,512,1.563664596,3,2,
@@ -163,5 +127,4 @@ export const testDatasets = [
   { dataset: sourcesPageTest, csvPath: tmpFilePath },
   { dataset: metadataTestA, csvPath: tmpFilePath },
   { dataset: metadataTestB, csvPath: tmpFilePath }
-  // ...Array.from({ length: 22 }, () => ({ dataset: generatePublishedDataset(), csvPath: sureStartShort }))
 ];
