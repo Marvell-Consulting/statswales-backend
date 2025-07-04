@@ -200,14 +200,10 @@ export const createFrontendView = async (
   }
 
   try {
-    const totalsQuery = pgformat(
-      'SELECT count(*) as "totalLines", ceil(count(*)/%L) as "totalPages" from (%s);',
-      pageSize,
-      baseQuery
-    );
+    const totalsQuery = pgformat('SELECT count(*) as "totalLines" from (%s);', baseQuery);
     const totals = await connection.query(totalsQuery);
-    const totalPages = Number(totals.rows[0].totalPages) > 0 ? Number(totals.rows[0].totalPages) : 1;
     const totalLines = Number(totals.rows[0].totalLines);
+    const totalPages = Math.max(1, Math.ceil(totalLines / pageSize));
     const errors = validateParams(pageNumber, totalPages, pageSize);
 
     if (errors.length > 0) {
@@ -220,7 +216,6 @@ export const createFrontendView = async (
     const preview = queryResult.rows;
 
     const startLine = pageSize * (pageNumber - 1) + 1;
-    const lastLine = pageNumber * pageSize + pageSize;
 
     // PATCH: Handle empty preview result
     if (!preview || preview.length === 0) {
@@ -243,6 +238,7 @@ export const createFrontendView = async (
     const tableHeaders = Object.keys(preview[0]);
     const dataArray = preview.map((row) => Object.values(row));
     const currentDataset = await DatasetRepository.getById(dataset.id);
+    const lastLine = startLine + dataArray.length - 1;
 
     const headers: CSVHeader[] = tableHeaders.map((header, idx) => ({
       index: idx - 1,

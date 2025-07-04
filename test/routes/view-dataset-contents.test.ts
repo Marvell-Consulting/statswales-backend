@@ -74,7 +74,7 @@ describe('API Endpoints for viewing the contents of a dataset', () => {
       .query({ page_number: 1, page_size: 100 });
     expect(res.status).toBe(200);
     expect(res.body.current_page).toBe(1);
-    expect(res.body.total_pages).toBe(14);
+    expect(res.body.total_pages).toBe(15);
     expect(res.body.page_size).toBe(100);
     expect(res.body.headers).toEqual([
       { index: -1, name: 'Data Values', source_type: 'unknown' },
