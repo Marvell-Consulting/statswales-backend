@@ -1,11 +1,7 @@
 FROM node:22-slim
 
-# Install build tools and ICU libs (adjust as needed for your app)
 RUN apt update && apt upgrade -y && apt install -y --no-install-recommends \
-    build-essential \
-    python3 \
     curl \
-    libicu-dev \
     && rm -rf /var/lib/apt/lists/*
 
 # Create a non-root user and group
