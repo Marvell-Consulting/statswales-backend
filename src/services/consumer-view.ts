@@ -203,7 +203,7 @@ export const createFrontendView = async (
     const totalsQuery = pgformat('SELECT count(*) as "totalLines" from (%s);', baseQuery);
     const totals = await connection.query(totalsQuery);
     const totalLines = Number(totals.rows[0].totalLines);
-    const totalPages = Math.ceil(totalLines / pageSize);
+    const totalPages = Math.max(1, Math.ceil(totalLines / pageSize));
     const errors = validateParams(pageNumber, totalPages, pageSize);
 
     if (errors.length > 0) {
