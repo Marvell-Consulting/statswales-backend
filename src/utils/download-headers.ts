@@ -12,20 +12,20 @@ export const getDownloadHeaders = (datasetId: string, format: string, contentLen
   };
 
   switch (format) {
-    case DownloadFormat.Csv:
-      return { ...defaultHeaders, 'content-type': 'text/csv; charset=utf-8' };
-
-    case DownloadFormat.DuckDb:
-      return { ...defaultHeaders, 'content-type': 'application/octet-stream' };
-
     case DownloadFormat.Json:
       return { ...defaultHeaders, 'content-type': 'application/json; charset=utf-8' };
 
-    case DownloadFormat.Parquet:
-      return { ...defaultHeaders, 'content-type': 'application/vnd.apache.parquet' };
+    case DownloadFormat.Csv:
+      return { ...defaultHeaders, 'content-type': 'text/csv; charset=utf-8' };
 
     case DownloadFormat.Xlsx:
       return { ...defaultHeaders, 'content-type': 'application/vnd.ms-excel' };
+
+    // case DownloadFormat.DuckDb:
+    //   return { ...defaultHeaders, 'content-type': 'application/octet-stream' };
+
+    // case DownloadFormat.Parquet:
+    //   return { ...defaultHeaders, 'content-type': 'application/vnd.apache.parquet' };
 
     default:
       throw new BadRequestException('unsupported file format');

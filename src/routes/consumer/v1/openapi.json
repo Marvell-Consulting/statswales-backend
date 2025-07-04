@@ -289,7 +289,7 @@
       },
       "format": {
         "name": "format",
-        "in": "query",
+        "in": "path",
         "description": "File format for the download",
         "required": true,
         "schema": {
@@ -297,11 +297,8 @@
           "enum": [
             "json",
             "csv",
-            "xlsx",
-            "parquet",
-            "duckdb"
-          ],
-          "default": "json"
+            "xlsx"
+          ]
         },
         "example": "csv"
       },
