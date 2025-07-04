@@ -756,6 +756,7 @@ export const createNewRevision = async (req: Request, res: Response, next: NextF
 
   try {
     const dataset = await req.datasetService.createRevision(res.locals.datasetId, user);
+    await createAllCubeFiles(dataset.id, dataset.draftRevision!.id);
     res.status(201);
     res.json(RevisionDTO.fromRevision(dataset.draftRevision!));
   } catch (err) {
