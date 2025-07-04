@@ -1,7 +1,7 @@
 import { DeepPartial } from 'typeorm';
 
-import { UserGroup } from '../../src/entities/user/user-group';
-import { Locale } from '../../src/enums/locale';
+import { UserGroup } from '../../../entities/user/user-group';
+import { Locale } from '../../../enums/locale';
 
 // using hard coded uuids so that we can re-run the seeder for updates without creating new records
 export const testGroup: DeepPartial<UserGroup> = {

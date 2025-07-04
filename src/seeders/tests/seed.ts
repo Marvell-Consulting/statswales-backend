@@ -4,17 +4,18 @@ import { Seeder } from '@jorgebodega/typeorm-seeding';
 import { DataSource } from 'typeorm';
 import { omit } from 'lodash';
 
-import { User } from '../../src/entities/user/user';
-import { Dataset } from '../../src/entities/dataset/dataset';
-import { appConfig } from '../../src/config';
-import { AppEnv } from '../../src/config/env.enum';
-import { validateAndUpload } from '../../src/services/csv-processor';
+import { User } from '../../entities/user/user';
+import { Dataset } from '../../entities/dataset/dataset';
+import { appConfig } from '../../config';
+import { AppEnv } from '../../config/env.enum';
+import { validateAndUpload } from '../../services/csv-processor';
 
-import { testUsers } from './users';
-import { testDatasets } from './datasets';
-import { Revision } from '../../src/entities/dataset/revision';
-import { UserGroup } from '../../src/entities/user/user-group';
-import { testGroup } from './group';
+import { testUsers } from './fixtures/users';
+import { testDatasets } from './fixtures/datasets';
+import { Revision } from '../../entities/dataset/revision';
+import { UserGroup } from '../../entities/user/user-group';
+import { testGroup } from './fixtures/group';
+import { TempFile } from '../../interfaces/temp-file';
 
 const config = appConfig();
 
@@ -30,7 +31,7 @@ export default class SeedTestFixtures extends Seeder {
     await this.seedDatasets(dataSource);
   }
 
-  async seedTestGroup(dataSource: DataSource) {
+  async seedTestGroup(dataSource: DataSource): Promise<void> {
     console.log(`seeding test group...`);
     const entityManager = dataSource.createEntityManager();
     const group = entityManager.create(UserGroup, testGroup);
@@ -55,11 +56,11 @@ export default class SeedTestFixtures extends Seeder {
         const dataset = await entityManager.getRepository(Dataset).create(partialDataset).save();
 
         if (revision && testDataset.csvPath) {
-          const file = {
+          const file: TempFile = {
             mimetype: 'text/csv',
             originalname: 'test-fixture.csv',
             path: testDataset.csvPath
-          } as any;
+          };
           const dataTable = await validateAndUpload(file, dataset.id, 'data_table');
 
           revision = await entityManager.getRepository(Revision).save({

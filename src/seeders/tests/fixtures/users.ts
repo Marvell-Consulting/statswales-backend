@@ -1,9 +1,9 @@
 import { DeepPartial } from 'typeorm';
 
-import { User } from '../../src/entities/user/user';
-import { GlobalRole } from '../../src/enums/global-role';
-import { GroupRole } from '../../src/enums/group-role';
 import { testGroup } from './group';
+import { User } from '../../../entities/user/user';
+import { GlobalRole } from '../../../enums/global-role';
+import { GroupRole } from '../../../enums/group-role';
 
 export const admin1: DeepPartial<User> = {
   id: '044d94c5-91ba-495e-a718-31c597a0a30b',

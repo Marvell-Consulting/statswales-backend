@@ -22,6 +22,7 @@
     "start": "node dist/server.js",
     "typeorm": "typeorm-ts-node-commonjs",
     "typeorm-seeding": "ts-node ./node_modules/@jorgebodega/typeorm-seeding/dist/cli.js",
+    "seed-js": "node ./node_modules/@jorgebodega/typeorm-seeding/dist/cli.js",
     "migration:show": "npm run typeorm migration:show -- --dataSource=./src/db/data-source.ts",
     "migration:run": "npm run typeorm migration:run -- --dataSource=./src/db/data-source.ts",
     "migration:run-prod": "typeorm migration:run --dataSource=./dist/db/data-source.js",
@@ -31,9 +32,9 @@
     "migration:create": "npm run typeorm migration:create",
     "seed:required": "npm run typeorm-seeding -- -d ./src/db/data-source.ts ./src/seeders/required/*.ts",
     "seed:dataset": "npm run typeorm-seeding -- -d ./src/db/data-source.ts ./src/seeders/dataset.ts",
-    "seed:e2e": "npm run seed:ci",
-    "seed:ci": "npm run typeorm-seeding -- -d ./src/db/data-source.ts ./test/fixtures/seed-test-fixtures.ts",
-    "assign-default-group": "npm run typeorm-seeding -- -d ./src/db/data-source.ts ./src/seeders/groups.ts"
+    "seed:ci": "npm run typeorm-seeding -- -d ./src/db/data-source.ts ./src/seeders/tests/seed.ts",
+    "assign-default-group": "npm run typeorm-seeding -- -d ./src/db/data-source.ts ./src/seeders/groups.ts",
+    "init:ci": "typeorm migration:run -d ./dist/db/data-source.js && npm run seed-js -- -d ./dist/db/data-source.js ./dist/seeders/required/*.js && npm run seed-js -- -d ./dist/db/data-source.js ./dist/seeders/tests/seed.js"
   },
   "keywords": [],
   "author": "",
