@@ -6,6 +6,7 @@
 .DS_Store
 .git*
 .env-example
+.env
 .nvmrc
 .prettierrc
 node_modules
