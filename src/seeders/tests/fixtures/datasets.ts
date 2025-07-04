@@ -123,8 +123,7 @@ const generatePublishedDataset = (): DeepPartial<Dataset> => {
   };
 };
 
-const csvData = `
-YearCode,AreaCode,Data,RowRef,Measure,NoteCodes
+const csvData = `YearCode,AreaCode,Data,RowRef,Measure,NoteCodes
 202223,512,1.442546584,2,2,
 202223,512,1.563664596,3,2,
 202223,512,3.220496894,1,2,
