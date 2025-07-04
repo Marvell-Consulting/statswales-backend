@@ -22,6 +22,7 @@ import { PublishedTopicsDTO } from '../dtos/published-topics-dto';
 import { TopicRepository } from '../repositories/topic';
 import { SortByInterface } from '../interfaces/sort-by-interface';
 import { FilterInterface } from '../interfaces/filterInterface';
+import { DownloadFormat } from '../enums/download-format';
 
 export const listPublishedDatasets = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   /*
@@ -190,7 +191,8 @@ export const downloadPublishedDataset = async (req: Request, res: Response, next
   const formatError = await hasError(formatValidator(), req);
 
   if (formatError) {
-    next(new BadRequestException('file format must be specified (csv, parquet, excel, duckdb)'));
+    const availableFormats = Object.values(DownloadFormat).join(', ');
+    next(new BadRequestException(`file format must be specified (${availableFormats})`));
     return;
   }
 

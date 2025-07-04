@@ -1,7 +1,7 @@
 export enum DownloadFormat {
-  Csv = 'csv',
-  DuckDb = 'duckdb',
   Json = 'json',
-  Xlsx = 'xlsx',
-  Parquet = 'parquet'
+  Csv = 'csv',
+  Xlsx = 'xlsx'
+  // DuckDb = 'duckdb',
+  // Parquet = 'parquet'
 }

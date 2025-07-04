@@ -1,5 +1,7 @@
 /* eslint-disable @typescript-eslint/naming-convention */
 
+import { DownloadFormat } from '../../../enums/download-format';
+
 export const schema = {
   info: {
     version: '1.0.0',
@@ -35,10 +37,10 @@ export const schema = {
       },
       format: {
         name: 'format',
-        in: 'query',
+        in: 'path',
         description: 'File format for the download',
         required: true,
-        schema: { type: 'string', enum: ['json', 'csv', 'xlsx', 'parquet', 'duckdb'], default: 'json' },
+        schema: { type: 'string', enum: Object.values(DownloadFormat) },
         example: 'csv'
       },
       page_number: {
