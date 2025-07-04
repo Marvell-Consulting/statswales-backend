@@ -260,8 +260,10 @@ export const validateLookupTable = async (
 
   const quack = await duckdb();
   await linkToPostgres(quack, revision.id, false);
-  await quack.exec(pgformat(`DROP TABLE IF EXISTS %I`, `${makeCubeSafeString(dimension.factTableColumn)}_lookup`));
-  await quack.exec(pgformat('DROP TABLE IF EXISTS %I', lookupTableName));
+  await quack.exec(
+    pgformat(`DROP TABLE IF EXISTS %I CASCADE;`, `${makeCubeSafeString(dimension.factTableColumn)}_lookup`)
+  );
+  await quack.exec(pgformat('DROP TABLE IF EXISTS %I CASCADE;', lookupTableName));
 
   try {
     logger.debug(`Loading lookup table into DuckDB`);
