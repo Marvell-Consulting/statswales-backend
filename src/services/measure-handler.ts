@@ -289,7 +289,7 @@ async function createMeasureTable(
     }
     // logger.debug(`Extracting lookup table contents to measure using query:\n ${insertQuery}`);
     await quack.exec(insertQuery);
-    await quack.exec(`DROP TABLE ${lookupTable};`);
+    await quack.exec(`DROP TABLE ${lookupTable} CASCADE;`);
     // const measureTable = await quack.all(`SELECT * FROM measure;`);
     // logger.debug(`Creating measureTable from lookup using result:\n${JSON.stringify(measureTable, null, 2)}`);
   } catch (err) {
@@ -390,8 +390,8 @@ export const validateMeasureLookupTable = async (
   const quack = await duckdb();
   try {
     await linkToPostgres(quack, draftRevision.id, false);
-    await quack.exec(pgformat(`DROP TABLE IF EXISTS %I.%I;`, draftRevision.id, 'measure'));
-    await quack.exec(pgformat(`DROP TABLE IF EXISTS %I.%I;`, draftRevision.id, 'preview_table'));
+    await quack.exec(pgformat(`DROP TABLE IF EXISTS %I.%I CASCADE;`, draftRevision.id, 'measure'));
+    await quack.exec(pgformat(`DROP TABLE IF EXISTS %I.%I CASCADE;`, draftRevision.id, 'preview_table'));
   } catch (error) {
     logger.error(error, 'Something went wrong trying to link to postgres database');
     return viewErrorGenerators(500, dataset.id, 'patch', 'errors.cube_builder.fact_table_creation_failed', {});
