@@ -49,7 +49,7 @@ export const viewGenerator = async (
   size: number,
   totalPages: number,
   headers: CSVHeader[],
-  data: string[][],
+  data: string[][] | unknown[][],
   dataTable?: DataTable
 ): Promise<ViewDTO> => {
   return {

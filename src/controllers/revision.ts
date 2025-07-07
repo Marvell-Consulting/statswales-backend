@@ -6,6 +6,7 @@ import { pipeline } from 'node:stream/promises';
 import { NextFunction, Request, Response } from 'express';
 import { t } from 'i18next';
 import { isBefore, isValid } from 'date-fns';
+import { format as pgformat } from '@scaleleap/pg-format';
 
 import { User } from '../entities/user/user';
 import { DataTableDto } from '../dtos/data-table-dto';
@@ -46,7 +47,7 @@ import { ColumnMatch } from '../interfaces/column-match';
 import { DimensionType } from '../enums/dimension-type';
 import { CubeValidationException } from '../exceptions/cube-error-exception';
 import { DimensionUpdateTask } from '../interfaces/revision-task';
-import { duckdb, linkToPostgres } from '../services/duckdb';
+import { createNewBuildSchema, dropBuildSchema, duckdb, linkToPostgres } from '../services/duckdb';
 import { FileValidationException } from '../exceptions/validation-exception';
 import { FactTableColumnType } from '../enums/fact-table-column-type';
 import { checkForReferenceErrors } from '../services/lookup-table-handler';
@@ -68,6 +69,7 @@ import { asyncTmpName } from '../utils/async-tmp';
 import { FileType } from '../enums/file-type';
 import { cleanupTmpFile, uploadAvScan } from '../services/virus-scanner';
 import { TempFile } from '../interfaces/temp-file';
+import { getCubeDB } from '../db/cube-db';
 
 export const getDataTable = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   const revision: Revision = res.locals.revision;
@@ -318,24 +320,26 @@ async function attachUpdateDataTableToRevision(
   logger.debug(`Setting the update action to: ${updateAction}`);
   dataTable.action = updateAction;
   revision.dataTable = dataTable;
-  const quack = await duckdb();
-  await linkToPostgres(quack, revision.id, true);
-
+  const buildId = crypto.randomUUID();
+  const connection = await getCubeDB().connect();
+  await connection.query(pgformat('CREATE SCHEMA IF NOT EXISTS %I;', buildId));
+  await connection.query(pgformat(`SET search_path TO %I;`, buildId));
   try {
-    await updateFactTableValidator(quack, dataset, revision, 'postgres');
+    await updateFactTableValidator(connection, buildId, dataset, revision);
   } catch (err) {
     const error = err as CubeValidationException;
     logger.debug('Closing DuckDB instance');
     const end = performance.now();
     const time = Math.round(end - start);
     logger.info(`Cube update validation took ${time}ms`);
-    await quack.close();
+    await connection.query(pgformat('DROP SCHEMA %I CASCADE', buildId));
+    connection.release();
     throw error;
   }
 
   const dimensionUpdateTasks: DimensionUpdateTask[] = [];
   if (dataset.dimensions.find((dimension) => dimension.type === DimensionType.ReferenceData)) {
-    await loadReferenceDataIntoCube(quack);
+    await loadReferenceDataIntoCube(connection);
   }
   for (const dimension of dataset.dimensions) {
     const factTableColumn = dataset.factTable.find(
@@ -351,18 +355,18 @@ async function attachUpdateDataTableToRevision(
       switch (dimension.type) {
         case DimensionType.LookupTable:
           logger.debug(`Validating lookup table dimension: ${dimension.id}`);
-          await createLookupTableDimension(quack, dataset, dimension, factTableColumn);
-          await checkForReferenceErrors(quack, dataset, dimension, factTableColumn);
+          await createLookupTableDimension(connection, dataset, dimension, factTableColumn);
+          await checkForReferenceErrors(connection, dataset, dimension, factTableColumn);
           break;
         case DimensionType.ReferenceData:
           logger.debug(`Validating reference data dimension: ${dimension.id}`);
-          await loadCorrectReferenceDataIntoReferenceDataTable(quack, dimension);
+          await loadCorrectReferenceDataIntoReferenceDataTable(connection, dimension);
           break;
         case DimensionType.DatePeriod:
         case DimensionType.Date:
           logger.debug(`Validating time dimension: ${dimension.id}`);
-          await createDateDimension(quack, dimension.extractor, factTableColumn);
-          await validateUpdatedDateDimension(quack, dataset, dimension, factTableColumn);
+          await createDateDimension(connection, dimension.extractor, factTableColumn);
+          await validateUpdatedDateDimension(connection, dataset, dimension, factTableColumn);
       }
     } catch (error) {
       logger.warn(`An error occurred validating dimension ${dimension.id}: ${error}`);
@@ -377,7 +381,8 @@ async function attachUpdateDataTableToRevision(
         const end = performance.now();
         const time = Math.round(end - start);
         logger.info(`Cube update validation took ${time}ms`);
-        await quack.close();
+        await connection.query(pgformat('DROP SCHEMA %I CASCADE', buildId));
+        connection.release();
         logger.error(`An error occurred trying to validate the file with the following error: ${err}`);
         throw new BadRequestException('errors.data_table_validation_error');
       }
@@ -388,8 +393,8 @@ async function attachUpdateDataTableToRevision(
 
   revision.tasks = { dimensions: dimensionUpdateTasks };
 
-  logger.debug('Closing DuckDB instance');
-  await quack.close();
+  await connection.query(pgformat('DROP SCHEMA %I CASCADE', buildId));
+  connection.release();
   await revision.save();
   const end = performance.now();
   const time = Math.round(end - start);

@@ -34,6 +34,7 @@ import { t } from 'i18next';
 import { FileValidationErrorType, FileValidationException } from '../exceptions/validation-exception';
 import { CubeValidationType } from '../enums/cube-validation-type';
 import { duckdb, linkToPostgres } from './duckdb';
+import { PoolClient } from 'pg';
 
 const sampleSize = 5;
 
@@ -194,13 +195,13 @@ export const createLookupTableInCube = async (
 };
 
 export const checkForReferenceErrors = async (
-  quack: Database,
+  connection: PoolClient,
   dataset: Dataset,
   dimension: Dimension,
   factTableColumn: FactTableColumn
 ): Promise<void> => {
   const referenceErrors = await validateLookupTableReferenceValues(
-    quack,
+    connection,
     dataset,
     dimension.factTableColumn,
     factTableColumn.columnName,

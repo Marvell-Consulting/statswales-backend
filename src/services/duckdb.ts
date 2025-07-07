@@ -39,7 +39,9 @@ export const duckdb = async (cubeFile = ':memory:'): Promise<Database> => {
   return duckdb;
 };
 
-export const linkToPostgres = async (quack: Database, revisionId: string, recreate: boolean): Promise<void> => {
+export const linkToPostgres = async (quack: Database): Promise<void> => {};
+
+export const linkToExistingSchema = async (quack: Database, schemaID: string): Promise<void> => {
   const start = performance.now();
   await quack.exec(`LOAD 'postgres';`);
 
@@ -54,23 +56,64 @@ export const linkToPostgres = async (quack: Database, revisionId: string, recrea
 
   await quack.exec(secret);
 
-  if (recreate) {
-    logger.debug(`Recreating empty schema for revision ${revisionId}`);
-    await quack.exec(`ATTACH '' AS postgres_db (TYPE postgres);`);
-    await quack.exec(`USE postgres_db;`);
-    await quack.exec(pgformat(`DROP SCHEMA IF EXISTS %I CASCADE;`, revisionId));
-    await quack.exec(pgformat(`CREATE SCHEMA %I;`, revisionId));
-    await quack.exec('USE memory;');
-    await quack.exec('DETACH postgres_db;');
-  }
-
+  logger.debug(`Recreating empty schema for revision ${schemaID}`);
   await quack.exec(`ATTACH '' AS data_tables_db (TYPE postgres, SCHEMA data_tables);`);
-  await quack.exec(pgformat(`ATTACH '' AS postgres_db (TYPE postgres, SCHEMA %I);`, revisionId));
+  await quack.exec(pgformat(`ATTACH '' AS postgres_db (TYPE postgres, SCHEMA %I);`, schemaID));
   await quack.exec(`USE postgres_db;`);
   logger.debug('Linking to postgres schema successful');
   const end = performance.now();
   const timing = Math.round(end - start);
   logger.debug(`linkToPostgres: ${timing}ms`);
+};
+
+export const createNewBuildSchema = async (quack: Database): Promise<string> => {
+  const start = performance.now();
+  const buildID = crypto.randomUUID();
+  await quack.exec(`LOAD 'postgres';`);
+
+  const secret = `CREATE OR REPLACE SECRET (
+    TYPE postgres,
+    HOST '${config.database.host}',
+    PORT ${config.database.port},
+    DATABASE '${config.database.database}',
+    USER '${config.database.username}',
+    PASSWORD '${config.database.password}'
+  );`;
+
+  await quack.exec(secret);
+
+  logger.debug(`Creating empty schema for build ID ${buildID}`);
+  await quack.exec(`ATTACH '' AS postgres_db (TYPE postgres);`);
+  await quack.exec(`USE postgres_db;`);
+  await quack.exec(pgformat(`CREATE SCHEMA %I;`, buildID));
+  await quack.exec('USE memory;');
+  await quack.exec('DETACH postgres_db;');
+  await quack.exec(`ATTACH '' AS data_tables_db (TYPE postgres, SCHEMA data_tables);`);
+  await quack.exec(pgformat(`ATTACH '' AS postgres_db (TYPE postgres, SCHEMA %I);`, buildID));
+  await quack.exec(`USE postgres_db;`);
+  logger.debug('Linking to postgres schema successful');
+  const end = performance.now();
+  const timing = Math.round(end - start);
+  logger.debug(`linkToPostgres: ${timing}ms`);
+  return buildID;
+};
+
+export const replaceSchema = async (quack: Database, buildID: string, revisionId: string): Promise<void> => {
+  logger.info(`Replacing schema for revision ${revisionId} using build ID ${buildID}`);
+  await quack.exec(pgformat(`DROP SCHEMA IF EXISTS %I CASCADE;`, revisionId));
+  const alterSchemaQuery = pgformat('ALTER SCHEMA %I RENAME TO %I;', buildID, revisionId);
+  await quack.exec(pgformat(`CALL postgres_execute('postgres_db', %L);`, alterSchemaQuery));
+  await quack.exec('USE memory;');
+  await quack.exec('DETACH postgres_db;');
+  await quack.exec(pgformat(`ATTACH '' AS postgres_db (TYPE postgres, SCHEMA %I);`, revisionId));
+  await quack.exec(`USE postgres_db;`);
+};
+
+export const dropBuildSchema = async (quack: Database, buildID: string): Promise<void> => {
+  logger.info(`Droping schema for build ${buildID}`);
+  await quack.exec(pgformat(`DROP SCHEMA IF EXISTS %I CASCADE;`, buildID));
+  await quack.exec('USE memory;');
+  await quack.exec('DETACH postgres_db;');
 };
 
 export const linkToPostgresDataTables = async (quack: Database): Promise<void> => {
@@ -88,4 +131,21 @@ export const linkToPostgresDataTables = async (quack: Database): Promise<void> =
   `);
   await quack.exec(`ATTACH '' AS data_tables_db (TYPE postgres, SCHEMA data_tables);`);
   await quack.exec(`USE data_tables_db;`);
+};
+
+export const linkToPostgresLookupTables = async (quack: Database): Promise<void> => {
+  logger.debug('Linking to postgres lookup tables schema');
+  await quack.exec(`LOAD 'postgres';`);
+  await quack.exec(`
+    CREATE OR REPLACE SECRET (
+      TYPE postgres,
+      HOST '${config.database.host}',
+      PORT ${config.database.port},
+      DATABASE '${config.database.database}',
+      USER '${config.database.username}',
+      PASSWORD '${config.database.password}'
+    );
+  `);
+  await quack.exec(`ATTACH '' AS lookup_table_db (TYPE postgres, SCHEMA lookup_tables);`);
+  await quack.exec(`USE lookup_table_db;`);
 };

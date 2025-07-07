@@ -33,6 +33,7 @@ import { CubeValidationType } from '../enums/cube-validation-type';
 import { duckdb, linkToPostgres } from './duckdb';
 import { format as pgformat } from '@scaleleap/pg-format/lib/pg-format';
 import { YearType } from '../enums/year-type';
+import { PoolClient, QueryResult } from 'pg';
 
 const sampleSize = 5;
 
@@ -351,6 +352,7 @@ export const validateNumericDimension = async (
   };
 
   const tableName = 'fact_table';
+  // TODO REPLACE WITH POSTGRES POOL
   const quack = await duckdb();
   try {
     await linkToPostgres(quack, dataset.draftRevision!.id, false);
@@ -440,12 +442,12 @@ export const validateNumericDimension = async (
 };
 
 export const validateUpdatedDateDimension = async (
-  quack: Database,
+  connection: PoolClient,
   dataset: Dataset,
   dimension: Dimension,
   factTableColumn: FactTableColumn
 ): Promise<undefined> => {
-  const errors = await validateDateDimension(quack, dataset, dimension, factTableColumn);
+  const errors = await validateDateDimension(connection, dataset, dimension, factTableColumn);
   if (errors) {
     const err = new CubeValidationException('Validation failed');
     err.type = CubeValidationType.DimensionNonMatchedRows;
@@ -455,7 +457,7 @@ export const validateUpdatedDateDimension = async (
 };
 
 export const validateDateDimension = async (
-  quack: Database,
+  connection: PoolClient,
   dataset: Dataset,
   dimension: Dimension,
   factTableColumn: FactTableColumn
@@ -463,7 +465,7 @@ export const validateDateDimension = async (
   const extractor = dimension.extractor as DateExtractor;
   const tableName = 'fact_table';
   try {
-    const preview = await quack.all(`SELECT DISTINCT "${dimension.factTableColumn}" FROM ${tableName};`);
+    const preview = await connection.query(`SELECT DISTINCT "${dimension.factTableColumn}" FROM ${tableName};`);
     // Now validate everything matches
     const matchingQuery = `SELECT
         line_number, fact_table_date, "${makeCubeSafeString(factTableColumn.columnName)}_lookup"."${factTableColumn.columnName}"
@@ -478,18 +480,18 @@ export const validateDateDimension = async (
       WHERE "${factTableColumn.columnName}" IS NULL;`;
     // logger.debug(`Matching query is:\n${matchingQuery}`);
 
-    const nonMatchedRows = await quack.all(matchingQuery);
-    if (nonMatchedRows.length > 0) {
-      if (nonMatchedRows.length === preview.length) {
+    const nonMatchedRows = await connection.query(matchingQuery);
+    if (nonMatchedRows.rows.length > 0) {
+      if (nonMatchedRows.rows.length === preview.rows.length) {
         logger.error(`The user supplied an incorrect format and none of the rows matched.`);
         return viewErrorGenerators(400, dataset.id, 'patch', 'errors.dimension_validation.invalid_date_format', {
           extractor,
-          totalNonMatching: preview.length,
+          totalNonMatching: preview.rows.length,
           nonMatchingValues: []
         });
       } else {
         logger.error(
-          `There were ${nonMatchedRows.length} row(s) which didn't match based on the information given to us by the user`
+          `There were ${nonMatchedRows.rows.length} row(s) which didn't match based on the information given to us by the user`
         );
         const nonMatchingRowsQuery = `
             SELECT
@@ -501,13 +503,12 @@ export const validateDateDimension = async (
               LEFT JOIN "${makeCubeSafeString(factTableColumn.columnName)}_lookup"
               ON fact_table.fact_table_date="${makeCubeSafeString(factTableColumn.columnName)}_lookup"."${factTableColumn.columnName}"
              WHERE "${factTableColumn.columnName}" IS NULL;`;
-
-        // logger.debug(`Non matching rows query is:\n${nonMatchingRowsQuery}`);
-        const nonMatchedRowSample = await quack.all(nonMatchingRowsQuery);
-        const nonMatchingValues = nonMatchedRowSample
+        const nonMatchedRowSample: QueryResult<{ fact_table_date: string }> =
+          await connection.query(nonMatchingRowsQuery);
+        const nonMatchingValues = nonMatchedRowSample.rows
           .map((item) => item.fact_table_date)
           .filter((item, i, ar) => ar.indexOf(item) === i);
-        const totalNonMatching = nonMatchedRows.length;
+        const totalNonMatching = nonMatchedRows.rows.length;
         return viewErrorGenerators(400, dataset.id, 'patch', 'errors.dimension_validation.invalid_date_format', {
           extractor,
           totalNonMatching,
