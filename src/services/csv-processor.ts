@@ -14,7 +14,7 @@ import { FileType } from '../enums/file-type';
 import { DataTableDescription } from '../entities/dataset/data-table-description';
 import { DataTableAction } from '../enums/data-table-action';
 
-import { duckdb, linkToPostgres, linkToPostgresDataTables } from './duckdb';
+import { duckdb, linkToPostgresDataTables } from './duckdb';
 import { getFileService } from '../utils/get-file-service';
 import { FileValidationErrorType, FileValidationException } from '../exceptions/validation-exception';
 import { DuckDBException } from '../exceptions/duckdb-exception';

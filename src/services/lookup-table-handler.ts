@@ -18,7 +18,6 @@ import { Dataset } from '../entities/dataset/dataset';
 import { CSVHeader, ViewDTO, ViewErrDTO } from '../dtos/view-dto';
 import { logger } from '../utils/logger';
 import { Dimension } from '../entities/dataset/dimension';
-import { loadFileIntoDatabase } from '../utils/file-utils';
 import { viewErrorGenerators, viewGenerator } from '../utils/view-error-generators';
 import { DatasetRepository } from '../repositories/dataset';
 import { FactTableColumnType } from '../enums/fact-table-column-type';
@@ -26,15 +25,15 @@ import { FactTableColumnType } from '../enums/fact-table-column-type';
 import { cleanUpDimension } from './dimension-processor';
 import { Database } from 'duckdb-async';
 import { SUPPORTED_LOCALES } from '../middleware/translation';
-import { createLookupTableQuery, makeCubeSafeString } from './cube-handler';
+import { createLookupTableQuery, loadFileIntoLookupTablesSchema, makeCubeSafeString } from './cube-handler';
 import { FactTableColumn } from '../entities/dataset/fact-table-column';
 import { CubeValidationException } from '../exceptions/cube-error-exception';
 import { Locale } from '../enums/locale';
 import { t } from 'i18next';
 import { FileValidationErrorType, FileValidationException } from '../exceptions/validation-exception';
 import { CubeValidationType } from '../enums/cube-validation-type';
-import { duckdb, linkToPostgres } from './duckdb';
 import { PoolClient } from 'pg';
+import { getCubeDB } from '../db/cube-db';
 
 const sampleSize = 5;
 
@@ -231,7 +230,6 @@ export const validateLookupTable = async (
   }
   const lookupTable = convertDataTableToLookupTable(protoLookupTable);
   const factTableName = 'fact_table';
-  const lookupTableName = 'preview_lookup';
   const factTableColumn = dataset.factTable?.find(
     (col) => dimension.factTableColumn === col.columnName && col.columnType === FactTableColumnType.Dimension
   );
@@ -259,36 +257,16 @@ export const validateLookupTable = async (
   }
   const tableLanguage = tableLanguageArr[0];
 
-  const quack = await duckdb();
-  await linkToPostgres(quack, revision.id, false);
-  await quack.exec(
-    pgformat(`DROP TABLE IF EXISTS %I CASCADE;`, `${makeCubeSafeString(dimension.factTableColumn)}_lookup`)
-  );
-  await quack.exec(pgformat('DROP TABLE IF EXISTS %I CASCADE;', lookupTableName));
-
-  try {
-    logger.debug(`Loading lookup table into DuckDB`);
-    await loadFileIntoDatabase(quack, lookupTable, path, lookupTableName);
-  } catch (err) {
-    await quack.close();
-    logger.error(err, `Something went wrong trying to load the lookup table into the cube`);
-    return viewErrorGenerators(500, dataset.id, 'patch', 'errors.dimension_validation.lookup_table_loading_failed', {
-      mismatch: false
-    });
-  }
-
   let confirmedJoinColumn: string | undefined;
   try {
     confirmedJoinColumn = lookForJoinColumn(protoLookupTable, dimension.factTableColumn, tableLanguage, tableMatcher);
   } catch (_err) {
-    await quack.close();
     return viewErrorGenerators(400, dataset.id, 'patch', 'errors.lookup_validation.no_join_column', {
       mismatch: false
     });
   }
 
   if (!confirmedJoinColumn) {
-    await quack.close();
     return viewErrorGenerators(400, dataset.id, 'patch', 'errors.lookup_validation.no_join_column', {
       mismatch: false
     });
@@ -303,32 +281,76 @@ export const validateLookupTable = async (
     tableMatcher
   );
 
-  await createLookupTableInCube(quack, factTableColumn, updatedDimension, lookupTableName);
+  try {
+    logger.debug(`Loading lookup table into Postgres`);
+    await loadFileIntoLookupTablesSchema(
+      dataset,
+      lookupTable,
+      updatedDimension.extractor as LookupTableExtractor,
+      factTableColumn,
+      confirmedJoinColumn,
+      path
+    );
+  } catch (err) {
+    logger.error(err, `Something went wrong trying to load the lookup table into the cube`);
+    return viewErrorGenerators(500, dataset.id, 'patch', 'errors.dimension_validation.lookup_table_loading_failed', {
+      mismatch: false
+    });
+  }
+
+  const connection = await getCubeDB().connect();
+  try {
+    await connection.query(pgformat(`SET search_path TO %I;`, revision.id));
+  } catch (error) {
+    await lookupTable.remove();
+    logger.error(error, 'Unable to connect to postgres schema for revision.');
+    return viewErrorGenerators(500, dataset.id, 'patch', 'errors.dimension_validation.lookup_table_loading_failed', {
+      mismatch: false
+    });
+  }
+
+  logger.debug('Copying lookup table from lookup_tables schema into cube');
+  const actionId = crypto.randomUUID();
+  try {
+    await connection.query(pgformat('CREATE TABLE %I AS SELECT * FROM lookup_tables.%I;', actionId, lookupTable.id));
+  } catch (error) {
+    await lookupTable.remove();
+    logger.error(error, 'Unable to copy lookup table from lookup tables schema.');
+    return viewErrorGenerators(500, dataset.id, 'patch', 'errors.dimension_validation.lookup_table_loading_failed', {
+      mismatch: false
+    });
+  }
 
   const referenceErrors = await validateLookupTableReferenceValues(
-    quack,
+    connection,
     dataset,
     updatedDimension.factTableColumn,
     factTableColumn.columnName,
-    `${makeCubeSafeString(dimension.factTableColumn)}_lookup`,
+    actionId,
     factTableName,
     'dimension'
   );
   if (referenceErrors) {
-    await quack.close();
+    await connection.query(pgformat('DROP TABLE IF EXISTS %I', actionId));
+    await connection.query(pgformat('DROP TABLE IF EXISTS lookup_tables.%I', lookupTable.id));
+    await lookupTable.remove();
+    connection.release();
     return referenceErrors;
   }
 
   const languageErrors = await validateLookupTableLanguages(
-    quack,
+    connection,
     dataset,
     revision.id,
     factTableColumn.columnName,
-    `${makeCubeSafeString(dimension.factTableColumn)}_lookup`,
+    actionId,
     'dimension'
   );
   if (languageErrors) {
-    await quack.close();
+    await connection.query(pgformat('DROP TABLE IF EXISTS %I', actionId));
+    await connection.query(pgformat('DROP TABLE IF EXISTS lookup_tables.%I', lookupTable.id));
+    await lookupTable.remove();
+    connection.release();
     return languageErrors;
   }
 
@@ -336,17 +358,10 @@ export const validateLookupTable = async (
   await updatedDimension.save();
 
   try {
-    const previewQuery = `
-      SELECT *
-      FROM "${makeCubeSafeString(dimension.factTableColumn)}_lookup"
-      WHERE language = '${language.toLowerCase()}';
-    `;
-
-    // logger.debug(`Passed validation preparing to send back the preview using the following query:\n${previewQuery}`);
-    const dimensionTable = await quack.all(previewQuery);
-    // logger.debug(`Preview query returned:\n${JSON.stringify(dimensionTable, null, 2)}`);
-    const tableHeaders = Object.keys(dimensionTable[0]);
-    const dataArray = dimensionTable.map((row) => Object.values(row));
+    const previewQuery = pgformat('SELECT * FROM lookup_tables.%I WHERE language = %L;', lookupTable.id);
+    const dimensionTable = await connection.query(previewQuery);
+    const tableHeaders = Object.keys(dimensionTable.rows[0]);
+    const dataArray = dimensionTable.rows.map((row) => Object.values(row));
     const currentDataset = await DatasetRepository.getById(dataset.id);
     const headers: CSVHeader[] = [];
     for (let i = 0; i < tableHeaders.length; i++) {
@@ -360,16 +375,17 @@ export const validateLookupTable = async (
       });
     }
     const pageInfo = {
-      total_records: dimensionTable.length,
+      total_records: dimensionTable.rows.length,
       start_record: 1,
       end_record: dataArray.length
     };
-    const pageSize = dimensionTable.length < sampleSize ? dimensionTable.length : sampleSize;
+    const pageSize = dimensionTable.rows.length < sampleSize ? dimensionTable.rows.length : sampleSize;
     return viewGenerator(currentDataset, 1, pageInfo, pageSize, 1, headers, dataArray);
   } catch (error) {
     logger.error(error, `Something went wrong trying to generate the preview of the lookup.`);
     return viewErrorGenerators(500, dataset.id, 'preview', 'errors.dimension.lookup_preview_generation_failed', {});
   } finally {
-    await quack.close();
+    await connection.query(pgformat('DROP TABLE IF EXISTS %I', actionId));
+    connection.release();
   }
 };

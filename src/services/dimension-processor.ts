@@ -34,6 +34,7 @@ import { duckdb, linkToPostgres } from './duckdb';
 import { format as pgformat } from '@scaleleap/pg-format/lib/pg-format';
 import { YearType } from '../enums/year-type';
 import { PoolClient, QueryResult } from 'pg';
+import { getCubeDB } from '../db/cube-db';
 
 const sampleSize = 5;
 
@@ -338,6 +339,7 @@ export const validateNumericDimension = async (
   dataset: Dataset,
   dimension: Dimension
 ): Promise<ViewDTO | ViewErrDTO> => {
+  const revision = dataset.draftRevision!;
   const numberType = dimensionPatchRequest.number_format;
   if (!numberType) {
     throw new Error('No number type supplied');
@@ -353,21 +355,25 @@ export const validateNumericDimension = async (
 
   const tableName = 'fact_table';
   // TODO REPLACE WITH POSTGRES POOL
-  const quack = await duckdb();
+  const connection = await getCubeDB().connect();
   try {
-    await linkToPostgres(quack, dataset.draftRevision!.id, false);
+    await connection.query(pgformat(`SET search_path TO %I;`, revision.id));
   } catch (error) {
     logger.error(error, 'Something went wrong trying to link to postgres database');
     return viewErrorGenerators(500, dataset.id, 'patch', 'errors.cube_builder.fact_table_creation_failed', {});
   }
 
   // Validate column type in data table matches proposed type first using DuckDBs column detection
-  const columnInfo = await quack.all(
-    `SELECT * FROM (DESCRIBE ${tableName}) WHERE column_name = '${dimension.factTableColumn}';`
+  const columnInfo: QueryResult<{ column_name: string; data_type: string }> = await connection.query(
+    pgformat(
+      'SELECT column_name, data_type FROM information_schema.columns WHERE table_name = %L AND column_name = %L;',
+      tableName,
+      dimension.factTableColumn
+    )
   );
   if (extractor.type === NumberType.Integer) {
     let savedDimension: Dimension;
-    switch (columnInfo[0].column_type) {
+    switch (columnInfo.rows[0].data_type) {
       case 'BIGINT':
       case 'HUGEINT':
       case 'SMALLINT':
@@ -380,57 +386,42 @@ export const validateNumericDimension = async (
       case 'UTINYINT':
         dimension.extractor = extractor;
         savedDimension = await dimension.save();
-        return getPreviewWithNumberExtractor(dataset, savedDimension, quack, tableName);
+        return getPreviewWithNumberExtractor(dataset, savedDimension, connection, tableName);
     }
   } else if (extractor.type === NumberType.Decimal) {
     let savedDimension: Dimension;
-    switch (columnInfo[0].column_type) {
+    switch (columnInfo.rows[0].data_type) {
       case 'DOUBLE':
       case 'FLOAT':
         dimension.extractor = extractor;
         savedDimension = await dimension.save();
-        return getPreviewWithNumberExtractor(dataset, savedDimension, quack, tableName);
+        return getPreviewWithNumberExtractor(dataset, savedDimension, connection, tableName);
     }
   }
 
-  let castType: string;
+  let whereRegEx: string;
   if (extractor.type === NumberType.Integer) {
-    castType = 'INTEGER';
+    whereRegEx = `'^-?[0-9]*$'`;
   } else {
-    castType = 'DOUBLE';
+    whereRegEx = `'^-?[0-9]*[.]?[0-9]*$'`;
   }
   try {
-    const nonMatchingQuery = `SELECT ${dimension.factTableColumn} FROM (SELECT TRY_CAST(${dimension.factTableColumn} AS ${castType}) as IS_NUMBER, ${dimension.factTableColumn} FROM ${tableName} WHERE IS_NUMBER IS NULL);`;
-    const nonMatchingRows = await quack.all(nonMatchingQuery);
-    if (nonMatchingRows.length > 0) {
-      const nonMatchingDataTableValues = await quack.all(
-        `SELECT DISTINCT ${dimension.factTableColumn}
-        FROM (
-          SELECT
-            TRY_CAST(${dimension.factTableColumn} AS ${castType}) as IS_NUMBER,
-            ${dimension.factTableColumn}
-          FROM ${tableName}
-          WHERE IS_NUMBER IS NULL
-        );`
-      );
+    const nonMatchingQuery = `${dimension.factTableColumn} FROM ${tableName} WHERE field !~ ${whereRegEx});`;
+    const nonMatching = await connection.query(`SELECT ${nonMatchingQuery}`);
+    if (nonMatching.rows.length > 0) {
+      const nonMatchingDataTableValues = await connection.query(`SELECT DISTINCT ${nonMatchingQuery}`);
       logger.error(
-        `The user supplied a ${extractor.type} number format but there were ${nonMatchingRows.length} rows which didn't match the format`
+        `The user supplied a ${extractor.type} number format but there were ${nonMatching.rows.length} rows which didn't match the format`
       );
-      await quack.close();
+      connection.release();
       return viewErrorGenerators(400, dataset.id, 'patch', 'errors.dimension_validation.non_numerical_values_present', {
-        totalNonMatching: nonMatchingRows.length,
-        nonMatchingDataTableValues: nonMatchingDataTableValues.map((row) => Object.values(row)[0])
+        totalNonMatching: nonMatching.rows.length,
+        nonMatchingDataTableValues: nonMatchingDataTableValues.rows.map((row) => Object.values(row)[0])
       });
     }
   } catch (error) {
-    await quack.close();
     logger.error(error, `Something went wrong trying to validate the data with the following error: ${error}`);
-    const nonMatchedRows = await quack.all(`SELECT COUNT(*) AS total_rows FROM ${tableName};`);
-    const nonMatchedValues = await quack.all(`SELECT DISTINCT ${dimension.factTableColumn} FROM ${tableName};`);
-    return viewErrorGenerators(400, dataset.id, 'patch', 'errors.dimension_validation.unknown_error', {
-      totalNonMatching: nonMatchedRows[0].total_rows,
-      nonMatchingDataTableValues: nonMatchedValues.map((row) => Object.values(row)[0])
-    });
+    return viewErrorGenerators(400, dataset.id, 'patch', 'errors.dimension_validation.unknown_error', {});
   }
   logger.debug(`Validation finished, updating dimension ${dimension.id} with new extractor`);
   dimension.lookupTable = null;
@@ -438,7 +429,7 @@ export const validateNumericDimension = async (
   dimension.type = DimensionType.Numeric;
   dimension.extractor = extractor;
   const savedDimension = await dimension.save();
-  return getPreviewWithNumberExtractor(dataset, savedDimension, quack, tableName);
+  return getPreviewWithNumberExtractor(dataset, savedDimension, connection, tableName);
 };
 
 export const validateUpdatedDateDimension = async (
@@ -713,7 +704,7 @@ async function getDatePreviewWithExtractor(
 async function getPreviewWithNumberExtractor(
   dataset: Dataset,
   dimension: Dimension,
-  quack: Database,
+  connection: PoolClient,
   tableName: string
 ): Promise<ViewDTO> {
   const extractor = dimension.extractor as NumberExtractor;
@@ -721,17 +712,16 @@ async function getPreviewWithNumberExtractor(
   if (extractor.type === NumberType.Integer) {
     query = `SELECT DISTINCT CAST("${dimension.factTableColumn}" AS INTEGER) AS "${dimension.factTableColumn}" FROM ${tableName} ORDER BY "${dimension.factTableColumn}" ASC LIMIT ${sampleSize};`;
   } else {
-    query = `SELECT DISTINCT CAST(CAST("${dimension.factTableColumn}" AS DECIMAL(18,${extractor.decimalPlaces})) AS VARCHAR) AS "${dimension.factTableColumn}" FROM ${tableName} ORDER BY "${dimension.factTableColumn}" ASC LIMIT ${sampleSize};`;
+    query = `SELECT DISTINCT format('%s', TO_CHAR(ROUND(CAST(${dimension.factTableColumn} AS DECIMAL), '${extractor.decimalPlaces}'), '999,999,990.${extractor.decimalPlaces}')) AS "${dimension.factTableColumn}" FROM ${tableName} ORDER BY "${dimension.factTableColumn}" ASC LIMIT ${sampleSize};`;
   }
-  const totals = await quack.all(
+  const totals: QueryResult<{ totalLines: number }> = await connection.query(
     `SELECT COUNT(DISTINCT "${dimension.factTableColumn}") AS totalLines FROM ${tableName};`
   );
-  const totalLines = Number(totals[0].totalLines);
+  const totalLines = Number(totals.rows[0].totalLines);
 
-  // logger.debug(`query = ${query}`);
-  const preview = await quack.all(query);
-  const tableHeaders = Object.keys(preview[0]);
-  const dataArray = preview.map((row) => Object.values(row));
+  const preview = await connection.query(query);
+  const tableHeaders = Object.keys(preview.rows[0]);
+  const dataArray = preview.rows.map((row) => Object.values(row));
   const currentDataset = await DatasetRepository.getById(dataset.id);
   const headers: CSVHeader[] = [];
   for (let i = 0; i < tableHeaders.length; i++) {
@@ -744,9 +734,9 @@ async function getPreviewWithNumberExtractor(
   const pageInfo = {
     total_records: totalLines,
     start_record: 1,
-    end_record: preview.length
+    end_record: preview.rows.length
   };
-  const pageSize = preview.length < sampleSize ? preview.length : sampleSize;
+  const pageSize = preview.rows.length < sampleSize ? preview.rows.length : sampleSize;
   return viewGenerator(currentDataset, 1, pageInfo, pageSize, 1, headers, dataArray);
 }
 

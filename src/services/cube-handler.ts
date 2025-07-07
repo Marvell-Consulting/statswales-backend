@@ -10,7 +10,6 @@ import { formatISO } from 'date-fns';
 import { format as pgformat } from '@scaleleap/pg-format';
 
 import { FileType } from '../enums/file-type';
-import { FileImportInterface } from '../entities/dataset/file-import.interface';
 import { logger } from '../utils/logger';
 import { Dataset } from '../entities/dataset/dataset';
 import { Dimension } from '../entities/dataset/dimension';
@@ -54,6 +53,7 @@ import { SortByInterface } from '../interfaces/sort-by-interface';
 import { createFrontendView } from './consumer-view';
 import fs from 'node:fs';
 import { parse } from 'csv';
+import { LookupTable } from '../entities/dataset/lookup-table';
 
 export const FACT_TABLE_NAME = 'fact_table';
 
@@ -99,16 +99,16 @@ export const createDataTableQuery = async (
 
 export const loadFileIntoCube = async (
   quack: Database,
-  fileImport: FileImportInterface,
+  fileType: FileType,
   tempFile: string,
   tableName: string
 ): Promise<void> => {
-  logger.debug(`Loading file in to the cube`);
-  const insertQuery = await createDataTableQuery(tableName, tempFile, fileImport.fileType, quack);
+  logger.debug(`Loading file in to DuckDB`);
+  const insertQuery = await createDataTableQuery(tableName, tempFile, fileType, quack);
   try {
     await quack.exec(insertQuery);
   } catch (error) {
-    logger.error(`Failed to load file in to the cube using query ${insertQuery} with the following error: ${error}`);
+    logger.error(`Failed to load file in to DuckDB using query ${insertQuery} with the following error: ${error}`);
     throw error;
   }
 };
@@ -668,17 +668,24 @@ async function setupLookupTableDimension(
 
 export async function loadFileIntoLookupTablesSchema(
   dataset: Dataset,
-  dimension: Dimension,
-  factTableColumn: FactTableColumn
+  lookupTable: LookupTable,
+  extractor: LookupTableExtractor,
+  factTableColumn: FactTableColumn,
+  joinColumn: string,
+  filePath?: string
 ): Promise<void> {
   const start = performance.now();
   const quack = await duckdb();
   const dimTable = `${makeCubeSafeString(factTableColumn.columnName)}_lookup`;
   await quack.exec(createLookupTableQuery(dimTable, factTableColumn.columnName, factTableColumn.columnDatatype));
-  const extractor = dimension.extractor as LookupTableExtractor;
-  const lookupTableFile = await getFileImportAndSaveToDisk(dataset, dimension.lookupTable!);
-  const lookupTableName = `${makeCubeSafeString(dimension.factTableColumn)}_lookup_draft`;
-  await loadFileIntoCube(quack, dimension.lookupTable!, lookupTableFile, lookupTableName);
+  let lookupTableFile = '';
+  if (filePath) {
+    lookupTableFile = filePath;
+  } else {
+    lookupTableFile = await getFileImportAndSaveToDisk(dataset, lookupTable!);
+  }
+  const lookupTableName = `${makeCubeSafeString(factTableColumn.columnName)}_lookup_draft`;
+  await loadFileIntoCube(quack, lookupTable.fileType, lookupTableFile, lookupTableName);
   if (extractor.isSW2Format) {
     logger.debug('Lookup table is SW2 format');
     const dataExtractorParts = [];
@@ -693,7 +700,7 @@ export async function loadFileIntoLookupTablesSchema(
       dataExtractorParts.push(
         pgformat(
           'SELECT %I AS %I, %L as language, %I as description, %s as notes, %s as sort_order, %s as hierarchy FROM %I',
-          dimension.joinColumn,
+          joinColumn,
           factTableColumn.columnName,
           locale.toLowerCase(),
           descriptionCol?.name,
@@ -715,7 +722,7 @@ export async function loadFileIntoLookupTablesSchema(
     const hierarchyStr = extractor.hierarchyColumn ? pgformat('%I', extractor.hierarchyColumn) : 'NULL';
     const dataExtractorParts = pgformat(
       `SELECT %I AS %I, %s as language, %I as description, %s as notes, %s as sort_order, %s as hierarchy FROM %I;`,
-      dimension.joinColumn,
+      joinColumn,
       factTableColumn.columnName,
       languageMatcher,
       extractor.descriptionColumns[0].name,
@@ -730,9 +737,7 @@ export async function loadFileIntoLookupTablesSchema(
   logger.debug(`Dropping original lookup table ${lookupTableName}`);
   await quack.exec(pgformat('DROP TABLE %I', lookupTableName));
   await linkToPostgresLookupTables(quack);
-  await quack.exec(
-    pgformat('CREATE TABLE lookup_table_db.%I AS SELECT * FROM %I;', dimension.lookupTable!.id, dimTable)
-  );
+  await quack.exec(pgformat('CREATE TABLE lookup_table_db.%I AS SELECT * FROM %I;', lookupTable.id, dimTable));
   await quack.close();
   performanceReporting(start - performance.now(), 500, 'Loading a lookup table in to postgres');
 }
@@ -754,7 +759,13 @@ export async function createLookupTableDimension(
 
   if (lookupTablePresent.rows.length === 0) {
     logger.warn('Lookup table not loaded in to lookup table schema.  Loading lookup table in to schema.');
-    await loadFileIntoLookupTablesSchema(dataset, dimension, factTableColumn);
+    await loadFileIntoLookupTablesSchema(
+      dataset,
+      dimension.lookupTable!,
+      dimension.extractor as LookupTableExtractor,
+      factTableColumn,
+      dimension.joinColumn!
+    );
   }
 
   const dimTable = `${makeCubeSafeString(factTableColumn.columnName)}_lookup`;
@@ -1079,9 +1090,9 @@ function postgresMeasureFormats(): Map<string, MeasureFormat> {
   return measureFormats;
 }
 
-export const measureTableCreateStatement = (joinColumnType: string): string => {
+export const measureTableCreateStatement = (joinColumnType: string, tableName = 'measure'): string => {
   return `
-    CREATE TABLE measure (
+    CREATE TABLE ${tableName} (
       reference ${joinColumnType},
       language TEXT,
       description TEXT,
@@ -1366,22 +1377,22 @@ async function setupNumericDimension(
         .get(locale)
         ?.push(
           pgformat(
-            'CAST(CAST(%I.%I AS DECIMAL(18,%L)) AS VARCHAR) AS %I',
+            `format('%%s', TO_CHAR(ROUND(CAST(%I.%I AS DECIMAL), %L), '999,999,990.%s'))`,
             FACT_TABLE_NAME,
             dimension.factTableColumn,
             (dimension.extractor as NumberExtractor).decimalPlaces,
-            columnName
+            (dimension.extractor as NumberExtractor).decimalPlaces
           )
         );
       rawSelectStatementsMap
         .get(locale)
         ?.push(
           pgformat(
-            'CAST(%I.%I AS DECIMAL(18,%L)) AS %I',
+            `format('%%s', TO_CHAR(ROUND(CAST(%I.%I AS DECIMAL), %L), '999,999,990.%s'))`,
             FACT_TABLE_NAME,
             dimension.factTableColumn,
             (dimension.extractor as NumberExtractor).decimalPlaces,
-            columnName
+            (dimension.extractor as NumberExtractor).decimalPlaces
           )
         );
     }
