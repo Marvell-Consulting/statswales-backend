@@ -24,7 +24,6 @@ import { SourceLocation } from '../enums/source-location';
 import { UploadTableType } from '../interfaces/upload-table-type';
 import { TempFile } from '../interfaces/temp-file';
 
-export const DEFAULT_PAGE_SIZE = 100;
 const sampleSize = 5;
 
 const logger = parentLogger.child({ module: 'CSVProcessor' });

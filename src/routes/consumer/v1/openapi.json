@@ -319,7 +319,7 @@
         "required": false,
         "schema": {
           "type": "integer",
-          "default": 10
+          "default": 100
         }
       },
       "sort_by": {

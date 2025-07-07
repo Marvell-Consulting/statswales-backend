@@ -1,14 +1,12 @@
 import { i18next } from '../middleware/translation';
 import { Error } from '../dtos/error';
 import { Locale } from '../enums/locale';
-
-export const MAX_PAGE_SIZE = 500;
-export const MIN_PAGE_SIZE = 5;
+import { MIN_PAGE_SIZE, MAX_PAGE_SIZE } from '../utils/page-defaults';
 
 const t = i18next.t;
 
 function validatePageSize(page_size: number): boolean {
-  return !(page_size > MAX_PAGE_SIZE || page_size < MIN_PAGE_SIZE);
+  return page_size >= MIN_PAGE_SIZE && page_size <= MAX_PAGE_SIZE;
 }
 
 function validatePageNumber(page_number: number): boolean {

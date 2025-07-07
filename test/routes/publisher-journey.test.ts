@@ -28,13 +28,13 @@ import { createFullDataset, createSmallDataset } from '../helpers/test-helper';
 import { getTestUser, getTestUserGroup } from '../helpers/get-test-user';
 import { getAuthHeader } from '../helpers/auth-header';
 import BlobStorage from '../../src/services/blob-storage';
-import { MAX_PAGE_SIZE, MIN_PAGE_SIZE } from '../../src/validators/preview-validator';
 import { UserGroup } from '../../src/entities/user/user-group';
 import { GroupRole } from '../../src/enums/group-role';
 import { UserGroupRole } from '../../src/entities/user/user-group-role';
 import { QueryRunner } from 'typeorm';
 import { getFileService } from '../../src/utils/get-file-service';
 import { multerStorageDir } from '../../src/config/multer-storage';
+import { MAX_PAGE_SIZE, MIN_PAGE_SIZE } from '../../src/utils/page-defaults';
 
 jest.mock('../../src/services/blob-storage');
 
@@ -183,7 +183,7 @@ describe('API Endpoints', () => {
       const res = await request(app)
         .get(`/dataset/${testDatasetId}/revision/by-id/${testRevisionId}/data-table/preview`)
         .set(getAuthHeader(user))
-        .query({ page_size: 1000 });
+        .query({ page_size: 1000000 });
       expect(res.status).toBe(400);
       expect(res.body).toEqual({
         status: 400,
