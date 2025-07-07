@@ -3,7 +3,7 @@ import { Error } from '../dtos/error';
 import { Locale } from '../enums/locale';
 
 export const MAX_PAGE_SIZE = 100000;
-export const MIN_PAGE_SIZE = 1;
+export const MIN_PAGE_SIZE = 5;
 
 const t = i18next.t;
 
