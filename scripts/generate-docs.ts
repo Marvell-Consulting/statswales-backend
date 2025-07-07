@@ -1,5 +1,6 @@
 import path from 'node:path';
 
+import 'dotenv/config';
 import swaggerAutogen from 'swagger-autogen';
 
 import { schema } from '../src/routes/consumer/v1/schema';

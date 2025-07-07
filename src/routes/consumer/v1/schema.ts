@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/naming-convention */
 
 import { DownloadFormat } from '../../../enums/download-format';
+import { DEFAULT_PAGE_SIZE } from '../../../services/csv-processor';
 
 export const schema = {
   info: {
@@ -55,7 +56,7 @@ export const schema = {
         in: 'query',
         description: 'Number of datasets per page',
         required: false,
-        schema: { type: 'integer', default: 10 }
+        schema: { type: 'integer', default: DEFAULT_PAGE_SIZE }
       },
       sort_by: {
         name: 'sort_by',

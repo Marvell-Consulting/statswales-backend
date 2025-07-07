@@ -48,7 +48,7 @@ export const listPublishedDatasets = async (req: Request, res: Response, next: N
   try {
     const lang = req.language as Locale;
     const pageNumber = parseInt(req.query.page_number as string, 10) || 1;
-    const pageSize = parseInt(req.query.page_size as string, 10) || 10;
+    const pageSize = parseInt(req.query.page_size as string, 10) || DEFAULT_PAGE_SIZE;
 
     const results = await PublishedDatasetRepository.listPublishedByLanguage(lang, pageNumber, pageSize);
 
