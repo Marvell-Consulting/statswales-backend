@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/naming-convention */
 
 import { DownloadFormat } from '../../../enums/download-format';
-import { DEFAULT_PAGE_SIZE } from '../../../services/csv-processor';
+import { DEFAULT_PAGE_SIZE } from '../../../utils/page-defaults';
 
 export const schema = {
   info: {

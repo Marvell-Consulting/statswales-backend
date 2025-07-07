@@ -15,7 +15,6 @@ import {
   createStreamingJSONFilteredView,
   getFilters
 } from '../services/consumer-view';
-import { DEFAULT_PAGE_SIZE } from '../services/csv-processor';
 import { hasError, formatValidator } from '../validators';
 import { TopicDTO } from '../dtos/topic-dto';
 import { PublishedTopicsDTO } from '../dtos/published-topics-dto';
@@ -23,6 +22,7 @@ import { TopicRepository } from '../repositories/topic';
 import { SortByInterface } from '../interfaces/sort-by-interface';
 import { FilterInterface } from '../interfaces/filterInterface';
 import { DownloadFormat } from '../enums/download-format';
+import { DEFAULT_PAGE_SIZE } from '../utils/page-defaults';
 
 export const listPublishedDatasets = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   /*

@@ -1,9 +1,7 @@
 import { i18next } from '../middleware/translation';
 import { Error } from '../dtos/error';
 import { Locale } from '../enums/locale';
-
-export const MAX_PAGE_SIZE = 100000;
-export const MIN_PAGE_SIZE = 5;
+import { MIN_PAGE_SIZE, MAX_PAGE_SIZE } from '../utils/page-defaults';
 
 const t = i18next.t;
 
