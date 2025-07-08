@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { parseFormData } from 'pechkin';
 import { Internal } from 'pechkin/dist/types.js';
+import { merge } from 'lodash';
 
 import { logger } from '../utils/logger';
 import { BadRequestException } from '../exceptions/bad-request.exception';
@@ -15,8 +16,14 @@ export const fileStreaming = (
   busboyConfig?: Internal.BusboyConfig
 ) => {
   return async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    const defaultFileConfig: Partial<Internal.Config> = {
+      maxFileByteLength: 500 * 1024 * 1024 // 500MB
+    };
+
+    const finalConfig = merge({}, defaultFileConfig, config);
+
     try {
-      const { fields, files } = await parseFormData(req, config, fileFieldConfigOverride, busboyConfig);
+      const { fields, files } = await parseFormData(req, finalConfig, fileFieldConfigOverride, busboyConfig);
       req.body = fields;
       req.files = files;
       return next();

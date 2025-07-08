@@ -36,3 +36,7 @@ services:
     platform: linux/amd64 # no arm64 image currently available, force amd64
     ports:
       - '3310:3310'
+    environment:
+      CLAMD_CONF_MaxFileSize: 500M
+      CLAMD_CONF_MaxScanSize: 500M
+      CLAMD_CONF_StreamMaxLength: 500M
