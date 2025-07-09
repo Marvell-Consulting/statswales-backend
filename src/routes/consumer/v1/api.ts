@@ -16,6 +16,7 @@ import { NotFoundException } from '../../../exceptions/not-found.exception';
 import { PublishedDatasetRepository } from '../../../repositories/published-dataset';
 import { hasError, datasetIdValidator } from '../../../validators';
 import { Dataset } from '../../../entities/dataset/dataset';
+import { NotAllowedException } from '../../../exceptions/not-allowed.exception';
 
 export const publicApiRouter = Router();
 
@@ -45,6 +46,14 @@ export const loadPublishedDataset = (relations?: FindOptionsRelations<Dataset>) 
 };
 
 publicApiRouter.use(cors()); // allow browser XMLHttpRequests from any domain
+
+publicApiRouter.use((req: Request, res: Response, next: NextFunction) => {
+  if (req.method !== 'GET') {
+    next(new NotAllowedException('errors.method_not_allowed'));
+    return;
+  }
+  next();
+});
 
 publicApiRouter.get('/', listPublishedDatasets);
 

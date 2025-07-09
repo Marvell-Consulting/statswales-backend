@@ -27,6 +27,7 @@ import { taskRouter } from './routes/task';
 import { userRouter } from './routes/user';
 import { publicApiRouter } from './routes/consumer/v1/api';
 import { apiDocRouter } from './routes/consumer/v1/docs';
+import { strictTransport } from './middleware/strict-transport';
 
 const app: Application = express();
 const config = appConfig();
@@ -42,6 +43,7 @@ app.use(i18nextMiddleware.handle(i18next));
 app.use(cookieParser());
 app.use(session);
 app.use(requestContext);
+app.use(strictTransport);
 app.use(initServices);
 
 // public routes

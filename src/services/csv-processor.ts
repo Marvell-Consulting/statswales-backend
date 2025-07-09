@@ -26,7 +26,6 @@ import { TempFile } from '../interfaces/temp-file';
 import { getCubeDB } from '../db/cube-db';
 import { QueryResult } from 'pg';
 
-export const DEFAULT_PAGE_SIZE = 100;
 const sampleSize = 5;
 
 const logger = parentLogger.child({ module: 'CSVProcessor' });

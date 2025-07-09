@@ -27,7 +27,6 @@ import { ViewErrDTO } from '../dtos/view-dto';
 import { arrayValidator, dtoValidator } from '../validators/dto-validator';
 import { RevisionMetadataDTO } from '../dtos/revistion-metadata-dto';
 import { createAllCubeFiles } from '../services/cube-handler';
-import { DEFAULT_PAGE_SIZE } from '../services/csv-processor';
 import {
   createDimensionsFromSourceAssignment,
   ValidatedSourceAssignment,
@@ -56,6 +55,7 @@ import { SortByInterface } from '../interfaces/sort-by-interface';
 import { FilterInterface } from '../interfaces/filterInterface';
 import { cleanupTmpFile, uploadAvScan } from '../services/virus-scanner';
 import { TempFile } from '../interfaces/temp-file';
+import { DEFAULT_PAGE_SIZE } from '../utils/page-defaults';
 
 export const listUserDatasets = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
@@ -175,6 +175,9 @@ export const uploadDataTable = async (req: Request, res: Response, next: NextFun
     next(err);
     return;
   }
+
+  logger.info(`Processing data table upload for dataset ${dataset.id}...`);
+  logger.debug(`File received: ${tmpFile.originalname}, mimetype: ${tmpFile.mimetype}, size: ${tmpFile.size} bytes`);
 
   try {
     const updatedDataset = await req.datasetService.updateFactTable(dataset.id, tmpFile);

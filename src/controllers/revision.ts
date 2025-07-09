@@ -33,7 +33,7 @@ import {
   outputCube,
   updateFactTableValidator
 } from '../services/cube-handler';
-import { DEFAULT_PAGE_SIZE, getCSVPreview, validateAndUpload } from '../services/csv-processor';
+import { getCSVPreview, validateAndUpload } from '../services/csv-processor';
 import { DataTableDescription } from '../entities/dataset/data-table-description';
 import { FactTableColumn } from '../entities/dataset/fact-table-column';
 import { DataTableAction } from '../enums/data-table-action';
@@ -60,6 +60,7 @@ import {
 import { cleanupTmpFile, uploadAvScan } from '../services/virus-scanner';
 import { TempFile } from '../interfaces/temp-file';
 import { getCubeDB } from '../db/cube-db';
+import { DEFAULT_PAGE_SIZE } from '../utils/page-defaults';
 
 export const getDataTable = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   const revision: Revision = res.locals.revision;
