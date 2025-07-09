@@ -269,20 +269,21 @@ export const getCSVPreview = async (
 ): Promise<ViewDTO | ViewErrDTO> => {
   let tableName = 'fact_table';
 
+  const connection = await getCubeDB().connect();
+  await connection.query(pgformat(`SET search_path TO %I;`, 'data_tables'));
   logger.debug('Getting table query from postgres');
-  const quack = await duckdb();
-  await linkToPostgresDataTables(quack);
   tableName = dataTable.id;
 
   try {
     const totalsQuery = pgformat(
-      `SELECT count(*) as totalLines, ceil(count(*)/%L) as totalPages from %I;`,
+      `SELECT count(*) as total_lines, ceil(count(*)/%L) as total_pages from %I;`,
       size,
       tableName
     );
-    const totals = await quack.all(totalsQuery);
-    const totalPages = Number(totals[0].totalPages);
-    const totalLines = Number(totals[0].totalLines);
+    logger.debug(`Getting total lines and pages using query ${totalsQuery}`);
+    const totals: QueryResult<{ total_lines: number; total_pages: number }> = await connection.query(totalsQuery);
+    const totalPages = Number(totals.rows[0].total_pages);
+    const totalLines = Number(totals.rows[0].total_lines);
     const errors = validateParams(page, totalPages, size);
 
     if (errors.length > 0) {
@@ -291,7 +292,7 @@ export const getCSVPreview = async (
 
     const previewQuery = pgformat(
       `
-      SELECT int_line_number, *
+      SELECT *
       FROM (SELECT row_number() OVER () as int_line_number, * FROM %I)
       LIMIT %L
       OFFSET %L
@@ -301,11 +302,11 @@ export const getCSVPreview = async (
       (page - 1) * size
     );
 
-    const preview = await quack.all(previewQuery);
-    const startLine = Number(preview[0].int_line_number);
-    const lastLine = Number(preview[preview.length - 1].int_line_number);
-    const tableHeaders = Object.keys(preview[0]);
-    const dataArray = preview.map((row) => Object.values(row));
+    const preview = await connection.query(previewQuery);
+    const startLine = Number(preview.rows[0].int_line_number);
+    const lastLine = Number(preview.rows[preview.rows.length - 1].int_line_number);
+    const tableHeaders = Object.keys(preview.rows[0]);
+    const dataArray = preview.rows.map((row) => Object.values(row));
     const dataset = await DatasetRepository.getById(datasetId, { factTable: true });
     const currentImport = await DataTable.findOneByOrFail({ id: dataTable.id });
 
@@ -327,7 +328,7 @@ export const getCSVPreview = async (
     logger.error(error);
     return viewErrorGenerators(500, datasetId, 'csv', 'errors.preview.preview_failed', {});
   } finally {
-    await quack.close();
+    connection.release();
   }
 };
 

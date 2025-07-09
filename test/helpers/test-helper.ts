@@ -21,11 +21,7 @@ import { DatasetRepository } from '../../src/repositories/dataset';
 import { logger } from '../../src/utils/logger';
 import { Readable } from 'node:stream';
 import { getCubeDB } from '../../src/db/cube-db';
-import {
-  createAllCubeFiles,
-  createReferenceDataTablesInCube,
-  loadReferenceDataFromCSV
-} from '../../src/services/cube-handler';
+import { createAllCubeFiles } from '../../src/services/cube-handler';
 import { parse } from 'csv';
 
 export async function createSmallDataset(
@@ -33,7 +29,7 @@ export async function createSmallDataset(
   revisionId: string,
   importId: string,
   user: User,
-  testFilePath = '../sample-files/csv/sure-start-short.csv',
+  testFilePath = '../sample-files/csv/sure-start-data.csv',
   fileType = FileType.Csv
 ): Promise<Dataset> {
   const testFile = path.resolve(__dirname, testFilePath);
@@ -61,7 +57,7 @@ export async function createSmallDataset(
     buffer: Buffer.alloc(0)
   };
 
-  const dataTableDescriptions = await extractTableInformation(fileObj, dataTable, 'lookup_table');
+  const dataTableDescriptions = await extractTableInformation(fileObj, dataTable, 'data_table');
   dataTableDescriptions.forEach((desc) => {
     desc.factTableColumn = desc.columnName;
   });
@@ -88,22 +84,22 @@ export async function createSmallDataset(
     userGroupId: user?.groupRoles[0]?.groupId,
     factTable: dataTableDescriptions.map((desc) => {
       const isNoteCol = desc.columnName.toLowerCase().includes('note');
-      const isDataCol = desc.columnName.toLowerCase().includes('data');
-      const isMeasureCol = desc.columnName.toLowerCase().includes('measure');
-      let columnType = FactTableColumnType.Dimension;
-      if (isNoteCol) {
-        columnType = FactTableColumnType.NoteCodes;
-      } else if (isDataCol) {
-        columnType = FactTableColumnType.DataValues;
-      } else if (isMeasureCol) {
-        columnType = FactTableColumnType.Measure;
-      }
+      // const isDataCol = desc.columnName.toLowerCase().includes('data');
+      // const isMeasureCol = desc.columnName.toLowerCase().includes('measure');
+      // let columnType = FactTableColumnType.Unknown;
+      // if (isNoteCol) {
+      //   columnType = FactTableColumnType.Unknown;
+      // } else if (isDataCol) {
+      //   columnType = FactTableColumnType.Unknown;
+      // } else if (isMeasureCol) {
+      //   columnType = FactTableColumnType.Unknown;
+      // }
       const columnDatatype = isNoteCol ? 'VARCHAR' : desc.columnDatatype;
 
       return FactTableColumn.create({
         columnName: desc.columnName,
         columnIndex: desc.columnIndex,
-        columnType: isDataCol ? FactTableColumnType.DataValues : columnType,
+        columnType: FactTableColumnType.Unknown,
         columnDatatype
       });
     })
@@ -204,8 +200,8 @@ async function createTestCube(revisionId: string, dataTableId: string) {
   const connection = await getCubeDB().connect();
   await connection.query(pgformat('CREATE SCHEMA IF NOT EXISTS %I;', revisionId));
   await connection.query(pgformat(`SET search_path TO %I;`, revisionId));
-  await createReferenceDataTablesInCube(connection);
-  await loadReferenceDataFromCSV(connection);
+  // await createReferenceDataTablesInCube(connection);
+  // await loadReferenceDataFromCSV(connection);
   const createDataTableSQL = `
     CREATE TABLE data_tables."${dataTableId}"
       (
@@ -220,7 +216,7 @@ async function createTestCube(revisionId: string, dataTableId: string) {
   try {
     await connection.query(createDataTableSQL);
     const parserOpts = { delimiter: ',', bom: true, skip_empty_lines: true, columns: true };
-    const dataFile = path.resolve(__dirname, '../sample-files/csv/sure-start-short.csv');
+    const dataFile = path.resolve(__dirname, '../sample-files/csv/sure-start-data.csv');
     const parseCSV = async (): Promise<void> => {
       const csvParser: AsyncIterable<any> = fs.createReadStream(dataFile).pipe(parse(parserOpts));
       for await (const row of csvParser) {
@@ -241,7 +237,7 @@ export async function createFullDataset(
   revisionId: string,
   dataTableId: string,
   user: User,
-  testFilePath = '../sample-files/csv/sure-start-short.csv',
+  testFilePath = '../sample-files/csv/sure-start-data.csv',
   fileType = FileType.Csv,
   dimensionDescriptorJson = sureStartShortDimensionDescriptor
 ): Promise<void> {

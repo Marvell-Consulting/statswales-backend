@@ -1593,13 +1593,13 @@ export async function createEmptyFactTableInCube(
   buildId: string
 ): Promise<FactTableInfo> {
   const start = performance.now();
-  const notesCodeColumn = dataset.factTable?.find((field) => field.columnType === FactTableColumnType.NoteCodes);
-  const dataValuesColumn = dataset.factTable?.find((field) => field.columnType === FactTableColumnType.DataValues);
-  const measureColumn = dataset.factTable?.find((field) => field.columnType === FactTableColumnType.Measure);
-
   if (!dataset.factTable) {
     throw new Error(`Unable to find fact table for dataset ${dataset.id}`);
   }
+
+  const notesCodeColumn = dataset.factTable?.find((field) => field.columnType === FactTableColumnType.NoteCodes);
+  const dataValuesColumn = dataset.factTable?.find((field) => field.columnType === FactTableColumnType.DataValues);
+  const measureColumn = dataset.factTable?.find((field) => field.columnType === FactTableColumnType.Measure);
 
   const factTable = dataset.factTable.sort((colA, colB) => colA.columnIndex - colB.columnIndex);
   const compositeKey: string[] = [];
