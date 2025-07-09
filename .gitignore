@@ -43,3 +43,6 @@ certs/*
 
 # Ignore IDE settings
 .vscode
+
+# Ignore generated test files
+src/seeders/tests/fixtures/*.csv

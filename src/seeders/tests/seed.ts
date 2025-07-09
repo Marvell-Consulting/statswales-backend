@@ -14,7 +14,7 @@ import { testUsers } from './fixtures/users';
 import { setupTmpCsv, testDatasets } from './fixtures/datasets';
 import { Revision } from '../../entities/dataset/revision';
 import { UserGroup } from '../../entities/user/user-group';
-import { testGroup } from './fixtures/group';
+import { testGroups } from './fixtures/group';
 import { TempFile } from '../../interfaces/temp-file';
 
 const config = appConfig();
@@ -32,10 +32,10 @@ export default class SeedTestFixtures extends Seeder {
   }
 
   async seedTestGroup(dataSource: DataSource): Promise<void> {
-    console.log(`seeding test group...`);
+    console.log(`Seeding test groups...`);
     const entityManager = dataSource.createEntityManager();
-    const group = entityManager.create(UserGroup, testGroup);
-    await dataSource.getRepository(UserGroup).save(group);
+    const groups = entityManager.create(UserGroup, testGroups);
+    await dataSource.getRepository(UserGroup).save(groups);
   }
 
   async seedUsers(dataSource: DataSource): Promise<void> {

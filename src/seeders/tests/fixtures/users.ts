@@ -1,6 +1,6 @@
 import { DeepPartial } from 'typeorm';
 
-import { testGroup } from './group';
+import { group1, group2, group3 } from './group';
 import { User } from '../../../entities/user/user';
 import { GlobalRole } from '../../../enums/global-role';
 import { GroupRole } from '../../../enums/group-role';
@@ -22,7 +22,11 @@ export const publisher1: DeepPartial<User> = {
   givenName: 'Joe',
   familyName: 'Publisher',
   email: 'joe.publisher@example.com',
-  groupRoles: [{ id: '56e78eb3-f831-48ff-ab78-8183acab9060', groupId: testGroup.id, roles: [GroupRole.Editor] }]
+  groupRoles: [
+    { id: '56e78eb3-f831-48ff-ab78-8183acab9060', groupId: group1.id, roles: [GroupRole.Editor] },
+    { id: '5c051ad8-5689-4427-ab7d-49c782d1fb8a', groupId: group2.id, roles: [GroupRole.Editor] },
+    { id: '7f2d9f32-b282-4b28-85fd-31209059d8ab', groupId: group3.id, roles: [GroupRole.Editor] }
+  ]
 };
 
 export const approver1: DeepPartial<User> = {
@@ -32,7 +36,11 @@ export const approver1: DeepPartial<User> = {
   givenName: 'Frank',
   familyName: 'Approver',
   email: 'frank.approver@example.com',
-  groupRoles: [{ id: '347b302e-ea1a-40b2-ad02-6bf5f4b85bc6', groupId: testGroup.id, roles: [GroupRole.Approver] }]
+  groupRoles: [
+    { id: '347b302e-ea1a-40b2-ad02-6bf5f4b85bc6', groupId: group1.id, roles: [GroupRole.Approver] },
+    { id: '3f977628-cbbc-4bb9-bb42-a928f3f59773', groupId: group2.id, roles: [GroupRole.Approver] },
+    { id: '8f6b4f72-9f2c-4e47-9e9a-327a9a07663d', groupId: group3.id, roles: [GroupRole.Approver] }
+  ]
 };
 
 export const testUsers = [admin1, publisher1, approver1];
