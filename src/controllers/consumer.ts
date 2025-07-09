@@ -15,7 +15,6 @@ import {
   createStreamingJSONFilteredView,
   getFilters
 } from '../services/consumer-view';
-import { DEFAULT_PAGE_SIZE } from '../services/csv-processor';
 import { hasError, formatValidator } from '../validators';
 import { TopicDTO } from '../dtos/topic-dto';
 import { PublishedTopicsDTO } from '../dtos/published-topics-dto';
@@ -23,6 +22,7 @@ import { TopicRepository } from '../repositories/topic';
 import { SortByInterface } from '../interfaces/sort-by-interface';
 import { FilterInterface } from '../interfaces/filterInterface';
 import { DownloadFormat } from '../enums/download-format';
+import { DEFAULT_PAGE_SIZE } from '../utils/page-defaults';
 
 export const listPublishedDatasets = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   /*
@@ -48,7 +48,7 @@ export const listPublishedDatasets = async (req: Request, res: Response, next: N
   try {
     const lang = req.language as Locale;
     const pageNumber = parseInt(req.query.page_number as string, 10) || 1;
-    const pageSize = parseInt(req.query.page_size as string, 10) || 10;
+    const pageSize = parseInt(req.query.page_size as string, 10) || DEFAULT_PAGE_SIZE;
 
     const results = await PublishedDatasetRepository.listPublishedByLanguage(lang, pageNumber, pageSize);
 

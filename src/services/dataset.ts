@@ -238,15 +238,17 @@ export class DatasetService {
 
     await RevisionRepository.save(revision);
 
-    logger.debug(`Updating measure translations...`);
-    const measureTranslation = translations.find((t) => t.type === 'measure')!;
-    await Promise.all(
-      measure.metadata.map((metadata) => {
-        metadata.name =
-          (metadata.language === Locale.EnglishGb ? measureTranslation.english : measureTranslation.cymraeg) ?? '';
-        metadata.save();
-      })
-    );
+    if (measure?.metadata) {
+      logger.debug(`Updating measure translations...`);
+      const measureTranslation = translations.find((t) => t.type === 'measure')!;
+      await Promise.all(
+        measure.metadata?.map((metadata) => {
+          metadata.name =
+            (metadata.language === Locale.EnglishGb ? measureTranslation.english : measureTranslation.cymraeg) ?? '';
+          metadata.save();
+        })
+      );
+    }
 
     return DatasetRepository.getById(datasetId, {});
   }
