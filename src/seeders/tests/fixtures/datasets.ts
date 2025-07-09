@@ -6,7 +6,7 @@ import { DeepPartial } from 'typeorm';
 import { Dataset } from '../../../entities/dataset/dataset';
 
 import { publisher1 } from './users';
-import { testGroup } from './group';
+import { group1 } from './group';
 import { Locale } from '../../../enums/locale';
 
 export const uploadPageTest: DeepPartial<Dataset> = {
@@ -19,7 +19,7 @@ export const uploadPageTest: DeepPartial<Dataset> = {
       { language: Locale.WelshGb, title: 'Test - Upload' }
     ]
   },
-  userGroupId: testGroup.id
+  userGroupId: group1.id
 };
 
 export const previewPageTestA: DeepPartial<Dataset> = {
@@ -32,7 +32,7 @@ export const previewPageTestA: DeepPartial<Dataset> = {
       { language: Locale.WelshGb, title: 'Test - Preview A' }
     ]
   },
-  userGroupId: testGroup.id
+  userGroupId: group1.id
 };
 
 export const previewPageTestB: DeepPartial<Dataset> = {
@@ -45,7 +45,7 @@ export const previewPageTestB: DeepPartial<Dataset> = {
       { language: Locale.WelshGb, title: 'Test - Preview B' }
     ]
   },
-  userGroupId: testGroup.id
+  userGroupId: group1.id
 };
 
 export const sourcesPageTest: DeepPartial<Dataset> = {
@@ -58,7 +58,7 @@ export const sourcesPageTest: DeepPartial<Dataset> = {
       { language: Locale.WelshGb, title: 'Test - Sources' }
     ]
   },
-  userGroupId: testGroup.id
+  userGroupId: group1.id
 };
 
 export const metadataTestA: DeepPartial<Dataset> = {
@@ -71,7 +71,7 @@ export const metadataTestA: DeepPartial<Dataset> = {
       { language: Locale.WelshGb, title: 'Test - Metadata A' }
     ]
   },
-  userGroupId: testGroup.id
+  userGroupId: group1.id
 };
 
 export const metadataTestB: DeepPartial<Dataset> = {
@@ -84,7 +84,20 @@ export const metadataTestB: DeepPartial<Dataset> = {
       { language: Locale.WelshGb, title: 'Test - Metadata B' }
     ]
   },
-  userGroupId: testGroup.id
+  userGroupId: group1.id
+};
+
+export const moveGroupTest: DeepPartial<Dataset> = {
+  id: '7f247810-08c3-4cb2-acca-b2c77dc03770',
+  createdBy: publisher1,
+  draftRevision: {
+    revisionIndex: 1,
+    metadata: [
+      { language: Locale.EnglishGb, title: 'Test - Move group' },
+      { language: Locale.WelshGb, title: 'Test - Move group' }
+    ]
+  },
+  userGroupId: group1.id
 };
 
 const csvData = `YearCode,AreaCode,Data,RowRef,Measure,NoteCodes
@@ -126,5 +139,6 @@ export const testDatasets = [
   { dataset: previewPageTestB, csvPath: tmpFilePath },
   { dataset: sourcesPageTest, csvPath: tmpFilePath },
   { dataset: metadataTestA, csvPath: tmpFilePath },
-  { dataset: metadataTestB, csvPath: tmpFilePath }
+  { dataset: metadataTestB, csvPath: tmpFilePath },
+  { dataset: moveGroupTest, csvPath: tmpFilePath }
 ];
