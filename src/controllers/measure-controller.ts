@@ -76,11 +76,8 @@ export const attachLookupTableToMeasure = async (req: Request, res: Response, ne
     const result = await validateMeasureLookupTable(dataTable, dataset, tmpFile.path, lang, tableMatcher);
     await createAllCubeFiles(dataset.id, dataset.draftRevision!.id);
     res.status((result as ViewErrDTO).status || 200);
-
-    // logger.debug(`Result of the lookup table validation is ${JSON.stringify(result, null, 2)}`);
     res.json(result);
   } catch (err) {
-    await createAllCubeFiles(dataset.id, dataset.draftRevision!.id);
     logger.error(err, `An error occurred trying to process and upload the file`);
     next(new UnknownException('errors.upload_error'));
   } finally {

@@ -7,7 +7,6 @@ import { Database, DuckDbError, RowData } from 'duckdb-async';
 import { t } from 'i18next';
 import { FindOptionsRelations } from 'typeorm';
 import { toZonedTime } from 'date-fns-tz';
-import { formatISO } from 'date-fns';
 import { format as pgformat } from '@scaleleap/pg-format';
 
 import { FileType } from '../enums/file-type';
@@ -528,16 +527,21 @@ export const createDatePeriodTableQuery = (factTableColumn: FactTableColumn, tab
   if (!tableName) {
     tableName = `${makeCubeSafeString(factTableColumn.columnName)}_lookup`;
   }
-  return `
-  CREATE TABLE ${tableName} (
-    "${factTableColumn.columnName}" ${factTableColumn.columnDatatype},
+  return pgformat(
+    `
+  CREATE TABLE %I (
+    %I %s,
     language VARCHAR(5),
     description VARCHAR,
     hierarchy VARCHAR,
     date_type varchar,
     start_date timestamp,
     end_date timestamp
-  );`;
+  );`,
+    tableName,
+    factTableColumn.columnName,
+    factTableColumn.columnDatatype
+  );
 };
 
 // This is a short version of validate date dimension code found in the dimension processor.
@@ -552,7 +556,7 @@ export async function createDateDimension(
   }
   const safeColumnName = makeCubeSafeString(factTableColumn.columnName);
   const columnData: QueryResult<RowData> = await connection.query(
-    pgformat(`SELECT DISTINCT %I FROM %I;`, safeColumnName, FACT_TABLE_NAME)
+    pgformat(`SELECT DISTINCT %I FROM %I;`, factTableColumn.columnName, FACT_TABLE_NAME)
   );
   const dateDimensionTable = dateDimensionReferenceTableCreator(extractor as DateExtractor, columnData.rows);
   await connection.query(createDatePeriodTableQuery(factTableColumn));
@@ -576,35 +580,35 @@ export async function createDateDimension(
     }
   }
 
-  const periodCoverage: QueryResult<{ startDate: Date; endDate: Date }> = await connection.query(
-    `SELECT MIN(start_date) as startDate, MAX(end_date) as endDate FROM ${safeColumnName}_lookup;`
+  const periodCoverage: QueryResult<{ start_date: Date; end_date: Date }> = await connection.query(
+    `SELECT MIN(start_date) AS start_date, MAX(end_date) AS end_date FROM ${safeColumnName}_lookup;`
   );
-
-  const zonedStartDate = toZonedTime(periodCoverage.rows[0].startDate, 'UTC');
-  const zonedEndDate = toZonedTime(periodCoverage.rows[0].endDate, 'UTC');
-  logger.debug(`Period coverage: ${zonedStartDate} to ${zonedEndDate}`);
-
   const metaDataCoverage: QueryResult<{ key: string; value: string }> = await connection.query(
     "SELECT * FROM metadata WHERE key in ('start_date', 'end_date');"
   );
+  logger.debug(`coverage: ${metaDataCoverage.rows.length}`);
   if (metaDataCoverage.rows.length > 0) {
     for (const metaData of metaDataCoverage.rows) {
       if (metaData.key === 'start_date') {
-        if (periodCoverage.rows[0].startDate < toZonedTime(metaData.value, 'UTC')) {
-          await connection.query(`UPDATE metadata SET value='${formatISO(zonedStartDate)}' WHERE key='start_date';`);
+        if (periodCoverage.rows[0].start_date < toZonedTime(metaData.value, 'UTC')) {
+          await connection.query(
+            `UPDATE metadata SET value='${periodCoverage.rows[0].start_date.toISOString()}' WHERE key='start_date';`
+          );
         }
       } else if (metaData.key === 'end_date') {
-        if (periodCoverage.rows[0].endDate > toZonedTime(metaData.value, 'UTC')) {
-          await connection.query(`UPDATE metadata SET value='${formatISO(zonedEndDate)}' WHERE key='end_date';`);
+        if (periodCoverage.rows[0].end_date > toZonedTime(metaData.value, 'UTC')) {
+          await connection.query(
+            `UPDATE metadata SET value='${periodCoverage.rows[0].start_date.toISOString()}' WHERE key='end_date';`
+          );
         }
       }
     }
   } else {
     await connection.query(
-      `INSERT INTO metadata (key, value) VALUES ('start_date', '${formatISO(toZonedTime(periodCoverage.rows[0].startDate, 'UTC'))}');`
+      `INSERT INTO metadata (key, value) VALUES ('start_date', '${periodCoverage.rows[0].start_date.toISOString()}');`
     );
     await connection.query(
-      `INSERT INTO metadata (key, value) VALUES ('end_date', '${formatISO(toZonedTime(periodCoverage.rows[0].endDate, 'UTC'))}');`
+      `INSERT INTO metadata (key, value) VALUES ('end_date', '${periodCoverage.rows[0].start_date.toISOString()}');`
     );
   }
   return `${makeCubeSafeString(factTableColumn.columnName)}_lookup`;
@@ -740,7 +744,7 @@ export async function loadFileIntoLookupTablesSchema(
   logger.debug(`Dropping original lookup table ${lookupTableName}`);
   await quack.exec(pgformat('DROP TABLE %I', lookupTableName));
   await linkToPostgresLookupTables(quack);
-  await quack.exec(pgformat('CREATE TABLE lookup_table_db.%I AS SELECT * FROM %I;', lookupTable.id, dimTable));
+  await quack.exec(pgformat('CREATE TABLE lookup_tables_db.%I AS SELECT * FROM memory.%I;', lookupTable.id, dimTable));
   await quack.close();
   performanceReporting(start - performance.now(), 500, 'Loading a lookup table in to postgres');
 }
@@ -812,7 +816,9 @@ async function loadFactTablesWithUpdates(
       actionID,
       dataTable.id
     );
+    let doRevision = false;
     if (dataValuesColumn && notesCodeColumn) {
+      doRevision = true;
       updateQuery = pgformat(
         `UPDATE %I SET %I=%I.%I,
       %I=(CASE
@@ -840,14 +846,7 @@ async function loadFactTablesWithUpdates(
         updateTableDataCol
       );
     } else {
-      if (!dataValuesColumn && !notesCodeColumn) {
-        logger.error('Undefined dataValueColumn and notesCodeColumn');
-      } else if (!dataValuesColumn) {
-        logger.error('Undefined dataValueColumn');
-      } else {
-        logger.error('Undefined notesCodeColumn');
-      }
-      throw new CubeValidationException('Undefined dataValueColumn or notesCodeColumn');
+      logger.warn('No notes code or data value columns defined.  Unable to perform revision actions.');
     }
     const dataTableColumnSelect: string[] = [];
 
@@ -868,24 +867,27 @@ async function loadFactTablesWithUpdates(
           await loadTableDataIntoFactTableFromPostgres(connection, factTableDef, FACT_TABLE_NAME, dataTable.id);
           break;
         case DataTableAction.Revise:
+          if (!doRevision) continue;
           logger.debug(`Executing create temporary update table query: ${createUpdateTableQuery}`);
           await connection.query(createUpdateTableQuery);
           logger.debug(`Executing update query: ${updateQuery}`);
           await connection.query(updateQuery);
           break;
         case DataTableAction.AddRevise:
-          logger.debug(`Executing create temporary update table query: ${createUpdateTableQuery}`);
-          await connection.query(createUpdateTableQuery);
-          logger.debug(`Executing update query: ${updateQuery}`);
-          await connection.query(updateQuery);
-          await connection.query(
-            pgformat(
-              `DELETE FROM %I USING %I WHERE %s`,
-              actionID,
-              FACT_TABLE_NAME,
-              setupFactTableUpdateJoins(FACT_TABLE_NAME, factIdentifiers, dataTable.dataTableDescriptions)
-            )
-          );
+          if (!doRevision) {
+            logger.debug(`Executing create temporary update table query: ${createUpdateTableQuery}`);
+            await connection.query(createUpdateTableQuery);
+            logger.debug(`Executing update query: ${updateQuery}`);
+            await connection.query(updateQuery);
+            await connection.query(
+              pgformat(
+                `DELETE FROM %I USING %I WHERE %s`,
+                actionID,
+                FACT_TABLE_NAME,
+                setupFactTableUpdateJoins(FACT_TABLE_NAME, factIdentifiers, dataTable.dataTableDescriptions)
+              )
+            );
+          }
           await connection.query(
             pgformat(
               'INSERT INTO %I (%I) (SELECT %I FROM %I);',
@@ -1019,7 +1021,7 @@ async function createNotesTable(
     // We perform join operations to this view as we want to turn a csv such as `a,r` in to `Average, Revised`.
     await connection.query(
       `CREATE TABLE all_notes AS SELECT fact_table."${notesColumn.columnName}" as code, note_codes.language as language, string_agg(DISTINCT note_codes.description, ', ') as description
-            from fact_table JOIN note_codes ON LIST_CONTAINS(string_split(fact_table."${notesColumn.columnName}", ','), note_codes.code)
+            from fact_table JOIN note_codes ON array_position(string_to_array(fact_table."${notesColumn.columnName}", ','), note_codes.code) IS NOT NULL
             GROUP BY fact_table."${notesColumn.columnName}", note_codes.language;`
     );
   } catch (error) {
@@ -1094,9 +1096,10 @@ function postgresMeasureFormats(): Map<string, MeasureFormat> {
 }
 
 export const measureTableCreateStatement = (joinColumnType: string, tableName = 'measure'): string => {
-  return `
-    CREATE TABLE ${tableName} (
-      reference ${joinColumnType},
+  return pgformat(
+    `
+    CREATE TABLE %I (
+      reference %s,
       language TEXT,
       description TEXT,
       notes TEXT,
@@ -1104,9 +1107,13 @@ export const measureTableCreateStatement = (joinColumnType: string, tableName = 
       format TEXT,
       decimals INTEGER,
       measure_type TEXT,
-      hierarchy ${joinColumnType}
+      hierarchy %s
     );
-  `;
+  `,
+    tableName,
+    joinColumnType,
+    joinColumnType
+  );
 };
 
 export async function createMeasureLookupTable(
@@ -1627,9 +1634,8 @@ export async function createEmptyFactTableInCube(
       FACT_TABLE_NAME,
       factTableCreationDef.join(', ')
     );
-    const createQuery = pgformat(`CALL postgres_execute('postgres_db', %L);`, factTableCreationQuery);
     // logger.debug(`Creating fact table with query: '${createQuery}'`);
-    await connection.query(createQuery);
+    await connection.query(factTableCreationQuery);
   } catch (err) {
     logger.error(err, `Failed to create fact table in cube`);
     throw new Error(`Failed to create fact table in cube: ${err}`);
@@ -1735,10 +1741,10 @@ async function createFilterTable(connection: PoolClient): Promise<void> {
 export const createBasePostgresCube = async (
   connection: PoolClient,
   buildId: string,
-  datasetId: string,
-  endRevisionId: string
+  dataset: Dataset,
+  endRevision: Revision
 ): Promise<void> => {
-  logger.debug(`Starting build ${buildId} and Creating base cube for revision ${endRevisionId}`);
+  logger.debug(`Starting build ${buildId} and Creating base cube for revision ${endRevision.id}`);
   await connection.query(pgformat(`SET search_path TO %I;`, buildId));
   const functionStart = performance.now();
   const viewSelectStatementsMap = new Map<Locale, string[]>();
@@ -1752,27 +1758,15 @@ export const createBasePostgresCube = async (
   const joinStatements: string[] = [];
   const orderByStatements: string[] = [];
 
-  const datasetRelations: FindOptionsRelations<Dataset> = {
-    factTable: true,
-    dimensions: { metadata: true, lookupTable: true },
-    measure: { metadata: true, measureTable: true },
-    revisions: { dataTable: { dataTableDescriptions: true } }
-  };
-
-  const endRevisionRelations: FindOptionsRelations<Revision> = {
-    dataTable: { dataTableDescriptions: true }
-  };
-
-  const dataset = await DatasetRepository.getById(datasetId, datasetRelations);
-  const endRevision = await RevisionRepository.getById(endRevisionId, endRevisionRelations);
+  logger.debug('Finding first revision');
   const firstRevision = dataset.revisions.find((rev) => rev.revisionIndex === 1);
 
   if (!firstRevision) {
     const err = new CubeValidationException(
-      `Could not find first revision for dataset ${datasetId} in revision ${endRevisionId}`
+      `Could not find first revision for dataset ${dataset.id} in revision ${endRevision.id}`
     );
     err.type = CubeValidationType.NoFirstRevision;
-    err.datasetId = datasetId;
+    err.datasetId = dataset.id;
     throw new Error(`Unable to find first revision for dataset ${dataset.id}`);
   }
 
@@ -1827,13 +1821,15 @@ export const createBasePostgresCube = async (
   }
   performanceReporting(Math.round(performance.now() - measureSetupMark), 1000, 'Setting up the measure');
 
-  const loadReferenceDataMark = performance.now();
-  await loadReferenceDataIntoCube(connection);
-  performanceReporting(
-    Math.round(performance.now() - loadReferenceDataMark),
-    1000,
-    'Loading reference data in to cube'
-  );
+  if (dataset.dimensions.find((dim) => dim.type === DimensionType.ReferenceData)) {
+    const loadReferenceDataMark = performance.now();
+    await loadReferenceDataIntoCube(connection);
+    performanceReporting(
+      Math.round(performance.now() - loadReferenceDataMark),
+      1000,
+      'Loading reference data in to cube'
+    );
+  }
 
   const dimensionSetupMark = performance.now();
   try {
@@ -1880,25 +1876,23 @@ export const createBasePostgresCube = async (
       const lang = locale.toLowerCase().split('-')[0];
 
       const defaultViewSQL = pgformat(
-        'CREATE VIEW %I AS SELECT %s FROM %I %s %s',
-        `default_view_${lang}`,
+        'SELECT %s FROM %I %s %s',
         viewSelectStatementsMap.get(locale)?.join(',\n'),
         FACT_TABLE_NAME,
         joinStatements.join('\n').replace(/#LANG#/g, pgformat('%L', locale.toLowerCase())),
         orderByStatements.length > 0 ? `ORDER BY ${orderByStatements.join(', ')}` : ''
       );
-      await connection.query(defaultViewSQL);
+      await connection.query(pgformat('CREATE VIEW %I AS %s', `default_view_${lang}`, defaultViewSQL));
       await connection.query(pgformat(`INSERT INTO metadata VALUES (%L, %L)`, `default_view_${lang}`, defaultViewSQL));
 
       const rawViewSQL = pgformat(
-        'CREATE VIEW %I AS SELECT %s FROM %I %s %s',
-        `raw_view_${lang}`,
+        'SELECT %s FROM %I %s %s',
         rawSelectStatementsMap.get(locale)?.join(',\n'),
         FACT_TABLE_NAME,
         joinStatements.join('\n').replace(/#LANG#/g, pgformat('%L', locale.toLowerCase())),
         orderByStatements.length > 0 ? `ORDER BY ${orderByStatements.join(', ')}` : ''
       );
-      await connection.query(rawViewSQL);
+      await connection.query(pgformat('CREATE VIEW %I AS %s', `raw_view_${lang}`, rawViewSQL));
       await connection.query(pgformat(`INSERT INTO metadata VALUES (%L, %L)`, `raw_view_${lang}`, rawViewSQL));
     }
     await connection.query(`UPDATE metadata SET value = 'awaiting_materialization' WHERE key = 'build_status'`);
@@ -1909,9 +1903,8 @@ export const createBasePostgresCube = async (
     const exception = new CubeValidationException('Cube Build Failed');
     exception.type = CubeValidationType.CubeCreationFailed;
     throw exception;
-  } finally {
-    connection.release();
   }
+
   performanceReporting(Math.round(performance.now() - viewCreation), 3000, 'Setting up the default views');
   const end = performance.now();
   const functionTime = Math.round(end - functionStart);
@@ -1957,22 +1950,23 @@ export const createMaterialisedView = async (revisionId: string): Promise<void> 
   try {
     for (const locale of SUPPORTED_LOCALES) {
       const lang = locale.toLowerCase().split('-')[0];
-
-      const defaultViewSQL = pgformat(
-        'CREATE MATERIALIZED VIEW %I AS SELECT * FROM %I;',
-        `default_mat_view_${lang}`,
-        `default_view_${lang}`
+      const originalDefaultViewMetadata: QueryResult<{ value: string }> = await connection.query(
+        pgformat('SELECT value FROM metadata WHERE key = %L', `default_view_${lang}`)
       );
-      logger.debug(defaultViewSQL);
-      await connection.query(defaultViewSQL);
-
-      const rawViewSQL = pgformat(
-        'CREATE MATERIALIZED VIEW %I AS SELECT * FROM %I;',
-        `raw_mat_view_${lang}`,
-        `raw_view_${lang}`
+      await connection.query(
+        pgformat(
+          'CREATE MATERIALIZED VIEW %I AS %s',
+          `default_mat_view_${lang}`,
+          originalDefaultViewMetadata.rows[0].value
+        )
       );
-      logger.debug(rawViewSQL);
-      await connection.query(rawViewSQL);
+
+      const originalRawViewMetadata: QueryResult<{ value: string }> = await connection.query(
+        pgformat('SELECT value FROM metadata WHERE key = %L', `raw_view_${lang}`)
+      );
+      await connection.query(
+        pgformat('CREATE MATERIALIZED VIEW %I AS %s', `raw_mat_view_${lang}`, originalRawViewMetadata.rows[0].value)
+      );
     }
     await connection.query(`UPDATE metadata SET value = 'complete' WHERE key = 'build_status'`);
     await connection.query(`INSERT INTO metadata VALUES('build_finished', '${new Date().toISOString()}')`);
@@ -1991,6 +1985,22 @@ export const createMaterialisedView = async (revisionId: string): Promise<void> 
 };
 
 export const createAllCubeFiles = async (datasetId: string, endRevisionId: string): Promise<void> => {
+  const datasetRelations: FindOptionsRelations<Dataset> = {
+    factTable: true,
+    dimensions: { metadata: true, lookupTable: true },
+    measure: { metadata: true, measureTable: true },
+    revisions: { dataTable: { dataTableDescriptions: true } }
+  };
+
+  const endRevisionRelations: FindOptionsRelations<Revision> = {
+    dataTable: { dataTableDescriptions: true }
+  };
+
+  logger.debug('Loading dataset and relations');
+  const dataset = await DatasetRepository.getById(datasetId, datasetRelations);
+  logger.debug('Loading revision and relations');
+  const endRevision = await RevisionRepository.getById(endRevisionId, endRevisionRelations);
+
   const connection = await getCubeDB().connect();
   const buildId = crypto.randomUUID();
 
@@ -2005,9 +2015,9 @@ export const createAllCubeFiles = async (datasetId: string, endRevisionId: strin
 
   try {
     logger.debug('Creating cube in postgres.');
-    await createBasePostgresCube(connection, buildId, datasetId, endRevisionId);
-    await connection.query(pgformat('DROP SCHEMA IF EXISTS %I;', endRevisionId));
-    await connection.query(pgformat('ALTER SCHEMA %I RENAME TO %I;', buildId, endRevisionId));
+    await createBasePostgresCube(connection, buildId, dataset, endRevision);
+    await connection.query(pgformat('DROP SCHEMA IF EXISTS %I CASCADE;', endRevision.id));
+    await connection.query(pgformat('ALTER SCHEMA %I RENAME TO %I;', buildId, endRevision.id));
   } catch (err) {
     logger.error(err, 'Failed to create cube in Postgres');
     throw err;

@@ -42,8 +42,10 @@ describe('API Endpoints for viewing the contents of a dataset', () => {
       dbManager = await initDb();
       queryRunner = dbManager.getDataSource().createQueryRunner();
       await queryRunner.dropSchema('data_tables', true, true);
+      await queryRunner.dropSchema('lookup_tables', true, true);
       await queryRunner.dropSchema(revision1Id, true, true);
       await queryRunner.createSchema('data_tables', true);
+      await queryRunner.createSchema('lookup_tables', true);
       await initPassport(dbManager.getDataSource());
       userGroup = await dbManager.getDataSource().getRepository(UserGroup).save(userGroup);
       user.groupRoles = [UserGroupRole.create({ group: userGroup, roles: [GroupRole.Editor] })];

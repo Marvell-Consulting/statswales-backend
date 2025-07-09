@@ -271,7 +271,6 @@ async function createMeasureTable(
       await quack.exec(
         pgformat(
           'UPDATE measure SET language = %L WHERE language = lower(%L)',
-          revisionId,
           locale.toLowerCase(),
           locale.split('-')[0]
         )
@@ -279,7 +278,6 @@ async function createMeasureTable(
       await quack.exec(
         pgformat(
           'UPDATE measure SET language = %L WHERE language = lower(%L)',
-          revisionId,
           locale.toLowerCase(),
           locale.toLowerCase()
         )
@@ -288,14 +286,12 @@ async function createMeasureTable(
         await quack.exec(
           pgformat(
             'UPDATE measure SET language = %L WHERE language = lower(%L)',
-            revisionId,
             sublocale.toLowerCase(),
             t(`language.${sublocale.split('-')[0]}`, { lng: locale })
           ).toLowerCase()
         );
       }
     }
-    await quack.exec(`DROP TABLE ${lookupTableName};`);
   } catch (err) {
     logger.error(err, `Something went wrong trying to extract the lookup tables contents to measure.`);
     const error = err as DuckDbError;
@@ -336,14 +332,15 @@ async function createMeasureTable(
 
   try {
     await linkToPostgresLookupTables(quack);
-    await quack.exec(pgformat('CREATE TABLE lookup_tables_db.%I AS SELECT * FROM measure;', measureId));
+    await quack.exec(pgformat('DROP TABLE IF EXISTS %I', measureId));
+    await quack.exec(pgformat('CREATE TABLE lookup_tables_db.%I AS SELECT * FROM memory.measure;', measureId));
   } catch (err) {
     logger.error(err, 'Something went wrong trying to copy the measure table to postgres');
     await quack.close();
     throw new FileValidationException('errors.measure_validation.copy_failure', FileValidationErrorType.unknown);
   }
 
-  const tableContents = await quack.all(`SELECT * FROM measure;`);
+  const tableContents = await quack.all(`SELECT * FROM memory.measure;`);
   for (const row of tableContents) {
     const item = new MeasureRow();
     item.reference = row.reference;
@@ -455,13 +452,24 @@ export const validateMeasureLookupTable = async (
       mismatch: false
     });
   }
-
   logger.debug('Copying lookup table from lookup_tables schema into cube');
   const actionId = crypto.randomUUID();
   try {
     await connection.query(measureTableCreateStatement(measureColumn.columnDatatype, actionId));
     for (const row of measureTable) {
-      await connection.query(pgformat('INSERT INTO %I VALUES (%L);', actionId, Object.values(row)));
+      logger.debug(`Inserting into measure table ${JSON.stringify(row)}`);
+      const values = [
+        row.reference,
+        row.language,
+        row.description,
+        row.notes,
+        row.sortOrder,
+        row.format,
+        row.decimal,
+        row.measureType,
+        row.hierarchy
+      ];
+      await connection.query(pgformat('INSERT INTO %I VALUES (%L);', actionId, values));
     }
   } catch (error) {
     await lookupTable.remove();
@@ -478,7 +486,7 @@ export const validateMeasureLookupTable = async (
     dataset,
     updatedMeasure.factTableColumn,
     'reference',
-    'measure',
+    actionId,
     factTableName,
     'measure'
   );
@@ -494,7 +502,7 @@ export const validateMeasureLookupTable = async (
     dataset,
     draftRevision.id,
     'reference',
-    'measure',
+    actionId,
     'measure'
   );
   if (languageErrors) {
@@ -504,7 +512,7 @@ export const validateMeasureLookupTable = async (
     return languageErrors;
   }
 
-  const tableValidationErrors = await validateMeasureTableContent(connection, dataset.id, 'measure', extractor);
+  const tableValidationErrors = await validateMeasureTableContent(connection, dataset.id, actionId, extractor);
   if (tableValidationErrors) {
     await lookupTable.remove();
     await connection.query(pgformat('DROP TABLE %I;', actionId));
@@ -521,7 +529,7 @@ export const validateMeasureLookupTable = async (
   try {
     logger.debug(`Generating preview of measure table`);
     const previewQuery = pgformat(
-      'SELECT reference, description, notes, sort_order, format, decimals, measure_type, hierarchy FROM %I WHERE languague = %L;',
+      'SELECT reference, description, notes, sort_order, format, decimals, measure_type, hierarchy FROM %I WHERE language = %L;',
       actionId,
       lang
     );
@@ -616,7 +624,7 @@ async function getMeasurePreviewWithExtractor(
   await connection.query(pgformat(`SET search_path TO %I;`, revision.id));
   try {
     const previewQuery = pgformat(
-      'SELECT reference, description, notes, sort_order, format, decimals, measure_type, hierarchy FROM %I WHERE languague = %L;',
+      'SELECT reference, description, notes, sort_order, format, decimals, measure_type, hierarchy FROM %I WHERE language = %L;',
       'measure',
       lang
     );

@@ -358,7 +358,7 @@ export const validateLookupTable = async (
   await updatedDimension.save();
 
   try {
-    const previewQuery = pgformat('SELECT * FROM lookup_tables.%I WHERE language = %L;', lookupTable.id);
+    const previewQuery = pgformat('SELECT * FROM lookup_tables.%I WHERE language = %L;', lookupTable.id, language);
     const dimensionTable = await connection.query(previewQuery);
     const tableHeaders = Object.keys(dimensionTable.rows[0]);
     const dataArray = dimensionTable.rows.map((row) => Object.values(row));

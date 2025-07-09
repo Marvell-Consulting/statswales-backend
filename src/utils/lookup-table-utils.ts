@@ -150,9 +150,7 @@ export const validateLookupTableLanguages = async (
       lookupTableName,
       joinColumn
     );
-    const execQuery = pgformat(`CALL postgres_execute(%I, %L);`, 'postgres_db', alterTableQuery);
-    // logger.debug(`Executing query: ${execQuery}`);
-    await connection.query(execQuery);
+    await connection.query(alterTableQuery);
   } catch (error) {
     logger.error(error, `Something went wrong trying to add primary key to lookup table`);
     return viewErrorGenerators(400, dataset.id, 'patch', `errors.${validationType}_validation.primary_key_failed`, {});
@@ -160,12 +158,21 @@ export const validateLookupTableLanguages = async (
 
   try {
     logger.debug(`Checking language counts match total number of supported languages`);
+    const missingLanguageRowsQuery = pgformat(
+      `
+      SELECT * FROM (SELECT %I as join_column, COUNT(language) as lang_count, STRING_AGG(language, ',') as languages
+      FROM %I
+      GROUP BY %I) WHERE lang_count < ${SUPPORTED_LOCALES.length};
+    `,
+      joinColumn,
+      lookupTableName,
+      joinColumn
+    );
+    logger.debug(
+      `Checking language counts match total number of supported languages using query:\n${missingLanguageRowsQuery}\n`
+    );
     const missingLanguageRows: QueryResult<{ join_column: string; lang_count: number; languages: string }> =
-      await connection.query(`
-      SELECT "${joinColumn}" as join_column, COUNT(language) as lang_count, STRING_AGG(language, ',') as languages
-      FROM "${lookupTableName}"
-      GROUP BY "${joinColumn}" HAVING lang_count < ${SUPPORTED_LOCALES.length};
-    `);
+      await connection.query(missingLanguageRowsQuery);
     if (missingLanguageRows.rows.length > 0) {
       const missingLanguages: string[] = [];
       SUPPORTED_LOCALES.forEach((locale) => {
@@ -233,13 +240,24 @@ export const validateLookupTableReferenceValues = async (
 ): Promise<ViewErrDTO | undefined> => {
   try {
     logger.debug(`Validating the lookup table`);
-    const nonMatchedRows = await connection.query(
-      `SELECT line_number, fact_table_column, "${lookupTableName}"."${joinColumn}" as lookup_table_column
-            FROM (SELECT row_number() OVER () as line_number, "${factTableColumn}" as fact_table_column FROM
-            ${factTableName}) as fact_table LEFT JOIN "${lookupTableName}" ON
-            CAST(fact_table.fact_table_column AS VARCHAR)=CAST("${lookupTableName}"."${joinColumn}" AS VARCHAR)
-            WHERE lookup_table_column IS NULL;`
+    const nonmatchedRowsQuery = pgformat(
+      `SELECT line_number, fact_table_column, %I.%I as lookup_table_column
+            FROM (SELECT row_number() OVER () as line_number, %I as fact_table_column FROM
+            %I) as fact_table LEFT JOIN %I ON
+            CAST(fact_table.fact_table_column AS VARCHAR)=CAST(%I.%I AS VARCHAR)
+            WHERE %I.%I IS NULL;`,
+      lookupTableName,
+      joinColumn,
+      factTableColumn,
+      factTableName,
+      lookupTableName,
+      lookupTableName,
+      joinColumn,
+      lookupTableName,
+      joinColumn
     );
+    logger.debug(`Running non-matched query ${nonmatchedRowsQuery}`);
+    const nonMatchedRows = await connection.query(nonmatchedRowsQuery);
     logger.debug(`Number of rows from non matched rows query: ${nonMatchedRows.rows.length}`);
     const totals: QueryResult<{ total_rows: number }> = await connection.query(
       `SELECT COUNT(*) as total_rows FROM ${factTableName}`
@@ -310,7 +328,7 @@ export const validateLookupTableReferenceValues = async (
 async function checkDecimalColumn(connection: PoolClient, lookupTableName: string): Promise<string[]> {
   const unmatchedFormats: string[] = [];
   logger.debug('Decimal column is present. Validating contains only positive integers.');
-  const formats = await connection.query(`SELECT decimals FROM ${lookupTableName};`);
+  const formats = await connection.query(pgformat(`SELECT decimals FROM %I;`, lookupTableName));
   for (const format of Object.values(formats.rows.map((format) => format.decimals))) {
     if (format < 0) unmatchedFormats.push(format);
   }
@@ -321,7 +339,7 @@ async function checkFormatColumn(connection: PoolClient, lookupTableName: string
   const unmatchedFormats: string[] = [];
   logger.debug('Format column is present. Validating it contains only known formats.');
   const formats: QueryResult<{ format: string }> = await connection.query(
-    `SELECT DISTINCT format FROM ${lookupTableName};`
+    pgformat(`SELECT DISTINCT format FROM %I;`, lookupTableName)
   );
   // logger.debug(`Formats = ${JSON.stringify(Object.values(DataValueFormat), null, 2)}`);
   for (const format of Object.values(formats.rows.map((format) => format.format))) {

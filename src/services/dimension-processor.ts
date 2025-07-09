@@ -435,7 +435,13 @@ export const validateUpdatedDateDimension = async (
   dimension: Dimension,
   factTableColumn: FactTableColumn
 ): Promise<undefined> => {
-  const errors = await validateDateDimension(connection, dataset, dimension, factTableColumn);
+  const errors = await validateDateDimension(
+    connection,
+    dataset,
+    dimension,
+    factTableColumn,
+    `${makeCubeSafeString(factTableColumn.columnName)}_lookup`
+  );
   if (errors) {
     const err = new CubeValidationException('Validation failed');
     err.type = CubeValidationType.DimensionNonMatchedRows;
@@ -448,7 +454,8 @@ export const validateDateDimension = async (
   connection: PoolClient,
   dataset: Dataset,
   dimension: Dimension,
-  factTableColumn: FactTableColumn
+  factTableColumn: FactTableColumn,
+  lookupTableName: string
 ): Promise<ViewErrDTO | undefined> => {
   const extractor = dimension.extractor as DateExtractor;
   const tableName = 'fact_table';
@@ -456,15 +463,15 @@ export const validateDateDimension = async (
     const preview = await connection.query(`SELECT DISTINCT "${dimension.factTableColumn}" FROM ${tableName};`);
     // Now validate everything matches
     const matchingQuery = `SELECT
-        line_number, fact_table_date, "${makeCubeSafeString(factTableColumn.columnName)}_lookup"."${factTableColumn.columnName}"
+        line_number, fact_table_date, "${lookupTableName}"."${factTableColumn.columnName}"
       FROM (
         SELECT
           row_number() OVER () as line_number, "${dimension.factTableColumn}" as fact_table_date
         FROM
           ${tableName}
       ) as fact_table
-      LEFT JOIN "${makeCubeSafeString(factTableColumn.columnName)}_lookup"
-      ON fact_table.fact_table_date="${makeCubeSafeString(factTableColumn.columnName)}_lookup"."${factTableColumn.columnName}"
+      LEFT JOIN "${lookupTableName}"
+      ON fact_table.fact_table_date="${lookupTableName}"."${factTableColumn.columnName}"
       WHERE "${factTableColumn.columnName}" IS NULL;`;
     // logger.debug(`Matching query is:\n${matchingQuery}`);
 
@@ -488,8 +495,8 @@ export const validateDateDimension = async (
               SELECT
                 row_number() OVER () as line_number, "${dimension.factTableColumn}" as fact_table_date
               FROM ${tableName}) AS fact_table
-              LEFT JOIN "${makeCubeSafeString(factTableColumn.columnName)}_lookup"
-              ON fact_table.fact_table_date="${makeCubeSafeString(factTableColumn.columnName)}_lookup"."${factTableColumn.columnName}"
+              LEFT JOIN "${lookupTableName}"
+              ON fact_table.fact_table_date="${lookupTableName}"."${factTableColumn.columnName}"
              WHERE "${factTableColumn.columnName}" IS NULL;`;
         const nonMatchedRowSample: QueryResult<{ fact_table_date: string }> =
           await connection.query(nonMatchingRowsQuery);
@@ -609,14 +616,14 @@ export const createAndValidateDateDimension = async (
     });
   }
 
-  const validationErrors = await validateDateDimension(connection, dataset, dimension, factTableColumn);
+  const validationErrors = await validateDateDimension(connection, dataset, dimension, factTableColumn, actionId);
   if (validationErrors) {
     connection.release();
     return validationErrors;
   }
 
   const coverage: QueryResult<{ start_date: Date; end_date: Date }> = await connection.query(
-    `SELECT MIN(start_date) as start_date, MAX(end_date) AS end_date FROM ${makeCubeSafeString(factTableColumn.columnName)}_lookup;`
+    pgformat(`SELECT MIN(start_date) as start_date, MAX(end_date) AS end_date FROM %I;`, actionId)
   );
   const updateDataset = await Dataset.findOneByOrFail({ id: dataset.id });
   updateDataset.startDate = coverage.rows[0].start_date;
@@ -629,10 +636,11 @@ export const createAndValidateDateDimension = async (
   await updateDimension.save();
   try {
     const previewQuery = pgformat(
-      'SELECT DISTINCT %I.* FROM %I LEFT JOIN fact_table ON %I.%I=fact_table.%I WHERE languague = %L;',
+      'SELECT DISTINCT %I.* FROM %I LEFT JOIN fact_table ON %I.%I=fact_table.%I WHERE language = %L;',
       actionId,
       actionId,
       actionId,
+      factTableColumn.columnName,
       factTableColumn.columnName,
       language
     );
@@ -810,22 +818,26 @@ async function getLookupPreviewWithExtractor(
   const safeColName = makeCubeSafeString(dimension.factTableColumn);
   const lookupTableName = `${safeColName}_lookup`;
   const lookupTableSize: QueryResult<{ total_rows: number }> = await connection.query(
-    `SELECT COUNT(*) as total_rows FROM %I WHERE language = '${language.toLowerCase()}'`
+    pgformat(`SELECT COUNT(*) as total_rows FROM %I WHERE language = %L;`, lookupTableName, language)
   );
-  const tableDetails: QueryResult<{ columnName: string }> = await connection.query(
-    pgformat('SELECT column_name FROM information_schema.columns WHERE table_name = %L;', lookupTableName)
+  const tableDetails: QueryResult<{ column_name: string }> = await connection.query(
+    pgformat(
+      'SELECT column_name FROM information_schema.columns WHERE table_schema = %L AND table_name = %L;',
+      dataset.draftRevision!.id,
+      lookupTableName
+    )
   );
-  const columnNames = tableDetails.rows.filter((row) => row.columnName != 'language').map((row) => row.columnName);
+  const columnNames = tableDetails.rows.filter((row) => row.column_name != 'language').map((row) => row.column_name);
   const query = pgformat(
     `SELECT %I FROM %I WHERE language = %L ORDER BY sort_order, %I LIMIT %L;`,
     columnNames,
     lookupTableName,
-    language,
+    language.toLowerCase(),
     dimension.factTableColumn,
     sampleSize
   );
 
-  // logger.debug(`Querying the cube to get the preview using query ${query}`);
+  logger.debug(`Querying the cube to get the preview using query ${query}`);
   const dimensionTable = await connection.query(query);
   const tableHeaders = Object.keys(dimensionTable.rows[0]);
   const dataArray = dimensionTable.rows.map((row) => Object.values(row));

@@ -21,7 +21,11 @@ import { DatasetRepository } from '../../src/repositories/dataset';
 import { logger } from '../../src/utils/logger';
 import { Readable } from 'node:stream';
 import { getCubeDB } from '../../src/db/cube-db';
-import { createReferenceDataTablesInCube, loadReferenceDataFromCSV } from '../../src/services/cube-handler';
+import {
+  createAllCubeFiles,
+  createReferenceDataTablesInCube,
+  loadReferenceDataFromCSV
+} from '../../src/services/cube-handler';
 import { parse } from 'csv';
 
 export async function createSmallDataset(
@@ -32,7 +36,6 @@ export async function createSmallDataset(
   testFilePath = '../sample-files/csv/sure-start-short.csv',
   fileType = FileType.Csv
 ): Promise<Dataset> {
-  await createTestCube(revisionId, importId);
   const testFile = path.resolve(__dirname, testFilePath);
   const testFileBuffer = fs.readFileSync(testFile);
   let mimeType = 'text/csv';
@@ -130,12 +133,28 @@ export async function createSmallDataset(
     })
   }).save();
 
-  return DatasetRepository.save({
+  const savedDataset = await DatasetRepository.save({
     ...dataset,
     draftRevision: revision,
     startRevision: revision,
     endRevision: revision
   });
+
+  try {
+    await createTestCube(savedDataset.draftRevision.id, savedDataset.draftRevision.dataTable!.id);
+  } catch (err) {
+    logger.error(err);
+  }
+
+  const connection = await getCubeDB().connect();
+  try {
+    await createAllCubeFiles(savedDataset.id, revision.id);
+  } catch (error) {
+    logger.error(error);
+  } finally {
+    connection.release();
+  }
+  return savedDataset;
 }
 
 const sureStartShortDimensionDescriptor = [
