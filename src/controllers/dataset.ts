@@ -176,6 +176,9 @@ export const uploadDataTable = async (req: Request, res: Response, next: NextFun
     return;
   }
 
+  logger.info(`Processing data table upload for dataset ${dataset.id}...`);
+  logger.debug(`File received: ${tmpFile.originalname}, mimetype: ${tmpFile.mimetype}, size: ${tmpFile.size} bytes`);
+
   try {
     const updatedDataset = await req.datasetService.updateFactTable(dataset.id, tmpFile);
     const dto = DatasetDTO.fromDataset(updatedDataset);
