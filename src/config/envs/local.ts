@@ -56,6 +56,11 @@ export function getLocalConfig(): AppConfig {
     },
     storage: {
       store: (process.env.FILE_STORE as FileStore) || FileStore.DataLake
+    },
+    clamav: {
+      host: process.env.CLAMAV_HOST || 'localhost',
+      port: parseInt(process.env.CLAMAV_PORT || '3310', 10),
+      timeout: parseInt(process.env.CLAMAV_TIMEOUT || '60000', 10)
     }
   });
 }

@@ -282,7 +282,7 @@ export const getCSVPreview = async (
     );
     logger.debug(`Getting total lines and pages using query ${totalsQuery}`);
     const totals: QueryResult<{ total_lines: number; total_pages: number }> = await connection.query(totalsQuery);
-    const totalPages = Number(totals.rows[0].total_pages);
+    const totalPages = Number(totals.rows[0].total_pages) === 0 ? 1 : Number(totals.rows[0].total_pages);
     const totalLines = Number(totals.rows[0].total_lines);
     const errors = validateParams(page, totalPages, size);
 

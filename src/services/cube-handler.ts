@@ -32,7 +32,7 @@ import { RevisionRepository } from '../repositories/revision';
 import { PeriodCovered } from '../interfaces/period-covered';
 
 import { dateDimensionReferenceTableCreator } from './time-matching';
-import { duckdb, linkToPostgresLookupTables, safelyCloseDuckDb } from './duckdb';
+import { duckdb, linkToPostgresDataTables, linkToPostgresLookupTables, safelyCloseDuckDb } from './duckdb';
 import { NumberExtractor, NumberType } from '../extractors/number-extractor';
 import { CubeValidationType } from '../enums/cube-validation-type';
 import { languageMatcherCaseStatement } from '../utils/lookup-table-utils';
@@ -749,6 +749,28 @@ export async function loadFileIntoLookupTablesSchema(
   performanceReporting(start - performance.now(), 500, 'Loading a lookup table in to postgres');
 }
 
+export async function loadFileIntoDataTablesSchema(
+  dataset: Dataset,
+  dataTable: DataTable,
+  filePath?: string
+): Promise<void> {
+  const start = performance.now();
+  const quack = await duckdb();
+  let dataTableFile = '';
+  if (filePath) {
+    dataTableFile = filePath;
+  } else {
+    dataTableFile = await getFileImportAndSaveToDisk(dataset, dataTable);
+  }
+  await loadFileIntoCube(quack, dataTable.fileType, dataTableFile, FACT_TABLE_NAME);
+  await linkToPostgresDataTables(quack);
+  await quack.exec(
+    pgformat('CREATE TABLE data_tables_db.%I AS SELECT * FROM memory.%I;', dataTable.id, FACT_TABLE_NAME)
+  );
+  await quack.close();
+  performanceReporting(start - performance.now(), 500, 'Loading a lookup table in to postgres');
+}
+
 export async function createLookupTableDimension(
   connection: PoolClient,
   dataset: Dataset,
@@ -765,7 +787,7 @@ export async function createLookupTableDimension(
   );
 
   if (lookupTablePresent.rows.length === 0) {
-    logger.warn('Lookup table not loaded in to lookup table schema.  Loading lookup table in to schema.');
+    logger.warn('Lookup table not loaded in to lookup table schema.  Loading lookup table from blob storage.');
     await loadFileIntoLookupTablesSchema(
       dataset,
       dimension.lookupTable!,
@@ -784,19 +806,23 @@ export async function createLookupTableDimension(
 
 function setupFactTableUpdateJoins(
   factTableName: string,
+  updateTableName: string,
   factIdentifiers: FactTableColumn[],
   dataTableIdentifiers: DataTableDescription[]
 ): string {
   const joinParts: string[] = [];
   for (const factTableCol of factIdentifiers) {
     const dataTableCol = dataTableIdentifiers.find((col) => col.factTableColumn === factTableCol.columnName);
-    joinParts.push(pgformat('%I.%I=update_table.%I', factTableName, factTableCol.columnName, dataTableCol?.columnName));
+    joinParts.push(
+      pgformat('%I.%I=%I.%I', factTableName, factTableCol.columnName, updateTableName, dataTableCol?.columnName)
+    );
   }
   return joinParts.join(' AND ');
 }
 
 async function loadFactTablesWithUpdates(
   connection: PoolClient,
+  dataset: Dataset,
   allDataTables: DataTable[],
   factTableDef: string[],
   dataValuesColumn: FactTableColumn | undefined,
@@ -805,6 +831,20 @@ async function loadFactTablesWithUpdates(
 ): Promise<void> {
   for (const dataTable of allDataTables.sort((ftA, ftB) => ftA.uploadedAt.getTime() - ftB.uploadedAt.getTime())) {
     const actionID = crypto.randomUUID();
+    logger.debug(`Checking data table data exists in postgres data_tables schema`);
+    const dataTablePresent: QueryResult = await connection.query(
+      pgformat(
+        'SELECT * FROM information_schema.tables WHERE table_schema = %L AND table_name = %L',
+        'data_tables',
+        dataTable.id
+      )
+    );
+
+    if (dataTablePresent.rows.length === 0) {
+      logger.warn('Data table not loaded in to data_tables schema.  Loading data table from blob storage.');
+      await loadFileIntoDataTablesSchema(dataset, dataTable);
+    }
+
     logger.info(`Loading fact table data for fact table ${dataTable.id}`);
     const updateTableDataCol = dataTable.dataTableDescriptions.find(
       (col) => col.factTableColumn === dataValuesColumn?.columnName
@@ -825,8 +865,8 @@ async function loadFactTablesWithUpdates(
       WHEN %I.%I IS NULL THEN 'r'
       WHEN %I.%I LIKE '%r%' THEN %I.%I
       ELSE concat(%I.%I,'r') END)
-      FROM update_table WHERE %s
-      AND %I.%I!=update_table.%I;`,
+      FROM %I WHERE %s
+      AND %I.%I!=%I.%I;`,
         FACT_TABLE_NAME,
         dataValuesColumn.columnName,
         actionID,
@@ -840,9 +880,11 @@ async function loadFactTablesWithUpdates(
         notesCodeColumn.columnName,
         FACT_TABLE_NAME,
         notesCodeColumn.columnName,
-        setupFactTableUpdateJoins(FACT_TABLE_NAME, factIdentifiers, dataTable.dataTableDescriptions),
+        actionID,
+        setupFactTableUpdateJoins(FACT_TABLE_NAME, actionID, factIdentifiers, dataTable.dataTableDescriptions),
         FACT_TABLE_NAME,
         dataValuesColumn.columnName,
+        actionID,
         updateTableDataCol
       );
     } else {
@@ -884,7 +926,7 @@ async function loadFactTablesWithUpdates(
                 `DELETE FROM %I USING %I WHERE %s`,
                 actionID,
                 FACT_TABLE_NAME,
-                setupFactTableUpdateJoins(FACT_TABLE_NAME, factIdentifiers, dataTable.dataTableDescriptions)
+                setupFactTableUpdateJoins(FACT_TABLE_NAME, actionID, factIdentifiers, dataTable.dataTableDescriptions)
               )
             );
           }
@@ -948,6 +990,7 @@ export async function loadFactTables(
     logger.debug(`Loading ${allFactTables.length} fact tables in to database with updates`);
     await loadFactTablesWithUpdates(
       connection,
+      dataset,
       allFactTables.reverse(),
       factTableDef,
       dataValuesColumn,
@@ -1596,10 +1639,13 @@ export async function createEmptyFactTableInCube(
   if (!dataset.factTable) {
     throw new Error(`Unable to find fact table for dataset ${dataset.id}`);
   }
-
+  logger.error(`Fact table def: ${JSON.stringify(dataset.factTable)}`);
   const notesCodeColumn = dataset.factTable?.find((field) => field.columnType === FactTableColumnType.NoteCodes);
   const dataValuesColumn = dataset.factTable?.find((field) => field.columnType === FactTableColumnType.DataValues);
   const measureColumn = dataset.factTable?.find((field) => field.columnType === FactTableColumnType.Measure);
+  logger.error(
+    `notesCodeColumn: ${JSON.stringify(notesCodeColumn)}, dataValuesColumn: ${JSON.stringify(dataValuesColumn)}, measureColumn: ${JSON.stringify(measureColumn)}`
+  );
 
   const factTable = dataset.factTable.sort((colA, colB) => colA.columnIndex - colB.columnIndex);
   const compositeKey: string[] = [];
@@ -1662,12 +1708,21 @@ export const updateFactTableValidator = async (
     factTableInfo.notesCodeColumn,
     factTableInfo.factIdentifiers
   );
+  await createPrimaryKeyOnFactTable(connection, revision, factTableInfo.compositeKey);
+};
+
+async function createPrimaryKeyOnFactTable(
+  connection: PoolClient,
+  revision: Revision,
+  compositeKey: string[]
+): Promise<void> {
+  logger.debug('Creating primary key on fact table');
   try {
     const alterTableQuery = pgformat(
       'ALTER TABLE %I.%I ADD PRIMARY KEY (%I)',
       revision.id,
       FACT_TABLE_NAME,
-      factTableInfo.compositeKey
+      compositeKey
     );
     logger.debug(`Alter Table query = ${alterTableQuery}`);
     await connection.query(alterTableQuery);
@@ -1685,17 +1740,21 @@ export const updateFactTableValidator = async (
       throw exception;
     } else {
       const exception = new CubeValidationException(
-        'An unknown error occured trying to add the primary key to the fact table'
+        'An unknown error occurred trying to add the primary key to the fact table'
       );
       exception.type = CubeValidationType.UnknownError;
       exception.revisionId = revision.id;
     }
   }
-};
+}
 
-async function createCubeMetadataTable(connection: PoolClient, revisionId: string, buildId: string): Promise<void> {
+export async function createCubeMetadataTable(
+  connection: PoolClient,
+  revisionId: string,
+  buildId: string
+): Promise<void> {
   logger.debug('Adding metadata table to the cube');
-  await connection.query(`CREATE TABLE metadata (key VARCHAR, value VARCHAR);`);
+  await connection.query(`CREATE TABLE IF NOT EXISTS metadata (key VARCHAR, value VARCHAR);`);
   await connection.query(pgformat('INSERT INTO metadata VALUES (%L, %L);', 'revision_id', revisionId));
   await connection.query(pgformat('INSERT INTO metadata VALUES (%L, %L);', 'build_id', buildId));
   await connection.query(pgformat('INSERT INTO metadata VALUES (%L, %L);', 'build_start', new Date().toISOString()));

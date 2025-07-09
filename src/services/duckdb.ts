@@ -50,8 +50,8 @@ export const linkToPostgresDataTables = async (quack: Database): Promise<void> =
       PASSWORD '${config.database.password}'
     );
   `);
-  await quack.exec(`ATTACH '' AS data_table_db (TYPE postgres, SCHEMA data_tables);`);
-  await quack.exec(`USE data_table_db;`);
+  await quack.exec(`ATTACH '' AS data_tables_db (TYPE postgres, SCHEMA data_tables);`);
+  await quack.exec(`USE data_tables_db;`);
 };
 
 export const linkToPostgresLookupTables = async (quack: Database): Promise<void> => {

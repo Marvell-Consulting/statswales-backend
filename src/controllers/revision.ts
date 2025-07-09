@@ -1,7 +1,5 @@
-import fs from 'node:fs';
 import { Readable } from 'node:stream';
 import { performance } from 'node:perf_hooks';
-import { pipeline } from 'node:stream/promises';
 
 import { NextFunction, Request, Response } from 'express';
 import { t } from 'i18next';
@@ -25,6 +23,7 @@ import { RevisionRepository } from '../repositories/revision';
 import { DuckdbOutputType } from '../enums/duckdb-outputs';
 import {
   createAllCubeFiles,
+  createCubeMetadataTable,
   createDateDimension,
   createLookupTableDimension,
   getPostgresCubePreview,
@@ -34,12 +33,7 @@ import {
   outputCube,
   updateFactTableValidator
 } from '../services/cube-handler';
-import {
-  DEFAULT_PAGE_SIZE,
-  extractTableInformation,
-  getCSVPreview,
-  validateAndUpload
-} from '../services/csv-processor';
+import { DEFAULT_PAGE_SIZE, getCSVPreview, validateAndUpload } from '../services/csv-processor';
 import { DataTableDescription } from '../entities/dataset/data-table-description';
 import { FactTableColumn } from '../entities/dataset/fact-table-column';
 import { DataTableAction } from '../enums/data-table-action';
@@ -57,15 +51,12 @@ import { NotAllowedException } from '../exceptions/not-allowed.exception';
 import { Dataset } from '../entities/dataset/dataset';
 import { SortByInterface } from '../interfaces/sort-by-interface';
 import { FilterInterface } from '../interfaces/filterInterface';
-import { FindOptionsRelations } from 'typeorm';
 import {
   createStreamingCSVFilteredView,
   createStreamingExcelFilteredView,
   createStreamingJSONFilteredView,
   getFilters
 } from '../services/consumer-view';
-import { asyncTmpName } from '../utils/async-tmp';
-import { FileType } from '../enums/file-type';
 import { cleanupTmpFile, uploadAvScan } from '../services/virus-scanner';
 import { TempFile } from '../interfaces/temp-file';
 import { getCubeDB } from '../db/cube-db';
@@ -267,6 +258,8 @@ async function attachUpdateDataTableToRevision(
     revisions: { dataTable: { dataTableDescriptions: true } }
   });
 
+  logger.error(`Found ${dataset.factTable?.length} fact table columns... ${JSON.stringify(dataset.factTable)}`);
+
   // Validate all the columns against the fact table
   if (columnMatcher) {
     const matchedColumns: string[] = [];
@@ -351,6 +344,7 @@ async function attachUpdateDataTableToRevision(
       throw new BadRequestException('errors.data_table_validation_error');
     }
     try {
+      await createCubeMetadataTable(connection, revision.id, buildId);
       switch (dimension.type) {
         case DimensionType.LookupTable:
           logger.debug(`Validating lookup table dimension: ${dimension.id}`);
@@ -376,7 +370,6 @@ async function attachUpdateDataTableToRevision(
           lookupTableUpdated: false
         });
       } else {
-        logger.debug('Closing DuckDB instance');
         const end = performance.now();
         const time = Math.round(end - start);
         logger.info(`Cube update validation took ${time}ms`);
@@ -401,7 +394,6 @@ async function attachUpdateDataTableToRevision(
 
   dataTable.revision = revision;
   await dataTable.save();
-  await createAllCubeFiles(dataset.id, revision.id);
 }
 
 export const updateDataTable = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
@@ -457,6 +449,15 @@ export const updateDataTable = async (req: Request, res: Response, next: NextFun
       const updateAction = req.body.update_action ? (req.body.update_action as DataTableAction) : DataTableAction.Add;
       await attachUpdateDataTableToRevision(datasetId, revision, dataTable, updateAction, columnMatcher);
     }
+    try {
+      logger.info('Revision update complete, creating cube files');
+      await createAllCubeFiles(datasetId, revision.id);
+    } catch (err) {
+      logger.error(err, `Something went wrong trying to create the cube`);
+      next(new UnknownException('errors.cube_builder.cube_build_failed'));
+      return;
+    }
+
     const updatedDataset = await DatasetRepository.getById(datasetId);
     res.status(201);
     res.json(DatasetDTO.fromDataset(updatedDataset));
@@ -600,57 +601,6 @@ export const withdrawFromPublication = async (req: Request, res: Response, next:
 export const regenerateRevisionCube = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   const datasetId: string = res.locals.datasetId;
   const revision: Revision = res.locals.revision;
-
-  const datasetRelations: FindOptionsRelations<Dataset> = {
-    revisions: {
-      dataTable: true
-    }
-  };
-  const dataset = await DatasetRepository.getById(datasetId, datasetRelations);
-  const revisionTree = dataset.revisions
-    .map((rev) => {
-      if (rev.id === revision.id) return rev;
-      else if (rev.revisionIndex > -1) return rev;
-      else return undefined;
-    })
-    .filter((rev) => !!rev)
-    .filter((rev) => !!rev?.dataTable);
-
-  for (const rev of revisionTree) {
-    if (!rev) {
-      continue;
-    }
-    logger.debug(`Recreating datatable ${rev.dataTable?.id} in postgres data_tables database`);
-    const tmpFilePath = await asyncTmpName({ postfix: rev.dataTable!.filename.split('.').reverse()[0] });
-    const downloadStream = await req.fileService.loadStream(rev.dataTable!.filename, dataset.id);
-    const writeStream = fs.createWriteStream(tmpFilePath);
-    const dataTable = rev.dataTable!;
-    const origEncoding = dataTable.encoding;
-
-    await pipeline(downloadStream, writeStream).catch((err) => {
-      logger.error(err, `An error occurred trying to save tmp local files for revision ${rev.id}`);
-      next(new UnknownException('errors.download_from_filestore'));
-      return;
-    });
-
-    const tmpFile: TempFile = {
-      originalname: rev.dataTable!.originalFilename || 'unknown',
-      mimetype: rev.dataTable!.mimeType,
-      path: tmpFilePath
-    };
-
-    try {
-      await extractTableInformation(tmpFile, rev.dataTable!, 'data_table');
-    } catch (err) {
-      logger.error(err, 'Something went wrong trying to process the CSV again and save to data_tables schema');
-      next(err);
-      return;
-    }
-
-    if (dataTable.fileType === FileType.Csv && dataTable.encoding !== origEncoding) {
-      await dataTable.save();
-    }
-  }
 
   try {
     await createAllCubeFiles(datasetId, revision.id);
