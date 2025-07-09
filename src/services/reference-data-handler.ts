@@ -40,18 +40,28 @@ async function validateUnknownReferenceDataItems(
   dataset: Dataset,
   dimension: Dimension
 ): Promise<ViewErrDTO | undefined> {
-  const nonMatchedRows = await connection.query(`
-              SELECT fact_table."${dimension.factTableColumn}", reference_data.item_id FROM fact_table
-              LEFT JOIN reference_data on reference_data.item_id=CAST(fact_table."${dimension.factTableColumn}" AS VARCHAR)
+  const nonMatchedRowsQuery = pgformat(
+    `
+              SELECT fact_table.%I, reference_data.item_id FROM fact_table
+              LEFT JOIN reference_data on reference_data.item_id=CAST(fact_table.%I AS VARCHAR)
               WHERE item_id IS NULL;
-    `);
+    `,
+    dimension.factTableColumn,
+    dimension.factTableColumn
+  );
+  const nonMatchedRows = await connection.query(nonMatchedRowsQuery);
   if (nonMatchedRows.rows.length > 0) {
     logger.error('The user has unknown items in their reference data column');
-    const nonMatchingDataTableValues = await connection.query(`
-              SELECT DISTINCT fact_table."${dimension.factTableColumn}", reference_data.item_id FROM fact_table
-              LEFT JOIN reference_data on reference_data.item_id=CAST(fact_table."${dimension.factTableColumn}" AS VARCHAR)
-              WHERE reference_data.item_id IS NULL;
-        `);
+    const nonMatchingDataTableValuesQuery = pgformat(
+      `
+            SELECT DISTINCT fact_table.%I, reference_data.item_id FROM fact_table
+            LEFT JOIN reference_data on reference_data.item_id=CAST(fact_table.%I AS VARCHAR)
+            WHERE reference_data.item_id IS NULL;
+        `,
+      dimension.factTableColumn,
+      dimension.factTableColumn
+    );
+    const nonMatchingDataTableValues = await connection.query(nonMatchingDataTableValuesQuery);
     return viewErrorGenerators(400, dataset.id, 'patch', 'errors.dimension_validation.unknown_reference_data_items', {
       totalNonMatching: nonMatchedRows.rows.length,
       nonMatchingDataTableValues: nonMatchingDataTableValues.rows.map((row) => Object.values(row)[0]),
@@ -68,22 +78,37 @@ async function validateAllItemsAreInCategory(
   referenceDataType: ReferenceType,
   lang: string
 ): Promise<ViewErrDTO | undefined> {
-  const nonMatchedRows = await connection.query(`
-              SELECT fact_table."${dimension.factTableColumn}", reference_data.item_id, reference_data.category_key FROM fact_table
-              LEFT JOIN reference_data on reference_data.item_id=CAST(fact_table."${dimension.factTableColumn}" AS VARCHAR)
+  const nonMatchedRowsQuery = pgformat(
+    `
+              SELECT fact_table.%I, reference_data.item_id, reference_data.category_key FROM fact_table
+              LEFT JOIN reference_data on reference_data.item_id=CAST(fact_table.%I AS VARCHAR)
               JOIN category_keys ON reference_data.category_key=category_keys.category_key
               JOIN categories ON categories.category=category_keys.category
-              WHERE categories.category!='${referenceDataType}';
-    `);
+              WHERE categories.category!=%L;
+    `,
+    dimension.factTableColumn,
+    dimension.factTableColumn,
+    referenceDataType
+  );
+  const nonMatchedRows = await connection.query(nonMatchedRowsQuery);
   if (nonMatchedRows.rows.length > 0) {
     logger.error('The user has unknown items in their reference data column');
-    const nonMatchingDataTableValues = await connection.query(`
-            SELECT fact_table."${dimension.factTableColumn}", first(reference_data.category_key), first(categories.category), first(category_info.description) FROM fact_table
-            LEFT JOIN reference_data on reference_data.item_id=CAST(fact_table."${dimension.factTableColumn}" AS VARCHAR)
+    const nonMatchingDataTableValuesQuery = pgformat(
+      `
+            SELECT fact_table.%I, first(reference_data.category_key), first(categories.category), first(category_info.description) FROM fact_table
+            LEFT JOIN reference_data on reference_data.item_id=CAST(fact_table.%I AS VARCHAR)
             JOIN category_keys ON reference_data.category_key=category_keys.category_key
-            JOIN categories ON categories.category=category_keys.category JOIN category_info ON categories.category=category_info.category AND lang='${lang.toLowerCase()}'
-            WHERE categories.category!='${referenceDataType}' GROUP BY fact_table."${dimension.factTableColumn}", item_id;
-        `);
+            JOIN categories ON categories.category=category_keys.category JOIN category_info ON categories.category=category_info.category
+            AND lang=%L
+            WHERE categories.category!=%L GROUP BY fact_table.%I, item_id;
+        `,
+      dimension.factTableColumn,
+      dimension.factTableColumn,
+      lang.toLowerCase(),
+      referenceDataType,
+      dimension.factTableColumn
+    );
+    const nonMatchingDataTableValues = await connection.query(nonMatchingDataTableValuesQuery);
     return viewErrorGenerators(400, dataset.id, 'patch', 'errors.dimension_validation.items_not_in_category', {
       totalNonMatching: nonMatchingDataTableValues.rows.length,
       nonMatchingDataTableValues: nonMatchingDataTableValues.rows.map((row) => Object.values(row)[0]),
@@ -192,13 +217,17 @@ export const validateReferenceData = async (
     );
   }
 
-  const categoriesPresent: QueryResult<{ category_keys: string }> =
-    await connection.query(`SELECT DISTINCT category_keys.category_key FROM fact_table
-        LEFT JOIN reference_data on reference_data.item_id=CAST(fact_table."${dimension.factTableColumn}" AS VARCHAR)
+  const categoriesPresentQuery = pgformat(
+    `SELECT DISTINCT category_keys.category_key FROM fact_table
+        LEFT JOIN reference_data on reference_data.item_id=CAST(fact_table.%I AS VARCHAR)
         JOIN category_keys ON reference_data.category_key=category_keys.category_key
         JOIN categories ON categories.category=category_keys.category
-        WHERE categories.category='${confirmedReferenceDataCategory}';
-    `);
+        WHERE categories.category=%L;
+    `,
+    dimension.factTableColumn,
+    confirmedReferenceDataCategory
+  );
+  const categoriesPresent: QueryResult<{ category_keys: string }> = await connection.query(categoriesPresentQuery);
 
   logger.debug(`Column passed reference data checks. Setting up dimension.`);
   await setupDimension(

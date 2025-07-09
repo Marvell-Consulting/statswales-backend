@@ -139,11 +139,13 @@ async function validateNoteCodesColumn(
 ): Promise<void> {
   let notesCodes: QueryResult<{ codes: string }>;
   try {
-    notesCodes = await connection.query(`
-      SELECT DISTINCT "${noteCodeColumn?.column_name}" as codes
-      FROM ${factTableName}
-      WHERE "${noteCodeColumn?.column_name}" IS NOT NULL;
-    `);
+    const findNoteCodesQuery = pgformat(
+      'SELECT DISTINCT %I as codes FROM %I WHERE %I IS NOT NULL;',
+      noteCodeColumn?.column_name,
+      factTableName,
+      noteCodeColumn?.column_name
+    );
+    notesCodes = await connection.query(findNoteCodesQuery);
   } catch (error) {
     logger.error(error, 'Failed to extract or validate validate note codes');
     throw new FactTableValidationException(
