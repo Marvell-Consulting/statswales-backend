@@ -3,6 +3,7 @@ import 'reflect-metadata';
 import express, { Application } from 'express';
 import passport from 'passport';
 import cookieParser from 'cookie-parser';
+import helmet from 'helmet';
 
 import './utils/bigint-patcher';
 import { logger, httpLogger } from './utils/logger';
@@ -43,6 +44,15 @@ app.use(cookieParser());
 app.use(session);
 app.use(requestContext);
 app.use(initServices);
+app.use(
+  helmet({
+    hsts: {
+      maxAge: 63072000, // 2 years in seconds
+      includeSubDomains: true,
+      preload: true
+    }
+  })
+);
 
 // public routes
 app.use('/auth', rateLimiter, authRouter);
