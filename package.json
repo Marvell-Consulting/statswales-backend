@@ -116,6 +116,7 @@
     "passport-jwt": "^4.0.1",
     "pechkin": "^2.2.0",
     "pg": "^8.16.0",
+    "pg-copy-streams": "^7.0.0",
     "pg-cursor": "^2.15.2",
     "pino": "^9.7.0",
     "pino-http": "^10.5.0",

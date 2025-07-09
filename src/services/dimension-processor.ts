@@ -1,5 +1,3 @@
-import { Database } from 'duckdb-async';
-
 import { SourceAssignmentDTO } from '../dtos/source-assignment-dto';
 import { DataTable } from '../entities/dataset/data-table';
 import { DataTableDescription } from '../entities/dataset/data-table-description';
@@ -30,7 +28,6 @@ import { createDatePeriodTableQuery, makeCubeSafeString } from './cube-handler';
 import { t } from 'i18next';
 import { CubeValidationException } from '../exceptions/cube-error-exception';
 import { CubeValidationType } from '../enums/cube-validation-type';
-import { duckdb, linkToPostgres } from './duckdb';
 import { format as pgformat } from '@scaleleap/pg-format/lib/pg-format';
 import { YearType } from '../enums/year-type';
 import { PoolClient, QueryResult } from 'pg';
@@ -520,6 +517,7 @@ export const createAndValidateDateDimension = async (
   dimension: Dimension,
   language: string
 ): Promise<ViewDTO | ViewErrDTO> => {
+  const revision = dataset.draftRevision!;
   const tableName = 'fact_table';
   const factTableColumn = dataset.factTable?.find(
     (col) => dimension.factTableColumn === col.columnName && col.columnType === FactTableColumnType.Dimension
@@ -530,15 +528,19 @@ export const createAndValidateDateDimension = async (
       mismatch: false
     });
   }
-  const quack = await duckdb();
-  const lookupTableName = `${makeCubeSafeString(factTableColumn.columnName)}_lookup`;
+
+  const connection = await getCubeDB().connect();
   try {
-    await linkToPostgres(quack, dataset.draftRevision!.id, false);
-    await quack.exec(pgformat(`DROP TABLE IF EXISTS %I.%I;`, dataset.draftRevision!.id, lookupTableName));
+    await connection.query(pgformat(`SET search_path TO %I;`, revision.id));
   } catch (error) {
-    logger.error(error, 'Something went wrong trying to link to postgres database');
-    return viewErrorGenerators(500, dataset.id, 'patch', 'errors.cube_builder.fact_table_creation_failed', {});
+    logger.error(error, 'Unable to connect to postgres schema for revision.');
+    return viewErrorGenerators(500, dataset.id, 'patch', 'errors.dimension_validation.lookup_table_loading_failed', {
+      mismatch: false
+    });
   }
+
+  const actionId = crypto.randomUUID();
+
   // Use the extracted data to try to create a reference table based on the user supplied information
   let dateDimensionTable: DateReferenceDataItem[] = [];
   const extractor: DateExtractor = {
@@ -549,113 +551,133 @@ export const createAndValidateDateDimension = async (
     monthFormat: dimensionPatchRequest.month_format,
     dateFormat: dimensionPatchRequest.date_format
   };
+
   logger.debug(`Extractor created: ${JSON.stringify(extractor)}`);
   const previewQuery = pgformat(
-    'SELECT DISTINCT %I FROM %I.%I;',
+    'SELECT DISTINCT %I as date_data FROM %I.%I;',
     dimension.factTableColumn,
     dataset.draftRevision!.id,
     tableName
   );
+
   // logger.debug(`Preview query is: ${previewQuery}`);
-  const preview = await quack.all(previewQuery);
+  const preview: QueryResult<{ data_data: string }> = await connection.query(previewQuery);
   try {
     // logger.debug(`Preview is: ${JSON.stringify(preview)}`);
-    dateDimensionTable = dateDimensionReferenceTableCreator(extractor, preview);
+    dateDimensionTable = dateDimensionReferenceTableCreator(extractor, preview.rows);
     // logger.debug(
     //   `Date dimension table created with the following JSON: ${JSON.stringify(dateDimensionTable, null, 2)}`
     // );
   } catch (error) {
     logger.error(error, `Something went wrong trying to create the date reference table`);
-    await quack.close();
+    connection.release();
     return viewErrorGenerators(400, dataset.id, 'patch', 'errors.dimension.invalid_date_format', {
       extractor,
-      totalNonMatching: preview.length,
+      totalNonMatching: preview.rows.length,
       nonMatchingValues: []
     });
   }
 
   try {
-    await quack.exec(createDatePeriodTableQuery(factTableColumn));
-    const safeColumnName = makeCubeSafeString(factTableColumn.columnName);
-
-    const stmt = await quack.prepare(
-      `INSERT INTO ${safeColumnName}_lookup
-    ("${factTableColumn.columnName}", language, description, hierarchy, date_type, start_date, end_date) VALUES (?,?,?,?,?,?,?);`
-    );
+    await connection.query(createDatePeriodTableQuery(factTableColumn, actionId));
     for (const locale of SUPPORTED_LOCALES) {
-      logger.debug(`populating ${safeColumnName}_lookup table for locale ${locale}`);
+      logger.debug(`populating ${actionId} table for locale ${locale}`);
       const lang = locale.toLowerCase();
-
       for (const row of dateDimensionTable) {
-        await stmt.run(row.dateCode, lang, row.description, null, t(row.type, { lng: locale }), row.start, row.end);
+        await connection.query(
+          pgformat('INSERT INTO %I VALUES (%L)', actionId, [
+            row.dateCode,
+            lang,
+            row.description,
+            null,
+            t(row.type, { lng: locale }),
+            row.start,
+            row.end
+          ])
+        );
       }
     }
-    await stmt.finalize();
   } catch (error) {
     logger.error(error, `Something went wrong trying to create the date dimension table`);
-    await quack.close();
+    await connection.query(pgformat('DROP TABLE %I;', actionId));
+    connection.release();
     return viewErrorGenerators(500, dataset.id, 'patch', 'errors.dimension_validation.unknown_error', {
       extractor,
-      totalNonMatching: preview.length,
+      totalNonMatching: preview.rows.length,
       nonMatchingValues: [],
       mismatch: false
     });
   }
 
-  const validationErrors = await validateDateDimension(quack, dataset, dimension, factTableColumn);
+  const validationErrors = await validateDateDimension(connection, dataset, dimension, factTableColumn);
   if (validationErrors) {
-    await quack.close();
+    connection.release();
     return validationErrors;
   }
 
-  const coverage = await quack.all(
+  const coverage: QueryResult<{ start_date: Date; end_date: Date }> = await connection.query(
     `SELECT MIN(start_date) as start_date, MAX(end_date) AS end_date FROM ${makeCubeSafeString(factTableColumn.columnName)}_lookup;`
   );
   const updateDataset = await Dataset.findOneByOrFail({ id: dataset.id });
-  updateDataset.startDate = coverage[0].start_date;
-  updateDataset.endDate = coverage[0].end_date;
+  updateDataset.startDate = coverage.rows[0].start_date;
+  updateDataset.endDate = coverage.rows[0].end_date;
   await updateDataset.save();
   const updateDimension = await Dimension.findOneByOrFail({ id: dimension.id });
   updateDimension.extractor = extractor;
   updateDimension.joinColumn = 'date_code';
   updateDimension.type = dimensionPatchRequest.dimension_type;
   await updateDimension.save();
-  const dimensionTable = await quack.all(`
-    SELECT DISTINCT ${makeCubeSafeString(factTableColumn.columnName)}_lookup.* FROM ${makeCubeSafeString(factTableColumn.columnName)}_lookup
-    LEFT JOIN fact_table
-    ON ${makeCubeSafeString(factTableColumn.columnName)}_lookup."${factTableColumn.columnName}"=fact_table."${factTableColumn.columnName}"
-    WHERE language = '${language}';
-  `);
-  await quack.close();
-  const tableHeaders = Object.keys(dimensionTable[0]);
-  const dataArray = dimensionTable.map((row) => Object.values(row));
-  const currentDataset = await DatasetRepository.getById(dataset.id, { dimensions: { metadata: true } });
-  const headers: CSVHeader[] = [];
-  for (let i = 0; i < tableHeaders.length; i++) {
-    let sourceType: FactTableColumnType;
-    if (tableHeaders[i] === 'int_line_number') sourceType = FactTableColumnType.LineNumber;
-    else sourceType = FactTableColumnType.Unknown;
-    headers.push({
-      index: i - 1,
-      name: tableHeaders[i],
-      source_type: sourceType
+  try {
+    const previewQuery = pgformat(
+      'SELECT DISTINCT %I.* FROM %I LEFT JOIN fact_table ON %I.%I=fact_table.%I WHERE languague = %L;',
+      actionId,
+      actionId,
+      actionId,
+      factTableColumn.columnName,
+      language
+    );
+
+    const dimensionTable = await connection.query(previewQuery);
+
+    const tableHeaders = Object.keys(dimensionTable.rows[0]);
+    const dataArray = dimensionTable.rows.map((row) => Object.values(row));
+    const currentDataset = await DatasetRepository.getById(dataset.id, { dimensions: { metadata: true } });
+    const headers: CSVHeader[] = [];
+    for (let i = 0; i < tableHeaders.length; i++) {
+      let sourceType: FactTableColumnType;
+      if (tableHeaders[i] === 'int_line_number') sourceType = FactTableColumnType.LineNumber;
+      else sourceType = FactTableColumnType.Unknown;
+      headers.push({
+        index: i - 1,
+        name: tableHeaders[i],
+        source_type: sourceType
+      });
+    }
+    const pageInfo = {
+      total_records: 1,
+      start_record: 1,
+      end_record: 10
+    };
+    return viewGenerator(currentDataset, 1, pageInfo, 10, 1, headers, dataArray);
+  } catch (error) {
+    logger.error(error, 'Something went wrong trying to get preview of date dimension lookup table.');
+    connection.release();
+    return viewErrorGenerators(500, dataset.id, 'patch', 'errors.dimension_validation.unknown_error', {
+      extractor,
+      totalNonMatching: preview.rows.length,
+      nonMatchingValues: [],
+      mismatch: false
     });
   }
-  const pageInfo = {
-    total_records: 1,
-    start_record: 1,
-    end_record: 10
-  };
-  return viewGenerator(currentDataset, 1, pageInfo, 10, 1, headers, dataArray);
 };
 
 async function getDatePreviewWithExtractor(
   dataset: Dataset,
   factTableColumn: string,
-  quack: Database
+  connection: PoolClient
 ): Promise<ViewDTO> {
   const tableName = `${makeCubeSafeString(factTableColumn)}_lookup`;
-  const totalsQuery = await quack.all(
+  const totalsQuery: QueryResult<{ totalLines: number }> = await connection.query(
     pgformat('SELECT COUNT(DISTINCT %I) AS totalLines FROM %I;', factTableColumn, 'fact_table')
   );
   const previewQuery = pgformat(
@@ -679,9 +701,9 @@ async function getDatePreviewWithExtractor(
     factTableColumn,
     sampleSize
   );
-  const previewResult = await quack.all(previewQuery);
-  const tableHeaders = Object.keys(previewResult[0]);
-  const dataArray = previewResult.map((row) => Object.values(row));
+  const previewResult = await connection.query(previewQuery);
+  const tableHeaders = Object.keys(previewResult.rows[0]);
+  const dataArray = previewResult.rows.map((row) => Object.values(row));
   const currentDataset = await DatasetRepository.getById(dataset.id);
   const headers: CSVHeader[] = [];
 
@@ -693,7 +715,7 @@ async function getDatePreviewWithExtractor(
     });
   }
   const pageInfo = {
-    total_records: totalsQuery[0].totalLines,
+    total_records: totalsQuery.rows[0].totalLines,
     start_record: 1,
     end_record: dataArray.length
   };
@@ -743,18 +765,24 @@ async function getPreviewWithNumberExtractor(
 async function getPreviewWithoutExtractor(
   dataset: Dataset,
   dimension: Dimension,
-  quack: Database,
+  connection: PoolClient,
   tableName: string
 ): Promise<ViewDTO> {
-  const totals = await quack.all(
-    `SELECT COUNT(DISTINCT "${dimension.factTableColumn}") AS totalLines FROM ${tableName};`
+  const totals: QueryResult<{ total_lines: number }> = await connection.query(
+    `SELECT COUNT(DISTINCT "${dimension.factTableColumn}") AS total_lines FROM ${tableName};`
   );
-  const totalLines = Number(totals[0].totalLines);
-  const preview = await quack.all(
-    `SELECT DISTINCT "${dimension.factTableColumn}" FROM ${tableName} ORDER BY "${dimension.factTableColumn}" ASC LIMIT ${sampleSize};`
+  const totalLines = Number(totals.rows[0].total_lines);
+  const preview = await connection.query(
+    pgformat(
+      'SELECT DISTINCT %I FROM %I ORDER BY %I ASC LIMIT %L;',
+      dimension.factTableColumn,
+      tableName,
+      dimension.factTableColumn,
+      sampleSize
+    )
   );
-  const tableHeaders = Object.keys(preview[0]);
-  const dataArray = preview.map((row) => Object.values(row));
+  const tableHeaders = Object.keys(preview.rows[0]);
+  const dataArray = preview.rows.map((row) => Object.values(row));
   const currentDataset = await DatasetRepository.getById(dataset.id);
   const headers: CSVHeader[] = [];
   for (let i = 0; i < tableHeaders.length; i++) {
@@ -767,34 +795,40 @@ async function getPreviewWithoutExtractor(
   const pageInfo = {
     total_records: totalLines,
     start_record: 1,
-    end_record: preview.length
+    end_record: preview.rows.length
   };
-  const pageSize = preview.length < sampleSize ? preview.length : sampleSize;
+  const pageSize = preview.rows.length < sampleSize ? preview.rows.length : sampleSize;
   return viewGenerator(currentDataset, 1, pageInfo, pageSize, 1, headers, dataArray);
 }
 
 async function getLookupPreviewWithExtractor(
   dataset: Dataset,
   dimension: Dimension,
-  quack: Database,
+  connection: PoolClient,
   language: string
 ): Promise<ViewDTO> {
   const safeColName = makeCubeSafeString(dimension.factTableColumn);
-  const lookupTableSize = await quack.all(
-    `SELECT * FROM ${safeColName}_lookup WHERE language = '${language.toLowerCase()}'`
+  const lookupTableName = `${safeColName}_lookup`;
+  const lookupTableSize: QueryResult<{ total_rows: number }> = await connection.query(
+    `SELECT COUNT(*) as total_rows FROM %I WHERE language = '${language.toLowerCase()}'`
   );
-  const query = `
-    SELECT * EXCLUDE(language)
-    FROM ${safeColName}_lookup
-    WHERE language = '${language.toLowerCase()}'
-    ORDER BY sort_order, "${dimension.factTableColumn}"
-    LIMIT ${sampleSize};
-  `;
+  const tableDetails: QueryResult<{ columnName: string }> = await connection.query(
+    pgformat('SELECT column_name FROM information_schema.columns WHERE table_name = %L;', lookupTableName)
+  );
+  const columnNames = tableDetails.rows.filter((row) => row.columnName != 'language').map((row) => row.columnName);
+  const query = pgformat(
+    `SELECT %I FROM %I WHERE language = %L ORDER BY sort_order, %I LIMIT %L;`,
+    columnNames,
+    lookupTableName,
+    language,
+    dimension.factTableColumn,
+    sampleSize
+  );
 
   // logger.debug(`Querying the cube to get the preview using query ${query}`);
-  const dimensionTable = await quack.all(query);
-  const tableHeaders = Object.keys(dimensionTable[0]);
-  const dataArray = dimensionTable.map((row) => Object.values(row));
+  const dimensionTable = await connection.query(query);
+  const tableHeaders = Object.keys(dimensionTable.rows[0]);
+  const dataArray = dimensionTable.rows.map((row) => Object.values(row));
   const currentDataset = await DatasetRepository.getById(dataset.id);
   const headers: CSVHeader[] = [];
 
@@ -806,11 +840,11 @@ async function getLookupPreviewWithExtractor(
     });
   }
   const pageInfo = {
-    total_records: lookupTableSize.length,
+    total_records: lookupTableSize.rows[0].total_rows,
     start_record: 1,
     end_record: dataArray.length
   };
-  const pageSize = dimensionTable.length < sampleSize ? dimensionTable.length : sampleSize;
+  const pageSize = dimensionTable.rows.length < sampleSize ? dimensionTable.rows.length : sampleSize;
   return viewGenerator(currentDataset, 1, pageInfo, pageSize, 1, headers, dataArray);
 }
 
@@ -821,12 +855,14 @@ export const getDimensionPreview = async (
 ): Promise<ViewDTO | ViewErrDTO> => {
   logger.info(`Getting dimension preview for ${dimension.id}`);
   const tableName = 'fact_table';
-  const quack = await duckdb();
+  const connection = await getCubeDB().connect();
   try {
-    await linkToPostgres(quack, dataset.draftRevision!.id, false);
+    await connection.query(pgformat(`SET search_path TO %I;`, dataset.draftRevision!.id));
   } catch (error) {
-    logger.error(error, 'Something went wrong trying to link to postgres database');
-    return viewErrorGenerators(500, dataset.id, 'patch', 'errors.cube_builder.fact_table_creation_failed', {});
+    logger.error(error, 'Unable to connect to postgres schema for revision.');
+    return viewErrorGenerators(500, dataset.id, 'patch', 'errors.dimension_validation.lookup_table_loading_failed', {
+      mismatch: false
+    });
   }
 
   let viewDto: ViewDTO | ViewErrDTO;
@@ -836,42 +872,42 @@ export const getDimensionPreview = async (
         case DimensionType.Date:
         case DimensionType.DatePeriod:
           logger.debug('Previewing a date type dimension');
-          viewDto = await getDatePreviewWithExtractor(dataset, dimension.factTableColumn, quack);
+          viewDto = await getDatePreviewWithExtractor(dataset, dimension.factTableColumn, connection);
           break;
 
         case DimensionType.LookupTable:
           logger.debug('Previewing a lookup table');
-          viewDto = await getLookupPreviewWithExtractor(dataset, dimension, quack, lang);
+          viewDto = await getLookupPreviewWithExtractor(dataset, dimension, connection, lang);
           break;
 
         case DimensionType.ReferenceData:
           logger.debug('Previewing a lookup table');
-          viewDto = await getReferenceDataDimensionPreview(dataset, dimension, quack, tableName, lang);
+          viewDto = await getReferenceDataDimensionPreview(dataset, dimension, connection, tableName, lang);
           break;
 
         case DimensionType.Text:
           logger.debug('Previewing text dimension');
-          viewDto = await getPreviewWithoutExtractor(dataset, dimension, quack, tableName);
+          viewDto = await getPreviewWithoutExtractor(dataset, dimension, connection, tableName);
           break;
 
         case DimensionType.Numeric:
           logger.debug('Previewing a numeric dimension');
-          viewDto = await getPreviewWithNumberExtractor(dataset, dimension, quack, tableName);
+          viewDto = await getPreviewWithNumberExtractor(dataset, dimension, connection, tableName);
           break;
 
         default:
           logger.debug(`Previewing a dimension of an unknown type.  Type supplied is ${dimension.type}`);
-          viewDto = await getPreviewWithoutExtractor(dataset, dimension, quack, tableName);
+          viewDto = await getPreviewWithoutExtractor(dataset, dimension, connection, tableName);
       }
     } else {
       logger.debug('Straight column preview');
-      viewDto = await getPreviewWithoutExtractor(dataset, dimension, quack, tableName);
+      viewDto = await getPreviewWithoutExtractor(dataset, dimension, connection, tableName);
     }
     return viewDto;
   } catch (error) {
     logger.error(error, `Something went wrong trying to create dimension preview`);
     return viewErrorGenerators(500, dataset.id, 'none', 'errors.dimension.preview_failed', {});
   } finally {
-    await quack.close();
+    connection.release();
   }
 };

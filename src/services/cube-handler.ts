@@ -2,6 +2,7 @@ import { readFile, unlink } from 'node:fs/promises';
 import path from 'node:path';
 import { performance } from 'node:perf_hooks';
 
+import { from } from 'pg-copy-streams';
 import { Database, DuckDbError, RowData } from 'duckdb-async';
 import { t } from 'i18next';
 import { FindOptionsRelations } from 'typeorm';
@@ -52,8 +53,8 @@ import { FilterInterface } from '../interfaces/filterInterface';
 import { SortByInterface } from '../interfaces/sort-by-interface';
 import { createFrontendView } from './consumer-view';
 import fs from 'node:fs';
-import { parse } from 'csv';
 import { LookupTable } from '../entities/dataset/lookup-table';
+import { pipeline } from 'node:stream/promises';
 
 export const FACT_TABLE_NAME = 'fact_table';
 
@@ -316,72 +317,65 @@ export const loadFileDataTableIntoTable = async (
   }
 };
 
-async function createReferenceDataTablesInCube(connection: PoolClient): Promise<void> {
+export async function createReferenceDataTablesInCube(connection: PoolClient): Promise<void> {
   logger.debug('Creating empty reference data tables');
   try {
     logger.debug('Creating categories tables');
-    await connection.query(`CREATE TABLE "categories" ("category" TEXT PRIMARY KEY);`);
+    await connection.query(`CREATE TABLE "categories" ("category" VARCHAR, PRIMARY KEY ("category"));`);
     logger.debug('Creating category_keys table');
     await connection.query(`CREATE TABLE "category_keys" (
-                            "category_key" TEXT PRIMARY KEY,
-                            "category" TEXT NOT NULL,
+                            "category_key" VARCHAR PRIMARY KEY,
+                            "category" VARCHAR NOT NULL
                             );`);
     logger.debug('Creating reference_data table');
     await connection.query(`CREATE TABLE "reference_data" (
-                            "item_id" TEXT NOT NULL,
+                            "item_id" VARCHAR NOT NULL,
                             "version_no" INTEGER NOT NULL,
                             "sort_order" INTEGER,
-                            "category_key" TEXT NOT NULL,
-                            "validity_start" TEXT NOT NULL,
-                            "validity_end" TEXT,
-                            PRIMARY KEY("item_id","version_no","category_key"),
+                            "category_key" VARCHAR NOT NULL,
+                            "validity_start" VARCHAR NOT NULL,
+                            "validity_end" VARCHAR
                             );`);
     logger.debug('Creating reference_data_all table');
     await connection.query(`CREATE TABLE "reference_data_all" (
-                            "item_id" TEXT NOT NULL,
+                            "item_id" VARCHAR NOT NULL,
                             "version_no" INTEGER NOT NULL,
                             "sort_order" INTEGER,
-                            "category_key" TEXT NOT NULL,
-                            "validity_start" TEXT NOT NULL,
-                            "validity_end" TEXT,
-                            PRIMARY KEY("item_id","version_no","category_key"),
+                            "category_key" VARCHAR NOT NULL,
+                            "validity_start" VARCHAR NOT NULL,
+                            "validity_end" VARCHAR
                             );`);
     logger.debug('Creating reference_data_info table');
     await connection.query(`CREATE TABLE "reference_data_info" (
-                            "item_id" TEXT NOT NULL,
+                            "item_id" VARCHAR NOT NULL,
                             "version_no" INTEGER NOT NULL,
-                            "category_key" TEXT NOT NULL,
-                            "lang" TEXT NOT NULL,
-                            "description" TEXT NOT NULL,
-                            "notes" TEXT,
-                            PRIMARY KEY("item_id","version_no","category_key","lang"),
+                            "category_key" VARCHAR NOT NULL,
+                            "lang" VARCHAR NOT NULL,
+                            "description" VARCHAR NOT NULL,
+                            "notes" VARCHAR
                             );`);
     logger.debug('Creating category_key_info table');
     await connection.query(`CREATE TABLE "category_key_info" (
-                            "category_key" TEXT NOT NULL,
-                            "lang" TEXT NOT NULL,
-                            "description" TEXT NOT NULL,
-                            "notes" TEXT,
-                            PRIMARY KEY("category_key","lang"),
+                            "category_key" VARCHAR NOT NULL,
+                            "lang" VARCHAR NOT NULL,
+                            "description" VARCHAR NOT NULL,
+                            "notes" VARCHAR
                             );`);
     logger.debug('Creating category_info table');
     await connection.query(`CREATE TABLE "category_info" (
-                            "category" TEXT NOT NULL,
-                            "lang" TEXT NOT NULL,
-                            "description" TEXT NOT NULL,
-                            "notes" TEXT,
-                            PRIMARY KEY("category","lang"),
+                            "category" VARCHAR NOT NULL,
+                            "lang" VARCHAR NOT NULL,
+                            "description" VARCHAR NOT NULL,
+                            "notes" VARCHAR
                             );`);
     logger.debug('Creating hierarchy table');
     await connection.query(`CREATE TABLE "hierarchy" (
-                            "item_id" TEXT NOT NULL,
+                            "item_id" VARCHAR NOT NULL,
                             "version_no" INTEGER NOT NULL,
-                            "category_key" TEXT NOT NULL,
-                            "parent_id" TEXT NOT NULL,
+                            "category_key" VARCHAR NOT NULL,
+                            "parent_id" VARCHAR NOT NULL,
                             "parent_version" INTEGER NOT NULL,
-                            "parent_category" TEXT NOT NULL,
-                            PRIMARY KEY("item_id","version_no","category_key","parent_id","parent_version","parent_category")
-                            );`);
+                            "parent_category" VARCHAR NOT NULL                            );`);
   } catch (error) {
     logger.error(`Something went wrong trying to create the initial reference data tables with error: ${error}`);
     throw new Error(`Something went wrong trying to create the initial reference data tables with error: ${error}`);
@@ -391,9 +385,11 @@ async function createReferenceDataTablesInCube(connection: PoolClient): Promise<
 export async function loadReferenceDataFromCSV(connection: PoolClient): Promise<void> {
   logger.debug(`Loading reference data from CSV`);
   logger.debug(`Loading categories from CSV`);
-  const parserOpts = { delimiter: ',', bom: true, skip_empty_lines: true, columns: true };
   const csvFiles: { name: string; path: string }[] = [];
-  csvFiles.push({ name: 'categories', path: path.resolve(__dirname, `../resources/reference-data/v1/categories.csv`) });
+  csvFiles.push({
+    name: 'categories',
+    path: path.resolve(__dirname, `../resources/reference-data/v1/categories.csv`)
+  });
   csvFiles.push({
     name: 'category_keys',
     path: path.resolve(__dirname, `../resources/reference-data/v1/category_key.csv`)
@@ -414,15 +410,19 @@ export async function loadReferenceDataFromCSV(connection: PoolClient): Promise<
     name: 'category_info',
     path: path.resolve(__dirname, `../resources/reference-data/v1/category_info.csv`)
   });
-  csvFiles.push({ name: 'hierarchy', path: path.resolve(__dirname, `../resources/reference-data/v1/hierarchy.csv`) });
+  csvFiles.push({
+    name: 'hierarchy',
+    path: path.resolve(__dirname, `../resources/reference-data/v1/hierarchy.csv`)
+  });
   for (const csv of csvFiles) {
-    const parseCSV = async (): Promise<void> => {
-      const csvParser: AsyncIterable<unknown> = fs.createReadStream(csv.path).pipe(parse(parserOpts));
-      for await (const row of csvParser) {
-        await connection.query(pgformat('INSERT INTO %I VALUES (%L);', csv.name, row));
-      }
-    };
-    await parseCSV();
+    logger.debug(`Loading reference data file ${csv.name} from CSV file`);
+    const fileStream = fs.createReadStream(csv.path, { encoding: 'utf8' });
+    const pgStream = connection.query(from(`COPY ${csv.name} FROM STDIN WITH (FORMAT csv, HEADER true)`));
+    try {
+      await pipeline(fileStream, pgStream);
+    } catch (err) {
+      logger.error(err, `Something went wrong trying to load reference data from JSON file ${csv.name}`);
+    }
   }
 }
 
@@ -524,9 +524,12 @@ async function setupReferenceDataDimension(
   }
 }
 
-export const createDatePeriodTableQuery = (factTableColumn: FactTableColumn): string => {
+export const createDatePeriodTableQuery = (factTableColumn: FactTableColumn, tableName?: string): string => {
+  if (!tableName) {
+    tableName = `${makeCubeSafeString(factTableColumn.columnName)}_lookup`;
+  }
   return `
-  CREATE TABLE ${makeCubeSafeString(factTableColumn.columnName)}_lookup (
+  CREATE TABLE ${tableName} (
     "${factTableColumn.columnName}" ${factTableColumn.columnDatatype},
     language VARCHAR(5),
     description VARCHAR,
@@ -1774,8 +1777,6 @@ export const createBasePostgresCube = async (
   }
 
   const buildStart = performance.now();
-  logger.debug('Creating an in-memory database to hold the cube using DuckDB 🐤');
-
   const factTableInfo = await createEmptyFactTableInCube(connection, dataset, buildId);
   await createCubeMetadataTable(connection, endRevision.id, buildId);
   await createFilterTable(connection);
@@ -1995,7 +1996,7 @@ export const createAllCubeFiles = async (datasetId: string, endRevisionId: strin
 
   try {
     logger.info(`Creating schema for cube build ${buildId}`);
-    await connection.query(pgformat(`CREATE SCHEMA %I IF NOT EXISTS;`, buildId));
+    await connection.query(pgformat(`CREATE SCHEMA IF NOT EXISTS %I;`, buildId));
   } catch (error) {
     logger.error(error, 'Something went wrong trying to create the cube schema');
     connection.release();
@@ -2005,6 +2006,8 @@ export const createAllCubeFiles = async (datasetId: string, endRevisionId: strin
   try {
     logger.debug('Creating cube in postgres.');
     await createBasePostgresCube(connection, buildId, datasetId, endRevisionId);
+    await connection.query(pgformat('DROP SCHEMA IF EXISTS %I;', endRevisionId));
+    await connection.query(pgformat('ALTER SCHEMA %I RENAME TO %I;', buildId, endRevisionId));
   } catch (err) {
     logger.error(err, 'Failed to create cube in Postgres');
     throw err;

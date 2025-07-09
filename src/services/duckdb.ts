@@ -39,8 +39,6 @@ export const duckdb = async (cubeFile = ':memory:'): Promise<Database> => {
   return duckdb;
 };
 
-export const linkToPostgres = async (quack: Database): Promise<void> => {};
-
 export const linkToExistingSchema = async (quack: Database, schemaID: string): Promise<void> => {
   const start = performance.now();
   await quack.exec(`LOAD 'postgres';`);

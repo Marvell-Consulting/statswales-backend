@@ -1,6 +1,6 @@
 import { CSVHeader } from '../dtos/view-dto';
 import { FactTableColumnType } from '../enums/fact-table-column-type';
-import { TableData } from 'duckdb-async';
+import { RowData } from 'duckdb-async';
 
 type ViewTable = {
   headers: CSVHeader[];
@@ -8,7 +8,7 @@ type ViewTable = {
   data: any[][];
 };
 
-export const tableDataToViewTable = (tableData: TableData): ViewTable => {
+export const tableDataToViewTable = (tableData: RowData[]): ViewTable => {
   const tableHeaders = Object.keys(tableData[0]);
   const dataArray = tableData.map((row) => Object.values(row));
   const headers: CSVHeader[] = tableHeaders.map((header, idx) => ({
