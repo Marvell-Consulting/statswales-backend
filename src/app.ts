@@ -3,7 +3,6 @@ import 'reflect-metadata';
 import express, { Application } from 'express';
 import passport from 'passport';
 import cookieParser from 'cookie-parser';
-import helmet from 'helmet';
 
 import './utils/bigint-patcher';
 import { logger, httpLogger } from './utils/logger';
@@ -28,6 +27,7 @@ import { taskRouter } from './routes/task';
 import { userRouter } from './routes/user';
 import { publicApiRouter } from './routes/consumer/v1/api';
 import { apiDocRouter } from './routes/consumer/v1/docs';
+import { strictTransport } from './middleware/strict-transport';
 
 const app: Application = express();
 const config = appConfig();
@@ -43,16 +43,8 @@ app.use(i18nextMiddleware.handle(i18next));
 app.use(cookieParser());
 app.use(session);
 app.use(requestContext);
+app.use(strictTransport);
 app.use(initServices);
-app.use(
-  helmet({
-    hsts: {
-      maxAge: 63072000, // 2 years in seconds
-      includeSubDomains: true,
-      preload: true
-    }
-  })
-);
 
 // public routes
 app.use('/auth', rateLimiter, authRouter);
