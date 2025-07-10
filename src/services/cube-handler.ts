@@ -1643,9 +1643,6 @@ export async function createEmptyFactTableInCube(
   const notesCodeColumn = dataset.factTable?.find((field) => field.columnType === FactTableColumnType.NoteCodes);
   const dataValuesColumn = dataset.factTable?.find((field) => field.columnType === FactTableColumnType.DataValues);
   const measureColumn = dataset.factTable?.find((field) => field.columnType === FactTableColumnType.Measure);
-  logger.error(
-    `notesCodeColumn: ${JSON.stringify(notesCodeColumn)}, dataValuesColumn: ${JSON.stringify(dataValuesColumn)}, measureColumn: ${JSON.stringify(measureColumn)}`
-  );
 
   const factTable = dataset.factTable.sort((colA, colB) => colA.columnIndex - colB.columnIndex);
   const compositeKey: string[] = [];
