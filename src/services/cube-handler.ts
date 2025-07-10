@@ -851,14 +851,21 @@ async function loadFactTablesWithUpdates(
     )?.columnName;
 
     let updateQuery = '';
+    let deleteQuery = '';
     const createUpdateTableQuery = pgformat(
       'CREATE TEMPORARY TABLE %I AS SELECT * FROM data_tables.%I;',
       actionID,
       dataTable.id
     );
     let doRevision = false;
-    if (dataValuesColumn && notesCodeColumn) {
+    if (dataValuesColumn && notesCodeColumn && factIdentifiers.length > 0) {
       doRevision = true;
+      deleteQuery = pgformat(
+        `DELETE FROM %I USING %I WHERE %s`,
+        actionID,
+        FACT_TABLE_NAME,
+        setupFactTableUpdateJoins(FACT_TABLE_NAME, actionID, factIdentifiers, dataTable.dataTableDescriptions)
+      );
       updateQuery = pgformat(
         `UPDATE %I SET %I=%I.%I,
       %I=(CASE
@@ -921,14 +928,7 @@ async function loadFactTablesWithUpdates(
             await connection.query(createUpdateTableQuery);
             logger.debug(`Executing update query: ${updateQuery}`);
             await connection.query(updateQuery);
-            await connection.query(
-              pgformat(
-                `DELETE FROM %I USING %I WHERE %s`,
-                actionID,
-                FACT_TABLE_NAME,
-                setupFactTableUpdateJoins(FACT_TABLE_NAME, actionID, factIdentifiers, dataTable.dataTableDescriptions)
-              )
-            );
+            await connection.query(deleteQuery);
           }
           await connection.query(
             pgformat(
