@@ -118,15 +118,19 @@ export const factTableValidatorFromSource = async (
     await connection.query(pgformat('ALTER TABLE %I ADD PRIMARY KEY (%I)', FACT_TABLE_NAME, primaryKeyDef));
     await validateNoteCodesColumn(connection, validatedSourceAssignment.noteCodes, FACT_TABLE_NAME);
   } catch (err) {
-    let error = err as FactTableValidationException;
-    logger.error(error, 'Failed to load data table into fact table');
-    // Attempt to augment the error with details of where the errors in the data table are
-    if (error.type === FactTableValidationExceptionType.EmptyValue) {
-      error = await identifyIncompleteFacts(connection, primaryKeyDef, error);
-    } else if (error.type === FactTableValidationExceptionType.DuplicateFact) {
-      error = await identifyDuplicateFacts(connection, primaryKeyDef, error);
+    if ((err as Error).message.includes('could not create unique index')) {
+      let error: FactTableValidationException | undefined;
+      error = await identifyIncompleteFacts(connection, primaryKeyDef);
+      if (error) throw error;
+      error = await identifyDuplicateFacts(connection, primaryKeyDef);
+      if (error) throw error;
     }
-    throw error;
+    logger.error(err, 'Failed to load data table into fact table');
+    throw new FactTableValidationException(
+      'Something went wrong trying to add primary key to fact table',
+      FactTableValidationExceptionType.UnknownError,
+      500
+    );
   } finally {
     connection.release();
   }
@@ -201,48 +205,78 @@ async function validateNoteCodesColumn(
 
 async function identifyIncompleteFacts(
   connection: PoolClient,
-  primaryKeyDef: string[],
-  error: FactTableValidationException
-): Promise<FactTableValidationException> {
+  primaryKeyDef: string[]
+): Promise<FactTableValidationException | undefined> {
+  const pkeyDef = primaryKeyDef.map((key) => pgformat('%I IS NULL', key));
   try {
-    const brokenFacts = await connection.query(
-      `SELECT * FROM (SELECT row_number() OVER () as line_number, * FROM fact_table) WHERE ${primaryKeyDef.join('IS NULL OR ')} IS NULL LIMIT 500;`
+    const incompleteFactQuery = pgformat(
+      `SELECT * FROM (SELECT row_number() OVER () as line_number, * FROM fact_table) WHERE %s LIMIT 500;`,
+      pkeyDef.join(' OR ')
     );
-    const { headers, data } = tableDataToViewTable(brokenFacts.rows);
-    error.data = data;
-    error.headers = headers;
+    const brokenFacts = await connection.query(incompleteFactQuery);
+    if (brokenFacts.rows.length > 0) {
+      logger.debug(`${brokenFacts.rows.length} incomplete facts found in fact table`);
+      const { headers, data } = tableDataToViewTable(brokenFacts.rows);
+      const err = new FactTableValidationException(
+        'Incomplete facts found in the data table',
+        FactTableValidationExceptionType.IncompleteFact,
+        400
+      );
+      err.data = data;
+      err.headers = headers;
+      return err;
+    }
   } catch (extractionErr) {
-    logger.error(extractionErr, 'Failed to extract data from data table.');
+    logger.error(extractionErr, 'Failed to run query to identify incomplete facts.');
+    return new FactTableValidationException(
+      'Could not run the check for incomplete facts',
+      FactTableValidationExceptionType.UnknownError,
+      400
+    );
   }
-  return error;
+  return undefined;
 }
 
 async function identifyDuplicateFacts(
   connection: PoolClient,
-  primaryKeyDef: string[],
-  error: FactTableValidationException
-): Promise<FactTableValidationException> {
+  primaryKeyDef: string[]
+): Promise<FactTableValidationException | undefined> {
+  const pkeyDef = primaryKeyDef.map((key) => pgformat('%I', key));
+  const duplicateFactQuery = pgformat(
+    `
+        SELECT * FROM (SELECT row_number() OVER () as line_number, * FROM fact_table)
+        WHERE (%s) IN (
+          SELECT %s FROM (
+            SELECT %s, count(*) as fact_count FROM fact_table
+            GROUP BY %s
+          ) WHERE fact_count > 1
+        ) LIMIT 500;`,
+    pkeyDef.join(', '),
+    pkeyDef.join(', '),
+    pkeyDef.join(', '),
+    pkeyDef.join(', ')
+  );
   try {
-    const duplicateQuery = `
-        SELECT  *
-        FROM (SELECT row_number() OVER () as line_number, * FROM data_table)
-        WHERE (${primaryKeyDef.join(', ')}) IN
-        (
-            SELECT ${primaryKeyDef.join(', ')}
-            FROM (
-                SELECT ${primaryKeyDef.join(', ')}, count(*) as fact_count
-                FROM data_table GROUP BY ${primaryKeyDef.join(', ')} HAVING fact_count > 1
-            )
-        ) LIMIT 500;`;
-
-    // logger.debug(`Running query to find duplicates:\n${duplicateQuery}`);
-
-    const brokenFacts = await connection.query(duplicateQuery);
-    const { headers, data } = tableDataToViewTable(brokenFacts.rows);
-    error.data = data;
-    error.headers = headers;
+    logger.debug(`Running query to find duplicates:\n${duplicateFactQuery}`);
+    const brokenFacts = await connection.query(duplicateFactQuery);
+    if (brokenFacts.rows.length > 0) {
+      const { headers, data } = tableDataToViewTable(brokenFacts.rows);
+      const err = new FactTableValidationException(
+        'Duplicate facts found in the data table',
+        FactTableValidationExceptionType.DuplicateFact,
+        400
+      );
+      err.data = data;
+      err.headers = headers;
+      return err;
+    }
   } catch (extractionErr) {
-    logger.error(extractionErr, 'Failed to extract data from data table.');
+    logger.error(extractionErr, 'Failed to run query to identify duplicate facts.');
+    return new FactTableValidationException(
+      'Could not run the check for duplicate facts',
+      FactTableValidationExceptionType.UnknownError,
+      400
+    );
   }
-  return error;
+  return undefined;
 }

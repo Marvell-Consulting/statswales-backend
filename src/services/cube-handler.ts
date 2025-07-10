@@ -190,7 +190,7 @@ export const loadTableDataIntoFactTable = async (
       if (duckDBError.message.includes('NOT NULL constraint')) {
         throw new FactTableValidationException(
           'Fact with empty value in column(s) found in fact table.  Please check the data and try again.',
-          FactTableValidationExceptionType.EmptyValue,
+          FactTableValidationExceptionType.IncompleteFact,
           400
         );
       }
@@ -289,7 +289,7 @@ export const loadFileDataTableIntoTable = async (
       if (duckDBError.message.includes('NOT NULL constraint')) {
         throw new FactTableValidationException(
           'Fact with empty value in column(s) found in fact table.  Please check the data and try again.',
-          FactTableValidationExceptionType.EmptyValue,
+          FactTableValidationExceptionType.IncompleteFact,
           400
         );
       }
