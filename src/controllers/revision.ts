@@ -259,8 +259,6 @@ async function attachUpdateDataTableToRevision(
     revisions: { dataTable: { dataTableDescriptions: true } }
   });
 
-  logger.error(`Found ${dataset.factTable?.length} fact table columns... ${JSON.stringify(dataset.factTable)}`);
-
   // Validate all the columns against the fact table
   if (columnMatcher) {
     const matchedColumns: string[] = [];
@@ -313,7 +311,7 @@ async function attachUpdateDataTableToRevision(
   logger.debug(`Setting the update action to: ${updateAction}`);
   dataTable.action = updateAction;
   revision.dataTable = dataTable;
-  const buildId = crypto.randomUUID();
+  const buildId = `build-${crypto.randomUUID()}`;
   const connection = await getCubeDB().connect();
   await connection.query(pgformat('CREATE SCHEMA IF NOT EXISTS %I;', buildId));
   await connection.query(pgformat(`SET search_path TO %I;`, buildId));

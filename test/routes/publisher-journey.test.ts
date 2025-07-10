@@ -763,10 +763,6 @@ describe('API Endpoints', () => {
         await createSmallDataset(datasetId, revisionId, factTableId, user);
       });
 
-      afterEach(async () => {
-        await queryRunner.dropSchema(revisionId, true, true);
-      });
-
       test('Set publish_at fails with 404 if revision id invalid', async () => {
         const invalidId = crypto.randomUUID().toLowerCase();
         const res = await request(app)

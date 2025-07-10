@@ -14,7 +14,7 @@ import { FileType } from '../enums/file-type';
 import { DataTableDescription } from '../entities/dataset/data-table-description';
 import { DataTableAction } from '../enums/data-table-action';
 
-import { duckdb, linkToPostgresDataTables } from './duckdb';
+import { duckdb, linkToPostgresSchema } from './duckdb';
 import { getFileService } from '../utils/get-file-service';
 import { FileValidationErrorType, FileValidationException } from '../exceptions/validation-exception';
 import { DuckDBException } from '../exceptions/duckdb-exception';
@@ -106,7 +106,7 @@ export async function extractTableInformation(
   if (type === 'data_table') {
     try {
       logger.debug(`Copying data table to postgres using data table id: ${dataTable.id}`);
-      await linkToPostgresDataTables(quack);
+      await linkToPostgresSchema(quack, 'data_tables');
       await quack.exec(pgformat(`DROP TABLE IF EXISTS %I;`, dataTable.id));
       if (dataTable.fileType === FileType.Csv) {
         await quack.exec(pgformat(createTableQuery, dataTable.id, file.path, dataTable.encoding));

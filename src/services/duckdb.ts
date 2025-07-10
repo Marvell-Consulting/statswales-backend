@@ -37,8 +37,8 @@ export const duckdb = async (cubeFile = ':memory:'): Promise<Database> => {
   return duckdb;
 };
 
-export const linkToPostgresDataTables = async (quack: Database): Promise<void> => {
-  logger.debug('Linking to postgres lookup tables schema');
+export const linkToPostgresSchema = async (quack: Database, schema: 'lookup_tables' | 'data_tables'): Promise<void> => {
+  logger.debug(`Linking to postgres ${schema} schema`);
   await quack.exec(`LOAD 'postgres';`);
   await quack.exec(`
     CREATE OR REPLACE SECRET (
@@ -50,23 +50,6 @@ export const linkToPostgresDataTables = async (quack: Database): Promise<void> =
       PASSWORD '${config.database.password}'
     );
   `);
-  await quack.exec(`ATTACH '' AS data_tables_db (TYPE postgres, SCHEMA data_tables);`);
+  await quack.exec(pgformat(`ATTACH '' AS data_tables_db (TYPE postgres, SCHEMA %L);`, schema));
   await quack.exec(`USE data_tables_db;`);
-};
-
-export const linkToPostgresLookupTables = async (quack: Database): Promise<void> => {
-  logger.debug('Linking to postgres lookup tables schema');
-  await quack.exec(`LOAD 'postgres';`);
-  await quack.exec(`
-    CREATE OR REPLACE SECRET (
-      TYPE postgres,
-      HOST '${config.database.host}',
-      PORT ${config.database.port},
-      DATABASE '${config.database.database}',
-      USER '${config.database.username}',
-      PASSWORD '${config.database.password}'
-    );
-  `);
-  await quack.exec(`ATTACH '' AS lookup_tables_db (TYPE postgres, SCHEMA lookup_tables);`);
-  await quack.exec(`USE lookup_tables_db;`);
 };

@@ -351,7 +351,6 @@ export const validateNumericDimension = async (
   };
 
   const tableName = 'fact_table';
-  // TODO REPLACE WITH POSTGRES POOL
   const connection = await getCubeDB().connect();
   try {
     await connection.query(pgformat(`SET search_path TO %I;`, revision.id));

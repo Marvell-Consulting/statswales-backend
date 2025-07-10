@@ -84,16 +84,6 @@ export async function createSmallDataset(
     userGroupId: user?.groupRoles[0]?.groupId,
     factTable: dataTableDescriptions.map((desc) => {
       const isNoteCol = desc.columnName.toLowerCase().includes('note');
-      // const isDataCol = desc.columnName.toLowerCase().includes('data');
-      // const isMeasureCol = desc.columnName.toLowerCase().includes('measure');
-      // let columnType = FactTableColumnType.Unknown;
-      // if (isNoteCol) {
-      //   columnType = FactTableColumnType.Unknown;
-      // } else if (isDataCol) {
-      //   columnType = FactTableColumnType.Unknown;
-      // } else if (isMeasureCol) {
-      //   columnType = FactTableColumnType.Unknown;
-      // }
       const columnDatatype = isNoteCol ? 'VARCHAR' : desc.columnDatatype;
 
       return FactTableColumn.create({
@@ -200,8 +190,6 @@ async function createTestCube(revisionId: string, dataTableId: string) {
   const connection = await getCubeDB().connect();
   await connection.query(pgformat('CREATE SCHEMA IF NOT EXISTS %I;', revisionId));
   await connection.query(pgformat(`SET search_path TO %I;`, revisionId));
-  // await createReferenceDataTablesInCube(connection);
-  // await loadReferenceDataFromCSV(connection);
   const createDataTableSQL = `
     CREATE TABLE data_tables."${dataTableId}"
       (

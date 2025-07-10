@@ -33,7 +33,7 @@ import { FileValidationErrorType, FileValidationException } from '../exceptions/
 import { FactTableColumn } from '../entities/dataset/fact-table-column';
 import { Locale } from '../enums/locale';
 import { DataValueFormat } from '../enums/data-value-format';
-import { duckdb, linkToPostgresLookupTables } from './duckdb';
+import { duckdb, linkToPostgresSchema } from './duckdb';
 import { Revision } from '../entities/dataset/revision';
 import { getCubeDB } from '../db/cube-db';
 import { performanceReporting } from '../utils/performance-reporting';
@@ -331,7 +331,7 @@ async function createMeasureTable(
   }
 
   try {
-    await linkToPostgresLookupTables(quack);
+    await linkToPostgresSchema(quack, 'lookup_tables');
     await quack.exec(pgformat('DROP TABLE IF EXISTS %I', measureId));
     await quack.exec(pgformat('CREATE TABLE lookup_tables_db.%I AS SELECT * FROM memory.measure;', measureId));
   } catch (err) {

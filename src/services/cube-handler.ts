@@ -28,11 +28,10 @@ import { CubeValidationException } from '../exceptions/cube-error-exception';
 import { DataTableDescription } from '../entities/dataset/data-table-description';
 import { MeasureRow } from '../entities/dataset/measure-row';
 import { DatasetRepository } from '../repositories/dataset';
-import { RevisionRepository } from '../repositories/revision';
 import { PeriodCovered } from '../interfaces/period-covered';
 
 import { dateDimensionReferenceTableCreator } from './time-matching';
-import { duckdb, linkToPostgresDataTables, linkToPostgresLookupTables, safelyCloseDuckDb } from './duckdb';
+import { duckdb, linkToPostgresSchema, safelyCloseDuckDb } from './duckdb';
 import { NumberExtractor, NumberType } from '../extractors/number-extractor';
 import { CubeValidationType } from '../enums/cube-validation-type';
 import { languageMatcherCaseStatement } from '../utils/lookup-table-utils';
@@ -384,43 +383,24 @@ export async function createReferenceDataTablesInCube(connection: PoolClient): P
 export async function loadReferenceDataFromCSV(connection: PoolClient): Promise<void> {
   logger.debug(`Loading reference data from CSV`);
   logger.debug(`Loading categories from CSV`);
-  const csvFiles: { name: string; path: string }[] = [];
-  csvFiles.push({
-    name: 'categories',
-    path: path.resolve(__dirname, `../resources/reference-data/v1/categories.csv`)
-  });
-  csvFiles.push({
-    name: 'category_keys',
-    path: path.resolve(__dirname, `../resources/reference-data/v1/category_key.csv`)
-  });
-  csvFiles.push({
-    name: 'reference_data_all',
-    path: path.resolve(__dirname, `../resources/reference-data/v1/reference_data.csv`)
-  });
-  csvFiles.push({
-    name: 'reference_data_info',
-    path: path.resolve(__dirname, `../resources/reference-data/v1/reference_data_info.csv`)
-  });
-  csvFiles.push({
-    name: 'category_key_info',
-    path: path.resolve(__dirname, `../resources/reference-data/v1/category_key_info.csv`)
-  });
-  csvFiles.push({
-    name: 'category_info',
-    path: path.resolve(__dirname, `../resources/reference-data/v1/category_info.csv`)
-  });
-  csvFiles.push({
-    name: 'hierarchy',
-    path: path.resolve(__dirname, `../resources/reference-data/v1/hierarchy.csv`)
-  });
-  for (const csv of csvFiles) {
-    logger.debug(`Loading reference data file ${csv.name} from CSV file`);
-    const fileStream = fs.createReadStream(csv.path, { encoding: 'utf8' });
-    const pgStream = connection.query(from(`COPY ${csv.name} FROM STDIN WITH (FORMAT csv, HEADER true)`));
+  const csvFiles = [
+    'categories',
+    'category_info',
+    'category_key_info',
+    'category_keys',
+    'hierarchy',
+    'reference_data_all',
+    'reference_data_info'
+  ];
+  for (const file of csvFiles) {
+    logger.debug(`Loading reference data file ${file} from CSV file`);
+    const csvPath = path.resolve(__dirname, `../resources/reference-data/v1/${file}.csv`);
+    const fileStream = fs.createReadStream(csvPath, { encoding: 'utf8' });
+    const pgStream = connection.query(from(`COPY ${file} FROM STDIN WITH (FORMAT csv, HEADER true)`));
     try {
       await pipeline(fileStream, pgStream);
     } catch (err) {
-      logger.error(err, `Something went wrong trying to load reference data from JSON file ${csv.name}`);
+      logger.error(err, `Something went wrong trying to load reference data from JSON file ${file}`);
     }
   }
 }
@@ -743,7 +723,7 @@ export async function loadFileIntoLookupTablesSchema(
   }
   logger.debug(`Dropping original lookup table ${lookupTableName}`);
   await quack.exec(pgformat('DROP TABLE %I', lookupTableName));
-  await linkToPostgresLookupTables(quack);
+  await linkToPostgresSchema(quack, 'lookup_tables');
   await quack.exec(pgformat('CREATE TABLE lookup_tables_db.%I AS SELECT * FROM memory.%I;', lookupTable.id, dimTable));
   await quack.close();
   performanceReporting(start - performance.now(), 500, 'Loading a lookup table in to postgres');
@@ -763,7 +743,7 @@ export async function loadFileIntoDataTablesSchema(
     dataTableFile = await getFileImportAndSaveToDisk(dataset, dataTable);
   }
   await loadFileIntoCube(quack, dataTable.fileType, dataTableFile, FACT_TABLE_NAME);
-  await linkToPostgresDataTables(quack);
+  await linkToPostgresSchema(quack, 'data_tables');
   await quack.exec(
     pgformat('CREATE TABLE data_tables_db.%I AS SELECT * FROM memory.%I;', dataTable.id, FACT_TABLE_NAME)
   );
@@ -2048,17 +2028,18 @@ export const createAllCubeFiles = async (datasetId: string, endRevisionId: strin
     revisions: { dataTable: { dataTableDescriptions: true } }
   };
 
-  const endRevisionRelations: FindOptionsRelations<Revision> = {
-    dataTable: { dataTableDescriptions: true }
-  };
-
   logger.debug('Loading dataset and relations');
   const dataset = await DatasetRepository.getById(datasetId, datasetRelations);
   logger.debug('Loading revision and relations');
-  const endRevision = await RevisionRepository.getById(endRevisionId, endRevisionRelations);
+  const endRevision = dataset.revisions.find((rev) => rev.id === dataset.endRevisionId);
+
+  if (!endRevision) {
+    logger.error('Unable to find endRevision in dataset.');
+    throw new CubeValidationException('Failed to find endRevision in dataset.');
+  }
 
   const connection = await getCubeDB().connect();
-  const buildId = crypto.randomUUID();
+  const buildId = `build_${crypto.randomUUID()}`;
 
   try {
     logger.info(`Creating schema for cube build ${buildId}`);
