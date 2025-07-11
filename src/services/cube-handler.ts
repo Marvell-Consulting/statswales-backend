@@ -4,7 +4,6 @@ import { performance } from 'node:perf_hooks';
 
 import { from } from 'pg-copy-streams';
 import { Database, DuckDbError, RowData } from 'duckdb-async';
-import { t } from 'i18next';
 import { FindOptionsRelations } from 'typeorm';
 import { toZonedTime } from 'date-fns-tz';
 import { format as pgformat } from '@scaleleap/pg-format';
@@ -15,7 +14,7 @@ import { Dataset } from '../entities/dataset/dataset';
 import { Dimension } from '../entities/dataset/dimension';
 import { LookupTableExtractor } from '../extractors/lookup-table-extractor';
 import { getFileImportAndSaveToDisk } from '../utils/file-utils';
-import { SUPPORTED_LOCALES } from '../middleware/translation';
+import { SUPPORTED_LOCALES, t } from '../middleware/translation';
 import { DataTable } from '../entities/dataset/data-table';
 import { DataTableAction } from '../enums/data-table-action';
 import { Revision } from '../entities/dataset/revision';
@@ -30,7 +29,7 @@ import { MeasureRow } from '../entities/dataset/measure-row';
 import { DatasetRepository } from '../repositories/dataset';
 import { PeriodCovered } from '../interfaces/period-covered';
 
-import { dateDimensionReferenceTableCreator } from './time-matching';
+import { dateDimensionReferenceTableCreator } from './date-matching';
 import { duckdb, linkToPostgresSchema, safelyCloseDuckDb } from './duckdb';
 import { NumberExtractor, NumberType } from '../extractors/number-extractor';
 import { CubeValidationType } from '../enums/cube-validation-type';
@@ -513,13 +512,14 @@ export const createDatePeriodTableQuery = (factTableColumn: FactTableColumn, tab
     %I %s,
     language VARCHAR(5),
     description VARCHAR,
-    hierarchy VARCHAR,
-    date_type varchar,
     start_date timestamp,
-    end_date timestamp
+    end_date timestamp,
+    date_type varchar,
+    hierarchy %s
   );`,
     tableName,
     factTableColumn.columnName,
+    factTableColumn.columnDatatype,
     factTableColumn.columnDatatype
   );
 };
@@ -542,22 +542,18 @@ export async function createDateDimension(
   await connection.query(createDatePeriodTableQuery(factTableColumn));
 
   // Create the date_dimension table
-  for (const locale of SUPPORTED_LOCALES) {
-    logger.debug(`populating ${safeColumnName}_lookup table for locale ${locale}`);
-    const lang = locale.toLowerCase();
-    for (const row of dateDimensionTable) {
-      await connection.query(
-        pgformat('INSERT INTO %I VALUES(%L)', `${safeColumnName}_lookup`, [
-          row.dateCode,
-          lang,
-          row.description,
-          null,
-          t(row.type, { lng: locale }),
-          row.start,
-          row.end
-        ])
-      );
-    }
+  for (const row of dateDimensionTable) {
+    await connection.query(
+      pgformat('INSERT INTO %I VALUES (%L)', `${safeColumnName}_lookup`, [
+        row.dateCode,
+        row.lang,
+        row.description,
+        row.start,
+        row.end,
+        row.type,
+        row.hierarchy
+      ])
+    );
   }
 
   const periodCoverage: QueryResult<{ start_date: Date; end_date: Date }> = await connection.query(
