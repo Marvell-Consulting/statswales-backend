@@ -162,10 +162,10 @@ function periodTableCreator(
       formatObj = quarterFormats(dateFormat.quarterFormat!, formatObj.formatStr);
       subType = 'quarter';
     } else if (generationType === GeneratorType.Month) {
-      formatObj = monthFormats(dateFormat.monthFormat!, formatObj.formatStr);
       if (dateFormat.quarterFormat) {
         quarterFormat = quarterFormats(dateFormat.quarterFormat!, formatObj.formatStr).formatStr;
       }
+      formatObj = monthFormats(dateFormat.monthFormat!, formatObj.formatStr);
       subType = 'month';
     }
   } catch (error) {
@@ -218,7 +218,6 @@ function periodTableCreator(
     }
 
     for (const locale of SUPPORTED_LOCALES) {
-      const lang = locale.toUpperCase().split('-')[0];
       let description = '';
       switch (generationType) {
         case GeneratorType.Year:
@@ -230,11 +229,11 @@ function periodTableCreator(
         case GeneratorType.Quarter:
           description =
             dateFormat.type === YearType.Calendar
-              ? `${t('date_format.quarter_abr', { lang: lang })}${quarterIndex} ${format(displayYear, 'yyyy')}`
-              : `${t('date_format.quarter_abr', { lng: lang })}${quarterIndex} ${format(displayYear, 'yyyy')}-${format(add(displayYear, { years: 1 }), 'yy')}`;
+              ? `${t('date_format.quarter_abr', { lng: locale })}${quarterIndex} ${format(displayYear, 'yyyy')}`
+              : `${t('date_format.quarter_abr', { lng: locale })}${quarterIndex} ${format(displayYear, 'yyyy')}-${format(add(displayYear, { years: 1 }), 'yy')}`;
           break;
         case GeneratorType.Month:
-          description = `${t(`months.${monthNo}`, { lng: lang })} ${format(displayYear, 'yyyy')}`;
+          description = `${t(`months.${monthNo}`, { lng: locale })} ${format(displayYear, 'yyyy')}`;
           break;
       }
 
@@ -244,7 +243,7 @@ function periodTableCreator(
         description,
         start: year,
         end: sub(add(year, { months: formatObj.increment }), { seconds: 1 }),
-        type: t(`date_format.${subType}.${dateFormat.type}`, { lng: lang }),
+        type: t(`date_format.${subType}.${dateFormat.type}`, { lng: locale }),
         hierarchy: parent
       });
     }
@@ -258,7 +257,6 @@ function periodTableCreator(
         .replace('[monthStr]', format(year, 'MMM'))
         .replace('[monthNo]', String(monthNo).padStart(2, '0'));
       for (const locale of SUPPORTED_LOCALES) {
-        const lang = locale.toLowerCase().split('-')[0];
         referenceTable.push({
           dateCode: yearStr,
           lang: locale.toLowerCase(),
@@ -268,7 +266,7 @@ function periodTableCreator(
               : `${format(displayYear, 'yyyy')}-${format(add(displayYear, { years: 1 }), 'yy')}`,
           start: year,
           end: sub(add(year, { months: 12 }), { seconds: 1 }),
-          type: t(`date_format.year.${dateFormat.type}`, { lng: lang }),
+          type: t(`date_format.year.${dateFormat.type}`, { lng: locale }),
           hierarchy: null
         });
       }
@@ -290,9 +288,9 @@ function periodTableCreator(
         }
         break;
       case GeneratorType.Month:
-        if (monthIndex < 12) {
-          monthIndex++;
+        if (monthIndex <= 12) {
           if (monthIndex % 3 === 0) quarterIndex++;
+          monthIndex++;
         } else {
           monthIndex = 1;
           quarterIndex = 1;
