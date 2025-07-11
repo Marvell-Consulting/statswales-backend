@@ -201,21 +201,21 @@ export const updateDimension = async (req: Request, res: Response, next: NextFun
           {}
         );
     }
-    try {
-      await createAllCubeFiles(dataset.id, dataset.draftRevision!.id);
-    } catch (error) {
-      logger.error(error, `An error occurred trying to create a base cube`);
-      res.status(500);
-      res.json(
-        viewErrorGenerators(500, dataset.id, 'dimension_type', 'errors.dimension_validation.cube_creation_failed', {})
-      );
-      return;
-    }
 
     if ((preview as ViewErrDTO).errors) {
       res.status((preview as ViewErrDTO).status);
     } else {
       res.status(202);
+      try {
+        await createAllCubeFiles(dataset.id, dataset.draftRevision!.id);
+      } catch (error) {
+        logger.error(error, `An error occurred trying to create a base cube`);
+        res.status(500);
+        res.json(
+          viewErrorGenerators(500, dataset.id, 'dimension_type', 'errors.dimension_validation.cube_creation_failed', {})
+        );
+        return;
+      }
     }
     res.json(preview);
   } catch (err) {

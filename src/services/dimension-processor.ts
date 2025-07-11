@@ -554,7 +554,9 @@ export const createAndValidateDateDimension = async (
     quarterFormat: dimensionPatchRequest.quarter_format,
     quarterTotalIsFifthQuart: dimensionPatchRequest.fifth_quarter,
     monthFormat: dimensionPatchRequest.month_format,
-    dateFormat: dimensionPatchRequest.date_format
+    dateFormat: dimensionPatchRequest.date_format,
+    startDay: dimensionPatchRequest.start_day,
+    startMonth: dimensionPatchRequest.start_month
   };
 
   logger.debug(`Extractor created: ${JSON.stringify(extractor)}`);
@@ -676,7 +678,8 @@ export const createAndValidateDateDimension = async (
 async function getDatePreviewWithExtractor(
   dataset: Dataset,
   factTableColumn: string,
-  connection: PoolClient
+  connection: PoolClient,
+  language: string
 ): Promise<ViewDTO> {
   const tableName = `${makeCubeSafeString(factTableColumn)}_lookup`;
   const totalsQuery: QueryResult<{ totalLines: number }> = await connection.query(
@@ -687,6 +690,7 @@ async function getDatePreviewWithExtractor(
         SELECT DISTINCT(%I.%I), %I.description, %I.start_date, %I.end_date, %I.date_type
         FROM %I.%I
         RIGHT JOIN fact_table ON CAST(fact_table.%I AS VARCHAR)=CAST(%I.%I AS VARCHAR)
+        WHERE %I.language = %L
         ORDER BY end_date ASC
         LIMIT %L
     `,
@@ -701,6 +705,8 @@ async function getDatePreviewWithExtractor(
     factTableColumn,
     tableName,
     factTableColumn,
+    tableName,
+    language.toLowerCase(),
     sampleSize
   );
   const previewResult = await connection.query(previewQuery);
@@ -878,7 +884,7 @@ export const getDimensionPreview = async (
         case DimensionType.Date:
         case DimensionType.DatePeriod:
           logger.debug('Previewing a date type dimension');
-          viewDto = await getDatePreviewWithExtractor(dataset, dimension.factTableColumn, connection);
+          viewDto = await getDatePreviewWithExtractor(dataset, dimension.factTableColumn, connection, lang);
           break;
 
         case DimensionType.LookupTable:
