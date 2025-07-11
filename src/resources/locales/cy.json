@@ -112,5 +112,47 @@
     "date": "dyddiad",
     "datetime": "dyddiadamser",
     "time": "amser"
+  },
+  "date_format": {
+    "quarter_name": "Chwarter",
+    "quarter_abr": "C",
+    "year": {
+      "calendar": "Blwyddyn Galendr",
+      "financial": "Blwyddyn Ariannol",
+      "tax": "Blwyddyn Dreth",
+      "meteorological": "Blwyddyn Feteorolegol",
+      "academic": "Blwyddyn Academaidd",
+      "rolling": "Blwyddyn Treigl"
+    },
+    "quarter": {
+      "calendar": "Chwarter Calendr",
+      "financial": "Chwarter Ariannol",
+      "tax": "Chwarter Treth",
+      "meteorological": "Tymor Meteorolegol",
+      "academic": "Chwarter Academaidd",
+      "rolling": "Chwarter Treigl"
+    },
+    "month": {
+      "calendar": "Mis Calendr",
+      "financial": "Mis Ariannol",
+      "tax": "Mis Treth",
+      "meteorological": "Mis Meteorolegol",
+      "academic": "Mis Academaidd",
+      "rolling": "Mis Treigl"
+    }
+  },
+  "months": {
+    "1": "Ionawr",
+    "2": "Chwefror",
+    "3": "Mawrth",
+    "4": "Ebrill",
+    "5": "Mai",
+    "6": "Mehefin",
+    "7": "Gorffennaf",
+    "8": "Awst",
+    "9": "Medi",
+    "10": "Hydref",
+    "11": "Tachwedd",
+    "12": "Rhagfyr"
   }
 }

@@ -163,6 +163,8 @@
     "time": "time"
   },
   "date_format": {
+    "quarter_name": "Quarter",
+    "quarter_abr": "Q",
     "year": {
       "calendar": "Calendar Year",
       "financial": "Financial Year",
@@ -187,5 +189,19 @@
       "academic": "Academic Month",
       "rolling": "Rolling Month"
     }
+  },
+  "months": {
+    "0": "January",
+    "2": "February",
+    "3": "March",
+    "4": "April",
+    "5": "May",
+    "6": "June",
+    "7": "July",
+    "8": "August",
+    "9": "September",
+    "10": "October",
+    "11": "November",
+    "1.2": "December"
   }
 }

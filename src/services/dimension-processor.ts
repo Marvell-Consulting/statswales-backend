@@ -19,13 +19,12 @@ import { FactTableColumn } from '../entities/dataset/fact-table-column';
 import { MeasureRow } from '../entities/dataset/measure-row';
 import { MeasureMetadata } from '../entities/dataset/measure-metadata';
 
-import { dateDimensionReferenceTableCreator, DateReferenceDataItem } from './time-matching';
+import { dateDimensionReferenceTableCreator, DateReferenceDataItem } from './date-matching';
 import { getReferenceDataDimensionPreview } from './reference-data-handler';
 import { NumberExtractor, NumberType } from '../extractors/number-extractor';
 import { viewErrorGenerators, viewGenerator } from '../utils/view-error-generators';
 import { getFileService } from '../utils/get-file-service';
 import { createDatePeriodTableQuery, makeCubeSafeString } from './cube-handler';
-import { t } from 'i18next';
 import { CubeValidationException } from '../exceptions/cube-error-exception';
 import { CubeValidationType } from '../enums/cube-validation-type';
 import { format as pgformat } from '@scaleleap/pg-format/lib/pg-format';
@@ -586,22 +585,18 @@ export const createAndValidateDateDimension = async (
 
   try {
     await connection.query(createDatePeriodTableQuery(factTableColumn, actionId));
-    for (const locale of SUPPORTED_LOCALES) {
-      logger.debug(`populating ${actionId} table for locale ${locale}`);
-      const lang = locale.toLowerCase();
-      for (const row of dateDimensionTable) {
-        await connection.query(
-          pgformat('INSERT INTO %I VALUES (%L)', actionId, [
-            row.dateCode,
-            lang,
-            row.description,
-            null,
-            t(row.type, { lng: locale }),
-            row.start,
-            row.end
-          ])
-        );
-      }
+    for (const row of dateDimensionTable) {
+      await connection.query(
+        pgformat('INSERT INTO %I VALUES (%L)', actionId, [
+          row.dateCode,
+          row.lang,
+          row.description,
+          row.start,
+          row.end,
+          row.type,
+          row.hierarchy
+        ])
+      );
     }
   } catch (error) {
     logger.error(error, `Something went wrong trying to create the date dimension table`);
