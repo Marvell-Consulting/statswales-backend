@@ -13,6 +13,8 @@ export interface DimensionPatchDto {
   quarter_format?: string | null;
   month_format?: string;
   date_format?: string;
+  start_day?: number;
+  start_month?: number;
   fifth_quarter: boolean;
   number_format?: NumberType;
   decimal_places?: number;

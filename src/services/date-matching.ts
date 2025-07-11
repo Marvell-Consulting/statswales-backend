@@ -37,17 +37,20 @@ enum GeneratorType {
 function yearType(type: YearType, startDay = 1, startMonth = 1): YearTypeDetails {
   switch (type) {
     case YearType.Financial:
-      return { start: '04-01T00:00:00Z', type: YearType.Financial };
+      return { start: '04-01T01:00:00Z', type: YearType.Financial };
     case YearType.Tax:
-      return { start: '04-06T00:00:00Z', type: YearType.Tax };
+      return { start: '04-06T01:00:00Z', type: YearType.Tax };
     case YearType.Academic:
-      return { start: '09-01T00:00:00Z', type: YearType.Academic };
+      return { start: '09-01T01:00:00Z', type: YearType.Academic };
     case YearType.Meteorological:
-      return { start: '03-01T00:00:00Z', type: YearType.Meteorological };
+      return { start: '03-01T01:00:00Z', type: YearType.Meteorological };
     case YearType.Calendar:
-      return { start: '01-01T00:00:00Z', type: YearType.Calendar };
+      return { start: '01-01T01:00:00Z', type: YearType.Calendar };
     default:
-      return { start: `${startDay}-${startMonth}T00:00:00Z`, type: YearType.Rolling };
+      return {
+        start: `${String(startMonth).padStart(2, '0')}-${String(startDay).padStart(2, '0')}T01:00:00Z`,
+        type: YearType.Rolling
+      };
   }
 }
 
@@ -179,7 +182,7 @@ function periodTableCreator(
   });
   const startYear = Math.min(...dataYears);
   const endYear = Math.max(...dataYears);
-  const type = yearType(dateFormat.type);
+  const type = yearType(dateFormat.type, dateFormat.startDay, dateFormat.startMonth);
 
   let year = parseISO(`${startYear}-${type.start}`);
   const end = add(parseISO(`${endYear}-${type.start}`), { years: 1 });
