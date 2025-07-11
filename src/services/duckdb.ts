@@ -50,6 +50,6 @@ export const linkToPostgresSchema = async (quack: Database, schema: 'lookup_tabl
       PASSWORD '${config.database.password}'
     );
   `);
-  await quack.exec(pgformat(`ATTACH '' AS data_tables_db (TYPE postgres, SCHEMA %L);`, schema));
-  await quack.exec(`USE data_tables_db;`);
+  await quack.exec(pgformat(`ATTACH '' AS %I (TYPE postgres, SCHEMA %L);`, `${schema}_db`, schema));
+  await quack.exec(pgformat(`USE %I;`, `${schema}_db`));
 };
