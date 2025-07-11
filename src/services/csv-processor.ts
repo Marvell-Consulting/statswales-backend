@@ -14,7 +14,7 @@ import { FileType } from '../enums/file-type';
 import { DataTableDescription } from '../entities/dataset/data-table-description';
 import { DataTableAction } from '../enums/data-table-action';
 
-import { duckdb, linkToPostgres, linkToPostgresDataTables } from './duckdb';
+import { duckdb, linkToPostgresSchema } from './duckdb';
 import { getFileService } from '../utils/get-file-service';
 import { FileValidationErrorType, FileValidationException } from '../exceptions/validation-exception';
 import { DuckDBException } from '../exceptions/duckdb-exception';
@@ -23,6 +23,8 @@ import { validateParams } from '../validators/preview-validator';
 import { SourceLocation } from '../enums/source-location';
 import { UploadTableType } from '../interfaces/upload-table-type';
 import { TempFile } from '../interfaces/temp-file';
+import { getCubeDB } from '../db/cube-db';
+import { QueryResult } from 'pg';
 
 const sampleSize = 5;
 
@@ -104,7 +106,7 @@ export async function extractTableInformation(
   if (type === 'data_table') {
     try {
       logger.debug(`Copying data table to postgres using data table id: ${dataTable.id}`);
-      await linkToPostgresDataTables(quack);
+      await linkToPostgresSchema(quack, 'data_tables');
       await quack.exec(pgformat(`DROP TABLE IF EXISTS %I;`, dataTable.id));
       if (dataTable.fileType === FileType.Csv) {
         await quack.exec(pgformat(createTableQuery, dataTable.id, file.path, dataTable.encoding));
@@ -266,20 +268,21 @@ export const getCSVPreview = async (
 ): Promise<ViewDTO | ViewErrDTO> => {
   let tableName = 'fact_table';
 
+  const connection = await getCubeDB().connect();
+  await connection.query(pgformat(`SET search_path TO %I;`, 'data_tables'));
   logger.debug('Getting table query from postgres');
-  const quack = await duckdb();
-  await linkToPostgresDataTables(quack);
   tableName = dataTable.id;
 
   try {
     const totalsQuery = pgformat(
-      `SELECT count(*) as totalLines, ceil(count(*)/%L) as totalPages from %I;`,
+      `SELECT count(*) as total_lines, ceil(count(*)/%L) as total_pages from %I;`,
       size,
       tableName
     );
-    const totals = await quack.all(totalsQuery);
-    const totalPages = Number(totals[0].totalPages);
-    const totalLines = Number(totals[0].totalLines);
+    logger.debug(`Getting total lines and pages using query ${totalsQuery}`);
+    const totals: QueryResult<{ total_lines: number; total_pages: number }> = await connection.query(totalsQuery);
+    const totalPages = Number(totals.rows[0].total_pages) === 0 ? 1 : Number(totals.rows[0].total_pages);
+    const totalLines = Number(totals.rows[0].total_lines);
     const errors = validateParams(page, totalPages, size);
 
     if (errors.length > 0) {
@@ -288,7 +291,7 @@ export const getCSVPreview = async (
 
     const previewQuery = pgformat(
       `
-      SELECT int_line_number, *
+      SELECT *
       FROM (SELECT row_number() OVER () as int_line_number, * FROM %I)
       LIMIT %L
       OFFSET %L
@@ -298,11 +301,11 @@ export const getCSVPreview = async (
       (page - 1) * size
     );
 
-    const preview = await quack.all(previewQuery);
-    const startLine = Number(preview[0].int_line_number);
-    const lastLine = Number(preview[preview.length - 1].int_line_number);
-    const tableHeaders = Object.keys(preview[0]);
-    const dataArray = preview.map((row) => Object.values(row));
+    const preview = await connection.query(previewQuery);
+    const startLine = Number(preview.rows[0].int_line_number);
+    const lastLine = Number(preview.rows[preview.rows.length - 1].int_line_number);
+    const tableHeaders = Object.keys(preview.rows[0]);
+    const dataArray = preview.rows.map((row) => Object.values(row));
     const dataset = await DatasetRepository.getById(datasetId, { factTable: true });
     const currentImport = await DataTable.findOneByOrFail({ id: dataTable.id });
 
@@ -324,7 +327,7 @@ export const getCSVPreview = async (
     logger.error(error);
     return viewErrorGenerators(500, datasetId, 'csv', 'errors.preview.preview_failed', {});
   } finally {
-    await quack.close();
+    connection.release();
   }
 };
 
@@ -334,20 +337,26 @@ export const getFactTableColumnPreview = async (
 ): Promise<ViewDTO | ViewErrDTO> => {
   logger.debug(`Getting fact table column preview for ${columnName}`);
   const tableName = 'fact_table';
-  const quack = await duckdb();
+  const connection = await getCubeDB().connect();
+
   try {
-    await linkToPostgres(quack, dataset.draftRevision!.id, false);
+    await connection.query(pgformat(`SET search_path TO %I;`, dataset.draftRevision!.id));
   } catch (error) {
-    logger.error(error, 'Something went wrong trying to link to postgres database');
-    return viewErrorGenerators(500, dataset.id, 'patch', 'errors.cube_builder.fact_table_creation_failed', {});
+    logger.error(error, 'Could not find revision schema');
+    connection.release();
+    return viewErrorGenerators(500, dataset.id, 'csv', 'errors.preview.cube_missing', {});
   }
+
   try {
-    const totals = await quack.all(`SELECT COUNT(DISTINCT "${columnName}") AS "totalLines" FROM ${tableName};`);
-    const totalLines = Number(totals[0].totalLines);
-    const previewQuery = `SELECT DISTINCT "${columnName}" FROM ${tableName} LIMIT ${sampleSize}`;
-    const preview = await quack.all(previewQuery);
-    const tableHeaders = Object.keys(preview[0]);
-    const dataArray = preview.map((row) => Object.values(row));
+    const totals: QueryResult<{ total_lines: number }> = await connection.query(
+      pgformat('SELECT COUNT(DISTINCT %I) AS total_lines FROM %I', columnName, tableName)
+    );
+    const totalLines = totals.rows[0].total_lines;
+    const preview = await connection.query(
+      pgformat('SELECT DISTINCT %I FROM %I LIMIT %L', columnName, tableName, sampleSize)
+    );
+    const tableHeaders = Object.keys(preview.rows[0]);
+    const dataArray = preview.rows.map((row) => Object.values(row));
     const currentDataset = await DatasetRepository.getById(dataset.id);
     const headers: CSVHeader[] = [];
     for (let i = 0; i < tableHeaders.length; i++) {
@@ -366,14 +375,14 @@ export const getFactTableColumnPreview = async (
     const pageInfo = {
       total_records: totalLines,
       start_record: 1,
-      end_record: preview.length
+      end_record: preview.rows.length
     };
-    const pageSize = preview.length < sampleSize ? preview.length : sampleSize;
+    const pageSize = preview.rows.length < sampleSize ? preview.rows.length : sampleSize;
     return viewGenerator(currentDataset, 1, pageInfo, pageSize, 1, headers, dataArray);
   } catch (error) {
     logger.error(error);
     return viewErrorGenerators(500, dataset.id, 'csv', 'dimension.preview.failed_to_preview_column', {});
   } finally {
-    await quack.close();
+    connection.release();
   }
 };

@@ -6,9 +6,8 @@ export enum FactTableValidationExceptionType {
   NoDraftRevision = 'no_draft_revision',
   NoDataTable = 'no_data_table',
   FailedToLoadData = 'failed_to_load_data',
-  EmptyValue = 'incomplete_fact',
   DuplicateFact = 'duplicate_fact',
-  // IncompleteFact = 'incomplete_fact',
+  IncompleteFact = 'incomplete_fact',
   UnknownError = 'unknown_error',
   UnknownFileType = 'unknown_file_type'
 }

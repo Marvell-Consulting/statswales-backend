@@ -1,17 +1,16 @@
 import { format as pgformat } from '@scaleleap/pg-format';
 import { ValidatedSourceAssignment } from './dimension-processor';
 import { Dataset } from '../entities/dataset/dataset';
-import { duckdb, linkToPostgres, safelyCloseDuckDb } from './duckdb';
 import { FactTableColumn } from '../entities/dataset/fact-table-column';
 import { FactTableColumnType } from '../enums/fact-table-column-type';
 import { logger } from '../utils/logger';
-import { FACT_TABLE_NAME, loadTableDataIntoFactTableFromPostgres, NoteCodes } from './cube-handler';
+import { FACT_TABLE_NAME, NoteCodes } from './cube-handler';
 import { FactTableValidationException } from '../exceptions/fact-table-validation-exception';
 import { FactTableValidationExceptionType } from '../enums/fact-table-validation-exception-type';
 import { SourceAssignmentDTO } from '../dtos/source-assignment-dto';
 import { tableDataToViewTable } from '../utils/table-data-to-view-table';
-import { Database, TableData } from 'duckdb-async';
-import { asyncTmpName } from '../utils/async-tmp';
+import { getCubeDB } from '../db/cube-db';
+import { PoolClient, QueryResult } from 'pg';
 
 interface FactTableDefinition {
   factTableColumn: FactTableColumn;
@@ -22,27 +21,13 @@ interface FactTableDefinition {
 export const factTableValidatorFromSource = async (
   dataset: Dataset,
   validatedSourceAssignment: ValidatedSourceAssignment
-): Promise<string> => {
+): Promise<void> => {
   const revision = dataset.draftRevision;
 
   if (!revision) {
     throw new FactTableValidationException(
       'Unable to find draft revision',
       FactTableValidationExceptionType.NoDraftRevision,
-      500
-    );
-  }
-
-  const duckdbSaveFile = await asyncTmpName({ postfix: '.duckdb' });
-  const quack = await duckdb(duckdbSaveFile);
-
-  try {
-    await linkToPostgres(quack, revision.id, true);
-  } catch (error) {
-    logger.error(error, 'Failed to link to postgtres schemas');
-    throw new FactTableValidationException(
-      'Postgres linking fialed',
-      FactTableValidationExceptionType.UnknownError,
       500
     );
   }
@@ -107,95 +92,64 @@ export const factTableValidatorFromSource = async (
       def.factTableColumnType === FactTableColumnType.Dimension ||
       def.factTableColumnType === FactTableColumnType.Measure
   );
-  const orderedFactTableDefinition = factTableDefinition.sort(
-    (a, b) => a.factTableColumn.columnIndex - b.factTableColumn.columnIndex
-  );
 
   const primaryKeyDef = primaryKeyColumns.map((def) => def.factTableColumn.columnName);
-  const factTableCreateDef = orderedFactTableDefinition
-    .filter((def) => def.factTableColumnType !== FactTableColumnType.Ignore)
-    .map(
-      (def) =>
-        `"${def.factTableColumn.columnName}" ${def.factTableColumn.columnDatatype === 'DOUBLE' ? 'DOUBLE PRECISION' : def.factTableColumn.columnDatatype}`
-    );
-  const factTableDef = orderedFactTableDefinition
-    .filter((def) => def.factTableColumnType !== FactTableColumnType.Ignore)
-    .map((def) => def.factTableColumn.columnName);
-  // Commented out for testing
-  // const factTableCreationQuery = pgformat(
-  //   `CREATE TABLE %I.%I (%s, PRIMARY KEY (%I));`,
-  //   revision.id,
-  //   FACT_TABLE_NAME,
-  //   factTableCreateDef.join(', '),
-  //   primaryKeyDef
-  // );
-  // No primary key table creation
-  const factTableCreationQuery = pgformat(
-    `CREATE TABLE %I.%I (%s);`,
-    revision.id,
-    FACT_TABLE_NAME,
-    factTableCreateDef.join(', ')
-  );
-  const createQuery = pgformat(`CALL postgres_execute('postgres_db', %L);`, factTableCreationQuery);
-
-  // logger.debug(`Creating initial fact table in cube using query:\n${createQuery}`);
-
-  try {
-    await quack.exec(createQuery);
-  } catch (err) {
-    logger.error(err, `Failed to create fact table in cube`);
-    await quack.close();
-    throw new FactTableValidationException(
-      (err as Error).message,
-      FactTableValidationExceptionType.FactTableCreationFailed,
-      500
-    );
-  }
 
   const dataTable = revision.dataTable;
   if (!dataTable) {
-    await quack.close();
     throw new FactTableValidationException(
       'Unable to find data on revision',
       FactTableValidationExceptionType.NoDataTable,
       500
     );
   }
-
+  const connection = await getCubeDB().connect();
   try {
-    await loadTableDataIntoFactTableFromPostgres(quack, factTableDef, FACT_TABLE_NAME, dataTable.id);
-    await validateNoteCodesColumn(quack, validatedSourceAssignment.noteCodes, FACT_TABLE_NAME);
-  } catch (err) {
-    let error = err as FactTableValidationException;
-    logger.error(error, 'Failed to load data table into fact table');
-    // Attempt to augment the error with details of where the errors in the data table are
-    if (error.type === FactTableValidationExceptionType.EmptyValue) {
-      error = await identifyIncompleteFacts(quack, primaryKeyDef, error);
-    } else if (error.type === FactTableValidationExceptionType.DuplicateFact) {
-      error = await identifyDuplicateFacts(quack, primaryKeyDef, error);
-    }
-    throw error;
-  } finally {
-    logger.debug('Closing duckdb database');
-    await safelyCloseDuckDb(quack);
-    logger.debug('Duckdb Closed');
+    await connection.query(pgformat(`SET search_path TO %I;`, revision.id));
+  } catch (error) {
+    logger.error(error, 'Unable to connect to postgres schema for revision.');
+    throw new FactTableValidationException(
+      'Unable to find data on revision cube in database',
+      FactTableValidationExceptionType.UnknownError,
+      500
+    );
   }
-
-  return duckdbSaveFile;
+  try {
+    await connection.query(pgformat('ALTER TABLE %I ADD PRIMARY KEY (%I)', FACT_TABLE_NAME, primaryKeyDef));
+    await validateNoteCodesColumn(connection, validatedSourceAssignment.noteCodes, FACT_TABLE_NAME);
+  } catch (err) {
+    if ((err as Error).message.includes('could not create unique index')) {
+      let error: FactTableValidationException | undefined;
+      error = await identifyIncompleteFacts(connection, primaryKeyDef);
+      if (error) throw error;
+      error = await identifyDuplicateFacts(connection, primaryKeyDef);
+      if (error) throw error;
+    }
+    logger.error(err, 'Failed to load data table into fact table');
+    throw new FactTableValidationException(
+      'Something went wrong trying to add primary key to fact table',
+      FactTableValidationExceptionType.UnknownError,
+      500
+    );
+  } finally {
+    connection.release();
+  }
 };
 
 async function validateNoteCodesColumn(
-  quack: Database,
+  connection: PoolClient,
   noteCodeColumn: SourceAssignmentDTO | null,
   factTableName: string
 ): Promise<void> {
-  let notesCodes: TableData;
+  let notesCodes: QueryResult<{ codes: string }>;
   try {
-    notesCodes = await quack.all(`
-      SELECT DISTINCT "${noteCodeColumn?.column_name}" as codes
-      FROM ${factTableName}
-      WHERE "${noteCodeColumn?.column_name}" IS NOT NULL;
-    `);
+    const findNoteCodesQuery = pgformat(
+      'SELECT DISTINCT %I as codes FROM %I WHERE %I IS NOT NULL;',
+      noteCodeColumn?.column_name,
+      factTableName,
+      noteCodeColumn?.column_name
+    );
+    notesCodes = await connection.query(findNoteCodesQuery);
   } catch (error) {
     logger.error(error, 'Failed to extract or validate validate note codes');
     throw new FactTableValidationException(
@@ -206,7 +160,7 @@ async function validateNoteCodesColumn(
   }
   const allCodes = NoteCodes.map((noteCode) => noteCode.code);
   const badCodes: string[] = [];
-  for (const noteCode of notesCodes) {
+  for (const noteCode of notesCodes.rows) {
     noteCode.codes.split(',').forEach((code: string) => {
       const trimmedCode = code.trim().toLowerCase();
       if (!allCodes.includes(trimmedCode)) {
@@ -225,12 +179,22 @@ async function validateNoteCodesColumn(
   );
   try {
     const badCodesString = badCodes.map((code) => `codes LIKE '%${code.toLowerCase()}%'`).join(' or ');
-    const brokeNoteCodeLines = await quack.all(`
-    SELECT * exclude(codes) FROM (
-      SELECT row_number() OVER () as line_number, *, lower(${noteCodeColumn?.column_name}) as codes FROM ${factTableName} WHERE ${badCodesString}
-    ) LIMIT 500;
-  `);
-    const { headers, data } = tableDataToViewTable(brokeNoteCodeLines);
+    const columns: QueryResult<{ column_name: string }> = await connection.query(
+      pgformat('SELECT column_name FROM information_schema.columns WHERE table_name = %L', factTableName)
+    );
+    const selectColumns = columns.rows
+      .filter((row) => row.column_name != noteCodeColumn?.column_name)
+      .map((col) => col.column_name);
+    selectColumns.push('line_number');
+    const brokeNoteCodeLinesQuery = pgformat(
+      'SELECT %I FROM (SELECT row_number() OVER () as line_number, *, lower(%I) as codes FROM %I WHERE %L) LIMIT 500',
+      selectColumns,
+      noteCodeColumn?.column_name,
+      factTableName,
+      badCodesString
+    );
+    const brokeNoteCodeLines = await connection.query(brokeNoteCodeLinesQuery);
+    const { headers, data } = tableDataToViewTable(brokeNoteCodeLines.rows);
     error.data = data;
     error.headers = headers;
   } catch (extractionErr) {
@@ -240,49 +204,79 @@ async function validateNoteCodesColumn(
 }
 
 async function identifyIncompleteFacts(
-  quack: Database,
-  primaryKeyDef: string[],
-  error: FactTableValidationException
-): Promise<FactTableValidationException> {
+  connection: PoolClient,
+  primaryKeyDef: string[]
+): Promise<FactTableValidationException | undefined> {
+  const pkeyDef = primaryKeyDef.map((key) => pgformat('%I IS NULL', key));
   try {
-    const brokenFacts = await quack.all(
-      `SELECT * FROM (SELECT row_number() OVER () as line_number, * FROM data_table) WHERE ${primaryKeyDef.join('IS NULL OR ')} IS NULL LIMIT 500;`
+    const incompleteFactQuery = pgformat(
+      `SELECT * FROM (SELECT row_number() OVER () as line_number, * FROM fact_table) WHERE %s LIMIT 500;`,
+      pkeyDef.join(' OR ')
     );
-    const { headers, data } = tableDataToViewTable(brokenFacts);
-    error.data = data;
-    error.headers = headers;
+    const brokenFacts = await connection.query(incompleteFactQuery);
+    if (brokenFacts.rows.length > 0) {
+      logger.debug(`${brokenFacts.rows.length} incomplete facts found in fact table`);
+      const { headers, data } = tableDataToViewTable(brokenFacts.rows);
+      const err = new FactTableValidationException(
+        'Incomplete facts found in the data table',
+        FactTableValidationExceptionType.IncompleteFact,
+        400
+      );
+      err.data = data;
+      err.headers = headers;
+      return err;
+    }
   } catch (extractionErr) {
-    logger.error(extractionErr, 'Failed to extract data from data table.');
+    logger.error(extractionErr, 'Failed to run query to identify incomplete facts.');
+    return new FactTableValidationException(
+      'Could not run the check for incomplete facts',
+      FactTableValidationExceptionType.UnknownError,
+      400
+    );
   }
-  return error;
+  return undefined;
 }
 
 async function identifyDuplicateFacts(
-  quack: Database,
-  primaryKeyDef: string[],
-  error: FactTableValidationException
-): Promise<FactTableValidationException> {
+  connection: PoolClient,
+  primaryKeyDef: string[]
+): Promise<FactTableValidationException | undefined> {
+  const pkeyDef = primaryKeyDef.map((key) => pgformat('%I', key));
+  const duplicateFactQuery = pgformat(
+    `
+        SELECT * FROM (SELECT row_number() OVER () as line_number, * FROM fact_table)
+        WHERE (%s) IN (
+          SELECT %s FROM (
+            SELECT %s, count(*) as fact_count FROM fact_table
+            GROUP BY %s
+          ) WHERE fact_count > 1
+        ) LIMIT 500;`,
+    pkeyDef.join(', '),
+    pkeyDef.join(', '),
+    pkeyDef.join(', '),
+    pkeyDef.join(', ')
+  );
   try {
-    const duplicateQuery = `
-        SELECT  *
-        FROM (SELECT row_number() OVER () as line_number, * FROM data_table)
-        WHERE (${primaryKeyDef.join(', ')}) IN
-        (
-            SELECT ${primaryKeyDef.join(', ')}
-            FROM (
-                SELECT ${primaryKeyDef.join(', ')}, count(*) as fact_count
-                FROM data_table GROUP BY ${primaryKeyDef.join(', ')} HAVING fact_count > 1
-            )
-        ) LIMIT 500;`;
-
-    // logger.debug(`Running query to find duplicates:\n${duplicateQuery}`);
-
-    const brokenFacts = await quack.all(duplicateQuery);
-    const { headers, data } = tableDataToViewTable(brokenFacts);
-    error.data = data;
-    error.headers = headers;
+    logger.debug(`Running query to find duplicates:\n${duplicateFactQuery}`);
+    const brokenFacts = await connection.query(duplicateFactQuery);
+    if (brokenFacts.rows.length > 0) {
+      const { headers, data } = tableDataToViewTable(brokenFacts.rows);
+      const err = new FactTableValidationException(
+        'Duplicate facts found in the data table',
+        FactTableValidationExceptionType.DuplicateFact,
+        400
+      );
+      err.data = data;
+      err.headers = headers;
+      return err;
+    }
   } catch (extractionErr) {
-    logger.error(extractionErr, 'Failed to extract data from data table.');
+    logger.error(extractionErr, 'Failed to run query to identify duplicate facts.');
+    return new FactTableValidationException(
+      'Could not run the check for duplicate facts',
+      FactTableValidationExceptionType.UnknownError,
+      400
+    );
   }
-  return error;
+  return undefined;
 }

@@ -1,4 +1,4 @@
-import { Database, DuckDbError } from 'duckdb-async';
+import { DuckDbError } from 'duckdb-async';
 import { format as pgformat } from '@scaleleap/pg-format';
 import { t } from 'i18next';
 
@@ -21,7 +21,6 @@ import { CSVHeader, ViewDTO, ViewErrDTO } from '../dtos/view-dto';
 import { viewErrorGenerators, viewGenerator } from '../utils/view-error-generators';
 import { logger } from '../utils/logger';
 import { Measure } from '../entities/dataset/measure';
-import { loadFileIntoDatabase } from '../utils/file-utils';
 import { DatasetRepository } from '../repositories/dataset';
 import { FactTableColumnType } from '../enums/fact-table-column-type';
 import { MeasureRow } from '../entities/dataset/measure-row';
@@ -29,13 +28,17 @@ import { SUPPORTED_LOCALES } from '../middleware/translation';
 import { DisplayType } from '../enums/display-type';
 import { getFileService } from '../utils/get-file-service';
 
-import { measureTableCreateStatement } from './cube-handler';
+import { loadFileIntoCube, measureTableCreateStatement } from './cube-handler';
 import { FileValidationErrorType, FileValidationException } from '../exceptions/validation-exception';
 import { FactTableColumn } from '../entities/dataset/fact-table-column';
 import { Locale } from '../enums/locale';
 import { DataValueFormat } from '../enums/data-value-format';
-import { duckdb, linkToPostgres } from './duckdb';
+import { duckdb, linkToPostgresSchema } from './duckdb';
 import { Revision } from '../entities/dataset/revision';
+import { getCubeDB } from '../db/cube-db';
+import { performanceReporting } from '../utils/performance-reporting';
+import { performance } from 'node:perf_hooks';
+import { FileType } from '../enums/file-type';
 
 const sampleSize = 5;
 
@@ -175,16 +178,20 @@ async function updateMeasure(
 }
 
 async function createMeasureTable(
-  quack: Database,
   revisionId: string,
+  measureId: string,
   measureColumn: FactTableColumn,
   joinColumn: string,
-  lookupTable: string,
-  extractor: MeasureLookupTableExtractor
+  extractor: MeasureLookupTableExtractor,
+  fileType: FileType,
+  path: string
 ): Promise<MeasureRow[]> {
+  const start = performance.now();
+  const lookupTableName = 'measure_draft';
+  const quack = await duckdb();
   logger.debug(`Creating empty measure table`);
   await quack.exec(measureTableCreateStatement(measureColumn.columnDatatype));
-
+  await loadFileIntoCube(quack, fileType, path, lookupTableName);
   const measureTable: MeasureRow[] = [];
   const viewComponents: string[] = [];
   logger.debug(`Setting up measure insert query`);
@@ -227,7 +234,7 @@ async function createMeasureTable(
             ${decimalColumnDef} AS decimals,
             ${measureTypeDef} AS measure_type,
             ${hierarchyDef} AS hierarchy
-         FROM ${lookupTable}\n`
+         FROM ${lookupTableName}\n`
       );
     }
     buildMeasureViewQuery = `${viewComponents.join('\nUNION\n')}`;
@@ -253,25 +260,24 @@ async function createMeasureTable(
         ${decimalColumnDef} AS decimals,
         ${measureTypeDef} AS measure_type,
         ${hierarchyDef} AS hierarchy
-      FROM ${lookupTable}
+      FROM ${lookupTableName}
     `;
     // logger.debug(`Extracting SW3 measure lookup table to measure table using query ${buildMeasureViewQuery}`);
   }
   try {
     const insertQuery = `INSERT INTO measure (${buildMeasureViewQuery});`;
+    await quack.exec(insertQuery);
     for (const locale of SUPPORTED_LOCALES) {
       await quack.exec(
         pgformat(
-          'UPDATE %I.measure SET language = %L WHERE language = lower(%L)',
-          revisionId,
+          'UPDATE measure SET language = %L WHERE language = lower(%L)',
           locale.toLowerCase(),
           locale.split('-')[0]
         )
       );
       await quack.exec(
         pgformat(
-          'UPDATE %I.measure SET language = %L WHERE language = lower(%L)',
-          revisionId,
+          'UPDATE measure SET language = %L WHERE language = lower(%L)',
           locale.toLowerCase(),
           locale.toLowerCase()
         )
@@ -279,19 +285,13 @@ async function createMeasureTable(
       for (const sublocale of SUPPORTED_LOCALES) {
         await quack.exec(
           pgformat(
-            'UPDATE %I.measure SET language = %L WHERE language = lower(%L)',
-            revisionId,
+            'UPDATE measure SET language = %L WHERE language = lower(%L)',
             sublocale.toLowerCase(),
             t(`language.${sublocale.split('-')[0]}`, { lng: locale })
           ).toLowerCase()
         );
       }
     }
-    // logger.debug(`Extracting lookup table contents to measure using query:\n ${insertQuery}`);
-    await quack.exec(insertQuery);
-    await quack.exec(`DROP TABLE ${lookupTable} CASCADE;`);
-    // const measureTable = await quack.all(`SELECT * FROM measure;`);
-    // logger.debug(`Creating measureTable from lookup using result:\n${JSON.stringify(measureTable, null, 2)}`);
   } catch (err) {
     logger.error(err, `Something went wrong trying to extract the lookup tables contents to measure.`);
     const error = err as DuckDbError;
@@ -330,8 +330,17 @@ async function createMeasureTable(
     }
   }
 
-  const tableContents = await quack.all(`SELECT * FROM measure;`);
-  // logger.debug(`Creating measureTable from lookup using result:\n${JSON.stringify(tableContents, null, 2)}`);
+  try {
+    await linkToPostgresSchema(quack, 'lookup_tables');
+    await quack.exec(pgformat('DROP TABLE IF EXISTS %I', measureId));
+    await quack.exec(pgformat('CREATE TABLE lookup_tables_db.%I AS SELECT * FROM memory.measure;', measureId));
+  } catch (err) {
+    logger.error(err, 'Something went wrong trying to copy the measure table to postgres');
+    await quack.close();
+    throw new FileValidationException('errors.measure_validation.copy_failure', FileValidationErrorType.unknown);
+  }
+
+  const tableContents = await quack.all(`SELECT * FROM memory.measure;`);
   for (const row of tableContents) {
     const item = new MeasureRow();
     item.reference = row.reference;
@@ -345,6 +354,8 @@ async function createMeasureTable(
     item.hierarchy = row.hierarchy;
     measureTable.push(item);
   }
+  await quack.close();
+  performanceReporting(start - performance.now(), 500, 'Loading measure lookup table into postgres');
   return measureTable;
 }
 
@@ -385,40 +396,18 @@ export const validateMeasureLookupTable = async (
 
   const lookupTable = convertDataTableToLookupTable(protoLookupTable);
   const factTableName = 'fact_table';
-  const lookupTableName = 'preview_lookup';
+
   const measure = dataset.measure;
-  const quack = await duckdb();
-  try {
-    await linkToPostgres(quack, draftRevision.id, false);
-    await quack.exec(pgformat(`DROP TABLE IF EXISTS %I.%I CASCADE;`, draftRevision.id, 'measure'));
-    await quack.exec(pgformat(`DROP TABLE IF EXISTS %I.%I CASCADE;`, draftRevision.id, 'preview_table'));
-  } catch (error) {
-    logger.error(error, 'Something went wrong trying to link to postgres database');
-    return viewErrorGenerators(500, dataset.id, 'patch', 'errors.cube_builder.fact_table_creation_failed', {});
-  }
-
-  try {
-    await loadFileIntoDatabase(quack, lookupTable, path, lookupTableName);
-  } catch (err) {
-    await quack.close();
-    logger.error(err, `Something went wrong trying to load data in to DuckDB with the following error: ${err}`);
-    return viewErrorGenerators(500, dataset.id, 'csv', 'errors.dimension.unknown_error', {
-      mismatch: false
-    });
-  }
-
   let confirmedJoinColumn: string | undefined;
   try {
     confirmedJoinColumn = lookForJoinColumn(protoLookupTable, measure.factTableColumn, tableLanguage, tableMatcher);
   } catch (_err) {
-    await quack.close();
     return viewErrorGenerators(400, dataset.id, 'csv', 'errors.measure_validation.no_join_column', {
       mismatch: false
     });
   }
 
   if (!confirmedJoinColumn) {
-    await quack.close();
     return viewErrorGenerators(400, dataset.id, 'csv', 'errors.measure_validation.no_join_column', {
       mismatch: false
     });
@@ -429,7 +418,6 @@ export const validateMeasureLookupTable = async (
     extractor = createExtractor(protoLookupTable, tableLanguage, tableMatcher);
   } catch (error) {
     logger.error(error, `Something went wrong trying to create the measure lookup table extractor`);
-    await quack.close();
     return viewErrorGenerators(400, dataset.id, 'csv', 'errors.measure_validation.no_description_columns', {
       mismatch: false
     });
@@ -438,53 +426,97 @@ export const validateMeasureLookupTable = async (
   let measureTable: MeasureRow[];
   try {
     measureTable = await createMeasureTable(
-      quack,
       draftRevision.id,
+      measure.id,
       measureColumn,
       confirmedJoinColumn,
-      lookupTableName,
-      extractor
+      extractor,
+      protoLookupTable.fileType,
+      path
     );
   } catch (err) {
     const error = err as FileValidationException;
-    await quack.close();
     logger.error(err, `Something went wrong trying to create the measure table with the following error: ${err}`);
     return viewErrorGenerators(400, dataset.id, 'csv', error.errorTag, {
       mismatch: false
     });
   }
+
+  const connection = await getCubeDB().connect();
+  try {
+    await connection.query(pgformat(`SET search_path TO %I;`, draftRevision.id));
+  } catch (error) {
+    await lookupTable.remove();
+    logger.error(error, 'Unable to connect to postgres schema for revision.');
+    return viewErrorGenerators(500, dataset.id, 'patch', 'errors.measure_validation.lookup_table_loading_failed', {
+      mismatch: false
+    });
+  }
+  logger.debug('Copying lookup table from lookup_tables schema into cube');
+  const actionId = crypto.randomUUID();
+  try {
+    await connection.query(measureTableCreateStatement(measureColumn.columnDatatype, actionId));
+    for (const row of measureTable) {
+      logger.debug(`Inserting into measure table ${JSON.stringify(row)}`);
+      const values = [
+        row.reference,
+        row.language,
+        row.description,
+        row.notes,
+        row.sortOrder,
+        row.format,
+        row.decimal,
+        row.measureType,
+        row.hierarchy
+      ];
+      await connection.query(pgformat('INSERT INTO %I VALUES (%L);', actionId, values));
+    }
+  } catch (error) {
+    await lookupTable.remove();
+    logger.error(error, 'Unable to copy lookup table from lookup tables schema.');
+    return viewErrorGenerators(500, dataset.id, 'patch', 'errors.dimension_validation.lookup_table_loading_failed', {
+      mismatch: false
+    });
+  }
+
   const updatedMeasure = await updateMeasure(dataset, lookupTable, confirmedJoinColumn, measureTable, extractor);
 
   const referenceErrors = await validateLookupTableReferenceValues(
-    quack,
+    connection,
     dataset,
     updatedMeasure.factTableColumn,
     'reference',
-    'measure',
+    actionId,
     factTableName,
     'measure'
   );
   if (referenceErrors) {
-    await quack.close();
+    await lookupTable.remove();
+    await connection.query(pgformat('DROP TABLE %I;', actionId));
+    connection.release();
     return referenceErrors;
   }
 
   const languageErrors = await validateLookupTableLanguages(
-    quack,
+    connection,
     dataset,
     draftRevision.id,
     'reference',
-    'measure',
+    actionId,
     'measure'
   );
   if (languageErrors) {
-    await quack.close();
+    await lookupTable.remove();
+    await connection.query(pgformat('DROP TABLE %I;', actionId));
+    connection.release();
     return languageErrors;
   }
 
-  const tableValidationErrors = await validateMeasureTableContent(quack, dataset.id, 'measure', extractor);
+  const tableValidationErrors = await validateMeasureTableContent(connection, dataset.id, actionId, extractor);
   if (tableValidationErrors) {
-    await quack.close();
+    await lookupTable.remove();
+    await connection.query(pgformat('DROP TABLE %I;', actionId));
+    connection.release();
     return tableValidationErrors;
   }
 
@@ -496,15 +528,17 @@ export const validateMeasureLookupTable = async (
 
   try {
     logger.debug(`Generating preview of measure table`);
-    const dimensionTable = await quack.all(
-      `SELECT * EXCLUDE(language) FROM measure WHERE language = '${lang.toLowerCase()}' ORDER BY sort_order, reference;`
+    const previewQuery = pgformat(
+      'SELECT reference, description, notes, sort_order, format, decimals, measure_type, hierarchy FROM %I WHERE language = %L;',
+      actionId,
+      lang
     );
-
+    const measureTable = await connection.query(previewQuery);
     // logger.debug(`Measure preview query result: ${JSON.stringify(dimensionTable, null, 2)}`);
     // this is throwing "TypeError: Converting circular structure to JSON"
 
-    const tableHeaders = Object.keys(dimensionTable[0]);
-    const dataArray = dimensionTable.map((row) => Object.values(row));
+    const tableHeaders = Object.keys(measureTable.rows[0]);
+    const dataArray = measureTable.rows.map((row) => Object.values(row));
     const currentDataset = await DatasetRepository.getById(dataset.id);
     const headers: CSVHeader[] = [];
     for (let i = 0; i < tableHeaders.length; i++) {
@@ -530,7 +564,8 @@ export const validateMeasureLookupTable = async (
       mismatch: false
     });
   } finally {
-    await quack.close();
+    await connection.query(pgformat('DROP TABLE %I;', actionId));
+    connection.release();
   }
 };
 
@@ -539,10 +574,10 @@ async function getMeasurePreviewWithoutExtractor(
   measure: Measure,
   revision: Revision
 ): Promise<ViewDTO> {
-  const quack = await duckdb();
-  await linkToPostgres(quack, revision.id, false);
+  const connection = await getCubeDB().connect();
+  await connection.query(pgformat(`SET search_path TO %I;`, revision.id));
   try {
-    const preview = await quack.all(
+    const preview = await connection.query(
       pgformat(
         'SELECT DISTINCT %I FROM %I ORDER BY %I ASC LIMIT %L;',
         measure.factTableColumn,
@@ -552,8 +587,8 @@ async function getMeasurePreviewWithoutExtractor(
       )
     );
 
-    const tableHeaders = Object.keys(preview[0]);
-    const dataArray = preview.map((row) => Object.values(row));
+    const tableHeaders = Object.keys(preview.rows[0]);
+    const dataArray = preview.rows.map((row) => Object.values(row));
     const currentDataset = await DatasetRepository.getById(dataset.id);
     const headers: CSVHeader[] = [];
     for (let i = 0; i < tableHeaders.length; i++) {
@@ -564,17 +599,17 @@ async function getMeasurePreviewWithoutExtractor(
       });
     }
     const pageInfo = {
-      total_records: preview.length,
+      total_records: preview.rows.length,
       start_record: 1,
       end_record: dataArray.length
     };
-    const pageSize = preview.length < sampleSize ? preview.length : sampleSize;
+    const pageSize = preview.rows.length < sampleSize ? preview.rows.length : sampleSize;
     return viewGenerator(currentDataset, 1, pageInfo, pageSize, 1, headers, dataArray);
   } catch (error) {
     logger.error(error, `Something went wrong trying to generate the preview of the measure column`);
     throw error;
   } finally {
-    await quack.close();
+    connection.release();
   }
 }
 
@@ -585,18 +620,18 @@ async function getMeasurePreviewWithExtractor(
   lang: string
 ): Promise<ViewDTO> {
   logger.debug(`Generating lookup table preview for measure ${measure.id}`);
-  const quack = await duckdb();
+  const connection = await getCubeDB().connect();
+  await connection.query(pgformat(`SET search_path TO %I;`, revision.id));
   try {
-    await linkToPostgres(quack, revision.id, false);
-    const query = pgformat(
-      `SELECT * EXCLUDE(language) FROM measure WHERE language = %L ORDER BY sort_order, reference LIMIT %L;`,
-      lang.toLowerCase(),
-      sampleSize
+    const previewQuery = pgformat(
+      'SELECT reference, description, notes, sort_order, format, decimals, measure_type, hierarchy FROM %I WHERE language = %L;',
+      'measure',
+      lang
     );
     // logger.debug(`Querying the cube to get the preview using query: ${query}`);
-    const measureTable = await quack.all(query);
-    const tableHeaders = Object.keys(measureTable[0]);
-    const dataArray = measureTable.map((row) => Object.values(row));
+    const measureTable = await connection.query(previewQuery);
+    const tableHeaders = Object.keys(measureTable.rows[0]);
+    const dataArray = measureTable.rows.map((row) => Object.values(row));
     const currentDataset = await DatasetRepository.getById(dataset.id);
     const headers: CSVHeader[] = tableHeaders.map((name, idx) => ({
       name,
@@ -604,17 +639,17 @@ async function getMeasurePreviewWithExtractor(
       source_type: FactTableColumnType.Unknown
     }));
     const pageInfo = {
-      total_records: measureTable.length,
+      total_records: dataArray.length,
       start_record: 1,
       end_record: dataArray.length
     };
-    const pageSize = measureTable.length < sampleSize ? measureTable.length : sampleSize;
+    const pageSize = dataArray.length < sampleSize ? dataArray.length : sampleSize;
     return viewGenerator(currentDataset, 1, pageInfo, pageSize, 1, headers, dataArray);
   } catch (error) {
     logger.error(error, `Something went wrong trying to generate the preview of the measure table`);
     throw error;
   } finally {
-    await quack.close();
+    connection.release();
   }
 }
 

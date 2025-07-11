@@ -1,11 +1,10 @@
-import fs from 'node:fs';
 import { Readable } from 'node:stream';
 import { performance } from 'node:perf_hooks';
-import { pipeline } from 'node:stream/promises';
 
 import { NextFunction, Request, Response } from 'express';
 import { t } from 'i18next';
 import { isBefore, isValid } from 'date-fns';
+import { format as pgformat } from '@scaleleap/pg-format';
 
 import { User } from '../entities/user/user';
 import { DataTableDto } from '../dtos/data-table-dto';
@@ -24,6 +23,7 @@ import { RevisionRepository } from '../repositories/revision';
 import { DuckdbOutputType } from '../enums/duckdb-outputs';
 import {
   createAllCubeFiles,
+  createCubeMetadataTable,
   createDateDimension,
   createLookupTableDimension,
   getPostgresCubePreview,
@@ -33,7 +33,7 @@ import {
   outputCube,
   updateFactTableValidator
 } from '../services/cube-handler';
-import { extractTableInformation, getCSVPreview, validateAndUpload } from '../services/csv-processor';
+import { getCSVPreview, validateAndUpload } from '../services/csv-processor';
 import { DataTableDescription } from '../entities/dataset/data-table-description';
 import { FactTableColumn } from '../entities/dataset/fact-table-column';
 import { DataTableAction } from '../enums/data-table-action';
@@ -41,7 +41,6 @@ import { ColumnMatch } from '../interfaces/column-match';
 import { DimensionType } from '../enums/dimension-type';
 import { CubeValidationException } from '../exceptions/cube-error-exception';
 import { DimensionUpdateTask } from '../interfaces/revision-task';
-import { duckdb, linkToPostgres } from '../services/duckdb';
 import { FileValidationException } from '../exceptions/validation-exception';
 import { FactTableColumnType } from '../enums/fact-table-column-type';
 import { checkForReferenceErrors } from '../services/lookup-table-handler';
@@ -52,17 +51,15 @@ import { NotAllowedException } from '../exceptions/not-allowed.exception';
 import { Dataset } from '../entities/dataset/dataset';
 import { SortByInterface } from '../interfaces/sort-by-interface';
 import { FilterInterface } from '../interfaces/filterInterface';
-import { FindOptionsRelations } from 'typeorm';
 import {
   createStreamingCSVFilteredView,
   createStreamingExcelFilteredView,
   createStreamingJSONFilteredView,
   getFilters
 } from '../services/consumer-view';
-import { asyncTmpName } from '../utils/async-tmp';
-import { FileType } from '../enums/file-type';
 import { cleanupTmpFile, uploadAvScan } from '../services/virus-scanner';
 import { TempFile } from '../interfaces/temp-file';
+import { getCubeDB } from '../db/cube-db';
 import { DEFAULT_PAGE_SIZE } from '../utils/page-defaults';
 
 export const getDataTable = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
@@ -314,24 +311,26 @@ async function attachUpdateDataTableToRevision(
   logger.debug(`Setting the update action to: ${updateAction}`);
   dataTable.action = updateAction;
   revision.dataTable = dataTable;
-  const quack = await duckdb();
-  await linkToPostgres(quack, revision.id, true);
-
+  const buildId = `build-${crypto.randomUUID()}`;
+  const connection = await getCubeDB().connect();
+  await connection.query(pgformat('CREATE SCHEMA IF NOT EXISTS %I;', buildId));
+  await connection.query(pgformat(`SET search_path TO %I;`, buildId));
   try {
-    await updateFactTableValidator(quack, dataset, revision, 'postgres');
+    await updateFactTableValidator(connection, buildId, dataset, revision);
   } catch (err) {
     const error = err as CubeValidationException;
     logger.debug('Closing DuckDB instance');
     const end = performance.now();
     const time = Math.round(end - start);
     logger.info(`Cube update validation took ${time}ms`);
-    await quack.close();
+    await connection.query(pgformat('DROP SCHEMA %I CASCADE', buildId));
+    connection.release();
     throw error;
   }
 
   const dimensionUpdateTasks: DimensionUpdateTask[] = [];
   if (dataset.dimensions.find((dimension) => dimension.type === DimensionType.ReferenceData)) {
-    await loadReferenceDataIntoCube(quack);
+    await loadReferenceDataIntoCube(connection);
   }
   for (const dimension of dataset.dimensions) {
     const factTableColumn = dataset.factTable.find(
@@ -344,21 +343,22 @@ async function attachUpdateDataTableToRevision(
       throw new BadRequestException('errors.data_table_validation_error');
     }
     try {
+      await createCubeMetadataTable(connection, revision.id, buildId);
       switch (dimension.type) {
         case DimensionType.LookupTable:
           logger.debug(`Validating lookup table dimension: ${dimension.id}`);
-          await createLookupTableDimension(quack, dataset, dimension, factTableColumn);
-          await checkForReferenceErrors(quack, dataset, dimension, factTableColumn);
+          await createLookupTableDimension(connection, dataset, dimension, factTableColumn);
+          await checkForReferenceErrors(connection, dataset, dimension, factTableColumn);
           break;
         case DimensionType.ReferenceData:
           logger.debug(`Validating reference data dimension: ${dimension.id}`);
-          await loadCorrectReferenceDataIntoReferenceDataTable(quack, dimension);
+          await loadCorrectReferenceDataIntoReferenceDataTable(connection, dimension);
           break;
         case DimensionType.DatePeriod:
         case DimensionType.Date:
           logger.debug(`Validating time dimension: ${dimension.id}`);
-          await createDateDimension(quack, dimension.extractor, factTableColumn);
-          await validateUpdatedDateDimension(quack, dataset, dimension, factTableColumn);
+          await createDateDimension(connection, dimension.extractor, factTableColumn);
+          await validateUpdatedDateDimension(connection, dataset, dimension, factTableColumn);
       }
     } catch (error) {
       logger.warn(`An error occurred validating dimension ${dimension.id}: ${error}`);
@@ -369,11 +369,11 @@ async function attachUpdateDataTableToRevision(
           lookupTableUpdated: false
         });
       } else {
-        logger.debug('Closing DuckDB instance');
         const end = performance.now();
         const time = Math.round(end - start);
         logger.info(`Cube update validation took ${time}ms`);
-        await quack.close();
+        await connection.query(pgformat('DROP SCHEMA %I CASCADE', buildId));
+        connection.release();
         logger.error(`An error occurred trying to validate the file with the following error: ${err}`);
         throw new BadRequestException('errors.data_table_validation_error');
       }
@@ -384,8 +384,8 @@ async function attachUpdateDataTableToRevision(
 
   revision.tasks = { dimensions: dimensionUpdateTasks };
 
-  logger.debug('Closing DuckDB instance');
-  await quack.close();
+  await connection.query(pgformat('DROP SCHEMA %I CASCADE', buildId));
+  connection.release();
   await revision.save();
   const end = performance.now();
   const time = Math.round(end - start);
@@ -393,7 +393,6 @@ async function attachUpdateDataTableToRevision(
 
   dataTable.revision = revision;
   await dataTable.save();
-  await createAllCubeFiles(dataset.id, revision.id);
 }
 
 export const updateDataTable = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
@@ -449,6 +448,15 @@ export const updateDataTable = async (req: Request, res: Response, next: NextFun
       const updateAction = req.body.update_action ? (req.body.update_action as DataTableAction) : DataTableAction.Add;
       await attachUpdateDataTableToRevision(datasetId, revision, dataTable, updateAction, columnMatcher);
     }
+    try {
+      logger.info('Revision update complete, creating cube files');
+      await createAllCubeFiles(datasetId, revision.id);
+    } catch (err) {
+      logger.error(err, `Something went wrong trying to create the cube`);
+      next(new UnknownException('errors.cube_builder.cube_build_failed'));
+      return;
+    }
+
     const updatedDataset = await DatasetRepository.getById(datasetId);
     res.status(201);
     res.json(DatasetDTO.fromDataset(updatedDataset));
@@ -592,57 +600,6 @@ export const withdrawFromPublication = async (req: Request, res: Response, next:
 export const regenerateRevisionCube = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   const datasetId: string = res.locals.datasetId;
   const revision: Revision = res.locals.revision;
-
-  const datasetRelations: FindOptionsRelations<Dataset> = {
-    revisions: {
-      dataTable: true
-    }
-  };
-  const dataset = await DatasetRepository.getById(datasetId, datasetRelations);
-  const revisionTree = dataset.revisions
-    .map((rev) => {
-      if (rev.id === revision.id) return rev;
-      else if (rev.revisionIndex > -1) return rev;
-      else return undefined;
-    })
-    .filter((rev) => !!rev)
-    .filter((rev) => !!rev?.dataTable);
-
-  for (const rev of revisionTree) {
-    if (!rev) {
-      continue;
-    }
-    logger.debug(`Recreating datatable ${rev.dataTable?.id} in postgres data_tables database`);
-    const tmpFilePath = await asyncTmpName({ postfix: rev.dataTable!.filename.split('.').reverse()[0] });
-    const downloadStream = await req.fileService.loadStream(rev.dataTable!.filename, dataset.id);
-    const writeStream = fs.createWriteStream(tmpFilePath);
-    const dataTable = rev.dataTable!;
-    const origEncoding = dataTable.encoding;
-
-    await pipeline(downloadStream, writeStream).catch((err) => {
-      logger.error(err, `An error occurred trying to save tmp local files for revision ${rev.id}`);
-      next(new UnknownException('errors.download_from_filestore'));
-      return;
-    });
-
-    const tmpFile: TempFile = {
-      originalname: rev.dataTable!.originalFilename || 'unknown',
-      mimetype: rev.dataTable!.mimeType,
-      path: tmpFilePath
-    };
-
-    try {
-      await extractTableInformation(tmpFile, rev.dataTable!, 'data_table');
-    } catch (err) {
-      logger.error(err, 'Something went wrong trying to process the CSV again and save to data_tables schema');
-      next(err);
-      return;
-    }
-
-    if (dataTable.fileType === FileType.Csv && dataTable.encoding !== origEncoding) {
-      await dataTable.save();
-    }
-  }
 
   try {
     await createAllCubeFiles(datasetId, revision.id);

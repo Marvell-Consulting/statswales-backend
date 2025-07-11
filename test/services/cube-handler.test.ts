@@ -131,7 +131,7 @@ describe('API Endpoints', () => {
         hash: '',
         uploadedAt: new Date()
       };
-      await loadFileIntoCube(quack, testFileInterface, testFilePath, tableName);
+      await loadFileIntoCube(quack, testFileInterface.fileType, testFilePath, tableName);
       const tableData = await quack.all(`SELECT * FROM ${tableName}`);
       expect(tableData.length).toBe(24);
       expect(Object.keys(tableData[0]).length).toBe(6);
@@ -172,7 +172,7 @@ describe('API Endpoints', () => {
         primaryKey
       );
       await quack.exec(factTableQuery);
-      await loadFileIntoCube(quack, testFileInterface, testFilePath, originalTableName);
+      await loadFileIntoCube(quack, testFileInterface.fileType, testFilePath, originalTableName);
       await loadTableDataIntoFactTable(quack, factTableDef, factTableName, originalTableName);
       const tableData = await quack.all(`SELECT * FROM ${factTableName}`);
       expect(tableData.length).toBe(24);

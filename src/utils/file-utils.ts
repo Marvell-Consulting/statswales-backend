@@ -1,6 +1,5 @@
 import { writeFile } from 'node:fs/promises';
 
-import { Database } from 'duckdb-async';
 import { format as pgformat } from '@scaleleap/pg-format';
 
 import { Dataset } from '../entities/dataset/dataset';
@@ -11,6 +10,7 @@ import { logger } from './logger';
 import { getFileService } from './get-file-service';
 import { FileValidationErrorType, FileValidationException } from '../exceptions/validation-exception';
 import { asyncTmpName } from './async-tmp';
+import { duckdb, linkToPostgresSchema } from '../services/duckdb';
 
 export const getFileImportAndSaveToDisk = async (
   dataset: Dataset,
@@ -25,11 +25,12 @@ export const getFileImportAndSaveToDisk = async (
 
 // This function creates a table in a duckdb database based on a file and loads the files contents directly into the table
 export const loadFileIntoDatabase = async (
-  quack: Database,
   fileImport: FileImportInterface,
   tempFile: string,
   tableName: string
 ): Promise<void> => {
+  const quack = await duckdb();
+  await linkToPostgresSchema(quack, 'lookup_tables');
   let createTableQuery: string;
   switch (fileImport.fileType) {
     case FileType.Csv:
@@ -61,4 +62,5 @@ export const loadFileIntoDatabase = async (
   }
   logger.debug(`Creating table ${tableName} from ${fileImport.fileType} file`);
   await quack.exec(createTableQuery);
+  await quack.close();
 };

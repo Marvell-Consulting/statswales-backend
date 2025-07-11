@@ -1,5 +1,3 @@
-import { Database } from 'duckdb-async';
-
 import { Dataset } from '../entities/dataset/dataset';
 import { Dimension } from '../entities/dataset/dimension';
 import { CSVHeader, ViewDTO, ViewErrDTO } from '../dtos/view-dto';
@@ -11,7 +9,10 @@ import { ReferenceType } from '../enums/reference-type';
 import { DimensionType } from '../enums/dimension-type';
 
 import { cleanUpDimension } from './dimension-processor';
-import { duckdb, linkToPostgres } from './duckdb';
+import { PoolClient, QueryResult } from 'pg';
+import { getCubeDB } from '../db/cube-db';
+import { format as pgformat } from '@scaleleap/pg-format/lib/pg-format';
+import { createReferenceDataTablesInCube, loadReferenceDataFromCSV } from './cube-handler';
 
 const sampleSize = 5;
 
@@ -29,31 +30,41 @@ async function setupDimension(dimension: Dimension, categories: string[]): Promi
   await updateDimension.save();
 }
 
-async function copyAllReferenceDataIntoTable(quack: Database): Promise<void> {
+async function copyAllReferenceDataIntoTable(connection: PoolClient): Promise<void> {
   logger.debug('Copying all reference data to the reference_data table.');
-  await quack.exec(`INSERT INTO reference_data (SELECT * FROM reference_data_all);`);
+  await connection.query(`INSERT INTO reference_data (SELECT * FROM reference_data_all);`);
 }
 
 async function validateUnknownReferenceDataItems(
-  quack: Database,
+  connection: PoolClient,
   dataset: Dataset,
   dimension: Dimension
 ): Promise<ViewErrDTO | undefined> {
-  const nonMatchedRows = await quack.all(`
-              SELECT fact_table."${dimension.factTableColumn}", reference_data.item_id FROM fact_table
-              LEFT JOIN reference_data on reference_data.item_id=CAST(fact_table."${dimension.factTableColumn}" AS VARCHAR)
+  const nonMatchedRowsQuery = pgformat(
+    `
+              SELECT fact_table.%I, reference_data.item_id FROM fact_table
+              LEFT JOIN reference_data on reference_data.item_id=CAST(fact_table.%I AS VARCHAR)
               WHERE item_id IS NULL;
-    `);
-  if (nonMatchedRows.length > 0) {
+    `,
+    dimension.factTableColumn,
+    dimension.factTableColumn
+  );
+  const nonMatchedRows = await connection.query(nonMatchedRowsQuery);
+  if (nonMatchedRows.rows.length > 0) {
     logger.error('The user has unknown items in their reference data column');
-    const nonMatchingDataTableValues = await quack.all(`
-              SELECT DISTINCT fact_table."${dimension.factTableColumn}", reference_data.item_id FROM fact_table
-              LEFT JOIN reference_data on reference_data.item_id=CAST(fact_table."${dimension.factTableColumn}" AS VARCHAR)
-              WHERE reference_data.item_id IS NULL;
-        `);
+    const nonMatchingDataTableValuesQuery = pgformat(
+      `
+            SELECT DISTINCT fact_table.%I, reference_data.item_id FROM fact_table
+            LEFT JOIN reference_data on reference_data.item_id=CAST(fact_table.%I AS VARCHAR)
+            WHERE reference_data.item_id IS NULL;
+        `,
+      dimension.factTableColumn,
+      dimension.factTableColumn
+    );
+    const nonMatchingDataTableValues = await connection.query(nonMatchingDataTableValuesQuery);
     return viewErrorGenerators(400, dataset.id, 'patch', 'errors.dimension_validation.unknown_reference_data_items', {
-      totalNonMatching: nonMatchedRows.length,
-      nonMatchingDataTableValues: nonMatchingDataTableValues.map((row) => Object.values(row)[0]),
+      totalNonMatching: nonMatchedRows.rows.length,
+      nonMatchingDataTableValues: nonMatchingDataTableValues.rows.map((row) => Object.values(row)[0]),
       mismatch: true
     });
   }
@@ -61,31 +72,46 @@ async function validateUnknownReferenceDataItems(
 }
 
 async function validateAllItemsAreInCategory(
-  quack: Database,
+  connection: PoolClient,
   dataset: Dataset,
   dimension: Dimension,
   referenceDataType: ReferenceType,
   lang: string
 ): Promise<ViewErrDTO | undefined> {
-  const nonMatchedRows = await quack.all(`
-              SELECT fact_table."${dimension.factTableColumn}", reference_data.item_id, reference_data.category_key FROM fact_table
-              LEFT JOIN reference_data on reference_data.item_id=CAST(fact_table."${dimension.factTableColumn}" AS VARCHAR)
+  const nonMatchedRowsQuery = pgformat(
+    `
+              SELECT fact_table.%I, reference_data.item_id, reference_data.category_key FROM fact_table
+              LEFT JOIN reference_data on reference_data.item_id=CAST(fact_table.%I AS VARCHAR)
               JOIN category_keys ON reference_data.category_key=category_keys.category_key
               JOIN categories ON categories.category=category_keys.category
-              WHERE categories.category!='${referenceDataType}';
-    `);
-  if (nonMatchedRows.length > 0) {
+              WHERE categories.category!=%L;
+    `,
+    dimension.factTableColumn,
+    dimension.factTableColumn,
+    referenceDataType
+  );
+  const nonMatchedRows = await connection.query(nonMatchedRowsQuery);
+  if (nonMatchedRows.rows.length > 0) {
     logger.error('The user has unknown items in their reference data column');
-    const nonMatchingDataTableValues = await quack.all(`
-            SELECT fact_table."${dimension.factTableColumn}", first(reference_data.category_key), first(categories.category), first(category_info.description) FROM fact_table
-            LEFT JOIN reference_data on reference_data.item_id=CAST(fact_table."${dimension.factTableColumn}" AS VARCHAR)
+    const nonMatchingDataTableValuesQuery = pgformat(
+      `
+            SELECT fact_table.%I, first(reference_data.category_key), first(categories.category), first(category_info.description) FROM fact_table
+            LEFT JOIN reference_data on reference_data.item_id=CAST(fact_table.%I AS VARCHAR)
             JOIN category_keys ON reference_data.category_key=category_keys.category_key
-            JOIN categories ON categories.category=category_keys.category JOIN category_info ON categories.category=category_info.category AND lang='${lang.toLowerCase()}'
-            WHERE categories.category!='${referenceDataType}' GROUP BY fact_table."${dimension.factTableColumn}", item_id;
-        `);
+            JOIN categories ON categories.category=category_keys.category JOIN category_info ON categories.category=category_info.category
+            AND lang=%L
+            WHERE categories.category!=%L GROUP BY fact_table.%I, item_id;
+        `,
+      dimension.factTableColumn,
+      dimension.factTableColumn,
+      lang.toLowerCase(),
+      referenceDataType,
+      dimension.factTableColumn
+    );
+    const nonMatchingDataTableValues = await connection.query(nonMatchingDataTableValuesQuery);
     return viewErrorGenerators(400, dataset.id, 'patch', 'errors.dimension_validation.items_not_in_category', {
-      totalNonMatching: nonMatchingDataTableValues.length,
-      nonMatchingDataTableValues: nonMatchingDataTableValues.map((row) => Object.values(row)[0]),
+      totalNonMatching: nonMatchingDataTableValues.rows.length,
+      nonMatchingDataTableValues: nonMatchingDataTableValues.rows.map((row) => Object.values(row)[0]),
       mismatch: true
     });
   }
@@ -93,24 +119,24 @@ async function validateAllItemsAreInCategory(
 }
 
 async function validateAllItemsAreInOneCategory(
-  quack: Database,
+  connection: PoolClient,
   dataset: Dataset,
   dimension: Dimension
 ): Promise<ViewErrDTO | string> {
-  const categoriesPresent = await quack.all(`
-            SELECT DISTINCT categories.category FROM fact_table
+  const categoriesPresent: QueryResult<{ category: string }> = await connection.query(`
+            SELECT DISTINCT categories.category as category FROM fact_table
             LEFT JOIN reference_data on reference_data.item_id=CAST(fact_table."${dimension.factTableColumn}" AS VARCHAR)
             JOIN category_keys ON reference_data.category_key=category_keys.category_key
             JOIN categories ON categories.category=category_keys.category;
     `);
-  if (categoriesPresent.length > 1) {
+  if (categoriesPresent.rows.length > 1) {
     logger.error('The user has more than one type of category in reference data column');
     return viewErrorGenerators(400, dataset.id, 'patch', 'errors.dimension_validation.to_many_categories_present', {
-      totalNonMatching: categoriesPresent.length,
-      nonMatchingDataTableValues: categoriesPresent.map((row) => Object.values(row)[0])
+      totalNonMatching: categoriesPresent.rows.length,
+      nonMatchingDataTableValues: categoriesPresent.rows.map((row) => Object.values(row)[0])
     });
   }
-  if (categoriesPresent.length === 0) {
+  if (categoriesPresent.rows.length === 0) {
     logger.error('There users column can not be matched to anything in the reference data');
     return viewErrorGenerators(
       400,
@@ -120,7 +146,7 @@ async function validateAllItemsAreInOneCategory(
       {}
     );
   }
-  return categoriesPresent[0].category;
+  return categoriesPresent.rows[0].category;
 }
 
 export const validateReferenceData = async (
@@ -129,18 +155,23 @@ export const validateReferenceData = async (
   referenceDataType: ReferenceType | undefined,
   lang: string
 ): Promise<ViewDTO | ViewErrDTO> => {
-  const quack = await duckdb();
+  const revision = dataset.draftRevision!;
+  const connection = await getCubeDB().connect();
   try {
-    await linkToPostgres(quack, dataset.draftRevision!.id, false);
+    await connection.query(pgformat(`SET search_path TO %I;`, revision.id));
   } catch (error) {
-    logger.error(error, 'Something went wrong trying to link to postgres database');
-    return viewErrorGenerators(500, dataset.id, 'patch', 'errors.cube_builder.fact_table_creation_failed', {});
+    logger.error(error, 'Unable to connect to postgres schema for revision.');
+    return viewErrorGenerators(500, dataset.id, 'patch', 'errors.dimension_validation.lookup_table_loading_failed', {
+      mismatch: false
+    });
   }
   try {
     // Load reference data in to cube
-    await copyAllReferenceDataIntoTable(quack);
+    await createReferenceDataTablesInCube(connection);
+    await loadReferenceDataFromCSV(connection);
+    await copyAllReferenceDataIntoTable(connection);
   } catch (err) {
-    await quack.close();
+    connection.release();
     logger.error(err, `Something went wrong trying to load the reference data into the cube`);
     return viewErrorGenerators(500, dataset.id, 'patch', 'errors.cube_builder.reference_data_loading_failed', {});
   }
@@ -149,33 +180,33 @@ export const validateReferenceData = async (
 
   try {
     logger.debug(`Validating reference data`);
-    const itemsNotPresentInReferenceData = await validateUnknownReferenceDataItems(quack, dataset, dimension);
+    const itemsNotPresentInReferenceData = await validateUnknownReferenceDataItems(connection, dataset, dimension);
     if (itemsNotPresentInReferenceData) {
-      await quack.close();
+      connection.release();
       return itemsNotPresentInReferenceData;
     }
     if (referenceDataType) {
       const itemsOutsideOfCategory = await validateAllItemsAreInCategory(
-        quack,
+        connection,
         dataset,
         dimension,
         referenceDataType,
         lang
       );
       if (itemsOutsideOfCategory) {
-        await quack.close();
+        connection.release();
         return itemsOutsideOfCategory;
       }
     } else {
-      const referenceDataCategory = await validateAllItemsAreInOneCategory(quack, dataset, dimension);
+      const referenceDataCategory = await validateAllItemsAreInOneCategory(connection, dataset, dimension);
       if ((referenceDataCategory as ViewErrDTO).errors) {
-        await quack.close();
+        connection.release();
         return referenceDataCategory as ViewErrDTO;
       }
       confirmedReferenceDataCategory = referenceDataCategory as string;
     }
   } catch (error) {
-    await quack.close();
+    connection.release();
     logger.error(error, `Something went wrong trying to validate reference data`);
     return viewErrorGenerators(
       500,
@@ -186,17 +217,22 @@ export const validateReferenceData = async (
     );
   }
 
-  const categoriesPresent = await quack.all(`SELECT DISTINCT category_keys.category_key FROM fact_table
-        LEFT JOIN reference_data on reference_data.item_id=CAST(fact_table."${dimension.factTableColumn}" AS VARCHAR)
+  const categoriesPresentQuery = pgformat(
+    `SELECT DISTINCT category_keys.category_key FROM fact_table
+        LEFT JOIN reference_data on reference_data.item_id=CAST(fact_table.%I AS VARCHAR)
         JOIN category_keys ON reference_data.category_key=category_keys.category_key
         JOIN categories ON categories.category=category_keys.category
-        WHERE categories.category='${confirmedReferenceDataCategory}';
-    `);
+        WHERE categories.category=%L;
+    `,
+    dimension.factTableColumn,
+    confirmedReferenceDataCategory
+  );
+  const categoriesPresent: QueryResult<{ category_keys: string }> = await connection.query(categoriesPresentQuery);
 
   logger.debug(`Column passed reference data checks. Setting up dimension.`);
   await setupDimension(
     dimension,
-    categoriesPresent.map((row) => Object.values(row)[0])
+    categoriesPresent.rows.map((row) => Object.values(row)[0])
   );
 
   try {
@@ -212,7 +248,7 @@ export const validateReferenceData = async (
                 AND reference_data.version_no=reference_data_info.version_no
             WHERE reference_data_info.lang='${lang.toLowerCase()}';
         `;
-    const allMatches = await quack.all(allMatchesQuery);
+    const allMatches = await connection.query(allMatchesQuery);
     const previewQuery = `
       SELECT DISTINCT fact_table."${dimension.factTableColumn}", reference_data_info.description
       FROM fact_table
@@ -226,9 +262,9 @@ export const validateReferenceData = async (
       LIMIT ${sampleSize};
     `;
     // logger.debug(`Preview query = ${previewQuery}`);
-    const dimensionTable = await quack.all(previewQuery);
-    const tableHeaders = Object.keys(dimensionTable[0]);
-    const dataArray = dimensionTable.map((row) => Object.values(row));
+    const dimensionTable = await connection.query(previewQuery);
+    const tableHeaders = Object.keys(dimensionTable.rows[0]);
+    const dataArray = dimensionTable.rows.map((row) => Object.values(row));
     const currentDataset = await DatasetRepository.getById(dataset.id, { dimensions: { metadata: true } });
     const headers: CSVHeader[] = tableHeaders.map((header, index) => {
       return {
@@ -238,7 +274,7 @@ export const validateReferenceData = async (
       };
     });
     const pageInfo = {
-      total_records: allMatches.length,
+      total_records: allMatches.rows.length,
       start_record: 1,
       end_record: dataArray.length
     };
@@ -254,14 +290,14 @@ export const validateReferenceData = async (
       {}
     );
   } finally {
-    await quack.close();
+    connection.release();
   }
 };
 
 export const getReferenceDataDimensionPreview = async (
   dataset: Dataset,
   dimension: Dimension,
-  quack: Database,
+  connection: PoolClient,
   tableName: string,
   lang: string
 ): Promise<ViewDTO> => {
@@ -272,8 +308,8 @@ export const getReferenceDataDimensionPreview = async (
             SELECT COUNT(DISTINCT ${tableName}."${dimension.factTableColumn}") AS total_rows
             FROM ${tableName}
         `;
-    const countResult = await quack.all(countQuery);
-    const totalRows = countResult[0].total_rows;
+    const countResult: QueryResult<{ total_rows: number }> = await connection.query(countQuery);
+    const totalRows = countResult.rows[0].total_rows;
 
     const previewQuery = `
             SELECT DISTINCT ${tableName}."${dimension.factTableColumn}", reference_data_info.description
@@ -288,9 +324,9 @@ export const getReferenceDataDimensionPreview = async (
             LIMIT ${sampleSize}
         `;
 
-    const previewResult = await quack.all(previewQuery);
-    const tableHeaders = Object.keys(previewResult[0]);
-    const dataArray = previewResult.map((row) => Object.values(row));
+    const previewResult = await connection.query(previewQuery);
+    const tableHeaders = Object.keys(previewResult.rows[0]);
+    const dataArray = previewResult.rows.map((row) => Object.values(row));
 
     const currentDataset = await DatasetRepository.getById(dataset.id, {
       dimensions: { metadata: true },

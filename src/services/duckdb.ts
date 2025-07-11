@@ -1,5 +1,3 @@
-import { performance } from 'node:perf_hooks';
-
 import { Database } from 'duckdb-async';
 import { format as pgformat } from '@scaleleap/pg-format';
 
@@ -39,42 +37,8 @@ export const duckdb = async (cubeFile = ':memory:'): Promise<Database> => {
   return duckdb;
 };
 
-export const linkToPostgres = async (quack: Database, revisionId: string, recreate: boolean): Promise<void> => {
-  const start = performance.now();
-  await quack.exec(`LOAD 'postgres';`);
-
-  const secret = `CREATE OR REPLACE SECRET (
-    TYPE postgres,
-    HOST '${config.database.host}',
-    PORT ${config.database.port},
-    DATABASE '${config.database.database}',
-    USER '${config.database.username}',
-    PASSWORD '${config.database.password}'
-  );`;
-
-  await quack.exec(secret);
-
-  if (recreate) {
-    logger.debug(`Recreating empty schema for revision ${revisionId}`);
-    await quack.exec(`ATTACH '' AS postgres_db (TYPE postgres);`);
-    await quack.exec(`USE postgres_db;`);
-    await quack.exec(pgformat(`DROP SCHEMA IF EXISTS %I CASCADE;`, revisionId));
-    await quack.exec(pgformat(`CREATE SCHEMA %I;`, revisionId));
-    await quack.exec('USE memory;');
-    await quack.exec('DETACH postgres_db;');
-  }
-
-  await quack.exec(`ATTACH '' AS data_tables_db (TYPE postgres, SCHEMA data_tables);`);
-  await quack.exec(pgformat(`ATTACH '' AS postgres_db (TYPE postgres, SCHEMA %I);`, revisionId));
-  await quack.exec(`USE postgres_db;`);
-  logger.debug('Linking to postgres schema successful');
-  const end = performance.now();
-  const timing = Math.round(end - start);
-  logger.debug(`linkToPostgres: ${timing}ms`);
-};
-
-export const linkToPostgresDataTables = async (quack: Database): Promise<void> => {
-  logger.debug('Linking to postgres data tables schema');
+export const linkToPostgresSchema = async (quack: Database, schema: 'lookup_tables' | 'data_tables'): Promise<void> => {
+  logger.debug(`Linking to postgres ${schema} schema`);
   await quack.exec(`LOAD 'postgres';`);
   await quack.exec(`
     CREATE OR REPLACE SECRET (
@@ -86,6 +50,6 @@ export const linkToPostgresDataTables = async (quack: Database): Promise<void> =
       PASSWORD '${config.database.password}'
     );
   `);
-  await quack.exec(`ATTACH '' AS data_tables_db (TYPE postgres, SCHEMA data_tables);`);
+  await quack.exec(pgformat(`ATTACH '' AS data_tables_db (TYPE postgres, SCHEMA %L);`, schema));
   await quack.exec(`USE data_tables_db;`);
 };

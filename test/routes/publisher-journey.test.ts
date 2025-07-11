@@ -64,8 +64,10 @@ describe('API Endpoints', () => {
       dbManager = await initDb();
       queryRunner = dbManager.getDataSource().createQueryRunner();
       await queryRunner.dropSchema('data_tables', true, true);
+      await queryRunner.dropSchema('lookup_tables', true, true);
       await queryRunner.dropSchema(revision1Id, true, true);
       await queryRunner.createSchema('data_tables', true);
+      await queryRunner.createSchema('lookup_tables', true);
       await initPassport(dbManager.getDataSource());
       userGroup = await dbManager.getDataSource().getRepository(UserGroup).save(userGroup);
       user.groupRoles = [UserGroupRole.create({ group: userGroup, roles: [GroupRole.Editor] })];
@@ -154,16 +156,16 @@ describe('API Endpoints', () => {
             user_message: [
               {
                 lang: Locale.English,
-                message: t('errors.page_number_to_high', { lng: Locale.English, page_number: 15 })
+                message: t('errors.page_number_to_high', { lng: Locale.English, page_number: 12 })
               },
               {
                 lang: Locale.Welsh,
-                message: t('errors.page_number_to_high', { lng: Locale.Welsh, page_number: 15 })
+                message: t('errors.page_number_to_high', { lng: Locale.Welsh, page_number: 12 })
               }
             ],
             message: {
               key: 'errors.page_number_to_high',
-              params: { page_number: 15 }
+              params: { page_number: 12 }
             }
           }
         ]
@@ -284,19 +286,19 @@ describe('API Endpoints', () => {
 
       expect(res.status).toBe(200);
       expect(res.body.current_page).toBe(1);
-      expect(res.body.total_pages).toBe(15);
+      expect(res.body.total_pages).toBe(12);
       expect(res.body.page_size).toBe(100);
       expect(res.body.headers).toEqual([
         { index: -1, name: 'int_line_number', source_type: 'line_number' },
-        { index: 0, name: 'YearCode', source_type: 'dimension' },
-        { index: 1, name: 'AreaCode', source_type: 'dimension' },
-        { index: 2, name: 'Data', source_type: 'data_values' },
-        { index: 3, name: 'RowRef', source_type: 'dimension' },
-        { index: 4, name: 'Measure', source_type: 'measure' },
-        { index: 5, name: 'NoteCodes', source_type: 'note_codes' }
+        { index: 0, name: 'YearCode', source_type: 'unknown' },
+        { index: 1, name: 'AreaCode', source_type: 'unknown' },
+        { index: 2, name: 'Data', source_type: 'unknown' },
+        { index: 3, name: 'RowRef', source_type: 'unknown' },
+        { index: 4, name: 'Measure', source_type: 'unknown' },
+        { index: 5, name: 'NoteCodes', source_type: 'unknown' }
       ]);
-      expect(res.body.data[0]).toEqual([1, 201314, 512, 1.111801242, 2, 2, null]);
-      expect(res.body.data[23]).toEqual([24, 201314, 522, 4636, 1, 1, null]);
+      expect(res.body.data[0]).toEqual(['1', '201314', '512', 0.947089947, '2', '2', null]);
+      expect(res.body.data[23]).toEqual(['24', '201314', '522', 4636, '1', '1', null]);
       createdRevisions.push(testRevisionId);
     });
 
@@ -761,10 +763,6 @@ describe('API Endpoints', () => {
         await createSmallDataset(datasetId, revisionId, factTableId, user);
       });
 
-      afterEach(async () => {
-        await queryRunner.dropSchema(revisionId, true, true);
-      });
-
       test('Set publish_at fails with 404 if revision id invalid', async () => {
         const invalidId = crypto.randomUUID().toLowerCase();
         const res = await request(app)
@@ -815,6 +813,7 @@ describe('API Endpoints', () => {
   afterAll(async () => {
     const queryRunner = dbManager.getDataSource().createQueryRunner();
     await queryRunner.dropSchema('data_tables', true, true);
+    await queryRunner.dropSchema('lookup_tables', true, true);
     for (const revID of createdRevisions) {
       try {
         await queryRunner.dropSchema(revID, true, true);
