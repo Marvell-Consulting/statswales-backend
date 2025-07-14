@@ -97,7 +97,7 @@ export const validateSourceAssignment = (
 
   const validColumnNames = dataTable.dataTableDescriptions?.map((col: DataTableDescription) => col.columnName) || [];
 
-  sourceAssignment.map((sourceInfo) => {
+  sourceAssignment.forEach((sourceInfo) => {
     if (!validColumnNames.includes(sourceInfo.column_name)) {
       throw new SourceAssignmentException(`errors.source_assignment.invalid_column_name`);
     }
