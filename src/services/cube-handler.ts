@@ -448,15 +448,25 @@ async function setupReferenceDataDimension(
   dimension: Dimension,
   viewSelectStatementsMap: Map<Locale, string[]>,
   rawSelectStatementsMap: Map<Locale, string[]>,
+  defaultSortSelectStatementsMap: Map<Locale, string[]>,
+  rawSortSelectStatementsMap: Map<Locale, string[]>,
+  columnNames: Map<Locale, Set<string>>,
   joinStatements: string[]
 ): Promise<void> {
   await loadCorrectReferenceDataIntoReferenceDataTable(connection, dimension);
   const refDataInfo = `${makeCubeSafeString(dimension.factTableColumn)}_reference_data_info`;
   const refDataTbl = `${makeCubeSafeString(dimension.factTableColumn)}_reference_data`;
   SUPPORTED_LOCALES.map((locale) => {
-    const columnName = dimension.metadata.find((info) => info.language === locale)?.name || dimension.factTableColumn;
+    const proposedColumnName =
+      dimension.metadata.find((info) => info.language === locale)?.name || dimension.factTableColumn;
+    const columnName = updateColumnName(columnNames.get(locale)!, proposedColumnName);
+    columnNames.get(locale)?.add(columnName);
     viewSelectStatementsMap.get(locale)?.push(pgformat('%I.description AS %I', refDataInfo, columnName));
     rawSelectStatementsMap.get(locale)?.push(pgformat('%I.description AS %I', refDataInfo, columnName));
+    defaultSortSelectStatementsMap.get(locale)?.push(pgformat('%I.description AS %I', refDataInfo, columnName));
+    defaultSortSelectStatementsMap.get(locale)?.push(pgformat('%I.sort_order AS %I', refDataTbl, `${columnName}_sort`));
+    rawSortSelectStatementsMap.get(locale)?.push(pgformat('%I.description AS %I', refDataInfo, columnName));
+    rawSortSelectStatementsMap.get(locale)?.push(pgformat('%I.sort_order AS %I', refDataTbl, `${columnName}_sort`));
   });
   joinStatements.push(
     pgformat(
@@ -610,6 +620,9 @@ async function setupLookupTableDimension(
   dimension: Dimension,
   viewSelectStatementsMap: Map<Locale, string[]>,
   rawSelectStatementsMap: Map<Locale, string[]>,
+  defaultSortSelectStatementsMap: Map<Locale, string[]>,
+  rawSortSelectStatementsMap: Map<Locale, string[]>,
+  columnNames: Map<Locale, Set<string>>,
   joinStatements: string[],
   orderByStatements: string[]
 ): Promise<string> {
@@ -623,9 +636,16 @@ async function setupLookupTableDimension(
   const dimTable = `${makeCubeSafeString(dimension.factTableColumn)}_lookup`;
   await createLookupTableDimension(connection, dataset, dimension, factTableColumn);
   SUPPORTED_LOCALES.map((locale) => {
-    const columnName = dimension.metadata.find((info) => info.language === locale)?.name || dimension.factTableColumn;
+    const proposedColumnName =
+      dimension.metadata.find((info) => info.language === locale)?.name || dimension.factTableColumn;
+    const columnName = updateColumnName(columnNames.get(locale)!, proposedColumnName);
+    columnNames.get(locale)?.add(columnName);
     viewSelectStatementsMap.get(locale)?.push(`${dimTable}.description as "${columnName}"`);
     rawSelectStatementsMap.get(locale)?.push(`${dimTable}.description as "${columnName}"`);
+    defaultSortSelectStatementsMap.get(locale)?.push(`${dimTable}.description as "${columnName}"`);
+    defaultSortSelectStatementsMap.get(locale)?.push(`${dimTable}.sort_order as "${columnName}_sort"`);
+    rawSortSelectStatementsMap.get(locale)?.push(`${dimTable}.description as "${columnName}"`);
+    rawSortSelectStatementsMap.get(locale)?.push(`${dimTable}.sort_order as "${columnName}_sort"`);
   });
   joinStatements.push(
     `LEFT JOIN "${dimTable}" on "${dimTable}"."${factTableColumn.columnName}"=${FACT_TABLE_NAME}."${factTableColumn.columnName}" AND "${dimTable}".language=#LANG#`
@@ -899,13 +919,12 @@ async function loadFactTablesWithUpdates(
           await connection.query(updateQuery);
           break;
         case DataTableAction.AddRevise:
-          if (!doRevision) {
-            logger.debug(`Executing create temporary update table query: ${createUpdateTableQuery}`);
-            await connection.query(createUpdateTableQuery);
-            logger.debug(`Executing update query: ${updateQuery}`);
-            await connection.query(updateQuery);
-            await connection.query(deleteQuery);
-          }
+          if (!doRevision) continue;
+          logger.debug(`Executing create temporary update table query: ${createUpdateTableQuery}`);
+          await connection.query(createUpdateTableQuery);
+          logger.debug(`Executing update query: ${updateQuery}`);
+          await connection.query(updateQuery);
+          await connection.query(deleteQuery);
           await connection.query(
             pgformat(
               'INSERT INTO %I (%I) (SELECT %I FROM %I);',
@@ -1017,6 +1036,9 @@ async function createNotesTable(
   notesColumn: FactTableColumn,
   viewSelectStatementsMap: Map<Locale, string[]>,
   rawSelectStatementsMap: Map<Locale, string[]>,
+  defaultSortSelectStatementsMap: Map<Locale, string[]>,
+  rawSortSelectStatementsMap: Map<Locale, string[]>,
+  columnNames: Map<Locale, Set<string>>,
   joinStatements: string[]
 ): Promise<void> {
   logger.info('Creating notes table...');
@@ -1048,12 +1070,25 @@ async function createNotesTable(
     throw new Error(`Something went wrong trying to create the notes code table with the following error: ${error}`);
   }
   for (const locale of SUPPORTED_LOCALES) {
+    columnNames.get(locale)?.add(t('column_headers.notes', { lng: locale }));
     viewSelectStatementsMap
       .get(locale)
       ?.push(`all_notes.description as "${t('column_headers.notes', { lng: locale })}"`);
     rawSelectStatementsMap
       .get(locale)
       ?.push(`all_notes.description as "${t('column_headers.notes', { lng: locale })}"`);
+    defaultSortSelectStatementsMap
+      .get(locale)
+      ?.push(`all_notes.description as "${t('column_headers.notes', { lng: locale })}"`);
+    defaultSortSelectStatementsMap
+      .get(locale)
+      ?.push(`all_notes.description as "${t('column_headers.notes', { lng: locale })}_sort"`);
+    rawSortSelectStatementsMap
+      .get(locale)
+      ?.push(`all_notes.description as "${t('column_headers.notes', { lng: locale })}"`);
+    rawSortSelectStatementsMap
+      .get(locale)
+      ?.push(`all_notes.description as "${t('column_headers.notes', { lng: locale })}_sort"`);
   }
   joinStatements.push(
     `LEFT JOIN all_notes on all_notes.code=fact_table."${notesColumn.columnName}" AND all_notes.language=#LANG#`
@@ -1163,18 +1198,22 @@ export async function createMeasureLookupTable(
 function setupMeasureNoDataValues(
   viewSelectStatementsMap: Map<Locale, string[]>,
   rawSelectStatementsMap: Map<Locale, string[]>,
+  defaultSortSelectStatementsMap: Map<Locale, string[]>,
+  rawSortSelectStatementsMap: Map<Locale, string[]>,
+  columnNames: Map<Locale, Set<string>>,
   measureColumn?: FactTableColumn,
   dataValuesColumn?: FactTableColumn
 ): void {
   SUPPORTED_LOCALES.map((locale) => {
     if (dataValuesColumn) {
+      columnNames.get(locale)?.add(dataValuesColumn.columnName);
       viewSelectStatementsMap
         .get(locale)
         ?.push(
           pgformat(
             '%I.%I AS %I',
             FACT_TABLE_NAME,
-            dataValuesColumn?.columnName,
+            dataValuesColumn.columnName,
             t('column_headers.data_values', { lng: locale })
           )
         );
@@ -1184,14 +1223,63 @@ function setupMeasureNoDataValues(
           pgformat(
             '%I.%I AS %I',
             FACT_TABLE_NAME,
-            dataValuesColumn?.columnName,
+            dataValuesColumn.columnName,
             t('column_headers.data_values', { lng: locale })
+          )
+        );
+      defaultSortSelectStatementsMap
+        .get(locale)
+        ?.push(
+          pgformat(
+            '%I.%I AS %I',
+            FACT_TABLE_NAME,
+            dataValuesColumn.columnName,
+            t('column_headers.data_values', { lng: locale })
+          )
+        );
+      defaultSortSelectStatementsMap
+        .get(locale)
+        ?.push(
+          pgformat(
+            '%I.%I AS %I',
+            FACT_TABLE_NAME,
+            dataValuesColumn.columnName,
+            `${t('column_headers.data_values', { lng: locale })}_sort`
+          )
+        );
+      rawSortSelectStatementsMap
+        .get(locale)
+        ?.push(
+          pgformat(
+            '%I.%I AS %I',
+            FACT_TABLE_NAME,
+            dataValuesColumn.columnName,
+            t('column_headers.data_values', { lng: locale })
+          )
+        );
+      rawSortSelectStatementsMap
+        .get(locale)
+        ?.push(
+          pgformat(
+            '%I.%I AS %I',
+            FACT_TABLE_NAME,
+            dataValuesColumn.columnName,
+            `${t('column_headers.data_values', { lng: locale })}_sort`
           )
         );
     }
     if (measureColumn) {
+      columnNames.get(locale)?.add(measureColumn.columnName);
       viewSelectStatementsMap.get(locale)?.push(pgformat('%I.%I', FACT_TABLE_NAME, measureColumn.columnName));
       rawSelectStatementsMap.get(locale)?.push(pgformat('%I.%I', FACT_TABLE_NAME, measureColumn.columnName));
+      defaultSortSelectStatementsMap.get(locale)?.push(pgformat('%I.%I', FACT_TABLE_NAME, measureColumn.columnName));
+      defaultSortSelectStatementsMap
+        .get(locale)
+        ?.push(pgformat('%I.%I AS %I', FACT_TABLE_NAME, measureColumn.columnName, `${measureColumn.columnName}_sort`));
+      rawSortSelectStatementsMap.get(locale)?.push(pgformat('%I.%I', FACT_TABLE_NAME, measureColumn.columnName));
+      rawSortSelectStatementsMap
+        .get(locale)
+        ?.push(pgformat('%I.%I AS %I', FACT_TABLE_NAME, measureColumn.columnName, `${measureColumn.columnName}_sort`));
     }
   });
 }
@@ -1210,6 +1298,9 @@ async function setupMeasures(
   measureColumn: FactTableColumn,
   viewSelectStatementsMap: Map<Locale, string[]>,
   rawSelectStatementsMap: Map<Locale, string[]>,
+  defaultSortSelectStatementsMap: Map<Locale, string[]>,
+  rawSortSelectStatementsMap: Map<Locale, string[]>,
+  columnNames: Map<Locale, Set<string>>,
   joinStatements: string[],
   orderByStatements: string[]
 ): Promise<void> {
@@ -1246,6 +1337,9 @@ async function setupMeasures(
     SUPPORTED_LOCALES.map((locale) => {
       const columnName =
         dataset.measure.metadata.find((info) => info.language === locale)?.name || dataset.measure.factTableColumn;
+      columnNames.get(locale)?.add(t('column_headers.data_values', { lng: locale }));
+      // columnNames.get(locale)?.add(t('column_headers.data_description', { lng: locale }));
+      columnNames.get(locale)?.add(columnName);
       if (dataValuesColumn) {
         rawSelectStatementsMap
           .get(locale)
@@ -1260,9 +1354,46 @@ async function setupMeasures(
         viewSelectStatementsMap
           .get(locale)
           ?.push(pgformat(`%s AS %I`, caseStatements.join('\n'), t('column_headers.data_values', { lng: locale })));
+        defaultSortSelectStatementsMap
+          .get(locale)
+          ?.push(pgformat(`%s AS %I`, caseStatements.join('\n'), t('column_headers.data_values', { lng: locale })));
+        defaultSortSelectStatementsMap
+          .get(locale)
+          ?.push(
+            pgformat(
+              '%I.%I AS %I',
+              FACT_TABLE_NAME,
+              dataValuesColumn.columnName,
+              `${t('column_headers.data_values', { lng: locale })}_sort`
+            )
+          );
+        rawSortSelectStatementsMap
+          .get(locale)
+          ?.push(
+            pgformat(
+              '%I.%I AS %I',
+              FACT_TABLE_NAME,
+              dataValuesColumn.columnName,
+              t('column_headers.data_values', { lng: locale })
+            )
+          );
+        rawSortSelectStatementsMap
+          .get(locale)
+          ?.push(
+            pgformat(
+              '%I.%I AS %I',
+              FACT_TABLE_NAME,
+              dataValuesColumn.columnName,
+              `${t('column_headers.data_values', { lng: locale })}_sort`
+            )
+          );
       }
       viewSelectStatementsMap.get(locale)?.push(pgformat('measure.description AS %I', columnName));
       rawSelectStatementsMap.get(locale)?.push(pgformat('measure.description AS %I', columnName));
+      defaultSortSelectStatementsMap.get(locale)?.push(pgformat('measure.description AS %I', columnName));
+      defaultSortSelectStatementsMap.get(locale)?.push(pgformat('measure.sort_order AS %I', `${columnName}_sort`));
+      rawSortSelectStatementsMap.get(locale)?.push(pgformat('measure.description AS %I', columnName));
+      rawSortSelectStatementsMap.get(locale)?.push(pgformat('measure.sort_order AS %I', `${columnName}_sort`));
     });
     joinStatements.push(
       pgformat(
@@ -1285,20 +1416,50 @@ async function setupMeasures(
       );
     }
   } else {
-    setupMeasureNoDataValues(viewSelectStatementsMap, rawSelectStatementsMap, measureColumn, dataValuesColumn);
+    setupMeasureNoDataValues(
+      viewSelectStatementsMap,
+      rawSelectStatementsMap,
+      defaultSortSelectStatementsMap,
+      rawSortSelectStatementsMap,
+      columnNames,
+      measureColumn,
+      dataValuesColumn
+    );
   }
+}
+
+function updateColumnName(existingColumnNames: Set<string>, proposedColumnName: string): string {
+  let columnName = proposedColumnName;
+  let count = 1;
+  while (existingColumnNames.has(columnName)) {
+    columnName = `${proposedColumnName}_${count}`;
+    count++;
+  }
+  return columnName;
 }
 
 async function rawDimensionProcessor(
   connection: PoolClient,
   dimension: Dimension,
   viewSelectStatementsMap: Map<Locale, string[]>,
-  rawSelectStatementsMap: Map<Locale, string[]>
+  rawSelectStatementsMap: Map<Locale, string[]>,
+  defaultSortSelectStatementsMap: Map<Locale, string[]>,
+  rawSortSelectStatementsMap: Map<Locale, string[]>,
+  columnNames: Map<Locale, Set<string>>
 ): Promise<void> {
   SUPPORTED_LOCALES.map((locale) => {
-    const columnName = dimension.metadata.find((info) => info.language === locale)?.name || dimension.factTableColumn;
+    const proposedColumnName =
+      dimension.metadata.find((info) => info.language === locale)?.name || dimension.factTableColumn;
+    const columnName = updateColumnName(columnNames.get(locale)!, proposedColumnName);
+    columnNames.get(locale)?.add(columnName);
     viewSelectStatementsMap.get(locale)?.push(pgformat('%I AS %I', dimension.factTableColumn, columnName));
     rawSelectStatementsMap.get(locale)?.push(pgformat('%I AS %I', dimension.factTableColumn, columnName));
+    defaultSortSelectStatementsMap.get(locale)?.push(pgformat('%I AS %I', dimension.factTableColumn, columnName));
+    defaultSortSelectStatementsMap
+      .get(locale)
+      ?.push(pgformat('%I AS %I', dimension.factTableColumn, `${columnName}_sort`));
+    rawSortSelectStatementsMap.get(locale)?.push(pgformat('%I AS %I', dimension.factTableColumn, columnName));
+    rawSortSelectStatementsMap.get(locale)?.push(pgformat('%I AS %I', dimension.factTableColumn, `${columnName}_sort`));
   });
   for (const locale of SUPPORTED_LOCALES) {
     const columnName = dimension.metadata.find((info) => info.language === locale)?.name || dimension.factTableColumn;
@@ -1324,13 +1485,19 @@ async function dateDimensionProcessor(
   dimension: Dimension,
   viewSelectStatementsMap: Map<Locale, string[]>,
   rawSelectStatementsMap: Map<Locale, string[]>,
+  defaultSortSelectStatementsMap: Map<Locale, string[]>,
+  rawSortSelectStatementsMap: Map<Locale, string[]>,
+  columnNames: Map<Locale, Set<string>>,
   joinStatements: string[],
   orderByStatements: string[]
 ): Promise<string> {
   const dimTable = `${makeCubeSafeString(dimension.factTableColumn)}_lookup`;
   await createDateDimension(connection, dimension.extractor, factTableColumn);
   SUPPORTED_LOCALES.map((locale) => {
-    const columnName = dimension.metadata.find((info) => info.language === locale)?.name || dimension.factTableColumn;
+    const proposedColumnName =
+      dimension.metadata.find((info) => info.language === locale)?.name || dimension.factTableColumn;
+    const columnName = updateColumnName(columnNames.get(locale)!, proposedColumnName);
+    columnNames.get(locale)?.add(columnName);
     viewSelectStatementsMap.get(locale)?.push(pgformat('%I.description AS %I', dimTable, columnName));
     // Leaving commented out for now.  Code will need to be adjusted if we choose to expose the underlying dates for periods
     // viewSelectStatementsMap
@@ -1344,6 +1511,20 @@ async function dateDimensionProcessor(
     //     pgformat("strftime(%I.end_date, '%d/%m/%Y') AS %I", dimTable, t('column_headers.end_date', { lng: locale }))
     //   );
     rawSelectStatementsMap.get(locale)?.push(pgformat('%I.description AS %I', dimTable, columnName));
+    // rawSelectStatementsMap
+    //   .get(locale)
+    //   ?.push(
+    //     pgformat("strftime(%I.start_date, '%d/%m/%Y') AS %I", dimTable, t('column_headers.start_date', { lng: locale }))
+    //   );
+    // rawSelectStatementsMap
+    //   .get(locale)
+    //   ?.push(
+    //     pgformat("strftime(%I.end_date, '%d/%m/%Y') AS %I", dimTable, t('column_headers.end_date', { lng: locale }))
+    //   );
+    defaultSortSelectStatementsMap.get(locale)?.push(pgformat('%I.description AS %I', dimTable, columnName));
+    defaultSortSelectStatementsMap.get(locale)?.push(pgformat('%I.end_date AS %I', dimTable, `${columnName}_sort`));
+    rawSortSelectStatementsMap.get(locale)?.push(pgformat('%I.description AS %I', dimTable, columnName));
+    rawSortSelectStatementsMap.get(locale)?.push(pgformat('%I.end_date AS %I', dimTable, `${columnName}_sort`));
     // rawSelectStatementsMap
     //   .get(locale)
     //   ?.push(
@@ -1390,10 +1571,16 @@ async function setupNumericDimension(
   connection: PoolClient,
   dimension: Dimension,
   viewSelectStatementsMap: Map<Locale, string[]>,
-  rawSelectStatementsMap: Map<Locale, string[]>
+  rawSelectStatementsMap: Map<Locale, string[]>,
+  defaultSortSelectStatementsMap: Map<Locale, string[]>,
+  rawSortSelectStatementsMap: Map<Locale, string[]>,
+  columnNames: Map<Locale, Set<string>>
 ): Promise<void> {
   SUPPORTED_LOCALES.map((locale) => {
-    const columnName = dimension.metadata.find((info) => info.language === locale)?.name || dimension.factTableColumn;
+    const proposedColumnName =
+      dimension.metadata.find((info) => info.language === locale)?.name || dimension.factTableColumn;
+    const columnName = updateColumnName(columnNames.get(locale)!, proposedColumnName);
+    columnNames.get(locale)?.add(columnName);
     if ((dimension.extractor as NumberExtractor).type === NumberType.Integer) {
       viewSelectStatementsMap
         .get(locale)
@@ -1401,27 +1588,91 @@ async function setupNumericDimension(
       rawSelectStatementsMap
         .get(locale)
         ?.push(pgformat('CAST(%I.%I AS INTEGER) AS %I', FACT_TABLE_NAME, dimension.factTableColumn, columnName));
+      defaultSortSelectStatementsMap
+        .get(locale)
+        ?.push(pgformat('CAST(%I.%I AS INTEGER) AS %I', FACT_TABLE_NAME, dimension.factTableColumn, columnName));
+      defaultSortSelectStatementsMap
+        .get(locale)
+        ?.push(
+          pgformat('CAST(%I.%I AS INTEGER) AS %I', FACT_TABLE_NAME, dimension.factTableColumn, `${columnName}_sort`)
+        );
+      rawSortSelectStatementsMap
+        .get(locale)
+        ?.push(pgformat('CAST(%I.%I AS INTEGER) AS %I', FACT_TABLE_NAME, dimension.factTableColumn, columnName));
+      rawSortSelectStatementsMap
+        .get(locale)
+        ?.push(
+          pgformat('CAST(%I.%I AS INTEGER) AS %I', FACT_TABLE_NAME, dimension.factTableColumn, `${columnName}_sort`)
+        );
     } else {
       viewSelectStatementsMap
         .get(locale)
         ?.push(
           pgformat(
-            `format('%%s', TO_CHAR(ROUND(CAST(%I.%I AS DECIMAL), %L), '999,999,990.%s'))`,
+            `format('%%s', TO_CHAR(ROUND(CAST(%I.%I AS DECIMAL), %L), '999,999,990.%s')) AS %I`,
             FACT_TABLE_NAME,
             dimension.factTableColumn,
             (dimension.extractor as NumberExtractor).decimalPlaces,
-            (dimension.extractor as NumberExtractor).decimalPlaces
+            (dimension.extractor as NumberExtractor).decimalPlaces,
+            columnName
           )
         );
       rawSelectStatementsMap
         .get(locale)
         ?.push(
           pgformat(
-            `format('%%s', TO_CHAR(ROUND(CAST(%I.%I AS DECIMAL), %L), '999,999,990.%s'))`,
+            `format('%%s', TO_CHAR(ROUND(CAST(%I.%I AS DECIMAL), %L), '999,999,990.%s')) AS %I`,
             FACT_TABLE_NAME,
             dimension.factTableColumn,
             (dimension.extractor as NumberExtractor).decimalPlaces,
-            (dimension.extractor as NumberExtractor).decimalPlaces
+            (dimension.extractor as NumberExtractor).decimalPlaces,
+            columnName
+          )
+        );
+      defaultSortSelectStatementsMap
+        .get(locale)
+        ?.push(
+          pgformat(
+            `format('%%s', TO_CHAR(ROUND(CAST(%I.%I AS DECIMAL), %L), '999,999,990.%s')) AS %I`,
+            FACT_TABLE_NAME,
+            dimension.factTableColumn,
+            (dimension.extractor as NumberExtractor).decimalPlaces,
+            (dimension.extractor as NumberExtractor).decimalPlaces,
+            columnName
+          )
+        );
+      defaultSortSelectStatementsMap
+        .get(locale)
+        ?.push(
+          pgformat(
+            `ROUND(CAST(%I.%I AS DECIMAL), %L) AS `,
+            FACT_TABLE_NAME,
+            dimension.factTableColumn,
+            (dimension.extractor as NumberExtractor).decimalPlaces,
+            `${columnName}_sort`
+          )
+        );
+      rawSortSelectStatementsMap
+        .get(locale)
+        ?.push(
+          pgformat(
+            `format('%%s', TO_CHAR(ROUND(CAST(%I.%I AS DECIMAL), %L), '999,999,990.%s')) AS %I`,
+            FACT_TABLE_NAME,
+            dimension.factTableColumn,
+            (dimension.extractor as NumberExtractor).decimalPlaces,
+            (dimension.extractor as NumberExtractor).decimalPlaces,
+            columnName
+          )
+        );
+      rawSortSelectStatementsMap
+        .get(locale)
+        ?.push(
+          pgformat(
+            `ROUND(CAST(%I.%I AS DECIMAL), %L) AS `,
+            FACT_TABLE_NAME,
+            dimension.factTableColumn,
+            (dimension.extractor as NumberExtractor).decimalPlaces,
+            `${columnName}_sort`
           )
         );
     }
@@ -1448,16 +1699,34 @@ async function setupTextDimension(
   connection: PoolClient,
   dimension: Dimension,
   viewSelectStatementsMap: Map<Locale, string[]>,
-  rawSelectStatementsMap: Map<Locale, string[]>
+  rawSelectStatementsMap: Map<Locale, string[]>,
+  defaultSortSelectStatementsMap: Map<Locale, string[]>,
+  rawSortSelectStatementsMap: Map<Locale, string[]>,
+  columnNames: Map<Locale, Set<string>>
 ): Promise<void> {
   SUPPORTED_LOCALES.map((locale) => {
-    const columnName = dimension.metadata.find((info) => info.language === locale)?.name || dimension.factTableColumn;
+    const proposedColumnName =
+      dimension.metadata.find((info) => info.language === locale)?.name || dimension.factTableColumn;
+    const columnName = updateColumnName(columnNames.get(locale)!, proposedColumnName);
+    columnNames.get(locale)?.add(columnName);
     viewSelectStatementsMap
       .get(locale)
       ?.push(pgformat('CAST(%I AS VARCHAR) AS %I', dimension.factTableColumn, columnName));
     rawSelectStatementsMap
       .get(locale)
       ?.push(pgformat('CAST(%I AS VARCHAR) AS %I', dimension.factTableColumn, columnName));
+    defaultSortSelectStatementsMap
+      .get(locale)
+      ?.push(pgformat('CAST(%I AS VARCHAR) AS %I', dimension.factTableColumn, columnName));
+    defaultSortSelectStatementsMap
+      .get(locale)
+      ?.push(pgformat('CAST(%I AS VARCHAR) AS %I', dimension.factTableColumn, `${columnName}_sort`));
+    rawSortSelectStatementsMap
+      .get(locale)
+      ?.push(pgformat('CAST(%I AS VARCHAR) AS %I', dimension.factTableColumn, columnName));
+    rawSortSelectStatementsMap
+      .get(locale)
+      ?.push(pgformat('CAST(%I AS VARCHAR) AS %I', dimension.factTableColumn, `${columnName}_sort`));
   });
   for (const locale of SUPPORTED_LOCALES) {
     const columnName = dimension.metadata.find((info) => info.language === locale)?.name || dimension.factTableColumn;
@@ -1483,6 +1752,9 @@ async function setupDimensions(
   endRevision: Revision,
   viewSelectStatementsMap: Map<Locale, string[]>,
   rawSelectStatementsMap: Map<Locale, string[]>,
+  defaultSortSelectStatementsMap: Map<Locale, string[]>,
+  rawSortSelectStatementsMap: Map<Locale, string[]>,
+  columnNames: Map<Locale, Set<string>>,
   joinStatements: string[],
   orderByStatements: string[]
 ): Promise<void> {
@@ -1528,12 +1800,23 @@ async function setupDimensions(
               dimension,
               viewSelectStatementsMap,
               rawSelectStatementsMap,
+              defaultSortSelectStatementsMap,
+              rawSortSelectStatementsMap,
+              columnNames,
               joinStatements,
               orderByStatements
             );
             lookupTables.add(tableName);
           } else {
-            await rawDimensionProcessor(connection, dimension, viewSelectStatementsMap, rawSelectStatementsMap);
+            await rawDimensionProcessor(
+              connection,
+              dimension,
+              viewSelectStatementsMap,
+              rawSelectStatementsMap,
+              defaultSortSelectStatementsMap,
+              rawSortSelectStatementsMap,
+              columnNames
+            );
           }
           break;
         case DimensionType.LookupTable:
@@ -1544,7 +1827,15 @@ async function setupDimensions(
             const updateInProgressDimension = endRevision.tasks.dimensions.find((dim) => dim.id === dimension.id);
             if (updateInProgressDimension && !updateInProgressDimension.lookupTableUpdated) {
               logger.warn(`Skipping dimension ${dimension.id} as it has not been updated`);
-              await rawDimensionProcessor(connection, dimension, viewSelectStatementsMap, rawSelectStatementsMap);
+              await rawDimensionProcessor(
+                connection,
+                dimension,
+                viewSelectStatementsMap,
+                rawSelectStatementsMap,
+                defaultSortSelectStatementsMap,
+                rawSortSelectStatementsMap,
+                columnNames
+              );
               break;
             }
           }
@@ -1554,6 +1845,9 @@ async function setupDimensions(
             dimension,
             viewSelectStatementsMap,
             rawSelectStatementsMap,
+            defaultSortSelectStatementsMap,
+            rawSortSelectStatementsMap,
+            columnNames,
             joinStatements,
             orderByStatements
           );
@@ -1565,6 +1859,9 @@ async function setupDimensions(
             dimension,
             viewSelectStatementsMap,
             rawSelectStatementsMap,
+            defaultSortSelectStatementsMap,
+            rawSortSelectStatementsMap,
+            columnNames,
             joinStatements
           );
           lookupTables.add('reference_data');
@@ -1576,23 +1873,47 @@ async function setupDimensions(
           lookupTables.add('reference_data_info');
           break;
         case DimensionType.Numeric:
-          await setupNumericDimension(connection, dimension, viewSelectStatementsMap, rawSelectStatementsMap);
+          await setupNumericDimension(
+            connection,
+            dimension,
+            viewSelectStatementsMap,
+            rawSelectStatementsMap,
+            defaultSortSelectStatementsMap,
+            rawSortSelectStatementsMap,
+            columnNames
+          );
           break;
         case DimensionType.Text:
-          await setupTextDimension(connection, dimension, viewSelectStatementsMap, rawSelectStatementsMap);
+          await setupTextDimension(
+            connection,
+            dimension,
+            viewSelectStatementsMap,
+            rawSelectStatementsMap,
+            defaultSortSelectStatementsMap,
+            rawSortSelectStatementsMap,
+            columnNames
+          );
           break;
         case DimensionType.Raw:
         case DimensionType.Symbol:
-          await rawDimensionProcessor(connection, dimension, viewSelectStatementsMap, rawSelectStatementsMap);
+          await rawDimensionProcessor(
+            connection,
+            dimension,
+            viewSelectStatementsMap,
+            rawSelectStatementsMap,
+            defaultSortSelectStatementsMap,
+            rawSortSelectStatementsMap,
+            columnNames
+          );
           break;
       }
-      await connection.query(
-        pgformat('INSERT INTO metadata VALUES (%L, %L)', 'lookup_tables', JSON.stringify(Array.from(lookupTables)))
-      );
     } catch (err) {
       logger.error(err, `Something went wrong trying to load dimension ${dimension.id} in to the cube`);
       throw new Error(`Could not load dimensions ${dimension.id} in to the cube with the following error: ${err}`);
     }
+    await connection.query(
+      pgformat('INSERT INTO metadata VALUES (%L, %L)', 'lookup_tables', JSON.stringify(Array.from(lookupTables)))
+    );
     performanceReporting(Math.round(performance.now() - dimStart), 1000, `Setting up ${dimension.type} dimension type`);
   }
 }
@@ -1781,10 +2102,16 @@ export const createBasePostgresCube = async (
   const functionStart = performance.now();
   const viewSelectStatementsMap = new Map<Locale, string[]>();
   const rawSelectStatementsMap = new Map<Locale, string[]>();
+  const defaultSortSelectStatementsMap = new Map<Locale, string[]>();
+  const rawSortSelectStatementsMap = new Map<Locale, string[]>();
+  const columnNames = new Map<Locale, Set<string>>();
 
   SUPPORTED_LOCALES.map((locale) => {
     viewSelectStatementsMap.set(locale, []);
     rawSelectStatementsMap.set(locale, []);
+    defaultSortSelectStatementsMap.set(locale, []);
+    rawSortSelectStatementsMap.set(locale, []);
+    columnNames.set(locale, new Set<string>());
   });
 
   const joinStatements: string[] = [];
@@ -1835,6 +2162,9 @@ export const createBasePostgresCube = async (
         factTableInfo.measureColumn,
         viewSelectStatementsMap,
         rawSelectStatementsMap,
+        defaultSortSelectStatementsMap,
+        rawSortSelectStatementsMap,
+        columnNames,
         joinStatements,
         orderByStatements
       );
@@ -1847,6 +2177,9 @@ export const createBasePostgresCube = async (
     setupMeasureNoDataValues(
       viewSelectStatementsMap,
       rawSelectStatementsMap,
+      defaultSortSelectStatementsMap,
+      rawSortSelectStatementsMap,
+      columnNames,
       factTableInfo.measureColumn,
       factTableInfo.dataValuesColumn
     );
@@ -1871,6 +2204,9 @@ export const createBasePostgresCube = async (
       endRevision,
       viewSelectStatementsMap,
       rawSelectStatementsMap,
+      defaultSortSelectStatementsMap,
+      rawSortSelectStatementsMap,
+      columnNames,
       joinStatements,
       orderByStatements
     );
@@ -1889,6 +2225,9 @@ export const createBasePostgresCube = async (
       factTableInfo.notesCodeColumn,
       viewSelectStatementsMap,
       rawSelectStatementsMap,
+      defaultSortSelectStatementsMap,
+      rawSortSelectStatementsMap,
+      columnNames,
       joinStatements
     );
   }
@@ -1904,6 +2243,12 @@ export const createBasePostgresCube = async (
       }
       if (rawSelectStatementsMap.get(locale)?.length === 0) {
         rawSelectStatementsMap.get(locale)?.push('*');
+      }
+      if (defaultSortSelectStatementsMap.get(locale)?.length === 0) {
+        defaultSortSelectStatementsMap.get(locale)?.push('*');
+      }
+      if (rawSortSelectStatementsMap.get(locale)?.length === 0) {
+        rawSortSelectStatementsMap.get(locale)?.push('*');
       }
       const lang = locale.toLowerCase().split('-')[0];
 
@@ -1926,6 +2271,43 @@ export const createBasePostgresCube = async (
       );
       await connection.query(pgformat('CREATE VIEW %I AS %s', `raw_view_${lang}`, rawViewSQL));
       await connection.query(pgformat(`INSERT INTO metadata VALUES (%L, %L)`, `raw_view_${lang}`, rawViewSQL));
+
+      const defaultSortViewSQL = pgformat(
+        'SELECT %s FROM %I %s %s',
+        defaultSortSelectStatementsMap.get(locale)?.join(',\n'),
+        FACT_TABLE_NAME,
+        joinStatements.join('\n').replace(/#LANG#/g, pgformat('%L', locale.toLowerCase())),
+        orderByStatements.length > 0 ? `ORDER BY ${orderByStatements.join(', ')}` : ''
+      );
+      await connection.query(pgformat('CREATE VIEW %I AS %s', `default_sort_view_${lang}`, defaultSortViewSQL));
+      await connection.query(
+        pgformat(`INSERT INTO metadata VALUES (%L, %L)`, `default_sort_view_${lang}`, defaultSortViewSQL)
+      );
+
+      const rawSortViewSQL = pgformat(
+        'SELECT %s FROM %I %s %s',
+        rawSortSelectStatementsMap.get(locale)?.join(',\n'),
+        FACT_TABLE_NAME,
+        joinStatements.join('\n').replace(/#LANG#/g, pgformat('%L', locale.toLowerCase())),
+        orderByStatements.length > 0 ? `ORDER BY ${orderByStatements.join(', ')}` : ''
+      );
+      await connection.query(pgformat('CREATE VIEW %I AS %s', `raw_sort_view_${lang}`, rawSortViewSQL));
+      await connection.query(pgformat(`INSERT INTO metadata VALUES (%L, %L)`, `raw_sort_view_${lang}`, rawSortViewSQL));
+
+      if (Array.from(columnNames.get(locale)?.values() || []).length > 0) {
+        await connection.query(
+          pgformat(
+            `INSERT INTO metadata VALUES (%L, %L)`,
+            `display_columns_${lang}`,
+            JSON.stringify(Array.from(columnNames.get(locale)?.values() || []))
+          )
+        );
+      } else {
+        const cols = dataset.factTable?.map((col) => col.columnName);
+        await connection.query(
+          pgformat(`INSERT INTO metadata VALUES (%L, %L)`, `display_columns_${lang}`, JSON.stringify(cols))
+        );
+      }
     }
     await connection.query(`UPDATE metadata SET value = 'awaiting_materialization' WHERE key = 'build_status'`);
   } catch (error) {
@@ -1998,6 +2380,28 @@ export const createMaterialisedView = async (revisionId: string): Promise<void> 
       );
       await connection.query(
         pgformat('CREATE MATERIALIZED VIEW %I AS %s', `raw_mat_view_${lang}`, originalRawViewMetadata.rows[0].value)
+      );
+
+      const originalDefaultSortViewMetadata: QueryResult<{ value: string }> = await connection.query(
+        pgformat('SELECT value FROM metadata WHERE key = %L', `default_sort_view_${lang}`)
+      );
+      await connection.query(
+        pgformat(
+          'CREATE MATERIALIZED VIEW %I AS %s',
+          `default_sort_mat_view_${lang}`,
+          originalDefaultSortViewMetadata.rows[0].value
+        )
+      );
+
+      const originalRawSortViewMetadata: QueryResult<{ value: string }> = await connection.query(
+        pgformat('SELECT value FROM metadata WHERE key = %L', `raw_sort_view_${lang}`)
+      );
+      await connection.query(
+        pgformat(
+          'CREATE MATERIALIZED VIEW %I AS %s',
+          `raw_sort_mat_view_${lang}`,
+          originalRawSortViewMetadata.rows[0].value
+        )
       );
     }
     await connection.query(`UPDATE metadata SET value = 'complete' WHERE key = 'build_status'`);

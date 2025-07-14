@@ -1,6 +1,6 @@
 import { Response } from 'express';
 import ExcelJS from 'exceljs';
-import { QueryResult } from 'pg';
+import { PoolClient, QueryResult } from 'pg';
 import Cursor from 'pg-cursor';
 import { format as pgformat } from '@scaleleap/pg-format/lib/pg-format';
 import { format as csvFormat } from '@fast-csv/format';
@@ -127,18 +127,27 @@ export const getFilters = async (revision: Revision, language: string): Promise<
 
 function createBaseQuery(
   revision: Revision,
-  lang: string,
-  materialized: boolean,
-  view: 'raw' | 'default',
+  view: string,
+  columns: string[],
   sortBy?: SortByInterface[],
   filterBy?: FilterInterface[]
 ): string {
   let sortByQuery: string | undefined;
+  let sortColumnPostfix = '';
+  if (view.includes('sort')) sortColumnPostfix = '_sort';
   try {
     if (sortBy && sortBy.length > 0) {
       logger.debug('Multiple sort by columns are present. Creating sort by query');
       sortByQuery = sortBy
-        .map((sort) => pgformat(`%I %s`, sort.columnName, sort.direction ? sort.direction : 'ASC'))
+        .map((sort) =>
+          pgformat(
+            `%I %s, %I %s`,
+            `${sort.columnName}${sortColumnPostfix}`,
+            sort.direction ? sort.direction : 'ASC',
+            sort.columnName,
+            sort.direction ? sort.direction : 'ASC'
+          )
+        )
         .join(', ');
     }
   } catch (err) {
@@ -165,13 +174,58 @@ function createBaseQuery(
     throw err;
   }
 
-  return pgformat(
-    'SELECT * FROM %I.%I %s %s',
-    revision.id,
-    materialized ? `${view}_mat_view_${lang}` : `${view}_view_${lang}`,
-    filterQuery ? `WHERE ${filterQuery}` : '',
-    sortByQuery ? `ORDER BY ${sortByQuery}` : ''
+  if (columns[0] === '*') {
+    return pgformat(
+      'SELECT * FROM %I.%I %s %s',
+      revision.id,
+      view,
+      filterQuery ? `WHERE ${filterQuery}` : '',
+      sortByQuery ? `ORDER BY ${sortByQuery}` : ''
+    );
+  } else {
+    return pgformat(
+      'SELECT %I FROM %I.%I %s %s',
+      columns,
+      revision.id,
+      view,
+      filterQuery ? `WHERE ${filterQuery}` : '',
+      sortByQuery ? `ORDER BY ${sortByQuery}` : ''
+    );
+  }
+}
+
+async function viewChooser(
+  connection: PoolClient,
+  viewType: 'default' | 'raw',
+  lang: string,
+  revision: Revision
+): Promise<string> {
+  const availableMaterializedView = await connection.query(
+    pgformat(
+      `select * from pg_matviews where matviewname IN (%L) AND schemaname = %L;`,
+      [`${viewType}_sort_mat_view_${lang}`, `${viewType}_mat_view_${lang}`],
+      revision.id
+    )
   );
+
+  if (availableMaterializedView.rows.length > 0) {
+    if (availableMaterializedView.rows.find((row) => row.matviewname === `${viewType}_sort_mat_view_${lang}`))
+      return `${viewType}_sort_mat_view_${lang}`;
+    if (availableMaterializedView.rows.find((row) => row.matviewname === `${viewType}_mat_view_${lang}`))
+      return `${viewType}_mat_view_${lang}`;
+  }
+  return `${viewType}_view_${lang}`;
+}
+
+async function getColumns(connection: PoolClient, lang: string): Promise<string[]> {
+  const columnsMetadata: QueryResult<{ value: string }> = await connection.query(
+    pgformat(`SELECT value FROM metadata WHERE key = %L`, `display_columns_${lang}`)
+  );
+  let columns = ['*'];
+  if (columnsMetadata.rows.length > 0) {
+    columns = JSON.parse(columnsMetadata.rows[0].value) as string[];
+  }
+  return columns;
 }
 
 export const createFrontendView = async (
@@ -185,20 +239,10 @@ export const createFrontendView = async (
 ): Promise<ViewDTO | ViewErrDTO> => {
   const connection = await getCubeDB().connect();
   await connection.query(pgformat(`SET search_path TO %I;`, revision.id));
-  const availableMaterializedView = await connection.query(
-    pgformat(
-      `select * from pg_matviews where matviewname = %L AND schemaname = %L;`,
-      `default_mat_view_${lang}`,
-      revision.id
-    )
-  );
-  let baseQuery: string;
-  if (availableMaterializedView.rows.length > 0) {
-    baseQuery = createBaseQuery(revision, lang, true, 'default', sortBy, filterBy);
-  } else {
-    baseQuery = createBaseQuery(revision, lang, false, 'default', sortBy, filterBy);
-  }
-
+  const view = await viewChooser(connection, 'default', lang, revision);
+  const columns = await getColumns(connection, lang);
+  const baseQuery = createBaseQuery(revision, view, columns, sortBy, filterBy);
+  logger.debug(baseQuery);
   try {
     const totalsQuery = pgformat('SELECT count(*) as "totalLines" from (%s);', baseQuery);
     const totals = await connection.query(totalsQuery);
@@ -275,19 +319,10 @@ export const createStreamingJSONFilteredView = async (
 ): Promise<void> => {
   const connection = await getCubeDB().connect();
   await connection.query(pgformat(`SET search_path TO %I;`, revision.id));
-  const availableMaterializedView = await connection.query(
-    pgformat(
-      `select * from pg_matviews where matviewname = %L AND schemaname = %L;`,
-      `default_mat_view_${lang}`,
-      revision.id
-    )
-  );
-  let baseQuery: string;
-  if (availableMaterializedView.rows.length > 0) {
-    baseQuery = createBaseQuery(revision, lang, true, 'raw', sortBy, filterBy);
-  } else {
-    baseQuery = createBaseQuery(revision, lang, false, 'raw', sortBy, filterBy);
-  }
+  const view = await viewChooser(connection, 'raw', lang, revision);
+  const columns = await getColumns(connection, lang);
+  const baseQuery = createBaseQuery(revision, view, columns, sortBy, filterBy);
+
   try {
     const cursor = connection.query(new Cursor(baseQuery));
     let rows = await cursor.read(CURSOR_ROW_LIMIT);
@@ -324,19 +359,10 @@ export const createStreamingCSVFilteredView = async (
 ): Promise<void> => {
   const connection = await getCubeDB().connect();
   await connection.query(pgformat(`SET search_path TO %I;`, revision.id));
-  const availableMaterializedView = await connection.query(
-    pgformat(
-      `select * from pg_matviews where matviewname = %L AND schemaname = %L;`,
-      `default_mat_view_${lang}`,
-      revision.id
-    )
-  );
-  let baseQuery: string;
-  if (availableMaterializedView.rows.length > 0) {
-    baseQuery = createBaseQuery(revision, lang, true, 'raw', sortBy, filterBy);
-  } else {
-    baseQuery = createBaseQuery(revision, lang, false, 'raw', sortBy, filterBy);
-  }
+  const view = await viewChooser(connection, 'raw', lang, revision);
+  const columns = await getColumns(connection, lang);
+  const baseQuery = createBaseQuery(revision, view, columns, sortBy, filterBy);
+
   try {
     const cursor = connection.query(new Cursor(baseQuery));
     let rows = await cursor.read(CURSOR_ROW_LIMIT);
@@ -371,19 +397,10 @@ export const createStreamingExcelFilteredView = async (
 ): Promise<void> => {
   const connection = await getCubeDB().connect();
   await connection.query(pgformat(`SET search_path TO %I;`, revision.id));
-  const availableMaterializedView = await connection.query(
-    pgformat(
-      `select * from pg_matviews where matviewname = %L AND schemaname = %L;`,
-      `default_mat_view_${lang}`,
-      revision.id
-    )
-  );
-  let baseQuery: string;
-  if (availableMaterializedView.rows.length > 0) {
-    baseQuery = createBaseQuery(revision, lang, true, 'raw', sortBy, filterBy);
-  } else {
-    baseQuery = createBaseQuery(revision, lang, false, 'raw', sortBy, filterBy);
-  }
+  const view = await viewChooser(connection, 'raw', lang, revision);
+  const columns = await getColumns(connection, lang);
+  const baseQuery = createBaseQuery(revision, view, columns, sortBy, filterBy);
+
   try {
     const cursor = connection.query(new Cursor(baseQuery));
     let rows = await cursor.read(CURSOR_ROW_LIMIT);
