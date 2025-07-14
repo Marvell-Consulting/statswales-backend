@@ -150,6 +150,10 @@ export const validateSourceAssignment = (
     throw new SourceAssignmentException('errors.source_assignment.missing_footnotes');
   }
 
+  if (validated.dimensions.length < 1) {
+    throw new SourceAssignmentException('errors.source_assignment.missing_dimensions');
+  }
+
   return validated;
 };
 
