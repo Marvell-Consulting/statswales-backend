@@ -23,6 +23,7 @@ import { DataTable } from './data-table';
 import { RevisionMetadata } from './revision-metadata';
 import { RevisionProvider } from './revision-provider';
 import { RevisionTopic } from './revision-topic';
+import { UpdateFrequencyDTO } from '../../dtos/update-frequency-dto';
 
 @Entity({ name: 'revision', orderBy: { createdAt: 'ASC' } })
 export class Revision extends BaseEntity {
@@ -87,8 +88,8 @@ export class Revision extends BaseEntity {
   @Column({ type: 'boolean', name: 'rounding_applied', nullable: true })
   roundingApplied?: boolean;
 
-  @Column({ type: 'text', name: 'update_frequency', nullable: true })
-  updateFrequency?: string; // in ISO 8601 duration format, e.g. P1Y = every year
+  @Column({ type: 'json', name: 'update_frequency', nullable: true })
+  updateFrequency?: UpdateFrequencyDTO;
 
   @Column({ type: 'text', nullable: true })
   designation?: Designation;
