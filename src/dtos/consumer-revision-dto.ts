@@ -35,7 +35,7 @@ export class ConsumerRevisionDTO {
     revDto.publish_at = revision.publishAt?.toISOString();
 
     revDto.rounding_applied = revision.roundingApplied;
-    revDto.update_frequency = UpdateFrequencyDTO.fromDuration(revision.updateFrequency);
+    revDto.update_frequency = revision.updateFrequency;
     revDto.designation = revision.designation;
     revDto.related_links = revision.relatedLinks?.map((relLink) => RelatedLinkDTO.fromRelatedLink(relLink));
 

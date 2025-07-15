@@ -83,7 +83,7 @@ export class RevisionMetadataDTO {
       roundingApplied: dto.rounding_applied,
       relatedLinks: dto.related_links?.map((linkDto) => RelatedLinkDTO.toRelatedLink(linkDto)),
       designation: dto.designation,
-      updateFrequency: UpdateFrequencyDTO.toDuration(dto.update_frequency)
+      updateFrequency: dto.update_frequency
     };
 
     return { metadata, revision };

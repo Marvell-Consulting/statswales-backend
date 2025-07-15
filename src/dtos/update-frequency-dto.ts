@@ -1,44 +1,26 @@
-import { IsBoolean, IsEnum, IsInt, IsOptional } from 'class-validator';
-import { invert } from 'lodash';
+import { IsEnum, IsOptional, IsString, ValidateNested } from 'class-validator';
 
-import { DurationUnit } from '../enums/duration-unit';
+import { UpdateType } from '../enums/update-type';
+import { Type } from 'class-transformer';
 
-const durationCodeToUnit = {
-  D: DurationUnit.Day,
-  W: DurationUnit.Week,
-  M: DurationUnit.Month,
-  Y: DurationUnit.Year
-};
+export class UpdateDateDTO {
+  @IsString()
+  @IsOptional()
+  day?: string;
 
-const unitToDurationCode = invert(durationCodeToUnit);
+  @IsString()
+  month: string;
+
+  @IsString()
+  year: string;
+}
 
 export class UpdateFrequencyDTO {
-  @IsBoolean()
-  is_updated?: boolean;
+  @IsEnum(UpdateType)
+  update_type?: UpdateType;
 
-  @IsInt()
+  @ValidateNested()
+  @Type(() => UpdateDateDTO)
   @IsOptional()
-  frequency_value?: number;
-
-  @IsEnum(DurationUnit)
-  @IsOptional()
-  frequency_unit?: string;
-
-  static fromDuration(duration?: string): UpdateFrequencyDTO | undefined {
-    if (!duration) return undefined;
-    if (duration === 'NEVER') return { is_updated: false };
-    const durationCode = duration.slice(-1) as keyof typeof durationCodeToUnit;
-
-    return {
-      is_updated: true,
-      frequency_value: parseInt(duration.replace(/[^0-9]/, ''), 10),
-      frequency_unit: durationCodeToUnit[durationCode]
-    };
-  }
-
-  static toDuration(update: UpdateFrequencyDTO | undefined): string | undefined {
-    if (!update) return undefined;
-    if (!update.is_updated) return 'NEVER';
-    return `P${update.frequency_value}${unitToDurationCode[update.frequency_unit!]}`;
-  }
+  date?: UpdateDateDTO;
 }
