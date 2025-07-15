@@ -64,6 +64,9 @@ export interface AppConfig {
     database: string;
     ssl?: boolean;
     synchronize?: boolean;
+    poolSize?: number;
+    idleTimeoutMs?: number;
+    connectionTimeoutMs?: number;
   };
   auth: {
     providers: AuthProvider[];

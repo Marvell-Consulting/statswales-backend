@@ -22,7 +22,12 @@ const dataSourceOpts: DataSourceOptions = {
   synchronize: config.database.synchronize,
   logging: false,
   entities: [`${__dirname}/../entities/**/*.{ts,js}`],
-  migrations: [`${__dirname}/../migrations/*.{ts,js}`]
+  migrations: [`${__dirname}/../migrations/*.{ts,js}`],
+  extra: {
+    max: config.database.poolSize,
+    idleTimeoutMillis: config.database.idleTimeoutMs,
+    connectionTimeoutMillis: config.database.connectionTimeoutMs
+  }
 };
 
 export const dataSource = new DataSource(dataSourceOpts);
