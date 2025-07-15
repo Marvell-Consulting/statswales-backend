@@ -1493,7 +1493,7 @@ async function dateDimensionProcessor(
 ): Promise<string> {
   const dimTable = `${makeCubeSafeString(dimension.factTableColumn)}_lookup`;
   await createDateDimension(connection, dimension.extractor, factTableColumn);
-  SUPPORTED_LOCALES.map((locale) => {
+  for (const locale of SUPPORTED_LOCALES) {
     const proposedColumnName =
       dimension.metadata.find((info) => info.language === locale)?.name || dimension.factTableColumn;
     const columnName = updateColumnName(columnNames.get(locale)!, proposedColumnName);
@@ -1535,7 +1535,19 @@ async function dateDimensionProcessor(
     //   ?.push(
     //     pgformat("strftime(%I.end_date, '%d/%m/%Y') AS %I", dimTable, t('column_headers.end_date', { lng: locale }))
     //   );
-  });
+    const insertQuery = pgformat(
+      `INSERT INTO filter_table
+         SELECT CAST(%I AS VARCHAR), language, %L, %L, description, CAST (hierarchy AS VARCHAR)
+         FROM %I
+         WHERE language = %L`,
+      factTableColumn.columnName,
+      factTableColumn.columnName,
+      columnName,
+      dimTable,
+      locale.toLowerCase()
+    );
+    await connection.query(insertQuery);
+  }
   joinStatements.push(
     pgformat(
       'LEFT JOIN %I ON %I.%I=%I.%I AND %I.language=#LANG#',
@@ -1548,22 +1560,6 @@ async function dateDimensionProcessor(
     )
   );
   orderByStatements.push(pgformat('%I.end_date', dimTable));
-  for (const locale of SUPPORTED_LOCALES) {
-    const columnName = dimension.metadata.find((info) => info.language === locale)?.name || dimension.factTableColumn;
-    await connection.query(
-      pgformat(
-        `INSERT INTO filter_table
-         SELECT CAST(%I AS VARCHAR), language, %L, %L, description, CAST (hierarchy AS VARCHAR)
-         FROM %I
-         WHERE language = %L`,
-        factTableColumn.columnName,
-        factTableColumn.columnName,
-        columnName,
-        dimTable,
-        locale.toLowerCase()
-      )
-    );
-  }
   return dimTable;
 }
 

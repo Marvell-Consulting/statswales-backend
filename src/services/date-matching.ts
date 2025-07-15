@@ -236,7 +236,10 @@ function periodTableCreator(
               : `${t('date_format.quarter_abr', { lng: locale })}${quarterIndex} ${format(displayYear, 'yyyy')}-${format(add(displayYear, { years: 1 }), 'yy')}`;
           break;
         case GeneratorType.Month:
-          description = `${t(`months.${monthNo}`, { lng: locale })} ${format(displayYear, 'yyyy')}`;
+          description =
+            dateFormat.type === YearType.Calendar
+              ? `${t(`months.${monthNo}`, { lng: locale })} ${format(displayYear, 'yyyy')}`
+              : `${t(`months.${monthNo}`, { lng: locale })} ${format(displayYear, 'yyyy')}-${format(add(displayYear, { years: 1 }), 'yy')}`;
           break;
       }
 
@@ -291,14 +294,14 @@ function periodTableCreator(
         }
         break;
       case GeneratorType.Month:
-        if (monthIndex <= 12) {
+        if (monthIndex < 12) {
           if (monthIndex % 3 === 0) quarterIndex++;
           monthIndex++;
         } else {
           monthIndex = 1;
           quarterIndex = 1;
         }
-        if (displayYear !== displayYear && monthIndex === 1) {
+        if (year !== displayYear && monthIndex === 1) {
           displayYear = year;
         }
     }
