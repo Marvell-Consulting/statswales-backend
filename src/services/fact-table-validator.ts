@@ -118,14 +118,22 @@ export const factTableValidatorFromSource = async (
     await connection.query(pgformat('ALTER TABLE %I ADD PRIMARY KEY (%I)', FACT_TABLE_NAME, primaryKeyDef));
     await validateNoteCodesColumn(connection, validatedSourceAssignment.noteCodes, FACT_TABLE_NAME);
   } catch (err) {
+    logger.error(err, 'Failed to apply primary key to fact table.');
     if ((err as Error).message.includes('could not create unique index')) {
       let error: FactTableValidationException | undefined;
-      error = await identifyIncompleteFacts(connection, primaryKeyDef);
-      if (error) throw error;
       error = await identifyDuplicateFacts(connection, primaryKeyDef);
       if (error) throw error;
+      error = await identifyIncompleteFacts(connection, primaryKeyDef);
+      if (error) throw error;
+    } else if ((err as Error).message.includes('contains null values')) {
+      const error = await identifyIncompleteFacts(connection, primaryKeyDef);
+      if (error) throw error;
+      throw new FactTableValidationException(
+        'Incomplete facts found in fact table.',
+        FactTableValidationExceptionType.IncompleteFact,
+        400
+      );
     }
-    logger.error(err, 'Failed to load data table into fact table');
     throw new FactTableValidationException(
       'Something went wrong trying to add primary key to fact table',
       FactTableValidationExceptionType.UnknownError,
