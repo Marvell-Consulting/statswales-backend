@@ -1206,7 +1206,7 @@ function setupMeasureNoDataValues(
 ): void {
   SUPPORTED_LOCALES.map((locale) => {
     if (dataValuesColumn) {
-      columnNames.get(locale)?.add(dataValuesColumn.columnName);
+      columnNames.get(locale)?.add(t('column_headers.data_values', { lng: locale }));
       viewSelectStatementsMap
         .get(locale)
         ?.push(
