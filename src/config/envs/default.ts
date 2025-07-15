@@ -47,7 +47,10 @@ export const getDefaultConfig = (): AppConfig => {
       password: process.env.DB_PASSWORD!,
       database: process.env.DB_DATABASE!,
       ssl: true,
-      synchronize: false
+      synchronize: false,
+      poolSize: parseInt(process.env.DB_POOL_SIZE || '5', 10),
+      idleTimeoutMs: parseInt(process.env.DB_IDLE_TIMEOUT_MS || '10000', 10),
+      connectionTimeoutMs: parseInt(process.env.DB_CONNECTION_TIMEOUT_MS || '2000', 10)
     },
     auth: {
       providers: [],
