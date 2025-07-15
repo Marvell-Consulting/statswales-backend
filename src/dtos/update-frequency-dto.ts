@@ -1,6 +1,6 @@
 import { IsEnum, IsOptional, IsString, ValidateNested } from 'class-validator';
 
-import { UpdateType } from '../enums/update-frequency';
+import { UpdateType } from '../enums/update-type';
 import { Type } from 'class-transformer';
 
 export class UpdateDateDTO {

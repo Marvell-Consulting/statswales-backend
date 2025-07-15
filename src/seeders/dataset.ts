@@ -14,6 +14,7 @@ import { GroupRole } from '../enums/group-role';
 import { Designation } from '../enums/designation';
 import { DimensionType } from '../enums/dimension-type';
 import { FactTableColumnType } from '../enums/fact-table-column-type';
+import { UpdateType } from '../enums/update-type';
 import { convertDataTableToLookupTable } from '../utils/lookup-table-utils';
 import { Provider } from '../entities/dataset/provider';
 import { getFileService } from '../utils/get-file-service';
@@ -166,7 +167,9 @@ const approvedDataset: DeepPartial<Dataset> = {
     publishAt: '2025-05-01 13:20:00+00',
     onlineCubeFilename: '709e463a-c6b3-45fa-91a3-88d432764f6b-protocube.duckdb',
     roundingApplied: false,
-    updateFrequency: 'NEVER',
+    updateFrequency: {
+      update_type: UpdateType.None
+    },
     designation: Designation.Official,
     relatedLinks: [
       {
