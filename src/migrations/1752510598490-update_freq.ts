@@ -5,7 +5,7 @@ export class UpdateFreq1752510598490 implements MigrationInterface {
 
   public async up(queryRunner: QueryRunner): Promise<void> {
     await queryRunner.query(`ALTER TABLE "revision" DROP COLUMN "update_frequency"`);
-    await queryRunner.query(`ALTER TABLE "revision" ADD "update_frequency" json`);
+    await queryRunner.query(`ALTER TABLE "revision" ADD "update_frequency" jsonb`);
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {

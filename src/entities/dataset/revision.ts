@@ -88,7 +88,7 @@ export class Revision extends BaseEntity {
   @Column({ type: 'boolean', name: 'rounding_applied', nullable: true })
   roundingApplied?: boolean;
 
-  @Column({ type: 'json', name: 'update_frequency', nullable: true })
+  @Column({ type: 'jsonb', name: 'update_frequency', nullable: true })
   updateFrequency?: UpdateFrequencyDTO;
 
   @Column({ type: 'text', nullable: true })
