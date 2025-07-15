@@ -87,7 +87,7 @@ export class TasklistStateDTO {
         const updateTask = revision.tasks?.dimensions.find((task) => task.id === dimension.id);
 
         if (updateTask) {
-          status = updateTask.lookupTableUpdated ? TaskListStatus.Updated : TaskListStatus.Unchanged;
+          status = updateTask.lookupTableUpdated ? TaskListStatus.Updated : TaskListStatus.NotStarted;
         }
       } else {
         status = dimension.extractor === null ? TaskListStatus.NotStarted : TaskListStatus.Completed;
