@@ -6,7 +6,7 @@ import { SessionStore } from '../session-store.enum';
 import { FileStore } from '../file-store.enum';
 import { Locale } from '../../enums/locale';
 
-const ONE_DAY = 24 * 60 * 60 * 1000;
+const ONE_DAY_MS = 24 * 60 * 60 * 1000;
 
 export const getDefaultConfig = (): AppConfig => {
   return {
@@ -28,7 +28,7 @@ export const getDefaultConfig = (): AppConfig => {
       store: SessionStore.Redis,
       secret: process.env.SESSION_SECRET!,
       secure: true,
-      maxAge: parseInt(process.env.SESSION_MAX_AGE || ONE_DAY.toString(), 10),
+      maxAge: parseInt(process.env.SESSION_MAX_AGE || ONE_DAY_MS.toString(), 10),
       redisUrl: process.env.REDIS_URL,
       redisPassword: process.env.REDIS_ACCESS_KEY
     },
