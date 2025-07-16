@@ -84,60 +84,77 @@ export const setupTextDimension = async (dimension: Dimension): Promise<void> =>
 };
 
 export const validateSourceAssignment = (
-  fileImport: DataTable,
+  dataTable: DataTable,
   sourceAssignment: SourceAssignmentDTO[]
 ): ValidatedSourceAssignment => {
-  let dataValues: SourceAssignmentDTO | null = null;
-  let noteCodes: SourceAssignmentDTO | null = null;
-  let measure: SourceAssignmentDTO | null = null;
-  const dimensions: SourceAssignmentDTO[] = [];
-  const ignore: SourceAssignmentDTO[] = [];
-  // logger.debug(`Validating source assignment from: ${JSON.stringify(sourceAssignment, null, 2)}`);
+  const validated: ValidatedSourceAssignment = {
+    dataValues: null,
+    measure: null,
+    noteCodes: null,
+    dimensions: [],
+    ignore: []
+  };
 
-  sourceAssignment.map((sourceInfo) => {
-    if (
-      !fileImport.dataTableDescriptions?.find(
-        (info: DataTableDescription) => info.columnName === sourceInfo.column_name
-      )
-    ) {
+  const validColumnNames = dataTable.dataTableDescriptions?.map((col: DataTableDescription) => col.columnName) || [];
+
+  sourceAssignment.forEach((sourceInfo) => {
+    if (!validColumnNames.includes(sourceInfo.column_name)) {
       throw new SourceAssignmentException(`errors.source_assignment.invalid_column_name`);
     }
 
     switch (sourceInfo.column_type) {
       case FactTableColumnType.DataValues:
-        if (dataValues) {
+        if (validated.dataValues) {
           throw new SourceAssignmentException('errors.source_assignment.too_many_data_values');
         }
-        dataValues = sourceInfo;
+        validated.dataValues = sourceInfo;
         break;
+
       case FactTableColumnType.Measure:
-        if (measure) {
+        if (validated.measure) {
           throw new SourceAssignmentException('errors.source_assignment.too_many_measure');
         }
-        measure = sourceInfo;
+        validated.measure = sourceInfo;
         break;
+
       case FactTableColumnType.NoteCodes:
-        if (noteCodes) {
+        if (validated.noteCodes) {
           throw new SourceAssignmentException('errors.source_assignment.too_many_footnotes');
         }
-        noteCodes = sourceInfo;
+        validated.noteCodes = sourceInfo;
         break;
+
       case FactTableColumnType.Time:
       case FactTableColumnType.Dimension:
-        dimensions.push(sourceInfo);
+        validated.dimensions.push(sourceInfo);
         break;
+
       case FactTableColumnType.Ignore:
-        ignore.push(sourceInfo);
+        validated.ignore.push(sourceInfo);
         break;
+
       default:
         throw new SourceAssignmentException(`errors.source_assignment.invalid_source_type`);
     }
   });
-  if (!noteCodes) {
+
+  if (!validated.dataValues) {
+    throw new SourceAssignmentException('errors.source_assignment.missing_data_values');
+  }
+
+  if (!validated.measure) {
+    throw new SourceAssignmentException('errors.source_assignment.missing_measure');
+  }
+
+  if (!validated.noteCodes) {
     throw new SourceAssignmentException('errors.source_assignment.missing_footnotes');
   }
 
-  return { dataValues, measure, noteCodes, dimensions, ignore };
+  if (validated.dimensions.length < 1) {
+    throw new SourceAssignmentException('errors.source_assignment.missing_dimensions');
+  }
+
+  return validated;
 };
 
 async function createUpdateDimension(dataset: Dataset, columnDescriptor: SourceAssignmentDTO): Promise<void> {
