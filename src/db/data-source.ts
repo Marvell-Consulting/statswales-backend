@@ -23,6 +23,7 @@ const dataSourceOpts: DataSourceOptions = {
   logging: false,
   entities: [`${__dirname}/../entities/**/*.{ts,js}`],
   migrations: [`${__dirname}/../migrations/*.{ts,js}`],
+  applicationName: 'statswales-backend',
   extra: {
     max: config.database.poolSize,
     idleTimeoutMillis: config.database.idleTimeoutMs,
