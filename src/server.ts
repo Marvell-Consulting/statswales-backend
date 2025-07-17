@@ -4,30 +4,18 @@ import 'reflect-metadata';
 import { appConfig } from './config';
 import app from './app';
 import { logger } from './utils/logger';
-import { initDb, initEntitySubscriber } from './db/init';
 import { initPassport } from './middleware/passport-auth';
-import { getCubeDB } from './db/cube-db';
 import fs from 'node:fs';
 import { multerStorageDir } from './config/multer-storage';
+import { dbManager } from './db/database-manager';
 
 const PORT = appConfig().backend.port;
 
 Promise.resolve()
   .then(async () => {
-    const dbManager = await initDb();
-    await initEntitySubscriber(dbManager.getDataSource());
-
-    try {
-      const cubeDB = getCubeDB();
-      const cubeClient = await cubeDB.connect();
-      await cubeClient.query('SELECT NOW()');
-      cubeClient.release();
-      logger.info('Cube DB initialized');
-    } catch (error) {
-      logger.error(error, 'Error initializing Cube DB');
-    }
-
-    await initPassport(dbManager.getDataSource());
+    await dbManager.initDataSources();
+    await dbManager.initEntitySubscriber();
+    await initPassport(dbManager.getAppDataSource());
   })
   .then(() => {
     if (!fs.existsSync(multerStorageDir)) {

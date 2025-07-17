@@ -3,7 +3,7 @@ import passport from 'passport';
 import { isString } from 'lodash';
 
 import { User } from '../entities/user/user';
-import { dataSource } from '../db/data-source';
+import { appDataSource } from '../db/data-source';
 import { logger } from '../utils/logger';
 import { SUPPORTED_LOCALES } from '../middleware/translation';
 import { StorageService } from '../interfaces/storage-service';
@@ -13,7 +13,7 @@ import { UserDTO } from '../dtos/user/user-dto';
 const healthcheck = Router();
 
 const checkDb = async (): Promise<boolean> => {
-  await dataSource.manager.query('SELECT 1 AS connected');
+  await appDataSource.manager.query('SELECT 1 AS connected');
   return true;
 };
 

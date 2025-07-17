@@ -1,4 +1,4 @@
-import { dataSource } from '../db/data-source';
+import { appDataSource } from '../db/data-source';
 import { RoleSelectionDTO } from '../dtos/user/role-selection-dto';
 import { UserCreateDTO } from '../dtos/user/user-create-dto';
 import { UserDTO } from '../dtos/user/user-dto';
@@ -11,7 +11,7 @@ import { Locale } from '../enums/locale';
 import { UserStatus } from '../enums/user-status';
 import { ResultsetWithCount } from '../interfaces/resultset-with-count';
 
-export const UserRepository = dataSource.getRepository(User).extend({
+export const UserRepository = appDataSource.getRepository(User).extend({
   async getById(id: string): Promise<User> {
     return this.findOneOrFail({
       where: { id },

@@ -1,7 +1,7 @@
-import { dataSource } from '../db/data-source';
+import { appDataSource } from '../db/data-source';
 import { DataTable } from '../entities/dataset/data-table';
 
-export const DataTableRepository = dataSource.getRepository(DataTable).extend({
+export const DataTableRepository = appDataSource.getRepository(DataTable).extend({
   async getDataTableById(datasetId: string, revisionId: string, dataTableId: string): Promise<DataTable> {
     return this.findOneOrFail({
       where: {

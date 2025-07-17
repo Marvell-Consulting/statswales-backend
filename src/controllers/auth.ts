@@ -9,7 +9,7 @@ import { appConfig } from '../config';
 import { logger } from '../utils/logger';
 import { User } from '../entities/user/user';
 import { AuthProvider } from '../enums/auth-providers';
-import { dataSource } from '../db/data-source';
+import { appDataSource } from '../db/data-source';
 import { UserDTO } from '../dtos/user/user-dto';
 
 const config = appConfig();
@@ -45,7 +45,7 @@ export const loginLocal: RequestHandler = async (req, res) => {
 
   try {
     logger.debug('checking if user exists...');
-    const userRepository: Repository<User> = dataSource.getRepository('User');
+    const userRepository: Repository<User> = appDataSource.getRepository('User');
     const user = await userRepository.findOneOrFail({
       where: { providerUserId: username, provider: 'local' },
       relations: { groupRoles: { group: { metadata: true } } }

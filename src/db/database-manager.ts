@@ -1,46 +1,59 @@
 import 'reflect-metadata';
 
 import { Logger } from 'pino';
-import { DataSource, EntityManager } from 'typeorm';
+import { DataSource } from 'typeorm';
 
-import { dataSource } from './data-source';
+import { appDataSource, cubeDataSource } from './data-source';
+import { logger } from '../utils/logger';
+import { EntitySubscriber } from './entity-subscriber';
 
 class DatabaseManager {
-  private entityManager: EntityManager;
-  private dataSource: DataSource;
   private logger: Logger;
+  private appDataSource: DataSource;
+  private cubeDataSource: DataSource;
 
   constructor(logger: Logger) {
     this.logger = logger;
-    this.dataSource = dataSource;
+    this.appDataSource = appDataSource;
+    this.cubeDataSource = cubeDataSource;
   }
 
-  getDataSource(): DataSource {
-    return this.dataSource;
+  getAppDataSource(): DataSource {
+    return this.appDataSource;
   }
 
-  getEntityManager(): EntityManager {
-    if (this.entityManager === undefined) {
-      Promise.resolve(this.initializeDataSource()).catch((error) => this.logger.error(error));
+  getCubeDataSource(): DataSource {
+    return this.cubeDataSource;
+  }
+
+  async initDataSources(): Promise<void> {
+    await Promise.all([
+      this.initializeDataSource(this.appDataSource, 'Application'),
+      this.initializeDataSource(this.cubeDataSource, 'Cube')
+    ]);
+  }
+
+  private async initializeDataSource(dataSource: DataSource, name: string): Promise<void> {
+    if (dataSource.isInitialized) {
+      this.logger.info(`${name} datasource already initialized`);
+      return;
     }
-    return this.entityManager;
-  }
 
-  async initializeDataSource(): Promise<void> {
-    this.logger.debug(`Application DB '${this.dataSource.options.database}' initializing...`);
+    this.logger.debug(`Initializing ${name} datasource...`);
 
-    if (!this.dataSource.isInitialized) {
-      try {
-        await this.dataSource.initialize();
-      } catch (error) {
-        this.logger.error(error);
-        return;
-      }
+    try {
+      await dataSource.initialize();
+    } catch (error) {
+      this.logger.error(error);
+      return;
     }
 
-    this.logger.info(`Application DB '${this.dataSource.options.database}' initialized`);
-    this.entityManager = this.dataSource.createEntityManager();
+    this.logger.info(`${name} datasource '${dataSource.options.database}' ready`);
+  }
+
+  async initEntitySubscriber(): Promise<EntitySubscriber> {
+    return new EntitySubscriber(this.appDataSource);
   }
 }
 
-export default DatabaseManager;
+export const dbManager = new DatabaseManager(logger);

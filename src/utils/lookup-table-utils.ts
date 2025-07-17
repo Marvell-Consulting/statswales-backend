@@ -1,4 +1,7 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
+import { QueryRunner } from 'typeorm';
 import { format as pgformat } from '@scaleleap/pg-format';
+import { t } from 'i18next';
 
 import { DataTable } from '../entities/dataset/data-table';
 import { LookupTable } from '../entities/dataset/lookup-table';
@@ -6,7 +9,6 @@ import { DataTableDescription } from '../entities/dataset/data-table-description
 import { Locale } from '../enums/locale';
 import { MeasureLookupPatchDTO } from '../dtos/measure-lookup-patch-dto';
 import { LookupTablePatchDTO } from '../dtos/lookup-patch-dto';
-
 import { logger } from './logger';
 import { Dataset } from '../entities/dataset/dataset';
 import { ViewErrDTO } from '../dtos/view-dto';
@@ -14,8 +16,6 @@ import { viewErrorGenerators } from './view-error-generators';
 import { SUPPORTED_LOCALES } from '../middleware/translation';
 import { MeasureLookupTableExtractor } from '../extractors/measure-lookup-extractor';
 import { DataValueFormat } from '../enums/data-value-format';
-import { t } from 'i18next';
-import { PoolClient, QueryResult } from 'pg';
 
 export function convertDataTableToLookupTable(dataTable: DataTable): LookupTable {
   const lookupTable = new LookupTable();
@@ -135,7 +135,7 @@ export const lookForJoinColumn = (
 };
 
 export const validateLookupTableLanguages = async (
-  connection: PoolClient,
+  cubeDB: QueryRunner,
   dataset: Dataset,
   revisionId: string,
   joinColumn: string,
@@ -150,7 +150,7 @@ export const validateLookupTableLanguages = async (
       lookupTableName,
       joinColumn
     );
-    await connection.query(alterTableQuery);
+    await cubeDB.query(alterTableQuery);
   } catch (error) {
     logger.error(error, `Something went wrong trying to add primary key to lookup table`);
     return viewErrorGenerators(400, dataset.id, 'patch', `errors.${validationType}_validation.primary_key_failed`, {});
@@ -171,13 +171,12 @@ export const validateLookupTableLanguages = async (
     logger.debug(
       `Checking language counts match total number of supported languages using query:\n${missingLanguageRowsQuery}\n`
     );
-    const missingLanguageRows: QueryResult<{ join_column: string; lang_count: number; languages: string }> =
-      await connection.query(missingLanguageRowsQuery);
-    if (missingLanguageRows.rows.length > 0) {
+    const missingLanguageRows: { join_column: string; lang_count: number; languages: string }[] =
+      await cubeDB.query(missingLanguageRowsQuery);
+    if (missingLanguageRows.length > 0) {
       const missingLanguages: string[] = [];
       SUPPORTED_LOCALES.forEach((locale) => {
-        // logger.debug(`Checking if ${locale.toLowerCase()} is missing from ${JSON.stringify(missingLanguageRows)}`);
-        if (!missingLanguageRows.rows.find((row) => row.languages.includes(locale.split('-')[0].toLowerCase()))) {
+        if (!missingLanguageRows.find((row) => row.languages.includes(locale.split('-')[0].toLowerCase()))) {
           missingLanguages.push(`languages.${locale.split('-')[0]}`);
         }
       });
@@ -230,7 +229,7 @@ export const validateLookupTableLanguages = async (
 };
 
 export const validateLookupTableReferenceValues = async (
-  connection: PoolClient,
+  cubeDB: QueryRunner,
   dataset: Dataset,
   factTableColumn: string,
   joinColumn: string,
@@ -257,42 +256,38 @@ export const validateLookupTableReferenceValues = async (
       joinColumn
     );
     logger.debug(`Running non-matched query ${nonmatchedRowsQuery}`);
-    const nonMatchedRows = await connection.query(nonmatchedRowsQuery);
-    logger.debug(`Number of rows from non matched rows query: ${nonMatchedRows.rows.length}`);
-    const totals: QueryResult<{ total_rows: number }> = await connection.query(
-      `SELECT COUNT(*) as total_rows FROM ${factTableName}`
-    );
-    if (nonMatchedRows.rows.length === totals.rows[0].total_rows) {
+    const nonMatchedRows = await cubeDB.query(nonmatchedRowsQuery);
+    logger.debug(`Number of rows from non matched rows query: ${nonMatchedRows.length}`);
+    const totals: { total_rows: number }[] = await cubeDB.query(`SELECT COUNT(*) as total_rows FROM ${factTableName}`);
+    if (nonMatchedRows.length === totals[0].total_rows) {
       logger.error(`The user supplied an incorrect lookup table and none of the rows matched`);
-      const nonMatchedFactTableValues = await connection.query(
+      const nonMatchedFactTableValues = await cubeDB.query(
         `SELECT DISTINCT "${factTableColumn}" FROM ${factTableName};`
       );
-      const nonMatchedLookupValues = await connection.query(
-        `SELECT DISTINCT "${joinColumn}" FROM "${lookupTableName}";`
-      );
+      const nonMatchedLookupValues = await cubeDB.query(`SELECT DISTINCT "${joinColumn}" FROM "${lookupTableName}";`);
       return viewErrorGenerators(400, dataset.id, 'patch', `errors.${validationType}_validation.no_reference_match`, {
-        totalNonMatching: totals.rows[0].total_rows,
-        nonMatchingDataTableValues: nonMatchedFactTableValues.rows.map((row) => Object.values(row)[0]),
-        nonMatchedLookupValues: nonMatchedLookupValues.rows.map((row) => Object.values(row)[0]),
+        totalNonMatching: totals[0].total_rows,
+        nonMatchingDataTableValues: nonMatchedFactTableValues.map((row: any) => Object.values(row)[0]),
+        nonMatchedLookupValues: nonMatchedLookupValues.map((row: any) => Object.values(row)[0]),
         mismatch: true
       });
     }
-    if (nonMatchedRows.rows.length > 0) {
-      const nonMatchingDataTableValues = await connection.query(
-        `SELECT DISTINCT fact_table_column FROM (SELECT "${factTableColumn}" as fact_table_column
-                FROM ${factTableName}) as fact_table
-                LEFT JOIN "${lookupTableName}"
-                ON CAST(fact_table.fact_table_column AS VARCHAR)=CAST("${lookupTableName}"."${joinColumn}" AS VARCHAR)
-                WHERE "${lookupTableName}"."${joinColumn}" IS NULL;`
-      );
-      const nonMatchingLookupValues = await connection.query(
-        `SELECT DISTINCT lookup_table_column FROM (SELECT "${joinColumn}" as lookup_table_column
-                 FROM "${lookupTableName}") AS lookup_table
-                 LEFT JOIN ${factTableName} ON CAST(lookup_table.lookup_table_column AS VARCHAR)=CAST(${factTableName}."${factTableColumn}" AS VARCHAR)
-                 WHERE ${factTableName}."${factTableColumn}" IS NULL;`
-      );
+    if (nonMatchedRows.length > 0) {
+      const nonMatchingDataTableValues = await cubeDB.query(`
+        SELECT DISTINCT fact_table_column FROM (SELECT "${factTableColumn}" as fact_table_column
+        FROM ${factTableName}) as fact_table
+        LEFT JOIN "${lookupTableName}"
+        ON CAST(fact_table.fact_table_column AS VARCHAR)=CAST("${lookupTableName}"."${joinColumn}" AS VARCHAR)
+        WHERE "${lookupTableName}"."${joinColumn}" IS NULL;
+      `);
+      const nonMatchingLookupValues = await cubeDB.query(`
+        SELECT DISTINCT lookup_table_column FROM (SELECT "${joinColumn}" as lookup_table_column
+        FROM "${lookupTableName}") AS lookup_table
+        LEFT JOIN ${factTableName} ON CAST(lookup_table.lookup_table_column AS VARCHAR)=CAST(${factTableName}."${factTableColumn}" AS VARCHAR)
+        WHERE ${factTableName}."${factTableColumn}" IS NULL;
+      `);
       logger.error(
-        `The user supplied an incorrect or incomplete lookup table and ${nonMatchedRows.rows.length} rows didn't match`
+        `The user supplied an incorrect or incomplete lookup table and ${nonMatchedRows.length} rows didn't match`
       );
       return viewErrorGenerators(
         400,
@@ -300,9 +295,9 @@ export const validateLookupTableReferenceValues = async (
         'patch',
         `errors.${validationType}_validation.some_references_failed_to_match`,
         {
-          totalNonMatching: nonMatchedRows.rows.length,
-          nonMatchingDataTableValues: nonMatchingDataTableValues.rows.map((row) => Object.values(row)[0]),
-          nonMatchedLookupValues: nonMatchingLookupValues.rows.map((row) => Object.values(row)[0]),
+          totalNonMatching: nonMatchedRows.length,
+          nonMatchingDataTableValues: nonMatchingDataTableValues.map((row: any) => Object.values(row)[0]),
+          nonMatchedLookupValues: nonMatchingLookupValues.map((row: any) => Object.values(row)[0]),
           mismatch: true
         }
       );
@@ -312,37 +307,38 @@ export const validateLookupTableReferenceValues = async (
       error,
       `Something went wrong, most likely an incorrect join column name, while trying to validate the lookup table.`
     );
-    const nonMatchedRows: QueryResult<{ total_rows: number }> = await connection.query(
+    const nonMatchedRows: { total_rows: number }[] = await cubeDB.query(
       `SELECT COUNT(*) AS total_rows FROM ${factTableName};`
     );
-    const nonMatchedValues = await connection.query(`SELECT DISTINCT ${factTableColumn} FROM ${factTableName};`);
+    const nonMatchedValues = await cubeDB.query(`SELECT DISTINCT ${factTableColumn} FROM ${factTableName};`);
     return viewErrorGenerators(500, dataset.id, 'patch', `errors.${validationType}_validation.unknown_error`, {
-      totalNonMatching: nonMatchedRows.rows[0].total_rows,
-      nonMatchingDataTableValues: nonMatchedValues.rows.map((row) => Object.values(row)[0]),
+      totalNonMatching: nonMatchedRows[0].total_rows,
+      nonMatchingDataTableValues: nonMatchedValues.map((row: any) => Object.values(row)[0]),
       mismatch: true
     });
   }
   return undefined;
 };
 
-async function checkDecimalColumn(connection: PoolClient, lookupTableName: string): Promise<string[]> {
+async function checkDecimalColumn(cubeDB: QueryRunner, lookupTableName: string): Promise<string[]> {
   const unmatchedFormats: string[] = [];
   logger.debug('Decimal column is present. Validating contains only positive integers.');
-  const formats = await connection.query(pgformat(`SELECT decimals FROM %I;`, lookupTableName));
-  for (const format of Object.values(formats.rows.map((format) => format.decimals))) {
-    if (format < 0) unmatchedFormats.push(format);
+  const formats = await cubeDB.query(pgformat(`SELECT decimals FROM %I;`, lookupTableName));
+  for (const format of Object.values(formats.map((format: any) => format.decimals)) as number[]) {
+    if (format < 0) {
+      unmatchedFormats.push(format.toString());
+    }
   }
   return unmatchedFormats;
 }
 
-async function checkFormatColumn(connection: PoolClient, lookupTableName: string): Promise<string[]> {
+async function checkFormatColumn(cubeDB: QueryRunner, lookupTableName: string): Promise<string[]> {
   const unmatchedFormats: string[] = [];
   logger.debug('Format column is present. Validating it contains only known formats.');
-  const formats: QueryResult<{ format: string }> = await connection.query(
+  const formats: { format: string }[] = await cubeDB.query(
     pgformat(`SELECT DISTINCT format FROM %I;`, lookupTableName)
   );
-  // logger.debug(`Formats = ${JSON.stringify(Object.values(DataValueFormat), null, 2)}`);
-  for (const format of Object.values(formats.rows.map((format) => format.format))) {
+  for (const format of Object.values(formats.map((format) => format.format))) {
     if (
       Object.values(DataValueFormat)
         .map((format) => format.toString().toLowerCase())
@@ -354,14 +350,14 @@ async function checkFormatColumn(connection: PoolClient, lookupTableName: string
 }
 
 export const validateMeasureTableContent = async (
-  connection: PoolClient,
+  cubeDB: QueryRunner,
   datasetId: string,
   lookupTableName: string,
   extractor: MeasureLookupTableExtractor
 ): Promise<ViewErrDTO | undefined> => {
   if (extractor.formatColumn && extractor.formatColumn.toLowerCase().includes('format')) {
     logger.debug('Formats column is present. Validating all formats present are valid.');
-    const unMatchedFormats = await checkFormatColumn(connection, lookupTableName);
+    const unMatchedFormats = await checkFormatColumn(cubeDB, lookupTableName);
     if (unMatchedFormats.length > 0) {
       logger.debug(`Found invalid formats while validating format column`);
       return viewErrorGenerators(400, datasetId, 'patch', 'errors.measure_validation.invalid_formats_present', {
@@ -373,7 +369,7 @@ export const validateMeasureTableContent = async (
   }
 
   if (extractor.decimalColumn && extractor.decimalColumn.toLowerCase().includes('decimal')) {
-    const unmatchedDecimals = await checkDecimalColumn(connection, lookupTableName);
+    const unmatchedDecimals = await checkDecimalColumn(cubeDB, lookupTableName);
     if (unmatchedDecimals.length > 0) {
       logger.debug(`Found invalid formats while validating decimals column`);
       return viewErrorGenerators(400, datasetId, 'patch', 'errors.measure_validation.invalid_decimals_present', {

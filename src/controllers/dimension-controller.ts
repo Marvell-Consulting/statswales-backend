@@ -293,7 +293,7 @@ export const downloadDimensionLookupTable = async (req: Request, res: Response):
 
   // Handle errors in the file stream
   stream.on('error', (err) => {
-    logger.error('File stream error:', err);
+    logger.error(err, 'File stream error');
     // eslint-disable-next-line @typescript-eslint/naming-convention
     res.writeHead(500, { 'Content-Type': 'text/plain' });
     res.end('Server Error');

@@ -4,7 +4,7 @@ import { FindOneOptions, And, Not, IsNull, LessThan, FindOptionsRelations, In, L
 import { has, set } from 'lodash';
 
 import { logger } from '../utils/logger';
-import { dataSource } from '../db/data-source';
+import { appDataSource } from '../db/data-source';
 import { Dataset } from '../entities/dataset/dataset';
 import { DatasetListItemDTO } from '../dtos/dataset-list-item-dto';
 import { ResultsetWithCount } from '../interfaces/resultset-with-count';
@@ -24,7 +24,7 @@ export const withAll: FindOptionsRelations<Dataset> = {
   revisions: true
 };
 
-export const PublishedDatasetRepository = dataSource.getRepository(Dataset).extend({
+export const PublishedDatasetRepository = appDataSource.getRepository(Dataset).extend({
   async getById(id: string, relations: FindOptionsRelations<Dataset> = {}): Promise<Dataset> {
     const start = performance.now();
     const now = new Date();

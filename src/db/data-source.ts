@@ -23,12 +23,14 @@ const dataSourceOpts: DataSourceOptions = {
   logging: false,
   entities: [`${__dirname}/../entities/**/*.{ts,js}`],
   migrations: [`${__dirname}/../migrations/*.{ts,js}`],
-  applicationName: 'statswales-backend',
   extra: {
     max: config.database.poolSize,
+    maxUses: config.database.maxUses,
     idleTimeoutMillis: config.database.idleTimeoutMs,
     connectionTimeoutMillis: config.database.connectionTimeoutMs
   }
 };
 
-export const dataSource = new DataSource(dataSourceOpts);
+export const appDataSource = new DataSource({ ...dataSourceOpts, applicationName: 'sw3-backend-app' });
+
+export const cubeDataSource = new DataSource({ ...dataSourceOpts, applicationName: 'sw3-backend-cube' });

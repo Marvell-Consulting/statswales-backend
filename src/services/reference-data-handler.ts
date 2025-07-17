@@ -1,3 +1,7 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
+import { QueryRunner } from 'typeorm';
+import { format as pgformat } from '@scaleleap/pg-format/lib/pg-format';
+
 import { Dataset } from '../entities/dataset/dataset';
 import { Dimension } from '../entities/dataset/dimension';
 import { CSVHeader, ViewDTO, ViewErrDTO } from '../dtos/view-dto';
@@ -9,10 +13,8 @@ import { ReferenceType } from '../enums/reference-type';
 import { DimensionType } from '../enums/dimension-type';
 
 import { cleanUpDimension } from './dimension-processor';
-import { PoolClient, QueryResult } from 'pg';
-import { getCubeDB } from '../db/cube-db';
-import { format as pgformat } from '@scaleleap/pg-format/lib/pg-format';
 import { createReferenceDataTablesInCube, loadReferenceDataFromCSV } from './cube-handler';
+import { cubeDataSource } from '../db/data-source';
 
 const sampleSize = 5;
 
@@ -30,41 +32,41 @@ async function setupDimension(dimension: Dimension, categories: string[]): Promi
   await updateDimension.save();
 }
 
-async function copyAllReferenceDataIntoTable(connection: PoolClient): Promise<void> {
+async function copyAllReferenceDataIntoTable(cubeDB: QueryRunner): Promise<void> {
   logger.debug('Copying all reference data to the reference_data table.');
-  await connection.query(`INSERT INTO reference_data (SELECT * FROM reference_data_all);`);
+  await cubeDB.query(`INSERT INTO reference_data (SELECT * FROM reference_data_all);`);
 }
 
 async function validateUnknownReferenceDataItems(
-  connection: PoolClient,
+  cubeDB: QueryRunner,
   dataset: Dataset,
   dimension: Dimension
 ): Promise<ViewErrDTO | undefined> {
   const nonMatchedRowsQuery = pgformat(
     `
-              SELECT fact_table.%I, reference_data.item_id FROM fact_table
-              LEFT JOIN reference_data on reference_data.item_id=CAST(fact_table.%I AS VARCHAR)
-              WHERE item_id IS NULL;
+      SELECT fact_table.%I, reference_data.item_id FROM fact_table
+      LEFT JOIN reference_data on reference_data.item_id=CAST(fact_table.%I AS VARCHAR)
+      WHERE item_id IS NULL;
     `,
     dimension.factTableColumn,
     dimension.factTableColumn
   );
-  const nonMatchedRows = await connection.query(nonMatchedRowsQuery);
-  if (nonMatchedRows.rows.length > 0) {
+  const nonMatchedRows = await cubeDB.query(nonMatchedRowsQuery);
+  if (nonMatchedRows.length > 0) {
     logger.error('The user has unknown items in their reference data column');
     const nonMatchingDataTableValuesQuery = pgformat(
       `
-            SELECT DISTINCT fact_table.%I, reference_data.item_id FROM fact_table
-            LEFT JOIN reference_data on reference_data.item_id=CAST(fact_table.%I AS VARCHAR)
-            WHERE reference_data.item_id IS NULL;
-        `,
+        SELECT DISTINCT fact_table.%I, reference_data.item_id FROM fact_table
+        LEFT JOIN reference_data on reference_data.item_id=CAST(fact_table.%I AS VARCHAR)
+        WHERE reference_data.item_id IS NULL;
+      `,
       dimension.factTableColumn,
       dimension.factTableColumn
     );
-    const nonMatchingDataTableValues = await connection.query(nonMatchingDataTableValuesQuery);
+    const nonMatchingDataTableValues = await cubeDB.query(nonMatchingDataTableValuesQuery);
     return viewErrorGenerators(400, dataset.id, 'patch', 'errors.dimension_validation.unknown_reference_data_items', {
-      totalNonMatching: nonMatchedRows.rows.length,
-      nonMatchingDataTableValues: nonMatchingDataTableValues.rows.map((row) => Object.values(row)[0]),
+      totalNonMatching: nonMatchedRows.length,
+      nonMatchingDataTableValues: nonMatchingDataTableValues.map((row: any) => Object.values(row)[0]),
       mismatch: true
     });
   }
@@ -72,7 +74,7 @@ async function validateUnknownReferenceDataItems(
 }
 
 async function validateAllItemsAreInCategory(
-  connection: PoolClient,
+  cubeDB: QueryRunner,
   dataset: Dataset,
   dimension: Dimension,
   referenceDataType: ReferenceType,
@@ -80,38 +82,38 @@ async function validateAllItemsAreInCategory(
 ): Promise<ViewErrDTO | undefined> {
   const nonMatchedRowsQuery = pgformat(
     `
-              SELECT fact_table.%I, reference_data.item_id, reference_data.category_key FROM fact_table
-              LEFT JOIN reference_data on reference_data.item_id=CAST(fact_table.%I AS VARCHAR)
-              JOIN category_keys ON reference_data.category_key=category_keys.category_key
-              JOIN categories ON categories.category=category_keys.category
-              WHERE categories.category!=%L;
+      SELECT fact_table.%I, reference_data.item_id, reference_data.category_key FROM fact_table
+      LEFT JOIN reference_data on reference_data.item_id=CAST(fact_table.%I AS VARCHAR)
+      JOIN category_keys ON reference_data.category_key=category_keys.category_key
+      JOIN categories ON categories.category=category_keys.category
+      WHERE categories.category!=%L;
     `,
     dimension.factTableColumn,
     dimension.factTableColumn,
     referenceDataType
   );
-  const nonMatchedRows = await connection.query(nonMatchedRowsQuery);
-  if (nonMatchedRows.rows.length > 0) {
+  const nonMatchedRows = await cubeDB.query(nonMatchedRowsQuery);
+  if (nonMatchedRows.length > 0) {
     logger.error('The user has unknown items in their reference data column');
     const nonMatchingDataTableValuesQuery = pgformat(
       `
-            SELECT fact_table.%I, first(reference_data.category_key), first(categories.category), first(category_info.description) FROM fact_table
-            LEFT JOIN reference_data on reference_data.item_id=CAST(fact_table.%I AS VARCHAR)
-            JOIN category_keys ON reference_data.category_key=category_keys.category_key
-            JOIN categories ON categories.category=category_keys.category JOIN category_info ON categories.category=category_info.category
-            AND lang=%L
-            WHERE categories.category!=%L GROUP BY fact_table.%I, item_id;
-        `,
+        SELECT fact_table.%I, first(reference_data.category_key), first(categories.category), first(category_info.description) FROM fact_table
+        LEFT JOIN reference_data on reference_data.item_id=CAST(fact_table.%I AS VARCHAR)
+        JOIN category_keys ON reference_data.category_key=category_keys.category_key
+        JOIN categories ON categories.category=category_keys.category JOIN category_info ON categories.category=category_info.category
+        AND lang=%L
+        WHERE categories.category!=%L GROUP BY fact_table.%I, item_id;
+      `,
       dimension.factTableColumn,
       dimension.factTableColumn,
       lang.toLowerCase(),
       referenceDataType,
       dimension.factTableColumn
     );
-    const nonMatchingDataTableValues = await connection.query(nonMatchingDataTableValuesQuery);
+    const nonMatchingDataTableValues = await cubeDB.query(nonMatchingDataTableValuesQuery);
     return viewErrorGenerators(400, dataset.id, 'patch', 'errors.dimension_validation.items_not_in_category', {
-      totalNonMatching: nonMatchingDataTableValues.rows.length,
-      nonMatchingDataTableValues: nonMatchingDataTableValues.rows.map((row) => Object.values(row)[0]),
+      totalNonMatching: nonMatchingDataTableValues.length,
+      nonMatchingDataTableValues: nonMatchingDataTableValues.map((row: any) => Object.values(row)[0]),
       mismatch: true
     });
   }
@@ -119,24 +121,24 @@ async function validateAllItemsAreInCategory(
 }
 
 async function validateAllItemsAreInOneCategory(
-  connection: PoolClient,
+  cubeDB: QueryRunner,
   dataset: Dataset,
   dimension: Dimension
 ): Promise<ViewErrDTO | string> {
-  const categoriesPresent: QueryResult<{ category: string }> = await connection.query(`
-            SELECT DISTINCT categories.category as category FROM fact_table
-            LEFT JOIN reference_data on reference_data.item_id=CAST(fact_table."${dimension.factTableColumn}" AS VARCHAR)
-            JOIN category_keys ON reference_data.category_key=category_keys.category_key
-            JOIN categories ON categories.category=category_keys.category;
-    `);
-  if (categoriesPresent.rows.length > 1) {
+  const categoriesPresent: { category: string }[] = await cubeDB.query(`
+    SELECT DISTINCT categories.category as category FROM fact_table
+    LEFT JOIN reference_data on reference_data.item_id=CAST(fact_table."${dimension.factTableColumn}" AS VARCHAR)
+    JOIN category_keys ON reference_data.category_key=category_keys.category_key
+    JOIN categories ON categories.category=category_keys.category;
+  `);
+  if (categoriesPresent.length > 1) {
     logger.error('The user has more than one type of category in reference data column');
     return viewErrorGenerators(400, dataset.id, 'patch', 'errors.dimension_validation.to_many_categories_present', {
-      totalNonMatching: categoriesPresent.rows.length,
-      nonMatchingDataTableValues: categoriesPresent.rows.map((row) => Object.values(row)[0])
+      totalNonMatching: categoriesPresent.length,
+      nonMatchingDataTableValues: categoriesPresent.map((row) => Object.values(row)[0])
     });
   }
-  if (categoriesPresent.rows.length === 0) {
+  if (categoriesPresent.length === 0) {
     logger.error('There users column can not be matched to anything in the reference data');
     return viewErrorGenerators(
       400,
@@ -146,7 +148,7 @@ async function validateAllItemsAreInOneCategory(
       {}
     );
   }
-  return categoriesPresent.rows[0].category;
+  return categoriesPresent[0].category;
 }
 
 export const validateReferenceData = async (
@@ -156,9 +158,9 @@ export const validateReferenceData = async (
   lang: string
 ): Promise<ViewDTO | ViewErrDTO> => {
   const revision = dataset.draftRevision!;
-  const connection = await getCubeDB().connect();
+  const cubeDB = cubeDataSource.createQueryRunner();
   try {
-    await connection.query(pgformat(`SET search_path TO %I;`, revision.id));
+    await cubeDB.query(pgformat(`SET search_path TO %I;`, revision.id));
   } catch (error) {
     logger.error(error, 'Unable to connect to postgres schema for revision.');
     return viewErrorGenerators(500, dataset.id, 'patch', 'errors.dimension_validation.lookup_table_loading_failed', {
@@ -167,11 +169,11 @@ export const validateReferenceData = async (
   }
   try {
     // Load reference data in to cube
-    await createReferenceDataTablesInCube(connection);
-    await loadReferenceDataFromCSV(connection);
-    await copyAllReferenceDataIntoTable(connection);
+    await createReferenceDataTablesInCube(cubeDB);
+    await loadReferenceDataFromCSV(cubeDB);
+    await copyAllReferenceDataIntoTable(cubeDB);
   } catch (err) {
-    connection.release();
+    cubeDB.release();
     logger.error(err, `Something went wrong trying to load the reference data into the cube`);
     return viewErrorGenerators(500, dataset.id, 'patch', 'errors.cube_builder.reference_data_loading_failed', {});
   }
@@ -180,33 +182,33 @@ export const validateReferenceData = async (
 
   try {
     logger.debug(`Validating reference data`);
-    const itemsNotPresentInReferenceData = await validateUnknownReferenceDataItems(connection, dataset, dimension);
+    const itemsNotPresentInReferenceData = await validateUnknownReferenceDataItems(cubeDB, dataset, dimension);
     if (itemsNotPresentInReferenceData) {
-      connection.release();
+      cubeDB.release();
       return itemsNotPresentInReferenceData;
     }
     if (referenceDataType) {
       const itemsOutsideOfCategory = await validateAllItemsAreInCategory(
-        connection,
+        cubeDB,
         dataset,
         dimension,
         referenceDataType,
         lang
       );
       if (itemsOutsideOfCategory) {
-        connection.release();
+        cubeDB.release();
         return itemsOutsideOfCategory;
       }
     } else {
-      const referenceDataCategory = await validateAllItemsAreInOneCategory(connection, dataset, dimension);
+      const referenceDataCategory = await validateAllItemsAreInOneCategory(cubeDB, dataset, dimension);
       if ((referenceDataCategory as ViewErrDTO).errors) {
-        connection.release();
+        cubeDB.release();
         return referenceDataCategory as ViewErrDTO;
       }
       confirmedReferenceDataCategory = referenceDataCategory as string;
     }
   } catch (error) {
-    connection.release();
+    cubeDB.release();
     logger.error(error, `Something went wrong trying to validate reference data`);
     return viewErrorGenerators(
       500,
@@ -218,53 +220,54 @@ export const validateReferenceData = async (
   }
 
   const categoriesPresentQuery = pgformat(
-    `SELECT DISTINCT category_keys.category_key FROM fact_table
-        LEFT JOIN reference_data on reference_data.item_id=CAST(fact_table.%I AS VARCHAR)
-        JOIN category_keys ON reference_data.category_key=category_keys.category_key
-        JOIN categories ON categories.category=category_keys.category
-        WHERE categories.category=%L;
+    `
+      SELECT DISTINCT category_keys.category_key FROM fact_table
+      LEFT JOIN reference_data on reference_data.item_id=CAST(fact_table.%I AS VARCHAR)
+      JOIN category_keys ON reference_data.category_key=category_keys.category_key
+      JOIN categories ON categories.category=category_keys.category
+      WHERE categories.category=%L;
     `,
     dimension.factTableColumn,
     confirmedReferenceDataCategory
   );
-  const categoriesPresent: QueryResult<{ category_keys: string }> = await connection.query(categoriesPresentQuery);
+  const categoriesPresent: { category_keys: string }[] = await cubeDB.query(categoriesPresentQuery);
 
   logger.debug(`Column passed reference data checks. Setting up dimension.`);
   await setupDimension(
     dimension,
-    categoriesPresent.rows.map((row) => Object.values(row)[0])
+    categoriesPresent.map((row) => Object.values(row)[0])
   );
 
   try {
     logger.debug('Passed validation preparing to send back the preview');
     const allMatchesQuery = `
-            SELECT DISTINCT fact_table."${dimension.factTableColumn}", reference_data_info.description
-            FROM fact_table
-            LEFT JOIN reference_data
-                ON CAST(fact_table."${dimension.factTableColumn}" AS VARCHAR)=reference_data.item_id
-            JOIN reference_data_info
-                ON reference_data.item_id=reference_data_info.item_id
-                AND reference_data.category_key=reference_data_info.category_key
-                AND reference_data.version_no=reference_data_info.version_no
-            WHERE reference_data_info.lang='${lang.toLowerCase()}';
-        `;
-    const allMatches = await connection.query(allMatchesQuery);
+      SELECT DISTINCT fact_table."${dimension.factTableColumn}", reference_data_info.description
+      FROM fact_table
+      LEFT JOIN reference_data
+        ON CAST(fact_table."${dimension.factTableColumn}" AS VARCHAR)=reference_data.item_id
+      JOIN reference_data_info
+        ON reference_data.item_id=reference_data_info.item_id
+        AND reference_data.category_key=reference_data_info.category_key
+        AND reference_data.version_no=reference_data_info.version_no
+      WHERE reference_data_info.lang='${lang.toLowerCase()}';
+    `;
+    const allMatches = await cubeDB.query(allMatchesQuery);
     const previewQuery = `
       SELECT DISTINCT fact_table."${dimension.factTableColumn}", reference_data_info.description
       FROM fact_table
       LEFT JOIN reference_data
-          ON CAST(fact_table."${dimension.factTableColumn}" AS VARCHAR)=reference_data.item_id
+        ON CAST(fact_table."${dimension.factTableColumn}" AS VARCHAR)=reference_data.item_id
       JOIN reference_data_info
-          ON reference_data.item_id=reference_data_info.item_id
-          AND reference_data.category_key=reference_data_info.category_key
-          AND reference_data.version_no=reference_data_info.version_no
+        ON reference_data.item_id=reference_data_info.item_id
+        AND reference_data.category_key=reference_data_info.category_key
+        AND reference_data.version_no=reference_data_info.version_no
       WHERE reference_data_info.lang='${lang.toLowerCase()}'
       LIMIT ${sampleSize};
     `;
     // logger.debug(`Preview query = ${previewQuery}`);
-    const dimensionTable = await connection.query(previewQuery);
-    const tableHeaders = Object.keys(dimensionTable.rows[0]);
-    const dataArray = dimensionTable.rows.map((row) => Object.values(row));
+    const dimensionTable = await cubeDB.query(previewQuery);
+    const tableHeaders = Object.keys(dimensionTable[0]);
+    const dataArray = dimensionTable.map((row: any) => Object.values(row));
     const currentDataset = await DatasetRepository.getById(dataset.id, { dimensions: { metadata: true } });
     const headers: CSVHeader[] = tableHeaders.map((header, index) => {
       return {
@@ -274,7 +277,7 @@ export const validateReferenceData = async (
       };
     });
     const pageInfo = {
-      total_records: allMatches.rows.length,
+      total_records: allMatches.length,
       start_record: 1,
       end_record: dataArray.length
     };
@@ -290,14 +293,14 @@ export const validateReferenceData = async (
       {}
     );
   } finally {
-    connection.release();
+    cubeDB.release();
   }
 };
 
 export const getReferenceDataDimensionPreview = async (
+  cubeDB: QueryRunner,
   dataset: Dataset,
   dimension: Dimension,
-  connection: PoolClient,
   tableName: string,
   lang: string
 ): Promise<ViewDTO> => {
@@ -305,28 +308,28 @@ export const getReferenceDataDimensionPreview = async (
     logger.debug('Passed validation preparing to send back the preview');
 
     const countQuery = `
-            SELECT COUNT(DISTINCT ${tableName}."${dimension.factTableColumn}") AS total_rows
-            FROM ${tableName}
-        `;
-    const countResult: QueryResult<{ total_rows: number }> = await connection.query(countQuery);
-    const totalRows = countResult.rows[0].total_rows;
+      SELECT COUNT(DISTINCT ${tableName}."${dimension.factTableColumn}") AS total_rows
+      FROM ${tableName}
+    `;
+    const countResult: { total_rows: number }[] = await cubeDB.query(countQuery);
+    const totalRows = countResult[0].total_rows;
 
     const previewQuery = `
-            SELECT DISTINCT ${tableName}."${dimension.factTableColumn}", reference_data_info.description
-            FROM ${tableName}
-            LEFT JOIN reference_data
-                ON CAST(${tableName}."${dimension.factTableColumn}" AS VARCHAR)=reference_data.item_id
-            JOIN reference_data_info
-                ON reference_data.item_id=reference_data_info.item_id
-                AND reference_data.category_key=reference_data_info.category_key
-                AND reference_data.version_no=reference_data_info.version_no
-            WHERE reference_data_info.lang='${lang.toLowerCase()}'
-            LIMIT ${sampleSize}
-        `;
+      SELECT DISTINCT ${tableName}."${dimension.factTableColumn}", reference_data_info.description
+      FROM ${tableName}
+      LEFT JOIN reference_data
+        ON CAST(${tableName}."${dimension.factTableColumn}" AS VARCHAR)=reference_data.item_id
+      JOIN reference_data_info
+        ON reference_data.item_id=reference_data_info.item_id
+        AND reference_data.category_key=reference_data_info.category_key
+        AND reference_data.version_no=reference_data_info.version_no
+      WHERE reference_data_info.lang='${lang.toLowerCase()}'
+      LIMIT ${sampleSize}
+    `;
 
-    const previewResult = await connection.query(previewQuery);
-    const tableHeaders = Object.keys(previewResult.rows[0]);
-    const dataArray = previewResult.rows.map((row) => Object.values(row));
+    const previewResult = await cubeDB.query(previewQuery);
+    const tableHeaders = Object.keys(previewResult[0]);
+    const dataArray = previewResult.map((row: any) => Object.values(row));
 
     const currentDataset = await DatasetRepository.getById(dataset.id, {
       dimensions: { metadata: true },

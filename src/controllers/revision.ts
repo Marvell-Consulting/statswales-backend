@@ -59,8 +59,8 @@ import {
 } from '../services/consumer-view';
 import { cleanupTmpFile, uploadAvScan } from '../services/virus-scanner';
 import { TempFile } from '../interfaces/temp-file';
-import { getCubeDB } from '../db/cube-db';
 import { DEFAULT_PAGE_SIZE } from '../utils/page-defaults';
+import { cubeDataSource } from '../db/data-source';
 
 export const getDataTable = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   const revision: Revision = res.locals.revision;
@@ -225,7 +225,7 @@ export const downloadRawFactTable = async (req: Request, res: Response, next: Ne
 
   // Handle errors in the file stream
   readable.on('error', (err) => {
-    logger.error('File stream error:', err);
+    logger.error(err, 'File stream error');
     // eslint-disable-next-line @typescript-eslint/naming-convention
     res.writeHead(500, { 'Content-Type': 'text/plain' });
     res.end('Server Error');
@@ -312,25 +312,26 @@ async function attachUpdateDataTableToRevision(
   dataTable.action = updateAction;
   revision.dataTable = dataTable;
   const buildId = `build-${crypto.randomUUID()}`;
-  const connection = await getCubeDB().connect();
-  await connection.query(pgformat('CREATE SCHEMA IF NOT EXISTS %I;', buildId));
-  await connection.query(pgformat(`SET search_path TO %I;`, buildId));
+  const cubeDB = cubeDataSource.createQueryRunner();
+
   try {
-    await updateFactTableValidator(connection, buildId, dataset, revision);
+    await cubeDB.query(pgformat('CREATE SCHEMA IF NOT EXISTS %I;', buildId));
+    await cubeDB.query(pgformat(`SET search_path TO %I;`, buildId));
+    await updateFactTableValidator(cubeDB, buildId, dataset, revision);
   } catch (err) {
     const error = err as CubeValidationException;
     logger.debug('Closing DuckDB instance');
     const end = performance.now();
     const time = Math.round(end - start);
     logger.info(`Cube update validation took ${time}ms`);
-    await connection.query(pgformat('DROP SCHEMA %I CASCADE', buildId));
-    connection.release();
+    await cubeDB.query(pgformat('DROP SCHEMA %I CASCADE', buildId));
+    cubeDB.release();
     throw error;
   }
 
   const dimensionUpdateTasks: DimensionUpdateTask[] = [];
   if (dataset.dimensions.find((dimension) => dimension.type === DimensionType.ReferenceData)) {
-    await loadReferenceDataIntoCube(connection);
+    await loadReferenceDataIntoCube();
   }
   for (const dimension of dataset.dimensions) {
     const factTableColumn = dataset.factTable.find(
@@ -343,22 +344,22 @@ async function attachUpdateDataTableToRevision(
       throw new BadRequestException('errors.data_table_validation_error');
     }
     try {
-      await createCubeMetadataTable(connection, revision.id, buildId);
+      await createCubeMetadataTable(cubeDB, revision.id, buildId);
       switch (dimension.type) {
         case DimensionType.LookupTable:
           logger.debug(`Validating lookup table dimension: ${dimension.id}`);
-          await createLookupTableDimension(connection, dataset, dimension, factTableColumn);
-          await checkForReferenceErrors(connection, dataset, dimension, factTableColumn);
+          await createLookupTableDimension(cubeDB, dataset, dimension, factTableColumn);
+          await checkForReferenceErrors(cubeDB, dataset, dimension, factTableColumn);
           break;
         case DimensionType.ReferenceData:
           logger.debug(`Validating reference data dimension: ${dimension.id}`);
-          await loadCorrectReferenceDataIntoReferenceDataTable(connection, dimension);
+          await loadCorrectReferenceDataIntoReferenceDataTable(dimension);
           break;
         case DimensionType.DatePeriod:
         case DimensionType.Date:
           logger.debug(`Validating time dimension: ${dimension.id}`);
-          await createDateDimension(connection, dimension.extractor, factTableColumn);
-          await validateUpdatedDateDimension(connection, dataset, dimension, factTableColumn);
+          await createDateDimension(cubeDB, dimension.extractor, factTableColumn);
+          await validateUpdatedDateDimension(cubeDB, dataset, dimension, factTableColumn);
       }
     } catch (error) {
       logger.warn(`An error occurred validating dimension ${dimension.id}: ${error}`);
@@ -372,8 +373,8 @@ async function attachUpdateDataTableToRevision(
         const end = performance.now();
         const time = Math.round(end - start);
         logger.info(`Cube update validation took ${time}ms`);
-        await connection.query(pgformat('DROP SCHEMA %I CASCADE', buildId));
-        connection.release();
+        await cubeDB.query(pgformat('DROP SCHEMA %I CASCADE', buildId));
+        cubeDB.release();
         logger.error(`An error occurred trying to validate the file with the following error: ${err}`);
         throw new BadRequestException('errors.data_table_validation_error');
       }
@@ -384,8 +385,8 @@ async function attachUpdateDataTableToRevision(
 
   revision.tasks = { dimensions: dimensionUpdateTasks };
 
-  await connection.query(pgformat('DROP SCHEMA %I CASCADE', buildId));
-  connection.release();
+  await cubeDB.query(pgformat('DROP SCHEMA %I CASCADE', buildId));
+  cubeDB.release();
   await revision.save();
   const end = performance.now();
   const time = Math.round(end - start);
