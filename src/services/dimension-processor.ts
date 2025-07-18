@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import { QueryRunner } from 'typeorm';
 import { format as pgformat } from '@scaleleap/pg-format/lib/pg-format';
 
@@ -429,6 +428,7 @@ export const validateNumericDimension = async (
       cubeDB.release();
       return viewErrorGenerators(400, dataset.id, 'patch', 'errors.dimension_validation.non_numerical_values_present', {
         totalNonMatching: nonMatching.length,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         nonMatchingDataTableValues: nonMatchingDataTableValues.map((row: any) => Object.values(row)[0])
       });
     }
@@ -657,6 +657,7 @@ export const createAndValidateDateDimension = async (
     const dimensionTable = await cubeDB.query(previewQuery);
 
     const tableHeaders = Object.keys(dimensionTable[0]);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const dataArray = dimensionTable.map((row: any) => Object.values(row));
     const currentDataset = await DatasetRepository.getById(dataset.id, { dimensions: { metadata: true } });
     const headers: CSVHeader[] = [];
@@ -724,6 +725,7 @@ async function getDatePreviewWithExtractor(
   );
   const previewResult = await cubeDB.query(previewQuery);
   const tableHeaders = Object.keys(previewResult[0]);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const dataArray = previewResult.map((row: any) => Object.values(row));
   const currentDataset = await DatasetRepository.getById(dataset.id);
   const headers: CSVHeader[] = [];
@@ -773,6 +775,7 @@ async function getPreviewWithNumberExtractor(
   const totalLines = Number(totals[0].totalLines);
   const preview = await cubeDB.query(query);
   const tableHeaders = Object.keys(preview[0]);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const dataArray = preview.map((row: any) => Object.values(row));
   const currentDataset = await DatasetRepository.getById(dataset.id);
   const headers: CSVHeader[] = [];
@@ -812,6 +815,7 @@ async function getPreviewWithoutExtractor(
     )
   );
   const tableHeaders = Object.keys(preview[0]);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const dataArray = preview.map((row: any) => Object.values(row));
   const currentDataset = await DatasetRepository.getById(dataset.id);
   const headers: CSVHeader[] = [];
@@ -862,6 +866,7 @@ async function getLookupPreviewWithExtractor(
   logger.debug(`Querying the cube to get the preview using query ${query}`);
   const dimensionTable = await cubeDB.query(query);
   const tableHeaders = Object.keys(dimensionTable[0]);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const dataArray = dimensionTable.map((row: any) => Object.values(row));
   const currentDataset = await DatasetRepository.getById(dataset.id);
   const headers: CSVHeader[] = [];

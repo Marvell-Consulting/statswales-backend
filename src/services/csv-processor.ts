@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import fs from 'node:fs';
 import { createHash, randomUUID } from 'node:crypto';
 
@@ -311,6 +310,7 @@ export const getCSVPreview = async (
     const startLine = Number(preview[0].int_line_number);
     const lastLine = Number(preview[preview.length - 1].int_line_number);
     const tableHeaders = Object.keys(preview[0]);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const dataArray = preview.map((row: any) => Object.values(row));
 
     const dataset = await DatasetRepository.getById(datasetId, { factTable: true });
@@ -363,6 +363,7 @@ export const getFactTableColumnPreview = async (
       pgformat('SELECT DISTINCT %I FROM %I LIMIT %L', columnName, tableName, sampleSize)
     );
     const tableHeaders = Object.keys(preview[0]);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const dataArray = preview.map((row: any) => Object.values(row));
     const currentDataset = await DatasetRepository.getById(dataset.id);
     const headers: CSVHeader[] = [];

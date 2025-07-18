@@ -1,6 +1,6 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import { Response } from 'express';
 import ExcelJS from 'exceljs';
+import { PoolClient, QueryResult } from 'pg';
 import Cursor from 'pg-cursor';
 import { format as pgformat } from '@scaleleap/pg-format/lib/pg-format';
 import { format as csvFormat } from '@fast-csv/format';
@@ -16,7 +16,6 @@ import { DatasetRepository } from '../repositories/dataset';
 import { SortByInterface } from '../interfaces/sort-by-interface';
 import { FilterInterface } from '../interfaces/filterInterface';
 import { dbManager } from '../db/database-manager';
-import { PoolClient } from 'pg';
 
 const EXCEL_ROW_LIMIT = 1048576;
 const CURSOR_ROW_LIMIT = 500;
@@ -200,7 +199,7 @@ async function viewChooser(
   lang: string,
   revision: Revision
 ): Promise<string> {
-  const availableMaterializedView = await cubeDBConn.query(
+  const availableMaterializedView: QueryResult<{ matviewname: string }> = await cubeDBConn.query(
     pgformat(
       `SELECT * FROM pg_matviews WHERE matviewname IN (%L) AND schemaname = %L;`,
       [`${viewType}_sort_mat_view_${lang}`, `${viewType}_mat_view_${lang}`],
@@ -209,9 +208,9 @@ async function viewChooser(
   );
 
   if (availableMaterializedView.rows.length > 0) {
-    if (availableMaterializedView.rows.find((row: any) => row.matviewname === `${viewType}_sort_mat_view_${lang}`))
+    if (availableMaterializedView.rows.find((row) => row.matviewname === `${viewType}_sort_mat_view_${lang}`))
       return `${viewType}_sort_mat_view_${lang}`;
-    if (availableMaterializedView.rows.find((row: any) => row.matviewname === `${viewType}_mat_view_${lang}`))
+    if (availableMaterializedView.rows.find((row) => row.matviewname === `${viewType}_mat_view_${lang}`))
       return `${viewType}_mat_view_${lang}`;
   }
   return `${viewType}_view_${lang}`;
@@ -277,6 +276,7 @@ export const createFrontendView = async (
     }
 
     const tableHeaders = Object.keys(preview.rows[0]);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const dataArray = preview.rows.map((row: any) => Object.values(row));
     const currentDataset = await DatasetRepository.getById(dataset.id);
     const lastLine = startLine + dataArray.length - 1;
@@ -330,6 +330,7 @@ export const createStreamingJSONFilteredView = async (
     res.write('[');
     let firstRow = true;
     while (rows.length > 0) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       rows.forEach((row: any) => {
         if (firstRow) {
           firstRow = false;
@@ -372,6 +373,7 @@ export const createStreamingCSVFilteredView = async (
       const stream = csvFormat({ delimiter: ',', headers: true });
       stream.pipe(res);
       while (rows.length > 0) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         rows.map((row: any) => {
           stream.write(row);
         });

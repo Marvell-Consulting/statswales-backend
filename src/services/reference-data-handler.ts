@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import { QueryRunner } from 'typeorm';
 import { format as pgformat } from '@scaleleap/pg-format/lib/pg-format';
 
@@ -66,6 +65,7 @@ async function validateUnknownReferenceDataItems(
     const nonMatchingDataTableValues = await cubeDB.query(nonMatchingDataTableValuesQuery);
     return viewErrorGenerators(400, dataset.id, 'patch', 'errors.dimension_validation.unknown_reference_data_items', {
       totalNonMatching: nonMatchedRows.length,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       nonMatchingDataTableValues: nonMatchingDataTableValues.map((row: any) => Object.values(row)[0]),
       mismatch: true
     });
@@ -113,6 +113,7 @@ async function validateAllItemsAreInCategory(
     const nonMatchingDataTableValues = await cubeDB.query(nonMatchingDataTableValuesQuery);
     return viewErrorGenerators(400, dataset.id, 'patch', 'errors.dimension_validation.items_not_in_category', {
       totalNonMatching: nonMatchingDataTableValues.length,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       nonMatchingDataTableValues: nonMatchingDataTableValues.map((row: any) => Object.values(row)[0]),
       mismatch: true
     });
@@ -267,6 +268,7 @@ export const validateReferenceData = async (
     // logger.debug(`Preview query = ${previewQuery}`);
     const dimensionTable = await cubeDB.query(previewQuery);
     const tableHeaders = Object.keys(dimensionTable[0]);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const dataArray = dimensionTable.map((row: any) => Object.values(row));
     const currentDataset = await DatasetRepository.getById(dataset.id, { dimensions: { metadata: true } });
     const headers: CSVHeader[] = tableHeaders.map((header, index) => {
@@ -329,6 +331,7 @@ export const getReferenceDataDimensionPreview = async (
 
     const previewResult = await cubeDB.query(previewQuery);
     const tableHeaders = Object.keys(previewResult[0]);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const dataArray = previewResult.map((row: any) => Object.values(row));
 
     const currentDataset = await DatasetRepository.getById(dataset.id, {

@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import { performance } from 'node:perf_hooks';
 import { DuckDbError } from 'duckdb-async';
 import { format as pgformat } from '@scaleleap/pg-format';
@@ -540,6 +539,7 @@ export const validateMeasureLookupTable = async (
     // this is throwing "TypeError: Converting circular structure to JSON"
 
     const tableHeaders = Object.keys(measureTable[0]);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const dataArray = measureTable.map((row: any) => Object.values(row));
     const currentDataset = await DatasetRepository.getById(dataset.id);
     const headers: CSVHeader[] = [];
@@ -590,6 +590,7 @@ async function getMeasurePreviewWithoutExtractor(
     );
 
     const tableHeaders = Object.keys(preview[0]);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const dataArray = preview.map((row: any) => Object.values(row));
     const currentDataset = await DatasetRepository.getById(dataset.id);
     const headers: CSVHeader[] = [];
@@ -633,6 +634,7 @@ async function getMeasurePreviewWithExtractor(
     // logger.debug(`Querying the cube to get the preview using query: ${query}`);
     const measureTable = await cubeDB.query(previewQuery);
     const tableHeaders = Object.keys(measureTable[0]);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const dataArray = measureTable.map((row: any) => Object.values(row));
     const currentDataset = await DatasetRepository.getById(dataset.id);
     const headers: CSVHeader[] = tableHeaders.map((name, idx) => ({

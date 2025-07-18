@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import { format as pgformat } from '@scaleleap/pg-format';
 import { Database } from 'duckdb-async';
 import { t } from 'i18next';
@@ -364,6 +363,7 @@ export const validateLookupTable = async (
     const previewQuery = pgformat('SELECT * FROM lookup_tables.%I WHERE language = %L;', lookupTable.id, language);
     const dimensionTable = await cubeDB.query(previewQuery);
     const tableHeaders = Object.keys(dimensionTable[0]);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const dataArray = dimensionTable.map((row: any) => Object.values(row));
     const currentDataset = await DatasetRepository.getById(dataset.id);
     const headers: CSVHeader[] = [];

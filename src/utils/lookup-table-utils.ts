@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import { QueryRunner } from 'typeorm';
 import { format as pgformat } from '@scaleleap/pg-format';
 import { t } from 'i18next';
@@ -267,7 +266,9 @@ export const validateLookupTableReferenceValues = async (
       const nonMatchedLookupValues = await cubeDB.query(`SELECT DISTINCT "${joinColumn}" FROM "${lookupTableName}";`);
       return viewErrorGenerators(400, dataset.id, 'patch', `errors.${validationType}_validation.no_reference_match`, {
         totalNonMatching: totals[0].total_rows,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         nonMatchingDataTableValues: nonMatchedFactTableValues.map((row: any) => Object.values(row)[0]),
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         nonMatchedLookupValues: nonMatchedLookupValues.map((row: any) => Object.values(row)[0]),
         mismatch: true
       });
@@ -296,7 +297,9 @@ export const validateLookupTableReferenceValues = async (
         `errors.${validationType}_validation.some_references_failed_to_match`,
         {
           totalNonMatching: nonMatchedRows.length,
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           nonMatchingDataTableValues: nonMatchingDataTableValues.map((row: any) => Object.values(row)[0]),
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           nonMatchedLookupValues: nonMatchingLookupValues.map((row: any) => Object.values(row)[0]),
           mismatch: true
         }
@@ -313,6 +316,7 @@ export const validateLookupTableReferenceValues = async (
     const nonMatchedValues = await cubeDB.query(`SELECT DISTINCT ${factTableColumn} FROM ${factTableName};`);
     return viewErrorGenerators(500, dataset.id, 'patch', `errors.${validationType}_validation.unknown_error`, {
       totalNonMatching: nonMatchedRows[0].total_rows,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       nonMatchingDataTableValues: nonMatchedValues.map((row: any) => Object.values(row)[0]),
       mismatch: true
     });
@@ -324,6 +328,7 @@ async function checkDecimalColumn(cubeDB: QueryRunner, lookupTableName: string):
   const unmatchedFormats: string[] = [];
   logger.debug('Decimal column is present. Validating contains only positive integers.');
   const formats = await cubeDB.query(pgformat(`SELECT decimals FROM %I;`, lookupTableName));
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   for (const format of Object.values(formats.map((format: any) => format.decimals)) as number[]) {
     if (format < 0) {
       unmatchedFormats.push(format.toString());
