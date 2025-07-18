@@ -3,8 +3,7 @@ import { format as pgformat } from '@scaleleap/pg-format';
 import BlobStorage from '../../src/services/blob-storage';
 import { User } from '../../src/entities/user/user';
 import { getTestUser, getTestUserGroup } from '../helpers/get-test-user';
-import DatabaseManager from '../../src/db/database-manager';
-import { initDb } from '../../src/db/init';
+import { dbManager } from '../../src/db/database-manager';
 import { initPassport } from '../../src/middleware/passport-auth';
 import { UserGroup } from '../../src/entities/user/user-group';
 import { UserGroupRole } from '../../src/entities/user/user-group-role';
@@ -39,25 +38,26 @@ let userGroup = getTestUserGroup('Test Group');
 let queryRunner: QueryRunner;
 
 describe('API Endpoints', () => {
-  let dbManager: DatabaseManager;
   beforeAll(async () => {
     try {
-      dbManager = await initDb();
-      await initPassport(dbManager.getDataSource());
-      queryRunner = dbManager.getDataSource().createQueryRunner();
+      await dbManager.initDataSources();
+      await initPassport(dbManager.getAppDataSource());
+      queryRunner = dbManager.getAppDataSource().createQueryRunner();
       await queryRunner.dropSchema('data_tables', true, true);
       await queryRunner.dropSchema(revision1Id, true, true);
       await queryRunner.createSchema('data_tables', true);
-      userGroup = await dbManager.getDataSource().getRepository(UserGroup).save(userGroup);
+      userGroup = await dbManager.getAppDataSource().getRepository(UserGroup).save(userGroup);
       user.groupRoles = [UserGroupRole.create({ group: userGroup, roles: [GroupRole.Editor] })];
       await user.save();
       await createFullDataset(dataset1Id, revision1Id, import1Id, user);
       // datasetService = new DatasetService(Locale.EnglishGb);
     } catch (error) {
       logger.error(error, 'Could not initialise test database');
-      await dbManager.getDataSource().dropDatabase();
-      await dbManager.getDataSource().destroy();
+      await dbManager.getAppDataSource().dropDatabase();
+      await dbManager.destroyDataSources();
       process.exit(1);
+    } finally {
+      await queryRunner.release();
     }
   });
 
@@ -181,9 +181,11 @@ describe('API Endpoints', () => {
   });
 
   afterAll(async () => {
+    queryRunner = dbManager.getAppDataSource().createQueryRunner();
     await queryRunner.dropSchema('data_tables', true, true);
     await queryRunner.dropSchema(revision1Id, true, true);
-    await dbManager.getDataSource().dropDatabase();
-    await dbManager.getDataSource().destroy();
+    await queryRunner.release();
+    await dbManager.getAppDataSource().dropDatabase();
+    await dbManager.destroyDataSources();
   });
 });

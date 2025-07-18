@@ -1,8 +1,7 @@
 import request from 'supertest';
 
 import app from '../../src/app';
-import { initDb } from '../../src/db/init';
-import DatabaseManager from '../../src/db/database-manager';
+import { dbManager } from '../../src/db/database-manager';
 import { initPassport } from '../../src/middleware/passport-auth';
 import { User } from '../../src/entities/user/user';
 import { Topic } from '../../src/entities/dataset/topic';
@@ -37,17 +36,15 @@ const topics: Partial<Topic>[] = [
 ];
 
 describe('Topics', () => {
-  let dbManager: DatabaseManager;
-
   beforeAll(async () => {
     try {
-      dbManager = await initDb();
-      await initPassport(dbManager.getDataSource());
+      await dbManager.initDataSources();
+      await initPassport(dbManager.getAppDataSource());
       await user.save();
-      await dbManager.getEntityManager().save(Topic, topics);
+      await dbManager.getAppDataSource().manager.save(Topic, topics);
     } catch (_err) {
-      await dbManager.getDataSource().dropDatabase();
-      await dbManager.getDataSource().destroy();
+      await dbManager.getAppDataSource().dropDatabase();
+      await dbManager.destroyDataSources();
       process.exit(1);
     }
   });
@@ -61,7 +58,7 @@ describe('Topics', () => {
   });
 
   afterAll(async () => {
-    await dbManager.getDataSource().dropDatabase();
-    await dbManager.getDataSource().destroy();
+    await dbManager.getAppDataSource().dropDatabase();
+    await dbManager.destroyDataSources();
   });
 });

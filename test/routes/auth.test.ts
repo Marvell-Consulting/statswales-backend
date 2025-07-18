@@ -1,8 +1,7 @@
 import request from 'supertest';
 
 import app from '../../src/app';
-import { initDb } from '../../src/db/init';
-import DatabaseManager from '../../src/db/database-manager';
+import { dbManager } from '../../src/db/database-manager';
 import { initPassport } from '../../src/middleware/passport-auth';
 import { logger } from '../../src/utils/logger';
 
@@ -21,16 +20,14 @@ jest.mock('../../src/services/blob-storage', () => {
 });
 
 describe('Healthcheck', () => {
-  let dbManager: DatabaseManager;
-
   beforeAll(async () => {
     try {
-      dbManager = await initDb();
-      await initPassport(dbManager.getDataSource());
+      await dbManager.initDataSources();
+      await initPassport(dbManager.getAppDataSource());
     } catch (error) {
       logger.error(error, 'Could not initialise test database');
-      await dbManager.getDataSource().dropDatabase();
-      await dbManager.getDataSource().destroy();
+      await dbManager.getAppDataSource().dropDatabase();
+      await dbManager.destroyDataSources();
       process.exit(1);
     }
   });
@@ -43,7 +40,7 @@ describe('Healthcheck', () => {
   });
 
   afterAll(async () => {
-    await dbManager.getDataSource().dropDatabase();
-    await dbManager.getDataSource().destroy();
+    await dbManager.getAppDataSource().dropDatabase();
+    await dbManager.destroyDataSources();
   });
 });

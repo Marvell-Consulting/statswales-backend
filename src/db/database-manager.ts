@@ -8,7 +8,7 @@ import { cubeDataSource } from './cube-source';
 import { logger } from '../utils/logger';
 import { EntitySubscriber } from './entity-subscriber';
 
-class DatabaseManager {
+export class DatabaseManager {
   private logger: Logger;
   private appDataSource: DataSource;
   private cubeDataSource: DataSource;
@@ -34,7 +34,12 @@ class DatabaseManager {
     ]);
   }
 
-  private async initializeDataSource(dataSource: DataSource, name: string): Promise<void> {
+  async destroyDataSources(): Promise<void> {
+    await Promise.all([this.appDataSource.destroy(), this.cubeDataSource.destroy()]);
+    this.logger.info('Datasources destroyed');
+  }
+
+  async initializeDataSource(dataSource: DataSource, name: string): Promise<void> {
     if (dataSource.isInitialized) {
       this.logger.info(`${name} datasource already initialized`);
       return;
