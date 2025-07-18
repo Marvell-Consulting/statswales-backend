@@ -57,7 +57,9 @@ describe('API Endpoints', () => {
       await dbManager.destroyDataSources();
       process.exit(1);
     } finally {
-      await queryRunner.release();
+      if (queryRunner) {
+        await queryRunner.release();
+      }
     }
   });
 

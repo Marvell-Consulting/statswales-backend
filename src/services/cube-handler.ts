@@ -418,23 +418,21 @@ export async function loadReferenceDataFromCSV(searchPath: string): Promise<void
   const [cubeDBConn] = (await dbManager.getCubeDataSource().driver.obtainMasterConnection()) as [PoolClient];
   await cubeDBConn.query(pgformat(`SET search_path TO %I;`, searchPath));
 
-  for (const file of csvFiles) {
-    logger.debug(`Loading data from ${file}.csv...`);
-
-    try {
+  try {
+    for (const file of csvFiles) {
+      logger.debug(`Loading data from ${file}.csv...`);
       const csvPath = path.resolve(__dirname, `../resources/reference-data/v1/${file}.csv`);
       const fileStream = fs.createReadStream(csvPath, { encoding: 'utf8' });
       const pgStream = cubeDBConn.query(from(`COPY ${file} FROM STDIN WITH (FORMAT csv, HEADER true)`));
-      await pipeline(fileStream, pgStream);
+      await pipeline(fileStream, pgStream).catch((error) => {
+        logger.error(error, `Failed to load data from ${file}.csv`);
+        throw error;
+      });
       logger.debug(`Successfully loaded ${file}.csv`);
-    } catch (err) {
-      logger.error(err, `Something went wrong trying to load data from ${file}.csv`);
-      cubeDBConn.release();
-      throw err;
     }
+  } finally {
+    cubeDBConn.release();
   }
-
-  cubeDBConn.release();
 }
 
 export const loadReferenceDataIntoCube = async (searchPath: string): Promise<void> => {

@@ -218,8 +218,8 @@ async function validateNoteCodesColumn(
 
 async function identifyIncompleteFacts(primaryKeyDef: string[]): Promise<FactTableValidationException | undefined> {
   const pkeyDef = primaryKeyDef.map((key) => pgformat('%I IS NULL', key));
+  const cubeDB = dbManager.getCubeDataSource().createQueryRunner();
   try {
-    const cubeDB = dbManager.getCubeDataSource().createQueryRunner();
     const incompleteFactQuery = pgformat(
       `SELECT * FROM (SELECT row_number() OVER () as line_number, * FROM fact_table) WHERE %s LIMIT 500;`,
       pkeyDef.join(' OR ')
@@ -244,6 +244,8 @@ async function identifyIncompleteFacts(primaryKeyDef: string[]): Promise<FactTab
       FactTableValidationExceptionType.UnknownError,
       400
     );
+  } finally {
+    cubeDB.release();
   }
   return undefined;
 }
@@ -264,9 +266,11 @@ async function identifyDuplicateFacts(primaryKeyDef: string[]): Promise<FactTabl
     pkeyDef.join(', '),
     pkeyDef.join(', ')
   );
+
+  const cubeDB = dbManager.getCubeDataSource().createQueryRunner();
+
   try {
     logger.debug(`Running query to find duplicates:\n${duplicateFactQuery}`);
-    const cubeDB = dbManager.getCubeDataSource().createQueryRunner();
     const brokenFacts = await cubeDB.query(duplicateFactQuery);
     if (brokenFacts.length > 0) {
       const { headers, data } = tableDataToViewTable(brokenFacts);
@@ -286,6 +290,8 @@ async function identifyDuplicateFacts(primaryKeyDef: string[]): Promise<FactTabl
       FactTableValidationExceptionType.UnknownError,
       400
     );
+  } finally {
+    cubeDB.release();
   }
   return undefined;
 }
