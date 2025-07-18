@@ -331,7 +331,7 @@ async function attachUpdateDataTableToRevision(
 
   const dimensionUpdateTasks: DimensionUpdateTask[] = [];
   if (dataset.dimensions.find((dimension) => dimension.type === DimensionType.ReferenceData)) {
-    await loadReferenceDataIntoCube();
+    await loadReferenceDataIntoCube(cubeDB);
   }
   for (const dimension of dataset.dimensions) {
     const factTableColumn = dataset.factTable.find(
@@ -353,7 +353,7 @@ async function attachUpdateDataTableToRevision(
           break;
         case DimensionType.ReferenceData:
           logger.debug(`Validating reference data dimension: ${dimension.id}`);
-          await loadCorrectReferenceDataIntoReferenceDataTable(dimension);
+          await loadCorrectReferenceDataIntoReferenceDataTable(cubeDB, dimension);
           break;
         case DimensionType.DatePeriod:
         case DimensionType.Date:

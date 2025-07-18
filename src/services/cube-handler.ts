@@ -320,18 +320,18 @@ export async function createReferenceDataTablesInCube(cubeDB: QueryRunner): Prom
   logger.debug('Creating empty reference data tables');
   try {
     logger.debug('Creating categories tables');
-    await cubeDB.query(`CREATE TABLE "categories" ("category" VARCHAR, PRIMARY KEY ("category"));`);
+    await cubeDB.query(`CREATE TABLE IF NOT EXISTS "categories" ("category" VARCHAR, PRIMARY KEY ("category"));`);
 
     logger.debug('Creating category_keys table');
     await cubeDB.query(`
-      CREATE TABLE "category_keys" (
+      CREATE TABLE IF NOT EXISTS "category_keys" (
         "category_key" VARCHAR PRIMARY KEY,
         "category" VARCHAR NOT NULL
       );
     `);
     logger.debug('Creating reference_data table');
     await cubeDB.query(`
-      CREATE TABLE "reference_data" (
+      CREATE TABLE IF NOT EXISTS "reference_data" (
         "item_id" VARCHAR NOT NULL,
         "version_no" INTEGER NOT NULL,
         "sort_order" INTEGER,
@@ -342,7 +342,7 @@ export async function createReferenceDataTablesInCube(cubeDB: QueryRunner): Prom
     `);
     logger.debug('Creating reference_data_all table');
     await cubeDB.query(`
-      CREATE TABLE "reference_data_all" (
+      CREATE TABLE IF NOT EXISTS "reference_data_all" (
         "item_id" VARCHAR NOT NULL,
         "version_no" INTEGER NOT NULL,
         "sort_order" INTEGER,
@@ -353,7 +353,7 @@ export async function createReferenceDataTablesInCube(cubeDB: QueryRunner): Prom
     `);
     logger.debug('Creating reference_data_info table');
     await cubeDB.query(`
-      CREATE TABLE "reference_data_info" (
+      CREATE TABLE IF NOT EXISTS "reference_data_info" (
         "item_id" VARCHAR NOT NULL,
         "version_no" INTEGER NOT NULL,
         "category_key" VARCHAR NOT NULL,
@@ -364,7 +364,7 @@ export async function createReferenceDataTablesInCube(cubeDB: QueryRunner): Prom
     `);
     logger.debug('Creating category_key_info table');
     await cubeDB.query(`
-      CREATE TABLE "category_key_info" (
+      CREATE TABLE IF NOT EXISTS "category_key_info" (
         "category_key" VARCHAR NOT NULL,
         "lang" VARCHAR NOT NULL,
         "description" VARCHAR NOT NULL,
@@ -373,7 +373,7 @@ export async function createReferenceDataTablesInCube(cubeDB: QueryRunner): Prom
     `);
     logger.debug('Creating category_info table');
     await cubeDB.query(`
-      CREATE TABLE "category_info" (
+      CREATE TABLE IF NOT EXISTS "category_info" (
         "category" VARCHAR NOT NULL,
         "lang" VARCHAR NOT NULL,
         "description" VARCHAR NOT NULL,
@@ -382,7 +382,7 @@ export async function createReferenceDataTablesInCube(cubeDB: QueryRunner): Prom
     `);
     logger.debug('Creating hierarchy table');
     await cubeDB.query(`
-      CREATE TABLE "hierarchy" (
+      CREATE TABLE IF NOT EXISTS "hierarchy" (
         "item_id" VARCHAR NOT NULL,
         "version_no" INTEGER NOT NULL,
         "category_key" VARCHAR NOT NULL,
@@ -392,8 +392,8 @@ export async function createReferenceDataTablesInCube(cubeDB: QueryRunner): Prom
       );
     `);
   } catch (error) {
-    logger.error(`Something went wrong trying to create the initial reference data tables with error: ${error}`);
-    throw new Error(`Something went wrong trying to create the initial reference data tables with error: ${error}`);
+    logger.error(error, `Something went wrong trying to create the initial reference data tables`);
+    throw error;
   }
 }
 
@@ -408,24 +408,27 @@ export async function loadReferenceDataFromCSV(cubeDB: QueryRunner): Promise<voi
     'reference_data_all',
     'reference_data_info'
   ];
+
+  // Get the raw PostgreSQL connection
+  const [connection] = await cubeDB.connection.driver.obtainMasterConnection();
+
   for (const file of csvFiles) {
-    logger.debug(`Loading reference data file ${file} from CSV file`);
-    const csvPath = path.resolve(__dirname, `../resources/reference-data/v1/${file}.csv`);
-    const fileStream = fs.createReadStream(csvPath, { encoding: 'utf8' });
-
-    // query runner does not support COPY command, so we need to obtain underlying PostgreSQL connection
-    const pgConnection = await cubeDB.connection.driver.obtainMasterConnection();
-
-    console.log(pgConnection);
-
-    const pgStream = pgConnection.query(from(`COPY ${file} FROM STDIN WITH (FORMAT csv, HEADER true)`));
+    logger.debug(`Loading data from ${file}.csv...`);
 
     try {
+      const csvPath = path.resolve(__dirname, `../resources/reference-data/v1/${file}.csv`);
+      const fileStream = fs.createReadStream(csvPath, { encoding: 'utf8' });
+      const pgStream = connection.query(from(`COPY ${file} FROM STDIN WITH (FORMAT csv, HEADER true)`));
       await pipeline(fileStream, pgStream);
+      logger.debug(`Successfully loaded ${file}.csv`);
     } catch (err) {
-      logger.error(err, `Something went wrong trying to load reference data from JSON file ${file}`);
+      logger.error(err, `Something went wrong trying to load data from ${file}.csv`);
+      connection.release();
+      throw err;
     }
   }
+
+  connection.release();
 }
 
 export const loadReferenceDataIntoCube = async (cubeDB: QueryRunner): Promise<void> => {
@@ -446,18 +449,20 @@ export const cleanUpReferenceDataTables = async (cubeDB: QueryRunner): Promise<v
   await cubeDB.query('DELETE FROM hierarchy WHERE item_id NOT IN (SELECT item_id FROM reference_data);');
 };
 
-export const loadCorrectReferenceDataIntoReferenceDataTable = async (dimension: Dimension): Promise<void> => {
+export const loadCorrectReferenceDataIntoReferenceDataTable = async (
+  cubeDB: QueryRunner,
+  dimension: Dimension
+): Promise<void> => {
   const extractor = dimension.extractor as ReferenceDataExtractor;
-  const db = cubeDataSource.createQueryRunner();
   for (const category of extractor.categories) {
-    const categoryPresent = await db.query(
+    const categoryPresent = await cubeDB.query(
       pgformat('SELECT DISTINCT category_key FROM reference_data WHERE category_key=%L', category)
     );
     if (categoryPresent.length > 0) {
       continue;
     }
     logger.debug(`Copying ${category} reference data in to reference_data table`);
-    await db.query(
+    await cubeDB.query(
       pgformat('INSERT INTO reference_data (SELECT * FROM reference_data_all WHERE category_key=%L);', category)
     );
   }
@@ -473,7 +478,7 @@ async function setupReferenceDataDimension(
   columnNames: Map<Locale, Set<string>>,
   joinStatements: string[]
 ): Promise<void> {
-  await loadCorrectReferenceDataIntoReferenceDataTable(dimension);
+  await loadCorrectReferenceDataIntoReferenceDataTable(cubeDB, dimension);
   const refDataInfo = `${makeCubeSafeString(dimension.factTableColumn)}_reference_data_info`;
   const refDataTbl = `${makeCubeSafeString(dimension.factTableColumn)}_reference_data`;
   SUPPORTED_LOCALES.map((locale) => {
@@ -2475,23 +2480,17 @@ export const createAllCubeFiles = async (datasetId: string, endRevisionId: strin
 };
 
 export const getCubeTimePeriods = async (revisionId: string): Promise<PeriodCovered> => {
-  const db = cubeDataSource.createQueryRunner();
-  const periodCoverage: { key: string; value: string }[] = await db.query(
+  const cubeDB = cubeDataSource.createQueryRunner();
+  const periodCoverage: { key: string; value: string }[] = await cubeDB.query(
     pgformat(`SELECT key, value FROM %I.metadata WHERE key in ('start_date', 'end_date')`, revisionId)
   );
-  db.release();
+  cubeDB.release();
   if (periodCoverage.length > 0) {
-    return {
-      start_date: new Date(periodCoverage[0].value),
-      end_date: new Date(periodCoverage[1].value)
-    };
-  } else {
-    return {
-      start_date: null,
-      end_date: null
-    };
+    return { start_date: new Date(periodCoverage[0].value), end_date: new Date(periodCoverage[1].value) };
   }
+  return { start_date: null, end_date: null };
 };
+
 export const outputCube = async (
   mode: DuckdbOutputType,
   datasetId: string,

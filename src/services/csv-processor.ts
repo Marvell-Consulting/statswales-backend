@@ -33,7 +33,11 @@ const getCreateTableQuery = async (fileType: FileType, quack: Database): Promise
   switch (fileType) {
     case FileType.Csv:
     case FileType.GzipCsv:
-      return `CREATE TABLE %I AS SELECT * FROM read_csv(%L, auto_type_candidates = ['BIGINT', 'DOUBLE', 'VARCHAR'], encoding = %L, sample_size = -1);`;
+      return `
+        CREATE TABLE %I AS
+          SELECT *
+          FROM read_csv(%L, auto_type_candidates = ['BIGINT', 'DOUBLE', 'VARCHAR'], encoding = %L, sample_size = -1);
+      `;
 
     case FileType.Parquet:
       return `CREATE TABLE %I AS SELECT * FROM %L;`;

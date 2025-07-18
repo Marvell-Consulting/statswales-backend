@@ -105,18 +105,22 @@ export const factTableValidatorFromSource = async (
     );
   }
   const cubeDB = cubeDataSource.createQueryRunner();
+
   try {
     await cubeDB.query(pgformat(`SET search_path TO %I;`, revision.id));
   } catch (error) {
     logger.error(error, 'Unable to connect to postgres schema for revision.');
+    cubeDB.release();
     throw new FactTableValidationException(
       'Unable to find data on revision cube in database',
       FactTableValidationExceptionType.UnknownError,
       500
     );
   }
+
   try {
-    await cubeDB.query(pgformat('ALTER TABLE %I ADD PRIMARY KEY (%I)', FACT_TABLE_NAME, primaryKeyDef));
+    const pkQuery = pgformat('ALTER TABLE %I ADD PRIMARY KEY (%I)', FACT_TABLE_NAME, primaryKeyDef);
+    await cubeDB.query(pkQuery);
     await validateNoteCodesColumn(cubeDB, validatedSourceAssignment.noteCodes, FACT_TABLE_NAME);
   } catch (err) {
     logger.error(err, 'Failed to apply primary key to fact table.');

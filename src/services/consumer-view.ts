@@ -94,10 +94,10 @@ export function transformHierarchy(factTableColumn: string, columnName: string, 
 }
 
 export const getFilters = async (revision: Revision, language: string): Promise<FilterTable[]> => {
-  const db = cubeDataSource.createQueryRunner();
+  const cubeDB = cubeDataSource.createQueryRunner();
   try {
     const filterTableQuery = pgformat('SELECT * FROM %I.filter_table WHERE language = %L;', revision.id, language);
-    const filterTable: FilterRow[] = await db.query(filterTableQuery);
+    const filterTable: FilterRow[] = await cubeDB.query(filterTableQuery);
     const columnData = new Map<string, FilterRow[]>();
 
     for (const row of filterTable) {
@@ -126,7 +126,7 @@ export const getFilters = async (revision: Revision, language: string): Promise<
     logger.error(err, 'Something went wrong trying to get the filter table from the database server');
     throw err;
   } finally {
-    db.release();
+    cubeDB.release();
   }
 };
 
@@ -316,14 +316,15 @@ export const createStreamingJSONFilteredView = async (
   filterBy?: FilterInterface[]
 ): Promise<void> => {
   // queryRunner.query() does not support Cursor so we need to obtain underlying PostgreSQL connection
-  const cubeDB = await cubeDataSource.driver.obtainMasterConnection();
-  await cubeDB.query(pgformat(`SET search_path TO %I;`, revision.id));
-  const view = await viewChooser(cubeDB, 'raw', lang, revision);
-  const columns = await getColumns(cubeDB, lang);
+  const [connection] = await cubeDataSource.driver.obtainMasterConnection();
+
+  await connection.query(pgformat(`SET search_path TO %I;`, revision.id));
+  const view = await viewChooser(connection, 'raw', lang, revision);
+  const columns = await getColumns(connection, lang);
   const baseQuery = createBaseQuery(revision, view, columns, sortBy, filterBy);
 
   try {
-    const cursor = cubeDB.query(new Cursor(baseQuery));
+    const cursor = connection.query(new Cursor(baseQuery));
     let rows = await cursor.read(CURSOR_ROW_LIMIT);
     res.setHeader('content-type', 'application/json');
     res.flushHeaders();
@@ -345,7 +346,7 @@ export const createStreamingJSONFilteredView = async (
   } catch (error) {
     logger.error(error, 'Something went wrong trying to read from the view of the cube');
   } finally {
-    cubeDB.release();
+    connection.release();
   }
 };
 
@@ -357,14 +358,14 @@ export const createStreamingCSVFilteredView = async (
   filterBy?: FilterInterface[]
 ): Promise<void> => {
   // queryRunner.query() does not support Cursor so we need to obtain underlying PostgreSQL connection
-  const cubeDB = await cubeDataSource.driver.obtainMasterConnection();
-  await cubeDB.query(pgformat(`SET search_path TO %I;`, revision.id));
-  const view = await viewChooser(cubeDB, 'raw', lang, revision);
-  const columns = await getColumns(cubeDB, lang);
+  const [connection] = await cubeDataSource.driver.obtainMasterConnection();
+  await connection.query(pgformat(`SET search_path TO %I;`, revision.id));
+  const view = await viewChooser(connection, 'raw', lang, revision);
+  const columns = await getColumns(connection, lang);
   const baseQuery = createBaseQuery(revision, view, columns, sortBy, filterBy);
 
   try {
-    const cursor = cubeDB.query(new Cursor(baseQuery));
+    const cursor = connection.query(new Cursor(baseQuery));
     let rows = await cursor.read(CURSOR_ROW_LIMIT);
     res.setHeader('content-type', 'text/csv');
     res.flushHeaders();
@@ -384,7 +385,7 @@ export const createStreamingCSVFilteredView = async (
   } catch (error) {
     logger.error(error, 'Something went wrong trying to read from the view of the cube');
   } finally {
-    cubeDB.release();
+    connection.release();
   }
 };
 
