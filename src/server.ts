@@ -27,7 +27,8 @@ Promise.resolve()
       logger.info(`Server is running on port ${PORT}`);
     });
   })
-  .catch((err) => {
+  .catch(async (err) => {
     logger.error(err);
+    await dbManager.destroyDataSources();
     process.exit(1);
   });
