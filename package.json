@@ -16,7 +16,7 @@
     "test": "jest --coverage",
     "test:ci": "jest --ci --coverage --config=jest.config.ts",
     "check": "npm-run-all prettier:fix lint:fix test clean build",
-    "predev": "bash -c ' func() { if [ $(command -v podman) ]; then podman compose up -d db-dev valkey clamav; else docker compose up -d db-dev valkey clamav; fi }; func'",
+    "predev": "bash -c ' func() { if [ $(command -v podman) ]; then podman compose up -d blobstorage db-dev valkey clamav; else docker compose up -d blobstorage db-dev valkey clamav; fi }; func'",
     "dev:check": "npm-run-all check dev",
     "dev": "ts-node-dev --respawn --transpile-only src/server.ts | pino-colada",
     "start": "node dist/server.js",
