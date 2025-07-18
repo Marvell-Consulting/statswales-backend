@@ -1,8 +1,7 @@
 import request from 'supertest';
 
 import app from '../../src/app';
-import { initDb } from '../../src/db/init';
-import DatabaseManager from '../../src/db/database-manager';
+import { dbManager } from '../../src/db/database-manager';
 import { initPassport } from '../../src/middleware/passport-auth';
 import { User } from '../../src/entities/user/user';
 import { logger } from '../../src/utils/logger';
@@ -33,26 +32,27 @@ let userGroup = getTestUserGroup('Test Group');
 let queryRunner: QueryRunner;
 
 describe('API Endpoints for viewing the contents of a dataset', () => {
-  let dbManager: DatabaseManager;
   beforeAll(async () => {
     try {
-      dbManager = await initDb();
-      queryRunner = dbManager.getDataSource().createQueryRunner();
+      await dbManager.initDataSources();
+      await initPassport(dbManager.getAppDataSource());
+      queryRunner = dbManager.getAppDataSource().createQueryRunner();
       await queryRunner.dropSchema('data_tables', true, true);
       await queryRunner.dropSchema('lookup_tables', true, true);
       await queryRunner.dropSchema(revision1Id, true, true);
       await queryRunner.createSchema('data_tables', true);
       await queryRunner.createSchema('lookup_tables', true);
-      await initPassport(dbManager.getDataSource());
-      userGroup = await dbManager.getDataSource().getRepository(UserGroup).save(userGroup);
+      userGroup = await dbManager.getAppDataSource().getRepository(UserGroup).save(userGroup);
       user.groupRoles = [UserGroupRole.create({ group: userGroup, roles: [GroupRole.Editor] })];
       await user.save();
       await createFullDataset(dataset1Id, revision1Id, import1Id, user);
     } catch (error) {
       logger.error(error, 'Could not initialise test database');
-      await dbManager.getDataSource().dropDatabase();
-      await dbManager.getDataSource().destroy();
+      await dbManager.getAppDataSource().dropDatabase();
+      await dbManager.destroyDataSources();
       process.exit(1);
+    } finally {
+      await queryRunner.release();
     }
   });
 
@@ -98,9 +98,11 @@ describe('API Endpoints for viewing the contents of a dataset', () => {
   });
 
   afterAll(async () => {
+    queryRunner = dbManager.getAppDataSource().createQueryRunner();
     await queryRunner.dropSchema('data_tables', true, true);
     await queryRunner.dropSchema(revision1Id, true, true);
-    await dbManager.getDataSource().dropDatabase();
-    await dbManager.getDataSource().destroy();
+    await queryRunner.release();
+    await dbManager.getAppDataSource().dropDatabase();
+    await dbManager.destroyDataSources();
   });
 });

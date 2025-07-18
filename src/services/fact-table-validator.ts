@@ -1,4 +1,6 @@
+import { QueryRunner } from 'typeorm';
 import { format as pgformat } from '@scaleleap/pg-format';
+
 import { ValidatedSourceAssignment } from './dimension-processor';
 import { Dataset } from '../entities/dataset/dataset';
 import { FactTableColumn } from '../entities/dataset/fact-table-column';
@@ -9,8 +11,7 @@ import { FactTableValidationException } from '../exceptions/fact-table-validatio
 import { FactTableValidationExceptionType } from '../enums/fact-table-validation-exception-type';
 import { SourceAssignmentDTO } from '../dtos/source-assignment-dto';
 import { tableDataToViewTable } from '../utils/table-data-to-view-table';
-import { getCubeDB } from '../db/cube-db';
-import { PoolClient, QueryResult } from 'pg';
+import { dbManager } from '../db/database-manager';
 
 interface FactTableDefinition {
   factTableColumn: FactTableColumn;
@@ -103,30 +104,34 @@ export const factTableValidatorFromSource = async (
       500
     );
   }
-  const connection = await getCubeDB().connect();
+  const cubeDB = dbManager.getCubeDataSource().createQueryRunner();
+
   try {
-    await connection.query(pgformat(`SET search_path TO %I;`, revision.id));
+    await cubeDB.query(pgformat(`SET search_path TO %I;`, revision.id));
   } catch (error) {
     logger.error(error, 'Unable to connect to postgres schema for revision.');
+    cubeDB.release();
     throw new FactTableValidationException(
       'Unable to find data on revision cube in database',
       FactTableValidationExceptionType.UnknownError,
       500
     );
   }
+
   try {
-    await connection.query(pgformat('ALTER TABLE %I ADD PRIMARY KEY (%I)', FACT_TABLE_NAME, primaryKeyDef));
-    await validateNoteCodesColumn(connection, validatedSourceAssignment.noteCodes, FACT_TABLE_NAME);
+    const pkQuery = pgformat('ALTER TABLE %I ADD PRIMARY KEY (%I)', FACT_TABLE_NAME, primaryKeyDef);
+    await cubeDB.query(pkQuery);
+    await validateNoteCodesColumn(cubeDB, validatedSourceAssignment.noteCodes, FACT_TABLE_NAME);
   } catch (err) {
     logger.error(err, 'Failed to apply primary key to fact table.');
     if ((err as Error).message.includes('could not create unique index')) {
       let error: FactTableValidationException | undefined;
-      error = await identifyDuplicateFacts(connection, primaryKeyDef);
+      error = await identifyDuplicateFacts(primaryKeyDef);
       if (error) throw error;
-      error = await identifyIncompleteFacts(connection, primaryKeyDef);
+      error = await identifyIncompleteFacts(primaryKeyDef);
       if (error) throw error;
     } else if ((err as Error).message.includes('contains null values')) {
-      const error = await identifyIncompleteFacts(connection, primaryKeyDef);
+      const error = await identifyIncompleteFacts(primaryKeyDef);
       if (error) throw error;
       throw new FactTableValidationException(
         'Incomplete facts found in fact table.',
@@ -140,16 +145,16 @@ export const factTableValidatorFromSource = async (
       500
     );
   } finally {
-    connection.release();
+    cubeDB.release();
   }
 };
 
 async function validateNoteCodesColumn(
-  connection: PoolClient,
+  cubeDB: QueryRunner,
   noteCodeColumn: SourceAssignmentDTO | null,
   factTableName: string
 ): Promise<void> {
-  let notesCodes: QueryResult<{ codes: string }>;
+  let notesCodes: { codes: string }[];
   try {
     const findNoteCodesQuery = pgformat(
       'SELECT DISTINCT %I as codes FROM %I WHERE %I IS NOT NULL;',
@@ -157,7 +162,7 @@ async function validateNoteCodesColumn(
       factTableName,
       noteCodeColumn?.column_name
     );
-    notesCodes = await connection.query(findNoteCodesQuery);
+    notesCodes = await cubeDB.query(findNoteCodesQuery);
   } catch (error) {
     logger.error(error, 'Failed to extract or validate validate note codes');
     throw new FactTableValidationException(
@@ -168,7 +173,7 @@ async function validateNoteCodesColumn(
   }
   const allCodes = NoteCodes.map((noteCode) => noteCode.code);
   const badCodes: string[] = [];
-  for (const noteCode of notesCodes.rows) {
+  for (const noteCode of notesCodes) {
     noteCode.codes.split(',').forEach((code: string) => {
       const trimmedCode = code.trim().toLowerCase();
       if (!allCodes.includes(trimmedCode)) {
@@ -187,10 +192,10 @@ async function validateNoteCodesColumn(
   );
   try {
     const badCodesString = badCodes.map((code) => `codes LIKE '%${code.toLowerCase()}%'`).join(' or ');
-    const columns: QueryResult<{ column_name: string }> = await connection.query(
+    const columns: { column_name: string }[] = await cubeDB.query(
       pgformat('SELECT column_name FROM information_schema.columns WHERE table_name = %L', factTableName)
     );
-    const selectColumns = columns.rows
+    const selectColumns = columns
       .filter((row) => row.column_name != noteCodeColumn?.column_name)
       .map((col) => col.column_name);
     selectColumns.push('line_number');
@@ -201,8 +206,8 @@ async function validateNoteCodesColumn(
       factTableName,
       badCodesString
     );
-    const brokeNoteCodeLines = await connection.query(brokeNoteCodeLinesQuery);
-    const { headers, data } = tableDataToViewTable(brokeNoteCodeLines.rows);
+    const brokeNoteCodeLines = await cubeDB.query(brokeNoteCodeLinesQuery);
+    const { headers, data } = tableDataToViewTable(brokeNoteCodeLines);
     error.data = data;
     error.headers = headers;
   } catch (extractionErr) {
@@ -211,20 +216,18 @@ async function validateNoteCodesColumn(
   throw error;
 }
 
-async function identifyIncompleteFacts(
-  connection: PoolClient,
-  primaryKeyDef: string[]
-): Promise<FactTableValidationException | undefined> {
+async function identifyIncompleteFacts(primaryKeyDef: string[]): Promise<FactTableValidationException | undefined> {
   const pkeyDef = primaryKeyDef.map((key) => pgformat('%I IS NULL', key));
+  const cubeDB = dbManager.getCubeDataSource().createQueryRunner();
   try {
     const incompleteFactQuery = pgformat(
       `SELECT * FROM (SELECT row_number() OVER () as line_number, * FROM fact_table) WHERE %s LIMIT 500;`,
       pkeyDef.join(' OR ')
     );
-    const brokenFacts = await connection.query(incompleteFactQuery);
-    if (brokenFacts.rows.length > 0) {
-      logger.debug(`${brokenFacts.rows.length} incomplete facts found in fact table`);
-      const { headers, data } = tableDataToViewTable(brokenFacts.rows);
+    const brokenFacts = await cubeDB.query(incompleteFactQuery);
+    if (brokenFacts.length > 0) {
+      logger.debug(`${brokenFacts.length} incomplete facts found in fact table`);
+      const { headers, data } = tableDataToViewTable(brokenFacts);
       const err = new FactTableValidationException(
         'Incomplete facts found in the data table',
         FactTableValidationExceptionType.IncompleteFact,
@@ -241,14 +244,13 @@ async function identifyIncompleteFacts(
       FactTableValidationExceptionType.UnknownError,
       400
     );
+  } finally {
+    cubeDB.release();
   }
   return undefined;
 }
 
-async function identifyDuplicateFacts(
-  connection: PoolClient,
-  primaryKeyDef: string[]
-): Promise<FactTableValidationException | undefined> {
+async function identifyDuplicateFacts(primaryKeyDef: string[]): Promise<FactTableValidationException | undefined> {
   const pkeyDef = primaryKeyDef.map((key) => pgformat('%I', key));
   const duplicateFactQuery = pgformat(
     `
@@ -264,11 +266,14 @@ async function identifyDuplicateFacts(
     pkeyDef.join(', '),
     pkeyDef.join(', ')
   );
+
+  const cubeDB = dbManager.getCubeDataSource().createQueryRunner();
+
   try {
     logger.debug(`Running query to find duplicates:\n${duplicateFactQuery}`);
-    const brokenFacts = await connection.query(duplicateFactQuery);
-    if (brokenFacts.rows.length > 0) {
-      const { headers, data } = tableDataToViewTable(brokenFacts.rows);
+    const brokenFacts = await cubeDB.query(duplicateFactQuery);
+    if (brokenFacts.length > 0) {
+      const { headers, data } = tableDataToViewTable(brokenFacts);
       const err = new FactTableValidationException(
         'Duplicate facts found in the data table',
         FactTableValidationExceptionType.DuplicateFact,
@@ -285,6 +290,8 @@ async function identifyDuplicateFacts(
       FactTableValidationExceptionType.UnknownError,
       400
     );
+  } finally {
+    cubeDB.release();
   }
   return undefined;
 }

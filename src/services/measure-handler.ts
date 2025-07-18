@@ -1,3 +1,4 @@
+import { performance } from 'node:perf_hooks';
 import { DuckDbError } from 'duckdb-async';
 import { format as pgformat } from '@scaleleap/pg-format';
 import { t } from 'i18next';
@@ -27,7 +28,6 @@ import { MeasureRow } from '../entities/dataset/measure-row';
 import { SUPPORTED_LOCALES } from '../middleware/translation';
 import { DisplayType } from '../enums/display-type';
 import { getFileService } from '../utils/get-file-service';
-
 import { loadFileIntoCube, measureTableCreateStatement } from './cube-handler';
 import { FileValidationErrorType, FileValidationException } from '../exceptions/validation-exception';
 import { FactTableColumn } from '../entities/dataset/fact-table-column';
@@ -35,10 +35,9 @@ import { Locale } from '../enums/locale';
 import { DataValueFormat } from '../enums/data-value-format';
 import { duckdb, linkToPostgresSchema } from './duckdb';
 import { Revision } from '../entities/dataset/revision';
-import { getCubeDB } from '../db/cube-db';
 import { performanceReporting } from '../utils/performance-reporting';
-import { performance } from 'node:perf_hooks';
 import { FileType } from '../enums/file-type';
+import { dbManager } from '../db/database-manager';
 
 const sampleSize = 5;
 
@@ -442,11 +441,12 @@ export const validateMeasureLookupTable = async (
     });
   }
 
-  const connection = await getCubeDB().connect();
+  const cubeDB = dbManager.getCubeDataSource().createQueryRunner();
   try {
-    await connection.query(pgformat(`SET search_path TO %I;`, draftRevision.id));
+    await cubeDB.query(pgformat(`SET search_path TO %I;`, draftRevision.id));
   } catch (error) {
     await lookupTable.remove();
+    cubeDB.release();
     logger.error(error, 'Unable to connect to postgres schema for revision.');
     return viewErrorGenerators(500, dataset.id, 'patch', 'errors.measure_validation.lookup_table_loading_failed', {
       mismatch: false
@@ -455,7 +455,7 @@ export const validateMeasureLookupTable = async (
   logger.debug('Copying lookup table from lookup_tables schema into cube');
   const actionId = crypto.randomUUID();
   try {
-    await connection.query(measureTableCreateStatement(measureColumn.columnDatatype, actionId));
+    await cubeDB.query(measureTableCreateStatement(measureColumn.columnDatatype, actionId));
     for (const row of measureTable) {
       logger.debug(`Inserting into measure table ${JSON.stringify(row)}`);
       const values = [
@@ -469,10 +469,11 @@ export const validateMeasureLookupTable = async (
         row.measureType,
         row.hierarchy
       ];
-      await connection.query(pgformat('INSERT INTO %I VALUES (%L);', actionId, values));
+      await cubeDB.query(pgformat('INSERT INTO %I VALUES (%L);', actionId, values));
     }
   } catch (error) {
     await lookupTable.remove();
+    cubeDB.release();
     logger.error(error, 'Unable to copy lookup table from lookup tables schema.');
     return viewErrorGenerators(500, dataset.id, 'patch', 'errors.dimension_validation.lookup_table_loading_failed', {
       mismatch: false
@@ -482,7 +483,7 @@ export const validateMeasureLookupTable = async (
   const updatedMeasure = await updateMeasure(dataset, lookupTable, confirmedJoinColumn, measureTable, extractor);
 
   const referenceErrors = await validateLookupTableReferenceValues(
-    connection,
+    cubeDB,
     dataset,
     updatedMeasure.factTableColumn,
     'reference',
@@ -492,13 +493,13 @@ export const validateMeasureLookupTable = async (
   );
   if (referenceErrors) {
     await lookupTable.remove();
-    await connection.query(pgformat('DROP TABLE %I;', actionId));
-    connection.release();
+    await cubeDB.query(pgformat('DROP TABLE %I;', actionId));
+    cubeDB.release();
     return referenceErrors;
   }
 
   const languageErrors = await validateLookupTableLanguages(
-    connection,
+    cubeDB,
     dataset,
     draftRevision.id,
     'reference',
@@ -507,16 +508,16 @@ export const validateMeasureLookupTable = async (
   );
   if (languageErrors) {
     await lookupTable.remove();
-    await connection.query(pgformat('DROP TABLE %I;', actionId));
-    connection.release();
+    await cubeDB.query(pgformat('DROP TABLE %I;', actionId));
+    cubeDB.release();
     return languageErrors;
   }
 
-  const tableValidationErrors = await validateMeasureTableContent(connection, dataset.id, actionId, extractor);
+  const tableValidationErrors = await validateMeasureTableContent(cubeDB, dataset.id, actionId, extractor);
   if (tableValidationErrors) {
     await lookupTable.remove();
-    await connection.query(pgformat('DROP TABLE %I;', actionId));
-    connection.release();
+    await cubeDB.query(pgformat('DROP TABLE %I;', actionId));
+    cubeDB.release();
     return tableValidationErrors;
   }
 
@@ -533,12 +534,13 @@ export const validateMeasureLookupTable = async (
       actionId,
       lang
     );
-    const measureTable = await connection.query(previewQuery);
+    const measureTable = await cubeDB.query(previewQuery);
     // logger.debug(`Measure preview query result: ${JSON.stringify(dimensionTable, null, 2)}`);
     // this is throwing "TypeError: Converting circular structure to JSON"
 
-    const tableHeaders = Object.keys(measureTable.rows[0]);
-    const dataArray = measureTable.rows.map((row) => Object.values(row));
+    const tableHeaders = Object.keys(measureTable[0]);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const dataArray = measureTable.map((row: any) => Object.values(row));
     const currentDataset = await DatasetRepository.getById(dataset.id);
     const headers: CSVHeader[] = [];
     for (let i = 0; i < tableHeaders.length; i++) {
@@ -564,8 +566,8 @@ export const validateMeasureLookupTable = async (
       mismatch: false
     });
   } finally {
-    await connection.query(pgformat('DROP TABLE %I;', actionId));
-    connection.release();
+    await cubeDB.query(pgformat('DROP TABLE %I;', actionId));
+    cubeDB.release();
   }
 };
 
@@ -574,10 +576,10 @@ async function getMeasurePreviewWithoutExtractor(
   measure: Measure,
   revision: Revision
 ): Promise<ViewDTO> {
-  const connection = await getCubeDB().connect();
-  await connection.query(pgformat(`SET search_path TO %I;`, revision.id));
+  const cubeDB = dbManager.getCubeDataSource().createQueryRunner();
   try {
-    const preview = await connection.query(
+    await cubeDB.query(pgformat(`SET search_path TO %I;`, revision.id));
+    const preview = await cubeDB.query(
       pgformat(
         'SELECT DISTINCT %I FROM %I ORDER BY %I ASC LIMIT %L;',
         measure.factTableColumn,
@@ -587,8 +589,9 @@ async function getMeasurePreviewWithoutExtractor(
       )
     );
 
-    const tableHeaders = Object.keys(preview.rows[0]);
-    const dataArray = preview.rows.map((row) => Object.values(row));
+    const tableHeaders = Object.keys(preview[0]);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const dataArray = preview.map((row: any) => Object.values(row));
     const currentDataset = await DatasetRepository.getById(dataset.id);
     const headers: CSVHeader[] = [];
     for (let i = 0; i < tableHeaders.length; i++) {
@@ -599,17 +602,17 @@ async function getMeasurePreviewWithoutExtractor(
       });
     }
     const pageInfo = {
-      total_records: preview.rows.length,
+      total_records: preview.length,
       start_record: 1,
       end_record: dataArray.length
     };
-    const pageSize = preview.rows.length < sampleSize ? preview.rows.length : sampleSize;
+    const pageSize = preview.length < sampleSize ? preview.length : sampleSize;
     return viewGenerator(currentDataset, 1, pageInfo, pageSize, 1, headers, dataArray);
   } catch (error) {
     logger.error(error, `Something went wrong trying to generate the preview of the measure column`);
     throw error;
   } finally {
-    connection.release();
+    cubeDB.release();
   }
 }
 
@@ -620,18 +623,19 @@ async function getMeasurePreviewWithExtractor(
   lang: string
 ): Promise<ViewDTO> {
   logger.debug(`Generating lookup table preview for measure ${measure.id}`);
-  const connection = await getCubeDB().connect();
-  await connection.query(pgformat(`SET search_path TO %I;`, revision.id));
+  const cubeDB = dbManager.getCubeDataSource().createQueryRunner();
   try {
+    await cubeDB.query(pgformat(`SET search_path TO %I;`, revision.id));
     const previewQuery = pgformat(
       'SELECT reference, description, notes, sort_order, format, decimals, measure_type, hierarchy FROM %I WHERE language = %L;',
       'measure',
       lang
     );
     // logger.debug(`Querying the cube to get the preview using query: ${query}`);
-    const measureTable = await connection.query(previewQuery);
-    const tableHeaders = Object.keys(measureTable.rows[0]);
-    const dataArray = measureTable.rows.map((row) => Object.values(row));
+    const measureTable = await cubeDB.query(previewQuery);
+    const tableHeaders = Object.keys(measureTable[0]);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const dataArray = measureTable.map((row: any) => Object.values(row));
     const currentDataset = await DatasetRepository.getById(dataset.id);
     const headers: CSVHeader[] = tableHeaders.map((name, idx) => ({
       name,
@@ -649,7 +653,7 @@ async function getMeasurePreviewWithExtractor(
     logger.error(error, `Something went wrong trying to generate the preview of the measure table`);
     throw error;
   } finally {
-    connection.release();
+    cubeDB.release();
   }
 }
 

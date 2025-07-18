@@ -1,4 +1,6 @@
 import { format as pgformat } from '@scaleleap/pg-format';
+import { Database } from 'duckdb-async';
+import { t } from 'i18next';
 
 import { DimensionType } from '../enums/dimension-type';
 import { LookupTable } from '../entities/dataset/lookup-table';
@@ -21,19 +23,16 @@ import { Dimension } from '../entities/dataset/dimension';
 import { viewErrorGenerators, viewGenerator } from '../utils/view-error-generators';
 import { DatasetRepository } from '../repositories/dataset';
 import { FactTableColumnType } from '../enums/fact-table-column-type';
-
 import { cleanUpDimension } from './dimension-processor';
-import { Database } from 'duckdb-async';
 import { SUPPORTED_LOCALES } from '../middleware/translation';
 import { createLookupTableQuery, loadFileIntoLookupTablesSchema, makeCubeSafeString } from './cube-handler';
 import { FactTableColumn } from '../entities/dataset/fact-table-column';
 import { CubeValidationException } from '../exceptions/cube-error-exception';
 import { Locale } from '../enums/locale';
-import { t } from 'i18next';
 import { FileValidationErrorType, FileValidationException } from '../exceptions/validation-exception';
 import { CubeValidationType } from '../enums/cube-validation-type';
-import { PoolClient } from 'pg';
-import { getCubeDB } from '../db/cube-db';
+import { QueryRunner } from 'typeorm';
+import { dbManager } from '../db/database-manager';
 
 const sampleSize = 5;
 
@@ -194,13 +193,13 @@ export const createLookupTableInCube = async (
 };
 
 export const checkForReferenceErrors = async (
-  connection: PoolClient,
+  cubeDB: QueryRunner,
   dataset: Dataset,
   dimension: Dimension,
   factTableColumn: FactTableColumn
 ): Promise<void> => {
   const referenceErrors = await validateLookupTableReferenceValues(
-    connection,
+    cubeDB,
     dataset,
     dimension.factTableColumn,
     factTableColumn.columnName,
@@ -298,11 +297,13 @@ export const validateLookupTable = async (
     });
   }
 
-  const connection = await getCubeDB().connect();
+  const cubeDB = dbManager.getCubeDataSource().createQueryRunner();
+
   try {
-    await connection.query(pgformat(`SET search_path TO %I;`, revision.id));
+    await cubeDB.query(pgformat(`SET search_path TO %I;`, revision.id));
   } catch (error) {
     await lookupTable.remove();
+    cubeDB.release();
     logger.error(error, 'Unable to connect to postgres schema for revision.');
     return viewErrorGenerators(500, dataset.id, 'patch', 'errors.dimension_validation.lookup_table_loading_failed', {
       mismatch: false
@@ -312,9 +313,10 @@ export const validateLookupTable = async (
   logger.debug('Copying lookup table from lookup_tables schema into cube');
   const actionId = crypto.randomUUID();
   try {
-    await connection.query(pgformat('CREATE TABLE %I AS SELECT * FROM lookup_tables.%I;', actionId, lookupTable.id));
+    await cubeDB.query(pgformat('CREATE TABLE %I AS SELECT * FROM lookup_tables.%I;', actionId, lookupTable.id));
   } catch (error) {
     await lookupTable.remove();
+    cubeDB.release();
     logger.error(error, 'Unable to copy lookup table from lookup tables schema.');
     return viewErrorGenerators(500, dataset.id, 'patch', 'errors.dimension_validation.lookup_table_loading_failed', {
       mismatch: false
@@ -322,7 +324,7 @@ export const validateLookupTable = async (
   }
 
   const referenceErrors = await validateLookupTableReferenceValues(
-    connection,
+    cubeDB,
     dataset,
     updatedDimension.factTableColumn,
     factTableColumn.columnName,
@@ -331,15 +333,15 @@ export const validateLookupTable = async (
     'dimension'
   );
   if (referenceErrors) {
-    await connection.query(pgformat('DROP TABLE IF EXISTS %I', actionId));
-    await connection.query(pgformat('DROP TABLE IF EXISTS lookup_tables.%I', lookupTable.id));
+    await cubeDB.query(pgformat('DROP TABLE IF EXISTS %I', actionId));
+    await cubeDB.query(pgformat('DROP TABLE IF EXISTS lookup_tables.%I', lookupTable.id));
     await lookupTable.remove();
-    connection.release();
+    cubeDB.release();
     return referenceErrors;
   }
 
   const languageErrors = await validateLookupTableLanguages(
-    connection,
+    cubeDB,
     dataset,
     revision.id,
     factTableColumn.columnName,
@@ -347,10 +349,10 @@ export const validateLookupTable = async (
     'dimension'
   );
   if (languageErrors) {
-    await connection.query(pgformat('DROP TABLE IF EXISTS %I', actionId));
-    await connection.query(pgformat('DROP TABLE IF EXISTS lookup_tables.%I', lookupTable.id));
+    await cubeDB.query(pgformat('DROP TABLE IF EXISTS %I', actionId));
+    await cubeDB.query(pgformat('DROP TABLE IF EXISTS lookup_tables.%I', lookupTable.id));
     await lookupTable.remove();
-    connection.release();
+    cubeDB.release();
     return languageErrors;
   }
 
@@ -359,9 +361,10 @@ export const validateLookupTable = async (
 
   try {
     const previewQuery = pgformat('SELECT * FROM lookup_tables.%I WHERE language = %L;', lookupTable.id, language);
-    const dimensionTable = await connection.query(previewQuery);
-    const tableHeaders = Object.keys(dimensionTable.rows[0]);
-    const dataArray = dimensionTable.rows.map((row) => Object.values(row));
+    const dimensionTable = await cubeDB.query(previewQuery);
+    const tableHeaders = Object.keys(dimensionTable[0]);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const dataArray = dimensionTable.map((row: any) => Object.values(row));
     const currentDataset = await DatasetRepository.getById(dataset.id);
     const headers: CSVHeader[] = [];
     for (let i = 0; i < tableHeaders.length; i++) {
@@ -375,17 +378,17 @@ export const validateLookupTable = async (
       });
     }
     const pageInfo = {
-      total_records: dimensionTable.rows.length,
+      total_records: dimensionTable.length,
       start_record: 1,
       end_record: dataArray.length
     };
-    const pageSize = dimensionTable.rows.length < sampleSize ? dimensionTable.rows.length : sampleSize;
+    const pageSize = dimensionTable.length < sampleSize ? dimensionTable.length : sampleSize;
     return viewGenerator(currentDataset, 1, pageInfo, pageSize, 1, headers, dataArray);
   } catch (error) {
     logger.error(error, `Something went wrong trying to generate the preview of the lookup.`);
     return viewErrorGenerators(500, dataset.id, 'preview', 'errors.dimension.lookup_preview_generation_failed', {});
   } finally {
-    await connection.query(pgformat('DROP TABLE IF EXISTS %I', actionId));
-    connection.release();
+    await cubeDB.query(pgformat('DROP TABLE IF EXISTS %I', actionId));
+    cubeDB.release();
   }
 };

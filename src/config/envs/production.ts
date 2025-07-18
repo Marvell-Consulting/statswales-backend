@@ -13,6 +13,10 @@ export function getProductionConfig(): AppConfig {
       jwt: {
         cookieDomain: process.env.BACKEND_URL!.replace('api.', '')
       }
+    },
+    clamav: {
+      host: process.env.CLAMAV_HOST || 'clamav',
+      port: 3310
     }
   });
 }

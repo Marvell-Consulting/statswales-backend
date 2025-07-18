@@ -2,8 +2,7 @@ import request from 'supertest';
 import { v4 as uuid } from 'uuid';
 
 import app from '../../src/app';
-import { initDb } from '../../src/db/init';
-import DatabaseManager from '../../src/db/database-manager';
+import { dbManager } from '../../src/db/database-manager';
 import { initPassport } from '../../src/middleware/passport-auth';
 import { User } from '../../src/entities/user/user';
 import { Provider } from '../../src/entities/dataset/provider';
@@ -50,18 +49,16 @@ const sources: Partial<ProviderSource>[] = [
 ];
 
 describe('Providers', () => {
-  let dbManager: DatabaseManager;
-
   beforeAll(async () => {
     try {
-      dbManager = await initDb();
-      await initPassport(dbManager.getDataSource());
+      await dbManager.initDataSources();
+      await initPassport(dbManager.getAppDataSource());
       await user.save();
-      await dbManager.getEntityManager().save(Provider, providers);
-      await dbManager.getEntityManager().save(ProviderSource, sources);
+      await dbManager.getAppDataSource().manager.save(Provider, providers);
+      await dbManager.getAppDataSource().manager.save(ProviderSource, sources);
     } catch (_err) {
-      await dbManager.getDataSource().dropDatabase();
-      await dbManager.getDataSource().destroy();
+      await dbManager.getAppDataSource().dropDatabase();
+      await dbManager.destroyDataSources();
       process.exit(1);
     }
   });
@@ -84,7 +81,7 @@ describe('Providers', () => {
   });
 
   afterAll(async () => {
-    await dbManager.getDataSource().dropDatabase();
-    await dbManager.getDataSource().destroy();
+    await dbManager.getAppDataSource().dropDatabase();
+    await dbManager.destroyDataSources();
   });
 });

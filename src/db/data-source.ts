@@ -23,8 +23,10 @@ const dataSourceOpts: DataSourceOptions = {
   logging: false,
   entities: [`${__dirname}/../entities/**/*.{ts,js}`],
   migrations: [`${__dirname}/../migrations/*.{ts,js}`],
+  applicationName: 'sw3-backend-app',
   extra: {
     max: config.database.poolSize,
+    maxUses: config.database.maxUses,
     idleTimeoutMillis: config.database.idleTimeoutMs,
     connectionTimeoutMillis: config.database.connectionTimeoutMs
   }

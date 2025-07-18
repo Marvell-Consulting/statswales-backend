@@ -1,10 +1,12 @@
+import fs from 'node:fs';
 import { readFile, unlink } from 'node:fs/promises';
+import { pipeline } from 'node:stream/promises';
 import path from 'node:path';
 import { performance } from 'node:perf_hooks';
 
 import { from } from 'pg-copy-streams';
 import { Database, DuckDbError, RowData } from 'duckdb-async';
-import { FindOptionsRelations } from 'typeorm';
+import { FindOptionsRelations, QueryRunner } from 'typeorm';
 import { toZonedTime } from 'date-fns-tz';
 import { format as pgformat } from '@scaleleap/pg-format';
 
@@ -28,7 +30,6 @@ import { DataTableDescription } from '../entities/dataset/data-table-description
 import { MeasureRow } from '../entities/dataset/measure-row';
 import { DatasetRepository } from '../repositories/dataset';
 import { PeriodCovered } from '../interfaces/period-covered';
-
 import { dateDimensionReferenceTableCreator } from './date-matching';
 import { duckdb, linkToPostgresSchema, safelyCloseDuckDb } from './duckdb';
 import { NumberExtractor, NumberType } from '../extractors/number-extractor';
@@ -38,8 +39,6 @@ import { FactTableValidationException } from '../exceptions/fact-table-validatio
 import { FactTableValidationExceptionType } from '../enums/fact-table-validation-exception-type';
 import { CubeType } from '../enums/cube-type';
 import { DateExtractor } from '../extractors/date-extractor';
-import { PoolClient, QueryResult } from 'pg';
-import { getCubeDB } from '../db/cube-db';
 import { getFileService } from '../utils/get-file-service';
 import { asyncTmpName } from '../utils/async-tmp';
 import { performanceReporting } from '../utils/performance-reporting';
@@ -49,9 +48,9 @@ import { ViewDTO, ViewErrDTO } from '../dtos/view-dto';
 import { FilterInterface } from '../interfaces/filterInterface';
 import { SortByInterface } from '../interfaces/sort-by-interface';
 import { createFrontendView } from './consumer-view';
-import fs from 'node:fs';
 import { LookupTable } from '../entities/dataset/lookup-table';
-import { pipeline } from 'node:stream/promises';
+import { dbManager } from '../db/database-manager';
+import { PoolClient } from 'pg';
 
 export const FACT_TABLE_NAME = 'fact_table';
 
@@ -77,8 +76,10 @@ export const createDataTableQuery = async (
         makeCubeSafeString(tableName),
         tempFileName
       );
+
     case FileType.Parquet:
       return pgformat('CREATE TABLE %I AS SELECT * FROM %L;', makeCubeSafeString(tableName), tempFileName);
+
     case FileType.Json:
     case FileType.GzipJson:
       return pgformat(
@@ -86,10 +87,12 @@ export const createDataTableQuery = async (
         makeCubeSafeString(tableName),
         tempFileName
       );
+
     case FileType.Excel:
       await quack.exec('INSTALL spatial;');
       await quack.exec('LOAD spatial;');
       return pgformat('CREATE TABLE %I AS SELECT * FROM st_read(%L);', makeCubeSafeString(tableName), tempFileName);
+
     default:
       throw new Error('Unknown file type');
   }
@@ -112,7 +115,7 @@ export const loadFileIntoCube = async (
 };
 
 export const loadTableDataIntoFactTableFromPostgres = async (
-  connection: PoolClient,
+  cubeDB: QueryRunner,
   factTableDef: string[],
   factTableName: string,
   dataTableId: string
@@ -126,7 +129,7 @@ export const loadTableDataIntoFactTableFromPostgres = async (
     dataTableId
   );
   try {
-    await connection.query(insertQuery);
+    await cubeDB.query(insertQuery);
   } catch (error) {
     logger.error(error, `Failed to load file into table using query ${insertQuery}`);
     throw new FactTableValidationException(
@@ -314,74 +317,94 @@ export const loadFileDataTableIntoTable = async (
   }
 };
 
-export async function createReferenceDataTablesInCube(connection: PoolClient): Promise<void> {
-  logger.debug('Creating empty reference data tables');
+export async function createReferenceDataTablesInCube(searchPath: string): Promise<void> {
+  logger.debug(`Creating empty reference data tables in schema: ${searchPath}`);
+  const cubeDB = dbManager.getCubeDataSource().createQueryRunner();
+
   try {
+    await cubeDB.query(pgformat(`SET search_path TO %I;`, searchPath));
     logger.debug('Creating categories tables');
-    await connection.query(`CREATE TABLE "categories" ("category" VARCHAR, PRIMARY KEY ("category"));`);
+    await cubeDB.query(`CREATE TABLE IF NOT EXISTS "categories" ("category" VARCHAR, PRIMARY KEY ("category"));`);
+
     logger.debug('Creating category_keys table');
-    await connection.query(`CREATE TABLE "category_keys" (
-                            "category_key" VARCHAR PRIMARY KEY,
-                            "category" VARCHAR NOT NULL
-                            );`);
+    await cubeDB.query(`
+      CREATE TABLE IF NOT EXISTS "category_keys" (
+        "category_key" VARCHAR PRIMARY KEY,
+        "category" VARCHAR NOT NULL
+      );
+    `);
     logger.debug('Creating reference_data table');
-    await connection.query(`CREATE TABLE "reference_data" (
-                            "item_id" VARCHAR NOT NULL,
-                            "version_no" INTEGER NOT NULL,
-                            "sort_order" INTEGER,
-                            "category_key" VARCHAR NOT NULL,
-                            "validity_start" VARCHAR NOT NULL,
-                            "validity_end" VARCHAR
-                            );`);
+    await cubeDB.query(`
+      CREATE TABLE IF NOT EXISTS "reference_data" (
+        "item_id" VARCHAR NOT NULL,
+        "version_no" INTEGER NOT NULL,
+        "sort_order" INTEGER,
+        "category_key" VARCHAR NOT NULL,
+        "validity_start" VARCHAR NOT NULL,
+        "validity_end" VARCHAR
+      );
+    `);
     logger.debug('Creating reference_data_all table');
-    await connection.query(`CREATE TABLE "reference_data_all" (
-                            "item_id" VARCHAR NOT NULL,
-                            "version_no" INTEGER NOT NULL,
-                            "sort_order" INTEGER,
-                            "category_key" VARCHAR NOT NULL,
-                            "validity_start" VARCHAR NOT NULL,
-                            "validity_end" VARCHAR
-                            );`);
+    await cubeDB.query(`
+      CREATE TABLE IF NOT EXISTS "reference_data_all" (
+        "item_id" VARCHAR NOT NULL,
+        "version_no" INTEGER NOT NULL,
+        "sort_order" INTEGER,
+        "category_key" VARCHAR NOT NULL,
+        "validity_start" VARCHAR NOT NULL,
+        "validity_end" VARCHAR
+      );
+    `);
     logger.debug('Creating reference_data_info table');
-    await connection.query(`CREATE TABLE "reference_data_info" (
-                            "item_id" VARCHAR NOT NULL,
-                            "version_no" INTEGER NOT NULL,
-                            "category_key" VARCHAR NOT NULL,
-                            "lang" VARCHAR NOT NULL,
-                            "description" VARCHAR NOT NULL,
-                            "notes" VARCHAR
-                            );`);
+    await cubeDB.query(`
+      CREATE TABLE IF NOT EXISTS "reference_data_info" (
+        "item_id" VARCHAR NOT NULL,
+        "version_no" INTEGER NOT NULL,
+        "category_key" VARCHAR NOT NULL,
+        "lang" VARCHAR NOT NULL,
+        "description" VARCHAR NOT NULL,
+        "notes" VARCHAR
+      );
+    `);
     logger.debug('Creating category_key_info table');
-    await connection.query(`CREATE TABLE "category_key_info" (
-                            "category_key" VARCHAR NOT NULL,
-                            "lang" VARCHAR NOT NULL,
-                            "description" VARCHAR NOT NULL,
-                            "notes" VARCHAR
-                            );`);
+    await cubeDB.query(`
+      CREATE TABLE IF NOT EXISTS "category_key_info" (
+        "category_key" VARCHAR NOT NULL,
+        "lang" VARCHAR NOT NULL,
+        "description" VARCHAR NOT NULL,
+        "notes" VARCHAR
+      );
+    `);
     logger.debug('Creating category_info table');
-    await connection.query(`CREATE TABLE "category_info" (
-                            "category" VARCHAR NOT NULL,
-                            "lang" VARCHAR NOT NULL,
-                            "description" VARCHAR NOT NULL,
-                            "notes" VARCHAR
-                            );`);
+    await cubeDB.query(`
+      CREATE TABLE IF NOT EXISTS "category_info" (
+        "category" VARCHAR NOT NULL,
+        "lang" VARCHAR NOT NULL,
+        "description" VARCHAR NOT NULL,
+        "notes" VARCHAR
+      );
+    `);
     logger.debug('Creating hierarchy table');
-    await connection.query(`CREATE TABLE "hierarchy" (
-                            "item_id" VARCHAR NOT NULL,
-                            "version_no" INTEGER NOT NULL,
-                            "category_key" VARCHAR NOT NULL,
-                            "parent_id" VARCHAR NOT NULL,
-                            "parent_version" INTEGER NOT NULL,
-                            "parent_category" VARCHAR NOT NULL                            );`);
+    await cubeDB.query(`
+      CREATE TABLE IF NOT EXISTS "hierarchy" (
+        "item_id" VARCHAR NOT NULL,
+        "version_no" INTEGER NOT NULL,
+        "category_key" VARCHAR NOT NULL,
+        "parent_id" VARCHAR NOT NULL,
+        "parent_version" INTEGER NOT NULL,
+        "parent_category" VARCHAR NOT NULL
+      );
+    `);
   } catch (error) {
-    logger.error(`Something went wrong trying to create the initial reference data tables with error: ${error}`);
-    throw new Error(`Something went wrong trying to create the initial reference data tables with error: ${error}`);
+    logger.error(error, `Something went wrong trying to create the initial reference data tables`);
+    throw error;
+  } finally {
+    cubeDB.release();
   }
 }
 
-export async function loadReferenceDataFromCSV(connection: PoolClient): Promise<void> {
-  logger.debug(`Loading reference data from CSV`);
-  logger.debug(`Loading categories from CSV`);
+export async function loadReferenceDataFromCSV(searchPath: string): Promise<void> {
+  logger.debug(`Loading categories and reference data from CSV into schema: ${searchPath}`);
   const csvFiles = [
     'categories',
     'category_info',
@@ -391,60 +414,67 @@ export async function loadReferenceDataFromCSV(connection: PoolClient): Promise<
     'reference_data_all',
     'reference_data_info'
   ];
-  for (const file of csvFiles) {
-    logger.debug(`Loading reference data file ${file} from CSV file`);
-    const csvPath = path.resolve(__dirname, `../resources/reference-data/v1/${file}.csv`);
-    const fileStream = fs.createReadStream(csvPath, { encoding: 'utf8' });
-    const pgStream = connection.query(from(`COPY ${file} FROM STDIN WITH (FORMAT csv, HEADER true)`));
-    try {
-      await pipeline(fileStream, pgStream);
-    } catch (err) {
-      logger.error(err, `Something went wrong trying to load reference data from JSON file ${file}`);
+
+  const [cubeDBConn] = (await dbManager.getCubeDataSource().driver.obtainMasterConnection()) as [PoolClient];
+  await cubeDBConn.query(pgformat(`SET search_path TO %I;`, searchPath));
+
+  try {
+    for (const file of csvFiles) {
+      logger.debug(`Loading data from ${file}.csv...`);
+      const csvPath = path.resolve(__dirname, `../resources/reference-data/v1/${file}.csv`);
+      const fileStream = fs.createReadStream(csvPath, { encoding: 'utf8' });
+      const pgStream = cubeDBConn.query(from(`COPY ${file} FROM STDIN WITH (FORMAT csv, HEADER true)`));
+      await pipeline(fileStream, pgStream).catch((error) => {
+        logger.error(error, `Failed to load data from ${file}.csv`);
+        throw error;
+      });
+      logger.debug(`Successfully loaded ${file}.csv`);
     }
+  } finally {
+    cubeDBConn.release();
   }
 }
 
-export const loadReferenceDataIntoCube = async (connection: PoolClient): Promise<void> => {
-  await createReferenceDataTablesInCube(connection);
-  await loadReferenceDataFromCSV(connection);
+export const loadReferenceDataIntoCube = async (searchPath: string): Promise<void> => {
+  logger.debug(`Loading reference data into cube ${searchPath}...`);
+  await createReferenceDataTablesInCube(searchPath);
+  await loadReferenceDataFromCSV(searchPath);
   logger.debug(`Reference data tables created and populated successfully.`);
 };
 
-export const cleanUpReferenceDataTables = async (connection: PoolClient): Promise<void> => {
-  await connection.query('DROP TABLE reference_data_all;');
-  await connection.query('DELETE FROM reference_data_info WHERE item_id NOT IN (SELECT item_id FROM reference_data);');
-  await connection.query(
-    'DELETE FROM category_keys WHERE category_key NOT IN (SELECT category_key FROM reference_data);'
-  );
-  await connection.query(
+export const cleanUpReferenceDataTables = async (cubeDB: QueryRunner): Promise<void> => {
+  await cubeDB.query('DROP TABLE reference_data_all;');
+  await cubeDB.query('DELETE FROM reference_data_info WHERE item_id NOT IN (SELECT item_id FROM reference_data);');
+  await cubeDB.query('DELETE FROM category_keys WHERE category_key NOT IN (SELECT category_key FROM reference_data);');
+  await cubeDB.query(
     'DELETE FROM category_Key_info WHERE category_key NOT IN (select category_key FROM category_keys);'
   );
-  await connection.query('DELETE FROM categories where category NOT IN (SELECT category FROM category_keys);');
-  await connection.query('DELETE FROM category_info WHERE category NOT IN (SELECT category FROM categories);');
-  await connection.query('DELETE FROM hierarchy WHERE item_id NOT IN (SELECT item_id FROM reference_data);');
+  await cubeDB.query('DELETE FROM categories where category NOT IN (SELECT category FROM category_keys);');
+  await cubeDB.query('DELETE FROM category_info WHERE category NOT IN (SELECT category FROM categories);');
+  await cubeDB.query('DELETE FROM hierarchy WHERE item_id NOT IN (SELECT item_id FROM reference_data);');
 };
 
 export const loadCorrectReferenceDataIntoReferenceDataTable = async (
-  connection: PoolClient,
+  cubeDB: QueryRunner,
   dimension: Dimension
 ): Promise<void> => {
   const extractor = dimension.extractor as ReferenceDataExtractor;
   for (const category of extractor.categories) {
-    const categoryPresent = await connection.query(
+    const categoryPresent = await cubeDB.query(
       pgformat('SELECT DISTINCT category_key FROM reference_data WHERE category_key=%L', category)
     );
-    if (categoryPresent.rows.length > 0) {
+    if (categoryPresent.length > 0) {
       continue;
     }
     logger.debug(`Copying ${category} reference data in to reference_data table`);
-    await connection.query(
+    await cubeDB.query(
       pgformat('INSERT INTO reference_data (SELECT * FROM reference_data_all WHERE category_key=%L);', category)
     );
   }
 };
 
 async function setupReferenceDataDimension(
-  connection: PoolClient,
+  cubeDB: QueryRunner,
   dimension: Dimension,
   viewSelectStatementsMap: Map<Locale, string[]>,
   rawSelectStatementsMap: Map<Locale, string[]>,
@@ -453,7 +483,7 @@ async function setupReferenceDataDimension(
   columnNames: Map<Locale, Set<string>>,
   joinStatements: string[]
 ): Promise<void> {
-  await loadCorrectReferenceDataIntoReferenceDataTable(connection, dimension);
+  await loadCorrectReferenceDataIntoReferenceDataTable(cubeDB, dimension);
   const refDataInfo = `${makeCubeSafeString(dimension.factTableColumn)}_reference_data_info`;
   const refDataTbl = `${makeCubeSafeString(dimension.factTableColumn)}_reference_data`;
   SUPPORTED_LOCALES.map((locale) => {
@@ -508,7 +538,7 @@ async function setupReferenceDataDimension(
       locale.toLowerCase()
     );
     // logger.debug(`Query = ${query}`);
-    await connection.query(query);
+    await cubeDB.query(query);
   }
 }
 
@@ -537,7 +567,7 @@ export const createDatePeriodTableQuery = (factTableColumn: FactTableColumn, tab
 // This is a short version of validate date dimension code found in the dimension processor.
 // This concise version doesn't return any information on why the creation failed.  Just that it failed
 export async function createDateDimension(
-  connection: PoolClient,
+  cubeDB: QueryRunner,
   extractor: object | null,
   factTableColumn: FactTableColumn
 ): Promise<string> {
@@ -545,15 +575,15 @@ export async function createDateDimension(
     throw new Error('Extractor not supplied');
   }
   const safeColumnName = makeCubeSafeString(factTableColumn.columnName);
-  const columnData: QueryResult<RowData> = await connection.query(
+  const columnData: RowData[] = await cubeDB.query(
     pgformat(`SELECT DISTINCT %I FROM %I;`, factTableColumn.columnName, FACT_TABLE_NAME)
   );
-  const dateDimensionTable = dateDimensionReferenceTableCreator(extractor as DateExtractor, columnData.rows);
-  await connection.query(createDatePeriodTableQuery(factTableColumn));
+  const dateDimensionTable = dateDimensionReferenceTableCreator(extractor as DateExtractor, columnData);
+  await cubeDB.query(createDatePeriodTableQuery(factTableColumn));
 
   // Create the date_dimension table
   for (const row of dateDimensionTable) {
-    await connection.query(
+    await cubeDB.query(
       pgformat('INSERT INTO %I VALUES (%L)', `${safeColumnName}_lookup`, [
         row.dateCode,
         row.lang,
@@ -566,35 +596,35 @@ export async function createDateDimension(
     );
   }
 
-  const periodCoverage: QueryResult<{ start_date: Date; end_date: Date }> = await connection.query(
+  const periodCoverage: { start_date: Date; end_date: Date }[] = await cubeDB.query(
     `SELECT MIN(start_date) AS start_date, MAX(end_date) AS end_date FROM ${safeColumnName}_lookup;`
   );
-  const metaDataCoverage: QueryResult<{ key: string; value: string }> = await connection.query(
+  const metaDataCoverage: { key: string; value: string }[] = await cubeDB.query(
     "SELECT * FROM metadata WHERE key in ('start_date', 'end_date');"
   );
-  logger.debug(`coverage: ${metaDataCoverage.rows.length}`);
-  if (metaDataCoverage.rows.length > 0) {
-    for (const metaData of metaDataCoverage.rows) {
+  logger.debug(`coverage: ${metaDataCoverage.length}`);
+  if (metaDataCoverage.length > 0) {
+    for (const metaData of metaDataCoverage) {
       if (metaData.key === 'start_date') {
-        if (periodCoverage.rows[0].start_date < toZonedTime(metaData.value, 'UTC')) {
-          await connection.query(
-            `UPDATE metadata SET value='${periodCoverage.rows[0].start_date.toISOString()}' WHERE key='start_date';`
+        if (periodCoverage[0].start_date < toZonedTime(metaData.value, 'UTC')) {
+          await cubeDB.query(
+            `UPDATE metadata SET value='${periodCoverage[0].start_date.toISOString()}' WHERE key='start_date';`
           );
         }
       } else if (metaData.key === 'end_date') {
-        if (periodCoverage.rows[0].end_date > toZonedTime(metaData.value, 'UTC')) {
-          await connection.query(
-            `UPDATE metadata SET value='${periodCoverage.rows[0].start_date.toISOString()}' WHERE key='end_date';`
+        if (periodCoverage[0].end_date > toZonedTime(metaData.value, 'UTC')) {
+          await cubeDB.query(
+            `UPDATE metadata SET value='${periodCoverage[0].start_date.toISOString()}' WHERE key='end_date';`
           );
         }
       }
     }
   } else {
-    await connection.query(
-      `INSERT INTO metadata (key, value) VALUES ('start_date', '${periodCoverage.rows[0].start_date.toISOString()}');`
+    await cubeDB.query(
+      `INSERT INTO metadata (key, value) VALUES ('start_date', '${periodCoverage[0].start_date.toISOString()}');`
     );
-    await connection.query(
-      `INSERT INTO metadata (key, value) VALUES ('end_date', '${periodCoverage.rows[0].start_date.toISOString()}');`
+    await cubeDB.query(
+      `INSERT INTO metadata (key, value) VALUES ('end_date', '${periodCoverage[0].start_date.toISOString()}');`
     );
   }
   return `${makeCubeSafeString(factTableColumn.columnName)}_lookup`;
@@ -615,7 +645,7 @@ export const createLookupTableQuery = (
 };
 
 async function setupLookupTableDimension(
-  connection: PoolClient,
+  cubeDB: QueryRunner,
   dataset: Dataset,
   dimension: Dimension,
   viewSelectStatementsMap: Map<Locale, string[]>,
@@ -634,7 +664,8 @@ async function setupLookupTableDimension(
     throw error;
   }
   const dimTable = `${makeCubeSafeString(dimension.factTableColumn)}_lookup`;
-  await createLookupTableDimension(connection, dataset, dimension, factTableColumn);
+  await createLookupTableDimension(cubeDB, dataset, dimension, factTableColumn);
+
   SUPPORTED_LOCALES.map((locale) => {
     const proposedColumnName =
       dimension.metadata.find((info) => info.language === locale)?.name || dimension.factTableColumn;
@@ -650,10 +681,12 @@ async function setupLookupTableDimension(
   joinStatements.push(
     `LEFT JOIN "${dimTable}" on "${dimTable}"."${factTableColumn.columnName}"=${FACT_TABLE_NAME}."${factTableColumn.columnName}" AND "${dimTable}".language=#LANG#`
   );
+
   orderByStatements.push(`"${dimTable}".sort_order`);
+
   for (const locale of SUPPORTED_LOCALES) {
     const columnName = dimension.metadata.find((info) => info.language === locale)?.name || dimension.factTableColumn;
-    await connection.query(
+    await cubeDB.query(
       pgformat(
         `INSERT INTO filter_table
          SELECT DISTINCT CAST(%I AS VARCHAR), language, %L, %L, description, hierarchy
@@ -742,7 +775,7 @@ export async function loadFileIntoLookupTablesSchema(
   await linkToPostgresSchema(quack, 'lookup_tables');
   await quack.exec(pgformat('CREATE TABLE lookup_tables_db.%I AS SELECT * FROM memory.%I;', lookupTable.id, dimTable));
   await quack.close();
-  performanceReporting(start - performance.now(), 500, 'Loading a lookup table in to postgres');
+  performanceReporting(Math.round(start - performance.now()), 500, 'Loading a lookup table in to postgres');
 }
 
 export async function loadFileIntoDataTablesSchema(
@@ -764,17 +797,17 @@ export async function loadFileIntoDataTablesSchema(
     pgformat('CREATE TABLE data_tables_db.%I AS SELECT * FROM memory.%I;', dataTable.id, FACT_TABLE_NAME)
   );
   await quack.close();
-  performanceReporting(start - performance.now(), 500, 'Loading a lookup table in to postgres');
+  performanceReporting(Math.round(start - performance.now()), 500, 'Loading a data table in to postgres');
 }
 
 export async function createLookupTableDimension(
-  connection: PoolClient,
+  cubeDB: QueryRunner,
   dataset: Dataset,
   dimension: Dimension,
   factTableColumn: FactTableColumn
 ): Promise<string> {
   logger.debug(`Creating and validating lookup table dimension ${dimension.factTableColumn}`);
-  const lookupTablePresent: QueryResult = await connection.query(
+  const lookupTablePresent = await cubeDB.query(
     pgformat(
       'SELECT * FROM information_schema.tables WHERE table_schema = %L AND table_name = %L',
       'lookup_tables',
@@ -782,7 +815,7 @@ export async function createLookupTableDimension(
     )
   );
 
-  if (lookupTablePresent.rows.length === 0) {
+  if (lookupTablePresent.length === 0) {
     logger.warn('Lookup table not loaded in to lookup table schema.  Loading lookup table from blob storage.');
     await loadFileIntoLookupTablesSchema(
       dataset,
@@ -794,7 +827,7 @@ export async function createLookupTableDimension(
   }
 
   const dimTable = `${makeCubeSafeString(factTableColumn.columnName)}_lookup`;
-  await connection.query(
+  await cubeDB.query(
     pgformat('CREATE TABLE %I AS SELECT * FROM lookup_tables.%I;', dimTable, dimension.lookupTable!.id)
   );
   return dimTable;
@@ -817,7 +850,7 @@ function setupFactTableUpdateJoins(
 }
 
 async function loadFactTablesWithUpdates(
-  connection: PoolClient,
+  cubeDB: QueryRunner,
   dataset: Dataset,
   allDataTables: DataTable[],
   factTableDef: string[],
@@ -828,7 +861,7 @@ async function loadFactTablesWithUpdates(
   for (const dataTable of allDataTables.sort((ftA, ftB) => ftA.uploadedAt.getTime() - ftB.uploadedAt.getTime())) {
     const actionID = crypto.randomUUID();
     logger.debug(`Checking data table data exists in postgres data_tables schema`);
-    const dataTablePresent: QueryResult = await connection.query(
+    const dataTablePresent = await cubeDB.query(
       pgformat(
         'SELECT * FROM information_schema.tables WHERE table_schema = %L AND table_name = %L',
         'data_tables',
@@ -836,7 +869,7 @@ async function loadFactTablesWithUpdates(
       )
     );
 
-    if (dataTablePresent.rows.length === 0) {
+    if (dataTablePresent.length === 0) {
       logger.warn('Data table not loaded in to data_tables schema.  Loading data table from blob storage.');
       await loadFileIntoDataTablesSchema(dataset, dataTable);
     }
@@ -906,26 +939,26 @@ async function loadFactTablesWithUpdates(
       logger.debug(`Performing action ${dataTable.action} on fact table`);
       switch (dataTable.action) {
         case DataTableAction.ReplaceAll:
-          await connection.query(pgformat('DELETE FROM %I;', FACT_TABLE_NAME));
+          await cubeDB.query(pgformat('DELETE FROM %I;', FACT_TABLE_NAME));
         // eslint-disable-next-line no-fallthrough
         case DataTableAction.Add:
-          await loadTableDataIntoFactTableFromPostgres(connection, factTableDef, FACT_TABLE_NAME, dataTable.id);
+          await loadTableDataIntoFactTableFromPostgres(cubeDB, factTableDef, FACT_TABLE_NAME, dataTable.id);
           break;
         case DataTableAction.Revise:
           if (!doRevision) continue;
           logger.debug(`Executing create temporary update table query: ${createUpdateTableQuery}`);
-          await connection.query(createUpdateTableQuery);
+          await cubeDB.query(createUpdateTableQuery);
           logger.debug(`Executing update query: ${updateQuery}`);
-          await connection.query(updateQuery);
+          await cubeDB.query(updateQuery);
           break;
         case DataTableAction.AddRevise:
           if (!doRevision) continue;
           logger.debug(`Executing create temporary update table query: ${createUpdateTableQuery}`);
-          await connection.query(createUpdateTableQuery);
+          await cubeDB.query(createUpdateTableQuery);
           logger.debug(`Executing update query: ${updateQuery}`);
-          await connection.query(updateQuery);
-          await connection.query(deleteQuery);
-          await connection.query(
+          await cubeDB.query(updateQuery);
+          await cubeDB.query(deleteQuery);
+          await cubeDB.query(
             pgformat(
               'INSERT INTO %I (%I) (SELECT %I FROM %I);',
               FACT_TABLE_NAME,
@@ -943,7 +976,7 @@ async function loadFactTablesWithUpdates(
 }
 
 export async function loadFactTables(
-  connection: PoolClient,
+  cubeDB: QueryRunner,
   dataset: Dataset,
   endRevision: Revision,
   factTableDef: string[],
@@ -951,7 +984,6 @@ export async function loadFactTables(
   notesCodeColumn: FactTableColumn | undefined,
   factIdentifiers: FactTableColumn[]
 ): Promise<void> {
-  // Find all the fact tables for the given revision
   logger.debug('Finding all fact tables for this revision and those that came before');
   const allFactTables: DataTable[] = [];
   if (endRevision.revisionIndex && endRevision.revisionIndex > 0) {
@@ -984,7 +1016,7 @@ export async function loadFactTables(
   try {
     logger.debug(`Loading ${allFactTables.length} fact tables in to database with updates`);
     await loadFactTablesWithUpdates(
-      connection,
+      cubeDB,
       dataset,
       allFactTables.reverse(),
       factTableDef,
@@ -1032,7 +1064,7 @@ export const NoteCodes: NoteCodeItem[] = [
 ];
 
 async function createNotesTable(
-  connection: PoolClient,
+  cubeDB: QueryRunner,
   notesColumn: FactTableColumn,
   viewSelectStatementsMap: Map<Locale, string[]>,
   rawSelectStatementsMap: Map<Locale, string[]>,
@@ -1043,7 +1075,7 @@ async function createNotesTable(
 ): Promise<void> {
   logger.info('Creating notes table...');
   try {
-    await connection.query(
+    await cubeDB.query(
       `CREATE TABLE note_codes (code VARCHAR, language VARCHAR, tag VARCHAR, description VARCHAR, notes VARCHAR);`
     );
     for (const locale of SUPPORTED_LOCALES) {
@@ -1055,12 +1087,12 @@ async function createNotesTable(
           t(`note_codes.${noteCode.tag}`, { lng: locale }),
           null
         ]);
-        await connection.query(query);
+        await cubeDB.query(query);
       }
     }
     logger.info('Creating notes table view...');
     // We perform join operations to this view as we want to turn a csv such as `a,r` in to `Average, Revised`.
-    await connection.query(
+    await cubeDB.query(
       `CREATE TABLE all_notes AS SELECT fact_table."${notesColumn.columnName}" as code, note_codes.language as language, string_agg(DISTINCT note_codes.description, ', ') as description
             from fact_table JOIN note_codes ON array_position(string_to_array(fact_table."${notesColumn.columnName}", ','), note_codes.code) IS NOT NULL
             GROUP BY fact_table."${notesColumn.columnName}", note_codes.language;`
@@ -1171,27 +1203,24 @@ export const measureTableCreateStatement = (joinColumnType: string, tableName = 
 };
 
 export async function createMeasureLookupTable(
-  connection: PoolClient,
+  cubeDB: QueryRunner,
   measureColumn: FactTableColumn,
   measureTable: MeasureRow[]
 ): Promise<void> {
-  await connection.query(measureTableCreateStatement(measureColumn.columnDatatype));
+  await cubeDB.query(measureTableCreateStatement(measureColumn.columnDatatype));
   for (const row of measureTable) {
-    const query = {
-      text: 'INSERT INTO measure VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9);',
-      values: [
-        row.reference,
-        row.language.toLowerCase(),
-        row.description,
-        row.notes ? row.notes : null,
-        row.sortOrder ? row.sortOrder : null,
-        row.format,
-        row.decimal ? row.decimal : null,
-        row.measureType ? row.measureType : null,
-        row.hierarchy ? row.hierarchy : null
-      ]
-    };
-    await connection.query(query);
+    const values = [
+      row.reference,
+      row.language.toLowerCase(),
+      row.description,
+      row.notes ? row.notes : null,
+      row.sortOrder ? row.sortOrder : null,
+      row.format,
+      row.decimal ? row.decimal : null,
+      row.measureType ? row.measureType : null,
+      row.hierarchy ? row.hierarchy : null
+    ];
+    await cubeDB.query('INSERT INTO measure VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)', values);
   }
 }
 
@@ -1292,7 +1321,7 @@ interface UniqueMeasureDetails {
 }
 
 async function setupMeasures(
-  connection: PoolClient,
+  cubeDB: QueryRunner,
   dataset: Dataset,
   dataValuesColumn: FactTableColumn,
   measureColumn: FactTableColumn,
@@ -1309,15 +1338,15 @@ async function setupMeasures(
   // Process the column that represents the measure
   if (dataset.measure && dataset.measure.measureTable && dataset.measure.measureTable.length > 0) {
     logger.debug('Measure present in dataset. Creating measure table...');
-    await createMeasureLookupTable(connection, measureColumn, dataset.measure.measureTable);
+    await createMeasureLookupTable(cubeDB, measureColumn, dataset.measure.measureTable);
 
     logger.debug('Creating query part to format the data value correctly');
 
-    const uniqueReferences: QueryResult<UniqueMeasureDetails> = await connection.query(
+    const uniqueReferences: UniqueMeasureDetails[] = await cubeDB.query(
       pgformat('SELECT DISTINCT reference, format, sort_order, decimals FROM measure;')
     );
     const caseStatements: string[] = ['CASE'];
-    for (const row of uniqueReferences.rows) {
+    for (const row of uniqueReferences) {
       const statement = postgresMeasureFormats()
         .get(row.format.toLowerCase())
         ?.method.replace('|REF|', pgformat('%L', row.reference))
@@ -1406,7 +1435,7 @@ async function setupMeasures(
     for (const locale of SUPPORTED_LOCALES) {
       const columnName =
         dataset.measure.metadata.find((info) => info.language === locale)?.name || dataset.measure.factTableColumn;
-      await connection.query(
+      await cubeDB.query(
         pgformat(
           `INSERT INTO filter_table SELECT CAST(reference AS VARCHAR), language, %L, %L, description, CAST(hierarchy AS VARCHAR) FROM measure WHERE language = %L`,
           measureColumn.columnName,
@@ -1439,7 +1468,7 @@ function updateColumnName(existingColumnNames: Set<string>, proposedColumnName: 
 }
 
 async function rawDimensionProcessor(
-  connection: PoolClient,
+  cubeDB: QueryRunner,
   dimension: Dimension,
   viewSelectStatementsMap: Map<Locale, string[]>,
   rawSelectStatementsMap: Map<Locale, string[]>,
@@ -1461,9 +1490,10 @@ async function rawDimensionProcessor(
     rawSortSelectStatementsMap.get(locale)?.push(pgformat('%I AS %I', dimension.factTableColumn, columnName));
     rawSortSelectStatementsMap.get(locale)?.push(pgformat('%I AS %I', dimension.factTableColumn, `${columnName}_sort`));
   });
+
   for (const locale of SUPPORTED_LOCALES) {
     const columnName = dimension.metadata.find((info) => info.language === locale)?.name || dimension.factTableColumn;
-    await connection.query(
+    await cubeDB.query(
       pgformat(
         `INSERT INTO filter_table
          SELECT DISTINCT CAST(%I AS VARCHAR), %L, %L, %L, CAST (%I AS VARCHAR), NULL
@@ -1480,7 +1510,7 @@ async function rawDimensionProcessor(
 }
 
 async function dateDimensionProcessor(
-  connection: PoolClient,
+  cubeDB: QueryRunner,
   factTableColumn: FactTableColumn,
   dimension: Dimension,
   viewSelectStatementsMap: Map<Locale, string[]>,
@@ -1492,7 +1522,7 @@ async function dateDimensionProcessor(
   orderByStatements: string[]
 ): Promise<string> {
   const dimTable = `${makeCubeSafeString(dimension.factTableColumn)}_lookup`;
-  await createDateDimension(connection, dimension.extractor, factTableColumn);
+  await createDateDimension(cubeDB, dimension.extractor, factTableColumn);
   for (const locale of SUPPORTED_LOCALES) {
     const proposedColumnName =
       dimension.metadata.find((info) => info.language === locale)?.name || dimension.factTableColumn;
@@ -1546,7 +1576,7 @@ async function dateDimensionProcessor(
       dimTable,
       locale.toLowerCase()
     );
-    await connection.query(insertQuery);
+    await cubeDB.query(insertQuery);
   }
   joinStatements.push(
     pgformat(
@@ -1564,7 +1594,7 @@ async function dateDimensionProcessor(
 }
 
 async function setupNumericDimension(
-  connection: PoolClient,
+  cubeDB: QueryRunner,
   dimension: Dimension,
   viewSelectStatementsMap: Map<Locale, string[]>,
   rawSelectStatementsMap: Map<Locale, string[]>,
@@ -1673,9 +1703,10 @@ async function setupNumericDimension(
         );
     }
   });
+
   for (const locale of SUPPORTED_LOCALES) {
     const columnName = dimension.metadata.find((info) => info.language === locale)?.name || dimension.factTableColumn;
-    await connection.query(
+    await cubeDB.query(
       pgformat(
         `INSERT INTO filter_table
          SELECT DISTINCT CAST(%I AS VARCHAR), %L, %L, %L, CAST (%I AS VARCHAR), NULL
@@ -1692,7 +1723,7 @@ async function setupNumericDimension(
 }
 
 async function setupTextDimension(
-  connection: PoolClient,
+  cubeDB: QueryRunner,
   dimension: Dimension,
   viewSelectStatementsMap: Map<Locale, string[]>,
   rawSelectStatementsMap: Map<Locale, string[]>,
@@ -1724,9 +1755,10 @@ async function setupTextDimension(
       .get(locale)
       ?.push(pgformat('CAST(%I AS VARCHAR) AS %I', dimension.factTableColumn, `${columnName}_sort`));
   });
+
   for (const locale of SUPPORTED_LOCALES) {
     const columnName = dimension.metadata.find((info) => info.language === locale)?.name || dimension.factTableColumn;
-    await connection.query(
+    await cubeDB.query(
       pgformat(
         `INSERT INTO filter_table
          SELECT DISTINCT CAST(%I AS VARCHAR), %L, %L, %L, CAST (%I AS VARCHAR), NULL
@@ -1743,7 +1775,7 @@ async function setupTextDimension(
 }
 
 async function setupDimensions(
-  connection: PoolClient,
+  cubeDB: QueryRunner,
   dataset: Dataset,
   endRevision: Revision,
   viewSelectStatementsMap: Map<Locale, string[]>,
@@ -1791,7 +1823,7 @@ async function setupDimensions(
         case DimensionType.Date:
           if (dimension.extractor) {
             tableName = await dateDimensionProcessor(
-              connection,
+              cubeDB,
               factTableColumn,
               dimension,
               viewSelectStatementsMap,
@@ -1805,7 +1837,7 @@ async function setupDimensions(
             lookupTables.add(tableName);
           } else {
             await rawDimensionProcessor(
-              connection,
+              cubeDB,
               dimension,
               viewSelectStatementsMap,
               rawSelectStatementsMap,
@@ -1824,7 +1856,7 @@ async function setupDimensions(
             if (updateInProgressDimension && !updateInProgressDimension.lookupTableUpdated) {
               logger.warn(`Skipping dimension ${dimension.id} as it has not been updated`);
               await rawDimensionProcessor(
-                connection,
+                cubeDB,
                 dimension,
                 viewSelectStatementsMap,
                 rawSelectStatementsMap,
@@ -1836,7 +1868,7 @@ async function setupDimensions(
             }
           }
           tableName = await setupLookupTableDimension(
-            connection,
+            cubeDB,
             dataset,
             dimension,
             viewSelectStatementsMap,
@@ -1851,7 +1883,7 @@ async function setupDimensions(
           break;
         case DimensionType.ReferenceData:
           await setupReferenceDataDimension(
-            connection,
+            cubeDB,
             dimension,
             viewSelectStatementsMap,
             rawSelectStatementsMap,
@@ -1870,7 +1902,7 @@ async function setupDimensions(
           break;
         case DimensionType.Numeric:
           await setupNumericDimension(
-            connection,
+            cubeDB,
             dimension,
             viewSelectStatementsMap,
             rawSelectStatementsMap,
@@ -1881,7 +1913,7 @@ async function setupDimensions(
           break;
         case DimensionType.Text:
           await setupTextDimension(
-            connection,
+            cubeDB,
             dimension,
             viewSelectStatementsMap,
             rawSelectStatementsMap,
@@ -1893,7 +1925,7 @@ async function setupDimensions(
         case DimensionType.Raw:
         case DimensionType.Symbol:
           await rawDimensionProcessor(
-            connection,
+            cubeDB,
             dimension,
             viewSelectStatementsMap,
             rawSelectStatementsMap,
@@ -1907,7 +1939,7 @@ async function setupDimensions(
       logger.error(err, `Something went wrong trying to load dimension ${dimension.id} in to the cube`);
       throw new Error(`Could not load dimensions ${dimension.id} in to the cube with the following error: ${err}`);
     }
-    await connection.query(
+    await cubeDB.query(
       pgformat('INSERT INTO metadata VALUES (%L, %L)', 'lookup_tables', JSON.stringify(Array.from(lookupTables)))
     );
     performanceReporting(Math.round(performance.now() - dimStart), 1000, `Setting up ${dimension.type} dimension type`);
@@ -1924,7 +1956,7 @@ interface FactTableInfo {
 }
 
 export async function createEmptyFactTableInCube(
-  connection: PoolClient,
+  cubeDB: QueryRunner,
   dataset: Dataset,
   buildId: string
 ): Promise<FactTableInfo> {
@@ -1971,7 +2003,7 @@ export async function createEmptyFactTableInCube(
       factTableCreationDef.join(', ')
     );
     // logger.debug(`Creating fact table with query: '${createQuery}'`);
-    await connection.query(factTableCreationQuery);
+    await cubeDB.query(factTableCreationQuery);
   } catch (err) {
     logger.error(err, `Failed to create fact table in cube`);
     throw new Error(`Failed to create fact table in cube: ${err}`);
@@ -1983,14 +2015,14 @@ export async function createEmptyFactTableInCube(
 }
 
 export const updateFactTableValidator = async (
-  connection: PoolClient,
+  cubeDB: QueryRunner,
   buildID: string,
   dataset: Dataset,
   revision: Revision
 ): Promise<void> => {
-  const factTableInfo = await createEmptyFactTableInCube(connection, dataset, buildID);
+  const factTableInfo = await createEmptyFactTableInCube(cubeDB, dataset, buildID);
   await loadFactTables(
-    connection,
+    cubeDB,
     dataset,
     revision,
     factTableInfo.factTableDef,
@@ -1998,24 +2030,18 @@ export const updateFactTableValidator = async (
     factTableInfo.notesCodeColumn,
     factTableInfo.factIdentifiers
   );
-  await createPrimaryKeyOnFactTable(connection, revision, factTableInfo.compositeKey);
+  await createPrimaryKeyOnFactTable(cubeDB, revision, factTableInfo.compositeKey);
 };
 
 async function createPrimaryKeyOnFactTable(
-  connection: PoolClient,
+  cubeDB: QueryRunner,
   revision: Revision,
   compositeKey: string[]
 ): Promise<void> {
   logger.debug('Creating primary key on fact table');
   try {
-    const alterTableQuery = pgformat(
-      'ALTER TABLE %I.%I ADD PRIMARY KEY (%I)',
-      revision.id,
-      FACT_TABLE_NAME,
-      compositeKey
-    );
-    logger.debug(`Alter Table query = ${alterTableQuery}`);
-    await connection.query(alterTableQuery);
+    const addPKQuery = pgformat('ALTER TABLE %I.%I ADD PRIMARY KEY (%I)', revision.id, FACT_TABLE_NAME, compositeKey);
+    await cubeDB.query(addPKQuery);
   } catch (error) {
     logger.error(error, `Failed to add primary key to the fact table`);
     if ((error as Error).message.includes('could not create unique index')) {
@@ -2038,40 +2064,36 @@ async function createPrimaryKeyOnFactTable(
   }
 }
 
-export async function createCubeMetadataTable(
-  connection: PoolClient,
-  revisionId: string,
-  buildId: string
-): Promise<void> {
+export async function createCubeMetadataTable(cubeDB: QueryRunner, revisionId: string, buildId: string): Promise<void> {
   logger.debug('Adding metadata table to the cube');
-  await connection.query(`CREATE TABLE IF NOT EXISTS metadata (key VARCHAR, value VARCHAR);`);
-  await connection.query(pgformat('INSERT INTO metadata VALUES (%L, %L);', 'revision_id', revisionId));
-  await connection.query(pgformat('INSERT INTO metadata VALUES (%L, %L);', 'build_id', buildId));
-  await connection.query(pgformat('INSERT INTO metadata VALUES (%L, %L);', 'build_start', new Date().toISOString()));
-  await connection.query(pgformat('INSERT INTO metadata VALUES (%L, %L);', 'build_status', 'incomplete'));
+  await cubeDB.query(`CREATE TABLE IF NOT EXISTS metadata (key VARCHAR, value VARCHAR);`);
+  await cubeDB.query(pgformat('INSERT INTO metadata VALUES (%L, %L);', 'revision_id', revisionId));
+  await cubeDB.query(pgformat('INSERT INTO metadata VALUES (%L, %L);', 'build_id', buildId));
+  await cubeDB.query(pgformat('INSERT INTO metadata VALUES (%L, %L);', 'build_start', new Date().toISOString()));
+  await cubeDB.query(pgformat('INSERT INTO metadata VALUES (%L, %L);', 'build_status', 'incomplete'));
 }
 
-async function createFilterTable(connection: PoolClient): Promise<void> {
+async function createCubeFilterTable(cubeDB: QueryRunner): Promise<void> {
   const start = performance.now();
   logger.debug('Creating filter table to the cube');
   const createFilterQuery = pgformat(
     `
       CREATE TABLE %s (
-          reference VARCHAR,
-          language VARCHAR,
-          fact_table_column VARCHAR,
-          dimension_name VARCHAR,
-          description VARCHAR,
-          hierarchy VARCHAR,
-          PRIMARY KEY (reference, language, fact_table_column)
+        reference VARCHAR,
+        language VARCHAR,
+        fact_table_column VARCHAR,
+        dimension_name VARCHAR,
+        description VARCHAR,
+        hierarchy VARCHAR,
+        PRIMARY KEY (reference, language, fact_table_column)
       );
     `,
     'filter_table'
   );
-  await connection.query(createFilterQuery);
+  await cubeDB.query(createFilterQuery);
   const end = performance.now();
   const timing = Math.round(end - start);
-  logger.debug(`createFilterTable: ${timing}ms`);
+  logger.debug(`createCubeFilterTable: ${timing}ms`);
 }
 
 // Builds a fresh cube from either from a protocube or completely from scratch
@@ -2088,13 +2110,13 @@ async function createFilterTable(connection: PoolClient): Promise<void> {
 // Function should be able to generate a cube just from a fact table or collection
 // of fact tables.
 export const createBasePostgresCube = async (
-  connection: PoolClient,
+  cubeDB: QueryRunner,
   buildId: string,
   dataset: Dataset,
   endRevision: Revision
 ): Promise<void> => {
   logger.debug(`Starting build ${buildId} and Creating base cube for revision ${endRevision.id}`);
-  await connection.query(pgformat(`SET search_path TO %I;`, buildId));
+  await cubeDB.query(pgformat(`SET search_path TO %I;`, buildId));
   const functionStart = performance.now();
   const viewSelectStatementsMap = new Map<Locale, string[]>();
   const rawSelectStatementsMap = new Map<Locale, string[]>();
@@ -2126,14 +2148,14 @@ export const createBasePostgresCube = async (
   }
 
   const buildStart = performance.now();
-  const factTableInfo = await createEmptyFactTableInCube(connection, dataset, buildId);
-  await createCubeMetadataTable(connection, endRevision.id, buildId);
-  await createFilterTable(connection);
+  const factTableInfo = await createEmptyFactTableInCube(cubeDB, dataset, buildId);
+  await createCubeMetadataTable(cubeDB, endRevision.id, buildId);
+  await createCubeFilterTable(cubeDB);
   performanceReporting(Math.round(performance.now() - functionStart), 1000, 'Base table creation');
   try {
     const loadFactTablesStart = performance.now();
     await loadFactTables(
-      connection,
+      cubeDB,
       dataset,
       endRevision,
       factTableInfo.factTableDef,
@@ -2143,7 +2165,7 @@ export const createBasePostgresCube = async (
     );
     performanceReporting(Math.round(performance.now() - loadFactTablesStart), 1000, 'Loading all the data tables');
   } catch (err) {
-    await connection.query(`UPDATE metadata SET value = 'failed' WHERE key = 'build_status'`);
+    await cubeDB.query(`UPDATE metadata SET value = 'failed' WHERE key = 'build_status'`);
     logger.error(err, `Failed to load fact tables into the cube`);
     throw new Error(`Failed to load fact tables into the cube: ${err}`);
   }
@@ -2152,7 +2174,7 @@ export const createBasePostgresCube = async (
   if (factTableInfo.measureColumn && factTableInfo.dataValuesColumn) {
     try {
       await setupMeasures(
-        connection,
+        cubeDB,
         dataset,
         factTableInfo.dataValuesColumn,
         factTableInfo.measureColumn,
@@ -2165,7 +2187,7 @@ export const createBasePostgresCube = async (
         orderByStatements
       );
     } catch (err) {
-      await connection.query(`UPDATE metadata SET value = 'failed' WHERE key = 'build_status'`);
+      await cubeDB.query(`UPDATE metadata SET value = 'failed' WHERE key = 'build_status'`);
       logger.error(err, `Failed to setup measures`);
       throw new Error(`Failed to setup measures: ${err}`);
     }
@@ -2184,7 +2206,7 @@ export const createBasePostgresCube = async (
 
   if (dataset.dimensions.find((dim) => dim.type === DimensionType.ReferenceData)) {
     const loadReferenceDataMark = performance.now();
-    await loadReferenceDataIntoCube(connection);
+    await loadReferenceDataIntoCube(buildId);
     performanceReporting(
       Math.round(performance.now() - loadReferenceDataMark),
       1000,
@@ -2195,7 +2217,7 @@ export const createBasePostgresCube = async (
   const dimensionSetupMark = performance.now();
   try {
     await setupDimensions(
-      connection,
+      cubeDB,
       dataset,
       endRevision,
       viewSelectStatementsMap,
@@ -2207,7 +2229,7 @@ export const createBasePostgresCube = async (
       orderByStatements
     );
   } catch (err) {
-    await connection.query(`UPDATE metadata SET value = 'failed' WHERE key = 'build_status'`);
+    await cubeDB.query(`UPDATE metadata SET value = 'failed' WHERE key = 'build_status'`);
     logger.error(err, `Failed to setup dimensions`);
     throw new Error(`Failed to setup dimensions`);
   }
@@ -2217,7 +2239,7 @@ export const createBasePostgresCube = async (
   logger.debug('Adding notes code column to the select statement.');
   if (factTableInfo.notesCodeColumn) {
     await createNotesTable(
-      connection,
+      cubeDB,
       factTableInfo.notesCodeColumn,
       viewSelectStatementsMap,
       rawSelectStatementsMap,
@@ -2255,8 +2277,8 @@ export const createBasePostgresCube = async (
         joinStatements.join('\n').replace(/#LANG#/g, pgformat('%L', locale.toLowerCase())),
         orderByStatements.length > 0 ? `ORDER BY ${orderByStatements.join(', ')}` : ''
       );
-      await connection.query(pgformat('CREATE VIEW %I AS %s', `default_view_${lang}`, defaultViewSQL));
-      await connection.query(pgformat(`INSERT INTO metadata VALUES (%L, %L)`, `default_view_${lang}`, defaultViewSQL));
+      await cubeDB.query(pgformat('CREATE VIEW %I AS %s', `default_view_${lang}`, defaultViewSQL));
+      await cubeDB.query(pgformat(`INSERT INTO metadata VALUES (%L, %L)`, `default_view_${lang}`, defaultViewSQL));
 
       const rawViewSQL = pgformat(
         'SELECT %s FROM %I %s %s',
@@ -2265,8 +2287,8 @@ export const createBasePostgresCube = async (
         joinStatements.join('\n').replace(/#LANG#/g, pgformat('%L', locale.toLowerCase())),
         orderByStatements.length > 0 ? `ORDER BY ${orderByStatements.join(', ')}` : ''
       );
-      await connection.query(pgformat('CREATE VIEW %I AS %s', `raw_view_${lang}`, rawViewSQL));
-      await connection.query(pgformat(`INSERT INTO metadata VALUES (%L, %L)`, `raw_view_${lang}`, rawViewSQL));
+      await cubeDB.query(pgformat('CREATE VIEW %I AS %s', `raw_view_${lang}`, rawViewSQL));
+      await cubeDB.query(pgformat(`INSERT INTO metadata VALUES (%L, %L)`, `raw_view_${lang}`, rawViewSQL));
 
       const defaultSortViewSQL = pgformat(
         'SELECT %s FROM %I %s %s',
@@ -2275,8 +2297,8 @@ export const createBasePostgresCube = async (
         joinStatements.join('\n').replace(/#LANG#/g, pgformat('%L', locale.toLowerCase())),
         orderByStatements.length > 0 ? `ORDER BY ${orderByStatements.join(', ')}` : ''
       );
-      await connection.query(pgformat('CREATE VIEW %I AS %s', `default_sort_view_${lang}`, defaultSortViewSQL));
-      await connection.query(
+      await cubeDB.query(pgformat('CREATE VIEW %I AS %s', `default_sort_view_${lang}`, defaultSortViewSQL));
+      await cubeDB.query(
         pgformat(`INSERT INTO metadata VALUES (%L, %L)`, `default_sort_view_${lang}`, defaultSortViewSQL)
       );
 
@@ -2287,11 +2309,11 @@ export const createBasePostgresCube = async (
         joinStatements.join('\n').replace(/#LANG#/g, pgformat('%L', locale.toLowerCase())),
         orderByStatements.length > 0 ? `ORDER BY ${orderByStatements.join(', ')}` : ''
       );
-      await connection.query(pgformat('CREATE VIEW %I AS %s', `raw_sort_view_${lang}`, rawSortViewSQL));
-      await connection.query(pgformat(`INSERT INTO metadata VALUES (%L, %L)`, `raw_sort_view_${lang}`, rawSortViewSQL));
+      await cubeDB.query(pgformat('CREATE VIEW %I AS %s', `raw_sort_view_${lang}`, rawSortViewSQL));
+      await cubeDB.query(pgformat(`INSERT INTO metadata VALUES (%L, %L)`, `raw_sort_view_${lang}`, rawSortViewSQL));
 
       if (Array.from(columnNames.get(locale)?.values() || []).length > 0) {
-        await connection.query(
+        await cubeDB.query(
           pgformat(
             `INSERT INTO metadata VALUES (%L, %L)`,
             `display_columns_${lang}`,
@@ -2300,14 +2322,14 @@ export const createBasePostgresCube = async (
         );
       } else {
         const cols = dataset.factTable?.map((col) => col.columnName);
-        await connection.query(
+        await cubeDB.query(
           pgformat(`INSERT INTO metadata VALUES (%L, %L)`, `display_columns_${lang}`, JSON.stringify(cols))
         );
       }
     }
-    await connection.query(`UPDATE metadata SET value = 'awaiting_materialization' WHERE key = 'build_status'`);
+    await cubeDB.query(`UPDATE metadata SET value = 'awaiting_materialization' WHERE key = 'build_status'`);
   } catch (error) {
-    await connection.query(`UPDATE metadata SET value = 'failed' WHERE key = 'build_status'`);
+    await cubeDB.query(`UPDATE metadata SET value = 'failed' WHERE key = 'build_status'`);
     performanceReporting(Math.round(performance.now() - viewCreation), 3000, 'Setting up the default views');
     logger.error(error, 'Something went wrong trying to create the default views in the cube.');
     const exception = new CubeValidationException('Cube Build Failed');
@@ -2352,66 +2374,58 @@ export const createFilesForDownload = async (
 };
 
 export const createMaterialisedView = async (revisionId: string): Promise<void> => {
-  const connection = await getCubeDB().connect();
-  await connection.query(pgformat(`SET search_path TO %I;`, revisionId));
+  const cubeDB = dbManager.getCubeDataSource().createQueryRunner();
   logger.info(`Creating default views...`);
   const viewCreation = performance.now();
   // Build the default views
   try {
+    await cubeDB.query(pgformat(`SET search_path TO %I;`, revisionId));
     for (const locale of SUPPORTED_LOCALES) {
       const lang = locale.toLowerCase().split('-')[0];
-      const originalDefaultViewMetadata: QueryResult<{ value: string }> = await connection.query(
+      const originalDefaultViewMetadata: { value: string }[] = await cubeDB.query(
         pgformat('SELECT value FROM metadata WHERE key = %L', `default_view_${lang}`)
       );
-      await connection.query(
-        pgformat(
-          'CREATE MATERIALIZED VIEW %I AS %s',
-          `default_mat_view_${lang}`,
-          originalDefaultViewMetadata.rows[0].value
-        )
+      await cubeDB.query(
+        pgformat('CREATE MATERIALIZED VIEW %I AS %s', `default_mat_view_${lang}`, originalDefaultViewMetadata[0].value)
       );
 
-      const originalRawViewMetadata: QueryResult<{ value: string }> = await connection.query(
+      const originalRawViewMetadata: { value: string }[] = await cubeDB.query(
         pgformat('SELECT value FROM metadata WHERE key = %L', `raw_view_${lang}`)
       );
-      await connection.query(
-        pgformat('CREATE MATERIALIZED VIEW %I AS %s', `raw_mat_view_${lang}`, originalRawViewMetadata.rows[0].value)
+      await cubeDB.query(
+        pgformat('CREATE MATERIALIZED VIEW %I AS %s', `raw_mat_view_${lang}`, originalRawViewMetadata[0].value)
       );
 
-      const originalDefaultSortViewMetadata: QueryResult<{ value: string }> = await connection.query(
+      const originalDefaultSortViewMetadata: { value: string }[] = await cubeDB.query(
         pgformat('SELECT value FROM metadata WHERE key = %L', `default_sort_view_${lang}`)
       );
-      await connection.query(
+      await cubeDB.query(
         pgformat(
           'CREATE MATERIALIZED VIEW %I AS %s',
           `default_sort_mat_view_${lang}`,
-          originalDefaultSortViewMetadata.rows[0].value
+          originalDefaultSortViewMetadata[0].value
         )
       );
 
-      const originalRawSortViewMetadata: QueryResult<{ value: string }> = await connection.query(
+      const originalRawSortViewMetadata: { value: string }[] = await cubeDB.query(
         pgformat('SELECT value FROM metadata WHERE key = %L', `raw_sort_view_${lang}`)
       );
-      await connection.query(
-        pgformat(
-          'CREATE MATERIALIZED VIEW %I AS %s',
-          `raw_sort_mat_view_${lang}`,
-          originalRawSortViewMetadata.rows[0].value
-        )
+      await cubeDB.query(
+        pgformat('CREATE MATERIALIZED VIEW %I AS %s', `raw_sort_mat_view_${lang}`, originalRawSortViewMetadata[0].value)
       );
     }
-    await connection.query(`UPDATE metadata SET value = 'complete' WHERE key = 'build_status'`);
-    await connection.query(`INSERT INTO metadata VALUES('build_finished', '${new Date().toISOString()}')`);
+    await cubeDB.query(`UPDATE metadata SET value = 'complete' WHERE key = 'build_status'`);
+    await cubeDB.query(`INSERT INTO metadata VALUES('build_finished', '${new Date().toISOString()}')`);
   } catch (error) {
     try {
-      await connection.query(`UPDATE metadata SET value = 'failed' WHERE key = 'build_status'`);
+      await cubeDB.query(`UPDATE metadata SET value = 'failed' WHERE key = 'build_status'`);
     } catch (err) {
       logger.error(err, 'Apparently cube no longer exists');
     }
     performanceReporting(Math.round(performance.now() - viewCreation), 3000, 'Setting up the materialized views');
     logger.error(error, 'Something went wrong trying to create the materialized views in the cube.');
   } finally {
-    connection.release();
+    cubeDB.release();
   }
   performanceReporting(Math.round(performance.now() - viewCreation), 3000, 'Setting up the materialized views');
 };
@@ -2434,28 +2448,28 @@ export const createAllCubeFiles = async (datasetId: string, endRevisionId: strin
     throw new CubeValidationException('Failed to find endRevision in dataset.');
   }
 
-  const connection = await getCubeDB().connect();
+  const cubeDB = dbManager.getCubeDataSource().createQueryRunner();
   const buildId = `build_${crypto.randomUUID()}`;
 
   try {
-    logger.info(`Creating schema for cube build ${buildId}`);
-    await connection.query(pgformat(`CREATE SCHEMA IF NOT EXISTS %I;`, buildId));
+    logger.info(`Creating schema for cube ${buildId}`);
+    await cubeDB.query(pgformat(`CREATE SCHEMA IF NOT EXISTS %I;`, buildId));
   } catch (error) {
     logger.error(error, 'Something went wrong trying to create the cube schema');
-    connection.release();
+    cubeDB.release();
     throw error;
   }
 
   try {
-    logger.debug('Creating cube in postgres.');
-    await createBasePostgresCube(connection, buildId, dataset, endRevision);
-    await connection.query(pgformat('DROP SCHEMA IF EXISTS %I CASCADE;', endRevision.id));
-    await connection.query(pgformat('ALTER SCHEMA %I RENAME TO %I;', buildId, endRevision.id));
+    logger.debug(`Renaming ${buildId} to cube rev ${endRevision.id}`);
+    await createBasePostgresCube(cubeDB, buildId, dataset, endRevision);
+    await cubeDB.query(pgformat('DROP SCHEMA IF EXISTS %I CASCADE;', endRevision.id));
+    await cubeDB.query(pgformat('ALTER SCHEMA %I RENAME TO %I;', buildId, endRevision.id));
   } catch (err) {
     logger.error(err, 'Failed to create cube in Postgres');
     throw err;
   } finally {
-    connection.release();
+    cubeDB.release();
   }
 
   // don't wait for this, can happen in the background so we can send the response earlier
@@ -2465,28 +2479,17 @@ export const createAllCubeFiles = async (datasetId: string, endRevisionId: strin
 };
 
 export const getCubeTimePeriods = async (revisionId: string): Promise<PeriodCovered> => {
-  const connection = await getCubeDB().connect();
-  const periodCoverage: QueryResult<{ key: string; value: string }> = await connection.query(
-    pgformat(
-      `SELECT key, value
-              FROM %I.metadata
-              WHERE key in ('start_date', 'end_date')`,
-      revisionId
-    )
+  const cubeDB = dbManager.getCubeDataSource().createQueryRunner();
+  const periodCoverage: { key: string; value: string }[] = await cubeDB.query(
+    pgformat(`SELECT key, value FROM %I.metadata WHERE key in ('start_date', 'end_date')`, revisionId)
   );
-  connection.release();
-  if (periodCoverage.rows.length > 0) {
-    return {
-      start_date: new Date(periodCoverage.rows[0].value),
-      end_date: new Date(periodCoverage.rows[1].value)
-    };
-  } else {
-    return {
-      start_date: null,
-      end_date: null
-    };
+  cubeDB.release();
+  if (periodCoverage.length > 0) {
+    return { start_date: new Date(periodCoverage[0].value), end_date: new Date(periodCoverage[1].value) };
   }
+  return { start_date: null, end_date: null };
 };
+
 export const outputCube = async (
   mode: DuckdbOutputType,
   datasetId: string,

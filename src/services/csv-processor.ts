@@ -13,7 +13,6 @@ import { DatasetRepository } from '../repositories/dataset';
 import { FileType } from '../enums/file-type';
 import { DataTableDescription } from '../entities/dataset/data-table-description';
 import { DataTableAction } from '../enums/data-table-action';
-
 import { duckdb, linkToPostgresSchema } from './duckdb';
 import { getFileService } from '../utils/get-file-service';
 import { FileValidationErrorType, FileValidationException } from '../exceptions/validation-exception';
@@ -23,8 +22,7 @@ import { validateParams } from '../validators/preview-validator';
 import { SourceLocation } from '../enums/source-location';
 import { UploadTableType } from '../interfaces/upload-table-type';
 import { TempFile } from '../interfaces/temp-file';
-import { getCubeDB } from '../db/cube-db';
-import { QueryResult } from 'pg';
+import { dbManager } from '../db/database-manager';
 
 const sampleSize = 5;
 
@@ -34,7 +32,11 @@ const getCreateTableQuery = async (fileType: FileType, quack: Database): Promise
   switch (fileType) {
     case FileType.Csv:
     case FileType.GzipCsv:
-      return `CREATE TABLE %I AS SELECT * FROM read_csv(%L, auto_type_candidates = ['BIGINT', 'DOUBLE', 'VARCHAR'], encoding = %L, sample_size = -1);`;
+      return `
+        CREATE TABLE %I AS
+          SELECT *
+          FROM read_csv(%L, auto_type_candidates = ['BIGINT', 'DOUBLE', 'VARCHAR'], encoding = %L, sample_size = -1);
+      `;
 
     case FileType.Parquet:
       return `CREATE TABLE %I AS SELECT * FROM %L;`;
@@ -268,21 +270,21 @@ export const getCSVPreview = async (
 ): Promise<ViewDTO | ViewErrDTO> => {
   let tableName = 'fact_table';
 
-  const connection = await getCubeDB().connect();
-  await connection.query(pgformat(`SET search_path TO %I;`, 'data_tables'));
-  logger.debug('Getting table query from postgres');
-  tableName = dataTable.id;
+  const cubeDB = dbManager.getCubeDataSource().createQueryRunner();
 
   try {
+    await cubeDB.query(pgformat(`SET search_path TO %I;`, 'data_tables'));
+    logger.debug('Getting table query from postgres');
+    tableName = dataTable.id;
     const totalsQuery = pgformat(
       `SELECT count(*) as total_lines, ceil(count(*)/%L) as total_pages from %I;`,
       size,
       tableName
     );
     logger.debug(`Getting total lines and pages using query ${totalsQuery}`);
-    const totals: QueryResult<{ total_lines: number; total_pages: number }> = await connection.query(totalsQuery);
-    const totalPages = Number(totals.rows[0].total_pages) === 0 ? 1 : Number(totals.rows[0].total_pages);
-    const totalLines = Number(totals.rows[0].total_lines);
+    const totals: { total_lines: number; total_pages: number }[] = await cubeDB.query(totalsQuery);
+    const totalPages = Number(totals[0].total_pages) === 0 ? 1 : Number(totals[0].total_pages);
+    const totalLines = Number(totals[0].total_lines);
     const errors = validateParams(page, totalPages, size);
 
     if (errors.length > 0) {
@@ -301,11 +303,16 @@ export const getCSVPreview = async (
       (page - 1) * size
     );
 
-    const preview = await connection.query(previewQuery);
-    const startLine = Number(preview.rows[0].int_line_number);
-    const lastLine = Number(preview.rows[preview.rows.length - 1].int_line_number);
-    const tableHeaders = Object.keys(preview.rows[0]);
-    const dataArray = preview.rows.map((row) => Object.values(row));
+    const preview = await cubeDB.query(previewQuery);
+    await cubeDB.query(pgformat(`SET search_path TO %I;`, 'public'));
+    cubeDB.release();
+
+    const startLine = Number(preview[0].int_line_number);
+    const lastLine = Number(preview[preview.length - 1].int_line_number);
+    const tableHeaders = Object.keys(preview[0]);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const dataArray = preview.map((row: any) => Object.values(row));
+
     const dataset = await DatasetRepository.getById(datasetId, { factTable: true });
     const currentImport = await DataTable.findOneByOrFail({ id: dataTable.id });
 
@@ -327,7 +334,7 @@ export const getCSVPreview = async (
     logger.error(error);
     return viewErrorGenerators(500, datasetId, 'csv', 'errors.preview.preview_failed', {});
   } finally {
-    connection.release();
+    cubeDB.release();
   }
 };
 
@@ -337,26 +344,27 @@ export const getFactTableColumnPreview = async (
 ): Promise<ViewDTO | ViewErrDTO> => {
   logger.debug(`Getting fact table column preview for ${columnName}`);
   const tableName = 'fact_table';
-  const connection = await getCubeDB().connect();
+  const cubeDB = dbManager.getCubeDataSource().createQueryRunner();
 
   try {
-    await connection.query(pgformat(`SET search_path TO %I;`, dataset.draftRevision!.id));
+    await cubeDB.query(pgformat(`SET search_path TO %I;`, dataset.draftRevision!.id));
   } catch (error) {
     logger.error(error, 'Could not find revision schema');
-    connection.release();
+    cubeDB.release();
     return viewErrorGenerators(500, dataset.id, 'csv', 'errors.preview.cube_missing', {});
   }
 
   try {
-    const totals: QueryResult<{ total_lines: number }> = await connection.query(
+    const totals: { total_lines: number }[] = await cubeDB.query(
       pgformat('SELECT COUNT(DISTINCT %I) AS total_lines FROM %I', columnName, tableName)
     );
-    const totalLines = totals.rows[0].total_lines;
-    const preview = await connection.query(
+    const totalLines = totals[0].total_lines;
+    const preview = await cubeDB.query(
       pgformat('SELECT DISTINCT %I FROM %I LIMIT %L', columnName, tableName, sampleSize)
     );
-    const tableHeaders = Object.keys(preview.rows[0]);
-    const dataArray = preview.rows.map((row) => Object.values(row));
+    const tableHeaders = Object.keys(preview[0]);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const dataArray = preview.map((row: any) => Object.values(row));
     const currentDataset = await DatasetRepository.getById(dataset.id);
     const headers: CSVHeader[] = [];
     for (let i = 0; i < tableHeaders.length; i++) {
@@ -375,14 +383,14 @@ export const getFactTableColumnPreview = async (
     const pageInfo = {
       total_records: totalLines,
       start_record: 1,
-      end_record: preview.rows.length
+      end_record: preview.length
     };
-    const pageSize = preview.rows.length < sampleSize ? preview.rows.length : sampleSize;
+    const pageSize = preview.length < sampleSize ? preview.length : sampleSize;
     return viewGenerator(currentDataset, 1, pageInfo, pageSize, 1, headers, dataArray);
   } catch (error) {
     logger.error(error);
     return viewErrorGenerators(500, dataset.id, 'csv', 'dimension.preview.failed_to_preview_column', {});
   } finally {
-    connection.release();
+    cubeDB.release();
   }
 };

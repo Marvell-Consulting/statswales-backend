@@ -20,9 +20,9 @@ import { DimensionRepository } from '../../src/repositories/dimension';
 import { DatasetRepository } from '../../src/repositories/dataset';
 import { logger } from '../../src/utils/logger';
 import { Readable } from 'node:stream';
-import { getCubeDB } from '../../src/db/cube-db';
 import { createAllCubeFiles } from '../../src/services/cube-handler';
 import { parse } from 'csv';
+import { cubeDataSource } from '../../src/db/cube-source';
 
 export async function createSmallDataset(
   datasetId: string,
@@ -132,14 +132,12 @@ export async function createSmallDataset(
     logger.error(err);
   }
 
-  const connection = await getCubeDB().connect();
   try {
     await createAllCubeFiles(savedDataset.id, revision.id);
   } catch (error) {
     logger.error(error);
-  } finally {
-    connection.release();
   }
+
   return savedDataset;
 }
 
@@ -187,28 +185,29 @@ const rowRefLookupTable = () => {
 };
 
 async function createTestCube(revisionId: string, dataTableId: string) {
-  const connection = await getCubeDB().connect();
-  await connection.query(pgformat('CREATE SCHEMA IF NOT EXISTS %I;', revisionId));
-  await connection.query(pgformat(`SET search_path TO %I;`, revisionId));
-  const createDataTableSQL = `
-    CREATE TABLE data_tables."${dataTableId}"
-      (
-        "YearCode"  BIGINT,
-        "AreaCode"  BIGINT,
-        "Data"      DOUBLE PRECISION,
-        "RowRef"    BIGINT,
-        "Measure"   BIGINT,
-        "NoteCodes" VARCHAR
-      );
-    `;
+  const cubeDB = await cubeDataSource.createQueryRunner();
+
   try {
-    await connection.query(createDataTableSQL);
+    await cubeDB.query(pgformat('CREATE SCHEMA IF NOT EXISTS %I;', revisionId));
+    await cubeDB.query(pgformat(`SET search_path TO %I;`, revisionId));
+    const createDataTableSQL = `
+      CREATE TABLE data_tables."${dataTableId}"
+        (
+          "YearCode"  BIGINT,
+          "AreaCode"  BIGINT,
+          "Data"      DOUBLE PRECISION,
+          "RowRef"    BIGINT,
+          "Measure"   BIGINT,
+          "NoteCodes" VARCHAR
+        );
+    `;
+    await cubeDB.query(createDataTableSQL);
     const parserOpts = { delimiter: ',', bom: true, skip_empty_lines: true, columns: true };
     const dataFile = path.resolve(__dirname, '../sample-files/csv/sure-start-data.csv');
     const parseCSV = async (): Promise<void> => {
       const csvParser: AsyncIterable<any> = fs.createReadStream(dataFile).pipe(parse(parserOpts));
       for await (const row of csvParser) {
-        await connection.query(pgformat('INSERT INTO data_tables.%I VALUES (%L);', dataTableId, Object.values(row)));
+        await cubeDB.query(pgformat('INSERT INTO data_tables.%I VALUES (%L);', dataTableId, Object.values(row)));
       }
     };
     await parseCSV();
@@ -216,7 +215,7 @@ async function createTestCube(revisionId: string, dataTableId: string) {
     logger.error(err, 'Failed to create test data table');
     throw err;
   } finally {
-    connection.release();
+    await cubeDB.release();
   }
 }
 

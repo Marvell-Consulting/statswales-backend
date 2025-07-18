@@ -47,7 +47,10 @@ export class EntitySubscriber implements EntitySubscriberInterface {
     return omitBy(entity, (val: unknown, key: string) => {
       if (ignoreProps.includes(key)) return true;
 
-      // ignore nested typeorm entities but include jsonb objects and arrays
+      // ignore arrays of nested typeorm entities
+      if (isArray(val) && isObjectLike(val[0]) && !isPlainObject(val[0])) return true;
+
+      // ignore nested typeorm entities
       if (isObjectLike(val) && !isPlainObject(val) && !isArray(val)) return true;
 
       return false;

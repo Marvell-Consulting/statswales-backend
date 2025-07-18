@@ -6,8 +6,7 @@ import request from 'supertest';
 import { t } from 'i18next';
 
 import app from '../../src/app';
-import { initDb } from '../../src/db/init';
-import DatabaseManager from '../../src/db/database-manager';
+import { dbManager } from '../../src/db/database-manager';
 import { initPassport } from '../../src/middleware/passport-auth';
 import { Dataset } from '../../src/entities/dataset/dataset';
 import { Revision } from '../../src/entities/dataset/revision';
@@ -41,25 +40,25 @@ let userGroup = getTestUserGroup('Test Group');
 let queryRunner: QueryRunner;
 
 describe('API Endpoints for viewing dataset objects', () => {
-  let dbManager: DatabaseManager;
-
   beforeAll(async () => {
     try {
-      dbManager = await initDb();
-      queryRunner = dbManager.getDataSource().createQueryRunner();
+      await dbManager.initDataSources();
+      queryRunner = dbManager.getAppDataSource().createQueryRunner();
       await queryRunner.dropSchema('data_tables', true, true);
       await queryRunner.dropSchema(revision1Id, true, true);
       await queryRunner.createSchema('data_tables', true);
-      await initPassport(dbManager.getDataSource());
-      userGroup = await dbManager.getDataSource().getRepository(UserGroup).save(userGroup);
+      await initPassport(dbManager.getAppDataSource());
+      userGroup = await dbManager.getAppDataSource().getRepository(UserGroup).save(userGroup);
       user.groupRoles = [UserGroupRole.create({ group: userGroup, roles: [GroupRole.Editor] })];
       await user.save();
       await createFullDataset(dataset1Id, revision1Id, dataTableId, user);
     } catch (error) {
       logger.error(error, 'Could not initialise test database');
-      await dbManager.getDataSource().dropDatabase();
-      await dbManager.getDataSource().destroy();
+      await dbManager.getAppDataSource().dropDatabase();
+      await dbManager.destroyDataSources();
       process.exit(1);
+    } finally {
+      await queryRunner.release();
     }
   });
 
@@ -286,8 +285,7 @@ describe('API Endpoints for viewing dataset objects', () => {
   });
 
   afterAll(async () => {
-    await queryRunner.dropSchema('data_tables', true, true);
-    await dbManager.getDataSource().dropDatabase();
-    await dbManager.getDataSource().destroy();
+    await dbManager.getAppDataSource().dropDatabase();
+    await dbManager.destroyDataSources();
   });
 });
