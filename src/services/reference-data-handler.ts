@@ -14,7 +14,7 @@ import { DimensionType } from '../enums/dimension-type';
 
 import { cleanUpDimension } from './dimension-processor';
 import { createReferenceDataTablesInCube, loadReferenceDataFromCSV } from './cube-handler';
-import { cubeDataSource } from '../db/data-source';
+import { dbManager } from '../db/database-manager';
 
 const sampleSize = 5;
 
@@ -158,7 +158,7 @@ export const validateReferenceData = async (
   lang: string
 ): Promise<ViewDTO | ViewErrDTO> => {
   const revision = dataset.draftRevision!;
-  const cubeDB = cubeDataSource.createQueryRunner();
+  const cubeDB = dbManager.getCubeDataSource().createQueryRunner();
   try {
     await cubeDB.query(pgformat(`SET search_path TO %I;`, revision.id));
   } catch (error) {
@@ -169,8 +169,8 @@ export const validateReferenceData = async (
   }
   try {
     // Load reference data in to cube
-    await createReferenceDataTablesInCube(cubeDB);
-    await loadReferenceDataFromCSV(cubeDB);
+    await createReferenceDataTablesInCube(revision.id);
+    await loadReferenceDataFromCSV(revision.id);
     await copyAllReferenceDataIntoTable(cubeDB);
   } catch (err) {
     cubeDB.release();

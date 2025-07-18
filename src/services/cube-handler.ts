@@ -49,7 +49,8 @@ import { FilterInterface } from '../interfaces/filterInterface';
 import { SortByInterface } from '../interfaces/sort-by-interface';
 import { createFrontendView } from './consumer-view';
 import { LookupTable } from '../entities/dataset/lookup-table';
-import { cubeDataSource } from '../db/data-source';
+import { dbManager } from '../db/database-manager';
+import { PoolClient } from 'pg';
 
 export const FACT_TABLE_NAME = 'fact_table';
 
@@ -316,9 +317,12 @@ export const loadFileDataTableIntoTable = async (
   }
 };
 
-export async function createReferenceDataTablesInCube(cubeDB: QueryRunner): Promise<void> {
-  logger.debug('Creating empty reference data tables');
+export async function createReferenceDataTablesInCube(searchPath: string): Promise<void> {
+  logger.debug(`Creating empty reference data tables in schema: ${searchPath}`);
+  const cubeDB = dbManager.getCubeDataSource().createQueryRunner();
+
   try {
+    await cubeDB.query(pgformat(`SET search_path TO %I;`, searchPath));
     logger.debug('Creating categories tables');
     await cubeDB.query(`CREATE TABLE IF NOT EXISTS "categories" ("category" VARCHAR, PRIMARY KEY ("category"));`);
 
@@ -394,11 +398,13 @@ export async function createReferenceDataTablesInCube(cubeDB: QueryRunner): Prom
   } catch (error) {
     logger.error(error, `Something went wrong trying to create the initial reference data tables`);
     throw error;
+  } finally {
+    cubeDB.release();
   }
 }
 
-export async function loadReferenceDataFromCSV(cubeDB: QueryRunner): Promise<void> {
-  logger.debug(`Loading categories and reference data from CSV`);
+export async function loadReferenceDataFromCSV(searchPath: string): Promise<void> {
+  logger.debug(`Loading categories and reference data from CSV into schema: ${searchPath}`);
   const csvFiles = [
     'categories',
     'category_info',
@@ -409,8 +415,8 @@ export async function loadReferenceDataFromCSV(cubeDB: QueryRunner): Promise<voi
     'reference_data_info'
   ];
 
-  // Get the raw PostgreSQL connection
-  const [connection] = await cubeDB.connection.driver.obtainMasterConnection();
+  const [cubeDBConn] = (await dbManager.getCubeDataSource().driver.obtainMasterConnection()) as [PoolClient];
+  await cubeDBConn.query(pgformat(`SET search_path TO %I;`, searchPath));
 
   for (const file of csvFiles) {
     logger.debug(`Loading data from ${file}.csv...`);
@@ -418,22 +424,23 @@ export async function loadReferenceDataFromCSV(cubeDB: QueryRunner): Promise<voi
     try {
       const csvPath = path.resolve(__dirname, `../resources/reference-data/v1/${file}.csv`);
       const fileStream = fs.createReadStream(csvPath, { encoding: 'utf8' });
-      const pgStream = connection.query(from(`COPY ${file} FROM STDIN WITH (FORMAT csv, HEADER true)`));
+      const pgStream = cubeDBConn.query(from(`COPY ${file} FROM STDIN WITH (FORMAT csv, HEADER true)`));
       await pipeline(fileStream, pgStream);
       logger.debug(`Successfully loaded ${file}.csv`);
     } catch (err) {
       logger.error(err, `Something went wrong trying to load data from ${file}.csv`);
-      connection.release();
+      cubeDBConn.release();
       throw err;
     }
   }
 
-  connection.release();
+  cubeDBConn.release();
 }
 
-export const loadReferenceDataIntoCube = async (cubeDB: QueryRunner): Promise<void> => {
-  await createReferenceDataTablesInCube(cubeDB);
-  await loadReferenceDataFromCSV(cubeDB);
+export const loadReferenceDataIntoCube = async (searchPath: string): Promise<void> => {
+  logger.debug(`Loading reference data into cube ${searchPath}...`);
+  await createReferenceDataTablesInCube(searchPath);
+  await loadReferenceDataFromCSV(searchPath);
   logger.debug(`Reference data tables created and populated successfully.`);
 };
 
@@ -770,7 +777,7 @@ export async function loadFileIntoLookupTablesSchema(
   await linkToPostgresSchema(quack, 'lookup_tables');
   await quack.exec(pgformat('CREATE TABLE lookup_tables_db.%I AS SELECT * FROM memory.%I;', lookupTable.id, dimTable));
   await quack.close();
-  performanceReporting(start - performance.now(), 500, 'Loading a lookup table in to postgres');
+  performanceReporting(Math.round(start - performance.now()), 500, 'Loading a lookup table in to postgres');
 }
 
 export async function loadFileIntoDataTablesSchema(
@@ -792,7 +799,7 @@ export async function loadFileIntoDataTablesSchema(
     pgformat('CREATE TABLE data_tables_db.%I AS SELECT * FROM memory.%I;', dataTable.id, FACT_TABLE_NAME)
   );
   await quack.close();
-  performanceReporting(start - performance.now(), 500, 'Loading a lookup table in to postgres');
+  performanceReporting(Math.round(start - performance.now()), 500, 'Loading a data table in to postgres');
 }
 
 export async function createLookupTableDimension(
@@ -2035,14 +2042,8 @@ async function createPrimaryKeyOnFactTable(
 ): Promise<void> {
   logger.debug('Creating primary key on fact table');
   try {
-    const alterTableQuery = pgformat(
-      'ALTER TABLE %I.%I ADD PRIMARY KEY (%I)',
-      revision.id,
-      FACT_TABLE_NAME,
-      compositeKey
-    );
-    logger.debug(`Alter Table query = ${alterTableQuery}`);
-    await cubeDB.query(alterTableQuery);
+    const addPKQuery = pgformat('ALTER TABLE %I.%I ADD PRIMARY KEY (%I)', revision.id, FACT_TABLE_NAME, compositeKey);
+    await cubeDB.query(addPKQuery);
   } catch (error) {
     logger.error(error, `Failed to add primary key to the fact table`);
     if ((error as Error).message.includes('could not create unique index')) {
@@ -2207,7 +2208,7 @@ export const createBasePostgresCube = async (
 
   if (dataset.dimensions.find((dim) => dim.type === DimensionType.ReferenceData)) {
     const loadReferenceDataMark = performance.now();
-    await loadReferenceDataIntoCube(cubeDB);
+    await loadReferenceDataIntoCube(buildId);
     performanceReporting(
       Math.round(performance.now() - loadReferenceDataMark),
       1000,
@@ -2375,7 +2376,7 @@ export const createFilesForDownload = async (
 };
 
 export const createMaterialisedView = async (revisionId: string): Promise<void> => {
-  const cubeDB = cubeDataSource.createQueryRunner();
+  const cubeDB = dbManager.getCubeDataSource().createQueryRunner();
   logger.info(`Creating default views...`);
   const viewCreation = performance.now();
   // Build the default views
@@ -2449,11 +2450,11 @@ export const createAllCubeFiles = async (datasetId: string, endRevisionId: strin
     throw new CubeValidationException('Failed to find endRevision in dataset.');
   }
 
-  const cubeDB = cubeDataSource.createQueryRunner();
+  const cubeDB = dbManager.getCubeDataSource().createQueryRunner();
   const buildId = `build_${crypto.randomUUID()}`;
 
   try {
-    logger.info(`Creating schema for cube build ${buildId}`);
+    logger.info(`Creating schema for cube ${buildId}`);
     await cubeDB.query(pgformat(`CREATE SCHEMA IF NOT EXISTS %I;`, buildId));
   } catch (error) {
     logger.error(error, 'Something went wrong trying to create the cube schema');
@@ -2462,7 +2463,7 @@ export const createAllCubeFiles = async (datasetId: string, endRevisionId: strin
   }
 
   try {
-    logger.debug('Creating cube in postgres.');
+    logger.debug(`Renaming ${buildId} to cube rev ${endRevision.id}`);
     await createBasePostgresCube(cubeDB, buildId, dataset, endRevision);
     await cubeDB.query(pgformat('DROP SCHEMA IF EXISTS %I CASCADE;', endRevision.id));
     await cubeDB.query(pgformat('ALTER SCHEMA %I RENAME TO %I;', buildId, endRevision.id));
@@ -2480,7 +2481,7 @@ export const createAllCubeFiles = async (datasetId: string, endRevisionId: strin
 };
 
 export const getCubeTimePeriods = async (revisionId: string): Promise<PeriodCovered> => {
-  const cubeDB = cubeDataSource.createQueryRunner();
+  const cubeDB = dbManager.getCubeDataSource().createQueryRunner();
   const periodCoverage: { key: string; value: string }[] = await cubeDB.query(
     pgformat(`SELECT key, value FROM %I.metadata WHERE key in ('start_date', 'end_date')`, revisionId)
   );

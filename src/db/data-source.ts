@@ -23,6 +23,7 @@ const dataSourceOpts: DataSourceOptions = {
   logging: false,
   entities: [`${__dirname}/../entities/**/*.{ts,js}`],
   migrations: [`${__dirname}/../migrations/*.{ts,js}`],
+  applicationName: 'sw3-backend-app',
   extra: {
     max: config.database.poolSize,
     maxUses: config.database.maxUses,
@@ -31,6 +32,4 @@ const dataSourceOpts: DataSourceOptions = {
   }
 };
 
-export const appDataSource = new DataSource({ ...dataSourceOpts, applicationName: 'sw3-backend-app' });
-
-export const cubeDataSource = new DataSource({ ...dataSourceOpts, applicationName: 'sw3-backend-cube' });
+export const dataSource = new DataSource(dataSourceOpts);

@@ -32,8 +32,8 @@ import { CubeValidationException } from '../exceptions/cube-error-exception';
 import { Locale } from '../enums/locale';
 import { FileValidationErrorType, FileValidationException } from '../exceptions/validation-exception';
 import { CubeValidationType } from '../enums/cube-validation-type';
-import { cubeDataSource } from '../db/data-source';
 import { QueryRunner } from 'typeorm';
+import { dbManager } from '../db/database-manager';
 
 const sampleSize = 5;
 
@@ -298,7 +298,7 @@ export const validateLookupTable = async (
     });
   }
 
-  const cubeDB = cubeDataSource.createQueryRunner();
+  const cubeDB = dbManager.getCubeDataSource().createQueryRunner();
 
   try {
     await cubeDB.query(pgformat(`SET search_path TO %I;`, revision.id));

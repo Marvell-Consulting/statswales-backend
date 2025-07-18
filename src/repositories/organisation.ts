@@ -1,7 +1,7 @@
-import { appDataSource } from '../db/data-source';
+import { dataSource } from '../db/data-source';
 import { Organisation } from '../entities/user/organisation';
 
-export const OrganisationRepository = appDataSource.getRepository(Organisation).extend({
+export const OrganisationRepository = dataSource.getRepository(Organisation).extend({
   async listAll(): Promise<Organisation[]> {
     return this.find({ relations: { metadata: true } });
   }

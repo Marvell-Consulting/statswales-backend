@@ -60,7 +60,7 @@ import {
 import { cleanupTmpFile, uploadAvScan } from '../services/virus-scanner';
 import { TempFile } from '../interfaces/temp-file';
 import { DEFAULT_PAGE_SIZE } from '../utils/page-defaults';
-import { cubeDataSource } from '../db/data-source';
+import { dbManager } from '../db/database-manager';
 
 export const getDataTable = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   const revision: Revision = res.locals.revision;
@@ -312,7 +312,7 @@ async function attachUpdateDataTableToRevision(
   dataTable.action = updateAction;
   revision.dataTable = dataTable;
   const buildId = `build-${crypto.randomUUID()}`;
-  const cubeDB = cubeDataSource.createQueryRunner();
+  const cubeDB = dbManager.getCubeDataSource().createQueryRunner();
 
   try {
     await cubeDB.query(pgformat('CREATE SCHEMA IF NOT EXISTS %I;', buildId));
@@ -331,7 +331,7 @@ async function attachUpdateDataTableToRevision(
 
   const dimensionUpdateTasks: DimensionUpdateTask[] = [];
   if (dataset.dimensions.find((dimension) => dimension.type === DimensionType.ReferenceData)) {
-    await loadReferenceDataIntoCube(cubeDB);
+    await loadReferenceDataIntoCube(buildId);
   }
   for (const dimension of dataset.dimensions) {
     const factTableColumn = dataset.factTable.find(

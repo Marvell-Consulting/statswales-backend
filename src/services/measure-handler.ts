@@ -38,7 +38,7 @@ import { duckdb, linkToPostgresSchema } from './duckdb';
 import { Revision } from '../entities/dataset/revision';
 import { performanceReporting } from '../utils/performance-reporting';
 import { FileType } from '../enums/file-type';
-import { cubeDataSource } from '../db/data-source';
+import { dbManager } from '../db/database-manager';
 
 const sampleSize = 5;
 
@@ -442,7 +442,7 @@ export const validateMeasureLookupTable = async (
     });
   }
 
-  const cubeDB = cubeDataSource.createQueryRunner();
+  const cubeDB = dbManager.getCubeDataSource().createQueryRunner();
   try {
     await cubeDB.query(pgformat(`SET search_path TO %I;`, draftRevision.id));
   } catch (error) {
@@ -576,7 +576,7 @@ async function getMeasurePreviewWithoutExtractor(
   measure: Measure,
   revision: Revision
 ): Promise<ViewDTO> {
-  const cubeDB = cubeDataSource.createQueryRunner();
+  const cubeDB = dbManager.getCubeDataSource().createQueryRunner();
   try {
     await cubeDB.query(pgformat(`SET search_path TO %I;`, revision.id));
     const preview = await cubeDB.query(
@@ -622,7 +622,7 @@ async function getMeasurePreviewWithExtractor(
   lang: string
 ): Promise<ViewDTO> {
   logger.debug(`Generating lookup table preview for measure ${measure.id}`);
-  const cubeDB = cubeDataSource.createQueryRunner();
+  const cubeDB = dbManager.getCubeDataSource().createQueryRunner();
   try {
     await cubeDB.query(pgformat(`SET search_path TO %I;`, revision.id));
     const previewQuery = pgformat(

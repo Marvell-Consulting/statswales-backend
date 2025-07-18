@@ -1,4 +1,4 @@
-import { appDataSource } from '../db/data-source';
+import { dataSource } from '../db/data-source';
 import { UserGroupDTO } from '../dtos/user/user-group-dto';
 import { UserGroupListItemDTO } from '../dtos/user/user-group-list-item-dto';
 import { UserGroupMetadataDTO } from '../dtos/user/user-group-metadata-dto';
@@ -6,7 +6,7 @@ import { UserGroup } from '../entities/user/user-group';
 import { Locale } from '../enums/locale';
 import { ResultsetWithCount } from '../interfaces/resultset-with-count';
 
-export const UserGroupRepository = appDataSource.getRepository(UserGroup).extend({
+export const UserGroupRepository = dataSource.getRepository(UserGroup).extend({
   async getById(id: string): Promise<UserGroup> {
     return this.findOneOrFail({
       where: { id },

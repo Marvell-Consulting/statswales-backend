@@ -31,7 +31,7 @@ import { createDatePeriodTableQuery, makeCubeSafeString } from './cube-handler';
 import { CubeValidationException } from '../exceptions/cube-error-exception';
 import { CubeValidationType } from '../enums/cube-validation-type';
 import { YearType } from '../enums/year-type';
-import { cubeDataSource } from '../db/data-source';
+import { dbManager } from '../db/database-manager';
 
 const sampleSize = 5;
 
@@ -368,7 +368,7 @@ export const validateNumericDimension = async (
   };
 
   const tableName = 'fact_table';
-  const cubeDB = cubeDataSource.createQueryRunner();
+  const cubeDB = dbManager.getCubeDataSource().createQueryRunner();
   try {
     await cubeDB.query(pgformat(`SET search_path TO %I;`, revision.id));
   } catch (error) {
@@ -547,7 +547,7 @@ export const createAndValidateDateDimension = async (
     });
   }
 
-  const cubeDB = cubeDataSource.createQueryRunner();
+  const cubeDB = dbManager.getCubeDataSource().createQueryRunner();
   try {
     await cubeDB.query(pgformat(`SET search_path TO %I;`, revision.id));
   } catch (error) {
@@ -889,7 +889,7 @@ export const getDimensionPreview = async (
 ): Promise<ViewDTO | ViewErrDTO> => {
   logger.info(`Getting dimension preview for ${dimension.id}`);
   const tableName = 'fact_table';
-  const cubeDB = cubeDataSource.createQueryRunner();
+  const cubeDB = dbManager.getCubeDataSource().createQueryRunner();
   try {
     await cubeDB.query(pgformat(`SET search_path TO %I;`, dataset.draftRevision!.id));
   } catch (error) {

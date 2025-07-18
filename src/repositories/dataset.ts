@@ -4,7 +4,7 @@ import { FindOneOptions, FindOptionsRelations, QueryBuilder, SelectQueryBuilder 
 import { has, set } from 'lodash';
 
 import { logger } from '../utils/logger';
-import { appDataSource } from '../db/data-source';
+import { dataSource } from '../db/data-source';
 import { Dataset } from '../entities/dataset/dataset';
 import { DatasetListItemDTO } from '../dtos/dataset-list-item-dto';
 import { Locale } from '../enums/locale';
@@ -129,7 +129,7 @@ const listAllQuery = (qb: QueryBuilder<Dataset>, lang: Locale): SelectQueryBuild
     .groupBy('d.id, r.title, ugm.name, r.title_alt, r.updated_at, r.approved_at, r.publish_at, t.action, t.status');
 };
 
-export const DatasetRepository = appDataSource.getRepository(Dataset).extend({
+export const DatasetRepository = dataSource.getRepository(Dataset).extend({
   async getById(id: string, relations: FindOptionsRelations<Dataset> = {}): Promise<Dataset> {
     const start = performance.now();
     const findOptions: FindOneOptions<Dataset> = { where: { id }, relations };
@@ -164,7 +164,7 @@ export const DatasetRepository = appDataSource.getRepository(Dataset).extend({
   async replaceFactTable(dataset: Dataset, dataTable: DataTable): Promise<void> {
     if (dataset.factTable && dataset.factTable.length > 0) {
       logger.debug(`Existing factTable found for dataset ${dataset.id}, deleting`);
-      await appDataSource.getRepository(FactTableColumn).remove(dataset.factTable);
+      await dataSource.getRepository(FactTableColumn).remove(dataset.factTable);
     }
 
     logger.debug(`Creating fact table definitions for dataset ${dataset.id}`);
@@ -183,7 +183,7 @@ export const DatasetRepository = appDataSource.getRepository(Dataset).extend({
       factColumns.push(factTableColumn);
     });
 
-    await appDataSource.getRepository(FactTableColumn).save(factColumns);
+    await dataSource.getRepository(FactTableColumn).save(factColumns);
   },
 
   async listAll(locale: Locale, page: number, limit: number): Promise<ResultsetWithCount<DatasetListItemDTO>> {

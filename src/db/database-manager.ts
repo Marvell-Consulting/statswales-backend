@@ -3,7 +3,8 @@ import 'reflect-metadata';
 import { Logger } from 'pino';
 import { DataSource } from 'typeorm';
 
-import { appDataSource, cubeDataSource } from './data-source';
+import { dataSource } from './data-source';
+import { cubeDataSource } from './cube-source';
 import { logger } from '../utils/logger';
 import { EntitySubscriber } from './entity-subscriber';
 
@@ -14,7 +15,7 @@ class DatabaseManager {
 
   constructor(logger: Logger) {
     this.logger = logger;
-    this.appDataSource = appDataSource;
+    this.appDataSource = dataSource;
     this.cubeDataSource = cubeDataSource;
   }
 

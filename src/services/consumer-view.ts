@@ -15,8 +15,8 @@ import { logger } from '../utils/logger';
 import { DatasetRepository } from '../repositories/dataset';
 import { SortByInterface } from '../interfaces/sort-by-interface';
 import { FilterInterface } from '../interfaces/filterInterface';
-import { cubeDataSource } from '../db/data-source';
-import { QueryRunner } from 'typeorm';
+import { dbManager } from '../db/database-manager';
+import { PoolClient } from 'pg';
 
 const EXCEL_ROW_LIMIT = 1048576;
 const CURSOR_ROW_LIMIT = 500;
@@ -94,7 +94,7 @@ export function transformHierarchy(factTableColumn: string, columnName: string, 
 }
 
 export const getFilters = async (revision: Revision, language: string): Promise<FilterTable[]> => {
-  const cubeDB = cubeDataSource.createQueryRunner();
+  const cubeDB = dbManager.getCubeDataSource().createQueryRunner();
   try {
     const filterTableQuery = pgformat('SELECT * FROM %I.filter_table WHERE language = %L;', revision.id, language);
     const filterTable: FilterRow[] = await cubeDB.query(filterTableQuery);
@@ -195,12 +195,12 @@ function createBaseQuery(
 }
 
 async function viewChooser(
-  cubeDB: QueryRunner,
+  cubeDBConn: PoolClient,
   viewType: 'default' | 'raw',
   lang: string,
   revision: Revision
 ): Promise<string> {
-  const availableMaterializedView = await cubeDB.query(
+  const availableMaterializedView = await cubeDBConn.query(
     pgformat(
       `SELECT * FROM pg_matviews WHERE matviewname IN (%L) AND schemaname = %L;`,
       [`${viewType}_sort_mat_view_${lang}`, `${viewType}_mat_view_${lang}`],
@@ -208,22 +208,22 @@ async function viewChooser(
     )
   );
 
-  if (availableMaterializedView.length > 0) {
-    if (availableMaterializedView.find((row: any) => row.matviewname === `${viewType}_sort_mat_view_${lang}`))
+  if (availableMaterializedView.rows.length > 0) {
+    if (availableMaterializedView.rows.find((row: any) => row.matviewname === `${viewType}_sort_mat_view_${lang}`))
       return `${viewType}_sort_mat_view_${lang}`;
-    if (availableMaterializedView.find((row: any) => row.matviewname === `${viewType}_mat_view_${lang}`))
+    if (availableMaterializedView.rows.find((row: any) => row.matviewname === `${viewType}_mat_view_${lang}`))
       return `${viewType}_mat_view_${lang}`;
   }
   return `${viewType}_view_${lang}`;
 }
 
-async function getColumns(cubeDB: QueryRunner, lang: string): Promise<string[]> {
-  const columnsMetadata = await cubeDB.query(
+async function getColumns(cubeDBConn: PoolClient, lang: string): Promise<string[]> {
+  const columnsMetadata = await cubeDBConn.query(
     pgformat(`SELECT value FROM metadata WHERE key = %L`, `display_columns_${lang}`)
   );
   let columns = ['*'];
-  if (columnsMetadata.length > 0) {
-    columns = JSON.parse(columnsMetadata[0].value) as string[];
+  if (columnsMetadata.rows.length > 0) {
+    columns = JSON.parse(columnsMetadata.rows[0].value) as string[];
   }
   return columns;
 }
@@ -237,16 +237,16 @@ export const createFrontendView = async (
   sortBy?: SortByInterface[],
   filterBy?: FilterInterface[]
 ): Promise<ViewDTO | ViewErrDTO> => {
-  const cubeDB = cubeDataSource.createQueryRunner();
+  const [cubeDBConn] = (await dbManager.getCubeDataSource().driver.obtainMasterConnection()) as [PoolClient];
 
   try {
-    await cubeDB.query(pgformat(`SET search_path TO %I;`, revision.id));
-    const view = await viewChooser(cubeDB, 'default', lang, revision);
-    const columns = await getColumns(cubeDB, lang);
+    await cubeDBConn.query(pgformat(`SET search_path TO %I;`, revision.id));
+    const view = await viewChooser(cubeDBConn, 'default', lang, revision);
+    const columns = await getColumns(cubeDBConn, lang);
     const baseQuery = createBaseQuery(revision, view, columns, sortBy, filterBy);
     const totalsQuery = pgformat('SELECT count(*) as "totalLines" from (%s);', baseQuery);
-    const totals = await cubeDB.query(totalsQuery);
-    const totalLines = Number(totals[0].totalLines);
+    const totals = await cubeDBConn.query(totalsQuery);
+    const totalLines = Number(totals.rows[0].totalLines);
     const totalPages = Math.max(1, Math.ceil(totalLines / pageSize));
     const errors = validateParams(pageNumber, totalPages, pageSize);
 
@@ -255,11 +255,11 @@ export const createFrontendView = async (
     }
 
     const dataQuery = pgformat('%s LIMIT %L OFFSET %L', baseQuery, pageSize, (pageNumber - 1) * pageSize);
-    const preview = await cubeDB.query(dataQuery);
+    const preview = await cubeDBConn.query(dataQuery);
     const startLine = pageSize * (pageNumber - 1) + 1;
 
     // PATCH: Handle empty preview result
-    if (!preview || preview.length === 0) {
+    if (!preview || preview.rows.length === 0) {
       const currentDataset = await DatasetRepository.getById(dataset.id);
       return {
         dataset: DatasetDTO.fromDataset(currentDataset),
@@ -276,8 +276,8 @@ export const createFrontendView = async (
       };
     }
 
-    const tableHeaders = Object.keys(preview[0]);
-    const dataArray = preview.map((row: any) => Object.values(row));
+    const tableHeaders = Object.keys(preview.rows[0]);
+    const dataArray = preview.rows.map((row: any) => Object.values(row));
     const currentDataset = await DatasetRepository.getById(dataset.id);
     const lastLine = startLine + dataArray.length - 1;
 
@@ -304,7 +304,7 @@ export const createFrontendView = async (
     logger.error(err, `Something went wrong trying to create the cube preview`);
     return { status: 500, errors: [], dataset_id: dataset.id };
   } finally {
-    cubeDB.release();
+    cubeDBConn.release();
   }
 };
 
@@ -316,15 +316,14 @@ export const createStreamingJSONFilteredView = async (
   filterBy?: FilterInterface[]
 ): Promise<void> => {
   // queryRunner.query() does not support Cursor so we need to obtain underlying PostgreSQL connection
-  const [connection] = await cubeDataSource.driver.obtainMasterConnection();
-
-  await connection.query(pgformat(`SET search_path TO %I;`, revision.id));
-  const view = await viewChooser(connection, 'raw', lang, revision);
-  const columns = await getColumns(connection, lang);
-  const baseQuery = createBaseQuery(revision, view, columns, sortBy, filterBy);
+  const [cubeDBConn] = (await dbManager.getCubeDataSource().driver.obtainMasterConnection()) as [PoolClient];
 
   try {
-    const cursor = connection.query(new Cursor(baseQuery));
+    await cubeDBConn.query(pgformat(`SET search_path TO %I;`, revision.id));
+    const view = await viewChooser(cubeDBConn, 'raw', lang, revision);
+    const columns = await getColumns(cubeDBConn, lang);
+    const baseQuery = createBaseQuery(revision, view, columns, sortBy, filterBy);
+    const cursor = cubeDBConn.query(new Cursor(baseQuery));
     let rows = await cursor.read(CURSOR_ROW_LIMIT);
     res.setHeader('content-type', 'application/json');
     res.flushHeaders();
@@ -346,7 +345,7 @@ export const createStreamingJSONFilteredView = async (
   } catch (error) {
     logger.error(error, 'Something went wrong trying to read from the view of the cube');
   } finally {
-    connection.release();
+    cubeDBConn.release();
   }
 };
 
@@ -358,14 +357,14 @@ export const createStreamingCSVFilteredView = async (
   filterBy?: FilterInterface[]
 ): Promise<void> => {
   // queryRunner.query() does not support Cursor so we need to obtain underlying PostgreSQL connection
-  const [connection] = await cubeDataSource.driver.obtainMasterConnection();
-  await connection.query(pgformat(`SET search_path TO %I;`, revision.id));
-  const view = await viewChooser(connection, 'raw', lang, revision);
-  const columns = await getColumns(connection, lang);
-  const baseQuery = createBaseQuery(revision, view, columns, sortBy, filterBy);
+  const [cubeDBConn] = await dbManager.getCubeDataSource().driver.obtainMasterConnection();
 
   try {
-    const cursor = connection.query(new Cursor(baseQuery));
+    await cubeDBConn.query(pgformat(`SET search_path TO %I;`, revision.id));
+    const view = await viewChooser(cubeDBConn, 'raw', lang, revision);
+    const columns = await getColumns(cubeDBConn, lang);
+    const baseQuery = createBaseQuery(revision, view, columns, sortBy, filterBy);
+    const cursor = cubeDBConn.query(new Cursor(baseQuery));
     let rows = await cursor.read(CURSOR_ROW_LIMIT);
     res.setHeader('content-type', 'text/csv');
     res.flushHeaders();
@@ -385,7 +384,7 @@ export const createStreamingCSVFilteredView = async (
   } catch (error) {
     logger.error(error, 'Something went wrong trying to read from the view of the cube');
   } finally {
-    connection.release();
+    cubeDBConn.release();
   }
 };
 
@@ -397,14 +396,14 @@ export const createStreamingExcelFilteredView = async (
   filterBy?: FilterInterface[]
 ): Promise<void> => {
   // queryRunner.query() does not support Cursor so we need to obtain underlying PostgreSQL connection
-  const cubeDB = await cubeDataSource.driver.obtainMasterConnection();
+  const [cubeDBConn] = await dbManager.getCubeDataSource().driver.obtainMasterConnection();
 
   try {
-    await cubeDB.query(pgformat(`SET search_path TO %I;`, revision.id));
-    const view = await viewChooser(cubeDB, 'raw', lang, revision);
-    const columns = await getColumns(cubeDB, lang);
+    await cubeDBConn.query(pgformat(`SET search_path TO %I;`, revision.id));
+    const view = await viewChooser(cubeDBConn, 'raw', lang, revision);
+    const columns = await getColumns(cubeDBConn, lang);
     const baseQuery = createBaseQuery(revision, view, columns, sortBy, filterBy);
-    const cursor = cubeDB.query(new Cursor(baseQuery));
+    const cursor = cubeDBConn.query(new Cursor(baseQuery));
     let rows = await cursor.read(CURSOR_ROW_LIMIT);
     res.writeHead(200, {
       // eslint-disable-next-line @typescript-eslint/naming-convention
@@ -444,6 +443,6 @@ export const createStreamingExcelFilteredView = async (
   } catch (error) {
     logger.error(error, 'Something went wrong trying to read from the view of the cube');
   } finally {
-    cubeDB.release();
+    cubeDBConn.release();
   }
 };

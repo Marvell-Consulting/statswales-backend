@@ -11,7 +11,7 @@ import { FactTableValidationException } from '../exceptions/fact-table-validatio
 import { FactTableValidationExceptionType } from '../enums/fact-table-validation-exception-type';
 import { SourceAssignmentDTO } from '../dtos/source-assignment-dto';
 import { tableDataToViewTable } from '../utils/table-data-to-view-table';
-import { cubeDataSource } from '../db/data-source';
+import { dbManager } from '../db/database-manager';
 
 interface FactTableDefinition {
   factTableColumn: FactTableColumn;
@@ -104,7 +104,7 @@ export const factTableValidatorFromSource = async (
       500
     );
   }
-  const cubeDB = cubeDataSource.createQueryRunner();
+  const cubeDB = dbManager.getCubeDataSource().createQueryRunner();
 
   try {
     await cubeDB.query(pgformat(`SET search_path TO %I;`, revision.id));
@@ -219,12 +219,12 @@ async function validateNoteCodesColumn(
 async function identifyIncompleteFacts(primaryKeyDef: string[]): Promise<FactTableValidationException | undefined> {
   const pkeyDef = primaryKeyDef.map((key) => pgformat('%I IS NULL', key));
   try {
-    const db = cubeDataSource.createQueryRunner();
+    const cubeDB = dbManager.getCubeDataSource().createQueryRunner();
     const incompleteFactQuery = pgformat(
       `SELECT * FROM (SELECT row_number() OVER () as line_number, * FROM fact_table) WHERE %s LIMIT 500;`,
       pkeyDef.join(' OR ')
     );
-    const brokenFacts = await db.query(incompleteFactQuery);
+    const brokenFacts = await cubeDB.query(incompleteFactQuery);
     if (brokenFacts.length > 0) {
       logger.debug(`${brokenFacts.length} incomplete facts found in fact table`);
       const { headers, data } = tableDataToViewTable(brokenFacts);
@@ -266,8 +266,8 @@ async function identifyDuplicateFacts(primaryKeyDef: string[]): Promise<FactTabl
   );
   try {
     logger.debug(`Running query to find duplicates:\n${duplicateFactQuery}`);
-    const db = cubeDataSource.createQueryRunner();
-    const brokenFacts = await db.query(duplicateFactQuery);
+    const cubeDB = dbManager.getCubeDataSource().createQueryRunner();
+    const brokenFacts = await cubeDB.query(duplicateFactQuery);
     if (brokenFacts.length > 0) {
       const { headers, data } = tableDataToViewTable(brokenFacts);
       const err = new FactTableValidationException(

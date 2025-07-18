@@ -23,7 +23,7 @@ import { validateParams } from '../validators/preview-validator';
 import { SourceLocation } from '../enums/source-location';
 import { UploadTableType } from '../interfaces/upload-table-type';
 import { TempFile } from '../interfaces/temp-file';
-import { cubeDataSource } from '../db/data-source';
+import { dbManager } from '../db/database-manager';
 
 const sampleSize = 5;
 
@@ -271,7 +271,7 @@ export const getCSVPreview = async (
 ): Promise<ViewDTO | ViewErrDTO> => {
   let tableName = 'fact_table';
 
-  const cubeDB = cubeDataSource.createQueryRunner();
+  const cubeDB = dbManager.getCubeDataSource().createQueryRunner();
 
   try {
     await cubeDB.query(pgformat(`SET search_path TO %I;`, 'data_tables'));
@@ -344,7 +344,7 @@ export const getFactTableColumnPreview = async (
 ): Promise<ViewDTO | ViewErrDTO> => {
   logger.debug(`Getting fact table column preview for ${columnName}`);
   const tableName = 'fact_table';
-  const cubeDB = cubeDataSource.createQueryRunner();
+  const cubeDB = dbManager.getCubeDataSource().createQueryRunner();
 
   try {
     await cubeDB.query(pgformat(`SET search_path TO %I;`, dataset.draftRevision!.id));
