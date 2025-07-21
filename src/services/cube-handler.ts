@@ -833,9 +833,38 @@ export async function createLookupTableDimension(
   return dimTable;
 }
 
+async function stripExistingRevisionCodes(
+  cubeDB: QueryRunner,
+  tableName: string,
+  notesCodeColumn?: FactTableColumn
+): Promise<void> {
+  if (!notesCodeColumn) return;
+  const removeProvisionalCodesQuery = pgformat(
+    `UPDATE %I SET %I = array_to_string(array_remove(string_to_array(replace(lower(%I.%I), ' ', ''), ','),'r'),',');`,
+    tableName,
+    notesCodeColumn.columnName,
+    tableName,
+    notesCodeColumn.columnName
+  );
+  await cubeDB.query(removeProvisionalCodesQuery);
+}
+
+async function stripExistingProvisionalCodes(cubeDB: QueryRunner, notesCodeColumn?: FactTableColumn): Promise<void> {
+  if (!notesCodeColumn) return;
+  const removeProvisionalCodesQuery = pgformat(
+    `UPDATE %I SET %I = array_to_string(array_remove(string_to_array(replace(lower(%I.%I), ' ', ''), ','),'p'),',');`,
+    FACT_TABLE_NAME,
+    notesCodeColumn.columnName,
+    FACT_TABLE_NAME,
+    notesCodeColumn.columnName
+  );
+  await cubeDB.query(removeProvisionalCodesQuery);
+}
+
 function setupFactTableUpdateJoins(
   factTableName: string,
   updateTableName: string,
+  dataValuesColumn: FactTableColumn | undefined,
   factIdentifiers: FactTableColumn[],
   dataTableIdentifiers: DataTableDescription[]
 ): string {
@@ -846,7 +875,127 @@ function setupFactTableUpdateJoins(
       pgformat('%I.%I=%I.%I', factTableName, factTableCol.columnName, updateTableName, dataTableCol?.columnName)
     );
   }
+  if (dataValuesColumn) {
+    joinParts.push(
+      pgformat(
+        '%I.%I != %I.%I',
+        FACT_TABLE_NAME,
+        dataValuesColumn.columnName,
+        updateTableName,
+        dataValuesColumn.columnName
+      )
+    );
+  }
   return joinParts.join(' AND ');
+}
+
+async function fixNoteCodesOnUpdateTable(
+  cubeDB: QueryRunner,
+  updateTableName: string,
+  notesCodeColumn: FactTableColumn,
+  dataValuesColumn: FactTableColumn | undefined,
+  factIdentifiers: FactTableColumn[],
+  dataTableIdentifiers: DataTableDescription[]
+): Promise<void> {
+  await stripExistingRevisionCodes(cubeDB, updateTableName, notesCodeColumn!);
+  const updateQuery = pgformat(
+    `UPDATE %I SET %I = array_to_string(array_append(array_remove(string_to_array(lower(%I.%I), ','), 'r'), 'r'), ',') FROM %I WHERE %s`,
+    updateTableName,
+    notesCodeColumn.columnName,
+    updateTableName,
+    notesCodeColumn.columnName,
+    FACT_TABLE_NAME,
+    setupFactTableUpdateJoins(FACT_TABLE_NAME, updateTableName, dataValuesColumn, factIdentifiers, dataTableIdentifiers)
+  );
+  await cubeDB.query(updateQuery);
+}
+
+async function updateFactsTableFromUpdateTable(
+  cubeDB: QueryRunner,
+  updateTableName: string,
+  dataValuesColumn: FactTableColumn,
+  notesCodeColumn: FactTableColumn,
+  factIdentifiers: FactTableColumn[],
+  dataTableIdentifiers: DataTableDescription[]
+): Promise<void> {
+  const joinParts: string[] = [];
+  for (const factTableCol of factIdentifiers) {
+    const dataTableCol = dataTableIdentifiers.find((col) => col.factTableColumn === factTableCol.columnName);
+    joinParts.push(
+      pgformat('%I.%I = %I.%I', FACT_TABLE_NAME, factTableCol.columnName, updateTableName, dataTableCol?.columnName)
+    );
+  }
+  const updateQuery = pgformat(
+    `UPDATE %I SET %I = %I.%I, %I = %I.%I FROM %I WHERE %s`,
+    FACT_TABLE_NAME,
+    dataValuesColumn.columnName,
+    updateTableName,
+    dataValuesColumn.columnName,
+    notesCodeColumn.columnName,
+    updateTableName,
+    notesCodeColumn.columnName,
+    updateTableName,
+    joinParts.join(' AND ')
+  );
+  logger.debug(updateQuery);
+  await cubeDB.query(updateQuery);
+}
+
+async function createUpdateTable(cubeDB: QueryRunner, tempTableName: string, dataTable: DataTable): Promise<void> {
+  const createUpdateTableQuery = pgformat(
+    'CREATE TEMPORARY TABLE %I AS SELECT * FROM data_tables.%I;',
+    tempTableName,
+    dataTable.id
+  );
+  await cubeDB.query(createUpdateTableQuery);
+}
+
+async function copyUpdateTableToFactTable(
+  cubeDB: QueryRunner,
+  updateTableName: string,
+  factTableDef: string[],
+  factIdentifiers: FactTableColumn[],
+  dataTableIdentifiers: DataTableDescription[]
+): Promise<void> {
+  const joinParts: string[] = [];
+  for (const factTableCol of factIdentifiers) {
+    const dataTableCol = dataTableIdentifiers.find((col) => col.factTableColumn === factTableCol.columnName);
+    if (!dataTableCol) continue;
+    joinParts.push(
+      pgformat('%I.%I = %I.%I', FACT_TABLE_NAME, factTableCol.columnName, updateTableName, dataTableCol.columnName)
+    );
+  }
+  const dataTableSelect: string[] = [];
+  for (const col of factTableDef) {
+    const dataTableCol = dataTableIdentifiers.find((dataTableCol) => dataTableCol.factTableColumn === col);
+    if (dataTableCol) dataTableSelect.push(dataTableCol.factTableColumn);
+  }
+  // First remove values which already exist in the fact table
+  const cleanUpUpdateTableQuery = pgformat(
+    `DELETE FROM %I USING %I WHERE %s`,
+    FACT_TABLE_NAME,
+    updateTableName,
+    joinParts.join(' AND ')
+  );
+  await cubeDB.query(cleanUpUpdateTableQuery);
+  // Now copy over anything else which remains
+  const copyQuery = pgformat(
+    'INSERT INTO %I (%I) (SELECT %I FROM %I);',
+    FACT_TABLE_NAME,
+    factTableDef,
+    dataTableSelect,
+    updateTableName
+  );
+  logger.debug(copyQuery);
+  await cubeDB.query(copyQuery);
+}
+
+async function resetFactTable(cubeDB: QueryRunner): Promise<void> {
+  await cubeDB.query(pgformat('DELETE FROM %I;', FACT_TABLE_NAME));
+}
+
+async function dropUpdateTable(cubeDB: QueryRunner, updateTableName: string): Promise<void> {
+  await cubeDB.query(pgformat('DROP TABLE %I', updateTableName));
 }
 
 async function loadFactTablesWithUpdates(
@@ -874,60 +1023,16 @@ async function loadFactTablesWithUpdates(
       await loadFileIntoDataTablesSchema(dataset, dataTable);
     }
 
-    logger.info(`Loading fact table data for fact table ${dataTable.id}`);
-    const updateTableDataCol = dataTable.dataTableDescriptions.find(
-      (col) => col.factTableColumn === dataValuesColumn?.columnName
-    )?.columnName;
-
-    let updateQuery = '';
-    let deleteQuery = '';
-    const createUpdateTableQuery = pgformat(
-      'CREATE TEMPORARY TABLE %I AS SELECT * FROM data_tables.%I;',
-      actionID,
-      dataTable.id
-    );
     let doRevision = false;
     if (dataValuesColumn && notesCodeColumn && factIdentifiers.length > 0) {
       doRevision = true;
-      deleteQuery = pgformat(
-        `DELETE FROM %I USING %I WHERE %s`,
-        actionID,
-        FACT_TABLE_NAME,
-        setupFactTableUpdateJoins(FACT_TABLE_NAME, actionID, factIdentifiers, dataTable.dataTableDescriptions)
-      );
-      updateQuery = pgformat(
-        `UPDATE %I SET %I=%I.%I,
-      %I=(CASE
-      WHEN %I.%I IS NULL THEN 'r'
-      WHEN %I.%I LIKE '%r%' THEN %I.%I
-      ELSE concat(%I.%I,'r') END)
-      FROM %I WHERE %s
-      AND %I.%I!=%I.%I;`,
-        FACT_TABLE_NAME,
-        dataValuesColumn.columnName,
-        actionID,
-        updateTableDataCol,
-        notesCodeColumn.columnName,
-        FACT_TABLE_NAME,
-        notesCodeColumn.columnName,
-        FACT_TABLE_NAME,
-        notesCodeColumn.columnName,
-        FACT_TABLE_NAME,
-        notesCodeColumn.columnName,
-        FACT_TABLE_NAME,
-        notesCodeColumn.columnName,
-        actionID,
-        setupFactTableUpdateJoins(FACT_TABLE_NAME, actionID, factIdentifiers, dataTable.dataTableDescriptions),
-        FACT_TABLE_NAME,
-        dataValuesColumn.columnName,
-        actionID,
-        updateTableDataCol
-      );
     } else {
-      logger.warn('No notes code or data value columns defined.  Unable to perform revision actions.');
+      logger.warn(
+        'No notes code or data value columns defined.  Unable to do revise and add/revise actions.  These tables will be skipped.'
+      );
     }
-    const dataTableColumnSelect: string[] = [];
 
+    const dataTableColumnSelect: string[] = [];
     for (const factTableCol of factTableDef) {
       const dataTableCol = dataTable.dataTableDescriptions.find(
         (col) => col.factTableColumn === factTableCol
@@ -936,37 +1041,69 @@ async function loadFactTablesWithUpdates(
     }
 
     try {
-      logger.debug(`Performing action ${dataTable.action} on fact table`);
+      logger.debug(`Performing action ${dataTable.action} on fact table for data table ${dataTable.id}`);
       switch (dataTable.action) {
         case DataTableAction.ReplaceAll:
-          await cubeDB.query(pgformat('DELETE FROM %I;', FACT_TABLE_NAME));
-        // eslint-disable-next-line no-fallthrough
+          await resetFactTable(cubeDB);
+          await loadTableDataIntoFactTableFromPostgres(cubeDB, factTableDef, FACT_TABLE_NAME, dataTable.id);
+          break;
         case DataTableAction.Add:
+          await stripExistingProvisionalCodes(cubeDB, notesCodeColumn);
+          await stripExistingRevisionCodes(cubeDB, FACT_TABLE_NAME, notesCodeColumn);
           await loadTableDataIntoFactTableFromPostgres(cubeDB, factTableDef, FACT_TABLE_NAME, dataTable.id);
           break;
         case DataTableAction.Revise:
           if (!doRevision) continue;
-          logger.debug(`Executing create temporary update table query: ${createUpdateTableQuery}`);
-          await cubeDB.query(createUpdateTableQuery);
-          logger.debug(`Executing update query: ${updateQuery}`);
-          await cubeDB.query(updateQuery);
+          await stripExistingProvisionalCodes(cubeDB, notesCodeColumn!);
+          await stripExistingRevisionCodes(cubeDB, FACT_TABLE_NAME, notesCodeColumn!);
+          await createUpdateTable(cubeDB, actionID, dataTable);
+          await fixNoteCodesOnUpdateTable(
+            cubeDB,
+            actionID,
+            notesCodeColumn!,
+            dataValuesColumn,
+            factIdentifiers,
+            dataTable.dataTableDescriptions
+          );
+          await updateFactsTableFromUpdateTable(
+            cubeDB,
+            actionID,
+            dataValuesColumn!,
+            notesCodeColumn!,
+            factIdentifiers,
+            dataTable.dataTableDescriptions
+          );
+          await dropUpdateTable(cubeDB, actionID);
           break;
         case DataTableAction.AddRevise:
           if (!doRevision) continue;
-          logger.debug(`Executing create temporary update table query: ${createUpdateTableQuery}`);
-          await cubeDB.query(createUpdateTableQuery);
-          logger.debug(`Executing update query: ${updateQuery}`);
-          await cubeDB.query(updateQuery);
-          await cubeDB.query(deleteQuery);
-          await cubeDB.query(
-            pgformat(
-              'INSERT INTO %I (%I) (SELECT %I FROM %I);',
-              FACT_TABLE_NAME,
-              factTableDef,
-              dataTableColumnSelect,
-              actionID
-            )
+          await stripExistingProvisionalCodes(cubeDB, notesCodeColumn!);
+          await stripExistingRevisionCodes(cubeDB, FACT_TABLE_NAME, notesCodeColumn!);
+          await createUpdateTable(cubeDB, actionID, dataTable);
+          await fixNoteCodesOnUpdateTable(
+            cubeDB,
+            actionID,
+            notesCodeColumn!,
+            dataValuesColumn,
+            factIdentifiers,
+            dataTable.dataTableDescriptions
           );
+          await updateFactsTableFromUpdateTable(
+            cubeDB,
+            actionID,
+            dataValuesColumn!,
+            notesCodeColumn!,
+            factIdentifiers,
+            dataTable.dataTableDescriptions
+          );
+          await copyUpdateTableToFactTable(
+            cubeDB,
+            actionID,
+            factTableDef,
+            factIdentifiers,
+            dataTable.dataTableDescriptions
+          );
+          await dropUpdateTable(cubeDB, actionID);
           break;
       }
     } catch (error) {
@@ -2030,18 +2167,20 @@ export const updateFactTableValidator = async (
     factTableInfo.notesCodeColumn,
     factTableInfo.factIdentifiers
   );
-  await createPrimaryKeyOnFactTable(cubeDB, revision, factTableInfo.compositeKey);
+  await createPrimaryKeyOnFactTable(cubeDB, buildID, revision, factTableInfo.compositeKey);
 };
 
 async function createPrimaryKeyOnFactTable(
   cubeDB: QueryRunner,
+  schema: string,
   revision: Revision,
   compositeKey: string[]
 ): Promise<void> {
   logger.debug('Creating primary key on fact table');
   try {
-    const addPKQuery = pgformat('ALTER TABLE %I.%I ADD PRIMARY KEY (%I)', revision.id, FACT_TABLE_NAME, compositeKey);
-    await cubeDB.query(addPKQuery);
+    const alterTableQuery = pgformat('ALTER TABLE %I.%I ADD PRIMARY KEY (%I)', schema, FACT_TABLE_NAME, compositeKey);
+    logger.debug(`Alter Table query = ${alterTableQuery}`);
+    await cubeDB.query(alterTableQuery);
   } catch (error) {
     logger.error(error, `Failed to add primary key to the fact table`);
     if ((error as Error).message.includes('could not create unique index')) {
@@ -2169,6 +2308,20 @@ export const createBasePostgresCube = async (
     logger.error(err, `Failed to load fact tables into the cube`);
     throw new Error(`Failed to load fact tables into the cube: ${err}`);
   }
+
+  const primaryKeyAddStart = performance.now();
+  try {
+    await createPrimaryKeyOnFactTable(cubeDB, buildId, endRevision, factTableInfo.compositeKey);
+  } catch (err) {
+    await cubeDB.query(`UPDATE metadata SET value = 'failed' WHERE key = 'build_status'`);
+    logger.error(
+      err,
+      'Failed to apply primary key to fact table.  This implies there are duplicate or incomplete facts'
+    );
+    performanceReporting(Math.round(performance.now() - primaryKeyAddStart), 1000, 'Add primary key to fact table');
+    throw err;
+  }
+  performanceReporting(Math.round(performance.now() - primaryKeyAddStart), 1000, 'Add primary key to fact table');
 
   const measureSetupMark = performance.now();
   if (factTableInfo.measureColumn && factTableInfo.dataValuesColumn) {
@@ -2467,6 +2620,7 @@ export const createAllCubeFiles = async (datasetId: string, endRevisionId: strin
     await cubeDB.query(pgformat('ALTER SCHEMA %I RENAME TO %I;', buildId, endRevision.id));
   } catch (err) {
     logger.error(err, 'Failed to create cube in Postgres');
+    await cubeDB.query(pgformat('DROP SCHEMA IF EXISTS %I CASCADE;', buildId));
     throw err;
   } finally {
     cubeDB.release();
