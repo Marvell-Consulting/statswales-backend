@@ -834,7 +834,7 @@ export async function createLookupTableDimension(
 }
 
 async function stripExistingRevisionCodes(
-  connection: PoolClient,
+  cubeDB: QueryRunner,
   tableName: string,
   notesCodeColumn?: FactTableColumn
 ): Promise<void> {
@@ -846,10 +846,10 @@ async function stripExistingRevisionCodes(
     tableName,
     notesCodeColumn.columnName
   );
-  await connection.query(removeProvisionalCodesQuery);
+  await cubeDB.query(removeProvisionalCodesQuery);
 }
 
-async function stripExistingProvisionalCodes(connection: PoolClient, notesCodeColumn?: FactTableColumn): Promise<void> {
+async function stripExistingProvisionalCodes(cubeDB: QueryRunner, notesCodeColumn?: FactTableColumn): Promise<void> {
   if (!notesCodeColumn) return;
   const removeProvisionalCodesQuery = pgformat(
     `UPDATE %I SET %I = array_to_string(array_remove(string_to_array(replace(lower(%I.%I), ' ', ''), ','),'p'),',');`,
@@ -858,7 +858,7 @@ async function stripExistingProvisionalCodes(connection: PoolClient, notesCodeCo
     FACT_TABLE_NAME,
     notesCodeColumn.columnName
   );
-  await connection.query(removeProvisionalCodesQuery);
+  await cubeDB.query(removeProvisionalCodesQuery);
 }
 
 function setupFactTableUpdateJoins(
@@ -890,14 +890,14 @@ function setupFactTableUpdateJoins(
 }
 
 async function fixNoteCodesOnUpdateTable(
-  connection: PoolClient,
+  cubeDB: QueryRunner,
   updateTableName: string,
   notesCodeColumn: FactTableColumn,
   dataValuesColumn: FactTableColumn | undefined,
   factIdentifiers: FactTableColumn[],
   dataTableIdentifiers: DataTableDescription[]
 ): Promise<void> {
-  await stripExistingRevisionCodes(connection, updateTableName, notesCodeColumn!);
+  await stripExistingRevisionCodes(cubeDB, updateTableName, notesCodeColumn!);
   const updateQuery = pgformat(
     `UPDATE %I SET %I = array_to_string(array_append(array_remove(string_to_array(lower(%I.%I), ','), 'r'), 'r'), ',') FROM %I WHERE %s`,
     updateTableName,
@@ -907,11 +907,11 @@ async function fixNoteCodesOnUpdateTable(
     FACT_TABLE_NAME,
     setupFactTableUpdateJoins(FACT_TABLE_NAME, updateTableName, dataValuesColumn, factIdentifiers, dataTableIdentifiers)
   );
-  await connection.query(updateQuery);
+  await cubeDB.query(updateQuery);
 }
 
 async function updateFactsTableFromUpdateTable(
-  connection: PoolClient,
+  cubeDB: QueryRunner,
   updateTableName: string,
   dataValuesColumn: FactTableColumn,
   notesCodeColumn: FactTableColumn,
@@ -938,20 +938,20 @@ async function updateFactsTableFromUpdateTable(
     joinParts.join(' AND ')
   );
   logger.debug(updateQuery);
-  await connection.query(updateQuery);
+  await cubeDB.query(updateQuery);
 }
 
-async function createUpdateTable(connection: PoolClient, tempTableName: string, dataTable: DataTable): Promise<void> {
+async function createUpdateTable(cubeDB: QueryRunner, tempTableName: string, dataTable: DataTable): Promise<void> {
   const createUpdateTableQuery = pgformat(
     'CREATE TEMPORARY TABLE %I AS SELECT * FROM data_tables.%I;',
     tempTableName,
     dataTable.id
   );
-  await connection.query(createUpdateTableQuery);
+  await cubeDB.query(createUpdateTableQuery);
 }
 
 async function copyUpdateTableToFactTable(
-  connection: PoolClient,
+  cubeDB: QueryRunner,
   updateTableName: string,
   factTableDef: string[],
   factIdentifiers: FactTableColumn[],
@@ -977,7 +977,7 @@ async function copyUpdateTableToFactTable(
     updateTableName,
     joinParts.join(' AND ')
   );
-  await connection.query(cleanUpUpdateTableQuery);
+  await cubeDB.query(cleanUpUpdateTableQuery);
   // Now copy over anything else which remains
   const copyQuery = pgformat(
     'INSERT INTO %I (%I) (SELECT %I FROM %I);',
@@ -987,15 +987,15 @@ async function copyUpdateTableToFactTable(
     updateTableName
   );
   logger.debug(copyQuery);
-  await connection.query(copyQuery);
+  await cubeDB.query(copyQuery);
 }
 
-async function resetFactTable(connection: PoolClient): Promise<void> {
-  await connection.query(pgformat('DELETE FROM %I;', FACT_TABLE_NAME));
+async function resetFactTable(cubeDB: QueryRunner): Promise<void> {
+  await cubeDB.query(pgformat('DELETE FROM %I;', FACT_TABLE_NAME));
 }
 
-async function dropUpdateTable(connection: PoolClient, updateTableName: string): Promise<void> {
-  await connection.query(pgformat('DROP TABLE %I', updateTableName));
+async function dropUpdateTable(cubeDB: QueryRunner, updateTableName: string): Promise<void> {
+  await cubeDB.query(pgformat('DROP TABLE %I', updateTableName));
 }
 
 async function loadFactTablesWithUpdates(
@@ -1044,21 +1044,21 @@ async function loadFactTablesWithUpdates(
       logger.debug(`Performing action ${dataTable.action} on fact table for data table ${dataTable.id}`);
       switch (dataTable.action) {
         case DataTableAction.ReplaceAll:
-          await resetFactTable(connection);
-          await loadTableDataIntoFactTableFromPostgres(connection, factTableDef, FACT_TABLE_NAME, dataTable.id);
+          await resetFactTable(cubeDB);
+          await loadTableDataIntoFactTableFromPostgres(cubeDB, factTableDef, FACT_TABLE_NAME, dataTable.id);
           break;
         case DataTableAction.Add:
-          await stripExistingProvisionalCodes(connection, notesCodeColumn);
-          await stripExistingRevisionCodes(connection, FACT_TABLE_NAME, notesCodeColumn);
-          await loadTableDataIntoFactTableFromPostgres(connection, factTableDef, FACT_TABLE_NAME, dataTable.id);
+          await stripExistingProvisionalCodes(cubeDB, notesCodeColumn);
+          await stripExistingRevisionCodes(cubeDB, FACT_TABLE_NAME, notesCodeColumn);
+          await loadTableDataIntoFactTableFromPostgres(cubeDB, factTableDef, FACT_TABLE_NAME, dataTable.id);
           break;
         case DataTableAction.Revise:
           if (!doRevision) continue;
-          await stripExistingProvisionalCodes(connection, notesCodeColumn!);
-          await stripExistingRevisionCodes(connection, FACT_TABLE_NAME, notesCodeColumn!);
-          await createUpdateTable(connection, actionID, dataTable);
+          await stripExistingProvisionalCodes(cubeDB, notesCodeColumn!);
+          await stripExistingRevisionCodes(cubeDB, FACT_TABLE_NAME, notesCodeColumn!);
+          await createUpdateTable(cubeDB, actionID, dataTable);
           await fixNoteCodesOnUpdateTable(
-            connection,
+            cubeDB,
             actionID,
             notesCodeColumn!,
             dataValuesColumn,
@@ -1066,22 +1066,22 @@ async function loadFactTablesWithUpdates(
             dataTable.dataTableDescriptions
           );
           await updateFactsTableFromUpdateTable(
-            connection,
+            cubeDB,
             actionID,
             dataValuesColumn!,
             notesCodeColumn!,
             factIdentifiers,
             dataTable.dataTableDescriptions
           );
-          await dropUpdateTable(connection, actionID);
+          await dropUpdateTable(cubeDB, actionID);
           break;
         case DataTableAction.AddRevise:
           if (!doRevision) continue;
-          await stripExistingProvisionalCodes(connection, notesCodeColumn!);
-          await stripExistingRevisionCodes(connection, FACT_TABLE_NAME, notesCodeColumn!);
-          await createUpdateTable(connection, actionID, dataTable);
+          await stripExistingProvisionalCodes(cubeDB, notesCodeColumn!);
+          await stripExistingRevisionCodes(cubeDB, FACT_TABLE_NAME, notesCodeColumn!);
+          await createUpdateTable(cubeDB, actionID, dataTable);
           await fixNoteCodesOnUpdateTable(
-            connection,
+            cubeDB,
             actionID,
             notesCodeColumn!,
             dataValuesColumn,
@@ -1089,7 +1089,7 @@ async function loadFactTablesWithUpdates(
             dataTable.dataTableDescriptions
           );
           await updateFactsTableFromUpdateTable(
-            connection,
+            cubeDB,
             actionID,
             dataValuesColumn!,
             notesCodeColumn!,
@@ -1097,13 +1097,13 @@ async function loadFactTablesWithUpdates(
             dataTable.dataTableDescriptions
           );
           await copyUpdateTableToFactTable(
-            connection,
+            cubeDB,
             actionID,
             factTableDef,
             factIdentifiers,
             dataTable.dataTableDescriptions
           );
-          await dropUpdateTable(connection, actionID);
+          await dropUpdateTable(cubeDB, actionID);
           break;
       }
     } catch (error) {
@@ -2311,9 +2311,9 @@ export const createBasePostgresCube = async (
 
   const primaryKeyAddStart = performance.now();
   try {
-    await createPrimaryKeyOnFactTable(connection, buildId, endRevision, factTableInfo.compositeKey);
+    await createPrimaryKeyOnFactTable(cubeDB, buildId, endRevision, factTableInfo.compositeKey);
   } catch (err) {
-    await connection.query(`UPDATE metadata SET value = 'failed' WHERE key = 'build_status'`);
+    await cubeDB.query(`UPDATE metadata SET value = 'failed' WHERE key = 'build_status'`);
     logger.error(
       err,
       'Failed to apply primary key to fact table.  This implies there are duplicate or incomplete facts'
@@ -2620,7 +2620,7 @@ export const createAllCubeFiles = async (datasetId: string, endRevisionId: strin
     await cubeDB.query(pgformat('ALTER SCHEMA %I RENAME TO %I;', buildId, endRevision.id));
   } catch (err) {
     logger.error(err, 'Failed to create cube in Postgres');
-    await connection.query(pgformat('DROP SCHEMA IF EXISTS %I CASCADE;', buildId));
+    await cubeDB.query(pgformat('DROP SCHEMA IF EXISTS %I CASCADE;', buildId));
     throw err;
   } finally {
     cubeDB.release();
