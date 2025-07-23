@@ -1,6 +1,17 @@
 import { performance } from 'node:perf_hooks';
 
-import { FindOneOptions, And, Not, IsNull, LessThan, FindOptionsRelations, In, Like, Raw } from 'typeorm';
+import {
+  FindOneOptions,
+  FindManyOptions,
+  And,
+  Not,
+  IsNull,
+  LessThan,
+  FindOptionsRelations,
+  In,
+  Like,
+  Raw
+} from 'typeorm';
 import { has, set } from 'lodash';
 
 import { logger } from '../utils/logger';
@@ -84,7 +95,7 @@ export const PublishedDatasetRepository = dataSource.getRepository(Dataset).exte
     return { data, count };
   },
 
-  async listPublishedTopics(topicId?: string): Promise<Topic[]> {
+  async listPublishedTopics(lang: Locale, topicId?: string): Promise<Topic[]> {
     const latestPublishedRevisions = await this.createQueryBuilder('d')
       .select('d.published_revision_id')
       .where('d.live IS NOT NULL')
@@ -97,12 +108,15 @@ export const PublishedDatasetRepository = dataSource.getRepository(Dataset).exte
     // if no topicId provided, fetch topics where path equals the id (i.e. root level topics)
     const path = topicId ? { path: Like(`${topicId}.%`) } : { path: Raw('"Topic"."id"::text') };
 
-    return this.manager.getRepository(Topic).find({
+    const findOpts: FindManyOptions<Topic> = {
       where: {
         revisionTopics: { revisionId: In(revisionIds) },
         ...path
-      }
-    });
+      },
+      order: lang.includes(Locale.Welsh) ? { nameCY: 'ASC' } : { nameEN: 'ASC' }
+    };
+
+    return this.manager.getRepository(Topic).find(findOpts);
   },
 
   async listPublishedByTopic(
