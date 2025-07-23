@@ -1,5 +1,6 @@
 import { DataTable } from '../entities/dataset/data-table';
 import { DataTableDescription } from '../entities/dataset/data-table-description';
+import { DataTableAction } from '../enums/data-table-action';
 
 import { DataTableDescriptionDto } from './data-table-description-dto';
 
@@ -13,7 +14,7 @@ export class DataTableDto {
   uploaded_at?: string;
   revision_id?: string;
   descriptors: DataTableDescriptionDto[];
-  action?: string;
+  action?: DataTableAction;
 
   static fromDataTable(dataTable: DataTable): DataTableDto {
     const dto = new DataTableDto();
