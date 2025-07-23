@@ -188,9 +188,12 @@ export const downloadRawFactTable = async (req: Request, res: Response, next: Ne
     return;
   }
 
+  const filename = revision.dataTable.filename;
+
   try {
-    readable = await req.fileService.loadStream(revision.dataTable.filename, datasetId);
+    readable = await req.fileService.loadStream(filename, datasetId);
   } catch (_err) {
+    logger.error(_err, `There was a problem downloading the raw fact table ${revision.id}`);
     res.status(500);
     res.json({
       status: 500,
