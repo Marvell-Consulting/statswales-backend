@@ -260,7 +260,7 @@ export const listRootTopics = async (req: Request, res: Response, next: NextFunc
 
   try {
     const lang = req.language as Locale;
-    const subTopics = await PublishedDatasetRepository.listPublishedTopics();
+    const subTopics = await PublishedDatasetRepository.listPublishedTopics(lang);
 
     const data: PublishedTopicsDTO = {
       selectedTopic: undefined,
@@ -312,7 +312,7 @@ export const listSubTopics = async (req: Request, res: Response, next: NextFunct
 
   try {
     const topic = topicId ? await TopicRepository.findOneByOrFail({ id: parseInt(topicId, 10) }) : undefined;
-    const subTopics = await PublishedDatasetRepository.listPublishedTopics(topicId);
+    const subTopics = await PublishedDatasetRepository.listPublishedTopics(lang, topicId);
     const parents = topic ? await TopicRepository.getParents(topic.path) : undefined;
     const isLeafTopic = topic && subTopics.length === 0;
     let datasets;
