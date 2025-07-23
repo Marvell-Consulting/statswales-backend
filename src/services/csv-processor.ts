@@ -254,7 +254,7 @@ export const validateAndUpload = async (
     await fileService.saveStream(dataTable.filename, datasetId, uploadStream);
   } catch (err) {
     logger.error(err, `Something went wrong trying to upload the file to the Data Lake`);
-    throw new FileValidationException('Error uploading file to blob storage', FileValidationErrorType.datalake, 500);
+    throw new FileValidationException('Error uploading file', FileValidationErrorType.datalake, 500);
   }
 
   dataTable.uploadedAt = new Date();

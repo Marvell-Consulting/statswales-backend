@@ -816,7 +816,7 @@ export async function createLookupTableDimension(
   );
 
   if (lookupTablePresent.length === 0) {
-    logger.warn('Lookup table not loaded in to lookup table schema.  Loading lookup table from blob storage.');
+    logger.warn('Lookup table not loaded in to lookup table schema. Loading lookup table from file storage.');
     await loadFileIntoLookupTablesSchema(
       dataset,
       dimension.lookupTable!,
@@ -1019,7 +1019,7 @@ async function loadFactTablesWithUpdates(
     );
 
     if (dataTablePresent.length === 0) {
-      logger.warn('Data table not loaded in to data_tables schema.  Loading data table from blob storage.');
+      logger.warn('Data table not loaded in to data_tables schema. Loading data table from file storage.');
       await loadFileIntoDataTablesSchema(dataset, dataTable);
     }
 
@@ -1028,7 +1028,7 @@ async function loadFactTablesWithUpdates(
       doRevision = true;
     } else {
       logger.warn(
-        'No notes code or data value columns defined.  Unable to do revise and add/revise actions.  These tables will be skipped.'
+        'No notes code or data value columns defined. Unable to do revise and add/revise actions. These tables will be skipped.'
       );
     }
 
