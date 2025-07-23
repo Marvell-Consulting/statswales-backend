@@ -2309,19 +2309,21 @@ export const createBasePostgresCube = async (
     throw new Error(`Failed to load fact tables into the cube: ${err}`);
   }
 
-  const primaryKeyAddStart = performance.now();
-  try {
-    await createPrimaryKeyOnFactTable(cubeDB, buildId, endRevision, factTableInfo.compositeKey);
-  } catch (err) {
-    await cubeDB.query(`UPDATE metadata SET value = 'failed' WHERE key = 'build_status'`);
-    logger.error(
-      err,
-      'Failed to apply primary key to fact table.  This implies there are duplicate or incomplete facts'
-    );
+  if (factTableInfo.compositeKey.length > 0) {
+    const primaryKeyAddStart = performance.now();
+    try {
+      await createPrimaryKeyOnFactTable(cubeDB, buildId, endRevision, factTableInfo.compositeKey);
+    } catch (err) {
+      await cubeDB.query(`UPDATE metadata SET value = 'failed' WHERE key = 'build_status'`);
+      logger.error(
+        err,
+        'Failed to apply primary key to fact table.  This implies there are duplicate or incomplete facts'
+      );
+      performanceReporting(Math.round(performance.now() - primaryKeyAddStart), 1000, 'Add primary key to fact table');
+      throw err;
+    }
     performanceReporting(Math.round(performance.now() - primaryKeyAddStart), 1000, 'Add primary key to fact table');
-    throw err;
   }
-  performanceReporting(Math.round(performance.now() - primaryKeyAddStart), 1000, 'Add primary key to fact table');
 
   const measureSetupMark = performance.now();
   if (factTableInfo.measureColumn && factTableInfo.dataValuesColumn) {
