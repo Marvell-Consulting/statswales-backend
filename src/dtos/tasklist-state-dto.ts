@@ -1,4 +1,4 @@
-import { every, isEqual, max, pick, sortBy } from 'lodash';
+import { difference, every, isEqual, max, pick, sortBy } from 'lodash';
 
 import { Dataset } from '../entities/dataset/dataset';
 import { DimensionType } from '../enums/dimension-type';
@@ -44,7 +44,7 @@ export class TasklistStateDTO {
   canPublish: boolean;
   isUpdate: boolean;
 
-  public static dataTableStatus(revision: Revision): TaskListStatus {
+  public static dataTableStatus(dataset: Dataset, revision: Revision): TaskListStatus {
     const isUpdate = Boolean(revision.previousRevisionId);
 
     if (isUpdate) {
@@ -52,7 +52,11 @@ export class TasklistStateDTO {
       return uploadedAt && uploadedAt > revision.createdAt ? TaskListStatus.Updated : TaskListStatus.Unchanged;
     }
 
-    return revision?.dataTable ? TaskListStatus.Completed : TaskListStatus.NotStarted;
+    if (!revision?.dataTable) {
+      return TaskListStatus.NotStarted;
+    }
+
+    return dataset.dimensions?.length === 0 ? TaskListStatus.Incomplete : TaskListStatus.Completed;
   }
 
   public static measureStatus(dataset: Dataset, revision: Revision, lang: string): DimensionStatus | undefined {
@@ -216,6 +220,13 @@ export class TasklistStateDTO {
 
     const existingTranslations = collectTranslations(dataset);
 
+    // check if there are any new keys since the last export, e.g. new dimensions
+    const newKeysSinceLastExport: boolean =
+      difference(
+        existingTranslations.map((t: TranslationDTO) => t.key),
+        lastExport?.data?.translations.map((t: TranslationDTO) => t.key)
+      ).length > 0;
+
     // previously exported revisions did not include data, ignore these.
     const exportStale = lastExport?.data?.translations.some((incoming: TranslationDTO) => {
       const expected = existingTranslations.find((existing) => existing.key === incoming.key)?.english;
@@ -228,7 +239,7 @@ export class TasklistStateDTO {
 
     let exportStatus: TaskListStatus;
     if (lastExport) {
-      exportStatus = exportStale ? TaskListStatus.Incomplete : TaskListStatus.Completed;
+      exportStatus = exportStale || newKeysSinceLastExport ? TaskListStatus.Incomplete : TaskListStatus.Completed;
     } else {
       exportStatus = TaskListStatus.NotStarted;
     }
@@ -237,7 +248,7 @@ export class TasklistStateDTO {
     // TODO: we should store the import in the same format as the export.
     const importMatchesExport = isEqual(lastImport?.data, lastExport?.data?.translations);
 
-    const requiresImport = importStale && !importMatchesExport;
+    const requiresImport = newKeysSinceLastExport || (importStale && !importMatchesExport);
 
     let importStatus: TaskListStatus;
     if (importedSinceMetaUpdate) {
@@ -264,23 +275,27 @@ export class TasklistStateDTO {
     const dto = new TasklistStateDTO();
     dto.isUpdate = isUpdate;
 
-    dto.datatable = TasklistStateDTO.dataTableStatus(revision);
+    dto.datatable = TasklistStateDTO.dataTableStatus(dataset, revision);
     dto.measure = TasklistStateDTO.measureStatus(dataset, revision, lang);
     dto.dimensions = TasklistStateDTO.dimensionStatus(dataset, revision, lang);
     dto.metadata = TasklistStateDTO.metadataStatus(revision, lang);
     dto.publishing = TasklistStateDTO.publishingStatus(dataset, revision);
     dto.translation = TasklistStateDTO.translationStatus(dataset, revision, translationEvents);
 
-    const dimensionsComplete = isUpdate || every(dto.dimensions, (dim) => dim.status === TaskListStatus.Completed);
+    const dataTableComplete = dto.datatable === TaskListStatus.Completed;
+    const dimensionsComplete =
+      isUpdate || (dataTableComplete && every(dto.dimensions, (dim) => dim.status === TaskListStatus.Completed));
     const metadataComplete = isUpdate || every(dto.metadata, (status) => status === TaskListStatus.Completed);
     const publishingComplete = every(dto.publishing, (status) => status === TaskListStatus.Completed);
     const translationsComplete = [TaskListStatus.Completed, TaskListStatus.Unchanged].includes(dto.translation.import);
 
-    dto.canPublish = dimensionsComplete && metadataComplete && translationsComplete && publishingComplete;
+    dto.canPublish =
+      dataTableComplete && dimensionsComplete && metadataComplete && translationsComplete && publishingComplete;
 
     logger.debug(
       `\nTasklistState: ${JSON.stringify(
         {
+          dataTableComplete,
           dimensionsComplete,
           metadataComplete,
           translationsComplete,
