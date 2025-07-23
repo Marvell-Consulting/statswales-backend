@@ -13,6 +13,7 @@ export class DataTableDto {
   uploaded_at?: string;
   revision_id?: string;
   descriptors: DataTableDescriptionDto[];
+  action?: string;
 
   static fromDataTable(dataTable: DataTable): DataTableDto {
     const dto = new DataTableDto();
@@ -25,6 +26,7 @@ export class DataTableDto {
     dto.uploaded_at = dataTable.uploadedAt?.toISOString();
     dto.descriptors = [];
     dto.revision_id = dataTable.revision?.id;
+    dto.action = dataTable.action;
 
     dto.descriptors = dataTable.dataTableDescriptions?.map((factTableInfo: DataTableDescription) =>
       DataTableDescriptionDto.fromDataTableDescription(factTableInfo)
