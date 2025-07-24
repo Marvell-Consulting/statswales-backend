@@ -276,15 +276,10 @@ export const getCSVPreview = async (
     await cubeDB.query(pgformat(`SET search_path TO %I;`, 'data_tables'));
     logger.debug('Getting table query from postgres');
     tableName = dataTable.id;
-    const totalsQuery = pgformat(
-      `SELECT count(*) as total_lines, ceil(count(*)/%L) as total_pages from %I;`,
-      size,
-      tableName
-    );
-    logger.debug(`Getting total lines and pages using query ${totalsQuery}`);
-    const totals: { total_lines: number; total_pages: number }[] = await cubeDB.query(totalsQuery);
-    const totalPages = Number(totals[0].total_pages) === 0 ? 1 : Number(totals[0].total_pages);
+    const totalsQuery = pgformat(`SELECT count(*) AS total_lines FROM %I;`, tableName);
+    const totals: { total_lines: number }[] = await cubeDB.query(totalsQuery);
     const totalLines = Number(totals[0].total_lines);
+    const totalPages = Math.max(1, Math.ceil(totalLines / size));
     const errors = validateParams(page, totalPages, size);
 
     if (errors.length > 0) {
