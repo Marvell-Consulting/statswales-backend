@@ -28,7 +28,7 @@ export const loadUserGroup = async (req: Request, res: Response, next: NextFunct
   }
 
   try {
-    const group = await UserGroupRepository.getById(req.params.user_group_id);
+    const group = await UserGroupRepository.getByIdWithDatasets(req.params.user_group_id);
     res.locals.userGroup = group;
     res.locals.userGroupId = group.id;
   } catch (error) {

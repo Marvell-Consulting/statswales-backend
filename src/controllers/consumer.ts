@@ -23,6 +23,8 @@ import { SortByInterface } from '../interfaces/sort-by-interface';
 import { FilterInterface } from '../interfaces/filterInterface';
 import { DownloadFormat } from '../enums/download-format';
 import { DEFAULT_PAGE_SIZE } from '../utils/page-defaults';
+import { UserGroupRepository } from '../repositories/user-group';
+import { PublisherDTO } from '../dtos/publisher-dto';
 
 export const listPublishedDatasets = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   /*
@@ -73,7 +75,14 @@ export const getPublishedDatasetById = async (req: Request, res: Response): Prom
     }
   */
   const dataset = await PublishedDatasetRepository.getById(res.locals.datasetId, withAll);
-  res.json(ConsumerDatasetDTO.fromDataset(dataset));
+  const datasetDTO = ConsumerDatasetDTO.fromDataset(dataset);
+
+  if (dataset.userGroupId) {
+    const userGroup = await UserGroupRepository.getByIdWithOrganisation(dataset.userGroupId);
+    datasetDTO.publisher = PublisherDTO.fromUserGroup(userGroup, req.language as Locale);
+  }
+
+  res.json(datasetDTO);
 };
 
 export const getPublishedDatasetView = async (req: Request, res: Response): Promise<void> => {

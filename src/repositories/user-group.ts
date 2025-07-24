@@ -7,7 +7,17 @@ import { Locale } from '../enums/locale';
 import { ResultsetWithCount } from '../interfaces/resultset-with-count';
 
 export const UserGroupRepository = dataSource.getRepository(UserGroup).extend({
-  async getById(id: string): Promise<UserGroup> {
+  async getByIdWithOrganisation(id: string): Promise<UserGroup> {
+    return this.findOneOrFail({
+      where: { id },
+      relations: {
+        metadata: true,
+        organisation: { metadata: true }
+      }
+    });
+  },
+
+  async getByIdWithDatasets(id: string): Promise<UserGroup> {
     return this.findOneOrFail({
       where: { id },
       relations: {
