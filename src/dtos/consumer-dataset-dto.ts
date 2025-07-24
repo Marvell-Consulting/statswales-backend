@@ -6,6 +6,7 @@ import { Revision } from '../entities/dataset/revision';
 
 import { DimensionDTO } from './dimension-dto';
 import { ConsumerRevisionDTO } from './consumer-revision-dto';
+import { PublisherDTO } from './publisher-dto';
 
 // WARNING: Make sure to filter any props the consumer side should not have access to
 export class ConsumerDatasetDTO {
@@ -16,6 +17,7 @@ export class ConsumerDatasetDTO {
   published_revision?: ConsumerRevisionDTO;
   start_date?: Date | null;
   end_date?: Date | null;
+  publisher?: PublisherDTO;
 
   static fromDataset(dataset: Dataset): ConsumerDatasetDTO {
     const dto = new ConsumerDatasetDTO();
