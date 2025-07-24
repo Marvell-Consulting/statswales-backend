@@ -282,7 +282,9 @@ export class TasklistStateDTO {
     dto.publishing = TasklistStateDTO.publishingStatus(dataset, revision);
     dto.translation = TasklistStateDTO.translationStatus(dataset, revision, translationEvents);
 
-    const dataTableComplete = dto.datatable === TaskListStatus.Completed;
+    // for new datasets, datatable, dimensions and metadata must be completed in order to publish
+    // for updates we allow publishing with no changes to the datatable, dimensions or metadata
+    const dataTableComplete = isUpdate || dto.datatable === TaskListStatus.Completed;
     const dimensionsComplete =
       isUpdate || (dataTableComplete && every(dto.dimensions, (dim) => dim.status === TaskListStatus.Completed));
     const metadataComplete = isUpdate || every(dto.metadata, (status) => status === TaskListStatus.Completed);
