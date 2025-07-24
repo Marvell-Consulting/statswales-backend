@@ -861,6 +861,18 @@ async function stripExistingProvisionalCodes(cubeDB: QueryRunner, notesCodeColum
   await cubeDB.query(removeProvisionalCodesQuery);
 }
 
+async function stripExistingForcastCodes(cubeDB: QueryRunner, notesCodeColumn?: FactTableColumn): Promise<void> {
+  if (!notesCodeColumn) return;
+  const removeProvisionalCodesQuery = pgformat(
+    `UPDATE %I SET %I = array_to_string(array_remove(string_to_array(replace(lower(%I.%I), ' ', ''), ','),'f'),',');`,
+    FACT_TABLE_NAME,
+    notesCodeColumn.columnName,
+    FACT_TABLE_NAME,
+    notesCodeColumn.columnName
+  );
+  await cubeDB.query(removeProvisionalCodesQuery);
+}
+
 function setupFactTableUpdateJoins(
   factTableName: string,
   updateTableName: string,
@@ -937,7 +949,6 @@ async function updateFactsTableFromUpdateTable(
     updateTableName,
     joinParts.join(' AND ')
   );
-  logger.debug(updateQuery);
   await cubeDB.query(updateQuery);
 }
 
@@ -998,6 +1009,94 @@ async function dropUpdateTable(cubeDB: QueryRunner, updateTableName: string): Pr
   await cubeDB.query(pgformat('DROP TABLE %I', updateTableName));
 }
 
+async function finaliseValues(
+  cubeDB: QueryRunner,
+  updateTableName: string,
+  factIdentifiers: FactTableColumn[],
+  dataTableIdentifiers: DataTableDescription[],
+  dataValuesColumn: FactTableColumn,
+  notesCodeColumn: FactTableColumn
+): Promise<void> {
+  const joinParts: string[] = [];
+  for (const factTableCol of factIdentifiers) {
+    const dataTableCol = dataTableIdentifiers.find((col) => col.factTableColumn === factTableCol.columnName);
+    joinParts.push(
+      pgformat('%I.%I = %I.%I', FACT_TABLE_NAME, factTableCol.columnName, updateTableName, dataTableCol?.columnName)
+    );
+  }
+  const updateQuery = pgformat(
+    `UPDATE %I SET %I = %I.%I, %I = array_to_string(array_append(string_to_array(lower(%I.%I), ','), '!'), ',') FROM %I WHERE %s AND string_to_array(lower(%I.%I), ',') && string_to_array('p,f', ',');`,
+    FACT_TABLE_NAME,
+    dataValuesColumn.columnName,
+    updateTableName,
+    dataValuesColumn.columnName,
+    notesCodeColumn.columnName,
+    updateTableName,
+    notesCodeColumn.columnName,
+    updateTableName,
+    joinParts.join(' AND '),
+    FACT_TABLE_NAME,
+    notesCodeColumn.columnName
+  );
+  await cubeDB.query(updateQuery);
+  await cubeDB.query(
+    pgformat(
+      `DELETE FROM %I USING %I WHERE %s AND string_to_array(%I.%I, ',') && string_to_array('!', ',');`,
+      updateTableName,
+      FACT_TABLE_NAME,
+      joinParts.join(' AND '),
+      FACT_TABLE_NAME,
+      notesCodeColumn.columnName
+    )
+  );
+  await cubeDB.query(
+    pgformat(`UPDATE %I SET %I = array_to_string(array_remove(string_to_array(%I, ','), '!'), ',')`,
+      FACT_TABLE_NAME,
+      notesCodeColumn.columnName,
+      notesCodeColumn.columnName
+    )
+  );
+}
+
+async function updateProvisionalsAndForecasts(
+  cubeDB: QueryRunner,
+  updateTableName: string,
+  factIdentifiers: FactTableColumn[],
+  dataTableIdentifiers: DataTableDescription[],
+  dataValuesColumn: FactTableColumn,
+  notesCodeColumn: FactTableColumn
+): Promise<void> {
+  const joinParts: string[] = [];
+  for (const factTableCol of factIdentifiers) {
+    const dataTableCol = dataTableIdentifiers.find((col) => col.factTableColumn === factTableCol.columnName);
+    joinParts.push(
+      pgformat('%I.%I = %I.%I', FACT_TABLE_NAME, factTableCol.columnName, updateTableName, dataTableCol?.columnName)
+    );
+  }
+  const updateQuery = pgformat(
+    `UPDATE %I SET %I = %I.%I, %I = %I.%I FROM %I WHERE %s AND string_to_array(%I.%I, ',') && string_to_array('p,f', ',');`,
+    FACT_TABLE_NAME,
+    dataValuesColumn.columnName,
+    updateTableName,
+    dataValuesColumn.columnName,
+    notesCodeColumn.columnName,
+    updateTableName,
+    notesCodeColumn.columnName,
+    updateTableName,
+    joinParts.join(' AND '),
+    updateTableName,
+    notesCodeColumn.columnName
+  );
+  await cubeDB.query(updateQuery);
+  await cubeDB.query(
+    pgformat(
+      `DELETE FROM %I WHERE string_to_array(%I, ',') && string_to_array('p,f', ',');`,
+      updateTableName,
+      notesCodeColumn.columnName
+    )
+  );
+}
+
 async function loadFactTablesWithUpdates(
   cubeDB: QueryRunner,
   dataset: Dataset,
@@ -1032,14 +1131,6 @@ async function loadFactTablesWithUpdates(
       );
     }
 
-    const dataTableColumnSelect: string[] = [];
-    for (const factTableCol of factTableDef) {
-      const dataTableCol = dataTable.dataTableDescriptions.find(
-        (col) => col.factTableColumn === factTableCol
-      )?.columnName;
-      if (dataTableCol) dataTableColumnSelect.push(dataTableCol);
-    }
-
     try {
       logger.debug(`Performing action ${dataTable.action} on fact table for data table ${dataTable.id}`);
       switch (dataTable.action) {
@@ -1049,14 +1140,32 @@ async function loadFactTablesWithUpdates(
           break;
         case DataTableAction.Add:
           await stripExistingProvisionalCodes(cubeDB, notesCodeColumn);
+          await stripExistingForcastCodes(cubeDB, notesCodeColumn!);
           await stripExistingRevisionCodes(cubeDB, FACT_TABLE_NAME, notesCodeColumn);
           await loadTableDataIntoFactTableFromPostgres(cubeDB, factTableDef, FACT_TABLE_NAME, dataTable.id);
           break;
         case DataTableAction.Revise:
           if (!doRevision) continue;
-          await stripExistingProvisionalCodes(cubeDB, notesCodeColumn!);
-          await stripExistingRevisionCodes(cubeDB, FACT_TABLE_NAME, notesCodeColumn!);
           await createUpdateTable(cubeDB, actionID, dataTable);
+          await finaliseValues(
+            cubeDB,
+            actionID,
+            factIdentifiers,
+            dataTable.dataTableDescriptions,
+            dataValuesColumn!,
+            notesCodeColumn!
+          );
+          await stripExistingProvisionalCodes(cubeDB, notesCodeColumn!);
+          await stripExistingForcastCodes(cubeDB, notesCodeColumn!);
+          await stripExistingRevisionCodes(cubeDB, FACT_TABLE_NAME, notesCodeColumn!);
+          await updateProvisionalsAndForecasts(
+            cubeDB,
+            actionID,
+            factIdentifiers,
+            dataTable.dataTableDescriptions,
+            dataValuesColumn!,
+            notesCodeColumn!
+          );
           await fixNoteCodesOnUpdateTable(
             cubeDB,
             actionID,
@@ -1077,9 +1186,26 @@ async function loadFactTablesWithUpdates(
           break;
         case DataTableAction.AddRevise:
           if (!doRevision) continue;
-          await stripExistingProvisionalCodes(cubeDB, notesCodeColumn!);
-          await stripExistingRevisionCodes(cubeDB, FACT_TABLE_NAME, notesCodeColumn!);
           await createUpdateTable(cubeDB, actionID, dataTable);
+          await finaliseValues(
+            cubeDB,
+            actionID,
+            factIdentifiers,
+            dataTable.dataTableDescriptions,
+            dataValuesColumn!,
+            notesCodeColumn!
+          );
+          await stripExistingProvisionalCodes(cubeDB, notesCodeColumn!);
+          await stripExistingForcastCodes(cubeDB, notesCodeColumn!);
+          await stripExistingRevisionCodes(cubeDB, FACT_TABLE_NAME, notesCodeColumn!);
+          await updateProvisionalsAndForecasts(
+            cubeDB,
+            actionID,
+            factIdentifiers,
+            dataTable.dataTableDescriptions,
+            dataValuesColumn!,
+            notesCodeColumn!
+          );
           await fixNoteCodesOnUpdateTable(
             cubeDB,
             actionID,
@@ -1100,6 +1226,19 @@ async function loadFactTablesWithUpdates(
             cubeDB,
             actionID,
             factTableDef,
+            factIdentifiers,
+            dataTable.dataTableDescriptions
+          );
+          await dropUpdateTable(cubeDB, actionID);
+          break;
+        case DataTableAction.Correction:
+          if (!doRevision) continue;
+          await createUpdateTable(cubeDB, actionID, dataTable);
+          await updateFactsTableFromUpdateTable(
+            cubeDB,
+            actionID,
+            dataValuesColumn!,
+            notesCodeColumn!,
             factIdentifiers,
             dataTable.dataTableDescriptions
           );
