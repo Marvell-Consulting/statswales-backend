@@ -156,16 +156,16 @@ describe('API Endpoints', () => {
             user_message: [
               {
                 lang: Locale.English,
-                message: t('errors.page_number_to_high', { lng: Locale.English, page_number: 12 })
+                message: t('errors.page_number_to_high', { lng: Locale.English, page_number: 13 })
               },
               {
                 lang: Locale.Welsh,
-                message: t('errors.page_number_to_high', { lng: Locale.Welsh, page_number: 12 })
+                message: t('errors.page_number_to_high', { lng: Locale.Welsh, page_number: 13 })
               }
             ],
             message: {
               key: 'errors.page_number_to_high',
-              params: { page_number: 12 }
+              params: { page_number: 13 }
             }
           }
         ]
@@ -286,7 +286,7 @@ describe('API Endpoints', () => {
 
       expect(res.status).toBe(200);
       expect(res.body.current_page).toBe(1);
-      expect(res.body.total_pages).toBe(12);
+      expect(res.body.total_pages).toBe(13);
       expect(res.body.page_size).toBe(100);
       expect(res.body.headers).toEqual([
         { index: -1, name: 'int_line_number', source_type: 'line_number' },
