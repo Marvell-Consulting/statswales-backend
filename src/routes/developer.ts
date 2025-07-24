@@ -13,7 +13,7 @@ devRouter.use((req, res, next) => {
     next(new ForbiddenException('user is not a developer'));
     return;
   }
-  logger.info(`user is a developer`);
+  logger.info(`user ${req.user?.id} is a developer`);
   next();
 });
 
