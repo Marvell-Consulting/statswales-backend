@@ -24,7 +24,7 @@ export const datasetAuth = async (req: Request, res: Response, next: NextFunctio
     logger.debug(`Checking user permissions for dataset ${dataset.id}...`);
 
     if (isDeveloper) {
-      logger.warn(`User is a developer, skipping group permissions check`);
+      logger.warn(`User ${req.user?.id} is a developer, skipping group permissions check`);
     } else if (!dataset.userGroupId || !userGroupIds?.includes(dataset.userGroupId)) {
       logger.warn(`User does not have access to dataset ${dataset.id}`);
       next(new ForbiddenException('errors.dataset_not_in_users_groups'));
