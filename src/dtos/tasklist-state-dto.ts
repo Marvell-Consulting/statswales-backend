@@ -1,9 +1,8 @@
-import { difference, every, isEqual, max, pick, sortBy } from 'lodash';
+import { every, isEqual, max, pick, sortBy } from 'lodash';
 
 import { Dataset } from '../entities/dataset/dataset';
 import { DimensionType } from '../enums/dimension-type';
 import { TaskListStatus } from '../enums/task-list-status';
-import { translatableMetadataKeys } from '../types/translatable-metadata';
 import { DimensionStatus } from '../interfaces/dimension-status';
 import { Revision } from '../entities/dataset/revision';
 import { EventLog } from '../entities/event-log';
@@ -180,22 +179,19 @@ export class TasklistStateDTO {
     translationEvents?: EventLog[]
   ): TranslationStatus {
     const isUpdate = Boolean(revision.previousRevisionId);
+    const currentTranslations = sortBy(collectTranslations(dataset), 'key');
 
     if (isUpdate && revision.previousRevision) {
-      const newTranslations = collectTranslations(dataset);
-      const previousTranslations = collectTranslations(dataset, false, revision.previousRevision);
+      const previousTranslations = sortBy(collectTranslations(dataset, false, revision.previousRevision), 'key');
 
       // Compare draft revision with previous version
-      if (isEqual(newTranslations, previousTranslations)) {
+      if (isEqual(currentTranslations, previousTranslations)) {
         return {
           import: TaskListStatus.Unchanged,
           export: TaskListStatus.Unchanged
         };
       }
     }
-
-    const lastExport = translationEvents?.find((event) => event.action === 'export');
-    const lastImport = translationEvents?.find((event) => event.action === 'import');
 
     const metaEN = revision.metadata?.find((meta) => meta.language.includes('en'));
     const metaCY = revision.metadata?.find((meta) => meta.language.includes('cy'));
@@ -204,64 +200,45 @@ export class TasklistStateDTO {
       throw new Error(`Cannot generate tasklist state - metadata missing`);
     }
 
-    const metadataSynced = metaEN.updatedAt === metaCY.updatedAt;
     const lastMetaUpdateAt = max([metaEN.updatedAt, metaCY.updatedAt])!;
+    const lastExport = translationEvents?.find((event) => event.action === 'export');
+    const lastImport = translationEvents?.find((event) => event.action === 'import');
+    const importedTranslations = lastImport?.data || [];
 
-    const metaFullyTranslated = revision.metadata?.every((meta) => {
-      return every(translatableMetadataKeys, (key) => {
-        // ignore roundingDescription if rounding isn't applied, otherwise check some data exists
-        return key === 'roundingDescription' && !revision.roundingApplied ? true : Boolean(meta[key]);
-      });
+    const changesSinceImport = currentTranslations.some((t: TranslationDTO) => {
+      const imported = importedTranslations.find((i: TranslationDTO) => i.key === t.key);
+
+      if (!imported) {
+        logger.debug(`"${t.key}" is a new translation since last import`);
+        return true;
+      }
+
+      if (imported.english !== t.english || imported.cymraeg !== t.cymraeg) {
+        logger.debug(
+          `"${t.key}" has changed since last import and probably needs retranslating.
+          current: { en: "${t.english}", cy: "${t.cymraeg}" }
+          last import: { en: "${imported.english}", cy: "${imported.cymraeg}" }`
+        );
+        return true;
+      }
+
+      return false;
     });
 
-    const relatedLinksTranslated = every(revision.relatedLinks, (link) => {
-      return link.labelEN && link.labelCY;
-    });
+    const importStale = changesSinceImport;
+    const exportStale = lastExport && lastExport.createdAt < lastMetaUpdateAt && importStale;
+    let exportStatus = TaskListStatus.NotStarted;
+    let importStatus = TaskListStatus.NotStarted;
 
-    const existingTranslations = collectTranslations(dataset);
-
-    // check if there are any new keys since the last export, e.g. new dimensions
-    const newKeysSinceLastExport: boolean =
-      difference(
-        existingTranslations.map((t: TranslationDTO) => t.key),
-        lastExport?.data?.translations.map((t: TranslationDTO) => t.key)
-      ).length > 0;
-
-    // previously exported revisions did not include data, ignore these.
-    const exportStale = lastExport?.data?.translations.some((incoming: TranslationDTO) => {
-      const expected = existingTranslations.find((existing) => existing.key === incoming.key)?.english;
-      // previous export value has since been updated
-      return expected !== incoming.english;
-    });
-
-    const translationRequired = !metadataSynced || !metaFullyTranslated;
-    const importStale = lastExport?.createdAt && lastImport?.createdAt && lastExport.createdAt > lastImport.createdAt;
-
-    let exportStatus: TaskListStatus;
     if (lastExport) {
-      exportStatus = exportStale || newKeysSinceLastExport ? TaskListStatus.Incomplete : TaskListStatus.Completed;
-    } else {
-      exportStatus = TaskListStatus.NotStarted;
+      exportStatus = exportStale ? TaskListStatus.Incomplete : TaskListStatus.Completed;
     }
 
-    const importedSinceMetaUpdate = lastImport?.createdAt && lastImport.createdAt > lastMetaUpdateAt;
-    // TODO: we should store the import in the same format as the export.
-    const importMatchesExport = isEqual(lastImport?.data, lastExport?.data?.translations);
-
-    const requiresImport = newKeysSinceLastExport || (importStale && !importMatchesExport);
-
-    let importStatus: TaskListStatus;
-    if (importedSinceMetaUpdate) {
-      importStatus =
-        exportStale || !relatedLinksTranslated || requiresImport ? TaskListStatus.Incomplete : TaskListStatus.Completed;
-    } else {
-      importStatus = TaskListStatus.NotStarted;
+    if (lastImport) {
+      importStatus = importStale ? TaskListStatus.Incomplete : TaskListStatus.Completed;
     }
 
-    return {
-      export: translationRequired ? exportStatus : TaskListStatus.NotRequired,
-      import: translationRequired ? importStatus : TaskListStatus.NotRequired
-    };
+    return { export: exportStatus, import: importStatus };
   }
 
   public static fromDataset(

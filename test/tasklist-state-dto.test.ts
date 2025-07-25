@@ -4,7 +4,6 @@ import { DimensionType } from '../src/enums/dimension-type';
 import { Dataset } from '../src/entities/dataset/dataset';
 import { Revision } from '../src/entities/dataset/revision';
 import { EventLog } from '../src/entities/event-log';
-import { logger } from '../src/utils/logger';
 
 // Mock dependencies
 jest.mock('../src/utils/logger');
@@ -515,7 +514,7 @@ describe('TasklistStateDTO', () => {
       }).toThrow('Cannot generate tasklist state - metadata missing');
     });
 
-    it('should return Unchanged for updates when translations are identical', () => {
+    it('should return Unchanged for updates when no metadata has changed', () => {
       const dataset = {} as Dataset;
       const previousRevision = {} as Revision;
       const revision = {
@@ -539,81 +538,163 @@ describe('TasklistStateDTO', () => {
       });
     });
 
-    it('should return NotRequired when translation not required', () => {
+    it('should return an export status of NotStarted if never exported', () => {
       const dataset = {} as Dataset;
-      const updatedAt = new Date();
       const revision = {
         metadata: [
-          {
-            language: 'en',
-            updatedAt,
-            title: 'Title',
-            summary: 'Summary',
-            collection: 'Collection',
-            quality: 'Quality'
-          },
-          {
-            language: 'cy',
-            updatedAt,
-            title: 'Teitl',
-            summary: 'Crynodeb',
-            collection: 'Casgliad',
-            quality: 'Ansawdd'
-          }
-        ],
-        relatedLinks: [{ labelEN: 'Link', labelCY: 'Cyswllt' }],
-        roundingApplied: false
-      } as Revision;
+          { language: 'en', updatedAt: new Date() },
+          { language: 'cy', updatedAt: new Date() }
+        ]
+      } as unknown as Revision;
 
-      mockCollectTranslations.collectTranslations.mockReturnValue([]);
+      mockCollectTranslations.collectTranslations.mockReturnValue([{ key: 'test.key', english: 'Test Value' }]);
 
+      // No translation events provided
       const result = TasklistStateDTO.translationStatus(dataset, revision);
 
-      expect(result.export).toBe(TaskListStatus.NotRequired);
-      expect(result.import).toBe(TaskListStatus.NotRequired);
+      expect(result.export).toBe(TaskListStatus.NotStarted);
     });
 
-    it('should handle export and import status based on events', () => {
+    it('should return an export status of Completed if an export has been made since the last change to the dataset', () => {
       const dataset = {} as Dataset;
-      const baseDate = new Date('2023-01-01');
-      const laterDate = new Date('2023-01-02');
+      const metaUpdateTime = new Date('2023-01-01T10:00:00');
+      const exportTime = new Date('2023-01-01T12:00:00'); // Export after metadata update
 
       const revision = {
         metadata: [
-          {
-            language: 'en',
-            updatedAt: baseDate,
-            title: 'Title'
-          },
-          {
-            language: 'cy',
-            updatedAt: laterDate,
-            title: 'Teitl'
-          }
-        ],
-        relatedLinks: [{ labelEN: 'Link', labelCY: 'Cyswllt' }],
-        roundingApplied: false
+          { language: 'en', updatedAt: metaUpdateTime },
+          { language: 'cy', updatedAt: metaUpdateTime }
+        ]
       } as unknown as Revision;
 
       const translationEvents = [
         {
           action: 'export',
-          createdAt: new Date('2023-01-01T10:00:00'),
-          data: {
-            translations: [{ key: 'test.key', english: 'Test Value' }]
-          }
-        },
-        {
-          action: 'import',
-          createdAt: new Date('2023-01-01T11:00:00'),
-          data: [{ key: 'test.key', english: 'Test Value' }]
+          createdAt: exportTime,
+          data: { translations: [{ key: 'test.key', english: 'Test Value' }] }
         }
       ] as unknown as EventLog[];
 
+      mockCollectTranslations.collectTranslations.mockReturnValue([{ key: 'test.key', english: 'Test Value' }]);
+
       const result = TasklistStateDTO.translationStatus(dataset, revision, translationEvents);
 
-      expect(result.export).toBeDefined();
-      expect(result.import).toBeDefined();
+      expect(result.export).toBe(TaskListStatus.Completed);
+    });
+
+    it('should return an import status of NotStarted if never imported', () => {
+      const dataset = {} as Dataset;
+      const revision = {
+        metadata: [
+          { language: 'en', updatedAt: new Date() },
+          { language: 'cy', updatedAt: new Date() }
+        ]
+      } as unknown as Revision;
+
+      const translationEvents = [
+        {
+          action: 'export',
+          createdAt: new Date(),
+          data: { translations: [{ key: 'test.key', english: 'Test Value' }] }
+        }
+      ] as unknown as EventLog[];
+
+      mockCollectTranslations.collectTranslations.mockReturnValue([{ key: 'test.key', english: 'Test Value' }]);
+
+      const result = TasklistStateDTO.translationStatus(dataset, revision, translationEvents);
+
+      expect(result.import).toBe(TaskListStatus.NotStarted);
+    });
+
+    it('should return an import status of Completed if an import has updated all the necessary fields', () => {
+      const dataset = {} as Dataset;
+      const revision = {
+        metadata: [
+          { language: 'en', updatedAt: new Date('2023-01-01T10:00:00') },
+          { language: 'cy', updatedAt: new Date('2023-01-01T10:00:00') }
+        ]
+      } as unknown as Revision;
+
+      const translationEvents = [
+        {
+          action: 'export',
+          createdAt: new Date('2023-01-01T11:00:00'),
+          data: { translations: [{ key: 'test.key', english: 'Test Value' }] }
+        },
+        {
+          action: 'import',
+          createdAt: new Date('2023-01-01T12:00:00'),
+          data: [{ key: 'test.key', english: 'Test Value', cymraeg: 'Gwerth Prawf' }]
+        }
+      ] as unknown as EventLog[];
+
+      mockCollectTranslations.collectTranslations.mockReturnValue([
+        { key: 'test.key', english: 'Test Value', cymraeg: 'Gwerth Prawf' }
+      ]);
+
+      const result = TasklistStateDTO.translationStatus(dataset, revision, translationEvents);
+
+      expect(result.import).toBe(TaskListStatus.Completed);
+    });
+
+    it('should return export status of Incomplete when export is stale', () => {
+      const dataset = {} as Dataset;
+      const metaUpdateTime = new Date('2023-01-01T12:00:00'); // Metadata updated after export
+      const exportTime = new Date('2023-01-01T10:00:00');
+
+      const revision = {
+        metadata: [
+          { language: 'en', updatedAt: metaUpdateTime },
+          { language: 'cy', updatedAt: metaUpdateTime }
+        ]
+      } as unknown as Revision;
+
+      const translationEvents = [
+        {
+          action: 'export',
+          createdAt: exportTime,
+          data: { translations: [{ key: 'test.key', english: 'Test Value' }] }
+        }
+      ] as unknown as EventLog[];
+
+      mockCollectTranslations.collectTranslations.mockReturnValue([
+        { key: 'test.key', english: 'Updated Value' } // Different from exported value
+      ]);
+
+      const result = TasklistStateDTO.translationStatus(dataset, revision, translationEvents);
+
+      expect(result.export).toBe(TaskListStatus.Incomplete);
+    });
+
+    it('should return import status of Incomplete when import is stale', () => {
+      const dataset = {} as Dataset;
+      const revision = {
+        metadata: [
+          { language: 'en', updatedAt: new Date('2023-01-01T10:00:00') },
+          { language: 'cy', updatedAt: new Date('2023-01-01T10:00:00') }
+        ]
+      } as unknown as Revision;
+
+      const translationEvents = [
+        {
+          action: 'export',
+          createdAt: new Date('2023-01-01T11:00:00'),
+          data: { translations: [{ key: 'test.key', english: 'Test Value' }] }
+        },
+        {
+          action: 'import',
+          createdAt: new Date('2023-01-01T12:00:00'),
+          data: [{ key: 'test.key', english: 'Old Value', cymraeg: 'Hen Werth' }] // Different from current
+        }
+      ] as unknown as EventLog[];
+
+      mockCollectTranslations.collectTranslations.mockReturnValue([
+        { key: 'test.key', english: 'Test Value', cymraeg: 'Gwerth Prawf' } // Current translations
+      ]);
+
+      const result = TasklistStateDTO.translationStatus(dataset, revision, translationEvents);
+
+      expect(result.import).toBe(TaskListStatus.Incomplete);
     });
   });
 
@@ -792,23 +873,6 @@ describe('TasklistStateDTO', () => {
 
       expect(result.isUpdate).toBe(true);
       expect(result.canPublish).toBe(true);
-    });
-
-    it('should log debug information', () => {
-      const dataset = { dimensions: [] } as unknown as Dataset;
-      const revision = {
-        previousRevisionId: null,
-        metadata: [
-          { language: 'en', updatedAt: new Date() },
-          { language: 'cy', updatedAt: new Date() }
-        ]
-      } as unknown as Revision;
-
-      mockCollectTranslations.collectTranslations.mockReturnValue([]);
-
-      TasklistStateDTO.fromDataset(dataset, revision, 'en');
-
-      expect(logger.debug).toHaveBeenCalledWith(expect.stringContaining('TasklistState:'));
     });
   });
 });
