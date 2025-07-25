@@ -750,11 +750,6 @@ describe('TasklistStateDTO', () => {
 
       mockCollectTranslations.collectTranslations.mockReturnValue([{ key: 'test.key', english: 'Test Value' }]);
 
-      // Mock translatableMetadataKeys
-      jest.doMock('../src/types/translatable-metadata', () => ({
-        translatableMetadataKeys: ['title', 'summary', 'quality', 'collection']
-      }));
-
       const result = TasklistStateDTO.fromDataset(dataset, revision, 'en');
 
       expect(result.isUpdate).toBe(false);
