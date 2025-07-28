@@ -30,23 +30,6 @@ export const collectTranslations = (dataset: Dataset, includeIds = false, revisi
         id: dimension.id
       };
     }),
-    ...(dataset.measure
-      ? [
-          ((measure): TranslationDTO => {
-            const factTableColumn = measure.factTableColumn;
-            const measureMetaEN = measure.metadata.find((m) => m.language.includes('en'));
-            const measureMetaCY = measure.metadata.find((m) => m.language.includes('cy'));
-            const measureNameEN = measureMetaEN?.name;
-            const measureNameCY = measureMetaCY?.name;
-            return {
-              type: 'measure',
-              key: factTableColumn,
-              english: measureNameEN as string,
-              cymraeg: measureNameCY as string
-            };
-          })(dataset.measure)
-        ]
-      : []),
     ...metadataKeys.map((prop) => ({
       type: 'metadata',
       key: prop,
