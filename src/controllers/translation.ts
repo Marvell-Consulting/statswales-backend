@@ -57,7 +57,7 @@ export const translationExport = async (req: Request, res: Response, next: NextF
       action: 'export',
       entity: 'translations',
       entityId: revision.id,
-      data: { translations },
+      data: translations,
       userId: req.user?.id,
       client: 'sw3-frontend'
     });
