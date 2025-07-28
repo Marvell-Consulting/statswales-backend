@@ -16,6 +16,7 @@ import { DatasetRepository } from '../repositories/dataset';
 import { SortByInterface } from '../interfaces/sort-by-interface';
 import { FilterInterface } from '../interfaces/filterInterface';
 import { dbManager } from '../db/database-manager';
+import { CORE_VIEW_NAME } from './cube-handler';
 
 const EXCEL_ROW_LIMIT = 1048576;
 const CURSOR_ROW_LIMIT = 500;
@@ -202,18 +203,35 @@ async function viewChooser(
   const availableMaterializedView: QueryResult<{ matviewname: string }> = await cubeDBConn.query(
     pgformat(
       `SELECT * FROM pg_matviews WHERE matviewname IN (%L) AND schemaname = %L;`,
-      [`${viewType}_sort_mat_view_${lang}`, `${viewType}_mat_view_${lang}`],
+      [`${viewType}_sort_mat_view_${lang}`, `${viewType}_mat_view_${lang}`, `${CORE_VIEW_NAME}_mat_${lang}}`],
       revision.id
     )
   );
 
   if (availableMaterializedView.rows.length > 0) {
+    if (availableMaterializedView.rows.find((row) => row.matviewname === `${CORE_VIEW_NAME}_mat_${lang}`))
+      return `${viewType}_view_${lang}`;
     if (availableMaterializedView.rows.find((row) => row.matviewname === `${viewType}_sort_mat_view_${lang}`))
       return `${viewType}_sort_mat_view_${lang}`;
     if (availableMaterializedView.rows.find((row) => row.matviewname === `${viewType}_mat_view_${lang}`))
       return `${viewType}_mat_view_${lang}`;
   }
-  return `${viewType}_view_${lang}`;
+
+  const availableViews: QueryResult<{ viewname: string }> = await cubeDBConn.query(
+    pgformat(
+      `SELECT viewname FROM pg_views WHERE viewname IN (%L) AND schemaname = %L;`,
+      [`${CORE_VIEW_NAME}_${lang}}`, `${viewType}_view_${lang}`],
+      revision.id
+    )
+  );
+  if (availableViews.rows.length > 0) {
+    if (availableViews.rows.find((row) => row.viewname === `${CORE_VIEW_NAME}_${lang}}`))
+      return `${CORE_VIEW_NAME}_${lang}}`;
+    if (availableViews.rows.find((row) => row.viewname === `${viewType}_view_${lang}`))
+      return `${viewType}_view_${lang}`;
+  }
+
+  return `default_view_${lang}`;
 }
 
 async function getColumns(cubeDBConn: PoolClient, lang: string): Promise<string[]> {
