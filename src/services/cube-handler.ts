@@ -1821,8 +1821,7 @@ async function setupMeasures(
     );
     orderByStatements.push(`measure.sort_order, measure.reference`);
     for (const locale of SUPPORTED_LOCALES) {
-      const columnName =
-        dataset.measure.metadata.find((info) => info.language === locale)?.name || dataset.measure.factTableColumn;
+      const columnName = t('column_headers.measure', { lng: locale });
       await cubeDB.query(
         pgformat(
           `INSERT INTO filter_table SELECT CAST(reference AS VARCHAR), language, %L, %L, description, CAST(hierarchy AS VARCHAR) FROM measure WHERE language = %L`,
