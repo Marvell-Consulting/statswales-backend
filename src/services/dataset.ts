@@ -193,7 +193,6 @@ export class DatasetService {
 
     const revision = dataset.draftRevision!;
     const dimensions = dataset.dimensions;
-    const measure = dataset.measure;
 
     // set all metadata updated_at to the same time, we can use this later to flag untranslated changes
     const now = new Date();
