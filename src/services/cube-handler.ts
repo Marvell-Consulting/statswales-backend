@@ -531,11 +531,10 @@ async function setupReferenceDataDimension(
           %L as fact_table_column,
           %L as dimension_name,
           reference_data_info.description as description,
-          hierarchy.parent_id as hierarchy,
+          NULL as hierarchy,
           reference_data.sort_order as sort_order
         FROM fact_table
         LEFT JOIN reference_data on CAST(fact_table.%I AS VARCHAR)=reference_data.item_id
-        LEFT JOIN hierarchy ON reference_data.item_id=hierarchy.item_id
         JOIN reference_data_info ON reference_data.item_id=reference_data_info.item_id
         AND reference_data_info.lang=%L
         ORDER BY sort_order, description);
