@@ -246,8 +246,6 @@ async function identifyIncompleteFacts(
       FactTableValidationExceptionType.UnknownError,
       400
     );
-  } finally {
-    cubeDB.release();
   }
   return undefined;
 }
@@ -293,8 +291,6 @@ async function identifyDuplicateFacts(
       FactTableValidationExceptionType.UnknownError,
       400
     );
-  } finally {
-    cubeDB.release();
   }
   return undefined;
 }
