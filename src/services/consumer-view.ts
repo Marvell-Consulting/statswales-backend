@@ -203,14 +203,14 @@ async function viewChooser(
   const availableMaterializedView: QueryResult<{ matviewname: string }> = await cubeDBConn.query(
     pgformat(
       `SELECT * FROM pg_matviews WHERE matviewname IN (%L) AND schemaname = %L;`,
-      [`${viewType}_sort_mat_view_${lang}`, `${viewType}_mat_view_${lang}`, `${CORE_VIEW_NAME}_mat_${lang}}`],
+      [`${viewType}_sort_mat_view_${lang}`, `${viewType}_mat_view_${lang}`, `${CORE_VIEW_NAME}_mat_${lang}`],
       revision.id
     )
   );
 
   if (availableMaterializedView.rows.length > 0) {
     if (availableMaterializedView.rows.find((row) => row.matviewname === `${CORE_VIEW_NAME}_mat_${lang}`))
-      return `${viewType}_view_${lang}`;
+      return `${viewType}_sort_mat_view_${lang}`;
     if (availableMaterializedView.rows.find((row) => row.matviewname === `${viewType}_sort_mat_view_${lang}`))
       return `${viewType}_sort_mat_view_${lang}`;
     if (availableMaterializedView.rows.find((row) => row.matviewname === `${viewType}_mat_view_${lang}`))
