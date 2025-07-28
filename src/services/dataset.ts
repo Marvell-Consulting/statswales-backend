@@ -43,6 +43,8 @@ import {
 } from '../utils/dataset-history';
 import { StorageService } from '../interfaces/storage-service';
 import { TempFile } from '../interfaces/temp-file';
+import { PeriodCovered } from '../interfaces/period-covered';
+import { UnknownException } from '../exceptions/unknown.exception';
 
 export class DatasetService {
   lang: Locale;
@@ -303,17 +305,26 @@ export class DatasetService {
 
   async approvePublication(datasetId: string, revisionId: string, user: User): Promise<Dataset> {
     const start = performance.now();
-    await createAllCubeFiles(datasetId, revisionId);
-    const periodCoverage = await getCubeTimePeriods(revisionId);
+    try {
+      await createAllCubeFiles(datasetId, revisionId);
+    } catch (err) {
+      logger.error(err, 'Something went wrong trying to do the final build of the cube.');
+      throw new UnknownException('errors.approve_publication.cube_build_failed');
+    }
+    const scheduledRevision = await RevisionRepository.approvePublication(revisionId, `${revisionId}.duckdb`, user);
 
+    let periodCoverage: PeriodCovered;
+    try {
+      periodCoverage = await getCubeTimePeriods(scheduledRevision.id);
+    } catch (err) {
+      logger.error(err, 'Something went wrong trying to get the time periods from the cube.');
+      throw new UnknownException('errors.approve_publication.cube_time_periods_failed');
+    }
     const end = performance.now();
     const time = Math.round(end - start);
     logger.info(`Cube and parquet file creation took ${time}ms (including uploading to data lake)`);
 
-    const scheduledRevision = await RevisionRepository.approvePublication(revisionId, `${revisionId}.duckdb`, user);
-    const approvedDataset = await DatasetRepository.publish(scheduledRevision, periodCoverage);
-
-    return approvedDataset;
+    return await DatasetRepository.publish(scheduledRevision, periodCoverage);
   }
 
   async rejectPublication(datasetId: string, revisionId: string): Promise<void> {

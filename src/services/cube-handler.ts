@@ -2740,7 +2740,7 @@ export const createFilesForDownload = async (
 
 export const createMaterialisedView = async (revisionId: string): Promise<void> => {
   const cubeDB = dbManager.getCubeDataSource().createQueryRunner();
-  logger.info(`Creating default views...`);
+  logger.info(`Creating default views for revision ${revisionId}...`);
   const viewCreation = performance.now();
   // Build the default views
   try {
@@ -2797,6 +2797,9 @@ export const createMaterialisedView = async (revisionId: string): Promise<void> 
 };
 
 export const createAllCubeFiles = async (datasetId: string, endRevisionId: string): Promise<void> => {
+  if (!endRevisionId) {
+    logger.warn('No end revision id supplied.  Using end revision specified in dataset');
+  }
   const datasetRelations: FindOptionsRelations<Dataset> = {
     factTable: true,
     dimensions: { metadata: true, lookupTable: true },
@@ -2827,8 +2830,15 @@ export const createAllCubeFiles = async (datasetId: string, endRevisionId: strin
   }
 
   try {
-    logger.debug(`Renaming ${buildId} to cube rev ${endRevision.id}`);
     await createBasePostgresCube(cubeDB, buildId, dataset, endRevision);
+  } catch (error) {
+    logger.error(error, 'Something went wrong trying to create the base cube');
+    cubeDB.release();
+    throw error;
+  }
+
+  try {
+    logger.debug(`Renaming ${buildId} to cube rev ${endRevision.id}`);
     await cubeDB.query(pgformat('DROP SCHEMA IF EXISTS %I CASCADE;', endRevision.id));
     await cubeDB.query(pgformat('ALTER SCHEMA %I RENAME TO %I;', buildId, endRevision.id));
   } catch (err) {
@@ -2841,12 +2851,13 @@ export const createAllCubeFiles = async (datasetId: string, endRevisionId: strin
 
   // don't wait for this, can happen in the background so we can send the response earlier
   logger.debug('Running async process...');
-  void createMaterialisedView(endRevisionId);
+  void createMaterialisedView(endRevision.id);
   //void createFilesForDownload(quack, datasetId, endRevisionId);
 };
 
 export const getCubeTimePeriods = async (revisionId: string): Promise<PeriodCovered> => {
   const cubeDB = dbManager.getCubeDataSource().createQueryRunner();
+  if (!revisionId) throw new Error('Revision id is required');
   const periodCoverage: { key: string; value: string }[] = await cubeDB.query(
     pgformat(`SELECT key, value FROM %I.metadata WHERE key in ('start_date', 'end_date')`, revisionId)
   );
