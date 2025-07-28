@@ -193,7 +193,6 @@ export class DatasetService {
 
     const revision = dataset.draftRevision!;
     const dimensions = dataset.dimensions;
-    const measure = dataset.measure;
 
     // set all metadata updated_at to the same time, we can use this later to flag untranslated changes
     const now = new Date();
@@ -237,18 +236,6 @@ export class DatasetService {
     });
 
     await RevisionRepository.save(revision);
-
-    if (measure?.metadata) {
-      logger.debug(`Updating measure translations...`);
-      const measureTranslation = translations.find((t) => t.type === 'measure')!;
-      await Promise.all(
-        measure.metadata?.map((metadata) => {
-          metadata.name =
-            (metadata.language === Locale.EnglishGb ? measureTranslation.english : measureTranslation.cymraeg) ?? '';
-          metadata.save();
-        })
-      );
-    }
 
     return DatasetRepository.getById(datasetId, {});
   }
