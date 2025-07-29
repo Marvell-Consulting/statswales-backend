@@ -1824,7 +1824,7 @@ async function setupMeasures(
       const columnName = t('column_headers.measure', { lng: locale });
       await cubeDB.query(
         pgformat(
-          `INSERT INTO filter_table SELECT CAST(reference AS VARCHAR), language, %L, %L, description, CAST(hierarchy AS VARCHAR) FROM measure WHERE language = %L`,
+          `INSERT INTO filter_table SELECT CAST(reference AS VARCHAR), language, %L, %L, description, CAST(hierarchy AS VARCHAR) FROM measure WHERE language = %L ORDER BY sort_order, reference`,
           measureColumn.columnName,
           columnName,
           locale.toLowerCase()
