@@ -128,7 +128,7 @@ export const factTableValidatorFromSource = async (
       `${FACT_TABLE_NAME}_pkey`
     );
     await cubeDB.query(dropPKQuery);
-    logger.debug(`Adding primary key to fact table ${FACT_TABLE_NAME} with columns: ${primaryKeyDef.join(', ')}`);
+    logger.debug(`Adding primary key to fact_table with columns: ${primaryKeyDef.join(', ')}`);
     const pkQuery = pgformat('ALTER TABLE %I ADD PRIMARY KEY (%I)', FACT_TABLE_NAME, primaryKeyDef);
     await cubeDB.query(pkQuery);
     await validateNoteCodesColumn(cubeDB, validatedSourceAssignment.noteCodes, FACT_TABLE_NAME);
