@@ -33,6 +33,8 @@ export const factTableValidatorFromSource = async (
     );
   }
 
+  logger.debug(`Validating fact table for revision ${revision.id}`);
+
   if (!dataset.factTable) {
     throw new Error(`Unable to find fact table for dataset ${dataset.id}`);
   }
@@ -119,6 +121,14 @@ export const factTableValidatorFromSource = async (
   }
 
   try {
+    logger.debug(`Dropping primary key if it exists on fact_table`);
+    const dropPKQuery = pgformat(
+      `ALTER TABLE %I DROP CONSTRAINT IF EXISTS %I;`,
+      FACT_TABLE_NAME,
+      `${FACT_TABLE_NAME}_pkey`
+    );
+    await cubeDB.query(dropPKQuery);
+    logger.debug(`Adding primary key to fact_table with columns: ${primaryKeyDef.join(', ')}`);
     const pkQuery = pgformat('ALTER TABLE %I ADD PRIMARY KEY (%I)', FACT_TABLE_NAME, primaryKeyDef);
     await cubeDB.query(pkQuery);
     await validateNoteCodesColumn(cubeDB, validatedSourceAssignment.noteCodes, FACT_TABLE_NAME);
