@@ -883,7 +883,7 @@ async function stripExistingProvisionalCodes(cubeDB: QueryRunner, notesCodeColum
   await cubeDB.query(removeProvisionalCodesQuery);
 }
 
-async function stripExistingForcastCodes(cubeDB: QueryRunner, notesCodeColumn?: FactTableColumn): Promise<void> {
+async function stripExistingForecastCodes(cubeDB: QueryRunner, notesCodeColumn?: FactTableColumn): Promise<void> {
   if (!notesCodeColumn) return;
   const removeProvisionalCodesQuery = pgformat(
     `UPDATE %I SET %I = array_to_string(array_remove(string_to_array(replace(lower(%I.%I), ' ', ''), ','),'f'),',');`,
@@ -906,7 +906,13 @@ function setupFactTableUpdateJoins(
   for (const factTableCol of factIdentifiers) {
     const dataTableCol = dataTableIdentifiers.find((col) => col.factTableColumn === factTableCol.columnName);
     joinParts.push(
-      pgformat('%I.%I=%I.%I', factTableName, factTableCol.columnName, updateTableName, dataTableCol?.columnName)
+      pgformat(
+        'CAST(%I.%I AS VARCHAR) = CAST(%I.%I AS VARCHAR)',
+        factTableName,
+        factTableCol.columnName,
+        updateTableName,
+        dataTableCol?.columnName
+      )
     );
   }
   if (dataValuesColumn) {
@@ -956,7 +962,13 @@ async function updateFactsTableFromUpdateTable(
   for (const factTableCol of factIdentifiers) {
     const dataTableCol = dataTableIdentifiers.find((col) => col.factTableColumn === factTableCol.columnName);
     joinParts.push(
-      pgformat('%I.%I = %I.%I', FACT_TABLE_NAME, factTableCol.columnName, updateTableName, dataTableCol?.columnName)
+      pgformat(
+        'CAST(%I.%I AS VARCHAR) = CAST(%I.%I AS VARCHAR)',
+        FACT_TABLE_NAME,
+        factTableCol.columnName,
+        updateTableName,
+        dataTableCol?.columnName
+      )
     );
   }
   const updateQuery = pgformat(
@@ -1043,7 +1055,13 @@ async function finaliseValues(
   for (const factTableCol of factIdentifiers) {
     const dataTableCol = dataTableIdentifiers.find((col) => col.factTableColumn === factTableCol.columnName);
     joinParts.push(
-      pgformat('%I.%I = %I.%I', FACT_TABLE_NAME, factTableCol.columnName, updateTableName, dataTableCol?.columnName)
+      pgformat(
+        'CAST(%I.%I AS VARCHAR) = CAST(%I.%I AS VARCHAR)',
+        FACT_TABLE_NAME,
+        factTableCol.columnName,
+        updateTableName,
+        dataTableCol?.columnName
+      )
     );
   }
   const updateQuery = pgformat(
@@ -1093,7 +1111,13 @@ async function updateProvisionalsAndForecasts(
   for (const factTableCol of factIdentifiers) {
     const dataTableCol = dataTableIdentifiers.find((col) => col.factTableColumn === factTableCol.columnName);
     joinParts.push(
-      pgformat('%I.%I = %I.%I', FACT_TABLE_NAME, factTableCol.columnName, updateTableName, dataTableCol?.columnName)
+      pgformat(
+        'CAST(%I.%I AS VARCHAR) = CAST(%I.%I AS VARCHAR)',
+        FACT_TABLE_NAME,
+        factTableCol.columnName,
+        updateTableName,
+        dataTableCol?.columnName
+      )
     );
   }
   const updateQuery = pgformat(
@@ -1163,7 +1187,7 @@ async function loadFactTablesWithUpdates(
           break;
         case DataTableAction.Add:
           await stripExistingProvisionalCodes(cubeDB, notesCodeColumn);
-          await stripExistingForcastCodes(cubeDB, notesCodeColumn!);
+          await stripExistingForecastCodes(cubeDB, notesCodeColumn!);
           await stripExistingRevisionCodes(cubeDB, FACT_TABLE_NAME, notesCodeColumn);
           await loadTableDataIntoFactTableFromPostgres(cubeDB, factTableDef, FACT_TABLE_NAME, dataTable.id);
           break;
@@ -1179,7 +1203,7 @@ async function loadFactTablesWithUpdates(
             notesCodeColumn!
           );
           await stripExistingProvisionalCodes(cubeDB, notesCodeColumn!);
-          await stripExistingForcastCodes(cubeDB, notesCodeColumn!);
+          await stripExistingForecastCodes(cubeDB, notesCodeColumn!);
           await stripExistingRevisionCodes(cubeDB, FACT_TABLE_NAME, notesCodeColumn!);
           await updateProvisionalsAndForecasts(
             cubeDB,
@@ -1219,7 +1243,7 @@ async function loadFactTablesWithUpdates(
             notesCodeColumn!
           );
           await stripExistingProvisionalCodes(cubeDB, notesCodeColumn!);
-          await stripExistingForcastCodes(cubeDB, notesCodeColumn!);
+          await stripExistingForecastCodes(cubeDB, notesCodeColumn!);
           await stripExistingRevisionCodes(cubeDB, FACT_TABLE_NAME, notesCodeColumn!);
           await updateProvisionalsAndForecasts(
             cubeDB,
