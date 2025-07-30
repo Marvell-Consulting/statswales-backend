@@ -2393,7 +2393,7 @@ async function createPrimaryKeyOnFactTable(
     logger.debug(`Alter Table query = ${alterTableQuery}`);
     await cubeDB.query(alterTableQuery);
   } catch (error) {
-    logger.error(error, `Failed to add primary key to the fact table`);
+    logger.warn(error, `Failed to add primary key to the fact table`);
     if ((error as Error).message.includes('could not create unique index')) {
       const exception = new CubeValidationException('Duplicate facts present');
       exception.type = CubeValidationType.UnknownDuplicateFact;
