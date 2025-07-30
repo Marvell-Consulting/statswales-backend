@@ -1671,21 +1671,13 @@ function setupMeasureNoDataValues(
         .get(locale)
         ?.push(pgformat('NULL AS %I', `${t('column_headers.measure', { lng: locale })}_hierarchy`));
 
-      viewSelectStatementsMap
-        .get(locale)
-        ?.push(pgformat('%I', FACT_TABLE_NAME, t('column_headers.measure', { lng: locale })));
-      rawSelectStatementsMap
-        .get(locale)
-        ?.push(pgformat('%I', FACT_TABLE_NAME, t('column_headers.measure', { lng: locale })));
-      defaultSortSelectStatementsMap
-        .get(locale)
-        ?.push(pgformat('%I', FACT_TABLE_NAME, t('column_headers.measure', { lng: locale })));
+      viewSelectStatementsMap.get(locale)?.push(pgformat('%I', t('column_headers.measure', { lng: locale })));
+      rawSelectStatementsMap.get(locale)?.push(pgformat('%I', t('column_headers.measure', { lng: locale })));
+      defaultSortSelectStatementsMap.get(locale)?.push(pgformat('%I', t('column_headers.measure', { lng: locale })));
       defaultSortSelectStatementsMap
         .get(locale)
         ?.push(pgformat('%I', `${t('column_headers.measure', { lng: locale })}_sort`));
-      rawSortSelectStatementsMap
-        .get(locale)
-        ?.push(pgformat('%I', '%I', FACT_TABLE_NAME, t('column_headers.measure', { lng: locale })));
+      rawSortSelectStatementsMap.get(locale)?.push(pgformat('%I', t('column_headers.measure', { lng: locale })));
       rawSortSelectStatementsMap
         .get(locale)
         ?.push(pgformat('%I', `${t('column_headers.measure', { lng: locale })}_sort`));
