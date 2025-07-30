@@ -38,6 +38,7 @@ import { Revision } from '../entities/dataset/revision';
 import { performanceReporting } from '../utils/performance-reporting';
 import { FileType } from '../enums/file-type';
 import { dbManager } from '../db/database-manager';
+import { MeasureMetadata } from '../entities/dataset/measure-metadata';
 
 const sampleSize = 5;
 
@@ -525,7 +526,14 @@ export const validateMeasureLookupTable = async (
   // Clean up previously uploaded measure
   await cleanUpMeasure(dataset.measure.id);
   if (updatedMeasure.lookupTable) await updatedMeasure.lookupTable.save();
-  await updatedMeasure.save();
+  const savedMeasure = await updatedMeasure.save();
+  for (const locale of SUPPORTED_LOCALES) {
+    const measureMetadata = new MeasureMetadata();
+    measureMetadata.measure = savedMeasure;
+    measureMetadata.name = t('column_headers.measure', { lng: locale });
+    measureMetadata.language = locale;
+    await measureMetadata.save();
+  }
 
   try {
     logger.debug(`Generating preview of measure table`);
