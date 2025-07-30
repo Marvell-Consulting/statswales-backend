@@ -6,6 +6,7 @@ export class CubeValidationException extends Error {
   public datasetId: string;
   public originalError: string;
   public fact: unknown;
+  public status = 400;
   constructor(public message: string) {
     super(message);
   }
