@@ -156,7 +156,7 @@ export const applyImport = async (req: Request, res: Response, next: NextFunctio
     try {
       await createAllCubeFiles(dataset.id, dataset.draftRevision!.id);
     } catch (error) {
-      logger.error(error, 'Error creating all cube files');
+      logger.error(error, 'Error rebuilding cube after translations applied');
       next(new UnknownException('errors.cube_validation.failed'));
       return;
     }
