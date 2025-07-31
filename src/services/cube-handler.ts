@@ -1298,6 +1298,17 @@ async function loadFactTablesWithUpdates(
   }
 }
 
+async function cleanupNotesCodeColumn(cubeDB: QueryRunner, notesCodeColumn: FactTableColumn): Promise<void> {
+  await cubeDB.query(
+    pgformat(
+      `UPDATE %I SET %I = NULL WHERE %I = '';`,
+      FACT_TABLE_NAME,
+      notesCodeColumn.columnName,
+      notesCodeColumn.columnName
+    )
+  );
+}
+
 export async function loadFactTables(
   cubeDB: QueryRunner,
   dataset: Dataset,
@@ -1347,6 +1358,9 @@ export async function loadFactTables(
       notesCodeColumn,
       factIdentifiers
     );
+    if (notesCodeColumn) {
+      await cleanupNotesCodeColumn(cubeDB, notesCodeColumn);
+    }
   } catch (error) {
     if (error instanceof FactTableValidationException) {
       logger.debug(error, `Throwing Fact Table Validation Exception`);
