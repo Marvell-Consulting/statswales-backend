@@ -154,7 +154,7 @@ export const applyImport = async (req: Request, res: Response, next: NextFunctio
       client: 'sw3-frontend'
     });
     try {
-      await createAllCubeFiles(dataset.id, dataset.draftRevision!.id);
+      await createAllCubeFiles(dataset.id, dataset.draftRevisionId!);
     } catch (error) {
       logger.error(error, 'Error rebuilding cube after translations applied');
       next(new UnknownException('errors.cube_validation.failed'));
