@@ -14,6 +14,7 @@ import { collectTranslations } from '../utils/collect-translations';
 import { DatasetRepository, withMetadataForTranslation } from '../repositories/dataset';
 import { TempFile } from '../interfaces/temp-file';
 import { uploadAvScan } from '../services/virus-scanner';
+import { createAllCubeFiles } from '../services/cube-handler';
 
 // imported translation filename can be constant as we overwrite each time it's imported
 const TRANSLATION_FILENAME = 'translation-import.csv';
@@ -152,6 +153,13 @@ export const applyImport = async (req: Request, res: Response, next: NextFunctio
       userId: req.user?.id,
       client: 'sw3-frontend'
     });
+    try {
+      await createAllCubeFiles(dataset.id, dataset.draftRevision!.id);
+    } catch (error) {
+      logger.error(error, 'Error creating all cube files');
+      next(new UnknownException('errors.cube_validation.failed'));
+      return;
+    }
 
     res.status(201);
     res.json(DatasetDTO.fromDataset(dataset));
