@@ -15,8 +15,8 @@ export class ConsumerDatasetDTO {
   dimensions?: DimensionDTO[];
   revisions: ConsumerRevisionDTO[];
   published_revision?: ConsumerRevisionDTO;
-  start_date?: Date | null;
-  end_date?: Date | null;
+  start_date?: string;
+  end_date?: string;
   publisher?: PublisherDTO;
 
   static fromDataset(dataset: Dataset): ConsumerDatasetDTO {
@@ -35,8 +35,8 @@ export class ConsumerDatasetDTO {
       dto.published_revision = ConsumerRevisionDTO.fromRevision(dataset.publishedRevision);
     }
 
-    dto.start_date = dataset.startDate;
-    dto.end_date = dataset.endDate;
+    dto.start_date = typeof dataset.startDate === 'string' ? dataset.startDate : dataset.startDate?.toISOString();
+    dto.end_date = typeof dataset.endDate === 'string' ? dataset.endDate : dataset.endDate?.toISOString();
 
     return dto;
   }
