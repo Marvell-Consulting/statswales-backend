@@ -11,8 +11,8 @@ export class PublisherDTO {
     const dto = new PublisherDTO();
     dto.group = {
       id: userGroup.id,
-      name: userGroup.metadata?.find((m) => m.language === lang)?.name || '',
-      email: userGroup.metadata?.find((m) => m.language === lang)?.email || ''
+      name: userGroup.metadata?.find((m) => m.language.includes(lang))?.name || '',
+      email: userGroup.metadata?.find((m) => m.language.includes(lang))?.email || ''
     };
 
     if (userGroup.organisation) {

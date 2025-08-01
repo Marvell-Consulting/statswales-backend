@@ -6,7 +6,7 @@ export class OrganisationDTO {
   name?: string;
 
   static fromOrganisation(org: Organisation, lang: Locale): OrganisationDTO {
-    const meta = org.metadata?.find((i) => lang.includes(i.language));
+    const meta = org.metadata?.find((m) => m.language.includes(lang));
     const dto = new OrganisationDTO();
     dto.id = org.id;
     dto.name = meta?.name;
