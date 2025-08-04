@@ -130,16 +130,18 @@ export const RevisionRepository = dataSource.getRepository(Revision).extend({
       throw new BadRequestException('errors.withdraw.already_published');
     }
 
-    revision.approvedAt = null;
-    revision.approvedBy = null;
-    revision.onlineCubeFilename = null;
-    await revision.save();
-
     const dataset = revision.dataset;
 
     if (revision.revisionIndex === 1) {
       dataset.live = null;
+    } else {
+      revision.revisionIndex = 0;
     }
+
+    revision.approvedAt = null;
+    revision.approvedBy = null;
+    revision.onlineCubeFilename = null;
+    await revision.save();
 
     dataset.draftRevisionId = revision.id;
     dataset.publishedRevisionId = revision.previousRevisionId;
