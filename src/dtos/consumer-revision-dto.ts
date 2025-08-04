@@ -15,6 +15,7 @@ export class ConsumerRevisionDTO {
   previous_revision_id?: string;
   created_at: string;
   updated_at: string;
+  approved_at?: string;
   publish_at?: string;
   metadata?: RevisionMetadataDTO[];
   rounding_applied?: boolean;
@@ -33,6 +34,7 @@ export class ConsumerRevisionDTO {
     revDto.updated_at = revision.updatedAt.toISOString();
     revDto.previous_revision_id = revision.previousRevisionId;
     revDto.publish_at = revision.publishAt?.toISOString();
+    revDto.approved_at = revision.approvedAt?.toISOString();
 
     revDto.rounding_applied = revision.roundingApplied;
     revDto.update_frequency = revision.updateFrequency;
