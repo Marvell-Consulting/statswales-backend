@@ -218,7 +218,7 @@ export const validateLookupTable = async (
   protoLookupTable: DataTable,
   dataset: Dataset,
   dimension: Dimension,
-  path: string,
+  filePath: string,
   language: string,
   tableMatcher?: LookupTablePatchDTO
 ): Promise<ViewDTO | ViewErrDTO> => {
@@ -288,7 +288,7 @@ export const validateLookupTable = async (
       updatedDimension.extractor as LookupTableExtractor,
       factTableColumn,
       confirmedJoinColumn,
-      path
+      filePath
     );
   } catch (err) {
     logger.error(err, `Something went wrong trying to load the lookup table into the cube`);
