@@ -37,18 +37,18 @@ enum GeneratorType {
 function yearType(type: YearType, startDay = 1, startMonth = 1): YearTypeDetails {
   switch (type) {
     case YearType.Financial:
-      return { start: '04-01T01:00:00Z', type: YearType.Financial };
+      return { start: '04-01T00:00:00Z', type: YearType.Financial };
     case YearType.Tax:
-      return { start: '04-06T01:00:00Z', type: YearType.Tax };
+      return { start: '04-06T00:00:00Z', type: YearType.Tax };
     case YearType.Academic:
-      return { start: '09-01T01:00:00Z', type: YearType.Academic };
+      return { start: '09-01T00:00:00Z', type: YearType.Academic };
     case YearType.Meteorological:
-      return { start: '03-01T01:00:00Z', type: YearType.Meteorological };
+      return { start: '03-01T00:00:00Z', type: YearType.Meteorological };
     case YearType.Calendar:
-      return { start: '01-01T01:00:00Z', type: YearType.Calendar };
+      return { start: '01-01T00:00:00Z', type: YearType.Calendar };
     default:
       return {
-        start: `${String(startMonth).padStart(2, '0')}-${String(startDay).padStart(2, '0')}T01:00:00Z`,
+        start: `${String(startMonth).padStart(2, '0')}-${String(startDay).padStart(2, '0')}T00:00:00Z`,
         type: YearType.Rolling
       };
   }
@@ -185,8 +185,21 @@ function periodTableCreator(
   const type = yearType(dateFormat.type, dateFormat.startDay, dateFormat.startMonth);
 
   let year = parseISO(`${startYear}-${type.start}`);
-  const end = add(parseISO(`${endYear}-${type.start}`), { years: 1 });
+  const stdTimezoneOfferset = (): number => {
+    const jan = new Date(year.getFullYear(), 0, 1);
+    const jul = new Date(year.getFullYear(), 6, 0);
+    return Math.max(jan.getTimezoneOffset(), jul.getTimezoneOffset());
+  };
 
+  const isBSTObserved = (): boolean => {
+    return year.getTimezoneOffset() < stdTimezoneOfferset();
+  };
+
+  if (isBSTObserved()) {
+    year = add(year, { hours: 1 });
+  }
+
+  const end = add(parseISO(`${endYear}-${type.start}`), { years: 1 });
   // Quarters and month numbers are different depending on the type of year
   let quarterIndex = 1;
   let monthIndex = 1;
