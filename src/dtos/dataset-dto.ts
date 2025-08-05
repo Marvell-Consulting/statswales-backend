@@ -8,6 +8,7 @@ import { MeasureDTO } from './measure-dto';
 import { FactTableColumnDto } from './fact-table-column-dto';
 import { TaskDTO } from './task-dto';
 import { Task } from '../entities/task/task';
+import { PublisherDTO } from './publisher-dto';
 
 export class DatasetDTO {
   id: string;
@@ -29,6 +30,7 @@ export class DatasetDTO {
   end_date?: Date | null;
   user_group_id?: string;
   tasks?: TaskDTO[];
+  publisher?: PublisherDTO;
 
   static fromDataset(dataset: Dataset): DatasetDTO {
     const dto = new DatasetDTO();
