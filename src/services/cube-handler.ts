@@ -110,7 +110,7 @@ export const loadFileIntoCube = async (
   try {
     await quack.exec(insertQuery);
   } catch (error) {
-    logger.error(`Failed to load file in to DuckDB using query ${insertQuery} with the following error: ${error}`);
+    logger.error(error, `Failed to load file in to DuckDB using query ${insertQuery}`);
     throw error;
   }
 };
@@ -2479,7 +2479,7 @@ export const createBasePostgresCube = async (
   dataset: Dataset,
   endRevision: Revision
 ): Promise<void> => {
-  logger.debug(`Starting build ${buildId} and Creating base cube for revision ${endRevision.id}`);
+  logger.info(`Starting '${buildId}' and creating base cube for revision '${endRevision.id}'`);
   await cubeDB.query(pgformat(`SET search_path TO %I;`, buildId));
   const functionStart = performance.now();
   const extendedSelectStatementsMap = new Map<Locale, string[]>();
@@ -2811,13 +2811,17 @@ export const createMaterialisedView = async (revisionId: string): Promise<void> 
     await cubeDB.query(`UPDATE metadata SET value = 'complete' WHERE key = 'build_status'`);
     await cubeDB.query(`INSERT INTO metadata VALUES('build_finished', '${new Date().toISOString()}')`);
   } catch (error) {
+    logger.error(error, 'Something went wrong trying to create the materialized views in the cube');
     try {
       await cubeDB.query(`UPDATE metadata SET value = 'failed' WHERE key = 'build_status'`);
     } catch (err) {
       logger.error(err, 'Apparently cube no longer exists');
     }
-    performanceReporting(Math.round(performance.now() - viewCreation), 3000, 'Setting up the materialized views');
-    logger.error(error, 'Something went wrong trying to create the materialized views in the cube.');
+    performanceReporting(
+      Math.round(performance.now() - viewCreation),
+      3000,
+      'Failed setting up the materialized views'
+    );
   } finally {
     cubeDB.release();
   }
@@ -2868,7 +2872,6 @@ export const createAllCubeFiles = async (datasetId: string, endRevisionId: strin
   }
 
   // don't wait for this, can happen in the background so we can send the response earlier
-  logger.debug('Running async process...');
   void createMaterialisedView(endRevisionId);
   //void createFilesForDownload(quack, datasetId, endRevisionId);
 };
