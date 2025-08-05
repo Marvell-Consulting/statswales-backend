@@ -17,7 +17,7 @@ export class ProviderSource extends BaseEntity {
   language: string;
 
   @Column({ type: 'int', name: 'sw2_id', nullable: true })
-  sw2_id?: number; // provider id from SW2 - might need this for migration but otherwise unused
+  sw2Id?: number | null; // provider id from SW2 - might need this for migration but otherwise unused
 
   @Column({ type: 'text', nullable: false })
   name: string;
