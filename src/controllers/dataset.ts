@@ -56,6 +56,8 @@ import { FilterInterface } from '../interfaces/filterInterface';
 import { cleanupTmpFile, uploadAvScan } from '../services/virus-scanner';
 import { TempFile } from '../interfaces/temp-file';
 import { DEFAULT_PAGE_SIZE } from '../utils/page-defaults';
+import { PublisherDTO } from '../dtos/publisher-dto';
+import { UserGroupRepository } from '../repositories/user-group';
 
 export const listUserDatasets = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
@@ -89,11 +91,20 @@ export const getDatasetById = async (req: Request, res: Response): Promise<void>
   const hydrate = req.query.hydrate as DatasetInclude;
 
   let dataset: Dataset = res.locals.dataset; // plain dataset without any relations
+  let datasetDTO: DatasetDTO;
 
   switch (hydrate) {
     case DatasetInclude.Preview:
       dataset = await DatasetRepository.getById(datasetId, withStandardPreview);
-      break;
+      datasetDTO = DatasetDTO.fromDataset(dataset);
+
+      if (dataset.userGroupId) {
+        const userGroup = await UserGroupRepository.getByIdWithOrganisation(dataset.userGroupId);
+        datasetDTO.publisher = PublisherDTO.fromUserGroup(userGroup, req.language as Locale);
+      }
+
+      res.json(datasetDTO);
+      return;
 
     case DatasetInclude.Developer:
       dataset = await DatasetRepository.getById(datasetId, withDeveloperPreview);
