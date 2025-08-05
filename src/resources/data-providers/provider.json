@@ -1,0 +1,562 @@
+[
+  {
+    "id": "071111f8-9931-43fb-bef9-a10165056a82",
+    "language": "cy-gb",
+    "name": "Cyfoeth Naturiol Cymru"
+  },
+  {
+    "id": "071111f8-9931-43fb-bef9-a10165056a82",
+    "language": "en-gb",
+    "name": "Natural Resources Wales"
+  },
+  {
+    "id": "0a4020f8-53e3-4dcf-a9da-5b1826f157b0",
+    "language": "cy-gb",
+    "name": "Sefydliad Siartredig Cyllid Cyhoeddus a Chyfrifyddiaeth (CIPFA)"
+  },
+  {
+    "id": "0a4020f8-53e3-4dcf-a9da-5b1826f157b0",
+    "language": "en-gb",
+    "name": "Chartered Institute for Public Finance and Accountancy (CIPFA)"
+  },
+  {
+    "id": "0cfadcd3-bc57-472a-aaff-96bcfba224cd",
+    "language": "cy-gb",
+    "name": "Rhwydwaith Ymchwil Iechyd mewn Ysgolion"
+  },
+  {
+    "id": "0cfadcd3-bc57-472a-aaff-96bcfba224cd",
+    "language": "en-gb",
+    "name": "Schools Health Research Network"
+  },
+  {
+    "id": "0f9556bc-487a-4c21-8bb9-22795363cebf",
+    "language": "cy-gb",
+    "name": "Cyfeiriadur GIG Cymru"
+  },
+  {
+    "id": "0f9556bc-487a-4c21-8bb9-22795363cebf",
+    "language": "en-gb",
+    "name": "NHS Wales Directory"
+  },
+  {
+    "id": "110fda80-50d0-4be2-b442-106732a8145e",
+    "language": "cy-gb",
+    "name": "Arolygiaeth Gofal Cymru"
+  },
+  {
+    "id": "110fda80-50d0-4be2-b442-106732a8145e",
+    "language": "en-gb",
+    "name": "Care Inspectorate Wales"
+  },
+  {
+    "id": "123800f0-76c0-4f36-96ab-d084477116aa",
+    "language": "cy-gb",
+    "name": "Gwasanaeth Golwg Gwan Cymru"
+  },
+  {
+    "id": "123800f0-76c0-4f36-96ab-d084477116aa",
+    "language": "en-gb",
+    "name": "Low Vision Service Wales"
+  },
+  {
+    "id": "1447ab1c-adf9-4fc4-acee-8f2cd0b147d8",
+    "language": "cy-gb",
+    "name": "Prifysgol Caerdydd"
+  },
+  {
+    "id": "1447ab1c-adf9-4fc4-acee-8f2cd0b147d8",
+    "language": "en-gb",
+    "name": "Cardiff University"
+  },
+  {
+    "id": "168d5b85-3d5c-43e0-be04-d645f070be8a",
+    "language": "cy-gb",
+    "name": "Galw Iechyd Cymru"
+  },
+  {
+    "id": "168d5b85-3d5c-43e0-be04-d645f070be8a",
+    "language": "en-gb",
+    "name": "NHS Direct Wales"
+  },
+  {
+    "id": "199a8a45-09e0-40f0-8499-245e852cc9d0",
+    "language": "cy-gb",
+    "name": "Weinyddiaeth Gyfiawnder"
+  },
+  {
+    "id": "199a8a45-09e0-40f0-8499-245e852cc9d0",
+    "language": "en-gb",
+    "name": "Ministry of Justice"
+  },
+  {
+    "id": "1f7932c7-e326-4867-8f33-9cb2146fbe09",
+    "language": "cy-gb",
+    "name": "Uned Gyflawni’r GIG"
+  },
+  {
+    "id": "1f7932c7-e326-4867-8f33-9cb2146fbe09",
+    "language": "en-gb",
+    "name": "NHS Delivery Unit"
+  },
+  {
+    "id": "2128d861-b1a1-4288-b51d-273585b4af1d",
+    "language": "cy-gb",
+    "name": "Sefydliad ar gyfer Cydweithrediad a Datblygiad Economaidd (OECD)"
+  },
+  {
+    "id": "2128d861-b1a1-4288-b51d-273585b4af1d",
+    "language": "en-gb",
+    "name": "Organisation for Economic Co-operation and Development (OECD)"
+  },
+  {
+    "id": "22302aa2-de03-42ba-a87a-2b6e42043532",
+    "language": "cy-gb",
+    "name": "Wasanaethau Deintyddol Cymunedol"
+  },
+  {
+    "id": "22302aa2-de03-42ba-a87a-2b6e42043532",
+    "language": "en-gb",
+    "name": "Community Dental Services"
+  },
+  {
+    "id": "24643811-e3ed-4acd-b6bc-5d0302570017",
+    "language": "cy-gb",
+    "name": "Ymddiriedolaeth GIG Gwasanaethau Ambiwlans Cymru"
+  },
+  {
+    "id": "24643811-e3ed-4acd-b6bc-5d0302570017",
+    "language": "en-gb",
+    "name": "Welsh Ambulance Services NHS Trust"
+  },
+  {
+    "id": "29a2e85f-41ef-46cb-a8e0-d3d0f98a0b90",
+    "language": "cy-gb",
+    "name": "Yr Asiantaeth Ystadegau Addysg Uwch"
+  },
+  {
+    "id": "29a2e85f-41ef-46cb-a8e0-d3d0f98a0b90",
+    "language": "en-gb",
+    "name": "Higher Education Statistics Agency"
+  },
+  {
+    "id": "38f6b745-84bf-4264-a95a-d43c81bf375c",
+    "language": "cy-gb",
+    "name": "Adran Drafnidiaeth"
+  },
+  {
+    "id": "38f6b745-84bf-4264-a95a-d43c81bf375c",
+    "language": "en-gb",
+    "name": "Department for Transport"
+  },
+  {
+    "id": "45e8b5c2-c4de-44d6-a9c5-88b01b2711ab",
+    "language": "cy-gb",
+    "name": "Trysorlys EF"
+  },
+  {
+    "id": "45e8b5c2-c4de-44d6-a9c5-88b01b2711ab",
+    "language": "en-gb",
+    "name": "HM Treasury"
+  },
+  {
+    "id": "46b66fc0-c5c0-4134-acd3-dcf3b06f0572",
+    "language": "cy-gb",
+    "name": "Awdurdod Cyllid Cymru"
+  },
+  {
+    "id": "46b66fc0-c5c0-4134-acd3-dcf3b06f0572",
+    "language": "en-gb",
+    "name": "Welsh Revenue Authority"
+  },
+  {
+    "id": "4c3223c9-ee68-4517-ad26-d496317b3741",
+    "language": "cy-gb",
+    "name": "Arolwg Ordnans"
+  },
+  {
+    "id": "4c3223c9-ee68-4517-ad26-d496317b3741",
+    "language": "en-gb",
+    "name": "Ordnance Survey"
+  },
+  {
+    "id": "58368364-ffde-42bc-a427-629584db9c0e",
+    "language": "cy-gb",
+    "name": "Iechyd a Gofal Cymdeithasol a Canolfan Gwybodaeth (HSCIC)"
+  },
+  {
+    "id": "58368364-ffde-42bc-a427-629584db9c0e",
+    "language": "en-gb",
+    "name": "Health and Social Care Information Centre (HSCIC)"
+  },
+  {
+    "id": "5e68c4fb-05d3-478a-98b3-a125dec29828",
+    "language": "cy-gb",
+    "name": "Rhestr Allyriadau Atmosfferig Genedlaethol"
+  },
+  {
+    "id": "5e68c4fb-05d3-478a-98b3-a125dec29828",
+    "language": "en-gb",
+    "name": "National Atmospheric Emissions Inventory"
+  },
+  {
+    "id": "60ee65a2-d65a-4da8-9420-84e76a1b6b38",
+    "language": "cy-gb",
+    "name": "Adran yr Amgylchedd, Bwyd a Materion Gwledig"
+  },
+  {
+    "id": "60ee65a2-d65a-4da8-9420-84e76a1b6b38",
+    "language": "en-gb",
+    "name": "Department for Environment, Food and Rural Affairs"
+  },
+  {
+    "id": "628f74d9-feea-4cee-92d2-62a16e3194cc",
+    "language": "cy-gb",
+    "name": "Staff GIG"
+  },
+  {
+    "id": "628f74d9-feea-4cee-92d2-62a16e3194cc",
+    "language": "en-gb",
+    "name": "NHS Staff"
+  },
+  {
+    "id": "63d3d295-70c3-4542-b938-a9c0d6744a60",
+    "language": "cy-gb",
+    "name": "Cyllid a Thollau EF"
+  },
+  {
+    "id": "63d3d295-70c3-4542-b938-a9c0d6744a60",
+    "language": "en-gb",
+    "name": "HM Revenue and Customs (HMRC)"
+  },
+  {
+    "id": "63e1a0be-c641-4b10-886b-a62865b03a71",
+    "language": "cy-gb",
+    "name": "Heddlu Trafnidiaeth Prydeinig"
+  },
+  {
+    "id": "63e1a0be-c641-4b10-886b-a62865b03a71",
+    "language": "en-gb",
+    "name": "British Transport Police"
+  },
+  {
+    "id": "6646c768-ea36-4826-a33b-3f29072f31a9",
+    "language": "cy-gb",
+    "name": "Awdurdod Gwasanaethau Busnes y GIG"
+  },
+  {
+    "id": "6646c768-ea36-4826-a33b-3f29072f31a9",
+    "language": "en-gb",
+    "name": "NHS Business Services Authority"
+  },
+  {
+    "id": "68515778-036d-4b8b-9f49-c88fbde95609",
+    "language": "cy-gb",
+    "name": "Awdurdod Hedfan Sifil"
+  },
+  {
+    "id": "68515778-036d-4b8b-9f49-c88fbde95609",
+    "language": "en-gb",
+    "name": "Civil Aviation Authority"
+  },
+  {
+    "id": "6d59738a-e0f6-4345-8b77-7ad9c9a5b5b2",
+    "language": "cy-gb",
+    "name": "Cydbwyllgor Addysg Cymru"
+  },
+  {
+    "id": "6d59738a-e0f6-4345-8b77-7ad9c9a5b5b2",
+    "language": "en-gb",
+    "name": "Welsh Joint Education Committee"
+  },
+  {
+    "id": "74dfca89-7b78-42ab-bf19-c97818ff9cc5",
+    "language": "cy-gb",
+    "name": "Gwasanaeth Derbyn y Prifysgolion a’r Colegau (UCAS)"
+  },
+  {
+    "id": "74dfca89-7b78-42ab-bf19-c97818ff9cc5",
+    "language": "en-gb",
+    "name": "Universities and Colleges Admissions Service (UCAS)"
+  },
+  {
+    "id": "755d7b18-b631-49a6-9c41-c71d65792875",
+    "language": "cy-gb",
+    "name": "Coed Cadw"
+  },
+  {
+    "id": "755d7b18-b631-49a6-9c41-c71d65792875",
+    "language": "en-gb",
+    "name": "Woodland Trust"
+  },
+  {
+    "id": "7dcde71d-8783-423c-a9e5-36b78622e591",
+    "language": "cy-gb",
+    "name": "Biwro Ystadegau Haearn a Dur"
+  },
+  {
+    "id": "7dcde71d-8783-423c-a9e5-36b78622e591",
+    "language": "en-gb",
+    "name": "Iron and Steel Statistics Bureau"
+  },
+  {
+    "id": "845a54df-8eeb-4ff2-94a9-9db823324a20",
+    "language": "cy-gb",
+    "name": "Ymddiriedolaethau GIG a Byrddau Iechyd Lleol"
+  },
+  {
+    "id": "845a54df-8eeb-4ff2-94a9-9db823324a20",
+    "language": "en-gb",
+    "name": "NHS Trusts and Local Health Boards"
+  },
+  {
+    "id": "850d76f4-501f-4b4b-9bfd-a8cf604184a2",
+    "language": "cy-gb",
+    "name": "Comisiwn Coedwigaeth"
+  },
+  {
+    "id": "850d76f4-501f-4b4b-9bfd-a8cf604184a2",
+    "language": "en-gb",
+    "name": "Forestry Commission"
+  },
+  {
+    "id": "98aed6ef-122c-430b-988c-92258cb372f5",
+    "language": "cy-gb",
+    "name": "Llywodraeth Cymru"
+  },
+  {
+    "id": "98aed6ef-122c-430b-988c-92258cb372f5",
+    "language": "en-gb",
+    "name": "Welsh Government"
+  },
+  {
+    "id": "9a091390-9ed4-4b94-a09f-9dcd5ed20f4b",
+    "language": "cy-gb",
+    "name": "Partneriaeth Cydwasanaethau GIG Cymru"
+  },
+  {
+    "id": "9a091390-9ed4-4b94-a09f-9dcd5ed20f4b",
+    "language": "en-gb",
+    "name": "NHS Wales Shared Services Partnership"
+  },
+  {
+    "id": "9cfa3817-c847-49e4-9ec2-82e54fc69d7c",
+    "language": "cy-gb",
+    "name": "Yr Adran Addysg"
+  },
+  {
+    "id": "9cfa3817-c847-49e4-9ec2-82e54fc69d7c",
+    "language": "en-gb",
+    "name": "Department for Education"
+  },
+  {
+    "id": "a44e1dc9-f887-4283-ac6d-d692c68e54aa",
+    "language": "cy-gb",
+    "name": "Digidol GIG"
+  },
+  {
+    "id": "a44e1dc9-f887-4283-ac6d-d692c68e54aa",
+    "language": "en-gb",
+    "name": "NHS Digital"
+  },
+  {
+    "id": "a5b7d1f4-0c65-483f-b6c1-e61b920b0b20",
+    "language": "cy-gb",
+    "name": "Ffocws ar Drafnidiaeth"
+  },
+  {
+    "id": "a5b7d1f4-0c65-483f-b6c1-e61b920b0b20",
+    "language": "en-gb",
+    "name": "Transport Focus"
+  },
+  {
+    "id": "a5e3097c-a031-45fe-adfd-975d49dc5bed",
+    "language": "cy-gb",
+    "name": "Swyddfa Gartref"
+  },
+  {
+    "id": "a5e3097c-a031-45fe-adfd-975d49dc5bed",
+    "language": "en-gb",
+    "name": "Home Office"
+  },
+  {
+    "id": "acb1594e-4bc9-4d2c-bd69-adcf30bdcfa0",
+    "language": "cy-gb",
+    "name": "Ymddygiadau Iechyd mewn Plant Oedran Ysgol (HBSC)"
+  },
+  {
+    "id": "acb1594e-4bc9-4d2c-bd69-adcf30bdcfa0",
+    "language": "en-gb",
+    "name": "Health Behaviours in School-aged Children (HBSC)"
+  },
+  {
+    "id": "b72feb07-aa39-4e10-9129-9e1eea0f64ae",
+    "language": "cy-gb",
+    "name": "Sefydliadau Addysg Bellach"
+  },
+  {
+    "id": "b72feb07-aa39-4e10-9129-9e1eea0f64ae",
+    "language": "en-gb",
+    "name": "Further Education Institutions"
+  },
+  {
+    "id": "bdafd0a5-af47-4799-9505-2fd78dc8c920",
+    "language": "cy-gb",
+    "name": "Swyddfa Rheilffyrdd a Ffyrdd"
+  },
+  {
+    "id": "bdafd0a5-af47-4799-9505-2fd78dc8c920",
+    "language": "en-gb",
+    "name": "Office of Rail and Road"
+  },
+  {
+    "id": "c1a54357-9324-4d9f-8d60-07241440eb8d",
+    "language": "cy-gb",
+    "name": "Iechyd Cyhoeddus Cymru"
+  },
+  {
+    "id": "c1a54357-9324-4d9f-8d60-07241440eb8d",
+    "language": "en-gb",
+    "name": "Public Health Wales"
+  },
+  {
+    "id": "c1cd46d7-eca6-4bf0-821f-9c015c2f622c",
+    "language": "cy-gb",
+    "name": "Visit Britain"
+  },
+  {
+    "id": "c1cd46d7-eca6-4bf0-821f-9c015c2f622c",
+    "language": "en-gb",
+    "name": "Visit Britain"
+  },
+  {
+    "id": "c315add1-3958-4f59-80a2-ce2c68b36595",
+    "language": "cy-gb",
+    "name": "Cwmni Benthyciadau Myfyrwyr"
+  },
+  {
+    "id": "c315add1-3958-4f59-80a2-ce2c68b36595",
+    "language": "en-gb",
+    "name": "Student Loans Company"
+  },
+  {
+    "id": "cdf39b19-fbde-40c1-a489-30500e9a2525",
+    "language": "cy-gb",
+    "name": "Yr Adran Iechyd a Gofal Cymdeithasol"
+  },
+  {
+    "id": "cdf39b19-fbde-40c1-a489-30500e9a2525",
+    "language": "en-gb",
+    "name": "Department of Health & Social Care"
+  },
+  {
+    "id": "d061e46d-6042-4199-8d3e-9a32b0206019",
+    "language": "cy-gb",
+    "name": "Arolwg Deall Cymdeithas (USOC)"
+  },
+  {
+    "id": "d061e46d-6042-4199-8d3e-9a32b0206019",
+    "language": "en-gb",
+    "name": "Understanding Society (USOC)"
+  },
+  {
+    "id": "d3620b5d-be93-44f7-9289-fe3bf50e78f3",
+    "language": "cy-gb",
+    "name": "Swyddfa Ystadegau Gwladol (SYG)"
+  },
+  {
+    "id": "d3620b5d-be93-44f7-9289-fe3bf50e78f3",
+    "language": "en-gb",
+    "name": "Office for National Statistics (ONS)"
+  },
+  {
+    "id": "d5eb3355-e800-464d-a315-8afee1deca68",
+    "language": "cy-gb",
+    "name": "Croeso Cymru"
+  },
+  {
+    "id": "d5eb3355-e800-464d-a315-8afee1deca68",
+    "language": "en-gb",
+    "name": "Visit Wales"
+  },
+  {
+    "id": "d777874e-3f5e-47c9-9f4d-c9ea9016e16f",
+    "language": "cy-gb",
+    "name": "Chwaraeon Cymru"
+  },
+  {
+    "id": "d777874e-3f5e-47c9-9f4d-c9ea9016e16f",
+    "language": "en-gb",
+    "name": "Sport Wales"
+  },
+  {
+    "id": "db58b195-afa2-40f4-951c-c81c36dd5595",
+    "language": "cy-gb",
+    "name": "Gwaed a Thrawsblaniadau’r GIG"
+  },
+  {
+    "id": "db58b195-afa2-40f4-951c-c81c36dd5595",
+    "language": "en-gb",
+    "name": "NHS Blood and Transplant Service"
+  },
+  {
+    "id": "e4f9e63b-aa99-4df5-bdee-2f1a407ada8a",
+    "language": "cy-gb",
+    "name": "Ysbyty Llygaid Moorfields"
+  },
+  {
+    "id": "e4f9e63b-aa99-4df5-bdee-2f1a407ada8a",
+    "language": "en-gb",
+    "name": "Moorfields Eye Hospital"
+  },
+  {
+    "id": "e850ccdb-79de-4c48-9762-30018a61c7e0",
+    "language": "cy-gb",
+    "name": "Adran Gwaith a Phensiynau (DWP)"
+  },
+  {
+    "id": "e850ccdb-79de-4c48-9762-30018a61c7e0",
+    "language": "en-gb",
+    "name": "Department for Work and Pensions (DWP)"
+  },
+  {
+    "id": "ea3226fb-d5fb-47d8-88ff-c648b7076616",
+    "language": "cy-gb",
+    "name": "Sgrinio Llygaid Diabetig Cymru (DESW)"
+  },
+  {
+    "id": "ea3226fb-d5fb-47d8-88ff-c648b7076616",
+    "language": "en-gb",
+    "name": "Diabetic Eye Screening Wales (DESW)"
+  },
+  {
+    "id": "f57e03de-2985-4e5a-b05a-07fef9ef27aa",
+    "language": "cy-gb",
+    "name": "Cofrestrfa Tir EF"
+  },
+  {
+    "id": "f57e03de-2985-4e5a-b05a-07fef9ef27aa",
+    "language": "en-gb",
+    "name": "HM Land Registry"
+  },
+  {
+    "id": "f57e82cc-9c97-442b-a195-de74f443f36c",
+    "language": "cy-gb",
+    "name": "Iechyd a Gofal Digidol Cymru (DHCW)"
+  },
+  {
+    "id": "f57e82cc-9c97-442b-a195-de74f443f36c",
+    "language": "en-gb",
+    "name": "Digital Health and Care Wales (DHCW)"
+  },
+  {
+    "id": "fdb0eba8-8e65-4cfc-82a4-bbe6f72baf6d",
+    "language": "cy-gb",
+    "name": "Sefydliadau’r GIG"
+  },
+  {
+    "id": "fdb0eba8-8e65-4cfc-82a4-bbe6f72baf6d",
+    "language": "en-gb",
+    "name": "NHS Organisations"
+  }
+]

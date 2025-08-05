@@ -1,0 +1,3950 @@
+[
+  {
+    "id": "041be9ce-4f52-4426-82e1-38216ff68aa3",
+    "language": "cy-gb",
+    "sw2_id": 10206,
+    "name": "Marwolaethau yn yr ysbyty",
+    "provider_id": "d3620b5d-be93-44f7-9289-fe3bf50e78f3"
+  },
+  {
+    "id": "041be9ce-4f52-4426-82e1-38216ff68aa3",
+    "language": "en-gb",
+    "sw2_id": 10206,
+    "name": "Hospital Mortality",
+    "provider_id": "d3620b5d-be93-44f7-9289-fe3bf50e78f3"
+  },
+  {
+    "id": "05078c3d-269b-49d7-8dcd-8c2f53b58e3a",
+    "language": "cy-gb",
+    "sw2_id": 10034,
+    "name": "Casglu data dangosyddion perfformiad y gwasanaeth tân",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "05078c3d-269b-49d7-8dcd-8c2f53b58e3a",
+    "language": "en-gb",
+    "sw2_id": 10034,
+    "name": "Fire service performance indicators data collection",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "05e89099-5263-4175-9510-2a52a0d1ac7b",
+    "language": "cy-gb",
+    "sw2_id": 10153,
+    "name": "Ffurflen QueSt1",
+    "provider_id": "f57e82cc-9c97-442b-a195-de74f443f36c"
+  },
+  {
+    "id": "05e89099-5263-4175-9510-2a52a0d1ac7b",
+    "language": "en-gb",
+    "sw2_id": 10153,
+    "name": "QueSt1 return",
+    "provider_id": "f57e82cc-9c97-442b-a195-de74f443f36c"
+  },
+  {
+    "id": "061c81eb-f85d-43fc-827d-1ec95d7bfa26",
+    "language": "cy-gb",
+    "sw2_id": 10327,
+    "name": "Plant sy'n Derbyn Gofal a Chymorth (CRCS) Cyfrifiad",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "061c81eb-f85d-43fc-827d-1ec95d7bfa26",
+    "language": "en-gb",
+    "sw2_id": 10327,
+    "name": "Children Receiving Care and Support (CRCS) Census",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "064a1545-ed53-4d9d-939a-7dbe95dad25c",
+    "language": "cy-gb",
+    "sw2_id": 10009,
+    "name": "Casgliad data am gymwysterau addysgol pobl ifanc sy'n gadael gofal (OC1)",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "064a1545-ed53-4d9d-939a-7dbe95dad25c",
+    "language": "en-gb",
+    "sw2_id": 10009,
+    "name": "Educational qualifications of care leavers (OC1) data collection",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "08e1efe7-80d4-40fe-99c0-ec815d23c51d",
+    "language": "cy-gb",
+    "sw2_id": 10253,
+    "name": "Arolygon Deiliadaeth Llety Cymru",
+    "provider_id": "d5eb3355-e800-464d-a315-8afee1deca68"
+  },
+  {
+    "id": "08e1efe7-80d4-40fe-99c0-ec815d23c51d",
+    "language": "en-gb",
+    "sw2_id": 10253,
+    "name": "Wales Accommodation Occupancy Survey",
+    "provider_id": "d5eb3355-e800-464d-a315-8afee1deca68"
+  },
+  {
+    "id": "0b480a23-e197-44a0-894d-6bf79089ad69",
+    "language": "cy-gb",
+    "sw2_id": 10379,
+    "name": "Oedi yn achos Llwybrau Gofal",
+    "provider_id": "1f7932c7-e326-4867-8f33-9cb2146fbe09"
+  },
+  {
+    "id": "0b480a23-e197-44a0-894d-6bf79089ad69",
+    "language": "en-gb",
+    "sw2_id": 10379,
+    "name": "Pathways of Care Delays",
+    "provider_id": "1f7932c7-e326-4867-8f33-9cb2146fbe09"
+  },
+  {
+    "id": "0be15026-8fe2-4c45-bec9-d4554ed4442f",
+    "language": "cy-gb",
+    "sw2_id": 10085,
+    "name": "Cyfrifiad carafannau sipsiwn a theithwyr",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "0be15026-8fe2-4c45-bec9-d4554ed4442f",
+    "language": "en-gb",
+    "sw2_id": 10085,
+    "name": "Gypsy and traveller caravan count",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "0c2cc9de-3052-46a6-bad7-1043a90e16ac",
+    "language": "cy-gb",
+    "sw2_id": 10315,
+    "name": "Trwyddedau tacsi",
+    "provider_id": "38f6b745-84bf-4264-a95a-d43c81bf375c"
+  },
+  {
+    "id": "0c2cc9de-3052-46a6-bad7-1043a90e16ac",
+    "language": "en-gb",
+    "sw2_id": 10315,
+    "name": "Taxi licences",
+    "provider_id": "38f6b745-84bf-4264-a95a-d43c81bf375c"
+  },
+  {
+    "id": "0c9e4352-2ca1-4080-8153-dab7e292e1f5",
+    "language": "cy-gb",
+    "sw2_id": 10098,
+    "name": "Cronfa Ddata Genedlaethol ar Iechyd Plant Cymunedol (NCCHD)",
+    "provider_id": "f57e82cc-9c97-442b-a195-de74f443f36c"
+  },
+  {
+    "id": "0c9e4352-2ca1-4080-8153-dab7e292e1f5",
+    "language": "en-gb",
+    "sw2_id": 10098,
+    "name": "National Community Child Health Database (NCCHD)",
+    "provider_id": "f57e82cc-9c97-442b-a195-de74f443f36c"
+  },
+  {
+    "id": "0cd464fd-8287-4620-a587-6faffffeabe2",
+    "language": "cy-gb",
+    "sw2_id": 10221,
+    "name": "Diweddariad Dadansoddiadau Ystadegol o Wariant Cyhoeddus (PESA)",
+    "provider_id": "45e8b5c2-c4de-44d6-a9c5-88b01b2711ab"
+  },
+  {
+    "id": "0cd464fd-8287-4620-a587-6faffffeabe2",
+    "language": "en-gb",
+    "sw2_id": 10221,
+    "name": "Public Expenditure Statistical Analysis (PESA)",
+    "provider_id": "45e8b5c2-c4de-44d6-a9c5-88b01b2711ab"
+  },
+  {
+    "id": "0e162c02-3802-44ba-8f3b-9764be50cc6d",
+    "language": "cy-gb",
+    "sw2_id": 10214,
+    "name": "Arolwg Hamdden Awyr Agored Cymru",
+    "provider_id": "071111f8-9931-43fb-bef9-a10165056a82"
+  },
+  {
+    "id": "0e162c02-3802-44ba-8f3b-9764be50cc6d",
+    "language": "en-gb",
+    "sw2_id": 10214,
+    "name": "Welsh Outdoor Recreation Survey",
+    "provider_id": "071111f8-9931-43fb-bef9-a10165056a82"
+  },
+  {
+    "id": "0e47271e-fad7-49a8-8924-44e4017ac934",
+    "language": "cy-gb",
+    "sw2_id": 10353,
+    "name": "Mesurau canlyniadau gofal llygaid, Profforma cyflwyno misol",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "0e47271e-fad7-49a8-8924-44e4017ac934",
+    "language": "en-gb",
+    "sw2_id": 10353,
+    "name": "Eye care outcome measures, Monthly submission proforma",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "105f96bd-118c-4e2f-aec7-758515aceb3e",
+    "language": "cy-gb",
+    "sw2_id": 10258,
+    "name": "Casglu data ar gyflwr y ffyrdd",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "105f96bd-118c-4e2f-aec7-758515aceb3e",
+    "language": "en-gb",
+    "sw2_id": 10258,
+    "name": "Road condition data collection",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "1070769c-a37e-4326-80b2-74c3c1a1a6d2",
+    "language": "cy-gb",
+    "sw2_id": 10094,
+    "name": "Cofnod Dysgu Gydol Oes Cymru (LLWR)",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "1070769c-a37e-4326-80b2-74c3c1a1a6d2",
+    "language": "en-gb",
+    "sw2_id": 10094,
+    "name": "Lifelong Learning Wales Record (LLWR)",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "108ccceb-0719-46af-a7e9-647d16ebcc8f",
+    "language": "cy-gb",
+    "sw2_id": 10182,
+    "name": "Atgyfeiriad am driniaeth (RTT)",
+    "provider_id": "f57e82cc-9c97-442b-a195-de74f443f36c"
+  },
+  {
+    "id": "108ccceb-0719-46af-a7e9-647d16ebcc8f",
+    "language": "en-gb",
+    "sw2_id": 10182,
+    "name": "Referral to Treatment Times (RTT)",
+    "provider_id": "f57e82cc-9c97-442b-a195-de74f443f36c"
+  },
+  {
+    "id": "10bcd4e0-f2f8-4a3b-8b6d-84af2542bde4",
+    "language": "cy-gb",
+    "sw2_id": 10197,
+    "name": "Tueddiadau rheilffyrdd cenedlaethol",
+    "provider_id": "bdafd0a5-af47-4799-9505-2fd78dc8c920"
+  },
+  {
+    "id": "10bcd4e0-f2f8-4a3b-8b6d-84af2542bde4",
+    "language": "en-gb",
+    "sw2_id": 10197,
+    "name": "National rail trends",
+    "provider_id": "bdafd0a5-af47-4799-9505-2fd78dc8c920"
+  },
+  {
+    "id": "11709127-4062-469b-9324-3ad9ae64afeb",
+    "language": "cy-gb",
+    "sw2_id": 10314,
+    "name": "Arolwg o Ynni Carbon Isel",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "11709127-4062-469b-9324-3ad9ae64afeb",
+    "language": "en-gb",
+    "sw2_id": 10314,
+    "name": "Low Carbon Energy Survey",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "1193bb72-001e-4bcf-b10a-69838f4b842d",
+    "language": "cy-gb",
+    "sw2_id": 10210,
+    "name": "Adroddiad Space for People",
+    "provider_id": "755d7b18-b631-49a6-9c41-c71d65792875"
+  },
+  {
+    "id": "1193bb72-001e-4bcf-b10a-69838f4b842d",
+    "language": "en-gb",
+    "sw2_id": 10210,
+    "name": "Space for People report",
+    "provider_id": "755d7b18-b631-49a6-9c41-c71d65792875"
+  },
+  {
+    "id": "11c47e71-3822-443a-bac0-9993d16b1feb",
+    "language": "cy-gb",
+    "sw2_id": 10015,
+    "name": "Casgliad data am Ddangosyddion Strategol Cenedlaethol (NSI)",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "11c47e71-3822-443a-bac0-9993d16b1feb",
+    "language": "en-gb",
+    "sw2_id": 10015,
+    "name": "National Strategic Indicators (NSI) data collection",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "124c39cf-9e8a-448e-a333-a6f5d4da4c7f",
+    "language": "cy-gb",
+    "sw2_id": 10286,
+    "name": "Stocrestr o Ddefaid a Geifr",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "124c39cf-9e8a-448e-a333-a6f5d4da4c7f",
+    "language": "en-gb",
+    "sw2_id": 10286,
+    "name": "Sheep and Goat Inventory",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "125681ea-ba2d-401a-9024-b5deda5ccfc0",
+    "language": "cy-gb",
+    "sw2_id": 10146,
+    "name": "Gwasanaethau deintyddol",
+    "provider_id": "6646c768-ea36-4826-a33b-3f29072f31a9"
+  },
+  {
+    "id": "125681ea-ba2d-401a-9024-b5deda5ccfc0",
+    "language": "en-gb",
+    "sw2_id": 10146,
+    "name": "Dental services",
+    "provider_id": "6646c768-ea36-4826-a33b-3f29072f31a9"
+  },
+  {
+    "id": "134eba45-8146-4454-a1d8-0bd93949e83d",
+    "language": "cy-gb",
+    "sw2_id": 10172,
+    "name": "Prisiau manwerthu",
+    "provider_id": "d3620b5d-be93-44f7-9289-fe3bf50e78f3"
+  },
+  {
+    "id": "134eba45-8146-4454-a1d8-0bd93949e83d",
+    "language": "en-gb",
+    "sw2_id": 10172,
+    "name": "Retail prices",
+    "provider_id": "d3620b5d-be93-44f7-9289-fe3bf50e78f3"
+  },
+  {
+    "id": "13a379e5-bce9-4905-8642-54a8e0504cb4",
+    "language": "cy-gb",
+    "sw2_id": 10024,
+    "name": "Casgliad data am anheddau'r dreth gyngor (CT1)",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "13a379e5-bce9-4905-8642-54a8e0504cb4",
+    "language": "en-gb",
+    "sw2_id": 10024,
+    "name": "Council tax dwellings (CT1) data collection",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "14399d48-e6c4-4504-b57a-7e931795b48f",
+    "language": "cy-gb",
+    "sw2_id": 10288,
+    "name": "Cofnod staff",
+    "provider_id": "29a2e85f-41ef-46cb-a8e0-d3d0f98a0b90"
+  },
+  {
+    "id": "14399d48-e6c4-4504-b57a-7e931795b48f",
+    "language": "en-gb",
+    "sw2_id": 10288,
+    "name": "Staff record",
+    "provider_id": "29a2e85f-41ef-46cb-a8e0-d3d0f98a0b90"
+  },
+  {
+    "id": "16a58406-6c7e-4468-8eba-716bd98569f3",
+    "language": "cy-gb",
+    "sw2_id": 10296,
+    "name": "Arolwg dreth gyngor",
+    "provider_id": "0a4020f8-53e3-4dcf-a9da-5b1826f157b0"
+  },
+  {
+    "id": "16a58406-6c7e-4468-8eba-716bd98569f3",
+    "language": "en-gb",
+    "sw2_id": 10296,
+    "name": "Council tax survey",
+    "provider_id": "0a4020f8-53e3-4dcf-a9da-5b1826f157b0"
+  },
+  {
+    "id": "17175699-0297-49d1-9c30-8d085fec671d",
+    "language": "cy-gb",
+    "sw2_id": 10331,
+    "name": "Absenoliaeth a chyrhaeddiad disgyblion",
+    "provider_id": "9cfa3817-c847-49e4-9ec2-82e54fc69d7c"
+  },
+  {
+    "id": "17175699-0297-49d1-9c30-8d085fec671d",
+    "language": "en-gb",
+    "sw2_id": 10331,
+    "name": "Pupil attainment and absence",
+    "provider_id": "9cfa3817-c847-49e4-9ec2-82e54fc69d7c"
+  },
+  {
+    "id": "18dfae36-1c59-4afe-bb19-cd0fa4d653ba",
+    "language": "cy-gb",
+    "sw2_id": 10274,
+    "name": "Data ar Agosrwydd at Safleoedd Gwaredu Gwastraff a Diwydiannol",
+    "provider_id": "071111f8-9931-43fb-bef9-a10165056a82"
+  },
+  {
+    "id": "18dfae36-1c59-4afe-bb19-cd0fa4d653ba",
+    "language": "en-gb",
+    "sw2_id": 10274,
+    "name": "Proximity to Waste Disposal and Industrial Sites data",
+    "provider_id": "071111f8-9931-43fb-bef9-a10165056a82"
+  },
+  {
+    "id": "1906f50a-50b5-4683-bc0a-ffa8c867f0b4",
+    "language": "cy-gb",
+    "sw2_id": 10043,
+    "name": "Casgliad data am grant cyfleusterau i bobl anabl",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "1906f50a-50b5-4683-bc0a-ffa8c867f0b4",
+    "language": "en-gb",
+    "sw2_id": 10043,
+    "name": "Disabled facilities grant data collection",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "19aecfc2-dc2b-4362-a55f-552e0b925891",
+    "language": "cy-gb",
+    "sw2_id": 10050,
+    "name": "Cyfrifiad 2001",
+    "provider_id": "d3620b5d-be93-44f7-9289-fe3bf50e78f3"
+  },
+  {
+    "id": "19aecfc2-dc2b-4362-a55f-552e0b925891",
+    "language": "en-gb",
+    "sw2_id": 10050,
+    "name": "2001 Census",
+    "provider_id": "d3620b5d-be93-44f7-9289-fe3bf50e78f3"
+  },
+  {
+    "id": "1a54e1a8-3431-4efd-af5a-70ac0a5e1b15",
+    "language": "cy-gb",
+    "sw2_id": 10173,
+    "name": "Ystadegau ymchwil a datblygu",
+    "provider_id": "d3620b5d-be93-44f7-9289-fe3bf50e78f3"
+  },
+  {
+    "id": "1a54e1a8-3431-4efd-af5a-70ac0a5e1b15",
+    "language": "en-gb",
+    "sw2_id": 10173,
+    "name": "Research and development statistics",
+    "provider_id": "d3620b5d-be93-44f7-9289-fe3bf50e78f3"
+  },
+  {
+    "id": "1ac5e16c-05dc-42b6-a738-0b213493f65f",
+    "language": "cy-gb",
+    "sw2_id": 10110,
+    "name": "Tîm Dadansoddi’r Arsyllfa",
+    "provider_id": "c1a54357-9324-4d9f-8d60-07241440eb8d"
+  },
+  {
+    "id": "1ac5e16c-05dc-42b6-a738-0b213493f65f",
+    "language": "en-gb",
+    "sw2_id": 10110,
+    "name": "Observatory Analytical Team",
+    "provider_id": "c1a54357-9324-4d9f-8d60-07241440eb8d"
+  },
+  {
+    "id": "1aef24b1-24a4-4027-9e2f-14996d274362",
+    "language": "cy-gb",
+    "sw2_id": 10351,
+    "name": "Plant Iach Cymru",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "1aef24b1-24a4-4027-9e2f-14996d274362",
+    "language": "en-gb",
+    "sw2_id": 10351,
+    "name": "Healthy Child Wales",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "1c43c31e-403c-4e07-bba8-644d3225366b",
+    "language": "cy-gb",
+    "sw2_id": 10008,
+    "name": "Casgliad data am fabwysiadu plant sy'n derbyn gofal (AD1)",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "1c43c31e-403c-4e07-bba8-644d3225366b",
+    "language": "en-gb",
+    "sw2_id": 10008,
+    "name": "Adoptions of looked after children (AD1) data collection",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "1d913804-74cf-4c65-b773-4feefd87c10f",
+    "language": "cy-gb",
+    "sw2_id": 10143,
+    "name": "Ffurflenni gweithgarwch deintyddol cymunedol (CDSWR)",
+    "provider_id": "22302aa2-de03-42ba-a87a-2b6e42043532"
+  },
+  {
+    "id": "1d913804-74cf-4c65-b773-4feefd87c10f",
+    "language": "en-gb",
+    "sw2_id": 10143,
+    "name": "Community dental activity returns (CDSWR)",
+    "provider_id": "22302aa2-de03-42ba-a87a-2b6e42043532"
+  },
+  {
+    "id": "1f7b6b7c-f951-4a3e-ac96-c44eb85187fd",
+    "language": "cy-gb",
+    "sw2_id": 10199,
+    "name": "Disgyblion sy'n ymadael ag addysg heb gymhwysterau casgliad",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "1f7b6b7c-f951-4a3e-ac96-c44eb85187fd",
+    "language": "en-gb",
+    "sw2_id": 10199,
+    "name": "Pupils leaving education with no qualifications collection",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "25b8dc2f-709b-47c6-b9ec-9d60cce648eb",
+    "language": "cy-gb",
+    "sw2_id": 10137,
+    "name": "Uned Gwybodaeth Iechyd Geneuol Cymru (WOHIU)",
+    "provider_id": "1447ab1c-adf9-4fc4-acee-8f2cd0b147d8"
+  },
+  {
+    "id": "25b8dc2f-709b-47c6-b9ec-9d60cce648eb",
+    "language": "en-gb",
+    "sw2_id": 10137,
+    "name": "Welsh Oral Health Information Unit (WOHIU)",
+    "provider_id": "1447ab1c-adf9-4fc4-acee-8f2cd0b147d8"
+  },
+  {
+    "id": "26bb4b09-bf90-4d9f-9356-fe4286be45c6",
+    "language": "cy-gb",
+    "sw2_id": 10300,
+    "name": "Set Ddata Gweithgaredd Sylfaenol Cleifion Allanol (OP MDS)",
+    "provider_id": "f57e82cc-9c97-442b-a195-de74f443f36c"
+  },
+  {
+    "id": "26bb4b09-bf90-4d9f-9356-fe4286be45c6",
+    "language": "en-gb",
+    "sw2_id": 10300,
+    "name": "Outpatient Activity Minimum Dataset (OP MDS)",
+    "provider_id": "f57e82cc-9c97-442b-a195-de74f443f36c"
+  },
+  {
+    "id": "26be76de-22d8-47a9-b271-188533657bf3",
+    "language": "cy-gb",
+    "sw2_id": 10257,
+    "name": "Data gweinyddol",
+    "provider_id": "68515778-036d-4b8b-9f49-c88fbde95609"
+  },
+  {
+    "id": "26be76de-22d8-47a9-b271-188533657bf3",
+    "language": "en-gb",
+    "sw2_id": 10257,
+    "name": "Administrative data",
+    "provider_id": "68515778-036d-4b8b-9f49-c88fbde95609"
+  },
+  {
+    "id": "273460a0-a8a1-4c27-ad31-340898f3ecf2",
+    "language": "cy-gb",
+    "sw2_id": 10358,
+    "name": "Cyfrifiad Blynyddol o'r Gweithlu Ysgol (SWAC)",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "273460a0-a8a1-4c27-ad31-340898f3ecf2",
+    "language": "en-gb",
+    "sw2_id": 10358,
+    "name": "School Workforce Annual Census (SWAC)",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "274821c3-cfb3-4f2f-a375-2ae88d7f46b6",
+    "language": "cy-gb",
+    "sw2_id": 10256,
+    "name": "Datganiadau cyllideb rhaglenni gan y byrddau iechyd lleol",
+    "provider_id": "845a54df-8eeb-4ff2-94a9-9db823324a20"
+  },
+  {
+    "id": "274821c3-cfb3-4f2f-a375-2ae88d7f46b6",
+    "language": "en-gb",
+    "sw2_id": 10256,
+    "name": "Programme budget returns from local health boards",
+    "provider_id": "845a54df-8eeb-4ff2-94a9-9db823324a20"
+  },
+  {
+    "id": "27d5cc9f-5dc4-42d5-95de-a3dd4a9520ca",
+    "language": "cy-gb",
+    "sw2_id": 10259,
+    "name": "Data ar raddfeydd y Weithdrefn Asesu Safonol (SAP) gan y prif ddarparwyr tai cymdeithasol",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "27d5cc9f-5dc4-42d5-95de-a3dd4a9520ca",
+    "language": "en-gb",
+    "sw2_id": 10259,
+    "name": "Standard Assessment Procedure (SAP) ratings data from largest social housing providers",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "2a7629b7-8cb9-43ab-acb5-0fb8618976ae",
+    "language": "cy-gb",
+    "sw2_id": 10338,
+    "name": "Cyflwr ffyrdd traffyrdd a chefnffyrdd A",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "2a7629b7-8cb9-43ab-acb5-0fb8618976ae",
+    "language": "en-gb",
+    "sw2_id": 10338,
+    "name": "Road conditions of motorways and A trunk roads",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "2afb6a4f-5881-4339-b4d2-a5855ef304e0",
+    "language": "cy-gb",
+    "sw2_id": 10114,
+    "name": "Cyfrifon Rhanbarthol",
+    "provider_id": "d3620b5d-be93-44f7-9289-fe3bf50e78f3"
+  },
+  {
+    "id": "2afb6a4f-5881-4339-b4d2-a5855ef304e0",
+    "language": "en-gb",
+    "sw2_id": 10114,
+    "name": "Regional accounts",
+    "provider_id": "d3620b5d-be93-44f7-9289-fe3bf50e78f3"
+  },
+  {
+    "id": "2be44e90-3ecf-4abe-811e-de72223f5890",
+    "language": "cy-gb",
+    "sw2_id": 10207,
+    "name": "Swyddogion Rhenti Cymru",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "2be44e90-3ecf-4abe-811e-de72223f5890",
+    "language": "en-gb",
+    "sw2_id": 10207,
+    "name": "Rent Officers Wales",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "2caa7ae8-963f-437d-9ec2-27f7d25c1fe9",
+    "language": "cy-gb",
+    "sw2_id": 10149,
+    "name": "Casgliad data am angiograffeg",
+    "provider_id": "6646c768-ea36-4826-a33b-3f29072f31a9"
+  },
+  {
+    "id": "2caa7ae8-963f-437d-9ec2-27f7d25c1fe9",
+    "language": "en-gb",
+    "sw2_id": 10149,
+    "name": "Angiography data collection",
+    "provider_id": "6646c768-ea36-4826-a33b-3f29072f31a9"
+  },
+  {
+    "id": "2cd3c4fc-969f-45dc-8cb6-c150091a1823",
+    "language": "cy-gb",
+    "sw2_id": 10205,
+    "name": "Arolygon o’r stoc llety",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "2cd3c4fc-969f-45dc-8cb6-c150091a1823",
+    "language": "en-gb",
+    "sw2_id": 10205,
+    "name": "Bedstock surveys",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "2e1ae9e5-3fbd-4e47-bae7-e124f2fe6e8c",
+    "language": "cy-gb",
+    "sw2_id": 10216,
+    "name": "Arolwg o Ffermwyr â Choetiroedd ar eu Ffermydd",
+    "provider_id": "071111f8-9931-43fb-bef9-a10165056a82"
+  },
+  {
+    "id": "2e1ae9e5-3fbd-4e47-bae7-e124f2fe6e8c",
+    "language": "en-gb",
+    "sw2_id": 10216,
+    "name": "Survey of Farmers with Woodland on their Farms",
+    "provider_id": "071111f8-9931-43fb-bef9-a10165056a82"
+  },
+  {
+    "id": "2e893b1e-e94d-4285-8fa3-aa89e44f3ab9",
+    "language": "cy-gb",
+    "sw2_id": 10198,
+    "name": "Cofnodion cyllid",
+    "provider_id": "b72feb07-aa39-4e10-9129-9e1eea0f64ae"
+  },
+  {
+    "id": "2e893b1e-e94d-4285-8fa3-aa89e44f3ab9",
+    "language": "en-gb",
+    "sw2_id": 10198,
+    "name": "Finance records",
+    "provider_id": "b72feb07-aa39-4e10-9129-9e1eea0f64ae"
+  },
+  {
+    "id": "3004d840-d078-433a-91df-9d8840df338e",
+    "language": "cy-gb",
+    "sw2_id": 10271,
+    "name": "Gwybodaeth ddaearyddol",
+    "provider_id": "d777874e-3f5e-47c9-9f4d-c9ea9016e16f"
+  },
+  {
+    "id": "3004d840-d078-433a-91df-9d8840df338e",
+    "language": "en-gb",
+    "sw2_id": 10271,
+    "name": "Geographical information",
+    "provider_id": "d777874e-3f5e-47c9-9f4d-c9ea9016e16f"
+  },
+  {
+    "id": "300aa5a6-4a60-4420-86bd-fbb71c55aa35",
+    "language": "cy-gb",
+    "sw2_id": 10104,
+    "name": "Cofrestriadau genedigaeth",
+    "provider_id": "d3620b5d-be93-44f7-9289-fe3bf50e78f3"
+  },
+  {
+    "id": "300aa5a6-4a60-4420-86bd-fbb71c55aa35",
+    "language": "en-gb",
+    "sw2_id": 10104,
+    "name": "Births registrations",
+    "provider_id": "d3620b5d-be93-44f7-9289-fe3bf50e78f3"
+  },
+  {
+    "id": "300acbe9-219e-4a3f-9f1a-bbb4114ddca4",
+    "language": "cy-gb",
+    "sw2_id": 10291,
+    "name": "Disgyblion Sy'n Derbyn Addysg Heblaw Yn Yr Ysgol (EOTAS)",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "300acbe9-219e-4a3f-9f1a-bbb4114ddca4",
+    "language": "en-gb",
+    "sw2_id": 10291,
+    "name": "Pupils Educated Other Than At School (EOTAS)",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "30714155-7113-491c-922c-9aa13de0576d",
+    "language": "cy-gb",
+    "sw2_id": 10041,
+    "name": "Casgliad data am ansawdd tai cymdeithasol",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "30714155-7113-491c-922c-9aa13de0576d",
+    "language": "en-gb",
+    "sw2_id": 10041,
+    "name": "Social housing quality data collection",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "30837bd6-6a7c-45a6-8026-9db77325d672",
+    "language": "cy-gb",
+    "sw2_id": 10117,
+    "name": "Adroddiad ar Gyflwr yr Amgylchedd",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "30837bd6-6a7c-45a6-8026-9db77325d672",
+    "language": "en-gb",
+    "sw2_id": 10117,
+    "name": "State of the Environment Report",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "31dee939-eb2d-4a57-aa58-b0516b07ae10",
+    "language": "cy-gb",
+    "sw2_id": 10040,
+    "name": "Casgliad data am beryglon a thrwyddedau",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "31dee939-eb2d-4a57-aa58-b0516b07ae10",
+    "language": "en-gb",
+    "sw2_id": 10040,
+    "name": "Hazards and licences data collection",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "31ec55a9-b9cd-41e2-b1f6-1acff4be8c03",
+    "language": "cy-gb",
+    "sw2_id": 10350,
+    "name": "Cynhyrchu Ynni yng Nghymru",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "31ec55a9-b9cd-41e2-b1f6-1acff4be8c03",
+    "language": "en-gb",
+    "sw2_id": 10350,
+    "name": "Energy Generation in Wales",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "32161c5b-24c3-49fa-adf6-c530cc6d0f21",
+    "language": "cy-gb",
+    "sw2_id": 10047,
+    "name": "Arolwg Blynyddol o’r Boblogaeth (APS)",
+    "provider_id": "d3620b5d-be93-44f7-9289-fe3bf50e78f3"
+  },
+  {
+    "id": "32161c5b-24c3-49fa-adf6-c530cc6d0f21",
+    "language": "en-gb",
+    "sw2_id": 10047,
+    "name": "Annual Population Survey (APS)",
+    "provider_id": "d3620b5d-be93-44f7-9289-fe3bf50e78f3"
+  },
+  {
+    "id": "33b8a4c7-5c56-44ad-8254-c7f344f25391",
+    "language": "cy-gb",
+    "sw2_id": 10004,
+    "name": "Casgliad data am reoli perfformiad gwasanaethau cymdeithasol i blant (PM1)",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "33b8a4c7-5c56-44ad-8254-c7f344f25391",
+    "language": "en-gb",
+    "sw2_id": 10004,
+    "name": "Performance management of children's social services (PM1) data collection",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "33b9b285-6ffc-4202-94db-bcfee3cbefc2",
+    "language": "cy-gb",
+    "sw2_id": 10359,
+    "name": "Cynnyrch domestig gros rhanbarthol chwarterol",
+    "provider_id": "d3620b5d-be93-44f7-9289-fe3bf50e78f3"
+  },
+  {
+    "id": "33b9b285-6ffc-4202-94db-bcfee3cbefc2",
+    "language": "en-gb",
+    "sw2_id": 10359,
+    "name": "Quarterly regional gross domestic product",
+    "provider_id": "d3620b5d-be93-44f7-9289-fe3bf50e78f3"
+  },
+  {
+    "id": "34240c75-7fe4-483a-b3d1-8798a980837a",
+    "language": "cy-gb",
+    "sw2_id": 10196,
+    "name": "Gwasanaethau Sgrinio",
+    "provider_id": "c1a54357-9324-4d9f-8d60-07241440eb8d"
+  },
+  {
+    "id": "34240c75-7fe4-483a-b3d1-8798a980837a",
+    "language": "en-gb",
+    "sw2_id": 10196,
+    "name": "Screening Services",
+    "provider_id": "c1a54357-9324-4d9f-8d60-07241440eb8d"
+  },
+  {
+    "id": "35a36453-15b1-4990-92bc-b8c82b120658",
+    "language": "cy-gb",
+    "sw2_id": 10211,
+    "name": "Barn y Cyhoedd am yr Arolwg Coedwigaeth",
+    "provider_id": "850d76f4-501f-4b4b-9bfd-a8cf604184a2"
+  },
+  {
+    "id": "35a36453-15b1-4990-92bc-b8c82b120658",
+    "language": "en-gb",
+    "sw2_id": 10211,
+    "name": "Public Opinion of Forestry Survey",
+    "provider_id": "850d76f4-501f-4b4b-9bfd-a8cf604184a2"
+  },
+  {
+    "id": "36809a27-5ac1-464d-a04b-38358e995d4c",
+    "language": "cy-gb",
+    "sw2_id": 10044,
+    "name": "Casgliad data am ddymchwel adeiladau",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "36809a27-5ac1-464d-a04b-38358e995d4c",
+    "language": "en-gb",
+    "sw2_id": 10044,
+    "name": "Demolitions data collection",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "36eb7fcc-fed7-49ea-8c5f-3a22408b7dbd",
+    "language": "cy-gb",
+    "sw2_id": 10203,
+    "name": "Arolwg Ymweliadau Undydd Prydain Fawr (GBDVS)",
+    "provider_id": "c1cd46d7-eca6-4bf0-821f-9c015c2f622c"
+  },
+  {
+    "id": "36eb7fcc-fed7-49ea-8c5f-3a22408b7dbd",
+    "language": "en-gb",
+    "sw2_id": 10203,
+    "name": "Great Britain Day Visits Survey (GBDVS)",
+    "provider_id": "c1cd46d7-eca6-4bf0-821f-9c015c2f622c"
+  },
+  {
+    "id": "38f895ce-22db-4c37-99f4-58e72455940d",
+    "language": "cy-gb",
+    "sw2_id": 10088,
+    "name": "System cofnodi achosion o dân",
+    "provider_id": "a5e3097c-a031-45fe-adfd-975d49dc5bed"
+  },
+  {
+    "id": "38f895ce-22db-4c37-99f4-58e72455940d",
+    "language": "en-gb",
+    "sw2_id": 10088,
+    "name": "Fire incident recording system",
+    "provider_id": "a5e3097c-a031-45fe-adfd-975d49dc5bed"
+  },
+  {
+    "id": "3a076df5-34e4-41ae-b842-3fdb59f5a9bd",
+    "language": "cy-gb",
+    "sw2_id": 10324,
+    "name": "Diogelu oedolion",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "3a076df5-34e4-41ae-b842-3fdb59f5a9bd",
+    "language": "en-gb",
+    "sw2_id": 10324,
+    "name": "Adult safeguarding",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "3a25347b-a106-4fe0-988f-782e5563b4a9",
+    "language": "cy-gb",
+    "sw2_id": 10276,
+    "name": "Uned Gwybodaeth ac Arolygaeth Canser Cymru (WCISU)",
+    "provider_id": "c1a54357-9324-4d9f-8d60-07241440eb8d"
+  },
+  {
+    "id": "3a25347b-a106-4fe0-988f-782e5563b4a9",
+    "language": "en-gb",
+    "sw2_id": 10276,
+    "name": "Welsh Cancer Intelligence and Surveillance Unit (WCISU)",
+    "provider_id": "c1a54357-9324-4d9f-8d60-07241440eb8d"
+  },
+  {
+    "id": "3bdc5ef2-c265-4e85-9499-3b5402513467",
+    "language": "cy-gb",
+    "sw2_id": 10093,
+    "name": "Arolwg o'r Llafurlu (LFS)",
+    "provider_id": "d3620b5d-be93-44f7-9289-fe3bf50e78f3"
+  },
+  {
+    "id": "3bdc5ef2-c265-4e85-9499-3b5402513467",
+    "language": "en-gb",
+    "sw2_id": 10093,
+    "name": "Labour Force Survey (LFS)",
+    "provider_id": "d3620b5d-be93-44f7-9289-fe3bf50e78f3"
+  },
+  {
+    "id": "3d935ccb-f269-44bc-86ae-0e1c6389cc9b",
+    "language": "cy-gb",
+    "sw2_id": 10036,
+    "name": "Casgliad data am dai cymdeithasol ar osod",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "3d935ccb-f269-44bc-86ae-0e1c6389cc9b",
+    "language": "en-gb",
+    "sw2_id": 10036,
+    "name": "Social housing lettings data collection",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "3f741711-8630-4207-90bb-ae9331a0f5d0",
+    "language": "cy-gb",
+    "sw2_id": 10181,
+    "name": "Gwasanaethau Diagnostig a Therapi Amseroedd Aros (DATS)",
+    "provider_id": "f57e82cc-9c97-442b-a195-de74f443f36c"
+  },
+  {
+    "id": "3f741711-8630-4207-90bb-ae9331a0f5d0",
+    "language": "en-gb",
+    "sw2_id": 10181,
+    "name": "Diagnostic and Therapy Services Waiting Times (DATS)",
+    "provider_id": "f57e82cc-9c97-442b-a195-de74f443f36c"
+  },
+  {
+    "id": "3fe124a7-5a22-4c1a-8be6-07754c333090",
+    "language": "cy-gb",
+    "sw2_id": 10095,
+    "name": "Ystadegau ymfudo rhyngwladol hirdymor",
+    "provider_id": "d3620b5d-be93-44f7-9289-fe3bf50e78f3"
+  },
+  {
+    "id": "3fe124a7-5a22-4c1a-8be6-07754c333090",
+    "language": "en-gb",
+    "sw2_id": 10095,
+    "name": "Long-term international migration statistics",
+    "provider_id": "d3620b5d-be93-44f7-9289-fe3bf50e78f3"
+  },
+  {
+    "id": "40221946-412f-4c9a-8136-94f4d73a57eb",
+    "language": "cy-gb",
+    "sw2_id": 10213,
+    "name": "Ystadegau coedwigaeth",
+    "provider_id": "850d76f4-501f-4b4b-9bfd-a8cf604184a2"
+  },
+  {
+    "id": "40221946-412f-4c9a-8136-94f4d73a57eb",
+    "language": "en-gb",
+    "sw2_id": 10213,
+    "name": "Forestry statistics",
+    "provider_id": "850d76f4-501f-4b4b-9bfd-a8cf604184a2"
+  },
+  {
+    "id": "4047cce0-401f-4c4b-9f5d-8e490652a334",
+    "language": "cy-gb",
+    "sw2_id": 10298,
+    "name": "Casglu data Gwasanaethau Cwnsela mewn Ysgolion",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "4047cce0-401f-4c4b-9f5d-8e490652a334",
+    "language": "en-gb",
+    "sw2_id": 10298,
+    "name": "Local Authority School Counselling Services collection",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "41790d3f-65fb-4f4b-8b3f-16ec17a9900f",
+    "language": "cy-gb",
+    "sw2_id": 10179,
+    "name": "Ystadegau y farchnad lafur",
+    "provider_id": "d3620b5d-be93-44f7-9289-fe3bf50e78f3"
+  },
+  {
+    "id": "41790d3f-65fb-4f4b-8b3f-16ec17a9900f",
+    "language": "en-gb",
+    "sw2_id": 10179,
+    "name": "Labour market statistics",
+    "provider_id": "d3620b5d-be93-44f7-9289-fe3bf50e78f3"
+  },
+  {
+    "id": "43105cef-89f0-4cb4-81bf-70ade8e61ea6",
+    "language": "cy-gb",
+    "sw2_id": 10200,
+    "name": "Disgyblion â datganiad o gasgliad anghenion addysgol arbennig",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "43105cef-89f0-4cb4-81bf-70ade8e61ea6",
+    "language": "en-gb",
+    "sw2_id": 10200,
+    "name": "Pupils with statements of special educational needs collection",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "436fba22-d1ca-47a1-8a22-cd85ae77abc1",
+    "language": "cy-gb",
+    "sw2_id": 10237,
+    "name": "Casglu data ar hydoedd ffyrdd",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "436fba22-d1ca-47a1-8a22-cd85ae77abc1",
+    "language": "en-gb",
+    "sw2_id": 10237,
+    "name": "Road lengths data collection",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "4405fae8-437e-4b08-9bb2-f186296aa27b",
+    "language": "cy-gb",
+    "sw2_id": 10228,
+    "name": "Arolwg sgiliau cyflogwyr",
+    "provider_id": "9cfa3817-c847-49e4-9ec2-82e54fc69d7c"
+  },
+  {
+    "id": "4405fae8-437e-4b08-9bb2-f186296aa27b",
+    "language": "en-gb",
+    "sw2_id": 10228,
+    "name": "Employer skills survey",
+    "provider_id": "9cfa3817-c847-49e4-9ec2-82e54fc69d7c"
+  },
+  {
+    "id": "44190830-f14a-4640-a2c6-cabd866af309",
+    "language": "cy-gb",
+    "sw2_id": 10250,
+    "name": "System adrodd troseddau cyfrifiadurol (CRIME)",
+    "provider_id": "63e1a0be-c641-4b10-886b-a62865b03a71"
+  },
+  {
+    "id": "44190830-f14a-4640-a2c6-cabd866af309",
+    "language": "en-gb",
+    "sw2_id": 10250,
+    "name": "Computerised crime reporting system (CRIME)",
+    "provider_id": "63e1a0be-c641-4b10-886b-a62865b03a71"
+  },
+  {
+    "id": "4456e223-1287-4da2-bc08-f67527c107e6",
+    "language": "cy-gb",
+    "sw2_id": 10001,
+    "name": "Casgliad data am ddarpariaeth tai fforddiadwy",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "4456e223-1287-4da2-bc08-f67527c107e6",
+    "language": "en-gb",
+    "sw2_id": 10001,
+    "name": "Affordable housing provision data collection",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "447278e1-91a3-48a6-b867-f1d85f71b39f",
+    "language": "cy-gb",
+    "sw2_id": 10070,
+    "name": "Arolwg Blynyddol o Oriau ac Enillion (ASHE)",
+    "provider_id": "d3620b5d-be93-44f7-9289-fe3bf50e78f3"
+  },
+  {
+    "id": "447278e1-91a3-48a6-b867-f1d85f71b39f",
+    "language": "en-gb",
+    "sw2_id": 10070,
+    "name": "Annual Survey of Hours and Earnings (ASHE)",
+    "provider_id": "d3620b5d-be93-44f7-9289-fe3bf50e78f3"
+  },
+  {
+    "id": "46327be2-e7ac-42c9-80e1-61b3e1475ab7",
+    "language": "cy-gb",
+    "sw2_id": 10280,
+    "name": "Cofnodion taliadau Taliadau Gwledig Cymru",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "46327be2-e7ac-42c9-80e1-61b3e1475ab7",
+    "language": "en-gb",
+    "sw2_id": 10280,
+    "name": "Rural Payment Wales payment records",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "464d9112-225a-47a1-bdaa-38047c863bfe",
+    "language": "cy-gb",
+    "sw2_id": 10003,
+    "name": "Casgliad data am werthiant tai cymdeithasol",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "464d9112-225a-47a1-bdaa-38047c863bfe",
+    "language": "en-gb",
+    "sw2_id": 10003,
+    "name": "Social housing sales data collection",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "47acec61-590d-42cb-90eb-55f38a821afc",
+    "language": "cy-gb",
+    "sw2_id": 10361,
+    "name": "Dim ffynhonnell ddata benodol",
+    "provider_id": "0cfadcd3-bc57-472a-aaff-96bcfba224cd"
+  },
+  {
+    "id": "47acec61-590d-42cb-90eb-55f38a821afc",
+    "language": "en-gb",
+    "sw2_id": 10361,
+    "name": "No specific data source",
+    "provider_id": "0cfadcd3-bc57-472a-aaff-96bcfba224cd"
+  },
+  {
+    "id": "47cc48d5-c563-4881-bb18-1603240d8bae",
+    "language": "cy-gb",
+    "sw2_id": 10011,
+    "name": "Casgliad data am staffio gwasanaethau cymdeithasol awdurdodau lleol (STF)",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "47cc48d5-c563-4881-bb18-1603240d8bae",
+    "language": "en-gb",
+    "sw2_id": 10011,
+    "name": "Staffing of local authority social services (STF) data collection",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "48423751-116f-4b8a-83a6-bf720cecfdc8",
+    "language": "cy-gb",
+    "sw2_id": 10320,
+    "name": "Arolwg Busnes Fferm (FBS)",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "48423751-116f-4b8a-83a6-bf720cecfdc8",
+    "language": "en-gb",
+    "sw2_id": 10320,
+    "name": "Farm Business Survey (FBS)",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "49d20b76-cd9c-4d4d-b4f5-ebe58b725aa4",
+    "language": "cy-gb",
+    "sw2_id": 10184,
+    "name": "Ôl-16 Cyfrifiad Ysgolion Blynyddol ar Lefel Disgyblion (PLASC)",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "49d20b76-cd9c-4d4d-b4f5-ebe58b725aa4",
+    "language": "en-gb",
+    "sw2_id": 10184,
+    "name": "Post-16 Pupil Level Annual School Census (PLASC)",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "4b81cf83-30ee-4dfa-ab2b-865395a15e61",
+    "language": "cy-gb",
+    "sw2_id": 10063,
+    "name": "Amcanestyniadau poblogaeth ar gyfer ardaloedd Cynllunio Gofodol yng Nghymru",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "4b81cf83-30ee-4dfa-ab2b-865395a15e61",
+    "language": "en-gb",
+    "sw2_id": 10063,
+    "name": "Population projections for Spatial Plan areas in Wales",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "4bc01f13-1ef4-4539-84ee-202f8a366be8",
+    "language": "cy-gb",
+    "sw2_id": 10307,
+    "name": "Cyfrifon traffic awtomatig",
+    "provider_id": "38f6b745-84bf-4264-a95a-d43c81bf375c"
+  },
+  {
+    "id": "4bc01f13-1ef4-4539-84ee-202f8a366be8",
+    "language": "en-gb",
+    "sw2_id": 10307,
+    "name": "Automated traffic counts",
+    "provider_id": "38f6b745-84bf-4264-a95a-d43c81bf375c"
+  },
+  {
+    "id": "4c1d3605-6086-430f-b304-90774e6f13e2",
+    "language": "cy-gb",
+    "sw2_id": 10017,
+    "name": "Casgliad data alldro refeniw (RO)",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "4c1d3605-6086-430f-b304-90774e6f13e2",
+    "language": "en-gb",
+    "sw2_id": 10017,
+    "name": "Revenue outturn (RO) data collection",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "4ca2f155-c62f-4566-beef-cd2d1343b0e3",
+    "language": "cy-gb",
+    "sw2_id": 10240,
+    "name": "Chwyddiant ym mhrisiau defnyddwyr",
+    "provider_id": "d3620b5d-be93-44f7-9289-fe3bf50e78f3"
+  },
+  {
+    "id": "4ca2f155-c62f-4566-beef-cd2d1343b0e3",
+    "language": "en-gb",
+    "sw2_id": 10240,
+    "name": "Consumer price inflation",
+    "provider_id": "d3620b5d-be93-44f7-9289-fe3bf50e78f3"
+  },
+  {
+    "id": "4d21b081-6b35-429e-b3e3-6d84000570df",
+    "language": "cy-gb",
+    "sw2_id": 10201,
+    "name": "Casgliad blynyddol absenoldeb athrawon drwy salwch",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "4d21b081-6b35-429e-b3e3-6d84000570df",
+    "language": "en-gb",
+    "sw2_id": 10201,
+    "name": "Teacher sickness absence annual returns",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "4decaf64-33bc-4cdf-b044-92e7dff2dd75",
+    "language": "cy-gb",
+    "sw2_id": 10058,
+    "name": "Amcanestyniadau aelwydydd ar gyfer ardaloedd Cynllunio Gofodol yng Nghymru",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "4decaf64-33bc-4cdf-b044-92e7dff2dd75",
+    "language": "en-gb",
+    "sw2_id": 10058,
+    "name": "Household projections for Spatial Plan areas in Wales",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "4e4791b5-5bbd-43cf-947f-557496c12df9",
+    "language": "cy-gb",
+    "sw2_id": 10120,
+    "name": "Adroddiad Dangosyddion Datblygiad Cynaliadwy ar gyfer Cymru",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "4e4791b5-5bbd-43cf-947f-557496c12df9",
+    "language": "en-gb",
+    "sw2_id": 10120,
+    "name": "Sustainable Development Indicators for Wales",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "4f14f57e-ca90-43ca-b30e-bc01aac43476",
+    "language": "cy-gb",
+    "sw2_id": 10074,
+    "name": "Dangosyddion tlodi plant",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "4f14f57e-ca90-43ca-b30e-bc01aac43476",
+    "language": "en-gb",
+    "sw2_id": 10074,
+    "name": "Child poverty indicators",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "4f6540eb-404b-4205-9ba7-68cd1c70cc5e",
+    "language": "cy-gb",
+    "sw2_id": 10121,
+    "name": "Casgliad data asesiadau athrawon cenedlaethol",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "4f6540eb-404b-4205-9ba7-68cd1c70cc5e",
+    "language": "en-gb",
+    "sw2_id": 10121,
+    "name": "National teacher assessment data collection",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "4f8a8e7c-3ac4-4da6-83d1-48a3c0d23fbc",
+    "language": "cy-gb",
+    "sw2_id": 10340,
+    "name": "Amcanestyniadau poblogaeth ar gyfer awdurdodau lleol yng Nghymru",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "4f8a8e7c-3ac4-4da6-83d1-48a3c0d23fbc",
+    "language": "en-gb",
+    "sw2_id": 10340,
+    "name": "Projections for local authorities in Wales",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "507712bb-16e7-4114-a572-52dfef587951",
+    "language": "cy-gb",
+    "sw2_id": 10175,
+    "name": "Cofrestr Busnes Rhyngadrannol (IDBR)",
+    "provider_id": "d3620b5d-be93-44f7-9289-fe3bf50e78f3"
+  },
+  {
+    "id": "507712bb-16e7-4114-a572-52dfef587951",
+    "language": "en-gb",
+    "sw2_id": 10175,
+    "name": "Inter-Departmental Business Register (IDBR)",
+    "provider_id": "d3620b5d-be93-44f7-9289-fe3bf50e78f3"
+  },
+  {
+    "id": "5421401e-c51f-46ab-9d29-7454c5ee4e60",
+    "language": "cy-gb",
+    "sw2_id": 10328,
+    "name": "Oedolion sy'n derbyn gofal a chymorth",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "5421401e-c51f-46ab-9d29-7454c5ee4e60",
+    "language": "en-gb",
+    "sw2_id": 10328,
+    "name": "Adults receiving care and support",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "568a289c-89ce-446d-90d5-7d43b55cd487",
+    "language": "cy-gb",
+    "sw2_id": 10230,
+    "name": "Arolwg o Fusnesau Coetir",
+    "provider_id": "071111f8-9931-43fb-bef9-a10165056a82"
+  },
+  {
+    "id": "568a289c-89ce-446d-90d5-7d43b55cd487",
+    "language": "en-gb",
+    "sw2_id": 10230,
+    "name": "Survey of Woodland Enterprises",
+    "provider_id": "071111f8-9931-43fb-bef9-a10165056a82"
+  },
+  {
+    "id": "56905444-aeb2-4039-b0e8-d1cc70febf4b",
+    "language": "cy-gb",
+    "sw2_id": 10187,
+    "name": "Gwasanaethau Presgripsiwn",
+    "provider_id": "9a091390-9ed4-4b94-a09f-9dcd5ed20f4b"
+  },
+  {
+    "id": "56905444-aeb2-4039-b0e8-d1cc70febf4b",
+    "language": "en-gb",
+    "sw2_id": 10187,
+    "name": "Prescribing Services",
+    "provider_id": "9a091390-9ed4-4b94-a09f-9dcd5ed20f4b"
+  },
+  {
+    "id": "57157099-9aab-4211-9c06-691578d26cea",
+    "language": "cy-gb",
+    "sw2_id": 10236,
+    "name": "Labordy ymchwil drafnidiaeth",
+    "provider_id": "38f6b745-84bf-4264-a95a-d43c81bf375c"
+  },
+  {
+    "id": "57157099-9aab-4211-9c06-691578d26cea",
+    "language": "en-gb",
+    "sw2_id": 10236,
+    "name": "Transport research laboratory",
+    "provider_id": "38f6b745-84bf-4264-a95a-d43c81bf375c"
+  },
+  {
+    "id": "576b0c14-1f32-4046-b88d-5657768a78cf",
+    "language": "cy-gb",
+    "sw2_id": 10020,
+    "name": "Casgliad data rhagolygon cyfalaf (CFR)",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "576b0c14-1f32-4046-b88d-5657768a78cf",
+    "language": "en-gb",
+    "sw2_id": 10020,
+    "name": "Capital forecast (CFR) data collection",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "57d2923b-6c3b-4277-931d-c77337d06738",
+    "language": "cy-gb",
+    "sw2_id": 10178,
+    "name": "Cofrestriadau marwolaethau",
+    "provider_id": "d3620b5d-be93-44f7-9289-fe3bf50e78f3"
+  },
+  {
+    "id": "57d2923b-6c3b-4277-931d-c77337d06738",
+    "language": "en-gb",
+    "sw2_id": 10178,
+    "name": "Deaths registrations",
+    "provider_id": "d3620b5d-be93-44f7-9289-fe3bf50e78f3"
+  },
+  {
+    "id": "5890d122-fd48-4fda-9dc5-4268dc1fe61d",
+    "language": "cy-gb",
+    "sw2_id": 10126,
+    "name": "Amcanestyniadau poblogaeth fesul grŵp ethnig",
+    "provider_id": "d3620b5d-be93-44f7-9289-fe3bf50e78f3"
+  },
+  {
+    "id": "5890d122-fd48-4fda-9dc5-4268dc1fe61d",
+    "language": "en-gb",
+    "sw2_id": 10126,
+    "name": "Population estimates by ethnic group",
+    "provider_id": "d3620b5d-be93-44f7-9289-fe3bf50e78f3"
+  },
+  {
+    "id": "589c76ba-3092-4379-99b0-f58bc70de5c4",
+    "language": "cy-gb",
+    "sw2_id": 10125,
+    "name": "Dim ffynhonnell ddata benodol",
+    "provider_id": "24643811-e3ed-4acd-b6bc-5d0302570017"
+  },
+  {
+    "id": "589c76ba-3092-4379-99b0-f58bc70de5c4",
+    "language": "en-gb",
+    "sw2_id": 10125,
+    "name": "No specific data source",
+    "provider_id": "24643811-e3ed-4acd-b6bc-5d0302570017"
+  },
+  {
+    "id": "58e72c7c-de98-45d3-8c31-38ec54625e9e",
+    "language": "cy-gb",
+    "sw2_id": 10292,
+    "name": "Arolwg Cyfoeth ac Asedau (WAS)",
+    "provider_id": "d3620b5d-be93-44f7-9289-fe3bf50e78f3"
+  },
+  {
+    "id": "58e72c7c-de98-45d3-8c31-38ec54625e9e",
+    "language": "en-gb",
+    "sw2_id": 10292,
+    "name": "Wealth and Assets Survey (WAS)",
+    "provider_id": "d3620b5d-be93-44f7-9289-fe3bf50e78f3"
+  },
+  {
+    "id": "58fc0959-88a7-4b72-accc-edda24e17fa9",
+    "language": "cy-gb",
+    "sw2_id": 10244,
+    "name": "Data gweinyddol",
+    "provider_id": "db58b195-afa2-40f4-951c-c81c36dd5595"
+  },
+  {
+    "id": "58fc0959-88a7-4b72-accc-edda24e17fa9",
+    "language": "en-gb",
+    "sw2_id": 10244,
+    "name": "Administrative data",
+    "provider_id": "db58b195-afa2-40f4-951c-c81c36dd5595"
+  },
+  {
+    "id": "5c2ee0b3-265c-49f9-9ff4-e61e946c94e3",
+    "language": "cy-gb",
+    "sw2_id": 10348,
+    "name": "Rhestr o Gyflawnwyr Meddygol (MPL)",
+    "provider_id": "9a091390-9ed4-4b94-a09f-9dcd5ed20f4b"
+  },
+  {
+    "id": "5c2ee0b3-265c-49f9-9ff4-e61e946c94e3",
+    "language": "en-gb",
+    "sw2_id": 10348,
+    "name": "Medical Performers List (MPL)",
+    "provider_id": "9a091390-9ed4-4b94-a09f-9dcd5ed20f4b"
+  },
+  {
+    "id": "5c74a770-e3fd-41a0-af7f-e5a4fddd297e",
+    "language": "cy-gb",
+    "sw2_id": 10071,
+    "name": "Demograffeg busnes",
+    "provider_id": "d3620b5d-be93-44f7-9289-fe3bf50e78f3"
+  },
+  {
+    "id": "5c74a770-e3fd-41a0-af7f-e5a4fddd297e",
+    "language": "en-gb",
+    "sw2_id": 10071,
+    "name": "Business demography",
+    "provider_id": "d3620b5d-be93-44f7-9289-fe3bf50e78f3"
+  },
+  {
+    "id": "5d054ebf-9805-4446-9baa-a53afec6b33a",
+    "language": "cy-gb",
+    "sw2_id": 10226,
+    "name": "Casgliad Cronfeydd Ariannol Wrth Gefn (FCF)",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "5d054ebf-9805-4446-9baa-a53afec6b33a",
+    "language": "en-gb",
+    "sw2_id": 10226,
+    "name": "Financial Contingency Funds (FCF) collection",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "5d1f50a8-c132-4bc7-9344-508972c78aff",
+    "language": "cy-gb",
+    "sw2_id": 10171,
+    "name": "Dangosyddion allbynnau tymor byr",
+    "provider_id": "d3620b5d-be93-44f7-9289-fe3bf50e78f3"
+  },
+  {
+    "id": "5d1f50a8-c132-4bc7-9344-508972c78aff",
+    "language": "en-gb",
+    "sw2_id": 10171,
+    "name": "Short term output indicators",
+    "provider_id": "d3620b5d-be93-44f7-9289-fe3bf50e78f3"
+  },
+  {
+    "id": "5eae132d-1371-48d2-b9bb-e9e151d6f815",
+    "language": "cy-gb",
+    "sw2_id": 10289,
+    "name": "Cofnod cyllid",
+    "provider_id": "29a2e85f-41ef-46cb-a8e0-d3d0f98a0b90"
+  },
+  {
+    "id": "5eae132d-1371-48d2-b9bb-e9e151d6f815",
+    "language": "en-gb",
+    "sw2_id": 10289,
+    "name": "Finance record",
+    "provider_id": "29a2e85f-41ef-46cb-a8e0-d3d0f98a0b90"
+  },
+  {
+    "id": "5f4b2937-e7b2-4495-8400-904880a74b03",
+    "language": "cy-gb",
+    "sw2_id": 10249,
+    "name": "Arolwg o gerbydau gwasanaethau cyhoeddus",
+    "provider_id": "38f6b745-84bf-4264-a95a-d43c81bf375c"
+  },
+  {
+    "id": "5f4b2937-e7b2-4495-8400-904880a74b03",
+    "language": "en-gb",
+    "sw2_id": 10249,
+    "name": "Public service vehicle survey",
+    "provider_id": "38f6b745-84bf-4264-a95a-d43c81bf375c"
+  },
+  {
+    "id": "61fe4ef3-450a-4761-b762-677994565f4a",
+    "language": "cy-gb",
+    "sw2_id": 10194,
+    "name": "Cronfa Ddata Genedlaethol Cymru ar Gamddefnyddio Sylweddau (WNDSM)",
+    "provider_id": "f57e82cc-9c97-442b-a195-de74f443f36c"
+  },
+  {
+    "id": "61fe4ef3-450a-4761-b762-677994565f4a",
+    "language": "en-gb",
+    "sw2_id": 10194,
+    "name": "Welsh National Database for Substance Misuse (WNDSM)",
+    "provider_id": "f57e82cc-9c97-442b-a195-de74f443f36c"
+  },
+  {
+    "id": "6321e7d9-98ad-4459-8d30-6577aae6a2eb",
+    "language": "cy-gb",
+    "sw2_id": 10006,
+    "name": "Casgliad data am gyfrifiad plant mewn angen (CiN)",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "6321e7d9-98ad-4459-8d30-6577aae6a2eb",
+    "language": "en-gb",
+    "sw2_id": 10006,
+    "name": "Children in need census (CiN) data collection",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "63fa634f-3c23-4e7b-ad6a-2bec32975456",
+    "language": "cy-gb",
+    "sw2_id": 10016,
+    "name": "Casgliad data am y gallu i ddefnyddio gwasanaethau cyfryngol mabwysiadu (AA1)",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "63fa634f-3c23-4e7b-ad6a-2bec32975456",
+    "language": "en-gb",
+    "sw2_id": 10016,
+    "name": "Access to adoption intermediary services (AA1) data collection",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "665a6b5a-5719-408f-b3a4-260e04514442",
+    "language": "cy-gb",
+    "sw2_id": 10321,
+    "name": "Set Ddata Dangosyddion Mamolaeth (MIDS)",
+    "provider_id": "f57e82cc-9c97-442b-a195-de74f443f36c"
+  },
+  {
+    "id": "665a6b5a-5719-408f-b3a4-260e04514442",
+    "language": "en-gb",
+    "sw2_id": 10321,
+    "name": "Maternity Indicators Dataset (MIDS)",
+    "provider_id": "f57e82cc-9c97-442b-a195-de74f443f36c"
+  },
+  {
+    "id": "68ec93e8-1e86-46ef-970e-a55ebb742a8e",
+    "language": "cy-gb",
+    "sw2_id": 10317,
+    "name": "Arolwg Arloesedd y DU (UKIS)",
+    "provider_id": "d3620b5d-be93-44f7-9289-fe3bf50e78f3"
+  },
+  {
+    "id": "68ec93e8-1e86-46ef-970e-a55ebb742a8e",
+    "language": "en-gb",
+    "sw2_id": 10317,
+    "name": "UK Innovation Survey (UKIS)",
+    "provider_id": "d3620b5d-be93-44f7-9289-fe3bf50e78f3"
+  },
+  {
+    "id": "6922b2ae-6716-4bd4-b484-35c161809f0d",
+    "language": "cy-gb",
+    "sw2_id": 10333,
+    "name": "Amcanestyniadau aelwydydd ar gyfer ardaloedd Parciau Cenedlaethol yng Nghymru",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "6922b2ae-6716-4bd4-b484-35c161809f0d",
+    "language": "en-gb",
+    "sw2_id": 10333,
+    "name": "Household projections for National Park areas in Wales",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "6e653c37-84d5-49f2-85be-50b2e1e30bbb",
+    "language": "cy-gb",
+    "sw2_id": 10087,
+    "name": "Aelwydydd islaw'r incwm cyfartalog, Arolwg adnoddau teuluol",
+    "provider_id": "e850ccdb-79de-4c48-9762-30018a61c7e0"
+  },
+  {
+    "id": "6e653c37-84d5-49f2-85be-50b2e1e30bbb",
+    "language": "en-gb",
+    "sw2_id": 10087,
+    "name": "Households below average income, Family resources survey",
+    "provider_id": "e850ccdb-79de-4c48-9762-30018a61c7e0"
+  },
+  {
+    "id": "6efa3c51-5409-40cf-9412-c8f1d19d7863",
+    "language": "cy-gb",
+    "sw2_id": 10082,
+    "name": "Casgliad data gweithredol y gwasanaeth tân",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "6efa3c51-5409-40cf-9412-c8f1d19d7863",
+    "language": "en-gb",
+    "sw2_id": 10082,
+    "name": "Fire service operational data collection",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "73d3130f-2601-4a66-8a38-a750b76fe2fb",
+    "language": "cy-gb",
+    "sw2_id": 10112,
+    "name": "Cofnod presenoldeb disgyblion",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "73d3130f-2601-4a66-8a38-a750b76fe2fb",
+    "language": "en-gb",
+    "sw2_id": 10112,
+    "name": "Pupils' attendance record",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "741d3d14-2e5b-4f1c-884b-a5aaf109aeed",
+    "language": "cy-gb",
+    "sw2_id": 10026,
+    "name": "Casgliad data am amcangyfrifon ardrethi annomestig (NDR1)",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "741d3d14-2e5b-4f1c-884b-a5aaf109aeed",
+    "language": "en-gb",
+    "sw2_id": 10026,
+    "name": "Non-domestic rates estimates (NDR1) data collection",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "74c69584-97e4-489c-bbe9-4901fa7ff1c1",
+    "language": "cy-gb",
+    "sw2_id": null,
+    "name": "Ffurflenni treth gwarediadau tirlenwi",
+    "provider_id": "46b66fc0-c5c0-4134-acd3-dcf3b06f0572"
+  },
+  {
+    "id": "74c69584-97e4-489c-bbe9-4901fa7ff1c1",
+    "language": "en-gb",
+    "sw2_id": null,
+    "name": "Landfill disposals tax returns",
+    "provider_id": "46b66fc0-c5c0-4134-acd3-dcf3b06f0572"
+  },
+  {
+    "id": "76bbb03a-b854-44b4-994e-3eeb2fd39a92",
+    "language": "cy-gb",
+    "sw2_id": 10318,
+    "name": "Casgliad data gwasanaethau rhoi’r gorau i ysmygu",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "76bbb03a-b854-44b4-994e-3eeb2fd39a92",
+    "language": "en-gb",
+    "sw2_id": 10318,
+    "name": "Smoking cessation services data collection",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "788e14b6-ea94-4903-812f-de5e22714fce",
+    "language": "cy-gb",
+    "sw2_id": 10177,
+    "name": "Set Ddata Atgyfeiriad Cleifion Allanol (OPR)",
+    "provider_id": "f57e82cc-9c97-442b-a195-de74f443f36c"
+  },
+  {
+    "id": "788e14b6-ea94-4903-812f-de5e22714fce",
+    "language": "en-gb",
+    "sw2_id": 10177,
+    "name": "Outpatient Referral Dataset (OPR)",
+    "provider_id": "f57e82cc-9c97-442b-a195-de74f443f36c"
+  },
+  {
+    "id": "7a2c0b11-b5ac-4840-af3f-7683d15b9dbe",
+    "language": "cy-gb",
+    "sw2_id": 10239,
+    "name": "Cronfa ddata tocynnau teithio rhatach smartcard",
+    "provider_id": "38f6b745-84bf-4264-a95a-d43c81bf375c"
+  },
+  {
+    "id": "7a2c0b11-b5ac-4840-af3f-7683d15b9dbe",
+    "language": "en-gb",
+    "sw2_id": 10239,
+    "name": "Concessionary fares smartcard database",
+    "provider_id": "38f6b745-84bf-4264-a95a-d43c81bf375c"
+  },
+  {
+    "id": "7a77b97f-8cec-4d9e-845e-4b0436169b05",
+    "language": "cy-gb",
+    "sw2_id": 10277,
+    "name": "Data ar gyflogau staff cymorth",
+    "provider_id": "9cfa3817-c847-49e4-9ec2-82e54fc69d7c"
+  },
+  {
+    "id": "7a77b97f-8cec-4d9e-845e-4b0436169b05",
+    "language": "en-gb",
+    "sw2_id": 10277,
+    "name": "Support staff pay data",
+    "provider_id": "9cfa3817-c847-49e4-9ec2-82e54fc69d7c"
+  },
+  {
+    "id": "7a9cd142-310e-48e7-947c-daf985541090",
+    "language": "cy-gb",
+    "sw2_id": 10202,
+    "name": "Arolwg o Grwpiau Coetiroedd Cymunedol",
+    "provider_id": "071111f8-9931-43fb-bef9-a10165056a82"
+  },
+  {
+    "id": "7a9cd142-310e-48e7-947c-daf985541090",
+    "language": "en-gb",
+    "sw2_id": 10202,
+    "name": "Survey of Community Woodland Groups",
+    "provider_id": "071111f8-9931-43fb-bef9-a10165056a82"
+  },
+  {
+    "id": "7bb17ca6-b2fc-457c-885e-56072f4c8340",
+    "language": "cy-gb",
+    "sw2_id": 10065,
+    "name": "Cyfrifiad 2011",
+    "provider_id": "d3620b5d-be93-44f7-9289-fe3bf50e78f3"
+  },
+  {
+    "id": "7bb17ca6-b2fc-457c-885e-56072f4c8340",
+    "language": "en-gb",
+    "sw2_id": 10065,
+    "name": "2011 Census",
+    "provider_id": "d3620b5d-be93-44f7-9289-fe3bf50e78f3"
+  },
+  {
+    "id": "7bd20860-31f1-405c-a0b6-0f486492de05",
+    "language": "cy-gb",
+    "sw2_id": 10078,
+    "name": "System busnes cofrestru a rheoleiddio",
+    "provider_id": "110fda80-50d0-4be2-b442-106732a8145e"
+  },
+  {
+    "id": "7bd20860-31f1-405c-a0b6-0f486492de05",
+    "language": "en-gb",
+    "sw2_id": 10078,
+    "name": "Registration and regulatory business system",
+    "provider_id": "110fda80-50d0-4be2-b442-106732a8145e"
+  },
+  {
+    "id": "7c5817f8-8464-4e74-8473-fbd0194f2623",
+    "language": "cy-gb",
+    "sw2_id": 10243,
+    "name": "Marwolaethau amenedigol",
+    "provider_id": "d3620b5d-be93-44f7-9289-fe3bf50e78f3"
+  },
+  {
+    "id": "7c5817f8-8464-4e74-8473-fbd0194f2623",
+    "language": "en-gb",
+    "sw2_id": 10243,
+    "name": "Perinatal deaths",
+    "provider_id": "d3620b5d-be93-44f7-9289-fe3bf50e78f3"
+  },
+  {
+    "id": "7c78e8e2-b1a9-4c12-99c7-f51bab4c8cbb",
+    "language": "cy-gb",
+    "sw2_id": 10101,
+    "name": "Dim ffynhonnell ddata benodol",
+    "provider_id": "168d5b85-3d5c-43e0-be04-d645f070be8a"
+  },
+  {
+    "id": "7c78e8e2-b1a9-4c12-99c7-f51bab4c8cbb",
+    "language": "en-gb",
+    "sw2_id": 10101,
+    "name": "No specific data source",
+    "provider_id": "168d5b85-3d5c-43e0-be04-d645f070be8a"
+  },
+  {
+    "id": "7da6e1d0-dfb5-4ac3-acea-d534b2e0b014",
+    "language": "cy-gb",
+    "sw2_id": 10193,
+    "name": "Gwybodaeth rheoli Dechrau'n Deg",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "7da6e1d0-dfb5-4ac3-acea-d534b2e0b014",
+    "language": "en-gb",
+    "sw2_id": 10193,
+    "name": "Flying Start management information",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "7ef39e6e-8436-4a25-adc8-84de44f55273",
+    "language": "cy-gb",
+    "sw2_id": 10174,
+    "name": "Ystadegau anghydfodau llafur",
+    "provider_id": "d3620b5d-be93-44f7-9289-fe3bf50e78f3"
+  },
+  {
+    "id": "7ef39e6e-8436-4a25-adc8-84de44f55273",
+    "language": "en-gb",
+    "sw2_id": 10174,
+    "name": "Labour disputes statistics",
+    "provider_id": "d3620b5d-be93-44f7-9289-fe3bf50e78f3"
+  },
+  {
+    "id": "83051cb8-27d0-4400-91b5-70e2057e63fe",
+    "language": "cy-gb",
+    "sw2_id": 10364,
+    "name": "Troseddwyr moduron, Ystadegau cyfiawnder troseddol",
+    "provider_id": "199a8a45-09e0-40f0-8499-245e852cc9d0"
+  },
+  {
+    "id": "83051cb8-27d0-4400-91b5-70e2057e63fe",
+    "language": "en-gb",
+    "sw2_id": 10364,
+    "name": "Motoring offenders, Criminal justice statistics",
+    "provider_id": "199a8a45-09e0-40f0-8499-245e852cc9d0"
+  },
+  {
+    "id": "83bcbcea-1b0c-4342-a40c-e9d048254e7a",
+    "language": "cy-gb",
+    "sw2_id": 10337,
+    "name": "Arolwg Cyflwr Tai Cymru",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "83bcbcea-1b0c-4342-a40c-e9d048254e7a",
+    "language": "en-gb",
+    "sw2_id": 10337,
+    "name": "Welsh Housing Conditions Survey",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "83c693f4-439a-4708-9e47-ea0cf4174d7e",
+    "language": "cy-gb",
+    "sw2_id": 10373,
+    "name": "Fframwaith perfformiad a gwella gwasanaethau cymdeithasol",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "83c693f4-439a-4708-9e47-ea0cf4174d7e",
+    "language": "en-gb",
+    "sw2_id": 10373,
+    "name": "Performance and improvement framework for social services",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "84a67733-b15f-45f9-893c-469546bd05bd",
+    "language": "cy-gb",
+    "sw2_id": 10152,
+    "name": "Casgliad data am y Gwasanaeth Ieuenctid",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "84a67733-b15f-45f9-893c-469546bd05bd",
+    "language": "en-gb",
+    "sw2_id": 10152,
+    "name": "Youth Service data collection",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "85c7a485-ee08-4f62-bdf4-3f0cefa451ce",
+    "language": "cy-gb",
+    "sw2_id": 10270,
+    "name": "Gwybodaeth ddaearyddol",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "85c7a485-ee08-4f62-bdf4-3f0cefa451ce",
+    "language": "en-gb",
+    "sw2_id": 10270,
+    "name": "Geographical information",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "861536df-6715-4fed-a76e-62d5f13221d2",
+    "language": "cy-gb",
+    "sw2_id": 10217,
+    "name": "Ystadegau disgwyliad oes",
+    "provider_id": "d3620b5d-be93-44f7-9289-fe3bf50e78f3"
+  },
+  {
+    "id": "861536df-6715-4fed-a76e-62d5f13221d2",
+    "language": "en-gb",
+    "sw2_id": 10217,
+    "name": "Life expectancy statistics",
+    "provider_id": "d3620b5d-be93-44f7-9289-fe3bf50e78f3"
+  },
+  {
+    "id": "86e8b5b9-bedb-446f-8475-f2863f374c13",
+    "language": "cy-gb",
+    "sw2_id": 10252,
+    "name": "Arolwg traffig ar sail data â gesglir â llaw",
+    "provider_id": "38f6b745-84bf-4264-a95a-d43c81bf375c"
+  },
+  {
+    "id": "86e8b5b9-bedb-446f-8475-f2863f374c13",
+    "language": "en-gb",
+    "sw2_id": 10252,
+    "name": "Manual traffic survey",
+    "provider_id": "38f6b745-84bf-4264-a95a-d43c81bf375c"
+  },
+  {
+    "id": "8796a1a8-37bd-4ae2-ac71-38155eafe373",
+    "language": "cy-gb",
+    "sw2_id": 10115,
+    "name": "Amcangyfrifon Poblogaeth Ardaloedd Bach (SAPE)",
+    "provider_id": "d3620b5d-be93-44f7-9289-fe3bf50e78f3"
+  },
+  {
+    "id": "8796a1a8-37bd-4ae2-ac71-38155eafe373",
+    "language": "en-gb",
+    "sw2_id": 10115,
+    "name": "Small Area Population Estimates (SAPE)",
+    "provider_id": "d3620b5d-be93-44f7-9289-fe3bf50e78f3"
+  },
+  {
+    "id": "887b8298-f456-41b7-ba38-8647b24d06ed",
+    "language": "cy-gb",
+    "sw2_id": 10111,
+    "name": "Cyfrifiad Ysgolion Blynyddol ar Lefel Disgyblion (PLASC)",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "887b8298-f456-41b7-ba38-8647b24d06ed",
+    "language": "en-gb",
+    "sw2_id": 10111,
+    "name": "Pupil Level Annual School Census (PLASC)",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "8883f587-a870-4400-a866-34815995362e",
+    "language": "cy-gb",
+    "sw2_id": 10124,
+    "name": "WasteDataFlow",
+    "provider_id": "071111f8-9931-43fb-bef9-a10165056a82"
+  },
+  {
+    "id": "8883f587-a870-4400-a866-34815995362e",
+    "language": "en-gb",
+    "sw2_id": 10124,
+    "name": "WasteDataFlow",
+    "provider_id": "071111f8-9931-43fb-bef9-a10165056a82"
+  },
+  {
+    "id": "8924b2c6-e43d-4975-a356-535a8289dd0d",
+    "language": "cy-gb",
+    "sw2_id": 10238,
+    "name": "Dim ffynhonnell ddata benodol",
+    "provider_id": "5e68c4fb-05d3-478a-98b3-a125dec29828"
+  },
+  {
+    "id": "8924b2c6-e43d-4975-a356-535a8289dd0d",
+    "language": "en-gb",
+    "sw2_id": 10238,
+    "name": "No specific data source",
+    "provider_id": "5e68c4fb-05d3-478a-98b3-a125dec29828"
+  },
+  {
+    "id": "895b4bd4-5579-4def-96fa-bd13009185bb",
+    "language": "cy-gb",
+    "sw2_id": 10151,
+    "name": "Achosion o dderbyn, newid mewn statws a chadw o dan Ddeddf Iechyd Meddwl 1983 (KP90)",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "895b4bd4-5579-4def-96fa-bd13009185bb",
+    "language": "en-gb",
+    "sw2_id": 10151,
+    "name": "Changes in status and detentions under the Mental Health Act 1983 data collection (KP90)",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "896f6543-d343-4a87-b7b0-b1040fbbb285",
+    "language": "cy-gb",
+    "sw2_id": 10313,
+    "name": "Dim ffynhonnell ddata benodol",
+    "provider_id": "acb1594e-4bc9-4d2c-bd69-adcf30bdcfa0"
+  },
+  {
+    "id": "896f6543-d343-4a87-b7b0-b1040fbbb285",
+    "language": "en-gb",
+    "sw2_id": 10313,
+    "name": "No specific data source",
+    "provider_id": "acb1594e-4bc9-4d2c-bd69-adcf30bdcfa0"
+  },
+  {
+    "id": "89b174b1-0077-404b-b375-6ca4f9bef13c",
+    "language": "cy-gb",
+    "sw2_id": 10150,
+    "name": "Cyfrifiad Seiciatrig",
+    "provider_id": "f57e82cc-9c97-442b-a195-de74f443f36c"
+  },
+  {
+    "id": "89b174b1-0077-404b-b375-6ca4f9bef13c",
+    "language": "en-gb",
+    "sw2_id": 10150,
+    "name": "Psychiatric Census",
+    "provider_id": "f57e82cc-9c97-442b-a195-de74f443f36c"
+  },
+  {
+    "id": "89d97e8e-f279-4065-939b-fa70fc84b393",
+    "language": "cy-gb",
+    "sw2_id": 10233,
+    "name": "Data ariannol gweinyddol",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "89d97e8e-f279-4065-939b-fa70fc84b393",
+    "language": "en-gb",
+    "sw2_id": 10233,
+    "name": "Administrative financial data",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "89fd7dfd-1503-4eb4-bb2d-a7cc2b6e818d",
+    "language": "cy-gb",
+    "sw2_id": 10263,
+    "name": "Data ar staff gan Adnoddau Dynol",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "89fd7dfd-1503-4eb4-bb2d-a7cc2b6e818d",
+    "language": "en-gb",
+    "sw2_id": 10263,
+    "name": "HR staff data",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "8a31b351-6a8d-4cf2-8e27-a034d3eb1d8f",
+    "language": "cy-gb",
+    "sw2_id": 10246,
+    "name": "Arolwg Teithwyr Rheilffordd Cenedlaethol",
+    "provider_id": "a5b7d1f4-0c65-483f-b6c1-e61b920b0b20"
+  },
+  {
+    "id": "8a31b351-6a8d-4cf2-8e27-a034d3eb1d8f",
+    "language": "en-gb",
+    "sw2_id": 10246,
+    "name": "National Rail Passenger Survey",
+    "provider_id": "a5b7d1f4-0c65-483f-b6c1-e61b920b0b20"
+  },
+  {
+    "id": "8e14bd80-b688-4057-9303-ca68f16d73e5",
+    "language": "cy-gb",
+    "sw2_id": 10360,
+    "name": "Data Cymorth i Brynu Cymru",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "8e14bd80-b688-4057-9303-ca68f16d73e5",
+    "language": "en-gb",
+    "sw2_id": 10360,
+    "name": "Help to Buy Wales data",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "8e260a55-7443-48ae-a47c-bef7d8e3ecd8",
+    "language": "cy-gb",
+    "sw2_id": 10030,
+    "name": "Casgliad data am lety mewn unedau diogel (SSDA912)",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "8e260a55-7443-48ae-a47c-bef7d8e3ecd8",
+    "language": "en-gb",
+    "sw2_id": 10030,
+    "name": "Accommodation in secure units (SSDA912) data collection",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "8e35a9fa-6459-4bf7-9994-d4eb6dc84c4c",
+    "language": "cy-gb",
+    "sw2_id": 10037,
+    "name": "Casgliad data am ôl-ddyledion rhent tai cymdeithasol",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "8e35a9fa-6459-4bf7-9994-d4eb6dc84c4c",
+    "language": "en-gb",
+    "sw2_id": 10037,
+    "name": "Social housing rent arrears data collection",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "8f11233c-3721-4897-afe8-8afef44063fa",
+    "language": "cy-gb",
+    "sw2_id": 10145,
+    "name": "Cyfrifiad y Gwasanaethau Meddygol Cyffredinol (GMS)",
+    "provider_id": "58368364-ffde-42bc-a427-629584db9c0e"
+  },
+  {
+    "id": "8f11233c-3721-4897-afe8-8afef44063fa",
+    "language": "en-gb",
+    "sw2_id": 10145,
+    "name": "General Medical Services (GMS) census",
+    "provider_id": "58368364-ffde-42bc-a427-629584db9c0e"
+  },
+  {
+    "id": "90243cf2-f914-44f7-80ba-748d33d5430f",
+    "language": "cy-gb",
+    "sw2_id": 10215,
+    "name": "Arolwg Twristiaeth Prydain Fawr (GBTS)",
+    "provider_id": "c1cd46d7-eca6-4bf0-821f-9c015c2f622c"
+  },
+  {
+    "id": "90243cf2-f914-44f7-80ba-748d33d5430f",
+    "language": "en-gb",
+    "sw2_id": 10215,
+    "name": "Great Britain Tourism Survey (GBTS)",
+    "provider_id": "c1cd46d7-eca6-4bf0-821f-9c015c2f622c"
+  },
+  {
+    "id": "9125593e-d317-4e37-bfb0-33bab2fc3dd2",
+    "language": "cy-gb",
+    "sw2_id": 10051,
+    "name": "Amcanestyniadau tai is-genedlaethol ar gyfer Cymru",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "9125593e-d317-4e37-bfb0-33bab2fc3dd2",
+    "language": "en-gb",
+    "sw2_id": 10051,
+    "name": "Sub-national housing projections for Wales",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "921d8d17-d12a-4786-98be-8ebc31b27eed",
+    "language": "cy-gb",
+    "sw2_id": 10255,
+    "name": "Data y gyflogres",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "921d8d17-d12a-4786-98be-8ebc31b27eed",
+    "language": "en-gb",
+    "sw2_id": 10255,
+    "name": "Payroll data",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "9339aeac-5ac2-4956-93f8-b96f8c98a704",
+    "language": "cy-gb",
+    "sw2_id": 10144,
+    "name": "Cofnod staff electronig y GIG",
+    "provider_id": "628f74d9-feea-4cee-92d2-62a16e3194cc"
+  },
+  {
+    "id": "9339aeac-5ac2-4956-93f8-b96f8c98a704",
+    "language": "en-gb",
+    "sw2_id": 10144,
+    "name": "NHS electronic staff record",
+    "provider_id": "628f74d9-feea-4cee-92d2-62a16e3194cc"
+  },
+  {
+    "id": "94713585-7fa4-4f82-b356-3e76042acb6e",
+    "language": "cy-gb",
+    "sw2_id": 10326,
+    "name": "Cyfrifiad Plant sy'n Derbyn Gofal",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "94713585-7fa4-4f82-b356-3e76042acb6e",
+    "language": "en-gb",
+    "sw2_id": 10326,
+    "name": "Looked After Children Census",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "960a93e3-ee0f-471d-b473-493d3a42dfd8",
+    "language": "cy-gb",
+    "sw2_id": 10109,
+    "name": "Ffurflenni hawlio tocynnau teithio am ddim awdurdodau lleol",
+    "provider_id": "38f6b745-84bf-4264-a95a-d43c81bf375c"
+  },
+  {
+    "id": "960a93e3-ee0f-471d-b473-493d3a42dfd8",
+    "language": "en-gb",
+    "sw2_id": 10109,
+    "name": "Local authority concessionary fares claim forms",
+    "provider_id": "38f6b745-84bf-4264-a95a-d43c81bf375c"
+  },
+  {
+    "id": "966fa6d9-3a53-4eac-b3e0-444c8523e8b8",
+    "language": "cy-gb",
+    "sw2_id": 10028,
+    "name": "Casgliad data Gofynion Cyllideb (Heddlu) (BR2)",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "966fa6d9-3a53-4eac-b3e0-444c8523e8b8",
+    "language": "en-gb",
+    "sw2_id": 10028,
+    "name": "Budget requirement (Police) (BR2) data collection",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "98d6089a-18e3-4879-b8dc-31ef580159e8",
+    "language": "cy-gb",
+    "sw2_id": 10072,
+    "name": "Arolwg Cyflogaeth y Gofrestr Fusnes (BRES)",
+    "provider_id": "d3620b5d-be93-44f7-9289-fe3bf50e78f3"
+  },
+  {
+    "id": "98d6089a-18e3-4879-b8dc-31ef580159e8",
+    "language": "en-gb",
+    "sw2_id": 10072,
+    "name": "Business Register Employment Survey (BRES)",
+    "provider_id": "d3620b5d-be93-44f7-9289-fe3bf50e78f3"
+  },
+  {
+    "id": "9bf28107-9927-42cf-bd36-3d19edd33d14",
+    "language": "cy-gb",
+    "sw2_id": 10235,
+    "name": "Arolwg o gludo nwyddau",
+    "provider_id": "38f6b745-84bf-4264-a95a-d43c81bf375c"
+  },
+  {
+    "id": "9bf28107-9927-42cf-bd36-3d19edd33d14",
+    "language": "en-gb",
+    "sw2_id": 10235,
+    "name": "Survey of road freight",
+    "provider_id": "38f6b745-84bf-4264-a95a-d43c81bf375c"
+  },
+  {
+    "id": "9e4fb8f4-2b41-4bd1-93c7-0280dca49642",
+    "language": "cy-gb",
+    "sw2_id": 10279,
+    "name": "Gwasanaethau’r Gweithlu",
+    "provider_id": "9a091390-9ed4-4b94-a09f-9dcd5ed20f4b"
+  },
+  {
+    "id": "9e4fb8f4-2b41-4bd1-93c7-0280dca49642",
+    "language": "en-gb",
+    "sw2_id": 10279,
+    "name": "Workforce Services",
+    "provider_id": "9a091390-9ed4-4b94-a09f-9dcd5ed20f4b"
+  },
+  {
+    "id": "9e7a5615-4990-4594-b519-df75c2450644",
+    "language": "cy-gb",
+    "sw2_id": 10148,
+    "name": "Casgliad data am amseroedd aros ar gyfer llawdriniaeth cataractau",
+    "provider_id": "6646c768-ea36-4826-a33b-3f29072f31a9"
+  },
+  {
+    "id": "9e7a5615-4990-4594-b519-df75c2450644",
+    "language": "en-gb",
+    "sw2_id": 10148,
+    "name": "Cataract surgery waiting times data collection",
+    "provider_id": "6646c768-ea36-4826-a33b-3f29072f31a9"
+  },
+  {
+    "id": "9f1b6d70-e257-428e-a315-9581fefc4487",
+    "language": "cy-gb",
+    "sw2_id": 10222,
+    "name": "Rhaglen Ryngwladol Asesu Myfyrwyr (PISA)",
+    "provider_id": "2128d861-b1a1-4288-b51d-273585b4af1d"
+  },
+  {
+    "id": "9f1b6d70-e257-428e-a315-9581fefc4487",
+    "language": "en-gb",
+    "sw2_id": 10222,
+    "name": "Programme for International Student Assessment (PISA)",
+    "provider_id": "2128d861-b1a1-4288-b51d-273585b4af1d"
+  },
+  {
+    "id": "a01dcd76-e58f-4706-a926-99579568fea0",
+    "language": "cy-gb",
+    "sw2_id": 10013,
+    "name": "Casgliad data am gofrestr awdurdodau lleol o bobl ag anableddau dysgu (SSDA901)",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "a01dcd76-e58f-4706-a926-99579568fea0",
+    "language": "en-gb",
+    "sw2_id": 10013,
+    "name": "Local authority register of persons with learning disabilities (SSDA901) data collection",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "a07655d9-dd0b-4263-b880-dbda58892326",
+    "language": "cy-gb",
+    "sw2_id": 10336,
+    "name": "Data maes awyr",
+    "provider_id": "68515778-036d-4b8b-9f49-c88fbde95609"
+  },
+  {
+    "id": "a07655d9-dd0b-4263-b880-dbda58892326",
+    "language": "en-gb",
+    "sw2_id": 10336,
+    "name": "Airport data",
+    "provider_id": "68515778-036d-4b8b-9f49-c88fbde95609"
+  },
+  {
+    "id": "a0eed6e2-4a04-439d-bdb9-3675c4ce53c2",
+    "language": "cy-gb",
+    "sw2_id": 10156,
+    "name": "Mesuriadau arwynebedd safonol",
+    "provider_id": "d3620b5d-be93-44f7-9289-fe3bf50e78f3"
+  },
+  {
+    "id": "a0eed6e2-4a04-439d-bdb9-3675c4ce53c2",
+    "language": "en-gb",
+    "sw2_id": 10156,
+    "name": "Standard area measurements",
+    "provider_id": "d3620b5d-be93-44f7-9289-fe3bf50e78f3"
+  },
+  {
+    "id": "a1d5e42e-ce9b-4800-9636-e7c2eee6207f",
+    "language": "cy-gb",
+    "sw2_id": 10309,
+    "name": "Ystadegau hysbysiadau cosb benodedig ar gyfer troseddau moduro yn Lloegr a Chymru",
+    "provider_id": "a5e3097c-a031-45fe-adfd-975d49dc5bed"
+  },
+  {
+    "id": "a1d5e42e-ce9b-4800-9636-e7c2eee6207f",
+    "language": "en-gb",
+    "sw2_id": 10309,
+    "name": "Fixed penalty notices for motoring offences statistics in England and Wales",
+    "provider_id": "a5e3097c-a031-45fe-adfd-975d49dc5bed"
+  },
+  {
+    "id": "a2de4c72-2f87-47c9-a756-19e559fc1087",
+    "language": "cy-gb",
+    "sw2_id": 10012,
+    "name": "Casgliad data am gofrestr awdurdodau lleol o bobl ag anableddau corfforol neu ar eu synhwyrau (SSDA900)",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "a2de4c72-2f87-47c9-a756-19e559fc1087",
+    "language": "en-gb",
+    "sw2_id": 10012,
+    "name": "Local authority register of persons with physical or sensory disabilities (SSDA900) data collection",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "a4280876-a3e0-461f-ae37-b6729e2c3f43",
+    "language": "cy-gb",
+    "sw2_id": 10075,
+    "name": "Ffurflenni gwasanaethau atal cenhedlu cymunedol (KT31)",
+    "provider_id": "845a54df-8eeb-4ff2-94a9-9db823324a20"
+  },
+  {
+    "id": "a4280876-a3e0-461f-ae37-b6729e2c3f43",
+    "language": "en-gb",
+    "sw2_id": 10075,
+    "name": "Community contraception service returns (KT31)",
+    "provider_id": "845a54df-8eeb-4ff2-94a9-9db823324a20"
+  },
+  {
+    "id": "a49758dd-8ab0-48ab-b9a2-d10157fced3d",
+    "language": "cy-gb",
+    "sw2_id": 10113,
+    "name": "Cofnod gwaharddiadau disgyblion",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "a49758dd-8ab0-48ab-b9a2-d10157fced3d",
+    "language": "en-gb",
+    "sw2_id": 10113,
+    "name": "Pupils' exclusions record",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "a6eb8735-ef29-4573-b550-96fa423a6f4d",
+    "language": "cy-gb",
+    "sw2_id": 10282,
+    "name": "Ystadegau ar forgeisiau a meddiannaeth landlordiaid",
+    "provider_id": "199a8a45-09e0-40f0-8499-245e852cc9d0"
+  },
+  {
+    "id": "a6eb8735-ef29-4573-b550-96fa423a6f4d",
+    "language": "en-gb",
+    "sw2_id": 10282,
+    "name": "Mortgage and landlord possesion statistics",
+    "provider_id": "199a8a45-09e0-40f0-8499-245e852cc9d0"
+  },
+  {
+    "id": "a75710dc-4366-4261-a21b-9b0abf0df28c",
+    "language": "cy-gb",
+    "sw2_id": 10123,
+    "name": "Arolwg Twristiaeth y DU (UKTS)",
+    "provider_id": "d3620b5d-be93-44f7-9289-fe3bf50e78f3"
+  },
+  {
+    "id": "a75710dc-4366-4261-a21b-9b0abf0df28c",
+    "language": "en-gb",
+    "sw2_id": 10123,
+    "name": "UK Tourism Survey (UKTS)",
+    "provider_id": "d3620b5d-be93-44f7-9289-fe3bf50e78f3"
+  },
+  {
+    "id": "a7c95e89-93fe-44c8-8603-13e4a5d6a7c4",
+    "language": "cy-gb",
+    "sw2_id": 10345,
+    "name": "Ystadegau morol a llongau",
+    "provider_id": "38f6b745-84bf-4264-a95a-d43c81bf375c"
+  },
+  {
+    "id": "a7c95e89-93fe-44c8-8603-13e4a5d6a7c4",
+    "language": "en-gb",
+    "sw2_id": 10345,
+    "name": "Maritime and shipping statistics",
+    "provider_id": "38f6b745-84bf-4264-a95a-d43c81bf375c"
+  },
+  {
+    "id": "a89de20c-98fa-451a-bcf0-599956ddd040",
+    "language": "cy-gb",
+    "sw2_id": 10299,
+    "name": "Casglu data Canlyniadau Profion Darllen a Rhifedd Cenedlaethol",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "a89de20c-98fa-451a-bcf0-599956ddd040",
+    "language": "en-gb",
+    "sw2_id": 10299,
+    "name": "National Reading and Numeracy Tests data collection",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "a930926d-f333-44d9-9776-6fef684bbc84",
+    "language": "cy-gb",
+    "sw2_id": 10014,
+    "name": "Casgliad data am wasanaethau maethu (SSDA904)",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "a930926d-f333-44d9-9776-6fef684bbc84",
+    "language": "en-gb",
+    "sw2_id": 10014,
+    "name": "Fostering services (SSDA904) data collection",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "a946f8b5-76ce-4c1b-b0b1-379d4f3e9c59",
+    "language": "cy-gb",
+    "sw2_id": 10010,
+    "name": "Casgliad data am bobl ifanc sy'n gadael gofal ar eu pen-blwydd yn 19 oed (OC3)",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "a946f8b5-76ce-4c1b-b0b1-379d4f3e9c59",
+    "language": "en-gb",
+    "sw2_id": 10010,
+    "name": "Care leavers on their 19th birthday (OC3) data collection",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "a9a69a87-765d-4ed5-85af-469599a7d742",
+    "language": "cy-gb",
+    "sw2_id": 10188,
+    "name": "Gwasanaethau Contractwyr",
+    "provider_id": "9a091390-9ed4-4b94-a09f-9dcd5ed20f4b"
+  },
+  {
+    "id": "a9a69a87-765d-4ed5-85af-469599a7d742",
+    "language": "en-gb",
+    "sw2_id": 10188,
+    "name": "Contractor Services",
+    "provider_id": "9a091390-9ed4-4b94-a09f-9dcd5ed20f4b"
+  },
+  {
+    "id": "a9e502cf-e254-4a7b-9683-91481bea542c",
+    "language": "cy-gb",
+    "sw2_id": 10254,
+    "name": "Casglu data ar y Cymhorthdal Cyfrif Refeniw Tai (HRAS)",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "a9e502cf-e254-4a7b-9683-91481bea542c",
+    "language": "en-gb",
+    "sw2_id": 10254,
+    "name": "Housing Revenue Account Subsidy (HRAS) collection",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "aa50efcc-8872-4b60-b194-0236b46ca4d6",
+    "language": "cy-gb",
+    "sw2_id": 10242,
+    "name": "Marwolaethau ychwanegol y gaeaf",
+    "provider_id": "d3620b5d-be93-44f7-9289-fe3bf50e78f3"
+  },
+  {
+    "id": "aa50efcc-8872-4b60-b194-0236b46ca4d6",
+    "language": "en-gb",
+    "sw2_id": 10242,
+    "name": "Excess winter deaths",
+    "provider_id": "d3620b5d-be93-44f7-9289-fe3bf50e78f3"
+  },
+  {
+    "id": "aab08bb5-3994-417e-85ab-1419c88de43a",
+    "language": "cy-gb",
+    "sw2_id": 10091,
+    "name": "Dim ffynhonnell ddata benodol",
+    "provider_id": "7dcde71d-8783-423c-a9e5-36b78622e591"
+  },
+  {
+    "id": "aab08bb5-3994-417e-85ab-1419c88de43a",
+    "language": "en-gb",
+    "sw2_id": 10091,
+    "name": "No specific data source",
+    "provider_id": "7dcde71d-8783-423c-a9e5-36b78622e591"
+  },
+  {
+    "id": "adb33875-5191-4cd0-89ab-d4abb0cf4145",
+    "language": "cy-gb",
+    "sw2_id": 10129,
+    "name": "Arolwg Iechyd Cymru",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "adb33875-5191-4cd0-89ab-d4abb0cf4145",
+    "language": "en-gb",
+    "sw2_id": 10129,
+    "name": "Welsh Health Survey",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "ae070728-a9d9-436e-8001-0c13c94a9858",
+    "language": "cy-gb",
+    "sw2_id": 10048,
+    "name": "Arolwg Aelwydydd Integredig (IHS)",
+    "provider_id": "d3620b5d-be93-44f7-9289-fe3bf50e78f3"
+  },
+  {
+    "id": "ae070728-a9d9-436e-8001-0c13c94a9858",
+    "language": "en-gb",
+    "sw2_id": 10048,
+    "name": "Integrated Household Survey (IHS)",
+    "provider_id": "d3620b5d-be93-44f7-9289-fe3bf50e78f3"
+  },
+  {
+    "id": "af3a03c5-2b5a-493e-94f5-8e51b77be648",
+    "language": "cy-gb",
+    "sw2_id": 10035,
+    "name": "Casgliad data am leoedd gwag mewn tai cymdeithasol",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "af3a03c5-2b5a-493e-94f5-8e51b77be648",
+    "language": "en-gb",
+    "sw2_id": 10035,
+    "name": "Social housing vacancies data collection",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "af5ece29-d575-4b26-b645-f9f32c9b336e",
+    "language": "cy-gb",
+    "sw2_id": 10304,
+    "name": "Niferoedd anheddau",
+    "provider_id": "4c3223c9-ee68-4517-ad26-d496317b3741"
+  },
+  {
+    "id": "af5ece29-d575-4b26-b645-f9f32c9b336e",
+    "language": "en-gb",
+    "sw2_id": 10304,
+    "name": "Dwelling counts",
+    "provider_id": "4c3223c9-ee68-4517-ad26-d496317b3741"
+  },
+  {
+    "id": "afd1a8b0-7aca-4c20-8a51-9ef59f9672d4",
+    "language": "cy-gb",
+    "sw2_id": 10025,
+    "name": "Casgliad data alldro ardrethi annomestig (NDR3)",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "afd1a8b0-7aca-4c20-8a51-9ef59f9672d4",
+    "language": "en-gb",
+    "sw2_id": 10025,
+    "name": "Non-domestic rates outturn (NDR3) data collection",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "afe6f204-ad68-49c9-befe-26900e602797",
+    "language": "cy-gb",
+    "sw2_id": 10262,
+    "name": "Data ar brisiau tai",
+    "provider_id": "f57e03de-2985-4e5a-b05a-07fef9ef27aa"
+  },
+  {
+    "id": "afe6f204-ad68-49c9-befe-26900e602797",
+    "language": "en-gb",
+    "sw2_id": 10262,
+    "name": "House prices data",
+    "provider_id": "f57e03de-2985-4e5a-b05a-07fef9ef27aa"
+  },
+  {
+    "id": "b01058a7-b892-4e8d-811d-27bc9697fffc",
+    "language": "cy-gb",
+    "sw2_id": null,
+    "name": "Ffurflenni treth trafodiadau tir",
+    "provider_id": "46b66fc0-c5c0-4134-acd3-dcf3b06f0572"
+  },
+  {
+    "id": "b01058a7-b892-4e8d-811d-27bc9697fffc",
+    "language": "en-gb",
+    "sw2_id": null,
+    "name": "Land transaction tax returns",
+    "provider_id": "46b66fc0-c5c0-4134-acd3-dcf3b06f0572"
+  },
+  {
+    "id": "b09e8bea-1142-430c-a53a-4f06a84aa5dd",
+    "language": "cy-gb",
+    "sw2_id": 10284,
+    "name": "System olrhain gwartheg",
+    "provider_id": "60ee65a2-d65a-4da8-9420-84e76a1b6b38"
+  },
+  {
+    "id": "b09e8bea-1142-430c-a53a-4f06a84aa5dd",
+    "language": "en-gb",
+    "sw2_id": 10284,
+    "name": "Cattle tracing system",
+    "provider_id": "60ee65a2-d65a-4da8-9420-84e76a1b6b38"
+  },
+  {
+    "id": "b0db823f-0bf6-4c7e-a088-284ae2ae119b",
+    "language": "cy-gb",
+    "sw2_id": 10234,
+    "name": "Arolwg o borthladdoedd",
+    "provider_id": "38f6b745-84bf-4264-a95a-d43c81bf375c"
+  },
+  {
+    "id": "b0db823f-0bf6-4c7e-a088-284ae2ae119b",
+    "language": "en-gb",
+    "sw2_id": 10234,
+    "name": "Ports survey",
+    "provider_id": "38f6b745-84bf-4264-a95a-d43c81bf375c"
+  },
+  {
+    "id": "b0fbd7d7-10c5-4352-a694-df34684aa6e2",
+    "language": "cy-gb",
+    "sw2_id": 10099,
+    "name": "Data am gymwysterau galwedigaethol",
+    "provider_id": "9cfa3817-c847-49e4-9ec2-82e54fc69d7c"
+  },
+  {
+    "id": "b0fbd7d7-10c5-4352-a694-df34684aa6e2",
+    "language": "en-gb",
+    "sw2_id": 10099,
+    "name": "Vocational qualifications data",
+    "provider_id": "9cfa3817-c847-49e4-9ec2-82e54fc69d7c"
+  },
+  {
+    "id": "b1004541-c384-476a-831b-0ab6c478d679",
+    "language": "cy-gb",
+    "sw2_id": 10346,
+    "name": "System Adrodd Genedlaethol ar gyfer Gweithlu Cymru (WNWRS)",
+    "provider_id": "9a091390-9ed4-4b94-a09f-9dcd5ed20f4b"
+  },
+  {
+    "id": "b1004541-c384-476a-831b-0ab6c478d679",
+    "language": "en-gb",
+    "sw2_id": 10346,
+    "name": "Wales National Workforce Reporting System (WNWRS)",
+    "provider_id": "9a091390-9ed4-4b94-a09f-9dcd5ed20f4b"
+  },
+  {
+    "id": "b214b861-fb09-4c8a-b015-c197441f4ce1",
+    "language": "cy-gb",
+    "sw2_id": 10273,
+    "name": "Crynodiad aer",
+    "provider_id": "60ee65a2-d65a-4da8-9420-84e76a1b6b38"
+  },
+  {
+    "id": "b214b861-fb09-4c8a-b015-c197441f4ce1",
+    "language": "en-gb",
+    "sw2_id": 10273,
+    "name": "Air concentration",
+    "provider_id": "60ee65a2-d65a-4da8-9420-84e76a1b6b38"
+  },
+  {
+    "id": "b2333e02-18cc-4d18-ab94-e03393beea9e",
+    "language": "cy-gb",
+    "sw2_id": 10311,
+    "name": "Data cwrt crwneriaid",
+    "provider_id": "38f6b745-84bf-4264-a95a-d43c81bf375c"
+  },
+  {
+    "id": "b2333e02-18cc-4d18-ab94-e03393beea9e",
+    "language": "en-gb",
+    "sw2_id": 10311,
+    "name": "Coroners court data",
+    "provider_id": "38f6b745-84bf-4264-a95a-d43c81bf375c"
+  },
+  {
+    "id": "b333bcd9-a4c5-439c-9d78-dd340e635e54",
+    "language": "cy-gb",
+    "sw2_id": 10272,
+    "name": "Gwybodaeth ddaearyddol",
+    "provider_id": "0f9556bc-487a-4c21-8bb9-22795363cebf"
+  },
+  {
+    "id": "b333bcd9-a4c5-439c-9d78-dd340e635e54",
+    "language": "en-gb",
+    "sw2_id": 10272,
+    "name": "Geographical information",
+    "provider_id": "0f9556bc-487a-4c21-8bb9-22795363cebf"
+  },
+  {
+    "id": "b335b854-ab27-4f90-8641-149f71a084af",
+    "language": "cy-gb",
+    "sw2_id": 10293,
+    "name": "Gwasanaethau Gofal Sylfaenol",
+    "provider_id": "9a091390-9ed4-4b94-a09f-9dcd5ed20f4b"
+  },
+  {
+    "id": "b335b854-ab27-4f90-8641-149f71a084af",
+    "language": "en-gb",
+    "sw2_id": 10293,
+    "name": "Primary Care Services",
+    "provider_id": "9a091390-9ed4-4b94-a09f-9dcd5ed20f4b"
+  },
+  {
+    "id": "b400fc90-4a5f-4ebd-9cab-f59455b545ea",
+    "language": "cy-gb",
+    "sw2_id": 10076,
+    "name": "Ffurflenni cwynion (KO41)",
+    "provider_id": "845a54df-8eeb-4ff2-94a9-9db823324a20"
+  },
+  {
+    "id": "b400fc90-4a5f-4ebd-9cab-f59455b545ea",
+    "language": "en-gb",
+    "sw2_id": 10076,
+    "name": "Complaints returns (KO41)",
+    "provider_id": "845a54df-8eeb-4ff2-94a9-9db823324a20"
+  },
+  {
+    "id": "b47e86c5-ffdb-40ff-aeed-f1cbb6093161",
+    "language": "cy-gb",
+    "sw2_id": 10007,
+    "name": "Casgliad data am blant sy'n derbyn gofal (SSDA903)",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "b47e86c5-ffdb-40ff-aeed-f1cbb6093161",
+    "language": "en-gb",
+    "sw2_id": 10007,
+    "name": "Children looked after (SSDA903) data collection",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "b5013515-a681-4dd2-b7bc-151134283e42",
+    "language": "cy-gb",
+    "sw2_id": 10045,
+    "name": "Casgliad data am gymryd meddiant a throi allan",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "b5013515-a681-4dd2-b7bc-151134283e42",
+    "language": "en-gb",
+    "sw2_id": 10045,
+    "name": "Possessions and evictions data collection",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "b830d050-5c6e-4ecf-8021-d2803bad6763",
+    "language": "cy-gb",
+    "sw2_id": 10136,
+    "name": "Adroddiad Blynyddol",
+    "provider_id": "6d59738a-e0f6-4345-8b77-7ad9c9a5b5b2"
+  },
+  {
+    "id": "b830d050-5c6e-4ecf-8021-d2803bad6763",
+    "language": "en-gb",
+    "sw2_id": 10136,
+    "name": "Annual Report",
+    "provider_id": "6d59738a-e0f6-4345-8b77-7ad9c9a5b5b2"
+  },
+  {
+    "id": "b85a7b49-b261-40ee-aa29-8b852c7cc960",
+    "language": "cy-gb",
+    "sw2_id": 10281,
+    "name": "System Adnabod Parseli Tir (LPIS)",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "b85a7b49-b261-40ee-aa29-8b852c7cc960",
+    "language": "en-gb",
+    "sw2_id": 10281,
+    "name": "Land Parcel Identification System (LPIS)",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "b8771cac-6eb7-47f5-9f37-e0774a783580",
+    "language": "cy-gb",
+    "sw2_id": 10229,
+    "name": "Anghenion o ran sgiliau Cymraeg mewn wyth sector",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "b8771cac-6eb7-47f5-9f37-e0774a783580",
+    "language": "en-gb",
+    "sw2_id": 10229,
+    "name": "Welsh language skills needs in eight sectors",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "b883c16d-e245-4c95-b5eb-61a00c9faf3a",
+    "language": "cy-gb",
+    "sw2_id": 10339,
+    "name": "Amcanestyniadau aelwydydd ar gyfer Cymru",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "b883c16d-e245-4c95-b5eb-61a00c9faf3a",
+    "language": "en-gb",
+    "sw2_id": 10339,
+    "name": "Household projections for Wales",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "b91310f4-dbdc-416f-bc3d-d3fa7ff9ca8d",
+    "language": "cy-gb",
+    "sw2_id": 10329,
+    "name": "Plant sy'n Derbyn Gofal a Chymorth (CRCS) (cyfanredol)",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "b91310f4-dbdc-416f-bc3d-d3fa7ff9ca8d",
+    "language": "en-gb",
+    "sw2_id": 10329,
+    "name": "Children Receiving Care and Support (CRCS) (aggregate)",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "bad3c5fb-4dd3-407d-a857-917818459a22",
+    "language": "cy-gb",
+    "sw2_id": 10005,
+    "name": "Casgliad data am reoli perfformiad gwasanaethau cymdeithasol i oedolion (PM2)",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "bad3c5fb-4dd3-407d-a857-917818459a22",
+    "language": "en-gb",
+    "sw2_id": 10005,
+    "name": "Performance management of adult's social services (PM2) data collection",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "bbe11ed9-e75a-4941-962f-caf396ffd601",
+    "language": "cy-gb",
+    "sw2_id": 10046,
+    "name": "Mehefin Cyfrifiad Amaethyddol a Garddwrol",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "bbe11ed9-e75a-4941-962f-caf396ffd601",
+    "language": "en-gb",
+    "sw2_id": 10046,
+    "name": "June Census of Agriculture and Horticulture",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "bc3bc3a0-8655-4799-a339-3d0366955f8a",
+    "language": "cy-gb",
+    "sw2_id": 10297,
+    "name": "Cyfrif cenedlaethol o gysgu allan",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "bc3bc3a0-8655-4799-a339-3d0366955f8a",
+    "language": "en-gb",
+    "sw2_id": 10297,
+    "name": "National rough sleeper count",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "bdaa4752-b1a3-4b36-b4c5-0ddb4551185c",
+    "language": "cy-gb",
+    "sw2_id": 10347,
+    "name": "Baromedr Busnes Twristiaeth Cymru",
+    "provider_id": "d5eb3355-e800-464d-a315-8afee1deca68"
+  },
+  {
+    "id": "bdaa4752-b1a3-4b36-b4c5-0ddb4551185c",
+    "language": "en-gb",
+    "sw2_id": 10347,
+    "name": "Wales Tourism Business Barometer",
+    "provider_id": "d5eb3355-e800-464d-a315-8afee1deca68"
+  },
+  {
+    "id": "bf5bf533-5923-4215-9904-673c94e28552",
+    "language": "cy-gb",
+    "sw2_id": 10312,
+    "name": "Astudiaeth Hydredol o Aelwydydd y DU",
+    "provider_id": "d061e46d-6042-4199-8d3e-9a32b0206019"
+  },
+  {
+    "id": "bf5bf533-5923-4215-9904-673c94e28552",
+    "language": "en-gb",
+    "sw2_id": 10312,
+    "name": "UK Household Longitudinal Study",
+    "provider_id": "d061e46d-6042-4199-8d3e-9a32b0206019"
+  },
+  {
+    "id": "c00b694a-7989-4c6b-8b7a-ab8a5f0bbac7",
+    "language": "cy-gb",
+    "sw2_id": 10245,
+    "name": "Strategaeth yr Iaith Gymraeg",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "c00b694a-7989-4c6b-8b7a-ab8a5f0bbac7",
+    "language": "en-gb",
+    "sw2_id": 10245,
+    "name": "Welsh Language Strategy",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "c0853c6c-c039-4489-a93e-b42094ce2271",
+    "language": "cy-gb",
+    "sw2_id": 10031,
+    "name": "Casgliad data am amddiffyn oedolion sy'n agored i niwed (PVA2)",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "c0853c6c-c039-4489-a93e-b42094ce2271",
+    "language": "en-gb",
+    "sw2_id": 10031,
+    "name": "Protection of vulnerable adults (PVA2) data collection",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "c0c2d951-1e85-4cca-bc4f-3a64bb05bc51",
+    "language": "cy-gb",
+    "sw2_id": 10023,
+    "name": "Casgliad data am gasglu'r dreth gyngor (CTC)",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "c0c2d951-1e85-4cca-bc4f-3a64bb05bc51",
+    "language": "en-gb",
+    "sw2_id": 10023,
+    "name": "Council tax collection (CTC) data collection",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "c11627d1-15b6-4292-8922-f74db54be46c",
+    "language": "cy-gb",
+    "sw2_id": 10108,
+    "name": "Cryfder y gwasanaeth heddlu",
+    "provider_id": "a5e3097c-a031-45fe-adfd-975d49dc5bed"
+  },
+  {
+    "id": "c11627d1-15b6-4292-8922-f74db54be46c",
+    "language": "en-gb",
+    "sw2_id": 10108,
+    "name": "Police service strength",
+    "provider_id": "a5e3097c-a031-45fe-adfd-975d49dc5bed"
+  },
+  {
+    "id": "c2506319-bc99-4ff2-84fa-c4a613311d82",
+    "language": "cy-gb",
+    "sw2_id": 10369,
+    "name": "Amcanestyniadau poblogaeth ar gyfer ardaloedd Parciau Cenedlaethol yng Nghymru",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "c2506319-bc99-4ff2-84fa-c4a613311d82",
+    "language": "en-gb",
+    "sw2_id": 10369,
+    "name": "Population projections for National Park areas in Wales",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "c2716daf-c5ad-47cc-a9ac-0390d88ecb74",
+    "language": "cy-gb",
+    "sw2_id": 10218,
+    "name": "Data ar Ardaloedd Cadwraeth Arbennig",
+    "provider_id": "071111f8-9931-43fb-bef9-a10165056a82"
+  },
+  {
+    "id": "c2716daf-c5ad-47cc-a9ac-0390d88ecb74",
+    "language": "en-gb",
+    "sw2_id": 10218,
+    "name": "Special Areas of Conservation data",
+    "provider_id": "071111f8-9931-43fb-bef9-a10165056a82"
+  },
+  {
+    "id": "c31d211c-3bf5-4425-8d10-891048a69a51",
+    "language": "cy-gb",
+    "sw2_id": 10103,
+    "name": "Data mamolaeth, Cronfa Ddata Cyfnodau Gofal Cleifion Cymru (PEDW)",
+    "provider_id": "f57e82cc-9c97-442b-a195-de74f443f36c"
+  },
+  {
+    "id": "c31d211c-3bf5-4425-8d10-891048a69a51",
+    "language": "en-gb",
+    "sw2_id": 10103,
+    "name": "Maternity data, Patient Episode Database for Wales (PEDW)",
+    "provider_id": "f57e82cc-9c97-442b-a195-de74f443f36c"
+  },
+  {
+    "id": "c33b04ef-634b-46f7-b0d6-ee7824a00806",
+    "language": "cy-gb",
+    "sw2_id": 10106,
+    "name": "Cronfa Ddata Cyfnodau Gofal Cleifion Cymru (PEDW)",
+    "provider_id": "f57e82cc-9c97-442b-a195-de74f443f36c"
+  },
+  {
+    "id": "c33b04ef-634b-46f7-b0d6-ee7824a00806",
+    "language": "en-gb",
+    "sw2_id": 10106,
+    "name": "Patient Episode Database for Wales (PEDW)",
+    "provider_id": "f57e82cc-9c97-442b-a195-de74f443f36c"
+  },
+  {
+    "id": "c571cc07-ba84-48ee-be47-645a7711a905",
+    "language": "cy-gb",
+    "sw2_id": 10225,
+    "name": "Arolwg Cenedlaethol Cymru",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "c571cc07-ba84-48ee-be47-645a7711a905",
+    "language": "en-gb",
+    "sw2_id": 10225,
+    "name": "National Survey for Wales",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "c57863d8-2932-4629-9421-81e98b412e4c",
+    "language": "cy-gb",
+    "sw2_id": 10189,
+    "name": "Data gweinyddol",
+    "provider_id": "ea3226fb-d5fb-47d8-88ff-c648b7076616"
+  },
+  {
+    "id": "c57863d8-2932-4629-9421-81e98b412e4c",
+    "language": "en-gb",
+    "sw2_id": 10189,
+    "name": "Administrative data",
+    "provider_id": "ea3226fb-d5fb-47d8-88ff-c648b7076616"
+  },
+  {
+    "id": "c64f98ea-264b-493b-8977-2b65ec6ee2cb",
+    "language": "cy-gb",
+    "sw2_id": 10154,
+    "name": "Casgliad data am ardaloedd adfywio",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "c64f98ea-264b-493b-8977-2b65ec6ee2cb",
+    "language": "en-gb",
+    "sw2_id": 10154,
+    "name": "Renewal areas data collection",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "c6e43c11-e5ab-4b2b-9e54-1714ffb8f1c0",
+    "language": "cy-gb",
+    "sw2_id": 10285,
+    "name": "Gwybodaeth fonitro TB buchol",
+    "provider_id": "60ee65a2-d65a-4da8-9420-84e76a1b6b38"
+  },
+  {
+    "id": "c6e43c11-e5ab-4b2b-9e54-1714ffb8f1c0",
+    "language": "en-gb",
+    "sw2_id": 10285,
+    "name": "Bovine TB monitoring information",
+    "provider_id": "60ee65a2-d65a-4da8-9420-84e76a1b6b38"
+  },
+  {
+    "id": "c8e2b8f7-8955-4bce-a64d-b02d208a73c8",
+    "language": "cy-gb",
+    "sw2_id": 10209,
+    "name": "Gwybodaeth am grantiau",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "c8e2b8f7-8955-4bce-a64d-b02d208a73c8",
+    "language": "en-gb",
+    "sw2_id": 10209,
+    "name": "Grants information",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "cb465bd6-098a-4069-99cf-bf0e5bd95ffe",
+    "language": "cy-gb",
+    "sw2_id": 10371,
+    "name": "System Imiwneiddio Cymru (WIS)",
+    "provider_id": "f57e82cc-9c97-442b-a195-de74f443f36c"
+  },
+  {
+    "id": "cb465bd6-098a-4069-99cf-bf0e5bd95ffe",
+    "language": "en-gb",
+    "sw2_id": 10371,
+    "name": "Welsh Immunisation System (WIS)",
+    "provider_id": "f57e82cc-9c97-442b-a195-de74f443f36c"
+  },
+  {
+    "id": "cc689fbe-d1ca-46b2-bd11-7246824ae5bb",
+    "language": "cy-gb",
+    "sw2_id": 10089,
+    "name": "Ystadegau ymfudo mewnol",
+    "provider_id": "d3620b5d-be93-44f7-9289-fe3bf50e78f3"
+  },
+  {
+    "id": "cc689fbe-d1ca-46b2-bd11-7246824ae5bb",
+    "language": "en-gb",
+    "sw2_id": 10089,
+    "name": "Internal migration statistics",
+    "provider_id": "d3620b5d-be93-44f7-9289-fe3bf50e78f3"
+  },
+  {
+    "id": "cce89573-92fb-4aed-9989-f39acfae2ddf",
+    "language": "cy-gb",
+    "sw2_id": 10147,
+    "name": "Fframwaith Canlyniadau Ansawdd",
+    "provider_id": "f57e82cc-9c97-442b-a195-de74f443f36c"
+  },
+  {
+    "id": "cce89573-92fb-4aed-9989-f39acfae2ddf",
+    "language": "en-gb",
+    "sw2_id": 10147,
+    "name": "GP Quality and Outcomes Framework",
+    "provider_id": "f57e82cc-9c97-442b-a195-de74f443f36c"
+  },
+  {
+    "id": "cceb9fdb-ea26-4bb9-b7fa-03a01b36b332",
+    "language": "cy-gb",
+    "sw2_id": 10190,
+    "name": "Data gweinyddol",
+    "provider_id": "123800f0-76c0-4f36-96ab-d084477116aa"
+  },
+  {
+    "id": "cceb9fdb-ea26-4bb9-b7fa-03a01b36b332",
+    "language": "en-gb",
+    "sw2_id": 10190,
+    "name": "Administrative data",
+    "provider_id": "123800f0-76c0-4f36-96ab-d084477116aa"
+  },
+  {
+    "id": "cd18e2da-9f7c-4ee6-b656-f43cc81a6679",
+    "language": "cy-gb",
+    "sw2_id": 10170,
+    "name": "Arolwg o Wastraff Adeiladu a Dymchwel",
+    "provider_id": "071111f8-9931-43fb-bef9-a10165056a82"
+  },
+  {
+    "id": "cd18e2da-9f7c-4ee6-b656-f43cc81a6679",
+    "language": "en-gb",
+    "sw2_id": 10170,
+    "name": "Construction and Demolition Waste Survey",
+    "provider_id": "071111f8-9931-43fb-bef9-a10165056a82"
+  },
+  {
+    "id": "cdb867e9-a5b4-4157-9707-6bd327b8c981",
+    "language": "cy-gb",
+    "sw2_id": 10060,
+    "name": "Amcanestyniadau poblogaeth ar gyfer awdurdodau lleol yng Nghymru",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "cdb867e9-a5b4-4157-9707-6bd327b8c981",
+    "language": "en-gb",
+    "sw2_id": 10060,
+    "name": "Population projections for local authorities in Wales",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "cdf38a43-1e79-43a3-b6e8-ecd920fd70ed",
+    "language": "cy-gb",
+    "sw2_id": 10186,
+    "name": "Ystadegau erthylu",
+    "provider_id": "cdf39b19-fbde-40c1-a489-30500e9a2525"
+  },
+  {
+    "id": "cdf38a43-1e79-43a3-b6e8-ecd920fd70ed",
+    "language": "en-gb",
+    "sw2_id": 10186,
+    "name": "Abortion statistics",
+    "provider_id": "cdf39b19-fbde-40c1-a489-30500e9a2525"
+  },
+  {
+    "id": "ce452ded-d2b1-4a45-bb09-e3e73b13b28e",
+    "language": "cy-gb",
+    "sw2_id": 10357,
+    "name": "Tynnu person dan amheuaeth o anhwylder meddwl i le diogel (a.135 ac a.136 Deddf Iechyd Meddwl) casglu data",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "ce452ded-d2b1-4a45-bb09-e3e73b13b28e",
+    "language": "en-gb",
+    "sw2_id": 10357,
+    "name": "Removal of a suspected mentally disordered person to a place of safety (s.135 and s.136 Mental Health Act) data collection",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "cea1c082-1b70-475c-8dd1-584d52589c95",
+    "language": "cy-gb",
+    "sw2_id": 10086,
+    "name": "Amcanestyniadau aelwydydd Cymru",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "cea1c082-1b70-475c-8dd1-584d52589c95",
+    "language": "en-gb",
+    "sw2_id": 10086,
+    "name": "Household estimates for Wales",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "ceb17823-077a-4655-be10-2de4051bd802",
+    "language": "cy-gb",
+    "sw2_id": 10139,
+    "name": "Cofnod myfyrwyr",
+    "provider_id": "29a2e85f-41ef-46cb-a8e0-d3d0f98a0b90"
+  },
+  {
+    "id": "ceb17823-077a-4655-be10-2de4051bd802",
+    "language": "en-gb",
+    "sw2_id": 10139,
+    "name": "Student record",
+    "provider_id": "29a2e85f-41ef-46cb-a8e0-d3d0f98a0b90"
+  },
+  {
+    "id": "cee20a24-f652-4101-88e8-e58fd20ce9b0",
+    "language": "cy-gb",
+    "sw2_id": 10080,
+    "name": "Amcangyfrifon o'r Stoc Anheddau",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "cee20a24-f652-4101-88e8-e58fd20ce9b0",
+    "language": "en-gb",
+    "sw2_id": 10080,
+    "name": "Dwelling stock estimates",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "cfe47a5e-e770-43da-a1be-dadc1bcfd759",
+    "language": "cy-gb",
+    "sw2_id": 10180,
+    "name": "Set Ddata Adran Achosion Brys (EDDS)",
+    "provider_id": "f57e82cc-9c97-442b-a195-de74f443f36c"
+  },
+  {
+    "id": "cfe47a5e-e770-43da-a1be-dadc1bcfd759",
+    "language": "en-gb",
+    "sw2_id": 10180,
+    "name": "Emergency Department Data Set (EDDS)",
+    "provider_id": "f57e82cc-9c97-442b-a195-de74f443f36c"
+  },
+  {
+    "id": "d0f0a46a-7dd7-41e4-99f2-b8f4e9c40189",
+    "language": "cy-gb",
+    "sw2_id": 10212,
+    "name": "Rhestr Genedlaethol o Goedwigoedd (NFI)",
+    "provider_id": "850d76f4-501f-4b4b-9bfd-a8cf604184a2"
+  },
+  {
+    "id": "d0f0a46a-7dd7-41e4-99f2-b8f4e9c40189",
+    "language": "en-gb",
+    "sw2_id": 10212,
+    "name": "National Forest Inventory (NFI)",
+    "provider_id": "850d76f4-501f-4b4b-9bfd-a8cf604184a2"
+  },
+  {
+    "id": "d1c72e83-70e9-43c0-a1ab-abb7197c2a9b",
+    "language": "cy-gb",
+    "sw2_id": 10140,
+    "name": "Data gweinyddol",
+    "provider_id": "c315add1-3958-4f59-80a2-ce2c68b36595"
+  },
+  {
+    "id": "d1c72e83-70e9-43c0-a1ab-abb7197c2a9b",
+    "language": "en-gb",
+    "sw2_id": 10140,
+    "name": "Administrative data",
+    "provider_id": "c315add1-3958-4f59-80a2-ce2c68b36595"
+  },
+  {
+    "id": "d20c01ba-a9de-4d4b-abc6-8b207427a878",
+    "language": "cy-gb",
+    "sw2_id": 10160,
+    "name": "Mapiau Iechyd Cymru",
+    "provider_id": "f57e82cc-9c97-442b-a195-de74f443f36c"
+  },
+  {
+    "id": "d20c01ba-a9de-4d4b-abc6-8b207427a878",
+    "language": "en-gb",
+    "sw2_id": 10160,
+    "name": "Health Maps Wales",
+    "provider_id": "f57e82cc-9c97-442b-a195-de74f443f36c"
+  },
+  {
+    "id": "d33cedd1-7173-40c4-a422-7d9a87d7daf9",
+    "language": "cy-gb",
+    "sw2_id": 10306,
+    "name": "Casglu data Mesur Iechyd Meddwl (Cymru)",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "d33cedd1-7173-40c4-a422-7d9a87d7daf9",
+    "language": "en-gb",
+    "sw2_id": 10306,
+    "name": "Mental Health (Wales) Measure data collection",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "d3fee017-091c-4657-99fd-0f901060537c",
+    "language": "cy-gb",
+    "sw2_id": 10287,
+    "name": "Data ar dderbyn myfyrwyr israddedig",
+    "provider_id": "74dfca89-7b78-42ab-bf19-c97818ff9cc5"
+  },
+  {
+    "id": "d3fee017-091c-4657-99fd-0f901060537c",
+    "language": "en-gb",
+    "sw2_id": 10287,
+    "name": "Under-graduate student admissions data",
+    "provider_id": "74dfca89-7b78-42ab-bf19-c97818ff9cc5"
+  },
+  {
+    "id": "d43de606-5643-4c05-af1f-e2fe11e0e7cb",
+    "language": "cy-gb",
+    "sw2_id": 10092,
+    "name": "System weinyddu'r Ganolfan Byd Gwaith",
+    "provider_id": "e850ccdb-79de-4c48-9762-30018a61c7e0"
+  },
+  {
+    "id": "d43de606-5643-4c05-af1f-e2fe11e0e7cb",
+    "language": "en-gb",
+    "sw2_id": 10092,
+    "name": "Jobcentre Plus administrative system",
+    "provider_id": "e850ccdb-79de-4c48-9762-30018a61c7e0"
+  },
+  {
+    "id": "d4e5673c-f091-4180-809b-3e0044888763",
+    "language": "cy-gb",
+    "sw2_id": 10122,
+    "name": "Ystadegau Etholiadol y DU",
+    "provider_id": "d3620b5d-be93-44f7-9289-fe3bf50e78f3"
+  },
+  {
+    "id": "d4e5673c-f091-4180-809b-3e0044888763",
+    "language": "en-gb",
+    "sw2_id": 10122,
+    "name": "UK electoral statistics",
+    "provider_id": "d3620b5d-be93-44f7-9289-fe3bf50e78f3"
+  },
+  {
+    "id": "d549a89b-2b99-4aa5-9fb0-ad2bb0039dca",
+    "language": "cy-gb",
+    "sw2_id": 10038,
+    "name": "Casgliad data am adeiladu tai newydd",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "d549a89b-2b99-4aa5-9fb0-ad2bb0039dca",
+    "language": "en-gb",
+    "sw2_id": 10038,
+    "name": "New house building data collection",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "d5791cb9-e927-4a5d-bfac-b54e3aa11024",
+    "language": "cy-gb",
+    "sw2_id": 10195,
+    "name": "Ystadegau beichiogi",
+    "provider_id": "d3620b5d-be93-44f7-9289-fe3bf50e78f3"
+  },
+  {
+    "id": "d5791cb9-e927-4a5d-bfac-b54e3aa11024",
+    "language": "en-gb",
+    "sw2_id": 10195,
+    "name": "Conception statistics",
+    "provider_id": "d3620b5d-be93-44f7-9289-fe3bf50e78f3"
+  },
+  {
+    "id": "d6468335-86a1-498e-8345-cda4d424a9a6",
+    "language": "cy-gb",
+    "sw2_id": 10135,
+    "name": "Mynegai Amddifadedd Lluosog Cymru (MALIC)",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "d6468335-86a1-498e-8345-cda4d424a9a6",
+    "language": "en-gb",
+    "sw2_id": 10135,
+    "name": "Welsh Index of Multiple Deprivation (WIMD)",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "d68ffa96-6355-4fd7-9c1e-93fef009269e",
+    "language": "cy-gb",
+    "sw2_id": 10029,
+    "name": "Setliad llywodraeth leol",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "d68ffa96-6355-4fd7-9c1e-93fef009269e",
+    "language": "en-gb",
+    "sw2_id": 10029,
+    "name": "Local government settlement",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "d77d83ab-62c5-40b2-aafc-f7ce3544d2e0",
+    "language": "cy-gb",
+    "sw2_id": 10019,
+    "name": "Casgliad data alldro cyfalaf (COR)",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "d77d83ab-62c5-40b2-aafc-f7ce3544d2e0",
+    "language": "en-gb",
+    "sw2_id": 10019,
+    "name": "Capital outturn (COR) data collection",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "d8aaa919-2d17-4096-9cb9-119e316b7fdc",
+    "language": "cy-gb",
+    "sw2_id": 10100,
+    "name": "Arolwg o Wastraff Diwydiannol a Masnachol",
+    "provider_id": "071111f8-9931-43fb-bef9-a10165056a82"
+  },
+  {
+    "id": "d8aaa919-2d17-4096-9cb9-119e316b7fdc",
+    "language": "en-gb",
+    "sw2_id": 10100,
+    "name": "Industrial and Commercial Waste Survey",
+    "provider_id": "071111f8-9931-43fb-bef9-a10165056a82"
+  },
+  {
+    "id": "d8da8d76-d50a-4ee6-ad55-7596de2eab67",
+    "language": "cy-gb",
+    "sw2_id": 10219,
+    "name": "Astudiaeth o Adnoddau Coedwigaeth",
+    "provider_id": "071111f8-9931-43fb-bef9-a10165056a82"
+  },
+  {
+    "id": "d8da8d76-d50a-4ee6-ad55-7596de2eab67",
+    "language": "en-gb",
+    "sw2_id": 10219,
+    "name": "Forestry Resource Study",
+    "provider_id": "071111f8-9931-43fb-bef9-a10165056a82"
+  },
+  {
+    "id": "d94c66f1-2d0f-45ac-8bed-6fffa65f61be",
+    "language": "cy-gb",
+    "sw2_id": 10341,
+    "name": "Disgwyliad oes, disgwyliad oes iach a bwlch anghydraddoldeb",
+    "provider_id": "c1a54357-9324-4d9f-8d60-07241440eb8d"
+  },
+  {
+    "id": "d94c66f1-2d0f-45ac-8bed-6fffa65f61be",
+    "language": "en-gb",
+    "sw2_id": 10341,
+    "name": "Life expectancy, health expectancy and inequality gap",
+    "provider_id": "c1a54357-9324-4d9f-8d60-07241440eb8d"
+  },
+  {
+    "id": "d998cffe-90e0-4ffb-8166-fcae82af46dc",
+    "language": "cy-gb",
+    "sw2_id": 10119,
+    "name": "Arolwg o Incwm Personol (SPI)",
+    "provider_id": "63d3d295-70c3-4542-b938-a9c0d6744a60"
+  },
+  {
+    "id": "d998cffe-90e0-4ffb-8166-fcae82af46dc",
+    "language": "en-gb",
+    "sw2_id": 10119,
+    "name": "Survey of Personal Incomes (SPI)",
+    "provider_id": "63d3d295-70c3-4542-b938-a9c0d6744a60"
+  },
+  {
+    "id": "daafb5dc-2ced-4206-b3d2-25258238a13d",
+    "language": "cy-gb",
+    "sw2_id": 10381,
+    "name": "Amcanestyniadau poblogaeth cenedlaethol ar gyfer Cymru",
+    "provider_id": "d3620b5d-be93-44f7-9289-fe3bf50e78f3"
+  },
+  {
+    "id": "daafb5dc-2ced-4206-b3d2-25258238a13d",
+    "language": "en-gb",
+    "sw2_id": 10381,
+    "name": "National population projections for Wales",
+    "provider_id": "d3620b5d-be93-44f7-9289-fe3bf50e78f3"
+  },
+  {
+    "id": "dd5913a1-1a96-4457-92fa-083a654afbfd",
+    "language": "cy-gb",
+    "sw2_id": 10283,
+    "name": "Data ar gyflymder a thagfeydd",
+    "provider_id": "38f6b745-84bf-4264-a95a-d43c81bf375c"
+  },
+  {
+    "id": "dd5913a1-1a96-4457-92fa-083a654afbfd",
+    "language": "en-gb",
+    "sw2_id": 10283,
+    "name": "Road speed and congestion data",
+    "provider_id": "38f6b745-84bf-4264-a95a-d43c81bf375c"
+  },
+  {
+    "id": "de1471be-c6e8-4cf2-86ea-2ec618432871",
+    "language": "cy-gb",
+    "sw2_id": 10368,
+    "name": "Gwasanaethau Iechyd Meddwl Plant a'r Glasoed Arbenigol (sCAMHS), Penodiad cyntaf amseroedd aros casglu data",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "de1471be-c6e8-4cf2-86ea-2ec618432871",
+    "language": "en-gb",
+    "sw2_id": 10368,
+    "name": "Specialist Child and Adolescent Mental Health Services (sCAMHS), First appointment waiting times data collection",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "df4d8f75-6174-4046-9229-6b6a87831e8f",
+    "language": "cy-gb",
+    "sw2_id": 10127,
+    "name": "Cronfa Ddata Arholiadau Cymru",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "df4d8f75-6174-4046-9229-6b6a87831e8f",
+    "language": "en-gb",
+    "sw2_id": 10127,
+    "name": "Welsh Examinations Database",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "e1211ad9-24b4-49ad-b048-bd09e0629a43",
+    "language": "cy-gb",
+    "sw2_id": 10342,
+    "name": "Dim ffynhonnell ddata benodol",
+    "provider_id": "fdb0eba8-8e65-4cfc-82a4-bbe6f72baf6d"
+  },
+  {
+    "id": "e1211ad9-24b4-49ad-b048-bd09e0629a43",
+    "language": "en-gb",
+    "sw2_id": 10342,
+    "name": "No specific data source",
+    "provider_id": "fdb0eba8-8e65-4cfc-82a4-bbe6f72baf6d"
+  },
+  {
+    "id": "e21e3dbb-5e43-4a19-810a-4cd69d433aa9",
+    "language": "cy-gb",
+    "sw2_id": 10375,
+    "name": "Cyfrifiad 2021",
+    "provider_id": "d3620b5d-be93-44f7-9289-fe3bf50e78f3"
+  },
+  {
+    "id": "e21e3dbb-5e43-4a19-810a-4cd69d433aa9",
+    "language": "en-gb",
+    "sw2_id": 10375,
+    "name": "2021 Census",
+    "provider_id": "d3620b5d-be93-44f7-9289-fe3bf50e78f3"
+  },
+  {
+    "id": "e2c4ef7b-0013-4605-8580-0462ec24abfe",
+    "language": "cy-gb",
+    "sw2_id": 10163,
+    "name": "System adroddiadau damweiniau ffyrdd",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "e2c4ef7b-0013-4605-8580-0462ec24abfe",
+    "language": "en-gb",
+    "sw2_id": 10163,
+    "name": "Reported road accidents system",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "e3ad2503-6e33-445f-93b4-6e0e51767bcc",
+    "language": "cy-gb",
+    "sw2_id": 10097,
+    "name": "Amcangyfrifon poblogaeth canol-blwyddyn",
+    "provider_id": "d3620b5d-be93-44f7-9289-fe3bf50e78f3"
+  },
+  {
+    "id": "e3ad2503-6e33-445f-93b4-6e0e51767bcc",
+    "language": "en-gb",
+    "sw2_id": 10097,
+    "name": "Mid-year population estimates",
+    "provider_id": "d3620b5d-be93-44f7-9289-fe3bf50e78f3"
+  },
+  {
+    "id": "e42fdda7-5fa1-4689-82f4-a52f0503f5ba",
+    "language": "cy-gb",
+    "sw2_id": 10319,
+    "name": "Dangosyddion allbynnau tymor byr",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "e42fdda7-5fa1-4689-82f4-a52f0503f5ba",
+    "language": "en-gb",
+    "sw2_id": 10319,
+    "name": "Short term output indicators",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "e6f41618-d2c7-407b-b833-72661052618d",
+    "language": "cy-gb",
+    "sw2_id": 10308,
+    "name": "Arolwg cenedlaethol cyflwr cynnal a chadw heolydd (NRCMS)",
+    "provider_id": "38f6b745-84bf-4264-a95a-d43c81bf375c"
+  },
+  {
+    "id": "e6f41618-d2c7-407b-b833-72661052618d",
+    "language": "en-gb",
+    "sw2_id": 10308,
+    "name": "National roads maintenance condition survey (NRMCS)",
+    "provider_id": "38f6b745-84bf-4264-a95a-d43c81bf375c"
+  },
+  {
+    "id": "e99f6c72-f8b2-413c-a613-451ef2e212d5",
+    "language": "cy-gb",
+    "sw2_id": 10027,
+    "name": "Casgliad data Gofynion Cyllideb (BR1)",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "e99f6c72-f8b2-413c-a613-451ef2e212d5",
+    "language": "en-gb",
+    "sw2_id": 10027,
+    "name": "Budget requirement (BR1) data collection",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "e9b0efa2-b750-4ed8-93fb-9d9258395d7d",
+    "language": "cy-gb",
+    "sw2_id": 10310,
+    "name": "Ystadegau prawf anadl ar gyfer Lloegr a Chymru",
+    "provider_id": "a5e3097c-a031-45fe-adfd-975d49dc5bed"
+  },
+  {
+    "id": "e9b0efa2-b750-4ed8-93fb-9d9258395d7d",
+    "language": "en-gb",
+    "sw2_id": 10310,
+    "name": "Breath test statistics for England and Wales",
+    "provider_id": "a5e3097c-a031-45fe-adfd-975d49dc5bed"
+  },
+  {
+    "id": "eb49e3e3-5fdc-44d2-ad3c-759755ad9ec7",
+    "language": "cy-gb",
+    "sw2_id": 10042,
+    "name": "Casgliad data am adfywio sector preifat",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "eb49e3e3-5fdc-44d2-ad3c-759755ad9ec7",
+    "language": "en-gb",
+    "sw2_id": 10042,
+    "name": "Private sector renewal data collection",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "ec166e7f-333b-4563-8335-4a49357f34e5",
+    "language": "cy-gb",
+    "sw2_id": 10191,
+    "name": "Data gweinyddol",
+    "provider_id": "e4f9e63b-aa99-4df5-bdee-2f1a407ada8a"
+  },
+  {
+    "id": "ec166e7f-333b-4563-8335-4a49357f34e5",
+    "language": "en-gb",
+    "sw2_id": 10191,
+    "name": "Administrative data",
+    "provider_id": "e4f9e63b-aa99-4df5-bdee-2f1a407ada8a"
+  },
+  {
+    "id": "f082859a-7ed3-46f0-a573-150966a84f67",
+    "language": "cy-gb",
+    "sw2_id": 10096,
+    "name": "Amcanestyniadau poblogaeth canol y flwyddyn ar gyfer ardaloedd Parciau Cenedlaethol",
+    "provider_id": "d3620b5d-be93-44f7-9289-fe3bf50e78f3"
+  },
+  {
+    "id": "f082859a-7ed3-46f0-a573-150966a84f67",
+    "language": "en-gb",
+    "sw2_id": 10096,
+    "name": "Mid-year population estimates for National Park areas",
+    "provider_id": "d3620b5d-be93-44f7-9289-fe3bf50e78f3"
+  },
+  {
+    "id": "f0b22bd2-4758-4506-85c4-550160afe269",
+    "language": "cy-gb",
+    "sw2_id": 10159,
+    "name": "Gyfarwyddiaeth Diogelu a Manteisio ar Wybodaeth",
+    "provider_id": "e850ccdb-79de-4c48-9762-30018a61c7e0"
+  },
+  {
+    "id": "f0b22bd2-4758-4506-85c4-550160afe269",
+    "language": "en-gb",
+    "sw2_id": 10159,
+    "name": "Information Exploitation and Security Directorate",
+    "provider_id": "e850ccdb-79de-4c48-9762-30018a61c7e0"
+  },
+  {
+    "id": "f0be218f-80c2-4e8a-af2a-d76f5eef3a05",
+    "language": "cy-gb",
+    "sw2_id": 10372,
+    "name": "Dim ffynhonnell ddata benodol",
+    "provider_id": "a44e1dc9-f887-4283-ac6d-d692c68e54aa"
+  },
+  {
+    "id": "f0be218f-80c2-4e8a-af2a-d76f5eef3a05",
+    "language": "en-gb",
+    "sw2_id": 10372,
+    "name": "No specific data source",
+    "provider_id": "a44e1dc9-f887-4283-ac6d-d692c68e54aa"
+  },
+  {
+    "id": "f1babc86-4496-49ff-8c3b-f4bab6a5d097",
+    "language": "cy-gb",
+    "sw2_id": 10265,
+    "name": "Cofnodion treth",
+    "provider_id": "63d3d295-70c3-4542-b938-a9c0d6744a60"
+  },
+  {
+    "id": "f1babc86-4496-49ff-8c3b-f4bab6a5d097",
+    "language": "en-gb",
+    "sw2_id": 10265,
+    "name": "Tax records",
+    "provider_id": "63d3d295-70c3-4542-b938-a9c0d6744a60"
+  },
+  {
+    "id": "f224c16a-f283-441c-af61-d4e32a8c274e",
+    "language": "cy-gb",
+    "sw2_id": 10155,
+    "name": "Cyfrifiad 1871, 1901, 1931, 1961-1991",
+    "provider_id": "d3620b5d-be93-44f7-9289-fe3bf50e78f3"
+  },
+  {
+    "id": "f224c16a-f283-441c-af61-d4e32a8c274e",
+    "language": "en-gb",
+    "sw2_id": 10155,
+    "name": "1871, 1901, 1931, 1961-1991 Censuses",
+    "provider_id": "d3620b5d-be93-44f7-9289-fe3bf50e78f3"
+  },
+  {
+    "id": "f322a690-001a-4c4a-b34a-cde9048cf4a1",
+    "language": "cy-gb",
+    "sw2_id": 10268,
+    "name": "Data Cenedlaethol ar Asesu Risg Llifogydd",
+    "provider_id": "071111f8-9931-43fb-bef9-a10165056a82"
+  },
+  {
+    "id": "f322a690-001a-4c4a-b34a-cde9048cf4a1",
+    "language": "en-gb",
+    "sw2_id": 10268,
+    "name": "National Flood Risk Assessment data",
+    "provider_id": "071111f8-9931-43fb-bef9-a10165056a82"
+  },
+  {
+    "id": "f46e2194-42f5-4ea7-ae68-235e009f7ca4",
+    "language": "cy-gb",
+    "sw2_id": 10366,
+    "name": "Lwybr Canser a Amheuir (SCP)",
+    "provider_id": "f57e82cc-9c97-442b-a195-de74f443f36c"
+  },
+  {
+    "id": "f46e2194-42f5-4ea7-ae68-235e009f7ca4",
+    "language": "en-gb",
+    "sw2_id": 10366,
+    "name": "Suspected Cancer Pathway (SCP)",
+    "provider_id": "f57e82cc-9c97-442b-a195-de74f443f36c"
+  },
+  {
+    "id": "f591b173-3594-4e2d-ad7f-41a3b27fb940",
+    "language": "cy-gb",
+    "sw2_id": 10018,
+    "name": "Casgliad data cyllideb refeniw (RA)",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "f591b173-3594-4e2d-ad7f-41a3b27fb940",
+    "language": "en-gb",
+    "sw2_id": 10018,
+    "name": "Revenue budget (RA) data collection",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "f5d04fb2-8910-46f6-9d4f-60943e37b67a",
+    "language": "cy-gb",
+    "sw2_id": 10220,
+    "name": "Arolwg Busnes Blynyddol (ABS)",
+    "provider_id": "d3620b5d-be93-44f7-9289-fe3bf50e78f3"
+  },
+  {
+    "id": "f5d04fb2-8910-46f6-9d4f-60943e37b67a",
+    "language": "en-gb",
+    "sw2_id": 10220,
+    "name": "Annual Business Survey (ABS)",
+    "provider_id": "d3620b5d-be93-44f7-9289-fe3bf50e78f3"
+  },
+  {
+    "id": "f8606255-671b-4f44-9105-7cb761b2665f",
+    "language": "cy-gb",
+    "sw2_id": 10290,
+    "name": "Rhagfyr Cyfrifiad Amaethyddol a Garddwrol",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "f8606255-671b-4f44-9105-7cb761b2665f",
+    "language": "en-gb",
+    "sw2_id": 10290,
+    "name": "December Census of Agriculture and Horticulture",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "f87c9fd5-6a50-4017-8af3-fba4e905bc06",
+    "language": "cy-gb",
+    "sw2_id": 10039,
+    "name": "Casgliad data am ddigartrefedd",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "f87c9fd5-6a50-4017-8af3-fba4e905bc06",
+    "language": "en-gb",
+    "sw2_id": 10039,
+    "name": "Homelessness data collection",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "f92fa1e3-783d-4a31-a424-beec9e4fe4c5",
+    "language": "cy-gb",
+    "sw2_id": 10204,
+    "name": "Arolwg Mynediad i Feddyg Teulu",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "f92fa1e3-783d-4a31-a424-beec9e4fe4c5",
+    "language": "en-gb",
+    "sw2_id": 10204,
+    "name": "GP Access Survey",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "f9f726fd-a31e-4ea3-b29b-527a7cdbdad8",
+    "language": "cy-gb",
+    "sw2_id": 10192,
+    "name": "Canolfan Arolygu Clefydau Trosglwyddadwy",
+    "provider_id": "c1a54357-9324-4d9f-8d60-07241440eb8d"
+  },
+  {
+    "id": "f9f726fd-a31e-4ea3-b29b-527a7cdbdad8",
+    "language": "en-gb",
+    "sw2_id": 10192,
+    "name": "Communicable Disease Surveillance Centre",
+    "provider_id": "c1a54357-9324-4d9f-8d60-07241440eb8d"
+  },
+  {
+    "id": "fc5c322e-9260-413e-8ae1-92b0eae7dd1c",
+    "language": "cy-gb",
+    "sw2_id": 10002,
+    "name": "Casgliad data am stoc a rhenti landlordiaid cymdeithasol",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "fc5c322e-9260-413e-8ae1-92b0eae7dd1c",
+    "language": "en-gb",
+    "sw2_id": 10002,
+    "name": "Social landlord stock and rents data collection",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "fe9408c9-4c78-47f6-aa9c-5a65ceb5b3d6",
+    "language": "cy-gb",
+    "sw2_id": 10380,
+    "name": "Ffurflenni monitro data Dechrau’n Deg",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "fe9408c9-4c78-47f6-aa9c-5a65ceb5b3d6",
+    "language": "en-gb",
+    "sw2_id": 10380,
+    "name": "Flying Start data monitoring returns",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  }
+]
