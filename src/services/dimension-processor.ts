@@ -371,6 +371,7 @@ export const validateNumericDimension = async (
   try {
     await cubeDB.query(pgformat(`SET search_path TO %I;`, revision.id));
   } catch (error) {
+    cubeDB.release();
     logger.error(error, 'Something went wrong trying to link to postgres database');
     return viewErrorGenerators(500, dataset.id, 'patch', 'errors.cube_builder.fact_table_creation_failed', {});
   }
@@ -383,8 +384,10 @@ export const validateNumericDimension = async (
       dimension.factTableColumn
     )
   );
+
+  let savedDimension: Dimension;
+  let preview: ViewDTO | ViewErrDTO;
   if (extractor.type === NumberType.Integer) {
-    let savedDimension: Dimension;
     switch (columnInfo[0].data_type) {
       case 'BIGINT':
       case 'HUGEINT':
@@ -398,16 +401,19 @@ export const validateNumericDimension = async (
       case 'UTINYINT':
         dimension.extractor = extractor;
         savedDimension = await dimension.save();
-        return getPreviewWithNumberExtractor(cubeDB, dataset, savedDimension, tableName);
+        preview = await getPreviewWithNumberExtractor(cubeDB, dataset, savedDimension, tableName);
+        cubeDB.release();
+        return preview;
     }
   } else if (extractor.type === NumberType.Decimal) {
-    let savedDimension: Dimension;
     switch (columnInfo[0].data_type) {
       case 'DOUBLE':
       case 'FLOAT':
         dimension.extractor = extractor;
         savedDimension = await dimension.save();
-        return getPreviewWithNumberExtractor(cubeDB, dataset, savedDimension, tableName);
+        preview = await getPreviewWithNumberExtractor(cubeDB, dataset, savedDimension, tableName);
+        cubeDB.release();
+        return preview;
     }
   }
 
@@ -433,6 +439,7 @@ export const validateNumericDimension = async (
       });
     }
   } catch (error) {
+    cubeDB.release();
     logger.error(error, `Something went wrong trying to validate the data with the following error: ${error}`);
     return viewErrorGenerators(400, dataset.id, 'patch', 'errors.dimension_validation.unknown_error', {});
   }
@@ -441,8 +448,10 @@ export const validateNumericDimension = async (
   dimension.joinColumn = null;
   dimension.type = DimensionType.Numeric;
   dimension.extractor = extractor;
-  const savedDimension = await dimension.save();
-  return getPreviewWithNumberExtractor(cubeDB, dataset, savedDimension, tableName);
+  savedDimension = await dimension.save();
+  preview = await getPreviewWithNumberExtractor(cubeDB, dataset, savedDimension, tableName);
+  cubeDB.release();
+  return preview;
 };
 
 export const validateUpdatedDateDimension = async (
