@@ -16,7 +16,7 @@ export class UserName1754479124622 implements MigrationInterface {
 
   public async down(queryRunner: QueryRunner): Promise<void> {
     await queryRunner.query(`ALTER TABLE "user" DROP COLUMN "name"`);
-    await queryRunner.query(`ALTER TABLE "user" ADD "given_ame" text`);
+    await queryRunner.query(`ALTER TABLE "user" ADD "given_name" text`);
     await queryRunner.query(`ALTER TABLE "user" ADD "family_name" text`);
   }
 }
