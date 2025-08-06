@@ -12,9 +12,7 @@ export class UserDTO {
   provider: string;
   provider_user_id?: string;
   email: string;
-  given_name?: string;
-  family_name?: string;
-  full_name?: string;
+  name?: string;
   global_roles: GlobalRole[];
   groups: UserGroupWithRolesDTO[];
   status: UserStatus;
@@ -29,9 +27,7 @@ export class UserDTO {
     dto.provider = user.provider;
     dto.provider_user_id = user.providerUserId;
     dto.email = user.email;
-    dto.given_name = user.givenName;
-    dto.family_name = user.familyName;
-    dto.full_name = user.name;
+    dto.name = user.name;
     dto.status = user.status;
     dto.created_at = user.createdAt?.toISOString();
     dto.updated_at = user.updatedAt?.toISOString();
@@ -55,7 +51,7 @@ export class UserDTO {
 
     dto.id = user.id;
     dto.email = user.email;
-    dto.full_name = user.name;
+    dto.name = user.name;
     dto.status = user.status;
 
     dto.global_roles = user.globalRoles?.map((role) => role as GlobalRole) || [];

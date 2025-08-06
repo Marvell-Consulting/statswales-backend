@@ -195,13 +195,13 @@ export const DatasetRepository = dataSource.getRepository(Dataset).extend({
     query.addSelect(
       `
       CASE
-        WHEN u.givenName IS NOT NULL AND u.familyName IS NOT NULL THEN CONCAT(u.givenName, ' ', u.familyName)
+        WHEN u.name IS NOT NULL THEN u.name
         ELSE u.email
       END
     `,
       'revision_by'
     );
-    query.addGroupBy('u.givenName, u.familyName, u.email');
+    query.addGroupBy('u.id');
 
     const offset = (page - 1) * limit;
     const countQuery = query.clone();

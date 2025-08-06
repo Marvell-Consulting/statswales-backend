@@ -43,7 +43,7 @@ export const generateSimulatedEvents = (dataset: Dataset): EventLog[] => {
       entity: 'dataset',
       action: 'publish',
       createdAt: firstPublishedDate,
-      user: { givenName: 'system' }
+      user: { name: 'system' }
     });
 
     events.push(goLiveEvent);
@@ -60,7 +60,7 @@ export const generateSimulatedEvents = (dataset: Dataset): EventLog[] => {
         action: 'publish',
         data: { revisionIndex: revision.revisionIndex },
         createdAt: revisionPublishedDate,
-        user: { givenName: 'system' }
+        user: { name: 'system' }
       });
       events.push(revisionPublishedEvent);
     }
