@@ -1,5 +1,6 @@
 import { In, JsonContains } from 'typeorm';
 
+import { format as pgformat } from '@scaleleap/pg-format';
 import { RevisionMetadataDTO } from '../dtos/revistion-metadata-dto';
 import { TranslationDTO } from '../dtos/translations-dto';
 import { Dataset } from '../entities/dataset/dataset';
@@ -43,6 +44,8 @@ import {
 } from '../utils/dataset-history';
 import { StorageService } from '../interfaces/storage-service';
 import { TempFile } from '../interfaces/temp-file';
+import { dbManager } from '../db/database-manager';
+import { getFileService } from '../utils/get-file-service';
 
 export class DatasetService {
   lang: Locale;
@@ -335,12 +338,33 @@ export class DatasetService {
   }
 
   async deleteDraftRevision(datasetId: string, revisionId: string): Promise<void> {
-    const dataset = await DatasetRepository.getById(datasetId, { draftRevision: { previousRevision: true } });
+    const dataset = await DatasetRepository.getById(datasetId, {
+      draftRevision: { dataTable: true, previousRevision: true }
+    });
+
     const draft = dataset.draftRevision;
 
     if (!draft || draft.id !== revisionId) {
       logger.error(`Dataset does not have a draft revision or the revision id does not match the current draft`);
       throw new BadRequestException('errors.delete_draft_revision.no_draft_revision');
+    }
+
+    const cubeDB = dbManager.getCubeDataSource().createQueryRunner();
+    const fileService = getFileService();
+    try {
+      logger.warn(`Deleting draft revision ${revisionId} from cube database and data lake...`);
+      await cubeDB.query(pgformat('DROP SCHEMA IF EXISTS %I CASCADE', revisionId));
+      if (draft.dataTable?.id) {
+        await cubeDB.query(pgformat('DROP TABLE IF EXISTS data_tables.%I;', draft.dataTable?.id));
+        await fileService.delete(draft.dataTable.id, datasetId);
+      }
+    } catch (err) {
+      logger.warn(
+        err,
+        `Something went wrong trying to clean up cube database and data lake for revision ${revisionId}`
+      );
+    } finally {
+      await cubeDB.release();
     }
 
     dataset.draftRevision = null;
