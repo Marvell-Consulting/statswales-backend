@@ -551,6 +551,7 @@ export const createAndValidateDateDimension = async (
   try {
     await cubeDB.query(pgformat(`SET search_path TO %I;`, revision.id));
   } catch (error) {
+    cubeDB.release();
     logger.error(error, 'Unable to connect to postgres schema for revision.');
     return viewErrorGenerators(500, dataset.id, 'patch', 'errors.dimension_validation.lookup_table_loading_failed', {
       mismatch: false
@@ -679,13 +680,14 @@ export const createAndValidateDateDimension = async (
     return viewGenerator(currentDataset, 1, pageInfo, 10, 1, headers, dataArray);
   } catch (error) {
     logger.error(error, 'Something went wrong trying to get preview of date dimension lookup table.');
-    cubeDB.release();
     return viewErrorGenerators(500, dataset.id, 'patch', 'errors.dimension_validation.unknown_error', {
       extractor,
       totalNonMatching: preview.length,
       nonMatchingValues: [],
       mismatch: false
     });
+  } finally {
+    cubeDB.release();
   }
 };
 
@@ -898,6 +900,7 @@ export const getDimensionPreview = async (
   try {
     await cubeDB.query(pgformat(`SET search_path TO %I;`, dataset.draftRevision!.id));
   } catch (error) {
+    cubeDB.release();
     logger.error(error, 'Unable to connect to postgres schema for revision.');
     return viewErrorGenerators(500, dataset.id, 'patch', 'errors.dimension_validation.lookup_table_loading_failed', {
       mismatch: false
