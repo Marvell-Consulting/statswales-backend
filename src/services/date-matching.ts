@@ -187,7 +187,7 @@ function periodTableCreator(
   let year = parseISO(`${startYear}-${type.start}`);
   const stdTimezoneOfferset = (): number => {
     const jan = new Date(year.getFullYear(), 0, 1);
-    const jul = new Date(year.getFullYear(), 6, 0);
+    const jul = new Date(year.getFullYear(), 6, 1);
     return Math.max(jan.getTimezoneOffset(), jul.getTimezoneOffset());
   };
 
