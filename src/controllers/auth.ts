@@ -66,38 +66,6 @@ export const loginLocal: RequestHandler = async (req, res) => {
   }
 };
 
-export const loginGoogle: RequestHandler = (req, res, next) => {
-  logger.debug('attempting to authenticate with Google...');
-
-  const returnURL = `${config.frontend.url}/auth/callback`;
-
-  passport.authenticate(AuthProvider.Google, (err: Error, user: User, info: Record<string, string>) => {
-    if (err || !user) {
-      const errorMessage = err?.message || info?.message || 'unknown error';
-      logger.error(`google auth returned an error: ${errorMessage}`);
-      res.redirect(`${returnURL}?error=provider`);
-      return;
-    }
-    req.login(user, { session: false }, (error) => {
-      if (error) {
-        logger.error(`error logging in: ${error}`);
-        res.redirect(`${returnURL}?error=login`);
-        return;
-      }
-
-      logger.info('google auth successful, creating JWT and returning user to the frontend');
-
-      const payload = { user: UserDTO.fromUserForJWT(user) };
-      const { secret, expiresIn, secure } = config.auth.jwt;
-      const token = jwt.sign(payload, secret, { expiresIn });
-      checkTokenFitsInCookie(token);
-
-      res.cookie('jwt', token, { secure, httpOnly: true, domain });
-      res.redirect(returnURL);
-    });
-  })(req, res, next);
-};
-
 export const loginEntraID: RequestHandler = (req, res, next) => {
   logger.debug('attempting to authenticate with EntraID...');
 
