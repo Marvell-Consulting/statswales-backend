@@ -201,7 +201,7 @@ export const DatasetRepository = dataSource.getRepository(Dataset).extend({
     `,
       'revision_by'
     );
-    query.addGroupBy('u.id, u.name, u.email');
+    query.addGroupBy('u.id');
 
     const offset = (page - 1) * limit;
     const countQuery = query.clone();
