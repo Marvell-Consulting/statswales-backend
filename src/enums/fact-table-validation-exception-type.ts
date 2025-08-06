@@ -9,5 +9,6 @@ export enum FactTableValidationExceptionType {
   DuplicateFact = 'duplicate_fact',
   IncompleteFact = 'incomplete_fact',
   UnknownError = 'unknown_error',
-  UnknownFileType = 'unknown_file_type'
+  UnknownFileType = 'unknown_file_type',
+  UnmatchedColumns = 'unmatched_columns'
 }
