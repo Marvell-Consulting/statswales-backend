@@ -7,7 +7,8 @@ export class UserName1754479124622 implements MigrationInterface {
     await queryRunner.query(`ALTER TABLE "user" ADD "name" text`);
 
     await queryRunner.query(
-      `UPDATE "user" SET "name" = COALESCE("given_name", '') || ' ' || COALESCE("family_name", '')`
+      `UPDATE "user" SET "name" = COALESCE("given_name", '') || ' ' || COALESCE("family_name", '')
+      WHERE "given_name" IS NOT NULL OR "family_name" IS NOT NULL`
     );
 
     await queryRunner.query(`ALTER TABLE "user" DROP COLUMN "given_name"`);
