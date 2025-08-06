@@ -185,16 +185,9 @@ function periodTableCreator(
   const type = yearType(dateFormat.type, dateFormat.startDay, dateFormat.startMonth);
 
   let year = parseISO(`${startYear}-${type.start}`);
-  const stdTimezoneOfferset = (): number => {
-    const jan = new Date(year.getFullYear(), 0, 1);
-    const jul = new Date(year.getFullYear(), 6, 1);
-    return Math.max(jan.getTimezoneOffset(), jul.getTimezoneOffset());
-  };
-
-  const isBSTObserved = (): boolean => {
   const stdTimezoneOffset = (): number => {
     const jan = new Date(year.getFullYear(), 0, 1);
-    const jul = new Date(year.getFullYear(), 6, 0);
+    const jul = new Date(year.getFullYear(), 6, 1);
     return Math.max(jan.getTimezoneOffset(), jul.getTimezoneOffset());
   };
 
