@@ -153,8 +153,9 @@ export const deleteDraftDatasetById = async (req: Request, res: Response, next: 
     draftRevision: { dataTable: true, previousRevision: true }
   });
   const draft = datasetWithDraftAndDimensions.draftRevision;
-  const cubeDB = dbManager.getCubeDataSource().createQueryRunner();
+
   if (draft) {
+    const cubeDB = dbManager.getCubeDataSource().createQueryRunner();
     try {
       await cubeDB.query(pgformat('DROP SCHEMA IF EXISTS %I CASCADE', draft.id));
       if (draft.dataTable?.id) {
@@ -167,9 +168,11 @@ export const deleteDraftDatasetById = async (req: Request, res: Response, next: 
       }
     } catch (err) {
       logger.warn(err, `Failed to clean up cube database when deleting draft revision ${draft.id}`);
+    } finally {
+      await cubeDB.release();
     }
   }
-  await cubeDB.release();
+
   await DatasetRepository.deleteById(res.locals.datasetId);
   res.status(202);
   res.end();
