@@ -31,11 +31,8 @@ export class User extends BaseEntity {
   @Column({ name: 'email', type: 'text', nullable: false })
   email: string;
 
-  @Column({ name: 'given_name', type: 'text', nullable: true })
-  givenName?: string;
-
-  @Column({ name: 'family_name', type: 'text', nullable: true })
-  familyName?: string;
+  @Column({ name: 'name', type: 'text', nullable: true })
+  name?: string;
 
   @OneToMany(() => UserGroupRole, (userGroupRole) => userGroupRole.user, { cascade: true })
   groupRoles: UserGroupRole[];
@@ -61,8 +58,4 @@ export class User extends BaseEntity {
 
   @Column({ name: 'last_login_at', type: 'timestamptz', nullable: true })
   lastLoginAt: Date;
-
-  get name(): string | undefined {
-    return `${this.givenName || ''} ${this.familyName || ''}`.trim() || undefined;
-  }
 }

@@ -24,8 +24,7 @@ const user: DeepPartial<User> = {
   id: 'fceaeab9-d515-4f90-ba25-38ffb3dab3b9',
   provider: 'entraid',
   providerUserId: 'seed_publisher_1',
-  givenName: 'Seed',
-  familyName: 'Publisher',
+  name: 'Seed Publisher',
   email: 'seed.publisher@example.com',
   groupRoles: [
     {

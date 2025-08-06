@@ -124,10 +124,6 @@ const initEntraId = async (userRepository: Repository<User>, entraIdConfig: Entr
         }
 
         try {
-          // EntraID seems to only provide full name, splitting it this way might not give us the correct
-          // given/family name order depending on the user's culture
-          const [givenName, familyName] = userInfo.name ? userInfo.name.split(' ') : [undefined, undefined];
-
           logger.debug('checking if user has previously logged in...');
 
           const existingUserById = await userRepository.findOne({
@@ -144,8 +140,7 @@ const initEntraId = async (userRepository: Repository<User>, entraIdConfig: Entr
             await userRepository
               .merge(existingUserById, {
                 email: userInfo.email.toLowerCase(),
-                givenName,
-                familyName,
+                name: userInfo.name,
                 lastLoginAt: new Date()
               })
               .save();
@@ -167,8 +162,7 @@ const initEntraId = async (userRepository: Repository<User>, entraIdConfig: Entr
               .merge(existingUserByEmail, {
                 provider: AuthProvider.EntraId,
                 providerUserId: userInfo.sub,
-                givenName,
-                familyName,
+                name: userInfo.name,
                 lastLoginAt: new Date()
               })
               .save();
