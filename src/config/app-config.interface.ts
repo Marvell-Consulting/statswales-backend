@@ -20,11 +20,6 @@ export interface EntraIdConfig {
   clientSecret: string;
 }
 
-export interface GoogleConfig {
-  clientId: string;
-  clientSecret: string;
-}
-
 export interface AppConfig {
   env: AppEnv;
   frontend: {
@@ -72,7 +67,6 @@ export interface AppConfig {
   auth: {
     providers: AuthProvider[];
     jwt: JWTConfig;
-    google: GoogleConfig;
     entraid: EntraIdConfig;
   };
   storage: {
@@ -104,4 +98,4 @@ export interface AppConfig {
 
 // list any optional properties here so we can ignore missing values when we check the config on boot
 // it would be nice to get them directly from the interface, but interfaces are compile-time only
-export const optionalProperties = ['redisUrl', 'redisPassword', 'google', 'entraid', 'blob', 'datalake'];
+export const optionalProperties = ['redisUrl', 'redisPassword', 'entraid', 'blob', 'datalake'];

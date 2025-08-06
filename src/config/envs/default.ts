@@ -61,10 +61,6 @@ export const getDefaultConfig = (): AppConfig => {
         secure: true,
         cookieDomain: process.env.JWT_COOKIE_DOMAIN!
       },
-      google: {
-        clientId: process.env.GOOGLE_CLIENT_ID!,
-        clientSecret: process.env.GOOGLE_CLIENT_SECRET!
-      },
       entraid: {
         url: process.env.ENTRAID_URL!,
         clientId: process.env.ENTRAID_CLIENT_ID!,

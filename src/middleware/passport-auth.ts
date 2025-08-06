@@ -1,6 +1,5 @@
 import passport from 'passport';
 import { Issuer, Strategy as OpenIdStrategy, TokenSet, UserinfoResponse } from 'openid-client';
-import { Strategy as GoogleStrategy } from 'passport-google-oauth20';
 import { Strategy as JWTStrategy, ExtractJwt } from 'passport-jwt';
 import { DataSource, Repository } from 'typeorm';
 import { isEqual } from 'lodash';
@@ -12,7 +11,7 @@ import { AuthProvider } from '../enums/auth-providers';
 import { asyncLocalStorage } from '../services/async-local-storage';
 import { UserDTO } from '../dtos/user/user-dto';
 import { getPermissionsForUserDTO } from '../utils/get-permissions-for-user';
-import { EntraIdConfig, GoogleConfig, JWTConfig } from '../config/app-config.interface';
+import { EntraIdConfig, JWTConfig } from '../config/app-config.interface';
 
 const config = appConfig();
 
@@ -33,15 +32,6 @@ export const initPassport = async (dataSource: DataSource): Promise<void> => {
       logger.debug('EntraID auth initialized');
     } catch (error) {
       logger.error(error, 'could not initialize EntraId auth');
-    }
-  }
-
-  if (config.auth.providers.includes(AuthProvider.Google)) {
-    try {
-      await initGoogle(userRepository, config.auth.google);
-      logger.debug('Google auth initialized');
-    } catch (error) {
-      logger.error(error, 'could not initialize Google auth');
     }
   }
 
@@ -179,90 +169,6 @@ const initEntraId = async (userRepository: Repository<User>, entraIdConfig: Entr
                 providerUserId: userInfo.sub,
                 givenName,
                 familyName,
-                lastLoginAt: new Date()
-              })
-              .save();
-
-            done(null, existingUserByEmail);
-            return;
-          }
-
-          logger.error('No matching user found, cannot log in');
-          done(null, undefined, { message: 'User not recognised' });
-          return;
-        } catch (error) {
-          logger.error(error);
-          done(null, undefined, { message: 'Unknown error' });
-        }
-      }
-    )
-  );
-};
-
-const initGoogle = async (userRepository: Repository<User>, googleConfig: GoogleConfig): Promise<void> => {
-  if (!googleConfig.clientId || !googleConfig.clientSecret) {
-    throw new Error('Google configuration is missing');
-  }
-
-  passport.use(
-    AuthProvider.Google,
-    new GoogleStrategy(
-      {
-        clientID: googleConfig.clientId,
-        clientSecret: googleConfig.clientSecret,
-        callbackURL: `${config.backend.url}/auth/google/callback`,
-        scope: ['openid', 'profile', 'email']
-      },
-      async (accessToken, refreshToken, profile, done): Promise<void> => {
-        logger.debug('auth callback from google received');
-
-        if (!profile?.id || !profile?._json?.email) {
-          logger.error('google auth failed: account is missing user id or email address and we need both');
-          done(null, undefined, { message: 'google account does not have a user id or email, cannot login' });
-          return;
-        }
-
-        try {
-          logger.debug('checking if user has previously logged in...');
-          const existingUserById = await userRepository.findOne({
-            where: {
-              provider: AuthProvider.Google,
-              providerUserId: profile?.id
-            },
-            relations: { groupRoles: { group: { metadata: true } } }
-          });
-
-          if (existingUserById) {
-            logger.debug('user found by provider id, updating user record with latest details from google');
-
-            await userRepository
-              .merge(existingUserById, {
-                email: profile._json.email.toLowerCase(),
-                givenName: profile.name?.givenName,
-                familyName: profile.name?.familyName,
-                lastLoginAt: new Date()
-              })
-              .save();
-
-            done(null, existingUserById);
-            return;
-          }
-
-          logger.debug('no previous login found, falling back to email...');
-          const existingUserByEmail = await userRepository.findOne({
-            where: { email: profile._json.email.toLowerCase() },
-            relations: { groupRoles: { group: { metadata: true } } }
-          });
-
-          if (existingUserByEmail) {
-            logger.debug('user found by email, associating user record with google account');
-
-            await userRepository
-              .merge(existingUserByEmail, {
-                provider: AuthProvider.Google,
-                providerUserId: profile.id,
-                givenName: profile.name?.givenName,
-                familyName: profile.name?.familyName,
                 lastLoginAt: new Date()
               })
               .save();
