@@ -58,6 +58,8 @@ import { TempFile } from '../interfaces/temp-file';
 import { DEFAULT_PAGE_SIZE } from '../utils/page-defaults';
 import { PublisherDTO } from '../dtos/publisher-dto';
 import { UserGroupRepository } from '../repositories/user-group';
+import { dbManager } from '../db/database-manager';
+import { format as pgformat } from '@scaleleap/pg-format/lib/pg-format';
 
 export const listUserDatasets = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
@@ -145,6 +147,32 @@ export const deleteDraftDatasetById = async (req: Request, res: Response, next: 
     return;
   }
   await req.fileService.deleteDirectory(req.params.dataset_id);
+
+  const datasetWithDraftAndDimensions = await DatasetRepository.getById(dataset.id, {
+    dimensions: { lookupTable: true },
+    draftRevision: { dataTable: true, previousRevision: true }
+  });
+  const draft = datasetWithDraftAndDimensions.draftRevision;
+
+  if (draft) {
+    const cubeDB = dbManager.getCubeDataSource().createQueryRunner();
+    try {
+      await cubeDB.query(pgformat('DROP SCHEMA IF EXISTS %I CASCADE', draft.id));
+      if (draft.dataTable?.id) {
+        await cubeDB.query(pgformat('DROP TABLE IF EXISTS data_tables.%I;', draft.dataTable?.id));
+      }
+      for (const dim of datasetWithDraftAndDimensions.dimensions) {
+        if (dim.lookupTable) {
+          await cubeDB.query(pgformat('DROP TABLE IF EXISTS lookup_tables.%I;', dim.lookupTable?.id));
+        }
+      }
+    } catch (err) {
+      logger.warn(err, `Failed to clean up cube database when deleting draft revision ${draft.id}`);
+    } finally {
+      await cubeDB.release();
+    }
+  }
+
   await DatasetRepository.deleteById(res.locals.datasetId);
   res.status(202);
   res.end();
