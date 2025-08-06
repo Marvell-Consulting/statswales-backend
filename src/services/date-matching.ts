@@ -192,7 +192,14 @@ function periodTableCreator(
   };
 
   const isBSTObserved = (): boolean => {
-    return year.getTimezoneOffset() < stdTimezoneOfferset();
+  const stdTimezoneOffset = (): number => {
+    const jan = new Date(year.getFullYear(), 0, 1);
+    const jul = new Date(year.getFullYear(), 6, 0);
+    return Math.max(jan.getTimezoneOffset(), jul.getTimezoneOffset());
+  };
+
+  const isBSTObserved = (): boolean => {
+    return year.getTimezoneOffset() < stdTimezoneOffset();
   };
 
   if (isBSTObserved()) {
