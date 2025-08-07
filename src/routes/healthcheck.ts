@@ -64,44 +64,48 @@ healthcheck.get('/jwt', passport.authenticate('jwt', { session: false }), (req: 
 });
 
 healthcheck.get('/db', async (req: Request, res: Response) => {
-  const appPool = await dbManager.getAppPool();
-  const cubePool = await dbManager.getCubePool();
+  try {
+    const appPool = dbManager.getAppPool();
+    const cubePool = dbManager.getCubePool();
 
-  if (!appPool || !cubePool) {
-    res.status(500).json({ error: 'Database connection pools not found' });
-    return;
-  }
-
-  res.json({
-    appPool: {
-      name: appPool.options.application_name,
-      connectionTimeout: `${appPool.options.connectionTimeoutMillis}ms`,
-      idleTimeout: `${appPool.options.idleTimeoutMillis}ms`,
-      clients: {
-        min: appPool.options.min,
-        max: appPool.options.max,
-        idle: appPool.idleCount,
-        waiting: appPool.waitingCount,
-        expired: appPool.expiredCount,
-        total: appPool.totalCount,
-        isFull: appPool.totalCount >= appPool.options.max
-      }
-    },
-    cubePool: {
-      name: cubePool.options.application_name,
-      connectionTimeout: `${cubePool.options.connectionTimeoutMillis}ms`,
-      idleTimeout: `${cubePool.options.idleTimeoutMillis}ms`,
-      clients: {
-        min: cubePool.options.min,
-        max: cubePool.options.max,
-        idle: cubePool.idleCount,
-        waiting: cubePool.waitingCount,
-        expired: cubePool.expiredCount,
-        total: cubePool.totalCount,
-        isFull: cubePool.totalCount >= cubePool.options.max
-      }
+    if (!appPool || !cubePool) {
+      throw new Error('Database pools are not available');
     }
-  });
+
+    res.json({
+      appPool: {
+        name: appPool.options.application_name,
+        connectionTimeout: `${appPool.options.connectionTimeoutMillis}ms`,
+        idleTimeout: `${appPool.options.idleTimeoutMillis}ms`,
+        clients: {
+          min: appPool.options.min,
+          max: appPool.options.max,
+          idle: appPool.idleCount,
+          waiting: appPool.waitingCount,
+          expired: appPool.expiredCount,
+          total: appPool.totalCount,
+          isFull: appPool.totalCount >= appPool.options.max
+        }
+      },
+      cubePool: {
+        name: cubePool.options.application_name,
+        connectionTimeout: `${cubePool.options.connectionTimeoutMillis}ms`,
+        idleTimeout: `${cubePool.options.idleTimeoutMillis}ms`,
+        clients: {
+          min: cubePool.options.min,
+          max: cubePool.options.max,
+          idle: cubePool.idleCount,
+          waiting: cubePool.waitingCount,
+          expired: cubePool.expiredCount,
+          total: cubePool.totalCount,
+          isFull: cubePool.totalCount >= cubePool.options.max
+        }
+      }
+    });
+  } catch (error) {
+    logger.error(error, 'Error fetching database pool information');
+    res.status(500).json({ error: 'Failed to fetch database pool information' });
+  }
 });
 
 export const healthcheckRouter = healthcheck;

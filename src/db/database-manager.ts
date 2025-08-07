@@ -62,13 +62,13 @@ export class DatabaseManager {
     return new EntitySubscriber(this.appDataSource);
   }
 
-  async getAppPool(): Promise<Pool> {
+  getAppPool(): Pool {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const postgresDriver = this.getAppDataSource().driver as any;
     return postgresDriver.master as Pool;
   }
 
-  async getCubePool(): Promise<Pool> {
+  getCubePool(): Pool {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const postgresDriver = this.getCubeDataSource().driver as any;
     return postgresDriver.master as Pool;
