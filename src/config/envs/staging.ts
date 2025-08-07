@@ -1,3 +1,5 @@
+import { Level } from 'pino';
+
 import { AuthProvider } from '../../enums/auth-providers';
 import { AppConfig } from '../app-config.interface';
 import { defineConfig } from '../define-config';
@@ -8,6 +10,9 @@ import { AppEnv } from '../env.enum';
 export function getStagingConfig(): AppConfig {
   return defineConfig({
     env: AppEnv.Staging,
+    logger: {
+      level: (process.env.LOG_LEVEL as Level) || 'debug'
+    },
     auth: {
       providers: [AuthProvider.EntraId],
       jwt: {
