@@ -3,7 +3,7 @@ import passport from 'passport';
 import { isString } from 'lodash';
 
 import { User } from '../entities/user/user';
-import { dataSource } from '../db/data-source';
+import { dbManager } from '../db/database-manager';
 import { logger } from '../utils/logger';
 import { SUPPORTED_LOCALES } from '../middleware/translation';
 import { StorageService } from '../interfaces/storage-service';
@@ -13,7 +13,7 @@ import { UserDTO } from '../dtos/user/user-dto';
 const healthcheck = Router();
 
 const checkDb = async (): Promise<boolean> => {
-  await dataSource.manager.query('SELECT 1 AS connected');
+  await dbManager.getAppDataSource().manager.query('SELECT 1 AS connected');
   return true;
 };
 
@@ -54,13 +54,58 @@ healthcheck.get('/ready', stillAlive);
 healthcheck.get('/live', stillAlive);
 
 // for testing language detection / switching is working
-healthcheck.get('/language', (req, res) => {
+healthcheck.get('/language', (req: Request, res: Response) => {
   res.json({ lang: req.language, supported: SUPPORTED_LOCALES });
 });
 
 // for testing jwt auth is working
-healthcheck.get('/jwt', passport.authenticate('jwt', { session: false }), (req, res) => {
+healthcheck.get('/jwt', passport.authenticate('jwt', { session: false }), (req: Request, res: Response) => {
   res.json({ message: 'success', user: UserDTO.fromUser(req.user as User, req.language as Locale) });
+});
+
+healthcheck.get('/db', async (req: Request, res: Response) => {
+  try {
+    const appPool = dbManager.getAppPool();
+    const cubePool = dbManager.getCubePool();
+
+    if (!appPool || !cubePool) {
+      throw new Error('Database pools are not available');
+    }
+
+    res.json({
+      appPool: {
+        name: appPool.options.application_name,
+        connectionTimeout: `${appPool.options.connectionTimeoutMillis}ms`,
+        idleTimeout: `${appPool.options.idleTimeoutMillis}ms`,
+        clients: {
+          min: appPool.options.min,
+          max: appPool.options.max,
+          idle: appPool.idleCount,
+          waiting: appPool.waitingCount,
+          expired: appPool.expiredCount,
+          total: appPool.totalCount,
+          isFull: appPool.totalCount >= appPool.options.max
+        }
+      },
+      cubePool: {
+        name: cubePool.options.application_name,
+        connectionTimeout: `${cubePool.options.connectionTimeoutMillis}ms`,
+        idleTimeout: `${cubePool.options.idleTimeoutMillis}ms`,
+        clients: {
+          min: cubePool.options.min,
+          max: cubePool.options.max,
+          idle: cubePool.idleCount,
+          waiting: cubePool.waitingCount,
+          expired: cubePool.expiredCount,
+          total: cubePool.totalCount,
+          isFull: cubePool.totalCount >= cubePool.options.max
+        }
+      }
+    });
+  } catch (error) {
+    logger.error(error, 'Error fetching database pool information');
+    res.status(500).json({ error: 'Failed to fetch database pool information' });
+  }
 });
 
 export const healthcheckRouter = healthcheck;
