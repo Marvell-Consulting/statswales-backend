@@ -2,6 +2,7 @@ import 'reflect-metadata';
 
 import { Logger } from 'pino';
 import { DataSource } from 'typeorm';
+import { Pool } from 'pg';
 
 import { dataSource } from './data-source';
 import { cubeDataSource } from './cube-source';
@@ -59,6 +60,18 @@ export class DatabaseManager {
 
   async initEntitySubscriber(): Promise<EntitySubscriber> {
     return new EntitySubscriber(this.appDataSource);
+  }
+
+  async getAppPool(): Promise<Pool> {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const postgresDriver = this.getAppDataSource().driver as any;
+    return postgresDriver.master as Pool;
+  }
+
+  async getCubePool(): Promise<Pool> {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const postgresDriver = this.getCubeDataSource().driver as any;
+    return postgresDriver.master as Pool;
   }
 }
 
