@@ -186,7 +186,12 @@ export const DatasetRepository = dataSource.getRepository(Dataset).extend({
     await dataSource.getRepository(FactTableColumn).save(factColumns);
   },
 
-  async listAll(locale: Locale, page: number, limit: number): Promise<ResultsetWithCount<DatasetListItemDTO>> {
+  async listAll(
+    locale: Locale,
+    page: number,
+    limit: number,
+    search?: string
+  ): Promise<ResultsetWithCount<DatasetListItemDTO>> {
     logger.debug(`Listing all datasets, language ${locale}, page ${page}, limit ${limit}`);
     const lang = locale.includes('en') ? Locale.EnglishGb : Locale.WelshGb;
 
@@ -202,6 +207,10 @@ export const DatasetRepository = dataSource.getRepository(Dataset).extend({
       'revision_by'
     );
     query.addGroupBy('u.id');
+
+    if (search) {
+      query.andWhere('r.title ILIKE :search', { search: `%${search}%` });
+    }
 
     const offset = (page - 1) * limit;
     const countQuery = query.clone();
