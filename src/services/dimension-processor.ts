@@ -22,7 +22,6 @@ import { FactTableColumn } from '../entities/dataset/fact-table-column';
 import { MeasureRow } from '../entities/dataset/measure-row';
 import { MeasureMetadata } from '../entities/dataset/measure-metadata';
 import { dateDimensionReferenceTableCreator, DateReferenceDataItem } from './date-matching';
-import { getReferenceDataDimensionPreview } from './reference-data-handler';
 import { NumberExtractor, NumberType } from '../extractors/number-extractor';
 import { viewErrorGenerators, viewGenerator } from '../utils/view-error-generators';
 import { getFileService } from '../utils/get-file-service';
@@ -929,11 +928,6 @@ export const getDimensionPreview = async (
         case DimensionType.LookupTable:
           logger.debug('Previewing a lookup table');
           viewDto = await getLookupPreviewWithExtractor(cubeDB, dataset, dimension, lang);
-          break;
-
-        case DimensionType.ReferenceData:
-          logger.debug('Previewing a lookup table');
-          viewDto = await getReferenceDataDimensionPreview(cubeDB, dataset, dimension, tableName, lang);
           break;
 
         case DimensionType.Text:

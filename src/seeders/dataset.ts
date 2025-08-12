@@ -110,9 +110,7 @@ const approvedDataset: DeepPartial<Dataset> = {
     },
     {
       id: 'fe7f8759-1ab3-484b-8d35-273d82786e87',
-      type: DimensionType.ReferenceData,
-      extractor: { categories: ['Geog/ITL1', 'Geog/LA'] },
-      joinColumn: 'reference_data.item_id',
+      type: DimensionType.Text,
       factTableColumn: 'AreaCode',
       isSliceDimension: false
     },

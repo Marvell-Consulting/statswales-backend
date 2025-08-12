@@ -19,10 +19,8 @@ import { DatasetRepository } from '../repositories/dataset';
 import {
   makeCubeSafeString,
   updateFactTableValidator,
-  loadReferenceDataIntoCube,
   createCubeMetadataTable,
   createLookupTableDimension,
-  loadCorrectReferenceDataIntoReferenceDataTable,
   createDateDimension
 } from './cube-handler';
 import { validateUpdatedDateDimension } from './dimension-processor';
@@ -122,9 +120,7 @@ export async function attachUpdateDataTableToRevision(
   }
 
   const dimensionUpdateTasks: DimensionUpdateTask[] = [];
-  if (dataset.dimensions.find((dimension) => dimension.type === DimensionType.ReferenceData)) {
-    await loadReferenceDataIntoCube(buildId);
-  }
+
   for (const dimension of dataset.dimensions) {
     const factTableColumn = dataset.factTable.find(
       (factTableColumn) =>
@@ -142,10 +138,6 @@ export async function attachUpdateDataTableToRevision(
           logger.debug(`Validating lookup table dimension: ${dimension.id}`);
           await createLookupTableDimension(cubeDB, dataset, dimension, factTableColumn);
           await checkForReferenceErrors(cubeDB, dataset, dimension, factTableColumn);
-          break;
-        case DimensionType.ReferenceData:
-          logger.debug(`Validating reference data dimension: ${dimension.id}`);
-          await loadCorrectReferenceDataIntoReferenceDataTable(cubeDB, dimension);
           break;
         case DimensionType.DatePeriod:
         case DimensionType.Date:

@@ -150,8 +150,7 @@ const sureStartShortDimensionDescriptor = [
   },
   {
     columnName: 'AreaCode',
-    dimensionType: DimensionType.ReferenceData,
-    extractor: { categories: ['Geog/ITL1', 'Geog/LA'] }
+    dimensionType: DimensionType.Text
   },
   {
     columnName: 'RowRef',
