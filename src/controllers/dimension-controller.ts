@@ -21,7 +21,6 @@ import {
   validateNumericDimension
 } from '../services/dimension-processor';
 import { validateLookupTable } from '../services/lookup-table-handler';
-import { validateReferenceData } from '../services/reference-data-handler';
 import { viewErrorGenerators } from '../utils/view-error-generators';
 import { LookupTableDTO } from '../dtos/lookup-table-dto';
 import { DatasetRepository } from '../repositories/dataset';
@@ -160,16 +159,6 @@ export const updateDimension = async (req: Request, res: Response, next: NextFun
       case DimensionType.Date:
         logger.debug('Matching a Dimension containing Dates');
         preview = await createAndValidateDateDimension(dimensionPatchRequest, dataset, dimension, language);
-        break;
-
-      case DimensionType.ReferenceData:
-        logger.debug('Matching a Dimension containing Reference Data');
-        preview = await validateReferenceData(
-          dataset,
-          dimension,
-          dimensionPatchRequest.reference_type,
-          `${req.language}`
-        );
         break;
 
       case DimensionType.Text:
