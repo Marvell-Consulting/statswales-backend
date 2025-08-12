@@ -446,7 +446,8 @@ export const createStreamingExcelFilteredView = async (
       while (rows.length > 0) {
         for (const row of rows) {
           if (row === null) break;
-          worksheet.addRow(Object.values(row)).commit();
+          const data = Object.values(row).map((val) => (isNaN(Number(val)) ? val : Number(val)));
+          worksheet.addRow(Object.values(data)).commit();
         }
         totalRows += CURSOR_ROW_LIMIT;
         if (totalRows > EXCEL_ROW_LIMIT) {
