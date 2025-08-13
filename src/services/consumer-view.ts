@@ -7,8 +7,7 @@ import { format as csvFormat } from '@fast-csv/format';
 
 import { Revision } from '../entities/dataset/revision';
 import { validateParams } from '../validators/preview-validator';
-import { CSVHeader, ViewDTO, ViewErrDTO } from '../dtos/view-dto';
-import { FactTableColumnType } from '../enums/fact-table-column-type';
+import { ViewDTO, ViewErrDTO } from '../dtos/view-dto';
 import { DatasetDTO } from '../dtos/dataset-dto';
 import { Dataset } from '../entities/dataset/dataset';
 import { logger } from '../utils/logger';
@@ -17,6 +16,7 @@ import { SortByInterface } from '../interfaces/sort-by-interface';
 import { FilterInterface } from '../interfaces/filterInterface';
 import { dbManager } from '../db/database-manager';
 import { CORE_VIEW_NAME } from './cube-handler';
+import { getColumnHeaders } from '../utils/column-headers';
 
 const EXCEL_ROW_LIMIT = 1048576;
 const CURSOR_ROW_LIMIT = 500;
@@ -293,17 +293,25 @@ export const createFrontendView = async (
       };
     }
 
+    const filterTable = await cubeDBConn.query(
+      pgformat(
+        `SELECT DISTINCT fact_table_column, dimension_name FROM "filter_table" WHERE language = %L`,
+        `${lang}-gb`
+      )
+    );
+
     const tableHeaders = Object.keys(preview.rows[0]);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const dataArray = preview.rows.map((row: any) => Object.values(row));
-    const currentDataset = await DatasetRepository.getById(dataset.id);
-    const lastLine = startLine + dataArray.length - 1;
 
-    const headers: CSVHeader[] = tableHeaders.map((header, idx) => ({
-      index: idx - 1,
-      name: header,
-      source_type: header === 'int_line_number' ? FactTableColumnType.LineNumber : FactTableColumnType.Unknown
-    }));
+    const currentDataset = await DatasetRepository.getById(dataset.id, {
+      factTable: true,
+      dimensions: { metadata: true },
+      measure: true
+    });
+
+    const lastLine = startLine + dataArray.length - 1;
+    const headers = getColumnHeaders(currentDataset, tableHeaders, filterTable.rows);
 
     return {
       dataset: DatasetDTO.fromDataset(currentDataset),

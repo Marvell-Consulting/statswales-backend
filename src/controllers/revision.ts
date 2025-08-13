@@ -20,7 +20,7 @@ import { NotFoundException } from '../exceptions/not-found.exception';
 import { RevisionDTO } from '../dtos/revision-dto';
 import { RevisionRepository } from '../repositories/revision';
 import { DuckdbOutputType } from '../enums/duckdb-outputs';
-import { createAllCubeFiles, getPostgresCubePreview, outputCube } from '../services/cube-handler';
+import { createAllCubeFiles, outputCube } from '../services/cube-handler';
 import { getCSVPreview, validateAndUpload } from '../services/csv-processor';
 import { DataTableAction } from '../enums/data-table-action';
 import { ColumnMatch } from '../interfaces/column-match';
@@ -31,6 +31,7 @@ import { Dataset } from '../entities/dataset/dataset';
 import { SortByInterface } from '../interfaces/sort-by-interface';
 import { FilterInterface } from '../interfaces/filterInterface';
 import {
+  createFrontendView,
   createStreamingCSVFilteredView,
   createStreamingExcelFilteredView,
   createStreamingJSONFilteredView,
@@ -110,19 +111,12 @@ export const getRevisionPreview = async (req: Request, res: Response): Promise<v
 
   const page_number: number = Number.parseInt(req.query.page_number as string, 10) || 1;
   const page_size: number = Number.parseInt(req.query.page_size as string, 10) || DEFAULT_PAGE_SIZE;
-  const sortByQuery = req.query.sort_by ? (JSON.parse(req.query.sort_by as string) as SortByInterface[]) : undefined;
-  const filterQuery = req.query.filter ? (JSON.parse(req.query.filter as string) as FilterInterface[]) : undefined;
+  const sortBy = req.query.sort_by ? (JSON.parse(req.query.sort_by as string) as SortByInterface[]) : undefined;
+  const filters = req.query.filter ? (JSON.parse(req.query.filter as string) as FilterInterface[]) : undefined;
+
   try {
     const end = performance.now();
-    const cubePreview = await getPostgresCubePreview(
-      revision,
-      lang,
-      dataset,
-      page_number,
-      page_size,
-      sortByQuery,
-      filterQuery
-    );
+    const cubePreview = await createFrontendView(dataset, revision, lang, page_number, page_size, sortBy, filters);
     const time = Math.round(end - start);
     logger.info(`Cube revision preview took ${time}ms`);
 
