@@ -14,7 +14,7 @@ import { SUPPORTED_LOCALES } from '../middleware/translation';
 import { DimensionMetadata } from '../entities/dataset/dimension-metadata';
 import { Measure } from '../entities/dataset/measure';
 import { DimensionPatchDto } from '../dtos/dimension-partch-dto';
-import { CSVHeader, ViewDTO, ViewErrDTO } from '../dtos/view-dto';
+import { ColumnHeader, ViewDTO, ViewErrDTO } from '../dtos/view-dto';
 import { DateExtractor } from '../extractors/date-extractor';
 import { DatasetRepository } from '../repositories/dataset';
 import { LookupTable } from '../entities/dataset/lookup-table';
@@ -669,7 +669,7 @@ export const createAndValidateDateDimension = async (
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const dataArray = dimensionTable.map((row: any) => Object.values(row));
     const currentDataset = await DatasetRepository.getById(dataset.id, { dimensions: { metadata: true } });
-    const headers: CSVHeader[] = [];
+    const headers: ColumnHeader[] = [];
     for (let i = 0; i < tableHeaders.length; i++) {
       let sourceType: FactTableColumnType;
       if (tableHeaders[i] === 'int_line_number') sourceType = FactTableColumnType.LineNumber;
@@ -738,7 +738,7 @@ async function getDatePreviewWithExtractor(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const dataArray = previewResult.map((row: any) => Object.values(row));
   const currentDataset = await DatasetRepository.getById(dataset.id);
-  const headers: CSVHeader[] = [];
+  const headers: ColumnHeader[] = [];
 
   for (let i = 0; i < tableHeaders.length; i++) {
     headers.push({
@@ -788,7 +788,7 @@ async function getPreviewWithNumberExtractor(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const dataArray = preview.map((row: any) => Object.values(row));
   const currentDataset = await DatasetRepository.getById(dataset.id);
-  const headers: CSVHeader[] = [];
+  const headers: ColumnHeader[] = [];
   for (let i = 0; i < tableHeaders.length; i++) {
     headers.push({
       index: i,
@@ -828,7 +828,7 @@ async function getPreviewWithoutExtractor(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const dataArray = preview.map((row: any) => Object.values(row));
   const currentDataset = await DatasetRepository.getById(dataset.id);
-  const headers: CSVHeader[] = [];
+  const headers: ColumnHeader[] = [];
   for (let i = 0; i < tableHeaders.length; i++) {
     headers.push({
       index: i,
@@ -879,7 +879,7 @@ async function getLookupPreviewWithExtractor(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const dataArray = dimensionTable.map((row: any) => Object.values(row));
   const currentDataset = await DatasetRepository.getById(dataset.id);
-  const headers: CSVHeader[] = [];
+  const headers: ColumnHeader[] = [];
 
   for (let i = 0; i < tableHeaders.length; i++) {
     headers.push({

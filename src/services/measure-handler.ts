@@ -18,7 +18,7 @@ import {
 } from '../utils/lookup-table-utils';
 import { ColumnDescriptor } from '../extractors/column-descriptor';
 import { Dataset } from '../entities/dataset/dataset';
-import { CSVHeader, ViewDTO, ViewErrDTO } from '../dtos/view-dto';
+import { ColumnHeader, ViewDTO, ViewErrDTO } from '../dtos/view-dto';
 import { viewErrorGenerators, viewGenerator } from '../utils/view-error-generators';
 import { logger } from '../utils/logger';
 import { Measure } from '../entities/dataset/measure';
@@ -550,7 +550,7 @@ export const validateMeasureLookupTable = async (
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const dataArray = measureTable.map((row: any) => Object.values(row));
     const currentDataset = await DatasetRepository.getById(dataset.id);
-    const headers: CSVHeader[] = [];
+    const headers: ColumnHeader[] = [];
     for (let i = 0; i < tableHeaders.length; i++) {
       let sourceType: FactTableColumnType;
       if (tableHeaders[i] === 'int_line_number') sourceType = FactTableColumnType.LineNumber;
@@ -601,7 +601,7 @@ async function getMeasurePreviewWithoutExtractor(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const dataArray = preview.map((row: any) => Object.values(row));
     const currentDataset = await DatasetRepository.getById(dataset.id);
-    const headers: CSVHeader[] = [];
+    const headers: ColumnHeader[] = [];
     for (let i = 0; i < tableHeaders.length; i++) {
       headers.push({
         index: i,
@@ -645,7 +645,7 @@ async function getMeasurePreviewWithExtractor(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const dataArray = measureTable.map((row: any) => Object.values(row));
     const currentDataset = await DatasetRepository.getById(dataset.id);
-    const headers: CSVHeader[] = tableHeaders.map((name, idx) => ({
+    const headers: ColumnHeader[] = tableHeaders.map((name, idx) => ({
       name,
       index: idx,
       source_type: FactTableColumnType.Unknown

@@ -1,9 +1,9 @@
-import { CSVHeader } from '../dtos/view-dto';
+import { ColumnHeader } from '../dtos/view-dto';
 import { FactTableColumnType } from '../enums/fact-table-column-type';
 import { RowData } from 'duckdb-async';
 
 type ViewTable = {
-  headers: CSVHeader[];
+  headers: ColumnHeader[];
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   data: any[][];
 };
@@ -11,7 +11,7 @@ type ViewTable = {
 export const tableDataToViewTable = (tableData: RowData[]): ViewTable => {
   const tableHeaders = Object.keys(tableData[0]);
   const dataArray = tableData.map((row) => Object.values(row));
-  const headers: CSVHeader[] = tableHeaders.map((header, idx) => ({
+  const headers: ColumnHeader[] = tableHeaders.map((header, idx) => ({
     index: idx,
     name: header,
     sourceType: header === 'line_number' ? FactTableColumnType.LineNumber : FactTableColumnType.Unknown
