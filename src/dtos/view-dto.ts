@@ -6,7 +6,7 @@ import { Error } from './error';
 import { DatasetDTO } from './dataset-dto';
 import { DataTableDto } from './data-table-dto';
 
-export interface CSVHeader {
+export interface ColumnHeader {
   index: number;
   name: string;
   source_type?: FactTableColumnType;
@@ -23,7 +23,7 @@ export interface ViewErrDTO {
   status: number;
   errors: Error[];
   dataset_id: string | undefined;
-  headers?: CSVHeader[];
+  headers?: ColumnHeader[];
   data?: string[][];
   extension?: object;
 }
@@ -35,7 +35,7 @@ export interface ViewDTO {
   page_info: PageInfo;
   page_size: number;
   total_pages: number;
-  headers: CSVHeader[];
+  headers: ColumnHeader[];
   data: string[][] | unknown[][];
   extension?: object;
 }

@@ -17,7 +17,7 @@ import {
 } from '../utils/lookup-table-utils';
 import { ColumnDescriptor } from '../extractors/column-descriptor';
 import { Dataset } from '../entities/dataset/dataset';
-import { CSVHeader, ViewDTO, ViewErrDTO } from '../dtos/view-dto';
+import { ColumnHeader, ViewDTO, ViewErrDTO } from '../dtos/view-dto';
 import { logger } from '../utils/logger';
 import { Dimension } from '../entities/dataset/dimension';
 import { viewErrorGenerators, viewGenerator } from '../utils/view-error-generators';
@@ -366,7 +366,7 @@ export const validateLookupTable = async (
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const dataArray = dimensionTable.map((row: any) => Object.values(row));
     const currentDataset = await DatasetRepository.getById(dataset.id);
-    const headers: CSVHeader[] = [];
+    const headers: ColumnHeader[] = [];
     for (let i = 0; i < tableHeaders.length; i++) {
       let sourceType: FactTableColumnType;
       if (tableHeaders[i] === 'int_line_number') sourceType = FactTableColumnType.LineNumber;

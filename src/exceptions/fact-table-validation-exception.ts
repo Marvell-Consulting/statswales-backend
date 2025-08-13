@@ -1,5 +1,5 @@
 import { FactTableValidationExceptionType } from '../enums/fact-table-validation-exception-type';
-import { CSVHeader } from '../dtos/view-dto';
+import { ColumnHeader } from '../dtos/view-dto';
 
 export class FactTableValidationException implements Error {
   constructor(message: string, type: FactTableValidationExceptionType, status?: number) {
@@ -14,5 +14,5 @@ export class FactTableValidationException implements Error {
   tag: string;
   name: string;
   data: string[][];
-  headers: CSVHeader[];
+  headers: ColumnHeader[];
 }

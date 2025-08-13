@@ -1,6 +1,6 @@
 import { t } from 'i18next';
 
-import { CSVHeader, ViewDTO, ViewErrDTO } from '../dtos/view-dto';
+import { ColumnHeader, ViewDTO, ViewErrDTO } from '../dtos/view-dto';
 import { ErrorMessage } from '../dtos/error';
 import { AVAILABLE_LANGUAGES } from '../middleware/translation';
 import { Dataset } from '../entities/dataset/dataset';
@@ -48,7 +48,7 @@ export const viewGenerator = async (
   pageInfo: PageInfo,
   size: number,
   totalPages: number,
-  headers: CSVHeader[],
+  headers: ColumnHeader[],
   data: string[][] | unknown[][],
   dataTable?: DataTable
 ): Promise<ViewDTO> => {

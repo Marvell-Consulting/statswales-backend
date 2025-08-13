@@ -1,4 +1,4 @@
-import { CSVHeader } from '../dtos/view-dto';
+import { ColumnHeader } from '../dtos/view-dto';
 import { Dataset } from '../entities/dataset/dataset';
 import { DimensionType } from '../enums/dimension-type';
 import { FactTableColumnType } from '../enums/fact-table-column-type';
@@ -7,7 +7,7 @@ export const getColumnHeaders = (
   dataset: Dataset,
   columns: string[],
   filters: Record<string, string>[]
-): CSVHeader[] => {
+): ColumnHeader[] => {
   return columns.map((columnName, idx) => {
     let source_type = FactTableColumnType.Unknown;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any

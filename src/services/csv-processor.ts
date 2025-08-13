@@ -7,7 +7,7 @@ import { format as pgformat } from '@scaleleap/pg-format';
 import { logger as parentLogger } from '../utils/logger';
 import { DataTable } from '../entities/dataset/data-table';
 import { Dataset } from '../entities/dataset/dataset';
-import { CSVHeader, ViewDTO, ViewErrDTO } from '../dtos/view-dto';
+import { ColumnHeader, ViewDTO, ViewErrDTO } from '../dtos/view-dto';
 import { FactTableColumnType } from '../enums/fact-table-column-type';
 import { DatasetRepository } from '../repositories/dataset';
 import { FileType } from '../enums/file-type';
@@ -311,7 +311,7 @@ export const getCSVPreview = async (
     const dataset = await DatasetRepository.getById(datasetId, { factTable: true });
     const currentImport = await DataTable.findOneByOrFail({ id: dataTable.id });
 
-    const headers: CSVHeader[] = tableHeaders.map((header, idx) => {
+    const headers: ColumnHeader[] = tableHeaders.map((header, idx) => {
       let sourceType: FactTableColumnType;
 
       if (header === 'int_line_number') {
@@ -361,7 +361,7 @@ export const getFactTableColumnPreview = async (
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const dataArray = preview.map((row: any) => Object.values(row));
     const currentDataset = await DatasetRepository.getById(dataset.id);
-    const headers: CSVHeader[] = [];
+    const headers: ColumnHeader[] = [];
     for (let i = 0; i < tableHeaders.length; i++) {
       let sourceType: FactTableColumnType;
       if (tableHeaders[i] === 'int_line_number') sourceType = FactTableColumnType.LineNumber;
