@@ -303,13 +303,7 @@ export const createFrontendView = async (
     const tableHeaders = Object.keys(preview.rows[0]);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const dataArray = preview.rows.map((row: any) => Object.values(row));
-
-    const currentDataset = await DatasetRepository.getById(dataset.id, {
-      factTable: true,
-      dimensions: { metadata: true },
-      measure: true
-    });
-
+    const currentDataset = await DatasetRepository.getById(dataset.id, { factTable: true, dimensions: true });
     const lastLine = startLine + dataArray.length - 1;
     const headers = getColumnHeaders(currentDataset, tableHeaders, filterTable.rows);
 
