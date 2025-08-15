@@ -38,6 +38,7 @@ export interface ViewDTO {
   headers: ColumnHeader[];
   data: string[][] | unknown[][];
   extension?: object;
+  note_codes?: string[];
 }
 
 export interface ViewStream {
