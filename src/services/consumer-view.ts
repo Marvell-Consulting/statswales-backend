@@ -302,10 +302,23 @@ export const createFrontendView = async (
 
     const tableHeaders = Object.keys(preview.rows[0]);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const dataArray = preview.rows.map((row: any) => Object.values(row));
+    const data = preview.rows.map((row: any) => Object.values(row));
     const currentDataset = await DatasetRepository.getById(dataset.id, { factTable: true, dimensions: true });
-    const lastLine = startLine + dataArray.length - 1;
+    const lastLine = startLine + data.length - 1;
     const headers = getColumnHeaders(currentDataset, tableHeaders, filterTable.rows);
+    let note_codes: string[] = [];
+
+    try {
+      note_codes = (
+        await cubeDBConn.query(
+          `SELECT DISTINCT UNNEST(STRING_TO_ARRAY(code, ',')) AS code
+            FROM "all_notes"
+            ORDER BY code ASC`
+        )
+      ).rows?.map((row) => row.code);
+    } catch (err) {
+      logger.error(err, `Something went wrong trying to fetch the used note codes`);
+    }
 
     return {
       dataset: DatasetDTO.fromDataset(currentDataset),
@@ -318,7 +331,8 @@ export const createFrontendView = async (
       page_size: pageSize,
       total_pages: totalPages,
       headers,
-      data: dataArray
+      data,
+      note_codes
     };
   } catch (err) {
     logger.error(err, `Something went wrong trying to create the cube preview`);
