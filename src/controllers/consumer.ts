@@ -109,7 +109,7 @@ export const getPublishedDatasetView = async (req: Request, res: Response): Prom
     }
   */
   const dataset = await PublishedDatasetRepository.getById(res.locals.datasetId, withAll);
-  const lang = req.language.split('-')[0];
+  const lang = req.language;
 
   if (!dataset.publishedRevision) {
     throw new NotFoundException('errors.no_revision');
@@ -206,7 +206,7 @@ export const downloadPublishedDataset = async (req: Request, res: Response, next
   }
 
   const format = req.params.format;
-  const lang = req.language.split('-')[0];
+  const lang = req.language;
   const dataset = await PublishedDatasetRepository.getById(res.locals.datasetId, withAll);
   let sortBy: SortByInterface[] | undefined;
   let filter: FilterInterface[] | undefined;

@@ -106,7 +106,7 @@ export const getDataTablePreview = async (req: Request, res: Response, next: Nex
 export const getRevisionPreview = async (req: Request, res: Response): Promise<void> => {
   const dataset: Dataset = res.locals.dataset;
   const revision = res.locals.revision;
-  const lang = req.language.split('-')[0];
+  const lang = req.language;
   const start = performance.now();
 
   const page_number: number = Number.parseInt(req.query.page_number as string, 10) || 1;

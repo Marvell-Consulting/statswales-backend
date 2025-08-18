@@ -2421,7 +2421,7 @@ async function createViewsFromConfig(
     if (Array.from(view.columns.get(locale)?.values() || []).length > 0) {
       cols = Array.from(view.columns.get(locale)!.values());
     } else {
-      cols = factTable.map((col) => col.columnName) || ['*'];
+      cols = factTable.map((col) => pgformat('%I', col.columnName)) || ['*'];
     }
     const SQL = pgformat('SELECT %s FROM %I', cols.join(', '), baseViewName);
     logger.debug(`SQL for view ${viewName}: ${SQL}`);
