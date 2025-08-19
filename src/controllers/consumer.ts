@@ -206,7 +206,7 @@ export const downloadPublishedDataset = async (req: Request, res: Response, next
   }
 
   const format = req.params.format;
-  const lang = req.language;
+  const view = req.query.view as string;
   const dataset = await PublishedDatasetRepository.getById(res.locals.datasetId, withAll);
   let sortBy: SortByInterface[] | undefined;
   let filter: FilterInterface[] | undefined;
@@ -235,13 +235,13 @@ export const downloadPublishedDataset = async (req: Request, res: Response, next
   try {
     switch (format as DuckdbOutputType) {
       case DuckdbOutputType.Csv:
-        createStreamingCSVFilteredView(res, revision, lang, sortBy, filter);
+        createStreamingCSVFilteredView(res, revision, req.language, view, sortBy, filter);
         break;
       case DuckdbOutputType.Json:
-        createStreamingJSONFilteredView(res, revision, lang, sortBy, filter);
+        createStreamingJSONFilteredView(res, revision, req.language, view, sortBy, filter);
         break;
       case DuckdbOutputType.Excel:
-        createStreamingExcelFilteredView(res, revision, lang, sortBy, filter);
+        createStreamingExcelFilteredView(res, revision, req.language, view, sortBy, filter);
         break;
       default:
         next(new BadRequestException('file format currently not supported'));

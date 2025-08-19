@@ -19,8 +19,7 @@ import { BadRequestException } from '../exceptions/bad-request.exception';
 import { NotFoundException } from '../exceptions/not-found.exception';
 import { RevisionDTO } from '../dtos/revision-dto';
 import { RevisionRepository } from '../repositories/revision';
-import { DuckdbOutputType } from '../enums/duckdb-outputs';
-import { createAllCubeFiles, outputCube } from '../services/cube-handler';
+import { createAllCubeFiles } from '../services/cube-handler';
 import { getCSVPreview, validateAndUpload } from '../services/csv-processor';
 import { DataTableAction } from '../enums/data-table-action';
 import { ColumnMatch } from '../interfaces/column-match';
@@ -459,11 +458,11 @@ export const regenerateRevisionCube = async (req: Request, res: Response, next: 
 
 export const downloadRevisionCubeAsJSON = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   const revision = res.locals.revision;
-  const lang = req.language.split('-')[0];
   const sortByQuery = req.query.sort_by ? (JSON.parse(req.query.sort_by as string) as SortByInterface[]) : undefined;
   const filterQuery = req.query.filter ? (JSON.parse(req.query.filter as string) as FilterInterface[]) : undefined;
+  const view = req.query.view as string;
   try {
-    createStreamingJSONFilteredView(res, revision, lang, sortByQuery, filterQuery);
+    createStreamingJSONFilteredView(res, revision, req.language, view, sortByQuery, filterQuery);
   } catch (err) {
     logger.error(err);
     next(err);
@@ -472,53 +471,54 @@ export const downloadRevisionCubeAsJSON = async (req: Request, res: Response, ne
 
 export const downloadRevisionCubeAsCSV = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   const revision = res.locals.revision;
-  const lang = req.language.split('-')[0];
   const sortByQuery = req.query.sort_by ? (JSON.parse(req.query.sort_by as string) as SortByInterface[]) : undefined;
   const filterQuery = req.query.filter ? (JSON.parse(req.query.filter as string) as FilterInterface[]) : undefined;
+  const view = req.query.view as string;
   try {
-    createStreamingCSVFilteredView(res, revision, lang, sortByQuery, filterQuery);
+    createStreamingCSVFilteredView(res, revision, req.language, view, sortByQuery, filterQuery);
   } catch (err) {
     logger.error(err);
     next(err);
   }
 };
 
-export const downloadRevisionCubeAsParquet = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-  const datasetId: string = res.locals.datasetId;
-  const revision: Revision = res.locals.revision;
-
-  if (!revision) {
-    next(new UnknownException('errors.no_revision'));
-    return;
-  }
-
-  const cubeBuffer = await outputCube(
-    DuckdbOutputType.Parquet,
-    datasetId,
-    revision.id,
-    req.language.split('-')[0],
-    req.fileService
-  );
-
-  logger.info(`Sending original cube file (size: ${cubeBuffer.length})`);
-  res.writeHead(200, {
-    // eslint-disable-next-line @typescript-eslint/naming-convention
-    'Content-Type': 'application/vnd.apache.parquet',
-    // eslint-disable-next-line @typescript-eslint/naming-convention
-    'Content-disposition': `attachment;filename=${datasetId}.duckdb`,
-    // eslint-disable-next-line @typescript-eslint/naming-convention
-    'Content-Length': cubeBuffer.length
-  });
-  res.end(cubeBuffer);
-};
+// Disabled until we find time to implement parquet downloads again.
+// export const downloadRevisionCubeAsParquet = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+//   const datasetId: string = res.locals.datasetId;
+//   const revision: Revision = res.locals.revision;
+//
+//   if (!revision) {
+//     next(new UnknownException('errors.no_revision'));
+//     return;
+//   }
+//
+//   const cubeBuffer = await outputCube(
+//     DuckdbOutputType.Parquet,
+//     datasetId,
+//     revision.id,
+//     req.language.split('-')[0],
+//     req.fileService
+//   );
+//
+//   logger.info(`Sending original cube file (size: ${cubeBuffer.length})`);
+//   res.writeHead(200, {
+//     // eslint-disable-next-line @typescript-eslint/naming-convention
+//     'Content-Type': 'application/vnd.apache.parquet',
+//     // eslint-disable-next-line @typescript-eslint/naming-convention
+//     'Content-disposition': `attachment;filename=${datasetId}.duckdb`,
+//     // eslint-disable-next-line @typescript-eslint/naming-convention
+//     'Content-Length': cubeBuffer.length
+//   });
+//   res.end(cubeBuffer);
+// };
 
 export const downloadRevisionCubeAsExcel = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   const revision = res.locals.revision;
-  const lang = req.language.split('-')[0];
   const sortByQuery = req.query.sort_by ? (JSON.parse(req.query.sort_by as string) as SortByInterface[]) : undefined;
   const filterQuery = req.query.filter ? (JSON.parse(req.query.filter as string) as FilterInterface[]) : undefined;
+  const view = req.query.view as string;
   try {
-    createStreamingExcelFilteredView(res, revision, lang, sortByQuery, filterQuery);
+    createStreamingExcelFilteredView(res, revision, req.language, view, sortByQuery, filterQuery);
   } catch (err) {
     logger.error(err);
     next(err);
