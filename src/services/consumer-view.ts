@@ -154,8 +154,14 @@ function createBaseQuery(
           const dimensionColumn = factTableToDimensionNames.find((row) => {
             if (row.fact_table_column === columnName && row.language === locale.toLowerCase()) return true;
           });
-          if (dimensionColumn) columnName = `${dimensionColumn.dimension_name}${sortColumnPostfix}`;
-          return pgformat(`%I %s`, columnName, sort.direction ? sort.direction : 'ASC');
+          if (dimensionColumn) columnName = dimensionColumn.dimension_name;
+          return pgformat(
+            `%I %s, %I %s`,
+            `${columnName}${sortColumnPostfix}`,
+            sort.direction ? sort.direction : 'ASC',
+            columnName,
+            sort.direction ? sort.direction : 'ASC'
+          );
         })
         .join(', ');
     }
