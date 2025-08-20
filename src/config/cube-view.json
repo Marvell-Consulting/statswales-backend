@@ -1,0 +1,56 @@
+[
+  {
+    "name": "default",
+    "dataValues": "formatted",
+    "refcodes": false,
+    "dates": "none",
+    "hierarchies": false,
+    "sort_orders": false,
+    "note_descriptions": true
+  },
+  {
+    "name": "frontend",
+    "dataValues": "annotated",
+    "refcodes": false,
+    "dates": "none",
+    "hierarchies": false,
+    "sort_orders": false,
+    "note_descriptions": false
+  },
+  {
+    "name": "formatted",
+    "dataValues": "formatted",
+    "refcodes": false,
+    "dates": "none",
+    "hierarchies": false,
+    "sort_orders": false,
+    "note_descriptions": true
+  },
+  {
+    "name": "formatted_extended",
+    "dataValues": "formatted",
+    "refcodes": true,
+    "dates": "formatted",
+    "hierarchies": true,
+    "sort_orders": true,
+    "note_descriptions": true
+  },
+  {
+    "name": "raw",
+    "dataValues": "raw",
+    "refcodes": false,
+    "dates": "raw",
+    "hierarchies": false,
+    "sort_orders": false,
+    "note_descriptions": true
+  },
+  {
+    "name": "raw_extended",
+    "dataValues": "raw",
+    "dates": "raw",
+    "refcodes": true,
+    "hierarchies": true,
+    "sort_orders": true,
+    "note_descriptions": true
+  }
+]

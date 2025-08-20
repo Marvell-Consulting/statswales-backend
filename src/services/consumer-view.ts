@@ -17,6 +17,8 @@ import { FilterInterface } from '../interfaces/filterInterface';
 import { dbManager } from '../db/database-manager';
 import { CORE_VIEW_NAME } from './cube-handler';
 import { getColumnHeaders } from '../utils/column-headers';
+import { t } from 'i18next';
+import cubeConfig from '../config/cube-view.json';
 
 const EXCEL_ROW_LIMIT = 1048576;
 const CURSOR_ROW_LIMIT = 500;
@@ -133,26 +135,34 @@ export const getFilters = async (revision: Revision, language: string): Promise<
 function createBaseQuery(
   revision: Revision,
   view: string,
+  locale: string,
   columns: string[],
+  factTableToDimensionNames: FactTableToDimensionName[],
   sortBy?: SortByInterface[],
   filterBy?: FilterInterface[]
 ): string {
   let sortByQuery: string | undefined;
-  let sortColumnPostfix = '';
-  if (view.includes('sort')) sortColumnPostfix = '_sort';
+  const sortColumnPostfix = `_${t('column_headers.sort', { lng: locale })}`;
+  const refColumnPostfix = `_${t('column_headers.reference', { lng: locale })}`;
+
   try {
     if (sortBy && sortBy.length > 0) {
       logger.debug('Multiple sort by columns are present. Creating sort by query');
       sortByQuery = sortBy
-        .map((sort) =>
-          pgformat(
+        .map((sort) => {
+          let columnName = sort.columnName;
+          const dimensionColumn = factTableToDimensionNames.find((row) => {
+            if (row.fact_table_column === columnName && row.language === locale.toLowerCase()) return true;
+          });
+          if (dimensionColumn) columnName = dimensionColumn.dimension_name;
+          return pgformat(
             `%I %s, %I %s`,
-            `${sort.columnName}${sortColumnPostfix}`,
+            `${columnName}${sortColumnPostfix}`,
             sort.direction ? sort.direction : 'ASC',
-            sort.columnName,
+            columnName,
             sort.direction ? sort.direction : 'ASC'
-          )
-        )
+          );
+        })
         .join(', ');
     }
   } catch (err) {
@@ -166,7 +176,14 @@ function createBaseQuery(
     if (filterBy && filterBy.length > 0) {
       logger.debug('Filters are present. Creating filter query');
       filterQuery = filterBy
-        .map((whereClause) => pgformat('%I in (%L)', whereClause.columnName, whereClause.values))
+        .map((whereClause) => {
+          let columnName = whereClause.columnName;
+          const dimensionColumn = factTableToDimensionNames.find((row) => {
+            if (row.fact_table_column === columnName && row.language === locale.toLowerCase()) return true;
+          });
+          if (dimensionColumn) columnName = `${dimensionColumn.dimension_name}${refColumnPostfix}`;
+          return pgformat('%I in (%L)', columnName, whereClause.values);
+        })
         .join(' and ');
     }
   } catch (err) {
@@ -184,8 +201,8 @@ function createBaseQuery(
     );
   } else {
     return pgformat(
-      'SELECT %I FROM %I.%I %s %s',
-      columns,
+      'SELECT %s FROM %I.%I %s %s',
+      columns.join(', '),
       revision.id,
       view,
       filterQuery ? `WHERE ${filterQuery}` : '',
@@ -194,49 +211,25 @@ function createBaseQuery(
   }
 }
 
-async function viewChooser(
-  cubeDBConn: PoolClient,
-  viewType: 'default' | 'raw',
-  lang: string,
-  revision: Revision
-): Promise<string> {
+async function coreViewChooser(cubeDBConn: PoolClient, lang: string, revision: Revision): Promise<string> {
   const availableMaterializedView: QueryResult<{ matviewname: string }> = await cubeDBConn.query(
     pgformat(
-      `SELECT * FROM pg_matviews WHERE matviewname IN (%L) AND schemaname = %L;`,
-      [`${viewType}_sort_mat_view_${lang}`, `${viewType}_mat_view_${lang}`, `${CORE_VIEW_NAME}_mat_${lang}`],
+      `SELECT * FROM pg_matviews WHERE matviewname = %L AND schemaname = %L;`,
+      `${CORE_VIEW_NAME}_mat_${lang}`,
       revision.id
     )
   );
 
   if (availableMaterializedView.rows.length > 0) {
-    if (availableMaterializedView.rows.find((row) => row.matviewname === `${CORE_VIEW_NAME}_mat_${lang}`))
-      return `${viewType}_sort_mat_view_${lang}`;
-    if (availableMaterializedView.rows.find((row) => row.matviewname === `${viewType}_sort_mat_view_${lang}`))
-      return `${viewType}_sort_mat_view_${lang}`;
-    if (availableMaterializedView.rows.find((row) => row.matviewname === `${viewType}_mat_view_${lang}`))
-      return `${viewType}_mat_view_${lang}`;
+    return `${CORE_VIEW_NAME}_mat_${lang}`;
+  } else {
+    return `${CORE_VIEW_NAME}_${lang}`;
   }
-
-  const availableViews: QueryResult<{ viewname: string }> = await cubeDBConn.query(
-    pgformat(
-      `SELECT viewname FROM pg_views WHERE viewname IN (%L) AND schemaname = %L;`,
-      [`${CORE_VIEW_NAME}_${lang}}`, `${viewType}_view_${lang}`],
-      revision.id
-    )
-  );
-  if (availableViews.rows.length > 0) {
-    if (availableViews.rows.find((row) => row.viewname === `${CORE_VIEW_NAME}_${lang}}`))
-      return `${CORE_VIEW_NAME}_${lang}}`;
-    if (availableViews.rows.find((row) => row.viewname === `${viewType}_view_${lang}`))
-      return `${viewType}_view_${lang}`;
-  }
-
-  return `default_view_${lang}`;
 }
 
-async function getColumns(cubeDBConn: PoolClient, lang: string): Promise<string[]> {
-  const columnsMetadata = await cubeDBConn.query(
-    pgformat(`SELECT value FROM metadata WHERE key = %L`, `display_columns_${lang}`)
+async function getColumns(cubeDBConn: PoolClient, revisionId: string, lang: string, view: string): Promise<string[]> {
+  const columnsMetadata: QueryResult<{ value: string }> = await cubeDBConn.query(
+    pgformat(`SELECT value FROM %I.metadata WHERE key = %L`, revisionId, `${view}_${lang}_columns`)
   );
   let columns = ['*'];
   if (columnsMetadata.rows.length > 0) {
@@ -245,22 +238,46 @@ async function getColumns(cubeDBConn: PoolClient, lang: string): Promise<string[
   return columns;
 }
 
+function checkAvailableViews(view: string): string {
+  const foundView = cubeConfig.find((config) => config.name === view);
+  if (!foundView) return 'raw';
+  else return view;
+}
+
+interface FactTableToDimensionName {
+  fact_table_column: string;
+  dimension_name: string;
+  language: string;
+}
+
 export const createFrontendView = async (
   dataset: Dataset,
   revision: Revision,
-  lang: string,
+  locale: string,
   pageNumber: number,
   pageSize: number,
   sortBy?: SortByInterface[],
   filterBy?: FilterInterface[]
 ): Promise<ViewDTO | ViewErrDTO> => {
+  const lang = locale.split('-')[0];
   const [cubeDBConn] = (await dbManager.getCubeDataSource().driver.obtainMasterConnection()) as [PoolClient];
+  const filterTableColumnQueryResult: QueryResult<FactTableToDimensionName> = await cubeDBConn.query(
+    pgformat('SELECT DISTINCT fact_table_column, dimension_name, language FROM %I.filter_table;', revision.id)
+  );
 
   try {
-    await cubeDBConn.query(pgformat(`SET search_path TO %I;`, revision.id));
-    const view = await viewChooser(cubeDBConn, 'default', lang, revision);
-    const columns = await getColumns(cubeDBConn, lang);
-    const baseQuery = createBaseQuery(revision, view, columns, sortBy, filterBy);
+    const coreView = await coreViewChooser(cubeDBConn, lang, revision);
+    const selectColumns = await getColumns(cubeDBConn, revision.id, lang, 'frontend');
+    const baseQuery = createBaseQuery(
+      revision,
+      coreView,
+      locale,
+      selectColumns,
+      filterTableColumnQueryResult.rows,
+      sortBy,
+      filterBy
+    );
+
     const totalsQuery = pgformat('SELECT count(*) as "totalLines" from (%s);', baseQuery);
     const totals = await cubeDBConn.query(totalsQuery);
     const totalLines = Number(totals.rows[0].totalLines);
@@ -295,7 +312,8 @@ export const createFrontendView = async (
 
     const filterTable = await cubeDBConn.query(
       pgformat(
-        `SELECT DISTINCT fact_table_column, dimension_name FROM "filter_table" WHERE language = %L`,
+        `SELECT DISTINCT fact_table_column, dimension_name FROM %I.filter_table WHERE language = %L`,
+        revision.id,
         `${lang}-gb`
       )
     );
@@ -312,7 +330,7 @@ export const createFrontendView = async (
       note_codes = (
         await cubeDBConn.query(
           `SELECT DISTINCT UNNEST(STRING_TO_ARRAY(code, ',')) AS code
-            FROM "all_notes"
+            FROM "${revision.id}".all_notes
             ORDER BY code ASC`
         )
       ).rows?.map((row) => row.code);
@@ -345,18 +363,31 @@ export const createFrontendView = async (
 export const createStreamingJSONFilteredView = async (
   res: Response,
   revision: Revision,
-  lang: string,
+  locale: string,
+  view = 'raw',
   sortBy?: SortByInterface[],
   filterBy?: FilterInterface[]
 ): Promise<void> => {
   // queryRunner.query() does not support Cursor so we need to obtain underlying PostgreSQL connection
+  const lang = locale.split('-')[0];
+  const viewName = checkAvailableViews(view);
   const [cubeDBConn] = (await dbManager.getCubeDataSource().driver.obtainMasterConnection()) as [PoolClient];
+  const filterTableColumnQueryResult: QueryResult<FactTableToDimensionName> = await cubeDBConn.query(
+    pgformat('SELECT DISTINCT fact_table_column, dimension_name, language FROM %I.filter_table;', revision.id)
+  );
 
   try {
-    await cubeDBConn.query(pgformat(`SET search_path TO %I;`, revision.id));
-    const view = await viewChooser(cubeDBConn, 'raw', lang, revision);
-    const columns = await getColumns(cubeDBConn, lang);
-    const baseQuery = createBaseQuery(revision, view, columns, sortBy, filterBy);
+    const coreView = await coreViewChooser(cubeDBConn, lang, revision);
+    const selectColumns = await getColumns(cubeDBConn, revision.id, lang, viewName);
+    const baseQuery = createBaseQuery(
+      revision,
+      coreView,
+      locale,
+      selectColumns,
+      filterTableColumnQueryResult.rows,
+      sortBy,
+      filterBy
+    );
     const cursor = cubeDBConn.query(new Cursor(baseQuery));
     let rows = await cursor.read(CURSOR_ROW_LIMIT);
     res.setHeader('content-type', 'application/json');
@@ -387,18 +418,31 @@ export const createStreamingJSONFilteredView = async (
 export const createStreamingCSVFilteredView = async (
   res: Response,
   revision: Revision,
-  lang: string,
+  locale: string,
+  view = 'raw',
   sortBy?: SortByInterface[],
   filterBy?: FilterInterface[]
 ): Promise<void> => {
   // queryRunner.query() does not support Cursor so we need to obtain underlying PostgreSQL connection
-  const [cubeDBConn] = await dbManager.getCubeDataSource().driver.obtainMasterConnection();
+  const lang = locale.split('-')[0];
+  const viewName = checkAvailableViews(view);
+  const [cubeDBConn] = (await dbManager.getCubeDataSource().driver.obtainMasterConnection()) as [PoolClient];
+  const filterTableColumnQueryResult: QueryResult<FactTableToDimensionName> = await cubeDBConn.query(
+    pgformat('SELECT DISTINCT fact_table_column, dimension_name, language FROM %I.filter_table;', revision.id)
+  );
 
   try {
-    await cubeDBConn.query(pgformat(`SET search_path TO %I;`, revision.id));
-    const view = await viewChooser(cubeDBConn, 'raw', lang, revision);
-    const columns = await getColumns(cubeDBConn, lang);
-    const baseQuery = createBaseQuery(revision, view, columns, sortBy, filterBy);
+    const coreView = await coreViewChooser(cubeDBConn, lang, revision);
+    const selectColumns = await getColumns(cubeDBConn, revision.id, lang, viewName);
+    const baseQuery = createBaseQuery(
+      revision,
+      coreView,
+      locale,
+      selectColumns,
+      filterTableColumnQueryResult.rows,
+      sortBy,
+      filterBy
+    );
     const cursor = cubeDBConn.query(new Cursor(baseQuery));
     let rows = await cursor.read(CURSOR_ROW_LIMIT);
     res.setHeader('content-type', 'text/csv');
@@ -427,18 +471,31 @@ export const createStreamingCSVFilteredView = async (
 export const createStreamingExcelFilteredView = async (
   res: Response,
   revision: Revision,
-  lang: string,
+  locale: string,
+  view = 'raw',
   sortBy?: SortByInterface[],
   filterBy?: FilterInterface[]
 ): Promise<void> => {
   // queryRunner.query() does not support Cursor so we need to obtain underlying PostgreSQL connection
-  const [cubeDBConn] = await dbManager.getCubeDataSource().driver.obtainMasterConnection();
+  const lang = locale.split('-')[0];
+  const viewName = checkAvailableViews(view);
+  const [cubeDBConn] = (await dbManager.getCubeDataSource().driver.obtainMasterConnection()) as [PoolClient];
+  const filterTableColumnQueryResult: QueryResult<FactTableToDimensionName> = await cubeDBConn.query(
+    pgformat('SELECT DISTINCT fact_table_column, dimension_name, language FROM %I.filter_table;', revision.id)
+  );
 
   try {
-    await cubeDBConn.query(pgformat(`SET search_path TO %I;`, revision.id));
-    const view = await viewChooser(cubeDBConn, 'raw', lang, revision);
-    const columns = await getColumns(cubeDBConn, lang);
-    const baseQuery = createBaseQuery(revision, view, columns, sortBy, filterBy);
+    const coreView = await coreViewChooser(cubeDBConn, lang, revision);
+    const selectColumns = await getColumns(cubeDBConn, revision.id, lang, viewName);
+    const baseQuery = createBaseQuery(
+      revision,
+      coreView,
+      locale,
+      selectColumns,
+      filterTableColumnQueryResult.rows,
+      sortBy,
+      filterBy
+    );
     const cursor = cubeDBConn.query(new Cursor(baseQuery));
     let rows = await cursor.read(CURSOR_ROW_LIMIT);
     res.writeHead(200, {

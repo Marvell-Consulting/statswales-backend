@@ -10,7 +10,6 @@ import {
   downloadRevisionCubeAsCSV,
   downloadRevisionCubeAsExcel,
   downloadRevisionCubeAsJSON,
-  downloadRevisionCubeAsParquet,
   getDataTablePreview,
   getRevisionInfo,
   getRevisionPreview,
@@ -142,7 +141,7 @@ router.get('/by-id/:revision_id/cube/csv', loadRevision(), downloadRevisionCubeA
 
 // GET /dataset/:dataset_id/revision/by-id/:revision_id/cube/parquet
 // Returns the specific revision of the dataset as a Parquet file
-router.get('/by-id/:revision_id/cube/parquet', loadRevision(), downloadRevisionCubeAsParquet);
+// router.get('/by-id/:revision_id/cube/parquet', loadRevision(), downloadRevisionCubeAsParquet);
 
 // GET /dataset/:dataset_id/revision/by-id/:revision_id/cube/excel
 // Returns the specific revision of the dataset as an Excel file

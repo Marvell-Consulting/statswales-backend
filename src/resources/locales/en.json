@@ -113,7 +113,12 @@
     "note_codes": "Note codes",
     "start_date": "Start date",
     "end_date": "End date",
-    "notes": "Notes"
+    "notes": "Notes",
+    "annotated": "annotated",
+    "formatted": "formatted",
+    "reference": "reference",
+    "hierarchy": "hierarchy",
+    "sort": "sort"
   },
   "note_codes": {
     "average": "Average",

@@ -109,7 +109,7 @@ export const getPublishedDatasetView = async (req: Request, res: Response): Prom
     }
   */
   const dataset = await PublishedDatasetRepository.getById(res.locals.datasetId, withAll);
-  const lang = req.language.split('-')[0];
+  const lang = req.language;
 
   if (!dataset.publishedRevision) {
     throw new NotFoundException('errors.no_revision');
@@ -206,7 +206,7 @@ export const downloadPublishedDataset = async (req: Request, res: Response, next
   }
 
   const format = req.params.format;
-  const lang = req.language.split('-')[0];
+  const view = req.query.view as string;
   const dataset = await PublishedDatasetRepository.getById(res.locals.datasetId, withAll);
   let sortBy: SortByInterface[] | undefined;
   let filter: FilterInterface[] | undefined;
@@ -235,13 +235,13 @@ export const downloadPublishedDataset = async (req: Request, res: Response, next
   try {
     switch (format as DuckdbOutputType) {
       case DuckdbOutputType.Csv:
-        createStreamingCSVFilteredView(res, revision, lang, sortBy, filter);
+        createStreamingCSVFilteredView(res, revision, req.language, view, sortBy, filter);
         break;
       case DuckdbOutputType.Json:
-        createStreamingJSONFilteredView(res, revision, lang, sortBy, filter);
+        createStreamingJSONFilteredView(res, revision, req.language, view, sortBy, filter);
         break;
       case DuckdbOutputType.Excel:
-        createStreamingExcelFilteredView(res, revision, lang, sortBy, filter);
+        createStreamingExcelFilteredView(res, revision, req.language, view, sortBy, filter);
         break;
       default:
         next(new BadRequestException('file format currently not supported'));
