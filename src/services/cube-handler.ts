@@ -1924,7 +1924,7 @@ async function setupTextDimension(
     coreCubeViewSelectBuilder
       .get(locale)
       ?.push(pgformat('CAST(%I AS VARCHAR) AS %I', dimension.factTableColumn, columnSortName));
-    coreCubeViewSelectBuilder.get(locale)?.push(pgformat('NULL AS %I', dimension.factTableColumn, columnHierarchyName));
+    coreCubeViewSelectBuilder.get(locale)?.push(pgformat('NULL AS %I', columnHierarchyName));
     for (const view of viewConfig) {
       view.columns.get(locale)?.add(pgformat('%I', columnName));
       if (view.config.refcodes) {
