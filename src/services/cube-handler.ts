@@ -46,7 +46,7 @@ import { createFrontendView } from './consumer-view';
 import { LookupTable } from '../entities/dataset/lookup-table';
 import { dbManager } from '../db/database-manager';
 import { CubeViewConfig } from '../interfaces/cube-view-config';
-import { cubeConfig } from '../config/cube-view-config';
+import cubeConfig from '../config/cube-view.json';
 
 export const FACT_TABLE_NAME = 'fact_table';
 export const CORE_VIEW_NAME = 'core_view';

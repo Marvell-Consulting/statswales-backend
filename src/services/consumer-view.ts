@@ -18,7 +18,7 @@ import { dbManager } from '../db/database-manager';
 import { CORE_VIEW_NAME } from './cube-handler';
 import { getColumnHeaders } from '../utils/column-headers';
 import { t } from 'i18next';
-import { cubeConfig } from '../config/cube-view-config';
+import cubeConfig from '../config/cube-view.json';
 
 const EXCEL_ROW_LIMIT = 1048576;
 const CURSOR_ROW_LIMIT = 500;
@@ -266,11 +266,13 @@ export const createFrontendView = async (
   );
 
   try {
+    const coreView = await coreViewChooser(cubeDBConn, lang, revision);
+    const selectColumns = await getColumns(cubeDBConn, revision.id, lang, 'frontend');
     const baseQuery = createBaseQuery(
       revision,
-      await coreViewChooser(cubeDBConn, lang, revision),
+      coreView,
       locale,
-      await getColumns(cubeDBConn, revision.id, lang, 'frontend'),
+      selectColumns,
       filterTableColumnQueryResult.rows,
       sortBy,
       filterBy
@@ -375,11 +377,13 @@ export const createStreamingJSONFilteredView = async (
   );
 
   try {
+    const coreView = await coreViewChooser(cubeDBConn, lang, revision);
+    const selectColumns = await getColumns(cubeDBConn, revision.id, lang, viewName);
     const baseQuery = createBaseQuery(
       revision,
-      await coreViewChooser(cubeDBConn, lang, revision),
+      coreView,
       locale,
-      await getColumns(cubeDBConn, revision.id, lang, viewName),
+      selectColumns,
       filterTableColumnQueryResult.rows,
       sortBy,
       filterBy
@@ -428,11 +432,13 @@ export const createStreamingCSVFilteredView = async (
   );
 
   try {
+    const coreView = await coreViewChooser(cubeDBConn, lang, revision);
+    const selectColumns = await getColumns(cubeDBConn, revision.id, lang, viewName);
     const baseQuery = createBaseQuery(
       revision,
-      await coreViewChooser(cubeDBConn, lang, revision),
+      coreView,
       locale,
-      await getColumns(cubeDBConn, revision.id, lang, viewName),
+      selectColumns,
       filterTableColumnQueryResult.rows,
       sortBy,
       filterBy
@@ -479,11 +485,13 @@ export const createStreamingExcelFilteredView = async (
   );
 
   try {
+    const coreView = await coreViewChooser(cubeDBConn, lang, revision);
+    const selectColumns = await getColumns(cubeDBConn, revision.id, lang, viewName);
     const baseQuery = createBaseQuery(
       revision,
-      await coreViewChooser(cubeDBConn, lang, revision),
+      coreView,
       locale,
-      await getColumns(cubeDBConn, revision.id, lang, viewName),
+      selectColumns,
       filterTableColumnQueryResult.rows,
       sortBy,
       filterBy
