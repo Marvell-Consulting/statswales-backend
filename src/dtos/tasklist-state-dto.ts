@@ -271,20 +271,7 @@ export class TasklistStateDTO {
     dto.canPublish =
       dataTableComplete && dimensionsComplete && metadataComplete && translationsComplete && publishingComplete;
 
-    logger.debug(
-      `\nTasklistState: ${JSON.stringify(
-        {
-          dataTableComplete,
-          dimensionsComplete,
-          metadataComplete,
-          translationsComplete,
-          publishingComplete,
-          canPublish: dto.canPublish
-        },
-        null,
-        2
-      )}`
-    );
+    logger.info(`Dataset ready for publishing: ${dto.canPublish ? 'true' : 'false'}`);
 
     return dto;
   }
