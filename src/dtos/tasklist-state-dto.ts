@@ -271,7 +271,7 @@ export class TasklistStateDTO {
     dto.canPublish =
       dataTableComplete && dimensionsComplete && metadataComplete && translationsComplete && publishingComplete;
 
-    logger.info(`Dataset ready for publishing: ${dto.canPublish ? 'true' : 'false'}`);
+    logger.info(`Dataset ${dataset.id} ready for publishing: ${dto.canPublish ? 'true' : 'false'}`);
 
     return dto;
   }
