@@ -734,24 +734,23 @@ async function getDatePreviewWithExtractor(
     sampleSize
   );
   const previewResult = await cubeDB.query(previewQuery);
-  const tableHeaders = Object.keys(previewResult[0]);
+  const columns = Object.keys(previewResult[0]);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const dataArray = previewResult.map((row: any) => Object.values(row));
   const currentDataset = await DatasetRepository.getById(dataset.id);
-  const headers: ColumnHeader[] = [];
 
-  for (let i = 0; i < tableHeaders.length; i++) {
-    headers.push({
-      index: i,
-      name: tableHeaders[i],
-      source_type: FactTableColumnType.Unknown
-    });
-  }
+  const headers: ColumnHeader[] = columns.map((column, i) => ({
+    index: i,
+    name: column,
+    source_type: FactTableColumnType.Unknown
+  }));
+
   const pageInfo = {
     total_records: totalsQuery[0].totalLines,
     start_record: 1,
     end_record: dataArray.length
   };
+
   const pageSize = dataArray.length < sampleSize ? dataArray.length : sampleSize;
   return viewGenerator(currentDataset, 1, pageInfo, pageSize, 1, headers, dataArray);
 }
