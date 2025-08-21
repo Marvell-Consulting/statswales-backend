@@ -254,9 +254,8 @@ export const validateLookupTableReferenceValues = async (
       lookupTableName,
       joinColumn
     );
-    logger.debug(`Running non-matched query ${nonmatchedRowsQuery}`);
     const nonMatchedRows = await cubeDB.query(nonmatchedRowsQuery);
-    logger.debug(`Number of rows from non matched rows query: ${nonMatchedRows.length}`);
+    logger.debug(`Number of non matched rows: ${nonMatchedRows.length}`);
     const totals: { total_rows: number }[] = await cubeDB.query(`SELECT COUNT(*) as total_rows FROM ${factTableName}`);
     if (nonMatchedRows.length === totals[0].total_rows) {
       logger.error(`The user supplied an incorrect lookup table and none of the rows matched`);

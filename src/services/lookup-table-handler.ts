@@ -169,8 +169,6 @@ export const createLookupTableInCube = async (
     const builtInsertQuery = `
       INSERT INTO ${makeCubeSafeString(dimension.factTableColumn)}_lookup (${dataExtractorParts.join(' UNION ')});
     `;
-
-    // logger.debug(`Built insert query: ${builtInsertQuery}`);
     await quack.exec(builtInsertQuery);
   } else {
     const languageMatcher = languageMatcherCaseStatement(extractor.languageColumn);

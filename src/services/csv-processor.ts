@@ -274,7 +274,6 @@ export const getCSVPreview = async (
 
   try {
     await cubeDB.query(pgformat(`SET search_path TO %I;`, 'data_tables'));
-    logger.debug('Getting table query from postgres');
     tableName = dataTable.id;
     const totalsQuery = pgformat(`SELECT count(*) AS total_lines FROM %I;`, tableName);
     const totals: { total_lines: number }[] = await cubeDB.query(totalsQuery);
