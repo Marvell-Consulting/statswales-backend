@@ -1,4 +1,4 @@
-import passport from 'passport';
+import passport, { AuthenticateCallback } from 'passport';
 import { Strategy as JWTStrategy, ExtractJwt } from 'passport-jwt';
 import * as openIdClient from 'openid-client';
 import { Strategy as OpenIdStrategy, type StrategyOptions, type VerifyFunction } from 'openid-client/passport';
@@ -113,7 +113,7 @@ const initEntraId = async (userRepository: Repository<User>, entraIdConfig: Entr
     callbackURL: `${config.backend.url}/auth/entraid/callback`
   };
 
-  const verify: VerifyFunction = async (tokens: Tokens, done: passport.AuthenticateCallback) => {
+  const verify: VerifyFunction = async (tokens: Tokens, done: AuthenticateCallback) => {
     logger.debug('auth callback from entraid received');
     const { sub } = tokens.claims()!;
     const userInfo = await openIdClient.fetchUserInfo(openidConfig, tokens.access_token, sub);
