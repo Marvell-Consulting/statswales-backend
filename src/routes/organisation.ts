@@ -15,7 +15,7 @@ organisationRouter.get('/', async (req: Request, res: Response, next: NextFuncti
     const organisationDTOs = organisations.map((org) => OrganisationDTO.fromOrganisation(org, req.language as Locale));
     res.json(organisationDTOs);
   } catch (error) {
-    logger.error('Error listing organisations', error);
+    logger.error(error, 'Error listing organisations');
     next(new UnknownException());
   }
 });
