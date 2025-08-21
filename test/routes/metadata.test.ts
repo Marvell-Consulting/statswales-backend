@@ -35,7 +35,7 @@ jest.mock('../../src/services/blob-storage');
 const dataset1Id = 'bdc40218-af89-424b-b86e-d21710bc92f1';
 const revision1Id = '85f0e416-8bd1-4946-9e2c-1c958897c6ef';
 const dataTableId = 'fa07be9d-3495-432d-8c1f-d0fc6daae359';
-const user: User = getTestUser('test', 'user');
+const user: User = getTestUser('test user');
 let userGroup = getTestUserGroup('Test Group');
 let queryRunner: QueryRunner;
 

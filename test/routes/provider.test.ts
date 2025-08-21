@@ -24,7 +24,7 @@ jest.mock('../../src/services/blob-storage', () => {
   };
 });
 
-const user: User = getTestUser('test', 'user');
+const user: User = getTestUser('test user');
 
 const providerId1 = uuid();
 const providerId2 = uuid();
