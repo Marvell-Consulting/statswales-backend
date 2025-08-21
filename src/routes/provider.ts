@@ -18,7 +18,7 @@ provider.get('/', async (req: Request, res: Response, next: NextFunction) => {
     const providerDTOs = providers.map((provider) => ProviderDTO.fromProvider(provider));
     res.json(providerDTOs);
   } catch (error) {
-    logger.error('Error listing providers', error);
+    logger.error(error, 'Error listing providers');
     next(new UnknownException());
   }
 });
@@ -40,7 +40,7 @@ provider.get('/:provider_id/sources', async (req: Request, res: Response, next: 
     const providerSourceDTOs = providerSources.map((pSource) => ProviderSourceDTO.fromProviderSource(pSource));
     res.json(providerSourceDTOs);
   } catch (error) {
-    logger.error('Error listing provider sources', error);
+    logger.error(error, 'Error listing provider sources');
     next(new UnknownException());
   }
 });
