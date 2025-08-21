@@ -1,7 +1,7 @@
 import { URL } from 'node:url';
 
 import { RequestHandler } from 'express';
-import passport from 'passport';
+import passport, { AuthenticateOptions } from 'passport';
 import jwt from 'jsonwebtoken';
 import { Repository } from 'typeorm';
 
@@ -70,8 +70,9 @@ export const loginEntraID: RequestHandler = (req, res, next) => {
   logger.debug('attempting to authenticate with EntraID...');
 
   const returnURL = `${config.frontend.url}/auth/callback`;
+  const opts: AuthenticateOptions = { prompt: 'select_account' };
 
-  passport.authenticate(AuthProvider.EntraId, (err: Error, user: User, info: Record<string, string>) => {
+  passport.authenticate(AuthProvider.EntraId, opts, (err: Error, user: User, info: Record<string, string>) => {
     if (err || !user) {
       const errorMessage = err?.message || info?.message || 'unknown error';
       logger.error(`entraid auth returned an error: ${errorMessage}`);

@@ -1,6 +1,7 @@
 import passport from 'passport';
-import { Issuer, Strategy as OpenIdStrategy, TokenSet, UserinfoResponse } from 'openid-client';
 import { Strategy as JWTStrategy, ExtractJwt } from 'passport-jwt';
+import * as openIdClient from 'openid-client';
+import { Strategy as OpenIdStrategy, type StrategyOptions, type VerifyFunction } from 'openid-client/passport';
 import { DataSource, Repository } from 'typeorm';
 import { isEqual } from 'lodash';
 
@@ -12,6 +13,9 @@ import { asyncLocalStorage } from '../services/async-local-storage';
 import { UserDTO } from '../dtos/user/user-dto';
 import { getPermissionsForUserDTO } from '../utils/get-permissions-for-user';
 import { EntraIdConfig, JWTConfig } from '../config/app-config.interface';
+
+type Tokens = openIdClient.TokenEndpointResponse & openIdClient.TokenEndpointResponseHelpers;
+type OpenIdConfig = openIdClient.Configuration;
 
 const config = appConfig();
 
@@ -94,91 +98,88 @@ const initJwt = async (userRepository: Repository<User>, jwtConfig: JWTConfig): 
 
 const initEntraId = async (userRepository: Repository<User>, entraIdConfig: EntraIdConfig): Promise<void> => {
   if (!entraIdConfig.url || !entraIdConfig.clientId || !entraIdConfig.clientSecret) {
-    throw new Error('EntraId configuration is missing');
+    throw new Error('entraid configuration is missing');
   }
 
-  const issuer = await Issuer.discover(`${entraIdConfig.url}/.well-known/openid-configuration`);
-
-  passport.use(
-    AuthProvider.EntraId,
-    new OpenIdStrategy(
-      {
-        client: new issuer.Client({
-          client_id: entraIdConfig.clientId,
-          client_secret: entraIdConfig.clientSecret,
-          redirect_uris: [`${config.backend.url}/auth/entraid/callback`]
-        }),
-        params: {
-          scope: 'openid profile email',
-          prompt: 'select_account'
-        }
-      },
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      async (tokenset: TokenSet, userInfo: UserinfoResponse, done: any): Promise<void> => {
-        logger.debug('auth callback from entraid received');
-
-        if (!userInfo?.sub || !userInfo?.email) {
-          logger.error('entraid auth failed: account is missing user id or email address and we need both');
-          done(null, undefined, { message: 'entraid account does not have a user id or email, cannot login' });
-          return;
-        }
-
-        try {
-          logger.debug('checking if user has previously logged in...');
-
-          const existingUserById = await userRepository.findOne({
-            where: {
-              provider: AuthProvider.EntraId,
-              providerUserId: userInfo.sub
-            },
-            relations: { groupRoles: { group: { metadata: true } } }
-          });
-
-          if (existingUserById) {
-            logger.debug('user found by provider id, updating user record with latest details from entraid');
-
-            await userRepository
-              .merge(existingUserById, {
-                email: userInfo.email.toLowerCase(),
-                name: userInfo.name,
-                lastLoginAt: new Date()
-              })
-              .save();
-
-            done(null, existingUserById);
-            return;
-          }
-
-          logger.debug('no previous login found, falling back to email...');
-          const existingUserByEmail = await userRepository.findOne({
-            where: { email: userInfo.email.toLowerCase() },
-            relations: { groupRoles: { group: { metadata: true } } }
-          });
-
-          if (existingUserByEmail) {
-            logger.debug('user found by email, associating user record with entraid account');
-
-            await userRepository
-              .merge(existingUserByEmail, {
-                provider: AuthProvider.EntraId,
-                providerUserId: userInfo.sub,
-                name: userInfo.name,
-                lastLoginAt: new Date()
-              })
-              .save();
-
-            done(null, existingUserByEmail);
-            return;
-          }
-
-          logger.error('No matching user found, cannot log in');
-          done(null, undefined, { message: 'User not recognised' });
-          return;
-        } catch (error) {
-          logger.error(error);
-          done(null, undefined, { message: 'Unknown error' });
-        }
-      }
-    )
+  const openidConfig: OpenIdConfig = await openIdClient.discovery(
+    new URL(`${entraIdConfig.url}/.well-known/openid-configuration`),
+    entraIdConfig.clientId,
+    entraIdConfig.clientSecret
   );
+
+  const strategyOptions: StrategyOptions = {
+    config: openidConfig,
+    scope: 'openid profile email',
+    callbackURL: `${config.backend.url}/auth/entraid/callback`
+  };
+
+  const verify: VerifyFunction = async (tokens: Tokens, done: passport.AuthenticateCallback) => {
+    logger.debug('auth callback from entraid received');
+    const { sub } = tokens.claims()!;
+    const userInfo = await openIdClient.fetchUserInfo(openidConfig, tokens.access_token, sub);
+
+    if (!userInfo?.sub || !userInfo?.email) {
+      logger.error('entraid auth failed: account is missing user id or email address and we need both');
+      done(null, undefined, { message: 'entraid account does not have a user id or email, cannot login' });
+      return;
+    }
+
+    try {
+      logger.debug('checking if user has previously logged in...');
+
+      const existingUserById = await userRepository.findOne({
+        where: {
+          provider: AuthProvider.EntraId,
+          providerUserId: userInfo.sub
+        },
+        relations: { groupRoles: { group: { metadata: true } } }
+      });
+
+      if (existingUserById) {
+        logger.debug('user found by provider id, updating user record with latest details from entraid');
+
+        await userRepository
+          .merge(existingUserById, {
+            email: userInfo.email.toLowerCase(),
+            name: userInfo.name,
+            lastLoginAt: new Date()
+          })
+          .save();
+
+        done(null, existingUserById);
+        return;
+      }
+
+      logger.debug('no previous login found, falling back to email...');
+      const existingUserByEmail = await userRepository.findOne({
+        where: { email: userInfo.email.toLowerCase() },
+        relations: { groupRoles: { group: { metadata: true } } }
+      });
+
+      if (existingUserByEmail) {
+        logger.debug('user found by email, associating user record with entraid account');
+
+        await userRepository
+          .merge(existingUserByEmail, {
+            provider: AuthProvider.EntraId,
+            providerUserId: userInfo.sub,
+            name: userInfo.name,
+            lastLoginAt: new Date()
+          })
+          .save();
+
+        done(null, existingUserByEmail);
+        return;
+      }
+
+      logger.error('No matching user found, cannot log in');
+      done(null, undefined, { message: 'User not recognised' });
+      return;
+    } catch (error) {
+      logger.error(error);
+      done(null, undefined, { message: 'Unknown error' });
+    }
+  };
+
+  passport.use(AuthProvider.EntraId, new OpenIdStrategy(strategyOptions, verify));
 };
