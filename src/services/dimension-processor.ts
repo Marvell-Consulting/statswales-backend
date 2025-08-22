@@ -867,6 +867,7 @@ async function getLookupPreviewWithExtractor(
   );
 
   logger.debug(`Querying the cube to get the lookup preview`);
+  logger.trace(`lookup preview query: ${query}`);
   const dimensionTable = await cubeDB.query(query);
   const tableHeaders = Object.keys(dimensionTable[0]);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any

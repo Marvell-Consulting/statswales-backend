@@ -167,9 +167,8 @@ export const validateLookupTableLanguages = async (
       lookupTableName,
       joinColumn
     );
-    logger.debug(
-      `Checking language counts match total number of supported languages using query:\n${missingLanguageRowsQuery}\n`
-    );
+    logger.debug(`Checking language counts match total number of supported languages`);
+    logger.trace(`missing language rows query: ${missingLanguageRowsQuery}`);
     const missingLanguageRows: { join_column: string; lang_count: number; languages: string }[] =
       await cubeDB.query(missingLanguageRowsQuery);
     if (missingLanguageRows.length > 0) {
@@ -238,7 +237,7 @@ export const validateLookupTableReferenceValues = async (
 ): Promise<ViewErrDTO | undefined> => {
   try {
     logger.debug(`Validating the lookup table`);
-    const nonmatchedRowsQuery = pgformat(
+    const nonMatchedRowsQuery = pgformat(
       `SELECT line_number, fact_table_column, %I.%I as lookup_table_column
             FROM (SELECT row_number() OVER () as line_number, %I as fact_table_column FROM
             %I) as fact_table LEFT JOIN %I ON
@@ -254,7 +253,8 @@ export const validateLookupTableReferenceValues = async (
       lookupTableName,
       joinColumn
     );
-    const nonMatchedRows = await cubeDB.query(nonmatchedRowsQuery);
+    logger.trace(`non matched rows query: ${nonMatchedRowsQuery}`);
+    const nonMatchedRows = await cubeDB.query(nonMatchedRowsQuery);
     logger.debug(`Number of non matched rows: ${nonMatchedRows.length}`);
     const totals: { total_rows: number }[] = await cubeDB.query(`SELECT COUNT(*) as total_rows FROM ${factTableName}`);
     if (nonMatchedRows.length === totals[0].total_rows) {

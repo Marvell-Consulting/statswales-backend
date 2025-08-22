@@ -282,6 +282,7 @@ export const loadFileDataTableIntoTable = async (
   }
   try {
     logger.debug(`Loading file data table into table ${tableName}`);
+    logger.trace(`insert query: ${insertQuery}`);
     await quack.exec(insertQuery);
     await loadTableDataIntoFactTable(quack, factTableDef, tableName, tempTableName);
     await quack.exec(pgformat('DROP TABLE %I', tempTableName));
@@ -806,6 +807,7 @@ async function copyUpdateTableToFactTable(
     dataTableSelect,
     updateTableName
   );
+  logger.trace(`copy query: ${copyQuery}`);
   await cubeDB.query(copyQuery);
 }
 
@@ -2149,6 +2151,7 @@ async function createPrimaryKeyOnFactTable(
   logger.debug('Creating primary key on fact table');
   try {
     const alterTableQuery = pgformat('ALTER TABLE %I.%I ADD PRIMARY KEY (%I)', schema, FACT_TABLE_NAME, compositeKey);
+    logger.trace(`add primary key query: ${alterTableQuery}`);
     await cubeDB.query(alterTableQuery);
   } catch (error) {
     logger.warn(error, `Failed to add primary key to the fact table`);
@@ -2362,6 +2365,8 @@ export const createBasePostgresCube = async (
         joinStatements.join('\n').replace(/#LANG#/g, pgformat('%L', locale.toLowerCase())),
         orderByStatements.length > 0 ? `ORDER BY ${orderByStatements.join(', ')}` : ''
       );
+
+      logger.trace(`core cube view SQL: ${coreCubeViewSQL}`);
       await cubeDB.query(pgformat('CREATE VIEW %I AS %s', `${CORE_VIEW_NAME}_${lang}`, coreCubeViewSQL));
       await cubeDB.query(pgformat(`INSERT INTO metadata VALUES (%L, %L)`, coreViewName, coreCubeViewSQL));
 

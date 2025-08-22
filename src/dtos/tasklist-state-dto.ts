@@ -273,6 +273,21 @@ export class TasklistStateDTO {
 
     logger.info(`Dataset ${dataset.id} ready for publishing: ${dto.canPublish ? 'true' : 'false'}`);
 
+    logger.trace(
+      `\nTasklistState: ${JSON.stringify(
+        {
+          dataTableComplete,
+          dimensionsComplete,
+          metadataComplete,
+          translationsComplete,
+          publishingComplete,
+          canPublish: dto.canPublish
+        },
+        null,
+        2
+      )}`
+    );
+
     return dto;
   }
 }

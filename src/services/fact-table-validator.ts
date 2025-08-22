@@ -282,6 +282,7 @@ async function identifyDuplicateFacts(
 
   try {
     logger.debug(`Running query to find duplicate facts...`);
+    logger.trace(`duplicate fact query: ${duplicateFactQuery}`);
     const brokenFacts = await cubeDB.query(duplicateFactQuery);
     if (brokenFacts.length > 0) {
       const { headers, data } = tableDataToViewTable(brokenFacts);
