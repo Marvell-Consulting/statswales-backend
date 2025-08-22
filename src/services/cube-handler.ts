@@ -827,6 +827,7 @@ async function finaliseValues(
   dataValuesColumn: FactTableColumn,
   notesCodeColumn: FactTableColumn
 ): Promise<void> {
+  logger.trace('Finalizing values');
   const joinParts: string[] = [];
   for (const factTableCol of factIdentifiers) {
     const dataTableCol = dataTableIdentifiers.find((col) => col.factTableColumn === factTableCol.columnName);
@@ -854,25 +855,26 @@ async function finaliseValues(
     FACT_TABLE_NAME,
     notesCodeColumn.columnName
   );
+  logger.trace(`Update Query:\n${updateQuery}`);
   await cubeDB.query(updateQuery);
-  await cubeDB.query(
-    pgformat(
-      `DELETE FROM %I USING %I WHERE %s AND string_to_array(%I.%I, ',') && string_to_array('!', ',');`,
-      updateTableName,
-      FACT_TABLE_NAME,
-      joinParts.join(' AND '),
-      FACT_TABLE_NAME,
-      notesCodeColumn.columnName
-    )
+  const deleteQuery = pgformat(
+    `DELETE FROM %I USING %I WHERE %s AND string_to_array(%I.%I, ',') && string_to_array('!', ',');`,
+    updateTableName,
+    FACT_TABLE_NAME,
+    joinParts.join(' AND '),
+    FACT_TABLE_NAME,
+    notesCodeColumn.columnName
   );
-  await cubeDB.query(
-    pgformat(
-      `UPDATE %I SET %I = array_to_string(array_remove(string_to_array(%I, ','), '!'), ',')`,
-      FACT_TABLE_NAME,
-      notesCodeColumn.columnName,
-      notesCodeColumn.columnName
-    )
+  logger.trace(`Delete query:\n${deleteQuery}`);
+  await cubeDB.query(deleteQuery);
+  const updateNoteCodeQuery = pgformat(
+    `UPDATE %I SET %I = array_to_string(array_remove(string_to_array(%I, ','), '!'), ',')`,
+    FACT_TABLE_NAME,
+    notesCodeColumn.columnName,
+    notesCodeColumn.columnName
   );
+  logger.trace(`Update note code query:\n${updateNoteCodeQuery}`);
+  await cubeDB.query(updateNoteCodeQuery);
 }
 
 async function updateProvisionalsAndForecasts(
@@ -883,6 +885,7 @@ async function updateProvisionalsAndForecasts(
   dataValuesColumn: FactTableColumn,
   notesCodeColumn: FactTableColumn
 ): Promise<void> {
+  logger.trace('Update provisional and forecast values');
   const joinParts: string[] = [];
   for (const factTableCol of factIdentifiers) {
     const dataTableCol = dataTableIdentifiers.find((col) => col.factTableColumn === factTableCol.columnName);
@@ -910,14 +913,18 @@ async function updateProvisionalsAndForecasts(
     updateTableName,
     notesCodeColumn.columnName
   );
+  logger.trace(`Update query:\n${updateQuery}`);
   await cubeDB.query(updateQuery);
-  await cubeDB.query(
-    pgformat(
-      `DELETE FROM %I WHERE string_to_array(%I, ',') && string_to_array('p,f', ',');`,
-      updateTableName,
-      notesCodeColumn.columnName
-    )
+  const deleteQuery = pgformat(
+    `DELETE FROM %I USING %I WHERE string_to_array(%I.%I, ',') && string_to_array('p,f', ',') AND %s;`,
+    updateTableName,
+    FACT_TABLE_NAME,
+    updateTableName,
+    notesCodeColumn.columnName,
+    joinParts.join(' AND ')
   );
+  logger.trace(`Delete query:\n${deleteQuery}`);
+  await cubeDB.query(deleteQuery);
 }
 
 async function loadFactTablesWithUpdates(
