@@ -393,7 +393,7 @@ export async function createDateDimension(
       } else if (metaData.key === 'end_date') {
         if (periodCoverage[0].end_date > toZonedTime(metaData.value, 'UTC')) {
           await cubeDB.query(
-            `UPDATE metadata SET value='${periodCoverage[0].start_date.toISOString()}' WHERE key='end_date';`
+            `UPDATE metadata SET value='${periodCoverage[0].end_date.toISOString()}' WHERE key='end_date';`
           );
         }
       }
@@ -403,7 +403,7 @@ export async function createDateDimension(
       `INSERT INTO metadata (key, value) VALUES ('start_date', '${periodCoverage[0].start_date.toISOString()}');`
     );
     await cubeDB.query(
-      `INSERT INTO metadata (key, value) VALUES ('end_date', '${periodCoverage[0].start_date.toISOString()}');`
+      `INSERT INTO metadata (key, value) VALUES ('end_date', '${periodCoverage[0].end_date.toISOString()}');`
     );
   }
   return `${makeCubeSafeString(factTableColumn.columnName)}_lookup`;
