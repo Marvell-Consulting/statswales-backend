@@ -492,7 +492,6 @@ export const validateDateDimension = async (
       LEFT JOIN "${lookupTableName}"
       ON fact_table.fact_table_date="${lookupTableName}"."${factTableColumn.columnName}"
       WHERE "${factTableColumn.columnName}" IS NULL;`;
-    // logger.debug(`Matching query is:\n${matchingQuery}`);
 
     const nonMatchedRows = await cubeDB.query(matchingQuery);
 
@@ -589,14 +588,9 @@ export const createAndValidateDateDimension = async (
     tableName
   );
 
-  // logger.debug(`Preview query is: ${previewQuery}`);
   const preview: { data_data: string }[] = await cubeDB.query(previewQuery);
   try {
-    // logger.debug(`Preview is: ${JSON.stringify(preview)}`);
     dateDimensionTable = dateDimensionReferenceTableCreator(extractor, preview);
-    // logger.debug(
-    //   `Date dimension table created with the following JSON: ${JSON.stringify(dateDimensionTable, null, 2)}`
-    // );
   } catch (error) {
     logger.error(error, `Something went wrong trying to create the date reference table`);
     cubeDB.release();
@@ -872,7 +866,8 @@ async function getLookupPreviewWithExtractor(
     sampleSize
   );
 
-  logger.debug(`Querying the cube to get the preview using query ${query}`);
+  logger.debug(`Querying the cube to get the lookup preview`);
+  logger.trace(`lookup preview query: ${query}`);
   const dimensionTable = await cubeDB.query(query);
   const tableHeaders = Object.keys(dimensionTable[0]);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any

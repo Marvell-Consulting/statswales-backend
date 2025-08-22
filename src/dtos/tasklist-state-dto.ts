@@ -271,7 +271,9 @@ export class TasklistStateDTO {
     dto.canPublish =
       dataTableComplete && dimensionsComplete && metadataComplete && translationsComplete && publishingComplete;
 
-    logger.debug(
+    logger.info(`Dataset ${dataset.id} ready for publishing: ${dto.canPublish ? 'true' : 'false'}`);
+
+    logger.trace(
       `\nTasklistState: ${JSON.stringify(
         {
           dataTableComplete,

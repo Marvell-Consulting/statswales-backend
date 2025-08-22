@@ -238,9 +238,7 @@ async function createMeasureTable(
       );
     }
     buildMeasureViewQuery = `${viewComponents.join('\nUNION\n')}`;
-    // logger.debug(`Extracting SW2 measure lookup table to measure table using query ${buildMeasureViewQuery}`);
   } else {
-    // logger.debug(`Extractor = ${JSON.stringify(extractor, null, 2)}`);
     if (extractor.notesColumns && extractor.notesColumns.length > 0) {
       notesColumnDef = `"${extractor.notesColumns[0].name}"`;
     } else {
@@ -262,7 +260,6 @@ async function createMeasureTable(
         ${hierarchyDef} AS hierarchy
       FROM ${lookupTableName}
     `;
-    // logger.debug(`Extracting SW3 measure lookup table to measure table using query ${buildMeasureViewQuery}`);
   }
   try {
     const insertQuery = `INSERT INTO measure (${buildMeasureViewQuery});`;
@@ -543,9 +540,6 @@ export const validateMeasureLookupTable = async (
       lang
     );
     const measureTable = await cubeDB.query(previewQuery);
-    // logger.debug(`Measure preview query result: ${JSON.stringify(dimensionTable, null, 2)}`);
-    // this is throwing "TypeError: Converting circular structure to JSON"
-
     const tableHeaders = Object.keys(measureTable[0]);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const dataArray = measureTable.map((row: any) => Object.values(row));
@@ -639,7 +633,6 @@ async function getMeasurePreviewWithExtractor(
       'measure',
       lang
     );
-    // logger.debug(`Querying the cube to get the preview using query: ${query}`);
     const measureTable = await cubeDB.query(previewQuery);
     const tableHeaders = Object.keys(measureTable[0]);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any

@@ -281,7 +281,8 @@ export const loadFileDataTableIntoTable = async (
       );
   }
   try {
-    logger.debug(`Loading file data table into table ${tableName} with query: ${insertQuery}`);
+    logger.debug(`Loading file data table into table ${tableName}`);
+    logger.trace(`insert query: ${insertQuery}`);
     await quack.exec(insertQuery);
     await loadTableDataIntoFactTable(quack, factTableDef, tableName, tempTableName);
     await quack.exec(pgformat('DROP TABLE %I', tempTableName));
@@ -547,8 +548,6 @@ export async function loadFileIntoLookupTablesSchema(
       );
     }
     const builtInsertQuery = pgformat(`INSERT INTO %I %s;`, dimTable, dataExtractorParts.join(' UNION '));
-    // const builtInsertQuery = `INSERT INTO ${makeCubeSafeString(dimension.factTableColumn)}_lookup (${dataExtractorParts.join(' UNION ')});`;
-    // logger.debug(`Built insert query: ${builtInsertQuery}`);
     await quack.exec(builtInsertQuery);
   } else {
     const languageMatcher = languageMatcherCaseStatement(extractor.languageColumn);
@@ -808,7 +807,7 @@ async function copyUpdateTableToFactTable(
     dataTableSelect,
     updateTableName
   );
-  logger.debug(copyQuery);
+  logger.trace(`copy query: ${copyQuery}`);
   await cubeDB.query(copyQuery);
 }
 
@@ -2113,7 +2112,6 @@ export async function createEmptyFactTableInCube(
       FACT_TABLE_NAME,
       factTableCreationDef.join(', ')
     );
-    // logger.debug(`Creating fact table with query: '${createQuery}'`);
     await cubeDB.query(factTableCreationQuery);
   } catch (err) {
     logger.error(err, `Failed to create fact table in cube`);
@@ -2153,7 +2151,7 @@ async function createPrimaryKeyOnFactTable(
   logger.debug('Creating primary key on fact table');
   try {
     const alterTableQuery = pgformat('ALTER TABLE %I.%I ADD PRIMARY KEY (%I)', schema, FACT_TABLE_NAME, compositeKey);
-    logger.debug(`Alter Table query = ${alterTableQuery}`);
+    logger.trace(`add primary key query: ${alterTableQuery}`);
     await cubeDB.query(alterTableQuery);
   } catch (error) {
     logger.warn(error, `Failed to add primary key to the fact table`);
@@ -2367,7 +2365,8 @@ export const createBasePostgresCube = async (
         joinStatements.join('\n').replace(/#LANG#/g, pgformat('%L', locale.toLowerCase())),
         orderByStatements.length > 0 ? `ORDER BY ${orderByStatements.join(', ')}` : ''
       );
-      logger.debug(coreCubeViewSQL);
+
+      logger.trace(`core cube view SQL: ${coreCubeViewSQL}`);
       await cubeDB.query(pgformat('CREATE VIEW %I AS %s', `${CORE_VIEW_NAME}_${lang}`, coreCubeViewSQL));
       await cubeDB.query(pgformat(`INSERT INTO metadata VALUES (%L, %L)`, coreViewName, coreCubeViewSQL));
 
@@ -2424,7 +2423,6 @@ async function createViewsFromConfig(
       cols = factTable.map((col) => pgformat('%I', col.columnName)) || ['*'];
     }
     const SQL = pgformat('SELECT %s FROM %I', cols.join(', '), baseViewName);
-    logger.debug(`SQL for view ${viewName}: ${SQL}`);
     await cubeDB.query(pgformat('DELETE FROM metadata WHERE key = %L', viewName));
     await cubeDB.query(pgformat('INSERT INTO metadata VALUES (%L, %L)', viewName, SQL));
     await cubeDB.query(pgformat('DELETE FROM metadata WHERE key = %L', `${viewName}_columns`));
