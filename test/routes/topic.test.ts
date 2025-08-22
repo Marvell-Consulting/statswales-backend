@@ -23,7 +23,7 @@ jest.mock('../../src/services/blob-storage', () => {
   };
 });
 
-const user: User = getTestUser('test', 'user');
+const user: User = getTestUser('test user');
 
 const topics: Partial<Topic>[] = [
   { id: 1, path: '1', nameEN: 'Topic 1', nameCY: 'Pwnc 1' },
