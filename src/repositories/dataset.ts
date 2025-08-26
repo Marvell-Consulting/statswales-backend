@@ -224,7 +224,8 @@ export const DatasetRepository = dataSource.getRepository(Dataset).extend({
     user: User,
     locale: Locale,
     page: number,
-    limit: number
+    limit: number,
+    search?: string
   ): Promise<ResultsetWithCount<DatasetListItemDTO>> {
     logger.debug(`Listing datasets for user ${user.id}, language ${locale}, page ${page}, limit ${limit}`);
     const lang = locale.includes('en') ? Locale.EnglishGb : Locale.WelshGb;
@@ -237,6 +238,10 @@ export const DatasetRepository = dataSource.getRepository(Dataset).extend({
 
     const query = listAllQuery(this.createQueryBuilder('d'), lang);
     query.where('d.userGroupId IN (:...groupIds)', { groupIds });
+
+    if (search) {
+      query.andWhere('r.title ILIKE :search', { search: `%${search}%` });
+    }
 
     const offset = (page - 1) * limit;
 

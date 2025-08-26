@@ -67,7 +67,8 @@ export const listUserDatasets = async (req: Request, res: Response, next: NextFu
     const lang = req.language as Locale;
     const page = parseInt(req.query.page as string, 10) || 1;
     const limit = parseInt(req.query.limit as string, 10) || 20;
-    const results = await DatasetRepository.listForUser(user, lang, page, limit);
+    const search = (req.query.search as string | undefined)?.trim().slice(0, 100);
+    const results = await DatasetRepository.listForUser(user, lang, page, limit, search);
     res.json(results);
   } catch (err) {
     logger.error(err, 'Failed to fetch dataset list');
