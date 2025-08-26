@@ -9,6 +9,7 @@ export const TopicRepository = dataSource.getRepository(Topic).extend({
 
   async getParents(path: string): Promise<Topic[]> {
     const parentIds = path.split('.');
+    parentIds.pop(); // the last element is the child, remove it
 
     return this.find({
       where: { id: In(parentIds) }
