@@ -75,7 +75,7 @@ export const loginEntraID: RequestHandler = (req, res, next) => {
   passport.authenticate(AuthProvider.EntraId, opts, (err: Error, user: User, info: Record<string, string>) => {
     if (err || !user) {
       const errorMessage = err?.message || info?.message || 'unknown error';
-      logger.error(`entraid auth returned an error: ${errorMessage}`);
+      logger.error(err, `entraid auth returned an error: ${errorMessage}`);
       res.redirect(`${returnURL}?error=provider`);
       return;
     }
