@@ -102,7 +102,7 @@ const initEntraId = async (userRepository: Repository<User>, entraIdConfig: Entr
   }
 
   const openidConfig: OpenIdConfig = await openIdClient.discovery(
-    new URL(`${entraIdConfig.url}/.well-known/openid-configuration`),
+    new URL(entraIdConfig.url),
     entraIdConfig.clientId,
     entraIdConfig.clientSecret
   );
