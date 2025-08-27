@@ -94,43 +94,43 @@ export const lookForJoinColumn = (
   const refCodeCol = protoLookupTable.dataTableDescriptions.find((col) =>
     col.columnName.toLowerCase().includes(t('lookup_column_headers.refcode', { lng: tableLanguage }).toLowerCase())
   );
-  if (tableMatcher?.join_column) {
-    return tableMatcher.join_column;
-  } else if (refCol) {
-    return refCol.columnName;
-  } else if (refCodeCol) {
-    return refCodeCol.columnName;
-  } else if (
+
+  if (tableMatcher?.join_column) return tableMatcher.join_column;
+  if (refCol) return refCol.columnName;
+  if (refCodeCol) return refCodeCol.columnName;
+
+  if (
     protoLookupTable.dataTableDescriptions.find((col) => col.columnName.toLowerCase() === factTableColumn.toLowerCase())
   ) {
     return factTableColumn;
-  } else {
-    const possibleJoinColumns = protoLookupTable.dataTableDescriptions.filter((info) => {
-      const columnName = info.columnName.toLowerCase();
-      if (columnName.includes(t('lookup_column_headers.decimal', { lng: tableLanguage }))) return false;
-      if (columnName.includes(t('lookup_column_headers.hierarchy', { lng: tableLanguage }))) return false;
-      if (columnName.includes(t('lookup_column_headers.format', { lng: tableLanguage }))) return false;
-      if (columnName.includes(t('lookup_column_headers.description', { lng: tableLanguage }))) return false;
-      if (columnName.includes(t('lookup_column_headers.sort', { lng: tableLanguage }))) return false;
-      if (columnName.includes(t('lookup_column_headers.notes', { lng: tableLanguage }))) return false;
-      if (columnName.includes(t('lookup_column_headers.type', { lng: tableLanguage }))) return false;
-      if (columnName.includes(t('lookup_column_headers.lang', { lng: tableLanguage }))) return false;
-      if (columnName.includes('lang')) return false;
-
-      logger.debug(`Looks like column ${columnName} is a join column`);
-      return true;
-    });
-    if (possibleJoinColumns.length > 1) {
-      throw new Error(
-        `There are to many possible join columns.  Ask user for more information... Join columns present: ${possibleJoinColumns.join(', ')}`
-      );
-    }
-    if (possibleJoinColumns.length === 0) {
-      throw new Error('Could not find a column to join against the fact table.');
-    }
-    // logger.debug(`Found the following join column ${JSON.stringify(possibleJoinColumns)}`);
-    return possibleJoinColumns[0].columnName;
   }
+
+  const possibleJoinColumns = protoLookupTable.dataTableDescriptions.filter((info) => {
+    const columnName = info.columnName.toLowerCase();
+    if (columnName.includes(t('lookup_column_headers.decimal', { lng: tableLanguage }))) return false;
+    if (columnName.includes(t('lookup_column_headers.hierarchy', { lng: tableLanguage }))) return false;
+    if (columnName.includes(t('lookup_column_headers.format', { lng: tableLanguage }))) return false;
+    if (columnName.includes(t('lookup_column_headers.description', { lng: tableLanguage }))) return false;
+    if (columnName.includes(t('lookup_column_headers.sort', { lng: tableLanguage }))) return false;
+    if (columnName.includes(t('lookup_column_headers.notes', { lng: tableLanguage }))) return false;
+    if (columnName.includes(t('lookup_column_headers.type', { lng: tableLanguage }))) return false;
+    if (columnName.includes(t('lookup_column_headers.lang', { lng: tableLanguage }))) return false;
+    if (columnName.includes('lang')) return false;
+
+    logger.debug(`Looks like column ${columnName} is a join column`);
+    return true;
+  });
+
+  if (possibleJoinColumns.length > 1) {
+    throw new Error(`Too many possible join columns. Join columns present: ${possibleJoinColumns.join(', ')}`);
+  }
+
+  if (possibleJoinColumns.length === 0) {
+    throw new Error('Could not find a column to join against the fact table.');
+  }
+
+  logger.debug(`Found a join column ${possibleJoinColumns[0].columnName}`);
+  return possibleJoinColumns[0].columnName;
 };
 
 export const validateLookupTableLanguages = async (

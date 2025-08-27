@@ -220,50 +220,57 @@ export const validateLookupTable = async (
   language: string,
   tableMatcher?: LookupTablePatchDTO
 ): Promise<ViewDTO | ViewErrDTO> => {
+  logger.info('Validating lookup table...');
+
   const revision = dataset.draftRevision;
   if (!revision?.id) {
     logger.error(`Could not find the draft revision for dataset ${dataset.id}`);
     throw new Error('Could not find the draft revision for dataset');
   }
+
   const lookupTable = convertDataTableToLookupTable(protoLookupTable);
   const factTableName = 'fact_table';
   const factTableColumn = dataset.factTable?.find(
     (col) => dimension.factTableColumn === col.columnName && col.columnType === FactTableColumnType.Dimension
   );
+
   if (!factTableColumn) {
     logger.error(`Could not find the fact table column ${dimension.factTableColumn} in the dataset`);
     return viewErrorGenerators(500, dataset.id, 'patch', 'errors.dimension_validation.fact_table_column_not_found', {
       mismatch: false
     });
   }
+
   const tableLanguageArr: Locale[] = [];
 
   SUPPORTED_LOCALES.map((locale) => {
-    if (
-      protoLookupTable.dataTableDescriptions.find((col) =>
-        col.columnName.toLowerCase().includes(t('lookup_column_headers.description', { lng: locale.toLowerCase() }))
-      )
-    ) {
+    const descriptionCol = t('lookup_column_headers.description', { lng: locale.toLowerCase() });
+    if (protoLookupTable.dataTableDescriptions.find((col) => col.columnName.toLowerCase().includes(descriptionCol))) {
       tableLanguageArr.push(locale);
     }
   });
+
   if (tableLanguageArr.length < 1) {
+    logger.error('No description columns found in lookup table');
     return viewErrorGenerators(400, dataset.id, 'csv', 'errors.measure_validation.no_description_columns', {
       mismatch: false
     });
   }
-  const tableLanguage = tableLanguageArr[0];
 
+  const tableLanguage = tableLanguageArr[0];
   let confirmedJoinColumn: string | undefined;
+
   try {
     confirmedJoinColumn = lookForJoinColumn(protoLookupTable, dimension.factTableColumn, tableLanguage, tableMatcher);
   } catch (_err) {
+    logger.error('There was a problem trying to find the join column');
     return viewErrorGenerators(400, dataset.id, 'patch', 'errors.lookup_validation.no_join_column', {
       mismatch: false
     });
   }
 
   if (!confirmedJoinColumn) {
+    logger.error('No confirmed join column found');
     return viewErrorGenerators(400, dataset.id, 'patch', 'errors.lookup_validation.no_join_column', {
       mismatch: false
     });
