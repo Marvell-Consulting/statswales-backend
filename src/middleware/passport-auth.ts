@@ -116,6 +116,8 @@ const initEntraId = async (userRepository: Repository<User>, entraIdConfig: Entr
   const verify: VerifyFunction = async (tokens: Tokens, done: AuthenticateCallback) => {
     logger.debug('auth callback from entraid received');
     const { sub } = tokens.claims()!;
+
+    logger.debug('fetching user info from entraid...');
     const userInfo = await openIdClient.fetchUserInfo(openidConfig, tokens.access_token, sub);
 
     if (!userInfo?.sub || !userInfo?.email) {
