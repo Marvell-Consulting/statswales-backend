@@ -30,6 +30,7 @@ import { createAllCubeFiles } from '../services/cube-handler';
 import { getFileService } from '../utils/get-file-service';
 import { TempFile } from '../interfaces/temp-file';
 import { cleanupTmpFile, uploadAvScan } from '../services/virus-scanner';
+import { updateRevisionTasks } from '../utils/update-revision-tasks';
 
 export const getDimensionInfo = async (req: Request, res: Response): Promise<void> => {
   res.json(DimensionDTO.fromDimension(res.locals.dimension));
@@ -123,32 +124,7 @@ export const attachLookupTableToDimension = async (req: Request, res: Response, 
     const dataTable = await validateAndUpload(tmpFile, datasetId, 'lookup_table');
     const tableMatcher = req.body as LookupTablePatchDTO;
     const result = await validateLookupTable(dataTable, dataset, dimension, tmpFile.path, language, tableMatcher);
-    if (dataset.draftRevision && dataset.draftRevision?.revisionIndex != 1) {
-      const revision = dataset.draftRevision;
-      let tasks = dataset.draftRevision.tasks;
-      if (!tasks) {
-        tasks = {
-          dimensions: [{ id: dimension.id, lookupTableUpdated: true }],
-          measure: undefined
-        };
-      } else {
-        const currentTask = tasks.dimensions.find((task) => task.id === dimension.id);
-        if (currentTask) {
-          tasks.dimensions.forEach((task) => {
-            if (task.id === dimension.id) {
-              task.lookupTableUpdated = true;
-            }
-          });
-        } else {
-          tasks.dimensions.push({
-            id: dimension.id,
-            lookupTableUpdated: true
-          });
-        }
-      }
-      revision.tasks = tasks;
-      await revision.save();
-    }
+    await updateRevisionTasks(dataset, dimension.id, 'dimension');
     await createAllCubeFiles(dataset.id, dataset.draftRevision!.id);
 
     if ((result as ViewErrDTO).status) {
@@ -220,32 +196,7 @@ export const updateDimension = async (req: Request, res: Response, next: NextFun
     if ((preview as ViewErrDTO).errors) {
       res.status((preview as ViewErrDTO).status);
     } else {
-      if (dataset.draftRevision && dataset.draftRevision?.revisionIndex != 1) {
-        const revision = dataset.draftRevision;
-        let tasks = dataset.draftRevision.tasks;
-        if (!tasks) {
-          tasks = {
-            dimensions: [{ id: dimension.id, lookupTableUpdated: true }],
-            measure: undefined
-          };
-        } else {
-          const currentTask = tasks.dimensions.find((task) => task.id === dimension.id);
-          if (currentTask) {
-            tasks.dimensions.forEach((task) => {
-              if (task.id === dimension.id) {
-                task.lookupTableUpdated = true;
-              }
-            });
-          } else {
-            tasks.dimensions.push({
-              id: dimension.id,
-              lookupTableUpdated: true
-            });
-          }
-        }
-        revision.tasks = tasks;
-        await revision.save();
-      }
+      await updateRevisionTasks(dataset, dimension.id, 'dimension');
       try {
         await createAllCubeFiles(dataset.id, dataset.draftRevision!.id);
       } catch (error) {
@@ -286,33 +237,8 @@ export const updateDimensionMetadata = async (req: Request, res: Response): Prom
   }
   await metadata.save();
   const updatedDimension = await Dimension.findOneByOrFail({ id: dimension.id });
+  await updateRevisionTasks(dataset, dimension.id, 'dimension');
   await createAllCubeFiles(dataset.id, dataset.draftRevision!.id);
-  if (dataset.draftRevision && dataset.draftRevision?.revisionIndex != 1) {
-    const revision = dataset.draftRevision;
-    let tasks = dataset.draftRevision.tasks;
-    if (!tasks) {
-      tasks = {
-        dimensions: [{ id: dimension.id, lookupTableUpdated: true }],
-        measure: undefined
-      };
-    } else {
-      const currentTask = tasks.dimensions.find((task) => task.id === dimension.id);
-      if (currentTask) {
-        tasks.dimensions.forEach((task) => {
-          if (task.id === dimension.id) {
-            task.lookupTableUpdated = true;
-          }
-        });
-      } else {
-        tasks.dimensions.push({
-          id: dimension.id,
-          lookupTableUpdated: true
-        });
-      }
-    }
-    revision.tasks = tasks;
-    await revision.save();
-  }
   res.status(202);
   res.json(DimensionDTO.fromDimension(updatedDimension));
 };
