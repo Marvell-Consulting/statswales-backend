@@ -1623,7 +1623,7 @@ async function setupMeasuresAndDataValues(
   logger.info('Setting up measure table if present...');
 
   // Process the column that represents the measure
-  if (revsion.tasks.measure) {
+  if (revsion.tasks && revsion.tasks.measure) {
     setupMeasureAndDataValuesNoLookup(
       coreCubeViewSelectBuilder,
       columnNames,

@@ -39,6 +39,7 @@ import { performanceReporting } from '../utils/performance-reporting';
 import { FileType } from '../enums/file-type';
 import { dbManager } from '../db/database-manager';
 import { MeasureMetadata } from '../entities/dataset/measure-metadata';
+import { RevisionTask } from '../interfaces/revision-task';
 
 const sampleSize = 5;
 
@@ -658,7 +659,11 @@ async function getMeasurePreviewWithExtractor(
   }
 }
 
-export const getMeasurePreview = async (dataset: Dataset, lang: string): Promise<ViewDTO | ViewErrDTO> => {
+export const getMeasurePreview = async (
+  dataset: Dataset,
+  lang: string,
+  revisionTasks?: RevisionTask
+): Promise<ViewDTO | ViewErrDTO> => {
   logger.debug(`Getting preview for measure: ${dataset.measure.id}`);
   const measure = dataset.measure;
 
@@ -667,12 +672,13 @@ export const getMeasurePreview = async (dataset: Dataset, lang: string): Promise
   }
 
   try {
-    if (measure.measureTable && measure.measureTable.length > 0) {
+    // If there's a revision task for the measure empty the measure table to preview the raw column
+    if (revisionTasks && revisionTasks.measure) measure.measureTable = [];
+
+    if (measure.measureTable && measure.measureTable.length > 0)
       return await getMeasurePreviewWithExtractor(dataset, measure, dataset.draftRevision!, lang);
-    } else {
-      logger.debug('Straight column preview');
-      return await getMeasurePreviewWithoutExtractor(dataset, measure, dataset.draftRevision!);
-    }
+
+    return await getMeasurePreviewWithoutExtractor(dataset, measure, dataset.draftRevision!);
   } catch (error) {
     logger.error(error, `Something went wrong trying to generate the preview of the measure`);
     return viewErrorGenerators(500, dataset.id, 'csv', 'errors.measure.unknown_error', { mismatch: false });
