@@ -52,9 +52,8 @@ export const UserRepository = dataSource.getRepository(User).extend({
     };
 
     if (search) {
-      const searchClause = [{ email: ILike(`%${search}%`) }, { name: ILike(`%${search}%`) }];
-      findOpts.where = searchClause;
-      countQuery.where(searchClause);
+      findOpts.where = [{ email: ILike(`%${search}%`) }, { name: ILike(`%${search}%`) }];
+      countQuery.where('u.email ILIKE :search OR u.name ILIKE :search', { search: `%${search}%` });
     }
 
     const userQuery = this.find(findOpts);
