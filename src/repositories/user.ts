@@ -1,3 +1,5 @@
+import { FindManyOptions, ILike } from 'typeorm';
+
 import { dataSource } from '../db/data-source';
 import { RoleSelectionDTO } from '../dtos/user/role-selection-dto';
 import { UserCreateDTO } from '../dtos/user/user-create-dto';
@@ -29,10 +31,16 @@ export const UserRepository = dataSource.getRepository(User).extend({
     return user.save();
   },
 
-  async listByLanguage(locale: Locale, page: number, limit: number): Promise<ResultsetWithCount<UserDTO>> {
+  async listByLanguage(
+    locale: Locale,
+    page: number,
+    limit: number,
+    search?: string
+  ): Promise<ResultsetWithCount<UserDTO>> {
     const lang = locale.includes('en') ? Locale.EnglishGb : Locale.WelshGb;
+    const countQuery = this.createQueryBuilder('u');
 
-    const userQuery = this.find({
+    const findOpts: FindManyOptions = {
       relations: {
         groupRoles: {
           group: { metadata: true }
@@ -41,9 +49,15 @@ export const UserRepository = dataSource.getRepository(User).extend({
       order: { name: 'ASC', email: 'ASC' },
       skip: (page - 1) * limit,
       take: limit
-    });
+    };
 
-    const countQuery = this.createQueryBuilder('u');
+    if (search) {
+      const searchClause = [{ email: ILike(`%${search}%`) }, { name: ILike(`%${search}%`) }];
+      findOpts.where = searchClause;
+      countQuery.where(searchClause);
+    }
+
+    const userQuery = this.find(findOpts);
     const [data, count] = await Promise.all([userQuery, countQuery.getCount()]);
     const userDtos = data.map((user) => UserDTO.fromUser(user, lang));
 

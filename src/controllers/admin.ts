@@ -136,11 +136,12 @@ export const updateUserGroup = async (req: Request, res: Response, next: NextFun
 export const listUsers = async (req: Request, res: Response): Promise<void> => {
   const page = parseInt(req.query.page as string, 10) || 1;
   const limit = parseInt(req.query.limit as string, 10) || 20;
+  const search = (req.query.search as string | undefined)?.trim().slice(0, 100);
 
   try {
     logger.info('List users');
     const lang = req.language as Locale;
-    const results = await UserRepository.listByLanguage(lang, page, limit);
+    const results = await UserRepository.listByLanguage(lang, page, limit, search);
     res.json(results);
   } catch (err) {
     logger.error(err, 'Error listing users');
