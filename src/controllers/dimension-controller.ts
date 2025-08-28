@@ -123,6 +123,32 @@ export const attachLookupTableToDimension = async (req: Request, res: Response, 
     const dataTable = await validateAndUpload(tmpFile, datasetId, 'lookup_table');
     const tableMatcher = req.body as LookupTablePatchDTO;
     const result = await validateLookupTable(dataTable, dataset, dimension, tmpFile.path, language, tableMatcher);
+    if (dataset.draftRevision && dataset.draftRevision?.revisionIndex != 1) {
+      const revision = dataset.draftRevision;
+      let tasks = dataset.draftRevision.tasks;
+      if (!tasks) {
+        tasks = {
+          dimensions: [{ id: dimension.id, lookupTableUpdated: true }],
+          measure: undefined
+        };
+      } else {
+        const currentTask = tasks.dimensions.find((task) => task.id === dimension.id);
+        if (currentTask) {
+          tasks.dimensions.forEach((task) => {
+            if (task.id === dimension.id) {
+              task.lookupTableUpdated = true;
+            }
+          });
+        } else {
+          tasks.dimensions.push({
+            id: dimension.id,
+            lookupTableUpdated: true
+          });
+        }
+      }
+      revision.tasks = tasks;
+      await revision.save();
+    }
     await createAllCubeFiles(dataset.id, dataset.draftRevision!.id);
 
     if ((result as ViewErrDTO).status) {
@@ -194,7 +220,32 @@ export const updateDimension = async (req: Request, res: Response, next: NextFun
     if ((preview as ViewErrDTO).errors) {
       res.status((preview as ViewErrDTO).status);
     } else {
-      res.status(202);
+      if (dataset.draftRevision && dataset.draftRevision?.revisionIndex != 1) {
+        const revision = dataset.draftRevision;
+        let tasks = dataset.draftRevision.tasks;
+        if (!tasks) {
+          tasks = {
+            dimensions: [{ id: dimension.id, lookupTableUpdated: true }],
+            measure: undefined
+          };
+        } else {
+          const currentTask = tasks.dimensions.find((task) => task.id === dimension.id);
+          if (currentTask) {
+            tasks.dimensions.forEach((task) => {
+              if (task.id === dimension.id) {
+                task.lookupTableUpdated = true;
+              }
+            });
+          } else {
+            tasks.dimensions.push({
+              id: dimension.id,
+              lookupTableUpdated: true
+            });
+          }
+        }
+        revision.tasks = tasks;
+        await revision.save();
+      }
       try {
         await createAllCubeFiles(dataset.id, dataset.draftRevision!.id);
       } catch (error) {
@@ -206,6 +257,7 @@ export const updateDimension = async (req: Request, res: Response, next: NextFun
         return;
       }
     }
+    res.status(202);
     res.json(preview);
   } catch (err) {
     logger.error(err, `An error occurred trying to update the dimension`);
@@ -235,6 +287,32 @@ export const updateDimensionMetadata = async (req: Request, res: Response): Prom
   await metadata.save();
   const updatedDimension = await Dimension.findOneByOrFail({ id: dimension.id });
   await createAllCubeFiles(dataset.id, dataset.draftRevision!.id);
+  if (dataset.draftRevision && dataset.draftRevision?.revisionIndex != 1) {
+    const revision = dataset.draftRevision;
+    let tasks = dataset.draftRevision.tasks;
+    if (!tasks) {
+      tasks = {
+        dimensions: [{ id: dimension.id, lookupTableUpdated: true }],
+        measure: undefined
+      };
+    } else {
+      const currentTask = tasks.dimensions.find((task) => task.id === dimension.id);
+      if (currentTask) {
+        tasks.dimensions.forEach((task) => {
+          if (task.id === dimension.id) {
+            task.lookupTableUpdated = true;
+          }
+        });
+      } else {
+        tasks.dimensions.push({
+          id: dimension.id,
+          lookupTableUpdated: true
+        });
+      }
+    }
+    revision.tasks = tasks;
+    await revision.save();
+  }
   res.status(202);
   res.json(DimensionDTO.fromDimension(updatedDimension));
 };

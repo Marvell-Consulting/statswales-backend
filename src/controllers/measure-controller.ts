@@ -75,6 +75,20 @@ export const attachLookupTableToMeasure = async (req: Request, res: Response, ne
     const tableMatcher = req.body as MeasureLookupPatchDTO;
     const result = await validateMeasureLookupTable(dataTable, dataset, tmpFile.path, lang, tableMatcher);
     await createAllCubeFiles(dataset.id, dataset.draftRevision!.id);
+    if (dataset.draftRevision && dataset.draftRevision?.revisionIndex != 1) {
+      const revision = dataset.draftRevision;
+      let tasks = dataset.draftRevision.tasks;
+      if (!tasks) {
+        tasks = {
+          dimensions: [],
+          measure: { id: dataset.measure.id, lookupTableUpdated: true }
+        };
+      } else {
+        tasks.measure = { id: dataset.measure.id, lookupTableUpdated: true };
+      }
+      revision.tasks = tasks;
+      await revision.save();
+    }
     res.status((result as ViewErrDTO).status || 200);
     res.json(result);
   } catch (err) {
@@ -111,7 +125,8 @@ export const getPreviewOfMeasure = async (req: Request, res: Response, next: Nex
 
 export const updateMeasureMetadata = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   const dataset = await DatasetRepository.getById(res.locals.datasetId, {
-    measure: { metadata: true }
+    measure: { metadata: true },
+    draftRevision: true
   });
 
   const measure = dataset.measure;
@@ -137,6 +152,21 @@ export const updateMeasureMetadata = async (req: Request, res: Response, next: N
   }
 
   const updatedMeasureMetadata = await metadata.save();
+  await createAllCubeFiles(dataset.id, dataset.draftRevision!.id);
+  if (dataset.draftRevision && dataset.draftRevision?.revisionIndex != 1) {
+    const revision = dataset.draftRevision;
+    let tasks = dataset.draftRevision.tasks;
+    if (!tasks) {
+      tasks = {
+        dimensions: [],
+        measure: { id: measure.id, lookupTableUpdated: true }
+      };
+    } else {
+      tasks.measure = { id: measure.id, lookupTableUpdated: true };
+    }
+    revision.tasks = tasks;
+    await revision.save();
+  }
 
   res.json(DimensionMetadataDTO.fromDimensionMetadata(updatedMeasureMetadata));
 };
