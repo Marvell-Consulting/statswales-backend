@@ -1610,6 +1610,7 @@ async function setupMeasureAndDataValuesWithLookup(
 async function setupMeasuresAndDataValues(
   cubeDB: QueryRunner,
   dataset: Dataset,
+  revsion: Revision,
   dataValuesColumn: FactTableColumn | undefined,
   measureColumn: FactTableColumn | undefined,
   notesCodeColumn: FactTableColumn | undefined,
@@ -1622,7 +1623,21 @@ async function setupMeasuresAndDataValues(
   logger.info('Setting up measure table if present...');
 
   // Process the column that represents the measure
-  if (measureColumn && dataValuesColumn && dataset.measure.measureTable && dataset.measure.measureTable.length > 0) {
+  if (revsion.tasks && revsion.tasks.measure) {
+    setupMeasureAndDataValuesNoLookup(
+      coreCubeViewSelectBuilder,
+      columnNames,
+      viewConfig,
+      measureColumn,
+      dataValuesColumn,
+      notesCodeColumn
+    );
+  } else if (
+    measureColumn &&
+    dataValuesColumn &&
+    dataset.measure.measureTable &&
+    dataset.measure.measureTable.length > 0
+  ) {
     await setupMeasureAndDataValuesWithLookup(
       cubeDB,
       dataset.measure.measureTable,
@@ -2004,7 +2019,10 @@ async function setupDimensions(
       throw error;
     }
     logger.info(`Setting up dimension ${dimension.id} for fact table column ${dimension.factTableColumn}`);
-    if (endRevision.tasks && endRevision.tasks.dimensions.find((dim) => dim.id === dimension.id)) {
+    if (
+      endRevision.tasks &&
+      endRevision.tasks.dimensions.find((dim) => dim.id === dimension.id && !dim.lookupTableUpdated)
+    ) {
       await rawDimensionProcessor(cubeDB, dimension, coreCubeViewSelectBuilder, columnNames, viewConfig);
       continue;
     }
@@ -2304,6 +2322,7 @@ export const createBasePostgresCube = async (
     await setupMeasuresAndDataValues(
       cubeDB,
       dataset,
+      endRevision,
       factTableInfo.dataValuesColumn,
       factTableInfo.measureColumn,
       factTableInfo.notesCodeColumn,
