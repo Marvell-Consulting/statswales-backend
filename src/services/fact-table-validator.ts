@@ -181,20 +181,27 @@ async function validateNoteCodesColumn(
       500
     );
   }
-  const allCodes = NoteCodes.map((noteCode) => noteCode.code);
-  const badCodes: string[] = [];
-  for (const noteCode of notesCodes) {
-    noteCode.codes.split(',').forEach((code: string) => {
-      const trimmedCode = code.trim().toLowerCase();
-      if (!allCodes.includes(trimmedCode)) {
-        logger.error(`Note code ${trimmedCode} is not a valid note code`);
-        badCodes.push(code.trim());
+  const validCodes = NoteCodes.map((noteCode) => noteCode.code);
+
+  const badCodes: string[] = notesCodes
+    .flatMap((noteCode: { codes: string }) => {
+      return noteCode.codes
+        .replace(/\s/g, '') // strip all whitespace
+        .toLowerCase()
+        .split(','); // split into individual notecodes for validation
+    })
+    .reduce((bad: string[], code: string) => {
+      if (code && !validCodes.includes(code)) {
+        logger.error(`Value "${code}" is not a valid note code`);
+        bad.push(code);
       }
-    });
-  }
+      return bad;
+    }, []);
+
   if (badCodes.length === 0) {
     return;
   }
+
   const error = new FactTableValidationException(
     'Bad note codes found in note codes column',
     FactTableValidationExceptionType.BadNoteCodes,
