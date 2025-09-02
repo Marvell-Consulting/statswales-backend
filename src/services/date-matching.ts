@@ -15,6 +15,7 @@ export interface SnifferResult {
 interface YearTypeDetails {
   start: string;
   type: YearType;
+  separator: string;
 }
 
 export interface DateReferenceDataItem {
@@ -37,19 +38,20 @@ enum GeneratorType {
 function yearType(type: YearType, startDay = 1, startMonth = 1): YearTypeDetails {
   switch (type) {
     case YearType.Financial:
-      return { start: '04-01T00:00:00Z', type: YearType.Financial };
+      return { start: '04-01T00:00:00Z', type: YearType.Financial, separator: '-' };
     case YearType.Tax:
-      return { start: '04-06T00:00:00Z', type: YearType.Tax };
+      return { start: '04-06T00:00:00Z', type: YearType.Tax, separator: '-' };
     case YearType.Academic:
-      return { start: '09-01T00:00:00Z', type: YearType.Academic };
+      return { start: '09-01T00:00:00Z', type: YearType.Academic, separator: '/' };
     case YearType.Meteorological:
-      return { start: '03-01T00:00:00Z', type: YearType.Meteorological };
+      return { start: '03-01T00:00:00Z', type: YearType.Meteorological, separator: '-' };
     case YearType.Calendar:
-      return { start: '01-01T00:00:00Z', type: YearType.Calendar };
+      return { start: '01-01T00:00:00Z', type: YearType.Calendar, separator: '' };
     default:
       return {
         start: `${String(startMonth).padStart(2, '0')}-${String(startDay).padStart(2, '0')}T00:00:00Z`,
-        type: YearType.Rolling
+        type: YearType.Rolling,
+        separator: '-'
       };
   }
 }
@@ -240,19 +242,19 @@ function periodTableCreator(
           description =
             dateFormat.type === YearType.Calendar
               ? format(displayYear, 'yyyy')
-              : `${format(displayYear, 'yyyy')}-${format(add(displayYear, { years: 1 }), 'yy')}`;
+              : `${format(displayYear, 'yyyy')}${type.separator}${format(add(displayYear, { years: 1 }), 'yy')}`;
           break;
         case GeneratorType.Quarter:
           description =
             dateFormat.type === YearType.Calendar
               ? `${t('date_format.quarter_abr', { lng: locale })}${quarterIndex} ${format(displayYear, 'yyyy')}`
-              : `${t('date_format.quarter_abr', { lng: locale })}${quarterIndex} ${format(displayYear, 'yyyy')}-${format(add(displayYear, { years: 1 }), 'yy')}`;
+              : `${t('date_format.quarter_abr', { lng: locale })}${quarterIndex} ${format(displayYear, 'yyyy')}${type.separator}${format(add(displayYear, { years: 1 }), 'yy')}`;
           break;
         case GeneratorType.Month:
           description =
             dateFormat.type === YearType.Calendar
               ? `${t(`months.${monthNo}`, { lng: locale })} ${format(displayYear, 'yyyy')}`
-              : `${t(`months.${monthNo}`, { lng: locale })} ${format(displayYear, 'yyyy')}-${format(add(displayYear, { years: 1 }), 'yy')}`;
+              : `${t(`months.${monthNo}`, { lng: locale })} ${format(displayYear, 'yyyy')}${type.separator}${format(add(displayYear, { years: 1 }), 'yy')}`;
           break;
       }
 
