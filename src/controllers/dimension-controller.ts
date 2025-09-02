@@ -30,6 +30,7 @@ import { createAllCubeFiles } from '../services/cube-handler';
 import { getFileService } from '../utils/get-file-service';
 import { TempFile } from '../interfaces/temp-file';
 import { cleanupTmpFile, uploadAvScan } from '../services/virus-scanner';
+import { updateRevisionTasks } from '../utils/update-revision-tasks';
 
 export const getDimensionInfo = async (req: Request, res: Response): Promise<void> => {
   res.json(DimensionDTO.fromDimension(res.locals.dimension));
@@ -123,6 +124,7 @@ export const attachLookupTableToDimension = async (req: Request, res: Response, 
     const dataTable = await validateAndUpload(tmpFile, datasetId, 'lookup_table');
     const tableMatcher = req.body as LookupTablePatchDTO;
     const result = await validateLookupTable(dataTable, dataset, dimension, tmpFile.path, language, tableMatcher);
+    await updateRevisionTasks(dataset, dimension.id, 'dimension');
     await createAllCubeFiles(dataset.id, dataset.draftRevision!.id);
 
     if ((result as ViewErrDTO).status) {
@@ -194,7 +196,7 @@ export const updateDimension = async (req: Request, res: Response, next: NextFun
     if ((preview as ViewErrDTO).errors) {
       res.status((preview as ViewErrDTO).status);
     } else {
-      res.status(202);
+      await updateRevisionTasks(dataset, dimension.id, 'dimension');
       try {
         await createAllCubeFiles(dataset.id, dataset.draftRevision!.id);
       } catch (error) {
@@ -206,6 +208,7 @@ export const updateDimension = async (req: Request, res: Response, next: NextFun
         return;
       }
     }
+    res.status(202);
     res.json(preview);
   } catch (err) {
     logger.error(err, `An error occurred trying to update the dimension`);
@@ -234,6 +237,7 @@ export const updateDimensionMetadata = async (req: Request, res: Response): Prom
   }
   await metadata.save();
   const updatedDimension = await Dimension.findOneByOrFail({ id: dimension.id });
+  await updateRevisionTasks(dataset, dimension.id, 'dimension');
   await createAllCubeFiles(dataset.id, dataset.draftRevision!.id);
   res.status(202);
   res.json(DimensionDTO.fromDimension(updatedDimension));

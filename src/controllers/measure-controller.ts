@@ -19,6 +19,7 @@ import { DatasetRepository } from '../repositories/dataset';
 import { createAllCubeFiles } from '../services/cube-handler';
 import { cleanupTmpFile, uploadAvScan } from '../services/virus-scanner';
 import { TempFile } from '../interfaces/temp-file';
+import { updateRevisionTasks } from '../utils/update-revision-tasks';
 
 export const resetMeasure = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   const dataset = res.locals.dataset;
@@ -74,6 +75,7 @@ export const attachLookupTableToMeasure = async (req: Request, res: Response, ne
     const lang = req.language.toLowerCase();
     const tableMatcher = req.body as MeasureLookupPatchDTO;
     const result = await validateMeasureLookupTable(dataTable, dataset, tmpFile.path, lang, tableMatcher);
+    await updateRevisionTasks(dataset, dataset.measure.id, 'measure');
     await createAllCubeFiles(dataset.id, dataset.draftRevision!.id);
     res.status((result as ViewErrDTO).status || 200);
     res.json(result);
@@ -111,7 +113,8 @@ export const getPreviewOfMeasure = async (req: Request, res: Response, next: Nex
 
 export const updateMeasureMetadata = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   const dataset = await DatasetRepository.getById(res.locals.datasetId, {
-    measure: { metadata: true }
+    measure: { metadata: true },
+    draftRevision: true
   });
 
   const measure = dataset.measure;
@@ -137,6 +140,8 @@ export const updateMeasureMetadata = async (req: Request, res: Response, next: N
   }
 
   const updatedMeasureMetadata = await metadata.save();
+  await updateRevisionTasks(dataset, dataset.measure.id, 'measure');
+  await createAllCubeFiles(dataset.id, dataset.draftRevision!.id);
 
   res.json(DimensionMetadataDTO.fromDimensionMetadata(updatedMeasureMetadata));
 };
