@@ -12,8 +12,13 @@ import { UserDTO } from '../dtos/user/user-dto';
 
 const healthcheck = Router();
 
-const checkDb = async (): Promise<boolean> => {
+const checkAppDb = async (): Promise<boolean> => {
   await dbManager.getAppDataSource().manager.query('SELECT 1 AS connected');
+  return true;
+};
+
+const checkCubeDb = async (): Promise<boolean> => {
+  await dbManager.getCubeDataSource().manager.query('SELECT 1 AS connected');
   return true;
 };
 
@@ -31,7 +36,8 @@ const stillAlive = async (req: Request, res: Response): Promise<void> => {
   try {
     const timeoutMs = 1000;
     const results = await Promise.all([
-      Promise.race([checkDb(), timeout(timeoutMs, 'db')]),
+      Promise.race([checkAppDb(), timeout(timeoutMs, 'app-db')]),
+      Promise.race([checkCubeDb(), timeout(timeoutMs, 'cube-db')]),
       Promise.race([checkStorage(req.fileService), timeout(timeoutMs, 'file storage')])
     ]);
     results.forEach((result) => {
