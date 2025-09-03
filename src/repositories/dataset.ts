@@ -210,6 +210,7 @@ export const DatasetRepository = dataSource.getRepository(Dataset).extend({
 
     if (search) {
       query.andWhere('r.title ILIKE :search', { search: `%${search}%` });
+      query.orWhere('d.id::text LIKE :search', { search: `${search}%` });
     }
 
     const offset = (page - 1) * limit;
