@@ -209,7 +209,10 @@ export const DatasetRepository = dataSource.getRepository(Dataset).extend({
     query.addGroupBy('u.id');
 
     if (search) {
-      query.andWhere('r.title ILIKE :search', { search: `%${search}%` });
+      query.andWhere((qb) => {
+        qb.where('r.title ILIKE :search', { search: `%${search}%` });
+        qb.orWhere('d.id::text LIKE :search', { search: `${search}%` });
+      });
     }
 
     const offset = (page - 1) * limit;
