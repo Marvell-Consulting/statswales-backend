@@ -928,7 +928,6 @@ async function updateProvisionalsAndForecasts(
 }
 
 async function loadFactTablesWithUpdates(
-  cubeDB: QueryRunner,
   dataset: Dataset,
   allDataTables: DataTable[],
   factTableDef: string[],
@@ -1093,7 +1092,6 @@ async function cleanupNotesCodeColumn(cubeDB: QueryRunner, notesCodeColumn: Fact
 }
 
 export async function loadFactTables(
-  cubeDB: QueryRunner,
   dataset: Dataset,
   endRevision: Revision,
   factTableDef: string[],
@@ -2090,11 +2088,7 @@ interface FactTableInfo {
   compositeKey: string[];
 }
 
-export async function createEmptyFactTableInCube(
-  cubeDB: QueryRunner,
-  dataset: Dataset,
-  buildId: string
-): Promise<FactTableInfo> {
+export async function createEmptyFactTableInCube(dataset: Dataset, buildId: string): Promise<FactTableInfo> {
   const start = performance.now();
   if (!dataset.factTable) {
     throw new Error(`Unable to find fact table for dataset ${dataset.id}`);
@@ -2130,6 +2124,7 @@ export async function createEmptyFactTableInCube(
     });
 
   logger.info('Creating initial fact table in cube');
+  const createFactTableQuery = dbManager.getCubeDataSource().createQueryRunner();
   try {
     const factTableCreationQuery = pgformat(
       `CREATE TABLE %I.%I (%s);`,
@@ -2137,10 +2132,12 @@ export async function createEmptyFactTableInCube(
       FACT_TABLE_NAME,
       factTableCreationDef.join(', ')
     );
-    await cubeDB.query(factTableCreationQuery);
+    await createFactTableQuery.query(factTableCreationQuery);
   } catch (err) {
     logger.error(err, `Failed to create fact table in cube`);
     throw new Error(`Failed to create fact table in cube: ${err}`);
+  } finally {
+    createFactTableQuery.release();
   }
   const end = performance.now();
   const timing = Math.round(end - start);
@@ -2200,21 +2197,38 @@ async function createPrimaryKeyOnFactTable(
   }
 }
 
-export async function createCubeMetadataTable(cubeDB: QueryRunner, revisionId: string, buildId: string): Promise<void> {
+export async function createCubeMetadataTable(revisionId: string, buildId: string): Promise<void> {
+  const metaDataTableBuilder = dbManager.getCubeDataSource().createQueryRunner();
   logger.debug('Adding metadata table to the cube');
-  await cubeDB.query(`CREATE TABLE IF NOT EXISTS metadata (key VARCHAR, value VARCHAR);`);
-  await cubeDB.query(pgformat('INSERT INTO metadata VALUES (%L, %L);', 'revision_id', revisionId));
-  await cubeDB.query(pgformat('INSERT INTO metadata VALUES (%L, %L);', 'build_id', buildId));
-  await cubeDB.query(pgformat('INSERT INTO metadata VALUES (%L, %L);', 'build_start', new Date().toISOString()));
-  await cubeDB.query(pgformat('INSERT INTO metadata VALUES (%L, %L);', 'build_status', 'incomplete'));
+  try {
+    await metaDataTableBuilder.query(
+      pgformat(`CREATE TABLE IF NOT EXISTS %I.metadata (key VARCHAR, value VARCHAR);`, buildId)
+    );
+    await metaDataTableBuilder.query(
+      pgformat('INSERT INTO %I.metadata VALUES (%L, %L);', buildId, 'revision_id', revisionId)
+    );
+    await metaDataTableBuilder.query(
+      pgformat('INSERT INTO %I.metadata VALUES (%L, %L);', buildId, 'build_id', buildId)
+    );
+    await metaDataTableBuilder.query(
+      pgformat('INSERT INTO %I.metadata VALUES (%L, %L);', buildId, 'build_start', new Date().toISOString())
+    );
+    await metaDataTableBuilder.query(
+      pgformat('INSERT INTO %I.metadata VALUES (%L, %L);', buildId, 'build_status', 'incomplete')
+    );
+  } catch (error) {
+    logger.error(error, 'Something went wrong trying to create metadata table in the cube');
+  } finally {
+    metaDataTableBuilder.release();
+  }
 }
 
-async function createCubeFilterTable(cubeDB: QueryRunner): Promise<void> {
+async function createCubeFilterTable(buildId: string): Promise<void> {
   const start = performance.now();
   logger.debug('Creating filter table to the cube');
   const createFilterQuery = pgformat(
     `
-      CREATE TABLE %s (
+      CREATE TABLE %I.%I (
         reference VARCHAR,
         language VARCHAR,
         fact_table_column VARCHAR,
@@ -2224,9 +2238,18 @@ async function createCubeFilterTable(cubeDB: QueryRunner): Promise<void> {
         PRIMARY KEY (reference, language, fact_table_column)
       );
     `,
+    buildId,
     'filter_table'
   );
-  await cubeDB.query(createFilterQuery);
+  const filterTableCreationQuery = dbManager.getCubeDataSource().createQueryRunner();
+  try {
+    await filterTableCreationQuery.query(createFilterQuery);
+  } catch (error) {
+    logger.error(error, 'Failed to create filter table in the cube');
+  } finally {
+    filterTableCreationQuery.release();
+  }
+
   const end = performance.now();
   const timing = Math.round(end - start);
   logger.debug(`createCubeFilterTable: ${timing}ms`);
@@ -2246,14 +2269,12 @@ async function createCubeFilterTable(cubeDB: QueryRunner): Promise<void> {
 // Function should be able to generate a cube just from a fact table or collection
 // of fact tables.
 export const createBasePostgresCube = async (
-  cubeDB: QueryRunner,
   buildId: string,
   dataset: Dataset,
   endRevision: Revision,
   viewConfig: CubeBuilder[]
 ): Promise<void> => {
   logger.debug(`Starting build ${buildId} and Creating base cube for revision ${endRevision.id}`);
-  await cubeDB.query(pgformat(`SET search_path TO %I;`, buildId));
   const functionStart = performance.now();
   const coreCubeViewSelectBuilder = new Map<Locale, string[]>();
   const columnNames = new Map<Locale, Set<string>>();
@@ -2279,14 +2300,13 @@ export const createBasePostgresCube = async (
   }
 
   const buildStart = performance.now();
-  const factTableInfo = await createEmptyFactTableInCube(cubeDB, dataset, buildId);
-  await createCubeMetadataTable(cubeDB, endRevision.id, buildId);
-  await createCubeFilterTable(cubeDB);
+  const factTableInfo = await createEmptyFactTableInCube(dataset, buildId);
+  await createCubeMetadataTable(endRevision.id, buildId);
+  await createCubeFilterTable(buildId);
   performanceReporting(Math.round(performance.now() - functionStart), 1000, 'Base table creation');
   try {
     const loadFactTablesStart = performance.now();
     await loadFactTables(
-      cubeDB,
       dataset,
       endRevision,
       factTableInfo.factTableDef,
@@ -2541,16 +2561,17 @@ export const createAllCubeFiles = async (datasetId: string, endRevisionId: strin
     throw new CubeValidationException('Failed to find endRevision in dataset.');
   }
 
-  const cubeDB = dbManager.getCubeDataSource().createQueryRunner();
   const buildId = `build_${crypto.randomUUID()}`;
 
+  const createSchemaQuery = dbManager.getCubeDataSource().createQueryRunner();
   try {
     logger.info(`Creating schema for cube ${buildId}`);
-    await cubeDB.query(pgformat(`CREATE SCHEMA IF NOT EXISTS %I;`, buildId));
+    await createSchemaQuery.query(pgformat(`CREATE SCHEMA IF NOT EXISTS %I;`, buildId));
   } catch (error) {
     logger.error(error, 'Something went wrong trying to create the cube schema');
-    cubeDB.release();
     throw error;
+  } finally {
+    createSchemaQuery.release();
   }
 
   const cubeBuildConfig = cubeConfig.map((config) => {
@@ -2570,15 +2591,22 @@ export const createAllCubeFiles = async (datasetId: string, endRevisionId: strin
 
   try {
     logger.debug(`Renaming ${buildId} to cube rev ${endRevision.id}`);
-    await createBasePostgresCube(cubeDB, buildId, dataset, endRevision, cubeBuildConfig);
-    await cubeDB.query(pgformat('DROP SCHEMA IF EXISTS %I CASCADE;', endRevision.id));
-    await cubeDB.query(pgformat('ALTER SCHEMA %I RENAME TO %I;', buildId, endRevision.id));
+    await createBasePostgresCube(buildId, dataset, endRevision, cubeBuildConfig);
+  } catch (error) {
+    logger.error(error, 'Failed to create the cube.');
+    throw error;
+  }
+
+  const replaceSchemaQuery = dbManager.getCubeDataSource().createQueryRunner();
+  try {
+    await replaceSchemaQuery.query(pgformat('DROP SCHEMA IF EXISTS %I CASCADE;', endRevision.id));
+    await replaceSchemaQuery.query(pgformat('ALTER SCHEMA %I RENAME TO %I;', buildId, endRevision.id));
   } catch (err) {
-    logger.error(err, 'Failed to create cube in Postgres');
-    await cubeDB.query(pgformat('DROP SCHEMA IF EXISTS %I CASCADE;', buildId));
+    logger.error(err, 'Failed to replace the revision schema with the build schema.');
+    await replaceSchemaQuery.query(pgformat('DROP SCHEMA IF EXISTS %I CASCADE;', buildId));
     throw err;
   } finally {
-    cubeDB.release();
+    replaceSchemaQuery.release();
   }
 
   // don't wait for this, can happen in the background so we can send the response earlier

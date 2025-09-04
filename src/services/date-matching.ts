@@ -179,6 +179,7 @@ function periodTableCreator(
   }
 
   const dataYears: number[] = [];
+  // Add if here to detect `YE`
   dataColumn.forEach((row) => {
     dataYears.push(parseInt(String(row).substring(0, 4), 10));
   });
