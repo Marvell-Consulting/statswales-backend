@@ -32,7 +32,6 @@ import { GroupRole } from '../../src/enums/group-role';
 import { UserGroupRole } from '../../src/entities/user/user-group-role';
 import { QueryRunner } from 'typeorm';
 import { getFileService } from '../../src/utils/get-file-service';
-import { multerStorageDir } from '../../src/config/multer-storage';
 import { MAX_PAGE_SIZE, MIN_PAGE_SIZE } from '../../src/utils/page-defaults';
 
 jest.mock('../../src/services/blob-storage');
@@ -55,9 +54,6 @@ let queryRunner: QueryRunner;
 
 describe('API Endpoints', () => {
   beforeAll(async () => {
-    if (!fs.existsSync(multerStorageDir)) {
-      fs.mkdirSync(multerStorageDir);
-    }
     try {
       await dbManager.initDataSources();
       await initPassport(dbManager.getAppDataSource());

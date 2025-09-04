@@ -3,6 +3,8 @@ import { format as pgformat } from '@scaleleap/pg-format';
 
 import { logger as parentLogger } from '../utils/logger';
 import { appConfig } from '../config';
+import path from 'node:path';
+import os from 'node:os';
 
 const logger = parentLogger.child({ module: 'DuckDB' });
 
@@ -26,7 +28,7 @@ export const duckdb = async (cubeFile = ':memory:'): Promise<Database> => {
   await duckdb.exec(pgformat('SET threads = %L;', threads));
   await duckdb.exec(pgformat('SET memory_limit = %L;', memory));
   await duckdb.exec("SET default_block_size = '16384';");
-  await duckdb.exec("SET temp_directory='/tmp/duckdb_temp';");
+  await duckdb.exec(`SET temp_directory='${path.resolve(os.tmpdir(), 'duckdb_temp')}';`);
   await duckdb.exec('SET preserve_insertion_order=false;');
 
   if (cubeFile !== ':memory:') {
