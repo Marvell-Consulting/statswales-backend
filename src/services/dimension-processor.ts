@@ -705,11 +705,15 @@ async function getDatePreviewWithExtractor(
   );
   const previewQuery = pgformat(
     `
-      SELECT DISTINCT(%I.%I), %I.description, %I.start_date, %I.end_date, %I.date_type
+      SELECT DISTINCT
+          (%I.%I),
+          %I.description,
+          to_char(%I.start_date, 'YYYY-MM-DD"T"HH24:MI:SS"Z"') as start_date,
+          to_char(%I.end_date, 'YYYY-MM-DD"T"HH24:MI:SS"Z"') as end_date,
+          %I.date_type
       FROM %I.%I
       RIGHT JOIN fact_table ON CAST(fact_table.%I AS VARCHAR)=CAST(%I.%I AS VARCHAR)
       WHERE %I.language = %L
-      ORDER BY end_date ASC
       LIMIT %L
     `,
     tableName,

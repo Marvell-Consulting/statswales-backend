@@ -193,6 +193,13 @@
       "meteorological": "Meteorological Month",
       "academic": "Academic Month",
       "rolling": "Rolling Month"
+    },
+    "rolling": {
+      "year_ending": "Year ending {{date}}",
+      "quarter_ending": "Quarter ending {{date}}",
+      "month_ending": "Month ending {{date}}",
+      "fortnight_ending": "Fortnight ending {{date}}",
+      "week_ending": "Week ending {{date}}"
     }
   },
   "months": {
