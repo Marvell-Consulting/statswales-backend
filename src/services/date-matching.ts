@@ -5,6 +5,7 @@ import { logger } from '../utils/logger';
 import { YearType } from '../enums/year-type';
 import { DateExtractor } from '../extractors/date-extractor';
 import { SUPPORTED_LOCALES, t } from '../middleware/translation';
+import { Duration } from 'date-fns';
 
 export interface SnifferResult {
   extractor: DateExtractor;
@@ -38,18 +39,18 @@ enum GeneratorType {
 function yearType(type: YearType, startDay = 1, startMonth = 1): YearTypeDetails {
   switch (type) {
     case YearType.Financial:
-      return { start: '04-01T00:00:00Z', type: YearType.Financial, separator: '-' };
+      return { start: '04-01', type: YearType.Financial, separator: '-' };
     case YearType.Tax:
-      return { start: '04-06T00:00:00Z', type: YearType.Tax, separator: '-' };
+      return { start: '04-06', type: YearType.Tax, separator: '-' };
     case YearType.Academic:
-      return { start: '09-01T00:00:00Z', type: YearType.Academic, separator: '/' };
+      return { start: '09-01', type: YearType.Academic, separator: '/' };
     case YearType.Meteorological:
-      return { start: '03-01T00:00:00Z', type: YearType.Meteorological, separator: '-' };
+      return { start: '03-01', type: YearType.Meteorological, separator: '-' };
     case YearType.Calendar:
-      return { start: '01-01T00:00:00Z', type: YearType.Calendar, separator: '' };
+      return { start: '01-01', type: YearType.Calendar, separator: '' };
     default:
       return {
-        start: `${String(startMonth).padStart(2, '0')}-${String(startDay).padStart(2, '0')}T00:00:00Z`,
+        start: `${String(startMonth).padStart(2, '0')}-${String(startDay).padStart(2, '0')}`,
         type: YearType.Rolling,
         separator: '-'
       };
@@ -110,6 +111,41 @@ function monthFormats(monthFormat: string, yearFormat: string): DateFormat {
       return { increment, formatStr: `${yearFormat}[monthNo]` };
   }
   throw new Error('Unknown month format');
+}
+
+interface RollingType {
+  increment: Duration;
+  description: string;
+}
+
+function getRollingType(type: string): RollingType | undefined {
+  switch (type) {
+    case 'YE':
+      return {
+        increment: { years: 1 },
+        description: 'date_format.rolling.year_ending'
+      };
+    case 'QE':
+      return {
+        increment: { months: 3 },
+        description: 'date_format.rolling.quarter_ending'
+      };
+    case 'ME':
+      return {
+        increment: { months: 1 },
+        description: 'date_format.rolling.month_ending'
+      };
+    case 'FE':
+      return {
+        increment: { weeks: 2 },
+        description: 'date_format.rolling.fortnight_ending'
+      };
+    case 'WE':
+      return {
+        increment: { weeks: 1 },
+        description: 'date_format.rolling.week_ending'
+      };
+  }
 }
 
 enum ParentType {
@@ -186,22 +222,8 @@ function periodTableCreator(
   const endYear = Math.max(...dataYears);
   const type = yearType(dateFormat.type, dateFormat.startDay, dateFormat.startMonth);
 
-  let year = parseISO(`${startYear}-${type.start}`);
-  const stdTimezoneOffset = (): number => {
-    const jan = new Date(year.getFullYear(), 0, 1);
-    const jul = new Date(year.getFullYear(), 6, 1);
-    return Math.max(jan.getTimezoneOffset(), jul.getTimezoneOffset());
-  };
-
-  const isBSTObserved = (): boolean => {
-    return year.getTimezoneOffset() < stdTimezoneOffset();
-  };
-
-  if (isBSTObserved()) {
-    year = add(year, { hours: 1 });
-  }
-
-  const end = add(parseISO(`${endYear}-${type.start}`), { years: 1 });
+  let year = parse(`${startYear}-${type.start}`, 'yyyy-MM-dd', new Date());
+  const end = add(parse(`${endYear}-${type.start}`, 'yyyy-MM-dd', new Date()), { years: 1, seconds: -1 });
   // Quarters and month numbers are different depending on the type of year
   let quarterIndex = 1;
   let monthIndex = 1;
@@ -263,7 +285,7 @@ function periodTableCreator(
         lang: locale.toLowerCase(),
         description,
         start: year,
-        end: sub(add(year, { months: formatObj.increment }), { seconds: 1 }),
+        end: add(year, { months: formatObj.increment, seconds: -1 }),
         type: t(`date_format.${subType}.${dateFormat.type}`, { lng: locale }),
         hierarchy: parent
       });
@@ -286,7 +308,7 @@ function periodTableCreator(
               ? format(displayYear, 'yyyy')
               : `${format(displayYear, 'yyyy')}-${format(add(displayYear, { years: 1 }), 'yy')}`,
           start: year,
-          end: sub(add(year, { months: 12 }), { seconds: 1 }),
+          end: add(year, { months: 12, seconds: -1 }),
           type: t(`date_format.year.${dateFormat.type}`, { lng: locale }),
           hierarchy: null
         });
@@ -380,6 +402,79 @@ function specificDateTableCreator(dateFormat: DateExtractor, dataColumn: TableDa
   return referenceTable;
 }
 
+function periodDateTableCreator(dateFormat: DateExtractor, dataColumn: TableData): DateReferenceDataItem[] {
+  const referenceTable: DateReferenceDataItem[] = [];
+  dataColumn.map((row) => {
+    const value = row.toString().substring(2);
+    const type = getRollingType(row.toString().toUpperCase().substring(0, 2));
+    if (!type) {
+      logger.error(`Unknown type format.  Type given: ${row.toString().toUpperCase().substring(0, 2)}`);
+      throw Error('Unable to parse date based on supplied format.');
+    }
+
+    let parsedDate: Date;
+    let day: string;
+    let month: string;
+    let year: string;
+    switch (dateFormat.dateFormat?.toUpperCase()) {
+      case 'DD/MM/YYYY':
+        parsedDate = parse(value, 'dd/MM/yyyy', new Date());
+        break;
+      case 'DD-MM-YYYY':
+        parsedDate = parse(value, 'dd-MM-yyyy', new Date());
+        break;
+      case 'YYYY-MM-DD':
+        parsedDate = parse(value, 'yyyy-MM-dd', new Date());
+        break;
+      case 'YYYYMMDD':
+        year = value.substring(0, 4);
+        month = value.substring(4, 6);
+        day = value.substring(6, 8);
+        parsedDate = parse(`${year}-${month}-${day}`, 'yyyy-MM-dd', new Date());
+        break;
+
+      default:
+        throw new Error(`Unknown Date Format.  Format given: ${dateFormat.dateFormat}`);
+    }
+
+    if (!isDate(parsedDate) || !isValid(parsedDate)) {
+      logger.error(`Date is invalid... ${parsedDate}`);
+      throw Error(`Unable to parse date based on supplied format of ${dateFormat.dateFormat}.`);
+    }
+
+    for (const locale of SUPPORTED_LOCALES) {
+      const fullDate = `${parsedDate.getDate()} ${t(`months.${parsedDate.getMonth() + 1}`, { lng: locale })} ${parsedDate.getFullYear()}`;
+      const startDate = sub(add(parsedDate, { days: 1 }), type.increment);
+      const endDate = add(parsedDate, { days: 1, seconds: -1 });
+      logger.debug(`Start Date = ${startDate}, EndDate = ${endDate}`);
+      referenceTable.push({
+        dateCode: row.toString(),
+        lang: locale.toLowerCase(),
+        description: t(type.description, { lng: locale, date: fullDate }),
+        start: startDate,
+        end: endDate,
+        type: t(type.description, { lng: locale, date: '' }).trim(),
+        hierarchy: null
+      });
+    }
+  });
+
+  return referenceTable;
+}
+
+function dateTableCreator(dateFormat: DateExtractor, dataColumn: TableData): DateReferenceDataItem[] {
+  const testVal = dataColumn.at(0);
+  const endingCheck = testVal?.toString().toUpperCase().substring(1, 2).includes('E');
+  logger.debug(`Ending check: ${endingCheck} based on ${testVal?.toString().toUpperCase().substring(1, 2)}`);
+  if (endingCheck) {
+    logger.debug('Period ending creation running...');
+    return periodDateTableCreator(dateFormat, dataColumn);
+  } else {
+    logger.debug('Specific point in time running...');
+    return specificDateTableCreator(dateFormat, dataColumn);
+  }
+}
+
 export function dateDimensionReferenceTableCreator(
   extractor: DateExtractor,
   dataColumn: TableData
@@ -392,7 +487,7 @@ export function dateDimensionReferenceTableCreator(
 
   if (extractor.dateFormat) {
     logger.debug('Creating specific date table...');
-    return specificDateTableCreator(extractor, columnData);
+    return dateTableCreator(extractor, columnData);
   } else {
     logger.debug('Creating period table...');
     return createAllTypesOfPeriod(extractor, columnData);

@@ -331,8 +331,8 @@ export const createDatePeriodTableQuery = (factTableColumn: FactTableColumn, tab
     %I %s,
     language VARCHAR(5),
     description VARCHAR,
-    start_date timestamp,
-    end_date timestamp,
+    start_date TIMESTAMP WITHOUT TIME ZONE,
+    end_date TIMESTAMP WITHOUT TIME ZONE,
     date_type varchar,
     hierarchy %s
   );`,
@@ -367,8 +367,8 @@ export async function createDateDimension(
         row.dateCode,
         row.lang,
         row.description,
-        row.start,
-        row.end,
+        row.start.toUTCString(),
+        row.end.toUTCString(),
         row.type,
         row.hierarchy
       ])
