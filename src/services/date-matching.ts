@@ -88,6 +88,8 @@ function quarterFormats(quarterFormat: string, yearFormat: string): DateFormat {
   switch (quarterFormat) {
     case 'QX':
       return { increment, formatStr: `${yearFormat}Q[quarterNo]` };
+    case '-QX':
+      return { increment, formatStr: `${yearFormat}-Q[quarterNo]` };
     case '_QX':
       return { increment, formatStr: `${yearFormat}_Q[quarterNo]` };
     case 'X':
