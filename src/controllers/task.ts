@@ -16,38 +16,78 @@ export const getTask = async (req: Request, res: Response): Promise<void> => {
 };
 
 export const taskDecision = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  let task = res.locals.task;
   const taskService = new TaskService();
-  const task = res.locals.task;
   const dataset = task.dataset;
   const user = req.user! as User;
 
   if (!task.open) {
-    next(new BadRequestException('errors.task_not_open'));
+    next(new BadRequestException('errors.task.not_open'));
+    return;
+  }
+
+  if (task.status !== TaskStatus.Requested) {
+    next(new BadRequestException('errors.task.invalid_status'));
     return;
   }
 
   if (!isApproverForDataset(user, dataset)) {
     logger.warn(`User ${user.id} is not an approver for dataset ${dataset.id}`);
-    next(new ForbiddenException('errors.user_is_not_approver_for_this_dataset'));
+    next(new ForbiddenException('errors.task.user_is_not_approver_for_this_dataset'));
     return;
   }
 
   try {
     const dto = await dtoValidator(TaskDecisionDTO, req.body);
+    logger.info(`Decision received for task ${task.id}: ${dto.decision}`);
 
-    // handle the decision
-    if (task.action === TaskAction.Publish && task.status === TaskStatus.Requested) {
-      if (dto.decision === 'approve') {
-        await req.datasetService.approvePublication(dataset.id, dataset.draftRevisionId, user);
-      }
-      if (dto.decision === 'reject') {
-        await req.datasetService.rejectPublication(dataset.id, dataset.draftRevisionId);
-      }
+    switch (task.action) {
+      case TaskAction.Publish:
+        if (dto.decision === 'approve') {
+          // task is resolved and closed
+          await req.datasetService.approvePublication(dataset.id, dataset.draftRevisionId, user);
+          task = await taskService.update(task.id, TaskStatus.Approved, false, user);
+        }
+        if (dto.decision === 'reject') {
+          // task left open so it can be re-submitted
+          await req.datasetService.rejectPublication(dataset.id, dataset.draftRevisionId);
+          task = await taskService.update(task.id, TaskStatus.Rejected, true, user, dto.reason);
+        }
+        break;
+
+      case TaskAction.Unpublish:
+        if (dto.decision === 'approve') {
+          task = await taskService.approveUnpublish(task.id, user);
+        }
+        if (dto.decision === 'reject') {
+          task = await taskService.rejectUnpublish(task.id, user, dto.reason);
+        }
+        break;
+
+      case TaskAction.Archive:
+        if (dto.decision === 'approve') {
+          task = await taskService.approveArchive(task.id, user);
+        }
+        if (dto.decision === 'reject') {
+          task = await taskService.rejectArchive(task.id, user, dto.reason);
+        }
+        break;
+
+      case TaskAction.Unarchive:
+        if (dto.decision === 'approve') {
+          task = await taskService.approveUnarchive(task.id, user);
+        }
+        if (dto.decision === 'reject') {
+          task = await taskService.rejectUnarchive(task.id, user, dto.reason);
+        }
+        break;
+
+      default:
+        next(new BadRequestException('errors.task.invalid_action'));
+        return;
     }
 
-    // finally, update the task status
-    const updatedTask = await taskService.decision(task.id, dto, user);
-    res.json(TaskDTO.fromTask(updatedTask));
+    res.json(TaskDTO.fromTask(task));
   } catch (err) {
     next(err);
   }

@@ -14,6 +14,7 @@ const jsonParser = express.json();
 
 const taskAuth = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   const taskIdError = await hasError(uuidValidator('task_id'), req);
+
   if (taskIdError) {
     logger.error(taskIdError);
     next(new NotFoundException('errors.dataset_id_invalid'));
@@ -23,6 +24,7 @@ const taskAuth = async (req: Request, res: Response, next: NextFunction): Promis
   try {
     const taskService = new TaskService();
     const task = await taskService.getById(req.params.task_id, { dataset: true, createdBy: true, updatedBy: true });
+
     const dataset = task.dataset;
     const userGroupIds = getUserGroupIdsForUser(req.user!);
 

@@ -14,8 +14,8 @@ export class DatasetDTO {
   id: string;
   created_at: string;
   created_by_id: string;
-  live?: string | null;
-  archive?: string;
+  first_published_at?: string | null;
+  archived_at?: string;
   fact_table?: FactTableColumnDto[];
   dimensions?: DimensionDTO[];
   revisions: RevisionDTO[];
@@ -38,8 +38,8 @@ export class DatasetDTO {
     dto.created_at = dataset.createdAt.toISOString();
     dto.created_by_id = dataset.createdById;
 
-    dto.live = dataset.live?.toISOString();
-    dto.archive = dataset.archive?.toISOString();
+    dto.first_published_at = dataset.firstPublishedAt?.toISOString();
+    dto.archived_at = dataset.archivedAt?.toISOString();
 
     dto.dimensions = dataset.dimensions?.map((dimension: Dimension) => DimensionDTO.fromDimension(dimension));
     dto.revisions = dataset.revisions?.map((revision: Revision) => RevisionDTO.fromRevision(revision));

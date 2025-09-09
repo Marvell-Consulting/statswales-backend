@@ -39,7 +39,7 @@ const approvedDataset: DeepPartial<Dataset> = {
   id: 'f12bed26-18ac-4cb9-bcdb-24ed155f29a1',
   createdBy: user,
   createdAt: '2025-05-01 13:10:40.176625+00',
-  live: '2025-05-01 13:20:00+00',
+  firstPublishedAt: '2025-05-01 13:20:00+00',
   startDate: '2013-04-01',
   endDate: '2024-03-31',
   factTable: [
@@ -263,8 +263,8 @@ export default class DatasetSeeder extends Seeder {
           return { ...r, providerId: provider!.id };
         }),
         approvedBy: dataset.createdBy,
-        approvedAt: dataset.live || undefined,
-        publishAt: dataset.live || undefined
+        approvedAt: dataset.firstPublishedAt || undefined,
+        publishAt: dataset.firstPublishedAt || undefined
       });
 
       const duckdbFiles = [
@@ -297,8 +297,8 @@ export default class DatasetSeeder extends Seeder {
         },
         startRevision: revision,
         endRevision: revision,
-        draftRevision: dataset.live ? undefined : revision,
-        publishedRevision: dataset.live ? revision : undefined
+        draftRevision: dataset.firstPublishedAt ? undefined : revision,
+        publishedRevision: dataset.firstPublishedAt ? revision : undefined
       });
     } catch (err) {
       console.error(err, `Error seeding dataset ${approvedDataset.id}`);

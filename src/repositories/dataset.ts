@@ -88,7 +88,8 @@ const listAllQuery = (qb: QueryBuilder<Dataset>, lang: Locale): SelectQueryBuild
     .addSelect(
       `
         CASE
-          WHEN d.live IS NOT NULL AND d.live < NOW() THEN 'live'
+          WHEN d.archived_at IS NOT NULL AND d.archived_at < NOW() THEN 'archived'
+          WHEN d.first_published_at IS NOT NULL AND d.first_published_at < NOW() THEN 'live'
           ELSE 'new'
         END`,
       'status'
@@ -96,14 +97,17 @@ const listAllQuery = (qb: QueryBuilder<Dataset>, lang: Locale): SelectQueryBuild
     .addSelect(
       `
         CASE
-          WHEN d.live IS NOT NULL AND t.action = 'publish' AND t.status = 'requested' THEN 'update_pending_approval'
+          WHEN d.first_published_at IS NOT NULL AND t.action = 'publish' AND t.status = 'requested' THEN 'update_pending_approval'
           WHEN t.action = 'publish' AND t.status = 'requested' THEN 'pending_approval'
           WHEN t.action = 'publish' AND t.status = 'rejected' THEN 'changes_requested'
-          WHEN d.live IS NOT NULL AND d.live < NOW() AND r.approved_at IS NOT NULL AND r.publish_at < NOW() THEN 'published'
-          WHEN d.live IS NOT NULL AND d.live < NOW() AND r.approved_at IS NOT NULL AND r.publish_at > NOW() THEN 'update_scheduled'
-          WHEN d.live IS NOT NULL AND d.live > NOW() AND r.approved_at IS NOT NULL AND r.publish_at > NOW() THEN 'scheduled'
-          WHEN d.live IS NOT NULL AND d.live < NOW() AND r.approved_at IS NULL THEN 'update_incomplete'
-          WHEN d.live IS NULL AND r.approved_at IS NULL THEN 'incomplete'
+          WHEN t.action = 'unpublish' AND t.status = 'requested' THEN 'unpublish_requested'
+          WHEN t.action = 'archive' AND t.status = 'requested' THEN 'archive_requested'
+          WHEN t.action = 'unarchive' AND t.status = 'requested' THEN 'unarchive_requested'
+          WHEN d.first_published_at IS NOT NULL AND d.first_published_at < NOW() AND r.approved_at IS NOT NULL AND r.publish_at < NOW() THEN 'published'
+          WHEN d.first_published_at IS NOT NULL AND d.first_published_at < NOW() AND r.approved_at IS NOT NULL AND r.publish_at > NOW() THEN 'update_scheduled'
+          WHEN d.first_published_at IS NOT NULL AND d.first_published_at > NOW() AND r.approved_at IS NOT NULL AND r.publish_at > NOW() THEN 'scheduled'
+          WHEN d.first_published_at IS NOT NULL AND d.first_published_at < NOW() AND r.approved_at IS NULL THEN 'update_incomplete'
+          WHEN d.first_published_at IS NULL AND r.approved_at IS NULL THEN 'incomplete'
           ELSE 'incomplete'
         END
         `,
@@ -256,17 +260,59 @@ export const DatasetRepository = dataSource.getRepository(Dataset).extend({
   },
 
   async publish(revision: Revision, period: PeriodCovered): Promise<Dataset> {
-    const dataset = revision.dataset;
+    const dataset = await this.getById(revision.datasetId, { startRevision: true });
+
+    if (!dataset.startRevision) {
+      throw new Error(`Dataset ${dataset.id} does not have a start revision`);
+    }
 
     dataset.startDate = period.start_date;
     dataset.endDate = period.end_date;
     dataset.draftRevision = null;
     dataset.publishedRevision = revision;
+    dataset.firstPublishedAt = dataset.startRevision!.publishAt;
 
-    if (revision.revisionIndex === 1) {
-      dataset.live = revision.publishAt; // set the first published date if this is the first rev
+    return this.save(dataset);
+  },
+
+  async unpublish(datasetId: string): Promise<Dataset> {
+    logger.info(`Unpublishing dataset ${datasetId}`);
+
+    const dataset = await this.getById(datasetId, { publishedRevision: true });
+    const publishedRevision = dataset.publishedRevision;
+
+    if (!publishedRevision) {
+      throw new Error(`Dataset ${datasetId} does not have a published revision`);
     }
 
-    return DatasetRepository.save(dataset);
+    publishedRevision.approvedAt = null;
+    publishedRevision.publishAt = null;
+
+    if (publishedRevision.revisionIndex !== 1) {
+      // reset rev index to draft state if it's not the initial revision
+      publishedRevision.revisionIndex = 0;
+    }
+
+    await publishedRevision.save();
+
+    dataset.draftRevision = publishedRevision;
+    dataset.publishedRevision = null;
+    dataset.firstPublishedAt = null;
+
+    return this.save(dataset);
+  },
+
+  async archive(datasetId: string): Promise<Dataset> {
+    logger.info(`Archiving dataset ${datasetId}`);
+    const dataset = await this.getById(datasetId);
+    dataset.archivedAt = new Date();
+    return await this.save(dataset);
+  },
+
+  async unarchive(datasetId: string): Promise<Dataset> {
+    logger.info(`Unarchiving dataset ${datasetId}`);
+    const dataset = await this.getById(datasetId);
+    dataset.archivedAt = null;
+    return await this.save(dataset);
   }
 });

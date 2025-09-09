@@ -44,7 +44,7 @@ export const PublishedDatasetRepository = dataSource.getRepository(Dataset).exte
       relations,
       where: {
         id,
-        live: And(Not(IsNull()), LessThan(now)),
+        firstPublishedAt: And(Not(IsNull()), LessThan(now)),
         revisions: {
           approvedAt: LessThan(now),
           publishAt: LessThan(now)
@@ -78,18 +78,18 @@ export const PublishedDatasetRepository = dataSource.getRepository(Dataset).exte
     limit: number
   ): Promise<ResultsetWithCount<DatasetListItemDTO>> {
     const qb = this.createQueryBuilder('d')
-      .select(['d.id as id', 'rm.title as title', 'd.live as published_date'])
+      .select(['d.id as id', 'rm.title as title', 'd.first_published_at as published_date'])
       .innerJoin('d.publishedRevision', 'r')
       .innerJoin('r.metadata', 'rm')
       .where('rm.language LIKE :lang', { lang: `${lang}%` })
-      .andWhere('d.live IS NOT NULL')
-      .andWhere('d.live < NOW()')
-      .groupBy('d.id, rm.title, d.live')
-      .orderBy('d.live', 'DESC');
+      .andWhere('d.first_published_at IS NOT NULL')
+      .andWhere('d.first_published_at < NOW()')
+      .groupBy('d.id, rm.title, d.first_published_at')
+      .orderBy('d.first_published_at', 'DESC');
 
     const offset = (page - 1) * limit;
     const countQuery = qb.clone();
-    const resultQuery = qb.orderBy('d.live', 'DESC').offset(offset).limit(limit);
+    const resultQuery = qb.orderBy('d.first_published_at', 'DESC').offset(offset).limit(limit);
     const [data, count] = await Promise.all([resultQuery.getRawMany(), countQuery.getCount()]);
 
     return { data, count };
@@ -98,8 +98,8 @@ export const PublishedDatasetRepository = dataSource.getRepository(Dataset).exte
   async listPublishedTopics(lang: Locale, topicId?: string): Promise<Topic[]> {
     const latestPublishedRevisions = await this.createQueryBuilder('d')
       .select('d.published_revision_id')
-      .where('d.live IS NOT NULL')
-      .andWhere('d.live < NOW()')
+      .where('d.first_published_at IS NOT NULL')
+      .andWhere('d.first_published_at < NOW()')
       .andWhere('d.published_revision_id IS NOT NULL')
       .getRawMany();
 
@@ -126,20 +126,20 @@ export const PublishedDatasetRepository = dataSource.getRepository(Dataset).exte
     limit: number
   ): Promise<ResultsetWithCount<DatasetListItemDTO>> {
     const qb = this.createQueryBuilder('d')
-      .select(['d.id as id', 'rm.title as title', 'd.live as published_date'])
+      .select(['d.id as id', 'rm.title as title', 'd.first_published_at as published_date'])
       .innerJoin('d.publishedRevision', 'r')
       .innerJoin('r.metadata', 'rm')
       .innerJoin('r.revisionTopics', 'rt')
       .where('rm.language LIKE :lang', { lang: `${lang}%` })
-      .andWhere('d.live IS NOT NULL')
-      .andWhere('d.live < NOW()')
+      .andWhere('d.first_published_at IS NOT NULL')
+      .andWhere('d.first_published_at < NOW()')
       .andWhere('rt.topicId = :topicId', { topicId })
-      .groupBy('d.id, rm.title, d.live')
-      .orderBy('d.live', 'DESC');
+      .groupBy('d.id, rm.title, d.first_published_at')
+      .orderBy('d.first_published_at', 'DESC');
 
     const offset = (page - 1) * limit;
     const countQuery = qb.clone();
-    const resultQuery = qb.orderBy('d.live', 'DESC').offset(offset).limit(limit);
+    const resultQuery = qb.orderBy('d.first_published_at', 'DESC').offset(offset).limit(limit);
     const [data, count] = await Promise.all([resultQuery.getRawMany(), countQuery.getCount()]);
 
     return { data, count };

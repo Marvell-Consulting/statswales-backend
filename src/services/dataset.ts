@@ -295,13 +295,10 @@ export class DatasetService {
     const start = performance.now();
     await createAllCubeFiles(datasetId, revisionId);
     const periodCoverage = await getCubeTimePeriods(revisionId);
-
-    const end = performance.now();
-    const time = Math.round(end - start);
-    logger.info(`Cube and parquet file creation took ${time}ms (including uploading to data lake)`);
-
     const scheduledRevision = await RevisionRepository.approvePublication(revisionId, `${revisionId}.duckdb`, user);
     const approvedDataset = await DatasetRepository.publish(scheduledRevision, periodCoverage);
+    const time = Math.round(performance.now() - start);
+    logger.info(`Publication approved, time: ${time}ms`);
 
     return approvedDataset;
   }

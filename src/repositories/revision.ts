@@ -133,7 +133,7 @@ export const RevisionRepository = dataSource.getRepository(Revision).extend({
     const dataset = revision.dataset;
 
     if (revision.revisionIndex === 1) {
-      dataset.live = null;
+      dataset.firstPublishedAt = null;
     } else {
       revision.revisionIndex = 0;
     }
