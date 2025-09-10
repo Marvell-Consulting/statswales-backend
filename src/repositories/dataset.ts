@@ -83,7 +83,7 @@ export const withDraftForCube: FindOptionsRelations<Dataset> = {
 
 const listAllQuery = (qb: QueryBuilder<Dataset>, lang: Locale): SelectQueryBuilder<Dataset> => {
   return qb
-    .select(['d.id AS id', 'r.title AS title', 'r.title_alt AS title_alt', 'r.updated_at AS last_updated'])
+    .select(['d.id AS id', 'r.title AS title', 'r.title_alt AS title_alt', 'r.updated_at AS last_updated_at'])
     .addSelect(`ugm.name AS group_name`)
     .addSelect(
       `

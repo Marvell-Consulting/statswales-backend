@@ -268,10 +268,20 @@ export const schema = {
             type: 'string',
             description: 'Title of the dataset (in the language requested via accept-language header)'
           },
-          published_date: {
+          first_published_at: {
             type: 'string',
             format: 'date-time',
             description: 'First publication date of the dataset in ISO 8601 format'
+          },
+          last_updated_at: {
+            type: 'string',
+            format: 'date-time',
+            description: 'Date of the most recent update to the dataset in ISO 8601 format'
+          },
+          archived_at: {
+            type: 'string',
+            format: 'date-time',
+            description: 'Date the dataset was archived in ISO 8601 format, if applicable'
           }
         }
       },
@@ -286,12 +296,12 @@ export const schema = {
             {
               id: '141baa8a-2ed0-45cb-ad4a-83de8c2333b5',
               title: 'Population Estimates',
-              published_date: '2023-01-01T00:00:00Z'
+              first_published_at: '2023-01-01T00:00:00Z'
             },
             {
               id: '0ff18b56-0a4f-4ac3-a198-197aa48cc9e1',
               title: 'Economic Indicators',
-              published_date: '2023-02-01T00:00:00Z'
+              first_published_at: '2023-02-01T00:00:00Z'
             }
           ],
           count: 57

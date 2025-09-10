@@ -89,7 +89,7 @@ describe('API Endpoints for viewing dataset objects', () => {
             title: 'Test Dataset 1',
             title_alt: 'Test Dataset 1',
             group_name: 'Test Group EN',
-            last_updated: expect.stringContaining(today),
+            last_updated_at: expect.stringContaining(today),
             status: 'new',
             publishing_status: 'incomplete'
           }

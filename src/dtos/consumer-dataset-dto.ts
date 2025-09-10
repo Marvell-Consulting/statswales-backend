@@ -12,6 +12,7 @@ import { PublisherDTO } from './publisher-dto';
 export class ConsumerDatasetDTO {
   id: string;
   first_published_at?: string | null;
+  archived_at?: string;
   dimensions?: DimensionDTO[];
   revisions: ConsumerRevisionDTO[];
   published_revision?: ConsumerRevisionDTO;
@@ -23,6 +24,7 @@ export class ConsumerDatasetDTO {
     const dto = new ConsumerDatasetDTO();
     dto.id = dataset.id;
     dto.first_published_at = dataset.firstPublishedAt?.toISOString();
+    dto.archived_at = dataset.archivedAt?.toISOString();
 
     // only return published revisions
     dto.revisions = dataset.revisions

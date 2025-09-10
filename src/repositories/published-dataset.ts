@@ -78,13 +78,19 @@ export const PublishedDatasetRepository = dataSource.getRepository(Dataset).exte
     limit: number
   ): Promise<ResultsetWithCount<DatasetListItemDTO>> {
     const qb = this.createQueryBuilder('d')
-      .select(['d.id as id', 'rm.title as title', 'd.first_published_at as published_date'])
+      .select([
+        'd.id AS id',
+        'rm.title AS title',
+        'd.first_published_at AS first_published_at',
+        'r.publish_at AS last_updated_at',
+        'd.archived_at AS archived_at'
+      ])
       .innerJoin('d.publishedRevision', 'r')
       .innerJoin('r.metadata', 'rm')
       .where('rm.language LIKE :lang', { lang: `${lang}%` })
       .andWhere('d.first_published_at IS NOT NULL')
       .andWhere('d.first_published_at < NOW()')
-      .groupBy('d.id, rm.title, d.first_published_at')
+      .groupBy('d.id, rm.title, d.first_published_at, r.publish_at, d.archived_at')
       .orderBy('d.first_published_at', 'DESC');
 
     const offset = (page - 1) * limit;
@@ -126,7 +132,13 @@ export const PublishedDatasetRepository = dataSource.getRepository(Dataset).exte
     limit: number
   ): Promise<ResultsetWithCount<DatasetListItemDTO>> {
     const qb = this.createQueryBuilder('d')
-      .select(['d.id as id', 'rm.title as title', 'd.first_published_at as published_date'])
+      .select([
+        'd.id AS id',
+        'rm.title AS title',
+        'd.first_published_at AS first_published_at',
+        'r.publish_at AS last_updated_at',
+        'd.archived_at AS archived_at'
+      ])
       .innerJoin('d.publishedRevision', 'r')
       .innerJoin('r.metadata', 'rm')
       .innerJoin('r.revisionTopics', 'rt')
@@ -134,7 +146,7 @@ export const PublishedDatasetRepository = dataSource.getRepository(Dataset).exte
       .andWhere('d.first_published_at IS NOT NULL')
       .andWhere('d.first_published_at < NOW()')
       .andWhere('rt.topicId = :topicId', { topicId })
-      .groupBy('d.id, rm.title, d.first_published_at')
+      .groupBy('d.id, rm.title, d.first_published_at, r.publish_at, d.archived_at')
       .orderBy('d.first_published_at', 'DESC');
 
     const offset = (page - 1) * limit;
