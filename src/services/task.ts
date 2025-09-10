@@ -82,7 +82,7 @@ export class TaskService {
     logger.info(`Approving unpublish for dataset ${dataset.id}`);
 
     await DatasetRepository.unpublish(dataset.id);
-    return this.update(task.id, TaskStatus.Approved, false, user);
+    return this.update(task.id, TaskStatus.Approved, false, user, null);
   }
 
   async rejectUnpublish(taskId: string, user: User, reason: string): Promise<Task> {
@@ -109,7 +109,7 @@ export class TaskService {
     logger.info(`Approving archive for dataset ${dataset.id}`);
 
     await DatasetRepository.archive(dataset.id);
-    return this.update(task.id, TaskStatus.Approved, false, user);
+    return this.update(task.id, TaskStatus.Approved, false, user, null);
   }
 
   async rejectArchive(taskId: string, user: User, reason: string): Promise<Task> {
@@ -135,7 +135,7 @@ export class TaskService {
     logger.info(`Approving unarchive for dataset ${dataset.id}`);
 
     await DatasetRepository.unarchive(dataset.id);
-    return this.update(task.id, TaskStatus.Approved, false, user);
+    return this.update(task.id, TaskStatus.Approved, false, user, null);
   }
 
   async rejectUnarchive(taskId: string, user: User, reason: string): Promise<Task> {
