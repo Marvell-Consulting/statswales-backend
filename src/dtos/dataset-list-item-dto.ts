@@ -10,6 +10,7 @@ export interface DatasetListItemDTO {
   status?: DatasetStatus;
   publishing_status?: PublishingStatus;
   first_published_at?: string;
+  unpublished_at?: string;
   last_updated_at?: string;
   archived_at?: string;
 }

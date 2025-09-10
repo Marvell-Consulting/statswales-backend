@@ -89,6 +89,7 @@ const listAllQuery = (qb: QueryBuilder<Dataset>, lang: Locale): SelectQueryBuild
       `
         CASE
           WHEN d.archived_at IS NOT NULL AND d.archived_at < NOW() THEN 'archived'
+          WHEN d.unpublished_at IS NOT NULL AND d.unpublished_at < NOW() THEN 'offline'
           WHEN d.first_published_at IS NOT NULL AND d.first_published_at < NOW() THEN 'live'
           ELSE 'new'
         END`,
@@ -103,6 +104,7 @@ const listAllQuery = (qb: QueryBuilder<Dataset>, lang: Locale): SelectQueryBuild
           WHEN t.action = 'unpublish' AND t.status = 'requested' THEN 'unpublish_requested'
           WHEN t.action = 'archive' AND t.status = 'requested' THEN 'archive_requested'
           WHEN t.action = 'unarchive' AND t.status = 'requested' THEN 'unarchive_requested'
+          WHEN d.unpublished_at IS NOT NULL AND d.unpublished_at < NOW() THEN 'unpublished'
           WHEN d.first_published_at IS NOT NULL AND d.first_published_at < NOW() AND r.approved_at IS NOT NULL AND r.publish_at < NOW() THEN 'published'
           WHEN d.first_published_at IS NOT NULL AND d.first_published_at < NOW() AND r.approved_at IS NOT NULL AND r.publish_at > NOW() THEN 'update_scheduled'
           WHEN d.first_published_at IS NOT NULL AND d.first_published_at > NOW() AND r.approved_at IS NOT NULL AND r.publish_at > NOW() THEN 'scheduled'
@@ -287,18 +289,10 @@ export const DatasetRepository = dataSource.getRepository(Dataset).extend({
 
     publishedRevision.approvedAt = null;
     publishedRevision.publishAt = null;
-
-    if (publishedRevision.revisionIndex !== 1) {
-      // reset rev index to draft state if it's not the initial revision
-      publishedRevision.revisionIndex = 0;
-    }
-
     await publishedRevision.save();
 
     dataset.draftRevision = publishedRevision;
-    dataset.publishedRevision = null;
-    dataset.firstPublishedAt = null;
-
+    dataset.unpublishedAt = new Date();
     return this.save(dataset);
   },
 

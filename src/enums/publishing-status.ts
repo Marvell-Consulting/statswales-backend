@@ -7,6 +7,7 @@ export enum PublishingStatus {
   Scheduled = 'scheduled',
   UpdateScheduled = 'update_scheduled',
   Published = 'published',
+  Unpublished = 'unpublished',
   UnpublishRequested = 'unpublish_requested',
   ArchiveRequested = 'archive_requested',
   UnarchiveRequested = 'unarchive_requested'

@@ -15,6 +15,7 @@ export class DatasetDTO {
   created_at: string;
   created_by_id: string;
   first_published_at?: string | null;
+  unpublished_at?: string;
   archived_at?: string;
   fact_table?: FactTableColumnDto[];
   dimensions?: DimensionDTO[];
@@ -39,6 +40,7 @@ export class DatasetDTO {
     dto.created_by_id = dataset.createdById;
 
     dto.first_published_at = dataset.firstPublishedAt?.toISOString();
+    dto.unpublished_at = dataset.unpublishedAt?.toISOString();
     dto.archived_at = dataset.archivedAt?.toISOString();
 
     dto.dimensions = dataset.dimensions?.map((dimension: Dimension) => DimensionDTO.fromDimension(dimension));

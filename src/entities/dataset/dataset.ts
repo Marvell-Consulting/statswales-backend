@@ -39,6 +39,9 @@ export class Dataset extends BaseEntity {
   @Column({ name: 'first_published_at', type: 'timestamptz', nullable: true })
   firstPublishedAt: Date | null;
 
+  @Column({ name: 'unpublished_at', type: 'timestamptz', nullable: true })
+  unpublishedAt: Date | null;
+
   @Column({ name: 'archived_at', type: 'timestamptz', nullable: true })
   archivedAt: Date | null;
 
