@@ -91,7 +91,7 @@ const listAllQuery = (qb: QueryBuilder<Dataset>, lang: Locale): SelectQueryBuild
       `
         CASE
           WHEN d.archived_at IS NOT NULL AND d.archived_at < NOW() THEN 'archived'
-          WHEN r.unpublished_at IS NOT NULL AND r.unpublished_at < NOW() THEN 'offline'
+          WHEN pr.unpublished_at IS NOT NULL AND pr.unpublished_at < NOW() THEN 'offline'
           WHEN d.first_published_at IS NOT NULL AND d.first_published_at < NOW() THEN 'live'
           ELSE 'new'
         END`,
@@ -106,7 +106,7 @@ const listAllQuery = (qb: QueryBuilder<Dataset>, lang: Locale): SelectQueryBuild
           WHEN t.action = 'unpublish' AND t.status = 'requested' THEN 'unpublish_requested'
           WHEN t.action = 'archive' AND t.status = 'requested' THEN 'archive_requested'
           WHEN t.action = 'unarchive' AND t.status = 'requested' THEN 'unarchive_requested'
-          WHEN r.unpublished_at IS NOT NULL AND r.unpublished_at < NOW() THEN 'unpublished'
+          WHEN pr.unpublished_at IS NOT NULL AND pr.unpublished_at < NOW() THEN 'unpublished'
           WHEN d.first_published_at IS NOT NULL AND d.first_published_at < NOW() AND r.approved_at IS NOT NULL AND r.publish_at < NOW() THEN 'published'
           WHEN d.first_published_at IS NOT NULL AND d.first_published_at < NOW() AND r.approved_at IS NOT NULL AND r.publish_at > NOW() THEN 'update_scheduled'
           WHEN d.first_published_at IS NOT NULL AND d.first_published_at > NOW() AND r.approved_at IS NOT NULL AND r.publish_at > NOW() THEN 'scheduled'
@@ -131,11 +131,12 @@ const listAllQuery = (qb: QueryBuilder<Dataset>, lang: Locale): SelectQueryBuild
       'r',
       'r.dataset_id = d.id'
     )
+    .leftJoin('d.publishedRevision', 'pr') // join published revision to check for unpublished flag for statuses (ie dataset taken offline)
     .innerJoin('d.userGroup', 'ug')
     .innerJoin('ug.metadata', 'ugm', 'ugm.language = :lang', { lang })
     .leftJoin('d.tasks', 't', 't.open = true')
     .groupBy(
-      'd.id, r.title, ugm.name, r.title_alt, r.updated_at, r.approved_at, r.publish_at, r.unpublished_at, t.action, t.status'
+      'd.id, r.title, ugm.name, r.title_alt, r.updated_at, r.approved_at, r.publish_at, pr.unpublished_at, t.action, t.status'
     );
 };
 
