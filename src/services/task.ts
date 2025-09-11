@@ -76,15 +76,6 @@ export class TaskService {
     return await this.create(datasetId, TaskAction.Unpublish, user, reason, { revisionId: dataset.endRevisionId });
   }
 
-  async approveUnpublish(taskId: string, user: User): Promise<Task> {
-    const task = await this.getById(taskId, { dataset: true });
-    const dataset = task.dataset!;
-    logger.info(`Approving unpublish for dataset ${dataset.id}`);
-
-    await DatasetRepository.unpublish(dataset.id);
-    return this.update(task.id, TaskStatus.Approved, false, user, null);
-  }
-
   async rejectUnpublish(taskId: string, user: User, reason: string): Promise<Task> {
     const task = await this.getById(taskId, { dataset: true });
     logger.info(`Rejecting unpublish for dataset ${task.dataset?.id}`);

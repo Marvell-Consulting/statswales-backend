@@ -44,11 +44,7 @@ export const PublishedDatasetRepository = dataSource.getRepository(Dataset).exte
       relations,
       where: {
         id,
-        firstPublishedAt: And(Not(IsNull()), LessThan(now)),
-        revisions: {
-          approvedAt: LessThan(now),
-          publishAt: LessThan(now)
-        }
+        firstPublishedAt: And(Not(IsNull()), LessThan(now))
       }
     };
 

@@ -22,7 +22,8 @@ export const withStandardPreview: FindOptionsRelations<Dataset> = {
   dimensions: { metadata: true },
   measure: { metadata: true },
   revisions: true,
-  tasks: true
+  tasks: true,
+  publishedRevision: true // needed for correct status badges
 };
 
 export const withDeveloperPreview: FindOptionsRelations<Dataset> = {
@@ -42,7 +43,8 @@ export const withFactTable: FindOptionsRelations<Dataset> = {
 };
 
 export const withDraftAndMetadata: FindOptionsRelations<Dataset> = {
-  draftRevision: { metadata: true }
+  draftRevision: { metadata: true },
+  publishedRevision: true // needed for correct status badges
 };
 
 export const withMetadataForTranslation: FindOptionsRelations<Dataset> = {
@@ -89,7 +91,7 @@ const listAllQuery = (qb: QueryBuilder<Dataset>, lang: Locale): SelectQueryBuild
       `
         CASE
           WHEN d.archived_at IS NOT NULL AND d.archived_at < NOW() THEN 'archived'
-          WHEN d.unpublished_at IS NOT NULL AND d.unpublished_at < NOW() THEN 'offline'
+          WHEN r.unpublished_at IS NOT NULL AND r.unpublished_at < NOW() THEN 'offline'
           WHEN d.first_published_at IS NOT NULL AND d.first_published_at < NOW() THEN 'live'
           ELSE 'new'
         END`,
@@ -104,7 +106,7 @@ const listAllQuery = (qb: QueryBuilder<Dataset>, lang: Locale): SelectQueryBuild
           WHEN t.action = 'unpublish' AND t.status = 'requested' THEN 'unpublish_requested'
           WHEN t.action = 'archive' AND t.status = 'requested' THEN 'archive_requested'
           WHEN t.action = 'unarchive' AND t.status = 'requested' THEN 'unarchive_requested'
-          WHEN d.unpublished_at IS NOT NULL AND d.unpublished_at < NOW() THEN 'unpublished'
+          WHEN r.unpublished_at IS NOT NULL AND r.unpublished_at < NOW() THEN 'unpublished'
           WHEN d.first_published_at IS NOT NULL AND d.first_published_at < NOW() AND r.approved_at IS NOT NULL AND r.publish_at < NOW() THEN 'published'
           WHEN d.first_published_at IS NOT NULL AND d.first_published_at < NOW() AND r.approved_at IS NOT NULL AND r.publish_at > NOW() THEN 'update_scheduled'
           WHEN d.first_published_at IS NOT NULL AND d.first_published_at > NOW() AND r.approved_at IS NOT NULL AND r.publish_at > NOW() THEN 'scheduled'
@@ -132,7 +134,9 @@ const listAllQuery = (qb: QueryBuilder<Dataset>, lang: Locale): SelectQueryBuild
     .innerJoin('d.userGroup', 'ug')
     .innerJoin('ug.metadata', 'ugm', 'ugm.language = :lang', { lang })
     .leftJoin('d.tasks', 't', 't.open = true')
-    .groupBy('d.id, r.title, ugm.name, r.title_alt, r.updated_at, r.approved_at, r.publish_at, t.action, t.status');
+    .groupBy(
+      'd.id, r.title, ugm.name, r.title_alt, r.updated_at, r.approved_at, r.publish_at, r.unpublished_at, t.action, t.status'
+    );
 };
 
 export const DatasetRepository = dataSource.getRepository(Dataset).extend({
@@ -274,25 +278,6 @@ export const DatasetRepository = dataSource.getRepository(Dataset).extend({
     dataset.publishedRevision = revision;
     dataset.firstPublishedAt = dataset.startRevision!.publishAt;
 
-    return this.save(dataset);
-  },
-
-  async unpublish(datasetId: string): Promise<Dataset> {
-    logger.info(`Unpublishing dataset ${datasetId}`);
-
-    const dataset = await this.getById(datasetId, { publishedRevision: true });
-    const publishedRevision = dataset.publishedRevision;
-
-    if (!publishedRevision) {
-      throw new Error(`Dataset ${datasetId} does not have a published revision`);
-    }
-
-    publishedRevision.approvedAt = null;
-    publishedRevision.publishAt = null;
-    await publishedRevision.save();
-
-    dataset.draftRevision = publishedRevision;
-    dataset.unpublishedAt = new Date();
     return this.save(dataset);
   },
 

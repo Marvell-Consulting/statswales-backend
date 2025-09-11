@@ -13,10 +13,6 @@ export const getDatasetStatus = (dataset: Dataset): DatasetStatus => {
     return DatasetStatus.Archived;
   }
 
-  if (dataset.unpublishedAt && isBefore(dataset.unpublishedAt, new Date())) {
-    return DatasetStatus.Offline;
-  }
-
   return dataset.firstPublishedAt && isBefore(dataset.firstPublishedAt, new Date())
     ? DatasetStatus.Live
     : DatasetStatus.New;

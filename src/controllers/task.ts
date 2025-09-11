@@ -57,7 +57,8 @@ export const taskDecision = async (req: Request, res: Response, next: NextFuncti
 
       case TaskAction.Unpublish:
         if (dto.decision === 'approve') {
-          task = await taskService.approveUnpublish(task.id, user);
+          await req.datasetService.approveUnpublish(dataset.id, user);
+          task = await taskService.update(task.id, TaskStatus.Approved, false, user, null);
         }
         if (dto.decision === 'reject') {
           task = await taskService.rejectUnpublish(task.id, user, dto.reason);
