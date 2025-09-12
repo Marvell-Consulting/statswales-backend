@@ -580,9 +580,8 @@ export const datasetActionRequest = async (req: Request, res: Response, next: Ne
   const taskService = new TaskService();
 
   switch (action) {
-    // case TaskAction.Publish:
-    //   await taskService.requestPublish(datasetId, user, reason);
-    //   break;
+    case TaskAction.Publish:
+      throw new BadRequestException('Publish request is handled via the revision endpoint');
     case TaskAction.Unpublish:
       await taskService.requestUnpublish(datasetId, user, reason);
       break;

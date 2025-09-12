@@ -13,6 +13,10 @@ export const getDatasetStatus = (dataset: Dataset): DatasetStatus => {
     return DatasetStatus.Archived;
   }
 
+  if (dataset.publishedRevision?.unpublishedAt) {
+    return DatasetStatus.Offline;
+  }
+
   return dataset.firstPublishedAt && isBefore(dataset.firstPublishedAt, new Date())
     ? DatasetStatus.Live
     : DatasetStatus.New;
@@ -48,7 +52,7 @@ export const getPublishingStatus = (dataset: Dataset, revision: Revision): Publi
   }
 
   if (datasetStatus === DatasetStatus.Offline) {
-    return PublishingStatus.Unpublished;
+    return revision.approvedAt ? PublishingStatus.UpdateScheduled : PublishingStatus.Unpublished;
   }
 
   if (datasetStatus === DatasetStatus.New) {
