@@ -40,7 +40,7 @@ export class Task extends BaseEntity {
   @Column({ name: 'dataset_id', type: 'text', nullable: true })
   datasetId?: string;
 
-  @ManyToOne(() => Dataset, (dataset) => dataset.tasks, { nullable: true })
+  @ManyToOne(() => Dataset, (dataset) => dataset.tasks, { nullable: true, onDelete: 'CASCADE' })
   @JoinColumn({ name: 'dataset_id', foreignKeyConstraintName: 'FK_task_dataset_id' })
   dataset?: Dataset;
 
