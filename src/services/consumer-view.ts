@@ -356,16 +356,18 @@ export const createFrontendView = async (
     };
   }
 
-  const filterTable = filterTableColumnQueryResult
-    .filter((row) => {
-      return row.language === `${lang}-gb`;
-    })
-    .map((row) => {
-      return {
-        fact_table_column: row.fact_table_column,
-        dimension_name: row.dimension_name
-      };
-    });
+  const filterTable = filterTableColumnQueryResult.reduce(
+    (acc: { fact_table_column: string; dimension_name: string }[], row) => {
+      if (row.language === `${lang}-gb`) {
+        acc.push({
+          fact_table_column: row.fact_table_column,
+          dimension_name: row.dimension_name
+        });
+      }
+      return acc;
+    },
+    []
+  );
 
   const tableHeaders = Object.keys(preview[0] as Record<string, never>);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
