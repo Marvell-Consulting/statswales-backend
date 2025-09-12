@@ -367,7 +367,7 @@ export const createFrontendView = async (
       };
     });
 
-  const tableHeaders = Object.keys(preview[0] as never);
+  const tableHeaders = Object.keys(preview[0] as Record<string, never>);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const data = preview.map((row: any) => Object.values(row));
   const currentDataset = await DatasetRepository.getById(dataset.id, { factTable: true, dimensions: true });
@@ -383,7 +383,7 @@ export const createFrontendView = async (
           FROM "${revision.id}".all_notes
           ORDER BY code ASC`
       )
-    ).rows?.map((row: { code: string }) => row.code);
+    )?.map((row: { code: string }) => row.code);
   } catch (err) {
     logger.error(err, `Something went wrong trying to fetch the used note codes`);
   } finally {
