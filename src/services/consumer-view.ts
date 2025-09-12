@@ -211,29 +211,48 @@ function createBaseQuery(
   }
 }
 
-async function coreViewChooser(cubeDBConn: PoolClient, lang: string, revision: Revision): Promise<string> {
-  const availableMaterializedView: QueryResult<{ matviewname: string }> = await cubeDBConn.query(
-    pgformat(
-      `SELECT * FROM pg_matviews WHERE matviewname = %L AND schemaname = %L;`,
-      `${CORE_VIEW_NAME}_mat_${lang}`,
-      revision.id
-    )
-  );
+async function coreViewChooser(lang: string, revision: Revision): Promise<string> {
+  let availableMaterializedView: { matviewname: string }[];
+  const cubeDB = dbManager.getCubeDataSource().createQueryRunner();
+  try {
+    availableMaterializedView = await cubeDB.query(
+      pgformat(
+        `SELECT * FROM pg_matviews WHERE matviewname = %L AND schemaname = %L;`,
+        `${CORE_VIEW_NAME}_mat_${lang}`,
+        revision.id
+      )
+    );
+  } catch (err) {
+    logger.error(err, 'Unable to query available views from postgres');
+    throw err;
+  } finally {
+    cubeDB.release();
+  }
 
-  if (availableMaterializedView.rows.length > 0) {
+  if (availableMaterializedView.length > 0) {
     return `${CORE_VIEW_NAME}_mat_${lang}`;
   } else {
     return `${CORE_VIEW_NAME}_${lang}`;
   }
 }
 
-async function getColumns(cubeDBConn: PoolClient, revisionId: string, lang: string, view: string): Promise<string[]> {
-  const columnsMetadata: QueryResult<{ value: string }> = await cubeDBConn.query(
-    pgformat(`SELECT value FROM %I.metadata WHERE key = %L`, revisionId, `${view}_${lang}_columns`)
-  );
+async function getColumns(revisionId: string, lang: string, view: string): Promise<string[]> {
+  let columnsMetadata: { value: string }[];
+  const cubeDB = dbManager.getCubeDataSource().createQueryRunner();
+  try {
+    columnsMetadata = await cubeDB.query(
+      pgformat(`SELECT value FROM %I.metadata WHERE key = %L`, revisionId, `${view}_${lang}_columns`)
+    );
+  } catch (err) {
+    logger.error(err, 'Unable to get columns from cube metadata table');
+    throw err;
+  } finally {
+    cubeDB.release();
+  }
+
   let columns = ['*'];
-  if (columnsMetadata.rows.length > 0) {
-    columns = JSON.parse(columnsMetadata.rows[0].value) as string[];
+  if (columnsMetadata.length > 0) {
+    columns = JSON.parse(columnsMetadata[0].value) as string[];
   }
   return columns;
 }
@@ -260,104 +279,131 @@ export const createFrontendView = async (
   filterBy?: FilterInterface[]
 ): Promise<ViewDTO | ViewErrDTO> => {
   const lang = locale.split('-')[0];
-  const [cubeDBConn] = (await dbManager.getCubeDataSource().driver.obtainMasterConnection()) as [PoolClient];
-  const filterTableColumnQueryResult: QueryResult<FactTableToDimensionName> = await cubeDBConn.query(
-    pgformat('SELECT DISTINCT fact_table_column, dimension_name, language FROM %I.filter_table;', revision.id)
+
+  let filterTableColumnQueryResult: FactTableToDimensionName[];
+  const filterTableQuery = dbManager.getCubeDataSource().createQueryRunner();
+  try {
+    filterTableColumnQueryResult = await filterTableQuery.query(
+      pgformat('SELECT DISTINCT fact_table_column, dimension_name, language FROM %I.filter_table;', revision.id)
+    );
+  } catch (err) {
+    logger.error(err, 'Unable to get dimension and fact table column names from cube');
+    throw err;
+  } finally {
+    filterTableQuery.release();
+  }
+
+  const coreView = await coreViewChooser(lang, revision);
+  const selectColumns = await getColumns(revision.id, lang, 'frontend');
+
+  const baseQuery = createBaseQuery(
+    revision,
+    coreView,
+    locale,
+    selectColumns,
+    filterTableColumnQueryResult,
+    sortBy,
+    filterBy
   );
 
+  const totalsQuery = pgformat('SELECT count(*) as "totalLines" from (%s);', baseQuery);
+  const totalsQueryConnection = dbManager.getCubeDataSource().createQueryRunner();
+  let totals: { totalLines: string }[];
   try {
-    const coreView = await coreViewChooser(cubeDBConn, lang, revision);
-    const selectColumns = await getColumns(cubeDBConn, revision.id, lang, 'frontend');
-    const baseQuery = createBaseQuery(
-      revision,
-      coreView,
-      locale,
-      selectColumns,
-      filterTableColumnQueryResult.rows,
-      sortBy,
-      filterBy
-    );
+    totals = await totalsQueryConnection.query(totalsQuery);
+  } catch (err) {
+    logger.error(err, 'Failed to extract totals using the base query');
+    throw err;
+  } finally {
+    totalsQueryConnection.release();
+  }
+  const totalLines = Number(totals[0].totalLines);
+  const totalPages = Math.max(1, Math.ceil(totalLines / pageSize));
+  const errors = validateParams(pageNumber, totalPages, pageSize);
 
-    const totalsQuery = pgformat('SELECT count(*) as "totalLines" from (%s);', baseQuery);
-    const totals = await cubeDBConn.query(totalsQuery);
-    const totalLines = Number(totals.rows[0].totalLines);
-    const totalPages = Math.max(1, Math.ceil(totalLines / pageSize));
-    const errors = validateParams(pageNumber, totalPages, pageSize);
+  if (errors.length > 0) {
+    return { status: 400, errors, dataset_id: dataset.id };
+  }
 
-    if (errors.length > 0) {
-      return { status: 400, errors, dataset_id: dataset.id };
-    }
+  const dataQuery = pgformat('%s LIMIT %L OFFSET %L', baseQuery, pageSize, (pageNumber - 1) * pageSize);
+  const cubeDB = dbManager.getCubeDataSource().createQueryRunner();
+  let preview: unknown[] | undefined;
+  try {
+    preview = await cubeDB.query(dataQuery);
+  } catch (err) {
+    logger.error(err, `Something went wrong trying to get cube data`);
+    throw err;
+  } finally {
+    cubeDB.release();
+  }
+  const startLine = pageSize * (pageNumber - 1) + 1;
 
-    const dataQuery = pgformat('%s LIMIT %L OFFSET %L', baseQuery, pageSize, (pageNumber - 1) * pageSize);
-    const preview = await cubeDBConn.query(dataQuery);
-    const startLine = pageSize * (pageNumber - 1) + 1;
-
-    // PATCH: Handle empty preview result
-    if (!preview || preview.rows.length === 0) {
-      const currentDataset = await DatasetRepository.getById(dataset.id);
-      return {
-        dataset: DatasetDTO.fromDataset(currentDataset),
-        current_page: pageNumber,
-        page_info: {
-          total_records: totalLines,
-          start_record: 0,
-          end_record: 0
-        },
-        page_size: pageSize,
-        total_pages: totalPages,
-        headers: [],
-        data: []
-      };
-    }
-
-    const filterTable = await cubeDBConn.query(
-      pgformat(
-        `SELECT DISTINCT fact_table_column, dimension_name FROM %I.filter_table WHERE language = %L`,
-        revision.id,
-        `${lang}-gb`
-      )
-    );
-
-    const tableHeaders = Object.keys(preview.rows[0]);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const data = preview.rows.map((row: any) => Object.values(row));
-    const currentDataset = await DatasetRepository.getById(dataset.id, { factTable: true, dimensions: true });
-    const lastLine = startLine + data.length - 1;
-    const headers = getColumnHeaders(currentDataset, tableHeaders, filterTable.rows);
-    let note_codes: string[] = [];
-
-    try {
-      note_codes = (
-        await cubeDBConn.query(
-          `SELECT DISTINCT UNNEST(STRING_TO_ARRAY(code, ',')) AS code
-            FROM "${revision.id}".all_notes
-            ORDER BY code ASC`
-        )
-      ).rows?.map((row) => row.code);
-    } catch (err) {
-      logger.error(err, `Something went wrong trying to fetch the used note codes`);
-    }
-
+  // PATCH: Handle empty preview result
+  if (!preview || preview.length === 0) {
+    const currentDataset = await DatasetRepository.getById(dataset.id);
     return {
       dataset: DatasetDTO.fromDataset(currentDataset),
       current_page: pageNumber,
       page_info: {
         total_records: totalLines,
-        start_record: startLine,
-        end_record: lastLine
+        start_record: 0,
+        end_record: 0
       },
       page_size: pageSize,
       total_pages: totalPages,
-      headers,
-      data,
-      note_codes
+      headers: [],
+      data: []
     };
-  } catch (err) {
-    logger.error(err, `Something went wrong trying to create the cube preview`);
-    return { status: 500, errors: [], dataset_id: dataset.id };
-  } finally {
-    cubeDBConn.release();
   }
+
+  const filterTable = filterTableColumnQueryResult
+    .filter((row) => {
+      return row.language === `${lang}-gb`;
+    })
+    .map((row) => {
+      return {
+        fact_table_column: row.fact_table_column,
+        dimension_name: row.dimension_name
+      };
+    });
+
+  const tableHeaders = Object.keys(preview[0] as never);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const data = preview.map((row: any) => Object.values(row));
+  const currentDataset = await DatasetRepository.getById(dataset.id, { factTable: true, dimensions: true });
+  const lastLine = startLine + data.length - 1;
+  const headers = getColumnHeaders(currentDataset, tableHeaders, filterTable);
+  let note_codes: string[] = [];
+
+  const noteCodeQueryConnection = dbManager.getCubeDataSource().createQueryRunner();
+  try {
+    note_codes = (
+      await noteCodeQueryConnection.query(
+        `SELECT DISTINCT UNNEST(STRING_TO_ARRAY(code, ',')) AS code
+          FROM "${revision.id}".all_notes
+          ORDER BY code ASC`
+      )
+    ).rows?.map((row: { code: string }) => row.code);
+  } catch (err) {
+    logger.error(err, `Something went wrong trying to fetch the used note codes`);
+  } finally {
+    noteCodeQueryConnection.release();
+  }
+
+  return {
+    dataset: DatasetDTO.fromDataset(currentDataset),
+    current_page: pageNumber,
+    page_info: {
+      total_records: totalLines,
+      start_record: startLine,
+      end_record: lastLine
+    },
+    page_size: pageSize,
+    total_pages: totalPages,
+    headers,
+    data,
+    note_codes
+  };
 };
 
 export const createStreamingJSONFilteredView = async (
@@ -377,8 +423,8 @@ export const createStreamingJSONFilteredView = async (
   );
 
   try {
-    const coreView = await coreViewChooser(cubeDBConn, lang, revision);
-    const selectColumns = await getColumns(cubeDBConn, revision.id, lang, viewName);
+    const coreView = await coreViewChooser(lang, revision);
+    const selectColumns = await getColumns(revision.id, lang, viewName);
     const baseQuery = createBaseQuery(
       revision,
       coreView,
@@ -432,8 +478,8 @@ export const createStreamingCSVFilteredView = async (
   );
 
   try {
-    const coreView = await coreViewChooser(cubeDBConn, lang, revision);
-    const selectColumns = await getColumns(cubeDBConn, revision.id, lang, viewName);
+    const coreView = await coreViewChooser(lang, revision);
+    const selectColumns = await getColumns(revision.id, lang, viewName);
     const baseQuery = createBaseQuery(
       revision,
       coreView,
@@ -485,8 +531,8 @@ export const createStreamingExcelFilteredView = async (
   );
 
   try {
-    const coreView = await coreViewChooser(cubeDBConn, lang, revision);
-    const selectColumns = await getColumns(cubeDBConn, revision.id, lang, viewName);
+    const coreView = await coreViewChooser(lang, revision);
+    const selectColumns = await getColumns(revision.id, lang, viewName);
     const baseQuery = createBaseQuery(
       revision,
       coreView,
