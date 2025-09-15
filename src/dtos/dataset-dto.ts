@@ -14,8 +14,8 @@ export class DatasetDTO {
   id: string;
   created_at: string;
   created_by_id: string;
-  live?: string | null;
-  archive?: string;
+  first_published_at?: string | null;
+  archived_at?: string;
   fact_table?: FactTableColumnDto[];
   dimensions?: DimensionDTO[];
   revisions: RevisionDTO[];
@@ -25,6 +25,8 @@ export class DatasetDTO {
   end_revision_id?: string;
   draft_revision?: RevisionDTO;
   draft_revision_id?: string;
+  published_revision?: RevisionDTO;
+  published_revision_id?: string;
   measure?: MeasureDTO;
   start_date?: Date | null;
   end_date?: Date | null;
@@ -38,8 +40,8 @@ export class DatasetDTO {
     dto.created_at = dataset.createdAt.toISOString();
     dto.created_by_id = dataset.createdById;
 
-    dto.live = dataset.live?.toISOString();
-    dto.archive = dataset.archive?.toISOString();
+    dto.first_published_at = dataset.firstPublishedAt?.toISOString();
+    dto.archived_at = dataset.archivedAt?.toISOString();
 
     dto.dimensions = dataset.dimensions?.map((dimension: Dimension) => DimensionDTO.fromDimension(dimension));
     dto.revisions = dataset.revisions?.map((revision: Revision) => RevisionDTO.fromRevision(revision));
@@ -47,10 +49,14 @@ export class DatasetDTO {
     dto.draft_revision_id = dataset.draftRevisionId;
     dto.start_revision_id = dataset.startRevisionId;
     dto.end_revision_id = dataset.endRevisionId;
+    dto.published_revision_id = dataset.publishedRevisionId;
 
     dto.draft_revision = dataset.draftRevision ? RevisionDTO.fromRevision(dataset.draftRevision) : undefined;
     dto.start_revision = dataset.startRevision ? RevisionDTO.fromRevision(dataset.startRevision) : undefined;
     dto.end_revision = dataset.endRevision ? RevisionDTO.fromRevision(dataset.endRevision) : undefined;
+    dto.published_revision = dataset.publishedRevision
+      ? RevisionDTO.fromRevision(dataset.publishedRevision)
+      : undefined;
 
     dto.measure = dataset.measure ? MeasureDTO.fromMeasure(dataset.measure) : undefined;
 

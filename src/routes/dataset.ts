@@ -27,7 +27,8 @@ import {
   listAllFilesInDataset,
   getAllFilesForDataset,
   updateDatasetGroup,
-  getHistory
+  getHistory,
+  datasetActionRequest
 } from '../controllers/dataset';
 import { datasetAuth } from '../middleware/dataset-auth';
 import { fileStreaming } from '../middleware/file-streaming';
@@ -152,6 +153,10 @@ datasetRouter.patch('/:dataset_id/group', jsonParser, updateDatasetGroup);
 // GET /dataset/:dataset_id/history
 // List the event history for this dataset
 datasetRouter.get('/:dataset_id/history', getHistory);
+
+// POST /dataset/:dataset_id/:action
+// Request an action (publish, unpublish, archive, unarchive, withdraw) for this dataset
+datasetRouter.post('/:dataset_id/:action', jsonParser, datasetActionRequest);
 
 // apply revision child routes
 datasetRouter.use('/:dataset_id/revision', revisionRouter);

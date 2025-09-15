@@ -79,6 +79,7 @@ export class DatasetService {
 
   async getDatasetOverview(datasetId: string): Promise<Dataset> {
     return DatasetRepository.getById(datasetId, {
+      publishedRevision: { metadata: true },
       endRevision: { metadata: true },
       tasks: { createdBy: true, updatedBy: true }
     });
@@ -295,13 +296,10 @@ export class DatasetService {
     const start = performance.now();
     await createAllCubeFiles(datasetId, revisionId);
     const periodCoverage = await getCubeTimePeriods(revisionId);
-
-    const end = performance.now();
-    const time = Math.round(end - start);
-    logger.info(`Cube and parquet file creation took ${time}ms (including uploading to data lake)`);
-
     const scheduledRevision = await RevisionRepository.approvePublication(revisionId, `${revisionId}.duckdb`, user);
     const approvedDataset = await DatasetRepository.publish(scheduledRevision, periodCoverage);
+    const time = Math.round(performance.now() - start);
+    logger.info(`Publication approved, time: ${time}ms`);
 
     return approvedDataset;
   }
@@ -322,13 +320,11 @@ export class DatasetService {
       relations: { publishedRevision: true, revisions: true }
     });
 
-    const publishedRevision = dataset.publishedRevision!;
-    const unPublishedRevisions = dataset.revisions.filter((rev) => !isPublished(rev));
-
-    if (unPublishedRevisions.length > 0) {
-      throw new BadRequestException('errors.create_revision.existing_unpublished_revisions');
+    if (dataset.revisions.some((rev) => !isPublished(rev))) {
+      throw new BadRequestException('errors.create_revision.existing_draft_revision');
     }
 
+    const publishedRevision = dataset.publishedRevision!;
     const newRevision = await RevisionRepository.deepCloneRevision(publishedRevision.id, createdBy);
     logger.info(`New draft revision created: ${newRevision.id}`);
 
@@ -463,5 +459,24 @@ export class DatasetService {
       .filter(omitDatasetUpdates)
       .filter(omitRevisionUpdates)
       .map((event) => flagUpdateTask(dataset, event));
+  }
+
+  async approveUnpublish(datasetId: string, user: User): Promise<void> {
+    logger.info(`Unpublishing dataset ${datasetId}`);
+
+    let dataset = await DatasetRepository.getById(datasetId, { publishedRevision: true });
+
+    if (!dataset.publishedRevision) {
+      throw new Error(`Dataset ${datasetId} does not have a published revision`);
+    }
+
+    // mark the current published revision as unpublished
+    dataset.publishedRevision.unpublishedAt = new Date();
+    await dataset.publishedRevision.save();
+    logger.info(`Revision ${dataset.publishedRevision.id} marked as unpublished`);
+
+    // create a new draft revision based on the now unpublished revision
+    dataset = await this.createRevision(datasetId, user);
+    await createAllCubeFiles(dataset.id, dataset.draftRevision!.id);
   }
 }

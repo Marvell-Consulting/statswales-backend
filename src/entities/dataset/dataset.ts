@@ -36,11 +36,11 @@ export class Dataset extends BaseEntity {
   @Column({ type: 'uuid', name: 'created_by' })
   createdById: string;
 
-  @Column({ type: 'timestamptz', nullable: true })
-  live: Date | null;
+  @Column({ name: 'first_published_at', type: 'timestamptz', nullable: true })
+  firstPublishedAt: Date | null;
 
-  @Column({ type: 'timestamptz', nullable: true })
-  archive: Date;
+  @Column({ name: 'archived_at', type: 'timestamptz', nullable: true })
+  archivedAt: Date | null;
 
   @Column({ name: 'start_date', type: 'date', nullable: true })
   startDate: Date | null;

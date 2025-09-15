@@ -11,7 +11,8 @@ import { PublisherDTO } from './publisher-dto';
 // WARNING: Make sure to filter any props the consumer side should not have access to
 export class ConsumerDatasetDTO {
   id: string;
-  live?: string | null;
+  first_published_at?: string | null;
+  archived_at?: string;
   dimensions?: DimensionDTO[];
   revisions: ConsumerRevisionDTO[];
   published_revision?: ConsumerRevisionDTO;
@@ -22,7 +23,8 @@ export class ConsumerDatasetDTO {
   static fromDataset(dataset: Dataset): ConsumerDatasetDTO {
     const dto = new ConsumerDatasetDTO();
     dto.id = dataset.id;
-    dto.live = dataset.live?.toISOString();
+    dto.first_published_at = dataset.firstPublishedAt?.toISOString();
+    dto.archived_at = dataset.archivedAt?.toISOString();
 
     // only return published revisions
     dto.revisions = dataset.revisions

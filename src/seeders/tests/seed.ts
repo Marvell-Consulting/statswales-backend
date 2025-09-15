@@ -70,16 +70,16 @@ export default class SeedTestFixtures extends Seeder {
             dataset,
             dataTable,
             approvedBy: dataset.createdBy,
-            approvedAt: dataset.live || undefined,
-            publishAt: dataset.live || undefined
+            approvedAt: dataset.firstPublishedAt || undefined,
+            publishAt: dataset.firstPublishedAt || undefined
           });
 
           await entityManager.getRepository(Dataset).save({
             ...dataset,
             startRevision: revision,
             endRevision: revision,
-            draftRevision: dataset.live ? undefined : revision,
-            publishedRevision: dataset.live ? revision : undefined
+            draftRevision: dataset.firstPublishedAt ? undefined : revision,
+            publishedRevision: dataset.firstPublishedAt ? revision : undefined
           });
         }
       } catch (err) {

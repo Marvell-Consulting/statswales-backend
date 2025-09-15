@@ -25,6 +25,7 @@ export class RevisionDTO {
   approved_at?: string;
   approved_by?: string;
   publish_at?: string;
+  unpublished_at?: string;
   metadata?: RevisionMetadataDTO[];
   rounding_applied?: boolean;
   update_frequency?: UpdateFrequencyDTO;
@@ -46,6 +47,7 @@ export class RevisionDTO {
     revDto.previous_revision_id = revision.previousRevisionId;
     revDto.online_cube_filename = revision.onlineCubeFilename || undefined;
     revDto.publish_at = revision.publishAt?.toISOString();
+    revDto.unpublished_at = revision.unpublishedAt?.toISOString();
     revDto.approved_at = revision.approvedAt?.toISOString();
     revDto.approved_by = revision.approvedBy?.name;
     revDto.created_by = revision.createdBy?.name;

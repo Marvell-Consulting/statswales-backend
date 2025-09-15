@@ -1,9 +1,11 @@
 import { Task, TaskMetadata } from '../entities/task/task';
+import { TaskAction } from '../enums/task-action';
+import { TaskStatus } from '../enums/task-status';
 
 export class TaskDTO {
   id: string;
-  action: string;
-  status: string;
+  action: TaskAction;
+  status: TaskStatus;
   open: boolean;
   dataset_id?: string;
   comment?: string;

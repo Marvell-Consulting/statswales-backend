@@ -5,7 +5,10 @@ import { Task, TaskMetadata } from '../entities/task/task';
 import { TaskAction } from '../enums/task-action';
 import { TaskStatus } from '../enums/task-status';
 import { User } from '../entities/user/user';
-import { TaskDecisionDTO } from '../dtos/task-decision-dto';
+import { DatasetRepository } from '../repositories/dataset';
+import { getPublishingStatus } from '../utils/dataset-status';
+import { PublishingStatus } from '../enums/publishing-status';
+import { BadRequestException } from '../exceptions/bad-request.exception';
 
 export class TaskService {
   async create(
@@ -54,24 +57,86 @@ export class TaskService {
     return task.save();
   }
 
-  async decision(taskId: string, decision: TaskDecisionDTO, user: User): Promise<Task> {
-    logger.info(`Decision received for task ${taskId}: ${decision.decision}`);
+  async requestUnpublish(datasetId: string, user: User, reason: string): Promise<Task> {
+    logger.info(`Requesting unpublish for dataset ${datasetId}`);
+    const dataset = await DatasetRepository.getById(datasetId, { endRevision: true, tasks: true });
 
-    if (decision.decision === 'approve') {
-      // task is resolved and closed
-      return await this.update(taskId, TaskStatus.Approved, false, user);
+    if (dataset.tasks?.some((task) => task.open)) {
+      logger.warn(`Cannot request unpublish dataset ${datasetId} because it has open tasks`);
+      throw new BadRequestException('errors.request_unpublish.open_tasks');
     }
 
-    if (decision.decision === 'reject') {
-      // leave task open so it can be re-submitted
-      return await this.update(taskId, TaskStatus.Rejected, true, user, decision.reason);
+    const publishingStatus = getPublishingStatus(dataset, dataset.endRevision!);
+
+    if (publishingStatus !== PublishingStatus.Published) {
+      logger.warn(`Cannot unpublish dataset ${datasetId} because it is not in a published state: ${publishingStatus}`);
+      throw new BadRequestException('errors.submit_for_unpublish.invalid_status');
     }
 
-    return this.getById(taskId);
+    return await this.create(datasetId, TaskAction.Unpublish, user, reason, { revisionId: dataset.endRevisionId });
+  }
+
+  async rejectUnpublish(taskId: string, user: User, reason: string): Promise<Task> {
+    const task = await this.getById(taskId, { dataset: true });
+    logger.info(`Rejecting unpublish for dataset ${task.dataset?.id}`);
+    return this.update(task.id, TaskStatus.Rejected, false, user, reason);
+  }
+
+  async requestArchive(datasetId: string, user: User, reason: string): Promise<void> {
+    logger.info(`Requesting archive for dataset ${datasetId}`);
+    const dataset = await DatasetRepository.getById(datasetId, { tasks: true });
+
+    if (dataset.tasks?.some((task) => task.open)) {
+      logger.warn(`Cannot request archive dataset ${datasetId} because it has open tasks`);
+      throw new BadRequestException('errors.request_archive.open_tasks');
+    }
+
+    await this.create(datasetId, TaskAction.Archive, user, reason, { revisionId: dataset.endRevisionId });
+  }
+
+  async approveArchive(taskId: string, user: User): Promise<Task> {
+    const task = await this.getById(taskId, { dataset: true });
+    const dataset = task.dataset!;
+    logger.info(`Approving archive for dataset ${dataset.id}`);
+
+    await DatasetRepository.archive(dataset.id);
+    return this.update(task.id, TaskStatus.Approved, false, user, null);
+  }
+
+  async rejectArchive(taskId: string, user: User, reason: string): Promise<Task> {
+    const task = await this.getById(taskId, { dataset: true });
+    logger.info(`Rejecting archive for dataset ${task.dataset?.id}`);
+    return this.update(task.id, TaskStatus.Rejected, false, user, reason);
+  }
+
+  async requestUnarchive(datasetId: string, user: User, reason: string): Promise<void> {
+    const dataset = await DatasetRepository.getById(datasetId, { tasks: true });
+
+    if (dataset.tasks?.some((task) => task.open)) {
+      logger.warn(`Cannot request unarchive dataset ${datasetId} because it has open tasks`);
+      throw new BadRequestException('errors.request_unarchive.open_tasks');
+    }
+
+    await this.create(datasetId, TaskAction.Unarchive, user, reason, { revisionId: dataset.endRevisionId });
+  }
+
+  async approveUnarchive(taskId: string, user: User): Promise<Task> {
+    const task = await this.getById(taskId, { dataset: true });
+    const dataset = task.dataset!;
+    logger.info(`Approving unarchive for dataset ${dataset.id}`);
+
+    await DatasetRepository.unarchive(dataset.id);
+    return this.update(task.id, TaskStatus.Approved, false, user, null);
+  }
+
+  async rejectUnarchive(taskId: string, user: User, reason: string): Promise<Task> {
+    const task = await this.getById(taskId, { dataset: true });
+    logger.info(`Rejecting unarchive for dataset ${task.dataset?.id}`);
+    return this.update(task.id, TaskStatus.Rejected, false, user, reason);
   }
 
   async update(taskId: string, status: TaskStatus, open: boolean, user: User, comment?: string | null): Promise<Task> {
-    logger.info(`Updating task ${taskId} with status ${status}`);
+    logger.debug(`Updating task ${taskId} with status ${status}`);
     const task = await Task.findOneByOrFail({ id: taskId });
     const updatedTask = Task.merge(task, { status, open, updatedBy: user, comment });
 

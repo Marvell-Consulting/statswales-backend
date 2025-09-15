@@ -31,12 +31,13 @@ export const generateSimulatedEvents = (dataset: Dataset): EventLog[] => {
   const events: EventLog[] = [];
   const now = new Date();
 
-  const firstPublished = dataset.live && isBefore(dataset.live, now) ? dataset.live : undefined;
+  const firstPublished =
+    dataset.firstPublishedAt && isBefore(dataset.firstPublishedAt, now) ? dataset.firstPublishedAt : undefined;
   const firstRev = dataset.revisions?.find((rev) => rev.id === dataset.startRevisionId);
 
   if (firstPublished && firstRev) {
     // make sure the "first published" log entry appears after the first revision was approved
-    const firstPublishedDate = addSeconds(max([firstRev.approvedAt!, dataset.live!]), 1);
+    const firstPublishedDate = addSeconds(max([firstRev.approvedAt!, dataset.firstPublishedAt!]), 1);
 
     const goLiveEvent = EventLog.create({
       id: `simulated-${uuid()}`,

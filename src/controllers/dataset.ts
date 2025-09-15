@@ -60,6 +60,8 @@ import { PublisherDTO } from '../dtos/publisher-dto';
 import { UserGroupRepository } from '../repositories/user-group';
 import { dbManager } from '../db/database-manager';
 import { format as pgformat } from '@scaleleap/pg-format/lib/pg-format';
+import { TaskAction } from '../enums/task-action';
+import { TaskService } from '../services/task';
 
 export const listUserDatasets = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
@@ -562,4 +564,34 @@ export const getHistory = async (req: Request, res: Response, next: NextFunction
     logger.error(err, `There was a problem fetching the history for dataset ${datasetId}`);
     next(new UnknownException('errors.dataset_history'));
   }
+};
+
+export const datasetActionRequest = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  const action = req.params.action as TaskAction;
+
+  if (!Object.values(TaskAction).includes(action)) {
+    next();
+    return;
+  }
+
+  const datasetId = res.locals.datasetId;
+  const user = req.user as User;
+  const { reason } = req.body;
+  const taskService = new TaskService();
+
+  switch (action) {
+    case TaskAction.Publish:
+      throw new BadRequestException('Publish request is handled via the revision endpoint');
+    case TaskAction.Unpublish:
+      await taskService.requestUnpublish(datasetId, user, reason);
+      break;
+    case TaskAction.Archive:
+      await taskService.requestArchive(datasetId, user, reason);
+      break;
+    case TaskAction.Unarchive:
+      await taskService.requestUnarchive(datasetId, user, reason);
+      break;
+  }
+
+  res.status(204).end();
 };

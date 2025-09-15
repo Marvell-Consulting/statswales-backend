@@ -80,7 +80,10 @@ export class Revision extends BaseEntity {
   approvedBy: User | null;
 
   @Column({ name: 'publish_at', type: 'timestamptz', nullable: true })
-  publishAt: Date;
+  publishAt: Date | null;
+
+  @Column({ name: 'unpublished_at', type: 'timestamptz', nullable: true })
+  unpublishedAt: Date | null;
 
   @Column({ name: 'tasks', type: 'jsonb', nullable: true })
   tasks: RevisionTask;

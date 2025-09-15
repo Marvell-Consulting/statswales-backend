@@ -1,5 +1,6 @@
 export enum DatasetStatus {
   New = 'new',
   Live = 'live',
-  Migrated = 'migrated'
+  Offline = 'offline',
+  Archived = 'archived'
 }

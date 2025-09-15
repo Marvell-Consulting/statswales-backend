@@ -7,8 +7,10 @@ export interface DatasetListItemDTO {
   group_name?: string;
   code?: string;
   revision_by?: string;
-  last_updated?: string;
   status?: DatasetStatus;
   publishing_status?: PublishingStatus;
-  published_date?: string;
+  first_published_at?: string;
+  unpublished_at?: string;
+  last_updated_at?: string;
+  archived_at?: string;
 }
