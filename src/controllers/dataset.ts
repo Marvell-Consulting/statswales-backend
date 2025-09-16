@@ -134,7 +134,15 @@ export const getDatasetById = async (req: Request, res: Response): Promise<void>
 
     case DatasetInclude.Meta:
       dataset = await DatasetRepository.getById(datasetId, withDraftAndMetadata);
-      break;
+      datasetDTO = DatasetDTO.fromDataset(dataset);
+
+      if (dataset.userGroupId) {
+        const userGroup = await UserGroupRepository.getByIdWithOrganisation(dataset.userGroupId);
+        datasetDTO.publisher = PublisherDTO.fromUserGroup(userGroup, req.language as Locale);
+      }
+
+      res.json(datasetDTO);
+      return;
 
     case DatasetInclude.Overview:
       dataset = await req.datasetService.getDatasetOverview(datasetId);
