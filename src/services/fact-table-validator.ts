@@ -131,8 +131,8 @@ export const factTableValidatorFromSource = async (
     logger.debug(`Adding primary key to fact_table with columns: ${primaryKeyDef.join(', ')}`);
     const pkQuery = pgformat('ALTER TABLE %I ADD PRIMARY KEY (%I)', FACT_TABLE_NAME, primaryKeyDef);
     await cubeDB.query(pkQuery);
-    await validateNoteCodesColumn(cubeDB, validatedSourceAssignment.noteCodes, FACT_TABLE_NAME);
   } catch (err) {
+    cubeDB.release();
     logger.error(err, 'Failed to apply primary key to fact table.');
     if ((err as Error).message.includes('could not create unique index')) {
       let error: FactTableValidationException | undefined;
@@ -154,6 +154,13 @@ export const factTableValidatorFromSource = async (
       FactTableValidationExceptionType.UnknownError,
       500
     );
+  }
+
+  try {
+    await validateNoteCodesColumn(cubeDB, validatedSourceAssignment.noteCodes, revision.id, FACT_TABLE_NAME);
+  } catch (err) {
+    logger.error(err, 'Note code validation failed.');
+    throw err;
   } finally {
     cubeDB.release();
   }
@@ -162,13 +169,15 @@ export const factTableValidatorFromSource = async (
 async function validateNoteCodesColumn(
   cubeDB: QueryRunner,
   noteCodeColumn: SourceAssignmentDTO | null,
+  revisionId: string,
   factTableName: string
 ): Promise<void> {
   let notesCodes: { codes: string }[];
   try {
     const findNoteCodesQuery = pgformat(
-      'SELECT DISTINCT %I as codes FROM %I WHERE %I IS NOT NULL;',
+      'SELECT DISTINCT %I as codes FROM %I.%I WHERE %I IS NOT NULL;',
       noteCodeColumn?.column_name,
+      revisionId,
       factTableName,
       noteCodeColumn?.column_name
     );
@@ -208,18 +217,21 @@ async function validateNoteCodesColumn(
     400
   );
   try {
-    const badCodesString = badCodes.map((code) => `codes LIKE '%${code.toLowerCase()}%'`).join(' or ');
-    const columns: { column_name: string }[] = await cubeDB.query(
-      pgformat('SELECT column_name FROM information_schema.columns WHERE table_name = %L', factTableName)
+    const badCodesString = badCodes
+      .map((code) => pgformat(`LOWER(%I) LIKE %L`, noteCodeColumn?.column_name, `%${code.toLowerCase()}%`))
+      .join(' or ');
+    const columnNamesQuery = pgformat(
+      'SELECT column_name FROM information_schema.columns WHERE table_schema = %L AND table_name = %L',
+      revisionId,
+      factTableName
     );
-    const selectColumns = columns
-      .filter((row) => row.column_name != noteCodeColumn?.column_name)
-      .map((col) => col.column_name);
-    selectColumns.push('line_number');
+    const columns: { column_name: string }[] = await cubeDB.query(columnNamesQuery);
+    const selectColumns = columns.map((col) => col.column_name);
     const brokeNoteCodeLinesQuery = pgformat(
-      'SELECT %I FROM (SELECT row_number() OVER () as line_number, *, lower(%I) as codes FROM %I WHERE %L) LIMIT 500',
+      'SELECT line_number,%I FROM (SELECT row_number() OVER () as line_number, %I FROM %I.%I) WHERE %s LIMIT 500',
       selectColumns,
-      noteCodeColumn?.column_name,
+      selectColumns,
+      revisionId,
       factTableName,
       badCodesString
     );
