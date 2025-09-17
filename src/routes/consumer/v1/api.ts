@@ -48,15 +48,14 @@ export const loadPublishedDataset = (relations?: FindOptionsRelations<Dataset>) 
 publicApiRouter.use(cors()); // allow browser XMLHttpRequests from any domain
 
 publicApiRouter.use((req: Request, res: Response, next: NextFunction) => {
-  res.vary('Accept-Language');
-  next();
-});
-
-publicApiRouter.use((req: Request, res: Response, next: NextFunction) => {
   if (req.method !== 'GET') {
     next(new NotAllowedException('errors.method_not_allowed'));
     return;
   }
+
+  logger.trace(`requested language - query: '${req.query.lang}', header: '${req.headers['accept-language']}'`);
+  res.vary('Accept-Language'); // vary response cache on language header
+
   next();
 });
 
