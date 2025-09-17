@@ -103,6 +103,10 @@ export class TasklistStateDTO {
   }
 
   public static metadataStatus(revision: Revision, lang: string): MetadataStatus {
+    logger.debug(
+      `META: ${JSON.stringify({ reqLang: lang, revisionMetaLangs: revision?.metadata?.map((m) => m.language) })}`
+    );
+
     const metadata = revision?.metadata.find((meta) => lang.includes(meta.language));
 
     if (!metadata) {
