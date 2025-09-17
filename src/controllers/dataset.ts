@@ -310,6 +310,8 @@ export const updateMetadata = async (req: Request, res: Response, next: NextFunc
 
 export const getTasklist = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   const datasetId = res.locals.datasetId;
+  logger.debug(`Fetching tasklist state for dataset ${datasetId} using language ${req.language}...`);
+
   try {
     const tasklistState = await req.datasetService.getTasklistState(datasetId, req.language as Locale);
     res.json(tasklistState);
