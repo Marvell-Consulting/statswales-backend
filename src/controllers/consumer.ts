@@ -167,8 +167,6 @@ export const getPublishedDatasetFilters = async (req: Request, res: Response): P
   */
   const dataset = await PublishedDatasetRepository.getById(res.locals.datasetId, { publishedRevision: true });
   const lang = req.language.toLowerCase();
-
-  logger.debug(JSON.stringify(req.headers));
   logger.debug(`Fetching filters for published dataset with language: ${lang}`);
 
   if (!dataset.publishedRevision) {
