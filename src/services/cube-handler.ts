@@ -857,16 +857,18 @@ async function finaliseValues(
   );
   logger.trace(`Update Query:\n${updateQuery}`);
   await cubeDB.query(updateQuery);
-  const deleteQuery = pgformat(
-    `DELETE FROM %I USING %I WHERE %s AND string_to_array(%I.%I, ',') && string_to_array('!', ',');`,
-    updateTableName,
-    FACT_TABLE_NAME,
-    joinParts.join(' AND '),
-    FACT_TABLE_NAME,
-    notesCodeColumn.columnName
-  );
-  logger.trace(`Delete query:\n${deleteQuery}`);
-  await cubeDB.query(deleteQuery);
+  // Seems to fix the issue around provisional codes not being removed from the fact table for SW-1016
+  // Leaving code in place for now, but will remove in future as long as no other bugs are reported.
+  // const deleteQuery = pgformat(
+  //   `DELETE FROM %I USING %I WHERE %s AND string_to_array(%I.%I, ',') && string_to_array('!', ',');`,
+  //   updateTableName,
+  //   FACT_TABLE_NAME,
+  //   joinParts.join(' AND '),
+  //   FACT_TABLE_NAME,
+  //   notesCodeColumn.columnName
+  // );
+  // logger.trace(`Delete query:\n${deleteQuery}`);
+  // await cubeDB.query(deleteQuery);
   const updateNoteCodeQuery = pgformat(
     `UPDATE %I SET %I = array_to_string(array_remove(string_to_array(%I, ','), '!'), ',')`,
     FACT_TABLE_NAME,
