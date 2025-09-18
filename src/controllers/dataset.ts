@@ -42,7 +42,6 @@ import { TopicDTO } from '../dtos/topic-dto';
 import { RevisionTopic } from '../entities/dataset/revision-topic';
 import { TopicSelectionDTO } from '../dtos/topic-selection-dto';
 
-import { getPostgresCubePreview } from '../services/cube-handler';
 import { factTableValidatorFromSource } from '../services/fact-table-validator';
 import { FactTableValidationException } from '../exceptions/fact-table-validation-exception';
 import { addDirectoryToZip, collectFiles } from '../utils/dataset-controller-utils';
@@ -62,6 +61,7 @@ import { dbManager } from '../db/database-manager';
 import { format as pgformat } from '@scaleleap/pg-format/lib/pg-format';
 import { TaskAction } from '../enums/task-action';
 import { TaskService } from '../services/task';
+import { createFrontendView } from '../services/consumer-view';
 
 export const listUserDatasets = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
@@ -271,10 +271,10 @@ export const cubePreview = async (req: Request, res: Response, next: NextFunctio
   const page_size: number = Number.parseInt(req.query.page_size as string, 10) || DEFAULT_PAGE_SIZE;
   const sortByQuery = req.query.sort_by ? (JSON.parse(req.query.sort_by as string) as SortByInterface[]) : undefined;
   const filterQuery = req.query.filter ? (JSON.parse(req.query.filter as string) as FilterInterface[]) : undefined;
-  const cubePreview = await getPostgresCubePreview(
+  const cubePreview = await createFrontendView(
+    dataset,
     latestRevision,
     lang,
-    dataset,
     page_number,
     page_size,
     sortByQuery,

@@ -1,5 +1,4 @@
 import { add, format, isBefore, isDate, isValid, parse, parseISO, sub } from 'date-fns';
-import { TableData } from 'duckdb-async';
 
 import { logger } from '../utils/logger';
 import { YearType } from '../enums/year-type';
@@ -9,7 +8,7 @@ import { Duration } from 'date-fns';
 
 export interface SnifferResult {
   extractor: DateExtractor;
-  previewTable: TableData;
+  previewTable: string[];
 }
 
 // The following interfaces are all internal to the time matcher
@@ -156,7 +155,7 @@ enum ParentType {
   Quarter = 'quarter'
 }
 
-function createAllTypesOfPeriod(dateFormat: DateExtractor, dataColumn: TableData): DateReferenceDataItem[] {
+function createAllTypesOfPeriod(dateFormat: DateExtractor, dataColumn: string[]): DateReferenceDataItem[] {
   let referenceTable: DateReferenceDataItem[] = [];
   logger.debug(`date extractor = ${JSON.stringify(dateFormat)}`);
   if (dateFormat.quarterFormat && dateFormat.quarterTotalIsFifthQuart) {
@@ -190,7 +189,7 @@ function createAllTypesOfPeriod(dateFormat: DateExtractor, dataColumn: TableData
 
 function periodTableCreator(
   dateFormat: DateExtractor,
-  dataColumn: TableData,
+  dataColumn: string[],
   generationType: GeneratorType,
   parentType: ParentType
 ): DateReferenceDataItem[] {
@@ -348,7 +347,7 @@ function periodTableCreator(
   return referenceTable;
 }
 
-function specificDateTableCreator(dateFormat: DateExtractor, dataColumn: TableData): DateReferenceDataItem[] {
+function specificDateTableCreator(dateFormat: DateExtractor, dataColumn: string[]): DateReferenceDataItem[] {
   const referenceTable: DateReferenceDataItem[] = [];
   dataColumn.map((row) => {
     const value = row.toString();
@@ -404,7 +403,7 @@ function specificDateTableCreator(dateFormat: DateExtractor, dataColumn: TableDa
   return referenceTable;
 }
 
-function periodDateTableCreator(dateFormat: DateExtractor, dataColumn: TableData): DateReferenceDataItem[] {
+function periodDateTableCreator(dateFormat: DateExtractor, dataColumn: string[]): DateReferenceDataItem[] {
   const referenceTable: DateReferenceDataItem[] = [];
   dataColumn.map((row) => {
     const value = row.toString().substring(2);
@@ -464,7 +463,7 @@ function periodDateTableCreator(dateFormat: DateExtractor, dataColumn: TableData
   return referenceTable;
 }
 
-function dateTableCreator(dateFormat: DateExtractor, dataColumn: TableData): DateReferenceDataItem[] {
+function dateTableCreator(dateFormat: DateExtractor, dataColumn: string[]): DateReferenceDataItem[] {
   const testVal = dataColumn.at(0);
   const endingCheck = testVal?.toString().toUpperCase().substring(1, 2).includes('E');
   logger.debug(`Ending check: ${endingCheck} based on ${testVal?.toString().toUpperCase().substring(1, 2)}`);
@@ -479,9 +478,9 @@ function dateTableCreator(dateFormat: DateExtractor, dataColumn: TableData): Dat
 
 export function dateDimensionReferenceTableCreator(
   extractor: DateExtractor,
-  dataColumn: TableData
+  dataColumn: Record<string, string>[]
 ): DateReferenceDataItem[] {
-  const columnData = [];
+  const columnData: string[] = [];
 
   for (const row of dataColumn) {
     columnData.push(Object.values(row)[0]);

@@ -1,5 +1,4 @@
 import { format as pgformat } from '@scaleleap/pg-format';
-import { Database } from 'duckdb-async';
 import { t } from 'i18next';
 
 import { DimensionType } from '../enums/dimension-type';
@@ -10,7 +9,6 @@ import { LookupTableExtractor } from '../extractors/lookup-table-extractor';
 import {
   columnIdentification,
   convertDataTableToLookupTable,
-  languageMatcherCaseStatement,
   lookForJoinColumn,
   validateLookupTableLanguages,
   validateLookupTableReferenceValues
@@ -25,7 +23,7 @@ import { DatasetRepository } from '../repositories/dataset';
 import { FactTableColumnType } from '../enums/fact-table-column-type';
 import { cleanUpDimension } from './dimension-processor';
 import { SUPPORTED_LOCALES } from '../middleware/translation';
-import { createLookupTableQuery, loadFileIntoLookupTablesSchema, makeCubeSafeString } from './cube-handler';
+import { makeCubeSafeString } from './cube-handler';
 import { FactTableColumn } from '../entities/dataset/fact-table-column';
 import { CubeValidationException } from '../exceptions/cube-error-exception';
 import { Locale } from '../enums/locale';
@@ -33,6 +31,7 @@ import { FileValidationErrorType, FileValidationException } from '../exceptions/
 import { CubeValidationType } from '../enums/cube-validation-type';
 import { QueryRunner } from 'typeorm';
 import { dbManager } from '../db/database-manager';
+import { loadFileIntoLookupTablesSchema } from '../utils/file-utils';
 
 const sampleSize = 5;
 
@@ -131,64 +130,6 @@ function createExtractor(
     return extractor;
   }
 }
-
-export const createLookupTableInCube = async (
-  quack: Database,
-  factTableColumn: FactTableColumn,
-  dimension: Dimension,
-  lookupTableName: string
-): Promise<void> => {
-  const extractor = dimension.extractor as LookupTableExtractor;
-  const dimensionTableName = `${makeCubeSafeString(factTableColumn.columnName).toLowerCase()}_lookup`;
-  await quack.exec(
-    createLookupTableQuery(dimensionTableName, factTableColumn.columnName, factTableColumn.columnDatatype)
-  );
-
-  if (extractor.isSW2Format) {
-    logger.debug('Lookup table is SW2 format');
-    const dataExtractorParts = [];
-    for (const locale of SUPPORTED_LOCALES) {
-      const descriptionCol = extractor.descriptionColumns.find(
-        (col) => col.lang.toLowerCase() === locale.toLowerCase()
-      );
-      const notesCol = extractor.notesColumns?.find((col) => col.lang.toLowerCase() === locale.toLowerCase());
-      const descriptionColStr = descriptionCol ? `"${descriptionCol.name}"` : 'NULL';
-      const notesColStr = notesCol ? `"${notesCol.name}"` : 'NULL';
-      const sortStr = extractor.sortColumn ? `"${extractor.sortColumn}"` : 'NULL';
-      const hierarchyCol = extractor.hierarchyColumn ? `"${extractor.hierarchyColumn}"` : 'NULL';
-      dataExtractorParts.push(
-        `SELECT "${dimension.joinColumn}" as "${factTableColumn.columnName}",
-        '${locale.toLowerCase()}' as language,
-        ${descriptionColStr} as description,
-        ${notesColStr} as notes,
-        ${sortStr} as sort_order,
-        ${hierarchyCol} as hierarchy
-        FROM ${lookupTableName}`
-      );
-    }
-    const builtInsertQuery = `
-      INSERT INTO ${makeCubeSafeString(dimension.factTableColumn)}_lookup (${dataExtractorParts.join(' UNION ')});
-    `;
-    await quack.exec(builtInsertQuery);
-  } else {
-    const languageMatcher = languageMatcherCaseStatement(extractor.languageColumn);
-    const notesStr = extractor.notesColumns ? `"${extractor.notesColumns[0].name}"` : 'NULL';
-    const dataExtractorParts = `
-      SELECT
-        "${dimension.joinColumn}" as "${factTableColumn.columnName}",
-        ${languageMatcher} as language,
-        "${extractor.descriptionColumns[0].name}" as description,
-        ${notesStr} as notes,
-        ${extractor.sortColumn ? `"${extractor.sortColumn}"` : 'NULL'} as sort_order,
-        ${extractor.hierarchyColumn ? `"${extractor.hierarchyColumn}"` : 'NULL'} as hierarchy
-      FROM ${lookupTableName}
-    `;
-    const builtInsertQuery = `
-      INSERT INTO ${makeCubeSafeString(dimension.factTableColumn)}_lookup ${dataExtractorParts};
-    `;
-    await quack.exec(builtInsertQuery);
-  }
-};
 
 export const checkForReferenceErrors = async (
   cubeDB: QueryRunner,

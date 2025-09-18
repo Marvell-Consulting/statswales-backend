@@ -1,5 +1,3 @@
-import { format as pgformat } from '@scaleleap/pg-format';
-
 import BlobStorage from '../../src/services/blob-storage';
 import { User } from '../../src/entities/user/user';
 import { getTestUser, getTestUserGroup } from '../helpers/get-test-user';
@@ -13,12 +11,12 @@ import { logger } from '../../src/utils/logger';
 import { Dataset } from '../../src/entities/dataset/dataset';
 import { DatasetDTO } from '../../src/dtos/dataset-dto';
 import { duckdb } from '../../src/services/duckdb';
-import { createDataTableQuery, loadFileIntoCube, loadTableDataIntoFactTable } from '../../src/services/cube-handler';
 import { FileType } from '../../src/enums/file-type';
 import path from 'node:path';
 import { FileImportInterface } from '../../src/entities/dataset/file-import.interface';
 import { randomUUID } from 'node:crypto';
 import { QueryRunner } from 'typeorm';
+import { loadFileIntoCube } from '../../src/utils/file-utils';
 
 jest.mock('../../src/services/blob-storage');
 
@@ -72,52 +70,6 @@ describe('API Endpoints', () => {
     expect(dto).toBeInstanceOf(DatasetDTO);
   });
 
-  describe('Create Data Table SQL test', () => {
-    test('for CSV type files', async () => {
-      const quack = await duckdb();
-      const val = await createDataTableQuery('test_table', 'my_temp_file.csv', FileType.Csv, quack);
-      await quack.close();
-      expect(val).toBe(
-        "CREATE TABLE test_table AS SELECT * FROM read_csv('my_temp_file.csv', auto_type_candidates = ['BIGINT', 'DOUBLE', 'VARCHAR'], sample_size = -1);"
-      );
-    });
-    test('for CSV Gzip type files', async () => {
-      const quack = await duckdb();
-      const val = await createDataTableQuery('test_table', 'my_temp_file.csv.gz', FileType.GzipCsv, quack);
-      await quack.close();
-      expect(val).toBe(
-        "CREATE TABLE test_table AS SELECT * FROM read_csv('my_temp_file.csv.gz', auto_type_candidates = ['BIGINT', 'DOUBLE', 'VARCHAR'], sample_size = -1);"
-      );
-    });
-    test('for Parquet type files', async () => {
-      const quack = await duckdb();
-      const val = await createDataTableQuery('test_table', 'my_temp_file.parquet', FileType.Parquet, quack);
-      await quack.close();
-      expect(val).toBe("CREATE TABLE test_table AS SELECT * FROM 'my_temp_file.parquet';");
-    });
-    test('for Gzip JSON type files', async () => {
-      const quack = await duckdb();
-      const val = await createDataTableQuery('test_table', 'my_temp_file.json.gz', FileType.GzipJson, quack);
-      await quack.close();
-      expect(val).toBe("CREATE TABLE test_table AS SELECT * FROM read_json_auto('my_temp_file.json.gz');");
-    });
-    test('for Excel type files', async () => {
-      const quack = await duckdb();
-      const val = await createDataTableQuery('test_table', 'my_temp_file.xlsx', FileType.Excel, quack);
-      await quack.close();
-      expect(val).toBe("CREATE TABLE test_table AS SELECT * FROM st_read('my_temp_file.xlsx');");
-    });
-    test('for unknown type files', async () => {
-      const quack = await duckdb();
-      try {
-        await createDataTableQuery('test_table', 'my_temp_file.xlsx', FileType.Unknown, quack);
-      } catch (error) {
-        expect((error as Error).message).toBe('Unknown file type');
-      }
-      await quack.close();
-    });
-  });
-
   describe('Load Data Table SQL test', () => {
     test('for CSV type files', async () => {
       const quack = await duckdb();
@@ -137,47 +89,6 @@ describe('API Endpoints', () => {
       const tableData = await quack.all(`SELECT * FROM ${tableName}`);
       expect(tableData.length).toBe(24);
       expect(Object.keys(tableData[0]).length).toBe(6);
-      await quack.close();
-    });
-  });
-
-  describe('Load data into fact table SQL test', () => {
-    test('Basic load of a small of file', async () => {
-      const quack = await duckdb();
-      const originalTableName = 'data_table';
-      const factTableName = 'fact_table';
-      const testFilePath = path.resolve(__dirname, `../sample-files/csv/sure-start-short.csv`);
-      const testFileInterface: FileImportInterface = {
-        id: randomUUID(),
-        mimeType: 'text/csv',
-        fileType: FileType.Csv,
-        encoding: 'utf-8',
-        filename: 'sure-start-short.csv',
-        originalFilename: 'sure-start-short.csv',
-        hash: '',
-        uploadedAt: new Date()
-      };
-      const primaryKey = ['YearCode', 'AreaCode', 'RowRef', 'Measure'];
-      const factTableDef = ['YearCode', 'AreaCode', 'Data', 'RowRef', 'Measure', 'NoteCodes'];
-      const factTableCols = [
-        '"YearCode" VARCHAR',
-        '"AreaCode" VARCHAR',
-        '"Data" DECIMAL',
-        '"RowRef" INTEGER',
-        '"Measure" INTEGER',
-        '"NoteCodes" VARCHAR'
-      ];
-      const factTableQuery = pgformat(
-        'CREATE TABLE %I (%s, PRIMARY KEY (%I));',
-        'fact_table',
-        factTableCols.join(','),
-        primaryKey
-      );
-      await quack.exec(factTableQuery);
-      await loadFileIntoCube(quack, testFileInterface.fileType, testFilePath, originalTableName);
-      await loadTableDataIntoFactTable(quack, factTableDef, factTableName, originalTableName);
-      const tableData = await quack.all(`SELECT * FROM ${factTableName}`);
-      expect(tableData.length).toBe(24);
       await quack.close();
     });
   });
