@@ -6,7 +6,7 @@ import { UserGroupDTO } from '../dtos/user/user-group-dto';
 import { UnknownException } from '../exceptions/unknown.exception';
 import { UserGroupRepository } from '../repositories/user-group';
 import { NotFoundException } from '../exceptions/not-found.exception';
-import { hasError, userStatusValidator, uuidValidator } from '../validators';
+import { groupStatusValidator, hasError, userStatusValidator, uuidValidator } from '../validators';
 import { arrayValidator, dtoValidator } from '../validators/dto-validator';
 import { UserGroupMetadataDTO } from '../dtos/user/user-group-metadata-dto';
 import { UserRepository } from '../repositories/user';
@@ -18,6 +18,7 @@ import { BadRequestException } from '../exceptions/bad-request.exception';
 import { GlobalRole } from '../enums/global-role';
 import { RoleSelectionDTO } from '../dtos/user/role-selection-dto';
 import { UserStatus } from '../enums/user-status';
+import { UserGroupStatus } from '../enums/user-group-status';
 
 export const loadUserGroup = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   const userGroupIdError = await hasError(uuidValidator('user_group_id'), req);
@@ -28,7 +29,7 @@ export const loadUserGroup = async (req: Request, res: Response, next: NextFunct
   }
 
   try {
-    const group = await UserGroupRepository.getByIdWithDatasets(req.params.user_group_id);
+    const group = await UserGroupRepository.getById(req.params.user_group_id);
     res.locals.userGroup = group;
     res.locals.userGroupId = group.id;
   } catch (error) {
@@ -85,9 +86,10 @@ export const createUserGroup = async (req: Request, res: Response, next: NextFun
 };
 
 export const getAllUserGroups = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  const status = req.query.status as UserGroupStatus | undefined;
   try {
-    logger.info('get all user groups');
-    const groups = await UserGroupRepository.getAll();
+    logger.info(`get all user groups with status: ${status || 'any'}`);
+    const groups = await UserGroupRepository.getAll(status);
     res.json(groups.map((group) => UserGroupDTO.fromUserGroup(group, req.language as Locale)));
   } catch (err) {
     logger.error(err, 'Error getting groups');
@@ -112,17 +114,18 @@ export const listUserGroups = async (req: Request, res: Response, next: NextFunc
 };
 
 export const getUserGroupById = async (req: Request, res: Response): Promise<void> => {
-  const group = res.locals.userGroup;
-  logger.debug(`Loading group: ${req.params.user_group_id}...`);
+  const groupId = res.locals.userGroupId;
+  logger.debug(`Loading group: ${groupId}...`);
+  const group = await UserGroupRepository.getByIdWithDatasets(groupId);
   res.json(UserGroupDTO.fromUserGroup(group, req.language as Locale));
 };
 
 export const updateUserGroup = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-  let group = res.locals.userGroup;
+  const groupId = res.locals.userGroupId;
 
   try {
     const dto = await dtoValidator(UserGroupDTO, req.body);
-    group = await UserGroupRepository.updateGroup(group, dto);
+    const group = await UserGroupRepository.updateGroup(groupId, dto);
     res.json(UserGroupDTO.fromUserGroup(group, req.language as Locale));
   } catch (err) {
     if (err instanceof BadRequestException) {
@@ -131,6 +134,33 @@ export const updateUserGroup = async (req: Request, res: Response, next: NextFun
     }
 
     logger.error(err, 'Error updating group');
+    throw new UnknownException();
+  }
+};
+
+export const updateUserGroupStatus = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  const groupId = res.locals.userGroupId;
+  const status = req.body.status as UserGroupStatus;
+  const group = await UserGroupRepository.getByIdWithDatasets(groupId);
+
+  if (status === UserGroupStatus.Inactive && group.datasets && group.datasets.length > 0) {
+    next(new BadRequestException('errors.group.cannot_deactivate_with_assigned_datasets'));
+    return;
+  }
+
+  const groupStatusError = await hasError(groupStatusValidator(), req);
+  if (groupStatusError) {
+    logger.error(groupStatusError);
+    next(new BadRequestException('errors.group.status_invalid'));
+    return;
+  }
+
+  try {
+    logger.info(`Updating user group status: ${groupId}...`);
+    const group = await UserGroupRepository.updateGroupStatus(groupId, status);
+    res.json(UserGroupDTO.fromUserGroup(group, req.language as Locale));
+  } catch (err) {
+    logger.error(err, 'Error updating user group status');
     throw new UnknownException();
   }
 };

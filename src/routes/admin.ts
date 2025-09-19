@@ -13,7 +13,8 @@ import {
   getUserById,
   createUser,
   updateUserRoles,
-  updateUserStatus
+  updateUserStatus,
+  updateUserGroupStatus
 } from '../controllers/admin';
 import { ForbiddenException } from '../exceptions/forbidden.exception';
 import { logger } from '../utils/logger';
@@ -41,11 +42,11 @@ adminRouter.get('/group/list', listUserGroups);
 
 adminRouter.get('/group/:user_group_id', loadUserGroup, getUserGroupById);
 adminRouter.patch('/group/:user_group_id', loadUserGroup, jsonParser, updateUserGroup);
+adminRouter.patch('/group/:user_group_id/status', loadUserGroup, jsonParser, updateUserGroupStatus);
 
 adminRouter.get('/user', listUsers);
 adminRouter.post('/user', jsonParser, createUser);
 
 adminRouter.get('/user/:user_id', loadUser, getUserById);
 adminRouter.patch('/user/:user_id/role', loadUser, jsonParser, updateUserRoles);
-
 adminRouter.patch('/user/:user_id/status', loadUser, jsonParser, updateUserStatus);

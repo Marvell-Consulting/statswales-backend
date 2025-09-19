@@ -1,12 +1,19 @@
+import { FindManyOptions } from 'typeorm';
 import { dataSource } from '../db/data-source';
 import { UserGroupDTO } from '../dtos/user/user-group-dto';
 import { UserGroupListItemDTO } from '../dtos/user/user-group-list-item-dto';
 import { UserGroupMetadataDTO } from '../dtos/user/user-group-metadata-dto';
 import { UserGroup } from '../entities/user/user-group';
+import { UserGroupRole } from '../entities/user/user-group-role';
 import { Locale } from '../enums/locale';
+import { UserGroupStatus } from '../enums/user-group-status';
 import { ResultsetWithCount } from '../interfaces/resultset-with-count';
 
 export const UserGroupRepository = dataSource.getRepository(UserGroup).extend({
+  async getById(id: string): Promise<UserGroup> {
+    return this.findOneByOrFail({ id });
+  },
+
   async getByIdWithOrganisation(id: string): Promise<UserGroup> {
     return this.findOneOrFail({
       where: { id },
@@ -29,8 +36,8 @@ export const UserGroupRepository = dataSource.getRepository(UserGroup).extend({
     });
   },
 
-  async getAll(): Promise<UserGroup[]> {
-    return this.find({
+  async getAll(status?: UserGroupStatus): Promise<UserGroup[]> {
+    const findOptions: FindManyOptions<UserGroup> = {
       relations: {
         metadata: true,
         organisation: { metadata: true }
@@ -38,7 +45,13 @@ export const UserGroupRepository = dataSource.getRepository(UserGroup).extend({
       order: {
         metadata: { name: 'ASC' }
       }
-    });
+    };
+
+    if (status) {
+      findOptions.where = { status };
+    }
+
+    return this.find(findOptions);
   },
 
   async listByLanguage(
@@ -86,10 +99,26 @@ export const UserGroupRepository = dataSource.getRepository(UserGroup).extend({
     return UserGroup.create({ metadata }).save();
   },
 
-  async updateGroup(group: UserGroup, dto: UserGroupDTO): Promise<UserGroup> {
-    // reload group without relations to allow merge to work correctly
-    group = await this.findOneByOrFail({ id: group.id });
+  async updateGroup(groupId: string, dto: UserGroupDTO): Promise<UserGroup> {
+    const group = await this.findOneByOrFail({ id: groupId });
     const updates = UserGroupDTO.toUserGroup(dto);
     return this.merge(group, updates).save();
+  },
+
+  async updateGroupStatus(groupId: string, status: UserGroupStatus): Promise<UserGroup> {
+    const group = await this.findOneOrFail({
+      where: { id: groupId },
+      relations: { groupRoles: true }
+    });
+
+    // delete any associated user roles when deactivating
+    if (status === UserGroupStatus.Inactive && group.groupRoles && group.groupRoles.length > 0) {
+      await dataSource.getRepository(UserGroupRole).delete({ group: { id: groupId } });
+    }
+
+    group.status = status;
+    await this.save(group);
+
+    return this.findOneByOrFail({ id: groupId });
   }
 });
