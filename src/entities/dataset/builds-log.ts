@@ -30,8 +30,9 @@ export class BuildLog extends BaseEntity {
   @JoinColumn({ name: 'revision_id', foreignKeyConstraintName: 'FK_revision_build_log_id' })
   revision: Revision;
 
-  public static async startBuild(revision: Revision, type: CubeBuildType): Promise<BuildLog> {
+  public static async startBuild(revision: Revision, type: CubeBuildType, buildId?: string): Promise<BuildLog> {
     const build = new BuildLog();
+    if (buildId) build.id = buildId;
     build.revision = revision;
     build.type = type;
     build.status = CubeBuildStatus.Queued;
