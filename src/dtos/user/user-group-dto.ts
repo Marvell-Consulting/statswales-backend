@@ -6,6 +6,7 @@ import { DatasetDTO } from '../dataset-dto';
 import { OrganisationDTO } from '../organisation-dto';
 import { UserDTO } from './user-dto';
 import { UserGroupMetadataDTO } from './user-group-metadata-dto';
+import { UserGroupStatus } from '../../enums/user-group-status';
 import { UserGroupRole } from '../../entities/user/user-group-role';
 import { UserWithRolesDTO } from './user-with-roles-dto';
 import { IsOptional, IsString, IsUUID, ValidateNested } from 'class-validator';
@@ -33,11 +34,13 @@ export class UserGroupDTO {
   user_count?: number;
   datasets?: DatasetDTO[];
   dataset_count?: number;
+  status?: UserGroupStatus;
 
   static fromUserGroup(userGroup: UserGroup, lang: Locale): UserGroupDTO {
     const dto = new UserGroupDTO();
 
     dto.id = userGroup.id;
+    dto.status = userGroup.status;
     dto.organisation_id = userGroup.organisation?.id;
     dto.organisation = userGroup.organisation
       ? OrganisationDTO.fromOrganisation(userGroup.organisation, lang)

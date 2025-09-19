@@ -2,6 +2,7 @@ import { Request } from 'express';
 import { body, check, param, ValidationChain } from 'express-validator';
 import { UserStatus } from '../enums/user-status';
 import { DownloadFormat } from '../enums/download-format';
+import { UserGroupStatus } from '../enums/user-group-status';
 
 export const hasError = async (validator: ValidationChain, req: Request): Promise<boolean> => {
   return !(await validator.run(req)).isEmpty();
@@ -24,6 +25,7 @@ export const pageNumberValidator = (): ValidationChain => check('page_number').t
 export const pageSizeValidator = (): ValidationChain => check('page_size').trim().notEmpty().isInt().toInt();
 
 export const userStatusValidator = (): ValidationChain => body('status').isIn(Object.values(UserStatus));
+export const groupStatusValidator = (): ValidationChain => body('status').isIn(Object.values(UserGroupStatus));
 
 export const userGroupIdValidator = (userGroupIds: string[]): ValidationChain =>
   body('user_group_id').isIn(userGroupIds);
