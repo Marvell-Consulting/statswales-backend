@@ -41,19 +41,37 @@ export const UserGroupRepository = dataSource.getRepository(UserGroup).extend({
     });
   },
 
-  async listByLanguage(locale: Locale, page: number, limit: number): Promise<ResultsetWithCount<UserGroupListItemDTO>> {
+  async listByLanguage(
+    locale: Locale,
+    page: number,
+    limit: number,
+    search?: string
+  ): Promise<ResultsetWithCount<UserGroupListItemDTO>> {
     const lang = locale.includes('en') ? Locale.EnglishGb : Locale.WelshGb;
 
     const qb = this.createQueryBuilder('ug')
-      .select(['ug.id AS id', 'ug.prefix AS prefix', 'ugm.name AS name', 'ugm.email AS email'])
+      .select([
+        'ug.id AS id',
+        'ug.prefix AS prefix',
+        'ugm.name AS name',
+        'ugm.email AS email',
+        'ug.status AS status',
+        'om.name AS organisation'
+      ])
       .addSelect('COUNT(DISTINCT u.id)', 'user_count')
       .addSelect('COUNT(DISTINCT d.id)', 'dataset_count')
       .leftJoin('ug.metadata', 'ugm', 'ugm.language = :lang', { lang })
       .leftJoin('ug.datasets', 'd')
       .leftJoin('ug.groupRoles', 'ugr')
       .leftJoin('ugr.user', 'u')
-      .groupBy('ug.id, ugm.name, ugm.email, ug.prefix')
+      .leftJoin('ug.organisation', 'o')
+      .leftJoin('o.metadata', 'om', 'om.language = :lang', { lang })
+      .groupBy('ug.id, ugm.name, ugm.email, ug.prefix, ug.status, om.name')
       .orderBy('ugm.name', 'ASC');
+
+    if (search) {
+      qb.where('ugm.name ILIKE :search OR ugm.email ILIKE :search', { search: `%${search}%` });
+    }
 
     const offset = (page - 1) * limit;
     const countQuery = qb.clone();

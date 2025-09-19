@@ -96,12 +96,14 @@ export const getAllUserGroups = async (req: Request, res: Response, next: NextFu
 };
 
 export const listUserGroups = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  const page = parseInt(req.query.page as string, 10) || 1;
+  const limit = parseInt(req.query.limit as string, 10) || 20;
+  const search = (req.query.search as string | undefined)?.trim().slice(0, 100);
+
   try {
     logger.info('Listing user groups with user and dataset counts');
     const lang = req.language as Locale;
-    const page = parseInt(req.query.page as string, 10) || 1;
-    const limit = parseInt(req.query.limit as string, 10) || 20;
-    const results = await UserGroupRepository.listByLanguage(lang, page, limit);
+    const results = await UserGroupRepository.listByLanguage(lang, page, limit, search);
     res.json(results);
   } catch (err) {
     logger.error(err, 'Error listing groups');
