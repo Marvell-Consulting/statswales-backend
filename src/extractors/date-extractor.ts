@@ -9,4 +9,6 @@ export interface DateExtractor {
   dateFormat?: string;
   startDay?: number;
   startMonth?: number;
+  datasetStart?: Date;
+  datasetEnd?: Date;
 }
