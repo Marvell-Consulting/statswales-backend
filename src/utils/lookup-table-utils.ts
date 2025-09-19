@@ -15,6 +15,7 @@ import { viewErrorGenerators } from './view-error-generators';
 import { SUPPORTED_LOCALES } from '../middleware/translation';
 import { MeasureLookupTableExtractor } from '../extractors/measure-lookup-extractor';
 import { DataValueFormat } from '../enums/data-value-format';
+import { dbManager } from '../db/database-manager';
 
 export function convertDataTableToLookupTable(dataTable: DataTable): LookupTable {
   const lookupTable = new LookupTable();
@@ -227,7 +228,7 @@ export const validateLookupTableLanguages = async (
 };
 
 export const validateLookupTableReferenceValues = async (
-  cubeDB: QueryRunner,
+  schemaID: string,
   dataset: Dataset,
   factTableColumn: string,
   joinColumn: string,
@@ -235,18 +236,21 @@ export const validateLookupTableReferenceValues = async (
   factTableName: string,
   validationType: string
 ): Promise<ViewErrDTO | undefined> => {
+  const cubeDB = dbManager.getCubeDataSource().createQueryRunner();
   try {
     logger.debug(`Validating the lookup table`);
     const nonMatchedRowsQuery = pgformat(
       `SELECT line_number, fact_table_column, %I.%I as lookup_table_column
             FROM (SELECT row_number() OVER () as line_number, %I as fact_table_column FROM
-            %I) as fact_table LEFT JOIN %I ON
+            %I.%I) as fact_table LEFT JOIN %I.%I ON
             CAST(fact_table.fact_table_column AS VARCHAR)=CAST(%I.%I AS VARCHAR)
             WHERE %I.%I IS NULL;`,
       lookupTableName,
       joinColumn,
       factTableColumn,
+      schemaID,
       factTableName,
+      schemaID,
       lookupTableName,
       lookupTableName,
       joinColumn,
@@ -256,13 +260,17 @@ export const validateLookupTableReferenceValues = async (
     logger.trace(`non matched rows query: ${nonMatchedRowsQuery}`);
     const nonMatchedRows = await cubeDB.query(nonMatchedRowsQuery);
     logger.debug(`Number of non matched rows: ${nonMatchedRows.length}`);
-    const totals: { total_rows: number }[] = await cubeDB.query(`SELECT COUNT(*) as total_rows FROM ${factTableName}`);
+    const totals: { total_rows: number }[] = await cubeDB.query(
+      pgformat(`SELECT COUNT(*) as total_rows FROM %I.%I`, schemaID, factTableName)
+    );
     if (nonMatchedRows.length === totals[0].total_rows) {
       logger.error(`The user supplied an incorrect lookup table and none of the rows matched`);
       const nonMatchedFactTableValues = await cubeDB.query(
-        `SELECT DISTINCT "${factTableColumn}" FROM ${factTableName};`
+        pgformat(`SELECT DISTINCT %I FROM %I.%I;`, factTableColumn, schemaID, factTableName)
       );
-      const nonMatchedLookupValues = await cubeDB.query(`SELECT DISTINCT "${joinColumn}" FROM "${lookupTableName}";`);
+      const nonMatchedLookupValues = await cubeDB.query(
+        pgformat(`SELECT DISTINCT %I FROM %I.%I;`, joinColumn, schemaID, lookupTableName)
+      );
       return viewErrorGenerators(400, dataset.id, 'patch', `errors.${validationType}_validation.no_reference_match`, {
         totalNonMatching: totals[0].total_rows,
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -273,19 +281,43 @@ export const validateLookupTableReferenceValues = async (
       });
     }
     if (nonMatchedRows.length > 0) {
-      const nonMatchingDataTableValues = await cubeDB.query(`
-        SELECT DISTINCT fact_table_column FROM (SELECT "${factTableColumn}" as fact_table_column
-        FROM ${factTableName}) as fact_table
-        LEFT JOIN "${lookupTableName}"
-        ON CAST(fact_table.fact_table_column AS VARCHAR)=CAST("${lookupTableName}"."${joinColumn}" AS VARCHAR)
-        WHERE "${lookupTableName}"."${joinColumn}" IS NULL;
-      `);
-      const nonMatchingLookupValues = await cubeDB.query(`
-        SELECT DISTINCT lookup_table_column FROM (SELECT "${joinColumn}" as lookup_table_column
-        FROM "${lookupTableName}") AS lookup_table
-        LEFT JOIN ${factTableName} ON CAST(lookup_table.lookup_table_column AS VARCHAR)=CAST(${factTableName}."${factTableColumn}" AS VARCHAR)
-        WHERE ${factTableName}."${factTableColumn}" IS NULL;
-      `);
+      const nonMatchingDataTableValuesSQL = pgformat(
+        `
+        SELECT DISTINCT fact_table_column FROM (SELECT %I as fact_table_column
+        FROM %I.%I) as fact_table
+        LEFT JOIN %I.%I
+        ON CAST(fact_table.fact_table_column AS VARCHAR)=CAST(%I.%I AS VARCHAR)
+        WHERE %I.%I IS NULL;
+      `,
+        factTableColumn,
+        schemaID,
+        factTableName,
+        schemaID,
+        lookupTableName,
+        lookupTableName,
+        joinColumn,
+        lookupTableName,
+        joinColumn
+      );
+      const nonMatchingDataTableValues = await cubeDB.query(nonMatchingDataTableValuesSQL);
+      const nonMatchingLookupValuesSQL = pgformat(
+        `
+        SELECT DISTINCT lookup_table_column FROM (SELECT %I as lookup_table_column
+        FROM %I) AS lookup_table
+        LEFT JOIN %I.%I ON CAST(lookup_table.lookup_table_column AS VARCHAR)=CAST(%I.%I AS VARCHAR)
+        WHERE %I.%I IS NULL;
+      `,
+        joinColumn,
+        schemaID,
+        lookupTableName,
+        schemaID,
+        factTableName,
+        factTableName,
+        factTableColumn,
+        factTableName,
+        factTableColumn
+      );
+      const nonMatchingLookupValues = await cubeDB.query(nonMatchingLookupValuesSQL);
       logger.error(
         `The user supplied an incorrect or incomplete lookup table and ${nonMatchedRows.length} rows didn't match`
       );
@@ -310,15 +342,19 @@ export const validateLookupTableReferenceValues = async (
       `Something went wrong, most likely an incorrect join column name, while trying to validate the lookup table.`
     );
     const nonMatchedRows: { total_rows: number }[] = await cubeDB.query(
-      `SELECT COUNT(*) AS total_rows FROM ${factTableName};`
+      pgformat(`SELECT COUNT(*) AS total_rows FROM %I.%I;`, schemaID, factTableName)
     );
-    const nonMatchedValues = await cubeDB.query(`SELECT DISTINCT ${factTableColumn} FROM ${factTableName};`);
+    const nonMatchedValues = await cubeDB.query(
+      pgformat(`SELECT DISTINCT %I FROM %I.%I;`, factTableColumn, schemaID, factTableName)
+    );
     return viewErrorGenerators(500, dataset.id, 'patch', `errors.${validationType}_validation.unknown_error`, {
       totalNonMatching: nonMatchedRows[0].total_rows,
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       nonMatchingDataTableValues: nonMatchedValues.map((row: any) => Object.values(row)[0]),
       mismatch: true
     });
+  } finally {
+    cubeDB.release();
   }
   return undefined;
 };

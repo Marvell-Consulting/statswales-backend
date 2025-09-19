@@ -132,13 +132,11 @@ function createExtractor(
 }
 
 export const checkForReferenceErrors = async (
-  cubeDB: QueryRunner,
   dataset: Dataset,
   dimension: Dimension,
   factTableColumn: FactTableColumn
 ): Promise<void> => {
   const referenceErrors = await validateLookupTableReferenceValues(
-    cubeDB,
     dataset,
     dimension.factTableColumn,
     factTableColumn.columnName,

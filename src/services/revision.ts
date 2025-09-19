@@ -20,6 +20,10 @@ import { validateUpdatedDateDimension } from './dimension-processor';
 import { checkForReferenceErrors } from './lookup-table-handler';
 import { FactTableValidationExceptionType } from '../enums/fact-table-validation-exception-type';
 import { FactTableValidationException } from '../exceptions/fact-table-validation-exception';
+import { createAllCubeFiles, createLookupTableDimension, makeCubeSafeString } from './cube-handler';
+import { CubeBuildType } from '../enums/cube-build-type';
+import { Dimension } from '../entities/dataset/dimension';
+import { Dataset } from '../entities/dataset/dataset';
 
 export async function attachUpdateDataTableToRevision(
   datasetId: string,
@@ -94,21 +98,15 @@ export async function attachUpdateDataTableToRevision(
   logger.debug(`Setting the update action to: ${updateAction}`);
   dataTable.action = updateAction;
   revision.dataTable = dataTable;
-  const buildId = `build-${crypto.randomUUID()}`;
-  const cubeDB = dbManager.getCubeDataSource().createQueryRunner();
+  const buildId = crypto.randomUUID();
 
   try {
-    await cubeDB.query(pgformat('CREATE SCHEMA IF NOT EXISTS %I;', buildId));
-    await cubeDB.query(pgformat(`SET search_path TO %I;`, buildId));
-    await updateFactTableValidator(cubeDB, buildId, dataset, revision);
+    await createAllCubeFiles(dataset.id, revision.id, CubeBuildType.ValidationCube, buildId);
   } catch (err) {
     const error = err as CubeValidationException;
-    logger.debug('Closing DuckDB instance');
     const end = performance.now();
     const time = Math.round(end - start);
     logger.info(`Cube update validation took ${time}ms`);
-    await cubeDB.query(pgformat('DROP SCHEMA %I CASCADE', buildId));
-    cubeDB.release();
     throw error;
   }
 
@@ -124,13 +122,11 @@ export async function attachUpdateDataTableToRevision(
       logger.error(`Could not find fact table column for dimension ${dimension.id}`);
       throw new BadRequestException('errors.data_table_validation_error');
     }
+
     try {
-      await createCubeMetadataTable(cubeDB, revision.id, buildId);
       switch (dimension.type) {
         case DimensionType.LookupTable:
-          logger.debug(`Validating lookup table dimension: ${dimension.id}`);
-          await createLookupTableDimension(cubeDB, dataset, dimension, factTableColumn);
-          await checkForReferenceErrors(cubeDB, dataset, dimension, factTableColumn);
+          await validateLookupTable(buildId, dataset, dimension, factTableColumn);
           break;
         case DimensionType.DatePeriod:
         case DimensionType.Date:
@@ -171,4 +167,21 @@ export async function attachUpdateDataTableToRevision(
 
   dataTable.revision = revision;
   await dataTable.save();
+}
+
+async function validateLookupTable(
+  buildId: string,
+  dataset: Dataset,
+  dimension: Dimension,
+  factTableColumn: FactTableColumn
+) {
+  logger.debug(`Validating lookup table dimension: ${dimension.id}`);
+  const createLookupSQL = createLookupTableDimension(buildId, dimension, factTableColumn);
+  const createLookupRunner = dbManager.getCubeDataSource().createQueryRunner();
+  try {
+    await createLookupRunner.query(createLookupSQL);
+  } finally {
+    createLookupRunner.release();
+  }
+  await checkForReferenceErrors(cubeDB, dataset, dimension, factTableColumn);
 }

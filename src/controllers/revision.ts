@@ -266,6 +266,7 @@ export const updateDataTable = async (req: Request, res: Response, next: NextFun
       const updateAction = req.body.update_action ? (req.body.update_action as DataTableAction) : DataTableAction.Add;
       await attachUpdateDataTableToRevision(datasetId, revision, dataTable, updateAction, columnMatcher);
     }
+
     try {
       logger.info('Revision update complete, creating cube files');
       await createAllCubeFiles(datasetId, revision.id);
