@@ -62,6 +62,7 @@ import { format as pgformat } from '@scaleleap/pg-format/lib/pg-format';
 import { TaskAction } from '../enums/task-action';
 import { TaskService } from '../services/task';
 import { createFrontendView } from '../services/consumer-view';
+import { UserGroup } from '../entities/user/user-group';
 
 export const listUserDatasets = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
@@ -97,20 +98,15 @@ export const getDatasetById = async (req: Request, res: Response): Promise<void>
   const hydrate = req.query.hydrate as DatasetInclude;
 
   let dataset: Dataset = res.locals.dataset; // plain dataset without any relations
-  let datasetDTO: DatasetDTO;
+  let userGroup: UserGroup | undefined;
 
   switch (hydrate) {
     case DatasetInclude.Preview:
       dataset = await DatasetRepository.getById(datasetId, withStandardPreview);
-      datasetDTO = DatasetDTO.fromDataset(dataset);
-
-      if (dataset.userGroupId) {
-        const userGroup = await UserGroupRepository.getByIdWithOrganisation(dataset.userGroupId);
-        datasetDTO.publisher = PublisherDTO.fromUserGroup(userGroup, req.language as Locale);
-      }
-
-      res.json(datasetDTO);
-      return;
+      userGroup = dataset.userGroupId
+        ? await UserGroupRepository.getByIdWithOrganisation(dataset.userGroupId)
+        : undefined;
+      break;
 
     case DatasetInclude.Developer:
       dataset = await DatasetRepository.getById(datasetId, withDeveloperPreview);
@@ -134,22 +130,26 @@ export const getDatasetById = async (req: Request, res: Response): Promise<void>
 
     case DatasetInclude.Meta:
       dataset = await DatasetRepository.getById(datasetId, withDraftAndMetadata);
-      datasetDTO = DatasetDTO.fromDataset(dataset);
-
-      if (dataset.userGroupId) {
-        const userGroup = await UserGroupRepository.getByIdWithOrganisation(dataset.userGroupId);
-        datasetDTO.publisher = PublisherDTO.fromUserGroup(userGroup, req.language as Locale);
-      }
-
-      res.json(datasetDTO);
-      return;
+      userGroup = dataset.userGroupId
+        ? await UserGroupRepository.getByIdWithOrganisation(dataset.userGroupId)
+        : undefined;
+      break;
 
     case DatasetInclude.Overview:
       dataset = await req.datasetService.getDatasetOverview(datasetId);
+      userGroup = dataset.userGroupId
+        ? await UserGroupRepository.getByIdWithOrganisation(dataset.userGroupId)
+        : undefined;
       break;
   }
 
-  res.json(DatasetDTO.fromDataset(dataset));
+  const datasetDTO = DatasetDTO.fromDataset(dataset);
+
+  if (userGroup) {
+    datasetDTO.publisher = PublisherDTO.fromUserGroup(userGroup, req.language as Locale);
+  }
+
+  res.json(datasetDTO);
 };
 
 export const deleteDraftDatasetById = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
