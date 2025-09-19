@@ -1,4 +1,4 @@
-import { In, JsonContains } from 'typeorm';
+import { FindOptionsRelations, In, JsonContains } from 'typeorm';
 
 import { format as pgformat } from '@scaleleap/pg-format';
 import { RevisionMetadataDTO } from '../dtos/revistion-metadata-dto';
@@ -25,7 +25,7 @@ import { BadRequestException } from '../exceptions/bad-request.exception';
 import { TasklistStateDTO } from '../dtos/tasklist-state-dto';
 import { EventLog } from '../entities/event-log';
 
-import { createAllCubeFiles, getCubeTimePeriods } from './cube-handler';
+import { createAllCubeFiles } from './cube-handler';
 import { validateAndUpload } from './csv-processor';
 import { removeAllDimensions, removeMeasure } from './dimension-processor';
 import { UserGroupRepository } from '../repositories/user-group';
@@ -37,15 +37,17 @@ import { getPublishingStatus } from '../utils/dataset-status';
 import { PublishingStatus as PubStatus } from '../enums/publishing-status';
 
 import {
-  omitDatasetUpdates,
   flagUpdateTask,
   generateSimulatedEvents,
+  omitDatasetUpdates,
   omitRevisionUpdates
 } from '../utils/dataset-history';
 import { StorageService } from '../interfaces/storage-service';
 import { TempFile } from '../interfaces/temp-file';
 import { dbManager } from '../db/database-manager';
 import { getFileService } from '../utils/get-file-service';
+import { DimensionType } from '../enums/dimension-type';
+import { DateExtractor } from '../extractors/date-extractor';
 
 export class DatasetService {
   lang: Locale;
@@ -295,9 +297,32 @@ export class DatasetService {
   async approvePublication(datasetId: string, revisionId: string, user: User): Promise<Dataset> {
     const start = performance.now();
     await createAllCubeFiles(datasetId, revisionId);
-    const periodCoverage = await getCubeTimePeriods(revisionId);
     const scheduledRevision = await RevisionRepository.approvePublication(revisionId, `${revisionId}.duckdb`, user);
-    const approvedDataset = await DatasetRepository.publish(scheduledRevision, periodCoverage);
+    const datasetRelations: FindOptionsRelations<Dataset> = {
+      dimensions: true
+    };
+    const datasetWithDimensions = await DatasetRepository.getById(datasetId, datasetRelations);
+    let startDate: Date | undefined;
+    let endDate: Date | undefined;
+    datasetWithDimensions.dimensions
+      .filter((dim) => dim.type === DimensionType.DatePeriod || DimensionType.Date)
+      .forEach((dim) => {
+        const extractor = dim.extractor as DateExtractor;
+        if (!startDate) {
+          startDate = extractor.datasetStart;
+        }
+        if (!endDate) {
+          endDate = extractor.datasetEnd;
+        }
+        if (startDate && extractor.datasetStart && extractor.datasetStart < startDate) {
+          startDate = extractor.datasetStart;
+        }
+        if (endDate && extractor.datasetEnd && extractor.datasetEnd > endDate) {
+          endDate = extractor.datasetEnd;
+        }
+      });
+
+    const approvedDataset = await DatasetRepository.publish(scheduledRevision, startDate, endDate);
     const time = Math.round(performance.now() - start);
     logger.info(`Publication approved, time: ${time}ms`);
 
