@@ -28,7 +28,7 @@ import { MeasureRow } from '../entities/dataset/measure-row';
 import { SUPPORTED_LOCALES } from '../middleware/translation';
 import { DisplayType } from '../enums/display-type';
 import { getFileService } from '../utils/get-file-service';
-import { loadFileIntoCube, measureTableCreateStatement } from './cube-handler';
+import { measureTableCreateStatement } from './cube-handler';
 import { FileValidationErrorType, FileValidationException } from '../exceptions/validation-exception';
 import { FactTableColumn } from '../entities/dataset/fact-table-column';
 import { Locale } from '../enums/locale';
@@ -40,6 +40,7 @@ import { FileType } from '../enums/file-type';
 import { dbManager } from '../db/database-manager';
 import { MeasureMetadata } from '../entities/dataset/measure-metadata';
 import { RevisionTask } from '../interfaces/revision-task';
+import { loadFileIntoCube } from '../utils/file-utils';
 
 const sampleSize = 5;
 

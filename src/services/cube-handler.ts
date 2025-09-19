@@ -1,17 +1,14 @@
-import { readFile, unlink } from 'node:fs/promises';
 import { performance } from 'node:perf_hooks';
 
-import { Database, DuckDbError, RowData } from 'duckdb-async';
 import { FindOptionsRelations, QueryRunner } from 'typeorm';
 import { toZonedTime } from 'date-fns-tz';
 import { format as pgformat } from '@scaleleap/pg-format';
 
-import { FileType } from '../enums/file-type';
 import { logger } from '../utils/logger';
 import { Dataset } from '../entities/dataset/dataset';
 import { Dimension } from '../entities/dataset/dimension';
 import { LookupTableExtractor } from '../extractors/lookup-table-extractor';
-import { getFileImportAndSaveToDisk } from '../utils/file-utils';
+import { loadFileIntoDataTablesSchema, loadFileIntoLookupTablesSchema } from '../utils/file-utils';
 import { SUPPORTED_LOCALES, t } from '../middleware/translation';
 import { DataTable } from '../entities/dataset/data-table';
 import { DataTableAction } from '../enums/data-table-action';
@@ -26,24 +23,15 @@ import { MeasureRow } from '../entities/dataset/measure-row';
 import { DatasetRepository } from '../repositories/dataset';
 import { PeriodCovered } from '../interfaces/period-covered';
 import { dateDimensionReferenceTableCreator } from './date-matching';
-import { duckdb, linkToPostgresSchema, safelyCloseDuckDb } from './duckdb';
 import { NumberExtractor, NumberType } from '../extractors/number-extractor';
 import { CubeValidationType } from '../enums/cube-validation-type';
-import { languageMatcherCaseStatement } from '../utils/lookup-table-utils';
 import { FactTableValidationException } from '../exceptions/fact-table-validation-exception';
 import { FactTableValidationExceptionType } from '../enums/fact-table-validation-exception-type';
 import { CubeType } from '../enums/cube-type';
 import { DateExtractor } from '../extractors/date-extractor';
-import { getFileService } from '../utils/get-file-service';
-import { asyncTmpName } from '../utils/async-tmp';
 import { performanceReporting } from '../utils/performance-reporting';
 import { DuckdbOutputType } from '../enums/duckdb-outputs';
 import { StorageService } from '../interfaces/storage-service';
-import { ViewDTO, ViewErrDTO } from '../dtos/view-dto';
-import { FilterInterface } from '../interfaces/filterInterface';
-import { SortByInterface } from '../interfaces/sort-by-interface';
-import { createFrontendView } from './consumer-view';
-import { LookupTable } from '../entities/dataset/lookup-table';
 import { dbManager } from '../db/database-manager';
 import { CubeViewConfig } from '../interfaces/cube-view-config';
 import cubeConfig from '../config/cube-view.json';
@@ -62,59 +50,6 @@ export const makeCubeSafeString = (str: string): string => {
     .toLowerCase()
     .replace(/[ ]/g, '_')
     .replace(/[^a-zA-Z_]/g, '');
-};
-
-export const createDataTableQuery = async (
-  tableName: string,
-  tempFileName: string,
-  fileType: FileType,
-  quack: Database
-): Promise<string> => {
-  logger.debug(`Creating data table ${tableName} with file ${tempFileName} and file type ${fileType}`);
-  switch (fileType) {
-    case FileType.Csv:
-    case FileType.GzipCsv:
-      return pgformat(
-        "CREATE TABLE %I AS SELECT * FROM read_csv(%L, auto_type_candidates = ['BIGINT', 'DOUBLE', 'VARCHAR'], sample_size = -1);",
-        makeCubeSafeString(tableName),
-        tempFileName
-      );
-
-    case FileType.Parquet:
-      return pgformat('CREATE TABLE %I AS SELECT * FROM %L;', makeCubeSafeString(tableName), tempFileName);
-
-    case FileType.Json:
-    case FileType.GzipJson:
-      return pgformat(
-        'CREATE TABLE %I AS SELECT * FROM read_json_auto(%L);',
-        makeCubeSafeString(tableName),
-        tempFileName
-      );
-
-    case FileType.Excel:
-      await quack.exec('INSTALL spatial;');
-      await quack.exec('LOAD spatial;');
-      return pgformat('CREATE TABLE %I AS SELECT * FROM st_read(%L);', makeCubeSafeString(tableName), tempFileName);
-
-    default:
-      throw new Error('Unknown file type');
-  }
-};
-
-export const loadFileIntoCube = async (
-  quack: Database,
-  fileType: FileType,
-  tempFile: string,
-  tableName: string
-): Promise<void> => {
-  logger.debug(`Loading file in to DuckDB`);
-  const insertQuery = await createDataTableQuery(tableName, tempFile, fileType, quack);
-  try {
-    await quack.exec(insertQuery);
-  } catch (error) {
-    logger.error(`Failed to load file in to DuckDB using query ${insertQuery} with the following error: ${error}`);
-    throw error;
-  }
 };
 
 export const loadTableDataIntoFactTableFromPostgres = async (
@@ -142,183 +77,6 @@ export const loadTableDataIntoFactTableFromPostgres = async (
     );
   }
   logger.debug(`Successfully loaded data table into fact table`);
-};
-
-export const loadTableDataIntoFactTable = async (
-  quack: Database,
-  factTableDef: string[],
-  factTableName: string,
-  originTableName: string
-): Promise<void> => {
-  const tableSize = await quack.all(
-    pgformat('SELECT CAST (COUNT(*) AS INTEGER) as table_size FROM %I;', originTableName)
-  );
-  const rowCount = tableSize[0].table_size;
-  if (rowCount === 0) {
-    logger.debug(`No data to load into ${factTableName}`);
-    return;
-  }
-  logger.debug(`Loading data table into fact table`);
-  const batchSize = 200000;
-  let processedRows = 0;
-  let insertQuery = pgformat(
-    'INSERT INTO %I SELECT %I FROM %I LIMIT %L OFFSET ?;',
-    factTableName,
-    factTableDef,
-    originTableName,
-    batchSize,
-    processedRows
-  );
-  try {
-    while (processedRows < rowCount) {
-      insertQuery = pgformat(
-        'INSERT INTO %I SELECT %I FROM %I LIMIT %L OFFSET %L;',
-        factTableName,
-        factTableDef,
-        originTableName,
-        batchSize,
-        processedRows
-      );
-      await quack.exec(insertQuery);
-
-      processedRows += batchSize;
-      const currentRows = Math.min(processedRows, rowCount);
-      const percentComplete = Math.round((currentRows / rowCount) * 100);
-      logger.debug(`↳ Copied ${currentRows}/${rowCount} rows (${percentComplete}%)`);
-      if (processedRows >= rowCount) break;
-    }
-  } catch (error) {
-    logger.error(error, `Failed to load file into table using query ${insertQuery}`);
-    const duckDBError = error as DuckDbError;
-    if (duckDBError.errorType === 'Constraint') {
-      if (duckDBError.message.includes('NOT NULL constraint')) {
-        throw new FactTableValidationException(
-          'Fact with empty value in column(s) found in fact table.  Please check the data and try again.',
-          FactTableValidationExceptionType.IncompleteFact,
-          400
-        );
-      }
-      if (duckDBError.message.includes('PRIMARY KEY or UNIQUE')) {
-        throw new FactTableValidationException(
-          'Dupllicate facts found in the fact table.  Please check the data and try again.',
-          FactTableValidationExceptionType.DuplicateFact,
-          400
-        );
-      }
-      if (duckDBError.message.includes('Duplicate key')) {
-        throw new FactTableValidationException(
-          'Duplicate facts found in the fact table.  Please check the data and try again.',
-          FactTableValidationExceptionType.DuplicateFact,
-          400
-        );
-      }
-    }
-    throw new FactTableValidationException(
-      'An unknown error occurred trying to load data in to the fact table.  Please contact support.',
-      FactTableValidationExceptionType.UnknownError,
-      500
-    );
-  }
-  logger.debug(`Successfully loaded data table into fact table`);
-};
-
-// This function differs from loadFileIntoDatabase in that it only loads a file into an existing table
-export const loadFileDataTableIntoTable = async (
-  quack: Database,
-  dataTable: DataTable,
-  factTableDef: string[],
-  tempFile: string,
-  tableName: string
-): Promise<void> => {
-  const tempTableName = `temp_${tableName}`;
-  let insertQuery: string;
-  const dataTableColumnSelect: string[] = [];
-  for (const factTableCol of factTableDef) {
-    const dataTableCol = dataTable.dataTableDescriptions.find(
-      (col) => col.factTableColumn === factTableCol
-    )?.columnName;
-    if (dataTableCol) dataTableColumnSelect.push(dataTableCol);
-    else dataTableColumnSelect.push(factTableCol);
-  }
-
-  switch (dataTable.fileType) {
-    case FileType.Csv:
-    case FileType.GzipCsv:
-      insertQuery = pgformat(
-        "CREATE TABLE %I AS SELECT %I FROM read_csv(%L, auto_type_candidates = ['BIGINT', 'DOUBLE', 'VARCHAR'], sample_size = -1);",
-        tempTableName,
-        dataTableColumnSelect,
-        tempFile
-      );
-      break;
-    case FileType.Parquet:
-      insertQuery = pgformat('CREATE TABLE %I AS SELECT %I FROM %L;', tempTableName, dataTableColumnSelect, tempFile);
-      break;
-    case FileType.Json:
-    case FileType.GzipJson:
-      insertQuery = pgformat(
-        'CREATE TABLE %I AS SELECT %I FROM read_json_auto(%L);',
-        tempTableName,
-        dataTableColumnSelect,
-        tempFile
-      );
-      break;
-    case FileType.Excel:
-      await quack.exec('INSTALL spatial;');
-      await quack.exec('LOAD spatial;');
-      insertQuery = pgformat(
-        'CREATE TABLE %I AS SELECT %I FROM st_read(%L);',
-        tempTableName,
-        dataTableColumnSelect,
-        tempFile
-      );
-      break;
-    default:
-      throw new FactTableValidationException(
-        'Fact with empty value in column(s) found in fact table.  Please check the data and try again.',
-        FactTableValidationExceptionType.UnknownFileType,
-        500
-      );
-  }
-  try {
-    logger.debug(`Loading file data table into table ${tableName}`);
-    logger.trace(`insert query: ${insertQuery}`);
-    await quack.exec(insertQuery);
-    await loadTableDataIntoFactTable(quack, factTableDef, tableName, tempTableName);
-    await quack.exec(pgformat('DROP TABLE %I', tempTableName));
-    await quack.exec('CHECKPOINT;');
-  } catch (error) {
-    logger.error(error, `Failed to load file into table using query ${insertQuery}`);
-    const duckDBError = error as DuckDbError;
-    if (duckDBError.errorType === 'Constraint') {
-      if (duckDBError.message.includes('NOT NULL constraint')) {
-        throw new FactTableValidationException(
-          'Fact with empty value in column(s) found in fact table.  Please check the data and try again.',
-          FactTableValidationExceptionType.IncompleteFact,
-          400
-        );
-      }
-      if (duckDBError.message.includes('PRIMARY KEY or UNIQUE')) {
-        throw new FactTableValidationException(
-          'Dupllicate facts found in the fact table.  Please check the data and try again.',
-          FactTableValidationExceptionType.DuplicateFact,
-          400
-        );
-      }
-      if (duckDBError.message.includes('Duplicate key')) {
-        throw new FactTableValidationException(
-          'Duplicate facts found in the fact table.  Please check the data and try again.',
-          FactTableValidationExceptionType.DuplicateFact,
-          400
-        );
-      }
-    }
-    throw new FactTableValidationException(
-      'An unknown error occurred trying to load data in to the fact table.  Please contact support.',
-      FactTableValidationExceptionType.UnknownError,
-      500
-    );
-  }
 };
 
 export const createDatePeriodTableQuery = (factTableColumn: FactTableColumn, tableName?: string): string => {
@@ -354,7 +112,7 @@ export async function createDateDimension(
     throw new Error('Extractor not supplied');
   }
   const safeColumnName = makeCubeSafeString(factTableColumn.columnName);
-  const columnData: RowData[] = await cubeDB.query(
+  const columnData: Record<string, string>[] = await cubeDB.query(
     pgformat(`SELECT DISTINCT %I FROM %I;`, factTableColumn.columnName, FACT_TABLE_NAME)
   );
   const dateDimensionTable = dateDimensionReferenceTableCreator(extractor as DateExtractor, columnData);
@@ -408,20 +166,6 @@ export async function createDateDimension(
   }
   return `${makeCubeSafeString(factTableColumn.columnName)}_lookup`;
 }
-
-export const createLookupTableQuery = (
-  lookupTableName: string,
-  referenceColumnName: string,
-  referenceColumnType: string
-): string => {
-  return pgformat(
-    'CREATE TABLE %I (%I %s NOT NULL, language VARCHAR(5) NOT NULL, description TEXT NOT NULL, notes TEXT, sort_order INTEGER, hierarchy %s);',
-    lookupTableName,
-    referenceColumnName,
-    referenceColumnType,
-    referenceColumnType
-  );
-};
 
 async function setupLookupTableDimension(
   cubeDB: QueryRunner,
@@ -500,102 +244,6 @@ async function setupLookupTableDimension(
     );
   }
   return dimTable;
-}
-
-export async function loadFileIntoLookupTablesSchema(
-  dataset: Dataset,
-  lookupTable: LookupTable,
-  extractor: LookupTableExtractor,
-  factTableColumn: FactTableColumn,
-  joinColumn: string,
-  filePath?: string
-): Promise<void> {
-  const start = performance.now();
-  const quack = await duckdb();
-  const dimTable = `${makeCubeSafeString(factTableColumn.columnName)}_lookup`;
-  await quack.exec(createLookupTableQuery(dimTable, factTableColumn.columnName, factTableColumn.columnDatatype));
-  let lookupTableFile = '';
-  if (filePath) {
-    lookupTableFile = filePath;
-  } else {
-    lookupTableFile = await getFileImportAndSaveToDisk(dataset, lookupTable!);
-  }
-  const lookupTableName = `${makeCubeSafeString(factTableColumn.columnName)}_lookup_draft`;
-  await loadFileIntoCube(quack, lookupTable.fileType, lookupTableFile, lookupTableName);
-  if (extractor.isSW2Format) {
-    logger.debug('Lookup table is SW2 format');
-    const dataExtractorParts = [];
-    for (const locale of SUPPORTED_LOCALES) {
-      const descriptionCol = extractor.descriptionColumns.find(
-        (col) => col.lang.toLowerCase() === locale.toLowerCase()
-      );
-      const notesCol = extractor.notesColumns?.find((col) => col.lang.toLowerCase() === locale.toLowerCase());
-      const notesColStr = notesCol ? pgformat('%I', notesCol.name) : 'NULL';
-      const sortStr = extractor.sortColumn ? pgformat('%I', extractor.sortColumn) : 'NULL';
-      const hierarchyCol = extractor.hierarchyColumn ? pgformat('%I', extractor.hierarchyColumn) : 'NULL';
-      dataExtractorParts.push(
-        pgformat(
-          'SELECT %I AS %I, %L as language, %I as description, %s as notes, %s as sort_order, %s as hierarchy FROM %I',
-          joinColumn,
-          factTableColumn.columnName,
-          locale.toLowerCase(),
-          descriptionCol?.name,
-          notesColStr,
-          sortStr,
-          hierarchyCol,
-          lookupTableName
-        )
-      );
-    }
-    const builtInsertQuery = pgformat(`INSERT INTO %I %s;`, dimTable, dataExtractorParts.join(' UNION '));
-    await quack.exec(builtInsertQuery);
-  } else {
-    const languageMatcher = languageMatcherCaseStatement(extractor.languageColumn);
-    const notesStr = extractor.notesColumns ? pgformat('%I', extractor.notesColumns[0].name) : 'NULL';
-    const sortStr = extractor.sortColumn ? pgformat('%I', extractor.sortColumn) : 'NULL';
-    const hierarchyStr = extractor.hierarchyColumn ? pgformat('%I', extractor.hierarchyColumn) : 'NULL';
-    const dataExtractorParts = pgformat(
-      `SELECT %I AS %I, %s as language, %I as description, %s as notes, %s as sort_order, %s as hierarchy FROM %I;`,
-      joinColumn,
-      factTableColumn.columnName,
-      languageMatcher,
-      extractor.descriptionColumns[0].name,
-      notesStr,
-      sortStr,
-      hierarchyStr,
-      lookupTableName
-    );
-    const builtInsertQuery = pgformat(`INSERT INTO %I %s`, dimTable, dataExtractorParts);
-    await quack.exec(builtInsertQuery);
-  }
-  logger.debug(`Dropping original lookup table ${lookupTableName}`);
-  await quack.exec(pgformat('DROP TABLE %I', lookupTableName));
-  await linkToPostgresSchema(quack, 'lookup_tables');
-  await quack.exec(pgformat('CREATE TABLE lookup_tables_db.%I AS SELECT * FROM memory.%I;', lookupTable.id, dimTable));
-  await quack.close();
-  performanceReporting(Math.round(start - performance.now()), 500, 'Loading a lookup table in to postgres');
-}
-
-export async function loadFileIntoDataTablesSchema(
-  dataset: Dataset,
-  dataTable: DataTable,
-  filePath?: string
-): Promise<void> {
-  const start = performance.now();
-  const quack = await duckdb();
-  let dataTableFile = '';
-  if (filePath) {
-    dataTableFile = filePath;
-  } else {
-    dataTableFile = await getFileImportAndSaveToDisk(dataset, dataTable);
-  }
-  await loadFileIntoCube(quack, dataTable.fileType, dataTableFile, FACT_TABLE_NAME);
-  await linkToPostgresSchema(quack, 'data_tables');
-  await quack.exec(
-    pgformat('CREATE TABLE data_tables_db.%I AS SELECT * FROM memory.%I;', dataTable.id, FACT_TABLE_NAME)
-  );
-  await quack.close();
-  performanceReporting(Math.round(start - performance.now()), 500, 'Loading a data table in to postgres');
 }
 
 export async function createLookupTableDimension(
@@ -2460,32 +2108,6 @@ async function createViewsFromConfig(
   }
 }
 
-export const createFilesForDownload = async (
-  quack: Database,
-  datasetId: string,
-  endRevisionId: string
-): Promise<void> => {
-  logger.debug('Creating download files for whole dataset');
-  try {
-    const fileService = getFileService();
-    // TODO Write code to to use native libraries to produce parquet, csv, excel and json outputs
-    for (const locale of SUPPORTED_LOCALES) {
-      const lang = locale.toLowerCase().split('-')[0];
-      logger.debug(`Creating and uploading parquet file for local ${locale}`);
-      const parquetFileName = await asyncTmpName({ postfix: '.parquet' });
-      await quack.exec(`COPY default_view_${lang} TO '${parquetFileName}' (FORMAT PARQUET);`);
-      await fileService.saveBuffer(`${endRevisionId}_${lang}.parquet`, datasetId, await readFile(parquetFileName));
-      await unlink(parquetFileName);
-    }
-    logger.debug('File creation done... Closing duckdb');
-  } catch (err) {
-    logger.error(err, 'Failed to create cube files');
-  } finally {
-    await safelyCloseDuckDb(quack);
-  }
-  logger.debug('Async processes completed.');
-};
-
 export const createMaterialisedView = async (
   revisionId: string,
   dataset: Dataset,
@@ -2586,7 +2208,6 @@ export const createAllCubeFiles = async (datasetId: string, endRevisionId: strin
   // don't wait for this, can happen in the background so we can send the response earlier
   logger.debug('Running async process...');
   void createMaterialisedView(endRevisionId, dataset, cubeBuildConfig);
-  //void createFilesForDownload(quack, datasetId, endRevisionId);
 };
 
 export const getCubeTimePeriods = async (revisionId: string): Promise<PeriodCovered> => {
@@ -2613,22 +2234,5 @@ export const outputCube = async (
   } catch (err) {
     logger.error(err, `Something went wrong trying to create the cube output file`);
     throw err;
-  }
-};
-
-export const getPostgresCubePreview = async (
-  revision: Revision,
-  lang: string,
-  dataset: Dataset,
-  page: number,
-  size: number,
-  sortBy?: SortByInterface[],
-  filter?: FilterInterface[]
-): Promise<ViewDTO | ViewErrDTO> => {
-  try {
-    return createFrontendView(dataset, revision, lang, page, size, sortBy, filter);
-  } catch (err) {
-    logger.error(err, `Something went wrong trying to create the cube preview`);
-    return { status: 500, errors: [], dataset_id: dataset.id };
   }
 };
