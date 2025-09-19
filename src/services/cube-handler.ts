@@ -39,7 +39,8 @@ export const CORE_VIEW_NAME = 'core_view';
 export const createAllCubeFiles = async (
   datasetId: string,
   buildRevisionId: string,
-  buildType = CubeBuildType.FullCube
+  buildType = CubeBuildType.FullCube,
+  buildId = crypto.randomUUID()
 ): Promise<void> => {
   const datasetRelations: FindOptionsRelations<Dataset> = {
     factTable: true,
@@ -78,7 +79,7 @@ export const createAllCubeFiles = async (
   });
   logger.debug(`Build type = ${buildType}`);
 
-  const build = await BuildLog.startBuild(buildRevision, buildType);
+  const build = await BuildLog.startBuild(buildRevision, buildType, buildId);
 
   const createBuildSchemaRunner = dbManager.getCubeDataSource().createQueryRunner();
   try {
