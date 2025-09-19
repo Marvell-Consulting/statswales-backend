@@ -140,9 +140,10 @@ export const updateUserGroup = async (req: Request, res: Response, next: NextFun
 
 export const updateUserGroupStatus = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   const groupId = res.locals.userGroupId;
+  const status = req.body.status as UserGroupStatus;
   const group = await UserGroupRepository.getByIdWithDatasets(groupId);
 
-  if (group.datasets && group.datasets.length > 0) {
+  if (status === UserGroupStatus.Inactive && group.datasets && group.datasets.length > 0) {
     next(new BadRequestException('errors.group.cannot_deactivate_with_assigned_datasets'));
     return;
   }
@@ -153,8 +154,6 @@ export const updateUserGroupStatus = async (req: Request, res: Response, next: N
     next(new BadRequestException('errors.group.status_invalid'));
     return;
   }
-
-  const status = req.body.status as UserGroupStatus;
 
   try {
     logger.info(`Updating user group status: ${groupId}...`);
