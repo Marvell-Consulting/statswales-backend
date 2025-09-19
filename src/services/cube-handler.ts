@@ -52,52 +52,19 @@ export const makeCubeSafeString = (str: string): string => {
     .replace(/[^a-zA-Z_]/g, '');
 };
 
-export const loadTableDataIntoFactTableFromPostgres = async (
-  cubeDB: QueryRunner,
+export const loadTableDataIntoFactTableFromPostgresStatement = (
+  buildId: string,
   factTableDef: string[],
   factTableName: string,
   dataTableId: string
-): Promise<void> => {
-  logger.debug(`Loading data table ${dataTableId} from data_tables schema into cube fact table`);
-  const insertQuery = pgformat(
-    'INSERT INTO %I SELECT %I FROM %I.%I;',
+): string => {
+  return pgformat(
+    'INSERT INTO %I.%I SELECT %I FROM %I.%I;',
+    buildId,
     factTableName,
     factTableDef,
     'data_tables',
     dataTableId
-  );
-  try {
-    await cubeDB.query(insertQuery);
-  } catch (error) {
-    logger.error(error, `Failed to load file into table using query ${insertQuery}`);
-    throw new FactTableValidationException(
-      'An unknown error occurred trying to load data in to the fact table.  Please contact support.',
-      FactTableValidationExceptionType.UnknownError,
-      500
-    );
-  }
-  logger.debug(`Successfully loaded data table into fact table`);
-};
-
-export const createDatePeriodTableQuery = (factTableColumn: FactTableColumn, tableName?: string): string => {
-  if (!tableName) {
-    tableName = `${makeCubeSafeString(factTableColumn.columnName)}_lookup`;
-  }
-  return pgformat(
-    `
-  CREATE TABLE %I (
-    %I %s,
-    language VARCHAR(5),
-    description VARCHAR,
-    start_date TIMESTAMP WITHOUT TIME ZONE,
-    end_date TIMESTAMP WITHOUT TIME ZONE,
-    date_type varchar,
-    hierarchy %s
-  );`,
-    tableName,
-    factTableColumn.columnName,
-    factTableColumn.columnDatatype,
-    factTableColumn.columnDatatype
   );
 };
 
@@ -459,12 +426,12 @@ async function copyUpdateTableToFactTable(
   await cubeDB.query(copyQuery);
 }
 
-async function resetFactTable(cubeDB: QueryRunner): Promise<void> {
-  await cubeDB.query(pgformat('DELETE FROM %I;', FACT_TABLE_NAME));
+function resetFactTable(buildId: string): string {
+  return pgformat('DELETE FROM %I.%I;', buildId, FACT_TABLE_NAME);
 }
 
-async function dropUpdateTable(cubeDB: QueryRunner, updateTableName: string): Promise<void> {
-  await cubeDB.query(pgformat('DROP TABLE %I', updateTableName));
+function dropUpdateTable(buildId: string, updateTableName: string): string {
+  return pgformat('DROP TABLE %I', buildId, updateTableName);
 }
 
 async function finaliseValues(
@@ -578,12 +545,12 @@ async function updateProvisionalsAndForecasts(
 }
 
 async function loadFactTablesWithUpdates(
-  cubeDB: QueryRunner,
   dataset: Dataset,
+  buildId: string,
   allDataTables: DataTable[],
   factTableDef: string[],
-  dataValuesColumn: FactTableColumn | undefined,
-  notesCodeColumn: FactTableColumn | undefined,
+  dataValuesColumn: FactTableColumn,
+  notesCodeColumn: FactTableColumn,
   factIdentifiers: FactTableColumn[]
 ): Promise<void> {
   for (const dataTable of allDataTables.sort((ftA, ftB) => ftA.uploadedAt.getTime() - ftB.uploadedAt.getTime())) {
@@ -601,31 +568,21 @@ async function loadFactTablesWithUpdates(
       logger.warn('Data table not loaded in to data_tables schema.  Loading data table from blob storage.');
       await loadFileIntoDataTablesSchema(dataset, dataTable);
     }
-
-    let doRevision = false;
-    if (dataValuesColumn && notesCodeColumn && factIdentifiers.length > 0) {
-      doRevision = true;
-    } else {
-      logger.warn(
-        'No notes code or data value columns defined.  Unable to do revise and add/revise actions.  These tables will be skipped.'
-      );
-    }
-
+    const statements: string[] = []
     try {
       logger.debug(`Performing action ${dataTable.action} on fact table for data table ${dataTable.id}`);
       switch (dataTable.action) {
         case DataTableAction.ReplaceAll:
-          await resetFactTable(cubeDB);
-          await loadTableDataIntoFactTableFromPostgres(cubeDB, factTableDef, FACT_TABLE_NAME, dataTable.id);
+          statements.push(await resetFactTable(buildId));
+          await loadTableDataIntoFactTableFromPostgresStatement(cubeDB, factTableDef, FACT_TABLE_NAME, dataTable.id);
           break;
         case DataTableAction.Add:
           await stripExistingProvisionalCodes(cubeDB, notesCodeColumn);
           await stripExistingForecastCodes(cubeDB, notesCodeColumn!);
           await stripExistingRevisionCodes(cubeDB, FACT_TABLE_NAME, notesCodeColumn);
-          await loadTableDataIntoFactTableFromPostgres(cubeDB, factTableDef, FACT_TABLE_NAME, dataTable.id);
+          await loadTableDataIntoFactTableFromPostgresStatement(cubeDB, factTableDef, FACT_TABLE_NAME, dataTable.id);
           break;
         case DataTableAction.Revise:
-          if (!doRevision) continue;
           await createUpdateTable(cubeDB, actionID, dataTable);
           await finaliseValues(
             cubeDB,
@@ -665,7 +622,6 @@ async function loadFactTablesWithUpdates(
           await dropUpdateTable(cubeDB, actionID);
           break;
         case DataTableAction.AddRevise:
-          if (!doRevision) continue;
           await createUpdateTable(cubeDB, actionID, dataTable);
           await finaliseValues(
             cubeDB,
@@ -743,12 +699,11 @@ async function cleanupNotesCodeColumn(cubeDB: QueryRunner, notesCodeColumn: Fact
 }
 
 export async function loadFactTables(
-  cubeDB: QueryRunner,
   dataset: Dataset,
   endRevision: Revision,
   factTableDef: string[],
-  dataValuesColumn: FactTableColumn | undefined,
-  notesCodeColumn: FactTableColumn | undefined,
+  dataValuesColumn: FactTableColumn,
+  notesCodeColumn: FactTableColumn,
   factIdentifiers: FactTableColumn[]
 ): Promise<void> {
   logger.debug('Finding all fact tables for this revision and those that came before');
@@ -763,7 +718,7 @@ export async function loadFactTables(
     });
   } else {
     logger.debug('Must be a draft revision, so we need to find all revisions before this one');
-    // If we don't have a revision index we need to find the previous revision to this one that does
+    // If we don't have a revision index, we need to find the previous revision to this one that does
     if (endRevision.dataTable) {
       logger.debug('Adding end revision to list of fact tables');
       allFactTables.push(endRevision.dataTable);
@@ -783,7 +738,6 @@ export async function loadFactTables(
   try {
     logger.debug(`Loading ${allFactTables.length} fact tables in to database with updates`);
     await loadFactTablesWithUpdates(
-      cubeDB,
       dataset,
       allFactTables.reverse(),
       factTableDef,
@@ -791,9 +745,7 @@ export async function loadFactTables(
       notesCodeColumn,
       factIdentifiers
     );
-    if (notesCodeColumn) {
-      await cleanupNotesCodeColumn(cubeDB, notesCodeColumn);
-    }
+    await cleanupNotesCodeColumn(cubeDB, notesCodeColumn);
   } catch (error) {
     if (error instanceof FactTableValidationException) {
       logger.debug(error, `Throwing Fact Table Validation Exception`);
@@ -1732,6 +1684,7 @@ async function setupDimensions(
 }
 
 interface FactTableInfo {
+  factTableCreationQuery: string;
   measureColumn?: FactTableColumn;
   notesCodeColumn?: FactTableColumn;
   dataValuesColumn?: FactTableColumn;
@@ -1740,12 +1693,7 @@ interface FactTableInfo {
   compositeKey: string[];
 }
 
-export async function createEmptyFactTableInCube(
-  cubeDB: QueryRunner,
-  dataset: Dataset,
-  buildId: string
-): Promise<FactTableInfo> {
-  const start = performance.now();
+export async function setupCubeBuilder(dataset: Dataset, buildId: string): Promise<FactTableInfo> {
   if (!dataset.factTable) {
     throw new Error(`Unable to find fact table for dataset ${dataset.id}`);
   }
@@ -1778,24 +1726,22 @@ export async function createEmptyFactTableInCube(
         field.columnDatatype === 'DOUBLE' ? 'DOUBLE PRECISION' : field.columnDatatype
       );
     });
+  const factTableCreationQuery = pgformat(
+    `CREATE TABLE %I.%I (%s);`,
+    buildId,
+    FACT_TABLE_NAME,
+    factTableCreationDef.join(', ')
+  );
 
-  logger.info('Creating initial fact table in cube');
-  try {
-    const factTableCreationQuery = pgformat(
-      `CREATE TABLE %I.%I (%s);`,
-      buildId,
-      FACT_TABLE_NAME,
-      factTableCreationDef.join(', ')
-    );
-    await cubeDB.query(factTableCreationQuery);
-  } catch (err) {
-    logger.error(err, `Failed to create fact table in cube`);
-    throw new Error(`Failed to create fact table in cube: ${err}`);
-  }
-  const end = performance.now();
-  const timing = Math.round(end - start);
-  logger.debug(`createEmptyFactTableInCube: ${timing}ms`);
-  return { measureColumn, notesCodeColumn, dataValuesColumn, factTableDef, factIdentifiers, compositeKey };
+  return {
+    factTableCreationQuery,
+    measureColumn,
+    notesCodeColumn,
+    dataValuesColumn,
+    factTableDef,
+    factIdentifiers,
+    compositeKey
+  };
 }
 
 export const updateFactTableValidator = async (
@@ -1804,7 +1750,8 @@ export const updateFactTableValidator = async (
   dataset: Dataset,
   revision: Revision
 ): Promise<void> => {
-  const factTableInfo = await createEmptyFactTableInCube(cubeDB, dataset, buildID);
+  const factTableInfo = await setupCubeBuilder(dataset, buildID);
+  await createCubeBaseTables(revision, buildID, factTableInfo.factTableCreationQuery);
   await loadFactTables(
     cubeDB,
     dataset,
@@ -1850,21 +1797,19 @@ async function createPrimaryKeyOnFactTable(
   }
 }
 
-export async function createCubeMetadataTable(cubeDB: QueryRunner, revisionId: string, buildId: string): Promise<void> {
-  logger.debug('Adding metadata table to the cube');
-  await cubeDB.query(`CREATE TABLE IF NOT EXISTS metadata (key VARCHAR, value VARCHAR);`);
-  await cubeDB.query(pgformat('INSERT INTO metadata VALUES (%L, %L);', 'revision_id', revisionId));
-  await cubeDB.query(pgformat('INSERT INTO metadata VALUES (%L, %L);', 'build_id', buildId));
-  await cubeDB.query(pgformat('INSERT INTO metadata VALUES (%L, %L);', 'build_start', new Date().toISOString()));
-  await cubeDB.query(pgformat('INSERT INTO metadata VALUES (%L, %L);', 'build_status', 'incomplete'));
-}
-
-async function createCubeFilterTable(cubeDB: QueryRunner): Promise<void> {
-  const start = performance.now();
-  logger.debug('Creating filter table to the cube');
-  const createFilterQuery = pgformat(
-    `
-      CREATE TABLE %s (
+export async function createCubeBaseTables(revisionId: string, buildId: string, factTableQuery: string): Promise<void> {
+  const statements: string[] = [factTableQuery];
+  statements.push(`CREATE TABLE IF NOT EXISTS %I.metadata (key VARCHAR, value VARCHAR);`);
+  statements.push(pgformat('INSERT INTO %I.metadata VALUES (%L, %L);', 'revision_id', buildId, revisionId));
+  statements.push(pgformat('INSERT INTO %I.metadata VALUES (%L, %L);', 'build_id', buildId, buildId));
+  statements.push(
+    pgformat('INSERT INTO %I.metadata VALUES (%L, %L);', 'build_start', buildId, new Date().toISOString())
+  );
+  statements.push(pgformat('INSERT INTO %I.metadata VALUES (%L, %L);', 'build_status', buildId, 'incomplete'));
+  statements.push(
+    pgformat(
+      `
+      CREATE TABLE %I.%I (
         reference VARCHAR,
         language VARCHAR,
         fact_table_column VARCHAR,
@@ -1874,12 +1819,18 @@ async function createCubeFilterTable(cubeDB: QueryRunner): Promise<void> {
         PRIMARY KEY (reference, language, fact_table_column)
       );
     `,
-    'filter_table'
+      buildId,
+      'filter_table'
+    )
   );
-  await cubeDB.query(createFilterQuery);
-  const end = performance.now();
-  const timing = Math.round(end - start);
-  logger.debug(`createCubeFilterTable: ${timing}ms`);
+  const cubeDB = dbManager.getCubeDataSource().createQueryRunner();
+  try {
+    await cubeDB.query(statements.join('\n'));
+  } catch (err) {
+    logger.error(err, 'Something went wrong creating cube base tables');
+  } finally {
+    cubeDB.release();
+  }
 }
 
 // Builds a fresh cube from either from a protocube or completely from scratch
@@ -1896,14 +1847,12 @@ async function createCubeFilterTable(cubeDB: QueryRunner): Promise<void> {
 // Function should be able to generate a cube just from a fact table or collection
 // of fact tables.
 export const createBasePostgresCube = async (
-  cubeDB: QueryRunner,
   buildId: string,
   dataset: Dataset,
   endRevision: Revision,
   viewConfig: CubeBuilder[]
 ): Promise<void> => {
   logger.debug(`Starting build ${buildId} and Creating base cube for revision ${endRevision.id}`);
-  await cubeDB.query(pgformat(`SET search_path TO %I;`, buildId));
   const functionStart = performance.now();
   const coreCubeViewSelectBuilder = new Map<Locale, string[]>();
   const columnNames = new Map<Locale, Set<string>>();
@@ -1929,21 +1878,36 @@ export const createBasePostgresCube = async (
   }
 
   const buildStart = performance.now();
-  const factTableInfo = await createEmptyFactTableInCube(cubeDB, dataset, buildId);
-  await createCubeMetadataTable(cubeDB, endRevision.id, buildId);
-  await createCubeFilterTable(cubeDB);
+  const factTableInfo = await setupCubeBuilder(dataset, buildId);
+  await createCubeBaseTables(endRevision.id, buildId, factTableInfo.factTableCreationQuery);
   performanceReporting(Math.round(performance.now() - functionStart), 1000, 'Base table creation');
   try {
+    if (factTableInfo.dataValuesColumn && factTableInfo.notesCodeColumn) {
+      await loadFactTables(
+        dataset,
+        endRevision,
+        factTableInfo.factTableDef,
+        factTableInfo.dataValuesColumn,
+        factTableInfo.notesCodeColumn,
+        factTableInfo.factIdentifiers
+      );
+    } else {
+      const loadingQuery = loadTableDataIntoFactTableFromPostgresStatement(
+        buildId,
+        factTableInfo.factTableDef,
+        FACT_TABLE_NAME,
+        endRevision.dataTableId!
+      );
+      const cubeDB = dbManager.getCubeDataSource().createQueryRunner();
+      try {
+        await cubeDB.query(loadingQuery);
+      } catch (err) {
+        logger.error(err, 'Something went wrong trying to execute query');
+      } finally {
+        cubeDB.release();
+      }
+    }
     const loadFactTablesStart = performance.now();
-    await loadFactTables(
-      cubeDB,
-      dataset,
-      endRevision,
-      factTableInfo.factTableDef,
-      factTableInfo.dataValuesColumn,
-      factTableInfo.notesCodeColumn,
-      factTableInfo.factIdentifiers
-    );
     performanceReporting(Math.round(performance.now() - loadFactTablesStart), 1000, 'Loading all the data tables');
   } catch (err) {
     await cubeDB.query(`UPDATE metadata SET value = 'failed' WHERE key = 'build_status'`);
@@ -2043,7 +2007,7 @@ export const createBasePostgresCube = async (
       );
 
       logger.trace(`core cube view SQL: ${coreCubeViewSQL}`);
-      await cubeDB.query(pgformat('CREATE VIEW %I AS %s', `${CORE_VIEW_NAME}_${lang}`, coreCubeViewSQL));
+      await cubeDB.query(pgformat('CREATE VIEW %I AS %s', coreViewName, coreCubeViewSQL));
       await cubeDB.query(pgformat(`INSERT INTO metadata VALUES (%L, %L)`, coreViewName, coreCubeViewSQL));
 
       if (Array.from(columnNames.get(locale)?.values() || []).length > 0) {
