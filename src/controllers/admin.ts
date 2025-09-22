@@ -19,6 +19,8 @@ import { GlobalRole } from '../enums/global-role';
 import { RoleSelectionDTO } from '../dtos/user/role-selection-dto';
 import { UserStatus } from '../enums/user-status';
 import { UserGroupStatus } from '../enums/user-group-status';
+import { DatasetRepository } from '../repositories/dataset';
+import { DashboardStats, DatasetStats } from '../interfaces/dashboard-stats';
 
 export const loadUserGroup = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   const userGroupIdError = await hasError(uuidValidator('user_group_id'), req);
@@ -256,5 +258,17 @@ export const updateUserStatus = async (req: Request, res: Response, next: NextFu
   } catch (err) {
     logger.error(err, 'Error updating user status');
     throw new UnknownException();
+  }
+};
+
+export const dashboard = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    logger.info('Getting dashboard statistics');
+    const datasets: DatasetStats = await DatasetRepository.getDashboardStats();
+    const stats: DashboardStats = { datasets };
+    res.json(stats);
+  } catch (err) {
+    logger.error(err, 'Error getting dashboard statistics');
+    next(new UnknownException());
   }
 };
