@@ -348,12 +348,12 @@ export const DatasetRepository = dataSource.getRepository(Dataset).extend({
     const stats = result[0];
 
     return {
-      incomplete: parseInt(stats.incomplete, 10),
-      pendingApproval: parseInt(stats.pending_approval, 10),
-      published: parseInt(stats.published, 10),
-      archived: parseInt(stats.archived, 10),
-      offline: parseInt(stats.offline, 10),
-      total: parseInt(stats.total, 10)
+      incomplete: Number(stats.incomplete),
+      pendingApproval: Number(stats.pending_approval),
+      published: Number(stats.published),
+      archived: Number(stats.archived),
+      offline: Number(stats.offline),
+      total: Number(stats.total)
     };
   }
 });
