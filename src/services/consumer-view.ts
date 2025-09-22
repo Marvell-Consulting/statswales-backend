@@ -20,7 +20,7 @@ import { getColumnHeaders } from '../utils/column-headers';
 import { t } from 'i18next';
 import cubeConfig from '../config/cube-view.json';
 
-const EXCEL_ROW_LIMIT = 1048576;
+const EXCEL_ROW_LIMIT = 1048500; // Excel Limit is 1048576 but removed 76 rows
 const CURSOR_ROW_LIMIT = 500;
 
 interface FilterValues {
