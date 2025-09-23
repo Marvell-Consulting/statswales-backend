@@ -14,7 +14,8 @@ import {
   createUser,
   updateUserRoles,
   updateUserStatus,
-  updateUserGroupStatus
+  updateUserGroupStatus,
+  dashboard
 } from '../controllers/admin';
 import { ForbiddenException } from '../exceptions/forbidden.exception';
 import { logger } from '../utils/logger';
@@ -33,6 +34,8 @@ adminRouter.use((req, res, next) => {
   logger.info(`user is a service admin`);
   next();
 });
+
+adminRouter.get('/dashboard', dashboard);
 
 adminRouter.get('/role', listRoles);
 
