@@ -24,6 +24,7 @@ import { RevisionMetadata } from './revision-metadata';
 import { RevisionProvider } from './revision-provider';
 import { RevisionTopic } from './revision-topic';
 import { UpdateFrequencyDTO } from '../../dtos/update-frequency-dto';
+import { BuildLog } from './builds-log';
 
 @Entity({ name: 'revision', orderBy: { createdAt: 'ASC' } })
 export class Revision extends BaseEntity {
@@ -108,6 +109,9 @@ export class Revision extends BaseEntity {
 
   @OneToMany(() => RevisionTopic, (revisionTopic) => revisionTopic.revision, { cascade: true })
   revisionTopics: RevisionTopic[];
+
+  @OneToMany(() => BuildLog, (build) => build.revision, { cascade: true })
+  builds: BuildLog[];
 
   @Column({
     name: 'cube_type',

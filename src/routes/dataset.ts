@@ -2,12 +2,7 @@ import 'reflect-metadata';
 
 import express, { Router } from 'express';
 
-import {
-  downloadCubeAsCSV,
-  downloadCubeAsExcel,
-  downloadCubeAsJSON,
-  downloadCubeAsParquet
-} from '../controllers/cube-controller';
+import { downloadCubeAsCSV, downloadCubeAsExcel, downloadCubeAsJSON } from '../controllers/cube-controller';
 import {
   addDataProvider,
   createDataset,
@@ -88,9 +83,14 @@ datasetRouter.get('/:dataset_id/cube/json', downloadCubeAsJSON);
 // Returns a CSV file representation of the default view of the cube
 datasetRouter.get('/:dataset_id/cube/csv', downloadCubeAsCSV);
 
+// GET /dataset/:dataset_id/cube/excel
+// Returns a CSV file representation of the default view of the cube
+datasetRouter.get('/:dataset_id/cube/excel', downloadCubeAsExcel);
+
+// Disabled until we enable parquet again
 // GET /dataset/:dataset_id/cube/parquet
 // Returns a CSV file representation of the default view of the cube
-datasetRouter.get('/:dataset_id/cube/parquet', downloadCubeAsParquet);
+// datasetRouter.get('/:dataset_id/cube/parquet', downloadCubeAsParquet);
 
 // GET /dataset/:dataset_id/cube/excel
 // Returns a CSV file representation of the default view of the cube

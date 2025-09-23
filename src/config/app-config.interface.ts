@@ -94,8 +94,11 @@ export interface AppConfig {
     port: number;
     timeout: number;
   };
+  cube_builder: {
+    preserve_failed: boolean;
+  };
 }
 
 // list any optional properties here so we can ignore missing values when we check the config on boot
 // it would be nice to get them directly from the interface, but interfaces are compile-time only
-export const optionalProperties = ['redisUrl', 'redisPassword', 'entraid', 'blob', 'datalake'];
+export const optionalProperties = ['redisUrl', 'redisPassword', 'entraid', 'blob', 'datalake', 'cube_builder'];
