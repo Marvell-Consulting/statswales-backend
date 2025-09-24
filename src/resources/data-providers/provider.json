@@ -112,7 +112,7 @@
   {
     "id": "22302aa2-de03-42ba-a87a-2b6e42043532",
     "language": "cy-gb",
-    "name": "Wasanaethau Deintyddol Cymunedol"
+    "name": "Gwasanaethau Deintyddol Cymunedol"
   },
   {
     "id": "22302aa2-de03-42ba-a87a-2b6e42043532",
@@ -142,7 +142,7 @@
   {
     "id": "38f6b745-84bf-4264-a95a-d43c81bf375c",
     "language": "cy-gb",
-    "name": "Adran Drafnidiaeth"
+    "name": "Yr Adran Drafnidiaeth"
   },
   {
     "id": "38f6b745-84bf-4264-a95a-d43c81bf375c",
@@ -462,7 +462,7 @@
   {
     "id": "d3620b5d-be93-44f7-9289-fe3bf50e78f3",
     "language": "cy-gb",
-    "name": "Swyddfa Ystadegau Gwladol (SYG)"
+    "name": "Y Swyddfa Ystadegau Gwladol (y SYG)"
   },
   {
     "id": "d3620b5d-be93-44f7-9289-fe3bf50e78f3",
@@ -558,5 +558,55 @@
     "id": "fdb0eba8-8e65-4cfc-82a4-bbe6f72baf6d",
     "language": "en-gb",
     "name": "NHS Organisations"
+  },
+  {
+    "id": "41b88fa5-c4d7-4776-ab2f-69442d304fd4",
+    "language": "cy-gb",
+    "name": "NEC Software Solutions UK"
+  },
+  {
+    "id": "41b88fa5-c4d7-4776-ab2f-69442d304fd4",
+    "language": "en-gb",
+    "name": "NEC Software Solutions UK"
+  },
+  {
+    "id": "eb478b4c-cf09-46d3-9a1f-7c0a33caa239",
+    "language": "cy-gb",
+    "name": "Prifysgol Caergrawnt"
+  },
+  {
+    "id": "eb478b4c-cf09-46d3-9a1f-7c0a33caa239",
+    "language": "en-gb",
+    "name": "University of Cambridge"
+  },
+  {
+    "id": "d8cbd146-c634-4c69-9dee-44195b5cf855",
+    "language": "cy-gb",
+    "name": "NHS England"
+  },
+  {
+    "id": "d8cbd146-c634-4c69-9dee-44195b5cf855",
+    "language": "en-gb",
+    "name": "NHS England"
+  },
+  {
+    "id": "411cf0b8-419f-42a9-94e4-49968c527c5c",
+    "language": "cy-gb",
+    "name": "Addysg a Gwella Iechyd Cymru"
+  },
+  {
+    "id": "411cf0b8-419f-42a9-94e4-49968c527c5c",
+    "language": "en-gb",
+    "name": "Health Education and Improvement Wales (HEIW)"
+  },
+  {
+    "id": "957edc2c-0234-4a04-a15d-758da2105c49",
+    "language": "cy-gb",
+    "name": "Awdurdodau Lleol"
+  },
+  {
+    "id": "957edc2c-0234-4a04-a15d-758da2105c49",
+    "language": "en-gb",
+    "name": "Local Authorities"
   }
 ]
