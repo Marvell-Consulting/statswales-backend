@@ -2216,14 +2216,14 @@
     "language": "cy-gb",
     "sw2_id": 10144,
     "name": "Cofnod staff electronig y GIG",
-    "provider_id": "628f74d9-feea-4cee-92d2-62a16e3194cc"
+    "provider_id": "411cf0b8-419f-42a9-94e4-49968c527c5c"
   },
   {
     "id": "9339aeac-5ac2-4956-93f8-b96f8c98a704",
     "language": "en-gb",
     "sw2_id": 10144,
     "name": "NHS electronic staff record",
-    "provider_id": "628f74d9-feea-4cee-92d2-62a16e3194cc"
+    "provider_id": "411cf0b8-419f-42a9-94e4-49968c527c5c"
   },
   {
     "id": "94713585-7fa4-4f82-b356-3e76042acb6e",
@@ -4357,13 +4357,13 @@
     "id": "b55abfc6-5979-4a9b-99f3-e6e90e5df229",
     "language": "cy-gb",
     "name": "System Ganolog Taliadau Offthalmig",
-    "provider_id": "9a091390-9ed4-4b94-a09f-9dcd5ed20f4b"
+    "provider_id": "d8cbd146-c634-4c69-9dee-44195b5cf855"
   },
   {
     "id": "b55abfc6-5979-4a9b-99f3-e6e90e5df229",
     "language": "en-gb",
     "name": "Central Ophthalmic Payments system",
-    "provider_id": "9a091390-9ed4-4b94-a09f-9dcd5ed20f4b"
+    "provider_id": "d8cbd146-c634-4c69-9dee-44195b5cf855"
   },
   {
     "id": "f31af120-6206-4691-b18a-5ac01de612a1",
