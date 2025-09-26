@@ -12,7 +12,7 @@ import {
   sendDimensionPreview,
   updateDimension,
   updateDimensionMetadata
-} from '../controllers/dimension-controller';
+} from '../controllers/dimension';
 import { dimensionIdValidator, hasError } from '../validators';
 import { NotFoundException } from '../exceptions/not-found.exception';
 import { DimensionRepository } from '../repositories/dimension';

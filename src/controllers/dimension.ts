@@ -193,8 +193,11 @@ export const updateDimension = async (req: Request, res: Response, next: NextFun
         );
     }
 
-    if ((preview as ViewErrDTO).errors) {
+    if ((preview as ViewErrDTO).status >= 400) {
+      logger.error('An error occurred trying to handle dimension matching');
       res.status((preview as ViewErrDTO).status);
+      res.json(preview);
+      return;
     } else {
       await updateRevisionTasks(dataset, dimension.id, 'dimension');
       try {
