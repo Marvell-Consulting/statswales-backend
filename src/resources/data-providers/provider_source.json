@@ -4472,5 +4472,17 @@
     "language": "en-gb",
     "name": "Database for Epidemiological data on Visual Impairment Certificates (DEVICE)",
     "provider_id": "9a091390-9ed4-4b94-a09f-9dcd5ed20f4b"
+  },
+  {
+    "id": "507e6fe0-3a8b-462f-86de-65ea48d0f3d1",
+    "language": "cy-gb",
+    "name": "COVER report",
+    "provider_id": "c1a54357-9324-4d9f-8d60-07241440eb8d"
+  },
+  {
+    "id": "507e6fe0-3a8b-462f-86de-65ea48d0f3d1",
+    "language": "en-gb",
+    "name": "adroddiad COVER",
+    "provider_id": "c1a54357-9324-4d9f-8d60-07241440eb8d"
   }
 ]
