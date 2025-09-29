@@ -4476,13 +4476,13 @@
   {
     "id": "507e6fe0-3a8b-462f-86de-65ea48d0f3d1",
     "language": "cy-gb",
-    "name": "COVER report",
+    "name": "adroddiad COVER",
     "provider_id": "c1a54357-9324-4d9f-8d60-07241440eb8d"
   },
   {
     "id": "507e6fe0-3a8b-462f-86de-65ea48d0f3d1",
     "language": "en-gb",
-    "name": "adroddiad COVER",
+    "name": "COVER report",
     "provider_id": "c1a54357-9324-4d9f-8d60-07241440eb8d"
   }
 ]
