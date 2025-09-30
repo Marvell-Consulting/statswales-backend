@@ -15,6 +15,7 @@ import { FactTableColumn } from '../entities/dataset/fact-table-column';
 import { FactTableColumnType } from '../enums/fact-table-column-type';
 import { User } from '../entities/user/user';
 import { getUserGroupIdsForUser } from '../utils/get-permissions-for-user';
+import { DatasetStats } from '../interfaces/dashboard-stats';
 
 export const withStandardPreview: FindOptionsRelations<Dataset> = {
   createdBy: true,
@@ -293,5 +294,65 @@ export const DatasetRepository = dataSource.getRepository(Dataset).extend({
     const dataset = await this.getById(datasetId);
     dataset.archivedAt = null;
     return await this.save(dataset);
+  },
+
+  async getDashboardStats(): Promise<DatasetStats> {
+    logger.debug('Getting dashboard statistics for datasets');
+
+    // Use a raw query to get all the counts in one go, based on the same logic as listAllQuery
+    const result = await this.query(`
+      WITH dataset_stats AS (
+        SELECT
+          d.id,
+          CASE
+            WHEN d.archived_at IS NOT NULL AND d.archived_at < NOW() THEN 'archived'
+            WHEN pr.unpublished_at IS NOT NULL AND pr.unpublished_at < NOW() THEN 'offline'
+            WHEN d.first_published_at IS NOT NULL AND d.first_published_at < NOW() THEN 'live'
+            ELSE 'new'
+          END as status,
+          CASE
+            WHEN d.first_published_at IS NOT NULL AND t.action = 'publish' AND t.status = 'requested' THEN 'update_pending_approval'
+            WHEN t.action = 'publish' AND t.status = 'requested' THEN 'pending_approval'
+            WHEN t.action = 'publish' AND t.status = 'rejected' THEN 'changes_requested'
+            WHEN t.action = 'unpublish' AND t.status = 'requested' THEN 'unpublish_requested'
+            WHEN t.action = 'archive' AND t.status = 'requested' THEN 'archive_requested'
+            WHEN t.action = 'unarchive' AND t.status = 'requested' THEN 'unarchive_requested'
+            WHEN pr.unpublished_at IS NOT NULL AND pr.unpublished_at < NOW() THEN 'unpublished'
+            WHEN d.first_published_at IS NOT NULL AND d.first_published_at < NOW() AND r.approved_at IS NOT NULL AND r.publish_at < NOW() THEN 'published'
+            WHEN d.first_published_at IS NOT NULL AND d.first_published_at < NOW() AND r.approved_at IS NOT NULL AND r.publish_at > NOW() THEN 'update_scheduled'
+            WHEN d.first_published_at IS NOT NULL AND d.first_published_at > NOW() AND r.approved_at IS NOT NULL AND r.publish_at > NOW() THEN 'scheduled'
+            WHEN d.first_published_at IS NOT NULL AND d.first_published_at < NOW() AND r.approved_at IS NULL THEN 'update_incomplete'
+            WHEN d.first_published_at IS NULL AND r.approved_at IS NULL THEN 'incomplete'
+            ELSE 'incomplete'
+          END as publishing_status
+        FROM dataset d
+        INNER JOIN (
+          SELECT DISTINCT ON (rev.dataset_id) rev.*
+          FROM revision rev
+          ORDER BY rev.dataset_id, rev.created_at DESC
+        ) r ON r.dataset_id = d.id
+        LEFT JOIN revision pr ON d.published_revision_id = pr.id
+        LEFT JOIN task t ON d.id = t.dataset_id AND t.open = true
+      )
+      SELECT
+        COUNT(*) as total,
+        COUNT(*) FILTER (WHERE publishing_status = 'published') as published,
+        COUNT(*) FILTER (WHERE status = 'archived') as archived,
+        COUNT(*) FILTER (WHERE status = 'offline') as offline,
+        COUNT(*) FILTER (WHERE publishing_status = 'incomplete') as incomplete,
+        COUNT(*) FILTER (WHERE publishing_status = 'pending_approval' OR publishing_status = 'update_pending_approval') as pending_approval
+      FROM dataset_stats
+    `);
+
+    const stats = result[0];
+
+    return {
+      incomplete: Number(stats.incomplete),
+      pendingApproval: Number(stats.pending_approval),
+      published: Number(stats.published),
+      archived: Number(stats.archived),
+      offline: Number(stats.offline),
+      total: Number(stats.total)
+    };
   }
 });

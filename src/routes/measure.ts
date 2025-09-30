@@ -10,7 +10,7 @@ import {
   getPreviewOfMeasure,
   resetMeasure,
   updateMeasureMetadata
-} from '../controllers/measure-controller';
+} from '../controllers/measure';
 import { fileStreaming } from '../middleware/file-streaming';
 
 const jsonParser = express.json();

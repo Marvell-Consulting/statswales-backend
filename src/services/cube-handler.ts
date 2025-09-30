@@ -23,7 +23,7 @@ import { FindOptionsRelations } from 'typeorm';
 import { DatasetRepository } from '../repositories/dataset';
 import cubeConfig from '../config/cube-view.json';
 import { CubeBuildStatus } from '../enums/cube-build-status';
-import { BuildLog } from '../entities/dataset/builds-log';
+import { BuildLog } from '../entities/dataset/build-log';
 import { CubeBuildType } from '../enums/cube-build-type';
 import { appConfig } from '../config';
 
@@ -39,7 +39,8 @@ export const CORE_VIEW_NAME = 'core_view';
 export const createAllCubeFiles = async (
   datasetId: string,
   buildRevisionId: string,
-  buildType = CubeBuildType.FullCube
+  buildType = CubeBuildType.FullCube,
+  buildId = crypto.randomUUID()
 ): Promise<void> => {
   const datasetRelations: FindOptionsRelations<Dataset> = {
     factTable: true,
@@ -77,7 +78,8 @@ export const createAllCubeFiles = async (
     } as CubeViewBuilder;
   });
   logger.debug(`Build type = ${buildType}`);
-  const build = await BuildLog.startBuild(buildRevision, buildType);
+
+  const build = await BuildLog.startBuild(buildRevision, buildType, buildId);
 
   const createBuildSchemaRunner = dbManager.getCubeDataSource().createQueryRunner();
   try {
@@ -117,7 +119,7 @@ export const createAllCubeFiles = async (
   }
 
   build.status = CubeBuildStatus.SchemaRename;
-  // await build.save();
+  await build.save();
   const createRenameSchemaRunner = dbManager.getCubeDataSource().createQueryRunner();
   const renameStatements = [
     'BEGIN TRANSACTION;',
@@ -133,7 +135,7 @@ export const createAllCubeFiles = async (
     build.buildScript = [build.buildScript, ...renameStatements].join('\n');
     build.errors = JSON.stringify(err);
     build.completedAt = new Date();
-    // await build.save();
+    await build.save();
     logger.error(err, 'Failed to create cube in Postgres');
     throw err;
   } finally {
@@ -141,7 +143,7 @@ export const createAllCubeFiles = async (
   }
 
   build.status = CubeBuildStatus.Materializing;
-  // await build.save();
+  await build.save();
   // don't wait for this, can happen in the background so we can send the response earlier
   logger.debug('Running async process...');
   void createMaterialisedView(buildRevisionId, dataset, build, cubeBuild, cubeBuildConfig);
@@ -261,7 +263,7 @@ async function createBasePostgresCube(
       build.buildScript = attemptedBuildScript.join('\n');
       build.status = CubeBuildStatus.Failed;
       build.completedAt = new Date();
-      // await build.save();
+      await build.save();
       if (block.buildStage === BuildStage.BaseTables) {
         logger.fatal(err, `Unable to create base tables for build ${build.id}, has the database failed?`);
       } else {
@@ -284,13 +286,13 @@ async function createBasePostgresCube(
       }
       throw err;
     } finally {
-      cubeDB.release();
+      void cubeDB.release();
     }
   }
 
   build.status = CubeBuildStatus.Materializing;
   build.buildScript = fullBuildScript.join('\n');
-  // await build.save();
+  await build.save();
 
   const end = performance.now();
   const functionTime = Math.round(end - functionStart);
@@ -310,7 +312,7 @@ async function createMaterialisedView(
   logger.info(`Creating default views...`);
   const viewCreation = performance.now();
 
-  const statements: string[] = [];
+  const statements: string[] = ['START TRANSACTION;'];
 
   // Build the default views
   for (const locale of SUPPORTED_LOCALES) {
@@ -319,7 +321,12 @@ async function createMaterialisedView(
     const originalCoreViewSQL =
       cubeBuilder.coreViewSQL.get(locale) || pgformat('SELECT * FROM %I.%I;', revisionId, FACT_TABLE_NAME);
     statements.push(
-      pgformat('CREATE MATERIALIZED VIEW %I.%I AS %s;', revisionId, materializedViewName, originalCoreViewSQL)
+      pgformat(
+        'CREATE MATERIALIZED VIEW %I.%I AS %s;',
+        revisionId,
+        materializedViewName,
+        originalCoreViewSQL.replaceAll(build.id, revisionId)
+      )
     );
     statements.push(...createViewsFromConfig(revisionId, materializedViewName, locale, viewConfig, dataset.factTable!));
     statements.push(pgformat('DROP VIEW %I.%I;', revisionId, `${CORE_VIEW_NAME}_${lang}`));
@@ -351,15 +358,16 @@ async function createMaterialisedView(
   }
   statements.push('END TRANSACTION;');
 
-  const fullBuildScript: string[] = [];
+  const fullBuildScriptArr: string[] = [];
   for (const blk of cubeBuilder.transactionBlocks) {
-    fullBuildScript.push(...blk.statements);
+    fullBuildScriptArr.push(...blk.statements);
   }
+  const buildStatements = statements.join('\n').replaceAll(build.id, revisionId);
 
   const cubeDB = dbManager.getCubeDataSource().createQueryRunner();
   try {
-    logger.trace(`Running query:\n\n${statements.join('\n')}\n\n`);
-    await cubeDB.query(statements.join('\n'));
+    logger.trace(`Running query:\n\n${buildStatements}\n\n`);
+    await cubeDB.query(buildStatements);
   } catch (error) {
     try {
       const errorStatements = [
@@ -371,17 +379,25 @@ async function createMaterialisedView(
         ),
         pgformat('UPDATE %I.metadata SET value = %L WHERE key = %L;', revisionId, error, CubeMetaDataKeys.BuildResults)
       ];
-      fullBuildScript.push(...errorStatements);
+      fullBuildScriptArr.push(...errorStatements);
       await cubeDB.query(errorStatements.join('\n'));
     } catch (err) {
       logger.error(err, 'Apparently cube no longer exists');
     }
-
     performanceReporting(Math.round(performance.now() - viewCreation), 3000, 'Setting up the materialized views');
     logger.error(error, 'Something went wrong trying to create the materialized views in the cube.');
+    build.status = CubeBuildStatus.Failed;
+    build.completedAt = new Date();
+    build.errors = JSON.stringify(error);
+    build.buildScript = fullBuildScriptArr.join('\n');
+    void build.save();
   } finally {
-    cubeDB.release();
+    void cubeDB.release();
   }
+  build.status = CubeBuildStatus.Completed;
+  build.completedAt = new Date();
+  build.buildScript = fullBuildScriptArr.join('\n');
+  void build.save();
   performanceReporting(Math.round(performance.now() - viewCreation), 3000, 'Setting up the materialized views');
 }
 
@@ -1231,13 +1247,14 @@ function setupMeasureAndDataValuesNoLookup(
     );
     statements.push(
       pgformat(
-        `INSERT INTO %I.filter_table SELECT DISTINCT CAST(%I AS VARCHAR), %L, %L, %L, CAST(%I AS VARCHAR), null FROM %I ORDER BY %I;`,
+        `INSERT INTO %I.filter_table SELECT DISTINCT CAST(%I AS VARCHAR), %L, %L, %L, CAST(%I AS VARCHAR), null FROM %I.%I ORDER BY %I;`,
         buildId,
         measureColumn.columnName,
         locale.toLowerCase(),
         measureColumn.columnName,
         measureColumnName,
         measureColumn.columnName,
+        buildId,
         FACT_TABLE_NAME,
         measureColumn.columnName
       )
@@ -1253,9 +1270,12 @@ function setupMeasureAndDataValuesNoLookup(
 
 export const measureTableCreateStatement = (
   joinColumnType: string,
-  tableName = 'measure',
-  buildId?: string
+  buildId?: string,
+  tableName = 'measure'
 ): string => {
+  if (buildId) {
+    tableName = pgformat('%I.%I', buildId, tableName);
+  }
   return pgformat(
     `
     CREATE TABLE %s (
@@ -1270,7 +1290,7 @@ export const measureTableCreateStatement = (
       hierarchy %s
     );
   `,
-    buildId ? pgformat('%I.%I', buildId, tableName) : pgformat('%I', tableName),
+    tableName,
     joinColumnType,
     joinColumnType
   );
@@ -1282,7 +1302,7 @@ export function createMeasureLookupTable(
   measureTable: MeasureRow[]
 ): string[] {
   const statements: string[] = [];
-  statements.push(measureTableCreateStatement(buildId, measureColumn.columnDatatype));
+  statements.push(measureTableCreateStatement(measureColumn.columnDatatype, buildId));
   for (const row of measureTable) {
     const values = [
       row.reference,
@@ -1295,7 +1315,7 @@ export function createMeasureLookupTable(
       row.measureType ? row.measureType : null,
       row.hierarchy ? row.hierarchy : null
     ];
-    statements.push(pgformat('INSERT INTO %I.measure VALUES (%L)', buildId, values));
+    statements.push(pgformat('INSERT INTO %I.measure VALUES (%L);', buildId, values));
   }
   return statements;
 }
@@ -1471,7 +1491,8 @@ function setupMeasureAndDataValuesWithLookup(
   });
   joinStatements.push(
     pgformat(
-      'LEFT JOIN measure on measure.reference=%I.%I AND measure.language=#LANG#',
+      'LEFT JOIN %I.measure on measure.reference=%I.%I AND measure.language=#LANG#',
+      buildId,
       FACT_TABLE_NAME,
       measureColumn.columnName
     )
@@ -1481,9 +1502,11 @@ function setupMeasureAndDataValuesWithLookup(
     const columnName = t('column_headers.measure', { lng: locale });
     statements.push(
       pgformat(
-        `INSERT INTO filter_table SELECT CAST(reference AS VARCHAR), language, %L, %L, description, CAST(hierarchy AS VARCHAR) FROM measure WHERE language = %L ORDER BY sort_order, reference`,
+        `INSERT INTO %I.filter_table SELECT CAST(reference AS VARCHAR), language, %L, %L, description, CAST(hierarchy AS VARCHAR) FROM %I.measure WHERE language = %L ORDER BY sort_order, reference;`,
+        buildId,
         measureColumn.columnName,
         columnName,
+        buildId,
         locale.toLowerCase()
       )
     );
@@ -1636,7 +1659,16 @@ function setupLookupTableDimension(
     }
   });
   joinStatements.push(
-    `LEFT JOIN "${dimTable}" on "${dimTable}"."${factTableColumn.columnName}"=${FACT_TABLE_NAME}."${factTableColumn.columnName}" AND "${dimTable}".language=#LANG#`
+    pgformat(
+      `LEFT JOIN %I.%I on %I.%I=%I.%I AND %I.language=#LANG#`,
+      buildId,
+      dimTable,
+      dimTable,
+      factTableColumn.columnName,
+      FACT_TABLE_NAME,
+      factTableColumn.columnName,
+      dimTable
+    )
   );
 
   orderByStatements.push(`"${dimTable}".sort_order`);
@@ -1651,7 +1683,7 @@ function setupLookupTableDimension(
               CAST(%I AS VARCHAR) AS reference, language, %L AS fact_table_column, %L AS dimension_name, description, hierarchy, sort_order
             FROM %I.%I
             WHERE language = %L
-            ORDER BY sort_order, description)`,
+            ORDER BY sort_order, description);`,
         buildId,
         dimension.factTableColumn,
         dimension.factTableColumn,

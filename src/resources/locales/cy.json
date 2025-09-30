@@ -1,83 +1,102 @@
 {
-  "greeting": "Helo",
-  "alpha": "Alffa",
   "menu": "Dewislen",
-  "upload-csv": "Lanlwythwch ffeil CSV",
-  "list-data-files": "Rhestrwch y Ffeiliau Data",
-  "feedback": "Mae hwn yn wasanaeth newydd – bydd eich adborth yn ein helpu i'w wella.",
-  "share-page": "Rhannu'r dudalen hon",
-  "top-of-page": "Yn ôl i frig y dudalen",
+  "upload-csv": "Lanlwytho CSV",
+  "list-data-files": "Rhestru Ffeiliau Data",
+  "feedback": "Gwasanaeth newydd yw hwn – bydd eich adborth yn ein helpu i’w wella.",
+  "share-page": "Rhannu’r dudalen hon",
+  "top-of-page": "Yn ôl i’r brig",
   "status-field": "statws",
-  "app-running": "Mae'r ap yn rhedeg",
-  "health-notes": "Ehangu'r pwynt terfyn i wirio am gysylltiad â chronfa ddata a gwasanaethau eraill.",
-  "datalake-error": "Gwall wrth gysylltu â'r Llyn Data",
+  "app-running": "Mae’r ap yn rhedeg",
+  "health-notes": "Ehangu’r pwynt terfyn i wirio’r cysylltiad â chronfeydd data a gwasanaethau eraill.",
+  "datalake-error": "Methwyd â chysylltu er mwyn cael Llyn data",
   "pagination": {
     "previous": "Blaenorol",
     "next": "Nesaf",
-    "update": "Diweddariad"
+    "update": "Diweddaru"
   },
   "homepage": {
-    "title": "Croeso i Alffa StatsCymru",
-    "welcome": "Rydym yn mynd i ddefnyddio system Ddylunio GovUK nes y gallwn gael gafael ar GEL Llywodraeth Cymru",
-    "apitext": "Gallwch weld ein api trwy droi at "
+    "title": "Croeso i StatsCymru Alffa",
+    "welcome": "Rydym yn mynd i ddefnyddio system Ddylunio GovUK nes byddwn yn gallu cael gafael ar GEL Llywodraeth Cymru",
+    "apitext": "Gallwch weld ein api yn"
   },
   "upload": {
-    "title": "Lanlwythwch ffeil CSV",
-    "description": "Lanlwythwch ffeil CSV i'r llyn data",
-    "datasetName": "Enw'r Set Ddata",
-    "selectCSV": "Dewiswch ffeil CSV",
-    "uploadBtn": "Lanlwythwch ffeil CSV"
+    "title": "Lanlwytho ffeil CSV",
+    "description": "Lanlwytho ffeil CSV i’r llyn data",
+    "datasetName": "Enw’r Set Ddata",
+    "datasetDescription": "Disgrifiad o’r Set Ddata",
+    "selectCSV": "Dewis ffeil CSV",
+    "uploadBtn": "Lanlwytho CSV"
   },
   "errors": {
+    "unknown_error": "Mae gwall anhysbys wedi digwydd",
     "missing": "Enw ffeil ar Goll",
     "problem": "Mae problem wedi codi",
-    "name_missing": "Ni ddarparwyd enw set ddata",
+    "name_missing": "Mae Enw’r Set Ddata ar Goll",
+    "page_size": "Rhaid i faint y dudalen fod rhwng {{min_page_size}} a {{max_page_size}}",
+    "page_number_to_high": "Rhaid i rif y dudalen fod yn llai na {{page_number}} neu’n {{page_number}} tudalen",
+    "page_number_to_low": "Rhaid i rif y dudalen fod yn fwy na 0",
+    "no_datafile": "Nid oes ffeil ddata wedi’i hatodi i’r Set ddata",
+    "download_from_filestore": "Gwall wrth lawrlwytho’r ffeil o’r storfa ffeiliau",
     "upload": {
-      "no_title": "Nid yw teitl ar gyfer y set ddata wedi’i ddarparu (GPT)",
-      "no-csv": "Ni ddarparwyd data CSV",
-      "no-csv-data": "Nid oes data CSV ar gael"
+      "no_title": "Ni ddarparwyd teitl ar gyfer y set ddata",
+      "no_csv": "Ni ddarparwyd data CSV"
     },
-    "page_size": "Rhaid i faint y dudalen fod rhwng {{min_page_size}} a {{max_page_size}} (GPT)",
-    "page_number_to_high": "Rhaid i rif y dudalen fod yn llai na neu'n hafal i {{page_number}} (GPT)",
-    "page_number_to_low": "Rhaid i rif y dudalen fod yn fwy na 0 (GPT)",
-    "no_datafile": "Dim ffeil data ynghlwm wrth Set Ddata (GPT)",
-    "download_from_filestore": "Gwall wrth lawrlwytho ffeil o'r llyn data (GPT)"
+    "dataset_id_invalid": "Mae id y set ddata yn annilys neu ar goll",
+    "revision_id_invalid": "Mae’r id diwygio yn annilys neu ar goll",
+    "provider_id_invalid": "Mae’r id darparwr yn annilys neu ar goll",
+    "fact_table_id_invalid": "Mae’r id mewngludo yn annilys neu ar goll",
+    "lookup_table_id_invalid": "Mae’r id mewngludo yn annilys neu ar goll",
+    "dimension_id_invalid": "Mae’r id dimensiwn yn annilys neu ar goll",
+    "info_update_error": "Ni fu modd diweddaru gwybodaeth y set ddata",
+    "no_dataset": "Set ddata heb ei chanfod",
+    "no_revision": "Diwygiad heb ei ganfod ar gyfer y set ddata",
+    "no_file_import": "Mewngludiad heb ei ganfod ar gyfer y set ddata",
+    "upload_error": "Gwall wrth lanlwytho’r ffeil",
+    "move_file_error": "Gwall wrth symud y ffeil o storfa blob dros dro i’r Llyn Data.  Rhowch gynnig arall ar hyn.",
+    "too_many_data_values": "Dim ond un ffynhonnell GwerthoeddData y gellir ei nodi",
+    "too_many_footnotes": "Dim ond un ffynhonnell Troednodyn y gellir ei nodi",
+    "invalid_source_type": "Math o ffynhonnell annilys",
+    "invalid_source_assignment": "Nid oedd modd neilltuo mathau ffynhonnell i’r mewngludiad",
+    "tasklist_error": "Roedd problem wrth greu cyflwr y rhestr dasgau",
+    "import_location_not_supported": "Lleoliad mewngludo heb ei gynnal",
+    "remove_file": "Gwall wrth symud y ffeil o’r storfa blob dros dro",
+    "invalid_dto": "Gwrthrych cais annilys",
+    "revision_already_approved": "Ni ellir newid y dyddiad cyhoeddi ar gyfer diwygiad a gymeradwywyd yn barod",
+    "publish_at": {
+      "invalid": "Mae cyhoeddi ar yn annilys neu ar goll",
+      "in_past": "Ni all cyhoeddi ar fod yn y gorffennol"
+    },
+    "translation_file": {
+      "invalid": "Nid yw’r allweddi ffeil cyfieithu a lanlwythwyd yn cyfateb â’r ffeil a allgludwyd"
+    }
   },
-  "dimensionInfo": {
+  "dimension_info": {
     "footnotes": {
-      "title": "Nodiadau traed (GPT)",
-      "description": "Nodiadau traed ar gyfer y data (GPT)"
+      "title": "Troednodion",
+      "description": "Troednodion ar gyfer y data"
     }
   },
   "list": {
-    "title": "Dangos y Data"
+    "title": "Dangos Data"
   },
   "display": {
-    "title": "Dangos Data ar gyfer"
+    "title": "Yn dangos Data ar gyfer",
+    "description": "Disgrifiad:"
   },
   "api": {
-    "available": "Mae'r API ar gael"
+    "available": "Mae API ar gael"
   },
-  "header": {},
   "footer": {
     "support-link": "Dolenni Cymorth",
     "project-reports": "Adroddiadau Prosiect",
     "github-repo": "Storfa GitHub",
     "help": "Help",
     "cookies": "Cwcis",
-    "contact": "Cysylltu",
+    "contact": "Cyswllt",
     "terms": "Amodau a thelerau",
-    "copyright-notice": "Mae'r holl gynnwys ar gael dan <a class=\"govuk-footer__link\" href=\"https://www.nationalarchives.gov.uk/doc/open-government-licence/version/3/\" rel=\"license\">Open Government Licence v3.0</a>, ac eithrio lle y nodir fel arall",
+    "copyright-notice": "Mae’r holl gynnwys ar gael dan <a class=\"govuk-footer__link\" href=\"https://www.nationalarchives.gov.uk/doc/open-government-licence/version/3/\" rel=\"license\">Open Government Licence v3.0</a>, ac eithrio lle y nodir fel arall",
     "crown-copyright": "© Hawlfraint y Goron",
     "welsh-gov": "Llywodraeth Cymru"
-  },
-  "column_headers": {
-    "data_values": "Gwerthoedd Data",
-    "note_codes": "Codau Nodyn",
-    "start_date": "Dyddiad Cychwyn",
-    "end_date": "Dyddiad Gorffen",
-    "notes": "Nodiadau",
-    "measure": "Mesur"
   },
   "routes": {
     "healthcheck": "gwiriad iechyd",
@@ -85,21 +104,53 @@
     "list": "rhestr",
     "data": "data"
   },
+  "column_headers": {
+    "data_values": "Gwerthoedd data",
+    "measure": "Disgrifiad o’r data",
+    "note_codes": "Codau nodiadau",
+    "start_date": "Dyddiad cychwyn",
+    "end_date": "Dyddiad gorffen",
+    "notes": "Nodiadau",
+    "annotated": "anodedig",
+    "formatted": "fformatiwyd",
+    "reference": "cyfeiriad",
+    "hierarchy": "hierarchiaeth",
+    "sort": "didoli"
+  },
+  "note_codes": {
+    "average": "Cyfartaledd",
+    "break_in_series": "Cyfres toriad mewn amser",
+    "confidential": "Cyfrinachol",
+    "estimated": "Amcangyfrifedig",
+    "forecast": "Rhagolwg",
+    "low_figure": "Ffigwr Isel",
+    "not_statistically_significant": "Ddim yn arwyddocaol yn ystadegol",
+    "provisional": "Amodol",
+    "revised": "Diwygiedig",
+    "statistically_significant_at_level_1": "Yn arwyddocaol yn ystadegol ar lefel 5% neu 0.05",
+    "statistically_significant_at_level_2": "Yn arwyddocaol yn ystadegol ar lefel 1% neu 0.01",
+    "statistically_significant_at_level_3": "Yn arwyddocaol yn ystadegol ar lefel 0.1% neu 0.001",
+    "total": "Cyfanswm",
+    "low_reliability": "Dibynadwyedd Isel",
+    "not_recorded": "Dim wedi eu cofnodi yn yr arolwg",
+    "missing_data": "Ddim ar gael",
+    "not_applicable": "Amherthnasol"
+  },
   "language": {
-    "en": "saesneg",
-    "cy": "cymraeg"
+    "en": "Saesneg",
+    "cy": "Cymraeg"
   },
   "lookup_column_headers": {
-    "refcode": "codcyf",
+    "refcode": "cod cyfeirio",
     "description": "disgrifiad",
     "notes": "nodyn",
-    "sort": "trefn",
-    "hierarchy": "hierarchaeth",
+    "sort": "didoli",
+    "hierarchy": "hierarchiaeth",
     "measure": "mesur",
     "type": "math",
     "format": "fformat",
     "decimal": "degol",
-    "lang": "iaith"
+    "lang": "Iaith"
   },
   "formats": {
     "decimal": "degol",
@@ -110,19 +161,19 @@
     "string": "llinyn",
     "text": "testun",
     "date": "dyddiad",
-    "datetime": "dyddiadamser",
+    "datetime": "dataamser",
     "time": "amser"
   },
   "date_format": {
     "quarter_name": "Chwarter",
-    "quarter_abr": "C",
+    "quarter_abr": "Ch",
     "year": {
       "calendar": "Blwyddyn Galendr",
       "financial": "Blwyddyn Ariannol",
       "tax": "Blwyddyn Dreth",
       "meteorological": "Blwyddyn Feteorolegol",
       "academic": "Blwyddyn Academaidd",
-      "rolling": "Blwyddyn Treigl"
+      "rolling": "Blwyddyn Dreigl"
     },
     "quarter": {
       "calendar": "Chwarter Calendr",
@@ -139,6 +190,13 @@
       "meteorological": "Mis Meteorolegol",
       "academic": "Mis Academaidd",
       "rolling": "Mis Treigl"
+    },
+    "rolling": {
+      "year_ending": "Blwyddyn yn gorffen {{date}}",
+      "quarter_ending": "Chwarter yn gorffen {{date}}",
+      "month_ending": "Mis yn gorffen {{date}}",
+      "fortnight_ending": "Pythefnos yn gorffen {{date}}",
+      "week_ending": "Wythnos yn gorffen {{date}}"
     }
   },
   "months": {

@@ -32,6 +32,7 @@
     "migration:create": "npm run typeorm migration:create",
     "seed:required": "npm run typeorm-seeding -- -d ./src/db/data-source.ts ./src/seeders/required/*.ts",
     "seed:dataset": "npm run typeorm-seeding -- -d ./src/db/data-source.ts ./src/seeders/dataset.ts",
+    "seed:providers": "npm run typeorm-seeding -- -d ./src/db/data-source.ts ./src/seeders/required/data-providers.ts",
     "seed:ci": "npm run typeorm-seeding -- -d ./src/db/data-source.ts ./src/seeders/tests/seed.ts",
     "assign-default-group": "npm run typeorm-seeding -- -d ./src/db/data-source.ts ./src/seeders/groups.ts",
     "init:ci": "typeorm migration:run -d ./dist/db/data-source.js && npm run seed-js -- -d ./dist/db/data-source.js ./dist/seeders/required/*.js && npm run seed-js -- -d ./dist/db/data-source.js ./dist/seeders/tests/seed.js",

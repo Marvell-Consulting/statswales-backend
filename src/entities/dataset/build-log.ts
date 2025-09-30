@@ -3,7 +3,7 @@ import { Revision } from './revision';
 import { CubeBuildStatus } from '../../enums/cube-build-status';
 import { CubeBuildType } from '../../enums/cube-build-type';
 
-@Entity({ name: 'build_log', orderBy: { createdAt: 'DESC' } })
+@Entity({ name: 'build_log', orderBy: { startedAt: 'DESC' } })
 export class BuildLog extends BaseEntity {
   @PrimaryGeneratedColumn('uuid', { primaryKeyConstraintName: 'PK_build_log_id' })
   id: string;
@@ -30,8 +30,9 @@ export class BuildLog extends BaseEntity {
   @JoinColumn({ name: 'revision_id', foreignKeyConstraintName: 'FK_revision_build_log_id' })
   revision: Revision;
 
-  public static async startBuild(revision: Revision, type: CubeBuildType): Promise<BuildLog> {
+  public static async startBuild(revision: Revision, type: CubeBuildType, buildId?: string): Promise<BuildLog> {
     const build = new BuildLog();
+    if (buildId) build.id = buildId;
     build.revision = revision;
     build.type = type;
     build.status = CubeBuildStatus.Queued;
