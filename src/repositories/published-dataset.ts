@@ -12,7 +12,7 @@ import {
   Like,
   Raw
 } from 'typeorm';
-import { has, set } from 'lodash';
+import { has, isObjectLike, omit, set } from 'lodash';
 
 import { logger } from '../utils/logger';
 import { dataSource } from '../db/data-source';
@@ -21,6 +21,7 @@ import { DatasetListItemDTO } from '../dtos/dataset-list-item-dto';
 import { ResultsetWithCount } from '../interfaces/resultset-with-count';
 import { Locale } from '../enums/locale';
 import { Topic } from '../entities/dataset/topic';
+import { Revision } from '../entities/dataset/revision';
 
 export const withAll: FindOptionsRelations<Dataset> = {
   createdBy: true,
@@ -39,9 +40,10 @@ export const PublishedDatasetRepository = dataSource.getRepository(Dataset).exte
   async getById(id: string, relations: FindOptionsRelations<Dataset> = {}): Promise<Dataset> {
     const start = performance.now();
     const now = new Date();
+    const publishedRevRelations = relations.publishedRevision;
 
     const findOptions: FindOneOptions<Dataset> = {
-      relations,
+      relations: omit(relations, 'publishedRevision'), // prevent direct use of publishedRevision relation
       where: {
         id,
         firstPublishedAt: And(Not(IsNull()), LessThan(now))
@@ -54,6 +56,20 @@ export const PublishedDatasetRepository = dataSource.getRepository(Dataset).exte
     }
 
     const dataset = await this.findOneOrFail(findOptions);
+
+    if (publishedRevRelations) {
+      const relations = isObjectLike(publishedRevRelations)
+        ? (publishedRevRelations as FindOptionsRelations<Revision>)
+        : undefined;
+
+      // publishedRevision must be manually loaded to ensure the publish_at has passed
+      const publishedRevision = await dataSource.getRepository(Revision).findOne({
+        where: { datasetId: id, approvedAt: LessThan(now), publishAt: LessThan(now) },
+        order: { publishAt: 'DESC' },
+        relations
+      });
+      dataset.publishedRevision = publishedRevision;
+    }
 
     const end = performance.now();
     const size = Math.round(Buffer.byteLength(JSON.stringify(dataset)) / 1024);
@@ -76,18 +92,30 @@ export const PublishedDatasetRepository = dataSource.getRepository(Dataset).exte
     const qb = this.createQueryBuilder('d')
       .select([
         'd.id AS id',
-        'rm.title AS title',
+        'r.title AS title',
         'd.first_published_at AS first_published_at',
         'r.publish_at AS last_updated_at',
         'd.archived_at AS archived_at'
       ])
-      .innerJoin('d.publishedRevision', 'r')
-      .innerJoin('r.metadata', 'rm')
-      .where('rm.language LIKE :lang', { lang: `${lang}%` })
+      .innerJoin(
+        (subQuery) => {
+          // only join the latest published revision for each dataset
+          return subQuery
+            .select('DISTINCT ON (rev.dataset_id) rev.*, rm.title AS title')
+            .from(Revision, 'rev')
+            .innerJoin('rev.metadata', 'rm', 'rm.revision_id = rev.id AND rm.language LIKE :lang', { lang: `${lang}%` })
+            .andWhere('rev.publish_at < NOW()')
+            .andWhere('rev.approved_at < NOW()')
+            .orderBy('rev.dataset_id')
+            .addOrderBy('rev.created_at', 'DESC')
+            .take(1);
+        },
+        'r',
+        'r.dataset_id = d.id'
+      )
       .andWhere('d.first_published_at IS NOT NULL')
       .andWhere('d.first_published_at < NOW()')
-      .groupBy('d.id, rm.title, d.first_published_at, r.publish_at, d.archived_at')
-      .orderBy('d.first_published_at', 'DESC');
+      .groupBy('d.id, r.id, r.title, d.first_published_at, r.publish_at, d.archived_at');
 
     const offset = (page - 1) * limit;
     const countQuery = qb.clone();
@@ -98,14 +126,15 @@ export const PublishedDatasetRepository = dataSource.getRepository(Dataset).exte
   },
 
   async listPublishedTopics(lang: Locale, topicId?: string): Promise<Topic[]> {
-    const latestPublishedRevisions = await this.createQueryBuilder('d')
-      .select('d.published_revision_id')
-      .where('d.first_published_at IS NOT NULL')
-      .andWhere('d.first_published_at < NOW()')
-      .andWhere('d.published_revision_id IS NOT NULL')
+    const latestPublishedRevisions = await dataSource
+      .getRepository(Revision)
+      .createQueryBuilder('r')
+      .select('r.id AS id')
+      .where('r.publish_at < NOW()')
+      .andWhere('r.approved_at < NOW()')
       .getRawMany();
 
-    const revisionIds = latestPublishedRevisions.map((revision) => revision.published_revision_id);
+    const revisionIds = latestPublishedRevisions.map((revision) => revision.id);
 
     // if no topicId provided, fetch topics where path equals the id (i.e. root level topics)
     const path = topicId ? { path: Like(`${topicId}.%`) } : { path: Raw('"Topic"."id"::text') };
@@ -130,20 +159,32 @@ export const PublishedDatasetRepository = dataSource.getRepository(Dataset).exte
     const qb = this.createQueryBuilder('d')
       .select([
         'd.id AS id',
-        'rm.title AS title',
+        'r.title AS title',
         'd.first_published_at AS first_published_at',
         'r.publish_at AS last_updated_at',
         'd.archived_at AS archived_at'
       ])
-      .innerJoin('d.publishedRevision', 'r')
-      .innerJoin('r.metadata', 'rm')
-      .innerJoin('r.revisionTopics', 'rt')
-      .where('rm.language LIKE :lang', { lang: `${lang}%` })
+      .innerJoin(
+        (subQuery) => {
+          // only join the latest published revision for each dataset
+          return subQuery
+            .select('DISTINCT ON (rev.dataset_id) rev.*, rm.title AS title')
+            .from(Revision, 'rev')
+            .innerJoin('rev.metadata', 'rm', 'rm.revision_id = rev.id AND rm.language LIKE :lang', { lang: `${lang}%` })
+            .innerJoin('rev.revisionTopics', 'rt')
+            .where('rt.topicId = :topicId', { topicId })
+            .andWhere('rev.publish_at < NOW()')
+            .andWhere('rev.approved_at < NOW()')
+            .orderBy('rev.dataset_id')
+            .addOrderBy('rev.created_at', 'DESC')
+            .take(1);
+        },
+        'r',
+        'r.dataset_id = d.id'
+      )
       .andWhere('d.first_published_at IS NOT NULL')
       .andWhere('d.first_published_at < NOW()')
-      .andWhere('rt.topicId = :topicId', { topicId })
-      .groupBy('d.id, rm.title, d.first_published_at, r.publish_at, d.archived_at')
-      .orderBy('d.first_published_at', 'DESC');
+      .groupBy('d.id, r.id, r.title, d.first_published_at, r.publish_at, d.archived_at');
 
     const offset = (page - 1) * limit;
     const countQuery = qb.clone();
