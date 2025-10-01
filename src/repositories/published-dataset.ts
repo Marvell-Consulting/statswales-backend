@@ -107,8 +107,7 @@ export const PublishedDatasetRepository = dataSource.getRepository(Dataset).exte
             .andWhere('rev.publish_at < NOW()')
             .andWhere('rev.approved_at < NOW()')
             .orderBy('rev.dataset_id')
-            .addOrderBy('rev.created_at', 'DESC')
-            .take(1);
+            .addOrderBy('rev.publish_at', 'DESC');
         },
         'r',
         'r.dataset_id = d.id'
@@ -129,9 +128,11 @@ export const PublishedDatasetRepository = dataSource.getRepository(Dataset).exte
     const latestPublishedRevisions = await dataSource
       .getRepository(Revision)
       .createQueryBuilder('r')
-      .select('r.id AS id')
+      .select('DISTINCT ON (r.dataset_id) r.id AS id')
       .where('r.publish_at < NOW()')
       .andWhere('r.approved_at < NOW()')
+      .orderBy('r.dataset_id')
+      .addOrderBy('r.publish_at', 'DESC')
       .getRawMany();
 
     const revisionIds = latestPublishedRevisions.map((revision) => revision.id);
@@ -176,8 +177,7 @@ export const PublishedDatasetRepository = dataSource.getRepository(Dataset).exte
             .andWhere('rev.publish_at < NOW()')
             .andWhere('rev.approved_at < NOW()')
             .orderBy('rev.dataset_id')
-            .addOrderBy('rev.created_at', 'DESC')
-            .take(1);
+            .addOrderBy('rev.publish_at', 'DESC');
         },
         'r',
         'r.dataset_id = d.id'
