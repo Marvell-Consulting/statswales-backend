@@ -8,6 +8,7 @@ export enum CubeValidationType {
   Dimension = 'dimension',
   DimensionNonMatchedRows = 'dimension_non_matched_rows',
   Measure = 'measure',
+  MeasureNonMatchedRows = 'measure_non_matched_rows',
   NoFirstRevision = 'no_first_revision',
   CubeCreationFailed = 'cube_creation_failed',
   UnknownFileType = 'unknown_file_type',

@@ -42,7 +42,7 @@ export const viewErrorGenerators = (
   };
 };
 
-export const viewGenerator = async (
+export const viewGenerator = (
   dataset: Dataset,
   page: number,
   pageInfo: PageInfo,
@@ -51,7 +51,7 @@ export const viewGenerator = async (
   headers: ColumnHeader[],
   data: string[][] | unknown[][],
   dataTable?: DataTable
-): Promise<ViewDTO> => {
+): ViewDTO => {
   return {
     dataset: DatasetDTO.fromDataset(dataset),
     data_table: dataTable ? DataTableDto.fromDataTable(dataTable) : undefined,
