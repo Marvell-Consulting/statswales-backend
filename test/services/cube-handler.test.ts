@@ -86,10 +86,11 @@ describe('API Endpoints', () => {
         uploadedAt: new Date()
       };
       await loadFileIntoCube(quack, testFileInterface.fileType, testFilePath, tableName);
-      const tableData = await quack.all(`SELECT * FROM ${tableName}`);
-      expect(tableData.length).toBe(24);
-      expect(Object.keys(tableData[0]).length).toBe(6);
-      await quack.close();
+      const tableData = await quack.run(`SELECT * FROM ${tableName}`);
+      expect(tableData.rowCount).toBe(24);
+      const rowsJson = await tableData.getRowsJson();
+      expect(Object.keys(rowsJson[0]).length).toBe(6);
+      quack.disconnectSync();
     });
   });
 
