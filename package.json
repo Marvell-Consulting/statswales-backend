@@ -82,6 +82,7 @@
   "dependencies": {
     "@azure/storage-blob": "^12.28.0",
     "@azure/storage-file-datalake": "^12.27.0",
+    "@duckdb/node-api": "^1.4.0-r.1",
     "@jorgebodega/typeorm-seeding": "^7.1.0",
     "@scaleleap/pg-format": "^1.0.0",
     "@types/clamscan": "^2.4.1",
@@ -95,7 +96,6 @@
     "date-fns": "^4.1.0",
     "date-fns-tz": "^3.2.0",
     "dotenv": "^17.2.1",
-    "duckdb-async": "^1.3.2",
     "exceljs": "^4.4.0",
     "express": "^5.1.0",
     "express-rate-limit": "^8.0.1",
