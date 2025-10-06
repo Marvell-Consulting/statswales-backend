@@ -58,7 +58,7 @@ export async function extractTableInformation(
   let createTableQuery: string;
 
   try {
-    createTableQuery = await getCreateTableQuery(dataTable.fileType);
+    createTableQuery = getCreateTableQuery(dataTable.fileType);
   } catch (error) {
     logger.error(error, 'Something went wrong creating a temporary file for DuckDB');
     throw new FileValidationException(
