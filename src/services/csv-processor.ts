@@ -108,7 +108,7 @@ export async function extractTableInformation(
       }
     } catch (error) {
       logger.error(error, 'Something went wrong saving data table to postgres');
-      quack.closeSync();
+      quack.disconnectSync();
     }
   }
 
