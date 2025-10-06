@@ -333,7 +333,7 @@ async function createMeasureTable(
     await quack.run(pgformat('CREATE TABLE lookup_tables_db.%I AS SELECT * FROM memory.measure;', measureId));
   } catch (err) {
     logger.error(err, 'Something went wrong trying to copy the measure table to postgres');
-    quack.closeSync();
+    quack.disconnectSync();
     throw new FileValidationException('errors.measure_validation.copy_failure', FileValidationErrorType.unknown);
   }
 
@@ -351,7 +351,7 @@ async function createMeasureTable(
     item.hierarchy = row.hierarchy as string;
     measureTable.push(item);
   }
-  quack.closeSync();
+  quack.disconnectSync();
   performanceReporting(start - performance.now(), 500, 'Loading measure lookup table into postgres');
   return measureTable;
 }
