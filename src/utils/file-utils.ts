@@ -170,9 +170,7 @@ export const loadFileIntoCube = async (
       );
       break;
     case FileType.Excel:
-      await quack.run('INSTALL spatial;');
-      await quack.run('LOAD spatial;');
-      insertQuery = pgformat('CREATE TABLE %I AS SELECT * FROM st_read(%L);', makeCubeSafeString(tableName), tempFile);
+      insertQuery = pgformat('CREATE TABLE %I AS SELECT * FROM read_xlsx(%L);', makeCubeSafeString(tableName), tempFile);
       break;
     default:
       throw new Error('Unknown file type');
