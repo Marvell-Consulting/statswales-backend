@@ -342,8 +342,10 @@ export const DatasetRepository = dataSource.getRepository(Dataset).extend({
         COUNT(*) FILTER (WHERE publishing_status = 'published') as published,
         COUNT(*) FILTER (WHERE status = 'archived') as archived,
         COUNT(*) FILTER (WHERE status = 'offline') as offline,
-        COUNT(*) FILTER (WHERE publishing_status = 'incomplete') as incomplete,
-        COUNT(*) FILTER (WHERE publishing_status = 'pending_approval' OR publishing_status = 'update_pending_approval') as pending_approval
+        COUNT(*) FILTER (WHERE publishing_status = 'incomplete' OR publishing_status = 'update_incomplete') as incomplete,
+        COUNT(*) FILTER (WHERE publishing_status = 'pending_approval' OR publishing_status = 'update_pending_approval') as pending_approval,
+        COUNT(*) FILTER (WHERE publishing_status = 'scheduled' OR publishing_status = 'update_scheduled') as scheduled,
+        COUNT(*) FILTER (WHERE publishing_status = 'unpublish_requested' OR publishing_status = 'archive_requested' OR publishing_status = 'unarchive_requested') as action_requested
       FROM dataset_stats
     `);
 
@@ -351,8 +353,10 @@ export const DatasetRepository = dataSource.getRepository(Dataset).extend({
 
     return {
       incomplete: Number(stats.incomplete),
-      pendingApproval: Number(stats.pending_approval),
+      pending_approval: Number(stats.pending_approval),
+      scheduled: Number(stats.scheduled),
       published: Number(stats.published),
+      action_requested: Number(stats.action_requested),
       archived: Number(stats.archived),
       offline: Number(stats.offline),
       total: Number(stats.total)
