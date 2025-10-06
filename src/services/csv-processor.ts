@@ -100,7 +100,7 @@ export async function extractTableInformation(
   if (type === 'data_table') {
     try {
       logger.debug(`Copying data table to postgres using data table id: ${dataTable.id}`);
-      await quack.run(pgformat(`DROP TABLE IF EXISTS data_table_db.%I;`, dataTable.id));
+      await quack.run(pgformat(`DROP TABLE IF EXISTS data_tables_db.%I;`, dataTable.id));
       if (dataTable.fileType === FileType.Csv) {
         await quack.run(pgformat(createTableQuery, 'data_tables_db', dataTable.id, file.path, dataTable.encoding));
       } else {
