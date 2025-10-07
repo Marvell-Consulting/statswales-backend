@@ -193,7 +193,7 @@ async function createMeasureTable(
   const lookupTableName = randomUUID().toLowerCase().replace(/-/g, '');
   const quack = await duckdb();
   logger.debug(`Creating empty measure table`);
-  await quack.run(measureTableCreateStatement(measureColumn.columnDatatype, 'memory', lookupTableName));
+  await quack.run(measureTableCreateStatement(measureColumn.columnDatatype, 'memory', lookupTableName, true));
   logger.debug(`Loading measure lookup table into memory`);
   await loadFileIntoCube(quack, fileType, path, tmpTableName);
   const viewComponents: string[] = [];
