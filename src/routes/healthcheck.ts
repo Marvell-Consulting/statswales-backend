@@ -57,7 +57,9 @@ healthcheck.get('/', (req: Request, res: Response) => {
 });
 
 healthcheck.get('/ready', stillAlive);
-healthcheck.get('/live', stillAlive);
+healthcheck.get('/live', (_req: Request, res: Response) => {
+  res.json({ message: 'success' });
+});
 
 // for testing language detection / switching is working
 healthcheck.get('/language', (req: Request, res: Response) => {
