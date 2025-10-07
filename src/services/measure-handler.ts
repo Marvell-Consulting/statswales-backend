@@ -1,7 +1,7 @@
 import { performance } from 'node:perf_hooks';
 import { format as pgformat } from '@scaleleap/pg-format';
 import { t } from 'i18next';
-import { randomUUID } from 'crypto';
+import { randomUUID } from 'node:crypto';
 import { DuckDBResultReader } from '@duckdb/node-api';
 
 import { LookupTable } from '../entities/dataset/lookup-table';
