@@ -381,7 +381,7 @@ async function createMeasureTable(
     quack.disconnectSync();
   }
 
-  performanceReporting(start - performance.now(), 500, 'Loading measure lookup table into postgres');
+  performanceReporting(performance.now() - start, 500, 'Loading measure lookup table into postgres');
   return measureTable;
 }
 
