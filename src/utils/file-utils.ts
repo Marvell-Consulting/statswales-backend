@@ -153,25 +153,25 @@ export const loadFileIntoCube = async (
     case FileType.Csv:
     case FileType.GzipCsv:
       insertQuery = pgformat(
-        "CREATE TABLE %I AS SELECT * FROM read_csv(%L, auto_type_candidates = ['BIGINT', 'DOUBLE', 'VARCHAR'], sample_size = -1);",
+        "CREATE TEMPORARY TABLE %I AS SELECT * FROM read_csv(%L, auto_type_candidates = ['BIGINT', 'DOUBLE', 'VARCHAR'], sample_size = -1);",
         makeCubeSafeString(tableName),
         tempFile
       );
       break;
     case FileType.Parquet:
-      insertQuery = pgformat('CREATE TABLE %I AS SELECT * FROM %L;', makeCubeSafeString(tableName), tempFile);
+      insertQuery = pgformat('CREATE TEMPORARY TABLE %I AS SELECT * FROM %L;', makeCubeSafeString(tableName), tempFile);
       break;
     case FileType.Json:
     case FileType.GzipJson:
       insertQuery = pgformat(
-        'CREATE TABLE %I AS SELECT * FROM read_json_auto(%L);',
+        'CREATE TEMPORARY TABLE %I AS SELECT * FROM read_json_auto(%L);',
         makeCubeSafeString(tableName),
         tempFile
       );
       break;
     case FileType.Excel:
       insertQuery = pgformat(
-        'CREATE TABLE %I AS SELECT * FROM read_xlsx(%L);',
+        'CREATE TEMPORARY TABLE %I AS SELECT * FROM read_xlsx(%L);',
         makeCubeSafeString(tableName),
         tempFile
       );
