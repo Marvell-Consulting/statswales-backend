@@ -23,6 +23,7 @@ import { SourceLocation } from '../enums/source-location';
 import { UploadTableType } from '../interfaces/upload-table-type';
 import { TempFile } from '../interfaces/temp-file';
 import { dbManager } from '../db/database-manager';
+import { FACT_TABLE_NAME } from './cube-handler';
 
 const sampleSize = 5;
 
@@ -36,10 +37,14 @@ function getCreateTableQuery(fileType: FileType): string {
       fileHandlerFunction =
         "read_csv(%L, auto_type_candidates = ['BIGINT', 'DOUBLE', 'VARCHAR'], encoding = %L, sample_size = -1)";
       break;
+    case FileType.Parquet:
+      return `CREATE TABLE %I AS SELECT * FROM %L;`;
+
     case FileType.Json:
     case FileType.GzipJson:
       fileHandlerFunction = `read_json_auto(%L)`;
       break;
+
     case FileType.Excel:
       fileHandlerFunction = `read_xlsx(%L)`;
       break;
@@ -55,17 +60,8 @@ export async function extractTableInformation(
   const tableName: string = randomUUID().toLowerCase().replaceAll('-', '');
   const quack = await duckdb();
   let tableHeaders: DuckDBResultReader;
-  let createTableQuery: string;
 
-  try {
-    createTableQuery = getCreateTableQuery(dataTable.fileType);
-  } catch (error) {
-    logger.error(error, 'Something went wrong creating a temporary file for DuckDB');
-    throw new FileValidationException(
-      `Failed to create temporary file for DuckDB processing`,
-      FileValidationErrorType.unknown
-    );
-  }
+  const createTableQuery = getCreateTableQuery(dataTable.fileType);
 
   try {
     logger.debug(`Creating base fact table`);
@@ -263,68 +259,73 @@ export const getCSVPreview = async (
   page: number,
   size: number
 ): Promise<ViewDTO | ViewErrDTO> => {
-  let tableName = 'fact_table';
+  const tableName = dataTable.id;
+  let totals: { total_lines: number }[];
+  const totalsQuery = pgformat(`SELECT count(*) AS total_lines FROM %I.%I;`, 'data_tables', tableName);
 
-  const cubeDB = dbManager.getCubeDataSource().createQueryRunner();
-
+  const totalsQueryRunner = dbManager.getCubeDataSource().createQueryRunner();
   try {
-    await cubeDB.query(pgformat(`SET search_path TO %I;`, 'data_tables'));
-    tableName = dataTable.id;
-    const totalsQuery = pgformat(`SELECT count(*) AS total_lines FROM %I;`, tableName);
-    const totals: { total_lines: number }[] = await cubeDB.query(totalsQuery);
-    const totalLines = Number(totals[0].total_lines);
-    const totalPages = Math.max(1, Math.ceil(totalLines / size));
-    const errors = validateParams(page, totalPages, size);
+    totals = await totalsQueryRunner.query(totalsQuery);
+  } catch (error) {
+    logger.error(error, 'Something went wrong trying to get totals for data table preview');
+    return viewErrorGenerators(500, datasetId, 'csv', 'errors.preview.preview_failed', {});
+  } finally {
+    void totalsQueryRunner.release();
+  }
 
-    if (errors.length > 0) {
-      return { status: 400, errors, dataset_id: datasetId };
-    }
+  const totalLines = Number(totals[0].total_lines);
+  const totalPages = Math.max(1, Math.ceil(totalLines / size));
+  const errors = validateParams(page, totalPages, size);
 
-    const previewQuery = pgformat(
-      `
+  if (errors.length > 0) {
+    return { status: 400, errors, dataset_id: datasetId };
+  }
+
+  const previewQuery = pgformat(
+    `
       SELECT *
-      FROM (SELECT row_number() OVER () as int_line_number, * FROM %I)
+      FROM (SELECT row_number() OVER () as int_line_number, * FROM %I.%I)
       LIMIT %L
       OFFSET %L
     `,
-      tableName,
-      size,
-      (page - 1) * size
-    );
-
-    const preview = await cubeDB.query(previewQuery);
-    await cubeDB.query(pgformat(`SET search_path TO %I;`, 'public'));
-    cubeDB.release();
-
-    const startLine = Number(preview[0].int_line_number);
-    const lastLine = Number(preview[preview.length - 1].int_line_number);
-    const tableHeaders = Object.keys(preview[0]);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const dataArray = preview.map((row: any) => Object.values(row));
-
-    const dataset = await DatasetRepository.getById(datasetId, { factTable: true });
-    const currentImport = await DataTable.findOneByOrFail({ id: dataTable.id });
-
-    const headers: ColumnHeader[] = tableHeaders.map((header, idx) => {
-      let sourceType: FactTableColumnType;
-
-      if (header === 'int_line_number') {
-        sourceType = FactTableColumnType.LineNumber;
-      } else {
-        sourceType =
-          dataset.factTable?.find((info) => info.columnName === header)?.columnType || FactTableColumnType.Unknown;
-      }
-      return { name: header, index: idx - 1, source_type: sourceType };
-    });
-
-    const pageInfo = { total_records: totalLines, start_record: startLine, end_record: lastLine };
-    return viewGenerator(dataset, page, pageInfo, size, totalPages, headers, dataArray, currentImport);
+    'data_tables',
+    tableName,
+    size,
+    (page - 1) * size
+  );
+  const previewQueryRunner = dbManager.getCubeDataSource().createQueryRunner();
+  let preview: Record<string, string>[];
+  try {
+    preview = await previewQueryRunner.query(previewQuery);
   } catch (error) {
-    logger.error(error);
+    logger.error(error, 'Something went wrong trying to get data table preview');
     return viewErrorGenerators(500, datasetId, 'csv', 'errors.preview.preview_failed', {});
   } finally {
-    cubeDB.release();
+    void previewQueryRunner.release();
   }
+
+  const startLine = Number(preview[0].int_line_number);
+  const lastLine = Number(preview[preview.length - 1].int_line_number);
+  const tableHeaders = Object.keys(preview[0]);
+  const dataArray = preview.map((row: Record<string, string>) => Object.values(row));
+
+  const dataset = await DatasetRepository.getById(datasetId, { factTable: true });
+  const currentImport = await DataTable.findOneByOrFail({ id: dataTable.id });
+
+  const headers: ColumnHeader[] = tableHeaders.map((header, idx) => {
+    let sourceType: FactTableColumnType;
+
+    if (header === 'int_line_number') {
+      sourceType = FactTableColumnType.LineNumber;
+    } else {
+      sourceType =
+        dataset.factTable?.find((info) => info.columnName === header)?.columnType || FactTableColumnType.Unknown;
+    }
+    return { name: header, index: idx - 1, source_type: sourceType };
+  });
+
+  const pageInfo = { total_records: totalLines, start_record: startLine, end_record: lastLine };
+  return viewGenerator(dataset, page, pageInfo, size, totalPages, headers, dataArray, currentImport);
 };
 
 export const getFactTableColumnPreview = async (
@@ -332,54 +333,67 @@ export const getFactTableColumnPreview = async (
   columnName: string
 ): Promise<ViewDTO | ViewErrDTO> => {
   logger.debug(`Getting fact table column preview for ${columnName}`);
-  const tableName = 'fact_table';
-  const cubeDB = dbManager.getCubeDataSource().createQueryRunner();
 
+  let totals: { total_lines: number }[];
+  const totalsQueryRunner = dbManager.getCubeDataSource().createQueryRunner();
   try {
-    await cubeDB.query(pgformat(`SET search_path TO %I;`, dataset.draftRevision!.id));
-  } catch (error) {
-    logger.error(error, 'Could not find revision schema');
-    cubeDB.release();
-    return viewErrorGenerators(500, dataset.id, 'csv', 'errors.preview.cube_missing', {});
-  }
-
-  try {
-    const totals: { total_lines: number }[] = await cubeDB.query(
-      pgformat('SELECT COUNT(DISTINCT %I) AS total_lines FROM %I', columnName, tableName)
+    totals = await totalsQueryRunner.query(
+      pgformat(
+        'SELECT COUNT(DISTINCT %I) AS total_lines FROM %I.%I',
+        columnName,
+        dataset.draftRevision!.id,
+        FACT_TABLE_NAME
+      )
     );
-    const totalLines = totals[0].total_lines;
-    const preview = await cubeDB.query(
-      pgformat('SELECT DISTINCT %I FROM %I LIMIT %L', columnName, tableName, sampleSize)
-    );
-    const tableHeaders = Object.keys(preview[0]);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const dataArray = preview.map((row: any) => Object.values(row));
-    const currentDataset = await DatasetRepository.getById(dataset.id);
-    const headers: ColumnHeader[] = [];
-    for (let i = 0; i < tableHeaders.length; i++) {
-      let sourceType: FactTableColumnType;
-      if (tableHeaders[i] === 'int_line_number') sourceType = FactTableColumnType.LineNumber;
-      else
-        sourceType =
-          dataset.factTable?.find((info) => info.columnName === tableHeaders[i])?.columnType ??
-          FactTableColumnType.Unknown;
-      headers.push({
-        index: i - 1,
-        name: tableHeaders[i],
-        source_type: sourceType
-      });
-    }
-    const pageInfo = {
-      total_records: totalLines,
-      start_record: 1,
-      end_record: preview.length
-    };
-    const pageSize = preview.length < sampleSize ? preview.length : sampleSize;
-    return viewGenerator(currentDataset, 1, pageInfo, pageSize, 1, headers, dataArray);
   } catch (error) {
-    logger.error(error);
+    logger.error(error, 'Something went wrong trying to get total distinct values in column');
     return viewErrorGenerators(500, dataset.id, 'csv', 'dimension.preview.failed_to_preview_column', {});
   } finally {
-    cubeDB.release();
+    void totalsQueryRunner.release();
   }
+  const totalLines = totals[0].total_lines;
+
+  let preview: Record<string, string>[];
+  const previewQueryRunner = dbManager.getCubeDataSource().createQueryRunner();
+  try {
+    preview = await previewQueryRunner.query(
+      pgformat(
+        'SELECT DISTINCT %I FROM %I.%I LIMIT %L',
+        columnName,
+        dataset.draftRevision!.id,
+        FACT_TABLE_NAME,
+        sampleSize
+      )
+    );
+  } catch (error) {
+    logger.error(error, 'Something went wrong trying to get column preview from table');
+    return viewErrorGenerators(500, dataset.id, 'csv', 'dimension.preview.failed_to_preview_column', {});
+  } finally {
+    void previewQueryRunner.release();
+  }
+
+  const tableHeaders = Object.keys(preview[0]);
+  const dataArray = preview.map((row: Record<string, string>) => Object.values(row));
+  const currentDataset = await DatasetRepository.getById(dataset.id);
+  const headers: ColumnHeader[] = [];
+  for (let i = 0; i < tableHeaders.length; i++) {
+    let sourceType: FactTableColumnType;
+    if (tableHeaders[i] === 'int_line_number') sourceType = FactTableColumnType.LineNumber;
+    else
+      sourceType =
+        dataset.factTable?.find((info) => info.columnName === tableHeaders[i])?.columnType ??
+        FactTableColumnType.Unknown;
+    headers.push({
+      index: i - 1,
+      name: tableHeaders[i],
+      source_type: sourceType
+    });
+  }
+  const pageInfo = {
+    total_records: totalLines,
+    start_record: 1,
+    end_record: preview.length
+  };
+  const pageSize = preview.length < sampleSize ? preview.length : sampleSize;
+  return viewGenerator(currentDataset, 1, pageInfo, pageSize, 1, headers, dataArray);
 };

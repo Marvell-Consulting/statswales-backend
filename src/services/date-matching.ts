@@ -43,15 +43,16 @@ export const createDatePeriodTableQuery = (
 ): string => {
   return pgformat(
     `
-  CREATE TABLE %I.%I (
-    %I %s,
-    language VARCHAR(5),
-    description VARCHAR,
-    start_date TIMESTAMP WITHOUT TIME ZONE,
-    end_date TIMESTAMP WITHOUT TIME ZONE,
-    date_type varchar,
-    hierarchy %s
-  );`,
+      CREATE TABLE %I.%I (
+                           %I %s,
+                           language VARCHAR(5),
+        description VARCHAR,
+        start_date TIMESTAMP WITHOUT TIME ZONE,
+        end_date TIMESTAMP WITHOUT TIME ZONE,
+        date_type VARCHAR,
+        sort_order BIGINT,
+        hierarchy %s
+        );`,
     schemaId,
     tableName,
     factTableColumn.columnName,
@@ -210,6 +211,14 @@ function createAllTypesOfPeriod(dateFormat: DateExtractor, dataColumn: string[])
       );
     }
   }
+  // Clean up the reference table
+  referenceTable = referenceTable.filter((item) => dataColumn.includes(item.dateCode));
+  referenceTable = referenceTable.map((item) => {
+    if (item.hierarchy && !dataColumn.includes(item.hierarchy)) {
+      item.hierarchy = null;
+    }
+    return item;
+  });
   return referenceTable;
 }
 
@@ -509,7 +518,7 @@ export function dateDimensionReferenceTableCreator(
   const columnData: string[] = [];
 
   for (const row of dataColumn) {
-    columnData.push(Object.values(row)[0]);
+    columnData.push(Object.values(row)[0].toString());
   }
 
   if (extractor.dateFormat) {

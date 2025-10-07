@@ -15,25 +15,17 @@ import {
 } from '../utils/lookup-table-utils';
 import { ColumnDescriptor } from '../extractors/column-descriptor';
 import { Dataset } from '../entities/dataset/dataset';
-import { ColumnHeader, ViewDTO, ViewErrDTO } from '../dtos/view-dto';
+import { ViewDTO, ViewErrDTO } from '../dtos/view-dto';
 import { logger } from '../utils/logger';
 import { Dimension } from '../entities/dataset/dimension';
-import { viewErrorGenerators, viewGenerator } from '../utils/view-error-generators';
-import { DatasetRepository } from '../repositories/dataset';
+import { viewErrorGenerators } from '../utils/view-error-generators';
 import { FactTableColumnType } from '../enums/fact-table-column-type';
-import { cleanUpDimension } from './dimension-processor';
+import { cleanUpDimension, previewGenerator } from './dimension-processor';
 import { SUPPORTED_LOCALES } from '../middleware/translation';
-import { makeCubeSafeString } from './cube-handler';
-import { FactTableColumn } from '../entities/dataset/fact-table-column';
-import { CubeValidationException } from '../exceptions/cube-error-exception';
 import { Locale } from '../enums/locale';
 import { FileValidationErrorType, FileValidationException } from '../exceptions/validation-exception';
-import { CubeValidationType } from '../enums/cube-validation-type';
-import { QueryRunner } from 'typeorm';
 import { dbManager } from '../db/database-manager';
 import { loadFileIntoLookupTablesSchema } from '../utils/file-utils';
-
-const sampleSize = 5;
 
 async function setupDimension(
   dimension: Dimension,
@@ -131,26 +123,6 @@ function createExtractor(
   }
 }
 
-export const checkForReferenceErrors = async (
-  dataset: Dataset,
-  dimension: Dimension,
-  factTableColumn: FactTableColumn
-): Promise<void> => {
-  const referenceErrors = await validateLookupTableReferenceValues(
-    dataset,
-    dimension.factTableColumn,
-    factTableColumn.columnName,
-    `${makeCubeSafeString(dimension.factTableColumn)}_lookup`,
-    'fact_table',
-    'dimension'
-  );
-  if (referenceErrors) {
-    const err = new CubeValidationException('Validation failed');
-    err.type = CubeValidationType.DimensionNonMatchedRows;
-    throw err;
-  }
-};
-
 export const validateLookupTable = async (
   protoLookupTable: DataTable,
   dataset: Dataset,
@@ -168,7 +140,6 @@ export const validateLookupTable = async (
   }
 
   const lookupTable = convertDataTableToLookupTable(protoLookupTable);
-  const factTableName = 'fact_table';
   const factTableColumn = dataset.factTable?.find(
     (col) => dimension.factTableColumn === col.columnName && col.columnType === FactTableColumnType.Dimension
   );
@@ -241,51 +212,38 @@ export const validateLookupTable = async (
     });
   }
 
-  const cubeDB = dbManager.getCubeDataSource().createQueryRunner();
-
-  try {
-    await cubeDB.query(pgformat(`SET search_path TO %I;`, revision.id));
-  } catch (error) {
-    await lookupTable.remove();
-    cubeDB.release();
-    logger.error(error, 'Unable to connect to postgres schema for revision.');
-    return viewErrorGenerators(500, dataset.id, 'patch', 'errors.dimension_validation.lookup_table_loading_failed', {
-      mismatch: false
-    });
-  }
-
   logger.debug('Copying lookup table from lookup_tables schema into cube');
   const actionId = crypto.randomUUID();
+  const createLookupInCubeRunner = dbManager.getCubeDataSource().createQueryRunner();
   try {
-    await cubeDB.query(pgformat('CREATE TABLE %I AS SELECT * FROM lookup_tables.%I;', actionId, lookupTable.id));
+    await createLookupInCubeRunner.query(
+      pgformat('CREATE TABLE %I.%I AS SELECT * FROM lookup_tables.%I;', revision.id, actionId, lookupTable.id)
+    );
   } catch (error) {
     await lookupTable.remove();
-    cubeDB.release();
     logger.error(error, 'Unable to copy lookup table from lookup tables schema.');
     return viewErrorGenerators(500, dataset.id, 'patch', 'errors.dimension_validation.lookup_table_loading_failed', {
       mismatch: false
     });
+  } finally {
+    void createLookupInCubeRunner.release();
   }
 
   const referenceErrors = await validateLookupTableReferenceValues(
-    cubeDB,
+    revision.id,
     dataset,
     updatedDimension.factTableColumn,
     factTableColumn.columnName,
     actionId,
-    factTableName,
     'dimension'
   );
+
   if (referenceErrors) {
-    await cubeDB.query(pgformat('DROP TABLE IF EXISTS %I', actionId));
-    await cubeDB.query(pgformat('DROP TABLE IF EXISTS lookup_tables.%I', lookupTable.id));
-    await lookupTable.remove();
-    cubeDB.release();
+    void cleanupBadLookup(lookupTable, revision.id, actionId);
     return referenceErrors;
   }
 
   const languageErrors = await validateLookupTableLanguages(
-    cubeDB,
     dataset,
     revision.id,
     factTableColumn.columnName,
@@ -293,46 +251,41 @@ export const validateLookupTable = async (
     'dimension'
   );
   if (languageErrors) {
-    await cubeDB.query(pgformat('DROP TABLE IF EXISTS %I', actionId));
-    await cubeDB.query(pgformat('DROP TABLE IF EXISTS lookup_tables.%I', lookupTable.id));
-    await lookupTable.remove();
-    cubeDB.release();
+    void cleanupBadLookup(lookupTable, revision.id, actionId);
     return languageErrors;
   }
 
   logger.debug(`Lookup table passed validation. Saving the dimension, lookup table and extractor.`);
   await updatedDimension.save();
 
+  const lookupTablePreviewRunner = dbManager.getCubeDataSource().createQueryRunner();
+  let dimensionTable: Record<string, never>[];
+  const previewQuery = pgformat('SELECT * FROM lookup_tables.%I WHERE language = %L;', lookupTable.id, language);
   try {
-    const previewQuery = pgformat('SELECT * FROM lookup_tables.%I WHERE language = %L;', lookupTable.id, language);
-    const dimensionTable = await cubeDB.query(previewQuery);
-    const tableHeaders = Object.keys(dimensionTable[0]);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const dataArray = dimensionTable.map((row: any) => Object.values(row));
-    const currentDataset = await DatasetRepository.getById(dataset.id);
-    const headers: ColumnHeader[] = [];
-    for (let i = 0; i < tableHeaders.length; i++) {
-      let sourceType: FactTableColumnType;
-      if (tableHeaders[i] === 'int_line_number') sourceType = FactTableColumnType.LineNumber;
-      else sourceType = FactTableColumnType.Unknown;
-      headers.push({
-        index: i - 1,
-        name: tableHeaders[i],
-        source_type: sourceType
-      });
-    }
-    const pageInfo = {
-      total_records: dimensionTable.length,
-      start_record: 1,
-      end_record: dataArray.length
-    };
-    const pageSize = dimensionTable.length < sampleSize ? dimensionTable.length : sampleSize;
-    return viewGenerator(currentDataset, 1, pageInfo, pageSize, 1, headers, dataArray);
+    dimensionTable = await lookupTablePreviewRunner.query(previewQuery);
   } catch (error) {
     logger.error(error, `Something went wrong trying to generate the preview of the lookup.`);
     return viewErrorGenerators(500, dataset.id, 'preview', 'errors.dimension.lookup_preview_generation_failed', {});
   } finally {
-    await cubeDB.query(pgformat('DROP TABLE IF EXISTS %I', actionId));
-    cubeDB.release();
+    await lookupTablePreviewRunner.query(pgformat('DROP TABLE IF EXISTS %I.%I', revision.id, actionId));
+    void lookupTablePreviewRunner.release();
   }
+
+  return previewGenerator(dimensionTable, { totalLines: dimensionTable.length }, dataset);
 };
+
+async function cleanupBadLookup(lookupTable: LookupTable, revisionId: string, actionId: string): Promise<void> {
+  const cleanUpStatements = [
+    pgformat('DROP TABLE IF EXISTS %I.%I;', revisionId, actionId),
+    pgformat('DROP TABLE IF EXISTS lookup_tables.%I;', lookupTable.id)
+  ];
+  const cleanupRunner = dbManager.getCubeDataSource().createQueryRunner();
+  try {
+    await cleanupRunner.query(cleanUpStatements.join('/n'));
+  } catch (err) {
+    logger.error(err, 'Something went wrong trying to clean up the cube');
+  } finally {
+    void cleanupRunner.release();
+  }
+  await lookupTable.remove();
+}

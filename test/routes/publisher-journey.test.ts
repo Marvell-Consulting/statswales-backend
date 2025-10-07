@@ -1,5 +1,6 @@
 import path from 'node:path';
 import fs from 'node:fs';
+import { randomUUID } from 'node:crypto';
 
 import request from 'supertest';
 import { addYears, subYears } from 'date-fns';
@@ -80,15 +81,6 @@ describe('API Endpoints', () => {
     }
   });
 
-  test('Return true test', async () => {
-    const dataset1 = await Dataset.findOneBy({ id: dataset1Id });
-    if (!dataset1) {
-      throw new Error('Dataset not found');
-    }
-    const dto = DatasetDTO.fromDataset(dataset1);
-    expect(dto).toBeInstanceOf(DatasetDTO);
-  });
-
   describe('Step 1 - initial title and file upload', () => {
     test('returns 401 if no auth header is sent (JWT auth)', async () => {
       const res = await request(app).post('/dataset').query({ title: 'My test datatset' });
@@ -131,21 +123,14 @@ describe('API Endpoints', () => {
 
   describe('Step 2 - Get a preview of the uploaded file with a View Object', () => {
     test('Get file preview returns 400 if page_number is too high', async () => {
-      const testDatasetId = uuidV4();
-      const testRevisionId = uuidV4();
-      const testFileImportId = uuidV4();
-      await createSmallDataset(testDatasetId, testRevisionId, testFileImportId, user);
-      const testFile2 = path.resolve(__dirname, `../sample-files/csv/sure-start-short.csv`);
-      const testFile2Buffer = fs.readFileSync(testFile2);
-      BlobStorage.prototype.loadBuffer = jest.fn().mockReturnValue(testFile2Buffer);
       const res = await request(app)
-        .get(`/dataset/${testDatasetId}/revision/by-id/${testRevisionId}/data-table/preview`)
+        .get(`/dataset/${dataset1Id}/revision/by-id/${revision1Id}/data-table/preview`)
         .set(getAuthHeader(user))
         .query({ page_number: 20 });
       expect(res.status).toBe(400);
       expect(res.body).toEqual({
         status: 400,
-        dataset_id: testDatasetId,
+        dataset_id: dataset1Id,
         errors: [
           {
             field: 'page_number',
@@ -166,7 +151,7 @@ describe('API Endpoints', () => {
           }
         ]
       });
-      createdRevisions.push(testRevisionId);
+      createdRevisions.push(revision1Id);
     });
 
     test('Get file preview returns 400 if page_size is too high', async () => {

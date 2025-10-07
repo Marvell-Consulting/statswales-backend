@@ -29,7 +29,7 @@ import { MeasureRow } from '../entities/dataset/measure-row';
 import { SUPPORTED_LOCALES } from '../middleware/translation';
 import { DisplayType } from '../enums/display-type';
 import { getFileService } from '../utils/get-file-service';
-import { measureTableCreateStatement } from './cube-handler';
+import { FACT_TABLE_NAME, measureTableCreateStatement } from './cube-handler';
 import { FileValidationErrorType, FileValidationException } from '../exceptions/validation-exception';
 import { FactTableColumn } from '../entities/dataset/fact-table-column';
 import { Locale } from '../enums/locale';
@@ -42,8 +42,21 @@ import { dbManager } from '../db/database-manager';
 import { MeasureMetadata } from '../entities/dataset/measure-metadata';
 import { RevisionTask } from '../interfaces/revision-task';
 import { loadFileIntoCube } from '../utils/file-utils';
+import { randomUUID } from 'node:crypto';
+import { DuckDBResultReader } from '@duckdb/node-api';
 
 const sampleSize = 5;
+
+interface MeasureTable {
+  reference: string;
+  description: string;
+  notes: string;
+  sort_order: string;
+  format: string;
+  decimals: number;
+  measure_type: string;
+  hierarchy: string;
+}
 
 async function cleanUpMeasure(measureId: string): Promise<void> {
   const measure = await Measure.findOneByOrFail({ id: measureId });
@@ -369,6 +382,7 @@ async function createMeasureTable(
   }
 
   // logger.trace(`Measure table contents from DuckDB: ${JSON.stringify(tableContents.getRowObjectsJson(), null, 2)}`);
+
   const measureTable: MeasureRow[] = [];
   for (const row of tableContents.getRowObjectsJson()) {
     const item = new MeasureRow();
@@ -383,6 +397,7 @@ async function createMeasureTable(
     item.hierarchy = row.hierarchy as string;
     measureTable.push(item);
   }
+
   // logger.trace(`Measure table contents: ${JSON.stringify(measureTable, null, 2)}`);
 
   try {
@@ -395,6 +410,7 @@ async function createMeasureTable(
   }
 
   performanceReporting(performance.now() - start, 500, 'Loading measure lookup table into postgres');
+
   return measureTable;
 }
 
@@ -434,7 +450,6 @@ export const validateMeasureLookupTable = async (
   const tableLanguage = tableLanguageArr[0];
 
   const lookupTable = convertDataTableToLookupTable(protoLookupTable);
-  const factTableName = 'fact_table';
 
   const measure = dataset.measure;
   let confirmedJoinColumn: string | undefined;
@@ -480,17 +495,6 @@ export const validateMeasureLookupTable = async (
     });
   }
 
-  const cubeDB = dbManager.getCubeDataSource().createQueryRunner();
-  try {
-    await cubeDB.query(pgformat(`SET search_path TO %I;`, draftRevision.id));
-  } catch (error) {
-    await lookupTable.remove();
-    cubeDB.release();
-    logger.error(error, 'Unable to connect to postgres schema for revision.');
-    return viewErrorGenerators(500, dataset.id, 'patch', 'errors.measure_validation.lookup_table_loading_failed', {
-      mismatch: false
-    });
-  }
   logger.debug('Copying lookup table from lookup_tables schema into cube');
   const actionId = crypto.randomUUID();
   const createMeasureTableRunner = dbManager.getCubeDataSource().createQueryRunner();
@@ -509,6 +513,7 @@ export const validateMeasureLookupTable = async (
         row.measureType,
         row.hierarchy
       ];
+
       return pgformat(
         'INSERT INTO %I.%I ("reference", "language", "description", "notes", "sort_order", "format", "decimals", "measure_type", "hierarchy") VALUES (%L);',
         draftRevision.id,
@@ -528,28 +533,26 @@ export const validateMeasureLookupTable = async (
     return viewErrorGenerators(500, dataset.id, 'patch', 'errors.dimension_validation.lookup_table_loading_failed', {
       mismatch: false
     });
+  } finally {
+    void createMeasureTableRunner.release();
   }
 
   const updatedMeasure = await updateMeasure(dataset, lookupTable, confirmedJoinColumn, measureTable, extractor);
 
   const referenceErrors = await validateLookupTableReferenceValues(
-    cubeDB,
+    draftRevision.id,
     dataset,
     updatedMeasure.factTableColumn,
     'reference',
     actionId,
-    factTableName,
     'measure'
   );
   if (referenceErrors) {
     await lookupTable.remove();
-    await cubeDB.query(pgformat('DROP TABLE %I;', actionId));
-    cubeDB.release();
     return referenceErrors;
   }
 
   const languageErrors = await validateLookupTableLanguages(
-    cubeDB,
     dataset,
     draftRevision.id,
     'reference',
@@ -558,16 +561,12 @@ export const validateMeasureLookupTable = async (
   );
   if (languageErrors) {
     await lookupTable.remove();
-    await cubeDB.query(pgformat('DROP TABLE %I;', actionId));
-    cubeDB.release();
     return languageErrors;
   }
 
-  const tableValidationErrors = await validateMeasureTableContent(cubeDB, dataset.id, actionId, extractor);
+  const tableValidationErrors = await validateMeasureTableContent(dataset.id, draftRevision.id, actionId, extractor);
   if (tableValidationErrors) {
     await lookupTable.remove();
-    await cubeDB.query(pgformat('DROP TABLE %I;', actionId));
-    cubeDB.release();
     return tableValidationErrors;
   }
 
@@ -584,45 +583,48 @@ export const validateMeasureLookupTable = async (
     await measureMetadata.save();
   }
 
+  logger.debug(`Generating preview of measure table`);
+  const previewQuery = pgformat(
+    'SELECT reference, description, notes, sort_order, format, decimals, measure_type, hierarchy FROM %I.%I WHERE language = %L;',
+    draftRevision.id,
+    actionId,
+    lang
+  );
+  const createPreviewRunner = dbManager.getCubeDataSource().createQueryRunner();
+  let measureTablePreview: Record<string, string>[];
   try {
-    logger.debug(`Generating preview of measure table`);
-    const previewQuery = pgformat(
-      'SELECT reference, description, notes, sort_order, format, decimals, measure_type, hierarchy FROM %I WHERE language = %L;',
-      actionId,
-      lang
-    );
-    const measureTable = await cubeDB.query(previewQuery);
-    const tableHeaders = Object.keys(measureTable[0]);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const dataArray = measureTable.map((row: any) => Object.values(row));
-    const currentDataset = await DatasetRepository.getById(dataset.id);
-    const headers: ColumnHeader[] = [];
-    for (let i = 0; i < tableHeaders.length; i++) {
-      let sourceType: FactTableColumnType;
-      if (tableHeaders[i] === 'int_line_number') sourceType = FactTableColumnType.LineNumber;
-      else sourceType = FactTableColumnType.Unknown;
-      headers.push({
-        index: i - 1,
-        name: tableHeaders[i],
-        source_type: sourceType
-      });
-    }
-    const pageInfo = {
-      total_records: dataArray.length,
-      start_record: 1,
-      end_record: dataArray.length
-    };
-    const pageSize = dataArray.length;
-    return viewGenerator(currentDataset, 1, pageInfo, pageSize, 1, headers, dataArray);
+    measureTablePreview = await createPreviewRunner.query(previewQuery);
   } catch (error) {
     logger.error(error, `Something went wrong trying to generate the preview of the lookup table`);
-    return viewErrorGenerators(500, dataset.id, 'csv', 'errors.dimension.unknown_error', {
+    return viewErrorGenerators(500, dataset.id, 'csv', 'errors.measure.unknown_error', {
       mismatch: false
     });
   } finally {
-    await cubeDB.query(pgformat('DROP TABLE %I;', actionId));
-    cubeDB.release();
+    await createPreviewRunner.query(pgformat('DROP TABLE %I.%I;', draftRevision.id, actionId));
+    void createPreviewRunner.release();
   }
+
+  const tableHeaders = Object.keys(measureTablePreview[0]);
+  const dataArray = measureTablePreview.map((row) => Object.values(row));
+  const currentDataset = await DatasetRepository.getById(dataset.id);
+  const headers: ColumnHeader[] = [];
+  for (let i = 0; i < tableHeaders.length; i++) {
+    let sourceType: FactTableColumnType;
+    if (tableHeaders[i] === 'int_line_number') sourceType = FactTableColumnType.LineNumber;
+    else sourceType = FactTableColumnType.Unknown;
+    headers.push({
+      index: i - 1,
+      name: tableHeaders[i],
+      source_type: sourceType
+    });
+  }
+  const pageInfo = {
+    total_records: dataArray.length,
+    start_record: 1,
+    end_record: dataArray.length
+  };
+  const pageSize = dataArray.length;
+  return viewGenerator(currentDataset, 1, pageInfo, pageSize, 1, headers, dataArray);
 };
 
 async function getMeasurePreviewWithoutExtractor(
@@ -631,43 +633,43 @@ async function getMeasurePreviewWithoutExtractor(
   revision: Revision
 ): Promise<ViewDTO> {
   const cubeDB = dbManager.getCubeDataSource().createQueryRunner();
+  let preview: Record<string, string>[];
   try {
-    await cubeDB.query(pgformat(`SET search_path TO %I;`, revision.id));
-    const preview = await cubeDB.query(
+    preview = await cubeDB.query(
       pgformat(
-        'SELECT DISTINCT %I FROM %I ORDER BY %I ASC LIMIT %L;',
+        'SELECT DISTINCT %I FROM %I.%I ORDER BY %I ASC LIMIT %L;',
         measure.factTableColumn,
-        'fact_table',
+        revision.id,
+        FACT_TABLE_NAME,
         measure.factTableColumn,
         sampleSize
       )
     );
-
-    const tableHeaders = Object.keys(preview[0]);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const dataArray = preview.map((row: any) => Object.values(row));
-    const currentDataset = await DatasetRepository.getById(dataset.id);
-    const headers: ColumnHeader[] = [];
-    for (let i = 0; i < tableHeaders.length; i++) {
-      headers.push({
-        index: i,
-        name: tableHeaders[i],
-        source_type: FactTableColumnType.Unknown
-      });
-    }
-    const pageInfo = {
-      total_records: preview.length,
-      start_record: 1,
-      end_record: dataArray.length
-    };
-    const pageSize = preview.length < sampleSize ? preview.length : sampleSize;
-    return viewGenerator(currentDataset, 1, pageInfo, pageSize, 1, headers, dataArray);
   } catch (error) {
     logger.error(error, `Something went wrong trying to generate the preview of the measure column`);
     throw error;
   } finally {
-    cubeDB.release();
+    void cubeDB.release();
   }
+
+  const tableHeaders = Object.keys(preview[0]);
+  const dataArray = preview.map((row: Record<string, string>) => Object.values(row));
+  const currentDataset = await DatasetRepository.getById(dataset.id);
+  const headers: ColumnHeader[] = [];
+  for (let i = 0; i < tableHeaders.length; i++) {
+    headers.push({
+      index: i,
+      name: tableHeaders[i],
+      source_type: FactTableColumnType.Unknown
+    });
+  }
+  const pageInfo = {
+    total_records: preview.length,
+    start_record: 1,
+    end_record: dataArray.length
+  };
+  const pageSize = preview.length < sampleSize ? preview.length : sampleSize;
+  return viewGenerator(currentDataset, 1, pageInfo, pageSize, 1, headers, dataArray);
 }
 
 async function getMeasurePreviewWithExtractor(
@@ -678,36 +680,37 @@ async function getMeasurePreviewWithExtractor(
 ): Promise<ViewDTO> {
   logger.debug(`Generating lookup table preview for measure ${measure.id}`);
   const cubeDB = dbManager.getCubeDataSource().createQueryRunner();
+  const previewQuery = pgformat(
+    'SELECT reference, description, notes, sort_order, format, decimals, measure_type, hierarchy FROM %I.%I WHERE language = %L;',
+    revision.id,
+    'measure',
+    lang
+  );
+  let measureTablePreview: MeasureTable[];
   try {
-    await cubeDB.query(pgformat(`SET search_path TO %I;`, revision.id));
-    const previewQuery = pgformat(
-      'SELECT reference, description, notes, sort_order, format, decimals, measure_type, hierarchy FROM %I WHERE language = %L;',
-      'measure',
-      lang
-    );
-    const measureTable = await cubeDB.query(previewQuery);
-    const tableHeaders = Object.keys(measureTable[0]);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const dataArray = measureTable.map((row: any) => Object.values(row));
-    const currentDataset = await DatasetRepository.getById(dataset.id);
-    const headers: ColumnHeader[] = tableHeaders.map((name, idx) => ({
-      name,
-      index: idx,
-      source_type: FactTableColumnType.Unknown
-    }));
-    const pageInfo = {
-      total_records: dataArray.length,
-      start_record: 1,
-      end_record: dataArray.length
-    };
-    const pageSize = dataArray.length < sampleSize ? dataArray.length : sampleSize;
-    return viewGenerator(currentDataset, 1, pageInfo, pageSize, 1, headers, dataArray);
+    measureTablePreview = await cubeDB.query(previewQuery);
   } catch (error) {
     logger.error(error, `Something went wrong trying to generate the preview of the measure table`);
     throw error;
   } finally {
-    cubeDB.release();
+    void cubeDB.release();
   }
+
+  const tableHeaders = Object.keys(measureTablePreview[0]);
+  const dataArray = measureTablePreview.map((row: MeasureTable) => Object.values(row));
+  const currentDataset = await DatasetRepository.getById(dataset.id);
+  const headers: ColumnHeader[] = tableHeaders.map((name, idx) => ({
+    name,
+    index: idx,
+    source_type: FactTableColumnType.Unknown
+  }));
+  const pageInfo = {
+    total_records: dataArray.length,
+    start_record: 1,
+    end_record: dataArray.length
+  };
+  const pageSize = dataArray.length < sampleSize ? dataArray.length : sampleSize;
+  return viewGenerator(currentDataset, 1, pageInfo, pageSize, 1, headers, dataArray);
 }
 
 export const getMeasurePreview = async (
