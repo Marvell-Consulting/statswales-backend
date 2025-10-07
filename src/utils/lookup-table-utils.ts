@@ -263,7 +263,7 @@ export const validateLookupTableReferenceValues = async (
       lookupTableName,
       joinColumn
     );
-    logger.trace(`non matched rows query: ${nonMatchedRowsQuery}`);
+    logger.debug(`non matched rows query: ${nonMatchedRowsQuery}`);
     const nonMatchedRows = await cubeDB.query(nonMatchedRowsQuery);
     logger.debug(`Number of non matched rows: ${nonMatchedRows.length}`);
     const totals: { total_rows: number }[] = await cubeDB.query(
