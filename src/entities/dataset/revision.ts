@@ -24,7 +24,7 @@ import { RevisionMetadata } from './revision-metadata';
 import { RevisionProvider } from './revision-provider';
 import { RevisionTopic } from './revision-topic';
 import { UpdateFrequencyDTO } from '../../dtos/update-frequency-dto';
-import { BuildLog } from './builds-log';
+import { BuildLog } from './build-log';
 
 @Entity({ name: 'revision', orderBy: { createdAt: 'ASC' } })
 export class Revision extends BaseEntity {

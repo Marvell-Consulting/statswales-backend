@@ -3,7 +3,7 @@ import { Revision } from './revision';
 import { CubeBuildStatus } from '../../enums/cube-build-status';
 import { CubeBuildType } from '../../enums/cube-build-type';
 
-@Entity({ name: 'build_log', orderBy: { createdAt: 'DESC' } })
+@Entity({ name: 'build_log', orderBy: { startedAt: 'DESC' } })
 export class BuildLog extends BaseEntity {
   @PrimaryGeneratedColumn('uuid', { primaryKeyConstraintName: 'PK_build_log_id' })
   id: string;

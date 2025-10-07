@@ -14,16 +14,23 @@ import { BadRequestException } from '../exceptions/bad-request.exception';
 import { CubeValidationException } from '../exceptions/cube-error-exception';
 import { UnknownException } from '../exceptions/unknown.exception';
 import { ColumnMatch } from '../interfaces/column-match';
-import { DimensionUpdateTask } from '../interfaces/revision-task';
+import { RevisionTask } from '../interfaces/revision-task';
 import { DatasetRepository } from '../repositories/dataset';
-import { validateUpdatedDateDimension } from './dimension-processor';
-import { checkForReferenceErrors } from './lookup-table-handler';
+import { createDateDimensionLookup } from './dimension-processor';
 import { FactTableValidationExceptionType } from '../enums/fact-table-validation-exception-type';
 import { FactTableValidationException } from '../exceptions/fact-table-validation-exception';
-import { createAllCubeFiles, createLookupTableDimension, makeCubeSafeString } from './cube-handler';
+import {
+  createAllCubeFiles,
+  createLookupTableDimension,
+  createMeasureLookupTable,
+  makeCubeSafeString
+} from './cube-handler';
 import { CubeBuildType } from '../enums/cube-build-type';
 import { Dimension } from '../entities/dataset/dimension';
 import { Dataset } from '../entities/dataset/dataset';
+import { validateLookupTableReferenceValues } from '../utils/lookup-table-utils';
+import { MeasureRow } from '../entities/dataset/measure-row';
+import { DateExtractor } from '../extractors/date-extractor';
 
 export async function attachUpdateDataTableToRevision(
   datasetId: string,
@@ -110,8 +117,26 @@ export async function attachUpdateDataTableToRevision(
     throw error;
   }
 
-  const dimensionUpdateTasks: DimensionUpdateTask[] = [];
+  const revisionTasks: RevisionTask = {
+    measure: undefined,
+    dimensions: []
+  };
 
+  const measureColumn = await FactTableColumn.findOneOrFail({
+    where: {
+      columnName: dataset.measure.factTableColumn,
+      dataset: { id: dataset.id }
+    }
+  });
+
+  try {
+    await validateMeasure(buildId, dataset, measureColumn, dataset.measure.measureTable!);
+  } catch (err) {
+    logger.warn(err, 'Validating measure failed.  Adding it to the revision tasks');
+    revisionTasks.measure = { id: dataset.measure.id, lookupTableUpdated: false };
+  }
+
+  const dimensionToUpdate: Dimension[] = [];
   for (const dimension of dataset.dimensions) {
     const factTableColumn = dataset.factTable.find(
       (factTableColumn) =>
@@ -124,21 +149,29 @@ export async function attachUpdateDataTableToRevision(
     }
 
     try {
+      const lookupTableName = `${makeCubeSafeString(dimension.factTableColumn)}_lookup`;
+      let updateDimension: Dimension | undefined;
       switch (dimension.type) {
         case DimensionType.LookupTable:
-          await validateLookupTable(buildId, dataset, dimension, factTableColumn);
-          break;
+          await createLookupTableInValidationCube(buildId, dimension, factTableColumn);
+        // eslint-disable-next-line no-fallthrough
         case DimensionType.DatePeriod:
         case DimensionType.Date:
-          logger.debug(`Validating time dimension: ${dimension.id}`);
-          await createDateDimension(cubeDB, dimension.extractor, factTableColumn);
-          await validateUpdatedDateDimension(dataset, revision, dimension, factTableColumn);
+          updateDimension = await createDateTableInValidationCube(
+            buildId,
+            datasetId,
+            lookupTableName,
+            factTableColumn,
+            dimension
+          );
       }
+      await validateDimension(buildId, dataset, factTableColumn.columnName, dimension.joinColumn!, lookupTableName);
+      if (updateDimension) dimensionToUpdate.push(updateDimension);
     } catch (error) {
       logger.warn(`An error occurred validating dimension ${dimension.id}: ${error}`);
       const err = error as CubeValidationException;
       if (err.type === CubeValidationType.DimensionNonMatchedRows) {
-        dimensionUpdateTasks.push({
+        revisionTasks.dimensions.push({
           id: dimension.id,
           lookupTableUpdated: false
         });
@@ -146,20 +179,15 @@ export async function attachUpdateDataTableToRevision(
         const end = performance.now();
         const time = Math.round(end - start);
         logger.info(`Cube update validation took ${time}ms`);
-        await cubeDB.query(pgformat('DROP SCHEMA %I CASCADE', buildId));
-        cubeDB.release();
         logger.error(err, `An error occurred trying to validate the file`);
         throw new BadRequestException('errors.data_table_validation_error');
       }
     }
   }
-
-  // TODO Validate measure.  This requires a rewrite of how measures are created and stored
-
-  revision.tasks = { dimensions: dimensionUpdateTasks };
-
-  await cubeDB.query(pgformat('DROP SCHEMA %I CASCADE', buildId));
-  cubeDB.release();
+  for (const dim of dimensionToUpdate) {
+    await dim.save();
+  }
+  revision.tasks = revisionTasks;
   await revision.save();
   const end = performance.now();
   const time = Math.round(end - start);
@@ -167,21 +195,100 @@ export async function attachUpdateDataTableToRevision(
 
   dataTable.revision = revision;
   await dataTable.save();
+  void cleanUpValidationCube(buildId);
 }
 
-async function validateLookupTable(
+async function cleanUpValidationCube(buildId: string): Promise<void> {
+  const cubeDB = dbManager.getCubeDataSource().createQueryRunner();
+  try {
+    await cubeDB.query(pgformat('DROP SCHEMA %I CASCADE', buildId));
+  } catch (err) {
+    logger.error(err, 'Something went wrong trying to clean up validation cube');
+  } finally {
+    void cubeDB.release();
+  }
+}
+
+async function validateMeasure(
   buildId: string,
   dataset: Dataset,
+  measureColumn: FactTableColumn,
+  measureTable: MeasureRow[]
+): Promise<void> {
+  const measureTableSQL = createMeasureLookupTable(buildId, measureColumn, measureTable);
+  const createMeasureRunner = dbManager.getCubeDataSource().createQueryRunner();
+  try {
+    await createMeasureRunner.query(measureTableSQL.join('\n'));
+  } catch (err) {
+    logger.error(err, 'Failed to create new measure table in validation cube');
+  } finally {
+    void createMeasureRunner.release();
+  }
+
+  const referenceErrors = await validateLookupTableReferenceValues(
+    buildId,
+    dataset,
+    measureColumn.columnName,
+    'reference',
+    `measure`,
+    'dimension'
+  );
+  if (referenceErrors) {
+    const err = new CubeValidationException('Validation failed');
+    err.type = CubeValidationType.MeasureNonMatchedRows;
+    throw err;
+  }
+}
+
+async function createDateTableInValidationCube(
+  buildId: string,
+  datasetId: string,
+  lookupTableName: string,
+  factTableColumn: FactTableColumn,
+  dimension: Dimension
+): Promise<Dimension> {
+  const extractor = dimension.extractor as DateExtractor;
+  const coverage = await createDateDimensionLookup(buildId, datasetId, lookupTableName, factTableColumn, extractor);
+  extractor.datasetStart = coverage.startDate;
+  extractor.datasetEnd = coverage.endDate;
+  dimension.extractor = extractor;
+  dimension.lookupTable = coverage.lookupTable;
+  return dimension;
+}
+
+async function createLookupTableInValidationCube(
+  buildId: string,
   dimension: Dimension,
   factTableColumn: FactTableColumn
-) {
+): Promise<void> {
   logger.debug(`Validating lookup table dimension: ${dimension.id}`);
   const createLookupSQL = createLookupTableDimension(buildId, dimension, factTableColumn);
   const createLookupRunner = dbManager.getCubeDataSource().createQueryRunner();
   try {
     await createLookupRunner.query(createLookupSQL);
   } finally {
-    createLookupRunner.release();
+    void createLookupRunner.release();
   }
-  await checkForReferenceErrors(cubeDB, dataset, dimension, factTableColumn);
+}
+
+async function validateDimension(
+  buildId: string,
+  dataset: Dataset,
+  factTableColumnName: string,
+  joinColumn: string,
+  lookupTableName: string
+): Promise<void> {
+  const referenceErrors = await validateLookupTableReferenceValues(
+    buildId,
+    dataset,
+    factTableColumnName,
+    joinColumn,
+    lookupTableName,
+    'dimension'
+  );
+  if (referenceErrors) {
+    const err = new CubeValidationException('Validation failed');
+    err.type = CubeValidationType.DimensionNonMatchedRows;
+    throw err;
+  }
 }
