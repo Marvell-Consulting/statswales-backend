@@ -52,7 +52,7 @@ export async function extractTableInformation(
   dataTable: DataTable,
   type: 'data_table' | 'lookup_table'
 ): Promise<DataTableDescription[]> {
-  const tableName: string = crypto.randomUUID().toLowerCase().replaceAll('-', '');
+  const tableName: string = randomUUID().toLowerCase().replaceAll('-', '');
   const quack = await duckdb();
   let tableHeaders: DuckDBResultReader;
   let createTableQuery: string;
