@@ -9,8 +9,7 @@ import { FileType } from '../enums/file-type';
 import { logger } from './logger';
 import { getFileService } from './get-file-service';
 import { asyncTmpName } from './async-tmp';
-import { duckdb, linkToPostgresSchema } from '../services/duckdb';
-import { Database } from 'duckdb-async';
+import { duckdb } from '../services/duckdb';
 import { FACT_TABLE_NAME, makeCubeSafeString } from '../services/cube-handler';
 import { DataTable } from '../entities/dataset/data-table';
 import { performance } from 'node:perf_hooks';
@@ -20,6 +19,7 @@ import { LookupTableExtractor } from '../extractors/lookup-table-extractor';
 import { FactTableColumn } from '../entities/dataset/fact-table-column';
 import { SUPPORTED_LOCALES } from '../middleware/translation';
 import { languageMatcherCaseStatement } from './lookup-table-utils';
+import { DuckDBConnection } from '@duckdb/node-api';
 
 export const getFileImportAndSaveToDisk = async (
   dataset: Dataset,
@@ -46,11 +46,10 @@ export async function loadFileIntoDataTablesSchema(
     dataTableFile = await getFileImportAndSaveToDisk(dataset, dataTable);
   }
   await loadFileIntoCube(quack, dataTable.fileType, dataTableFile, FACT_TABLE_NAME);
-  await linkToPostgresSchema(quack, 'data_tables');
-  await quack.exec(
+  await quack.run(
     pgformat('CREATE TABLE data_tables_db.%I AS SELECT * FROM memory.%I;', dataTable.id, FACT_TABLE_NAME)
   );
-  await quack.close();
+  quack.disconnectSync();
   performanceReporting(Math.round(start - performance.now()), 500, 'Loading a data table in to postgres');
 }
 
@@ -79,7 +78,7 @@ export async function loadFileIntoLookupTablesSchema(
   const start = performance.now();
   const quack = await duckdb();
   const dimTable = `${makeCubeSafeString(factTableColumn.columnName)}_lookup`;
-  await quack.exec(createLookupTableQuery(dimTable, factTableColumn.columnName, factTableColumn.columnDatatype));
+  await quack.run(createLookupTableQuery(dimTable, factTableColumn.columnName, factTableColumn.columnDatatype));
   let lookupTableFile;
   if (filePath) {
     lookupTableFile = filePath;
@@ -114,7 +113,7 @@ export async function loadFileIntoLookupTablesSchema(
       );
     }
     const builtInsertQuery = pgformat(`INSERT INTO %I %s;`, dimTable, dataExtractorParts.join(' UNION '));
-    await quack.exec(builtInsertQuery);
+    await quack.run(builtInsertQuery);
   } else {
     const languageMatcher = languageMatcherCaseStatement(extractor.languageColumn);
     const notesStr = extractor.notesColumns ? pgformat('%I', extractor.notesColumns[0].name) : 'NULL';
@@ -132,18 +131,17 @@ export async function loadFileIntoLookupTablesSchema(
       lookupTableName
     );
     const builtInsertQuery = pgformat(`INSERT INTO %I %s`, dimTable, dataExtractorParts);
-    await quack.exec(builtInsertQuery);
+    await quack.run(builtInsertQuery);
   }
   logger.debug(`Dropping original lookup table ${lookupTableName}`);
-  await quack.exec(pgformat('DROP TABLE %I', lookupTableName));
-  await linkToPostgresSchema(quack, 'lookup_tables');
-  await quack.exec(pgformat('CREATE TABLE lookup_tables_db.%I AS SELECT * FROM memory.%I;', lookupTable.id, dimTable));
-  await quack.close();
+  await quack.run(pgformat('DROP TABLE %I', lookupTableName));
+  await quack.run(pgformat('CREATE TABLE lookup_tables_db.%I AS SELECT * FROM memory.%I;', lookupTable.id, dimTable));
+  quack.disconnectSync();
   performanceReporting(Math.round(start - performance.now()), 500, 'Loading a lookup table in to postgres');
 }
 
 export const loadFileIntoCube = async (
-  quack: Database,
+  quack: DuckDBConnection,
   fileType: FileType,
   tempFile: string,
   tableName: string
@@ -172,15 +170,17 @@ export const loadFileIntoCube = async (
       );
       break;
     case FileType.Excel:
-      await quack.exec('INSTALL spatial;');
-      await quack.exec('LOAD spatial;');
-      insertQuery = pgformat('CREATE TABLE %I AS SELECT * FROM st_read(%L);', makeCubeSafeString(tableName), tempFile);
+      insertQuery = pgformat(
+        'CREATE TABLE %I AS SELECT * FROM read_xlsx(%L);',
+        makeCubeSafeString(tableName),
+        tempFile
+      );
       break;
     default:
       throw new Error('Unknown file type');
   }
   try {
-    await quack.exec(insertQuery);
+    await quack.run(insertQuery);
   } catch (error) {
     logger.error(`Failed to load file in to DuckDB using query ${insertQuery} with the following error: ${error}`);
     throw error;
