@@ -76,8 +76,8 @@ describe('API Endpoints', () => {
         hash: '',
         uploadedAt: new Date()
       };
-      await loadFileIntoCube(quack, testFileInterface.fileType, testFilePath, tableName);
-      const tableData = await quack.run(`SELECT * FROM ${tableName}`);
+      await loadFileIntoCube(quack, testFileInterface.fileType, testFilePath, tableName, 'memory');
+      const tableData = await quack.run(`SELECT * FROM memory.${tableName}`);
       expect(tableData.rowCount).toBe(24);
       const rowsJson = await tableData.getRowsJson();
       expect(Object.keys(rowsJson[0]).length).toBe(6);
