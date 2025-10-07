@@ -11,7 +11,6 @@ import { CubeValidationType } from '../enums/cube-validation-type';
 import { performanceReporting } from '../utils/performance-reporting';
 import { format as pgformat } from '@scaleleap/pg-format/lib/pg-format';
 import { dbManager } from '../db/database-manager';
-import { CubeViewConfig } from '../interfaces/cube-view-config';
 import { DataTable } from '../entities/dataset/data-table';
 import { DataTableAction } from '../enums/data-table-action';
 import { DataTableDescription } from '../entities/dataset/data-table-description';
@@ -26,6 +25,15 @@ import { CubeBuildStatus } from '../enums/cube-build-status';
 import { BuildLog } from '../entities/dataset/builds-log';
 import { CubeBuildType } from '../enums/cube-build-type';
 import { appConfig } from '../config';
+import { CubeViewBuilder } from '../interfaces/cube-view-builder';
+import { CubeBuilder } from '../interfaces/cube-builder';
+import { CubeMetaDataKeys } from '../enums/cube-metadata-keys';
+import { BuildStage } from '../enums/build-stage';
+import { FactTableInfo } from '../interfaces/fact-table-info';
+import { TransactionBlock } from '../interfaces/transaction-block';
+import { NoteCode, NoteCodes } from '../enums/note-code';
+import { UniqueMeasureDetails } from '../interfaces/unique-measure-details';
+import { MeasureFormat } from '../interfaces/measure-format';
 
 const config = appConfig();
 export const FACT_TABLE_NAME = 'fact_table';
@@ -199,7 +207,7 @@ async function createBasePostgresCube(
   }
 
   if (buildType === CubeBuildType.FullCube) {
-    const { transactionBlocks, coreViewSQLMap } = createFullCubeWithFactTableLoop(
+    const { transactionBlocks, coreViewSQLMap } = createFullCube(
       build.id,
       dataset,
       buildRevision,
@@ -213,8 +221,8 @@ async function createBasePostgresCube(
   } else if (buildType === CubeBuildType.ValidationCube) {
     const { transactionBlocks, coreViewSQLMap } = createValidationCube(
       build.id,
-      dataset,
       buildRevision,
+      previousRevision,
       factTableInfo,
       coreCubeViewSelectBuilder
     );
@@ -393,116 +401,6 @@ async function createMaterialisedView(
 |  and is used to build the cubes                           |
 +-----------------------------------------------------------+
  */
-
-interface CubeBuilder {
-  buildStatus: CubeBuildStatus;
-  transactionBlocks: TransactionBlock[];
-  coreViewSQL: Map<Locale, string>;
-}
-
-interface TransactionBlock {
-  buildStage: BuildStage;
-  statements: string[];
-  indexColumns?: Map<Locale, string[]>;
-}
-
-interface CubeViewBuilder {
-  name: string;
-  config: CubeViewConfig;
-  columns: Map<Locale, Set<string>>;
-}
-
-interface FactTableInfo {
-  factTableCreationQuery: string;
-  measureColumn?: FactTableColumn;
-  notesCodeColumn?: FactTableColumn;
-  dataValuesColumn?: FactTableColumn;
-  factTableDef: string[];
-  factIdentifiers: FactTableColumn[];
-  compositeKey: string[];
-}
-
-interface UniqueMeasureDetails {
-  reference: string;
-  format: string;
-  sort_order: number | null;
-  decimals: number | null;
-}
-
-interface MeasureFormat {
-  name: string;
-  method: string;
-}
-
-interface NoteCodeItem {
-  code: string;
-  tag: string;
-}
-
-enum BuildStage {
-  BaseTables = 'Base Tables',
-  FactTable = 'Fact Table',
-  Measure = 'Measure',
-  Dimensions = 'Dimensions',
-  NoteCodes = 'Note Codes',
-  CoreView = 'Core View',
-  PostBuildMetadata = 'PostBuild Metadata',
-  ViewMaterialisation = 'View Materialisation'
-}
-
-enum CubeMetaDataKeys {
-  BuildStatus = 'build_status',
-  Revision = 'revision_id',
-  Build = 'build_id',
-  BuildStart = 'build_start',
-  BuildFinished = 'build_finished',
-  StartDate = 'start_date',
-  EndDate = 'end_date',
-  NoteCodes = 'note_codes',
-  LookupTables = 'lookup_tables',
-  BuildScript = 'build_script',
-  BuildResults = 'build_results'
-}
-
-enum NoteCode {
-  Average = 'a',
-  BreakInSeries = 'b',
-  Confidential = 'c',
-  Estimated = 'e',
-  Forecast = 'f',
-  LowFigure = 'k',
-  LowReliability = 'u',
-  MissingData = 'x',
-  NotApplicable = 'z',
-  NotRecorded = 'w',
-  NotStatisticallySignificant = 'ns',
-  Provisional = 'p',
-  Revised = 'r',
-  StatisticallySignificantL1 = 's',
-  StatisticallySignificantL2 = 'ss',
-  StatisticallySignificantL3 = 'sss',
-  Total = 't'
-}
-
-export const NoteCodes: NoteCodeItem[] = [
-  { code: NoteCode.Average, tag: 'average' },
-  { code: NoteCode.BreakInSeries, tag: 'break_in_series' },
-  { code: NoteCode.Confidential, tag: 'confidential' },
-  { code: NoteCode.Estimated, tag: 'estimated' },
-  { code: NoteCode.Forecast, tag: 'forecast' },
-  { code: NoteCode.LowFigure, tag: 'low_figure' },
-  { code: NoteCode.NotStatisticallySignificant, tag: 'not_statistically_significant' },
-  { code: NoteCode.Provisional, tag: 'provisional' },
-  { code: NoteCode.Revised, tag: 'revised' },
-  { code: NoteCode.StatisticallySignificantL1, tag: 'statistically_significant_at_level_1' },
-  { code: NoteCode.StatisticallySignificantL2, tag: 'statistically_significant_at_level_2' },
-  { code: NoteCode.StatisticallySignificantL3, tag: 'statistically_significant_at_level_3' },
-  { code: NoteCode.Total, tag: 'total' },
-  { code: NoteCode.LowReliability, tag: 'low_reliability' },
-  { code: NoteCode.NotRecorded, tag: 'not_recorded' },
-  { code: NoteCode.MissingData, tag: 'missing_data' },
-  { code: NoteCode.NotApplicable, tag: 'not_applicable' }
-];
 
 export const makeCubeSafeString = (str: string): string => {
   return str
@@ -904,7 +802,7 @@ function copyUpdateTableToFactTable(
   return statements;
 }
 
-function cleanupNotesCodeColumn(buildId: string, notesCodeColumn: FactTableColumn): string {
+export function cleanupNotesCodeColumn(buildId: string, notesCodeColumn: FactTableColumn): string {
   return pgformat(
     `UPDATE %I.%I SET %I = NULL WHERE %I = '';`,
     buildId,
@@ -924,7 +822,7 @@ function loadFactTableFromEarlierRevision(buildId: string, previousRevisionId: s
   );
 }
 
-function dataTableActions(
+export function dataTableActions(
   buildId: string,
   dataTable: DataTable,
   factTableDef: string[],
@@ -1043,57 +941,7 @@ function loadFactTableFromPreviousRevision(
   };
 }
 
-function loadAllFactTables(
-  dataset: Dataset,
-  endRevision: Revision,
-  buildId: string,
-  factTableDef: string[],
-  dataValuesColumn: FactTableColumn,
-  notesCodeColumn: FactTableColumn,
-  factIdentifiers: FactTableColumn[],
-  factTableCompositeKey: string[]
-): TransactionBlock {
-  const buildStatements: string[] = ['BEGIN TRANSACTION;'];
-  logger.debug('Finding all fact tables for this revision and those that came before');
-  const allFactTables: DataTable[] = [];
-  if (endRevision.revisionIndex && endRevision.revisionIndex > 0) {
-    // If we have a revision index we start here
-    const validRevisions = dataset.revisions.filter(
-      (rev) => rev.revisionIndex <= endRevision.revisionIndex && rev.revisionIndex > 0
-    );
-    validRevisions.forEach((revision) => {
-      if (revision.dataTable) allFactTables.push(revision.dataTable);
-    });
-  } else {
-    logger.debug('Must be a draft revision, so we need to find all revisions before this one');
-    // If we don't have a revision index, we need to find the previous revision to this one that does
-    if (endRevision.dataTable) {
-      logger.debug('Adding end revision to list of fact tables');
-      allFactTables.push(endRevision.dataTable);
-    }
-    const validRevisions = dataset.revisions.filter((rev) => rev.revisionIndex > 0);
-    validRevisions.forEach((revision) => {
-      if (revision.dataTable) allFactTables.push(revision.dataTable);
-    });
-  }
-
-  const allDataTables = allFactTables.reverse().sort((ftA, ftB) => ftA.uploadedAt.getTime() - ftB.uploadedAt.getTime());
-  for (const dataTable of allDataTables) {
-    buildStatements.push(
-      ...dataTableActions(buildId, dataTable, factTableDef, notesCodeColumn, dataValuesColumn, factIdentifiers)
-    );
-  }
-  buildStatements.push(cleanupNotesCodeColumn(buildId, notesCodeColumn));
-  buildStatements.push(createPrimaryKeyOnFactTable(buildId, factTableCompositeKey));
-  buildStatements.push('END TRANSACTION;');
-
-  return {
-    buildStage: BuildStage.FactTable,
-    statements: buildStatements
-  };
-}
-
-function createPrimaryKeyOnFactTable(buildId: string, compositeKey: string[]): string {
+export function createPrimaryKeyOnFactTable(buildId: string, compositeKey: string[]): string {
   return pgformat('ALTER TABLE %I.%I ADD PRIMARY KEY (%I);', buildId, FACT_TABLE_NAME, compositeKey);
 }
 
@@ -2122,8 +1970,8 @@ function createViewsFromConfig(
 
 function createValidationCube(
   buildId: string,
-  dataset: Dataset,
   endRevision: Revision,
+  previousRevision: Revision | undefined,
   factTableInfo: FactTableInfo,
   coreCubeViewSelectBuilder: Map<Locale, string[]>
 ): { transactionBlocks: TransactionBlock[]; coreViewSQLMap: Map<Locale, string> } {
@@ -2136,9 +1984,9 @@ function createValidationCube(
   });
 
   transactionBlocks.push(
-    loadAllFactTables(
-      dataset,
+    loadFactTableFromPreviousRevision(
       endRevision,
+      previousRevision,
       buildId,
       factTableInfo.factTableDef,
       factTableInfo.dataValuesColumn!,
@@ -2179,7 +2027,7 @@ function createValidationCube(
   return { transactionBlocks, coreViewSQLMap };
 }
 
-function createFullCubeWithFactTableLoop(
+function createFullCube(
   buildId: string,
   dataset: Dataset,
   endRevision: Revision,
