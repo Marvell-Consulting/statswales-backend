@@ -20,7 +20,7 @@ import { RoleSelectionDTO } from '../dtos/user/role-selection-dto';
 import { UserStatus } from '../enums/user-status';
 import { UserGroupStatus } from '../enums/user-group-status';
 import { DatasetRepository } from '../repositories/dataset';
-import { DashboardStats, DatasetStats } from '../interfaces/dashboard-stats';
+import { DashboardStats, DatasetStats, UserStats } from '../interfaces/dashboard-stats';
 
 export const loadUserGroup = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   const userGroupIdError = await hasError(uuidValidator('user_group_id'), req);
@@ -265,7 +265,8 @@ export const dashboard = async (req: Request, res: Response, next: NextFunction)
   try {
     logger.info('Getting dashboard statistics');
     const datasets: DatasetStats = await DatasetRepository.getDashboardStats();
-    const stats: DashboardStats = { datasets };
+    const users: UserStats = await UserRepository.getDashboardStats();
+    const stats: DashboardStats = { datasets, users };
     res.json(stats);
   } catch (err) {
     logger.error(err, 'Error getting dashboard statistics');

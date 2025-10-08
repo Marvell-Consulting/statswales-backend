@@ -10,9 +10,10 @@ export interface DatasetStats {
 }
 
 export interface UserStats {
-  total: number;
   active: number;
+  inactive: number;
   last_7_days: number;
+  total: number;
 }
 
 export interface DashboardStats {
