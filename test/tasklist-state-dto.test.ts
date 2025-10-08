@@ -6,7 +6,6 @@ import { Revision } from '../src/entities/dataset/revision';
 import { EventLog } from '../src/entities/event-log';
 
 // Mock dependencies
-jest.mock('../src/utils/logger');
 jest.mock('../src/utils/collect-translations');
 
 const mockCollectTranslations = jest.requireMock('../src/utils/collect-translations');
