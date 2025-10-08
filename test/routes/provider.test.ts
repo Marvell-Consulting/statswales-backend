@@ -1,5 +1,4 @@
 import request from 'supertest';
-import { v4 as uuid } from 'uuid';
 
 import app from '../../src/app';
 import { dbManager } from '../../src/db/database-manager';
@@ -11,6 +10,7 @@ import { ProviderSourceDTO } from '../../src/dtos/provider-source-dto';
 
 import { getTestUser } from '../helpers/get-test-user';
 import { getAuthHeader } from '../helpers/auth-header';
+import { uuidV4 } from '../../src/utils/uuid';
 
 // Need to mock blob storage as it is included in services middleware for every route
 // avoids the "Jest did not exit one second after the test run has completed"
@@ -26,10 +26,10 @@ jest.mock('../../src/services/blob-storage', () => {
 
 const user: User = getTestUser('test user');
 
-const providerId1 = uuid();
-const providerId2 = uuid();
-const providerId3 = uuid();
-const providerId4 = uuid();
+const providerId1 = uuidV4();
+const providerId2 = uuidV4();
+const providerId3 = uuidV4();
+const providerId4 = uuidV4();
 
 const providers: Partial<Provider>[] = [
   { id: providerId1, name: 'Provider 1', language: 'en-gb' },
@@ -39,13 +39,13 @@ const providers: Partial<Provider>[] = [
 ];
 
 const sources: Partial<ProviderSource>[] = [
-  { id: uuid(), name: 'Source 1a', providerId: providerId1, language: 'en-gb' },
-  { id: uuid(), name: 'Source 1b', providerId: providerId1, language: 'en-gb' },
-  { id: uuid(), name: 'Source 1c', providerId: providerId1, language: 'en-gb' },
-  { id: uuid(), name: 'Source 1d', providerId: providerId1, language: 'en-gb' },
-  { id: uuid(), name: 'Source 2', providerId: providerId2, language: 'en-gb' },
-  { id: uuid(), name: 'Source 3', providerId: providerId3, language: 'en-gb' },
-  { id: uuid(), name: 'Source 4', providerId: providerId4, language: 'en-gb' }
+  { id: uuidV4(), name: 'Source 1a', providerId: providerId1, language: 'en-gb' },
+  { id: uuidV4(), name: 'Source 1b', providerId: providerId1, language: 'en-gb' },
+  { id: uuidV4(), name: 'Source 1c', providerId: providerId1, language: 'en-gb' },
+  { id: uuidV4(), name: 'Source 1d', providerId: providerId1, language: 'en-gb' },
+  { id: uuidV4(), name: 'Source 2', providerId: providerId2, language: 'en-gb' },
+  { id: uuidV4(), name: 'Source 3', providerId: providerId3, language: 'en-gb' },
+  { id: uuidV4(), name: 'Source 4', providerId: providerId4, language: 'en-gb' }
 ];
 
 describe('Providers', () => {

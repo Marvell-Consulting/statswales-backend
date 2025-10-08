@@ -1,7 +1,7 @@
 import { IsISO8601, IsNotEmpty, IsOptional, IsString, IsUUID } from 'class-validator';
-import { v4 as uuid } from 'uuid';
 
 import { RevisionProvider } from '../entities/dataset/revision-provider';
+import { uuidV4 } from '../utils/uuid';
 
 export class RevisionProviderDTO {
   @IsUUID(4)
@@ -53,8 +53,8 @@ export class RevisionProviderDTO {
 
   static toRevisionProvider(dto: RevisionProviderDTO): RevisionProvider {
     const revProvider = new RevisionProvider();
-    revProvider.id = dto.id || uuid();
-    revProvider.groupId = dto.group_id || uuid();
+    revProvider.id = dto.id || uuidV4();
+    revProvider.groupId = dto.group_id || uuidV4();
     revProvider.revisionId = dto.revision_id;
     revProvider.language = dto.language?.toLowerCase();
     revProvider.providerId = dto.provider_id;
