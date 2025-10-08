@@ -7,6 +7,7 @@ import { FileStore } from '../file-store.enum';
 import { Locale } from '../../enums/locale';
 
 const ONE_DAY_MS = 24 * 60 * 60 * 1000;
+const DEFAULT_TIMEOUT_MS = 2500;
 
 export const getDefaultConfig = (): AppConfig => {
   return {
@@ -23,6 +24,14 @@ export const getDefaultConfig = (): AppConfig => {
       availableTranslations: [Locale.English, Locale.Welsh],
       supportedLocales: [Locale.EnglishGb, Locale.WelshGb],
       fallback: Locale.English
+    },
+    healthcheck: {
+      dbTimeoutMs: process.env.HEALTH_DB_TIMEOUT_MS
+        ? parseInt(process.env.HEALTH_DB_TIMEOUT_MS, 10)
+        : DEFAULT_TIMEOUT_MS,
+      storageTimeoutMs: process.env.HEALTH_STORAGE_TIMEOUT_MS
+        ? parseInt(process.env.HEALTH_STORAGE_TIMEOUT_MS, 10)
+        : DEFAULT_TIMEOUT_MS
     },
     session: {
       store: SessionStore.Redis,

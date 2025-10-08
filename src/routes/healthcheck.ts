@@ -9,6 +9,9 @@ import { SUPPORTED_LOCALES } from '../middleware/translation';
 import { StorageService } from '../interfaces/storage-service';
 import { Locale } from '../enums/locale';
 import { UserDTO } from '../dtos/user/user-dto';
+import { appConfig } from '../config';
+
+const config = appConfig();
 
 const healthcheck = Router();
 
@@ -29,19 +32,20 @@ const checkStorage = async (fileService: StorageService): Promise<boolean> => {
 
 const timeout = (timer: number, service: string): Promise<string> =>
   new Promise((resolve) => {
-    setTimeout(resolve, timer, `${service} timeout`);
+    setTimeout(resolve, timer, `${service} timeout after ${timer}ms`);
   });
 
-const stillAlive = async (req: Request, res: Response): Promise<void> => {
+const checkConnections = async (req: Request, res: Response): Promise<void> => {
+  const healthConfig = config.healthcheck;
+
   try {
-    const timeoutMs = 1000;
     const results = await Promise.all([
-      Promise.race([checkAppDb(), timeout(timeoutMs, 'app-db')]),
-      Promise.race([checkCubeDb(), timeout(timeoutMs, 'cube-db')]),
-      Promise.race([checkStorage(req.fileService), timeout(timeoutMs, 'file storage')])
+      Promise.race([checkAppDb(), timeout(healthConfig.dbTimeoutMs, 'app-db')]),
+      Promise.race([checkCubeDb(), timeout(healthConfig.dbTimeoutMs, 'cube-db')]),
+      Promise.race([checkStorage(req.fileService), timeout(healthConfig.storageTimeoutMs, 'file storage')])
     ]);
     results.forEach((result) => {
-      if (isString(result) && result.includes('timeout')) throw new Error(`${result} after ${timeoutMs}ms`);
+      if (isString(result) && result.includes('timeout')) throw new Error(result);
     });
   } catch (err) {
     logger.error(err, 'Healthcheck failed');
@@ -49,16 +53,17 @@ const stillAlive = async (req: Request, res: Response): Promise<void> => {
     return;
   }
 
-  res.json({ message: 'success' }); // server is up and has connection to db and file storage
+  res.json({ message: 'success' });
 };
 
 healthcheck.get('/', (req: Request, res: Response) => {
   res.json({ message: 'success' }); // server is up
 });
 
-healthcheck.get('/ready', stillAlive);
+healthcheck.get('/ready', checkConnections); // server is up and has active connections to dependencies
+
 healthcheck.get('/live', (_req: Request, res: Response) => {
-  res.json({ message: 'success' });
+  res.json({ message: 'success' }); // server is up
 });
 
 // for testing language detection / switching is working
