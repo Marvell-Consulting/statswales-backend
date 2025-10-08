@@ -62,8 +62,8 @@ export function getCIConfig(): AppConfig {
       }
     },
     duckdb: {
-      threads: 1,
-      memory: '125MB'
+      threads: 2,
+      memory: '256MB'
     }
   });
 }

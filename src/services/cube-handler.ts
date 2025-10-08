@@ -946,10 +946,16 @@ function postgresMeasureFormats(): Map<string, MeasureFormat> {
   return measureFormats;
 }
 
-export const measureTableCreateStatement = (joinColumnType: string, tableName = 'measure'): string => {
+export const measureTableCreateStatement = (
+  joinColumnType: string,
+  schemaName?: string,
+  tableName = 'measure',
+  temporary = false
+): string => {
+  const finalTableName = schemaName ? pgformat('%I.%I', schemaName, tableName) : pgformat('%I', tableName);
   return pgformat(
     `
-    CREATE TABLE %I (
+    CREATE %s TABLE %s (
       reference %s,
       language TEXT,
       description TEXT,
@@ -961,7 +967,8 @@ export const measureTableCreateStatement = (joinColumnType: string, tableName = 
       hierarchy %s
     );
   `,
-    tableName,
+    temporary ? 'TEMPORARY' : '',
+    finalTableName,
     joinColumnType,
     joinColumnType
   );

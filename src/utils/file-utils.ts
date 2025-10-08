@@ -1,6 +1,7 @@
 import { writeFile } from 'node:fs/promises';
 
 import { format as pgformat } from '@scaleleap/pg-format';
+import { randomUUID } from 'node:crypto';
 
 import { Dataset } from '../entities/dataset/dataset';
 import { FileImportInterface } from '../entities/dataset/file-import.interface';
@@ -9,9 +10,8 @@ import { FileType } from '../enums/file-type';
 import { logger } from './logger';
 import { getFileService } from './get-file-service';
 import { asyncTmpName } from './async-tmp';
-import { duckdb, linkToPostgresSchema } from '../services/duckdb';
-import { Database } from 'duckdb-async';
-import { FACT_TABLE_NAME, makeCubeSafeString } from '../services/cube-handler';
+import { duckdb } from '../services/duckdb';
+import { FACT_TABLE_NAME } from '../services/cube-handler';
 import { DataTable } from '../entities/dataset/data-table';
 import { performance } from 'node:perf_hooks';
 import { performanceReporting } from './performance-reporting';
@@ -20,6 +20,7 @@ import { LookupTableExtractor } from '../extractors/lookup-table-extractor';
 import { FactTableColumn } from '../entities/dataset/fact-table-column';
 import { SUPPORTED_LOCALES } from '../middleware/translation';
 import { languageMatcherCaseStatement } from './lookup-table-utils';
+import { DuckDBConnection } from '@duckdb/node-api';
 
 export const getFileImportAndSaveToDisk = async (
   dataset: Dataset,
@@ -45,22 +46,23 @@ export async function loadFileIntoDataTablesSchema(
   } else {
     dataTableFile = await getFileImportAndSaveToDisk(dataset, dataTable);
   }
-  await loadFileIntoCube(quack, dataTable.fileType, dataTableFile, FACT_TABLE_NAME);
-  await linkToPostgresSchema(quack, 'data_tables');
-  await quack.exec(
+  await loadFileIntoCube(quack, dataTable.fileType, dataTableFile, FACT_TABLE_NAME, 'memory');
+  await quack.run(
     pgformat('CREATE TABLE data_tables_db.%I AS SELECT * FROM memory.%I;', dataTable.id, FACT_TABLE_NAME)
   );
-  await quack.close();
+  quack.disconnectSync();
   performanceReporting(Math.round(start - performance.now()), 500, 'Loading a data table in to postgres');
 }
 
 export const createLookupTableQuery = (
+  schemaName: string,
   lookupTableName: string,
   referenceColumnName: string,
   referenceColumnType: string
 ): string => {
   return pgformat(
-    'CREATE TABLE %I (%I %s NOT NULL, language VARCHAR(5) NOT NULL, description TEXT NOT NULL, notes TEXT, sort_order INTEGER, hierarchy %s);',
+    'CREATE TABLE %I.%I (%I %s NOT NULL, language VARCHAR(5) NOT NULL, description TEXT NOT NULL, notes TEXT, sort_order INTEGER, hierarchy %s);',
+    schemaName,
     lookupTableName,
     referenceColumnName,
     referenceColumnType,
@@ -78,16 +80,18 @@ export async function loadFileIntoLookupTablesSchema(
 ): Promise<void> {
   const start = performance.now();
   const quack = await duckdb();
-  const dimTable = `${makeCubeSafeString(factTableColumn.columnName)}_lookup`;
-  await quack.exec(createLookupTableQuery(dimTable, factTableColumn.columnName, factTableColumn.columnDatatype));
+  const dimTable = randomUUID();
+  await quack.run(
+    createLookupTableQuery('memory', dimTable, factTableColumn.columnName, factTableColumn.columnDatatype)
+  );
   let lookupTableFile;
   if (filePath) {
     lookupTableFile = filePath;
   } else {
     lookupTableFile = await getFileImportAndSaveToDisk(dataset, lookupTable!);
   }
-  const lookupTableName = `${makeCubeSafeString(factTableColumn.columnName)}_lookup_draft`;
-  await loadFileIntoCube(quack, lookupTable.fileType, lookupTableFile, lookupTableName);
+  const lookupTableName = randomUUID();
+  await loadFileIntoCube(quack, lookupTable.fileType, lookupTableFile, lookupTableName, 'memory');
   if (extractor.isSW2Format) {
     logger.debug('Lookup table is SW2 format');
     const dataExtractorParts = [];
@@ -101,7 +105,7 @@ export async function loadFileIntoLookupTablesSchema(
       const hierarchyCol = extractor.hierarchyColumn ? pgformat('%I', extractor.hierarchyColumn) : 'NULL';
       dataExtractorParts.push(
         pgformat(
-          'SELECT %I AS %I, %L as language, %I as description, %s as notes, %s as sort_order, %s as hierarchy FROM %I',
+          'SELECT %I AS %I, %L as language, %I as description, %s as notes, %s as sort_order, %s as hierarchy FROM %I.%I',
           joinColumn,
           factTableColumn.columnName,
           locale.toLowerCase(),
@@ -109,19 +113,20 @@ export async function loadFileIntoLookupTablesSchema(
           notesColStr,
           sortStr,
           hierarchyCol,
+          'memory',
           lookupTableName
         )
       );
     }
-    const builtInsertQuery = pgformat(`INSERT INTO %I %s;`, dimTable, dataExtractorParts.join(' UNION '));
-    await quack.exec(builtInsertQuery);
+    const builtInsertQuery = pgformat(`INSERT INTO %I.%I %s;`, 'memory', dimTable, dataExtractorParts.join(' UNION '));
+    await quack.run(builtInsertQuery);
   } else {
     const languageMatcher = languageMatcherCaseStatement(extractor.languageColumn);
     const notesStr = extractor.notesColumns ? pgformat('%I', extractor.notesColumns[0].name) : 'NULL';
     const sortStr = extractor.sortColumn ? pgformat('%I', extractor.sortColumn) : 'NULL';
     const hierarchyStr = extractor.hierarchyColumn ? pgformat('%I', extractor.hierarchyColumn) : 'NULL';
     const dataExtractorParts = pgformat(
-      `SELECT %I AS %I, %s as language, %I as description, %s as notes, %s as sort_order, %s as hierarchy FROM %I;`,
+      `SELECT %I AS %I, %s as language, %I as description, %s as notes, %s as sort_order, %s as hierarchy FROM %I.%I;`,
       joinColumn,
       factTableColumn.columnName,
       languageMatcher,
@@ -129,60 +134,53 @@ export async function loadFileIntoLookupTablesSchema(
       notesStr,
       sortStr,
       hierarchyStr,
+      'memory',
       lookupTableName
     );
-    const builtInsertQuery = pgformat(`INSERT INTO %I %s`, dimTable, dataExtractorParts);
-    await quack.exec(builtInsertQuery);
+    const builtInsertQuery = pgformat(`INSERT INTO %I.%I %s`, 'memory', dimTable, dataExtractorParts);
+    await quack.run(builtInsertQuery);
   }
   logger.debug(`Dropping original lookup table ${lookupTableName}`);
-  await quack.exec(pgformat('DROP TABLE %I', lookupTableName));
-  await linkToPostgresSchema(quack, 'lookup_tables');
-  await quack.exec(pgformat('CREATE TABLE lookup_tables_db.%I AS SELECT * FROM memory.%I;', lookupTable.id, dimTable));
-  await quack.close();
+  await quack.run(pgformat('DROP TABLE %I.%I', 'memory', lookupTableName));
+  await quack.run(
+    pgformat('CREATE TABLE %I.%I AS SELECT * FROM %I.%I;', 'lookup_tables_db', lookupTable.id, 'memory', dimTable)
+  );
+  quack.disconnectSync();
   performanceReporting(Math.round(start - performance.now()), 500, 'Loading a lookup table in to postgres');
 }
 
 export const loadFileIntoCube = async (
-  quack: Database,
+  quack: DuckDBConnection,
   fileType: FileType,
   tempFile: string,
-  tableName: string
+  tableName: string,
+  schema: string
 ): Promise<void> => {
   logger.debug(`Loading file in to DuckDB`);
-  let insertQuery = '';
   logger.debug(`Creating data table ${tableName} with file ${tempFile} and file type ${fileType}`);
+  let fileLoaderMethod = pgformat('%L', tempFile);
   switch (fileType) {
     case FileType.Csv:
     case FileType.GzipCsv:
-      insertQuery = pgformat(
-        "CREATE TABLE %I AS SELECT * FROM read_csv(%L, auto_type_candidates = ['BIGINT', 'DOUBLE', 'VARCHAR'], sample_size = -1);",
-        makeCubeSafeString(tableName),
+      fileLoaderMethod = pgformat(
+        "read_csv(%L, auto_type_candidates = ['BIGINT', 'DOUBLE', 'VARCHAR'], sample_size = -1);",
         tempFile
       );
-      break;
-    case FileType.Parquet:
-      insertQuery = pgformat('CREATE TABLE %I AS SELECT * FROM %L;', makeCubeSafeString(tableName), tempFile);
       break;
     case FileType.Json:
     case FileType.GzipJson:
-      insertQuery = pgformat(
-        'CREATE TABLE %I AS SELECT * FROM read_json_auto(%L);',
-        makeCubeSafeString(tableName),
-        tempFile
-      );
+      fileLoaderMethod = pgformat('read_json_auto(%L);', tempFile);
       break;
     case FileType.Excel:
-      await quack.exec('INSTALL spatial;');
-      await quack.exec('LOAD spatial;');
-      insertQuery = pgformat('CREATE TABLE %I AS SELECT * FROM st_read(%L);', makeCubeSafeString(tableName), tempFile);
+      fileLoaderMethod = pgformat('read_xlsx(%L);', tempFile);
       break;
-    default:
-      throw new Error('Unknown file type');
   }
+  const insertQuery = pgformat('CREATE TABLE %I.%I AS SELECT * FROM %s;', schema, tableName, fileLoaderMethod);
   try {
-    await quack.exec(insertQuery);
+    logger.trace(`Running create data table query:\n\n${insertQuery}\n\n`);
+    await quack.run(insertQuery);
   } catch (error) {
-    logger.error(`Failed to load file in to DuckDB using query ${insertQuery} with the following error: ${error}`);
+    logger.error(error, `Failed to load file in to DuckDB.`);
     throw error;
   }
 };
