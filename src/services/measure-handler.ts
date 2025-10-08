@@ -189,13 +189,13 @@ async function createMeasureTable(
   path: string
 ): Promise<MeasureRow[]> {
   const start = performance.now();
-  const tmpTableName = randomUUID().toLowerCase().replace(/-/g, '');
-  const lookupTableName = randomUUID().toLowerCase().replace(/-/g, '');
+  const tmpTableName = randomUUID();
+  const lookupTableName = randomUUID();
   const quack = await duckdb();
   logger.debug(`Creating empty measure table`);
-  await quack.run(measureTableCreateStatement(measureColumn.columnDatatype, 'memory', lookupTableName, true));
+  await quack.run(measureTableCreateStatement(measureColumn.columnDatatype, 'memory', lookupTableName));
   logger.debug(`Loading measure lookup table into memory`);
-  await loadFileIntoCube(quack, fileType, path, tmpTableName);
+  await loadFileIntoCube(quack, fileType, path, tmpTableName, 'memory');
   const viewComponents: string[] = [];
   logger.debug(`Setting up measure insert query`);
   let formatColumn = 'NULL AS format,';
@@ -227,17 +227,20 @@ async function createMeasureTable(
         }
       }
       viewComponents.push(
-        `SELECT
-            "${joinColumn}" AS reference,
-            '${locale.toLowerCase()}' AS language,
-            "${extractor.descriptionColumns.find((col) => col.lang === locale.toLowerCase())?.name}" AS description,
-            ${notesColumnDef} AS notes,
-            ${sortOrderDef} AS sort_order,
-            ${formatColumn} AS format,
-            ${decimalColumnDef} AS decimals,
-            ${measureTypeDef} AS measure_type,
-            ${hierarchyDef} AS hierarchy
-         FROM ${tmpTableName}\n`
+        pgformat(
+          `SELECT %I AS reference, %L AS language, %I AS description, %s AS notes, %s AS sort_order, %s AS format, %s AS decimals, %s AS measure_type, %s AS hierarchy FROM %I.%I\n`,
+          joinColumn,
+          locale.toLowerCase(),
+          extractor.descriptionColumns.find((col) => col.lang === locale.toLowerCase())?.name,
+          notesColumnDef,
+          sortOrderDef,
+          formatColumn,
+          decimalColumnDef,
+          measureTypeDef,
+          hierarchyDef,
+          'memory',
+          tmpTableName
+        )
       );
     }
     buildMeasureViewQuery = `${viewComponents.join('\nUNION\n')}`;
@@ -250,27 +253,29 @@ async function createMeasureTable(
 
     const measureMatcher = languageMatcherCaseStatement(extractor.languageColumn);
 
-    buildMeasureViewQuery = `
-      SELECT
-        "${joinColumn}" AS reference,
-        ${measureMatcher} AS language,
-        "${extractor.descriptionColumns[0].name}" AS description,
-        ${notesColumnDef} AS notes,
-        ${sortOrderDef} AS sort_order,
-        ${formatColumn} AS format,
-        ${decimalColumnDef} AS decimals,
-        ${measureTypeDef} AS measure_type,
-        ${hierarchyDef} AS hierarchy
-      FROM ${tmpTableName}
-    `;
+    buildMeasureViewQuery = pgformat(
+      `SELECT %I AS reference, %s AS language, %I AS description, %s AS notes, %s AS sort_order, %s AS format, %s AS decimals, %s AS measure_type, %s AS hierarchy FROM %I.%I`,
+      joinColumn,
+      measureMatcher,
+      extractor.descriptionColumns[0].name,
+      notesColumnDef,
+      sortOrderDef,
+      formatColumn,
+      decimalColumnDef,
+      measureTypeDef,
+      hierarchyDef,
+      'memory',
+      tmpTableName
+    );
   }
 
   const statements: string[] = [];
-  statements.push(pgformat('INSERT INTO %I (%s)', lookupTableName, buildMeasureViewQuery));
+  statements.push(pgformat('INSERT INTO %I %s;', lookupTableName, buildMeasureViewQuery));
   for (const locale of SUPPORTED_LOCALES) {
     statements.push(
       pgformat(
-        'UPDATE %I SET language = %L WHERE language = lower(%L);',
+        'UPDATE %I.%I SET language = %L WHERE language = lower(%L);',
+        'memory',
         lookupTableName,
         locale.toLowerCase(),
         locale.split('-')[0]
@@ -278,7 +283,8 @@ async function createMeasureTable(
     );
     statements.push(
       pgformat(
-        'UPDATE %I SET language = %L WHERE language = lower(%L);',
+        'UPDATE %I.%I SET language = %L WHERE language = lower(%L);',
+        'memory',
         lookupTableName,
         locale.toLowerCase(),
         locale.toLowerCase()
@@ -287,7 +293,8 @@ async function createMeasureTable(
     for (const sublocale of SUPPORTED_LOCALES) {
       statements.push(
         pgformat(
-          'UPDATE %I SET language = %L WHERE language = lower(%L);',
+          'UPDATE %I.%I SET language = %L WHERE language = lower(%L);',
+          'memory',
           lookupTableName,
           sublocale.toLowerCase(),
           t(`language.${sublocale.split('-')[0]}`, { lng: locale })
@@ -300,7 +307,8 @@ async function createMeasureTable(
     for (const format of Object.values(DataValueFormat)) {
       statements.push(
         pgformat(
-          `UPDATE %I SET format = %L WHERE format = LOWER(%L);`,
+          `UPDATE %I.%I SET format = %L WHERE format = LOWER(%L);`,
+          'memory',
           lookupTableName,
           format,
           t(`formats.${format}`, { lng: extractor.tableLanguage.toLowerCase() })
@@ -310,6 +318,7 @@ async function createMeasureTable(
   }
 
   try {
+    logger.trace(`Running query:\n\n${statements.join('\n')}\n\n`);
     await quack.run(statements.join('\n'));
   } catch (err) {
     logger.error(err, `Something went wrong trying to extract the lookup tables contents to measure.`);
@@ -480,26 +489,21 @@ export const validateMeasureLookupTable = async (
   }
   logger.debug('Copying lookup table from lookup_tables schema into cube');
   const actionId = crypto.randomUUID();
+  const createMeasureTableRunner = dbManager.getCubeDataSource().createQueryRunner();
+  const statements = [
+    'BEGIN TRANSACTION;',
+    measureTableCreateStatement(measureColumn.columnDatatype, draftRevision.id, actionId),
+    ...measureTable.map((row) => {
+      const values = [row.reference, row.language, row.measureType, row.hierarchy];
+      return pgformat('INSERT INTO %I.%I VALUES (%L);', draftRevision.id, actionId, values);
+    }),
+    'END TRANSACTION;'
+  ];
   try {
-    await cubeDB.query(measureTableCreateStatement(measureColumn.columnDatatype, actionId));
-    for (const row of measureTable) {
-      logger.debug(`Inserting into measure table ${JSON.stringify(row)}`);
-      const values = [
-        row.reference,
-        row.language,
-        row.description,
-        row.notes,
-        row.sortOrder,
-        row.format,
-        row.decimal,
-        row.measureType,
-        row.hierarchy
-      ];
-      await cubeDB.query(pgformat('INSERT INTO %I VALUES (%L);', actionId, values));
-    }
+    await createMeasureTableRunner.query(statements.join('\n'));
   } catch (error) {
     await lookupTable.remove();
-    cubeDB.release();
+    void createMeasureTableRunner.release();
     logger.error(error, 'Unable to copy lookup table from lookup tables schema.');
     return viewErrorGenerators(500, dataset.id, 'patch', 'errors.dimension_validation.lookup_table_loading_failed', {
       mismatch: false
