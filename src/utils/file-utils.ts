@@ -11,7 +11,7 @@ import { logger } from './logger';
 import { getFileService } from './get-file-service';
 import { asyncTmpName } from './async-tmp';
 import { duckdb } from '../services/duckdb';
-import { FACT_TABLE_NAME, makeCubeSafeString } from '../services/cube-handler';
+import { FACT_TABLE_NAME } from '../services/cube-handler';
 import { DataTable } from '../entities/dataset/data-table';
 import { performance } from 'node:perf_hooks';
 import { performanceReporting } from './performance-reporting';
@@ -46,7 +46,7 @@ export async function loadFileIntoDataTablesSchema(
   } else {
     dataTableFile = await getFileImportAndSaveToDisk(dataset, dataTable);
   }
-  await loadFileIntoCube(quack, dataTable.fileType, dataTableFile, FACT_TABLE_NAME);
+  await loadFileIntoCube(quack, dataTable.fileType, dataTableFile, FACT_TABLE_NAME, 'memory');
   await quack.run(
     pgformat('CREATE TABLE data_tables_db.%I AS SELECT * FROM memory.%I;', dataTable.id, FACT_TABLE_NAME)
   );
@@ -82,7 +82,7 @@ export async function loadFileIntoLookupTablesSchema(
 ): Promise<void> {
   const start = performance.now();
   const quack = await duckdb();
-  const dimTable = randomUUID().toLowerCase().replace(/-/g, '_');
+  const dimTable = randomUUID();
   await quack.run(
     createLookupTableQuery('memory', dimTable, factTableColumn.columnName, factTableColumn.columnDatatype, true)
   );
@@ -92,8 +92,8 @@ export async function loadFileIntoLookupTablesSchema(
   } else {
     lookupTableFile = await getFileImportAndSaveToDisk(dataset, lookupTable!);
   }
-  const lookupTableName = randomUUID().toLowerCase().replace(/-/g, '_');
-  await loadFileIntoCube(quack, lookupTable.fileType, lookupTableFile, lookupTableName);
+  const lookupTableName = randomUUID();
+  await loadFileIntoCube(quack, lookupTable.fileType, lookupTableFile, lookupTableName, 'memory');
   if (extractor.isSW2Format) {
     logger.debug('Lookup table is SW2 format');
     const dataExtractorParts = [];
@@ -155,45 +155,34 @@ export const loadFileIntoCube = async (
   quack: DuckDBConnection,
   fileType: FileType,
   tempFile: string,
-  tableName: string
+  tableName: string,
+  schema: string
 ): Promise<void> => {
   logger.debug(`Loading file in to DuckDB`);
-  let insertQuery = '';
   logger.debug(`Creating data table ${tableName} with file ${tempFile} and file type ${fileType}`);
+  let fileLoaderMethod = pgformat('%L', tempFile);
   switch (fileType) {
     case FileType.Csv:
     case FileType.GzipCsv:
-      insertQuery = pgformat(
-        "CREATE TEMPORARY TABLE %I AS SELECT * FROM read_csv(%L, auto_type_candidates = ['BIGINT', 'DOUBLE', 'VARCHAR'], sample_size = -1);",
-        makeCubeSafeString(tableName),
+      fileLoaderMethod = pgformat(
+        "read_csv(%L, auto_type_candidates = ['BIGINT', 'DOUBLE', 'VARCHAR'], sample_size = -1);",
         tempFile
       );
-      break;
-    case FileType.Parquet:
-      insertQuery = pgformat('CREATE TEMPORARY TABLE %I AS SELECT * FROM %L;', makeCubeSafeString(tableName), tempFile);
       break;
     case FileType.Json:
     case FileType.GzipJson:
-      insertQuery = pgformat(
-        'CREATE TEMPORARY TABLE %I AS SELECT * FROM read_json_auto(%L);',
-        makeCubeSafeString(tableName),
-        tempFile
-      );
+      fileLoaderMethod = pgformat('read_json_auto(%L);', tempFile);
       break;
     case FileType.Excel:
-      insertQuery = pgformat(
-        'CREATE TEMPORARY TABLE %I AS SELECT * FROM read_xlsx(%L);',
-        makeCubeSafeString(tableName),
-        tempFile
-      );
+      fileLoaderMethod = pgformat('read_xlsx(%L);', tempFile);
       break;
-    default:
-      throw new Error('Unknown file type');
   }
+  const insertQuery = pgformat('CREATE TABLE %I.%I AS SELECT * FROM %s;', schema, tableName, fileLoaderMethod);
   try {
+    logger.trace(`Running create data table query:\n\n${insertQuery}\n\n`);
     await quack.run(insertQuery);
   } catch (error) {
-    logger.error(`Failed to load file in to DuckDB using query ${insertQuery} with the following error: ${error}`);
+    logger.error(error, `Failed to load file in to DuckDB.`);
     throw error;
   }
 };

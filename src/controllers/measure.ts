@@ -75,6 +75,12 @@ export const attachLookupTableToMeasure = async (req: Request, res: Response, ne
     const lang = req.language.toLowerCase();
     const tableMatcher = req.body as MeasureLookupPatchDTO;
     const result = await validateMeasureLookupTable(dataTable, dataset, tmpFile.path, lang, tableMatcher);
+    if ((result as ViewErrDTO).status) {
+      const error = result as ViewErrDTO;
+      res.status(error.status);
+      res.json(result);
+      return;
+    }
     await updateRevisionTasks(dataset, dataset.measure.id, 'measure');
     await createAllCubeFiles(dataset.id, dataset.draftRevision!.id);
     res.status((result as ViewErrDTO).status || 200);
