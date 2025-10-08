@@ -1,4 +1,5 @@
 import { performance } from 'node:perf_hooks';
+import { DuckDbError } from 'duckdb-async';
 import { format as pgformat } from '@scaleleap/pg-format';
 import { t } from 'i18next';
 
@@ -32,7 +33,7 @@ import { FileValidationErrorType, FileValidationException } from '../exceptions/
 import { FactTableColumn } from '../entities/dataset/fact-table-column';
 import { Locale } from '../enums/locale';
 import { DataValueFormat } from '../enums/data-value-format';
-import { duckdb } from './duckdb';
+import { duckdb, linkToPostgresSchema } from './duckdb';
 import { Revision } from '../entities/dataset/revision';
 import { performanceReporting } from '../utils/performance-reporting';
 import { FileType } from '../enums/file-type';
@@ -191,7 +192,7 @@ async function createMeasureTable(
   const lookupTableName = 'measure_draft';
   const quack = await duckdb();
   logger.debug(`Creating empty measure table`);
-  await quack.run(measureTableCreateStatement(measureColumn.columnDatatype));
+  await quack.exec(measureTableCreateStatement(measureColumn.columnDatatype));
   await loadFileIntoCube(quack, fileType, path, lookupTableName);
   const measureTable: MeasureRow[] = [];
   const viewComponents: string[] = [];
@@ -264,16 +265,16 @@ async function createMeasureTable(
   }
   try {
     const insertQuery = `INSERT INTO measure (${buildMeasureViewQuery});`;
-    await quack.run(insertQuery);
+    await quack.exec(insertQuery);
     for (const locale of SUPPORTED_LOCALES) {
-      await quack.run(
+      await quack.exec(
         pgformat(
           'UPDATE measure SET language = %L WHERE language = lower(%L)',
           locale.toLowerCase(),
           locale.split('-')[0]
         )
       );
-      await quack.run(
+      await quack.exec(
         pgformat(
           'UPDATE measure SET language = %L WHERE language = lower(%L)',
           locale.toLowerCase(),
@@ -281,7 +282,7 @@ async function createMeasureTable(
         )
       );
       for (const sublocale of SUPPORTED_LOCALES) {
-        await quack.run(
+        await quack.exec(
           pgformat(
             'UPDATE measure SET language = %L WHERE language = lower(%L)',
             sublocale.toLowerCase(),
@@ -292,7 +293,7 @@ async function createMeasureTable(
     }
   } catch (err) {
     logger.error(err, `Something went wrong trying to extract the lookup tables contents to measure.`);
-    const error = err as { errorType: string; message: string };
+    const error = err as DuckDbError;
     if (error.errorType === 'Conversion') {
       if (error.message.toLowerCase().includes('decimal')) {
         throw new FileValidationException(
@@ -320,7 +321,7 @@ async function createMeasureTable(
   // Convert formats if they're in something other than English
   if (!extractor.tableLanguage.includes('en')) {
     for (const format of Object.values(DataValueFormat)) {
-      await quack.run(`
+      await quack.exec(`
         UPDATE measure
         SET format = '${format}'
         WHERE format = LOWER('${t(`formats.${format}`, { lng: extractor.tableLanguage.toLowerCase() })}');
@@ -329,29 +330,30 @@ async function createMeasureTable(
   }
 
   try {
-    await quack.run(pgformat('DROP TABLE IF EXISTS %I', measureId));
-    await quack.run(pgformat('CREATE TABLE lookup_tables_db.%I AS SELECT * FROM memory.measure;', measureId));
+    await linkToPostgresSchema(quack, 'lookup_tables');
+    await quack.exec(pgformat('DROP TABLE IF EXISTS %I', measureId));
+    await quack.exec(pgformat('CREATE TABLE lookup_tables_db.%I AS SELECT * FROM memory.measure;', measureId));
   } catch (err) {
     logger.error(err, 'Something went wrong trying to copy the measure table to postgres');
-    quack.disconnectSync();
+    await quack.close();
     throw new FileValidationException('errors.measure_validation.copy_failure', FileValidationErrorType.unknown);
   }
 
-  const tableContents = await quack.runAndReadAll(`SELECT * FROM memory.measure;`);
-  for (const row of tableContents.getRowObjectsJson()) {
+  const tableContents = await quack.all(`SELECT * FROM memory.measure;`);
+  for (const row of tableContents) {
     const item = new MeasureRow();
-    item.reference = row.reference as string;
-    item.language = row.language as string;
-    item.description = row.description as string;
-    item.format = (row.format as string).toLowerCase() as DisplayType;
-    item.notes = row.notes as string;
-    item.sortOrder = row.sort_order as number;
-    item.decimal = row.decimals as number;
-    item.measureType = row.measure_type as string;
-    item.hierarchy = row.hierarchy as string;
+    item.reference = row.reference;
+    item.language = row.language;
+    item.description = row.description;
+    item.format = row.format.toLowerCase() as DisplayType;
+    item.notes = row.notes;
+    item.sortOrder = row.sort_order;
+    item.decimal = row.decimals;
+    item.measureType = row.measure_type;
+    item.hierarchy = row.hierarchy;
     measureTable.push(item);
   }
-  quack.disconnectSync();
+  await quack.close();
   performanceReporting(start - performance.now(), 500, 'Loading measure lookup table into postgres');
   return measureTable;
 }
