@@ -1,9 +1,9 @@
 import { set } from 'lodash';
 import { addSeconds, isBefore, max } from 'date-fns';
-import { v4 as uuid } from 'uuid';
 
 import { Dataset } from '../entities/dataset/dataset';
 import { EventLog } from '../entities/event-log';
+import { uuidV4 } from './uuid';
 
 export const flagUpdateTask = (dataset: Dataset, event: EventLog): EventLog => {
   if (event.entity === 'task') {
@@ -40,7 +40,7 @@ export const generateSimulatedEvents = (dataset: Dataset): EventLog[] => {
     const firstPublishedDate = addSeconds(max([firstRev.approvedAt!, dataset.firstPublishedAt!]), 1);
 
     const goLiveEvent = EventLog.create({
-      id: `simulated-${uuid()}`,
+      id: `simulated-${uuidV4()}`,
       entity: 'dataset',
       action: 'publish',
       createdAt: firstPublishedDate,
@@ -56,7 +56,7 @@ export const generateSimulatedEvents = (dataset: Dataset): EventLog[] => {
       const revisionPublishedDate = addSeconds(max([revision.approvedAt!, revision.publishAt]), 1);
 
       const revisionPublishedEvent = EventLog.create({
-        id: `simulated-${uuid()}`,
+        id: `simulated-${uuidV4()}`,
         entity: 'revision',
         action: 'publish',
         data: { revisionIndex: revision.revisionIndex },

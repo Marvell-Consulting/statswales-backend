@@ -1,7 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
-import { v4 as uuid } from 'uuid';
 
 import { asyncLocalStorage } from '../services/async-local-storage';
+import { uuidV4 } from '../utils/uuid';
 
 // Creates a context for storing values for the duration of the request
 // Any code running after this middlware can then access the "store" Map using
@@ -13,6 +13,6 @@ import { asyncLocalStorage } from '../services/async-local-storage';
 export const requestContext = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const store = new Map<string, any>();
-  store.set('requestId', uuid());
+  store.set('requestId', uuidV4());
   asyncLocalStorage.run(store, next);
 };
