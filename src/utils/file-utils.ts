@@ -58,12 +58,10 @@ export const createLookupTableQuery = (
   schemaName: string,
   lookupTableName: string,
   referenceColumnName: string,
-  referenceColumnType: string,
-  temporary = false
+  referenceColumnType: string
 ): string => {
   return pgformat(
-    'CREATE %S TABLE %I.%I (%I %s NOT NULL, language VARCHAR(5) NOT NULL, description TEXT NOT NULL, notes TEXT, sort_order INTEGER, hierarchy %s);',
-    temporary ? 'TEMPORARY' : '',
+    'CREATE TABLE %I.%I (%I %s NOT NULL, language VARCHAR(5) NOT NULL, description TEXT NOT NULL, notes TEXT, sort_order INTEGER, hierarchy %s);',
     schemaName,
     lookupTableName,
     referenceColumnName,
@@ -84,7 +82,7 @@ export async function loadFileIntoLookupTablesSchema(
   const quack = await duckdb();
   const dimTable = randomUUID();
   await quack.run(
-    createLookupTableQuery('memory', dimTable, factTableColumn.columnName, factTableColumn.columnDatatype, true)
+    createLookupTableQuery('memory', dimTable, factTableColumn.columnName, factTableColumn.columnDatatype)
   );
   let lookupTableFile;
   if (filePath) {
