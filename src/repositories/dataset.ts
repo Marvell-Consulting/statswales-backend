@@ -299,11 +299,10 @@ export const DatasetRepository = dataSource.getRepository(Dataset).extend({
     return await this.save(dataset);
   },
 
-  async getDashboardStats(): Promise<DatasetStats> {
+  async getDashboardStats(lang: Locale): Promise<DatasetStats> {
     logger.debug('Getting dashboard statistics for datasets');
 
-    // Use a raw query to get all the counts in one go, based on the same logic as listAllQuery
-    const result = await this.query(`
+    const statusQuery = await this.query(`
       WITH dataset_stats AS (
         SELECT
           d.id,
@@ -349,17 +348,55 @@ export const DatasetRepository = dataSource.getRepository(Dataset).extend({
       FROM dataset_stats
     `);
 
-    const stats = result[0];
-
-    return {
-      incomplete: Number(stats.incomplete),
-      pending_approval: Number(stats.pending_approval),
-      scheduled: Number(stats.scheduled),
-      published: Number(stats.published),
-      action_requested: Number(stats.action_requested),
-      archived: Number(stats.archived),
-      offline: Number(stats.offline),
-      total: Number(stats.total)
+    const summary = {
+      incomplete: Number(statusQuery[0].incomplete),
+      pending_approval: Number(statusQuery[0].pending_approval),
+      scheduled: Number(statusQuery[0].scheduled),
+      published: Number(statusQuery[0].published),
+      action_requested: Number(statusQuery[0].action_requested),
+      archived: Number(statusQuery[0].archived),
+      offline: Number(statusQuery[0].offline),
+      total: Number(statusQuery[0].total)
     };
+
+    const largestQuery = await this.query(
+      `
+      WITH largest_tables AS (
+        SELECT relname AS data_table_id, n_live_tup AS row_count
+        FROM pg_stat_user_tables
+        WHERE schemaname = 'data_tables'
+        ORDER BY n_live_tup DESC
+        LIMIT 10
+      )
+      SELECT r.dataset_id AS dataset_id, rm.title AS title, lt.row_count
+      FROM largest_tables lt
+      INNER JOIN revision r ON r.data_table_id::text = lt.data_table_id::text
+      INNER JOIN revision_metadata rm ON rm.revision_id = r.id AND rm.language LIKE $1
+      ORDER BY lt.row_count DESC;
+    `,
+      [`${lang}%`]
+    );
+
+    const longestQuery = await this.query(
+      `
+        SELECT r.dataset_id AS dataset_id, rm.title AS title,
+        CASE
+          WHEN r.approved_at IS NULL THEN EXTRACT(EPOCH FROM (NOW()::timestamp - r.created_at::timestamp))::int
+          ELSE EXTRACT(EPOCH FROM (r.approved_at::timestamp - r.created_at::timestamp))::int
+        END AS interval,
+        CASE
+          WHEN r.approved_at IS NOT NULL AND r.publish_at < NOW() THEN 'published'
+          WHEN r.approved_at IS NOT NULL AND r.publish_at > NOW() THEN 'scheduled'
+          ELSE 'incomplete'
+        END AS status
+        FROM revision r
+        INNER JOIN revision_metadata rm ON rm.revision_id = r.id AND rm.language LIKE $1
+        ORDER BY interval DESC
+        LIMIT 10;
+      `,
+      [`${lang}%`]
+    );
+
+    return { summary, largest: largestQuery, longest: longestQuery };
   }
 });

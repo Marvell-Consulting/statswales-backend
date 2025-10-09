@@ -1,4 +1,4 @@
-import { FindManyOptions, ILike, MoreThan } from 'typeorm';
+import { FindManyOptions, ILike, IsNull, Not } from 'typeorm';
 
 import { dataSource } from '../db/data-source';
 import { RoleSelectionDTO } from '../dtos/user/role-selection-dto';
@@ -13,7 +13,6 @@ import { Locale } from '../enums/locale';
 import { UserStatus } from '../enums/user-status';
 import { ResultsetWithCount } from '../interfaces/resultset-with-count';
 import { UserStats } from '../interfaces/dashboard-stats';
-import { subDays } from 'date-fns';
 
 export const UserRepository = dataSource.getRepository(User).extend({
   async getById(id: string): Promise<User> {
@@ -99,13 +98,15 @@ export const UserRepository = dataSource.getRepository(User).extend({
   },
 
   async getDashboardStats(): Promise<UserStats> {
-    const oneWeekAgo = subDays(new Date(), 7);
+    const active = await this.count({ where: { status: UserStatus.Active, lastLoginAt: Not(IsNull()) } });
 
-    const active = await this.count({ where: { status: UserStatus.Active } });
-    const inactive = await this.count({ where: { status: UserStatus.Inactive } });
-    const last_7_days = await this.count({ where: { lastLoginAt: MoreThan(oneWeekAgo) } });
+    const published = await this.count({
+      relations: { datasets: true },
+      where: { datasets: { firstPublishedAt: Not(IsNull()) } }
+    });
+
     const total = await this.count();
 
-    return { active, inactive, last_7_days, total };
+    return { active, published, total };
   }
 });
