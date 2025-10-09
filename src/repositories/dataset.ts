@@ -22,7 +22,7 @@ export const withStandardPreview: FindOptionsRelations<Dataset> = {
   dimensions: { metadata: true },
   measure: { metadata: true },
   revisions: true,
-  tasks: true,
+  tasks: true, // needed for correct status badges
   publishedRevision: true // needed for correct status badges
 };
 
@@ -31,7 +31,8 @@ export const withDeveloperPreview: FindOptionsRelations<Dataset> = {
   factTable: true,
   dimensions: { metadata: true },
   measure: { metadata: true, measureTable: true, lookupTable: true },
-  revisions: { metadata: true }
+  revisions: { metadata: true },
+  tasks: true // needed for correct status badges
 };
 
 export const withLatestRevision: FindOptionsRelations<Dataset> = {
@@ -44,7 +45,8 @@ export const withFactTable: FindOptionsRelations<Dataset> = {
 
 export const withDraftAndMetadata: FindOptionsRelations<Dataset> = {
   draftRevision: { metadata: true },
-  publishedRevision: true // needed for correct status badges
+  publishedRevision: true, // needed for correct status badges
+  tasks: true // needed for correct status badges
 };
 
 export const withMetadataForTranslation: FindOptionsRelations<Dataset> = {

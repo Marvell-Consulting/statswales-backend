@@ -391,6 +391,12 @@ export const submitForPublication = async (req: Request, res: Response, next: Ne
       throw new BadRequestException('errors.submit_for_publication.not_ready');
     }
 
+    const pendingPublishTask = await req.datasetService.getPendingPublishTask(datasetId);
+
+    if (pendingPublishTask) {
+      throw new BadRequestException('errors.submit_for_publication.pending_publish');
+    }
+
     await req.datasetService.submitForPublication(datasetId, revision.id, user);
     const dataset = await DatasetRepository.getById(datasetId);
 

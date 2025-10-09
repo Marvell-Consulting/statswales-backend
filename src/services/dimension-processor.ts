@@ -510,16 +510,16 @@ export const validateDateDimension = async (
     // Now validate everything matches
     const matchingQuery = pgformat(
       `SELECT
-        line_number, fact_table_date, %I.%I
-      FROM (
-        SELECT
-          row_number() OVER () as line_number, %I as fact_table_date
-        FROM
-          %I.%I
-      ) as fact_table
-      LEFT JOIN %I.%I
-      ON fact_table.fact_table_date=%I.%I
-      WHERE %I IS NULL;`,
+         line_number, fact_table_date, %I.%I
+       FROM (
+         SELECT
+         row_number() OVER () as line_number, %I as fact_table_date
+         FROM
+         %I.%I
+         ) as fact_table
+         LEFT JOIN %I.%I
+       ON fact_table.fact_table_date=%I.%I
+       WHERE %I IS NULL;`,
       lookupTableName,
       factTableColumn.columnName,
       dimension.factTableColumn,
@@ -548,14 +548,14 @@ export const validateDateDimension = async (
         );
         const nonMatchingRowsQuery = pgformat(
           `SELECT
-              DISTINCT fact_table_date
-            FROM (
-              SELECT
-                row_number() OVER () as line_number, %I as fact_table_date
-              FROM %I.%I) AS fact_table
-              LEFT JOIN %I
-              ON fact_table.fact_table_date=%I.%I
-             WHERE %I IS NULL;`,
+             DISTINCT fact_table_date
+           FROM (
+                  SELECT
+                    row_number() OVER () as line_number, %I as fact_table_date
+                  FROM %I.%I) AS fact_table
+                  LEFT JOIN %I
+           ON fact_table.fact_table_date=%I.%I
+           WHERE %I IS NULL;`,
           dimension.factTableColumn,
           revision.id,
           FACT_TABLE_NAME,
