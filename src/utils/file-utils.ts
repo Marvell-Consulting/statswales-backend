@@ -21,7 +21,6 @@ import { FactTableColumn } from '../entities/dataset/fact-table-column';
 import { SUPPORTED_LOCALES } from '../middleware/translation';
 import { languageMatcherCaseStatement } from './lookup-table-utils';
 import { DuckDBConnection } from '@duckdb/node-api';
-import { randomUUID } from 'node:crypto';
 
 export const getFileImportAndSaveToDisk = async (
   dataset: Dataset,

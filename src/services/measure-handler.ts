@@ -1,7 +1,6 @@
 import { performance } from 'node:perf_hooks';
 import { format as pgformat } from '@scaleleap/pg-format';
 import { t } from 'i18next';
-import { randomUUID } from 'node:crypto';
 import { DuckDBResultReader } from '@duckdb/node-api';
 
 import { LookupTable } from '../entities/dataset/lookup-table';
@@ -43,7 +42,6 @@ import { MeasureMetadata } from '../entities/dataset/measure-metadata';
 import { RevisionTask } from '../interfaces/revision-task';
 import { loadFileIntoCube } from '../utils/file-utils';
 import { randomUUID } from 'node:crypto';
-import { DuckDBResultReader } from '@duckdb/node-api';
 
 const sampleSize = 5;
 

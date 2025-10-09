@@ -14,7 +14,6 @@ import { duckdb } from '../../src/services/duckdb';
 import { FileType } from '../../src/enums/file-type';
 import path from 'node:path';
 import { FileImportInterface } from '../../src/entities/dataset/file-import.interface';
-import { randomUUID } from 'node:crypto';
 // import { QueryRunner } from 'typeorm';
 import { loadFileIntoCube } from '../../src/utils/file-utils';
 import { uuidV4 } from '../../src/utils/uuid';
