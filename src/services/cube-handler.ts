@@ -23,7 +23,7 @@ import { DatasetRepository } from '../repositories/dataset';
 import cubeConfig from '../config/cube-view.json';
 import { CubeBuildStatus } from '../enums/cube-build-status';
 import { CubeBuildType } from '../enums/cube-build-type';
-import { appConfig } from '../config';
+import { config } from '../config';
 import { CubeViewBuilder } from '../interfaces/cube-view-builder';
 import { BuildLog } from '../entities/dataset/build-log';
 import { CubeBuilder } from '../interfaces/cube-builder';
@@ -35,7 +35,6 @@ import { NoteCode, NoteCodes } from '../enums/note-code';
 import { UniqueMeasureDetails } from '../interfaces/unique-measure-details';
 import { MeasureFormat } from '../interfaces/measure-format';
 
-const config = appConfig();
 export const FACT_TABLE_NAME = 'fact_table';
 export const CORE_VIEW_NAME = 'core_view';
 
@@ -66,8 +65,10 @@ export const createAllCubeFiles = async (
     logger.error('Unable to find buildRevision in dataset.');
     throw new CubeValidationException('Failed to find buildRevision in dataset.');
   }
-
-  const previousRevisionId = buildRevision.previousRevisionId;
+  let previousRevision: Revision | undefined;
+  if (buildRevision.revisionIndex > 1) {
+    previousRevision = dataset.revisions.find((rev) => rev.revisionIndex == buildRevision.revisionIndex - 1);
+  }
 
   const cubeBuildConfig = cubeConfig.map((config) => {
     const columns = new Map<Locale, Set<string>>();
@@ -110,7 +111,7 @@ export const createAllCubeFiles = async (
       build,
       dataset,
       buildRevision,
-      previousRevisionId,
+      previousRevision,
       buildType,
       cubeBuildConfig
     );
@@ -128,13 +129,6 @@ export const createAllCubeFiles = async (
       createBuildSchemaRunner.release();
     }
     throw err;
-  }
-
-  if (buildType === CubeBuildType.ValidationCube) {
-    build.status = CubeBuildStatus.Completed;
-    build.completedAt = new Date();
-    await build.save();
-    return;
   }
 
   build.status = CubeBuildStatus.SchemaRename;
@@ -173,7 +167,7 @@ async function createBasePostgresCube(
   build: BuildLog,
   dataset: Dataset,
   buildRevision: Revision,
-  previousRevisionID: string | undefined,
+  previousRevision: Revision | undefined,
   buildType: CubeBuildType,
   viewConfig: CubeViewBuilder[]
 ): Promise<CubeBuilder> {
@@ -214,16 +208,15 @@ async function createBasePostgresCube(
 
   if (!factTableInfo.dataValuesColumn && !factTableInfo.notesCodeColumn) {
     buildType = CubeBuildType.BaseCube;
-    build.type = CubeBuildType.BaseCube;
-    await build.save();
+    // await build.setType(CubeBuildType.BaseCube).save();
   }
 
   if (buildType === CubeBuildType.FullCube) {
-    const { transactionBlocks, coreViewSQLMap } = createFullCubeFromPreviousRevision(
+    const { transactionBlocks, coreViewSQLMap } = createFullCubeWithFactTableLoop(
       build.id,
       dataset,
       buildRevision,
-      previousRevisionID,
+      previousRevision,
       factTableInfo,
       coreCubeViewSelectBuilder,
       viewConfig
@@ -233,8 +226,8 @@ async function createBasePostgresCube(
   } else if (buildType === CubeBuildType.ValidationCube) {
     const { transactionBlocks, coreViewSQLMap } = createValidationCube(
       build.id,
+      dataset,
       buildRevision,
-      previousRevisionID,
       factTableInfo,
       coreCubeViewSelectBuilder
     );
@@ -514,16 +507,16 @@ function createCubeBaseTables(revisionId: string, buildId: string, factTableQuer
   statements.push(
     pgformat(
       `
-      CREATE TABLE %I.%I (
-        reference VARCHAR,
-        language VARCHAR,
-        fact_table_column VARCHAR,
-        dimension_name VARCHAR,
-        description VARCHAR,
-        hierarchy VARCHAR,
-        PRIMARY KEY (reference, language, fact_table_column)
-      );
-    `,
+        CREATE TABLE %I.%I (
+                             reference VARCHAR,
+                             language VARCHAR,
+                             fact_table_column VARCHAR,
+                             dimension_name VARCHAR,
+                             description VARCHAR,
+                             hierarchy VARCHAR,
+                             PRIMARY KEY (reference, language, fact_table_column)
+          );
+      `,
       buildId,
       'filter_table'
     )
@@ -632,7 +625,7 @@ function resetFactTable(buildId: string): string {
 }
 
 function dropUpdateTable(buildId: string, updateTableName: string): string {
-  return pgformat('DROP TABLE %I.%I;', buildId, updateTableName);
+  return pgformat('DROP TABLE %I', buildId, updateTableName);
 }
 
 function stripExistingCodes(
@@ -653,7 +646,12 @@ function stripExistingCodes(
 }
 
 function createUpdateTable(buildId: string, tempTableName: string, dataTable: DataTable): string {
-  return pgformat('CREATE TABLE %I.%I AS SELECT * FROM data_tables.%I;', buildId, tempTableName, dataTable.id);
+  return pgformat(
+    'CREATE TEMPORARY TABLE %I.%I AS SELECT * FROM data_tables.%I;',
+    buildId,
+    tempTableName,
+    dataTable.id
+  );
 }
 
 function finaliseValues(
@@ -666,7 +664,7 @@ function finaliseValues(
   const statements: string[] = [];
   statements.push(
     pgformat(
-      `UPDATE %I.%I SET %I = %I.%I, %I = array_to_string(array_append(string_to_array(lower(%I.%I), ','), '!'), ',') FROM %I.%I WHERE %s AND string_to_array(lower(%I.%I), ',') && string_to_array('p,f', ',');`,
+      `UPDATE %I.%I SET %I = %I.%I, %I = array_to_string(array_append(string_to_array(lower(%I.%I), ','), '!'), ',') FROM %I WHERE %s AND string_to_array(lower(%I.%I), ',') && string_to_array('p,f', ',');`,
       buildId,
       FACT_TABLE_NAME,
       dataValuesColumn.columnName,
@@ -675,7 +673,6 @@ function finaliseValues(
       notesCodeColumn.columnName,
       updateTableName,
       notesCodeColumn.columnName,
-      buildId,
       updateTableName,
       joinParts.join(' AND '),
       FACT_TABLE_NAME,
@@ -696,7 +693,7 @@ function finaliseValues(
 
   statements.push(
     pgformat(
-      `UPDATE %I.%I SET %I = array_to_string(array_remove(string_to_array(%I, ','), '!'), ',');`,
+      `UPDATE %I.%I SET %I = array_to_string(array_remove(string_to_array(%I, ','), '!'), ',')`,
       buildId,
       FACT_TABLE_NAME,
       notesCodeColumn.columnName,
@@ -716,7 +713,7 @@ function updateProvisionalAndForecastValues(
   const statements: string[] = [];
   statements.push(
     pgformat(
-      `UPDATE %I.%I SET %I = %I.%I, %I = %I.%I FROM %I.%I WHERE %s AND string_to_array(%I.%I, ',') && string_to_array('p,f', ',');`,
+      `UPDATE %I.%I SET %I = %I.%I, %I = %I.%I FROM %I WHERE %s AND string_to_array(%I.%I, ',') && string_to_array('p,f', ',');`,
       buildId,
       FACT_TABLE_NAME,
       dataValuesColumn.columnName,
@@ -725,7 +722,6 @@ function updateProvisionalAndForecastValues(
       notesCodeColumn.columnName,
       updateTableName,
       notesCodeColumn.columnName,
-      buildId,
       updateTableName,
       joinParts.join(' AND '),
       updateTableName,
@@ -734,10 +730,9 @@ function updateProvisionalAndForecastValues(
   );
   statements.push(
     pgformat(
-      `DELETE FROM %I.%I USING %I.%I WHERE string_to_array(%I.%I, ',') && string_to_array('p,f', ',') AND %s;`,
+      `DELETE FROM %I.%I USING %I WHERE string_to_array(%I.%I, ',') && string_to_array('p,f', ',') AND %s;`,
       buildId,
       updateTableName,
-      buildId,
       FACT_TABLE_NAME,
       updateTableName,
       notesCodeColumn.columnName,
@@ -845,17 +840,14 @@ export function cleanupNotesCodeColumn(buildId: string, notesCodeColumn: FactTab
   );
 }
 
-function loadFactTableFromEarlierRevision(buildId: string, previousRevisionId: string): string[] {
-  return [
-    pgformat('DROP TABLE IF EXISTS %I.%I;', buildId, FACT_TABLE_NAME),
-    pgformat(
-      'CREATE TABLE %I.%I AS SELECT * FROM %I.%I;',
-      buildId,
-      FACT_TABLE_NAME,
-      previousRevisionId,
-      FACT_TABLE_NAME
-    )
-  ];
+function loadFactTableFromEarlierRevision(buildId: string, previousRevisionId: string): string {
+  return pgformat(
+    'CREATE TABLE %I.%I AS SELECT * FROM %I.%I;',
+    buildId,
+    FACT_TABLE_NAME,
+    previousRevisionId,
+    FACT_TABLE_NAME
+  );
 }
 
 export function dataTableActions(
@@ -943,7 +935,7 @@ export function dataTableActions(
 
 function loadFactTableFromPreviousRevision(
   endRevision: Revision,
-  previousRevisionID: string | undefined,
+  previousRevision: Revision | undefined,
   buildId: string,
   factTableDef: string[],
   dataValuesColumn: FactTableColumn,
@@ -953,11 +945,8 @@ function loadFactTableFromPreviousRevision(
 ): TransactionBlock {
   const buildStatements: string[] = ['BEGIN TRANSACTION;'];
   logger.debug('Finding all fact tables for this revision and those that came before');
-  if (!previousRevisionID && !endRevision.dataTable) {
-    logger.warn('No data table nor previous fact table found for this cube build!');
-  }
-  if (previousRevisionID) {
-    buildStatements.push(...loadFactTableFromEarlierRevision(buildId, previousRevisionID));
+  if (previousRevision) {
+    buildStatements.push(loadFactTableFromEarlierRevision(buildId, previousRevision.id));
   }
   const dataTable = endRevision.dataTable;
   if (!dataTable) {
@@ -970,6 +959,56 @@ function loadFactTableFromPreviousRevision(
   buildStatements.push(
     ...dataTableActions(buildId, dataTable, factTableDef, notesCodeColumn, dataValuesColumn, factIdentifiers)
   );
+  buildStatements.push(cleanupNotesCodeColumn(buildId, notesCodeColumn));
+  buildStatements.push(createPrimaryKeyOnFactTable(buildId, factTableCompositeKey));
+  buildStatements.push('END TRANSACTION;');
+
+  return {
+    buildStage: BuildStage.FactTable,
+    statements: buildStatements
+  };
+}
+
+function loadAllFactTables(
+  dataset: Dataset,
+  endRevision: Revision,
+  buildId: string,
+  factTableDef: string[],
+  dataValuesColumn: FactTableColumn,
+  notesCodeColumn: FactTableColumn,
+  factIdentifiers: FactTableColumn[],
+  factTableCompositeKey: string[]
+): TransactionBlock {
+  const buildStatements: string[] = ['BEGIN TRANSACTION;'];
+  logger.debug('Finding all fact tables for this revision and those that came before');
+  const allFactTables: DataTable[] = [];
+  if (endRevision.revisionIndex && endRevision.revisionIndex > 0) {
+    // If we have a revision index we start here
+    const validRevisions = dataset.revisions.filter(
+      (rev) => rev.revisionIndex <= endRevision.revisionIndex && rev.revisionIndex > 0
+    );
+    validRevisions.forEach((revision) => {
+      if (revision.dataTable) allFactTables.push(revision.dataTable);
+    });
+  } else {
+    logger.debug('Must be a draft revision, so we need to find all revisions before this one');
+    // If we don't have a revision index, we need to find the previous revision to this one that does
+    if (endRevision.dataTable) {
+      logger.debug('Adding end revision to list of fact tables');
+      allFactTables.push(endRevision.dataTable);
+    }
+    const validRevisions = dataset.revisions.filter((rev) => rev.revisionIndex > 0);
+    validRevisions.forEach((revision) => {
+      if (revision.dataTable) allFactTables.push(revision.dataTable);
+    });
+  }
+
+  const allDataTables = allFactTables.reverse().sort((ftA, ftB) => ftA.uploadedAt.getTime() - ftB.uploadedAt.getTime());
+  for (const dataTable of allDataTables) {
+    buildStatements.push(
+      ...dataTableActions(buildId, dataTable, factTableDef, notesCodeColumn, dataValuesColumn, factIdentifiers)
+    );
+  }
   buildStatements.push(cleanupNotesCodeColumn(buildId, notesCodeColumn));
   buildStatements.push(createPrimaryKeyOnFactTable(buildId, factTableCompositeKey));
   buildStatements.push('END TRANSACTION;');
@@ -1148,23 +1187,21 @@ export const measureTableCreateStatement = (
 ): string => {
   if (buildId) {
     tableName = pgformat('%I.%I', buildId, tableName);
-  } else {
-    tableName = pgformat('%I', tableName);
   }
   return pgformat(
     `
-    CREATE TABLE %s (
-      reference %s,
-      language TEXT,
-      description TEXT,
-      notes TEXT,
-      sort_order INTEGER,
-      format TEXT,
-      decimals INTEGER,
-      measure_type TEXT,
-      hierarchy %s
-    );
-  `,
+      CREATE TABLE %s (
+                        reference %s,
+                        language TEXT,
+                        description TEXT,
+                        notes TEXT,
+                        sort_order INTEGER,
+                        format TEXT,
+                        decimals INTEGER,
+                        measure_type TEXT,
+                        hierarchy %s
+      );
+    `,
     tableName,
     joinColumnType,
     joinColumnType
@@ -2027,8 +2064,8 @@ function createViewsFromConfig(
 
 function createValidationCube(
   buildId: string,
+  dataset: Dataset,
   endRevision: Revision,
-  previousRevisionID: string | undefined,
   factTableInfo: FactTableInfo,
   coreCubeViewSelectBuilder: Map<Locale, string[]>
 ): { transactionBlocks: TransactionBlock[]; coreViewSQLMap: Map<Locale, string> } {
@@ -2041,9 +2078,9 @@ function createValidationCube(
   });
 
   transactionBlocks.push(
-    loadFactTableFromPreviousRevision(
+    loadAllFactTables(
+      dataset,
       endRevision,
-      previousRevisionID,
       buildId,
       factTableInfo.factTableDef,
       factTableInfo.dataValuesColumn!,
@@ -2084,11 +2121,11 @@ function createValidationCube(
   return { transactionBlocks, coreViewSQLMap };
 }
 
-function createFullCubeFromPreviousRevision(
+function createFullCubeWithFactTableLoop(
   buildId: string,
   dataset: Dataset,
   endRevision: Revision,
-  previousRevisionID: string | undefined,
+  previousRevision: Revision | undefined,
   factTableInfo: FactTableInfo,
   coreCubeViewSelectBuilder: Map<Locale, string[]>,
   viewConfig: CubeViewBuilder[]
@@ -2104,7 +2141,7 @@ function createFullCubeFromPreviousRevision(
   transactionBlocks.push(
     loadFactTableFromPreviousRevision(
       endRevision,
-      previousRevisionID,
+      previousRevision,
       buildId,
       factTableInfo.factTableDef,
       factTableInfo.dataValuesColumn!,
