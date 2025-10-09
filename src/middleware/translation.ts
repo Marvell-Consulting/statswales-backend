@@ -2,9 +2,7 @@ import i18next from 'i18next';
 import Backend from 'i18next-fs-backend';
 import * as i18nextMiddleware from 'i18next-http-middleware';
 
-import { appConfig } from '../config';
-
-const config = appConfig();
+import { config } from '../config';
 
 const AVAILABLE_LANGUAGES = config.language.availableTranslations;
 const SUPPORTED_LOCALES = config.language.supportedLocales;

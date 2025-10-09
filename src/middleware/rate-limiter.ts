@@ -1,9 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import rateLimit, { RateLimitRequestHandler } from 'express-rate-limit';
 
-import { appConfig } from '../config';
-
-const config = appConfig();
+import { config } from '../config';
 
 const bypass = (re: Request, res: Response, next: NextFunction): void => next();
 

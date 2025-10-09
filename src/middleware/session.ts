@@ -2,11 +2,9 @@ import { RedisStore } from 'connect-redis';
 import session, { MemoryStore, Store } from 'express-session';
 import { createClient } from 'redis';
 
-import { appConfig } from '../config';
+import { config } from '../config';
 import { logger } from '../utils/logger';
 import { SessionStore } from '../config/session-store.enum';
-
-const config = appConfig();
 
 let store: Store;
 
