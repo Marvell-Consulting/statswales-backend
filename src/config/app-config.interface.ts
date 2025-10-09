@@ -30,6 +30,10 @@ export interface AppConfig {
     port: number;
     url: string;
   };
+  healthcheck: {
+    dbTimeoutMs: number;
+    storageTimeoutMs: number;
+  };
   language: {
     availableTranslations: Locale[];
     supportedLocales: Locale[];

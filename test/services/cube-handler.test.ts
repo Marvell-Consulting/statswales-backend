@@ -17,6 +17,7 @@ import { FileImportInterface } from '../../src/entities/dataset/file-import.inte
 import { randomUUID } from 'node:crypto';
 // import { QueryRunner } from 'typeorm';
 import { loadFileIntoCube } from '../../src/utils/file-utils';
+import { uuidV4 } from '../../src/utils/uuid';
 
 jest.mock('../../src/services/blob-storage');
 
@@ -67,7 +68,7 @@ describe('API Endpoints', () => {
       const tableName = 'data_table';
       const testFilePath = path.resolve(__dirname, `../sample-files/csv/sure-start-short.csv`);
       const testFileInterface: FileImportInterface = {
-        id: randomUUID(),
+        id: uuidV4(),
         mimeType: 'text/csv',
         fileType: FileType.Csv,
         encoding: 'utf-8',

@@ -1,6 +1,8 @@
 import { performance } from 'node:perf_hooks';
 import { format as pgformat } from '@scaleleap/pg-format';
 import { t } from 'i18next';
+import { randomUUID } from 'node:crypto';
+import { DuckDBResultReader } from '@duckdb/node-api';
 
 import { LookupTable } from '../entities/dataset/lookup-table';
 import { DataTable } from '../entities/dataset/data-table';
@@ -281,7 +283,7 @@ async function createMeasureTable(
   }
 
   const statements: string[] = [];
-  statements.push(pgformat('INSERT INTO %I.%I (%s);', 'memory', lookupTableName, buildMeasureViewQuery));
+  statements.push(pgformat('INSERT INTO %I %s;', lookupTableName, buildMeasureViewQuery));
   for (const locale of SUPPORTED_LOCALES) {
     statements.push(
       pgformat(
@@ -493,17 +495,7 @@ export const validateMeasureLookupTable = async (
     'BEGIN TRANSACTION;',
     measureTableCreateStatement(measureColumn.columnDatatype, draftRevision.id, actionId),
     ...measureTable.map((row) => {
-      const values = [
-        row.reference,
-        row.language,
-        row.description,
-        row.notes,
-        row.sortOrder,
-        row.format,
-        row.decimal,
-        row.measureType,
-        row.hierarchy
-      ];
+      const values = [row.reference, row.language, row.measureType, row.hierarchy];
       return pgformat('INSERT INTO %I.%I VALUES (%L);', draftRevision.id, actionId, values);
     }),
     'END TRANSACTION;'
@@ -512,6 +504,7 @@ export const validateMeasureLookupTable = async (
     await createMeasureTableRunner.query(statements.join('\n'));
   } catch (error) {
     await lookupTable.remove();
+    void createMeasureTableRunner.release();
     logger.error(error, 'Unable to copy lookup table from lookup tables schema.');
     return viewErrorGenerators(500, dataset.id, 'patch', 'errors.dimension_validation.lookup_table_loading_failed', {
       mismatch: false

@@ -23,6 +23,7 @@ import { Readable } from 'node:stream';
 import { createAllCubeFiles } from '../../src/services/cube-handler';
 import { parse } from 'csv';
 import { cubeDataSource } from '../../src/db/cube-source';
+import { uuidV4 } from '../../src/utils/uuid';
 
 export async function createSmallDataset(
   datasetId: string,
@@ -173,7 +174,7 @@ const sureStartShortDimensionDescriptor = [
 
 const rowRefLookupTable = () => {
   const lookupTable = new LookupTable();
-  lookupTable.id = crypto.randomUUID().toLowerCase();
+  lookupTable.id = uuidV4();
   lookupTable.filename = 'RowRefLookupTable.csv';
   lookupTable.originalFilename = 'RowRefLookupTable.csv';
   lookupTable.fileType = FileType.Csv;

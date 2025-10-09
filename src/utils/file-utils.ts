@@ -1,6 +1,7 @@
 import { writeFile } from 'node:fs/promises';
 
 import { format as pgformat } from '@scaleleap/pg-format';
+import { randomUUID } from 'node:crypto';
 
 import { Dataset } from '../entities/dataset/dataset';
 import { FileImportInterface } from '../entities/dataset/file-import.interface';
@@ -55,12 +56,14 @@ export async function loadFileIntoDataTablesSchema(
 }
 
 export const createLookupTableQuery = (
+  schemaName: string,
   lookupTableName: string,
   referenceColumnName: string,
   referenceColumnType: string
 ): string => {
   return pgformat(
-    'CREATE TABLE %I (%I %s NOT NULL, language VARCHAR(5) NOT NULL, description TEXT NOT NULL, notes TEXT, sort_order INTEGER, hierarchy %s);',
+    'CREATE TABLE %I.%I (%I %s NOT NULL, language VARCHAR(5) NOT NULL, description TEXT NOT NULL, notes TEXT, sort_order INTEGER, hierarchy %s);',
+    schemaName,
     lookupTableName,
     referenceColumnName,
     referenceColumnType,
@@ -79,7 +82,9 @@ export async function loadFileIntoLookupTablesSchema(
   const start = performance.now();
   const quack = await duckdb();
   const dimTable = randomUUID();
-  await quack.run(createLookupTableQuery(dimTable, factTableColumn.columnName, factTableColumn.columnDatatype));
+  await quack.run(
+    createLookupTableQuery('memory', dimTable, factTableColumn.columnName, factTableColumn.columnDatatype)
+  );
   let lookupTableFile;
   if (filePath) {
     lookupTableFile = filePath;
@@ -101,7 +106,7 @@ export async function loadFileIntoLookupTablesSchema(
       const hierarchyCol = extractor.hierarchyColumn ? pgformat('%I', extractor.hierarchyColumn) : 'NULL';
       dataExtractorParts.push(
         pgformat(
-          'SELECT %I AS %I, %L as language, %I as description, %s as notes, %s as sort_order, %s as hierarchy FROM %I',
+          'SELECT %I AS %I, %L as language, %I as description, %s as notes, %s as sort_order, %s as hierarchy FROM %I.%I',
           joinColumn,
           factTableColumn.columnName,
           locale.toLowerCase(),
@@ -109,11 +114,12 @@ export async function loadFileIntoLookupTablesSchema(
           notesColStr,
           sortStr,
           hierarchyCol,
+          'memory',
           lookupTableName
         )
       );
     }
-    const builtInsertQuery = pgformat(`INSERT INTO %I %s;`, dimTable, dataExtractorParts.join(' UNION '));
+    const builtInsertQuery = pgformat(`INSERT INTO %I.%I %s;`, 'memory', dimTable, dataExtractorParts.join(' UNION '));
     await quack.run(builtInsertQuery);
   } else {
     const languageMatcher = languageMatcherCaseStatement(extractor.languageColumn);
@@ -121,7 +127,7 @@ export async function loadFileIntoLookupTablesSchema(
     const sortStr = extractor.sortColumn ? pgformat('%I', extractor.sortColumn) : 'NULL';
     const hierarchyStr = extractor.hierarchyColumn ? pgformat('%I', extractor.hierarchyColumn) : 'NULL';
     const dataExtractorParts = pgformat(
-      `SELECT %I AS %I, %s as language, %I as description, %s as notes, %s as sort_order, %s as hierarchy FROM %I;`,
+      `SELECT %I AS %I, %s as language, %I as description, %s as notes, %s as sort_order, %s as hierarchy FROM %I.%I;`,
       joinColumn,
       factTableColumn.columnName,
       languageMatcher,
@@ -129,14 +135,17 @@ export async function loadFileIntoLookupTablesSchema(
       notesStr,
       sortStr,
       hierarchyStr,
+      'memory',
       lookupTableName
     );
-    const builtInsertQuery = pgformat(`INSERT INTO %I %s`, dimTable, dataExtractorParts);
+    const builtInsertQuery = pgformat(`INSERT INTO %I.%I %s`, 'memory', dimTable, dataExtractorParts);
     await quack.run(builtInsertQuery);
   }
   logger.debug(`Dropping original lookup table ${lookupTableName}`);
-  await quack.run(pgformat('DROP TABLE %I', lookupTableName));
-  await quack.run(pgformat('CREATE TABLE lookup_tables_db.%I AS SELECT * FROM memory.%I;', lookupTable.id, dimTable));
+  await quack.run(pgformat('DROP TABLE %I.%I', 'memory', lookupTableName));
+  await quack.run(
+    pgformat('CREATE TABLE %I.%I AS SELECT * FROM %I.%I;', 'lookup_tables_db', lookupTable.id, 'memory', dimTable)
+  );
   quack.disconnectSync();
   performanceReporting(Math.round(start - performance.now()), 500, 'Loading a lookup table in to postgres');
 }

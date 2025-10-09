@@ -1259,8 +1259,200 @@ function postgresMeasureFormats(): Map<string, MeasureFormat> {
   return measureFormats;
 }
 
-function setupMeasureAndDataValuesWithLookup(
-  buildId: string,
+export const measureTableCreateStatement = (
+  joinColumnType: string,
+  schemaName?: string,
+  tableName = 'measure',
+  temporary = false
+): string => {
+  const finalTableName = schemaName ? pgformat('%I.%I', schemaName, tableName) : pgformat('%I', tableName);
+  return pgformat(
+    `
+    CREATE %s TABLE %s (
+      reference %s,
+      language TEXT,
+      description TEXT,
+      notes TEXT,
+      sort_order INTEGER,
+      format TEXT,
+      decimals INTEGER,
+      measure_type TEXT,
+      hierarchy %s
+    );
+  `,
+    temporary ? 'TEMPORARY' : '',
+    finalTableName,
+    joinColumnType,
+    joinColumnType
+  );
+};
+
+export async function createMeasureLookupTable(
+  cubeDB: QueryRunner,
+  measureColumn: FactTableColumn,
+  measureTable: MeasureRow[]
+): Promise<void> {
+  await cubeDB.query(measureTableCreateStatement(measureColumn.columnDatatype));
+  for (const row of measureTable) {
+    const values = [
+      row.reference,
+      row.language.toLowerCase(),
+      row.description,
+      row.notes ? row.notes : null,
+      row.sortOrder ? row.sortOrder : null,
+      row.format,
+      row.decimal ? row.decimal : null,
+      row.measureType ? row.measureType : null,
+      row.hierarchy ? row.hierarchy : null
+    ];
+    await cubeDB.query('INSERT INTO measure VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)', values);
+  }
+}
+
+function setupMeasureAndDataValuesNoLookup(
+  coreCubeViewSelectBuilder: Map<Locale, string[]>,
+  columnNames: Map<Locale, Set<string>>,
+  viewConfig: CubeBuilder[],
+  measureColumn?: FactTableColumn,
+  dataValuesColumn?: FactTableColumn,
+  notesCodeColumn?: FactTableColumn
+): void {
+  SUPPORTED_LOCALES.map((locale) => {
+    if (dataValuesColumn) {
+      const dataValuesColumnName = t('column_headers.data_values', { lng: locale });
+      const dataFormattedColName = `${t('column_headers.data_values', { lng: locale })}_${t('column_headers.formatted', { lng: locale })}`;
+      const dataAnnotatedColName = `${t('column_headers.data_values', { lng: locale })}_${t('column_headers.annotated', { lng: locale })}`;
+      const dataSortColName = `${t('column_headers.data_values', { lng: locale })}_${t('column_headers.sort', { lng: locale })}`;
+      columnNames.get(locale)?.add(dataValuesColumnName);
+      columnNames.get(locale)?.add(dataFormattedColName);
+      columnNames.get(locale)?.add(dataAnnotatedColName);
+      columnNames.get(locale)?.add(dataSortColName);
+      columnNames.get(locale)?.add(t('column_headers.data_values', { lng: locale }));
+      coreCubeViewSelectBuilder
+        .get(locale)
+        ?.push(pgformat('%I.%I AS %I', FACT_TABLE_NAME, dataValuesColumn.columnName, dataValuesColumnName));
+      coreCubeViewSelectBuilder
+        .get(locale)
+        ?.push(pgformat('%I.%I AS %I', FACT_TABLE_NAME, dataValuesColumn.columnName, dataFormattedColName));
+      coreCubeViewSelectBuilder
+        .get(locale)
+        ?.push(pgformat('%I.%I AS %I', FACT_TABLE_NAME, dataValuesColumn.columnName, dataSortColName));
+      if (notesCodeColumn) {
+        coreCubeViewSelectBuilder
+          .get(locale)
+          ?.push(
+            pgformat(
+              `CASE WHEN %I.%I IS NULL THEN CAST(%I.%I AS VARCHAR) ELSE %I.%I || ' [' || array_to_string(string_to_array(%I.%I, ','), '] [') || ']' END AS %I`,
+              FACT_TABLE_NAME,
+              notesCodeColumn.columnName,
+              FACT_TABLE_NAME,
+              dataValuesColumn.columnName,
+              FACT_TABLE_NAME,
+              dataValuesColumn.columnName,
+              FACT_TABLE_NAME,
+              notesCodeColumn.columnName,
+              dataAnnotatedColName
+            )
+          );
+      } else {
+        coreCubeViewSelectBuilder
+          .get(locale)
+          ?.push(pgformat('%I.%I AS %I', FACT_TABLE_NAME, dataValuesColumn.columnName, dataAnnotatedColName));
+      }
+      setupDataValueViews(
+        locale,
+        viewConfig,
+        dataValuesColumnName,
+        dataAnnotatedColName,
+        dataFormattedColName,
+        dataSortColName
+      );
+    }
+    if (measureColumn) {
+      const measureColumnName = t('column_headers.measure', { lng: locale });
+      const measureColumnRefName = `${measureColumnName}_${t('column_headers.reference', { lng: locale })}`;
+      const measureColumnSortName = `${measureColumnName}_${t('column_headers.sort', { lng: locale })}`;
+      const measureColumnHierarchyName = `${measureColumnName}_${t('column_headers.hierarchy', { lng: locale })}`;
+      columnNames.get(locale)?.add(measureColumnName);
+      columnNames.get(locale)?.add(measureColumnRefName);
+      columnNames.get(locale)?.add(measureColumnSortName);
+      columnNames.get(locale)?.add(measureColumnHierarchyName);
+      columnNames.get(locale)?.add(t('column_headers.measure', { lng: locale }));
+      coreCubeViewSelectBuilder
+        .get(locale)
+        ?.push(pgformat('%I.%I AS %I', FACT_TABLE_NAME, measureColumn.columnName, measureColumnName));
+      coreCubeViewSelectBuilder
+        .get(locale)
+        ?.push(pgformat('%I.%I AS %I', FACT_TABLE_NAME, measureColumn.columnName, measureColumnRefName));
+      coreCubeViewSelectBuilder
+        .get(locale)
+        ?.push(pgformat('%I.%I AS %I', FACT_TABLE_NAME, measureColumn.columnName, measureColumnSortName));
+      coreCubeViewSelectBuilder.get(locale)?.push(pgformat('NULL AS %I', measureColumnHierarchyName));
+      setupMeasureViews(
+        locale,
+        viewConfig,
+        measureColumnName,
+        measureColumnRefName,
+        measureColumnSortName,
+        measureColumnHierarchyName
+      );
+    }
+  });
+}
+
+interface UniqueMeasureDetails {
+  reference: string;
+  format: string;
+  sort_order: string | null;
+  decimals: number | null;
+}
+
+function setupDataValueViews(
+  locale: Locale,
+  viewConfig: CubeBuilder[],
+  dataValuesColumnName: string,
+  dataAnnotatedColName: string,
+  dataFormattedColName: string,
+  dataSortColName: string
+): void {
+  for (const view of viewConfig) {
+    if (view.config.dataValues === 'annotated') {
+      view.columns.get(locale)?.add(pgformat(`%I AS %I`, dataAnnotatedColName, dataValuesColumnName));
+    } else if (view.config.dataValues === 'formatted') {
+      view.columns.get(locale)?.add(pgformat(`%I AS %I`, dataFormattedColName, dataValuesColumnName));
+    } else {
+      view.columns.get(locale)?.add(pgformat('%I', dataValuesColumnName));
+    }
+    if (view.config.sort_orders) {
+      view.columns.get(locale)?.add(pgformat('%I', dataSortColName));
+    }
+  }
+}
+
+function setupMeasureViews(
+  locale: Locale,
+  viewConfig: CubeBuilder[],
+  measureColumnName: string,
+  measureColumnRefName: string,
+  measureColumnSortName: string,
+  measureColumnHierarchyName: string
+): void {
+  for (const view of viewConfig) {
+    view.columns.get(locale)?.add(pgformat('%I', measureColumnName));
+    if (view.config.refcodes) {
+      view.columns.get(locale)?.add(pgformat('%I', measureColumnRefName));
+    }
+    if (view.config.sort_orders) {
+      view.columns.get(locale)?.add(pgformat('%I', measureColumnSortName));
+    }
+    if (view.config.hierarchies) {
+      view.columns.get(locale)?.add(pgformat('%I', measureColumnHierarchyName));
+    }
+  }
+}
+
+async function setupMeasureAndDataValuesWithLookup(
+  cubeDB: QueryRunner,
   measureTable: MeasureRow[],
   dataValuesColumn: FactTableColumn,
   measureColumn: FactTableColumn,

@@ -23,7 +23,7 @@ import { DatasetService } from '../../src/services/dataset';
 import { logger } from '../../src/utils/logger';
 import { RevisionRepository } from '../../src/repositories/revision';
 import { RevisionMetadataDTO } from '../../src/dtos/revistion-metadata-dto';
-
+import { uuidV4 } from '../../src/utils/uuid';
 import { createFullDataset, createSmallDataset } from '../helpers/test-helper';
 import { getTestUser, getTestUserGroup } from '../helpers/get-test-user';
 import { getAuthHeader } from '../helpers/auth-header';
@@ -123,6 +123,13 @@ describe('API Endpoints', () => {
 
   describe('Step 2 - Get a preview of the uploaded file with a View Object', () => {
     test('Get file preview returns 400 if page_number is too high', async () => {
+      const testDatasetId = uuidV4();
+      const testRevisionId = uuidV4();
+      const testFileImportId = uuidV4();
+      await createSmallDataset(testDatasetId, testRevisionId, testFileImportId, user);
+      const testFile2 = path.resolve(__dirname, `../sample-files/csv/sure-start-short.csv`);
+      const testFile2Buffer = fs.readFileSync(testFile2);
+      BlobStorage.prototype.loadBuffer = jest.fn().mockReturnValue(testFile2Buffer);
       const res = await request(app)
         .get(`/dataset/${dataset1Id}/revision/by-id/${revision1Id}/data-table/preview`)
         .set(getAuthHeader(user))
@@ -155,9 +162,9 @@ describe('API Endpoints', () => {
     });
 
     test('Get file preview returns 400 if page_size is too high', async () => {
-      const testDatasetId = randomUUID().toLowerCase();
-      const testRevisionId = randomUUID().toLowerCase();
-      const testFileImportId = randomUUID().toLowerCase();
+      const testDatasetId = uuidV4();
+      const testRevisionId = uuidV4();
+      const testFileImportId = uuidV4();
       await createSmallDataset(testDatasetId, testRevisionId, testFileImportId, user);
       const testFile2 = path.resolve(__dirname, `../sample-files/csv/sure-start-short.csv`);
       const testFile2Buffer = fs.readFileSync(testFile2);
@@ -203,9 +210,9 @@ describe('API Endpoints', () => {
     });
 
     test('Get file preview returns 400 if page_size is too low', async () => {
-      const testDatasetId = randomUUID().toLowerCase();
-      const testRevisionId = randomUUID().toLowerCase();
-      const testFileImportId = randomUUID().toLowerCase();
+      const testDatasetId = uuidV4();
+      const testRevisionId = uuidV4();
+      const testFileImportId = uuidV4();
       await createSmallDataset(testDatasetId, testRevisionId, testFileImportId, user);
       const testFile2 = path.resolve(__dirname, `../sample-files/csv/sure-start-short.csv`);
       const testFile2Buffer = fs.readFileSync(testFile2);
@@ -251,9 +258,9 @@ describe('API Endpoints', () => {
     });
 
     test('Get preview of an import returns 200 and correct page data', async () => {
-      const testDatasetId = randomUUID().toLowerCase();
-      const testRevisionId = randomUUID().toLowerCase();
-      const testFileImportId = randomUUID().toLowerCase();
+      const testDatasetId = uuidV4();
+      const testRevisionId = uuidV4();
+      const testFileImportId = uuidV4();
       await createSmallDataset(testDatasetId, testRevisionId, testFileImportId, user);
 
       const testFile2 = path.resolve(__dirname, `../sample-files/csv/sure-start-short.csv`);
@@ -284,9 +291,9 @@ describe('API Endpoints', () => {
     });
 
     test('Get preview of an import returns 404 when a non-existant import is requested', async () => {
-      const testDatasetId = randomUUID().toLowerCase();
-      const testRevisionId = randomUUID().toLowerCase();
-      const testFileImportId = randomUUID().toLowerCase();
+      const testDatasetId = uuidV4();
+      const testRevisionId = uuidV4();
+      const testFileImportId = uuidV4();
       await createSmallDataset(testDatasetId, testRevisionId, testFileImportId, user);
       const dataTable = await DataTable.findOneOrFail({ where: { id: testFileImportId } });
       await dataTable.remove();
@@ -302,9 +309,9 @@ describe('API Endpoints', () => {
 
   describe('Step 2b - Unhappy path of the user uploading the wrong file', () => {
     test('Returns 200 when the user requests to delete the import stored in the file store', async () => {
-      const testDatasetId = randomUUID().toLowerCase();
-      const testRevisionId = randomUUID().toLowerCase();
-      const testFileImportId = randomUUID().toLowerCase();
+      const testDatasetId = uuidV4();
+      const testRevisionId = uuidV4();
+      const testFileImportId = uuidV4();
       await createSmallDataset(testDatasetId, testRevisionId, testFileImportId, user);
 
       BlobStorage.prototype.delete = jest.fn().mockReturnValue(true);
@@ -338,9 +345,9 @@ describe('API Endpoints', () => {
     });
 
     test('Upload returns 400 if no file attached', async () => {
-      const testDatasetId = randomUUID().toLowerCase();
-      const testRevisionId = randomUUID().toLowerCase();
-      const testFileImportId = randomUUID().toLowerCase();
+      const testDatasetId = uuidV4();
+      const testRevisionId = uuidV4();
+      const testFileImportId = uuidV4();
       await createSmallDataset(testDatasetId, testRevisionId, testFileImportId, user);
 
       const fileImport = await DataTable.findOneBy({ id: testFileImportId });
@@ -360,9 +367,9 @@ describe('API Endpoints', () => {
 
     test('Upload returns 201 if a file is attached', async () => {
       BlobStorage.prototype.saveBuffer = jest.fn().mockReturnValue({});
-      const testDatasetId = randomUUID().toLowerCase();
-      const testRevisionId = randomUUID().toLowerCase();
-      const testFileImportId = randomUUID().toLowerCase();
+      const testDatasetId = uuidV4();
+      const testRevisionId = uuidV4();
+      const testFileImportId = uuidV4();
       await createSmallDataset(testDatasetId, testRevisionId, testFileImportId, user);
 
       const dataTable = await DataTable.findOneBy({ id: testFileImportId });
@@ -404,9 +411,9 @@ describe('API Endpoints', () => {
     });
 
     test('Upload returns 500 if an error occurs with file storage', async () => {
-      const testDatasetId = randomUUID().toLowerCase();
-      const testRevisionId = randomUUID().toLowerCase();
-      const testFileImportId = randomUUID().toLowerCase();
+      const testDatasetId = uuidV4();
+      const testRevisionId = uuidV4();
+      const testFileImportId = uuidV4();
       await createSmallDataset(testDatasetId, testRevisionId, testFileImportId, user);
 
       const fileImport = await DataTable.findOneBy({ id: testFileImportId });
@@ -430,9 +437,9 @@ describe('API Endpoints', () => {
 
   describe('Step 3 - Confirming the datafile', () => {
     test('Returns 200 with an import dto listing the new sources which have been created', async () => {
-      const testDatasetId = randomUUID().toLowerCase();
-      const testRevisionId = randomUUID().toLowerCase();
-      const testFileImportId = randomUUID().toLowerCase();
+      const testDatasetId = uuidV4();
+      const testRevisionId = uuidV4();
+      const testFileImportId = uuidV4();
       await createFullDataset(testDatasetId, testRevisionId, testFileImportId, user);
       const res = await request(app)
         .patch(`/dataset/${testDatasetId}/revision/by-id/${testRevisionId}/data-table/confirm`)
@@ -471,9 +478,9 @@ describe('API Endpoints', () => {
 
   describe('Step 4 - Create dimensions', () => {
     test('Create dimensions from user supplied JSON returns 200 and updated dataset with dimensions attached', async () => {
-      const testDatasetId = randomUUID().toLowerCase();
-      const testRevisionId = randomUUID().toLowerCase();
-      const testFileImportId = randomUUID().toLowerCase();
+      const testDatasetId = uuidV4();
+      const testRevisionId = uuidV4();
+      const testFileImportId = uuidV4();
       await createSmallDataset(testDatasetId, testRevisionId, testFileImportId, user);
 
       const testFile2 = path.resolve(__dirname, `../sample-files/csv/sure-start-short.csv`);
@@ -553,9 +560,9 @@ describe('API Endpoints', () => {
     });
 
     test('Create dimensions from user supplied JSON returns 400 if the body is empty', async () => {
-      const testDatasetId = randomUUID().toLowerCase();
-      const testRevisionId = randomUUID().toLowerCase();
-      const testFileImportId = randomUUID().toLowerCase();
+      const testDatasetId = uuidV4();
+      const testRevisionId = uuidV4();
+      const testFileImportId = uuidV4();
       await createSmallDataset(testDatasetId, testRevisionId, testFileImportId, user);
       const res = await request(app).patch(`/dataset/${testDatasetId}/sources`).send().set(getAuthHeader(user));
       expect(res.status).toBe(400);
@@ -564,9 +571,9 @@ describe('API Endpoints', () => {
     });
 
     test('Create dimensions from user supplied JSON returns 400 if there is more than one set of Data Values', async () => {
-      const testDatasetId = randomUUID().toLowerCase();
-      const testRevisionId = randomUUID().toLowerCase();
-      const testFileImportId = randomUUID().toLowerCase();
+      const testDatasetId = uuidV4();
+      const testRevisionId = uuidV4();
+      const testFileImportId = uuidV4();
       await createSmallDataset(testDatasetId, testRevisionId, testFileImportId, user);
       const postProcessedImport = await DataTable.findOne({
         where: { id: testFileImportId },
@@ -613,9 +620,9 @@ describe('API Endpoints', () => {
     });
 
     test('Create dimensions from user supplied JSON returns 400 if there is more than one set of Footnotes', async () => {
-      const testDatasetId = randomUUID().toLowerCase();
-      const testRevisionId = randomUUID().toLowerCase();
-      const testFileImportId = randomUUID().toLowerCase();
+      const testDatasetId = uuidV4();
+      const testRevisionId = uuidV4();
+      const testFileImportId = uuidV4();
       await createSmallDataset(testDatasetId, testRevisionId, testFileImportId, user);
       const postProcessedImport = await DataTable.findOne({
         where: { id: testFileImportId },
@@ -666,9 +673,9 @@ describe('API Endpoints', () => {
   describe('Metadata handling routes', () => {
     describe('Update title/description endpoint', () => {
       test('Can update the English title', async () => {
-        const testDatasetId = randomUUID().toLowerCase();
-        const testRevisionId = randomUUID().toLowerCase();
-        const testFileImportId = randomUUID().toLowerCase();
+        const testDatasetId = uuidV4();
+        const testRevisionId = uuidV4();
+        const testFileImportId = uuidV4();
         await createSmallDataset(testDatasetId, testRevisionId, testFileImportId, user);
 
         const meta: RevisionMetadataDTO = {
@@ -690,9 +697,9 @@ describe('API Endpoints', () => {
       });
 
       test('Can update the Welsh title', async () => {
-        const testDatasetId = randomUUID().toLowerCase();
-        const testRevisionId = randomUUID().toLowerCase();
-        const testFileImportId = randomUUID().toLowerCase();
+        const testDatasetId = uuidV4();
+        const testRevisionId = uuidV4();
+        const testFileImportId = uuidV4();
         await createSmallDataset(testDatasetId, testRevisionId, testFileImportId, user);
 
         const meta: RevisionMetadataDTO = {
@@ -716,9 +723,9 @@ describe('API Endpoints', () => {
   });
 
   test('Ensure Delete a dataset really deletes the dataset', async () => {
-    const datasetID = randomUUID().toLowerCase();
-    const testRevisionId = randomUUID().toLowerCase();
-    const testDataset = await createSmallDataset(datasetID, testRevisionId, randomUUID(), user);
+    const datasetID = uuidV4();
+    const testRevisionId = uuidV4();
+    const testDataset = await createSmallDataset(datasetID, testRevisionId, uuidV4(), user);
     expect(testDataset).not.toBeNull();
     expect(testDataset.id).toBe(datasetID);
     const datesetFromDb = await Dataset.findOneBy({ id: datasetID });
@@ -738,14 +745,14 @@ describe('API Endpoints', () => {
       let revisionId: string;
 
       beforeEach(async () => {
-        datasetId = randomUUID().toLowerCase();
-        revisionId = randomUUID().toLowerCase();
-        const factTableId = randomUUID().toLowerCase();
+        datasetId = uuidV4();
+        revisionId = uuidV4();
+        const factTableId = uuidV4();
         await createSmallDataset(datasetId, revisionId, factTableId, user);
       });
 
       test('Set publish_at fails with 404 if revision id invalid', async () => {
-        const invalidId = randomUUID().toLowerCase();
+        const invalidId = uuidV4();
         const res = await request(app)
           .patch(`/dataset/${datasetId}/revision/by-id/${invalidId}/publish-at`)
           .send({ publish_at: addYears(new Date(), 1).toISOString() })
