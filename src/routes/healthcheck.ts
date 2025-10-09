@@ -9,9 +9,7 @@ import { SUPPORTED_LOCALES } from '../middleware/translation';
 import { StorageService } from '../interfaces/storage-service';
 import { Locale } from '../enums/locale';
 import { UserDTO } from '../dtos/user/user-dto';
-import { appConfig } from '../config';
-
-const config = appConfig();
+import { config } from '../config';
 
 const healthcheck = Router();
 

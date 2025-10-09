@@ -2,9 +2,9 @@ import 'dotenv/config';
 import 'reflect-metadata';
 import { DataSource, DataSourceOptions } from 'typeorm';
 
-import { appConfig } from '../config';
+import { config } from '../config';
 
-const config = appConfig().database;
+const dbConfig = config.database;
 
 /**
  * Data source configuration for TypeORM.
@@ -13,22 +13,22 @@ const config = appConfig().database;
  */
 const dataSourceOpts: DataSourceOptions = {
   type: 'postgres',
-  host: config.host,
-  port: config.port,
-  username: config.username,
-  password: config.password,
-  database: config.database,
-  ssl: config.ssl,
+  host: dbConfig.host,
+  port: dbConfig.port,
+  username: dbConfig.username,
+  password: dbConfig.password,
+  database: dbConfig.database,
+  ssl: dbConfig.ssl,
   synchronize: false,
   logging: false,
   entities: [],
   migrations: [],
   applicationName: 'sw3-backend-cube',
   extra: {
-    max: config.poolSize,
-    maxUses: config.maxUses,
-    idleTimeoutMillis: config.idleTimeoutMs,
-    connectionTimeoutMillis: config.connectionTimeoutMs
+    max: dbConfig.poolSize,
+    maxUses: dbConfig.maxUses,
+    idleTimeoutMillis: dbConfig.idleTimeoutMs,
+    connectionTimeoutMillis: dbConfig.connectionTimeoutMs
   }
 };
 

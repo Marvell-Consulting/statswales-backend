@@ -2,10 +2,9 @@ import { Request, Response, Router } from 'express';
 import passport from 'passport';
 
 import { loginEntraID, loginLocal } from '../controllers/auth';
-import { appConfig } from '../config';
+import { config } from '../config';
 import { AuthProvider } from '../enums/auth-providers';
 
-const config = appConfig();
 const auth = Router();
 
 if (config.auth.providers.includes(AuthProvider.EntraId)) {

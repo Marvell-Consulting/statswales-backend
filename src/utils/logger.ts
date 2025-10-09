@@ -2,9 +2,7 @@ import pino from 'pino';
 import pinoHttp from 'pino-http';
 import pick from 'lodash/pick';
 
-import { appConfig } from '../config';
-
-const config = appConfig();
+import { config } from '../config';
 
 export const logger = pino({
   level: config.logger.level

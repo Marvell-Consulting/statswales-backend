@@ -2,9 +2,7 @@ import 'dotenv/config';
 import 'reflect-metadata';
 import { DataSource, DataSourceOptions } from 'typeorm';
 
-import { appConfig } from '../config';
-
-const config = appConfig();
+import { config } from '../config';
 
 /**
  * Data source configuration for TypeORM.

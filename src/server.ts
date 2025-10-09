@@ -1,13 +1,13 @@
 import 'dotenv/config';
 import 'reflect-metadata';
 
-import { appConfig } from './config';
+import { config } from './config';
 import app from './app';
 import { logger } from './utils/logger';
 import { initPassport } from './middleware/passport-auth';
 import { dbManager } from './db/database-manager';
 
-const PORT = appConfig().backend.port;
+const PORT = config.backend.port;
 
 Promise.resolve()
   .then(async () => {
