@@ -4484,5 +4484,29 @@
     "language": "en-gb",
     "name": "COVER report",
     "provider_id": "c1a54357-9324-4d9f-8d60-07241440eb8d"
+  },
+  {
+    "id": "829f27a4-ac50-4ca3-90fd-6124c45f19a6",
+    "language": "cy-gb",
+    "name": "Cyfrifiad oedolion sy'n derbyn gofal a chymorth",
+    "provider_id": "957edc2c-0234-4a04-a15d-758da2105c49"
+  },
+  {
+    "id": "829f27a4-ac50-4ca3-90fd-6124c45f19a6",
+    "language": "en-gb",
+    "name": "Adults receiving care and support census",
+    "provider_id": "957edc2c-0234-4a04-a15d-758da2105c49"
+  },
+  {
+    "id": "f57b0dc2-6171-49ff-a02a-407a7ca6ff0c",
+    "language": "cy-gb",
+    "name": "Cyfrifiad plant sy’n cael gofal a chymorth",
+    "provider_id": "957edc2c-0234-4a04-a15d-758da2105c49"
+  },
+  {
+    "id": "f57b0dc2-6171-49ff-a02a-407a7ca6ff0c",
+    "language": "en-gb",
+    "name": "Children receiving care and support census",
+    "provider_id": "957edc2c-0234-4a04-a15d-758da2105c49"
   }
 ]
