@@ -132,7 +132,7 @@ export const UserGroupRepository = dataSource.getRepository(UserGroup).extend({
       .groupBy('ug.id, ugm.name')
       .orderBy('count', 'DESC')
       .having('COUNT(d.id) > 0')
-      .limit(5)
+      .limit(10)
       .getRawMany();
 
     return { most_published };

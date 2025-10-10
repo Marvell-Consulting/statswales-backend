@@ -302,7 +302,7 @@ export const DatasetRepository = dataSource.getRepository(Dataset).extend({
   async getDashboardStats(lang: Locale): Promise<DatasetStats> {
     logger.debug('Getting dashboard statistics for datasets');
 
-    const statusQuery = await this.query(`
+    const statusQuery = this.query(`
       WITH dataset_stats AS (
         SELECT
           d.id,
@@ -348,18 +348,7 @@ export const DatasetRepository = dataSource.getRepository(Dataset).extend({
       FROM dataset_stats
     `);
 
-    const summary = {
-      incomplete: Number(statusQuery[0].incomplete),
-      pending_approval: Number(statusQuery[0].pending_approval),
-      scheduled: Number(statusQuery[0].scheduled),
-      published: Number(statusQuery[0].published),
-      action_requested: Number(statusQuery[0].action_requested),
-      archived: Number(statusQuery[0].archived),
-      offline: Number(statusQuery[0].offline),
-      total: Number(statusQuery[0].total)
-    };
-
-    const largestQuery = await this.query(
+    const largestQuery = this.query(
       `
       WITH largest_tables AS (
         SELECT relname AS data_table_id, n_live_tup AS row_count
@@ -377,7 +366,7 @@ export const DatasetRepository = dataSource.getRepository(Dataset).extend({
       [`${lang}%`]
     );
 
-    const longestQuery = await this.query(
+    const longestQuery = this.query(
       `
         SELECT r.dataset_id AS dataset_id, rm.title AS title,
         CASE
@@ -397,6 +386,19 @@ export const DatasetRepository = dataSource.getRepository(Dataset).extend({
       [`${lang}%`]
     );
 
-    return { summary, largest: largestQuery, longest: longestQuery };
+    const [status, largest, longest] = await Promise.all([statusQuery, largestQuery, longestQuery]);
+
+    const summary = {
+      incomplete: Number(status[0].incomplete),
+      pending_approval: Number(status[0].pending_approval),
+      scheduled: Number(status[0].scheduled),
+      published: Number(status[0].published),
+      action_requested: Number(status[0].action_requested),
+      archived: Number(status[0].archived),
+      offline: Number(status[0].offline),
+      total: Number(status[0].total)
+    };
+
+    return { summary, largest, longest };
   }
 });

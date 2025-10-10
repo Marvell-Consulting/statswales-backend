@@ -98,15 +98,33 @@ export const UserRepository = dataSource.getRepository(User).extend({
   },
 
   async getDashboardStats(): Promise<UserStats> {
-    const active = await this.count({ where: { status: UserStatus.Active, lastLoginAt: Not(IsNull()) } });
+    const activeQuery = this.count({ where: { status: UserStatus.Active, lastLoginAt: Not(IsNull()) } });
 
-    const published = await this.count({
+    const publishedQuery = this.count({
       relations: { datasets: true },
       where: { datasets: { firstPublishedAt: Not(IsNull()) } }
     });
 
-    const total = await this.count();
+    const totalQuery = this.count();
 
-    return { active, published, total };
+    const mostPublishedQuery = this.query(`
+      SELECT u.id AS id, name, COUNT(d.id) AS count
+      FROM "user" u
+      INNER JOIN dataset d ON d.created_by = u.id
+      GROUP BY u.id
+      ORDER BY count DESC, name ASC
+      LIMIT 10
+    `);
+
+    const [active, published, total, most_published] = await Promise.all([
+      activeQuery,
+      publishedQuery,
+      totalQuery,
+      mostPublishedQuery
+    ]);
+
+    const summary = { active, published, total };
+
+    return { summary, most_published };
   }
 });

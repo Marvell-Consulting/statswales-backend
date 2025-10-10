@@ -263,10 +263,14 @@ export const updateUserStatus = async (req: Request, res: Response, next: NextFu
 
 export const dashboard = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
-    logger.info('Getting dashboard statistics');
-    const datasets: DatasetStats = await DatasetRepository.getDashboardStats(req.language as Locale);
-    const users: UserStats = await UserRepository.getDashboardStats();
-    const groups: UserGroupStats = await UserGroupRepository.getDashboardStats();
+    logger.info('Getting dashboard statistics...');
+
+    const [datasets, users, groups]: [DatasetStats, UserStats, UserGroupStats] = await Promise.all([
+      DatasetRepository.getDashboardStats(req.language as Locale),
+      UserRepository.getDashboardStats(),
+      UserGroupRepository.getDashboardStats()
+    ]);
+
     const stats: DashboardStats = { datasets, users, groups };
     res.json(stats);
   } catch (err) {

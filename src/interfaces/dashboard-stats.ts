@@ -16,10 +16,15 @@ export interface DatasetStats {
   longest?: LongestDataset[];
 }
 
+export type MostPublishedUser = { id: string; name: string; count: number };
+
 export interface UserStats {
-  active: number;
-  published: number;
-  total: number;
+  summary: {
+    active: number;
+    published: number;
+    total: number;
+  };
+  most_published: MostPublishedUser[];
 }
 
 export type MostPublishedGroup = { name: string; count: number };
