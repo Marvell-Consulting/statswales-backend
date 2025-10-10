@@ -510,7 +510,7 @@ export const validateMeasureLookupTable = async (
         row.hierarchy
       ];
       return pgformat(
-        'INSERT INTO %I.%I (reference, language, description, notes, sortOrder, format, decimal, measureType, hierarchy) VALUES (%L);',
+        'INSERT INTO %I.%I ("reference", "language", "description", "notes", "sort_order", "format", "decimals", "measure_type", "hierarchy") VALUES (%L);',
         draftRevision.id,
         actionId,
         values
