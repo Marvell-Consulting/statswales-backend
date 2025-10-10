@@ -4508,5 +4508,17 @@
     "language": "en-gb",
     "name": "Children receiving care and support census",
     "provider_id": "957edc2c-0234-4a04-a15d-758da2105c49"
+  },
+  {
+    "id": "780dc7f6-5e1d-459f-a00f-f751dbf277d3",
+    "language": "cy-gb",
+    "name": "Rhaglen Mesur Plant (RMP) Cymru",
+    "provider_id": "c1a54357-9324-4d9f-8d60-07241440eb8d"
+  },
+  {
+    "id": "780dc7f6-5e1d-459f-a00f-f751dbf277d3",
+    "language": "en-gb",
+    "name": "Child Measurement Programme (CMP) for Wales",
+    "provider_id": "c1a54357-9324-4d9f-8d60-07241440eb8d"
   }
 ]
