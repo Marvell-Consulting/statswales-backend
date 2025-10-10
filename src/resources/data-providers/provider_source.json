@@ -326,14 +326,14 @@
     "language": "cy-gb",
     "sw2_id": 10024,
     "name": "Casgliad data am anheddau'r dreth gyngor (CT1)",
-    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+    "provider_id": "957edc2c-0234-4a04-a15d-758da2105c49"
   },
   {
     "id": "13a379e5-bce9-4905-8642-54a8e0504cb4",
     "language": "en-gb",
     "sw2_id": 10024,
     "name": "Council tax dwellings (CT1) data collection",
-    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+    "provider_id": "957edc2c-0234-4a04-a15d-758da2105c49"
   },
   {
     "id": "14399d48-e6c4-4504-b57a-7e931795b48f",
@@ -1222,14 +1222,14 @@
     "language": "cy-gb",
     "sw2_id": 10017,
     "name": "Casgliad data alldro refeniw (RO)",
-    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+    "provider_id": "957edc2c-0234-4a04-a15d-758da2105c49"
   },
   {
     "id": "4c1d3605-6086-430f-b304-90774e6f13e2",
     "language": "en-gb",
     "sw2_id": 10017,
     "name": "Revenue outturn (RO) data collection",
-    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+    "provider_id": "957edc2c-0234-4a04-a15d-758da2105c49"
   },
   {
     "id": "4ca2f155-c62f-4566-beef-cd2d1343b0e3",
@@ -2258,14 +2258,14 @@
     "language": "cy-gb",
     "sw2_id": 10028,
     "name": "Casgliad data Gofynion Cyllideb (Heddlu) (BR2)",
-    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+    "provider_id": "957edc2c-0234-4a04-a15d-758da2105c49"
   },
   {
     "id": "966fa6d9-3a53-4eac-b3e0-444c8523e8b8",
     "language": "en-gb",
     "sw2_id": 10028,
     "name": "Budget requirement (Police) (BR2) data collection",
-    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+    "provider_id": "957edc2c-0234-4a04-a15d-758da2105c49"
   },
   {
     "id": "98d6089a-18e3-4879-b8dc-31ef580159e8",
@@ -3000,14 +3000,14 @@
     "language": "cy-gb",
     "sw2_id": 10023,
     "name": "Casgliad data am gasglu'r dreth gyngor (CTC)",
-    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+    "provider_id": "957edc2c-0234-4a04-a15d-758da2105c49"
   },
   {
     "id": "c0c2d951-1e85-4cca-bc4f-3a64bb05bc51",
     "language": "en-gb",
     "sw2_id": 10023,
     "name": "Council tax collection (CTC) data collection",
-    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+    "provider_id": "957edc2c-0234-4a04-a15d-758da2105c49"
   },
   {
     "id": "c11627d1-15b6-4292-8922-f74db54be46c",
@@ -3476,14 +3476,14 @@
     "language": "cy-gb",
     "sw2_id": 10019,
     "name": "Casgliad data alldro cyfalaf (COR)",
-    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+    "provider_id": "957edc2c-0234-4a04-a15d-758da2105c49"
   },
   {
     "id": "d77d83ab-62c5-40b2-aafc-f7ce3544d2e0",
     "language": "en-gb",
     "sw2_id": 10019,
     "name": "Capital outturn (COR) data collection",
-    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+    "provider_id": "957edc2c-0234-4a04-a15d-758da2105c49"
   },
   {
     "id": "d8aaa919-2d17-4096-9cb9-119e316b7fdc",
@@ -3672,14 +3672,14 @@
     "language": "cy-gb",
     "sw2_id": 10027,
     "name": "Casgliad data Gofynion Cyllideb (BR1)",
-    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+    "provider_id": "957edc2c-0234-4a04-a15d-758da2105c49"
   },
   {
     "id": "e99f6c72-f8b2-413c-a613-451ef2e212d5",
     "language": "en-gb",
     "sw2_id": 10027,
     "name": "Budget requirement (BR1) data collection",
-    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+    "provider_id": "957edc2c-0234-4a04-a15d-758da2105c49"
   },
   {
     "id": "e9b0efa2-b750-4ed8-93fb-9d9258395d7d",
@@ -3826,14 +3826,14 @@
     "language": "cy-gb",
     "sw2_id": 10018,
     "name": "Casgliad data cyllideb refeniw (RA)",
-    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+    "provider_id": "957edc2c-0234-4a04-a15d-758da2105c49"
   },
   {
     "id": "f591b173-3594-4e2d-ad7f-41a3b27fb940",
     "language": "en-gb",
     "sw2_id": 10018,
     "name": "Revenue budget (RA) data collection",
-    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+    "provider_id": "957edc2c-0234-4a04-a15d-758da2105c49"
   },
   {
     "id": "f5d04fb2-8910-46f6-9d4f-60943e37b67a",
