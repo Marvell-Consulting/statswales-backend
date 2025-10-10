@@ -6,12 +6,13 @@ import { Dataset } from '../entities/dataset/dataset';
 import { FactTableColumn } from '../entities/dataset/fact-table-column';
 import { FactTableColumnType } from '../enums/fact-table-column-type';
 import { logger } from '../utils/logger';
-import { FACT_TABLE_NAME, NoteCodes } from './cube-handler';
+import { FACT_TABLE_NAME } from './cube-handler';
 import { FactTableValidationException } from '../exceptions/fact-table-validation-exception';
 import { FactTableValidationExceptionType } from '../enums/fact-table-validation-exception-type';
 import { SourceAssignmentDTO } from '../dtos/source-assignment-dto';
 import { tableDataToViewTable } from '../utils/table-data-to-view-table';
 import { dbManager } from '../db/database-manager';
+import { NoteCodes } from '../enums/note-code';
 
 interface FactTableDefinition {
   factTableColumn: FactTableColumn;

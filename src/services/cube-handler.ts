@@ -33,17 +33,15 @@ import { performanceReporting } from '../utils/performance-reporting';
 import { DuckdbOutputType } from '../enums/duckdb-outputs';
 import { StorageService } from '../interfaces/storage-service';
 import { dbManager } from '../db/database-manager';
-import { CubeViewConfig } from '../interfaces/cube-view-config';
 import cubeConfig from '../config/cube-view.json';
+import { CubeViewBuilder } from '../interfaces/cube-view-builder';
+import { NoteCodes } from '../enums/note-code';
+import { MeasureFormat } from '../interfaces/measure-format';
+import { UniqueMeasureDetails } from '../interfaces/unique-measure-details';
+import { FactTableInfo } from '../interfaces/fact-table-info';
 
 export const FACT_TABLE_NAME = 'fact_table';
 export const CORE_VIEW_NAME = 'core_view';
-
-interface CubeBuilder {
-  name: string;
-  config: CubeViewConfig;
-  columns: Map<Locale, Set<string>>;
-}
 
 export const makeCubeSafeString = (str: string): string => {
   return str
@@ -175,7 +173,7 @@ async function setupLookupTableDimension(
   columnNames: Map<Locale, Set<string>>,
   joinStatements: string[],
   orderByStatements: string[],
-  viewConfig: CubeBuilder[]
+  viewConfig: CubeViewBuilder[]
 ): Promise<string> {
   const factTableColumn = dataset.factTable?.find((col) => col.columnName === dimension.factTableColumn);
   if (!factTableColumn) {
@@ -808,38 +806,13 @@ export async function loadFactTables(
   }
 }
 
-interface NoteCodeItem {
-  code: string;
-  tag: string;
-}
-
-export const NoteCodes: NoteCodeItem[] = [
-  { code: 'a', tag: 'average' },
-  { code: 'b', tag: 'break_in_series' },
-  { code: 'c', tag: 'confidential' },
-  { code: 'e', tag: 'estimated' },
-  { code: 'f', tag: 'forecast' },
-  { code: 'k', tag: 'low_figure' },
-  { code: 'ns', tag: 'not_statistically_significant' },
-  { code: 'p', tag: 'provisional' },
-  { code: 'r', tag: 'revised' },
-  { code: 's', tag: 'statistically_significant_at_level_1' },
-  { code: 'ss', tag: 'statistically_significant_at_level_2' },
-  { code: 'sss', tag: 'statistically_significant_at_level_3' },
-  { code: 't', tag: 'total' },
-  { code: 'u', tag: 'low_reliability' },
-  { code: 'w', tag: 'not_recorded' },
-  { code: 'x', tag: 'missing_data' },
-  { code: 'z', tag: 'not_applicable' }
-];
-
 async function createNotesTable(
   cubeDB: QueryRunner,
   notesColumn: FactTableColumn,
   coreCubeViewSelectBuilder: Map<Locale, string[]>,
   columnNames: Map<Locale, Set<string>>,
   joinStatements: string[],
-  viewConfig: CubeBuilder[]
+  viewConfig: CubeViewBuilder[]
 ): Promise<void> {
   logger.info('Creating notes table...');
   try {
@@ -890,11 +863,6 @@ async function createNotesTable(
       notesColumn.columnName
     )
   );
-}
-
-interface MeasureFormat {
-  name: string;
-  method: string;
 }
 
 function postgresMeasureFormats(): Map<string, MeasureFormat> {
@@ -999,7 +967,7 @@ export async function createMeasureLookupTable(
 function setupMeasureAndDataValuesNoLookup(
   coreCubeViewSelectBuilder: Map<Locale, string[]>,
   columnNames: Map<Locale, Set<string>>,
-  viewConfig: CubeBuilder[],
+  viewConfig: CubeViewBuilder[],
   measureColumn?: FactTableColumn,
   dataValuesColumn?: FactTableColumn,
   notesCodeColumn?: FactTableColumn
@@ -1087,16 +1055,9 @@ function setupMeasureAndDataValuesNoLookup(
   });
 }
 
-interface UniqueMeasureDetails {
-  reference: string;
-  format: string;
-  sort_order: string | null;
-  decimals: number | null;
-}
-
 function setupDataValueViews(
   locale: Locale,
-  viewConfig: CubeBuilder[],
+  viewConfig: CubeViewBuilder[],
   dataValuesColumnName: string,
   dataAnnotatedColName: string,
   dataFormattedColName: string,
@@ -1118,7 +1079,7 @@ function setupDataValueViews(
 
 function setupMeasureViews(
   locale: Locale,
-  viewConfig: CubeBuilder[],
+  viewConfig: CubeViewBuilder[],
   measureColumnName: string,
   measureColumnRefName: string,
   measureColumnSortName: string,
@@ -1145,7 +1106,7 @@ async function setupMeasureAndDataValuesWithLookup(
   measureColumn: FactTableColumn,
   notesCodeColumn: FactTableColumn | undefined,
   coreCubeViewSelectBuilder: Map<Locale, string[]>,
-  viewConfig: CubeBuilder[],
+  viewConfig: CubeViewBuilder[],
   columnNames: Map<Locale, Set<string>>,
   joinStatements: string[],
   orderByStatements: string[]
@@ -1272,7 +1233,7 @@ async function setupMeasuresAndDataValues(
   measureColumn: FactTableColumn | undefined,
   notesCodeColumn: FactTableColumn | undefined,
   coreCubeViewSelectBuilder: Map<Locale, string[]>,
-  viewConfig: CubeBuilder[],
+  viewConfig: CubeViewBuilder[],
   columnNames: Map<Locale, Set<string>>,
   joinStatements: string[],
   orderByStatements: string[]
@@ -1334,7 +1295,7 @@ async function rawDimensionProcessor(
   dimension: Dimension,
   coreCubeViewSelectBuilder: Map<Locale, string[]>,
   columnNames: Map<Locale, Set<string>>,
-  viewConfig: CubeBuilder[]
+  viewConfig: CubeViewBuilder[]
 ): Promise<void> {
   for (const locale of SUPPORTED_LOCALES) {
     const proposedColumnName =
@@ -1388,7 +1349,7 @@ async function dateDimensionProcessor(
   columnNames: Map<Locale, Set<string>>,
   joinStatements: string[],
   orderByStatements: string[],
-  viewConfig: CubeBuilder[]
+  viewConfig: CubeViewBuilder[]
 ): Promise<string> {
   const dimTable = `${makeCubeSafeString(dimension.factTableColumn)}_lookup`;
   await createDateDimension(cubeDB, dimension.extractor, factTableColumn);
@@ -1478,7 +1439,7 @@ async function setupNumericDimension(
   dimension: Dimension,
   coreCubeViewSelectBuilder: Map<Locale, string[]>,
   columnNames: Map<Locale, Set<string>>,
-  viewConfig: CubeBuilder[]
+  viewConfig: CubeViewBuilder[]
 ): Promise<void> {
   SUPPORTED_LOCALES.map((locale) => {
     const proposedColumnName =
@@ -1580,7 +1541,7 @@ async function setupTextDimension(
   dimension: Dimension,
   coreCubeViewSelectBuilder: Map<Locale, string[]>,
   columnNames: Map<Locale, Set<string>>,
-  viewConfig: CubeBuilder[]
+  viewConfig: CubeViewBuilder[]
 ): Promise<void> {
   SUPPORTED_LOCALES.map((locale) => {
     const proposedColumnName =
@@ -1640,7 +1601,7 @@ async function setupDimensions(
   dataset: Dataset,
   endRevision: Revision,
   coreCubeViewSelectBuilder: Map<Locale, string[]>,
-  viewConfig: CubeBuilder[],
+  viewConfig: CubeViewBuilder[],
   columnNames: Map<Locale, Set<string>>,
   joinStatements: string[],
   orderByStatements: string[]
@@ -1736,15 +1697,6 @@ async function setupDimensions(
     );
     performanceReporting(Math.round(performance.now() - dimStart), 1000, `Setting up ${dimension.type} dimension type`);
   }
-}
-
-interface FactTableInfo {
-  measureColumn?: FactTableColumn;
-  notesCodeColumn?: FactTableColumn;
-  dataValuesColumn?: FactTableColumn;
-  factTableDef: string[];
-  factIdentifiers: FactTableColumn[];
-  compositeKey: string[];
 }
 
 export async function createEmptyFactTableInCube(
@@ -1907,7 +1859,7 @@ export const createBasePostgresCube = async (
   buildId: string,
   dataset: Dataset,
   endRevision: Revision,
-  viewConfig: CubeBuilder[]
+  viewConfig: CubeViewBuilder[]
 ): Promise<void> => {
   logger.debug(`Starting build ${buildId} and Creating base cube for revision ${endRevision.id}`);
   await cubeDB.query(pgformat(`SET search_path TO %I;`, buildId));
@@ -2093,7 +2045,7 @@ async function createViewsFromConfig(
   cubeDB: QueryRunner,
   baseViewName: string,
   locale: Locale,
-  viewConfig: CubeBuilder[],
+  viewConfig: CubeViewBuilder[],
   factTable: FactTableColumn[]
 ): Promise<void> {
   const lang = locale.toLowerCase().split('-')[0];
@@ -2118,7 +2070,7 @@ async function createViewsFromConfig(
 export const createMaterialisedView = async (
   revisionId: string,
   dataset: Dataset,
-  viewConfig: CubeBuilder[]
+  viewConfig: CubeViewBuilder[]
 ): Promise<void> => {
   const cubeDB = dbManager.getCubeDataSource().createQueryRunner();
   logger.info(`Creating default views...`);
@@ -2196,7 +2148,7 @@ export const createAllCubeFiles = async (datasetId: string, endRevisionId: strin
       config: config,
       columns,
       viewParts
-    } as CubeBuilder;
+    } as CubeViewBuilder;
   });
 
   try {
