@@ -338,13 +338,11 @@ async function checkDecimalColumn(cubeDB: QueryRunner, lookupTableName: string):
 
 async function checkFormatColumn(cubeDB: QueryRunner, lookupTableName: string): Promise<string[]> {
   const unmatchedFormats: string[] = [];
-  logger.debug(`Format column is present on lookup ${lookupTableName}. Validating it contains only known formats.`);
+  logger.debug('Format column is present. Validating it contains only known formats.');
   const formats: { format: string }[] = await cubeDB.query(
     pgformat(`SELECT DISTINCT format FROM %I;`, lookupTableName)
   );
-  logger.debug(`Found ${formats.length} unique formats: ${JSON.stringify(formats, null, 2)}`);
   for (const format of Object.values(formats.map((format) => format.format))) {
-    logger.debug(`Checking format ${format}`);
     if (
       Object.values(DataValueFormat)
         .map((format) => format.toString().toLowerCase())

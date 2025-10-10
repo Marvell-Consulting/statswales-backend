@@ -368,7 +368,7 @@ async function createMeasureTable(
     throw new FileValidationException('errors.measure_validation.copy_failure', FileValidationErrorType.unknown);
   }
 
-  logger.trace(`Measure table contents from DuckDB: ${JSON.stringify(tableContents.getRowObjectsJson(), null, 2)}`);
+  // logger.trace(`Measure table contents from DuckDB: ${JSON.stringify(tableContents.getRowObjectsJson(), null, 2)}`);
   const measureTable: MeasureRow[] = [];
   for (const row of tableContents.getRowObjectsJson()) {
     const item = new MeasureRow();
@@ -383,7 +383,7 @@ async function createMeasureTable(
     item.hierarchy = row.hierarchy as string;
     measureTable.push(item);
   }
-  logger.trace(`Measure table contents: ${JSON.stringify(measureTable, null, 2)}`);
+  // logger.trace(`Measure table contents: ${JSON.stringify(measureTable, null, 2)}`);
 
   try {
     await quack.run(pgformat('DROP TABLE IF EXISTS %I.%I', 'memory', lookupTableName));
@@ -509,7 +509,12 @@ export const validateMeasureLookupTable = async (
         row.measureType,
         row.hierarchy
       ];
-      return pgformat('INSERT INTO %I.%I VALUES (%L);', draftRevision.id, actionId, values);
+      return pgformat(
+        'INSERT INTO %I.%I (reference, language, description, notes, sortOrder, format, decimal, measureType, hierarchy) VALUES (%L);',
+        draftRevision.id,
+        actionId,
+        values
+      );
     }),
     'END TRANSACTION;'
   ];
