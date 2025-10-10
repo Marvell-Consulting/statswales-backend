@@ -354,11 +354,11 @@ export const DatasetRepository = dataSource.getRepository(Dataset).extend({
     const largestQuery = this.query(
       `
       WITH largest_tables AS (
-        SELECT oid::regclass::text AS objectname, reltuples AS row_count, pg_table_size(oid) AS size_bytes
+        SELECT oid::regclass::text AS objectname, reltuples AS row_count, pg_relation_size(oid) AS size_bytes
         FROM pg_class
         WHERE relkind IN ('m')
         AND oid::regclass::text LIKE $1
-        AND pg_table_size(oid) > 0
+        AND pg_relation_size(oid) > 0
         ORDER  BY reltuples DESC
       )
       SELECT
