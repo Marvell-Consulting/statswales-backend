@@ -111,6 +111,8 @@ export const UserRepository = dataSource.getRepository(User).extend({
       SELECT u.id AS id, name, COUNT(d.id) AS count
       FROM "user" u
       INNER JOIN dataset d ON d.created_by = u.id
+      WHERE d.first_published_at IS NOT NULL
+      AND d.first_published_at <= NOW()
       GROUP BY u.id
       ORDER BY count DESC, name ASC
       LIMIT 10
