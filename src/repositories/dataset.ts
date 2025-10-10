@@ -351,17 +351,24 @@ export const DatasetRepository = dataSource.getRepository(Dataset).extend({
     const largestQuery = this.query(
       `
       WITH largest_tables AS (
-        SELECT relname AS data_table_id, n_live_tup AS row_count
-        FROM pg_stat_user_tables
-        WHERE schemaname = 'data_tables'
-        ORDER BY n_live_tup DESC
-        LIMIT 10
+        SELECT oid::regclass::text AS objectname, reltuples AS row_count, pg_table_size(oid) AS size_bytes
+        FROM pg_class
+        WHERE relkind IN ('m')
+        AND oid::regclass::text LIKE '%core_view_mat_en'
+        AND pg_table_size(oid) > 0
+        ORDER  BY reltuples DESC
       )
-      SELECT r.dataset_id AS dataset_id, rm.title AS title, lt.row_count
-      FROM largest_tables lt
-      INNER JOIN revision r ON r.data_table_id::text = lt.data_table_id::text
+      SELECT
+        DISTINCT r.dataset_id AS dataset_id,
+        r.id AS revision_id,
+        rm.title AS title,
+        lt.row_count AS row_count,
+        lt.size_bytes AS size_bytes
+      FROM revision r
+      INNER JOIN largest_tables lt ON '"'||r.id||'".core_view_mat_en' = lt.objectname
       INNER JOIN revision_metadata rm ON rm.revision_id = r.id AND rm.language LIKE $1
-      ORDER BY lt.row_count DESC;
+      ORDER BY lt.row_count DESC
+      LIMIT 10;
     `,
       [`${lang}%`]
     );
@@ -381,7 +388,7 @@ export const DatasetRepository = dataSource.getRepository(Dataset).extend({
         FROM revision r
         INNER JOIN revision_metadata rm ON rm.revision_id = r.id AND rm.language LIKE $1
         ORDER BY interval DESC
-        LIMIT 10;
+        LIMIT 10
       `,
       [`${lang}%`]
     );
