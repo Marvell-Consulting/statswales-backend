@@ -6,12 +6,14 @@ import { Dataset } from '../entities/dataset/dataset';
 import { FactTableColumn } from '../entities/dataset/fact-table-column';
 import { FactTableColumnType } from '../enums/fact-table-column-type';
 import { logger } from '../utils/logger';
-import { FACT_TABLE_NAME, NoteCodes } from './cube-handler';
+import { FACT_TABLE_NAME } from './cube-handler';
 import { FactTableValidationException } from '../exceptions/fact-table-validation-exception';
 import { FactTableValidationExceptionType } from '../enums/fact-table-validation-exception-type';
 import { SourceAssignmentDTO } from '../dtos/source-assignment-dto';
 import { tableDataToViewTable } from '../utils/table-data-to-view-table';
 import { dbManager } from '../db/database-manager';
+import { NoteCodeItem } from '../interfaces/note-code-item';
+import { NoteCodes } from '../enums/note-code';
 
 interface FactTableDefinition {
   factTableColumn: FactTableColumn;
@@ -106,42 +108,38 @@ export const factTableValidatorFromSource = async (
       500
     );
   }
-  const cubeDB = dbManager.getCubeDataSource().createQueryRunner();
 
+  logger.debug(`Dropping primary key if it exists on fact_table`);
+  const dropPKQuery = pgformat(
+    `ALTER TABLE %I.%I DROP CONSTRAINT IF EXISTS %I;`,
+    revision.id,
+    FACT_TABLE_NAME,
+    `${FACT_TABLE_NAME}_pkey`
+  );
+  const dropKeyRunner = dbManager.getCubeDataSource().createQueryRunner();
   try {
-    await cubeDB.query(pgformat(`SET search_path TO %I;`, revision.id));
+    await dropKeyRunner.query(dropPKQuery);
   } catch (error) {
-    logger.error(error, 'Unable to connect to postgres schema for revision.');
-    cubeDB.release();
-    throw new FactTableValidationException(
-      'Unable to find data on revision cube in database',
-      FactTableValidationExceptionType.UnknownError,
-      500
-    );
+    logger.error(error, 'Something went wrong trying to drop primary key from fact table table');
+  } finally {
+    void dropKeyRunner.release();
   }
 
+  logger.debug(`Adding primary key to fact_table with columns: ${primaryKeyDef.join(', ')}`);
+  const pkQuery = pgformat('ALTER TABLE %I.%I ADD PRIMARY KEY (%I)', revision.id, FACT_TABLE_NAME, primaryKeyDef);
+  const addKeyRunner = dbManager.getCubeDataSource().createQueryRunner();
   try {
-    logger.debug(`Dropping primary key if it exists on fact_table`);
-    const dropPKQuery = pgformat(
-      `ALTER TABLE %I DROP CONSTRAINT IF EXISTS %I;`,
-      FACT_TABLE_NAME,
-      `${FACT_TABLE_NAME}_pkey`
-    );
-    await cubeDB.query(dropPKQuery);
-    logger.debug(`Adding primary key to fact_table with columns: ${primaryKeyDef.join(', ')}`);
-    const pkQuery = pgformat('ALTER TABLE %I ADD PRIMARY KEY (%I)', FACT_TABLE_NAME, primaryKeyDef);
-    await cubeDB.query(pkQuery);
+    await addKeyRunner.query(pkQuery);
   } catch (err) {
-    cubeDB.release();
     logger.error(err, 'Failed to apply primary key to fact table.');
     if ((err as Error).message.includes('could not create unique index')) {
       let error: FactTableValidationException | undefined;
-      error = await identifyDuplicateFacts(cubeDB, primaryKeyDef);
+      error = await identifyDuplicateFacts(addKeyRunner, primaryKeyDef);
       if (error) throw error;
-      error = await identifyIncompleteFacts(cubeDB, primaryKeyDef);
+      error = await identifyIncompleteFacts(addKeyRunner, primaryKeyDef);
       if (error) throw error;
     } else if ((err as Error).message.includes('contains null values')) {
-      const error = await identifyIncompleteFacts(cubeDB, primaryKeyDef);
+      const error = await identifyIncompleteFacts(addKeyRunner, primaryKeyDef);
       if (error) throw error;
       throw new FactTableValidationException(
         'Incomplete facts found in fact table.',
@@ -154,34 +152,25 @@ export const factTableValidatorFromSource = async (
       FactTableValidationExceptionType.UnknownError,
       500
     );
+  } finally {
+    void addKeyRunner.release();
   }
 
-  try {
-    await validateNoteCodesColumn(cubeDB, validatedSourceAssignment.noteCodes, revision.id, FACT_TABLE_NAME);
-  } catch (err) {
-    logger.error(err, 'Note code validation failed.');
-    throw err;
-  } finally {
-    cubeDB.release();
-  }
+  await validateNoteCodesColumn(validatedSourceAssignment.noteCodes, revision.id);
 };
 
-async function validateNoteCodesColumn(
-  cubeDB: QueryRunner,
-  noteCodeColumn: SourceAssignmentDTO | null,
-  revisionId: string,
-  factTableName: string
-): Promise<void> {
+async function validateNoteCodesColumn(noteCodeColumn: SourceAssignmentDTO | null, revisionId: string): Promise<void> {
   let notesCodes: { codes: string }[];
+  const findNoteCodesQuery = pgformat(
+    'SELECT DISTINCT %I as codes FROM %I.%I WHERE %I IS NOT NULL;',
+    noteCodeColumn?.column_name,
+    revisionId,
+    FACT_TABLE_NAME,
+    noteCodeColumn?.column_name
+  );
+  const noteCodeQueryRunner = dbManager.getCubeDataSource().createQueryRunner();
   try {
-    const findNoteCodesQuery = pgformat(
-      'SELECT DISTINCT %I as codes FROM %I.%I WHERE %I IS NOT NULL;',
-      noteCodeColumn?.column_name,
-      revisionId,
-      factTableName,
-      noteCodeColumn?.column_name
-    );
-    notesCodes = await cubeDB.query(findNoteCodesQuery);
+    notesCodes = await noteCodeQueryRunner.query(findNoteCodesQuery);
   } catch (error) {
     logger.error(error, 'Failed to extract or validate validate note codes');
     throw new FactTableValidationException(
@@ -189,8 +178,11 @@ async function validateNoteCodesColumn(
       FactTableValidationExceptionType.NoNoteCodes,
       500
     );
+  } finally {
+    void noteCodeQueryRunner.release();
   }
-  const validCodes = NoteCodes.map((noteCode) => noteCode.code);
+
+  const validCodes = NoteCodes.map((noteCode: NoteCodeItem) => noteCode.code);
 
   const badCodes: string[] = notesCodes
     .flatMap((noteCode: { codes: string }) => {
@@ -216,33 +208,50 @@ async function validateNoteCodesColumn(
     FactTableValidationExceptionType.BadNoteCodes,
     400
   );
+
+  const badCodesString = badCodes
+    .map((code) => pgformat(`LOWER(%I) LIKE %L`, noteCodeColumn?.column_name, `%${code.toLowerCase()}%`))
+    .join(' or ');
+  const columnNamesQuery = pgformat(
+    'SELECT column_name FROM information_schema.columns WHERE table_schema = %L AND table_name = %L',
+    revisionId,
+    FACT_TABLE_NAME
+  );
+  let columns: { column_name: string }[];
+  const columnNamesRunner = dbManager.getCubeDataSource().createQueryRunner();
   try {
-    const badCodesString = badCodes
-      .map((code) => pgformat(`LOWER(%I) LIKE %L`, noteCodeColumn?.column_name, `%${code.toLowerCase()}%`))
-      .join(' or ');
-    const columnNamesQuery = pgformat(
-      'SELECT column_name FROM information_schema.columns WHERE table_schema = %L AND table_name = %L',
-      revisionId,
-      factTableName
-    );
-    const columns: { column_name: string }[] = await cubeDB.query(columnNamesQuery);
-    const selectColumns = columns.map((col) => col.column_name);
-    const brokeNoteCodeLinesQuery = pgformat(
-      'SELECT line_number,%I FROM (SELECT row_number() OVER () as line_number, %I FROM %I.%I) WHERE %s LIMIT 500',
-      selectColumns,
-      selectColumns,
-      revisionId,
-      factTableName,
-      badCodesString
-    );
-    const brokeNoteCodeLines = await cubeDB.query(brokeNoteCodeLinesQuery);
-    const { headers, data } = tableDataToViewTable(brokeNoteCodeLines);
-    error.data = data;
-    error.headers = headers;
-  } catch (extractionErr) {
-    logger.error(extractionErr, 'Failed to extract data from data table.');
+    columns = await columnNamesRunner.query(columnNamesQuery);
+  } catch (error) {
+    logger.error(error, 'Something went wrong trying to get the column information from the information schema');
+    throw error;
+  } finally {
+    void columnNamesRunner.release();
   }
-  throw error;
+
+  const selectColumns = columns.map((col) => col.column_name);
+  const brokeNoteCodeLinesQuery = pgformat(
+    'SELECT line_number,%I FROM (SELECT row_number() OVER () as line_number, %I FROM %I.%I) WHERE %s LIMIT 500',
+    selectColumns,
+    selectColumns,
+    revisionId,
+    FACT_TABLE_NAME,
+    badCodesString
+  );
+
+  const brokenNoteCodeLinesQueryRunner = dbManager.getCubeDataSource().createQueryRunner();
+  let brokeNoteCodeLines: Record<string, JSON>[];
+  try {
+    brokeNoteCodeLines = await brokenNoteCodeLinesQueryRunner.query(brokeNoteCodeLinesQuery);
+  } catch (error) {
+    logger.error(error, 'Something went wrong trying to find broken note codes');
+    throw error;
+  } finally {
+    void brokenNoteCodeLinesQueryRunner.release();
+  }
+
+  const { headers, data } = tableDataToViewTable(brokeNoteCodeLines);
+  error.data = data;
+  error.headers = headers;
 }
 
 async function identifyIncompleteFacts(

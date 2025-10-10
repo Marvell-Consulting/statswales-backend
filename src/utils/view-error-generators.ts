@@ -14,14 +14,14 @@ export interface PageInfo {
   end_record: number;
 }
 
-export const viewErrorGenerators = (
+export function viewErrorGenerators(
   status: number,
   dataset_id: string,
   field: string,
   tag: string,
   extension: object,
   params = {}
-): ViewErrDTO => {
+): ViewErrDTO {
   const userMessages: ErrorMessage[] = AVAILABLE_LANGUAGES.map((lang) => {
     return {
       message: t(tag, { ...params, lng: lang }),
@@ -40,9 +40,9 @@ export const viewErrorGenerators = (
     ],
     extension
   };
-};
+}
 
-export const viewGenerator = async (
+export function viewGenerator(
   dataset: Dataset,
   page: number,
   pageInfo: PageInfo,
@@ -51,7 +51,7 @@ export const viewGenerator = async (
   headers: ColumnHeader[],
   data: string[][] | unknown[][],
   dataTable?: DataTable
-): Promise<ViewDTO> => {
+): ViewDTO {
   return {
     dataset: DatasetDTO.fromDataset(dataset),
     data_table: dataTable ? DataTableDto.fromDataTable(dataTable) : undefined,
@@ -62,4 +62,4 @@ export const viewGenerator = async (
     headers,
     data
   };
-};
+}
