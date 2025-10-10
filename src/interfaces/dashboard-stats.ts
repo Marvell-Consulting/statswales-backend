@@ -12,8 +12,8 @@ export interface DatasetStats {
     offline: number;
     total: number;
   };
-  largest?: LargestDataset[];
-  longest?: LongestDataset[];
+  largest: LargestDataset[];
+  longest: LongestDataset[];
 }
 
 export type MostPublishedUser = { id: string; name: string; count: number };

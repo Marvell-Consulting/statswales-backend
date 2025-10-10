@@ -17,6 +17,7 @@ import { PeriodCovered } from '../interfaces/period-covered';
 import { User } from '../entities/user/user';
 import { getUserGroupIdsForUser } from '../utils/get-permissions-for-user';
 import { DatasetStats } from '../interfaces/dashboard-stats';
+import { CORE_VIEW_NAME } from '../services/cube-handler';
 
 export const withStandardPreview: FindOptionsRelations<Dataset> = {
   createdBy: true,
@@ -302,6 +303,8 @@ export const DatasetRepository = dataSource.getRepository(Dataset).extend({
   async getDashboardStats(lang: Locale): Promise<DatasetStats> {
     logger.debug('Getting dashboard statistics for datasets');
 
+    const coreViewName = `${CORE_VIEW_NAME}_mat_en`;
+
     const statusQuery = this.query(`
       WITH dataset_stats AS (
         SELECT
@@ -354,7 +357,7 @@ export const DatasetRepository = dataSource.getRepository(Dataset).extend({
         SELECT oid::regclass::text AS objectname, reltuples AS row_count, pg_table_size(oid) AS size_bytes
         FROM pg_class
         WHERE relkind IN ('m')
-        AND oid::regclass::text LIKE '%core_view_mat_en'
+        AND oid::regclass::text LIKE $1
         AND pg_table_size(oid) > 0
         ORDER  BY reltuples DESC
       )
@@ -365,12 +368,12 @@ export const DatasetRepository = dataSource.getRepository(Dataset).extend({
         lt.row_count AS row_count,
         lt.size_bytes AS size_bytes
       FROM revision r
-      INNER JOIN largest_tables lt ON '"'||r.id||'".core_view_mat_en' = lt.objectname
-      INNER JOIN revision_metadata rm ON rm.revision_id = r.id AND rm.language LIKE $1
+      INNER JOIN largest_tables lt ON '"'||r.id||'".'||$2 = lt.objectname
+      INNER JOIN revision_metadata rm ON rm.revision_id = r.id AND rm.language LIKE $3
       ORDER BY lt.row_count DESC
       LIMIT 10;
     `,
-      [`${lang}%`]
+      [`%${coreViewName}`, coreViewName, `${lang}%`]
     );
 
     const longestQuery = this.query(
