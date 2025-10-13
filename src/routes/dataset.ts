@@ -2,12 +2,7 @@ import 'reflect-metadata';
 
 import express, { Router } from 'express';
 
-import {
-  downloadCubeAsCSV,
-  downloadCubeAsExcel,
-  downloadCubeAsJSON,
-  downloadCubeAsParquet
-} from '../controllers/cube-controller';
+import { downloadCubeAsCSV, downloadCubeAsExcel, downloadCubeAsJSON } from '../controllers/cube';
 import {
   addDataProvider,
   createDataset,
@@ -76,10 +71,6 @@ datasetRouter.post('/:dataset_id/data', fileStreaming(), uploadDataTable);
 // Returns a view of the data file attached to the import
 datasetRouter.get('/:dataset_id/view', cubePreview);
 
-// GET /dataset/:dataset_id/cube
-// Returns the latest revision of the dataset as a DuckDB File
-// datasetRouter.get('/:dataset_id/cube', downloadCubeFile);
-
 // GET /dataset/:dataset_id/cube/json
 // Returns a JSON file representation of the default view of the cube
 datasetRouter.get('/:dataset_id/cube/json', downloadCubeAsJSON);
@@ -87,10 +78,6 @@ datasetRouter.get('/:dataset_id/cube/json', downloadCubeAsJSON);
 // GET /dataset/:dataset_id/cube/csv
 // Returns a CSV file representation of the default view of the cube
 datasetRouter.get('/:dataset_id/cube/csv', downloadCubeAsCSV);
-
-// GET /dataset/:dataset_id/cube/parquet
-// Returns a CSV file representation of the default view of the cube
-datasetRouter.get('/:dataset_id/cube/parquet', downloadCubeAsParquet);
 
 // GET /dataset/:dataset_id/cube/excel
 // Returns a CSV file representation of the default view of the cube
