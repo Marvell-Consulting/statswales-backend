@@ -7,7 +7,10 @@ import { ProviderSource } from '../entities/dataset/provider-source';
 
 export const ProviderRepository = dataSource.getRepository(Provider).extend({
   async listAllByLanguage(lang: Locale): Promise<Provider[]> {
-    return this.find({ where: { language: ILike(`${lang}%`) } });
+    return this.find({
+      where: { language: ILike(`${lang}%`) },
+      order: { name: 'ASC' }
+    });
   },
 
   async listAllSourcesByProvider(providerId: string, lang: Locale): Promise<ProviderSource[]> {
@@ -15,7 +18,8 @@ export const ProviderRepository = dataSource.getRepository(Provider).extend({
       where: {
         providerId,
         language: ILike(`${lang}%`)
-      }
+      },
+      order: { name: 'ASC' }
     });
   }
 });
