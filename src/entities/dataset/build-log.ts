@@ -21,7 +21,7 @@ export class BuildLog extends BaseEntity {
   completedAt: Date | null;
 
   @Column({ type: 'text', nullable: true, name: 'build_script' })
-  buildScript: string;
+  buildScript: string | null;
 
   @Column({ type: 'text', nullable: true, name: 'errors' })
   errors: string;
