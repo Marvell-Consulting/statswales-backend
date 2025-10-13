@@ -24,7 +24,7 @@ export class BuildLog extends BaseEntity {
   buildScript: string | null;
 
   @Column({ type: 'text', nullable: true, name: 'errors' })
-  errors: string;
+  errors: string | null;
 
   @ManyToOne(() => Revision, (revision) => revision.builds, { onDelete: 'CASCADE', orphanedRowAction: 'delete' })
   @JoinColumn({ name: 'revision_id', foreignKeyConstraintName: 'FK_revision_build_log_id' })
