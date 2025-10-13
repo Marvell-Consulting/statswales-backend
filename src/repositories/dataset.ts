@@ -362,14 +362,14 @@ export const DatasetRepository = dataSource.getRepository(Dataset).extend({
         ORDER  BY reltuples DESC
       )
       SELECT
-        DISTINCT r.dataset_id AS dataset_id,
-        r.id AS revision_id,
+        r.dataset_id AS dataset_id,
         rm.title AS title,
-        lt.row_count AS row_count,
-        lt.size_bytes AS size_bytes
+        MAX(lt.row_count) AS row_count,
+        MAX(lt.size_bytes) AS size_bytes
       FROM revision r
       INNER JOIN largest_tables lt ON '"'||r.id||'".'||$2 = lt.objectname
       INNER JOIN revision_metadata rm ON rm.revision_id = r.id AND rm.language LIKE $3
+      GROUP BY r.dataset_id, rm.title, lt.row_count, lt.size_bytes
       ORDER BY lt.row_count DESC
       LIMIT 10;
     `,
