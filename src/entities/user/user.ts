@@ -13,6 +13,7 @@ import { UserStatus } from '../../enums/user-status';
 import { GlobalRole } from '../../enums/global-role';
 
 import { UserGroupRole } from './user-group-role';
+import { Dataset } from '../dataset/dataset';
 
 @Entity({ name: 'user' })
 @Index('IDX_user_provider_provider_user_id', ['provider', 'providerUserId'])
@@ -58,4 +59,7 @@ export class User extends BaseEntity {
 
   @Column({ name: 'last_login_at', type: 'timestamptz', nullable: true })
   lastLoginAt: Date;
+
+  @OneToMany(() => Dataset, (dataset) => dataset.createdBy)
+  datasets: Dataset[];
 }

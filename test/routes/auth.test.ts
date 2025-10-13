@@ -4,8 +4,7 @@ import app from '../../src/app';
 import { dbManager } from '../../src/db/database-manager';
 import { initPassport } from '../../src/middleware/passport-auth';
 import { logger } from '../../src/utils/logger';
-
-import { appConfig } from '../../src/config';
+import { config } from '../../src/config';
 
 // Need to mock blob storage as it is included in services middleware for every route
 // avoids the "Jest did not exit one second after the test run has completed"
@@ -33,7 +32,7 @@ describe('Healthcheck', () => {
   });
 
   test('/auth/providers returns a list of enabled providers', async () => {
-    const expectedProviders = appConfig().auth.providers;
+    const expectedProviders = config.auth.providers;
     const res = await request(app).get('/auth/providers');
     expect(res.status).toBe(200);
     expect(res.body).toEqual({ enabled: expectedProviders });

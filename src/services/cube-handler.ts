@@ -23,7 +23,7 @@ import { DatasetRepository } from '../repositories/dataset';
 import cubeConfig from '../config/cube-view.json';
 import { CubeBuildStatus } from '../enums/cube-build-status';
 import { CubeBuildType } from '../enums/cube-build-type';
-import { appConfig } from '../config';
+import { config } from '../config';
 import { CubeViewBuilder } from '../interfaces/cube-view-builder';
 import { BuildLog } from '../entities/dataset/build-log';
 import { CubeBuilder } from '../interfaces/cube-builder';

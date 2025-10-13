@@ -1,7 +1,5 @@
 import { logger } from './logger';
-import { appConfig } from '../config';
-
-const config = appConfig();
+import { config } from '../config';
 
 export const performanceReporting = (totalTime: number, targetNumber: number, method: string): void => {
   if (totalTime > targetNumber) {

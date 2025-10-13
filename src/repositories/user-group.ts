@@ -8,6 +8,7 @@ import { UserGroupRole } from '../entities/user/user-group-role';
 import { Locale } from '../enums/locale';
 import { UserGroupStatus } from '../enums/user-group-status';
 import { ResultsetWithCount } from '../interfaces/resultset-with-count';
+import { UserGroupStats } from '../interfaces/dashboard-stats';
 
 export const UserGroupRepository = dataSource.getRepository(UserGroup).extend({
   async getById(id: string): Promise<UserGroup> {
@@ -120,5 +121,20 @@ export const UserGroupRepository = dataSource.getRepository(UserGroup).extend({
     await this.save(group);
 
     return this.findOneByOrFail({ id: groupId });
+  },
+
+  async getDashboardStats(): Promise<UserGroupStats> {
+    const most_published = await this.createQueryBuilder('ug')
+      .select('ugm.name', 'name')
+      .addSelect('COUNT(d.id)', 'count')
+      .leftJoin('ug.datasets', 'd', 'd.firstPublishedAt IS NOT NULL')
+      .leftJoin('ug.metadata', 'ugm', 'ugm.language = :lang', { lang: Locale.EnglishGb })
+      .groupBy('ug.id, ugm.name')
+      .orderBy('count', 'DESC')
+      .having('COUNT(d.id) > 0')
+      .limit(10)
+      .getRawMany();
+
+    return { most_published };
   }
 });

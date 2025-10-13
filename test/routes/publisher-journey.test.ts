@@ -122,13 +122,6 @@ describe('API Endpoints', () => {
 
   describe('Step 2 - Get a preview of the uploaded file with a View Object', () => {
     test('Get file preview returns 400 if page_number is too high', async () => {
-      const testDatasetId = uuidV4();
-      const testRevisionId = uuidV4();
-      const testFileImportId = uuidV4();
-      await createSmallDataset(testDatasetId, testRevisionId, testFileImportId, user);
-      const testFile2 = path.resolve(__dirname, `../sample-files/csv/sure-start-short.csv`);
-      const testFile2Buffer = fs.readFileSync(testFile2);
-      BlobStorage.prototype.loadBuffer = jest.fn().mockReturnValue(testFile2Buffer);
       const res = await request(app)
         .get(`/dataset/${dataset1Id}/revision/by-id/${revision1Id}/data-table/preview`)
         .set(getAuthHeader(user))

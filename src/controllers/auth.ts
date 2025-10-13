@@ -5,14 +5,13 @@ import passport, { AuthenticateOptions } from 'passport';
 import jwt from 'jsonwebtoken';
 import { Repository } from 'typeorm';
 
-import { appConfig } from '../config';
+import { config } from '../config';
 import { logger } from '../utils/logger';
 import { User } from '../entities/user/user';
 import { AuthProvider } from '../enums/auth-providers';
 import { dataSource } from '../db/data-source';
 import { UserDTO } from '../dtos/user/user-dto';
 
-const config = appConfig();
 const domain = new URL(config.auth.jwt.cookieDomain).hostname;
 logger.debug(`JWT cookie domain is '${domain}'`);
 

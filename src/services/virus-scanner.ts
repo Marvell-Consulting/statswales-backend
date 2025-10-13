@@ -11,14 +11,14 @@ import { Request } from 'express';
 import NodeClam from 'clamscan';
 import { Internal } from 'pechkin/dist/types.js';
 
-import { appConfig } from '../config';
+import { config } from '../config';
 import { logger } from '../utils/logger';
 import { BadRequestException } from '../exceptions/bad-request.exception';
 import { UnknownException } from '../exceptions/unknown.exception';
 import { TempFile } from '../interfaces/temp-file';
 import { AppEnv } from '../config/env.enum';
 
-const { env, clamav } = appConfig();
+const { env, clamav } = config;
 
 // This stream transform will not wait for the scan to be performed before passing the stream through.
 const getAVPassthrough = async (): Promise<Transform> => {

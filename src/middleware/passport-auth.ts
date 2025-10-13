@@ -7,7 +7,7 @@ import { isEqual } from 'lodash';
 
 import { logger } from '../utils/logger';
 import { User } from '../entities/user/user';
-import { appConfig } from '../config';
+import { config } from '../config';
 import { AuthProvider } from '../enums/auth-providers';
 import { asyncLocalStorage } from '../services/async-local-storage';
 import { UserDTO } from '../dtos/user/user-dto';
@@ -16,8 +16,6 @@ import { EntraIdConfig, JWTConfig } from '../config/app-config.interface';
 
 type Tokens = openIdClient.TokenEndpointResponse & openIdClient.TokenEndpointResponseHelpers;
 type OpenIdConfig = openIdClient.Configuration;
-
-const config = appConfig();
 
 export const initPassport = async (dataSource: DataSource): Promise<void> => {
   logger.info('Configuring authentication providers...');

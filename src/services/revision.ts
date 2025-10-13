@@ -31,9 +31,7 @@ import { Dataset } from '../entities/dataset/dataset';
 import { validateLookupTableReferenceValues } from '../utils/lookup-table-utils';
 import { MeasureRow } from '../entities/dataset/measure-row';
 import { DateExtractor } from '../extractors/date-extractor';
-import { appConfig } from '../config';
-
-const config = appConfig();
+import { config } from '../config';
 
 export async function attachUpdateDataTableToRevision(
   datasetId: string,

@@ -1,4 +1,4 @@
-import { FindManyOptions, ILike } from 'typeorm';
+import { FindManyOptions, ILike, IsNull, Not } from 'typeorm';
 
 import { dataSource } from '../db/data-source';
 import { RoleSelectionDTO } from '../dtos/user/role-selection-dto';
@@ -12,6 +12,7 @@ import { GroupRole } from '../enums/group-role';
 import { Locale } from '../enums/locale';
 import { UserStatus } from '../enums/user-status';
 import { ResultsetWithCount } from '../interfaces/resultset-with-count';
+import { UserStats } from '../interfaces/dashboard-stats';
 
 export const UserRepository = dataSource.getRepository(User).extend({
   async getById(id: string): Promise<User> {
@@ -94,5 +95,38 @@ export const UserRepository = dataSource.getRepository(User).extend({
     const user = await this.findOneOrFail({ where: { id: userId } });
     user.status = status;
     return this.save(user);
+  },
+
+  async getDashboardStats(): Promise<UserStats> {
+    const activeQuery = this.count({ where: { status: UserStatus.Active, lastLoginAt: Not(IsNull()) } });
+
+    const publishedQuery = this.count({
+      relations: { datasets: true },
+      where: { datasets: { firstPublishedAt: Not(IsNull()) } }
+    });
+
+    const totalQuery = this.count();
+
+    const mostPublishedQuery = this.query(`
+      SELECT u.id AS id, name, COUNT(d.id) AS count
+      FROM "user" u
+      INNER JOIN dataset d ON d.created_by = u.id
+      WHERE d.first_published_at IS NOT NULL
+      AND d.first_published_at <= NOW()
+      GROUP BY u.id
+      ORDER BY count DESC, name ASC
+      LIMIT 10
+    `);
+
+    const [active, published, total, most_published] = await Promise.all([
+      activeQuery,
+      publishedQuery,
+      totalQuery,
+      mostPublishedQuery
+    ]);
+
+    const summary = { active, published, total };
+
+    return { summary, most_published };
   }
 });

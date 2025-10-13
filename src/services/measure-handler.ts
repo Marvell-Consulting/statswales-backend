@@ -281,7 +281,7 @@ async function createMeasureTable(
   }
 
   const statements: string[] = [];
-  statements.push(pgformat('INSERT INTO %I %s;', lookupTableName, buildMeasureViewQuery));
+  statements.push(pgformat('INSERT INTO %I.%I (%s);', 'memory', lookupTableName, buildMeasureViewQuery));
   for (const locale of SUPPORTED_LOCALES) {
     statements.push(
       pgformat(
@@ -370,12 +370,16 @@ async function createMeasureTable(
   }
 
   let tableContents: DuckDBResultReader;
+  const getTableContentsQuery = pgformat(`SELECT * FROM %I.%I;`, 'memory', lookupTableName);
   try {
-    tableContents = await quack.runAndReadAll(pgformat(`SELECT * FROM %I.%I;`, 'memory', lookupTableName));
+    logger.trace(`Getting table contents using query:\n\n${getTableContentsQuery}\n\n`);
+    tableContents = await quack.runAndReadAll(getTableContentsQuery);
   } catch (err) {
     logger.error(err, 'Something went wrong trying to read the measure table in duckdb');
     throw new FileValidationException('errors.measure_validation.copy_failure', FileValidationErrorType.unknown);
   }
+
+  // logger.trace(`Measure table contents from DuckDB: ${JSON.stringify(tableContents.getRowObjectsJson(), null, 2)}`);
 
   const measureTable: MeasureRow[] = [];
   for (const row of tableContents.getRowObjectsJson()) {
@@ -392,6 +396,8 @@ async function createMeasureTable(
     measureTable.push(item);
   }
 
+  // logger.trace(`Measure table contents: ${JSON.stringify(measureTable, null, 2)}`);
+
   try {
     await quack.run(pgformat('DROP TABLE IF EXISTS %I.%I', 'memory', lookupTableName));
     await quack.run(pgformat('DROP TABLE IF EXISTS %I.%I', 'memory', tmpTableName));
@@ -401,7 +407,8 @@ async function createMeasureTable(
     quack.disconnectSync();
   }
 
-  performanceReporting(start - performance.now(), 500, 'Loading measure lookup table into postgres');
+  performanceReporting(performance.now() - start, 500, 'Loading measure lookup table into postgres');
+
   return measureTable;
 }
 
@@ -493,12 +500,29 @@ export const validateMeasureLookupTable = async (
     'BEGIN TRANSACTION;',
     measureTableCreateStatement(measureColumn.columnDatatype, draftRevision.id, actionId),
     ...measureTable.map((row) => {
-      const values = [row.reference, row.language, row.measureType, row.hierarchy];
-      return pgformat('INSERT INTO %I.%I VALUES (%L);', draftRevision.id, actionId, values);
+      const values = [
+        row.reference,
+        row.language,
+        row.description,
+        row.notes,
+        row.sortOrder,
+        row.format,
+        row.decimal,
+        row.measureType,
+        row.hierarchy
+      ];
+
+      return pgformat(
+        'INSERT INTO %I.%I ("reference", "language", "description", "notes", "sort_order", "format", "decimals", "measure_type", "hierarchy") VALUES (%L);',
+        draftRevision.id,
+        actionId,
+        values
+      );
     }),
     'END TRANSACTION;'
   ];
   try {
+    logger.trace(`Creating measure table in postgres: \n\n${statements.join('\n')}\n\n`);
     await createMeasureTableRunner.query(statements.join('\n'));
   } catch (error) {
     await lookupTable.remove();

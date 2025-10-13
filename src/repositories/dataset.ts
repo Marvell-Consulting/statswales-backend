@@ -16,6 +16,7 @@ import { FactTableColumnType } from '../enums/fact-table-column-type';
 import { User } from '../entities/user/user';
 import { getUserGroupIdsForUser } from '../utils/get-permissions-for-user';
 import { DatasetStats } from '../interfaces/dashboard-stats';
+import { CORE_VIEW_NAME } from '../services/cube-handler';
 
 export const withStandardPreview: FindOptionsRelations<Dataset> = {
   createdBy: true,
@@ -298,11 +299,12 @@ export const DatasetRepository = dataSource.getRepository(Dataset).extend({
     return await this.save(dataset);
   },
 
-  async getDashboardStats(): Promise<DatasetStats> {
+  async getDashboardStats(lang: Locale): Promise<DatasetStats> {
     logger.debug('Getting dashboard statistics for datasets');
 
-    // Use a raw query to get all the counts in one go, based on the same logic as listAllQuery
-    const result = await this.query(`
+    const coreViewName = `${CORE_VIEW_NAME}_mat_en`;
+
+    const statusQuery = this.query(`
       WITH dataset_stats AS (
         SELECT
           d.id,
@@ -341,20 +343,71 @@ export const DatasetRepository = dataSource.getRepository(Dataset).extend({
         COUNT(*) FILTER (WHERE publishing_status = 'published') as published,
         COUNT(*) FILTER (WHERE status = 'archived') as archived,
         COUNT(*) FILTER (WHERE status = 'offline') as offline,
-        COUNT(*) FILTER (WHERE publishing_status = 'incomplete') as incomplete,
-        COUNT(*) FILTER (WHERE publishing_status = 'pending_approval' OR publishing_status = 'update_pending_approval') as pending_approval
+        COUNT(*) FILTER (WHERE publishing_status = 'incomplete' OR publishing_status = 'update_incomplete') as incomplete,
+        COUNT(*) FILTER (WHERE publishing_status = 'pending_approval' OR publishing_status = 'update_pending_approval') as pending_approval,
+        COUNT(*) FILTER (WHERE publishing_status = 'scheduled' OR publishing_status = 'update_scheduled') as scheduled,
+        COUNT(*) FILTER (WHERE publishing_status = 'unpublish_requested' OR publishing_status = 'archive_requested' OR publishing_status = 'unarchive_requested') as action_requested
       FROM dataset_stats
     `);
 
-    const stats = result[0];
+    const largestQuery = this.query(
+      `
+      WITH largest_tables AS (
+        SELECT oid::regclass::text AS objectname, reltuples AS row_count, pg_relation_size(oid) AS size_bytes
+        FROM pg_class
+        WHERE relkind IN ('m')
+        AND oid::regclass::text LIKE $1
+        AND pg_relation_size(oid) > 0
+        ORDER  BY reltuples DESC
+      )
+      SELECT
+        DISTINCT r.dataset_id AS dataset_id,
+        r.id AS revision_id,
+        rm.title AS title,
+        lt.row_count AS row_count,
+        lt.size_bytes AS size_bytes
+      FROM revision r
+      INNER JOIN largest_tables lt ON '"'||r.id||'".'||$2 = lt.objectname
+      INNER JOIN revision_metadata rm ON rm.revision_id = r.id AND rm.language LIKE $3
+      ORDER BY lt.row_count DESC
+      LIMIT 10;
+    `,
+      [`%${coreViewName}`, coreViewName, `${lang}%`]
+    );
 
-    return {
-      incomplete: Number(stats.incomplete),
-      pendingApproval: Number(stats.pending_approval),
-      published: Number(stats.published),
-      archived: Number(stats.archived),
-      offline: Number(stats.offline),
-      total: Number(stats.total)
+    const longestQuery = this.query(
+      `
+        SELECT r.dataset_id AS dataset_id, rm.title AS title,
+        CASE
+          WHEN r.approved_at IS NULL THEN EXTRACT(EPOCH FROM (NOW()::timestamp - r.created_at::timestamp))::int
+          ELSE EXTRACT(EPOCH FROM (r.approved_at::timestamp - r.created_at::timestamp))::int
+        END AS interval,
+        CASE
+          WHEN r.approved_at IS NOT NULL AND r.publish_at < NOW() THEN 'published'
+          WHEN r.approved_at IS NOT NULL AND r.publish_at > NOW() THEN 'scheduled'
+          ELSE 'incomplete'
+        END AS status
+        FROM revision r
+        INNER JOIN revision_metadata rm ON rm.revision_id = r.id AND rm.language LIKE $1
+        ORDER BY interval DESC
+        LIMIT 10
+      `,
+      [`${lang}%`]
+    );
+
+    const [status, largest, longest] = await Promise.all([statusQuery, largestQuery, longestQuery]);
+
+    const summary = {
+      incomplete: Number(status[0].incomplete),
+      pending_approval: Number(status[0].pending_approval),
+      scheduled: Number(status[0].scheduled),
+      published: Number(status[0].published),
+      action_requested: Number(status[0].action_requested),
+      archived: Number(status[0].archived),
+      offline: Number(status[0].offline),
+      total: Number(status[0].total)
     };
+
+    return { summary, largest, longest };
   }
 });

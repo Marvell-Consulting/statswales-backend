@@ -6,7 +6,7 @@ import { omit } from 'lodash';
 
 import { User } from '../../entities/user/user';
 import { Dataset } from '../../entities/dataset/dataset';
-import { appConfig } from '../../config';
+import { config } from '../../config';
 import { AppEnv } from '../../config/env.enum';
 import { validateAndUpload } from '../../services/csv-processor';
 
@@ -16,8 +16,6 @@ import { Revision } from '../../entities/dataset/revision';
 import { UserGroup } from '../../entities/user/user-group';
 import { testGroups } from './fixtures/group';
 import { TempFile } from '../../interfaces/temp-file';
-
-const config = appConfig();
 
 // This seeder loads test fixtures used by the e2e tests on the frontend. This needs to be run before the frontend tests
 // so that the test users and starting datasets are available in the database.

@@ -1,11 +1,9 @@
-import { appConfig } from '../config';
+import { config } from '../config';
 import { AppEnv } from '../config/env.enum';
 import { FileStore } from '../config/file-store.enum';
 import { StorageService } from '../interfaces/storage-service';
 import BlobStorage from '../services/blob-storage';
 import DataLakeStorage from '../services/datalake-storage';
-
-const config = appConfig();
 
 let fileService: StorageService | undefined;
 

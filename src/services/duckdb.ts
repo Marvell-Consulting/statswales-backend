@@ -2,13 +2,11 @@ import { DuckDBConnection, DuckDBInstance } from '@duckdb/node-api';
 import { format as pgformat } from '@scaleleap/pg-format';
 
 import { logger as parentLogger } from '../utils/logger';
-import { appConfig } from '../config';
+import { config } from '../config';
 import path from 'node:path';
 import os from 'node:os';
 
 const logger = parentLogger.child({ module: 'DuckDB' });
-
-const config = appConfig();
 
 let duckDBInstance: DuckDBInstance | undefined;
 
