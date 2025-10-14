@@ -1,5 +1,5 @@
 export enum CubeBuildType {
-  BaseCube = 'baseCube',
-  ValidationCube = 'validationCube',
-  FullCube = 'fullCube'
+  BaseCube = 'base_cube',
+  ValidationCube = 'validation_cube',
+  FullCube = 'full_cube'
 }
