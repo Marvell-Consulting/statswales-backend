@@ -5,6 +5,8 @@ import { YearType } from '../enums/year-type';
 import { DateExtractor } from '../extractors/date-extractor';
 import { SUPPORTED_LOCALES, t } from '../middleware/translation';
 import { Duration } from 'date-fns';
+import { FactTableColumn } from '../entities/dataset/fact-table-column';
+import { format as pgformat } from '@scaleleap/pg-format/lib/pg-format';
 
 export interface SnifferResult {
   extractor: DateExtractor;
@@ -33,6 +35,31 @@ enum GeneratorType {
   Quarter = 'quarter',
   Month = 'month'
 }
+
+export const createDatePeriodTableQuery = (
+  factTableColumn: FactTableColumn,
+  schemaId: string,
+  tableName: string
+): string => {
+  return pgformat(
+    `
+      CREATE TABLE %I.%I (
+                           %I %s,
+                           language VARCHAR(5),
+        description VARCHAR,
+        start_date TIMESTAMP WITHOUT TIME ZONE,
+        end_date TIMESTAMP WITHOUT TIME ZONE,
+        date_type VARCHAR,
+        sort_order BIGINT,
+        hierarchy %s
+        );`,
+    schemaId,
+    tableName,
+    factTableColumn.columnName,
+    factTableColumn.columnDatatype,
+    factTableColumn.columnDatatype
+  );
+};
 
 // Date parsing methods start here
 function yearType(type: YearType, startDay = 1, startMonth = 1): YearTypeDetails {
@@ -184,6 +211,16 @@ function createAllTypesOfPeriod(dateFormat: DateExtractor, dataColumn: string[])
       );
     }
   }
+
+  // Clean up the reference table
+  referenceTable = referenceTable.filter((item) => dataColumn.includes(item.dateCode));
+  referenceTable = referenceTable.map((item) => {
+    if (item.hierarchy && !dataColumn.includes(item.hierarchy)) {
+      item.hierarchy = null;
+    }
+    return item;
+  });
+
   return referenceTable;
 }
 
@@ -483,7 +520,7 @@ export function dateDimensionReferenceTableCreator(
   const columnData: string[] = [];
 
   for (const row of dataColumn) {
-    columnData.push(Object.values(row)[0]);
+    columnData.push(Object.values(row)[0].toString());
   }
 
   if (extractor.dateFormat) {

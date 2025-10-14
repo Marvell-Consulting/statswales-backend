@@ -171,7 +171,7 @@ describe('Date matching table generation', () => {
         type: YearType.Financial,
         yearFormat: 'YYYYYY'
       };
-      const dateColumn: any[] = [{ yearCode: 2023 }];
+      const dateColumn: any[] = [{ yearCode: 202324 }];
       const refTable = dateDimensionReferenceTableCreator(extractor, dateColumn);
       expect(refTable.length).toBe(2);
       expect(refTable[0].dateCode).toBe('202324');
@@ -183,7 +183,13 @@ describe('Date matching table generation', () => {
         yearFormat: 'YYYYYY',
         quarterFormat: 'QX'
       };
-      const dateColumn: any[] = [{ yearCode: 2023 }];
+      const dateColumn: any[] = [
+        { yearCode: '202324' },
+        { yearCode: '202324Q1' },
+        { yearCode: '202324Q2' },
+        { yearCode: '202324Q3' },
+        { yearCode: '202324Q4' }
+      ];
       const refTable = dateDimensionReferenceTableCreator(extractor, dateColumn);
       expect(refTable.length).toBe(10);
       expect(refTable[0].dateCode).toBe('202324');
@@ -216,7 +222,21 @@ describe('Date matching table generation', () => {
         yearFormat: 'YYYYYY',
         monthFormat: 'MMM'
       };
-      const dateColumn: any[] = [{ yearCode: 2023 }];
+      const dateColumn: any[] = [
+        { yearCode: '202324' },
+        { yearCode: '202324Apr' },
+        { yearCode: '202324May' },
+        { yearCode: '202324Jun' },
+        { yearCode: '202324Jul' },
+        { yearCode: '202324Aug' },
+        { yearCode: '202324Sep' },
+        { yearCode: '202324Oct' },
+        { yearCode: '202324Nov' },
+        { yearCode: '202324Dec' },
+        { yearCode: '202324Jan' },
+        { yearCode: '202324Feb' },
+        { yearCode: '202324Mar' }
+      ];
       const refTable = dateDimensionReferenceTableCreator(extractor, dateColumn);
       expect(refTable.length).toBe(26);
       expect(refTable[0].dateCode).toBe('202324');
