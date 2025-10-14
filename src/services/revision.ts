@@ -22,7 +22,7 @@ import {
   createCubeMetadataTable,
   createLookupTableDimension,
   createDateDimension
-} from './cube-handler';
+} from './cube-builder';
 import { validateUpdatedDateDimension } from './dimension-processor';
 import { checkForReferenceErrors } from './lookup-table-handler';
 import { FactTableValidationExceptionType } from '../enums/fact-table-validation-exception-type';

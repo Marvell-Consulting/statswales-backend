@@ -16,7 +16,7 @@ import { LookupTableDTO } from '../dtos/lookup-table-dto';
 import { Readable } from 'node:stream';
 import { MeasureDTO } from '../dtos/measure-dto';
 import { DatasetRepository } from '../repositories/dataset';
-import { createAllCubeFiles } from '../services/cube-handler';
+import { createAllCubeFiles } from '../services/cube-builder';
 import { cleanupTmpFile, uploadAvScan } from '../services/virus-scanner';
 import { TempFile } from '../interfaces/temp-file';
 import { updateRevisionTasks } from '../utils/update-revision-tasks';

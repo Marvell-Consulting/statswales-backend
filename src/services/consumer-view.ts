@@ -15,7 +15,7 @@ import { DatasetRepository } from '../repositories/dataset';
 import { SortByInterface } from '../interfaces/sort-by-interface';
 import { FilterInterface } from '../interfaces/filterInterface';
 import { dbManager } from '../db/database-manager';
-import { CORE_VIEW_NAME } from './cube-handler';
+import { CORE_VIEW_NAME } from './cube-builder';
 import { getColumnHeaders } from '../utils/column-headers';
 import { t } from 'i18next';
 import cubeConfig from '../config/cube-view.json';
