@@ -982,7 +982,7 @@ export const getFactTableColumnPreview = async (
   let preview: Record<string, never>[];
   try {
     logger.trace(`Getting distinct column values from fact table using query:\n\n${previewQuery}\n\n`);
-    preview = await previewQueryRunner.query(previewQuery);
+    preview = await previewQueryRunner.query(pgformat('%s LIMIT %L;', previewQuery, sampleSize));
   } catch (error) {
     logger.error(error);
     return viewErrorGenerators(500, dataset.id, 'csv', 'dimension.preview.failed_to_preview_column', {});

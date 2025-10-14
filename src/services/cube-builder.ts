@@ -591,7 +591,7 @@ async function loadFactTablesWithUpdates(
 
     if (dataTablePresent.length === 0) {
       logger.error(
-        `Data table ${dataTable.id} }not loaded in to data_tables schema.  Loading data table from blob storage.`
+        `Data table ${dataTable.id} not loaded in to data_tables schema.  Loading data table from blob storage.`
       );
       throw new CubeValidationException('Data table not loaded in to data_tables schema.');
     }
