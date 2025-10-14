@@ -25,7 +25,7 @@ import { BadRequestException } from '../exceptions/bad-request.exception';
 import { TasklistStateDTO } from '../dtos/tasklist-state-dto';
 import { EventLog } from '../entities/event-log';
 
-import { createAllCubeFiles, getCubeTimePeriods } from './cube-handler';
+import { createAllCubeFiles, getCubeTimePeriods } from './cube-builder';
 import { validateAndUpload } from './csv-processor';
 import { removeAllDimensions, removeMeasure } from './dimension-processor';
 import { UserGroupRepository } from '../repositories/user-group';

@@ -17,7 +17,7 @@ import { PeriodCovered } from '../interfaces/period-covered';
 import { User } from '../entities/user/user';
 import { getUserGroupIdsForUser } from '../utils/get-permissions-for-user';
 import { DatasetStats } from '../interfaces/dashboard-stats';
-import { CORE_VIEW_NAME } from '../services/cube-handler';
+import { CORE_VIEW_NAME } from '../services/cube-builder';
 
 export const withStandardPreview: FindOptionsRelations<Dataset> = {
   createdBy: true,

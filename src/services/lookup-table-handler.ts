@@ -23,7 +23,7 @@ import { DatasetRepository } from '../repositories/dataset';
 import { FactTableColumnType } from '../enums/fact-table-column-type';
 import { cleanUpDimension } from './dimension-processor';
 import { SUPPORTED_LOCALES } from '../middleware/translation';
-import { makeCubeSafeString } from './cube-handler';
+import { makeCubeSafeString } from './cube-builder';
 import { FactTableColumn } from '../entities/dataset/fact-table-column';
 import { CubeValidationException } from '../exceptions/cube-error-exception';
 import { Locale } from '../enums/locale';

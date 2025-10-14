@@ -20,7 +20,7 @@ import { DimensionRepository } from '../../src/repositories/dimension';
 import { DatasetRepository } from '../../src/repositories/dataset';
 import { logger } from '../../src/utils/logger';
 import { Readable } from 'node:stream';
-import { createAllCubeFiles } from '../../src/services/cube-handler';
+import { createAllCubeFiles } from '../../src/services/cube-builder';
 import { parse } from 'csv';
 import { cubeDataSource } from '../../src/db/cube-source';
 import { uuidV4 } from '../../src/utils/uuid';

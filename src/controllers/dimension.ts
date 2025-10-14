@@ -26,7 +26,7 @@ import { LookupTableDTO } from '../dtos/lookup-table-dto';
 import { DatasetRepository } from '../repositories/dataset';
 import { getLatestRevision } from '../utils/latest';
 import { Dataset } from '../entities/dataset/dataset';
-import { createAllCubeFiles } from '../services/cube-handler';
+import { createAllCubeFiles } from '../services/cube-builder';
 import { getFileService } from '../utils/get-file-service';
 import { TempFile } from '../interfaces/temp-file';
 import { cleanupTmpFile, uploadAvScan } from '../services/virus-scanner';

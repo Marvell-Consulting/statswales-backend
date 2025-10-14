@@ -19,7 +19,7 @@ import { BadRequestException } from '../exceptions/bad-request.exception';
 import { NotFoundException } from '../exceptions/not-found.exception';
 import { RevisionDTO } from '../dtos/revision-dto';
 import { RevisionRepository } from '../repositories/revision';
-import { createAllCubeFiles } from '../services/cube-handler';
+import { createAllCubeFiles } from '../services/cube-builder';
 import { getCSVPreview, validateAndUpload } from '../services/csv-processor';
 import { DataTableAction } from '../enums/data-table-action';
 import { ColumnMatch } from '../interfaces/column-match';
