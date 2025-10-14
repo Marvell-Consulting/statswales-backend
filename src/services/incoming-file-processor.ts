@@ -44,7 +44,7 @@ function getCreateTableQuery(fileType: FileType): string {
   return `CREATE TEMPORARY TABLE %I AS SELECT * FROM ${fileHandlerFunction};`;
 }
 
-export async function extractTableInformation(
+export async function validateFileAndExtractTableInfo(
   file: TempFile,
   dataTable: DataTable,
   type: 'data_table' | 'lookup_table'
@@ -84,6 +84,7 @@ export async function extractTableInformation(
     );
   }
 
+  // TODO: Move lookup table uploads to here as well to remove loading the temp file twice into duckdb.
   if (type === 'data_table') {
     const statements = [
       'BEGIN TRANSACTION;',
@@ -215,7 +216,7 @@ export const validateAndUpload = async (
 
   try {
     logger.debug('Extracting table information from file');
-    dataTableDescriptions = await extractTableInformation(file, dataTable, type);
+    dataTableDescriptions = await validateFileAndExtractTableInfo(file, dataTable, type);
   } catch (error) {
     logger.error(error, `Something went wrong trying to read the users upload.`);
     // Error is of type FileValidationException
