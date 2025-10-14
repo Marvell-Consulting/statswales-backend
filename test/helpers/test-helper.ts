@@ -10,7 +10,7 @@ import { DimensionMetadata } from '../../src/entities/dataset/dimension-metadata
 import { User } from '../../src/entities/user/user';
 import { DataTable } from '../../src/entities/dataset/data-table';
 import { FileType } from '../../src/enums/file-type';
-import { extractTableInformation } from '../../src/services/csv-processor';
+import { extractTableInformation } from '../../src/services/incoming-file-processor';
 import { DataTableAction } from '../../src/enums/data-table-action';
 import { FactTableColumnType } from '../../src/enums/fact-table-column-type';
 import { LookupTable } from '../../src/entities/dataset/lookup-table';

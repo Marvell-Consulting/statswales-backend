@@ -20,7 +20,7 @@ import { NotFoundException } from '../exceptions/not-found.exception';
 import { RevisionDTO } from '../dtos/revision-dto';
 import { RevisionRepository } from '../repositories/revision';
 import { createAllCubeFiles } from '../services/cube-builder';
-import { getCSVPreview, validateAndUpload } from '../services/csv-processor';
+import { getFilePreview, validateAndUpload } from '../services/incoming-file-processor';
 import { DataTableAction } from '../enums/data-table-action';
 import { ColumnMatch } from '../interfaces/column-match';
 import { FileValidationException } from '../exceptions/validation-exception';
@@ -92,7 +92,7 @@ export const getDataTablePreview = async (req: Request, res: Response, next: Nex
     return;
   }
 
-  const processedCSV = await getCSVPreview(datasetId, revision.dataTable, page_number, page_size);
+  const processedCSV = await getFilePreview(datasetId, revision.dataTable, page_number, page_size);
 
   if ((processedCSV as ViewErrDTO).errors) {
     const processErr = processedCSV as ViewErrDTO;
