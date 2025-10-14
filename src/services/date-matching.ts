@@ -213,9 +213,10 @@ function createAllTypesOfPeriod(dateFormat: DateExtractor, dataColumn: string[])
   }
 
   // Clean up the reference table
-  referenceTable = referenceTable.filter((item) => dataColumn.includes(item.dateCode));
+  const dataColumnSet = new Set(dataColumn);
+  referenceTable = referenceTable.filter((item) => dataColumnSet.has(item.dateCode));
   referenceTable = referenceTable.map((item) => {
-    if (item.hierarchy && !dataColumn.includes(item.hierarchy)) {
+    if (item.hierarchy && !dataColumnSet.has(item.hierarchy)) {
       item.hierarchy = null;
     }
     return item;
