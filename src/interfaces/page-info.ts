@@ -1,5 +1,5 @@
 export interface PageInfo {
-  total_records: number;
-  start_record: number;
-  end_record: number;
+  total_records?: number;
+  start_record?: number;
+  end_record?: number;
 }
