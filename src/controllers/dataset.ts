@@ -26,7 +26,7 @@ import { BadRequestException } from '../exceptions/bad-request.exception';
 import { ViewErrDTO } from '../dtos/view-dto';
 import { arrayValidator, dtoValidator } from '../validators/dto-validator';
 import { RevisionMetadataDTO } from '../dtos/revistion-metadata-dto';
-import { createAllCubeFiles } from '../services/cube-handler';
+import { createAllCubeFiles } from '../services/cube-builder';
 import {
   createDimensionsFromSourceAssignment,
   ValidatedSourceAssignment,

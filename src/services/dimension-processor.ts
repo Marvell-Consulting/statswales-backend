@@ -25,7 +25,7 @@ import { dateDimensionReferenceTableCreator, DateReferenceDataItem } from './dat
 import { NumberExtractor, NumberType } from '../extractors/number-extractor';
 import { viewErrorGenerators, viewGenerator } from '../utils/view-error-generators';
 import { getFileService } from '../utils/get-file-service';
-import { createDatePeriodTableQuery, makeCubeSafeString } from './cube-handler';
+import { createDatePeriodTableQuery, makeCubeSafeString } from './cube-builder';
 import { CubeValidationException } from '../exceptions/cube-error-exception';
 import { CubeValidationType } from '../enums/cube-validation-type';
 import { YearType } from '../enums/year-type';

@@ -14,7 +14,7 @@ import { collectTranslations } from '../utils/collect-translations';
 import { DatasetRepository, withMetadataForTranslation } from '../repositories/dataset';
 import { TempFile } from '../interfaces/temp-file';
 import { uploadAvScan } from '../services/virus-scanner';
-import { createAllCubeFiles } from '../services/cube-handler';
+import { createAllCubeFiles } from '../services/cube-builder';
 
 // imported translation filename can be constant as we overwrite each time it's imported
 const TRANSLATION_FILENAME = 'translation-import.csv';

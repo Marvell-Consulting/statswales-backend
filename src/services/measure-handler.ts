@@ -29,7 +29,7 @@ import { MeasureRow } from '../entities/dataset/measure-row';
 import { SUPPORTED_LOCALES } from '../middleware/translation';
 import { DisplayType } from '../enums/display-type';
 import { getFileService } from '../utils/get-file-service';
-import { measureTableCreateStatement } from './cube-handler';
+import { measureTableCreateStatement } from './cube-builder';
 import { FileValidationErrorType, FileValidationException } from '../exceptions/validation-exception';
 import { FactTableColumn } from '../entities/dataset/fact-table-column';
 import { Locale } from '../enums/locale';

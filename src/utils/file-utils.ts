@@ -11,7 +11,7 @@ import { logger } from './logger';
 import { getFileService } from './get-file-service';
 import { asyncTmpName } from './async-tmp';
 import { duckdb } from '../services/duckdb';
-import { FACT_TABLE_NAME } from '../services/cube-handler';
+import { FACT_TABLE_NAME } from '../services/cube-builder';
 import { DataTable } from '../entities/dataset/data-table';
 import { performance } from 'node:perf_hooks';
 import { performanceReporting } from './performance-reporting';
