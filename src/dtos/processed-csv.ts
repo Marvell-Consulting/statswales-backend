@@ -1,11 +1,6 @@
 import { DatasetDTO } from './dataset-dto';
 import { Error } from './error';
-
-export interface PageInfo {
-  total_records: number | undefined;
-  start_record: number | undefined;
-  end_record: number | undefined;
-}
+import { PageInfo } from '../interfaces/page-info';
 
 export interface ProcessedCSV {
   success: boolean;

@@ -5,18 +5,13 @@ import { FactTableColumnType } from '../enums/fact-table-column-type';
 import { Error } from './error';
 import { DatasetDTO } from './dataset-dto';
 import { DataTableDto } from './data-table-dto';
+import { PageInfo } from '../interfaces/page-info';
 
 export interface ColumnHeader {
   index: number;
   name: string;
   source_type?: FactTableColumnType;
   extractor?: Record<string, string>;
-}
-
-export interface PageInfo {
-  total_records: number | undefined;
-  start_record: number | undefined;
-  end_record: number | undefined;
 }
 
 export interface ViewErrDTO {
