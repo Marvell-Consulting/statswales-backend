@@ -9,7 +9,7 @@ import { MeasureLookupPatchDTO } from '../dtos/measure-lookup-patch-dto';
 import { NotFoundException } from '../exceptions/not-found.exception';
 import { UnknownException } from '../exceptions/unknown.exception';
 import { getMeasurePreview, validateMeasureLookupTable } from '../services/measure-handler';
-import { validateAndUpload } from '../services/csv-processor';
+import { validateAndUpload } from '../services/incoming-file-processor';
 import { DimensionMetadataDTO } from '../dtos/dimension-metadata-dto';
 import { MeasureMetadata } from '../entities/dataset/measure-metadata';
 import { LookupTableDTO } from '../dtos/lookup-table-dto';

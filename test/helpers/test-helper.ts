@@ -10,7 +10,7 @@ import { DimensionMetadata } from '../../src/entities/dataset/dimension-metadata
 import { User } from '../../src/entities/user/user';
 import { DataTable } from '../../src/entities/dataset/data-table';
 import { FileType } from '../../src/enums/file-type';
-import { extractTableInformation } from '../../src/services/csv-processor';
+import { validateFileAndExtractTableInfo } from '../../src/services/incoming-file-processor';
 import { DataTableAction } from '../../src/enums/data-table-action';
 import { FactTableColumnType } from '../../src/enums/fact-table-column-type';
 import { LookupTable } from '../../src/entities/dataset/lookup-table';
@@ -58,7 +58,7 @@ export async function createSmallDataset(
     buffer: Buffer.alloc(0)
   };
 
-  const dataTableDescriptions = await extractTableInformation(fileObj, dataTable, 'data_table');
+  const dataTableDescriptions = await validateFileAndExtractTableInfo(fileObj, dataTable, 'data_table');
   dataTableDescriptions.forEach((desc) => {
     desc.factTableColumn = desc.columnName;
   });

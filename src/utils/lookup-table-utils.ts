@@ -15,6 +15,7 @@ import { viewErrorGenerators } from './view-error-generators';
 import { SUPPORTED_LOCALES } from '../middleware/translation';
 import { MeasureLookupTableExtractor } from '../extractors/measure-lookup-extractor';
 import { DataValueFormat } from '../enums/data-value-format';
+import { FACT_TABLE_NAME } from '../services/cube-builder';
 
 export function convertDataTableToLookupTable(dataTable: DataTable): LookupTable {
   const lookupTable = new LookupTable();
@@ -232,7 +233,6 @@ export const validateLookupTableReferenceValues = async (
   factTableColumn: string,
   joinColumn: string,
   lookupTableName: string,
-  factTableName: string,
   validationType: string
 ): Promise<ViewErrDTO | undefined> => {
   try {
@@ -246,7 +246,7 @@ export const validateLookupTableReferenceValues = async (
       lookupTableName,
       joinColumn,
       factTableColumn,
-      factTableName,
+      FACT_TABLE_NAME,
       lookupTableName,
       lookupTableName,
       joinColumn,
@@ -256,11 +256,13 @@ export const validateLookupTableReferenceValues = async (
     logger.trace(`non matched rows query: ${nonMatchedRowsQuery}`);
     const nonMatchedRows = await cubeDB.query(nonMatchedRowsQuery);
     logger.debug(`Number of non matched rows: ${nonMatchedRows.length}`);
-    const totals: { total_rows: number }[] = await cubeDB.query(`SELECT COUNT(*) as total_rows FROM ${factTableName}`);
+    const totals: { total_rows: number }[] = await cubeDB.query(
+      `SELECT COUNT(*) as total_rows FROM ${FACT_TABLE_NAME}`
+    );
     if (nonMatchedRows.length === totals[0].total_rows) {
       logger.error(`The user supplied an incorrect lookup table and none of the rows matched`);
       const nonMatchedFactTableValues = await cubeDB.query(
-        `SELECT DISTINCT "${factTableColumn}" FROM ${factTableName};`
+        `SELECT DISTINCT "${factTableColumn}" FROM ${FACT_TABLE_NAME};`
       );
       const nonMatchedLookupValues = await cubeDB.query(`SELECT DISTINCT "${joinColumn}" FROM "${lookupTableName}";`);
       return viewErrorGenerators(400, dataset.id, 'patch', `errors.${validationType}_validation.no_reference_match`, {
@@ -275,7 +277,7 @@ export const validateLookupTableReferenceValues = async (
     if (nonMatchedRows.length > 0) {
       const nonMatchingDataTableValues = await cubeDB.query(`
         SELECT DISTINCT fact_table_column FROM (SELECT "${factTableColumn}" as fact_table_column
-        FROM ${factTableName}) as fact_table
+        FROM ${FACT_TABLE_NAME}) as fact_table
         LEFT JOIN "${lookupTableName}"
         ON CAST(fact_table.fact_table_column AS VARCHAR)=CAST("${lookupTableName}"."${joinColumn}" AS VARCHAR)
         WHERE "${lookupTableName}"."${joinColumn}" IS NULL;
@@ -283,8 +285,8 @@ export const validateLookupTableReferenceValues = async (
       const nonMatchingLookupValues = await cubeDB.query(`
         SELECT DISTINCT lookup_table_column FROM (SELECT "${joinColumn}" as lookup_table_column
         FROM "${lookupTableName}") AS lookup_table
-        LEFT JOIN ${factTableName} ON CAST(lookup_table.lookup_table_column AS VARCHAR)=CAST(${factTableName}."${factTableColumn}" AS VARCHAR)
-        WHERE ${factTableName}."${factTableColumn}" IS NULL;
+        LEFT JOIN ${FACT_TABLE_NAME} ON CAST(lookup_table.lookup_table_column AS VARCHAR)=CAST(${FACT_TABLE_NAME}."${factTableColumn}" AS VARCHAR)
+        WHERE ${FACT_TABLE_NAME}."${factTableColumn}" IS NULL;
       `);
       logger.error(
         `The user supplied an incorrect or incomplete lookup table and ${nonMatchedRows.length} rows didn't match`
@@ -310,9 +312,9 @@ export const validateLookupTableReferenceValues = async (
       `Something went wrong, most likely an incorrect join column name, while trying to validate the lookup table.`
     );
     const nonMatchedRows: { total_rows: number }[] = await cubeDB.query(
-      `SELECT COUNT(*) AS total_rows FROM ${factTableName};`
+      `SELECT COUNT(*) AS total_rows FROM ${FACT_TABLE_NAME};`
     );
-    const nonMatchedValues = await cubeDB.query(`SELECT DISTINCT ${factTableColumn} FROM ${factTableName};`);
+    const nonMatchedValues = await cubeDB.query(`SELECT DISTINCT ${factTableColumn} FROM ${FACT_TABLE_NAME};`);
     return viewErrorGenerators(500, dataset.id, 'patch', `errors.${validationType}_validation.unknown_error`, {
       totalNonMatching: nonMatchedRows[0].total_rows,
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
