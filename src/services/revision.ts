@@ -143,7 +143,7 @@ export async function attachUpdateDataTableToRevision(
         case DimensionType.Date:
           logger.debug(`Validating time dimension: ${dimension.id}`);
           await createDateDimension(cubeDB, dimension.extractor, factTableColumn);
-          await validateUpdatedDateDimension(cubeDB, dataset, dimension, factTableColumn);
+          await validateUpdatedDateDimension(dataset, revision, dimension, factTableColumn);
       }
     } catch (error) {
       logger.warn(`An error occurred validating dimension ${dimension.id}: ${error}`);
