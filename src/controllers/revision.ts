@@ -92,14 +92,14 @@ export const getDataTablePreview = async (req: Request, res: Response, next: Nex
     return;
   }
 
-  const processedCSV = await getFilePreview(datasetId, revision.dataTable, page_number, page_size);
+  const filePreview = await getFilePreview(datasetId, revision.dataTable, page_number, page_size);
 
-  if ((processedCSV as ViewErrDTO).errors) {
-    const processErr = processedCSV as ViewErrDTO;
+  if ((filePreview as ViewErrDTO).errors) {
+    const processErr = filePreview as ViewErrDTO;
     res.status(processErr.status);
   }
 
-  res.json(processedCSV);
+  res.json(filePreview);
 };
 
 export const getRevisionPreview = async (req: Request, res: Response): Promise<void> => {
