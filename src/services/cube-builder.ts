@@ -7,8 +7,6 @@ import { format as pgformat } from '@scaleleap/pg-format';
 import { logger } from '../utils/logger';
 import { Dataset } from '../entities/dataset/dataset';
 import { Dimension } from '../entities/dataset/dimension';
-import { LookupTableExtractor } from '../extractors/lookup-table-extractor';
-import { loadFileIntoDataTablesSchema, loadFileIntoLookupTablesSchema } from '../utils/file-utils';
 import { SUPPORTED_LOCALES, t } from '../middleware/translation';
 import { DataTable } from '../entities/dataset/data-table';
 import { DataTableAction } from '../enums/data-table-action';
@@ -260,13 +258,9 @@ export async function createLookupTableDimension(
   );
 
   if (lookupTablePresent.length === 0) {
-    logger.warn('Lookup table not loaded in to lookup table schema.  Loading lookup table from blob storage.');
-    await loadFileIntoLookupTablesSchema(
-      dataset,
-      dimension.lookupTable!,
-      dimension.extractor as LookupTableExtractor,
-      factTableColumn,
-      dimension.joinColumn!
+    logger.error('Lookup table not loaded in to lookup table schema.  Loading lookup table from blob storage.');
+    throw new CubeValidationException(
+      `Lookup table (${dimension.lookupTable!.id}) not loaded in to lookup table schema.`
     );
   }
 
@@ -596,8 +590,10 @@ async function loadFactTablesWithUpdates(
     );
 
     if (dataTablePresent.length === 0) {
-      logger.warn('Data table not loaded in to data_tables schema.  Loading data table from blob storage.');
-      await loadFileIntoDataTablesSchema(dataset, dataTable);
+      logger.error(
+        `Data table ${dataTable.id} not loaded in to data_tables schema.  Loading data table from blob storage.`
+      );
+      throw new CubeValidationException('Data table not loaded in to data_tables schema.');
     }
 
     let doRevision = false;

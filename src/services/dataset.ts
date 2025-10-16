@@ -26,7 +26,7 @@ import { TasklistStateDTO } from '../dtos/tasklist-state-dto';
 import { EventLog } from '../entities/event-log';
 
 import { createAllCubeFiles, getCubeTimePeriods } from './cube-builder';
-import { validateAndUpload } from './csv-processor';
+import { validateAndUpload } from './incoming-file-processor';
 import { removeAllDimensions, removeMeasure } from './dimension-processor';
 import { UserGroupRepository } from '../repositories/user-group';
 import { TaskService } from './task';

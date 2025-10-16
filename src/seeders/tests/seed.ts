@@ -8,7 +8,7 @@ import { User } from '../../entities/user/user';
 import { Dataset } from '../../entities/dataset/dataset';
 import { config } from '../../config';
 import { AppEnv } from '../../config/env.enum';
-import { validateAndUpload } from '../../services/csv-processor';
+import { validateAndUpload } from '../../services/incoming-file-processor';
 
 import { testUsers } from './fixtures/users';
 import { setupTmpCsv, testDatasets } from './fixtures/datasets';
