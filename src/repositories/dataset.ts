@@ -13,7 +13,6 @@ import { ResultsetWithCount } from '../interfaces/resultset-with-count';
 import { DataTable } from '../entities/dataset/data-table';
 import { FactTableColumn } from '../entities/dataset/fact-table-column';
 import { FactTableColumnType } from '../enums/fact-table-column-type';
-import { PeriodCovered } from '../interfaces/period-covered';
 import { User } from '../entities/user/user';
 import { getUserGroupIdsForUser } from '../utils/get-permissions-for-user';
 import { DatasetStats } from '../interfaces/dashboard-stats';
@@ -270,15 +269,15 @@ export const DatasetRepository = dataSource.getRepository(Dataset).extend({
     return { data, count };
   },
 
-  async publish(revision: Revision, period: PeriodCovered): Promise<Dataset> {
+  async publish(revision: Revision, startDate: Date | null, endDate: Date | null): Promise<Dataset> {
     const dataset = await this.getById(revision.datasetId, { startRevision: true });
 
     if (!dataset.startRevision) {
       throw new Error(`Dataset ${dataset.id} does not have a start revision`);
     }
 
-    dataset.startDate = period.start_date;
-    dataset.endDate = period.end_date;
+    dataset.startDate = startDate;
+    dataset.endDate = endDate;
     dataset.draftRevision = null;
     dataset.publishedRevision = revision;
     dataset.firstPublishedAt = dataset.startRevision!.publishAt;

@@ -19,7 +19,6 @@ import { CubeValidationException } from '../exceptions/cube-error-exception';
 import { DataTableDescription } from '../entities/dataset/data-table-description';
 import { MeasureRow } from '../entities/dataset/measure-row';
 import { DatasetRepository } from '../repositories/dataset';
-import { PeriodCovered } from '../interfaces/period-covered';
 import { dateDimensionReferenceTableCreator } from './date-matching';
 import { NumberExtractor, NumberType } from '../extractors/number-extractor';
 import { CubeValidationType } from '../enums/cube-validation-type';
@@ -28,8 +27,6 @@ import { FactTableValidationExceptionType } from '../enums/fact-table-validation
 import { CubeType } from '../enums/cube-type';
 import { DateExtractor } from '../extractors/date-extractor';
 import { performanceReporting } from '../utils/performance-reporting';
-import { DuckdbOutputType } from '../enums/duckdb-outputs';
-import { StorageService } from '../interfaces/storage-service';
 import { dbManager } from '../db/database-manager';
 import cubeConfig from '../config/cube-view.json';
 import { CubeViewBuilder } from '../interfaces/cube-view-builder';
@@ -2163,31 +2160,4 @@ export const createAllCubeFiles = async (datasetId: string, endRevisionId: strin
   // don't wait for this, can happen in the background so we can send the response earlier
   logger.debug('Running async process...');
   void createMaterialisedView(endRevisionId, dataset, cubeBuildConfig);
-};
-
-export const getCubeTimePeriods = async (revisionId: string): Promise<PeriodCovered> => {
-  const cubeDB = dbManager.getCubeDataSource().createQueryRunner();
-  const periodCoverage: { key: string; value: string }[] = await cubeDB.query(
-    pgformat(`SELECT key, value FROM %I.metadata WHERE key in ('start_date', 'end_date')`, revisionId)
-  );
-  cubeDB.release();
-  if (periodCoverage.length > 0) {
-    return { start_date: new Date(periodCoverage[0].value), end_date: new Date(periodCoverage[1].value) };
-  }
-  return { start_date: null, end_date: null };
-};
-
-export const outputCube = async (
-  mode: DuckdbOutputType,
-  datasetId: string,
-  revisionId: string,
-  lang: string,
-  storageService: StorageService
-): Promise<Buffer> => {
-  try {
-    return storageService.loadBuffer(`${revisionId}_${lang}.${mode}`, datasetId);
-  } catch (err) {
-    logger.error(err, `Something went wrong trying to create the cube output file`);
-    throw err;
-  }
 };
