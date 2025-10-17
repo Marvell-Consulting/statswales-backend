@@ -134,12 +134,12 @@ export const factTableValidatorFromSource = async (
     logger.error(err, 'Failed to apply primary key to fact table.');
     if ((err as Error).message.includes('could not create unique index')) {
       let error: FactTableValidationException | undefined;
-      error = await identifyDuplicateFacts(addKeyRunner, primaryKeyDef);
+      error = await identifyDuplicateFacts(addKeyRunner, revision.id, primaryKeyDef);
       if (error) throw error;
-      error = await identifyIncompleteFacts(addKeyRunner, primaryKeyDef);
+      error = await identifyIncompleteFacts(addKeyRunner, revision.id, primaryKeyDef);
       if (error) throw error;
     } else if ((err as Error).message.includes('contains null values')) {
-      const error = await identifyIncompleteFacts(addKeyRunner, primaryKeyDef);
+      const error = await identifyIncompleteFacts(addKeyRunner, revision.id, primaryKeyDef);
       if (error) throw error;
       throw new FactTableValidationException(
         'Incomplete facts found in fact table.',
@@ -256,12 +256,15 @@ async function validateNoteCodesColumn(noteCodeColumn: SourceAssignmentDTO | nul
 
 async function identifyIncompleteFacts(
   cubeDB: QueryRunner,
+  schemaId: string,
   primaryKeyDef: string[]
 ): Promise<FactTableValidationException | undefined> {
   const pkeyDef = primaryKeyDef.map((key) => pgformat('%I IS NULL', key));
   try {
     const incompleteFactQuery = pgformat(
-      `SELECT * FROM (SELECT row_number() OVER () as line_number, * FROM fact_table) WHERE %s LIMIT 500;`,
+      `SELECT * FROM (SELECT row_number() OVER () as line_number, * FROM %I.%I) WHERE %s LIMIT 500;`,
+      schemaId,
+      FACT_TABLE_NAME,
       pkeyDef.join(' OR ')
     );
     const brokenFacts = await cubeDB.query(incompleteFactQuery);
@@ -290,21 +293,26 @@ async function identifyIncompleteFacts(
 
 async function identifyDuplicateFacts(
   cubeDB: QueryRunner,
+  schemaId: string,
   primaryKeyDef: string[]
 ): Promise<FactTableValidationException | undefined> {
   const pkeyDef = primaryKeyDef.map((key) => pgformat('%I', key));
   const duplicateFactQuery = pgformat(
     `
-        SELECT * FROM (SELECT row_number() OVER () as line_number, * FROM fact_table)
+        SELECT * FROM (SELECT row_number() OVER () as line_number, * FROM %I.%I)
         WHERE (%s) IN (
           SELECT %s FROM (
-            SELECT %s, count(*) as fact_count FROM fact_table
+            SELECT %s, count(*) as fact_count FROM %I.%I
             GROUP BY %s
           ) WHERE fact_count > 1
         ) LIMIT 500;`,
+    schemaId,
+    FACT_TABLE_NAME,
     pkeyDef.join(', '),
     pkeyDef.join(', '),
     pkeyDef.join(', '),
+    schemaId,
+    FACT_TABLE_NAME,
     pkeyDef.join(', ')
   );
 
