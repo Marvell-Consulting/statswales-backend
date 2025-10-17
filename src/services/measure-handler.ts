@@ -281,7 +281,7 @@ async function createMeasureTable(
   }
 
   const statements: string[] = [];
-  statements.push(pgformat('INSERT INTO %I.%I (%s);', 'memory', lookupTableName, buildMeasureViewQuery));
+  statements.push(pgformat('INSERT INTO %I.%I %s;', 'memory', lookupTableName, buildMeasureViewQuery));
   for (const locale of SUPPORTED_LOCALES) {
     statements.push(
       pgformat(
