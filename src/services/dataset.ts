@@ -317,7 +317,7 @@ export class DatasetService {
         if (extractor.lookupTableEnd) {
           if (!endDate) {
             endDate = extractor.lookupTableEnd;
-          } else if (extractor.lookupTableEnd < endDate) {
+          } else if (extractor.lookupTableEnd > endDate) {
             endDate = extractor.lookupTableEnd;
           }
         }
