@@ -704,7 +704,7 @@ async function getMeasurePreviewWithExtractor(
   if (!measureTablePreview || measureTablePreview.length === 0) {
     const currentDataset = await DatasetRepository.getById(dataset.id);
     const headers: ColumnHeader[] = [];
-    const dataArray: any[] = [];
+    const dataArray: never[] = [];
     const pageInfo = {
       total_records: 0,
       start_record: 1,
