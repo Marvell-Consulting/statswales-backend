@@ -1035,8 +1035,6 @@ export const getDimensionPreview = async (
 
   const totals = await getTotals(dataset, dimension);
 
-  let viewDto: ViewDTO | ViewErrDTO;
-
   if (!dimension.extractor) {
     logger.debug('Straight column preview');
     return await getPreviewWithoutExtractor(dataset.draftRevision!.id, dataset, dimension, totals);
@@ -1064,7 +1062,7 @@ export const getDimensionPreview = async (
 
     case DimensionType.Numeric:
       logger.debug('Previewing a numeric dimension');
-      return = await getPreviewWithNumberExtractor(dataset.draftRevision!.id, dataset, dimension, totals);
+      return await getPreviewWithNumberExtractor(dataset.draftRevision!.id, dataset, dimension, totals);
 
     default:
       logger.debug(`Previewing a dimension of an unknown type.  Type supplied is ${dimension.type}`);
