@@ -980,7 +980,7 @@ async function getLookupPreviewWithExtractor(
 
   const columnNames = tableDetails.filter((row) => row.column_name != 'language').map((row) => row.column_name);
   const query = pgformat(
-    `SELECT %I FROM %I.%I WHERE language = %L ORDER BY sort_order;`,
+    `SELECT %I FROM %I.%I WHERE language = %L ORDER BY sort_order LIMIT %L;`,
     columnNames,
     schemaID,
     lookupTableName,
