@@ -136,6 +136,7 @@ export async function attachUpdateDataTableToRevision(
         case DimensionType.LookupTable:
           logger.debug(`Validating lookup table dimension: ${dimension.id}`);
           await createLookupTableDimension(cubeDB, dataset, dimension, factTableColumn);
+          // Disabled as will be replaced when new cube builder function is done.
           // await checkForReferenceErrors(cubeDB, dataset, dimension, factTableColumn);
           break;
         case DimensionType.DatePeriod:
