@@ -24,7 +24,6 @@ import {
   createDateDimension
 } from './cube-builder';
 import { validateUpdatedDateDimension } from './dimension-processor';
-import { checkForReferenceErrors } from './lookup-table-handler';
 import { FactTableValidationExceptionType } from '../enums/fact-table-validation-exception-type';
 import { FactTableValidationException } from '../exceptions/fact-table-validation-exception';
 
@@ -137,13 +136,14 @@ export async function attachUpdateDataTableToRevision(
         case DimensionType.LookupTable:
           logger.debug(`Validating lookup table dimension: ${dimension.id}`);
           await createLookupTableDimension(cubeDB, dataset, dimension, factTableColumn);
-          await checkForReferenceErrors(cubeDB, dataset, dimension, factTableColumn);
+          // Disabled as will be replaced when new cube builder function is done.
+          // await checkForReferenceErrors(cubeDB, dataset, dimension, factTableColumn);
           break;
         case DimensionType.DatePeriod:
         case DimensionType.Date:
           logger.debug(`Validating time dimension: ${dimension.id}`);
           await createDateDimension(cubeDB, dimension.extractor, factTableColumn);
-          await validateUpdatedDateDimension(cubeDB, dataset, dimension, factTableColumn);
+          await validateUpdatedDateDimension(dataset, revision, dimension, factTableColumn);
       }
     } catch (error) {
       logger.warn(`An error occurred validating dimension ${dimension.id}: ${error}`);

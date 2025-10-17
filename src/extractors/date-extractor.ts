@@ -9,4 +9,6 @@ export interface DateExtractor {
   dateFormat?: string;
   startDay?: number;
   startMonth?: number;
+  lookupTableStart?: Date;
+  lookupTableEnd?: Date;
 }
