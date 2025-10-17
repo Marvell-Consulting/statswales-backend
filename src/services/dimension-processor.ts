@@ -1036,44 +1036,40 @@ export const getDimensionPreview = async (
   const totals = await getTotals(dataset, dimension);
 
   let viewDto: ViewDTO | ViewErrDTO;
-  if (dimension.extractor) {
-    switch (dimension.type) {
-      case DimensionType.Date:
-      case DimensionType.DatePeriod:
-        logger.debug('Previewing a date type dimension');
-        viewDto = await getDatePreviewWithExtractor(
-          dataset.draftRevision!.id,
-          dataset,
-          dimension.factTableColumn,
-          lang,
-          totals
-        );
-        break;
 
-      case DimensionType.LookupTable:
-        logger.debug('Previewing a lookup table');
-        viewDto = await getLookupPreviewWithExtractor(dataset.draftRevision!.id, dataset, dimension, lang, totals);
-        break;
-
-      case DimensionType.Text:
-        logger.debug('Previewing text dimension');
-        viewDto = await getPreviewWithoutExtractor(dataset.draftRevision!.id, dataset, dimension, totals);
-        break;
-
-      case DimensionType.Numeric:
-        logger.debug('Previewing a numeric dimension');
-        viewDto = await getPreviewWithNumberExtractor(dataset.draftRevision!.id, dataset, dimension, totals);
-        break;
-
-      default:
-        logger.debug(`Previewing a dimension of an unknown type.  Type supplied is ${dimension.type}`);
-        viewDto = await getPreviewWithoutExtractor(dataset.draftRevision!.id, dataset, dimension, totals);
-    }
-  } else {
+  if (!dimension.extractor) {
     logger.debug('Straight column preview');
-    viewDto = await getPreviewWithoutExtractor(dataset.draftRevision!.id, dataset, dimension, totals);
+    return await getPreviewWithoutExtractor(dataset.draftRevision!.id, dataset, dimension, totals);
   }
-  return viewDto;
+
+  switch (dimension.type) {
+    case DimensionType.Date:
+    case DimensionType.DatePeriod:
+      logger.debug('Previewing a date type dimension');
+      return await getDatePreviewWithExtractor(
+        dataset.draftRevision!.id,
+        dataset,
+        dimension.factTableColumn,
+        lang,
+        totals
+      );
+
+    case DimensionType.LookupTable:
+      logger.debug('Previewing a lookup table');
+      return await getLookupPreviewWithExtractor(dataset.draftRevision!.id, dataset, dimension, lang, totals);
+
+    case DimensionType.Text:
+      logger.debug('Previewing text dimension');
+      return await getPreviewWithoutExtractor(dataset.draftRevision!.id, dataset, dimension, totals);
+
+    case DimensionType.Numeric:
+      logger.debug('Previewing a numeric dimension');
+      return = await getPreviewWithNumberExtractor(dataset.draftRevision!.id, dataset, dimension, totals);
+
+    default:
+      logger.debug(`Previewing a dimension of an unknown type.  Type supplied is ${dimension.type}`);
+      return await getPreviewWithoutExtractor(dataset.draftRevision!.id, dataset, dimension, totals);
+  }
 };
 
 export const getFactTableColumnPreview = async (
