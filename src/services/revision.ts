@@ -106,6 +106,7 @@ export async function attachUpdateDataTableToRevision(
   logger.debug(`Setting the update action to: ${updateAction}`);
   dataTable.action = updateAction;
   revision.dataTable = dataTable;
+  await revision.save();
   const buildId = crypto.randomUUID();
 
   try {
@@ -115,6 +116,7 @@ export async function attachUpdateDataTableToRevision(
     const end = performance.now();
     const time = Math.round(end - start);
     logger.info(`Cube update validation took ${time}ms`);
+    await dataTable.remove();
     throw error;
   }
 
