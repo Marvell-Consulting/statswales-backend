@@ -602,6 +602,12 @@ export const validateMeasureLookupTable = async (
     void createPreviewRunner.release();
   }
 
+  if (!measureTablePreview || measureTablePreview.length === 0) {
+    logger.warn(`Measure table preview is empty for language: ${lang}`);
+    return viewErrorGenerators(404, dataset.id, 'csv', 'errors.measure.empty_table', {
+      mismatch: false
+    });
+  }
   const tableHeaders = Object.keys(measureTablePreview[0]);
   const dataArray = measureTablePreview.map((row) => Object.values(row));
   const currentDataset = await DatasetRepository.getById(dataset.id);
