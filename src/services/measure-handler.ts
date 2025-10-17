@@ -694,6 +694,19 @@ async function getMeasurePreviewWithExtractor(
     void cubeDB.release();
   }
 
+  // Guard against empty result
+  if (!measureTablePreview || measureTablePreview.length === 0) {
+    const currentDataset = await DatasetRepository.getById(dataset.id);
+    const headers: ColumnHeader[] = [];
+    const dataArray: any[] = [];
+    const pageInfo = {
+      total_records: 0,
+      start_record: 1,
+      end_record: 0
+    };
+    const pageSize = 0;
+    return viewGenerator(currentDataset, 1, pageInfo, pageSize, 1, headers, dataArray);
+  }
   const tableHeaders = Object.keys(measureTablePreview[0]);
   const dataArray = measureTablePreview.map((row: MeasureTable) => Object.values(row));
   const currentDataset = await DatasetRepository.getById(dataset.id);
