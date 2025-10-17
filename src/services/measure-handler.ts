@@ -532,7 +532,7 @@ export const validateMeasureLookupTable = async (
   const updatedMeasure = await updateMeasure(dataset, lookupTable, confirmedJoinColumn, measureTable, extractor);
 
   const referenceErrors = await validateLookupTableReferenceValues(
-    cubeDB,
+    draftRevision.id,
     dataset,
     updatedMeasure.factTableColumn,
     'reference',
@@ -547,7 +547,6 @@ export const validateMeasureLookupTable = async (
   }
 
   const languageErrors = await validateLookupTableLanguages(
-    cubeDB,
     dataset,
     draftRevision.id,
     'reference',
@@ -561,7 +560,7 @@ export const validateMeasureLookupTable = async (
     return languageErrors;
   }
 
-  const tableValidationErrors = await validateMeasureTableContent(cubeDB, dataset.id, actionId, extractor);
+  const tableValidationErrors = await validateMeasureTableContent(draftRevision.id, dataset.id, actionId, extractor);
   if (tableValidationErrors) {
     await lookupTable.remove();
     await cubeDB.query(pgformat('DROP TABLE %I;', actionId));
