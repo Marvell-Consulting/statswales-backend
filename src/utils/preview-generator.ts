@@ -13,14 +13,14 @@ export function previewGenerator(
 ): ViewDTO {
   const tableHeaders = Object.keys(preview[0]);
   const dataArray = preview.map((row: Record<string, unknown>) => Object.values(row));
-  const headers: ColumnHeader[] = [];
-  for (let i = 0; i < tableHeaders.length; i++) {
-    headers.push({
-      index: i,
-      name: tableHeaders[i],
+  const headers: ColumnHeader[] = tableHeaders.map((name, idx) => {
+    return {
+      index: idx,
+      name,
       source_type: FactTableColumnType.Unknown
-    });
-  }
+    };
+  });
+
   const pageInfo = {
     total_records: totals.totalLines,
     start_record: 1,
