@@ -13,12 +13,13 @@ import { LookupTable } from '../entities/dataset/lookup-table';
 import { UnknownException } from '../exceptions/unknown.exception';
 import { LookupTablePatchDTO } from '../dtos/lookup-patch-dto';
 import { DimensionMetadataDTO } from '../dtos/dimension-metadata-dto';
-import { getFactTableColumnPreview, validateAndUpload } from '../services/csv-processor';
+import { validateAndUpload } from '../services/incoming-file-processor';
 import {
   getDimensionPreview,
   setupTextDimension,
   createAndValidateDateDimension,
-  validateNumericDimension
+  validateNumericDimension,
+  getFactTableColumnPreview
 } from '../services/dimension-processor';
 import { validateLookupTable } from '../services/lookup-table-handler';
 import { viewErrorGenerators } from '../utils/view-error-generators';
@@ -84,7 +85,7 @@ export const sendDimensionPreview = async (req: Request, res: Response, next: Ne
 
     let preview: ViewDTO | ViewErrDTO;
     if (dimension.type === DimensionType.Raw) {
-      preview = await getFactTableColumnPreview(dataset, dimension.factTableColumn);
+      preview = await getFactTableColumnPreview(dataset, latestRevision!, dimension.factTableColumn);
     } else {
       preview = await getDimensionPreview(dataset, dimension, req.language);
     }
@@ -156,6 +157,8 @@ export const updateDimension = async (req: Request, res: Response, next: NextFun
       revisions: { dataTable: { dataTableDescriptions: true } }
     });
 
+    const latestRevision = getLatestRevision(dataset);
+
     switch (dimensionPatchRequest.dimension_type) {
       case DimensionType.DatePeriod:
       case DimensionType.Date:
@@ -165,7 +168,7 @@ export const updateDimension = async (req: Request, res: Response, next: NextFun
 
       case DimensionType.Text:
         await setupTextDimension(dimension);
-        preview = await getFactTableColumnPreview(dataset, dimension.factTableColumn);
+        preview = await getFactTableColumnPreview(dataset, latestRevision!, dimension.factTableColumn);
         break;
 
       case DimensionType.Numeric:

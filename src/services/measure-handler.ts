@@ -434,7 +434,6 @@ export const validateMeasureLookupTable = async (
   const tableLanguage = tableLanguageArr[0];
 
   const lookupTable = convertDataTableToLookupTable(protoLookupTable);
-  const factTableName = 'fact_table';
 
   const measure = dataset.measure;
   let confirmedJoinColumn: string | undefined;
@@ -538,7 +537,6 @@ export const validateMeasureLookupTable = async (
     updatedMeasure.factTableColumn,
     'reference',
     actionId,
-    factTableName,
     'measure'
   );
   if (referenceErrors) {

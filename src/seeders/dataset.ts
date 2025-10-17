@@ -8,7 +8,7 @@ import { Seeder } from '@jorgebodega/typeorm-seeding';
 
 import { User } from '../../src/entities/user/user';
 import { Dataset } from '../../src/entities/dataset/dataset';
-import { validateAndUpload } from '../../src/services/csv-processor';
+import { validateAndUpload } from '../services/incoming-file-processor';
 import { Revision } from '../../src/entities/dataset/revision';
 import { GroupRole } from '../enums/group-role';
 import { Designation } from '../enums/designation';

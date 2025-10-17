@@ -143,7 +143,6 @@ export const checkForReferenceErrors = async (
     dimension.factTableColumn,
     factTableColumn.columnName,
     `${makeCubeSafeString(dimension.factTableColumn)}_lookup`,
-    'fact_table',
     'dimension'
   );
   if (referenceErrors) {
@@ -170,7 +169,6 @@ export const validateLookupTable = async (
   }
 
   const lookupTable = convertDataTableToLookupTable(protoLookupTable);
-  const factTableName = 'fact_table';
   const factTableColumn = dataset.factTable?.find(
     (col) => dimension.factTableColumn === col.columnName && col.columnType === FactTableColumnType.Dimension
   );
@@ -275,7 +273,6 @@ export const validateLookupTable = async (
     updatedDimension.factTableColumn,
     factTableColumn.columnName,
     actionId,
-    factTableName,
     'dimension'
   );
   if (referenceErrors) {
