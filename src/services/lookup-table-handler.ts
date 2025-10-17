@@ -272,6 +272,10 @@ export const validateLookupTable = async (
     void lookupTablePreviewRunner.release();
   }
 
+  if (dimensionTable.length === 0) {
+    logger.error('Dimension table is empty, cannot generate preview.');
+    return viewErrorGenerators(500, dataset.id, 'preview', 'errors.dimension.lookup_preview_generation_failed', {});
+  }
   return previewGenerator(dimensionTable, { totalLines: dimensionTable.length }, dataset, false);
 };
 
