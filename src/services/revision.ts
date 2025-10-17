@@ -190,6 +190,7 @@ export async function attachUpdateDataTableToRevision(
         const time = Math.round(end - start);
         logger.info(`Cube update validation took ${time}ms`);
         logger.error(err, `An error occurred trying to validate the file`);
+        if (!config.cube_builder.preserve_failed) void cleanUpValidationCube(buildId);
         throw new BadRequestException('errors.data_table_validation_error');
       }
     }
