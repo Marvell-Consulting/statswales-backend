@@ -120,7 +120,7 @@ export const factTableValidatorFromSource = async (
   try {
     await dropKeyRunner.query(dropPKQuery);
   } catch (error) {
-    logger.error(error, 'Something went wrong trying to drop primary key from fact table table');
+    logger.error(error, 'Something went wrong trying to drop primary key from fact table');
   } finally {
     void dropKeyRunner.release();
   }
