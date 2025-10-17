@@ -25,11 +25,12 @@ import { dateDimensionReferenceTableCreator, DateReferenceDataItem } from './dat
 import { NumberExtractor, NumberType } from '../extractors/number-extractor';
 import { viewErrorGenerators, viewGenerator } from '../utils/view-error-generators';
 import { getFileService } from '../utils/get-file-service';
-import { createDatePeriodTableQuery, makeCubeSafeString } from './cube-builder';
+import { createDatePeriodTableQuery, FACT_TABLE_NAME, makeCubeSafeString } from './cube-builder';
 import { CubeValidationException } from '../exceptions/cube-error-exception';
 import { CubeValidationType } from '../enums/cube-validation-type';
 import { YearType } from '../enums/year-type';
 import { dbManager } from '../db/database-manager';
+import { Revision } from '../entities/dataset/revision';
 
 const sampleSize = 5;
 
@@ -953,4 +954,64 @@ export const getDimensionPreview = async (
   } finally {
     cubeDB.release();
   }
+};
+
+export const getFactTableColumnPreview = async (
+  dataset: Dataset,
+  revision: Revision,
+  columnName: string
+): Promise<ViewDTO | ViewErrDTO> => {
+  logger.debug(`Getting fact table column preview for ${columnName}`);
+  const previewQuery = pgformat('SELECT DISTINCT %I FROM %I.%I', columnName, revision.id, FACT_TABLE_NAME);
+
+  const totalsQuery = pgformat('SELECT COUNT(DISTINCT %I) AS total_lines FROM (%s)', columnName, previewQuery);
+  const totalsQueryRunner = dbManager.getCubeDataSource().createQueryRunner();
+  let totals: { total_lines: number }[];
+  try {
+    logger.trace(`Getting fact table column count using query:\n\n${totalsQuery}\n\n`);
+    totals = await totalsQueryRunner.query(totalsQuery);
+  } catch (error) {
+    logger.error(error, 'Something went wrong trying to get total distinct values in column');
+    return viewErrorGenerators(500, dataset.id, 'csv', 'dimension.preview.failed_to_preview_column', {});
+  } finally {
+    void totalsQueryRunner.release();
+  }
+  const totalLines = totals[0].total_lines;
+
+  const previewQueryRunner = dbManager.getCubeDataSource().createQueryRunner();
+  let preview: Record<string, never>[];
+  try {
+    logger.trace(`Getting distinct column values from fact table using query:\n\n${previewQuery}\n\n`);
+    preview = await previewQueryRunner.query(pgformat('%s LIMIT %L;', previewQuery, sampleSize));
+  } catch (error) {
+    logger.error(error);
+    return viewErrorGenerators(500, dataset.id, 'csv', 'dimension.preview.failed_to_preview_column', {});
+  } finally {
+    void previewQueryRunner.release();
+  }
+
+  const tableHeaders = Object.keys(preview[0]);
+  const dataArray = preview.map((row: Record<string, never>) => Object.values(row));
+  const currentDataset = await DatasetRepository.getById(dataset.id);
+  const headers: ColumnHeader[] = [];
+  for (let i = 0; i < tableHeaders.length; i++) {
+    let sourceType: FactTableColumnType;
+    if (tableHeaders[i] === 'int_line_number') sourceType = FactTableColumnType.LineNumber;
+    else
+      sourceType =
+        dataset.factTable?.find((info) => info.columnName === tableHeaders[i])?.columnType ??
+        FactTableColumnType.Unknown;
+    headers.push({
+      index: i - 1,
+      name: tableHeaders[i],
+      source_type: sourceType
+    });
+  }
+  const pageInfo = {
+    total_records: totalLines,
+    start_record: 1,
+    end_record: preview.length
+  };
+  const pageSize = preview.length < sampleSize ? preview.length : sampleSize;
+  return viewGenerator(currentDataset, 1, pageInfo, pageSize, 1, headers, dataArray);
 };
