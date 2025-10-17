@@ -282,7 +282,7 @@ async function cleanupBadLookup(lookupTable: LookupTable, revisionId: string, ac
   ];
   const cleanupRunner = dbManager.getCubeDataSource().createQueryRunner();
   try {
-    await cleanupRunner.query(cleanUpStatements.join('/n'));
+    await cleanupRunner.query(cleanUpStatements.join('\n'));
   } catch (err) {
     logger.error(err, 'Something went wrong trying to clean up the cube');
   } finally {
