@@ -298,6 +298,7 @@ async function identifyDuplicateFacts(
   primaryKeyDef: string[]
 ): Promise<FactTableValidationException | undefined> {
   const pkeyDef = primaryKeyDef.map((key) => pgformat('%I', key));
+  const pkeyDefStr = pkeyDef.join(', ');
   const duplicateFactQuery = pgformat(
     `
         SELECT * FROM (SELECT row_number() OVER () as line_number, * FROM %I.%I)
@@ -309,12 +310,12 @@ async function identifyDuplicateFacts(
         ) LIMIT 500;`,
     schemaId,
     FACT_TABLE_NAME,
-    pkeyDef.join(', '),
-    pkeyDef.join(', '),
-    pkeyDef.join(', '),
+    pkeyDefStr,
+    pkeyDefStr,
+    pkeyDefStr,
     schemaId,
     FACT_TABLE_NAME,
-    pkeyDef.join(', ')
+    pkeyDefStr
   );
 
   try {
