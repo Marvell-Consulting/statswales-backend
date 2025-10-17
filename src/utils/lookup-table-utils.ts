@@ -309,7 +309,7 @@ export const validateLookupTableReferenceValues = async (
       const nonMatchingLookupValuesSQL = pgformat(
         `
         SELECT DISTINCT lookup_table_column FROM (SELECT %I as lookup_table_column
-        FROM %I) AS lookup_table
+        FROM %I.%I) AS lookup_table
         LEFT JOIN %I.%I ON CAST(lookup_table.lookup_table_column AS VARCHAR)=CAST(%I.%I AS VARCHAR)
         WHERE %I.%I IS NULL;
       `,
