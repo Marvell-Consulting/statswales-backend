@@ -252,6 +252,7 @@ async function validateNoteCodesColumn(noteCodeColumn: SourceAssignmentDTO | nul
   const { headers, data } = tableDataToViewTable(brokeNoteCodeLines);
   error.data = data;
   error.headers = headers;
+  throw error;
 }
 
 async function identifyIncompleteFacts(
