@@ -10,7 +10,8 @@ import {
   getPublishedDatasetView,
   listSubTopics,
   listRootTopics,
-  getPublishedDatasetFilters
+  getPublishedDatasetFilters,
+  getPivotTableResult
 } from '../../../controllers/consumer';
 import { NotFoundException } from '../../../exceptions/not-found.exception';
 import { PublishedDatasetRepository } from '../../../repositories/published-dataset';
@@ -68,5 +69,6 @@ publicApiRouter.get('/:dataset_id', loadPublishedDataset(), getPublishedDatasetB
 
 publicApiRouter.get('/:dataset_id/view', loadPublishedDataset(), getPublishedDatasetView);
 publicApiRouter.get('/:dataset_id/view/filters', loadPublishedDataset(), getPublishedDatasetFilters);
+publicApiRouter.get('/:dataset_id/pivot', getPivotTableResult);
 
 publicApiRouter.get('/:dataset_id/download/:format', loadPublishedDataset(), downloadPublishedDataset);

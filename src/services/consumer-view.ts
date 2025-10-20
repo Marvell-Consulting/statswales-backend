@@ -19,6 +19,8 @@ import { CORE_VIEW_NAME } from './cube-builder';
 import { getColumnHeaders } from '../utils/column-headers';
 import { t } from 'i18next';
 import cubeConfig from '../config/cube-view.json';
+import { duckdb } from './duckdb';
+import { UnknownException } from '../exceptions/unknown.exception';
 
 const EXCEL_ROW_LIMIT = 1048500; // Excel Limit is 1048576 but removed 76 rows
 const CURSOR_ROW_LIMIT = 500;
@@ -139,11 +141,13 @@ function createBaseQuery(
   columns: string[],
   factTableToDimensionNames: FactTableToDimensionName[],
   sortBy?: SortByInterface[],
-  filterBy?: FilterInterface[]
+  filterBy?: FilterInterface[],
+  target = 'postgres'
 ): string {
   let sortByQuery: string | undefined;
   const sortColumnPostfix = `_${t('column_headers.sort', { lng: locale })}`;
   const refColumnPostfix = `_${t('column_headers.reference', { lng: locale })}`;
+  logger.debug(`factTableToDimensionNames = ${JSON.stringify(factTableToDimensionNames)}`);
 
   try {
     if (sortBy && sortBy.length > 0) {
@@ -190,20 +194,24 @@ function createBaseQuery(
     logger.error(err, `Something went wrong trying to filter: ${JSON.stringify(filterBy)}`);
     throw err;
   }
+  let schemaID = pgformat('%I', revision.id);
+  if (target !== 'postgres') {
+    schemaID = pgformat('%I.%I', target, revision.id);
+  }
 
   if (columns[0] === '*') {
     return pgformat(
-      'SELECT * FROM %I.%I %s %s',
-      revision.id,
+      'SELECT * FROM %s.%I %s %s',
+      schemaID,
       view,
       filterQuery ? `WHERE ${filterQuery}` : '',
       sortByQuery ? `ORDER BY ${sortByQuery}` : ''
     );
   } else {
     return pgformat(
-      'SELECT %s FROM %I.%I %s %s',
+      'SELECT %s FROM %s.%I %s %s',
       columns.join(', '),
-      revision.id,
+      schemaID,
       view,
       filterQuery ? `WHERE ${filterQuery}` : '',
       sortByQuery ? `ORDER BY ${sortByQuery}` : ''
@@ -586,5 +594,112 @@ export const createStreamingExcelFilteredView = async (
     logger.error(error, 'Something went wrong trying to read from the view of the cube');
   } finally {
     cubeDBConn.release();
+  }
+};
+
+export const duckDBPivot = async (
+  res: Response,
+  revision: Revision,
+  locale: string,
+  view = 'raw',
+  xAxisColumn: string,
+  pivotCols?: string[],
+  sortBy?: SortByInterface[],
+  filterBy?: FilterInterface[]
+): Promise<void> => {
+  const lang = locale.split('-')[0];
+  const viewName = checkAvailableViews(view);
+  const filterTableQueryRunner = dbManager.getCubeDataSource().createQueryRunner();
+  let filterTableColumnQueryResult: FactTableToDimensionName[];
+  const filterTableQuery = pgformat(
+    'SELECT DISTINCT fact_table_column, dimension_name, language FROM %I.filter_table;',
+    revision.id
+  );
+  try {
+    logger.trace(`Running filter table query:\n\n${filterTableQuery}\n\n`);
+    filterTableColumnQueryResult = await filterTableQueryRunner.query(filterTableQuery);
+  } catch (error) {
+    logger.error(error, 'Something went wrong trying to the filter table in the cube');
+    throw new UnknownException('errors.unknown_error');
+  } finally {
+    void filterTableQueryRunner.release();
+  }
+
+  let coreView: string;
+  let selectColumns: string[];
+  try {
+    coreView = await coreViewChooser(lang, revision);
+    selectColumns = await getColumns(revision.id, lang, viewName);
+  } catch (error) {
+    logger.error(error, 'Something went wrong trying to get metadata about the cube');
+    throw new UnknownException('errors.unknown_error');
+  }
+
+  let baseQuery: string;
+  try {
+    baseQuery = createBaseQuery(
+      revision,
+      coreView,
+      locale,
+      selectColumns,
+      filterTableColumnQueryResult,
+      sortBy,
+      filterBy,
+      'cubes_db'
+    );
+  } catch (error) {
+    logger.error(error, 'Something went wrong trying to produce the base query for the consumer');
+    throw new UnknownException('errors.unknown_error');
+  }
+
+  const quack = await duckdb();
+  try {
+    const dataValuesCol = t('column_headers.data_values', { lng: locale });
+    const NotesCol = t('column_headers.notes', { lng: locale });
+
+    if (!pivotCols) {
+      pivotCols = selectColumns.filter(
+        (col) =>
+          col.replaceAll('"', '') !== xAxisColumn &&
+          col.replaceAll('"', '') !== dataValuesCol &&
+          col.replaceAll('"', '') !== NotesCol
+      );
+    }
+    logger.debug(`Pivots cols = ${JSON.stringify(pivotCols)}`);
+
+    const pivotQuery = pgformat(
+      'PIVOT (%s) ON %I USING first(%I) GROUP BY %s;',
+      baseQuery,
+      xAxisColumn,
+      dataValuesCol,
+      pivotCols
+    );
+    logger.trace(`Running the following pivot query in DuckDB:\n\n${pivotQuery}\n\n`);
+    const pivot = await quack.stream(pivotQuery);
+    res.setHeader('content-type', 'application/json');
+    res.flushHeaders();
+    res.write('[');
+    let firstRow = true;
+    let rows = await pivot.getRows();
+    while (rows.length > 0) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      rows.forEach((row: any) => {
+        if (firstRow) {
+          res.write(JSON.stringify(pivot.columnNames()));
+          res.write(',\n');
+          firstRow = false;
+        } else {
+          res.write(',\n');
+        }
+        res.write(JSON.stringify(row));
+      });
+      rows = await pivot.getRows();
+    }
+    res.write(']');
+    res.end();
+  } catch (error) {
+    logger.error(error, 'Something went wrong trying to read from the view of the cube');
+  } finally {
+    quack.disconnectSync();
   }
 };
