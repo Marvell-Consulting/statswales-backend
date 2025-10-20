@@ -25,6 +25,18 @@ export const duckdb = async (cubeFile = ':memory:'): Promise<DuckDBConnection> =
 
     const setupConn = await duckDBInstance.connect();
     try {
+      await setupConn.run(`LOAD 'postgres';`);
+      await setupConn.run(`
+        CREATE OR REPLACE SECRET (
+          TYPE postgres,
+          HOST '${config.database.host}',
+          PORT ${config.database.port},
+          DATABASE '${config.database.database}',
+          USER '${config.database.username}',
+          PASSWORD '${config.database.password}'
+        );
+      `);
+      await linkToPostgresSchema(setupConn, 'cubes');
       await linkToPostgresSchema(setupConn, 'data_tables');
       await linkToPostgresSchema(setupConn, 'lookup_tables');
     } catch (error) {
@@ -47,18 +59,14 @@ export const duckdb = async (cubeFile = ':memory:'): Promise<DuckDBConnection> =
   return duckdb;
 };
 
-async function linkToPostgresSchema(quack: DuckDBConnection, schema: 'lookup_tables' | 'data_tables'): Promise<void> {
+async function linkToPostgresSchema(
+  quack: DuckDBConnection,
+  schema: 'cubes' | 'lookup_tables' | 'data_tables'
+): Promise<void> {
   logger.debug(`Linking to postgres ${schema} schema`);
-  await quack.run(`LOAD 'postgres';`);
-  await quack.run(`
-    CREATE OR REPLACE SECRET (
-      TYPE postgres,
-      HOST '${config.database.host}',
-      PORT ${config.database.port},
-      DATABASE '${config.database.database}',
-      USER '${config.database.username}',
-      PASSWORD '${config.database.password}'
-    );
-  `);
-  await quack.run(pgformat(`ATTACH OR REPLACE '' AS %I (TYPE postgres, SCHEMA %L);`, `${schema}_db`, schema));
+  if (schema === 'cubes') {
+    await quack.run(pgformat(`ATTACH OR REPLACE '' AS %I (TYPE postgres);`, `${schema}_db`));
+  } else {
+    await quack.run(pgformat(`ATTACH OR REPLACE '' AS %I (TYPE postgres, SCHEMA %L);`, `${schema}_db`, schema));
+  }
 }
