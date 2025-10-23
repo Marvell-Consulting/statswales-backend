@@ -115,7 +115,7 @@ export const createAllCubeFiles = async (
     } catch (error) {
       logger.error(error, 'Failed to remove build schema from the data');
     } finally {
-      createBuildSchemaRunner.release();
+      void createBuildSchemaRunner.release();
     }
     throw err;
   }
@@ -257,9 +257,9 @@ async function createBasePostgresCube(
 
   logger.debug(`Beginning database cube build with id ${build.id} for revision ${buildRevision.id}`);
   cubeBuilder.buildStatus = CubeBuildStatus.Building;
-  // const updateBuild = await BuildLog.findOneByOrFail({ id: build.id });
-  // updateBuild.status = CubeBuildStatus.Building;
-  // await updateBuild.save();
+  const updateBuild = await BuildLog.findOneByOrFail({ id: build.id });
+  updateBuild.status = CubeBuildStatus.Building;
+  await updateBuild.save();
   for (const block of cubeBuilder.transactionBlocks) {
     logger.debug(`Building ${block.buildStage}`);
     attemptedBuildScript.push(...block.statements);
@@ -450,14 +450,13 @@ export function setupCubeBuilder(dataset: Dataset, buildId: string): FactTableIn
   const factTableCreationDef = factTable
     .sort((col1, col2) => col1.columnIndex - col2.columnIndex)
     .map((field) => {
-      switch (field.columnType) {
-        case FactTableColumnType.Measure:
-        // eslint-disable-next-line no-fallthrough
-        case FactTableColumnType.Dimension:
-        case FactTableColumnType.Time:
-          compositeKey.push(field.columnName);
-          factIdentifiers.push(field);
-          break;
+      if (
+        [FactTableColumnType.Measure, FactTableColumnType.Dimension, FactTableColumnType.Time].includes(
+          field.columnType
+        )
+      ) {
+        compositeKey.push(field.columnName);
+        factIdentifiers.push(field);
       }
       factTableDef.push(field.columnName);
       return pgformat(
@@ -504,14 +503,14 @@ function createCubeBaseTables(revisionId: string, buildId: string, factTableQuer
     pgformat(
       `
         CREATE TABLE %I.%I (
-                             reference VARCHAR,
-                             language VARCHAR,
-                             fact_table_column VARCHAR,
-                             dimension_name VARCHAR,
-                             description VARCHAR,
-                             hierarchy VARCHAR,
-                             PRIMARY KEY (reference, language, fact_table_column)
-          );
+         reference VARCHAR,
+         language VARCHAR,
+         fact_table_column VARCHAR,
+         dimension_name VARCHAR,
+         description VARCHAR,
+         hierarchy VARCHAR,
+         PRIMARY KEY (reference, language, fact_table_column)
+        );
       `,
       buildId,
       'filter_table'
@@ -660,7 +659,13 @@ function finaliseValues(
   const statements: string[] = [];
   statements.push(
     pgformat(
-      `UPDATE %I.%I SET %I = %I.%I, %I = array_to_string(array_append(string_to_array(lower(%I.%I), ','), '!'), ',') FROM %I WHERE %s AND string_to_array(lower(%I.%I), ',') && string_to_array('p,f', ',');`,
+      `
+            UPDATE %I.%I
+            SET %I = %I.%I,
+                   %I = array_to_string(array_append(string_to_array(lower(%I.%I), ','), '!'), ',')
+             FROM %I
+             WHERE %s AND string_to_array(lower(%I.%I), ',') && string_to_array('p,f', ',');
+      `,
       buildId,
       FACT_TABLE_NAME,
       dataValuesColumn.columnName,

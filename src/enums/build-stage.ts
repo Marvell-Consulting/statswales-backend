@@ -1,10 +1,10 @@
 export enum BuildStage {
-  BaseTables = 'Base Tables',
-  FactTable = 'Fact Table',
-  Measure = 'Measure',
-  Dimensions = 'Dimensions',
-  NoteCodes = 'Note Codes',
-  CoreView = 'Core View',
-  PostBuildMetadata = 'PostBuild Metadata',
-  ViewMaterialisation = 'View Materialisation'
+  BaseTables = 'base_tables',
+  FactTable = 'fact_table',
+  Measure = 'measure',
+  Dimensions = 'dimensions',
+  NoteCodes = 'note_codes',
+  CoreView = 'core_view',
+  PostBuildMetadata = 'post_build_metadata',
+  ViewMaterialisation = 'view_materialisation'
 }

@@ -58,7 +58,7 @@ export function getLocalConfig(): AppConfig {
       store: (process.env.FILE_STORE as FileStore) || FileStore.DataLake
     },
     cube_builder: {
-      preserve_failed: process.env.PRESERVE_FAILED === 'true' || false
+      preserve_failed: process.env.CUBE_BUILDER_PRESERVE_FAILED === 'true' || false
     }
   });
 }

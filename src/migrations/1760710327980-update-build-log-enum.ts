@@ -12,7 +12,6 @@ export class UpdateBuildLogEnum1760710327980 implements MigrationInterface {
       `ALTER TABLE "build_log" ALTER COLUMN "type" TYPE "public"."build_log_type_enum" USING "type"::"text"::"public"."build_log_type_enum"`
     );
     await queryRunner.query(`DROP TYPE "public"."build_log_type_enum_old"`);
-    await queryRunner.query('CREATE EXTENSION IF NOT EXISTS tablefunc;');
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {
