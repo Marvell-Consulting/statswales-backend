@@ -14,6 +14,15 @@ export const admin1: DeepPartial<User> = {
   globalRoles: [GlobalRole.ServiceAdmin]
 };
 
+export const dev1: DeepPartial<User> = {
+  id: '2966170e-d88c-46fc-a8a8-f57826dec7e8',
+  provider: 'local',
+  providerUserId: 'test_dev_1',
+  name: 'Bob Developer',
+  email: 'bob.developer@example.com',
+  globalRoles: [GlobalRole.Developer]
+};
+
 export const publisher1: DeepPartial<User> = {
   id: 'f3dc1ae6-273e-4ac9-a498-ba2813c51c24',
   provider: 'local',
@@ -40,4 +49,17 @@ export const approver1: DeepPartial<User> = {
   ]
 };
 
-export const testUsers = [admin1, publisher1, approver1];
+export const solo1: DeepPartial<User> = {
+  id: '80d989fb-c26f-40dc-9a0b-6dc2083c0f0c',
+  provider: 'local',
+  providerUserId: 'test_solo_1',
+  name: 'Solo Publisher Approver',
+  email: 'solo.user@example.com',
+  groupRoles: [
+    { id: 'f9e6a489-1b34-4d86-9ee9-939df1b01078', groupId: group1.id, roles: [GroupRole.Editor, GroupRole.Approver] },
+    { id: '2bbef603-20c7-473a-9a87-aaa1d8c6d261', groupId: group2.id, roles: [GroupRole.Editor, GroupRole.Approver] },
+    { id: '0e8f1cee-c0e7-48e9-80d7-77faecf90a21', groupId: group3.id, roles: [GroupRole.Editor, GroupRole.Approver] }
+  ]
+};
+
+export const testUsers = [admin1, dev1, publisher1, approver1, solo1];
