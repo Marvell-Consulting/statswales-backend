@@ -115,7 +115,7 @@ export const createAllCubeFiles = async (
     } catch (error) {
       logger.error(error, 'Failed to remove build schema from the data');
     } finally {
-      void createBuildSchemaRunner.release();
+      void unwindBuildRunner.release();
     }
     throw err;
   }
@@ -149,7 +149,7 @@ export const createAllCubeFiles = async (
     logger.error(err, 'Failed to create cube in Postgres');
     throw err;
   } finally {
-    createRenameSchemaRunner.release();
+    void createRenameSchemaRunner.release();
   }
 
   build.status = CubeBuildStatus.Materializing;
