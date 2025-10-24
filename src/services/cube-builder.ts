@@ -34,6 +34,7 @@ import { TransactionBlock } from '../interfaces/transaction-block';
 import { NoteCode, NoteCodes } from '../enums/note-code';
 import { UniqueMeasureDetails } from '../interfaces/unique-measure-details';
 import { MeasureFormat } from '../interfaces/measure-format';
+import { RevisionRepository } from '../repositories/revision';
 
 export const FACT_TABLE_NAME = 'fact_table';
 export const CORE_VIEW_NAME = 'core_view';
@@ -49,17 +50,23 @@ export const createAllCubeFiles = async (
   buildType = CubeBuildType.FullCube,
   buildId = crypto.randomUUID()
 ): Promise<void> => {
+  // const datasetRelations: FindOptionsRelations<Dataset> = {
+  //   factTable: true,
+  //   dimensions: { metadata: true, lookupTable: true },
+  //   measure: { metadata: true, measureTable: true },
+  //   revisions: { dataTable: { dataTableDescriptions: true } }
+  // };
+
   const datasetRelations: FindOptionsRelations<Dataset> = {
     factTable: true,
     dimensions: { metadata: true, lookupTable: true },
-    measure: { metadata: true, measureTable: true },
-    revisions: { dataTable: { dataTableDescriptions: true } }
+    measure: { metadata: true, measureTable: true }
   };
 
   logger.debug('Loading dataset and relations');
   const dataset = await DatasetRepository.getById(datasetId, datasetRelations);
   logger.debug('Loading revision and relations');
-  const buildRevision = dataset.revisions.find((rev) => rev.id === buildRevisionId);
+  const buildRevision = await RevisionRepository.getById(buildRevisionId);
 
   if (!buildRevision) {
     logger.error('Unable to find buildRevision in dataset.');
