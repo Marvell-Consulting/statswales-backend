@@ -59,7 +59,7 @@ export const createAllCubeFiles = async (
   logger.debug('Loading dataset and relations');
   const dataset = await DatasetRepository.getById(datasetId, datasetRelations);
   logger.debug('Loading revision and relations');
-  const buildRevision = dataset.revisions.find((rev) => rev.id === dataset.endRevisionId);
+  const buildRevision = dataset.revisions.find((rev) => rev.id === buildRevisionId);
 
   if (!buildRevision) {
     logger.error('Unable to find buildRevision in dataset.');
