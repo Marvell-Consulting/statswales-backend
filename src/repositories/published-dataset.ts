@@ -192,7 +192,11 @@ export const PublishedDatasetRepository = dataSource.getRepository(Dataset).exte
     const countQuery = qb.clone();
     const resultQuery = qb.offset(offset).limit(limit);
 
-    sortBy?.forEach((sort: SortByInterface) => {
+    if (!sortBy || sortBy.length === 0) {
+      sortBy = [{ columnName: 'd.first_published_at', direction: 'DESC' }];
+    }
+
+    sortBy.forEach((sort: SortByInterface) => {
       resultQuery.addOrderBy(`${sort.columnName}`, sort.direction || 'ASC');
     });
 
