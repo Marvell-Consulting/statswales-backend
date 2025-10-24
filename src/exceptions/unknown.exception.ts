@@ -1,4 +1,5 @@
 export class UnknownException extends Error {
+  performance: unknown | null = null;
   constructor(
     public message = 'Server Error',
     public status = 500

@@ -40,6 +40,7 @@ import { cleanupTmpFile, uploadAvScan } from '../services/virus-scanner';
 import { TempFile } from '../interfaces/temp-file';
 import { DEFAULT_PAGE_SIZE } from '../utils/page-defaults';
 import { attachUpdateDataTableToRevision } from '../services/revision';
+import { performanceReporting } from '../utils/performance-reporting';
 
 export const getDataTable = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   const revision: Revision = res.locals.revision;
@@ -425,16 +426,33 @@ export const withdrawFromPublication = async (req: Request, res: Response, next:
 export const regenerateRevisionCube = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   const datasetId: string = res.locals.datasetId;
   const revision: Revision = res.locals.revision;
-
+  const startTime = Date.now();
+  const start = performance.now();
   try {
     await createAllCubeFiles(datasetId, revision.id);
   } catch (err) {
     logger.error(err, `Something went wrong trying to create the cube`);
-    next(new UnknownException('errors.cube_builder.cube_build_failed'));
+    const exception = new UnknownException('errors.cube_builder.cube_build_failed');
+    exception.performance = {
+      message: 'Cube regeneration failed',
+      memory_usage: process.memoryUsage(),
+      start_time: startTime,
+      finish_time: Date.now(),
+      total_time: performance.now() - start
+    };
+    next(exception);
     return;
   }
+  performanceReporting(performance.now() - start, 30000, 'Full Cube Rebuild');
   res.status(201);
-  res.json({ message: 'Cube regeneration in postgres successful' });
+  const reporting = {
+    message: 'Cube regeneration in postgres successful',
+    memory_usage: process.memoryUsage(),
+    start_time: startTime,
+    finish_time: Date.now(),
+    total_time: performance.now() - start
+  };
+  res.json(reporting);
 };
 
 // export const downloadRevisionCubeFile = async (req: Request, res: Response) => {
