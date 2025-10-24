@@ -91,6 +91,9 @@
           },
           {
             "$ref": "#/components/parameters/page_number"
+          },
+          {
+            "$ref": "#/components/parameters/sort_by"
           }
         ],
         "responses": {

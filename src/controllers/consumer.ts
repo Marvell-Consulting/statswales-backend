@@ -302,7 +302,8 @@ export const listSubTopics = async (req: Request, res: Response, next: NextFunct
     #swagger.parameters['$ref'] = [
       '#/components/parameters/language',
       '#/components/parameters/topic_id',
-      '#/components/parameters/page_number'
+      '#/components/parameters/page_number',
+      '#/components/parameters/sort_by'
     ]
     #swagger.responses[200] = {
       description: 'A list of what sits under a given topic - either sub-topics or published datasets tagged directly
@@ -331,7 +332,8 @@ export const listSubTopics = async (req: Request, res: Response, next: NextFunct
       // if this is a leaf topic (no children) then also fetch datasets
       const pageNumber = parseInt(req.query.page_number as string, 10) || 1;
       const pageSize = parseInt(req.query.page_size as string, 10) || 1000;
-      datasets = await PublishedDatasetRepository.listPublishedByTopic(topicId, lang, pageNumber, pageSize);
+      const sortBy: SortByInterface[] = req.query.sort_by ? JSON.parse(req.query.sort_by as string) : [];
+      datasets = await PublishedDatasetRepository.listPublishedByTopic(topicId, lang, pageNumber, pageSize, sortBy);
     }
 
     const data: PublishedTopicsDTO = {

@@ -22,6 +22,7 @@ import { ResultsetWithCount } from '../interfaces/resultset-with-count';
 import { Locale } from '../enums/locale';
 import { Topic } from '../entities/dataset/topic';
 import { Revision } from '../entities/dataset/revision';
+import { SortByInterface } from '../interfaces/sort-by-interface';
 
 export const withAll: FindOptionsRelations<Dataset> = {
   createdBy: true,
@@ -155,7 +156,8 @@ export const PublishedDatasetRepository = dataSource.getRepository(Dataset).exte
     topicId: string,
     lang: Locale,
     page: number,
-    limit: number
+    limit: number,
+    sortBy?: SortByInterface[]
   ): Promise<ResultsetWithCount<DatasetListItemDTO>> {
     const qb = this.createQueryBuilder('d')
       .select([
@@ -188,7 +190,12 @@ export const PublishedDatasetRepository = dataSource.getRepository(Dataset).exte
 
     const offset = (page - 1) * limit;
     const countQuery = qb.clone();
-    const resultQuery = qb.orderBy('d.first_published_at', 'DESC').offset(offset).limit(limit);
+    const resultQuery = qb.offset(offset).limit(limit);
+
+    sortBy?.forEach((sort: SortByInterface) => {
+      resultQuery.addOrderBy(`${sort.columnName}`, sort.direction || 'ASC');
+    });
+
     const [data, count] = await Promise.all([resultQuery.getRawMany(), countQuery.getCount()]);
 
     return { data, count };
