@@ -724,7 +724,7 @@ export const createStreamingPostgresPivotView = async (
     let rows = await cursor.read(CURSOR_ROW_LIMIT);
     res.setHeader('content-type', 'application/json');
     res.flushHeaders();
-    res.write('{ pivot: [');
+    res.write('{"pivot": [');
     let firstRow = true;
     while (rows.length > 0) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
