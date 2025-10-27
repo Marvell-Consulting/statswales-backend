@@ -667,8 +667,7 @@ export const createStreamingPostgresPivotView = async (
   logger.debug(`Lang = ${locale.toLowerCase()}`);
   const dimensionCols = filterTableColumnQueryResult
     .filter((col) => col.language.includes(lang.toLowerCase()))
-    .filter((col) => col.dimension_name === xAxis)
-    .filter((col) => col.dimension_name === yAxis);
+    .filter((col) => col.dimension_name === xAxis || col.dimension_name === yAxis);
 
   const notPresent = dimensionCols.filter((col) =>
     filterBy?.map((filter) => filter.columnName).includes(col.dimension_name)
