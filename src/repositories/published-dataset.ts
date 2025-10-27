@@ -196,8 +196,16 @@ export const PublishedDatasetRepository = dataSource.getRepository(Dataset).exte
       sortBy = [{ columnName: 'd.first_published_at', direction: 'DESC' }];
     }
 
+    const sortOpts: Record<string, string> = {
+      title: 'r.title',
+      first_published_at: 'd.first_published_at',
+      last_updated_at: 'r.publish_at'
+    };
+
     sortBy.forEach((sort: SortByInterface) => {
-      resultQuery.addOrderBy(`${sort.columnName}`, sort.direction || 'ASC');
+      const column = sortOpts[sort.columnName];
+      const direction = sort.direction === 'DESC' ? 'DESC' : 'ASC';
+      resultQuery.addOrderBy(column, direction);
     });
 
     const [data, count] = await Promise.all([resultQuery.getRawMany(), countQuery.getCount()]);
