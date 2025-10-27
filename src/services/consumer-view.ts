@@ -693,15 +693,15 @@ export const createStreamingPostgresPivotView = async (
     xAxis
   );
   let xAxisValues: { description: string }[];
-  const filterTableXAsisValuesRunner = dbManager.getCubeDataSource().createQueryRunner();
+  const filterTableXAxisValuesRunner = dbManager.getCubeDataSource().createQueryRunner();
   try {
     logger.trace(`Running query to get dimension values from filter table with query:\n\n${xAxisValuesQuery}\n\n`);
-    xAxisValues = await filterTableXAsisValuesRunner.query(xAxisValuesQuery);
+    xAxisValues = await filterTableXAxisValuesRunner.query(xAxisValuesQuery);
   } catch (err) {
     logger.error(err, 'Something went wrong trying to get the X Axis values');
     throw err;
   } finally {
-    void filterTableXAsisValuesRunner.release();
+    void filterTableXAxisValuesRunner.release();
   }
 
   // queryRunner.query() does not support Cursor so we need to obtain underlying PostgreSQL connection
