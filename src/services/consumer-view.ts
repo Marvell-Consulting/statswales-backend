@@ -684,6 +684,7 @@ export const createStreamingPostgresPivotView = async (
   if (multiValues && multiValues.length > 0) {
     res.status(400);
     res.json({ messages: 'Filter found containing multiple values.' });
+    return;
   }
 
   const xAxisValuesQuery = pgformat(

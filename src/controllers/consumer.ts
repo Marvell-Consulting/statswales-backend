@@ -268,8 +268,8 @@ export const getPostgresPivotTable = async (req: Request, res: Response, next: N
     throw new BadRequestException('errors.filter.invalid');
   }
 
-  const xAsis = req.query.x?.toString();
-  if (!xAsis) {
+  const xAxis = req.query.x?.toString();
+  if (!xAxis) {
     logger.warn(`No X Axis present`);
     throw new BadRequestException('No X Axis present');
   }
@@ -287,7 +287,7 @@ export const getPostgresPivotTable = async (req: Request, res: Response, next: N
     return;
   }
   try {
-    void createStreamingPostgresPivotView(res, revision, req.language, xAsis, yAxis, filter);
+    void createStreamingPostgresPivotView(res, revision, req.language, xAxis, yAxis, filter);
   } catch (err) {
     logger.error(err, 'An error occurred trying to download published dataset');
     next(new UnknownException());
