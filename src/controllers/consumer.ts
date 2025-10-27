@@ -13,6 +13,7 @@ import {
   createStreamingCSVFilteredView,
   createStreamingExcelFilteredView,
   createStreamingJSONFilteredView,
+  createStreamingPostgresPivotView,
   getFilters
 } from '../services/consumer-view';
 import { hasError, formatValidator } from '../validators';
@@ -247,6 +248,46 @@ export const downloadPublishedDataset = async (req: Request, res: Response, next
       default:
         next(new BadRequestException('file format currently not supported'));
     }
+  } catch (err) {
+    logger.error(err, 'An error occurred trying to download published dataset');
+    next(new UnknownException());
+  }
+};
+
+export const getPostgresPivotTable = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  /*
+  #swagger.hidden = true
+   */
+  const dataset = await PublishedDatasetRepository.getById(res.locals.datasetId, withAll);
+
+  let filter: FilterInterface[] | undefined;
+  try {
+    filter = req.query.filter ? (JSON.parse(req.query.filter as string) as FilterInterface[]) : undefined;
+  } catch (err) {
+    logger.warn(err, 'Error parsing filter query parameters');
+    throw new BadRequestException('errors.filter.invalid');
+  }
+
+  const xAsis = req.query.x?.toString();
+  if (!xAsis) {
+    logger.warn(`No X Axis present`);
+    throw new BadRequestException('No X Axis present');
+  }
+
+  const yAxis = req.query.y?.toString();
+  if (!yAxis) {
+    logger.warn(`No Y Axis present`);
+    throw new BadRequestException('No Y Axis present');
+  }
+
+  const revision = dataset.publishedRevision;
+
+  if (!revision?.onlineCubeFilename) {
+    next(new NotFoundException('errors.no_revision'));
+    return;
+  }
+  try {
+    void createStreamingPostgresPivotView(res, revision, req.language, xAsis, yAxis, filter);
   } catch (err) {
     logger.error(err, 'An error occurred trying to download published dataset');
     next(new UnknownException());

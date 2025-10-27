@@ -588,3 +588,169 @@ export const createStreamingExcelFilteredView = async (
     cubeDBConn.release();
   }
 };
+
+function createSQLStandardPivotQuery(
+  revisionId: string,
+  viewName: string,
+  lang: string,
+  xAxis: FactTableToDimensionName,
+  yAxis: FactTableToDimensionName,
+  xAxisValues: string[],
+  filters: { col: string; val: string }[]
+): string {
+  const cols = xAxisValues.map((xVal) => {
+    const filtersString: string[] = [];
+    if (filters.length > 0) {
+      filters.forEach((val) => {
+        filtersString.push(pgformat('%I = %L', `${val.col}_${t('column_headers.reference', { lng: lang })}`, val.val));
+      });
+    }
+    return pgformat(
+      'array_agg("Data values") FILTER (WHERE %I = %L %s) AS %I',
+      xAxis.dimension_name,
+      xVal,
+      filtersString.length > 0 ? `AND ${filtersString.join(' AND ')}` : '',
+      xVal
+    );
+  });
+  return pgformat(
+    'SELECT %I,\n%s\nFROM %I.%I GROUP BY 1 ORDER BY 1;',
+    yAxis.dimension_name,
+    cols.join(',\n'),
+    revisionId,
+    viewName
+  );
+}
+
+export const createStreamingPostgresPivotView = async (
+  res: Response,
+  revision: Revision,
+  locale: string,
+  xAxis: string,
+  yAxis: string,
+  filterBy?: FilterInterface[]
+): Promise<void> => {
+  const start = new Date();
+  const startTime = performance.now();
+  const lang = locale.split('-')[0];
+  const factTableColToDimensionRunner = dbManager.getCubeDataSource().createQueryRunner();
+  const factTableColToDimensionQuery = pgformat(
+    'SELECT DISTINCT fact_table_column, dimension_name, language FROM %I.filter_table;',
+    revision.id
+  );
+  let filterTableColumnQueryResult: FactTableToDimensionName[];
+  try {
+    logger.trace(`Running fact table to dimension query:\n\n${factTableColToDimensionQuery}\n\n`);
+    filterTableColumnQueryResult = await factTableColToDimensionRunner.query(factTableColToDimensionQuery);
+  } catch (err) {
+    logger.error(err, 'Something went wrong trying to query the filter table for fact table column and dimension name');
+    throw err;
+  } finally {
+    void factTableColToDimensionRunner.release();
+  }
+
+  const xAxisField = filterTableColumnQueryResult.find((col) => col.dimension_name === xAxis);
+  const yAxisField = filterTableColumnQueryResult.find((col) => col.dimension_name === yAxis);
+
+  if (!xAxisField) {
+    res.status(400);
+    res.json({ messages: 'X axis not found in cube.' });
+    return;
+  }
+
+  if (!yAxisField) {
+    res.status(400);
+    res.json({ messages: 'Y axis not found in cube.' });
+    return;
+  }
+
+  logger.debug(`Lang = ${locale.toLowerCase()}`);
+  const dimensionCols = filterTableColumnQueryResult
+    .filter((col) => col.language.includes(lang.toLowerCase()))
+    .filter((col) => col.dimension_name === xAxis)
+    .filter((col) => col.dimension_name === yAxis);
+
+  const notPresent = dimensionCols.filter((col) =>
+    filterBy?.map((filter) => filter.columnName).includes(col.dimension_name)
+  );
+
+  if (notPresent && notPresent.length > 0) {
+    logger.trace(`Dimensions not present for query: ${JSON.stringify(notPresent)}`);
+    res.status(400);
+    res.json({ messages: 'Not all dimension columns found in filter' });
+    return;
+  }
+
+  const multiValues = filterBy?.filter((filter) => filter.values.length > 1);
+  if (multiValues && multiValues.length > 0) {
+    res.status(400);
+    res.json({ messages: 'Filter found containing multiple values.' });
+  }
+
+  const xAxisValuesQuery = pgformat(
+    'SELECT description FROM %I.filter_table WHERE language LIKE %L AND dimension_name = %L',
+    revision.id,
+    `${locale.toLowerCase()}%`,
+    xAxis
+  );
+  let xAxisValues: { description: string }[];
+  const filterTableXAsisValuesRunner = dbManager.getCubeDataSource().createQueryRunner();
+  try {
+    logger.trace(`Running query to get dimension values from filter table with query:\n\n${xAxisValuesQuery}\n\n`);
+    xAxisValues = await filterTableXAsisValuesRunner.query(xAxisValuesQuery);
+  } catch (err) {
+    logger.error(err, 'Something went wrong trying to get the X Axis values');
+    throw err;
+  } finally {
+    void filterTableXAsisValuesRunner.release();
+  }
+
+  // queryRunner.query() does not support Cursor so we need to obtain underlying PostgreSQL connection
+  const [cubeDBConn] = (await dbManager.getCubeDataSource().driver.obtainMasterConnection()) as [PoolClient];
+  try {
+    const coreView = await coreViewChooser(lang, revision);
+    const pivotQuery = createSQLStandardPivotQuery(
+      revision.id,
+      coreView,
+      lang,
+      xAxisField,
+      yAxisField,
+      xAxisValues.map((val) => val.description),
+      filterBy?.map((val) => {
+        return { col: val.columnName, val: val.values[0] };
+      }) || []
+    );
+    logger.trace(`Running Postgres Pivot query:\n\n${pivotQuery}\n\n`);
+    const cursor = cubeDBConn.query(new Cursor(pivotQuery));
+    let rows = await cursor.read(CURSOR_ROW_LIMIT);
+    res.setHeader('content-type', 'application/json');
+    res.flushHeaders();
+    res.write('{ pivot: [');
+    let firstRow = true;
+    while (rows.length > 0) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      rows.forEach((row: any) => {
+        if (firstRow) {
+          firstRow = false;
+        } else {
+          res.write(',\n');
+        }
+        res.write(JSON.stringify(row));
+      });
+      rows = await cursor.read(CURSOR_ROW_LIMIT);
+    }
+    const performanceObject = {
+      start: start,
+      finish: new Date(),
+      total_time_ms: performance.now() - startTime
+    };
+    res.write('],');
+    res.write(`"Performance" : ${JSON.stringify(performanceObject)}`);
+    res.write('}');
+    res.end();
+  } catch (error) {
+    logger.error(error, 'Something went wrong trying to read from the view of the cube');
+  } finally {
+    cubeDBConn.release();
+  }
+};
