@@ -66,7 +66,9 @@ export const createAllCubeFiles = async (
   logger.debug('Loading dataset and relations');
   const dataset = await DatasetRepository.getById(datasetId, datasetRelations);
   logger.debug('Loading revision and relations');
-  const buildRevision = await RevisionRepository.getById(buildRevisionId);
+  const buildRevision = await RevisionRepository.getById(buildRevisionId, {
+    dataTable: { dataTableDescriptions: true }
+  });
 
   if (!buildRevision) {
     logger.error('Unable to find buildRevision in dataset.');
@@ -183,18 +185,6 @@ async function createBasePostgresCube(
     coreCubeViewSelectBuilder.set(locale, []);
     columnNames.set(locale, new Set<string>());
   });
-
-  logger.debug('Finding first revision');
-  const firstRevision = dataset.revisions.find((rev) => rev.revisionIndex === 1);
-
-  if (!firstRevision) {
-    const err = new CubeValidationException(
-      `Could not find first revision for dataset ${dataset.id} in revision ${buildRevision.id}`
-    );
-    err.type = CubeValidationType.NoFirstRevision;
-    err.datasetId = dataset.id;
-    throw new Error(`Unable to find first revision for dataset ${dataset.id}`);
-  }
 
   const cubeBuilder: CubeBuilder = {
     buildStatus: CubeBuildStatus.Queued,
