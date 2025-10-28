@@ -13,6 +13,7 @@ import {
   createStreamingCSVFilteredView,
   createStreamingExcelFilteredView,
   createStreamingJSONFilteredView,
+  createStreamingPostgresPivotView,
   getFilters
 } from '../services/consumer-view';
 import { hasError, formatValidator } from '../validators';
@@ -253,6 +254,46 @@ export const downloadPublishedDataset = async (req: Request, res: Response, next
   }
 };
 
+export const getPostgresPivotTable = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  /*
+  #swagger.ignore = true
+   */
+  const dataset = await PublishedDatasetRepository.getById(res.locals.datasetId, withAll);
+
+  let filter: FilterInterface[] | undefined;
+  try {
+    filter = req.query.filter ? (JSON.parse(req.query.filter as string) as FilterInterface[]) : undefined;
+  } catch (err) {
+    logger.warn(err, 'Error parsing filter query parameters');
+    throw new BadRequestException('errors.filter.invalid');
+  }
+
+  const xAxis = req.query.x?.toString();
+  if (!xAxis) {
+    logger.warn(`No X Axis present`);
+    throw new BadRequestException('No X Axis present');
+  }
+
+  const yAxis = req.query.y?.toString();
+  if (!yAxis) {
+    logger.warn(`No Y Axis present`);
+    throw new BadRequestException('No Y Axis present');
+  }
+
+  const revision = dataset.publishedRevision;
+
+  if (!revision?.onlineCubeFilename) {
+    next(new NotFoundException('errors.no_revision'));
+    return;
+  }
+  try {
+    void createStreamingPostgresPivotView(res, revision, req.language, xAxis, yAxis, filter);
+  } catch (err) {
+    logger.error(err, 'An error occurred trying to produce postgres pivot as JSON');
+    next(new UnknownException());
+  }
+};
+
 export const listRootTopics = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   /*
     #swagger.summary = 'Get a list of top-level topics'
@@ -302,7 +343,8 @@ export const listSubTopics = async (req: Request, res: Response, next: NextFunct
     #swagger.parameters['$ref'] = [
       '#/components/parameters/language',
       '#/components/parameters/topic_id',
-      '#/components/parameters/page_number'
+      '#/components/parameters/page_number',
+      '#/components/parameters/sort_by'
     ]
     #swagger.responses[200] = {
       description: 'A list of what sits under a given topic - either sub-topics or published datasets tagged directly
@@ -320,6 +362,14 @@ export const listSubTopics = async (req: Request, res: Response, next: NextFunct
     return;
   }
 
+  const sortBy: SortByInterface[] = req.query.sort_by ? JSON.parse(req.query.sort_by as string) : [];
+
+  sortBy.forEach((sort) => {
+    if (!['first_published_at', 'last_updated_at', 'title'].includes(sort.columnName)) {
+      throw new BadRequestException('errors.invalid_sort_by');
+    }
+  });
+
   try {
     const topic = topicId ? await TopicRepository.findOneByOrFail({ id: parseInt(topicId, 10) }) : undefined;
     const subTopics = await PublishedDatasetRepository.listPublishedTopics(lang, topicId);
@@ -331,7 +381,7 @@ export const listSubTopics = async (req: Request, res: Response, next: NextFunct
       // if this is a leaf topic (no children) then also fetch datasets
       const pageNumber = parseInt(req.query.page_number as string, 10) || 1;
       const pageSize = parseInt(req.query.page_size as string, 10) || 1000;
-      datasets = await PublishedDatasetRepository.listPublishedByTopic(topicId, lang, pageNumber, pageSize);
+      datasets = await PublishedDatasetRepository.listPublishedByTopic(topicId, lang, pageNumber, pageSize, sortBy);
     }
 
     const data: PublishedTopicsDTO = {

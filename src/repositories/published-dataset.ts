@@ -22,6 +22,7 @@ import { ResultsetWithCount } from '../interfaces/resultset-with-count';
 import { Locale } from '../enums/locale';
 import { Topic } from '../entities/dataset/topic';
 import { Revision } from '../entities/dataset/revision';
+import { SortByInterface } from '../interfaces/sort-by-interface';
 
 export const withAll: FindOptionsRelations<Dataset> = {
   createdBy: true,
@@ -155,7 +156,8 @@ export const PublishedDatasetRepository = dataSource.getRepository(Dataset).exte
     topicId: string,
     lang: Locale,
     page: number,
-    limit: number
+    limit: number,
+    sortBy?: SortByInterface[]
   ): Promise<ResultsetWithCount<DatasetListItemDTO>> {
     const qb = this.createQueryBuilder('d')
       .select([
@@ -188,7 +190,24 @@ export const PublishedDatasetRepository = dataSource.getRepository(Dataset).exte
 
     const offset = (page - 1) * limit;
     const countQuery = qb.clone();
-    const resultQuery = qb.orderBy('d.first_published_at', 'DESC').offset(offset).limit(limit);
+    const resultQuery = qb.offset(offset).limit(limit);
+
+    if (!sortBy || sortBy.length === 0) {
+      sortBy = [{ columnName: 'd.first_published_at', direction: 'DESC' }];
+    }
+
+    const sortOpts: Record<string, string> = {
+      title: 'r.title',
+      first_published_at: 'd.first_published_at',
+      last_updated_at: 'r.publish_at'
+    };
+
+    sortBy.forEach((sort: SortByInterface) => {
+      const column = sortOpts[sort.columnName];
+      const direction = sort.direction === 'DESC' ? 'DESC' : 'ASC';
+      resultQuery.addOrderBy(column, direction);
+    });
+
     const [data, count] = await Promise.all([resultQuery.getRawMany(), countQuery.getCount()]);
 
     return { data, count };

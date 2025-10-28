@@ -10,7 +10,8 @@ import {
   getPublishedDatasetView,
   listSubTopics,
   listRootTopics,
-  getPublishedDatasetFilters
+  getPublishedDatasetFilters,
+  getPostgresPivotTable
 } from '../../../controllers/consumer';
 import { NotFoundException } from '../../../exceptions/not-found.exception';
 import { PublishedDatasetRepository } from '../../../repositories/published-dataset';
@@ -70,3 +71,5 @@ publicApiRouter.get('/:dataset_id/view', loadPublishedDataset(), getPublishedDat
 publicApiRouter.get('/:dataset_id/view/filters', loadPublishedDataset(), getPublishedDatasetFilters);
 
 publicApiRouter.get('/:dataset_id/download/:format', loadPublishedDataset(), downloadPublishedDataset);
+
+publicApiRouter.get('/:dataset_id/pivot/postgres', loadPublishedDataset(), getPostgresPivotTable);
