@@ -11,7 +11,8 @@ import {
   listSubTopics,
   listRootTopics,
   getPublishedDatasetFilters,
-  getPostgresPivotTable
+  getPostgresPivotTable,
+  getDuckDBPivotTable
 } from '../../../controllers/consumer';
 import { NotFoundException } from '../../../exceptions/not-found.exception';
 import { PublishedDatasetRepository } from '../../../repositories/published-dataset';
@@ -73,3 +74,4 @@ publicApiRouter.get('/:dataset_id/view/filters', loadPublishedDataset(), getPubl
 publicApiRouter.get('/:dataset_id/download/:format', loadPublishedDataset(), downloadPublishedDataset);
 
 publicApiRouter.get('/:dataset_id/pivot/postgres', loadPublishedDataset(), getPostgresPivotTable);
+publicApiRouter.get('/:dataset_id/pivot/duckdb', loadPublishedDataset(), getDuckDBPivotTable);

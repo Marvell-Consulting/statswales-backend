@@ -14,6 +14,7 @@ import {
   createStreamingExcelFilteredView,
   createStreamingJSONFilteredView,
   createStreamingPostgresPivotView,
+  createStreamingDuckDBPivotView,
   getFilters
 } from '../services/consumer-view';
 import { hasError, formatValidator } from '../validators';
@@ -290,6 +291,57 @@ export const getPostgresPivotTable = async (req: Request, res: Response, next: N
     void createStreamingPostgresPivotView(res, revision, req.language, xAxis, yAxis, filter);
   } catch (err) {
     logger.error(err, 'An error occurred trying to produce postgres pivot as JSON');
+    next(new UnknownException());
+  }
+};
+
+export const getDuckDBPivotTable = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  /*
+  #swagger.ignore = true
+   */
+  const view = req.query.view as string;
+  const dataset = await PublishedDatasetRepository.getById(res.locals.datasetId, withAll);
+  let sortBy: SortByInterface[] | undefined;
+  let filter: FilterInterface[] | undefined;
+  const xAxisColumn = req.query.x as string;
+  let pivotCols: string[] | undefined;
+
+  try {
+    pivotCols = req.query.pivot_columns ? (JSON.parse(req.query.pivot_columns as string) as string[]) : undefined;
+  } catch (err) {
+    logger.warn(err, 'Error parsing pivot_columns query parameters');
+    throw new BadRequestException('errors.pivot_columns.invalid');
+  }
+
+  if (!xAxisColumn) {
+    throw new BadRequestException('errors.no_x_axis');
+  }
+
+  try {
+    sortBy = req.query.sort_by ? (JSON.parse(req.query.sort_by as string) as SortByInterface[]) : undefined;
+  } catch (err) {
+    logger.warn(err, 'Error parsing sort_by query parameters');
+    throw new BadRequestException('errors.sort_by.invalid');
+  }
+
+  try {
+    filter = req.query.filter ? (JSON.parse(req.query.filter as string) as FilterInterface[]) : undefined;
+  } catch (err) {
+    logger.warn(err, 'Error parsing filter query parameters');
+    throw new BadRequestException('errors.filter.invalid');
+  }
+
+  const revision = dataset.publishedRevision;
+
+  if (!revision?.onlineCubeFilename) {
+    next(new NotFoundException('errors.no_revision'));
+    return;
+  }
+
+  try {
+    void createStreamingDuckDBPivotView(res, revision, req.language, view, xAxisColumn, pivotCols, sortBy, filter);
+  } catch (err) {
+    logger.error(err, 'An error occurred trying to download published dataset');
     next(new UnknownException());
   }
 };
