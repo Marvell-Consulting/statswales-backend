@@ -256,7 +256,7 @@ export const downloadPublishedDataset = async (req: Request, res: Response, next
 
 export const getPostgresPivotTable = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   /*
-  #swagger.hidden = true
+  #swagger.ignore = true
    */
   const dataset = await PublishedDatasetRepository.getById(res.locals.datasetId, withAll);
 
@@ -289,7 +289,7 @@ export const getPostgresPivotTable = async (req: Request, res: Response, next: N
   try {
     void createStreamingPostgresPivotView(res, revision, req.language, xAxis, yAxis, filter);
   } catch (err) {
-    logger.error(err, 'An error occurred trying to download published dataset');
+    logger.error(err, 'An error occurred trying to produce postgres pivot as JSON');
     next(new UnknownException());
   }
 };
