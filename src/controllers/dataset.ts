@@ -21,7 +21,7 @@ import { Locale } from '../enums/locale';
 import { logger } from '../utils/logger';
 import { UnknownException } from '../exceptions/unknown.exception';
 import { DatasetDTO } from '../dtos/dataset-dto';
-import { userGroupIdValidator, hasError, titleValidator } from '../validators';
+import { hasError, titleValidator, userGroupIdValidator } from '../validators';
 import { BadRequestException } from '../exceptions/bad-request.exception';
 import { ViewErrDTO } from '../dtos/view-dto';
 import { arrayValidator, dtoValidator } from '../validators/dto-validator';
@@ -63,6 +63,12 @@ import { TaskAction } from '../enums/task-action';
 import { TaskService } from '../services/task';
 import { createFrontendView } from '../services/consumer-view';
 import { UserGroup } from '../entities/user/user-group';
+import { bootstrapCubeBuildProcess } from '../utils/lookup-table-utils';
+import { CubeBuildStatus } from '../enums/cube-build-status';
+import { randomUUID } from 'node:crypto';
+import { CubeBuildType } from '../enums/cube-build-type';
+import { BuildLog } from '../entities/dataset/build-log';
+import { GlobalRole } from '../enums/global-role';
 
 export const listUserDatasets = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
@@ -218,6 +224,7 @@ export const createDataset = async (req: Request, res: Response, next: NextFunct
 export const uploadDataTable = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   const dataset: Dataset = res.locals.dataset;
   let tmpFile: TempFile;
+  const userId = req.user?.id;
 
   try {
     tmpFile = await uploadAvScan(req);
@@ -231,7 +238,7 @@ export const uploadDataTable = async (req: Request, res: Response, next: NextFun
   logger.debug(`File received: ${tmpFile.originalname}, mimetype: ${tmpFile.mimetype}, size: ${tmpFile.size} bytes`);
 
   try {
-    const updatedDataset = await req.datasetService.updateFactTable(dataset.id, tmpFile);
+    const updatedDataset = await req.datasetService.updateFactTable(dataset.id, tmpFile, userId);
     const dto = DatasetDTO.fromDataset(updatedDataset);
     res.status(201).json(dto);
     return;
@@ -409,6 +416,7 @@ export const updateSources = async (req: Request, res: Response, next: NextFunct
   const revision = dataset.draftRevision;
   const dataTable = revision?.dataTable;
   const sourceAssignment = req.body;
+  const userId = req.user?.id;
 
   if (!sourceAssignment) {
     next(new BadRequestException('Could not assign source types to import'));
@@ -472,7 +480,7 @@ export const updateSources = async (req: Request, res: Response, next: NextFunct
   try {
     await createDimensionsFromSourceAssignment(dataset, dataTable, validatedSourceAssignment);
     const updatedDataset = await DatasetRepository.getById(dataset.id);
-    await createAllCubeFiles(updatedDataset.id, revision.id);
+    await createAllCubeFiles(updatedDataset.id, revision.id, userId);
     res.json(DatasetDTO.fromDataset(updatedDataset));
   } catch (err) {
     logger.error(err, `An error occurred trying to process the source assignments: ${err}`);
@@ -605,3 +613,81 @@ export const datasetActionRequest = async (req: Request, res: Response, next: Ne
 
   res.status(204).end();
 };
+
+export const rebuildAll = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  const user = req.user as User;
+
+  if (!user.globalRoles.includes(GlobalRole.ServiceAdmin) || !user.globalRoles.includes(GlobalRole.Developer)) {
+    res.status(401).end();
+    return;
+  }
+
+  let revisionList: { id: string; dataset_id: string }[];
+  const queryRunner = dbManager.getCubeDataSource().createQueryRunner();
+  try {
+    revisionList = await queryRunner.query('SELECT id, dataset_id FROM public.revision;');
+  } catch (err) {
+    logger.error(err, 'Unable to get a complete list of datasets');
+    next(new UnknownException('errors.rebuild_all'));
+    return;
+  } finally {
+    void queryRunner.release();
+  }
+  res.status(202).end();
+  void rebuildDatasetList(revisionList, user);
+};
+
+export const rebuildDrafts = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  const user = req.user as User;
+
+  if (!user.globalRoles.includes(GlobalRole.ServiceAdmin) || !user.globalRoles.includes(GlobalRole.Developer)) {
+    res.status(401).end();
+    return;
+  }
+
+  let revisionList: { id: string; dataset_id: string }[];
+  const queryRunner = dbManager.getCubeDataSource().createQueryRunner();
+  try {
+    revisionList = await queryRunner.query('SELECT id, dataset_id FROM public.revision WHERE "published_at" IS NULL;');
+  } catch (err) {
+    logger.error(err, 'Unable to get a complete list of datasets');
+    next(new UnknownException('errors.rebuild_all'));
+    return;
+  } finally {
+    void queryRunner.release();
+  }
+  res.status(202).end();
+  void rebuildDatasetList(revisionList, user);
+};
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
+}
+
+async function rebuildDatasetList(revisionList: { id: string; dataset_id: string }[], user: User) {
+  const rebuildAllId = randomUUID().toString();
+  logger.info(`[${rebuildAllId}]: Starting process to rebuild all cubes`);
+
+  for (const rev of revisionList) {
+    await bootstrapCubeBuildProcess(rev.dataset_id, rev.id);
+    const buildID = randomUUID();
+    void createAllCubeFiles(rev.dataset_id, rev.id, user.id, CubeBuildType.FullCube, buildID);
+    const completeStatus = [CubeBuildStatus.Completed, CubeBuildStatus.Failed];
+    await sleep(10000);
+    let build: BuildLog;
+    try {
+      build = await BuildLog.findOneOrFail({ where: { id: buildID.toString() } });
+    } catch (err) {
+      logger.error(err, 'Failed to find build log entry');
+      continue;
+    }
+    while (!completeStatus.includes(build.status)) {
+      await sleep(30000);
+      await build.reload();
+    }
+    logger.info(`[${rebuildAllId}]: Cube for revision ${rev.id} has been build successfully.`);
+  }
+  logger.info(`[${rebuildAllId}]: Finished rebuild all cubes`);
+}

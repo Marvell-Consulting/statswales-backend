@@ -23,7 +23,9 @@ import {
   getAllFilesForDataset,
   updateDatasetGroup,
   getHistory,
-  datasetActionRequest
+  datasetActionRequest,
+  rebuildAll,
+  rebuildDrafts
 } from '../controllers/dataset';
 import { datasetAuth } from '../middleware/dataset-auth';
 import { fileStreaming } from '../middleware/file-streaming';
@@ -144,6 +146,16 @@ datasetRouter.get('/:dataset_id/history', getHistory);
 // POST /dataset/:dataset_id/:action
 // Request an action (publish, unpublish, archive, unarchive, withdraw) for this dataset
 datasetRouter.post('/:dataset_id/:action', jsonParser, datasetActionRequest);
+
+// POST /dataset/rebuild-all
+// Rebuilds all datasets must be developer or service admin
+// Returns 201 only or error
+datasetRouter.post('/rebuild/all', rebuildAll);
+
+// POST /dataset/rebuild-all
+// Rebuilds all datasets must be developer or service admin
+// Returns 201 only or error
+datasetRouter.post('/rebuild/published', rebuildDrafts);
 
 // apply revision child routes
 datasetRouter.use('/:dataset_id/revision', revisionRouter);

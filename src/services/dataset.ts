@@ -1,4 +1,4 @@
-import { FindOptionsRelations, In, JsonContains } from 'typeorm';
+import { In, JsonContains } from 'typeorm';
 
 import { format as pgformat } from '@scaleleap/pg-format';
 import { RevisionMetadataDTO } from '../dtos/revistion-metadata-dto';
@@ -46,8 +46,6 @@ import { StorageService } from '../interfaces/storage-service';
 import { TempFile } from '../interfaces/temp-file';
 import { dbManager } from '../db/database-manager';
 import { getFileService } from '../utils/get-file-service';
-import { DimensionType } from '../enums/dimension-type';
-import { DateExtractor } from '../extractors/date-extractor';
 
 export class DatasetService {
   lang: Locale;
@@ -94,7 +92,7 @@ export class DatasetService {
     return DatasetRepository.getById(dataset.id, {});
   }
 
-  async updateFactTable(datasetId: string, file: TempFile): Promise<Dataset> {
+  async updateFactTable(datasetId: string, file: TempFile, userId?: string): Promise<Dataset> {
     const dataset = await DatasetRepository.getById(datasetId, {
       factTable: true,
       draftRevision: { dataTable: true }
@@ -116,7 +114,7 @@ export class DatasetService {
 
     await RevisionRepository.replaceDataTable(dataset.draftRevision!, dataTable);
     await DatasetRepository.replaceFactTable(dataset, dataTable);
-    await createAllCubeFiles(datasetId, dataset.draftRevision!.id);
+    await createAllCubeFiles(datasetId, dataset.draftRevision!.id, userId);
 
     return DatasetRepository.getById(datasetId, {});
   }
@@ -296,34 +294,9 @@ export class DatasetService {
 
   async approvePublication(datasetId: string, revisionId: string, user: User): Promise<Dataset> {
     const start = performance.now();
-    await createAllCubeFiles(datasetId, revisionId);
-    const datasetRelations: FindOptionsRelations<Dataset> = {
-      dimensions: true
-    };
-    const datasetWithDimensions = await DatasetRepository.getById(datasetId, datasetRelations);
-    let startDate: Date | null = null;
-    let endDate: Date | null = null;
-    datasetWithDimensions.dimensions
-      .filter((dim) => dim.type === DimensionType.DatePeriod || dim.type === DimensionType.Date)
-      .forEach((dim) => {
-        const extractor = dim.extractor as DateExtractor;
-        if (extractor.lookupTableStart) {
-          if (!startDate) {
-            startDate = extractor.lookupTableStart;
-          } else if (extractor.lookupTableStart < startDate) {
-            startDate = extractor.lookupTableStart;
-          }
-        }
-        if (extractor.lookupTableEnd) {
-          if (!endDate) {
-            endDate = extractor.lookupTableEnd;
-          } else if (extractor.lookupTableEnd > endDate) {
-            endDate = extractor.lookupTableEnd;
-          }
-        }
-      });
+    await createAllCubeFiles(datasetId, revisionId, user.id);
     const scheduledRevision = await RevisionRepository.approvePublication(revisionId, `${revisionId}.duckdb`, user);
-    const approvedDataset = await DatasetRepository.publish(scheduledRevision, startDate, endDate);
+    const approvedDataset = await DatasetRepository.publish(scheduledRevision);
     const time = Math.round(performance.now() - start);
     logger.info(`Publication approved, time: ${time}ms`);
 
@@ -503,6 +476,6 @@ export class DatasetService {
 
     // create a new draft revision based on the now unpublished revision
     dataset = await this.createRevision(datasetId, user);
-    await createAllCubeFiles(dataset.id, dataset.draftRevision!.id);
+    await createAllCubeFiles(dataset.id, dataset.draftRevision!.id, user.id);
   }
 }

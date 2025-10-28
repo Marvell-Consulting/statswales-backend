@@ -64,8 +64,11 @@ export class DatasetDTO {
       dto.fact_table = dataset.factTable.map((column) => FactTableColumnDto.fromFactTableColumn(column));
     }
 
-    dto.start_date = dataset.startDate;
-    dto.end_date = dataset.endDate;
+    if (dataset.endRevision) dto.start_date = dataset.endRevision.startDate;
+    else if (dataset.startDate) dto.start_date = dataset.startDate;
+
+    if (dataset.endRevision) dto.end_date = dataset.endRevision.endDate;
+    else if (dataset.endDate) dto.end_date = dataset.endDate;
 
     dto.user_group_id = dataset.userGroupId;
 

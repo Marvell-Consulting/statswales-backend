@@ -47,9 +47,10 @@ export const CORE_VIEW_NAME = 'core_view';
 export const createAllCubeFiles = async (
   datasetId: string,
   buildRevisionId: string,
+  userId?: string,
   buildType = CubeBuildType.FullCube,
   buildId = crypto.randomUUID()
-): Promise<void> => {
+): Promise<BuildLog> => {
   // const datasetRelations: FindOptionsRelations<Dataset> = {
   //   factTable: true,
   //   dimensions: { metadata: true, lookupTable: true },
@@ -93,7 +94,7 @@ export const createAllCubeFiles = async (
 
   let build: BuildLog;
   try {
-    build = await BuildLog.startBuild(buildRevision, buildType, buildId);
+    build = await BuildLog.startBuild(buildRevision, buildType, userId, buildId);
   } catch (err) {
     logger.error(err, 'Failed to create build log entry');
     throw err;
@@ -130,11 +131,9 @@ export const createAllCubeFiles = async (
   }
 
   if (buildType === CubeBuildType.ValidationCube) {
+    build.completeBuild(CubeBuildStatus.Completed);
     logger.debug('Validation cube build complete');
-    build.status = CubeBuildStatus.Completed;
-    build.completedAt = new Date();
-    await build.save();
-    return;
+    return build.save();
   }
 
   build.status = CubeBuildStatus.SchemaRename;
@@ -150,10 +149,11 @@ export const createAllCubeFiles = async (
     logger.debug(`Renaming ${build.id} to cube rev ${buildRevision.id}`);
     await createRenameSchemaRunner.query(renameStatements.join('\n'));
   } catch (err) {
-    build.status = CubeBuildStatus.Failed;
-    build.buildScript = [build.buildScript, ...renameStatements].join('\n');
-    build.errors = JSON.stringify(err);
-    build.completedAt = new Date();
+    build.completeBuild(
+      CubeBuildStatus.Failed,
+      [build.buildScript, ...renameStatements].join('\n'),
+      JSON.stringify(err)
+    );
     await build.save();
     logger.error(err, 'Failed to create cube in Postgres');
     throw err;
@@ -165,7 +165,8 @@ export const createAllCubeFiles = async (
   await build.save();
   // don't wait for this, can happen in the background so we can send the response earlier
   logger.debug('Running async process...');
-  void createMaterialisedView(buildRevisionId, dataset, build, cubeBuild, cubeBuildConfig);
+  void createMaterialisedView(buildRevisionId, dataset, build.id, cubeBuild, cubeBuildConfig);
+  return build;
 };
 
 // This is the core cube builder
@@ -265,10 +266,7 @@ async function createBasePostgresCube(
       logger.trace(`Running query:\n\n${block.statements.join('\n')}\n\n`);
       await cubeDB.query(block.statements.join('\n'));
     } catch (err) {
-      build.errors = JSON.stringify(err);
-      build.buildScript = attemptedBuildScript.join('\n');
-      build.status = CubeBuildStatus.Failed;
-      build.completedAt = new Date();
+      build.completeBuild(CubeBuildStatus.Failed, attemptedBuildScript.join('\n'), JSON.stringify(err));
       await build.save();
       if (block.buildStage === BuildStage.BaseTables) {
         logger.fatal(err, `Unable to create base tables for build ${build.id}, has the database failed?`);
@@ -311,12 +309,13 @@ async function createBasePostgresCube(
 async function createMaterialisedView(
   revisionId: string,
   dataset: Dataset,
-  build: BuildLog,
+  buildId: string,
   cubeBuilder: CubeBuilder,
   viewConfig: CubeViewBuilder[]
 ): Promise<void> {
   logger.info(`Creating default views...`);
   const viewCreation = performance.now();
+  const build = await BuildLog.findOneByOrFail({ id: buildId });
 
   const statements: string[] = ['START TRANSACTION;'];
 
@@ -392,27 +391,14 @@ async function createMaterialisedView(
     }
     performanceReporting(Math.round(performance.now() - viewCreation), 3000, 'Setting up the materialized views');
     logger.error(error, 'Something went wrong trying to create the materialized views in the cube.');
-    build.status = CubeBuildStatus.Failed;
-    build.completedAt = new Date();
-    build.errors = JSON.stringify(error);
-    build.buildScript = fullBuildScriptArr.join('\n');
-    try {
-      await build.save();
-    } catch (err) {
-      logger.error(err, 'Unable to save build log on materialization failure');
-    }
+    build.completeBuild(CubeBuildStatus.Failed, fullBuildScriptArr.join('\n'), JSON.stringify(error));
+    await build.save();
   } finally {
     void cubeDB.release();
   }
-  build.status = CubeBuildStatus.Completed;
-  build.completedAt = new Date();
-  build.buildScript = fullBuildScriptArr.join('\n');
-  try {
-    await build.save();
-  } catch (err) {
-    logger.error(err, 'Unable to save build log on materialization completion');
-  }
 
+  build.completeBuild(CubeBuildStatus.Completed, fullBuildScriptArr.join('\n'));
+  await build.save();
   performanceReporting(Math.round(performance.now() - viewCreation), 3000, 'Setting up the materialized views');
 }
 

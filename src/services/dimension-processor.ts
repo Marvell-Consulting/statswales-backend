@@ -34,6 +34,21 @@ import { stringify } from 'csv-stringify/sync';
 import { FileType } from '../enums/file-type';
 import { previewGenerator, sampleSize } from '../utils/preview-generator';
 
+export const DateDimensionTypes = [
+  DimensionType.DatePeriod,
+  DimensionType.Date,
+  DimensionType.TimePeriod,
+  DimensionType.Time
+];
+
+export const LookupTableTypes = [
+  DimensionType.DatePeriod,
+  DimensionType.Date,
+  DimensionType.TimePeriod,
+  DimensionType.Time,
+  DimensionType.LookupTable
+];
+
 export interface ValidatedSourceAssignment {
   dataValues: SourceAssignmentDTO | null;
   noteCodes: SourceAssignmentDTO | null;
@@ -781,6 +796,20 @@ export const createAndValidateDateDimension = async (
         });
     }
   }
+
+  if (!revision.startDate) {
+    revision.startDate = extractor.lookupTableStart;
+  } else if (revision.startDate < extractor.lookupTableStart) {
+    revision.startDate = extractor.lookupTableStart;
+  }
+
+  if (!revision.endDate) {
+    revision.endDate = extractor.lookupTableEnd;
+  } else if (revision.endDate > extractor.lookupTableEnd) {
+    revision.endDate = extractor.lookupTableEnd;
+  }
+
+  await revision.save();
 
   const validationErrors = await validateDateDimension(dataset, revision, dimension, factTableColumn, actionId);
   if (validationErrors) {
