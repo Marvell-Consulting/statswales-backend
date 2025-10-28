@@ -608,5 +608,25 @@
     "id": "957edc2c-0234-4a04-a15d-758da2105c49",
     "language": "en-gb",
     "name": "Local Authorities"
+  },
+  {
+    "id": "17d29427-af7e-4366-ba6b-15b9bf93621e",
+    "language": "cy-gb",
+    "name": "Cyngor Adeiladu Tai Cenedlaethol (CATC)"
+  },
+  {
+    "id": "17d29427-af7e-4366-ba6b-15b9bf93621e",
+    "language": "en-gb",
+    "name": "National House Building Council (NHBC)"
+  },
+  {
+    "id": "0333a8dc-d7b0-49ff-bb8e-93f2ec41aaf0",
+    "language": "cy-gb",
+    "name": "Y Weinyddiaeth Tai, Cymunedau a Llywodraethau Lleol"
+  },
+  {
+    "id": "0333a8dc-d7b0-49ff-bb8e-93f2ec41aaf0",
+    "language": "en-gb",
+    "name": "Ministry for Housing, Communities and Local Government"
   }
 ]
