@@ -26,8 +26,8 @@ import { getFileImportAndSaveToDisk, loadFileIntoLookupTablesSchema } from './fi
 import { LookupTableExtractor } from '../extractors/lookup-table-extractor';
 import { Revision } from '../entities/dataset/revision';
 import { Dimension } from '../entities/dataset/dimension';
-import { DateDimensionTypes, LookupTableTypes } from '../services/dimension-processor';
 import { revisionStartAndEndDateFinder } from './revision';
+import { DateDimensionTypes, LookupTableTypes } from '../enums/dimension-type';
 
 export function convertDataTableToLookupTable(dataTable: DataTable): LookupTable {
   const lookupTable = new LookupTable();

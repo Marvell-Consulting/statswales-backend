@@ -23,9 +23,7 @@ import {
   getAllFilesForDataset,
   updateDatasetGroup,
   getHistory,
-  datasetActionRequest,
-  rebuildAll,
-  rebuildDrafts
+  datasetActionRequest
 } from '../controllers/dataset';
 import { datasetAuth } from '../middleware/dataset-auth';
 import { fileStreaming } from '../middleware/file-streaming';
@@ -46,16 +44,6 @@ datasetRouter.get('/', listUserDatasets);
 // Creates a new dataset with a title
 // Returns a DatasetDTO object
 datasetRouter.post('/', jsonParser, createDataset);
-
-// POST /dataset/rebuild/all
-// Rebuilds all datasets must be developer or service admin
-// Returns 201 only or error
-datasetRouter.post('/rebuild/all', rebuildAll);
-
-// POST /dataset/rebuild/published
-// Rebuilds all draft (unpublished) revisions must be developer or service admin
-// Returns 201 only or error
-datasetRouter.post('/rebuild/published', rebuildDrafts);
 
 // ****** DATASET AUTHORISATION MIDDLEWARE ****** //
 // applies auth check for dataset for the current user

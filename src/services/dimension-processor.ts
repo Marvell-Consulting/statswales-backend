@@ -34,15 +34,6 @@ import { stringify } from 'csv-stringify/sync';
 import { FileType } from '../enums/file-type';
 import { previewGenerator, sampleSize } from '../utils/preview-generator';
 
-export const DateDimensionTypes = [
-  DimensionType.DatePeriod,
-  DimensionType.Date,
-  DimensionType.TimePeriod,
-  DimensionType.Time
-];
-
-export const LookupTableTypes = [...DateDimensionTypes, DimensionType.LookupTable];
-
 export interface ValidatedSourceAssignment {
   dataValues: SourceAssignmentDTO | null;
   noteCodes: SourceAssignmentDTO | null;

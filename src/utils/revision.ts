@@ -1,8 +1,8 @@
 import { ConsumerRevisionDTO } from '../dtos/consumer-revision-dto';
 import { Revision } from '../entities/dataset/revision';
 import { Dimension } from '../entities/dataset/dimension';
-import { DateDimensionTypes } from '../services/dimension-processor';
 import { DateExtractor } from '../extractors/date-extractor';
+import { DateDimensionTypes } from '../enums/dimension-type';
 
 export const isPublished = (rev: Revision | ConsumerRevisionDTO): boolean => {
   const now = new Date();

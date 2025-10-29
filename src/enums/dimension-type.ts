@@ -10,3 +10,12 @@ export enum DimensionType {
   Time = 'time',
   NoteCodes = 'note_codes'
 }
+
+export const DateDimensionTypes = [
+  DimensionType.DatePeriod,
+  DimensionType.Date,
+  DimensionType.TimePeriod,
+  DimensionType.Time
+];
+
+export const LookupTableTypes = [...DateDimensionTypes, DimensionType.LookupTable];
