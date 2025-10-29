@@ -227,7 +227,7 @@ async function createBasePostgresCube(
     );
     cubeBuilder.transactionBlocks.push(...transactionBlocks);
     cubeBuilder.coreViewSQL = coreViewSQLMap;
-  } else {
+  } else if (buildType === CubeBuildType.BaseCube) {
     const { transactionBlocks, coreViewSQL } = createCubeNoSources(
       build.id,
       buildRevision,
@@ -236,6 +236,8 @@ async function createBasePostgresCube(
     );
     cubeBuilder.transactionBlocks.push(...transactionBlocks);
     cubeBuilder.coreViewSQL = coreViewSQL;
+  } else {
+    throw new Error(`Unknown cube build type ${buildType}`);
   }
 
   const attemptedBuildScript: string[] = [];

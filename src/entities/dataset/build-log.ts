@@ -38,20 +38,24 @@ export class BuildLog extends BaseEntity {
   @Column({ type: 'text', nullable: true, name: 'errors' })
   errors: string | null;
 
-  @ManyToOne(() => Revision, (revision) => revision.builds, { onDelete: 'CASCADE', orphanedRowAction: 'delete' })
+  @ManyToOne(() => Revision, (revision) => revision.builds, {
+    onDelete: 'CASCADE',
+    orphanedRowAction: 'delete',
+    nullable: true
+  })
   @JoinColumn({ name: 'revision_id', foreignKeyConstraintName: 'FK_revision_build_log_id' })
-  revision: Revision;
+  revision: Revision | null;
 
   public static async startBuild(
-    revision: Revision,
+    revision: Revision | null,
     type: CubeBuildType,
     userId?: string,
     buildId?: string
   ): Promise<BuildLog> {
     const build = new BuildLog();
+    if (revision) build.revision = revision;
     if (buildId) build.id = buildId;
     if (userId) build.userId = userId;
-    build.revision = revision;
     build.type = type;
     build.status = CubeBuildStatus.Queued;
     build.startedAt = new Date();

@@ -69,6 +69,7 @@ import { randomUUID } from 'node:crypto';
 import { CubeBuildType } from '../enums/cube-build-type';
 import { BuildLog } from '../entities/dataset/build-log';
 import { GlobalRole } from '../enums/global-role';
+import { Not } from 'typeorm';
 
 export const listUserDatasets = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
@@ -622,6 +623,24 @@ export const rebuildAll = async (req: Request, res: Response, next: NextFunction
     return;
   }
 
+  const activeBuilds = await BuildLog.find({
+    where: [
+      { type: CubeBuildType.AllCubes },
+      { type: CubeBuildType.DraftCubes },
+      { status: Not(CubeBuildStatus.Completed) }
+    ]
+  });
+  if (activeBuilds.length > 1) {
+    logger.info(`There is already an active rebuild process with if ${activeBuilds[0].id}.`);
+    res
+      .status(409)
+      .json({
+        build_id: activeBuilds[0].id,
+        message: 'There is already an active rebuild process. Track with the build_id.'
+      })
+      .end();
+  }
+
   let revisionList: { id: string; dataset_id: string }[];
   const queryRunner = dbManager.getCubeDataSource().createQueryRunner();
   try {
@@ -634,7 +653,7 @@ export const rebuildAll = async (req: Request, res: Response, next: NextFunction
     void queryRunner.release();
   }
   res.status(202).end();
-  void rebuildDatasetList(revisionList, user);
+  void rebuildDatasetList('all', revisionList, user);
 };
 
 export const rebuildDrafts = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
@@ -645,10 +664,28 @@ export const rebuildDrafts = async (req: Request, res: Response, next: NextFunct
     return;
   }
 
+  const activeBuilds = await BuildLog.find({
+    where: [
+      { type: CubeBuildType.AllCubes },
+      { type: CubeBuildType.DraftCubes },
+      { status: Not(CubeBuildStatus.Completed) }
+    ]
+  });
+  if (activeBuilds.length > 1) {
+    logger.info(`There is already an active rebuild process with if ${activeBuilds[0].id}.`);
+    res
+      .status(409)
+      .json({
+        build_id: activeBuilds[0].id,
+        message: 'There is already an active rebuild process. Track with the build_id.'
+      })
+      .end();
+  }
+
   let revisionList: { id: string; dataset_id: string }[];
   const queryRunner = dbManager.getCubeDataSource().createQueryRunner();
   try {
-    revisionList = await queryRunner.query('SELECT id, dataset_id FROM public.revision WHERE "published_at" IS NULL;');
+    revisionList = await queryRunner.query('SELECT id, dataset_id FROM public.revision WHERE "publish_at" IS NULL;');
   } catch (err) {
     logger.error(err, 'Unable to get a complete list of datasets');
     next(new UnknownException('errors.rebuild_all'));
@@ -657,7 +694,7 @@ export const rebuildDrafts = async (req: Request, res: Response, next: NextFunct
     void queryRunner.release();
   }
   res.status(202).end();
-  void rebuildDatasetList(revisionList, user);
+  void rebuildDatasetList('draft', revisionList, user);
 };
 
 function sleep(ms: number): Promise<void> {
@@ -666,9 +703,20 @@ function sleep(ms: number): Promise<void> {
   });
 }
 
-async function rebuildDatasetList(revisionList: { id: string; dataset_id: string }[], user: User): Promise<void> {
-  const rebuildAllId = randomUUID().toString();
-  logger.info(`[${rebuildAllId}]: Starting process to rebuild all cubes`);
+async function rebuildDatasetList(
+  buildType: 'draft' | 'all',
+  revisionList: { id: string; dataset_id: string }[],
+  user: User
+): Promise<void> {
+  let buildTypeStr: string = buildType;
+  if (buildType === 'draft') {
+    buildTypeStr = 'all draft';
+  }
+
+  const buildLogType = buildType === 'all' ? CubeBuildType.AllCubes : CubeBuildType.DraftCubes;
+
+  const build = await BuildLog.startBuild(null, buildLogType, user.id);
+  logger.info(`[${build.id}]: Starting process to rebuild ${buildTypeStr} cubes`);
 
   for (const rev of revisionList) {
     await bootstrapCubeBuildProcess(rev.dataset_id, rev.id);
@@ -687,7 +735,8 @@ async function rebuildDatasetList(revisionList: { id: string; dataset_id: string
       await sleep(30000);
       await build.reload();
     }
-    logger.info(`[${rebuildAllId}]: Cube for revision ${rev.id} has been built successfully.`);
+    logger.info(`[${build.id}]: Cube for revision ${rev.id} has been rebuilt successfully.`);
   }
-  logger.info(`[${rebuildAllId}]: Finished rebuild all cubes`);
+  build.completeBuild(CubeBuildStatus.Completed);
+  logger.info(`[${build.id}]: Finished rebuild of ${buildTypeStr} cubes`);
 }

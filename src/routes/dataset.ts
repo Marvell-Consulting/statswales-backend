@@ -47,6 +47,16 @@ datasetRouter.get('/', listUserDatasets);
 // Returns a DatasetDTO object
 datasetRouter.post('/', jsonParser, createDataset);
 
+// POST /dataset/rebuild/all
+// Rebuilds all datasets must be developer or service admin
+// Returns 201 only or error
+datasetRouter.post('/rebuild/all', rebuildAll);
+
+// POST /dataset/rebuild/published
+// Rebuilds all draft (unpublished) revisions must be developer or service admin
+// Returns 201 only or error
+datasetRouter.post('/rebuild/published', rebuildDrafts);
+
 // ****** DATASET AUTHORISATION MIDDLEWARE ****** //
 // applies auth check for dataset for the current user
 datasetRouter.use('/:dataset_id', datasetAuth);
@@ -146,16 +156,6 @@ datasetRouter.get('/:dataset_id/history', getHistory);
 // POST /dataset/:dataset_id/:action
 // Request an action (publish, unpublish, archive, unarchive, withdraw) for this dataset
 datasetRouter.post('/:dataset_id/:action', jsonParser, datasetActionRequest);
-
-// POST /dataset/rebuild-all
-// Rebuilds all datasets must be developer or service admin
-// Returns 201 only or error
-datasetRouter.post('/rebuild/all', rebuildAll);
-
-// POST /dataset/rebuild/published
-// Rebuilds all draft (unpublished) revisions must be developer or service admin
-// Returns 201 only or error
-datasetRouter.post('/rebuild/published', rebuildDrafts);
 
 // apply revision child routes
 datasetRouter.use('/:dataset_id/revision', revisionRouter);
