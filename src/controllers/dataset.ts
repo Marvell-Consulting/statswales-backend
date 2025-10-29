@@ -617,7 +617,7 @@ export const datasetActionRequest = async (req: Request, res: Response, next: Ne
 export const rebuildAll = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   const user = req.user as User;
 
-  if (!user.globalRoles.includes(GlobalRole.ServiceAdmin) || !user.globalRoles.includes(GlobalRole.Developer)) {
+  if (!user.globalRoles.includes(GlobalRole.ServiceAdmin) && !user.globalRoles.includes(GlobalRole.Developer)) {
     res.status(401).end();
     return;
   }
@@ -640,7 +640,7 @@ export const rebuildAll = async (req: Request, res: Response, next: NextFunction
 export const rebuildDrafts = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   const user = req.user as User;
 
-  if (!user.globalRoles.includes(GlobalRole.ServiceAdmin) || !user.globalRoles.includes(GlobalRole.Developer)) {
+  if (!user.globalRoles.includes(GlobalRole.ServiceAdmin) && !user.globalRoles.includes(GlobalRole.Developer)) {
     res.status(401).end();
     return;
   }
@@ -666,7 +666,7 @@ function sleep(ms: number): Promise<void> {
   });
 }
 
-async function rebuildDatasetList(revisionList: { id: string; dataset_id: string }[], user: User) {
+async function rebuildDatasetList(revisionList: { id: string; dataset_id: string }[], user: User): Promise<void> {
   const rebuildAllId = randomUUID().toString();
   logger.info(`[${rebuildAllId}]: Starting process to rebuild all cubes`);
 

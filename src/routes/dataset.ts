@@ -152,8 +152,8 @@ datasetRouter.post('/:dataset_id/:action', jsonParser, datasetActionRequest);
 // Returns 201 only or error
 datasetRouter.post('/rebuild/all', rebuildAll);
 
-// POST /dataset/rebuild-all
-// Rebuilds all datasets must be developer or service admin
+// POST /dataset/rebuild/published
+// Rebuilds all draft (unpublished) revisions must be developer or service admin
 // Returns 201 only or error
 datasetRouter.post('/rebuild/published', rebuildDrafts);
 

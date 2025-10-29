@@ -475,7 +475,7 @@ export const bootstrapCubeBuildProcess = async (datasetId: string, revisionId: s
       const extractor = dimension.extractor as DateExtractor;
       if (!extractor.lookupTableStart) rebuildLookup = true;
     }
-    if (!loadedLookupTables.some(t => t.table_name === dimension.lookupTable!.id)) rebuildLookup = true;
+    if (!loadedLookupTables.some((t) => t.table_name === dimension.lookupTable!.id)) rebuildLookup = true;
     if (!rebuildLookup) continue;
     logger.warn('Some lookup tables appear to be missing, rebuilding for revision lookup tables');
 
