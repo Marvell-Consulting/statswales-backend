@@ -687,7 +687,7 @@ async function rebuildDatasetList(revisionList: { id: string; dataset_id: string
       await sleep(30000);
       await build.reload();
     }
-    logger.info(`[${rebuildAllId}]: Cube for revision ${rev.id} has been build successfully.`);
+    logger.info(`[${rebuildAllId}]: Cube for revision ${rev.id} has been built successfully.`);
   }
   logger.info(`[${rebuildAllId}]: Finished rebuild all cubes`);
 }
