@@ -41,13 +41,7 @@ export const DateDimensionTypes = [
   DimensionType.Time
 ];
 
-export const LookupTableTypes = [
-  DimensionType.DatePeriod,
-  DimensionType.Date,
-  DimensionType.TimePeriod,
-  DimensionType.Time,
-  DimensionType.LookupTable
-];
+export const LookupTableTypes = [...DateDimensionTypes, DimensionType.LookupTable];
 
 export interface ValidatedSourceAssignment {
   dataValues: SourceAssignmentDTO | null;
