@@ -3,6 +3,8 @@ import { Revision } from './revision';
 import { CubeBuildStatus } from '../../enums/cube-build-status';
 import { CubeBuildType } from '../../enums/cube-build-type';
 
+export const CompleteStatus = [CubeBuildStatus.Completed, CubeBuildStatus.Failed];
+
 @Entity({ name: 'build_log', orderBy: { startedAt: 'DESC' } })
 export class BuildLog extends BaseEntity {
   @PrimaryGeneratedColumn('uuid', { primaryKeyConstraintName: 'PK_build_log_id' })

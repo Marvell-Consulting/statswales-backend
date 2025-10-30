@@ -67,7 +67,7 @@ import { bootstrapCubeBuildProcess } from '../utils/lookup-table-utils';
 import { CubeBuildStatus } from '../enums/cube-build-status';
 import { randomUUID } from 'node:crypto';
 import { CubeBuildType } from '../enums/cube-build-type';
-import { BuildLog } from '../entities/dataset/build-log';
+import { BuildLog, CompleteStatus } from '../entities/dataset/build-log';
 import { sleep } from '../utils/sleep';
 import { RevisionList, RevisionRepository } from '../repositories/revision';
 import { BuildLogRepository } from '../repositories/build-log';
@@ -629,6 +629,7 @@ export const rebuildAll = async (req: Request, res: Response): Promise<void> => 
         message: 'There is already an active rebuild process. Track with the build_id.'
       })
       .end();
+    return;
   }
 
   res.status(202).end();
@@ -648,6 +649,7 @@ export const rebuildDrafts = async (req: Request, res: Response): Promise<void> 
         message: 'There is already an active rebuild process. Track with the build_id.'
       })
       .end();
+    return;
   }
 
   res.status(202).end();
@@ -670,33 +672,45 @@ async function rebuildDatasetList(buildType: CubeBuildType, revisionList: Revisi
   }[] = [];
 
   for (const rev of revisionList) {
-    const buildID = randomUUID();
+    const buildId = randomUUID();
     try {
       await bootstrapCubeBuildProcess(rev.dataset_id, rev.id);
-      await createAllCubeFiles(rev.dataset_id, rev.id, user.id, CubeBuildType.FullCube, buildID);
     } catch (err) {
       logger.warn(err, `[${buildLogEntry.id}]: Failed to rebuild cube for revision ${rev.id}`);
       failedBuilds.push({
-        buildId: buildID.toString(),
+        buildId: buildId.toString(),
         revisionId: rev.id,
         error: JSON.stringify(err)
       });
       continue;
     }
-    const completeStatus = [CubeBuildStatus.Completed, CubeBuildStatus.Failed];
-    await sleep(10000);
+
+    void createAllCubeFiles(rev.dataset_id, rev.id, user.id, CubeBuildType.FullCube, buildId).catch((err: Error) => {
+      logger.warn(err, 'Cube builder threw an error while trying to rebuild the cube');
+    });
+
+    await sleep(5000);
     let build: BuildLog;
     try {
-      build = await BuildLog.findOneOrFail({ where: { id: buildID.toString() } });
+      build = await BuildLog.findOneOrFail({ where: { id: buildId.toString() } });
     } catch (err) {
       logger.error(err, 'Failed to find build log entry');
       continue;
     }
-    while (!completeStatus.includes(build.status)) {
+    while (!CompleteStatus.includes(build.status)) {
       await sleep(10000);
       await build.reload();
     }
-    logger.info(`[${buildLogEntry}]: Cube for revision ${rev.id} has been rebuilt successfully.`);
+    if (build.status === CubeBuildStatus.Failed) {
+      logger.warn(`[${buildLogEntry}]: Cube for revision ${rev.id} has been failed to rebuild.`);
+      failedBuilds.push({
+        buildId,
+        revisionId: rev.id,
+        error: JSON.stringify(build.errors)
+      });
+    } else {
+      logger.info(`[${buildLogEntry.id}]: Cube for revision ${rev.id} has been rebuilt successfully.`);
+    }
   }
   if (failedBuilds.length > 0) buildLogEntry.errors = JSON.stringify(failedBuilds, null, 2);
   buildLogEntry.completeBuild(CubeBuildStatus.Completed);

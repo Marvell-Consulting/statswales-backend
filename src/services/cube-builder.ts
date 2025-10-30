@@ -50,7 +50,7 @@ export const createAllCubeFiles = async (
   userId?: string,
   buildType = CubeBuildType.FullCube,
   buildId = crypto.randomUUID()
-): Promise<BuildLog> => {
+): Promise<void> => {
   // const datasetRelations: FindOptionsRelations<Dataset> = {
   //   factTable: true,
   //   dimensions: { metadata: true, lookupTable: true },
@@ -76,8 +76,12 @@ export const createAllCubeFiles = async (
     throw new CubeValidationException('Failed to find buildRevision in dataset.');
   }
 
+  const build = await BuildLog.startBuild(buildRevision, buildType, userId, buildId);
+
   if (!buildRevision.dataTable) {
     logger.error('Revision is incomplete.  Revision has no data table');
+    build.completeBuild(CubeBuildStatus.Failed, undefined, 'No data table found in revision');
+    await build.save();
     throw new CubeValidationException('Revision is incomplete.');
   }
 
@@ -97,20 +101,18 @@ export const createAllCubeFiles = async (
   });
   logger.debug(`Build type = ${buildType}`);
 
-  let build: BuildLog;
-  try {
-    build = await BuildLog.startBuild(buildRevision, buildType, userId, buildId);
-  } catch (err) {
-    logger.error(err, 'Failed to create build log entry');
-    throw err;
-  }
-
   const createBuildSchemaRunner = dbManager.getCubeDataSource().createQueryRunner();
   try {
     logger.info(`Creating schema for cube ${build.id}`);
     await createBuildSchemaRunner.query(pgformat(`CREATE SCHEMA IF NOT EXISTS %I;`, build.id));
   } catch (error) {
     logger.error(error, 'Something went wrong trying to create the cube schema');
+    const buildErr = {
+      message: 'Something went wrong trying to create the cube schema',
+      error: error
+    };
+    build.completeBuild(CubeBuildStatus.Failed, undefined, JSON.stringify(buildErr));
+    await build.save();
     throw error;
   } finally {
     void createBuildSchemaRunner.release();
@@ -138,7 +140,6 @@ export const createAllCubeFiles = async (
   if (buildType === CubeBuildType.ValidationCube) {
     build.completeBuild(CubeBuildStatus.Completed);
     logger.debug('Validation cube build complete');
-    return build.save();
   }
 
   build.status = CubeBuildStatus.SchemaRename;
@@ -171,7 +172,6 @@ export const createAllCubeFiles = async (
   // don't wait for this, can happen in the background so we can send the response earlier
   logger.debug('Running async process...');
   void createMaterialisedView(buildRevisionId, dataset, build.id, cubeBuild, cubeBuildConfig);
-  return build;
 };
 
 // This is the core cube builder
