@@ -400,8 +400,9 @@ async function checkFormatColumn(cubeDB: QueryRunner, schemaId: string, lookupTa
       Object.values(DataValueFormat)
         .map((format) => format.toString().toLowerCase())
         .indexOf(format.toLowerCase()) === -1
-    )
+    ) {
       unmatchedFormats.push(format);
+    }
   }
   return unmatchedFormats;
 }
@@ -474,8 +475,9 @@ export const bootstrapCubeBuildProcess = async (datasetId: string, revisionId: s
       const extractor = dimension.extractor as DateExtractor;
       if (!extractor.lookupTableStart) rebuildLookup = true;
     }
-    if (!dimension.lookupTable) rebuildLookup = true;
-    else {
+    if (!dimension.lookupTable) {
+      rebuildLookup = true;
+    } else {
       const lookupId = dimension.lookupTable.id || '';
       if (!loadedLookupTables.some((t) => t.table_name === lookupId)) rebuildLookup = true;
     }

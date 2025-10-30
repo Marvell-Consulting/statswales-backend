@@ -42,24 +42,27 @@ export const factTableValidatorFromSource = async (
   }
   const baseFactTable = dataset.factTable.sort((colA, colB) => colA.columnIndex - colB.columnIndex);
   const factTableDefinition: FactTableDefinition[] = baseFactTable.map((col) => {
-    if (validatedSourceAssignment.dataValues?.column_name === col.columnName)
+    if (validatedSourceAssignment.dataValues?.column_name === col.columnName) {
       return {
         factTableColumn: col,
         factTableColumnType: FactTableColumnType.DataValues,
         sourceAssignment: validatedSourceAssignment.dataValues
       };
-    if (validatedSourceAssignment.measure?.column_name === col.columnName)
+    }
+    if (validatedSourceAssignment.measure?.column_name === col.columnName) {
       return {
         factTableColumn: col,
         factTableColumnType: FactTableColumnType.Measure,
         sourceAssignment: validatedSourceAssignment.measure
       };
-    if (validatedSourceAssignment.noteCodes?.column_name === col.columnName)
+    }
+    if (validatedSourceAssignment.noteCodes?.column_name === col.columnName) {
       return {
         factTableColumn: col,
         factTableColumnType: FactTableColumnType.NoteCodes,
         sourceAssignment: validatedSourceAssignment.noteCodes
       };
+    }
     for (const sourceAssignment of validatedSourceAssignment.dimensions) {
       if (sourceAssignment.column_name === col.columnName) {
         return {

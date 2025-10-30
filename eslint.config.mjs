@@ -27,6 +27,7 @@ const config = defineConfig([
     rules: {
       'no-console': 'error',
       'line-comment-position': 'off',
+      'curly': ['error', 'multi-line', 'consistent'],
       'no-warning-comments': 'off', // allow todo comments
       '@typescript-eslint/no-explicit-any': 'error',
       '@typescript-eslint/member-ordering': 'off',

@@ -126,10 +126,11 @@ function createExtractor(
     const descriptionStr = t('lookup_column_headers.description', { lng: tableLanguage });
     const langStr = t('lookup_column_headers.lang', { lng: tableLanguage });
     let notesColumns: ColumnDescriptor[] | undefined;
-    if (protoLookupTable.dataTableDescriptions.filter((info) => info.columnName.toLowerCase().startsWith(noteStr)))
+    if (protoLookupTable.dataTableDescriptions.filter((info) => info.columnName.toLowerCase().startsWith(noteStr))) {
       notesColumns = protoLookupTable.dataTableDescriptions
         .filter((info) => info.columnName.toLowerCase().startsWith(noteStr))
         .map((info) => columnIdentification(info));
+    }
     const extractor = {
       tableLanguage,
       sortColumn: protoLookupTable.dataTableDescriptions.find((info) =>
@@ -746,8 +747,9 @@ export const getMeasurePreview = async (
     // If there's a revision task for the measure empty the measure table to preview the raw column
     if (revisionTasks && revisionTasks.measure) measure.measureTable = [];
 
-    if (measure.measureTable && measure.measureTable.length > 0)
+    if (measure.measureTable && measure.measureTable.length > 0) {
       return await getMeasurePreviewWithExtractor(dataset, measure, dataset.draftRevision!, lang);
+    }
 
     return await getMeasurePreviewWithoutExtractor(dataset, measure, dataset.draftRevision!);
   } catch (error) {
