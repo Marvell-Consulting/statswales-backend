@@ -32,13 +32,15 @@ import { validateLookupTableReferenceValues } from '../utils/lookup-table-utils'
 import { MeasureRow } from '../entities/dataset/measure-row';
 import { DateExtractor } from '../extractors/date-extractor';
 import { config } from '../config';
+import { revisionStartAndEndDateFinder } from '../utils/revision';
 
 export async function attachUpdateDataTableToRevision(
   datasetId: string,
   revision: Revision,
   dataTable: DataTable,
   updateAction: DataTableAction,
-  columnMatcher?: ColumnMatch[]
+  columnMatcher?: ColumnMatch[],
+  userId?: string
 ): Promise<void> {
   logger.debug('Attaching update data table to revision and validating cube');
   const start = performance.now();
@@ -110,7 +112,7 @@ export async function attachUpdateDataTableToRevision(
   const buildId = crypto.randomUUID();
 
   try {
-    await createAllCubeFiles(dataset.id, revision.id, CubeBuildType.ValidationCube, buildId);
+    await createAllCubeFiles(dataset.id, revision.id, userId, CubeBuildType.ValidationCube, buildId);
   } catch (err) {
     const error = err as CubeValidationException;
     const end = performance.now();
@@ -198,6 +200,19 @@ export async function attachUpdateDataTableToRevision(
   for (const dim of dimensionToUpdate) {
     await dim.save();
   }
+  const coverage = revisionStartAndEndDateFinder(dimensionToUpdate);
+  if (!revision.startDate) {
+    revision.startDate = coverage.startDate;
+  } else if (coverage.startDate && revision.startDate > coverage.startDate) {
+    revision.startDate = coverage.startDate;
+  }
+
+  if (!revision.endDate) {
+    revision.endDate = coverage.endDate;
+  } else if (coverage.endDate && revision.endDate < coverage.endDate) {
+    revision.endDate = coverage.endDate;
+  }
+
   revision.tasks = revisionTasks;
   await revision.save();
   const end = performance.now();
@@ -252,7 +267,7 @@ async function validateMeasure(
   }
 }
 
-async function createDateTableInValidationCube(
+export async function createDateTableInValidationCube(
   buildId: string,
   datasetId: string,
   lookupTableName: string,

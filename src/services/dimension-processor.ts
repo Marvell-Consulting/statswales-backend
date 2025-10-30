@@ -782,6 +782,20 @@ export const createAndValidateDateDimension = async (
     }
   }
 
+  if (!revision.startDate) {
+    revision.startDate = extractor.lookupTableStart;
+  } else if (revision.startDate < extractor.lookupTableStart) {
+    revision.startDate = extractor.lookupTableStart;
+  }
+
+  if (!revision.endDate) {
+    revision.endDate = extractor.lookupTableEnd;
+  } else if (revision.endDate > extractor.lookupTableEnd) {
+    revision.endDate = extractor.lookupTableEnd;
+  }
+
+  await revision.save();
+
   const validationErrors = await validateDateDimension(dataset, revision, dimension, factTableColumn, actionId);
   if (validationErrors) {
     return validationErrors;

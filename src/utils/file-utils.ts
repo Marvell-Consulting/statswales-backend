@@ -141,10 +141,12 @@ export async function loadFileIntoLookupTablesSchema(
     await quack.run(builtInsertQuery);
   }
   logger.debug(`Dropping original lookup table ${lookupTableName}`);
-  await quack.run(pgformat('DROP TABLE %I.%I', 'memory', lookupTableName));
-  await quack.run(
+  const statements = [
+    pgformat('DROP TABLE %I.%I;', 'memory', lookupTableName),
+    pgformat('DROP TABLE IF EXISTS %I.%I;', 'lookup_tables_db', lookupTable.id),
     pgformat('CREATE TABLE %I.%I AS SELECT * FROM %I.%I;', 'lookup_tables_db', lookupTable.id, 'memory', dimTable)
-  );
+  ];
+  await quack.run(statements.join('\n'));
   quack.disconnectSync();
   performanceReporting(Math.round(start - performance.now()), 500, 'Loading a lookup table in to postgres');
 }

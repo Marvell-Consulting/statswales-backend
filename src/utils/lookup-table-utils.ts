@@ -1,4 +1,4 @@
-import { QueryRunner } from 'typeorm';
+import { FindOptionsRelations, QueryRunner } from 'typeorm';
 import { format as pgformat } from '@scaleleap/pg-format';
 import { t } from 'i18next';
 
@@ -17,6 +17,17 @@ import { MeasureLookupTableExtractor } from '../extractors/measure-lookup-extrac
 import { DataValueFormat } from '../enums/data-value-format';
 import { dbManager } from '../db/database-manager';
 import { FACT_TABLE_NAME } from '../services/cube-builder';
+import { DatasetRepository } from '../repositories/dataset';
+import { UnknownException } from '../exceptions/unknown.exception';
+import { DateExtractor } from '../extractors/date-extractor';
+import { randomUUID } from 'node:crypto';
+import { createDateTableInValidationCube } from '../services/revision';
+import { getFileImportAndSaveToDisk, loadFileIntoLookupTablesSchema } from './file-utils';
+import { LookupTableExtractor } from '../extractors/lookup-table-extractor';
+import { Revision } from '../entities/dataset/revision';
+import { Dimension } from '../entities/dataset/dimension';
+import { revisionStartAndEndDateFinder } from './revision';
+import { DateDimensionTypes, LookupTableTypes } from '../enums/dimension-type';
 
 export function convertDataTableToLookupTable(dataTable: DataTable): LookupTable {
   const lookupTable = new LookupTable();
@@ -434,4 +445,84 @@ export const validateMeasureTableContent = async (
     void cubeDB.release();
   }
   return undefined;
+};
+
+export const bootstrapCubeBuildProcess = async (datasetId: string, revisionId: string): Promise<void> => {
+  const datasetRelations: FindOptionsRelations<Dataset> = {
+    factTable: true,
+    dimensions: { lookupTable: true }
+  };
+  const dataset = await DatasetRepository.getById(datasetId, datasetRelations);
+
+  const dimensions = dataset.dimensions.filter((dim) => LookupTableTypes.includes(dim.type));
+  let loadedLookupTables: { table_name: string }[];
+  const queryRunner = dbManager.getCubeDataSource().createQueryRunner();
+  try {
+    loadedLookupTables = await queryRunner.query(
+      pgformat(`SELECT table_name FROM information_schema.tables WHERE table_schema = %L`, 'lookup_tables')
+    );
+  } catch (err) {
+    logger.error(err, 'Unable to get lookup tables from postgres information schema');
+    throw new UnknownException('errors.cube_builder.cube_build_failed');
+  } finally {
+    void queryRunner.release();
+  }
+
+  for (const dimension of dimensions) {
+    let rebuildLookup = false;
+    if (!dimension.lookupTable) rebuildLookup = true;
+    if (DateDimensionTypes.includes(dimension.type)) {
+      const extractor = dimension.extractor as DateExtractor;
+      if (!extractor.lookupTableStart) rebuildLookup = true;
+    }
+    if (!loadedLookupTables.some((t) => t.table_name === dimension.lookupTable!.id)) rebuildLookup = true;
+    if (!rebuildLookup) continue;
+    logger.warn(`The lookup table for ${dimension.type} dimension with id ${dimension.id} is missing.  Rebuilding...`);
+
+    const factTableCol = dataset.factTable!.find(
+      (factTableCol) => factTableCol.columnName === dimension.factTableColumn
+    );
+
+    if (!factTableCol) {
+      logger.warn('Dimension has no matching fact table column, skipping.  This may result in cube build failures');
+      continue;
+    }
+
+    if (DateDimensionTypes.includes(dimension.type)) {
+      try {
+        const actionId = randomUUID();
+        await createDateTableInValidationCube(revisionId, datasetId, actionId, factTableCol, dimension);
+      } catch (err) {
+        logger.error(err, 'Failed to recreate date lookup table and save to database');
+        throw err;
+      }
+    } else {
+      let filePath: string;
+      try {
+        filePath = await getFileImportAndSaveToDisk(dataset, dimension.lookupTable!);
+      } catch (err) {
+        logger.error(err, 'Failed to get file from blob storage and save it to disk');
+        throw err;
+      }
+      try {
+        await loadFileIntoLookupTablesSchema(
+          dataset,
+          dimension.lookupTable!,
+          dimension.extractor as LookupTableExtractor,
+          factTableCol,
+          dimension.joinColumn!,
+          filePath
+        );
+      } catch (err) {
+        logger.error(err, 'Failed to recreate lookup table in database.');
+        throw err;
+      }
+    }
+  }
+  const revisedDimensions = await Dimension.findBy({ datasetId: datasetId });
+  const coverage = revisionStartAndEndDateFinder(revisedDimensions);
+  const rev = await Revision.findOneByOrFail({ id: revisionId });
+  rev.startDate = coverage.startDate;
+  rev.endDate = coverage.endDate;
+  await rev.save();
 };

@@ -138,6 +138,7 @@ export const validateImport = async (req: Request, res: Response, next: NextFunc
 export const applyImport = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   logger.info('Updating translations from CSV...');
   const datasetId = res.locals.datasetId;
+  const userId = req.user?.id;
 
   try {
     const fileStream = await req.fileService.loadStream(TRANSLATION_FILENAME, datasetId);
@@ -154,7 +155,7 @@ export const applyImport = async (req: Request, res: Response, next: NextFunctio
       client: 'sw3-frontend'
     });
     try {
-      await createAllCubeFiles(dataset.id, dataset.draftRevisionId!);
+      await createAllCubeFiles(dataset.id, dataset.draftRevisionId!, userId);
     } catch (error) {
       logger.error(error, 'Error rebuilding cube after translations applied');
       next(new UnknownException('errors.cube_validation.failed'));

@@ -103,6 +103,7 @@ export const sendDimensionPreview = async (req: Request, res: Response, next: Ne
 
 export const attachLookupTableToDimension = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   let tmpFile: TempFile;
+  const userId = req.user?.id;
 
   try {
     tmpFile = await uploadAvScan(req);
@@ -126,7 +127,7 @@ export const attachLookupTableToDimension = async (req: Request, res: Response, 
     const tableMatcher = req.body as LookupTablePatchDTO;
     const result = await validateLookupTable(dataTable, dataset, dimension, tmpFile.path, language, tableMatcher);
     await updateRevisionTasks(dataset, dimension.id, 'dimension');
-    await createAllCubeFiles(dataset.id, dataset.draftRevision!.id);
+    await createAllCubeFiles(dataset.id, dataset.draftRevision!.id, userId);
 
     if ((result as ViewErrDTO).status) {
       const error = result as ViewErrDTO;
@@ -147,6 +148,7 @@ export const attachLookupTableToDimension = async (req: Request, res: Response, 
 export const updateDimension = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   const dimension = res.locals.dimension;
   const language = req.language.toLowerCase();
+  const userId = req.user?.id;
   const dimensionPatchRequest = req.body as DimensionPatchDto;
   let preview: ViewDTO | ViewErrDTO;
 
@@ -204,7 +206,7 @@ export const updateDimension = async (req: Request, res: Response, next: NextFun
     } else {
       await updateRevisionTasks(dataset, dimension.id, 'dimension');
       try {
-        await createAllCubeFiles(dataset.id, dataset.draftRevision!.id);
+        await createAllCubeFiles(dataset.id, dataset.draftRevision!.id, userId);
       } catch (error) {
         logger.error(error, `An error occurred trying to create a base cube`);
         res.status(500);
@@ -224,6 +226,7 @@ export const updateDimension = async (req: Request, res: Response, next: NextFun
 
 export const updateDimensionMetadata = async (req: Request, res: Response): Promise<void> => {
   const dimension = res.locals.dimension;
+  const userId = req.user?.id;
   const dataset = await DatasetRepository.getById(res.locals.datasetId, {
     draftRevision: { dataTable: { dataTableDescriptions: true } }
   });
@@ -244,7 +247,7 @@ export const updateDimensionMetadata = async (req: Request, res: Response): Prom
   await metadata.save();
   const updatedDimension = await Dimension.findOneByOrFail({ id: dimension.id });
   await updateRevisionTasks(dataset, dimension.id, 'dimension');
-  await createAllCubeFiles(dataset.id, dataset.draftRevision!.id);
+  await createAllCubeFiles(dataset.id, dataset.draftRevision!.id, userId);
   res.status(202);
   res.json(DimensionDTO.fromDimension(updatedDimension));
 };

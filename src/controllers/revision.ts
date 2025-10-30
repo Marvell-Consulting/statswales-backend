@@ -42,6 +42,7 @@ import { DEFAULT_PAGE_SIZE } from '../utils/page-defaults';
 import { attachUpdateDataTableToRevision } from '../services/revision';
 import { performanceReporting } from '../utils/performance-reporting';
 import { CubeBuildResult } from '../dtos/cube-build-result';
+import { bootstrapCubeBuildProcess } from '../utils/lookup-table-utils';
 
 export const getDataTable = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   const revision: Revision = res.locals.revision;
@@ -218,6 +219,7 @@ export const getRevisionInfo = async (req: Request, res: Response): Promise<void
 export const updateDataTable = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   const datasetId: string = res.locals.datasetId;
   const revision: Revision = res.locals.revision;
+  const userId = req.user?.id;
 
   logger.debug(`Updating data table for revision ${revision.id}`);
 
@@ -266,11 +268,12 @@ export const updateDataTable = async (req: Request, res: Response, next: NextFun
         ? (JSON.parse(req.body.column_matching) as ColumnMatch[])
         : undefined;
       const updateAction = req.body.update_action ? (req.body.update_action as DataTableAction) : DataTableAction.Add;
-      await attachUpdateDataTableToRevision(datasetId, revision, dataTable, updateAction, columnMatcher);
+      await attachUpdateDataTableToRevision(datasetId, revision, dataTable, updateAction, columnMatcher, userId);
     }
     try {
       logger.info('Revision update complete, creating cube files');
-      await createAllCubeFiles(datasetId, revision.id);
+      await bootstrapCubeBuildProcess(datasetId, revision.id);
+      await createAllCubeFiles(datasetId, revision.id, userId);
     } catch (err) {
       logger.error(err, `Something went wrong trying to create the cube`);
       next(new UnknownException('errors.cube_builder.cube_build_failed'));
@@ -427,10 +430,14 @@ export const withdrawFromPublication = async (req: Request, res: Response, next:
 export const regenerateRevisionCube = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   const datasetId: string = res.locals.datasetId;
   const revision: Revision = res.locals.revision;
+  const userId = req.user?.id;
+
+  await bootstrapCubeBuildProcess(datasetId, revision.id);
+
   const startTime = new Date(Date.now());
   const start = performance.now();
   try {
-    await createAllCubeFiles(datasetId, revision.id);
+    await createAllCubeFiles(datasetId, revision.id, userId);
   } catch (err) {
     logger.error(err, `Something went wrong trying to create the cube`);
     const exception = new UnknownException('errors.cube_builder.cube_build_failed');
@@ -555,7 +562,8 @@ export const createNewRevision = async (req: Request, res: Response, next: NextF
 
   try {
     const dataset = await req.datasetService.createRevision(res.locals.datasetId, user);
-    await createAllCubeFiles(dataset.id, dataset.draftRevision!.id);
+    await bootstrapCubeBuildProcess(res.locals.datasetId, dataset.draftRevision!.id);
+    await createAllCubeFiles(dataset.id, dataset.draftRevision!.id, user.id);
     res.status(201);
     res.json(RevisionDTO.fromRevision(dataset.draftRevision!));
   } catch (err) {

@@ -269,15 +269,13 @@ export const DatasetRepository = dataSource.getRepository(Dataset).extend({
     return { data, count };
   },
 
-  async publish(revision: Revision, startDate: Date | null, endDate: Date | null): Promise<Dataset> {
+  async publish(revision: Revision): Promise<Dataset> {
     const dataset = await this.getById(revision.datasetId, { startRevision: true });
 
     if (!dataset.startRevision) {
       throw new Error(`Dataset ${dataset.id} does not have a start revision`);
     }
 
-    dataset.startDate = startDate;
-    dataset.endDate = endDate;
     dataset.draftRevision = null;
     dataset.publishedRevision = revision;
     dataset.firstPublishedAt = dataset.startRevision!.publishAt;

@@ -33,6 +33,8 @@ export const withMetadataAndProviders: FindOptionsRelations<Revision> = {
   revisionProviders: { provider: true, providerSource: true }
 };
 
+export type RevisionList = { id: string; dataset_id: string };
+
 export const RevisionRepository = dataSource.getRepository(Revision).extend({
   async getById(id: string, relations: FindOptionsRelations<Revision> = withDataTable): Promise<Revision> {
     const findOptions: FindOneOptions<Revision> = { where: { id }, relations };
@@ -118,6 +120,14 @@ export const RevisionRepository = dataSource.getRepository(Revision).extend({
     await scheduledRevision.save();
 
     return scheduledRevision;
+  },
+
+  async getAllRevisionIds(): Promise<RevisionList[]> {
+    return this.query('SELECT id, dataset_id FROM revision');
+  },
+
+  async getAllDraftRevisionIds(): Promise<RevisionList[]> {
+    return this.query('SELECT id, dataset_id FROM revision WHERE approved_at IS NULL');
   },
 
   async revertToDraft(revisionId: string): Promise<Revision> {
