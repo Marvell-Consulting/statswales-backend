@@ -476,7 +476,7 @@ export const bootstrapCubeBuildProcess = async (datasetId: string, revisionId: s
     }
     if (!dimension.lookupTable) rebuildLookup = true;
     else {
-      const lookupId = dimension.lookupTable?.id ? dimension.lookupTable?.id : '';
+      const lookupId = dimension.lookupTable.id || '';
       if (!loadedLookupTables.some((t) => t.table_name === lookupId)) rebuildLookup = true;
     }
     if (!rebuildLookup) continue;
