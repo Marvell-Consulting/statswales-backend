@@ -1,6 +1,6 @@
-import path from 'path';
-import * as fs from 'fs';
-import { createHash } from 'crypto';
+import path from 'node:path';
+import * as fs from 'node:fs';
+import { createHash } from 'node:crypto';
 import { format as pgformat } from '@scaleleap/pg-format';
 
 import { Dataset } from '../../src/entities/dataset/dataset';
