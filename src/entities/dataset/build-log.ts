@@ -52,14 +52,15 @@ export class BuildLog extends BaseEntity {
     userId?: string,
     buildId?: string
   ): Promise<BuildLog> {
-    const build = new BuildLog();
-    if (revision) build.revision = revision;
-    if (buildId) build.id = buildId;
-    if (userId) build.userId = userId;
-    build.type = type;
-    build.status = CubeBuildStatus.Queued;
-    build.startedAt = new Date();
-    build.performanceStart = performance.now();
+    const build = BuildLog.create({
+      id: buildId,
+      revision,
+      type,
+      userId,
+      status: CubeBuildStatus.Queued,
+      startedAt: new Date(),
+      performanceStart: performance.now()
+    });
     return await build.save();
   }
 

@@ -76,6 +76,11 @@ export const createAllCubeFiles = async (
     throw new CubeValidationException('Failed to find buildRevision in dataset.');
   }
 
+  if (!buildRevision.dataTable) {
+    logger.error('Revision is incomplete.  Revision has no data table');
+    throw new CubeValidationException('Revision is incomplete.');
+  }
+
   const cubeBuildConfig = cubeConfig.map((config) => {
     const columns = new Map<Locale, Set<string>>();
     const viewParts = new Map<Locale, string[]>();

@@ -673,9 +673,9 @@ async function rebuildDatasetList(buildType: CubeBuildType, revisionList: Revisi
     const buildID = randomUUID();
     try {
       await bootstrapCubeBuildProcess(rev.dataset_id, rev.id);
-      void createAllCubeFiles(rev.dataset_id, rev.id, user.id, CubeBuildType.FullCube, buildID);
+      await createAllCubeFiles(rev.dataset_id, rev.id, user.id, CubeBuildType.FullCube, buildID);
     } catch (err) {
-      logger.warn(`[${buildLogEntry.id}]: Failed to rebuild cube for revision ${rev.id}`);
+      logger.warn(err, `[${buildLogEntry.id}]: Failed to rebuild cube for revision ${rev.id}`);
       failedBuilds.push({
         buildId: buildID.toString(),
         revisionId: rev.id,
@@ -700,5 +700,6 @@ async function rebuildDatasetList(buildType: CubeBuildType, revisionList: Revisi
   }
   if (failedBuilds.length > 0) buildLogEntry.errors = JSON.stringify(failedBuilds, null, 2);
   buildLogEntry.completeBuild(CubeBuildStatus.Completed);
+  await buildLogEntry.save();
   logger.info(`[${buildLogEntry.id}]: Finished rebuild of ${buildTypeStr} cubes`);
 }
