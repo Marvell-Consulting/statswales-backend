@@ -470,12 +470,15 @@ export const bootstrapCubeBuildProcess = async (datasetId: string, revisionId: s
 
   for (const dimension of dimensions) {
     let rebuildLookup = false;
-    if (!dimension.lookupTable) rebuildLookup = true;
     if (DateDimensionTypes.includes(dimension.type)) {
       const extractor = dimension.extractor as DateExtractor;
       if (!extractor.lookupTableStart) rebuildLookup = true;
     }
-    if (!loadedLookupTables.some((t) => t.table_name === dimension.lookupTable!.id)) rebuildLookup = true;
+    if (!dimension.lookupTable) rebuildLookup = true;
+    else {
+      const lookupId = dimension.lookupTable?.id ? dimension.lookupTable?.id : '';
+      if (!loadedLookupTables.some((t) => t.table_name === lookupId)) rebuildLookup = true;
+    }
     if (!rebuildLookup) continue;
     logger.warn(`The lookup table for ${dimension.type} dimension with id ${dimension.id} is missing.  Rebuilding...`);
 
