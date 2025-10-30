@@ -621,7 +621,7 @@ export const rebuildAll = async (req: Request, res: Response): Promise<void> => 
 
   const activeBuilds = await BuildLogRepository.getAllActiveBulkBuilds();
   if (activeBuilds.length > 1) {
-    logger.info(`There is already an active rebuild process with if ${activeBuilds[0].id}.`);
+    logger.info(`There is already an active rebuild process with id ${activeBuilds[0].id}...`);
     res
       .status(409)
       .json({
@@ -631,9 +631,9 @@ export const rebuildAll = async (req: Request, res: Response): Promise<void> => 
       .end();
     return;
   }
-
-  res.status(202).end();
-  void rebuildDatasetList(CubeBuildType.AllCubes, await RevisionRepository.getAllRevisionIds(), user);
+  const buildLogEntry = await BuildLog.startBuild(null, CubeBuildType.AllCubes, user.id);
+  res.status(202).json({ build_id: buildLogEntry.id }).end();
+  void rebuildDatasetList(buildLogEntry, await RevisionRepository.getAllRevisionIds(), user);
 };
 
 export const rebuildDrafts = async (req: Request, res: Response): Promise<void> => {
@@ -641,7 +641,7 @@ export const rebuildDrafts = async (req: Request, res: Response): Promise<void> 
 
   const activeBuilds = await BuildLogRepository.getAllActiveBulkBuilds();
   if (activeBuilds.length > 1) {
-    logger.info(`There is already an active rebuild process with if ${activeBuilds[0].id}.`);
+    logger.info(`There is already an active rebuild process with id ${activeBuilds[0].id}...`);
     res
       .status(409)
       .json({
@@ -651,18 +651,16 @@ export const rebuildDrafts = async (req: Request, res: Response): Promise<void> 
       .end();
     return;
   }
-
-  res.status(202).end();
-  void rebuildDatasetList(CubeBuildType.DraftCubes, await RevisionRepository.getAllDraftRevisionIds(), user);
+  const buildLogEntry = await BuildLog.startBuild(null, CubeBuildType.DraftCubes, user.id);
+  res.status(202).json({ build_id: buildLogEntry.id }).end();
+  void rebuildDatasetList(buildLogEntry, await RevisionRepository.getAllDraftRevisionIds(), user);
 };
 
-async function rebuildDatasetList(buildType: CubeBuildType, revisionList: RevisionList[], user: User): Promise<void> {
+async function rebuildDatasetList(buildLogEntry: BuildLog, revisionList: RevisionList[], user: User): Promise<void> {
   let buildTypeStr = 'all';
-  if (buildType === CubeBuildType.DraftCubes) {
+  if (buildLogEntry.type === CubeBuildType.DraftCubes) {
     buildTypeStr = 'all draft';
   }
-
-  const buildLogEntry = await BuildLog.startBuild(null, buildType, user.id);
 
   logger.info(`[${buildLogEntry.id}]: Starting process to rebuild ${buildTypeStr} cubes`);
   const failedBuilds: {
