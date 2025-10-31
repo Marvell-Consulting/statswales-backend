@@ -22,7 +22,12 @@ export class UpdateBuildLog1761748027553 implements MigrationInterface {
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {
-    await queryRunner.query(`ALTER TABLE "build_log" ALTER COLUMN "performance_start" SET DEFAULT '0'`);
+    await queryRunner.query(`ALTER TABLE "build_log" DROP COLUMN "user_id"`);
+    await queryRunner.query(`ALTER TABLE "build_log" DROP COLUMN "performance_start"`);
+    await queryRunner.query(`ALTER TABLE "build_log" DROP COLUMN "performance_finish"`);
+    await queryRunner.query(`ALTER TABLE "build_log" DROP COLUMN "duration"`);
+    await queryRunner.query(`ALTER TABLE "revision" DROP COLUMN "start_date"`);
+    await queryRunner.query(`ALTER TABLE "revision" DROP COLUMN "end_date"`);
     await queryRunner.query(
       `CREATE TYPE "public"."build_log_type_enum_old" AS ENUM('base_cube', 'validation_cube', 'full_cube')`
     );
