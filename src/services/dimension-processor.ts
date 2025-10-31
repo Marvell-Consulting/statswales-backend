@@ -210,8 +210,9 @@ async function removeIgnoreAndUnknownColumns(dataset: Dataset, ignoreColumns: So
   }
 
   const unknownColumns = await FactTableColumn.findBy({ id: dataset.id, columnDatatype: FactTableColumnType.Unknown });
-  if (unknownColumns.length > 0)
+  if (unknownColumns.length > 0) {
     throw new SourceAssignmentException('Unknown columns found in fact table after dimension processing.');
+  }
 }
 
 async function createUpdateMeasure(dataset: Dataset, columnAssignment: SourceAssignmentDTO): Promise<void> {

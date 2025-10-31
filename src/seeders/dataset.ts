@@ -6,10 +6,10 @@ import { DataSource, DeepPartial } from 'typeorm';
 import { omit } from 'lodash';
 import { Seeder } from '@jorgebodega/typeorm-seeding';
 
-import { User } from '../../src/entities/user/user';
-import { Dataset } from '../../src/entities/dataset/dataset';
+import { User } from '../entities/user/user';
+import { Dataset } from '../entities/dataset/dataset';
 import { validateAndUpload } from '../services/incoming-file-processor';
-import { Revision } from '../../src/entities/dataset/revision';
+import { Revision } from '../entities/dataset/revision';
 import { GroupRole } from '../enums/group-role';
 import { Designation } from '../enums/designation';
 import { DimensionType } from '../enums/dimension-type';

@@ -89,10 +89,11 @@ function createExtractor(
     const descriptionStr = t('lookup_column_headers.description', { lng: tableLanguage });
     const langStr = t('lookup_column_headers.lang', { lng: tableLanguage });
     let notesColumns: ColumnDescriptor[] | undefined;
-    if (protoLookupTable.dataTableDescriptions.filter((info) => info.columnName.toLowerCase().startsWith(noteStr)))
+    if (protoLookupTable.dataTableDescriptions.filter((info) => info.columnName.toLowerCase().startsWith(noteStr))) {
       notesColumns = protoLookupTable.dataTableDescriptions
         .filter((info) => info.columnName.toLowerCase().startsWith(noteStr))
         .map((info) => columnIdentification(info));
+    }
     if (notesColumns && notesColumns.length === 0) notesColumns = undefined;
     const extractor: LookupTableExtractor = {
       tableLanguage,

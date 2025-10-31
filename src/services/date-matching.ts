@@ -1,10 +1,9 @@
-import { add, format, isBefore, isDate, isValid, parse, parseISO, sub } from 'date-fns';
+import { add, format, isBefore, isDate, isValid, parse, parseISO, sub, Duration } from 'date-fns';
 
 import { logger } from '../utils/logger';
 import { YearType } from '../enums/year-type';
 import { DateExtractor } from '../extractors/date-extractor';
 import { SUPPORTED_LOCALES, t } from '../middleware/translation';
-import { Duration } from 'date-fns';
 import { FactTableColumn } from '../entities/dataset/fact-table-column';
 import { format as pgformat } from '@scaleleap/pg-format/lib/pg-format';
 
