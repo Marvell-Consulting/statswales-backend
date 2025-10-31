@@ -78,11 +78,11 @@ export const createAllCubeFiles = async (
 
   const build = await BuildLog.startBuild(buildRevision, buildType, userId, buildId);
 
-  if (!buildRevision.dataTable) {
-    logger.error('Revision is incomplete.  Revision has no data table');
-    build.completeBuild(CubeBuildStatus.Failed, undefined, 'No data table found in revision');
+  if (!buildRevision.dataTable && buildRevision.revisionIndex === 1) {
+    logger.warn(`First revision for revision ${buildRevision.id} has no data table.  Unable to proceed with build.`);
+    build.completeBuild(CubeBuildStatus.Failed, undefined, '{ "message": "No data table in first revision."}');
     await build.save();
-    throw new CubeValidationException('Revision is incomplete.');
+    throw new CubeValidationException('First revision has no data table.');
   }
 
   const cubeBuildConfig = cubeConfig.map((config) => {
