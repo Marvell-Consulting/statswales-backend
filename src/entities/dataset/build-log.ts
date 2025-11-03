@@ -40,6 +40,9 @@ export class BuildLog extends BaseEntity {
   @Column({ type: 'text', nullable: true, name: 'errors' })
   errors: string | null;
 
+  @Column({ name: 'revision_id' })
+  revisionId: string | null;
+
   @ManyToOne(() => Revision, (revision) => revision.builds, {
     onDelete: 'CASCADE',
     orphanedRowAction: 'delete',
