@@ -21,7 +21,8 @@ import {
   getDataTable,
   deleteDraftRevision,
   regenerateRevisionCube,
-  getRevisionPreviewFilters
+  getRevisionPreviewFilters,
+  getRevisionBuildLog
 } from '../controllers/revision';
 import { Revision } from '../entities/dataset/revision';
 import { hasError, revisionIdValidator } from '../validators';
@@ -29,6 +30,7 @@ import { logger } from '../utils/logger';
 import { NotFoundException } from '../exceptions/not-found.exception';
 import { RevisionRepository, withMetadataAndProviders } from '../repositories/revision';
 import { fileStreaming } from '../middleware/file-streaming';
+import { getBuiltLogEntry } from '../controllers/build-log';
 
 // middleware that loads the revision and stores it in res.locals
 // leave relations undefined to load the default relations
@@ -146,3 +148,14 @@ router.get('/by-id/:revision_id/cube/csv', loadRevision(), downloadRevisionCubeA
 // GET /dataset/:dataset_id/revision/by-id/:revision_id/cube/excel
 // Returns the specific revision of the dataset as an Excel file
 router.get('/by-id/:revision_id/cube/xlsx', loadRevision(), downloadRevisionCubeAsExcel);
+
+// GET /dataset/:dataset_id/revision/by-id/:revision_id/builds
+// Returns the n most recent build log entries for the revision
+// Params:
+// - size: page size as an integer
+// - page: the offset for the log (allows paging)
+router.get('/by-id/:revision_id/builds', loadRevision(), getRevisionBuildLog);
+
+// GET /dataset/:dataset_id/revision/by-id/:revision_id/builds/:build_id
+// Returns a specific entry from the build log
+router.get('/by-id/:revision_id/builds/:build_id', loadRevision(), getBuiltLogEntry);

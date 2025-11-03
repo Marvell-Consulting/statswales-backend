@@ -109,7 +109,7 @@ export const createAllCubeFiles = async (
     logger.error(error, 'Something went wrong trying to create the cube schema');
     const buildErr = {
       message: 'Something went wrong trying to create the cube schema',
-      error: error
+      error
     };
     build.completeBuild(CubeBuildStatus.Failed, undefined, JSON.stringify(buildErr));
     await build.save();

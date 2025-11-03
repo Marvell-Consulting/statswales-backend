@@ -43,6 +43,8 @@ import { attachUpdateDataTableToRevision } from '../services/revision';
 import { performanceReporting } from '../utils/performance-reporting';
 import { CubeBuildResult } from '../dtos/cube-build-result';
 import { bootstrapCubeBuildProcess } from '../utils/lookup-table-utils';
+import { BuildLog } from '../entities/dataset/build-log';
+import { BuiltLogEntryDto } from '../dtos/build-log';
 
 export const getDataTable = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   const revision: Revision = res.locals.revision;
@@ -569,4 +571,15 @@ export const createNewRevision = async (req: Request, res: Response, next: NextF
   } catch (err) {
     next(err);
   }
+};
+
+export const getRevisionBuildLog = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  const revision = res.locals.revision;
+  const pageSize = req.query.size ? Number.parseInt(req.query.size as string) : 10;
+  const pageNo = req.query.page ? Number.parseInt(req.query.page as string) * pageSize : 0;
+  const revisionBuildLog = await BuildLog.find({ where: { revisionId: revision.id }, take: pageSize, skip: pageNo });
+  res
+    .status(200)
+    .json(revisionBuildLog.map((log) => BuiltLogEntryDto.fromBuildLogLite(log)))
+    .end();
 };

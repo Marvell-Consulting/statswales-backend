@@ -29,7 +29,13 @@ export class BuiltLogEntryDto {
   static fromBuildLogFull(buildLog: BuildLog): BuiltLogEntryDto {
     const dto = BuiltLogEntryDto.fromBuildLogLite(buildLog);
     dto.buildScript = buildLog.buildScript ? buildLog.buildScript : undefined;
-    dto.errors = buildLog.errors ? buildLog.errors : undefined;
+    if (buildLog.errors) {
+      try {
+        dto.errors = JSON.parse(buildLog.errors);
+      } catch (_) {
+        dto.errors = buildLog.errors;
+      }
+    }
     dto.performanceStart = buildLog.performanceStart;
     dto.performanceFinish = buildLog.performanceFinish ? buildLog.performanceFinish : undefined;
     dto.duration_ms = buildLog.duration ? buildLog.duration : undefined;
