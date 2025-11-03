@@ -530,11 +530,21 @@ function createValidationTableEntries(buildId: string, columnName: string): stri
   );
 }
 
+function setFactCountInCube(buildId: string): string {
+  return pgformat(
+    "INSERT INTO %I.%I (key, value) SELECT 'fact_count', COUNT(*)::text FROM %I.%I;",
+    buildId,
+    METADATA_TABLE_NAME,
+    buildId,
+    FACT_TABLE_NAME
+  );
+}
+
 function setupValidationTableFromDataset(buildId: string, dataset: Dataset): TransactionBlock {
   const statements: string[] = ['BEGIN TRANSACTION;'];
   statements.push(
     pgformat(
-      `CREATE TABLE %I.%I (reference TEXT, fact_table_column VARCHAR, PRIMARY KEY (reference, fact_table_column));`,
+      `CREATE TABLE %I.%I (reference TEXT, fact_table_column TEXT, PRIMARY KEY (reference, fact_table_column));`,
       buildId,
       VALIDATION_TABLE_NAME
     )
@@ -551,6 +561,7 @@ function setupValidationTableFromDataset(buildId: string, dataset: Dataset): Tra
   statements.push(pgformat('INSERT INTO %I.%I %s;', buildId, VALIDATION_TABLE_NAME, unionParts.join(' UNION ALL ')));
   statements.push(pgformat(`CREATE INDEX ON %I.%I (reference);`, buildId, VALIDATION_TABLE_NAME));
   statements.push(pgformat(`CREATE INDEX ON %I.%I (fact_table_column);`, buildId, VALIDATION_TABLE_NAME));
+  statements.push(setFactCountInCube(buildId));
   statements.push('END TRANSACTION;');
 
   return {
@@ -563,7 +574,7 @@ function setupValidationTableFromDataset(buildId: string, dataset: Dataset): Tra
 // the reason we don't use this all the time is that there's guess work around the data and note
 // code columns.
 function setupValidationEntriesTableUsingRawSQL(buildId: string): TransactionBlock {
-  const statement = pgformat(
+  const buildValidationStatementProc = pgformat(
     `
     DO $$
     DECLARE
@@ -603,7 +614,7 @@ function setupValidationEntriesTableUsingRawSQL(buildId: string): TransactionBlo
   );
   return {
     buildStage: BuildStage.ValidationTableBuild,
-    statements: ['BEGIN TRANSACTION;', statement, 'END TRANSACTION;']
+    statements: ['BEGIN TRANSACTION;', buildValidationStatementProc, setFactCountInCube(buildId), 'END TRANSACTION;']
   };
 }
 
