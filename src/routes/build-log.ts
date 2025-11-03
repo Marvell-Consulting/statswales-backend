@@ -28,7 +28,7 @@ buildLogRouter.get('/', getBuildLog);
 buildLogRouter.get('/status/failed', getFailedBuildLog);
 
 // GET /build/status/completed
-// Returns the most recent failed build log entries.
+// Returns the most recent completed build log entries.
 // query params:
 // - size: number of entries to return (default 30)
 // - page: page offset, allows paging the build log
