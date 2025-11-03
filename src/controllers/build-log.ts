@@ -1,67 +1,38 @@
-import { Request, Response } from 'express';
+import { NextFunction, Request, Response } from 'express';
 import { BuildLog } from '../entities/dataset/build-log';
 import { BuiltLogEntryDto } from '../dtos/build-log';
 import { NotFoundException } from '../exceptions/not-found.exception';
 import { logger } from '../utils/logger';
 import { CubeBuildStatus } from '../enums/cube-build-status';
 import { CubeBuildType } from '../enums/cube-build-type';
+import { BuildLogRepository } from '../repositories/build-log';
+import { buildStatusValidator, buildTypeValidator, hasError } from '../validators';
+import { BadRequestException } from '../exceptions/bad-request.exception';
 
-export const getBuildLog = async (req: Request, res: Response): Promise<void> => {
+export const getBuildLog = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   const pageSize = req.query.size ? Number.parseInt(req.query.size as string) : 30;
   const pageNo = req.query.page ? Number.parseInt(req.query.page as string) * pageSize : 0;
-  const buildLog = await BuildLog.find({ take: pageSize, skip: pageNo });
-  res.status(200).send(buildLog.map((log) => BuiltLogEntryDto.fromBuildLogLite(log)));
-};
+  const typeError = await hasError(buildTypeValidator(), req);
+  const statusError = await hasError(buildStatusValidator(), req);
 
-export const getFailedBuildLog = async (req: Request, res: Response): Promise<void> => {
-  const pageSize = req.query.size ? Number.parseInt(req.query.size as string) : 30;
-  const pageNo = req.query.page ? Number.parseInt(req.query.page as string) * pageSize : 0;
-  const buildLog = await BuildLog.find({ where: { status: CubeBuildStatus.Failed }, take: pageSize, skip: pageNo });
-  res.status(200).send(buildLog.map((log) => BuiltLogEntryDto.fromBuildLogLite(log)));
-};
+  if (typeError) {
+    const availableTypes = Object.values(CubeBuildType).join(', ');
+    next(new BadRequestException(`type must be one of the following: ${availableTypes}`));
+    return;
+  }
 
-export const getCompletedBuildLog = async (req: Request, res: Response): Promise<void> => {
-  const pageSize = req.query.size ? Number.parseInt(req.query.size as string) : 30;
-  const pageNo = req.query.page ? Number.parseInt(req.query.page as string) * pageSize : 0;
-  const buildLog = await BuildLog.find({ where: { status: CubeBuildStatus.Completed }, take: pageSize, skip: pageNo });
-  res.status(200).send(buildLog.map((log) => BuiltLogEntryDto.fromBuildLogLite(log)));
-};
+  if (statusError) {
+    const availableStatuses = Object.values(CubeBuildStatus).join(', ');
+    next(new BadRequestException(`status must be one of the following: ${availableStatuses}`));
+    return;
+  }
 
-export const getBaseCubeBuildLog = async (req: Request, res: Response): Promise<void> => {
-  const pageSize = req.query.size ? Number.parseInt(req.query.size as string) : 30;
-  const pageNo = req.query.page ? Number.parseInt(req.query.page as string) * pageSize : 0;
-  const buildLog = await BuildLog.find({ where: { type: CubeBuildType.BaseCube }, take: pageSize, skip: pageNo });
-  res.status(200).send(buildLog.map((log) => BuiltLogEntryDto.fromBuildLogLite(log)));
-};
+  const buildType: CubeBuildType | undefined = req.query.type as CubeBuildType;
+  const buildStatus: CubeBuildStatus | undefined = req.query.status as CubeBuildStatus;
 
-export const getValidationCubeBuildLog = async (req: Request, res: Response): Promise<void> => {
-  const pageSize = req.query.size ? Number.parseInt(req.query.size as string) : 30;
-  const pageNo = req.query.page ? Number.parseInt(req.query.page as string) * pageSize : 0;
-  const buildLog = await BuildLog.find({ where: { type: CubeBuildType.ValidationCube }, take: pageSize, skip: pageNo });
-  res.status(200).send(buildLog.map((log) => BuiltLogEntryDto.fromBuildLogLite(log)));
+  const buildLogs = await BuildLogRepository.getBy(buildType, buildStatus, pageSize, pageNo);
+  res.status(200).send(buildLogs.map((log) => BuiltLogEntryDto.fromBuildLogLite(log)));
 };
-
-export const getFullCubeBuildLog = async (req: Request, res: Response): Promise<void> => {
-  const pageSize = req.query.size ? Number.parseInt(req.query.size as string) : 30;
-  const pageNo = req.query.page ? Number.parseInt(req.query.page as string) * pageSize : 0;
-  const buildLog = await BuildLog.find({ where: { type: CubeBuildType.FullCube }, take: pageSize, skip: pageNo });
-  res.status(200).send(buildLog.map((log) => BuiltLogEntryDto.fromBuildLogLite(log)));
-};
-
-export const getBulkDraftBuildLog = async (req: Request, res: Response): Promise<void> => {
-  const pageSize = req.query.size ? Number.parseInt(req.query.size as string) : 30;
-  const pageNo = req.query.page ? Number.parseInt(req.query.page as string) * pageSize : 0;
-  const buildLog = await BuildLog.find({ where: { type: CubeBuildType.DraftCubes }, take: pageSize, skip: pageNo });
-  res.status(200).send(buildLog.map((log) => BuiltLogEntryDto.fromBuildLogLite(log)));
-};
-
-export const getBulkAllBuildLog = async (req: Request, res: Response): Promise<void> => {
-  const pageSize = req.query.size ? Number.parseInt(req.query.size as string) : 30;
-  const pageNo = req.query.page ? Number.parseInt(req.query.page as string) * pageSize : 0;
-  const buildLog = await BuildLog.find({ where: { type: CubeBuildType.AllCubes }, take: pageSize, skip: pageNo });
-  res.status(200).send(buildLog.map((log) => BuiltLogEntryDto.fromBuildLogLite(log)));
-};
-
 
 export const getBuiltLogEntry = async (req: Request, res: Response): Promise<void> => {
   const buildId = req.params.build_id;

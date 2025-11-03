@@ -43,8 +43,11 @@ import { attachUpdateDataTableToRevision } from '../services/revision';
 import { performanceReporting } from '../utils/performance-reporting';
 import { CubeBuildResult } from '../dtos/cube-build-result';
 import { bootstrapCubeBuildProcess } from '../utils/lookup-table-utils';
-import { BuildLog } from '../entities/dataset/build-log';
 import { BuiltLogEntryDto } from '../dtos/build-log';
+import { buildStatusValidator, buildTypeValidator, hasError } from '../validators';
+import { CubeBuildType } from '../enums/cube-build-type';
+import { CubeBuildStatus } from '../enums/cube-build-status';
+import { BuildLogRepository } from '../repositories/build-log';
 
 export const getDataTable = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   const revision: Revision = res.locals.revision;
@@ -573,13 +576,38 @@ export const createNewRevision = async (req: Request, res: Response, next: NextF
   }
 };
 
-export const getRevisionBuildLog = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+export const getRevisionBuildLog = async (req: Request, res: Response): Promise<void> => {
   const revision = res.locals.revision;
-  const pageSize = req.query.size ? Number.parseInt(req.query.size as string) : 10;
+  const pageSize = req.query.size ? Number.parseInt(req.query.size as string) : 30;
   const pageNo = req.query.page ? Number.parseInt(req.query.page as string) * pageSize : 0;
-  const revisionBuildLog = await BuildLog.find({ where: { revisionId: revision.id }, take: pageSize, skip: pageNo });
+  const typeError = await hasError(buildTypeValidator(), req);
+  const statusError = await hasError(buildStatusValidator(), req);
+
+  if (typeError) {
+    const availableTypes = Object.values(CubeBuildType).join(', ');
+    next(new BadRequestException(`type must be one of the following: ${availableTypes}`));
+    return;
+  }
+
+  if (statusError) {
+    const availableStatuses = Object.values(CubeBuildStatus).join(', ');
+    next(new BadRequestException(`status must be one of the following: ${availableStatuses}`));
+    return;
+  }
+
+  const buildType: CubeBuildType | undefined = req.query.type as CubeBuildType;
+  const buildStatus: CubeBuildStatus | undefined = req.query.status as CubeBuildStatus;
+
+  const revisionBuildLogs = await BuildLogRepository.getRevisionByBuildLog(
+    revision.id,
+    buildType,
+    buildStatus,
+    pageSize,
+    pageNo
+  );
+
   res
     .status(200)
-    .json(revisionBuildLog.map((log) => BuiltLogEntryDto.fromBuildLogLite(log)))
+    .json(revisionBuildLogs.map((log) => BuiltLogEntryDto.fromBuildLogLite(log)))
     .end();
 };
