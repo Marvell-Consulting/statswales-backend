@@ -140,6 +140,7 @@ export const createAllCubeFiles = async (
   if (buildType === CubeBuildType.ValidationCube) {
     build.completeBuild(CubeBuildStatus.Completed);
     logger.debug('Validation cube build complete');
+    return;
   }
 
   build.status = CubeBuildStatus.SchemaRename;
@@ -609,8 +610,8 @@ function resetFactTable(buildId: string): string {
   return pgformat('DELETE FROM %I.%I;', buildId, FACT_TABLE_NAME);
 }
 
-function dropUpdateTable(buildId: string, updateTableName: string): string {
-  return pgformat('DROP TABLE %I', buildId, updateTableName);
+function dropUpdateTable(actionId: string): string {
+  return pgformat('DROP TABLE %I;', actionId);
 }
 
 function stripExistingCodes(
@@ -630,13 +631,8 @@ function stripExistingCodes(
   );
 }
 
-function createUpdateTable(buildId: string, tempTableName: string, dataTable: DataTable): string {
-  return pgformat(
-    'CREATE TEMPORARY TABLE %I.%I AS SELECT * FROM data_tables.%I;',
-    buildId,
-    tempTableName,
-    dataTable.id
-  );
+function createUpdateTable(tempTableName: string, dataTable: DataTable): string {
+  return pgformat('CREATE TEMPORARY TABLE %I AS SELECT * FROM data_tables.%I;', tempTableName, dataTable.id);
 }
 
 function finaliseValues(
@@ -671,20 +667,9 @@ function finaliseValues(
     )
   );
 
-  // Seems to fix the issue around provisional codes not being removed from the fact table for SW-1016
-  // Leaving code in place for now, but will remove in future as long as no other bugs are reported.
-  // statements.push(pgformat(
-  //   `DELETE FROM %I USING %I WHERE %s AND string_to_array(%I.%I, ',') && string_to_array('!', ',');`,
-  //   updateTableName,
-  //   FACT_TABLE_NAME,
-  //   joinParts.join(' AND '),
-  //   FACT_TABLE_NAME,
-  //   notesCodeColumn.columnName
-  // ));
-
   statements.push(
     pgformat(
-      `UPDATE %I.%I SET %I = array_to_string(array_remove(string_to_array(%I, ','), '!'), ',')`,
+      `UPDATE %I.%I SET %I = array_to_string(array_remove(string_to_array(%I, ','), '!'), ',');`,
       buildId,
       FACT_TABLE_NAME,
       notesCodeColumn.columnName,
@@ -721,9 +706,9 @@ function updateProvisionalAndForecastValues(
   );
   statements.push(
     pgformat(
-      `DELETE FROM %I.%I USING %I WHERE string_to_array(%I.%I, ',') && string_to_array('p,f', ',') AND %s;`,
-      buildId,
+      `DELETE FROM %I USING %I.%I WHERE string_to_array(%I.%I, ',') && string_to_array('p,f', ',') AND %s;`,
       updateTableName,
+      buildId,
       FACT_TABLE_NAME,
       updateTableName,
       notesCodeColumn.columnName,
@@ -739,12 +724,17 @@ function fixNoteCodesOnUpdateTable(
   notesCodeColumn: FactTableColumn,
   joinParts: string[]
 ): string[] {
-  const statements: string[] = [];
-  statements.push(stripExistingCodes(buildId, updateTableName, notesCodeColumn, NoteCode.Revised));
-  statements.push(
+  return [
     pgformat(
-      `UPDATE %I.%I SET %I = array_to_string(array_append(array_remove(string_to_array(lower(%I.%I), ','), %L), %L), ',') FROM %I.%I WHERE %s;`,
-      buildId,
+      `UPDATE %I SET %I = array_to_string(array_remove(string_to_array(replace(lower(%I.%I), ' ', ''), ','),%L),',');`,
+      updateTableName,
+      notesCodeColumn.columnName,
+      updateTableName,
+      notesCodeColumn.columnName,
+      NoteCode.Revised
+    ),
+    pgformat(
+      `UPDATE %I SET %I = array_to_string(array_append(array_remove(string_to_array(lower(%I.%I), ','), %L), %L), ',') FROM %I.%I WHERE %s;`,
       updateTableName,
       notesCodeColumn.columnName,
       updateTableName,
@@ -755,8 +745,7 @@ function fixNoteCodesOnUpdateTable(
       FACT_TABLE_NAME,
       joinParts.join(' AND ')
     )
-  );
-  return statements;
+  ];
 }
 
 function updateFactsTableFromUpdateTable(
@@ -767,7 +756,7 @@ function updateFactsTableFromUpdateTable(
   joinParts: string[]
 ): string {
   return pgformat(
-    `UPDATE %I.%I SET %I = %I.%I, %I = %I.%I FROM %I.%I WHERE %s;`,
+    `UPDATE %I.%I SET %I = %I.%I, %I = %I.%I FROM %I WHERE %s;`,
     buildId,
     FACT_TABLE_NAME,
     dataValuesColumn.columnName,
@@ -776,7 +765,6 @@ function updateFactsTableFromUpdateTable(
     notesCodeColumn.columnName,
     updateTableName,
     notesCodeColumn.columnName,
-    buildId,
     updateTableName,
     joinParts.join(' AND ')
   );
@@ -797,24 +785,16 @@ function copyUpdateTableToFactTable(
   }
   // First remove values which already exist in the fact table
   statements.push(
-    pgformat(
-      `DELETE FROM %I.%I USING %I.%I WHERE %s`,
-      buildId,
-      FACT_TABLE_NAME,
-      buildId,
-      updateTableName,
-      joinParts.join(' AND ')
-    )
+    pgformat(`DELETE FROM %I.%I USING %I WHERE %s;`, buildId, FACT_TABLE_NAME, updateTableName, joinParts.join(' AND '))
   );
   // Now copy over anything else which remains
   statements.push(
     pgformat(
-      'INSERT INTO %I.%I (%I) (SELECT %I FROM %I.%I);',
+      'INSERT INTO %I.%I (%I) (SELECT %I FROM %I);',
       buildId,
       FACT_TABLE_NAME,
       factTableDef,
       dataTableSelect,
-      buildId,
       updateTableName
     )
   );
@@ -884,7 +864,7 @@ export function dataTableActions(
       );
       break;
     case DataTableAction.Revise:
-      buildStatements.push(createUpdateTable(buildId, actionID, dataTable));
+      buildStatements.push(createUpdateTable(actionID, dataTable));
       buildStatements.push(...finaliseValues(buildId, actionID, dataValuesColumn, notesCodeColumn, joinParts));
       buildStatements.push(stripExistingCodes(buildId, FACT_TABLE_NAME, notesCodeColumn, NoteCode.Provisional));
       buildStatements.push(stripExistingCodes(buildId, FACT_TABLE_NAME, notesCodeColumn, NoteCode.Forecast));
@@ -896,10 +876,10 @@ export function dataTableActions(
       buildStatements.push(
         updateFactsTableFromUpdateTable(buildId, actionID, dataValuesColumn, notesCodeColumn, joinParts)
       );
-      buildStatements.push(dropUpdateTable(buildId, actionID));
+      buildStatements.push(dropUpdateTable(actionID));
       break;
     case DataTableAction.AddRevise:
-      buildStatements.push(createUpdateTable(buildId, actionID, dataTable));
+      buildStatements.push(createUpdateTable(actionID, dataTable));
       buildStatements.push(...finaliseValues(buildId, actionID, dataValuesColumn, notesCodeColumn, joinParts));
       buildStatements.push(stripExistingCodes(buildId, FACT_TABLE_NAME, notesCodeColumn, NoteCode.Provisional));
       buildStatements.push(stripExistingCodes(buildId, FACT_TABLE_NAME, notesCodeColumn, NoteCode.Forecast));
@@ -914,14 +894,14 @@ export function dataTableActions(
       buildStatements.push(
         ...copyUpdateTableToFactTable(buildId, actionID, factTableDef, joinParts, dataTable.dataTableDescriptions)
       );
-      buildStatements.push(dropUpdateTable(buildId, actionID));
+      buildStatements.push(dropUpdateTable(actionID));
       break;
     case DataTableAction.Correction:
-      buildStatements.push(createUpdateTable(buildId, actionID, dataTable));
+      buildStatements.push(createUpdateTable(actionID, dataTable));
       buildStatements.push(
         updateFactsTableFromUpdateTable(buildId, actionID, dataValuesColumn, notesCodeColumn, joinParts)
       );
-      buildStatements.push(dropUpdateTable(buildId, actionID));
+      buildStatements.push(dropUpdateTable(actionID));
       break;
   }
   return buildStatements;
