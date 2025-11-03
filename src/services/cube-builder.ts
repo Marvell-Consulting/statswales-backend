@@ -172,7 +172,12 @@ export const createAllCubeFiles = async (
   await build.save();
   // don't wait for this, can happen in the background so we can send the response earlier
   logger.debug('Running async process...');
-  void createMaterialisedView(buildRevisionId, dataset, build.id, cubeBuild, cubeBuildConfig);
+  void createMaterialisedView(buildRevisionId, dataset, build.id, cubeBuild, cubeBuildConfig).catch((err) => {
+    logger.error(
+      err,
+      `[build ID: ${build.id}] An error occurred trying to create materialised view for revision ${buildRevisionId}`
+    );
+  });
 };
 
 // This is the core cube builder

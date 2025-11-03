@@ -35,6 +35,8 @@ export const userGroupIdValidator = (userGroupIds: string[]): ValidationChain =>
 export const formatValidator = (): ValidationChain =>
   param('format').trim().notEmpty().isIn(Object.values(DownloadFormat));
 
-export const buildTypeValidator = (): ValidationChain => param('type').trim().isIn(Object.values(CubeBuildType));
+export const buildTypeValidator = (): ValidationChain =>
+  check('type').notEmpty().trim().isIn(Object.values(CubeBuildType));
 
-export const buildStatusValidator = (): ValidationChain => param('start').trim().isIn(Object.values(CubeBuildStatus));
+export const buildStatusValidator = (): ValidationChain =>
+  check('status').notEmpty().trim().isIn(Object.values(CubeBuildStatus));

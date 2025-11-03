@@ -12,8 +12,8 @@ import { BadRequestException } from '../exceptions/bad-request.exception';
 export const getBuildLog = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   const pageSize = req.query.size ? Number.parseInt(req.query.size as string) : 30;
   const pageNo = req.query.page ? Number.parseInt(req.query.page as string) * pageSize : 0;
-  const typeError = await hasError(buildTypeValidator(), req);
-  const statusError = await hasError(buildStatusValidator(), req);
+  const typeError = req.query.type ? await hasError(buildTypeValidator(), req) : false;
+  const statusError = req.query.status ? await hasError(buildStatusValidator(), req) : false;
 
   if (typeError) {
     const availableTypes = Object.values(CubeBuildType).join(', ');
