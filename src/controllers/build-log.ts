@@ -66,13 +66,13 @@ export const getBulkAllBuildLog = async (req: Request, res: Response): Promise<v
 export const getBuiltLogEntry = async (req: Request, res: Response): Promise<void> => {
   const buildId = req.params.build_id;
   if (!buildId) {
-    throw new NotFoundException('Built not found.');
+    throw new NotFoundException('Build not found.');
   }
   try {
     const build = await BuildLog.findOneByOrFail({ id: buildId });
     res.status(200).send(BuiltLogEntryDto.fromBuildLogFull(build));
   } catch (err) {
     logger.warn(err, `Failed to get build log entry with id ${buildId}`);
-    throw new NotFoundException('Built not found.');
+    throw new NotFoundException('Build not found.');
   }
 };
