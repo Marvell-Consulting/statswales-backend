@@ -37,6 +37,9 @@ import { MeasureFormat } from '../interfaces/measure-format';
 import { RevisionRepository } from '../repositories/revision';
 
 export const FACT_TABLE_NAME = 'fact_table';
+export const METADATA_TABLE_NAME = 'metadata';
+export const FILTER_TABLE_NAME = 'filter_table';
+export const VALIDATION_TABLE_NAME = 'validation_table';
 export const CORE_VIEW_NAME = 'core_view';
 
 // Create the cube in the postgres database.  Handles the following:
@@ -517,6 +520,93 @@ function createCubeBaseTables(revisionId: string, buildId: string, factTableQuer
   };
 }
 
+function createValidationTableEntries(buildId: string, columnName: string): string {
+  return pgformat(
+    'SELECT DISTINCT %I as reference, %L as fact_table_column FROM %I.%I',
+    columnName,
+    columnName,
+    buildId,
+    FACT_TABLE_NAME
+  );
+}
+
+function setupValidationTableFromDataset(buildId: string, dataset: Dataset): TransactionBlock {
+  const statements: string[] = ['BEGIN TRANSACTION;'];
+  statements.push(
+    pgformat(
+      `CREATE TABLE %I.%I (reference TEXT, fact_table_column VARCHAR, PRIMARY KEY (reference, fact_table_column));`,
+      buildId,
+      VALIDATION_TABLE_NAME
+    )
+  );
+  const unionParts: string[] = [];
+  if (dataset.measure) {
+    const measureCol = dataset.measure.factTableColumn;
+    unionParts.push(createValidationTableEntries(buildId, measureCol));
+  }
+  for (const dim of dataset.dimensions) {
+    const dimColumnName = dim.factTableColumn;
+    unionParts.push(createValidationTableEntries(buildId, dimColumnName));
+  }
+  statements.push(pgformat('INSERT INTO %I.%I %s;', buildId, VALIDATION_TABLE_NAME, unionParts.join(' UNION ALL ')));
+  statements.push(pgformat(`CREATE INDEX ON %I.%I (reference);`, buildId, VALIDATION_TABLE_NAME));
+  statements.push(pgformat(`CREATE INDEX ON %I.%I (fact_table_column);`, buildId, VALIDATION_TABLE_NAME));
+  statements.push('END TRANSACTION;');
+
+  return {
+    buildStage: BuildStage.ValidationTableBuild,
+    statements
+  };
+}
+
+// We use this method of creating the validation table when we have no dimensions and no measure
+// the reason we don't use this all the time is that there's guess work around the data and note
+// code columns.
+function setupValidationEntriesTableUsingRawSQL(buildId: string): TransactionBlock {
+  const statement = pgformat(
+    `
+    DO $$
+    DECLARE
+      src_schema   text := %L;  -- e.g. 'public'
+      src_table    text := %L;  -- e.g. 'fact_table'
+      out_table    text := %L;  -- e.g. 'validation_table'
+      col RECORD;
+      sql TEXT := '';
+    BEGIN
+    FOR col IN
+        SELECT column_name
+        FROM information_schema.columns
+        WHERE table_name = src_table
+        AND table_schema = src_schema
+        AND column_name NOT ILIKE '%%data%%'
+        AND column_name NOT ILIKE '%%note%%'
+    LOOP
+        sql := sql || format(
+            'SELECT DISTINCT %%I AS reference, %%L AS fact_table_column FROM %%I.%%I UNION ALL ',
+            col.column_name, col.column_name, src_schema, src_table
+        );
+    END LOOP;
+
+    -- Remove trailing UNION ALL
+    sql := left(sql, length(sql) - 11);
+
+    -- Create the new table
+    EXECUTE format('DROP TABLE IF EXISTS %%I.%%I;', src_schema, out_table);
+    EXECUTE format('CREATE TABLE %%I.%%I AS %%s;', src_schema, out_table, sql);
+    EXECUTE format('CREATE INDEX ON %%I.%%I (reference);', src_schema, out_table);
+    EXECUTE format('CREATE INDEX ON %%I.%%I (fact_table_column);', src_schema, out_table);
+    END $$;
+    `,
+    buildId,
+    FACT_TABLE_NAME,
+    VALIDATION_TABLE_NAME
+  );
+  return {
+    buildStage: BuildStage.ValidationTableBuild,
+    statements: ['BEGIN TRANSACTION;', statement, 'END TRANSACTION;']
+  };
+}
+
 export const loadTableDataIntoFactTableFromPostgresStatement = (
   buildId: string,
   factTableDef: string[],
@@ -574,6 +664,8 @@ function createCubeNoSources(
   );
   factTableBuildStage.statements.push('END TRANSACTION;');
   transactionBlocks.push(factTableBuildStage);
+
+  transactionBlocks.push(setupValidationEntriesTableUsingRawSQL(buildId));
 
   // Create core view block
   const viewBuilderStage: TransactionBlock = {
@@ -2017,6 +2109,8 @@ function createValidationCube(
     )
   );
 
+  transactionBlocks.push(setupValidationTableFromDataset(buildId, dataset));
+
   // Create core view block
   const viewBuilderStage: TransactionBlock = {
     buildStage: BuildStage.CoreView,
@@ -2075,6 +2169,8 @@ function createFullCube(
       factTableInfo.compositeKey
     )
   );
+
+  transactionBlocks.push(setupValidationTableFromDataset(buildId, dataset));
 
   const joinStatements: string[] = [];
   const orderByStatements: string[] = [];
