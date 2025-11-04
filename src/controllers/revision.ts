@@ -598,7 +598,7 @@ export const getRevisionBuildLog = async (req: Request, res: Response, next: Nex
   const buildType: CubeBuildType | undefined = req.query.type as CubeBuildType;
   const buildStatus: CubeBuildStatus | undefined = req.query.status as CubeBuildStatus;
 
-  const revisionBuildLogs = await BuildLogRepository.getRevisionByBuildLog(
+  const revisionBuildLogs = await BuildLogRepository.getByRevisionId(
     revision.id,
     buildType,
     buildStatus,

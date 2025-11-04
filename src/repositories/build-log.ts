@@ -15,7 +15,7 @@ export const BuildLogRepository = dataSource.getRepository(BuildLog).extend({
     return BuildLog.find(findOpts);
   },
 
-  async getRevisionByBuildLog(
+  async getByRevisionId(
     revisionId: string,
     type?: CubeBuildType,
     status?: CubeBuildStatus,
