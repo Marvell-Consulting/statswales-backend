@@ -112,7 +112,7 @@ export const createAllCubeFiles = async (
     logger.error(error, 'Something went wrong trying to create the cube schema');
     const buildErr = {
       message: 'Something went wrong trying to create the cube schema',
-      error: error
+      error
     };
     build.completeBuild(CubeBuildStatus.Failed, undefined, JSON.stringify(buildErr));
     await build.save();
@@ -175,7 +175,12 @@ export const createAllCubeFiles = async (
   await build.save();
   // don't wait for this, can happen in the background so we can send the response earlier
   logger.debug('Running async process...');
-  void createMaterialisedView(buildRevisionId, dataset, build.id, cubeBuild, cubeBuildConfig);
+  void createMaterialisedView(buildRevisionId, dataset, build.id, cubeBuild, cubeBuildConfig).catch((err) => {
+    logger.error(
+      err,
+      `[build ID: ${build.id}] An error occurred trying to create materialised view for revision ${buildRevisionId}`
+    );
+  });
 };
 
 // This is the core cube builder

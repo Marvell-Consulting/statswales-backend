@@ -43,6 +43,11 @@ import { attachUpdateDataTableToRevision } from '../services/revision';
 import { performanceReporting } from '../utils/performance-reporting';
 import { CubeBuildResult } from '../dtos/cube-build-result';
 import { bootstrapCubeBuildProcess } from '../utils/lookup-table-utils';
+import { BuiltLogEntryDto } from '../dtos/build-log';
+import { buildStatusValidator, buildTypeValidator, hasError } from '../validators';
+import { CubeBuildType } from '../enums/cube-build-type';
+import { CubeBuildStatus } from '../enums/cube-build-status';
+import { BuildLogRepository } from '../repositories/build-log';
 
 export const getDataTable = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   const revision: Revision = res.locals.revision;
@@ -569,4 +574,40 @@ export const createNewRevision = async (req: Request, res: Response, next: NextF
   } catch (err) {
     next(err);
   }
+};
+
+export const getRevisionBuildLog = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  const revision = res.locals.revision;
+  const pageSize = req.query.size ? Number.parseInt(req.query.size as string) : 30;
+  const pageNo = req.query.page ? Number.parseInt(req.query.page as string) * pageSize : 0;
+  const typeError = req.query.type ? await hasError(buildTypeValidator(), req) : false;
+  const statusError = req.query.status ? await hasError(buildStatusValidator(), req) : false;
+
+  if (typeError) {
+    const availableTypes = Object.values(CubeBuildType).join(', ');
+    next(new BadRequestException(`type must be one of the following: ${availableTypes}`));
+    return;
+  }
+
+  if (statusError) {
+    const availableStatuses = Object.values(CubeBuildStatus).join(', ');
+    next(new BadRequestException(`status must be one of the following: ${availableStatuses}`));
+    return;
+  }
+
+  const buildType: CubeBuildType | undefined = req.query.type as CubeBuildType;
+  const buildStatus: CubeBuildStatus | undefined = req.query.status as CubeBuildStatus;
+
+  const revisionBuildLogs = await BuildLogRepository.getByRevisionId(
+    revision.id,
+    buildType,
+    buildStatus,
+    pageSize,
+    pageNo
+  );
+
+  res
+    .status(200)
+    .json(revisionBuildLogs.map((log) => BuiltLogEntryDto.fromBuildLogLite(log)))
+    .end();
 };
