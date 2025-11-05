@@ -598,7 +598,7 @@ function setupValidationEntriesTableUsingRawSQL(buildId: string): TransactionBlo
         AND column_name NOT ILIKE '%%note%%'
     LOOP
         sql := sql || format(
-            'SELECT DISTINCT %%I AS reference, %%L AS fact_table_column FROM %%I.%%I UNION ALL ',
+            'SELECT DISTINCT CAST(%%I as TEXT) AS reference, %%L AS fact_table_column FROM %%I.%%I UNION ALL ',
             col.column_name, col.column_name, src_schema, src_table
         );
     END LOOP;
