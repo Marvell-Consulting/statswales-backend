@@ -527,7 +527,7 @@ function createCubeBaseTables(revisionId: string, buildId: string, factTableQuer
 
 function createValidationTableEntries(buildId: string, columnName: string): string {
   return pgformat(
-    'SELECT DISTINCT %I as reference, %L as fact_table_column FROM %I.%I',
+    'SELECT DISTINCT CAST(%I AS TEXT) as reference, %L as fact_table_column FROM %I.%I',
     columnName,
     columnName,
     buildId,
@@ -598,7 +598,7 @@ function setupValidationEntriesTableUsingRawSQL(buildId: string): TransactionBlo
         AND column_name NOT ILIKE '%%note%%'
     LOOP
         sql := sql || format(
-            'SELECT DISTINCT %%I AS reference, %%L AS fact_table_column FROM %%I.%%I UNION ALL ',
+            'SELECT DISTINCT CAST(%%I as TEXT) AS reference, %%L AS fact_table_column FROM %%I.%%I UNION ALL ',
             col.column_name, col.column_name, src_schema, src_table
         );
     END LOOP;
