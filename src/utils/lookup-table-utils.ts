@@ -6,8 +6,6 @@ import { DataTable } from '../entities/dataset/data-table';
 import { LookupTable } from '../entities/dataset/lookup-table';
 import { DataTableDescription } from '../entities/dataset/data-table-description';
 import { Locale } from '../enums/locale';
-import { MeasureLookupPatchDTO } from '../dtos/measure-lookup-patch-dto';
-import { LookupTablePatchDTO } from '../dtos/lookup-patch-dto';
 import { logger } from './logger';
 import { Dataset } from '../entities/dataset/dataset';
 import { ViewErrDTO } from '../dtos/view-dto';
@@ -28,6 +26,7 @@ import { Revision } from '../entities/dataset/revision';
 import { Dimension } from '../entities/dataset/dimension';
 import { revisionStartAndEndDateFinder } from './revision';
 import { DateDimensionTypes, LookupTableTypes } from '../enums/dimension-type';
+import { runQueryBlockInPostgres } from './run-postgres-statement-block';
 
 export function convertDataTableToLookupTable(dataTable: DataTable): LookupTable {
   const lookupTable = new LookupTable();
@@ -98,27 +97,23 @@ export const languageMatcherCaseStatement = (languageColumn: string | undefined)
 // If they've used the exact name in the guidance e.g. ref_code, reference_code, refcode use this
 // Finally we do fuzzy matching where we exclude everything that isn't a protected name and see what we have left
 export const lookForJoinColumn = (
-  protoLookupTable: DataTable,
+  lookupTableColumns: DataTableDescription[],
   factTableColumn: string,
-  tableLanguage: Locale,
-  tableMatcher?: MeasureLookupPatchDTO | LookupTablePatchDTO
-): string => {
-  const refCol = protoLookupTable.dataTableDescriptions.find((col) => col.columnName.toLowerCase().startsWith('ref'));
-  const refCodeCol = protoLookupTable.dataTableDescriptions.find((col) =>
+  tableLanguage: Locale
+): string[] => {
+  const refCol = lookupTableColumns.find((col) => col.columnName.toLowerCase().startsWith('ref'));
+  const refCodeCol = lookupTableColumns.find((col) =>
     col.columnName.toLowerCase().includes(t('lookup_column_headers.refcode', { lng: tableLanguage }).toLowerCase())
   );
 
-  if (tableMatcher?.join_column) return tableMatcher.join_column;
-  if (refCol) return refCol.columnName;
-  if (refCodeCol) return refCodeCol.columnName;
+  if (refCol) return [refCol.columnName];
+  if (refCodeCol) return [refCodeCol.columnName];
 
-  if (
-    protoLookupTable.dataTableDescriptions.find((col) => col.columnName.toLowerCase() === factTableColumn.toLowerCase())
-  ) {
-    return factTableColumn;
+  if (lookupTableColumns.find((col) => col.columnName.toLowerCase() === factTableColumn.toLowerCase())) {
+    return [factTableColumn];
   }
 
-  const possibleJoinColumns = protoLookupTable.dataTableDescriptions.filter((info) => {
+  const possibleJoinColumns = lookupTableColumns.filter((info) => {
     const columnName = info.columnName.toLowerCase();
     if (columnName.includes(t('lookup_column_headers.decimal', { lng: tableLanguage }))) return false;
     if (columnName.includes(t('lookup_column_headers.hierarchy', { lng: tableLanguage }))) return false;
@@ -134,77 +129,51 @@ export const lookForJoinColumn = (
     return true;
   });
 
-  if (possibleJoinColumns.length > 1) {
-    throw new Error(`Too many possible join columns. Join columns present: ${possibleJoinColumns.join(', ')}`);
-  }
-
   if (possibleJoinColumns.length === 0) {
     throw new Error('Could not find a column to join against the fact table.');
   }
 
-  logger.debug(`Found a join column ${possibleJoinColumns[0].columnName}`);
-  return possibleJoinColumns[0].columnName;
+  logger.debug(`Found ${possibleJoinColumns.length} possible join columns in the lookup`);
+  return possibleJoinColumns.map((col) => col.columnName);
 };
 
 export const validateLookupTableLanguages = async (
   dataset: Dataset,
-  revisionId: string,
-  joinColumn: string,
-  lookupTableName: string,
+  mockCubeId: string,
+  lookupReferenceColumn: string,
+  lookupTableName: string, // <-- The UUID of the lookup table or measure
   validationType: string
 ): Promise<ViewErrDTO | undefined> => {
-  const primaryKeyRunner = dbManager.getCubeDataSource().createQueryRunner();
+  const alterTableQuery = pgformat(
+    'ALTER TABLE %I.%I ADD PRIMARY KEY (%I, language);',
+    mockCubeId,
+    lookupTableName,
+    lookupReferenceColumn
+  );
+  logger.debug(`Adding primary key of ${lookupReferenceColumn} and language to lookup table`);
   try {
-    logger.debug(`Adding primary key of ${joinColumn} and language to lookup table`);
-    const alterTableQuery = pgformat(
-      'ALTER TABLE %I.%I ADD PRIMARY KEY (%I, language);',
-      revisionId,
-      lookupTableName,
-      joinColumn
-    );
-    await primaryKeyRunner.query(alterTableQuery);
+    await runQueryBlockInPostgres([alterTableQuery]);
   } catch (error) {
     logger.error(error, `Something went wrong trying to add primary key to lookup table`);
     return viewErrorGenerators(400, dataset.id, 'patch', `errors.${validationType}_validation.primary_key_failed`, {});
-  } finally {
-    void primaryKeyRunner.release();
   }
 
+  const missingLanguageRowsQuery = pgformat(
+    `SELECT * FROM (SELECT %I as join_column, COUNT(language) as lang_count, STRING_AGG(language, ',') as languages
+          FROM %I.%I GROUP BY %I) WHERE lang_count < %L;`,
+    lookupReferenceColumn,
+    mockCubeId,
+    lookupTableName,
+    lookupReferenceColumn,
+    SUPPORTED_LOCALES.length
+  );
+
+  let missingLanguageRows: { join_column: string; lang_count: number; languages: string }[];
   const langCheckRunner = dbManager.getCubeDataSource().createQueryRunner();
   try {
     logger.debug(`Checking language counts match total number of supported languages`);
-    const missingLanguageRowsQuery = pgformat(
-      `
-      SELECT * FROM (SELECT %I as join_column, COUNT(language) as lang_count, STRING_AGG(language, ',') as languages
-      FROM %I.%I
-      GROUP BY %I) WHERE lang_count < ${SUPPORTED_LOCALES.length};
-    `,
-      joinColumn,
-      revisionId,
-      lookupTableName,
-      joinColumn
-    );
-    logger.debug(`Checking language counts match total number of supported languages`);
     logger.trace(`missing language rows query: ${missingLanguageRowsQuery}`);
-    const missingLanguageRows: { join_column: string; lang_count: number; languages: string }[] =
-      await langCheckRunner.query(missingLanguageRowsQuery);
-    if (missingLanguageRows.length > 0) {
-      const missingLanguages: string[] = [];
-      SUPPORTED_LOCALES.forEach((locale) => {
-        if (!missingLanguageRows.find((row) => row.languages.includes(locale.split('-')[0].toLowerCase()))) {
-          missingLanguages.push(`languages.${locale.split('-')[0]}`);
-        }
-      });
-      logger.error(`The lookup table is missing the following languages: ${missingLanguages.join(', ')}`);
-      return viewErrorGenerators(
-        400,
-        dataset.id,
-        'patch',
-        `errors.${validationType}_validation.missing_languages`,
-        {},
-        { languages: missingLanguages.join(', ') }
-      );
-    }
+    missingLanguageRows = await langCheckRunner.query(missingLanguageRowsQuery);
   } catch (error) {
     logger.error(error, `Something went wrong trying to check language counts`);
     return viewErrorGenerators(500, dataset.id, 'patch', `errors.${validationType}_validation.unknown_error`, {});
@@ -212,36 +181,25 @@ export const validateLookupTableLanguages = async (
     void langCheckRunner.release();
   }
 
-  try {
-    logger.debug(`Checking descriptions and notes are different between languages`);
-    const duplicateDescriptionRows: string[] = [];
-    const duplicateNoteRows: string[] = [];
-    // const duplicateDescriptionRows = await quack.all(`
-    //   SELECT "${joinColumn}", description, COUNT(language) as lang_count
-    //   FROM (SELECT * FROM "${lookupTableName}" where description IS NOT NULL)
-    //   GROUP BY description, "${joinColumn}" HAVING lang_count > 1
-    // `);
-    // const duplicateNoteRows = await quack.all(`
-    //   SELECT "${joinColumn}", notes, COUNT(language) as lang_count
-    //   FROM (SELECT * FROM "${lookupTableName}" WHERE notes IS NOT NULL)
-    //   GROUP BY notes, "${joinColumn}" HAVING lang_count > 1
-    // `);
-    if (duplicateDescriptionRows.length > 0 || duplicateNoteRows.length > 0) {
-      logger.error(`The lookup table has duplicate descriptions or notes`);
-      // logger.error(`Duplicate descriptions: ${JSON.stringify(duplicateDescriptionRows)}`);
-      // logger.error(`Duplicate notes: ${JSON.stringify(duplicateNoteRows)}`);
-      return viewErrorGenerators(
-        400,
-        dataset.id,
-        'patch',
-        `errors.${validationType}_validation.duplicate_descriptions_or_notes`,
-        {}
-      );
-    }
-  } catch (error) {
-    logger.error(error, `Something went wrong trying to check descriptions and notes`);
-    return viewErrorGenerators(500, dataset.id, 'patch', `errors.${validationType}_validation.unknown_error`, {});
+  if (missingLanguageRows.length > 0) {
+    const missingLanguages: string[] = [];
+    SUPPORTED_LOCALES.forEach((locale) => {
+      if (!missingLanguageRows.find((row) => row.languages.includes(locale.split('-')[0].toLowerCase()))) {
+        missingLanguages.push(`languages.${locale.split('-')[0]}`);
+      }
+    });
+    logger.error(`The lookup table is missing the following languages: ${missingLanguages.join(', ')}`);
+    return viewErrorGenerators(
+      400,
+      dataset.id,
+      'patch',
+      `errors.${validationType}_validation.missing_languages`,
+      {},
+      { languages: missingLanguages.join(', ') }
+    );
   }
+
+  // TODO Add code here to use the Azure AI Translation API to confirm language use
   return undefined;
 };
 

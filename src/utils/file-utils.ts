@@ -21,6 +21,7 @@ import { FactTableColumn } from '../entities/dataset/fact-table-column';
 import { SUPPORTED_LOCALES } from '../middleware/translation';
 import { languageMatcherCaseStatement } from './lookup-table-utils';
 import { DuckDBConnection } from '@duckdb/node-api';
+import { runQueryBlockInPostgres } from './run-postgres-statement-block';
 
 export const getFileImportAndSaveToDisk = async (
   dataset: Dataset,
@@ -58,17 +59,96 @@ export const createLookupTableQuery = (
   schemaName: string,
   lookupTableName: string,
   referenceColumnName: string,
-  referenceColumnType: string
+  referenceColumnType: string,
+  otherColumns?: string[]
 ): string => {
+  const otherColumnsStatement: string[] = [];
+  if (otherColumns && otherColumns.length > 0) {
+    otherColumns.forEach((column) => {
+      otherColumnsStatement.push(pgformat('%I text', column));
+    });
+  }
   return pgformat(
-    'CREATE TABLE %I.%I (%I %s NOT NULL, language VARCHAR(5) NOT NULL, description TEXT NOT NULL, notes TEXT, sort_order INTEGER, hierarchy %s);',
+    'CREATE TABLE %I.%I (%I %s NOT NULL, language VARCHAR(5) NOT NULL, description TEXT NOT NULL, notes TEXT, sort_order INTEGER, hierarchy %s %s);',
     schemaName,
     lookupTableName,
     referenceColumnName,
     referenceColumnType,
-    referenceColumnType
+    referenceColumnType,
+    otherColumnsStatement.length > 0 ? `, ${otherColumnsStatement.join(', ')}` : ''
   );
 };
+
+export async function convertLookupTableToSW3Format(
+  mockCubeId: string,
+  lookupTable: LookupTable,
+  extractor: LookupTableExtractor,
+  factTableColumn: FactTableColumn,
+  lookupReferenceColumn: string
+): Promise<void> {
+  const statements = [
+    'BEGIN TRANSACTION;',
+    createLookupTableQuery('mockCubeId', lookupTable.id, factTableColumn.columnName, factTableColumn.columnDatatype)
+  ];
+
+  const additionalCols = extractor.otherColumns?.map((col) => {
+    return pgformat('%I text', col);
+  });
+
+  if (extractor.isSW2Format) {
+    const dataExtractorParts = [];
+    for (const locale of SUPPORTED_LOCALES) {
+      const descriptionCol = extractor.descriptionColumns.find(
+        (col) => col.lang.toLowerCase() === locale.toLowerCase()
+      );
+      const notesCol = extractor.notesColumns?.find((col) => col.lang.toLowerCase() === locale.toLowerCase());
+      const notesColStr = notesCol ? pgformat('%I', notesCol.name) : 'NULL';
+      const sortStr = extractor.sortColumn ? pgformat('%I', extractor.sortColumn) : 'NULL';
+      const hierarchyCol = extractor.hierarchyColumn ? pgformat('%I', extractor.hierarchyColumn) : 'NULL';
+      dataExtractorParts.push(
+        pgformat(
+          'SELECT %I AS %I, %L as language, %I as description, %s as notes, %s as sort_order, %s as hierarchy %s FROM %I.%I',
+          lookupReferenceColumn,
+          factTableColumn.columnName,
+          locale.toLowerCase(),
+          descriptionCol?.name,
+          notesColStr,
+          sortStr,
+          hierarchyCol,
+          additionalCols ? `, ${additionalCols.join(', ')}` : '',
+          mockCubeId,
+          `${lookupTable.id}_tmp`
+        )
+      );
+    }
+    statements.push(pgformat(`INSERT INTO %I.%I %s;`, mockCubeId, lookupTable.id, dataExtractorParts.join(' UNION ')));
+  } else {
+    const languageMatcher = languageMatcherCaseStatement(extractor.languageColumn);
+    const notesStr = extractor.notesColumns ? pgformat('%I', extractor.notesColumns[0].name) : 'NULL';
+    const sortStr = extractor.sortColumn ? pgformat('%I', extractor.sortColumn) : 'NULL';
+    const hierarchyStr = extractor.hierarchyColumn ? pgformat('%I', extractor.hierarchyColumn) : 'NULL';
+    const dataExtractorParts = pgformat(
+      `SELECT %I AS %I, %s as language, %I as description, %s as notes, %s as sort_order, %s as hierarchy %s FROM %I.%I;`,
+      lookupReferenceColumn,
+      factTableColumn.columnName,
+      languageMatcher,
+      extractor.descriptionColumns[0].name,
+      notesStr,
+      sortStr,
+      hierarchyStr,
+      additionalCols ? `, ${additionalCols.join(', ')}` : '',
+      mockCubeId,
+      `${lookupTable.id}_tmp`
+    );
+    statements.push(pgformat(`INSERT INTO %I.%I %s`, mockCubeId, lookupTable.id, dataExtractorParts));
+  }
+  statements.push(
+    pgformat('CREATE TABLE %I.%I AS SELECT * FROM %I.%I', 'lookup_tables', lookupTable.id, mockCubeId, lookupTable.id)
+  );
+  statements.push('END TRANSACTION;');
+  logger.debug('Converting lookup table to correct SW3 format');
+  return runQueryBlockInPostgres(statements);
+}
 
 export async function loadFileIntoLookupTablesSchema(
   dataset: Dataset,
