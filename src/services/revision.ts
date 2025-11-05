@@ -19,20 +19,15 @@ import { DatasetRepository } from '../repositories/dataset';
 import { createDateDimensionLookup } from './dimension-processor';
 import { FactTableValidationExceptionType } from '../enums/fact-table-validation-exception-type';
 import { FactTableValidationException } from '../exceptions/fact-table-validation-exception';
-import {
-  createAllCubeFiles,
-  createLookupTableDimension,
-  createMeasureLookupTable,
-  makeCubeSafeString
-} from './cube-builder';
+import { createAllCubeFiles, createLookupTableInCube, makeCubeSafeString } from './cube-builder';
 import { CubeBuildType } from '../enums/cube-build-type';
 import { Dimension } from '../entities/dataset/dimension';
 import { Dataset } from '../entities/dataset/dataset';
 import { validateLookupTableReferenceValues } from '../utils/lookup-table-utils';
-import { MeasureRow } from '../entities/dataset/measure-row';
 import { DateExtractor } from '../extractors/date-extractor';
 import { config } from '../config';
 import { revisionStartAndEndDateFinder } from '../utils/revision';
+import { LookupTable } from '../entities/dataset/lookup-table';
 
 export async function attachUpdateDataTableToRevision(
   datasetId: string,
@@ -135,7 +130,7 @@ export async function attachUpdateDataTableToRevision(
   });
 
   try {
-    await validateMeasure(buildId, dataset, measureColumn, dataset.measure.measureTable!);
+    await validateMeasure(buildId, dataset, measureColumn, dataset.measure.lookupTable!);
   } catch (err) {
     logger.warn(err, 'Validating measure failed.  Adding it to the revision tasks');
     revisionTasks.measure = { id: dataset.measure.id, lookupTableUpdated: false };
@@ -239,13 +234,13 @@ async function validateMeasure(
   buildId: string,
   dataset: Dataset,
   measureColumn: FactTableColumn,
-  measureTable: MeasureRow[]
+  lookupTable: LookupTable
 ): Promise<void> {
-  const measureTableSQL = createMeasureLookupTable(buildId, measureColumn, measureTable);
+  const measureTableSQL = createLookupTableInCube(buildId, lookupTable, measureColumn, 'measure');
   const createMeasureRunner = dbManager.getCubeDataSource().createQueryRunner();
   try {
-    logger.trace(`Running create measure table lookup SQL:\n\n${measureTableSQL.join('\n')}\n\n`);
-    await createMeasureRunner.query(measureTableSQL.join('\n'));
+    logger.trace(`Running create measure table lookup SQL:\n\n${measureTableSQL}\n\n`);
+    await createMeasureRunner.query(measureTableSQL);
   } catch (err) {
     logger.error(err, 'Failed to create new measure table in validation cube');
   } finally {
@@ -289,7 +284,7 @@ async function createLookupTableInValidationCube(
   factTableColumn: FactTableColumn
 ): Promise<void> {
   logger.debug(`Validating lookup table dimension: ${dimension.id}`);
-  const createLookupSQL = createLookupTableDimension(buildId, dimension, factTableColumn);
+  const createLookupSQL = createLookupTableInCube(buildId, dimension.lookupTable!, factTableColumn, 'lookup_table');
   const createLookupRunner = dbManager.getCubeDataSource().createQueryRunner();
   try {
     await createLookupRunner.query(createLookupSQL);

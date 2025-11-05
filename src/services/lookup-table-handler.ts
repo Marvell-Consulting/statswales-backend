@@ -38,7 +38,8 @@ async function setupDimension(
   dimension: Dimension,
   lookupTable: LookupTable,
   lookupTableColumns: DataTableDescription[],
-  confirmedJoinColumn: string
+  confirmedJoinColumn: string,
+  tableLanguage: Locale
 ): Promise<Dimension> {
   // Clean up previously uploaded dimensions
   if (dimension.lookupTable) await cleanUpDimension(dimension);
@@ -47,30 +48,18 @@ async function setupDimension(
   updateDimension.joinColumn = confirmedJoinColumn;
   updateDimension.lookupTable = lookupTable;
   logger.debug(`Creating extractor...`);
-  updateDimension.extractor = createExtractor(lookupTableColumns);
+  updateDimension.extractor = createLookupExtractor(confirmedJoinColumn, lookupTableColumns, tableLanguage);
   updateDimension.lookupTable = lookupTable;
   updateDimension.type = DimensionType.LookupTable;
   return updateDimension;
 }
 
-function createExtractor(tableColumns: DataTableDescription[]): LookupTableExtractor {
+function createLookupExtractor(
+  confirmedJoinColumn: string,
+  tableColumns: DataTableDescription[],
+  tableLanguage: Locale
+): LookupTableExtractor {
   logger.debug('Detecting column types from column names');
-  let tableLanguage: Locale | undefined;
-  for (const locale of SUPPORTED_LOCALES) {
-    const descriptionStr = t('lookup_column_headers.description', { lng: tableLanguage });
-    const match = tableColumns.find((col) => col.columnName.toLowerCase().includes(descriptionStr));
-    if (match) {
-      tableLanguage = locale;
-      break;
-    }
-  }
-
-  if (!tableLanguage) {
-    throw new FileValidationException(
-      'errors.measure_validation.no_description_columns',
-      FileValidationErrorType.InvalidCsv
-    );
-  }
 
   // Possible headings based on language used for the description column
   const noteStr = t('lookup_column_headers.notes', { lng: tableLanguage });
@@ -89,7 +78,9 @@ function createExtractor(tableColumns: DataTableDescription[]): LookupTableExtra
 
   tableColumns.forEach((column) => {
     const columnName = column.columnName.toLowerCase();
-    if (columnName.includes(descriptionStr)) {
+    if (columnName === confirmedJoinColumn.toLowerCase()) {
+      extractor.joinColumn = columnName;
+    } else if (columnName.includes(descriptionStr)) {
       extractor.descriptionColumns.push(columnIdentification(column));
     } else if (columnName.startsWith(langStr)) {
       extractor.languageColumn = column.columnName;
@@ -208,7 +199,13 @@ export const validateLookupTable = async (
     return viewErrorGenerators(400, dataset.id, 'patch', error.errorTag, error.extension);
   }
 
-  const updatedDimension = await setupDimension(dimension, lookupTable, lookupTableColumns, lookupReferenceColumn);
+  const updatedDimension = await setupDimension(
+    dimension,
+    lookupTable,
+    lookupTableColumns,
+    lookupReferenceColumn,
+    tableLanguage
+  );
 
   try {
     logger.debug(`Converting lookup table to the correct format...`);
@@ -217,7 +214,8 @@ export const validateLookupTable = async (
       lookupTable,
       updatedDimension.extractor as LookupTableExtractor,
       factTableColumn,
-      lookupReferenceColumn
+      lookupReferenceColumn,
+      'lookup_table'
     );
   } catch (err) {
     logger.error(err, `Something went wrong trying to covert the lookup table to SW3 format`);
@@ -248,7 +246,9 @@ export const validateLookupTable = async (
     return viewErrorGenerators(500, dataset.id, 'patch', `errors.lookup_table_validation.unknown_error`, {});
   }
 
+  lookupTable.isStatsWales2Format = false;
   await lookupTable.save();
+  updatedDimension.lookupTable = lookupTable;
   await updatedDimension.save();
 
   const lookupTablePreviewRunner = dbManager.getCubeDataSource().createQueryRunner();
@@ -273,7 +273,7 @@ export const validateLookupTable = async (
 // Finds the correct join column and confirms all the reference values are present
 // If the query returns 0 matches, this is the join column
 // If multiple columns partially match we mismatch on the column with the most matches
-async function confirmJoinColumnAndValidateReferenceValues(
+export async function confirmJoinColumnAndValidateReferenceValues(
   possibleJoinColumns: string[],
   factTableColumn: string,
   mockCubeId: string,

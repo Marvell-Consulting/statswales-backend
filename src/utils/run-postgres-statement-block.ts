@@ -5,7 +5,7 @@ export async function runQueryBlockInPostgres(statements: string[]): Promise<voi
   const queryRunner = dbManager.getCubeDataSource().createQueryRunner();
   try {
     logger.trace(`Running queries:\n\n${statements.join('\n')}\n\n`);
-    await queryRunner.query(statements.join('/n'));
+    await queryRunner.query(statements.join('\n'));
   } catch (error) {
     logger.error(error, 'Something went wrong to trying to run statement block');
     throw error;

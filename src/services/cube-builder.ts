@@ -35,6 +35,7 @@ import { NoteCode, NoteCodes } from '../enums/note-code';
 import { UniqueMeasureDetails } from '../interfaces/unique-measure-details';
 import { MeasureFormat } from '../interfaces/measure-format';
 import { RevisionRepository } from '../repositories/revision';
+import { LookupTable } from '../entities/dataset/lookup-table';
 
 export const FACT_TABLE_NAME = 'fact_table';
 export const METADATA_TABLE_NAME = 'metadata';
@@ -64,7 +65,7 @@ export const createAllCubeFiles = async (
   const datasetRelations: FindOptionsRelations<Dataset> = {
     factTable: true,
     dimensions: { metadata: true, lookupTable: true },
-    measure: { metadata: true, measureTable: true }
+    measure: { metadata: true, measureTable: true, lookupTable: true }
   };
 
   logger.debug('Loading dataset and relations');
@@ -1212,58 +1213,6 @@ function setupMeasureAndDataValuesNoLookup(
   };
 }
 
-export const measureTableCreateStatement = (
-  joinColumnType: string,
-  buildId?: string,
-  tableName = 'measure'
-): string => {
-  if (buildId) {
-    tableName = pgformat('%I.%I', buildId, tableName);
-  }
-  return pgformat(
-    `
-      CREATE TABLE %s (
-                        reference %s,
-                        language TEXT,
-                        description TEXT,
-                        notes TEXT,
-                        sort_order INTEGER,
-                        format TEXT,
-                        decimals INTEGER,
-                        measure_type TEXT,
-                        hierarchy %s
-      );
-    `,
-    tableName,
-    joinColumnType,
-    joinColumnType
-  );
-};
-
-export function createMeasureLookupTable(
-  buildId: string,
-  measureColumn: FactTableColumn,
-  measureTable: MeasureRow[]
-): string[] {
-  const statements: string[] = [];
-  statements.push(measureTableCreateStatement(measureColumn.columnDatatype, buildId));
-  for (const row of measureTable) {
-    const values = [
-      row.reference,
-      row.language.toLowerCase(),
-      row.description,
-      row.notes ? row.notes : null,
-      row.sortOrder ? row.sortOrder : null,
-      row.format,
-      row.decimal ? row.decimal : null,
-      row.measureType ? row.measureType : null,
-      row.hierarchy ? row.hierarchy : null
-    ];
-    statements.push(pgformat('INSERT INTO %I.measure VALUES (%L);', buildId, values));
-  }
-  return statements;
-}
-
 function toUniqueMeasureDetailsByRef(measureTable: MeasureRow[]): UniqueMeasureDetails[] {
   const map = new Map<string, UniqueMeasureDetails>();
   for (const r of measureTable) {
@@ -1330,6 +1279,7 @@ function postgresMeasureFormats(): Map<string, MeasureFormat> {
 
 function setupMeasureAndDataValuesWithLookup(
   buildId: string,
+  lookupTable: LookupTable,
   measureTable: MeasureRow[],
   dataValuesColumn: FactTableColumn,
   measureColumn: FactTableColumn,
@@ -1342,8 +1292,7 @@ function setupMeasureAndDataValuesWithLookup(
 ): TransactionBlock {
   const statements: string[] = ['BEGIN TRANSACTION;'];
   const indexColumns = new Map<Locale, string[]>();
-  statements.push(...createMeasureLookupTable(buildId, measureColumn, measureTable));
-
+  statements.push(createLookupTableInCube(buildId, lookupTable, measureColumn, 'measure'));
   logger.debug('Creating query part to format the data value correctly');
 
   const uniqueReferences = toUniqueMeasureDetailsByRef(measureTable);
@@ -1435,7 +1384,7 @@ function setupMeasureAndDataValuesWithLookup(
   });
   joinStatements.push(
     pgformat(
-      'LEFT JOIN %I.measure on measure.reference=%I.%I AND measure.language=#LANG#',
+      'LEFT JOIN %I.measure on measure.reference=CAST(%I.%I AS TEXT) AND measure.language=#LANG#',
       buildId,
       FACT_TABLE_NAME,
       measureColumn.columnName
@@ -1522,19 +1471,15 @@ function rawDimensionProcessor(
   return statements;
 }
 
-export function createLookupTableDimension(
+export function createLookupTableInCube(
   buildId: string,
-  dimension: Dimension,
-  factTableColumn: FactTableColumn
+  lookupTable: LookupTable,
+  factTableColumn: FactTableColumn,
+  type: 'measure' | 'lookup_table'
 ): string {
-  logger.debug(`Creating and validating lookup table dimension ${dimension.factTableColumn}`);
-  const dimTable = `${makeCubeSafeString(factTableColumn.columnName)}_lookup`;
-  return pgformat(
-    'CREATE TABLE %I.%I AS SELECT * FROM lookup_tables.%I;',
-    buildId,
-    dimTable,
-    dimension.lookupTable!.id
-  );
+  logger.debug(`Creating and validating lookup table dimension ${factTableColumn.columnName}`);
+  const dimTable = type === 'measure' ? 'measure' : `${makeCubeSafeString(factTableColumn.columnName)}_lookup`;
+  return pgformat('CREATE TABLE %I.%I AS SELECT * FROM lookup_tables.%I;', buildId, dimTable, lookupTable.id);
 }
 
 function updateColumnName(existingColumnNames: Set<string>, proposedColumnName: string): string {
@@ -1567,7 +1512,7 @@ function setupLookupTableDimension(
     throw error;
   }
   const dimTable = `${makeCubeSafeString(dimension.factTableColumn)}_lookup`;
-  statements.push(createLookupTableDimension(buildId, dimension, factTableColumn));
+  statements.push(createLookupTableInCube(buildId, dimension.lookupTable!, factTableColumn, 'lookup_table'));
 
   SUPPORTED_LOCALES.map((locale) => {
     const proposedColumnName =
@@ -1604,7 +1549,7 @@ function setupLookupTableDimension(
   });
   joinStatements.push(
     pgformat(
-      `LEFT JOIN %I.%I on %I.%I=%I.%I AND %I.language=#LANG#`,
+      `LEFT JOIN %I.%I on %I.%I=CAST(%I.%I AS TEXT) AND %I.language=#LANG#`,
       buildId,
       dimTable,
       dimTable,
@@ -1967,6 +1912,7 @@ function setupMeasuresAndDataValues(
   if (createMeasureTable && dataset.measure.measureTable && dataset.measure.measureTable.length > 0) {
     return setupMeasureAndDataValuesWithLookup(
       buildId,
+      dataset.measure.lookupTable!,
       dataset.measure.measureTable,
       dataValuesColumn,
       measureColumn,

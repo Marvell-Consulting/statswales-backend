@@ -131,8 +131,8 @@ export const attachLookupTableToDimension = async (req: Request, res: Response, 
   }
 
   try {
-    const dataTable = await validateAndUpload(tmpFile, datasetId, revision.id, 'lookup_table');
-    const result = await validateLookupTable(dataTable, dataset, dimension, tmpFile.path, language);
+    const dataTable = await validateAndUpload(tmpFile, datasetId, 'lookup_table');
+    const result = await validateLookupTable(dataTable, dataset, revision, dimension, language);
     await updateRevisionTasks(dataset, dimension.id, 'dimension');
 
     if ((result as ViewErrDTO).status) {

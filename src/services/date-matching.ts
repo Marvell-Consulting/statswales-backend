@@ -43,20 +43,18 @@ export const createDatePeriodTableQuery = (
   return pgformat(
     `
       CREATE TABLE %I.%I (
-                           %I %s,
+                           %I TEXT,
                            language VARCHAR(5),
         description VARCHAR,
         start_date TIMESTAMP WITHOUT TIME ZONE,
         end_date TIMESTAMP WITHOUT TIME ZONE,
         date_type VARCHAR,
         sort_order BIGINT,
-        hierarchy %s
+        hierarchy TEXT
         );`,
     schemaId,
     tableName,
-    factTableColumn.columnName,
-    factTableColumn.columnDatatype,
-    factTableColumn.columnDatatype
+    factTableColumn.columnName
   );
 };
 

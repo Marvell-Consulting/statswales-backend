@@ -12,4 +12,6 @@ export interface MeasureLookupTableExtractor {
   languageColumn?: string;
   hierarchyColumn?: string;
   isSW2Format: boolean;
+  otherColumns?: string[];
+  joinColumn?: string;
 }

@@ -163,7 +163,6 @@ export async function validateFileAndExtractTableInfo(
 export const validateAndUpload = async (
   file: TempFile,
   datasetId: string,
-  revisionId: string,
   type: UploadTableType
 ): Promise<DataTable> => {
   const { mimetype, originalname } = file;

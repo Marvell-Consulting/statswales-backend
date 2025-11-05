@@ -13,7 +13,7 @@ export async function createPostgresValidationSchema(
     'BEGIN TRANSACTION;',
     pgformat('CREATE SCHEMA IF NOT EXISTS %I;', schemaId),
     pgformat(
-      'CREATE TABLE %I.%I AS SELECT * FROM %I.%I',
+      'CREATE TABLE %I.%I AS SELECT * FROM %I.%I;',
       schemaId,
       VALIDATION_TABLE_NAME,
       revisionId,
@@ -30,8 +30,8 @@ export async function createPostgresValidationSchema(
       VALIDATION_TABLE_NAME,
       factTableColumnName
     ),
-    pgformat('CREATE INDEX ON %I.%I (%I)', schemaId, VALIDATION_TABLE_NAME, factTableColumnName),
-    pgformat('CREATE TABLE %I.%I AS SELECT * FROM %I.%I', schemaId, 'lookup_table', 'lookup_tables', lookupTableName),
+    pgformat('CREATE INDEX ON %I.%I (%I);', schemaId, FACT_TABLE_NAME, factTableColumnName),
+    pgformat('CREATE TABLE %I.%I AS SELECT * FROM %I.%I;', schemaId, 'lookup_table', 'lookup_tables', lookupTableName),
     'END TRANSACTION;'
   ];
   logger.debug('Attempting to create mock cube for validation and lookup table processing');
@@ -52,7 +52,7 @@ export async function cleanUpPostgresValidationSchema(schemaId: string, lookupTa
 export async function saveValidatedLookupTableToDatabase(mockCubeId: string, lookupTableId: string): Promise<void> {
   const statements = [
     'BEGIN TRANSACTION;',
-    pgformat('CREATE TABLE %I.%I AS SELECT * FROM %I.%I;', mockCubeId, lookupTableId, 'lookup_tables', lookupTableId),
+    pgformat('CREATE TABLE %I.%I AS SELECT * FROM %I.%I;', 'lookup_tables', lookupTableId, mockCubeId, lookupTableId),
     pgformat('DROP SCHEMA IF EXISTS %I CASCADE;', mockCubeId),
     pgformat('DROP TABLE IF EXISTS %I.%I;', 'lookup_tables', `${lookupTableId}_tmp`),
     'END TRANSACTION;'
