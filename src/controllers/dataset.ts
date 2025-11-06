@@ -684,9 +684,7 @@ async function rebuildDatasetList(buildLogEntry: BuildLog, revisionList: Revisio
     buildScript.all_builds.push(buildId);
     buildScript.current_build = buildId;
     buildLogEntry.buildScript = JSON.stringify(buildScript, null, 2);
-    void buildLogEntry.save().catch((err) => {
-      logger.error(err, `[${buildLogEntry.id}]: Failed to update build log`);
-    });
+    void buildLogEntry.save();
     try {
       await bootstrapCubeBuildProcess(rev.dataset_id, rev.id);
     } catch (err) {
@@ -732,9 +730,7 @@ async function rebuildDatasetList(buildLogEntry: BuildLog, revisionList: Revisio
     buildScript.current_build = null;
     buildScript.total_builds = buildScript.total_builds++;
     buildLogEntry.buildScript = JSON.stringify(buildScript, null, 2);
-    void buildLogEntry.save().catch((err) => {
-      logger.error(err, `[${buildLogEntry.id}]: Failed to update build log`);
-    });
+    await buildLogEntry.save();
   }
   if (failedBuilds.length > 0) buildLogEntry.errors = JSON.stringify(failedBuilds, null, 2);
   buildLogEntry.completeBuild(CubeBuildStatus.Completed);
