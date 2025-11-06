@@ -724,7 +724,7 @@ async function rebuildDatasetList(buildLogEntry: BuildLog, revisionList: Revisio
       });
     } else {
       buildScript.successfully_built.push(buildId);
-      buildScript.successful_builds = buildScript.successful_builds++;
+      buildScript.successful_builds++;
       logger.info(`[${buildLogEntry.id}]: Cube for revision ${rev.id} has been rebuilt successfully.`);
     }
     buildScript.current_build = null;
