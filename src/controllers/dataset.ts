@@ -684,6 +684,7 @@ async function rebuildDatasetList(buildLogEntry: BuildLog, revisionList: Revisio
     buildScript.all_builds.push(buildId);
     buildScript.current_build = buildId;
     buildLogEntry.buildScript = JSON.stringify(buildScript, null, 2);
+    buildLogEntry.status = CubeBuildStatus.Building;
     await buildLogEntry.save();
     try {
       await bootstrapCubeBuildProcess(rev.dataset_id, rev.id);
@@ -716,7 +717,7 @@ async function rebuildDatasetList(buildLogEntry: BuildLog, revisionList: Revisio
     if (build.status === CubeBuildStatus.Failed) {
       logger.warn(`[${buildLogEntry}]: Cube for revision ${rev.id} has been failed to rebuild.`);
       buildScript.failed_to_build.push(buildId);
-      buildScript.failed_builds = buildScript.failed_builds++;
+      buildScript.failed_builds++;
       failedBuilds.push({
         buildId,
         revisionId: rev.id,
@@ -728,7 +729,7 @@ async function rebuildDatasetList(buildLogEntry: BuildLog, revisionList: Revisio
       logger.info(`[${buildLogEntry.id}]: Cube for revision ${rev.id} has been rebuilt successfully.`);
     }
     buildScript.current_build = null;
-    buildScript.total_builds = buildScript.total_builds++;
+    buildScript.total_builds++;
     buildLogEntry.buildScript = JSON.stringify(buildScript, null, 2);
     await buildLogEntry.save();
   }
