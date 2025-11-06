@@ -684,7 +684,7 @@ async function rebuildDatasetList(buildLogEntry: BuildLog, revisionList: Revisio
     buildScript.all_builds.push(buildId);
     buildScript.current_build = buildId;
     buildLogEntry.buildScript = JSON.stringify(buildScript, null, 2);
-    void buildLogEntry.save();
+    await buildLogEntry.save();
     try {
       await bootstrapCubeBuildProcess(rev.dataset_id, rev.id);
     } catch (err) {
