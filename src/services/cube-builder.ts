@@ -392,13 +392,20 @@ async function createMaterialisedView(
   } catch (error) {
     try {
       const errorStatements = [
+        'BEGIN TRANSACTION;',
         pgformat(
           'UPDATE %I.metadata SET value = %L WHERE key = %L;',
           revisionId,
           CubeBuildStatus.Failed,
           CubeMetaDataKeys.BuildStatus
         ),
-        pgformat('UPDATE %I.metadata SET value = %L WHERE key = %L;', revisionId, error, CubeMetaDataKeys.BuildResults)
+        pgformat(
+          'UPDATE %I.metadata SET value = %L WHERE key = %L;',
+          revisionId,
+          JSON.stringify(error),
+          CubeMetaDataKeys.BuildResults
+        ),
+        'END TRANSACTION;'
       ];
       fullBuildScriptArr.push(...errorStatements);
       await cubeDB.query(errorStatements.join('\n'));
