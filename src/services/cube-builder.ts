@@ -1750,7 +1750,7 @@ function setupNumericDimension(
       pgformat(
         `INSERT INTO %I.filter_table
          SELECT DISTINCT CAST(%I AS VARCHAR), %L, %L, %L, CAST (%I AS VARCHAR), NULL
-         FROM %I.%I ORDER BY %I`,
+         FROM %I.%I ORDER BY %I;`,
         buildId,
         dimension.factTableColumn,
         locale.toLowerCase(),
@@ -1819,7 +1819,7 @@ function setupTextDimension(
       pgformat(
         `INSERT INTO %I.filter_table
          SELECT DISTINCT CAST(%I AS VARCHAR), %L, %L, %L, CAST (%I AS VARCHAR), NULL
-         FROM %I.%I`,
+         FROM %I.%I;`,
         buildId,
         dimension.factTableColumn,
         locale.toLowerCase(),
