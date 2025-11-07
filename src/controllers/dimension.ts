@@ -11,7 +11,6 @@ import { ViewDTO, ViewErrDTO } from '../dtos/view-dto';
 import { DimensionDTO } from '../dtos/dimension-dto';
 import { LookupTable } from '../entities/dataset/lookup-table';
 import { UnknownException } from '../exceptions/unknown.exception';
-import { LookupTablePatchDTO } from '../dtos/lookup-patch-dto';
 import { DimensionMetadataDTO } from '../dtos/dimension-metadata-dto';
 import { validateAndUpload } from '../services/incoming-file-processor';
 import {
@@ -123,9 +122,15 @@ export const attachLookupTableToDimension = async (req: Request, res: Response, 
       revisions: { dataTable: { dataTableDescriptions: true } }
     });
 
+    const draftRevision = dataset.draftRevision;
+    if (!draftRevision) {
+      logger.error('No draft revision found on dataset');
+      next(new UnknownException('errors.no_revision'));
+      return;
+    }
+
     const dataTable = await validateAndUpload(tmpFile, datasetId, 'lookup_table');
-    const tableMatcher = req.body as LookupTablePatchDTO;
-    const result = await validateLookupTable(dataTable, dataset, dimension, tmpFile.path, language, tableMatcher);
+    const result = await validateLookupTable(dataTable, dataset, draftRevision, dimension, language);
     await updateRevisionTasks(dataset, dimension.id, 'dimension');
     await createAllCubeFiles(dataset.id, dataset.draftRevision!.id, userId);
 
@@ -141,7 +146,7 @@ export const attachLookupTableToDimension = async (req: Request, res: Response, 
     logger.error(err, `An error occurred trying to handle the lookup table`);
     next(new UnknownException('errors.upload_error'));
   } finally {
-    cleanupTmpFile(tmpFile);
+    void cleanupTmpFile(tmpFile);
   }
 };
 

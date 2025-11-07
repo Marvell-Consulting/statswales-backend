@@ -32,7 +32,7 @@ export async function createPostgresValidationSchema(
     ),
     pgformat('CREATE INDEX ON %I.%I (%I);', schemaId, FACT_TABLE_NAME, factTableColumnName),
     pgformat('CREATE TABLE %I.%I AS SELECT * FROM %I.%I;', schemaId, 'lookup_table', 'lookup_tables', lookupTableName),
-    'END TRANSACTION;'
+    'COMMIT;'
   ];
   logger.debug('Attempting to create mock cube for validation and lookup table processing');
   return runQueryBlock(statements);
@@ -43,7 +43,7 @@ export async function cleanUpPostgresValidationSchema(schemaId: string, lookupTa
     'BEGIN TRANSACTION;',
     pgformat('DROP SCHEMA IF EXISTS %I CASCADE;', schemaId),
     pgformat('DROP TABLE IF EXISTS %I.%I;', 'lookup_tables', `${lookupTableId}_tmp`),
-    'END TRANSACTION;'
+    'COMMIT;'
   ];
   logger.debug('Dropping mock cube schema from database');
   return runQueryBlock(statements);
@@ -55,7 +55,7 @@ export async function saveValidatedLookupTableToDatabase(mockCubeId: string, loo
     pgformat('CREATE TABLE %I.%I AS SELECT * FROM %I.%I;', 'lookup_tables', lookupTableId, mockCubeId, lookupTableId),
     pgformat('DROP SCHEMA IF EXISTS %I CASCADE;', mockCubeId),
     pgformat('DROP TABLE IF EXISTS %I.%I;', 'lookup_tables', `${lookupTableId}_tmp`),
-    'END TRANSACTION;'
+    'COMMIT;'
   ];
   logger.debug('Copying validated lookup table to database and cleaning up mock cube');
   return runQueryBlock(statements);
