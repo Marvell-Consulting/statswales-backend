@@ -28,7 +28,7 @@ import { MeasureRow } from '../entities/dataset/measure-row';
 import { SUPPORTED_LOCALES } from '../middleware/translation';
 import { DisplayType } from '../enums/display-type';
 import { getFileService } from '../utils/get-file-service';
-import { FACT_TABLE_NAME, measureTableCreateStatement, VALIDATION_TABLE_NAME } from './cube-builder';
+import { measureTableCreateStatement, VALIDATION_TABLE_NAME } from './cube-builder';
 import { FileValidationErrorType, FileValidationException } from '../exceptions/validation-exception';
 import { FactTableColumn } from '../entities/dataset/fact-table-column';
 import { Locale } from '../enums/locale';

@@ -603,12 +603,11 @@ export const createDateDimensionLookup = async (
   factTableColumn: FactTableColumn,
   extractor: DateExtractor
 ): Promise<{ startDate: Date; endDate: Date; lookupTable: LookupTable }> => {
-  const tableName = 'fact_table';
   const dataQuery = pgformat(
-    'SELECT DISTINCT %I as date_data FROM %I.%I;',
-    factTableColumn.columnName,
+    'SELECT reference as date_data FROM %I.%I WHERE fact_table_column = %L;',
     schemaId,
-    tableName
+    VALIDATION_TABLE_NAME,
+    factTableColumn.columnName
   );
 
   const getDateDataQueryRunner = dbManager.getCubeDataSource().createQueryRunner();
@@ -949,10 +948,10 @@ async function getPreviewWithoutExtractor(
   try {
     preview = await previewQueryRunner.query(
       pgformat(
-        'SELECT DISTINCT %I FROM %I ORDER BY %I ASC LIMIT %L;',
+        'SELECT reference AS %I FROM %I.%I WHERE fact_table_column = %L ORDER BY reference DESC LIMIT %L;',
         dimension.factTableColumn,
         schemaID,
-        FACT_TABLE_NAME,
+        VALIDATION_TABLE_NAME,
         dimension.factTableColumn,
         sampleSize
       )
@@ -1092,13 +1091,12 @@ export const getFactTableColumnPreview = async (
 ): Promise<ViewDTO | ViewErrDTO> => {
   logger.debug(`Getting fact table column preview for ${columnName}`);
   const previewQuery = pgformat(
-    'SELECT reference AS %I FROM %I.%I WHERE fact_table_column = %L;',
+    'SELECT reference AS %I FROM %I.%I WHERE fact_table_column = %L ORDER BY reference ASC',
     columnName,
     revision.id,
     VALIDATION_TABLE_NAME,
     columnName
   );
-
   const previewQueryRunner = dbManager.getCubeDataSource().createQueryRunner();
   let preview: Record<string, never>[];
   try {

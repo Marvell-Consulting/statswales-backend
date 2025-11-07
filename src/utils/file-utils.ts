@@ -218,6 +218,8 @@ export async function convertLookupTableToSW3Format(
     additionalCols = extractor.otherColumns.map((col) => pgformat('CAST (%I AS TEXT)', col));
   }
 
+  logger.debug(`Converting lookup table using extractor: ${JSON.stringify(extractor, null, 2)}`);
+
   if (extractor.isSW2Format) {
     const dataExtractorParts = [];
     for (const locale of SUPPORTED_LOCALES) {
@@ -227,7 +229,9 @@ export async function convertLookupTableToSW3Format(
       const notesCol = extractor.notesColumns?.find((col) => col.lang.toLowerCase() === locale.toLowerCase());
       const notesColStr = notesCol ? pgformat('%I', notesCol.name) : 'NULL';
       const sortStr = extractor.sortColumn ? pgformat('%I', extractor.sortColumn) : 'NULL';
-      const hierarchyCol = extractor.hierarchyColumn ? pgformat('%I', extractor.hierarchyColumn) : 'NULL';
+      const hierarchyCol = extractor.hierarchyColumn
+        ? pgformat('%I', extractor.hierarchyColumn)
+        : pgformat('CAST(NULL AS %s)', factTableColumn.columnDatatype);
       dataExtractorParts.push(
         pgformat(
           'SELECT %I AS %I, %L as language, %I as description, %s as notes, %s as sort_order, %s as hierarchy %s FROM %I.%I',
@@ -249,7 +253,9 @@ export async function convertLookupTableToSW3Format(
     const languageMatcher = languageMatcherCaseStatement(extractor.languageColumn);
     const notesStr = extractor.notesColumns ? pgformat('%I', extractor.notesColumns[0].name) : 'NULL';
     const sortStr = extractor.sortColumn ? pgformat('%I', extractor.sortColumn) : 'NULL';
-    const hierarchyStr = extractor.hierarchyColumn ? pgformat('%I', extractor.hierarchyColumn) : 'NULL';
+    const hierarchyStr = extractor.hierarchyColumn
+      ? pgformat('%I', extractor.hierarchyColumn)
+      : pgformat('CAST(NULL AS %s)', factTableColumn.columnDatatype);
     const dataExtractorParts = pgformat(
       `SELECT %I AS %I, %s as language, %I as description, %s as notes, %s as sort_order, %s as hierarchy %s FROM %I.%I;`,
       lookupReferenceColumn,

@@ -255,14 +255,14 @@ function createLookupExtractor(
       extractor.joinColumn = columnName;
     } else if (columnName.includes(descriptionStr)) {
       extractor.descriptionColumns.push(columnIdentification(column));
-    } else if (columnName.startsWith(langStr)) {
+    } else if (columnName.includes(langStr)) {
       extractor.languageColumn = column.columnName;
       extractor.isSW2Format = false;
-    } else if (columnName.startsWith(noteStr)) {
+    } else if (columnName.includes(noteStr)) {
       extractor.notesColumns?.push(columnIdentification(column));
-    } else if (columnName.startsWith(sortStr)) {
+    } else if (columnName.includes(sortStr)) {
       extractor.sortColumn = column.columnName;
-    } else if (columnName.startsWith(hierarchyStr)) {
+    } else if (columnName.includes(hierarchyStr)) {
       extractor.hierarchyColumn = column.columnName;
     } else {
       extractor.otherColumns?.push(column.columnName);

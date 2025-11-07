@@ -131,8 +131,6 @@ export const attachLookupTableToDimension = async (req: Request, res: Response, 
 
     const dataTable = await validateAndUpload(tmpFile, datasetId, 'lookup_table');
     const result = await validateLookupTable(dataTable, dataset, draftRevision, dimension, language);
-    await updateRevisionTasks(dataset, dimension.id, 'dimension');
-    await createAllCubeFiles(dataset.id, dataset.draftRevision!.id, userId);
 
     if ((result as ViewErrDTO).status) {
       const error = result as ViewErrDTO;
@@ -141,6 +139,8 @@ export const attachLookupTableToDimension = async (req: Request, res: Response, 
       return;
     }
 
+    await updateRevisionTasks(dataset, dimension.id, 'dimension');
+    await createAllCubeFiles(dataset.id, dataset.draftRevision!.id, userId);
     res.json(result);
   } catch (err) {
     logger.error(err, `An error occurred trying to handle the lookup table`);
