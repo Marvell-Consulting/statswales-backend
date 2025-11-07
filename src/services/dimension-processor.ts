@@ -24,7 +24,7 @@ import { createDatePeriodTableQuery, dateDimensionReferenceTableCreator, DateRef
 import { NumberExtractor, NumberType } from '../extractors/number-extractor';
 import { viewErrorGenerators } from '../utils/view-error-generators';
 import { getFileService } from '../utils/get-file-service';
-import { FACT_TABLE_NAME, makeCubeSafeString } from './cube-builder';
+import { FACT_TABLE_NAME, makeCubeSafeString, VALIDATION_TABLE_NAME } from './cube-builder';
 import { CubeValidationException } from '../exceptions/cube-error-exception';
 import { CubeValidationType } from '../enums/cube-validation-type';
 import { YearType } from '../enums/year-type';
@@ -522,7 +522,7 @@ export const validateDateDimension = async (
          %I.%I
          ) as fact_table
          LEFT JOIN %I.%I
-       ON fact_table.fact_table_date=%I.%I
+       ON CAST(fact_table.fact_table_date AS TEXT)=CAST(%I.%I AS TEXT)
        WHERE %I IS NULL;`,
       lookupTableName,
       factTableColumn.columnName,
@@ -536,6 +536,7 @@ export const validateDateDimension = async (
       factTableColumn.columnName
     );
 
+    logger.trace(`Running matching query:\n\n${matchingQuery}\n\n`);
     const nonMatchedRows = await cubeDB.query(matchingQuery);
 
     if (nonMatchedRows.length > 0) {
@@ -603,12 +604,11 @@ export const createDateDimensionLookup = async (
   factTableColumn: FactTableColumn,
   extractor: DateExtractor
 ): Promise<{ startDate: Date; endDate: Date; lookupTable: LookupTable }> => {
-  const tableName = 'fact_table';
   const dataQuery = pgformat(
-    'SELECT DISTINCT %I as date_data FROM %I.%I;',
-    factTableColumn.columnName,
+    'SELECT reference as date_data FROM %I.%I WHERE fact_table_column = %L;',
     schemaId,
-    tableName
+    VALIDATION_TABLE_NAME,
+    factTableColumn.columnName
   );
 
   const getDateDataQueryRunner = dbManager.getCubeDataSource().createQueryRunner();
@@ -809,7 +809,7 @@ export const createAndValidateDateDimension = async (
   updateDimension.lookupTable = lookupTable;
   await updateDimension.save();
   const previewQuery = pgformat(
-    'SELECT DISTINCT %I.* FROM %I.%I LEFT JOIN %I.%I ON %I.%I=%I.%I WHERE language = %L LIMIT %L;',
+    'SELECT DISTINCT %I.* FROM %I.%I LEFT JOIN %I.%I ON CAST(%I.%I AS TEXT)=CAST(%I.%I AS TEXT) WHERE language = %L LIMIT %L;',
     actionId,
     revision.id,
     actionId,
@@ -997,8 +997,8 @@ async function getLookupPreviewWithExtractor(
   const query = pgformat(
     `SELECT %I FROM %I.%I WHERE language = %L ORDER BY sort_order, %I LIMIT %L;`,
     columnNames,
-    schemaID,
-    lookupTableName,
+    'lookup_tables',
+    dimension.lookupTable!.id,
     language.toLowerCase(),
     dimension.factTableColumn,
     sampleSize

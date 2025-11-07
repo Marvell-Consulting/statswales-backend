@@ -1,4 +1,6 @@
 export enum FileValidationErrorType {
+  LookupMissingValues = 'lookup_missing_values',
+  LookupNoJoinColumn = 'lookup_no_join_column',
   UnknownMimeType = 'unknown_mime_type',
   UnknownFileFormat = 'unknown_file_format',
   WrongDataTypeInReference = 'wrong_data_type_in_reference',
@@ -17,6 +19,7 @@ export class FileValidationException extends Error {
   errorTag: string;
   message: string;
   type: FileValidationErrorType;
+  extension: never;
 
   constructor(message: string, type: FileValidationErrorType, status = 400) {
     super(message);

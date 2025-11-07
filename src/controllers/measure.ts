@@ -5,7 +5,6 @@ import { logger } from '../utils/logger';
 import { Dataset } from '../entities/dataset/dataset';
 import { ViewErrDTO } from '../dtos/view-dto';
 import { DatasetDTO } from '../dtos/dataset-dto';
-import { MeasureLookupPatchDTO } from '../dtos/measure-lookup-patch-dto';
 import { NotFoundException } from '../exceptions/not-found.exception';
 import { UnknownException } from '../exceptions/unknown.exception';
 import { getMeasurePreview, validateMeasureLookupTable } from '../services/measure-handler';
@@ -72,11 +71,16 @@ export const attachLookupTableToMeasure = async (req: Request, res: Response, ne
     draftRevision: { dataTable: true }
   });
 
+  const revision = dataset.draftRevision;
+  if (!revision) {
+    logger.error('No draft revision found on dataset');
+    throw new UnknownException('No revision found on dataset');
+  }
+
   try {
     const dataTable = await validateAndUpload(tmpFile, dataset.id, 'lookup_table');
     const lang = req.language.toLowerCase();
-    const tableMatcher = req.body as MeasureLookupPatchDTO;
-    const result = await validateMeasureLookupTable(dataTable, dataset, tmpFile.path, lang, tableMatcher);
+    const result = await validateMeasureLookupTable(dataTable, dataset, revision, tmpFile.path, lang);
     if ((result as ViewErrDTO).status) {
       const error = result as ViewErrDTO;
       res.status(error.status);
