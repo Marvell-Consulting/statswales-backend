@@ -28,7 +28,7 @@ import { MeasureRow } from '../entities/dataset/measure-row';
 import { SUPPORTED_LOCALES } from '../middleware/translation';
 import { DisplayType } from '../enums/display-type';
 import { getFileService } from '../utils/get-file-service';
-import { FACT_TABLE_NAME, measureTableCreateStatement } from './cube-builder';
+import { FACT_TABLE_NAME, measureTableCreateStatement, VALIDATION_TABLE_NAME } from './cube-builder';
 import { FileValidationErrorType, FileValidationException } from '../exceptions/validation-exception';
 import { FactTableColumn } from '../entities/dataset/fact-table-column';
 import { Locale } from '../enums/locale';
@@ -642,10 +642,11 @@ async function getMeasurePreviewWithoutExtractor(
   try {
     preview = await cubeDB.query(
       pgformat(
-        'SELECT DISTINCT %I FROM %I.%I ORDER BY %I ASC LIMIT %L;',
+        'SELECT DISTINCT reference AS %I FROM %I.%I WHERE fact_table_column = %L ORDER BY %I ASC LIMIT %L;',
         measure.factTableColumn,
         revision.id,
-        FACT_TABLE_NAME,
+        VALIDATION_TABLE_NAME,
+        measure.factTableColumn,
         measure.factTableColumn,
         sampleSize
       )
