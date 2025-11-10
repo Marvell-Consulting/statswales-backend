@@ -149,7 +149,7 @@ export const validateLookupTable = async (
       lookupReferenceColumn
     );
   } catch (err) {
-    logger.error(err, `Something went wrong trying to covert the lookup table to SW3 format`);
+    logger.error(err, `Something went wrong trying to convert the lookup table to SW3 format`);
     return viewErrorGenerators(500, dataset.id, 'patch', 'errors.dimension_validation.lookup_table_loading_failed', {
       mismatch: false
     });
