@@ -153,12 +153,13 @@ export const createAllCubeFiles = async (
     'BEGIN TRANSACTION;',
     pgformat('DROP SCHEMA IF EXISTS %I CASCADE;', buildRevision.id),
     pgformat('ALTER SCHEMA %I RENAME TO %I;', build.id, buildRevision.id),
-    'END TRANSACTION;'
+    'COMMIT;'
   ];
   try {
     logger.debug(`Renaming ${build.id} to cube rev ${buildRevision.id}`);
     await createRenameSchemaRunner.query(renameStatements.join('\n'));
   } catch (err) {
+    await createRenameSchemaRunner.query('ROLLBACK;');
     build.completeBuild(
       CubeBuildStatus.Failed,
       [build.buildScript, ...renameStatements].join('\n'),
@@ -265,7 +266,7 @@ async function createBasePostgresCube(
       fullBuildScript.join('\n')
     ),
     pgformat('INSERT INTO %I.metadata VALUES (%L, %L);', build.id, CubeMetaDataKeys.BuildResults, 'SUCCESS'),
-    'END TRANSACTION;'
+    'COMMIT;'
   ];
   cubeBuilder.transactionBlocks.push({ buildStage: BuildStage.PostBuildMetadata, statements: metaDataStatements });
 
@@ -282,6 +283,7 @@ async function createBasePostgresCube(
       logger.trace(`Running query:\n\n${block.statements.join('\n')}\n\n`);
       await cubeDB.query(block.statements.join('\n'));
     } catch (err) {
+      await cubeDB.query('ROLLBACK;');
       build.completeBuild(CubeBuildStatus.Failed, attemptedBuildScript.join('\n'), JSON.stringify(err));
       await build.save();
       if (block.buildStage === BuildStage.BaseTables) {
@@ -300,7 +302,7 @@ async function createBasePostgresCube(
             attemptedBuildScript.join('\n')
           ),
           pgformat('INSERT INTO %I.metadata VALUES (%L, %L);', build.id, CubeMetaDataKeys.BuildResults, err),
-          'END TRANSACTION;'
+          'COMMIT;'
         ];
         await cubeDB.query(metaDataUpdateStatements.join('\n'));
       }
@@ -377,7 +379,7 @@ async function createMaterialisedView(
       statements.push(pgformat('CREATE INDEX ON %I.%I (%I);', revisionId, materializedViewName, col));
     }
   }
-  statements.push('END TRANSACTION;');
+  statements.push('COMMIT;');
 
   const fullBuildScriptArr: string[] = [];
   for (const blk of cubeBuilder.transactionBlocks) {
@@ -390,19 +392,28 @@ async function createMaterialisedView(
     logger.trace(`Running query:\n\n${buildStatements}\n\n`);
     await cubeDB.query(buildStatements);
   } catch (error) {
+    await cubeDB.query('ROLLBACK;');
     try {
       const errorStatements = [
+        'BEGIN TRANSACTION;',
         pgformat(
           'UPDATE %I.metadata SET value = %L WHERE key = %L;',
           revisionId,
           CubeBuildStatus.Failed,
           CubeMetaDataKeys.BuildStatus
         ),
-        pgformat('UPDATE %I.metadata SET value = %L WHERE key = %L;', revisionId, error, CubeMetaDataKeys.BuildResults)
+        pgformat(
+          'UPDATE %I.metadata SET value = %L WHERE key = %L;',
+          revisionId,
+          JSON.stringify(error),
+          CubeMetaDataKeys.BuildResults
+        ),
+        'COMMIT;'
       ];
       fullBuildScriptArr.push(...errorStatements);
       await cubeDB.query(errorStatements.join('\n'));
     } catch (err) {
+      await cubeDB.query('ROLLBACK;');
       logger.error(err, 'Apparently cube no longer exists');
     }
     performanceReporting(Math.round(performance.now() - viewCreation), 3000, 'Setting up the materialized views');
@@ -518,7 +529,7 @@ function createCubeBaseTables(revisionId: string, buildId: string, factTableQuer
   statements.push(
     pgformat('INSERT INTO %I.metadata VALUES (%L, %L);', buildId, CubeMetaDataKeys.BuildScript, statements.join('\n'))
   );
-  statements.push('END TRANSACTION;');
+  statements.push('COMMIT;');
   return {
     buildStage: BuildStage.BaseTables,
     statements
@@ -567,7 +578,7 @@ function setupValidationTableFromDataset(buildId: string, dataset: Dataset): Tra
   statements.push(pgformat(`CREATE INDEX ON %I.%I (reference);`, buildId, VALIDATION_TABLE_NAME));
   statements.push(pgformat(`CREATE INDEX ON %I.%I (fact_table_column);`, buildId, VALIDATION_TABLE_NAME));
   statements.push(setFactCountInCube(buildId));
-  statements.push('END TRANSACTION;');
+  statements.push('COMMIT;');
 
   return {
     buildStage: BuildStage.ValidationTableBuild,
@@ -619,7 +630,7 @@ function setupValidationEntriesTableUsingRawSQL(buildId: string): TransactionBlo
   );
   return {
     buildStage: BuildStage.ValidationTableBuild,
-    statements: ['BEGIN TRANSACTION;', buildValidationStatementProc, setFactCountInCube(buildId), 'END TRANSACTION;']
+    statements: ['BEGIN TRANSACTION;', buildValidationStatementProc, setFactCountInCube(buildId), 'COMMIT;']
   };
 }
 
@@ -678,7 +689,7 @@ function createCubeNoSources(
       endRevision.dataTableId!
     )
   );
-  factTableBuildStage.statements.push('END TRANSACTION;');
+  factTableBuildStage.statements.push('COMMIT;');
   transactionBlocks.push(factTableBuildStage);
 
   transactionBlocks.push(setupValidationEntriesTableUsingRawSQL(buildId));
@@ -708,7 +719,7 @@ function createCubeNoSources(
       CubeBuildStatus.Materializing
     )
   );
-  viewBuilderStage.statements.push('END TRANSACTION;');
+  viewBuilderStage.statements.push('COMMIT;');
   transactionBlocks.push(viewBuilderStage);
 
   return { transactionBlocks, coreViewSQL };
@@ -1032,7 +1043,7 @@ function loadFactTableFromPreviousRevision(
   const dataTable = buildRevision.dataTable;
   if (!dataTable) {
     logger.debug('This revision has no data table attached');
-    buildStatements.push('END TRANSACTION');
+    buildStatements.push('COMMIT');
     return {
       buildStage: BuildStage.FactTable,
       statements: buildStatements
@@ -1043,7 +1054,7 @@ function loadFactTableFromPreviousRevision(
   );
   buildStatements.push(cleanupNotesCodeColumn(buildId, notesCodeColumn));
   buildStatements.push(createPrimaryKeyOnFactTable(buildId, factTableCompositeKey));
-  buildStatements.push('END TRANSACTION;');
+  buildStatements.push('COMMIT;');
 
   return {
     buildStage: BuildStage.FactTable,
@@ -1204,7 +1215,7 @@ function setupMeasureAndDataValuesNoLookup(
       )
     );
   });
-  statements.push('END TRANSACTION;');
+  statements.push('COMMIT;');
   return {
     buildStage: BuildStage.Measure,
     statements,
@@ -1455,7 +1466,7 @@ function setupMeasureAndDataValuesWithLookup(
       )
     );
   }
-  statements.push('END TRANSACTION;');
+  statements.push('COMMIT;');
   return {
     buildStage: BuildStage.Measure,
     statements,
@@ -1938,7 +1949,7 @@ function setupDimensions(
       JSON.stringify(Array.from(lookupTables))
     )
   );
-  statements.push('END TRANSACTION;');
+  statements.push('COMMIT;');
   return {
     buildStage: BuildStage.Dimensions,
     statements,
@@ -2063,7 +2074,7 @@ function createNotesTable(
       notesColumn.columnName
     )
   );
-  statements.push('END TRANSACTION;');
+  statements.push('COMMIT;');
 
   return { buildStage: BuildStage.NoteCodes, statements };
 }
@@ -2152,7 +2163,7 @@ function createValidationCube(
       CubeBuildStatus.Materializing
     )
   );
-  viewBuilderStage.statements.push('END TRANSACTION;');
+  viewBuilderStage.statements.push('COMMIT;');
   transactionBlocks.push(viewBuilderStage);
 
   return { transactionBlocks, coreViewSQLMap };
@@ -2277,7 +2288,7 @@ function createFullCube(
       CubeBuildStatus.Materializing
     )
   );
-  viewBuildStatements.push('END TRANSACTION;');
+  viewBuildStatements.push('COMMIT;');
   transactionBlocks.push({ buildStage: BuildStage.CoreView, statements: viewBuildStatements });
 
   return { transactionBlocks, coreViewSQLMap };

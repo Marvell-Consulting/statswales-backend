@@ -669,8 +669,23 @@ async function rebuildDatasetList(buildLogEntry: BuildLog, revisionList: Revisio
     error: string;
   }[] = [];
 
+  const buildScript = {
+    current_build: null as string | null,
+    total_builds: 0,
+    successful_builds: 0,
+    failed_builds: 0,
+    all_builds: [] as string[],
+    successfully_built: [] as string[],
+    failed_to_build: [] as string[]
+  };
+
   for (const rev of revisionList) {
     const buildId = randomUUID();
+    buildScript.all_builds.push(buildId);
+    buildScript.current_build = buildId;
+    buildLogEntry.buildScript = JSON.stringify(buildScript, null, 2);
+    buildLogEntry.status = CubeBuildStatus.Building;
+    await buildLogEntry.save();
     try {
       await bootstrapCubeBuildProcess(rev.dataset_id, rev.id);
     } catch (err) {
@@ -701,14 +716,22 @@ async function rebuildDatasetList(buildLogEntry: BuildLog, revisionList: Revisio
     }
     if (build.status === CubeBuildStatus.Failed) {
       logger.warn(`[${buildLogEntry}]: Cube for revision ${rev.id} has been failed to rebuild.`);
+      buildScript.failed_to_build.push(buildId);
+      buildScript.failed_builds++;
       failedBuilds.push({
         buildId,
         revisionId: rev.id,
         error: JSON.stringify(build.errors)
       });
     } else {
+      buildScript.successfully_built.push(buildId);
+      buildScript.successful_builds++;
       logger.info(`[${buildLogEntry.id}]: Cube for revision ${rev.id} has been rebuilt successfully.`);
     }
+    buildScript.current_build = null;
+    buildScript.total_builds++;
+    buildLogEntry.buildScript = JSON.stringify(buildScript, null, 2);
+    await buildLogEntry.save();
   }
   if (failedBuilds.length > 0) buildLogEntry.errors = JSON.stringify(failedBuilds, null, 2);
   buildLogEntry.completeBuild(CubeBuildStatus.Completed);
