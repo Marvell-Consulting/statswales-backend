@@ -31,7 +31,7 @@ import {
   createPostgresValidationSchema,
   saveValidatedLookupTableToDatabase
 } from '../utils/mock-cube-handler';
-import { FACT_TABLE_NAME } from './cube-builder';
+import { FACT_TABLE_NAME, VALIDATION_TABLE_NAME } from './cube-builder';
 import { DataTableDescription } from '../entities/dataset/data-table-description';
 
 export const validateLookupTable = async (
@@ -269,7 +269,7 @@ function createLookupExtractor(
     }
   });
 
-  if (extractor.notesColumns!.length > 0) {
+  if (extractor.notesColumns!.length === 0) {
     extractor.notesColumns = undefined;
   }
 
@@ -287,15 +287,18 @@ export async function confirmJoinColumnAndValidateReferenceValues(
   type: string
 ): Promise<string> {
   let joinColumn: string | undefined;
-  let closestMatch: { col: string; missingValues: { fact: string; lookup: string | null }[] } | undefined;
+  const closestMatch: { col: string; missingValues: { fact_table_ref: string; lookup_table_ref: string | null }[] } = {
+    col: possibleJoinColumns[0],
+    missingValues: []
+  };
   const queryRunner = dbManager.getCubeDataSource().createQueryRunner();
   const referenceTotalCountRun: Promise<{ total: number }[]> = queryRunner.query(
-    pgformat('SELECT COUNT(DISTINCT %I) as total FROM %I.%I;', factTableColumn, revisionId, FACT_TABLE_NAME)
+    pgformat('SELECT COUNT(%I) as total FROM %I.%I;', factTableColumn, mockCubeId, FACT_TABLE_NAME)
   );
 
   for (const col of possibleJoinColumns) {
     const query = pgformat(
-      'SELECT DISTINCT %I.%I as fact, %I.%I as lookup FROM %I.%I LEFT JOIN %I.%I ON CAST(%I.%I AS TEXT) = CAST(%I.%I AS TEXT) WHERE %I.%I IS NULL;',
+      'SELECT DISTINCT %I.%I as fact_table_ref, %I.%I as lookup_table_ref FROM %I.%I LEFT JOIN %I.%I ON CAST(%I.%I AS TEXT) = CAST(%I.%I AS TEXT) WHERE %I.%I IS NULL;',
       FACT_TABLE_NAME,
       factTableColumn,
       'lookup_table',
@@ -311,7 +314,7 @@ export async function confirmJoinColumnAndValidateReferenceValues(
       'lookup_table',
       col
     );
-    let missingValues: { fact: string; lookup: string | null }[];
+    let missingValues: { fact_table_ref: string; lookup_table_ref: string | null }[];
     try {
       logger.trace(`Running query to check lookup tables values:\n\n${query}\n\n`);
       missingValues = await queryRunner.query(query);
@@ -323,32 +326,25 @@ export async function confirmJoinColumnAndValidateReferenceValues(
       joinColumn = col;
       break;
     }
-    if (!closestMatch) {
-      closestMatch = { col, missingValues };
-    } else if (missingValues.length < closestMatch.missingValues.length) {
-      closestMatch = { col, missingValues };
+
+    if (missingValues.length > closestMatch.missingValues.length) {
+      closestMatch.col = col;
+      closestMatch.missingValues = missingValues;
     }
   }
 
   if (joinColumn) {
+    logger.debug(`Found ${joinColumn} matches all reference in the fact table`);
     await referenceTotalCountRun;
     void queryRunner.release();
     return joinColumn;
   }
 
-  if (!closestMatch) {
-    await referenceTotalCountRun;
-    void queryRunner.release();
-    const err = new FileValidationException(
-      'We failed to find a join column for the lookup table',
-      FileValidationErrorType.LookupNoJoinColumn
-    );
-    err.errorTag = `errors.${type}_validation.lookup_no_join_column`;
-    throw err;
-  }
+  // We want the value on the fact side as the lookup side should always be null
+  const referencesNotInLookup = closestMatch.missingValues.map((val) => val.fact_table_ref);
 
   const referenceTotalCount = (await referenceTotalCountRun)[0].total;
-  if (referenceTotalCount === closestMatch!.missingValues.length) {
+  if (referenceTotalCount === referencesNotInLookup.length) {
     logger.error(`The user supplied an incorrect lookup table and none of the rows matched`);
     const err = new FileValidationException(
       'None of the references in the join column matched the fact table',
@@ -357,47 +353,25 @@ export async function confirmJoinColumnAndValidateReferenceValues(
     err.extension = {
       mismatch: true,
       totalNonMatching: referenceTotalCount,
-      nonMatchingDataTableValues: closestMatch?.missingValues.map((val) => val.fact)
+      nonMatchingDataTableValues: referencesNotInLookup
     } as never;
     err.errorTag = `errors.${type}_validation.lookup_no_join_column`;
     throw err;
   } else {
+    logger.debug(
+      `We found a column which matched 1 or more references values but was missing the following references: ${referencesNotInLookup.join(', ')}`
+    );
     const exception = new FileValidationException(
       'Some of the references in the join column failed to match those in the fact table',
       FileValidationErrorType.LookupMissingValues
     );
     exception.errorTag = `errors.${type}_validation.some_references_failed_to_match`;
-    const getUnmachedLinesFromFactTableQuery = pgformat(
-      'SELECT * FROM (SELECT row_number() OVER () as line_number, * FROM %I.%I) WHERE %I IN (%L) LIMIT 500;',
-      revisionId,
-      FACT_TABLE_NAME,
-      factTableColumn,
-      closestMatch!.missingValues.map((missingValue) => missingValue.fact)
-    );
-    const getUnmatchedLinesFromLookupQuery = pgformat(
-      'SELECT %I as ref FROM %I.%I WHERE %I NOT IN (%L) LIMIT 500;',
-      closestMatch.col,
-      mockCubeId,
-      'lookup_table',
-      closestMatch!.missingValues.map((missingValue) => missingValue.fact)
-    );
-    let unmatchedLinesFromFactTable: unknown;
-    let unmatchedLinesFromLookup: { ref: string }[];
-    try {
-      unmatchedLinesFromFactTable = await queryRunner.query(getUnmachedLinesFromFactTableQuery);
-      unmatchedLinesFromLookup = await queryRunner.query(getUnmatchedLinesFromLookupQuery);
-    } catch (err) {
-      logger.error(err, 'Unable to get non-matching rows from the revisions fact table');
-      throw exception;
-    } finally {
-      void queryRunner.release();
-    }
     exception.extension = {
       mismatch: true,
-      totalNonMatching: referenceTotalCount,
-      nonMatchingDataTableValues: unmatchedLinesFromFactTable,
-      nonMatchedLookupValues: unmatchedLinesFromLookup.map((val) => val.ref)
+      totalNonMatching: referencesNotInLookup.length,
+      nonMatchingDataTableValues: referencesNotInLookup
     } as never;
+    logger.trace(`Sending back the following for the frontend: ${JSON.stringify(exception.extension)}`);
     throw exception;
   }
 }
