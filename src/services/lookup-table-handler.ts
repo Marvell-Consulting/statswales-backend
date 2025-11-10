@@ -269,7 +269,7 @@ function createLookupExtractor(
     }
   });
 
-  if (extractor.notesColumns!.length > 0) {
+  if (extractor.notesColumns!.length === 0) {
     extractor.notesColumns = undefined;
   }
 
