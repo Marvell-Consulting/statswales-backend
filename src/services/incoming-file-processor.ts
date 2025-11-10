@@ -117,7 +117,7 @@ export async function validateFileAndExtractTableInfo(
     logger.trace(`Running query to create ${type}:\n\n${statements.join('\n')}\n\n`);
     await quack.run(statements.join('\n'));
   } catch (error) {
-    logger.error(error, 'Something went wrong saving %{type} to postgres');
+    logger.error(error, `Something went wrong saving ${type} to postgres`);
     quack.disconnectSync();
     throw new FileValidationException(
       `Unknown error occurred, please refer to the log for more information: ${JSON.stringify(error)}`,
