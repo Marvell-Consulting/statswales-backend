@@ -31,7 +31,7 @@ import {
   createPostgresValidationSchema,
   saveValidatedLookupTableToDatabase
 } from '../utils/mock-cube-handler';
-import { FACT_TABLE_NAME, VALIDATION_TABLE_NAME } from './cube-builder';
+import { FACT_TABLE_NAME } from './cube-builder';
 import { DataTableDescription } from '../entities/dataset/data-table-description';
 
 export const validateLookupTable = async (
