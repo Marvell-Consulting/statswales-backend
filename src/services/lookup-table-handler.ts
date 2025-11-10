@@ -375,7 +375,7 @@ export async function confirmJoinColumnAndValidateReferenceValues(
       closestMatch!.missingValues.map((missingValue) => missingValue.fact)
     );
     const getUnmatchedLinesFromLookupQuery = pgformat(
-      'SELECT %I as ref FROM %I.%I WHERE %I NOT IN (%L) LIMIT 500;)',
+      'SELECT %I as ref FROM %I.%I WHERE %I NOT IN (%L) LIMIT 500;',
       closestMatch.col,
       mockCubeId,
       'lookup_table',
