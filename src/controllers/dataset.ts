@@ -280,22 +280,24 @@ export const cubePreview = async (req: Request, res: Response, next: NextFunctio
   const page_size: number = Number.parseInt(req.query.page_size as string, 10) || DEFAULT_PAGE_SIZE;
   const sortByQuery = req.query.sort_by ? (JSON.parse(req.query.sort_by as string) as SortByInterface[]) : undefined;
   const filterQuery = req.query.filter ? (JSON.parse(req.query.filter as string) as FilterInterface[]) : undefined;
-  const cubePreview = await createFrontendView(
-    dataset,
-    latestRevision,
-    lang,
-    page_number,
-    page_size,
-    sortByQuery,
-    filterQuery
-  );
-  const end = performance.now();
-  const time = Math.round(end - start);
-  logger.info(`Generating preview of cube took ${time}ms`);
-  if ((cubePreview as ViewErrDTO).errors) {
-    res.status(500);
+  try {
+    const cubePreview = await createFrontendView(
+      dataset,
+      latestRevision,
+      lang,
+      page_number,
+      page_size,
+      sortByQuery,
+      filterQuery
+    );
+    const end = performance.now();
+    const time = Math.round(end - start);
+    logger.info(`Generating preview of cube took ${time}ms`);
+    res.json(cubePreview);
+  } catch (error) {
+    logger.error(error, 'Something went wrong trying to query to cube');
+    throw new UnknownException('errors.consumer_view.cube_query_failed');
   }
-  res.json(cubePreview);
 };
 
 export const updateMetadata = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
