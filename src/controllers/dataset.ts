@@ -295,7 +295,7 @@ export const cubePreview = async (req: Request, res: Response, next: NextFunctio
     logger.info(`Generating preview of cube took ${time}ms`);
     res.json(cubePreview);
   } catch (error) {
-    logger.error(error, 'Something went wrong trying to query to cube');
+    logger.error(error, 'Something went wrong trying to query the cube');
     throw new UnknownException('errors.consumer_view.cube_query_failed');
   }
 };
