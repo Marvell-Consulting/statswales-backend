@@ -24,7 +24,7 @@ import { createDatePeriodTableQuery, dateDimensionReferenceTableCreator, DateRef
 import { NumberExtractor, NumberType } from '../extractors/number-extractor';
 import { viewErrorGenerators } from '../utils/view-error-generators';
 import { getFileService } from '../utils/get-file-service';
-import { FACT_TABLE_NAME, makeCubeSafeString } from './cube-builder';
+import { FACT_TABLE_NAME, makeCubeSafeString, VALIDATION_TABLE_NAME } from './cube-builder';
 import { CubeValidationException } from '../exceptions/cube-error-exception';
 import { CubeValidationType } from '../enums/cube-validation-type';
 import { YearType } from '../enums/year-type';
@@ -603,12 +603,11 @@ export const createDateDimensionLookup = async (
   factTableColumn: FactTableColumn,
   extractor: DateExtractor
 ): Promise<{ startDate: Date; endDate: Date; lookupTable: LookupTable }> => {
-  const tableName = 'fact_table';
   const dataQuery = pgformat(
-    'SELECT DISTINCT %I as date_data FROM %I.%I;',
-    factTableColumn.columnName,
+    'SELECT reference as date_data FROM %I.%I WHERE fact_table_column = %L;',
     schemaId,
-    tableName
+    VALIDATION_TABLE_NAME,
+    factTableColumn.columnName
   );
 
   const getDateDataQueryRunner = dbManager.getCubeDataSource().createQueryRunner();
@@ -949,10 +948,10 @@ async function getPreviewWithoutExtractor(
   try {
     preview = await previewQueryRunner.query(
       pgformat(
-        'SELECT DISTINCT %I FROM %I ORDER BY %I ASC LIMIT %L;',
+        'SELECT reference AS %I FROM %I.%I WHERE fact_table_column = %L ORDER BY reference DESC LIMIT %L;',
         dimension.factTableColumn,
         schemaID,
-        FACT_TABLE_NAME,
+        VALIDATION_TABLE_NAME,
         dimension.factTableColumn,
         sampleSize
       )
@@ -1091,20 +1090,13 @@ export const getFactTableColumnPreview = async (
   columnName: string
 ): Promise<ViewDTO | ViewErrDTO> => {
   logger.debug(`Getting fact table column preview for ${columnName}`);
-  const previewQuery = pgformat('SELECT DISTINCT %I FROM %I.%I', columnName, revision.id, FACT_TABLE_NAME);
-
-  const totalsQuery = pgformat('SELECT COUNT(DISTINCT %I) AS totalLines FROM (%s)', columnName, previewQuery);
-  const totalsQueryRunner = dbManager.getCubeDataSource().createQueryRunner();
-  let totals: { totalLines: number }[];
-  try {
-    logger.trace(`Getting fact table column count using query:\n\n${totalsQuery}\n\n`);
-    totals = await totalsQueryRunner.query(totalsQuery);
-  } catch (error) {
-    logger.error(error, 'Something went wrong trying to get total distinct values in column');
-    return viewErrorGenerators(500, dataset.id, 'csv', 'dimension.preview.failed_to_preview_column', {});
-  } finally {
-    void totalsQueryRunner.release();
-  }
+  const previewQuery = pgformat(
+    'SELECT reference AS %I FROM %I.%I WHERE fact_table_column = %L ORDER BY reference ASC',
+    columnName,
+    revision.id,
+    VALIDATION_TABLE_NAME,
+    columnName
+  );
   const previewQueryRunner = dbManager.getCubeDataSource().createQueryRunner();
   let preview: Record<string, never>[];
   try {
@@ -1117,5 +1109,5 @@ export const getFactTableColumnPreview = async (
     void previewQueryRunner.release();
   }
 
-  return previewGenerator(preview, totals[0], dataset, false);
+  return previewGenerator(preview, { totalLines: preview.length }, dataset, false);
 };

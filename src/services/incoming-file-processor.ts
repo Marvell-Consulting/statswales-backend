@@ -12,7 +12,7 @@ import { DatasetRepository } from '../repositories/dataset';
 import { FileType } from '../enums/file-type';
 import { DataTableDescription } from '../entities/dataset/data-table-description';
 import { DataTableAction } from '../enums/data-table-action';
-import { duckdb } from './duckdb';
+import { duckdb, DuckDBDatabases } from './duckdb';
 import { getFileService } from '../utils/get-file-service';
 import { FileValidationErrorType, FileValidationException } from '../exceptions/validation-exception';
 import { DuckDBException } from '../exceptions/duckdb-exception';
@@ -55,7 +55,7 @@ export async function validateFileAndExtractTableInfo(
   const createTableQuery = getCreateTableQuery(dataTable.fileType);
 
   try {
-    logger.debug(`Creating base fact table`);
+    logger.debug(`Attempting to read the file using duckdb`);
     if (dataTable.fileType === FileType.Csv) {
       try {
         dataTable.encoding = 'utf-8';
@@ -70,7 +70,7 @@ export async function validateFileAndExtractTableInfo(
     }
   } catch (error) {
     logger.error(error, `Something went wrong trying to extract table information using DuckDB.`);
-    logger.debug('Closing DuckDB Memory Database');
+    logger.debug('Releasing duckdb connection');
     quack.disconnectSync();
 
     if ((error as DuckDBException).stack.includes('Invalid unicode')) {
@@ -84,26 +84,45 @@ export async function validateFileAndExtractTableInfo(
     );
   }
 
-  // TODO: Move lookup table uploads to here as well to remove loading the temp file twice into duckdb.
+  const statements: string[] = ['BEGIN TRANSACTION;'];
   if (type === 'data_table') {
-    const statements = [
-      'BEGIN TRANSACTION;',
-      pgformat(`DROP TABLE IF EXISTS %I.%I;`, 'data_tables_db', dataTable.id),
-      pgformat('CREATE TABLE %I.%I AS SELECT * FROM %I;', 'data_tables_db', dataTable.id, temporaryTableName),
-      'END TRANSACTION;'
-    ];
-    try {
-      logger.debug(`Copying data table to postgres using data table id: ${dataTable.id}`);
-      logger.trace(`Running query to create data table table:\n\n${statements.join('\n')}\n\n`);
-      await quack.run(statements.join('\n'));
-    } catch (error) {
-      logger.error(error, 'Something went wrong saving data table to postgres');
-      quack.disconnectSync();
-      throw new FileValidationException(
-        `Unknown error occurred, please refer to the log for more information: ${JSON.stringify(error)}`,
-        FileValidationErrorType.unknown
-      );
-    }
+    statements.push(
+      ...[
+        pgformat(`DROP TABLE IF EXISTS %I.%I;`, DuckDBDatabases.DataTables, dataTable.id),
+        pgformat(
+          'CREATE TABLE %I.%I AS SELECT * FROM %I;',
+          DuckDBDatabases.DataTables,
+          dataTable.id,
+          temporaryTableName
+        )
+      ]
+    );
+  } else {
+    statements.push(
+      ...[
+        pgformat(`DROP TABLE IF EXISTS %I.%I;`, DuckDBDatabases.LookupTables, `${dataTable.id}_tmp`),
+        pgformat(
+          'CREATE TABLE %I.%I AS SELECT * FROM %I;',
+          DuckDBDatabases.LookupTables,
+          `${dataTable.id}_tmp`,
+          temporaryTableName
+        )
+      ]
+    );
+  }
+  statements.push('END TRANSACTION;');
+
+  try {
+    logger.debug(`Copying data table to postgres ${type} schema using id: ${dataTable.id}`);
+    logger.trace(`Running query to create ${type}:\n\n${statements.join('\n')}\n\n`);
+    await quack.run(statements.join('\n'));
+  } catch (error) {
+    logger.error(error, `Something went wrong saving ${type} to postgres`);
+    quack.disconnectSync();
+    throw new FileValidationException(
+      `Unknown error occurred, please refer to the log for more information: ${JSON.stringify(error)}`,
+      FileValidationErrorType.unknown
+    );
   }
 
   try {
@@ -212,17 +231,10 @@ export const validateAndUpload = async (
       );
   }
 
-  let dataTableDescriptions: DataTableDescription[];
+  logger.debug('Extracting table information from file');
+  const dataTableDescriptions = await validateFileAndExtractTableInfo(file, dataTable, type);
 
-  try {
-    logger.debug('Extracting table information from file');
-    dataTableDescriptions = await validateFileAndExtractTableInfo(file, dataTable, type);
-  } catch (error) {
-    logger.error(error, `Something went wrong trying to read the users upload.`);
-    // Error is of type FileValidationException
-    throw error;
-  }
-
+  logger.debug('User file read successfully and loaded in Postgres, saving copy to blob storage.');
   dataTable.dataTableDescriptions = dataTableDescriptions;
   dataTable.filename = `${dataTable.id}.${extension}`;
   dataTable.action = DataTableAction.AddRevise;
@@ -242,7 +254,7 @@ export const validateAndUpload = async (
     await fileService.saveStream(dataTable.filename, datasetId, uploadStream);
   } catch (err) {
     logger.error(err, `Something went wrong trying to upload the file to the Data Lake`);
-    throw new FileValidationException('Error uploading file to blob storage', FileValidationErrorType.datalake, 500);
+    throw new FileValidationException('Error uploading file to blob storage', FileValidationErrorType.DataLake, 500);
   }
 
   dataTable.uploadedAt = new Date();

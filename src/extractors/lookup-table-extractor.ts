@@ -10,4 +10,6 @@ export interface LookupTableExtractor {
   notesColumns?: ColumnDescriptor[];
   languageColumn?: string;
   isSW2Format: boolean;
+  joinColumn?: string;
+  otherColumns?: string[];
 }
