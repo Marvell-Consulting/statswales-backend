@@ -95,7 +95,7 @@ export const factTableValidatorFromSource = async (
     );
   }
 
-  const dataValCol = validatedSourceAssignment!.dataValues;
+  const dataValCol = validatedSourceAssignment?.dataValues;
   if (!dataValCol) {
     throw new FactTableValidationException(
       'No data values column found.',
@@ -106,7 +106,7 @@ export const factTableValidatorFromSource = async (
 
   logger.debug('Validating that all data values are numeric values');
   const numericValidationQuery = pgformat(
-    'SELECT %I as data_value FROM %I.%I WHERE %I !~ \'^([+-]?[0-9]+[.]?[0-9]*|[.][0-9]+)$\';',
+    "SELECT %I as data_value FROM %I.%I WHERE CAST(%I AS TEXT) !~ '^([+-]?[0-9]+[.]?[0-9]*|[.][0-9]+)$';",
     dataValCol.column_name,
     revision.id,
     FACT_TABLE_NAME,
