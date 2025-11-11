@@ -95,6 +95,50 @@ export const factTableValidatorFromSource = async (
     );
   }
 
+  const dataValCol = validatedSourceAssignment?.dataValues;
+  if (!dataValCol) {
+    throw new FactTableValidationException(
+      'No data values column found.',
+      FactTableValidationExceptionType.NoDataValueColumn,
+      400
+    );
+  }
+
+  logger.debug('Validating that all data values are numeric values');
+  const numericValidationQuery = pgformat(
+    "SELECT %I as data_value FROM %I.%I WHERE CAST(%I AS TEXT) !~ '^([+-]?[0-9]+[.]?[0-9]*|[.][0-9]+)$';",
+    dataValCol.column_name,
+    revision.id,
+    FACT_TABLE_NAME,
+    dataValCol.column_name
+  );
+  const numericValidationQueryRunner = dbManager.getCubeDataSource().createQueryRunner();
+  let failedValues: { data_values: string }[];
+  try {
+    logger.trace(`Validating that data values are numeric values with query:\n\n${numericValidationQuery}\n\n`);
+    failedValues = await numericValidationQueryRunner.query(numericValidationQuery);
+  } catch (err) {
+    logger.error(err, 'Something went wrong trying to validate data values as numeric values');
+    throw new FactTableValidationException(
+      'Something went wrong trying to validate data values',
+      FactTableValidationExceptionType.UnknownError,
+      500
+    );
+  } finally {
+    void numericValidationQueryRunner.release();
+  }
+
+  if (failedValues.length > 0) {
+    const exception = new FactTableValidationException(
+      'Failed to validate data values contain only numeric values.',
+      FactTableValidationExceptionType.NonNumericDataValueColumn,
+      400
+    );
+    exception.headers = [{ name: dataValCol.column_name, index: 1 }];
+    exception.data = [failedValues.map((val) => val.data_value)];
+    throw exception;
+  }
+
   const primaryKeyColumns = factTableDefinition.filter(
     (def) =>
       def.factTableColumnType === FactTableColumnType.Dimension ||
