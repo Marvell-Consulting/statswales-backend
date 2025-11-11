@@ -135,7 +135,7 @@ export const factTableValidatorFromSource = async (
       400
     );
     exception.headers = [{ name: dataValCol.column_name, index: 1 }];
-    exception.data = [failedValues.map((val) => val.data_values)];
+    exception.data = [failedValues.map((val) => val.data_value)];
     throw exception;
   }
 
