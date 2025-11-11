@@ -135,17 +135,21 @@ export const getPublishedDatasetView = async (req: Request, res: Response): Prom
     throw new BadRequestException('errors.filter.invalid');
   }
 
-  const preview = await createFrontendView(
-    dataset,
-    dataset.publishedRevision,
-    lang,
-    pageNumber,
-    pageSize,
-    sortBy,
-    filter
-  );
-
-  res.json(preview);
+  try {
+    const preview = await createFrontendView(
+      dataset,
+      dataset.publishedRevision,
+      lang,
+      pageNumber,
+      pageSize,
+      sortBy,
+      filter
+    );
+    res.status(200).json(preview);
+  } catch (error) {
+    logger.error(error, 'Something went wrong trying to query the cube');
+    throw new UnknownException('errors.consumer_view.cube_query_failed');
+  }
 };
 
 export const getPublishedDatasetFilters = async (req: Request, res: Response): Promise<void> => {

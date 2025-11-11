@@ -2265,6 +2265,7 @@ function createFullCube(
 
     logger.trace(`core cube view SQL: ${coreCubeViewSQL}`);
     viewBuildStatements.push(pgformat('CREATE VIEW %I.%I AS %s;', buildId, coreViewName, coreCubeViewSQL));
+    viewBuildStatements.push(pgformat('SELECT * FROM %I.%I LIMIT 500;', buildId, coreViewName));
     viewBuildStatements.push(
       pgformat(`INSERT INTO %I.metadata VALUES (%L, %L);`, buildId, coreViewName, coreCubeViewSQL)
     );
