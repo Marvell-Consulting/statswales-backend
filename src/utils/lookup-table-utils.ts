@@ -146,6 +146,47 @@ export const lookForJoinColumn = (
   return possibleJoinColumns[0].columnName;
 };
 
+export const lookForPossibleJoinColumn = (
+  lookupTableColumns: DataTableDescription[],
+  factTableColumn: string,
+  tableLanguage: Locale
+): string[] => {
+  const refCol = lookupTableColumns.find((col) => col.columnName.toLowerCase().startsWith('ref'));
+  const refCodeCol = lookupTableColumns.find((col) =>
+    col.columnName.toLowerCase().includes(t('lookup_column_headers.refcode', { lng: tableLanguage }).toLowerCase())
+  );
+
+  if (refCol) return [refCol.columnName];
+  if (refCodeCol) return [refCodeCol.columnName];
+
+  if (lookupTableColumns.find((col) => col.columnName.toLowerCase() === factTableColumn.toLowerCase())) {
+    return [factTableColumn];
+  }
+
+  const possibleJoinColumns = lookupTableColumns.filter((info) => {
+    const columnName = info.columnName.toLowerCase();
+    if (columnName.includes(t('lookup_column_headers.decimal', { lng: tableLanguage }))) return false;
+    if (columnName.includes(t('lookup_column_headers.hierarchy', { lng: tableLanguage }))) return false;
+    if (columnName.includes(t('lookup_column_headers.format', { lng: tableLanguage }))) return false;
+    if (columnName.includes(t('lookup_column_headers.description', { lng: tableLanguage }))) return false;
+    if (columnName.includes(t('lookup_column_headers.sort', { lng: tableLanguage }))) return false;
+    if (columnName.includes(t('lookup_column_headers.notes', { lng: tableLanguage }))) return false;
+    if (columnName.includes(t('lookup_column_headers.type', { lng: tableLanguage }))) return false;
+    if (columnName.includes(t('lookup_column_headers.lang', { lng: tableLanguage }))) return false;
+    if (columnName.includes('lang')) return false;
+
+    logger.debug(`Looks like column ${columnName} is a join column`);
+    return true;
+  });
+
+  if (possibleJoinColumns.length === 0) {
+    throw new Error('Could not find a column to join against the fact table.');
+  }
+
+  logger.debug(`Found ${possibleJoinColumns.length} possible join columns in the lookup`);
+  return possibleJoinColumns.map((col) => col.columnName);
+};
+
 export const validateLookupTableLanguages = async (
   dataset: Dataset,
   revisionId: string,

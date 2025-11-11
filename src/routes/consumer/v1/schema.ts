@@ -14,11 +14,11 @@ export const schema = {
   components: {
     parameters: {
       language: {
-        name: 'accept-language',
-        in: 'header',
-        description: 'Language to use for the response, either "cy-gb" for Welsh or "en-gb" for English',
+        name: 'lang',
+        in: 'query',
+        description: 'Language to use for the response, "cy" or "cy-gb" for Welsh and "en" or "en-gb" for English',
         required: false,
-        schema: { type: 'string', enum: ['cy-gb', 'en-gb'], default: 'en-gb' }
+        schema: { type: 'string', enum: ['cy', 'en', 'cy-gb', 'en-gb'], default: 'en-gb' }
       },
       dataset_id: {
         name: 'dataset_id',

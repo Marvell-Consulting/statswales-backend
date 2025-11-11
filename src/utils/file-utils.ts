@@ -18,9 +18,10 @@ import { performanceReporting } from './performance-reporting';
 import { LookupTable } from '../entities/dataset/lookup-table';
 import { LookupTableExtractor } from '../extractors/lookup-table-extractor';
 import { FactTableColumn } from '../entities/dataset/fact-table-column';
-import { SUPPORTED_LOCALES } from '../middleware/translation';
+import { SUPPORTED_LOCALES, t } from '../middleware/translation';
 import { languageMatcherCaseStatement } from './lookup-table-utils';
 import { DuckDBConnection } from '@duckdb/node-api';
+import { runQueryBlock } from './run-query-block';
 
 export const getFileImportAndSaveToDisk = async (
   dataset: Dataset,
@@ -58,15 +59,23 @@ export const createLookupTableQuery = (
   schemaName: string,
   lookupTableName: string,
   referenceColumnName: string,
-  referenceColumnType: string
+  referenceColumnType: string,
+  otherColumns?: string[]
 ): string => {
+  const otherColumnsStatement: string[] = [];
+  if (otherColumns && otherColumns.length > 0) {
+    otherColumns.forEach((column) => {
+      otherColumnsStatement.push(pgformat('%I text', column));
+    });
+  }
   return pgformat(
-    'CREATE TABLE %I.%I (%I %s NOT NULL, language VARCHAR(5) NOT NULL, description TEXT NOT NULL, notes TEXT, sort_order INTEGER, hierarchy %s);',
+    'CREATE TABLE %I.%I (%I %s NOT NULL, language VARCHAR(5) NOT NULL, description TEXT NOT NULL, notes TEXT, sort_order INTEGER, hierarchy %s %s);',
     schemaName,
     lookupTableName,
     referenceColumnName,
     referenceColumnType,
-    referenceColumnType
+    referenceColumnType,
+    otherColumnsStatement.length > 0 ? `, ${otherColumnsStatement.join(', ')}` : ''
   );
 };
 
@@ -186,3 +195,116 @@ export const loadFileIntoCube = async (
     throw error;
   }
 };
+
+export async function convertLookupTableToSW3Format(
+  mockCubeId: string,
+  lookupTable: LookupTable,
+  extractor: LookupTableExtractor,
+  factTableColumn: FactTableColumn,
+  lookupReferenceColumn: string
+): Promise<void> {
+  const statements = ['BEGIN TRANSACTION;'];
+  statements.push(
+    createLookupTableQuery(
+      mockCubeId,
+      lookupTable.id,
+      factTableColumn.columnName,
+      factTableColumn.columnDatatype,
+      extractor.otherColumns
+    )
+  );
+  let additionalCols: string[] | undefined;
+  if (extractor.otherColumns && extractor.otherColumns.length > 0) {
+    additionalCols = extractor.otherColumns.map((col) => pgformat('CAST (%I AS TEXT)', col));
+  }
+
+  logger.debug(`Converting lookup table using extractor: ${JSON.stringify(extractor, null, 2)}`);
+
+  if (extractor.isSW2Format) {
+    const dataExtractorParts = [];
+    for (const locale of SUPPORTED_LOCALES) {
+      const descriptionCol = extractor.descriptionColumns.find(
+        (col) => col.lang.toLowerCase() === locale.toLowerCase()
+      );
+      const notesCol = extractor.notesColumns?.find((col) => col.lang.toLowerCase() === locale.toLowerCase());
+      const notesColStr = notesCol ? pgformat('%I', notesCol.name) : 'NULL';
+      const sortStr = extractor.sortColumn ? pgformat('%I', extractor.sortColumn) : 'NULL';
+      const hierarchyCol = extractor.hierarchyColumn
+        ? pgformat('%I', extractor.hierarchyColumn)
+        : pgformat('CAST(NULL AS %s)', factTableColumn.columnDatatype);
+      dataExtractorParts.push(
+        pgformat(
+          'SELECT %I AS %I, %L as language, %I as description, %s as notes, %s as sort_order, %s as hierarchy %s FROM %I.%I',
+          lookupReferenceColumn,
+          factTableColumn.columnName,
+          locale.toLowerCase(),
+          descriptionCol?.name,
+          notesColStr,
+          sortStr,
+          hierarchyCol,
+          additionalCols ? `, ${additionalCols.join(', ')}` : '',
+          mockCubeId,
+          `lookup_table`
+        )
+      );
+    }
+    statements.push(pgformat(`INSERT INTO %I.%I %s;`, mockCubeId, lookupTable.id, dataExtractorParts.join(' UNION ')));
+  } else {
+    const languageMatcher = languageMatcherCaseStatement(extractor.languageColumn);
+    const notesStr = extractor.notesColumns ? pgformat('%I', extractor.notesColumns[0].name) : 'NULL';
+    const sortStr = extractor.sortColumn ? pgformat('%I', extractor.sortColumn) : 'NULL';
+    const hierarchyStr = extractor.hierarchyColumn
+      ? pgformat('%I', extractor.hierarchyColumn)
+      : pgformat('CAST(NULL AS %s)', factTableColumn.columnDatatype);
+    const dataExtractorParts = pgformat(
+      `SELECT %I AS %I, %s as language, %I as description, %s as notes, %s as sort_order, %s as hierarchy %s FROM %I.%I;`,
+      lookupReferenceColumn,
+      factTableColumn.columnName,
+      languageMatcher,
+      extractor.descriptionColumns[0].name,
+      notesStr,
+      sortStr,
+      hierarchyStr,
+      additionalCols ? `, ${additionalCols.join(', ')}` : '',
+      mockCubeId,
+      `lookup_table`
+    );
+    statements.push(pgformat(`INSERT INTO %I.%I %s`, mockCubeId, lookupTable.id, dataExtractorParts));
+  }
+
+  for (const locale of SUPPORTED_LOCALES) {
+    statements.push(
+      pgformat(
+        'UPDATE %I.%I SET language = %L WHERE language = lower(%L);',
+        mockCubeId,
+        lookupTable.id,
+        locale.toLowerCase(),
+        locale.split('-')[0]
+      )
+    );
+    statements.push(
+      pgformat(
+        'UPDATE %I.%I SET language = %L WHERE language = lower(%L);',
+        mockCubeId,
+        lookupTable.id,
+        locale.toLowerCase(),
+        locale.toLowerCase()
+      )
+    );
+    for (const sublocale of SUPPORTED_LOCALES) {
+      statements.push(
+        pgformat(
+          'UPDATE %I.%I SET language = %L WHERE language = lower(%L);',
+          mockCubeId,
+          lookupTable.id,
+          sublocale.toLowerCase(),
+          t(`language.${sublocale.split('-')[0]}`, { lng: locale })
+        ).toLowerCase()
+      );
+    }
+  }
+
+  statements.push('COMMIT;');
+  logger.debug('Converting lookup table to correct SW3 format');
+  return runQueryBlock(statements);
+}
