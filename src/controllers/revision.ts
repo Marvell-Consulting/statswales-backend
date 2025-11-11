@@ -135,6 +135,7 @@ export const getRevisionPreview = async (req: Request, res: Response): Promise<v
     res.json(cubePreview);
   } catch (err) {
     logger.error(err, `An error occurred trying to get the cube preview`);
+    throw new UnknownException('errors.consumer_view.cube_query_failed');
   }
 };
 

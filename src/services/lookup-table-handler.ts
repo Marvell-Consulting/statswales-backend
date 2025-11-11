@@ -4,16 +4,13 @@ import { t } from 'i18next';
 import { DimensionType } from '../enums/dimension-type';
 import { LookupTable } from '../entities/dataset/lookup-table';
 import { DataTable } from '../entities/dataset/data-table';
-import { LookupTablePatchDTO } from '../dtos/lookup-patch-dto';
 import { LookupTableExtractor } from '../extractors/lookup-table-extractor';
 import {
   columnIdentification,
   convertDataTableToLookupTable,
-  lookForJoinColumn,
-  validateLookupTableLanguages,
-  validateLookupTableReferenceValues
+  lookForPossibleJoinColumn,
+  validateLookupTableLanguages
 } from '../utils/lookup-table-utils';
-import { ColumnDescriptor } from '../extractors/column-descriptor';
 import { Dataset } from '../entities/dataset/dataset';
 import { ViewDTO, ViewErrDTO } from '../dtos/view-dto';
 import { logger } from '../utils/logger';
@@ -25,121 +22,35 @@ import { SUPPORTED_LOCALES } from '../middleware/translation';
 import { Locale } from '../enums/locale';
 import { FileValidationErrorType, FileValidationException } from '../exceptions/validation-exception';
 import { dbManager } from '../db/database-manager';
-import { loadFileIntoLookupTablesSchema } from '../utils/file-utils';
+import { convertLookupTableToSW3Format } from '../utils/file-utils';
 import { previewGenerator } from '../utils/preview-generator';
-
-async function setupDimension(
-  dimension: Dimension,
-  lookupTable: LookupTable,
-  protoLookupTable: DataTable,
-  confirmedJoinColumn: string,
-  tableLanguage: Locale,
-  tableMatcher?: LookupTablePatchDTO
-): Promise<Dimension> {
-  // Clean up previously uploaded dimensions
-  if (dimension.lookupTable) await cleanUpDimension(dimension);
-  lookupTable.isStatsWales2Format = !protoLookupTable.dataTableDescriptions.find((info) =>
-    info.columnName.toLowerCase().startsWith('lang')
-  );
-  const updateDimension = await Dimension.findOneByOrFail({ id: dimension.id });
-  updateDimension.type = DimensionType.LookupTable;
-  updateDimension.joinColumn = confirmedJoinColumn;
-  updateDimension.lookupTable = lookupTable;
-  logger.debug(`Creating extractor...`);
-  updateDimension.extractor = createExtractor(protoLookupTable, tableLanguage, tableMatcher);
-  logger.debug('Saving the lookup table');
-  await lookupTable.save();
-  logger.debug('Saving the dimension');
-  updateDimension.lookupTable = lookupTable;
-  updateDimension.type = DimensionType.LookupTable;
-  return updateDimension;
-}
-
-function createExtractor(
-  protoLookupTable: DataTable,
-  tableLanguage: Locale,
-  tableMatcher?: LookupTablePatchDTO
-): LookupTableExtractor {
-  if (tableMatcher?.description_columns) {
-    logger.debug(`Table matcher is supplied using user supplied information to create extractor...`);
-    return {
-      tableLanguage,
-      sortColumn: tableMatcher.sort_column,
-      hierarchyColumn: tableMatcher.hierarchy,
-      descriptionColumns: tableMatcher.description_columns.map(
-        (desc) =>
-          protoLookupTable.dataTableDescriptions
-            .filter((info) => info.columnName === desc)
-            .map((info) => columnIdentification(info))[0]
-      ),
-      notesColumns: tableMatcher.notes_column?.map(
-        (desc) =>
-          protoLookupTable.dataTableDescriptions
-            .filter((info) => info.columnName === desc)
-            .map((info) => columnIdentification(info))[0]
-      ),
-      languageColumn: tableMatcher.language,
-      isSW2Format: !tableMatcher.language
-    };
-  } else {
-    logger.debug('Detecting column types from column names');
-    const noteStr = t('lookup_column_headers.notes', { lng: tableLanguage });
-    const sortStr = t('lookup_column_headers.sort', { lng: tableLanguage });
-    const hierarchyStr = t('lookup_column_headers.hierarchy', { lng: tableLanguage });
-    const descriptionStr = t('lookup_column_headers.description', { lng: tableLanguage });
-    const langStr = t('lookup_column_headers.lang', { lng: tableLanguage });
-    let notesColumns: ColumnDescriptor[] | undefined;
-    if (protoLookupTable.dataTableDescriptions.filter((info) => info.columnName.toLowerCase().startsWith(noteStr))) {
-      notesColumns = protoLookupTable.dataTableDescriptions
-        .filter((info) => info.columnName.toLowerCase().startsWith(noteStr))
-        .map((info) => columnIdentification(info));
-    }
-    if (notesColumns && notesColumns.length === 0) notesColumns = undefined;
-    const extractor: LookupTableExtractor = {
-      tableLanguage,
-      sortColumn: protoLookupTable.dataTableDescriptions.find((info) =>
-        info.columnName.toLowerCase().startsWith(sortStr)
-      )?.columnName,
-      languageColumn: protoLookupTable.dataTableDescriptions.find((info) =>
-        info.columnName.toLowerCase().startsWith(langStr)
-      )?.columnName,
-      hierarchyColumn: protoLookupTable.dataTableDescriptions.find((info) =>
-        info.columnName.toLowerCase().includes(hierarchyStr)
-      )?.columnName,
-      descriptionColumns: protoLookupTable.dataTableDescriptions
-        .filter((info) => info.columnName.toLowerCase().includes(descriptionStr))
-        .map((info) => columnIdentification(info)),
-      notesColumns,
-      isSW2Format: !protoLookupTable.dataTableDescriptions.find((info) =>
-        info.columnName.toLowerCase().startsWith(langStr)
-      )
-    };
-    // logger.debug(`Extracted extractor from lookup table:\n${JSON.stringify(extractor, null, 2)}`);
-    if (extractor.descriptionColumns.length === 0) {
-      throw new FileValidationException(
-        'errors.measure_validation.no_description_columns',
-        FileValidationErrorType.InvalidCsv
-      );
-    }
-    return extractor;
-  }
-}
+import { Revision } from '../entities/dataset/revision';
+import { randomUUID } from 'node:crypto';
+import {
+  cleanUpPostgresValidationSchema,
+  createPostgresValidationSchema,
+  saveValidatedLookupTableToDatabase
+} from '../utils/mock-cube-handler';
+import { FACT_TABLE_NAME } from './cube-builder';
+import { DataTableDescription } from '../entities/dataset/data-table-description';
 
 export const validateLookupTable = async (
   protoLookupTable: DataTable,
   dataset: Dataset,
+  draftRevision: Revision,
   dimension: Dimension,
-  path: string,
-  language: string,
-  tableMatcher?: LookupTablePatchDTO
+  language: string
 ): Promise<ViewDTO | ViewErrDTO> => {
-  logger.info('Validating lookup table...');
+  const mockCubeId = randomUUID();
+  const mockCubePromise = createPostgresValidationSchema(
+    mockCubeId,
+    draftRevision.id,
+    dimension.factTableColumn,
+    `${protoLookupTable.id}_tmp`
+  );
 
-  const revision = dataset.draftRevision;
-  if (!revision?.id) {
-    logger.error(`Could not find the draft revision for dataset ${dataset.id}`);
-    throw new Error('Could not find the draft revision for dataset');
-  }
+  logger.info('Validating lookup table...');
+  const lookupTableColumns = protoLookupTable.dataTableDescriptions;
 
   const lookupTable = convertDataTableToLookupTable(protoLookupTable);
   const factTableColumn = dataset.factTable?.find(
@@ -148,6 +59,13 @@ export const validateLookupTable = async (
 
   if (!factTableColumn) {
     logger.error(`Could not find the fact table column ${dimension.factTableColumn} in the dataset`);
+    await mockCubePromise
+      .finally(() => {
+        return cleanUpPostgresValidationSchema(mockCubeId, lookupTable.id);
+      })
+      .catch((err) => {
+        logger.error(err, 'Something went wrong trying to clean up the mock cube');
+      });
     return viewErrorGenerators(500, dataset.id, 'patch', 'errors.dimension_validation.fact_table_column_not_found', {
       mismatch: false
     });
@@ -164,100 +82,104 @@ export const validateLookupTable = async (
 
   if (tableLanguageArr.length < 1) {
     logger.error('No description columns found in lookup table');
+    await mockCubePromise
+      .finally(() => {
+        return cleanUpPostgresValidationSchema(mockCubeId, lookupTable.id);
+      })
+      .catch((err) => {
+        logger.error(err, 'Something went wrong trying to clean up the mock cube');
+      });
     return viewErrorGenerators(400, dataset.id, 'csv', 'errors.measure_validation.no_description_columns', {
       mismatch: false
     });
   }
 
   const tableLanguage = tableLanguageArr[0];
-  let confirmedJoinColumn: string | undefined;
+  let possibleJoinColumns: string[];
 
   try {
-    confirmedJoinColumn = lookForJoinColumn(protoLookupTable, dimension.factTableColumn, tableLanguage, tableMatcher);
+    possibleJoinColumns = lookForPossibleJoinColumn(lookupTableColumns, dimension.factTableColumn, tableLanguage);
   } catch (_err) {
     logger.error('There was a problem trying to find the join column');
+    await mockCubePromise
+      .catch((err) => {
+        logger.error(err, 'Something went wrong trying to clean up the mock cube');
+      })
+      .finally(() => {
+        return cleanUpPostgresValidationSchema(mockCubeId, lookupTable.id);
+      });
     return viewErrorGenerators(400, dataset.id, 'patch', 'errors.lookup_validation.no_join_column', {
       mismatch: false
     });
   }
 
-  if (!confirmedJoinColumn) {
-    logger.error('No confirmed join column found');
-    return viewErrorGenerators(400, dataset.id, 'patch', 'errors.lookup_validation.no_join_column', {
-      mismatch: false
+  await mockCubePromise;
+  let lookupReferenceColumn: string;
+  try {
+    lookupReferenceColumn = await confirmJoinColumnAndValidateReferenceValues(
+      possibleJoinColumns,
+      factTableColumn.columnName,
+      mockCubeId,
+      draftRevision.id,
+      'lookup_table'
+    );
+  } catch (err) {
+    const error = err as FileValidationException;
+    void cleanUpPostgresValidationSchema(mockCubeId, lookupTable.id).catch((err) => {
+      logger.error(err, 'Something went wrong trying to clean up the mock cube');
     });
+    return viewErrorGenerators(400, dataset.id, 'patch', error.errorTag, error.extension);
   }
 
   const updatedDimension = await setupDimension(
     dimension,
     lookupTable,
-    protoLookupTable,
-    confirmedJoinColumn,
-    tableLanguage,
-    tableMatcher
+    lookupTableColumns,
+    lookupReferenceColumn,
+    tableLanguage
   );
 
   try {
-    logger.debug(`Loading lookup table into Postgres`);
-    await loadFileIntoLookupTablesSchema(
-      dataset,
+    logger.debug(`Converting lookup table to the correct format...`);
+    await convertLookupTableToSW3Format(
+      mockCubeId,
       lookupTable,
       updatedDimension.extractor as LookupTableExtractor,
       factTableColumn,
-      confirmedJoinColumn,
-      path
+      lookupReferenceColumn
     );
   } catch (err) {
-    logger.error(err, `Something went wrong trying to load the lookup table into the cube`);
+    logger.error(err, `Something went wrong trying to convert the lookup table to SW3 format`);
     return viewErrorGenerators(500, dataset.id, 'patch', 'errors.dimension_validation.lookup_table_loading_failed', {
       mismatch: false
     });
-  }
-
-  logger.debug('Copying lookup table from lookup_tables schema into cube');
-  const actionId = crypto.randomUUID();
-  const createLookupInCubeRunner = dbManager.getCubeDataSource().createQueryRunner();
-  try {
-    await createLookupInCubeRunner.query(
-      pgformat('CREATE TABLE %I.%I AS SELECT * FROM lookup_tables.%I;', revision.id, actionId, lookupTable.id)
-    );
-  } catch (error) {
-    await lookupTable.remove();
-    logger.error(error, 'Unable to copy lookup table from lookup tables schema.');
-    return viewErrorGenerators(500, dataset.id, 'patch', 'errors.dimension_validation.lookup_table_loading_failed', {
-      mismatch: false
-    });
-  } finally {
-    void createLookupInCubeRunner.release();
-  }
-
-  const referenceErrors = await validateLookupTableReferenceValues(
-    revision.id,
-    dataset,
-    updatedDimension.factTableColumn,
-    factTableColumn.columnName,
-    actionId,
-    'dimension'
-  );
-
-  if (referenceErrors) {
-    void cleanupBadLookup(lookupTable, revision.id, actionId);
-    return referenceErrors;
   }
 
   const languageErrors = await validateLookupTableLanguages(
     dataset,
-    revision.id,
+    mockCubeId,
     factTableColumn.columnName,
-    actionId,
+    lookupTable.id,
     'dimension'
   );
   if (languageErrors) {
-    void cleanupBadLookup(lookupTable, revision.id, actionId);
+    void cleanUpPostgresValidationSchema(mockCubeId, lookupTable.id).catch((err) => {
+      logger.error(err, 'Something went wrong trying to clean up the mock cube');
+    });
     return languageErrors;
   }
 
   logger.debug(`Lookup table passed validation. Saving the dimension, lookup table and extractor.`);
+  try {
+    await saveValidatedLookupTableToDatabase(mockCubeId, lookupTable.id);
+  } catch (err) {
+    logger.error(err, 'Something went wrong trying to save the lookup table or clean up the mock cube.');
+    return viewErrorGenerators(500, dataset.id, 'patch', `errors.lookup_table_validation.unknown_error`, {});
+  }
+
+  lookupTable.isStatsWales2Format = false;
+  await lookupTable.save();
+  updatedDimension.lookupTable = lookupTable;
   await updatedDimension.save();
 
   const lookupTablePreviewRunner = dbManager.getCubeDataSource().createQueryRunner();
@@ -269,7 +191,6 @@ export const validateLookupTable = async (
     logger.error(error, `Something went wrong trying to generate the preview of the lookup.`);
     return viewErrorGenerators(500, dataset.id, 'preview', 'errors.dimension.lookup_preview_generation_failed', {});
   } finally {
-    await lookupTablePreviewRunner.query(pgformat('DROP TABLE IF EXISTS %I.%I', revision.id, actionId));
     void lookupTablePreviewRunner.release();
   }
 
@@ -280,18 +201,177 @@ export const validateLookupTable = async (
   return previewGenerator(dimensionTable, { totalLines: dimensionTable.length }, dataset, false);
 };
 
-async function cleanupBadLookup(lookupTable: LookupTable, revisionId: string, actionId: string): Promise<void> {
-  const cleanUpStatements = [
-    pgformat('DROP TABLE IF EXISTS %I.%I;', revisionId, actionId),
-    pgformat('DROP TABLE IF EXISTS lookup_tables.%I;', lookupTable.id)
-  ];
-  const cleanupRunner = dbManager.getCubeDataSource().createQueryRunner();
-  try {
-    await cleanupRunner.query(cleanUpStatements.join('\n'));
-  } catch (err) {
-    logger.error(err, 'Something went wrong trying to clean up the cube');
-  } finally {
-    void cleanupRunner.release();
+async function setupDimension(
+  dimension: Dimension,
+  lookupTable: LookupTable,
+  lookupTableColumns: DataTableDescription[],
+  lookupReferenceColumn: string,
+  tableLanguage: Locale
+): Promise<Dimension> {
+  // Clean up previously uploaded dimensions
+  if (dimension.lookupTable) await cleanUpDimension(dimension);
+  lookupTable.isStatsWales2Format = !lookupTableColumns.find((info) =>
+    info.columnName.toLowerCase().startsWith('lang')
+  );
+  const updateDimension = await Dimension.findOneByOrFail({ id: dimension.id });
+  updateDimension.type = DimensionType.LookupTable;
+  updateDimension.joinColumn = lookupReferenceColumn;
+  updateDimension.lookupTable = lookupTable;
+  logger.debug(`Creating extractor...`);
+  updateDimension.extractor = createLookupExtractor(lookupReferenceColumn, lookupTableColumns, tableLanguage);
+  logger.debug('Saving the lookup table');
+  await lookupTable.save();
+  logger.debug('Saving the dimension');
+  updateDimension.lookupTable = lookupTable;
+  updateDimension.type = DimensionType.LookupTable;
+  return updateDimension;
+}
+
+function createLookupExtractor(
+  confirmedJoinColumn: string,
+  tableColumns: DataTableDescription[],
+  tableLanguage: Locale
+): LookupTableExtractor {
+  logger.debug('Detecting column types from column names');
+
+  // Possible headings based on language used for the description column
+  const noteStr = t('lookup_column_headers.notes', { lng: tableLanguage });
+  const sortStr = t('lookup_column_headers.sort', { lng: tableLanguage });
+  const hierarchyStr = t('lookup_column_headers.hierarchy', { lng: tableLanguage });
+  const descriptionStr = t('lookup_column_headers.description', { lng: tableLanguage });
+  const langStr = t('lookup_column_headers.lang', { lng: tableLanguage });
+
+  const extractor: LookupTableExtractor = {
+    tableLanguage,
+    isSW2Format: true,
+    notesColumns: [],
+    descriptionColumns: [],
+    otherColumns: []
+  };
+
+  tableColumns.forEach((column) => {
+    const columnName = column.columnName.toLowerCase();
+    if (columnName === confirmedJoinColumn.toLowerCase()) {
+      extractor.joinColumn = columnName;
+    } else if (columnName.includes(descriptionStr)) {
+      extractor.descriptionColumns.push(columnIdentification(column));
+    } else if (columnName.includes(langStr)) {
+      extractor.languageColumn = column.columnName;
+      extractor.isSW2Format = false;
+    } else if (columnName.includes(noteStr)) {
+      extractor.notesColumns?.push(columnIdentification(column));
+    } else if (columnName.includes(sortStr)) {
+      extractor.sortColumn = column.columnName;
+    } else if (columnName.includes(hierarchyStr)) {
+      extractor.hierarchyColumn = column.columnName;
+    } else {
+      extractor.otherColumns?.push(column.columnName);
+    }
+  });
+
+  if (extractor.notesColumns!.length === 0) {
+    extractor.notesColumns = undefined;
   }
-  await lookupTable.remove();
+
+  return extractor;
+}
+
+// Finds the correct join column and confirms all the reference values are present
+// If the query returns 0 matches, this is the join column
+// If multiple columns partially match we mismatch on the column with the most matches
+export async function confirmJoinColumnAndValidateReferenceValues(
+  possibleJoinColumns: string[],
+  factTableColumn: string,
+  mockCubeId: string,
+  revisionId: string,
+  type: string
+): Promise<string> {
+  let joinColumn: string | undefined;
+  const closestMatch: { col: string; missingValues: { fact_table_ref: string; lookup_table_ref: string | null }[] } = {
+    col: possibleJoinColumns[0],
+    missingValues: []
+  };
+  const queryRunner = dbManager.getCubeDataSource().createQueryRunner();
+  const referenceTotalCountRun: Promise<{ total: number }[]> = queryRunner.query(
+    pgformat('SELECT COUNT(%I) as total FROM %I.%I;', factTableColumn, mockCubeId, FACT_TABLE_NAME)
+  );
+
+  for (const col of possibleJoinColumns) {
+    const query = pgformat(
+      'SELECT DISTINCT %I.%I as fact_table_ref, %I.%I as lookup_table_ref FROM %I.%I LEFT JOIN %I.%I ON CAST(%I.%I AS TEXT) = CAST(%I.%I AS TEXT) WHERE %I.%I IS NULL;',
+      FACT_TABLE_NAME,
+      factTableColumn,
+      'lookup_table',
+      col,
+      mockCubeId,
+      FACT_TABLE_NAME,
+      mockCubeId,
+      'lookup_table',
+      FACT_TABLE_NAME,
+      factTableColumn,
+      'lookup_table',
+      col,
+      'lookup_table',
+      col
+    );
+    let missingValues: { fact_table_ref: string; lookup_table_ref: string | null }[];
+    try {
+      logger.trace(`Running query to check lookup tables values:\n\n${query}\n\n`);
+      missingValues = await queryRunner.query(query);
+    } catch (err) {
+      logger.error(err, 'Something went wrong trying to query the mock cube');
+      continue;
+    }
+    if (missingValues.length === 0) {
+      joinColumn = col;
+      break;
+    }
+
+    if (missingValues.length > closestMatch.missingValues.length) {
+      closestMatch.col = col;
+      closestMatch.missingValues = missingValues;
+    }
+  }
+
+  if (joinColumn) {
+    logger.debug(`Found ${joinColumn} matches all reference in the fact table`);
+    await referenceTotalCountRun;
+    void queryRunner.release();
+    return joinColumn;
+  }
+
+  // We want the value on the fact side as the lookup side should always be null
+  const referencesNotInLookup = closestMatch.missingValues.map((val) => val.fact_table_ref);
+
+  const referenceTotalCount = (await referenceTotalCountRun)[0].total;
+  if (referenceTotalCount === referencesNotInLookup.length) {
+    logger.error(`The user supplied an incorrect lookup table and none of the rows matched`);
+    const err = new FileValidationException(
+      'None of the references in the join column matched the fact table',
+      FileValidationErrorType.LookupMissingValues
+    );
+    err.extension = {
+      mismatch: true,
+      totalNonMatching: referenceTotalCount,
+      nonMatchingDataTableValues: referencesNotInLookup
+    } as never;
+    err.errorTag = `errors.${type}_validation.lookup_no_join_column`;
+    throw err;
+  } else {
+    logger.debug(
+      `We found a column which matched 1 or more references values but was missing the following references: ${referencesNotInLookup.join(', ')}`
+    );
+    const exception = new FileValidationException(
+      'Some of the references in the join column failed to match those in the fact table',
+      FileValidationErrorType.LookupMissingValues
+    );
+    exception.errorTag = `errors.${type}_validation.some_references_failed_to_match`;
+    exception.extension = {
+      mismatch: true,
+      totalNonMatching: referencesNotInLookup.length,
+      nonMatchingDataTableValues: referencesNotInLookup
+    } as never;
+    logger.trace(`Sending back the following for the frontend: ${JSON.stringify(exception.extension)}`);
+    throw exception;
+  }
 }
