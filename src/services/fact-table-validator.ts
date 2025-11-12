@@ -113,7 +113,7 @@ export const factTableValidatorFromSource = async (
     dataValCol.column_name
   );
   const numericValidationQueryRunner = dbManager.getCubeDataSource().createQueryRunner();
-  let failedValues: { data_values: string }[];
+  let failedValues: { data_value: string }[];
   try {
     logger.trace(`Validating that data values are numeric values with query:\n\n${numericValidationQuery}\n\n`);
     failedValues = await numericValidationQueryRunner.query(numericValidationQuery);
