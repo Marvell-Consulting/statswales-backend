@@ -25,14 +25,13 @@ import { NumberExtractor, NumberType } from '../extractors/number-extractor';
 import { viewErrorGenerators } from '../utils/view-error-generators';
 import { getFileService } from '../utils/get-file-service';
 import { FACT_TABLE_NAME, makeCubeSafeString, VALIDATION_TABLE_NAME } from './cube-builder';
-import { CubeValidationException } from '../exceptions/cube-error-exception';
-import { CubeValidationType } from '../enums/cube-validation-type';
 import { YearType } from '../enums/year-type';
 import { dbManager } from '../db/database-manager';
 import { Revision } from '../entities/dataset/revision';
 import { stringify } from 'csv-stringify/sync';
 import { FileType } from '../enums/file-type';
 import { previewGenerator, sampleSize } from '../utils/preview-generator';
+import { cleanUpPostgresValidationSchema, createPostgresValidationSchema } from '../utils/mock-cube-handler';
 
 export interface ValidatedSourceAssignment {
   dataValues: SourceAssignmentDTO | null;
@@ -478,122 +477,12 @@ export const validateNumericDimension = async (
   return getPreviewWithNumberExtractor(revision.id, dataset, savedDimension, await getTotals(dataset, dimension));
 };
 
-export const validateUpdatedDateDimension = async (
-  dataset: Dataset,
-  revision: Revision,
-  dimension: Dimension,
-  factTableColumn: FactTableColumn
-): Promise<undefined> => {
-  const lookupTableName = `${makeCubeSafeString(factTableColumn.columnName)}_lookup`;
-  const errors = await validateDateDimension(dataset, revision, dimension, factTableColumn, lookupTableName);
-  if (errors) {
-    const err = new CubeValidationException('Validation failed');
-    err.type = CubeValidationType.DimensionNonMatchedRows;
-    throw err;
-  }
-  return undefined;
-};
-
-export const validateDateDimension = async (
-  dataset: Dataset,
-  revision: Revision,
-  dimension: Dimension,
-  factTableColumn: FactTableColumn,
-  lookupTableName: string
-): Promise<ViewErrDTO | undefined> => {
-  const extractor = dimension.extractor as DateExtractor;
-  const dateDateQuery = pgformat(
-    `SELECT DISTINCT %I as date_column FROM %I.%I;`,
-    dimension.factTableColumn,
-    revision.id,
-    FACT_TABLE_NAME
-  );
-  const cubeDB = dbManager.getCubeDataSource().createQueryRunner();
-  try {
-    const dateData: { date_column: string }[] = await cubeDB.query(dateDateQuery);
-    // Now validate everything matches
-    const matchingQuery = pgformat(
-      `SELECT
-         line_number, fact_table_date, %I.%I
-       FROM (
-         SELECT
-         row_number() OVER () as line_number, %I as fact_table_date
-         FROM
-         %I.%I
-         ) as fact_table
-         LEFT JOIN %I.%I
-       ON fact_table.fact_table_date=%I.%I
-       WHERE %I IS NULL;`,
-      lookupTableName,
-      factTableColumn.columnName,
-      dimension.factTableColumn,
-      revision.id,
-      FACT_TABLE_NAME,
-      revision.id,
-      lookupTableName,
-      lookupTableName,
-      factTableColumn.columnName,
-      factTableColumn.columnName
-    );
-
-    const nonMatchedRows = await cubeDB.query(matchingQuery);
-
-    if (nonMatchedRows.length > 0) {
-      if (nonMatchedRows.length === dateData.length) {
-        logger.error(`The user supplied an incorrect format and none of the rows matched.`);
-        return viewErrorGenerators(400, dataset.id, 'patch', 'errors.dimension_validation.invalid_date_format', {
-          extractor,
-          totalNonMatching: nonMatchedRows.length,
-          nonMatchingValues: []
-        });
-      } else {
-        logger.error(
-          `There were ${nonMatchedRows.length} row(s) which didn't match based on the information given to us by the user`
-        );
-        const nonMatchingRowsQuery = pgformat(
-          `SELECT
-             DISTINCT fact_table_date
-           FROM (
-                  SELECT
-                    row_number() OVER () as line_number, %I as fact_table_date
-                  FROM %I.%I) AS fact_table
-                  LEFT JOIN %I
-           ON fact_table.fact_table_date=%I.%I
-           WHERE %I IS NULL;`,
-          dimension.factTableColumn,
-          revision.id,
-          FACT_TABLE_NAME,
-          lookupTableName,
-          lookupTableName,
-          factTableColumn.columnName,
-          factTableColumn.columnName
-        );
-        const nonMatchedRowSample: { fact_table_date: string }[] = await cubeDB.query(nonMatchingRowsQuery);
-        const nonMatchingValues = nonMatchedRowSample
-          .map((item) => item.fact_table_date)
-          .filter((item, i, ar) => ar.indexOf(item) === i);
-        const totalNonMatching = nonMatchedRows.length;
-        return viewErrorGenerators(400, dataset.id, 'patch', 'errors.dimension_validation.invalid_date_format', {
-          extractor,
-          totalNonMatching,
-          nonMatchingValues
-        });
-      }
-    }
-  } catch (error) {
-    logger.error(error, `Something unexpected went wrong trying to validate the data`);
-    return viewErrorGenerators(500, dataset.id, 'patch', 'errors.dimension_validation.unknown_error', {});
-  } finally {
-    void cubeDB.release();
-  }
-  return undefined;
-};
-
 interface DateDimensionCreationError {
   status: number;
   message: string;
   dataLength: number;
   error: Error;
+  nonMatchingValues?: string[];
 }
 
 export const createDateDimensionLookup = async (
@@ -636,6 +525,32 @@ export const createDateDimensionLookup = async (
       message: 'errors.dimension.invalid_date_format',
       error,
       dataLength: dateData.length
+    };
+  }
+
+  if (dateDimensionTable.length === 0) {
+    throw {
+      status: 400,
+      message: 'errors.dimension.no_matching_dates',
+      error: null,
+      dataLength: dateData.length,
+      nonMatchingValues: []
+    };
+  }
+
+  const singleLangDateDimensionTable = dateDimensionTable.filter(
+    (row) => row.lang === SUPPORTED_LOCALES[0].toLowerCase()
+  );
+  logger.debug(
+    `Date Data length = ${dateData.length}, Date Dimension Table length = ${singleLangDateDimensionTable.length}`
+  );
+  if (dateData.length != singleLangDateDimensionTable.length) {
+    throw {
+      status: 400,
+      message: 'errors.dimension.no_matching_dates',
+      error: null,
+      dataLength: dateData.length - singleLangDateDimensionTable.length,
+      nonMatchingValues: dateData.filter((row) => !dateDimensionTable.some((item) => item.dateCode === row.date_data))
     };
   }
 
@@ -743,7 +658,8 @@ export const createAndValidateDateDimension = async (
     });
   }
 
-  const actionId = crypto.randomUUID();
+  const mockCubeId = crypto.randomUUID();
+  await createPostgresValidationSchema(mockCubeId, revision.id, factTableColumn.columnName, 'reference');
 
   // Use the extracted data to try to create a reference table based on the user-supplied information
   const extractor: DateExtractor = {
@@ -761,19 +677,22 @@ export const createAndValidateDateDimension = async (
 
   let lookupTable: LookupTable;
   try {
-    const coverage = await createDateDimensionLookup(revision.id, dataset.id, actionId, factTableColumn, extractor);
+    const coverage = await createDateDimensionLookup(mockCubeId, dataset.id, dimension.id, factTableColumn, extractor);
     extractor.lookupTableStart = coverage.startDate;
     extractor.lookupTableEnd = coverage.endDate;
     lookupTable = coverage.lookupTable;
   } catch (err) {
     logger.error(err, 'Something went wrong trying to create date dimension lookup');
     const error = err as DateDimensionCreationError;
+    void cleanUpPostgresValidationSchema(mockCubeId, dimension.id).catch((err) => {
+      logger.warn(err, 'Something went wrong trying to clean up the mock cube');
+    });
     switch (error.status) {
       case 400:
         return viewErrorGenerators(400, dataset.id, 'patch', error.message, {
           extractor,
           totalNonMatching: error.dataLength,
-          nonMatchingValues: []
+          nonMatchingValues: error.nonMatchingValues
         });
       default:
         return viewErrorGenerators(500, dataset.id, 'patch', error.message, {
@@ -796,11 +715,6 @@ export const createAndValidateDateDimension = async (
 
   await revision.save();
 
-  const validationErrors = await validateDateDimension(dataset, revision, dimension, factTableColumn, actionId);
-  if (validationErrors) {
-    return validationErrors;
-  }
-
   const updateDimension = await Dimension.findOneByOrFail({ id: dimension.id });
   updateDimension.extractor = extractor;
   updateDimension.joinColumn = 'date_code';
@@ -809,12 +723,12 @@ export const createAndValidateDateDimension = async (
   await updateDimension.save();
   const previewQuery = pgformat(
     'SELECT DISTINCT %I.* FROM %I.%I LEFT JOIN %I.%I ON %I.%I=%I.%I WHERE language = %L LIMIT %L;',
-    actionId,
-    revision.id,
-    actionId,
+    dimension.id,
+    mockCubeId,
+    dimension.id,
     revision.id,
     FACT_TABLE_NAME,
-    actionId,
+    dimension.id,
     factTableColumn.columnName,
     FACT_TABLE_NAME,
     factTableColumn.columnName,
@@ -832,6 +746,9 @@ export const createAndValidateDateDimension = async (
       mismatch: false
     });
   } finally {
+    void cleanUpPostgresValidationSchema(mockCubeId, dimension.id).catch((err) => {
+      logger.warn(err, 'Something went wrong trying to clean up the mock cube');
+    });
     void getPreviewQueryRunner.release();
   }
 
@@ -849,37 +766,35 @@ async function getDatePreviewWithExtractor(
 
   const previewQuery = pgformat(
     `
-      SELECT DISTINCT
-          (%I.%I),
+      SELECT
+          %I.%I as %I,
           %I.description,
           to_char(%I.start_date, 'YYYY-MM-DD"T"HH24:MI:SS"Z"') as start_date,
           to_char(%I.end_date, 'YYYY-MM-DD"T"HH24:MI:SS"Z"') as end_date,
           %I.date_type
       FROM %I.%I
-      RIGHT JOIN %I.%I ON CAST(fact_table.%I AS VARCHAR)=CAST(%I.%I AS VARCHAR)
       WHERE %I.language = %L
+      ORDER BY %I.end_date ASC
       LIMIT %L
     `,
     tableName,
     factTableColumn,
+    factTableColumn,
     tableName,
     tableName,
     tableName,
     tableName,
     schemaID,
     tableName,
-    schemaID,
-    FACT_TABLE_NAME,
-    factTableColumn,
-    tableName,
-    factTableColumn,
     tableName,
     language.toLowerCase(),
+    tableName,
     sampleSize
   );
   let previewResult: Record<string, never>[];
   const getPreviewRunner = dbManager.getCubeDataSource().createQueryRunner();
   try {
+    logger.trace(`Running date preview query:\n\n${previewQuery}\n\n`);
     previewResult = await getPreviewRunner.query(previewQuery);
   } catch (error) {
     logger.error(error, 'Something went wrong trying to get date lookup table preview');
@@ -1025,10 +940,10 @@ async function getTotals(dataset: Dataset, dimension: Dimension): Promise<{ tota
   try {
     totals = await totalsQueryRunner.query(
       pgformat(
-        'SELECT COUNT(DISTINCT %I) AS totalLines FROM %I.%I;',
-        dimension.factTableColumn,
+        'SELECT COUNT(reference) AS totalLines FROM %I.%I WHERE fact_table_column = %L;',
         dataset.draftRevision!.id,
-        FACT_TABLE_NAME
+        VALIDATION_TABLE_NAME,
+        dimension.factTableColumn
       )
     );
   } catch (error) {
@@ -1048,11 +963,6 @@ export const getDimensionPreview = async (
   logger.info(`Getting dimension preview for ${dimension.id}`);
 
   const totals = await getTotals(dataset, dimension);
-
-  if (!dimension.extractor) {
-    logger.debug('Straight column preview');
-    return await getPreviewWithoutExtractor(dataset.draftRevision!.id, dataset, dimension, totals);
-  }
 
   switch (dimension.type) {
     case DimensionType.Date:
