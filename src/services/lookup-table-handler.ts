@@ -46,6 +46,7 @@ export const validateLookupTable = async (
     mockCubeId,
     draftRevision.id,
     dimension.factTableColumn,
+    'lookup',
     `${protoLookupTable.id}_tmp`
   );
 

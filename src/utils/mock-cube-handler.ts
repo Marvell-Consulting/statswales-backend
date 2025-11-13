@@ -7,7 +7,8 @@ export async function createPostgresValidationSchema(
   schemaId: string,
   revisionId: string,
   factTableColumnName: string,
-  lookupTableName: string
+  type: 'lookup' | 'reference',
+  lookupTableName?: string
 ): Promise<void> {
   const statements = [
     'BEGIN TRANSACTION;',
@@ -31,7 +32,15 @@ export async function createPostgresValidationSchema(
       factTableColumnName
     ),
     pgformat('CREATE INDEX ON %I.%I (%I);', schemaId, FACT_TABLE_NAME, factTableColumnName),
-    pgformat('CREATE TABLE %I.%I AS SELECT * FROM %I.%I;', schemaId, 'lookup_table', 'lookup_tables', lookupTableName),
+    type === 'lookup'
+      ? pgformat(
+          'CREATE TABLE %I.%I AS SELECT * FROM %I.%I;',
+          schemaId,
+          'lookup_table',
+          'lookup_tables',
+          lookupTableName
+        )
+      : '',
     'COMMIT;'
   ];
   logger.debug('Attempting to create mock cube for validation and lookup table processing');

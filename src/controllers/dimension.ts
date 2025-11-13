@@ -85,7 +85,7 @@ export const sendDimensionPreview = async (req: Request, res: Response, next: Ne
     }
 
     let preview: ViewDTO | ViewErrDTO;
-    if (dimension.type === DimensionType.Raw) {
+    if (dimension.type === DimensionType.Raw || dimension.extractor === null) {
       preview = await getFactTableColumnPreview(dataset, latestRevision!, dimension.factTableColumn);
     } else {
       preview = await getDimensionPreview(dataset, dimension, req.language);
