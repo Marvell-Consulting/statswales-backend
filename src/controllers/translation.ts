@@ -28,7 +28,7 @@ const parseTranslationsFromStream = async (stream: Readable | ReadStream): Promi
       .pipe(csvParser)
       .on('data', (row) => translations.push(row as TranslationDTO))
       .on('error', (error: Error) => {
-        logger.error(error, 'Error parsing translations CSV');
+        logger.warn(error, 'Error parsing translations CSV');
         reject(new BadRequestException('errors.translation_file.invalid.format'));
       })
       .on('end', () => resolve(translations));
@@ -78,7 +78,7 @@ export const validateImport = async (req: Request, res: Response, next: NextFunc
   try {
     tmpFile = await uploadAvScan(req);
   } catch (err) {
-    logger.error(err, 'There was a problem uploading the translation file');
+    logger.warn(err, 'There was a problem uploading the translation file');
     next(err);
     return;
   }
@@ -88,7 +88,7 @@ export const validateImport = async (req: Request, res: Response, next: NextFunc
     const fileStream = createReadStream(tmpFile.path);
 
     fileStream.on('error', (error) => {
-      logger.error(error, 'Error reading the uploaded translation file');
+      logger.warn(error, 'Error reading the uploaded translation file');
       next(new BadRequestException('errors.translation_file.invalid.file'));
       return;
     });

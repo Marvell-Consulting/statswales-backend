@@ -310,7 +310,7 @@ export const updateMetadata = async (req: Request, res: Response, next: NextFunc
     if (err instanceof BadRequestException) {
       err.validationErrors?.forEach((error) => {
         if (!error.constraints) return;
-        Object.values(error.constraints).forEach((message) => logger.error(message));
+        Object.values(error.constraints).forEach((message) => logger.warn(message));
       });
       next(err);
       return;
@@ -351,15 +351,15 @@ export const addDataProvider = async (req: Request, res: Response, next: NextFun
     res.status(201);
     res.json(DatasetDTO.fromDataset(updatedDataset));
   } catch (err: unknown) {
-    logger.error(err, 'failed to add provider');
     if (err instanceof BadRequestException) {
       err.validationErrors?.forEach((error) => {
         if (!error.constraints) return;
-        Object.values(error.constraints).forEach((message) => logger.error(message));
+        Object.values(error.constraints).forEach((message) => logger.warn(message));
       });
       next(err);
       return;
     }
+    logger.error(err, 'failed to add provider');
     next(new UnknownException('errors.provider_update_error'));
   }
 };
@@ -371,15 +371,15 @@ export const updateDataProviders = async (req: Request, res: Response, next: Nex
     res.status(201);
     res.json(DatasetDTO.fromDataset(updatedDataset));
   } catch (err: unknown) {
-    logger.error(err, 'failed to update providers');
     if (err instanceof BadRequestException) {
       err.validationErrors?.forEach((error) => {
         if (!error.constraints) return;
-        Object.values(error.constraints).forEach((message) => logger.error(message));
+        Object.values(error.constraints).forEach((message) => logger.warn(message));
       });
       next(err);
       return;
     }
+    logger.error(err, 'failed to update providers');
     next(new UnknownException('errors.provider_update_error'));
   }
 };
@@ -406,7 +406,7 @@ export const updateTopics = async (req: Request, res: Response, next: NextFuncti
     if (err instanceof BadRequestException) {
       err.validationErrors?.forEach((error) => {
         if (!error.constraints) return;
-        Object.values(error.constraints).forEach((message) => logger.error(message));
+        Object.values(error.constraints).forEach((message) => logger.warn(message));
       });
       next(err);
       return;
@@ -487,13 +487,12 @@ export const updateSources = async (req: Request, res: Response, next: NextFunct
     await createAllCubeFiles(updatedDataset.id, revision.id, userId);
     res.json(DatasetDTO.fromDataset(updatedDataset));
   } catch (err) {
-    logger.error(err, `An error occurred trying to process the source assignments: ${err}`);
-
     if (err instanceof SourceAssignmentException) {
       next(new BadRequestException(err.message));
-    } else {
-      next(new UnknownException('errors.unknown_server_error'));
+      return;
     }
+    logger.error(err, `An error occurred trying to process the source assignments`);
+    next(new UnknownException('errors.unknown_server_error'));
   }
 };
 

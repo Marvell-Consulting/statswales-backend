@@ -22,7 +22,7 @@ export const errorHandler: ErrorRequestHandler = (err: any, req: Request, res: R
     case 401:
     case 403:
     case 405:
-      logger.error(`${err.status} error detected for ${req.originalUrl}: ${message}`);
+      logger.warn(`${err.status} error detected for ${req.originalUrl}: ${message}`);
       res.status(err.status);
       break;
 

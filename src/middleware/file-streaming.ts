@@ -29,7 +29,7 @@ export const fileStreaming = (
       return next();
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (err: any) {
-      logger.error(err, 'error attempting to parse multipart/form-data');
+      logger.warn(err, 'error attempting to parse multipart/form-data');
       next(new BadRequestException('errors.upload.failed_to_parse'));
       return;
     }

@@ -361,8 +361,7 @@ export const listSubTopics = async (req: Request, res: Response, next: NextFunct
   const lang = req.language as Locale;
 
   if (topicId && !/\d+/.test(topicId)) {
-    logger.error('invalid topic id');
-    next(new BadRequestException('errors.invalid_topic_id'));
+    next(new NotFoundException('errors.invalid_topic_id'));
     return;
   }
 

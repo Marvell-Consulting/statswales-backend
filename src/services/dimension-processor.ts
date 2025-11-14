@@ -338,9 +338,9 @@ export const createDimensionsFromSourceAssignment = async (
       await removeIgnoreAndUnknownColumns(dataset, ignore);
     }
   } catch (error) {
-    logger.error(
+    logger.warn(
       error,
-      `There were unknown columns left after removing ignore columns.  Unwinding dimension and measure creation.`
+      `There were unknown columns left after removing ignore columns. Unwinding dimension and measure creation.`
     );
     throw error;
   }
