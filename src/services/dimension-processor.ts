@@ -544,7 +544,7 @@ export const createDateDimensionLookup = async (
   logger.debug(
     `Date Data length = ${dateData.length}, Date Dimension Table length = ${singleLangDateDimensionTable.length}`
   );
-  if (dateData.length != singleLangDateDimensionTable.length) {
+  if (dateData.length !== singleLangDateDimensionTable.length) {
     throw {
       status: 400,
       message: 'errors.dimension.no_matching_dates',
