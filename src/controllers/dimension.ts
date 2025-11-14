@@ -289,8 +289,6 @@ export const updateDimensionMetadata = async (req: Request, res: Response): Prom
     dimension: DimensionDTO.fromDimension(updatedDimension),
     build_id: buildId
   });
-  res.end();
-
   void createAllCubeFiles(dataset.id, dataset.draftRevision!.id, userId, CubeBuildType.FullCube, buildId).catch(
     (err) => {
       logger.error(err, 'Something went wrong trying build the cube after updating the dimensions metadata');
