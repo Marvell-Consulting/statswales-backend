@@ -291,7 +291,7 @@ export const updateDimensionMetadata = async (req: Request, res: Response): Prom
   });
   void createAllCubeFiles(dataset.id, dataset.draftRevision!.id, userId, CubeBuildType.FullCube, buildId).catch(
     (err) => {
-      logger.error(err, 'Something went wrong trying build the cube after updating the dimensions metadata');
+      logger.error(err, 'Something went wrong trying to build the cube after updating the dimensions metadata');
     }
   );
 };
