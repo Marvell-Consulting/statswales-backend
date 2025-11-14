@@ -26,7 +26,6 @@ export const loadPublishedDataset = (relations?: FindOptionsRelations<Dataset>) 
     const datasetIdError = await hasError(datasetIdValidator(), req);
 
     if (datasetIdError) {
-      logger.error(datasetIdError);
       next(new NotFoundException('errors.dataset_id_invalid'));
       return;
     }
@@ -36,8 +35,7 @@ export const loadPublishedDataset = (relations?: FindOptionsRelations<Dataset>) 
       const dataset = await PublishedDatasetRepository.getById(req.params.dataset_id, relations);
       res.locals.datasetId = dataset.id;
       res.locals.dataset = dataset;
-    } catch (err) {
-      logger.error(err, `Failed to load dataset`);
+    } catch (_err) {
       next(new NotFoundException('errors.no_dataset'));
       return;
     }
@@ -54,9 +52,7 @@ publicApiRouter.use((req: Request, res: Response, next: NextFunction) => {
     return;
   }
 
-  logger.trace(`requested language - query: '${req.query.lang}', header: '${req.headers['accept-language']}'`);
   res.vary('Accept-Language'); // vary response cache on language header
-
   next();
 });
 

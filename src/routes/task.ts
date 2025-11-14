@@ -16,7 +16,6 @@ const taskAuth = async (req: Request, res: Response, next: NextFunction): Promis
   const taskIdError = await hasError(uuidValidator('task_id'), req);
 
   if (taskIdError) {
-    logger.error(taskIdError);
     next(new NotFoundException('errors.dataset_id_invalid'));
     return;
   }

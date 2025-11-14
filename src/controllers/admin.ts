@@ -25,7 +25,6 @@ import { DashboardStats, DatasetStats, UserGroupStats, UserStats } from '../inte
 export const loadUserGroup = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   const userGroupIdError = await hasError(uuidValidator('user_group_id'), req);
   if (userGroupIdError) {
-    logger.error(userGroupIdError);
     next(new NotFoundException('errors.user_group_id_invalid'));
     return;
   }
@@ -34,8 +33,7 @@ export const loadUserGroup = async (req: Request, res: Response, next: NextFunct
     const group = await UserGroupRepository.getById(req.params.user_group_id);
     res.locals.userGroup = group;
     res.locals.userGroupId = group.id;
-  } catch (error) {
-    logger.error(error, 'Error loading user group');
+  } catch (_err) {
     next(new NotFoundException('errors.no_user_group'));
   }
 
@@ -45,7 +43,6 @@ export const loadUserGroup = async (req: Request, res: Response, next: NextFunct
 export const loadUser = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   const userIdError = await hasError(uuidValidator('user_id'), req);
   if (userIdError) {
-    logger.error(userIdError);
     next(new NotFoundException('errors.user_id_invalid'));
     return;
   }
@@ -54,8 +51,7 @@ export const loadUser = async (req: Request, res: Response, next: NextFunction):
     const user = await UserRepository.getById(req.params.user_id);
     res.locals.user = user;
     res.locals.userId = user.id;
-  } catch (error) {
-    logger.error(error, 'Error loading user');
+  } catch (_err) {
     next(new NotFoundException('errors.no_user'));
   }
 
@@ -152,7 +148,6 @@ export const updateUserGroupStatus = async (req: Request, res: Response, next: N
 
   const groupStatusError = await hasError(groupStatusValidator(), req);
   if (groupStatusError) {
-    logger.error(groupStatusError);
     next(new BadRequestException('errors.group.status_invalid'));
     return;
   }
@@ -190,10 +185,10 @@ export const createUser = async (req: Request, res: Response): Promise<void> => 
     const user = await UserRepository.createUser(dto);
     res.json(UserDTO.fromUser(user, req.language as Locale));
   } catch (err) {
-    logger.error(err, 'Error creating user');
     if (err instanceof QueryFailedError && err.message.includes('violates unique constraint')) {
       throw new BadRequestException('errors.user_already_exists');
     }
+    logger.error(err, 'Error creating user');
     throw new UnknownException();
   }
 };
@@ -244,7 +239,6 @@ export const updateUserStatus = async (req: Request, res: Response, next: NextFu
 
   const userStatusError = await hasError(userStatusValidator(), req);
   if (userStatusError) {
-    logger.error(userStatusError);
     next(new BadRequestException('errors.user_status_invalid'));
     return;
   }

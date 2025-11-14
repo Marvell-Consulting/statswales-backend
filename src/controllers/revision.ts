@@ -163,7 +163,6 @@ export const downloadRawFactTable = async (req: Request, res: Response, next: Ne
   let readable: Readable;
 
   if (!revision.dataTable) {
-    logger.error("Revision doesn't have a data table, can't download file");
     next(new NotFoundException('errors.revision_id_invalid'));
     return;
   }
@@ -327,13 +326,12 @@ export const removeFactTableFromRevision = async (req: Request, res: Response, n
   const revision = res.locals.revision;
 
   if (!revision.dataTable) {
-    logger.error("Revision doesn't have a data table, can't remove file");
     next(new NotFoundException('errors.revision_id_invalid'));
     return;
   }
 
   try {
-    logger.warn('User has requested to remove a fact table from the filestore');
+    logger.info('User has requested to remove a fact table from the filestore');
     await req.fileService.delete(revision.dataTable.filename, datasetId);
 
     const dataset = await DatasetRepository.getById(datasetId, { factTable: true, revisions: true });
@@ -348,7 +346,7 @@ export const removeFactTableFromRevision = async (req: Request, res: Response, n
     const dto = DatasetDTO.fromDataset(updatedDataset);
     res.json(dto);
   } catch (err) {
-    logger.error(`An error occurred trying to remove the file with the following error: ${err}`);
+    logger.error(err, `An error occurred trying to remove the file`);
     next(new UnknownException('errors.remove_file'));
   }
 };
@@ -502,7 +500,6 @@ export const downloadRevisionCubeAsJSON = async (req: Request, res: Response, ne
   try {
     createStreamingJSONFilteredView(res, revision, req.language, view, sortByQuery, filterQuery);
   } catch (err) {
-    logger.error(err);
     next(err);
   }
 };
@@ -515,7 +512,6 @@ export const downloadRevisionCubeAsCSV = async (req: Request, res: Response, nex
   try {
     createStreamingCSVFilteredView(res, revision, req.language, view, sortByQuery, filterQuery);
   } catch (err) {
-    logger.error(err);
     next(err);
   }
 };
@@ -558,7 +554,6 @@ export const downloadRevisionCubeAsExcel = async (req: Request, res: Response, n
   try {
     createStreamingExcelFilteredView(res, revision, req.language, view, sortByQuery, filterQuery);
   } catch (err) {
-    logger.error(err);
     next(err);
   }
 };

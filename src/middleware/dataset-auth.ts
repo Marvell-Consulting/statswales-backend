@@ -12,7 +12,6 @@ import { GlobalRole } from '../enums/global-role';
 export const datasetAuth = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   const datasetIdError = await hasError(datasetIdValidator(), req);
   if (datasetIdError) {
-    logger.error(datasetIdError);
     next(new NotFoundException('errors.dataset_id_invalid'));
     return;
   }
@@ -35,8 +34,7 @@ export const datasetAuth = async (req: Request, res: Response, next: NextFunctio
 
     res.locals.datasetId = dataset.id;
     res.locals.dataset = dataset;
-  } catch (err) {
-    logger.error(err, `Failed to load dataset`);
+  } catch (_err) {
     next(new NotFoundException('errors.no_dataset'));
     return;
   }

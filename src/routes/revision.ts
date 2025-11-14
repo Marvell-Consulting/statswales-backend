@@ -26,7 +26,6 @@ import {
 } from '../controllers/revision';
 import { Revision } from '../entities/dataset/revision';
 import { hasError, revisionIdValidator } from '../validators';
-import { logger } from '../utils/logger';
 import { NotFoundException } from '../exceptions/not-found.exception';
 import { RevisionRepository, withMetadataAndProviders } from '../repositories/revision';
 import { fileStreaming } from '../middleware/file-streaming';
@@ -39,7 +38,6 @@ export const loadRevision = (relations?: FindOptionsRelations<Revision>) => {
   return async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     const revisionIdError = await hasError(revisionIdValidator(), req);
     if (revisionIdError) {
-      logger.error(revisionIdError);
       next(new NotFoundException('errors.revision_id_invalid'));
       return;
     }
@@ -48,14 +46,12 @@ export const loadRevision = (relations?: FindOptionsRelations<Revision>) => {
       const revision = await RevisionRepository.getById(req.params.revision_id, relations);
 
       if (res.locals.datasetId !== revision.datasetId) {
-        logger.error('Revision does not belong to dataset');
         throw new NotFoundException('errors.revision_id_invalid');
       }
 
       res.locals.revision_id = revision.id;
       res.locals.revision = revision;
-    } catch (err) {
-      logger.error(err, `Failed to load revision`);
+    } catch (_err) {
       next(new NotFoundException('errors.no_revision'));
       return;
     }

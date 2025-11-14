@@ -37,7 +37,7 @@ export const loginLocal: RequestHandler = async (req, res) => {
   const username = ((req.query.username as string) || '').trim();
 
   if (!username) {
-    logger.error('local auth failed: username must be provided');
+    logger.warn('local auth failed: username must be provided');
     res.redirect(`${returnURL}?error=login`);
     return;
   }

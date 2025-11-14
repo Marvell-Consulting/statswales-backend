@@ -340,7 +340,6 @@ export class DatasetService {
     const draft = dataset.draftRevision;
 
     if (!draft || draft.id !== revisionId) {
-      logger.error(`Dataset does not have a draft revision or the revision id does not match the current draft`);
       throw new BadRequestException('errors.delete_draft_revision.no_draft_revision');
     }
 

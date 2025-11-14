@@ -26,7 +26,6 @@ provider.get('/', async (req: Request, res: Response, next: NextFunction) => {
 provider.get('/:provider_id/sources', async (req: Request, res: Response, next: NextFunction) => {
   const providerIdError = await hasError(providerIdValidator(), req);
   if (providerIdError) {
-    logger.error(providerIdError);
     next(new NotFoundException('errors.provider_id_invalid'));
     return;
   }

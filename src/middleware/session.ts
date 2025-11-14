@@ -26,7 +26,7 @@ if (config.session.store === SessionStore.Redis) {
   logger.debug(`Connecting to redis server: ${config.session.redisUrl}`);
 
   redisClient.on('connect', () => logger.info('Redis session store initialized'));
-  redisClient.on('error', (err) => logger.error(`An error occurred with Redis with the following error: ${err}`));
+  redisClient.on('error', (err) => logger.error(err, `Redis error`));
   redisClient.connect();
 
   store = new RedisStore({ client: redisClient, prefix: 'sw3b:' });
