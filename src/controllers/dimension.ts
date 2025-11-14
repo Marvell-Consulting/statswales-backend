@@ -248,7 +248,6 @@ export const updateDimension = async (req: Request, res: Response, next: NextFun
     };
     res.status(202);
     res.json(preview);
-    res.end();
   } catch (err) {
     logger.error(err, `An error occurred trying to update the dimension`);
     next(new UnknownException('errors.dimension_update'));
