@@ -153,7 +153,6 @@ export const attachLookupTableToDimension = async (req: Request, res: Response, 
     };
     await updateRevisionTasks(dataset, dimension.id, 'dimension');
     res.json(result);
-    res.end();
   } catch (err) {
     logger.error(err, `An error occurred trying to handle the lookup table`);
     next(new UnknownException('errors.upload_error'));
