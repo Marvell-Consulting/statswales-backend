@@ -91,6 +91,10 @@ router.get('/by-id/:revision_id/preview/filters', loadRevision(), getRevisionPre
 // Upload an updated data file for the revision
 router.post('/by-id/:revision_id/data-table', loadRevision(), fileStreaming(), updateDataTable);
 
+// POST /dataset/:dataset_id/revision/id/:revision_id/data-table
+// Upload an updated data file for the revision
+router.post('/by-id/:revision_id/processed-data-table', loadRevision(), jsonParser, updateDataTable);
+
 // GET /dataset/:dataset_id/revision/by-id/:revision_id/data-table
 // Returns details of a data-table
 router.get('/by-id/:revision_id/data-table', loadRevision(), getDataTable);

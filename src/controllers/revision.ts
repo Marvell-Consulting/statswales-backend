@@ -4,6 +4,7 @@ import { performance } from 'node:perf_hooks';
 import { NextFunction, Request, Response } from 'express';
 import { t } from 'i18next';
 import { isBefore, isValid } from 'date-fns';
+import { format as pgformat } from '@scaleleap/pg-format';
 
 import { User } from '../entities/user/user';
 import { DataTableDto } from '../dtos/data-table-dto';
@@ -48,6 +49,13 @@ import { buildStatusValidator, buildTypeValidator, hasError } from '../validator
 import { CubeBuildType } from '../enums/cube-build-type';
 import { CubeBuildStatus } from '../enums/cube-build-status';
 import { BuildLogRepository } from '../repositories/build-log';
+import { ClientProcessedUpload } from '../dtos/client-processed-upload';
+import { FileType } from '../enums/file-type';
+import { random } from 'lodash';
+import { randomUUID } from 'node:crypto';
+import { PostgresSchemas } from '../enums/postgres-schemas';
+import { dbManager } from '../db/database-manager';
+import { DataTableDescription } from '../entities/dataset/data-table-description';
 
 export const getDataTable = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   const revision: Revision = res.locals.revision;
@@ -319,6 +327,127 @@ export const updateDataTable = async (req: Request, res: Response, next: NextFun
     logger.error(err, `An unknown error occurred trying to update the dataset`);
     next(new UnknownException('errors.fact_table_validation.unknown_error'));
   }
+};
+
+export const createClientProcessedDataTable = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  const datasetId: string = res.locals.datasetId;
+  const revision: Revision = res.locals.revision;
+  const clientProcessedUpload = req.body as ClientProcessedUpload;
+
+  if (revision.dataTable) {
+    logger.debug(`Revision ${revision.id} already has a data table ${revision.dataTable.id}, removing it`);
+    try {
+      await req.fileService.delete(revision.dataTable.filename, datasetId);
+      await revision.dataTable.remove();
+    } catch (err) {
+      logger.warn(err, `Failed to delete data table file ${revision.dataTable.filename} from data lake`);
+    }
+    await DataTable.getRepository().remove(revision.dataTable);
+  }
+  const dataTableId = randomUUID();
+
+  const dataTable = new DataTable();
+  dataTable.id = dataTableId;
+  dataTable.mimeType = 'text/csv';
+  dataTable.action = clientProcessedUpload.action;
+  dataTable.encoding = 'utf-8';
+  dataTable.fileType = FileType.Csv;
+  dataTable.hash = '';
+  dataTable.originalFilename = clientProcessedUpload.original_file_name;
+  dataTable.filename = `${dataTableId}.csv`;
+  dataTable.revision = revision;
+  const savedDataTable = await dataTable.save();
+
+  const tableName = `${dataTableId}_tmp`;
+  const createColumns = Object.keys(clientProcessedUpload.data[0]).map((col) => pgformat('%I TEXT', col));
+  const tableColumns = Object.keys(clientProcessedUpload.data[0]).map((col) => pgformat('%I', col));
+  const dataTableDescriptions = Object.keys(clientProcessedUpload.data[0]).map((heading, idx) => {
+    const col = new DataTableDescription();
+    col.columnIndex = idx;
+    col.columnName = heading;
+    col.factTable = dataTable;
+    col.factTableColumn = heading;
+    col.columnDatatype = 'TEXT';
+    return col;
+  });
+
+  savedDataTable.dataTableDescriptions = dataTableDescriptions;
+  await savedDataTable.save();
+
+  const statements = ['BEGIN TRANSACTION;'];
+  statements.push(pgformat('CREATE TABLE %I.%I (%s);', PostgresSchemas.DataTables, tableName, createColumns.join(',')));
+  for (const row of clientProcessedUpload.data) {
+    statements.push(
+      pgformat(
+        'INSERT INTO %I.%I (%s) VALUES (%L);',
+        PostgresSchemas.DataTables,
+        tableName,
+        tableColumns.join(','),
+        Object.values(row)
+      )
+    );
+  }
+  statements.push('COMMIT;');
+
+  const queryRunner = dbManager.getCubeDataSource().createQueryRunner();
+  try {
+    logger.trace(`Creating table data_tables."${tableName}" and loading data chunk`);
+    await queryRunner.query(statements.join('\n'));
+  } catch (err) {
+    logger.error(err, 'Something went wrong trying to create table or save data chunk');
+    next(new UnknownException('errors.data_upload_failed'));
+  } finally {
+    void queryRunner.release();
+  }
+  res.status(201);
+  res.json(DataTableDto.fromDataTable(dataTable));
+};
+
+export const receiveClientProcessedDataChunk = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  const revision: Revision = res.locals.revision;
+  const clientProcessedUpload = req.body as ClientProcessedUpload;
+
+  if (!revision.dataTable) {
+    next(new NotFoundException('errors.revision_id_invalid'));
+    return;
+  }
+  const tableName = `${revision.dataTable.id}_tmp`;
+  const tableColumns = revision.dataTable.dataTableDescriptions.map((col) => pgformat('%I', col.columnName));
+
+  const statements = ['BEGIN TRANSACTION;'];
+  for (const row of clientProcessedUpload.data) {
+    statements.push(
+      pgformat(
+        'INSERT INTO %I.%I (%s) VALUES (%L);',
+        PostgresSchemas.DataTables,
+        tableName,
+        tableColumns.join(','),
+        Object.values(row)
+      )
+    );
+  }
+  statements.push('COMMIT;');
+
+  const queryRunner = dbManager.getCubeDataSource().createQueryRunner();
+  try {
+    logger.trace(`Creating table data_tables."${tableName}" and loading data chunk`);
+    await queryRunner.query(statements.join('\n'));
+  } catch (err) {
+    logger.error(err, 'Something went wrong trying save data chunk');
+    next(new UnknownException('errors.data_upload_failed'));
+  } finally {
+    void queryRunner.release();
+  }
+  if (!clientProcessedUpload.done) res.status(201).end();
+
 };
 
 export const removeFactTableFromRevision = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
