@@ -165,7 +165,7 @@ export const updateMeasureMetadata = async (req: Request, res: Response, next: N
   const buildID = randomUUID();
   await createAllCubeFiles(dataset.id, dataset.draftRevision!.id, userId, CubeBuildType.FullCube, buildID).catch(
     (err) => {
-      logger.error(err, 'Something went wrong trying to build the cube after ');
+      logger.error(err, `Something went wrong trying to build the cube after buildID=${buildID} for datasetId=${dataset.id} and revisionId=${dataset.draftRevision!.id}`);
     }
   );
 
