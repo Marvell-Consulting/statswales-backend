@@ -1,7 +1,6 @@
 import { NextFunction, Request, Response } from 'express';
 
-import { DatasetRepository, withDraftForCube } from '../repositories/dataset';
-import { getLatestRevision } from '../utils/latest';
+import { DatasetRepository } from '../repositories/dataset';
 import { UnknownException } from '../exceptions/unknown.exception';
 import {
   createStreamingCSVFilteredView,
@@ -14,10 +13,9 @@ import { logger } from '../utils/logger';
 import { BadRequestException } from '../exceptions/bad-request.exception';
 
 export const downloadCubeAsJSON = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-  const dataset = await DatasetRepository.getById(res.locals.datasetId, withDraftForCube);
-  const latestRevision = getLatestRevision(dataset);
-  if (!latestRevision) {
-    next(new UnknownException('errors.no_revision'));
+  const dataset = await DatasetRepository.getById(res.locals.datasetId);
+  if (!dataset.endRevisionId) {
+    next(new UnknownException('errors.no_end_revision'));
     return;
   }
   const view = req.query.view as string;
@@ -38,14 +36,13 @@ export const downloadCubeAsJSON = async (req: Request, res: Response, next: Next
     throw new BadRequestException('errors.filter.invalid');
   }
 
-  void createStreamingJSONFilteredView(res, latestRevision, req.language, view, sortBy, filter);
+  void createStreamingJSONFilteredView(res, dataset.endRevisionId, req.language, view, sortBy, filter);
 };
 
 export const downloadCubeAsCSV = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-  const dataset = await DatasetRepository.getById(res.locals.datasetId, withDraftForCube);
-  const latestRevision = getLatestRevision(dataset);
-  if (!latestRevision) {
-    next(new UnknownException('errors.no_revision'));
+  const dataset = await DatasetRepository.getById(res.locals.datasetId);
+  if (!dataset.endRevisionId) {
+    next(new UnknownException('errors.no_end_revision'));
     return;
   }
   const view = req.query.view as string;
@@ -66,14 +63,13 @@ export const downloadCubeAsCSV = async (req: Request, res: Response, next: NextF
     throw new BadRequestException('errors.filter.invalid');
   }
 
-  void createStreamingCSVFilteredView(res, latestRevision, req.language, view, sortBy, filter);
+  void createStreamingCSVFilteredView(res, dataset.endRevisionId, req.language, view, sortBy, filter);
 };
 
 export const downloadCubeAsExcel = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-  const dataset = await DatasetRepository.getById(res.locals.datasetId, withDraftForCube);
-  const latestRevision = getLatestRevision(dataset);
-  if (!latestRevision) {
-    next(new UnknownException('errors.no_revision'));
+  const dataset = await DatasetRepository.getById(res.locals.datasetId);
+  if (!dataset.endRevisionId) {
+    next(new UnknownException('errors.no_end_revision'));
     return;
   }
   const view = req.query.view as string;
@@ -94,5 +90,5 @@ export const downloadCubeAsExcel = async (req: Request, res: Response, next: Nex
     throw new BadRequestException('errors.filter.invalid');
   }
 
-  void createStreamingExcelFilteredView(res, latestRevision, req.language, view, sortBy, filter);
+  void createStreamingExcelFilteredView(res, dataset.endRevisionId, req.language, view, sortBy, filter);
 };

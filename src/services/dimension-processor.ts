@@ -1086,14 +1086,14 @@ export const getDimensionPreview = async (
 
 export const getFactTableColumnPreview = async (
   dataset: Dataset,
-  revision: Revision,
+  revisionId: string,
   columnName: string
 ): Promise<ViewDTO | ViewErrDTO> => {
   logger.debug(`Getting fact table column preview for ${columnName}`);
   const previewQuery = pgformat(
     'SELECT reference AS %I FROM %I.%I WHERE fact_table_column = %L ORDER BY reference ASC',
     columnName,
-    revision.id,
+    revisionId,
     VALIDATION_TABLE_NAME,
     columnName
   );
