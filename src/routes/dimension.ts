@@ -69,7 +69,7 @@ router.post('/by-id/:dimension_id/lookup', fileStreaming(), loadDimension, attac
 
 // PATCH /dataset/:dataset_id/dimension/id/:dimension_id/
 // Takes a patch request and validates the request against the fact table
-// If it fails it sends back an error
+// If it fails, it sends back an error
 router.patch('/by-id/:dimension_id', jsonParser, loadDimension, updateDimension);
 
 // PATCH /:dataset_id/dimension/by-id/:dimension_id/meta
