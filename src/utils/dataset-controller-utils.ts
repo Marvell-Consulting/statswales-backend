@@ -2,8 +2,8 @@ import JSZip from 'jszip';
 import { FileImportDto } from '../dtos/file-import';
 import { StorageService } from '../interfaces/storage-service';
 import { DataLakeFileEntry } from '../interfaces/datalake-file-entry';
-import { Dataset } from '../entities/dataset/dataset';
 import { FileImportType } from '../enums/file-import-type';
+import { DatasetRepository } from '../repositories/dataset';
 
 export const addDirectoryToZip = async (
   zip: JSZip,
@@ -29,15 +29,23 @@ export const addDirectoryToZip = async (
   }
 };
 
-export const collectFiles = (dataset: Dataset): Map<string, FileImportDto> => {
+export const collectFiles = async (datasetId: string): Promise<Map<string, FileImportDto>> => {
   const files = new Map<string, FileImportDto>();
+
+  const dataset = await DatasetRepository.getById(datasetId, {
+    measure: { lookupTable: true },
+    dimensions: { lookupTable: true },
+    revisions: { dataTable: true }
+  });
+
   if (dataset.measure && dataset.measure.lookupTable) {
     const fileImport = FileImportDto.fromFileImport(dataset.measure.lookupTable);
     fileImport.type = FileImportType.Measure;
     fileImport.parent_id = dataset.id;
     files.set(dataset.measure.lookupTable.filename, fileImport);
   }
-  dataset.dimensions.forEach((dimension) => {
+
+  dataset.dimensions?.forEach((dimension) => {
     if (dimension.lookupTable) {
       const fileImport = FileImportDto.fromFileImport(dimension.lookupTable);
       fileImport.type = FileImportType.Dimension;
@@ -45,7 +53,8 @@ export const collectFiles = (dataset: Dataset): Map<string, FileImportDto> => {
       files.set(dimension.lookupTable.filename, fileImport);
     }
   });
-  dataset.revisions.forEach((revision) => {
+
+  dataset.revisions?.forEach((revision) => {
     if (revision.dataTable) {
       const fileImport = FileImportDto.fromFileImport(revision.dataTable);
       fileImport.type = FileImportType.DataTable;
@@ -53,5 +62,6 @@ export const collectFiles = (dataset: Dataset): Map<string, FileImportDto> => {
       files.set(revision.dataTable.filename, fileImport);
     }
   });
+
   return files;
 };

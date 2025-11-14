@@ -78,14 +78,6 @@ export const withDimensions: FindOptionsRelations<Dataset> = {
   dimensions: { metadata: true, lookupTable: true }
 };
 
-export const withDraftForCube: FindOptionsRelations<Dataset> = {
-  factTable: true,
-  draftRevision: { dataTable: { dataTableDescriptions: true } },
-  dimensions: { metadata: true, lookupTable: true },
-  measure: { metadata: true, measureTable: true, lookupTable: true },
-  revisions: { dataTable: { dataTableDescriptions: true } }
-};
-
 const listAllQuery = (qb: QueryBuilder<Dataset>, lang: Locale): SelectQueryBuilder<Dataset> => {
   return qb
     .select(['d.id AS id', 'r.title AS title', 'r.title_alt AS title_alt', 'r.updated_at AS last_updated_at'])

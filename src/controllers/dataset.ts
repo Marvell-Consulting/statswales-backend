@@ -1,5 +1,4 @@
 import { NextFunction, Request, Response } from 'express';
-import { last, sortBy } from 'lodash';
 import { t } from 'i18next';
 import JSZip from 'jszip';
 
@@ -8,11 +7,11 @@ import {
   DatasetRepository,
   withDeveloperPreview,
   withDimensions,
+  withDraftAndDataTable,
   withDraftAndMeasure,
   withDraftAndMetadata,
   withDraftAndProviders,
   withDraftAndTopics,
-  withDraftForCube,
   withFactTable,
   withLatestRevision,
   withStandardPreview
@@ -124,8 +123,8 @@ export const getDatasetById = async (req: Request, res: Response): Promise<void>
       dataset = await DatasetRepository.getById(datasetId, withLatestRevision);
       break;
 
-    case DatasetInclude.Data:
-      dataset = await DatasetRepository.getById(datasetId, withDraftForCube);
+    case DatasetInclude.DraftDataTable:
+      dataset = await DatasetRepository.getById(datasetId, withDraftAndDataTable);
       break;
 
     case DatasetInclude.Dimensions:
@@ -266,12 +265,11 @@ export const uploadDataTable = async (req: Request, res: Response, next: NextFun
 };
 
 export const cubePreview = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-  const dataset = await DatasetRepository.getById(res.locals.datasetId, withDraftForCube);
-  const latestRevision = dataset.draftRevision ?? last(sortBy(dataset?.revisions, 'revisionIndex'));
+  const dataset = await DatasetRepository.getById(res.locals.datasetId);
   const lang = req.language.split('-')[0];
 
-  if (!latestRevision) {
-    next(new UnknownException('errors.no_revision'));
+  if (!dataset.endRevisionId) {
+    next(new UnknownException('errors.no_end_revision'));
     return;
   }
 
@@ -283,7 +281,7 @@ export const cubePreview = async (req: Request, res: Response, next: NextFunctio
   try {
     const cubePreview = await createFrontendView(
       dataset,
-      latestRevision,
+      dataset.endRevisionId,
       lang,
       page_number,
       page_size,
@@ -416,7 +414,7 @@ export const updateTopics = async (req: Request, res: Response, next: NextFuncti
 };
 
 export const updateSources = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-  const dataset = await DatasetRepository.getById(res.locals.datasetId, withDraftForCube);
+  const dataset = await DatasetRepository.getById(res.locals.datasetId, withDraftAndDataTable);
   const revision = dataset.draftRevision;
   const dataTable = revision?.dataTable;
   const sourceAssignment = req.body;
@@ -509,8 +507,8 @@ export const getAllFilesForDataset = async (req: Request, res: Response): Promis
   const zip = new JSZip();
 
   try {
-    const dataset = await DatasetRepository.getById(datasetId, withDraftForCube);
-    const datasetFiles = collectFiles(dataset);
+    const dataset = await DatasetRepository.getById(datasetId);
+    const datasetFiles = await collectFiles(dataset.id);
     await addDirectoryToZip(zip, datasetFiles, dataset.id, req.fileService);
     zip.file('dataset.json', JSON.stringify(DatasetDTO.fromDataset(dataset)));
   } catch (err) {
@@ -538,8 +536,7 @@ export const listAllFilesInDataset = async (req: Request, res: Response, next: N
   const datasetId: string = res.locals.datasetId;
 
   try {
-    const dataset = await DatasetRepository.getById(datasetId, withDraftForCube);
-    const datasetFiles = collectFiles(dataset);
+    const datasetFiles = await collectFiles(datasetId);
     const files = Array.from(datasetFiles.values());
     res.json(files);
   } catch (err) {

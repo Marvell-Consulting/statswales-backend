@@ -88,7 +88,7 @@ describe('API Endpoints for viewing the contents of a dataset', () => {
       .query({ page_number: 2, page_size: 100 });
 
     expect(res.status).toBe(500);
-    expect(res.body).toEqual({ error: 'No revision found for dataset' });
+    expect(res.body).toEqual({ error: 'errors.no_end_revision' });
   });
 
   test('Get file view returns 404 when a not valid UUID is supplied', async () => {

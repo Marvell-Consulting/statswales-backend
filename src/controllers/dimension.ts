@@ -24,7 +24,6 @@ import { validateLookupTable } from '../services/lookup-table-handler';
 import { viewErrorGenerators } from '../utils/view-error-generators';
 import { LookupTableDTO } from '../dtos/lookup-table-dto';
 import { DatasetRepository } from '../repositories/dataset';
-import { getLatestRevision } from '../utils/latest';
 import { Dataset } from '../entities/dataset/dataset';
 import { createAllCubeFiles } from '../services/cube-builder';
 import { getFileService } from '../utils/get-file-service';
@@ -68,15 +67,21 @@ export const sendDimensionPreview = async (req: Request, res: Response, next: Ne
   try {
     dataset = await DatasetRepository.getById(res.locals.datasetId, {
       factTable: true,
-      draftRevision: { dataTable: { dataTableDescriptions: true } },
-      revisions: { dataTable: { dataTableDescriptions: true } }
+      draftRevision: { dataTable: { dataTableDescriptions: true } }
     });
 
-    const latestRevision = getLatestRevision(dataset);
-    logger.debug(`Latest revision is ${latestRevision?.id}`);
+    const draftRevision = dataset.draftRevision;
 
-    if (latestRevision?.tasks) {
-      const outstandingDimensionTask = latestRevision.tasks.dimensions.find((dim) => dim.id === dimension.id);
+    if (!draftRevision) {
+      logger.error('No draft revision found on dataset');
+      next(new UnknownException('errors.no_revision'));
+      return;
+    }
+
+    logger.debug(`Latest revision is ${draftRevision.id}`);
+
+    if (draftRevision.tasks) {
+      const outstandingDimensionTask = draftRevision.tasks.dimensions.find((dim) => dim.id === dimension.id);
       if (outstandingDimensionTask && !outstandingDimensionTask.lookupTableUpdated) {
         dimension.type = DimensionType.Raw;
       }
@@ -84,7 +89,7 @@ export const sendDimensionPreview = async (req: Request, res: Response, next: Ne
 
     let preview: ViewDTO | ViewErrDTO;
     if (dimension.type === DimensionType.Raw) {
-      preview = await getFactTableColumnPreview(dataset, latestRevision!, dimension.factTableColumn);
+      preview = await getFactTableColumnPreview(dataset, draftRevision.id, dimension.factTableColumn);
     } else {
       preview = await getDimensionPreview(dataset, dimension, req.language);
     }
@@ -160,11 +165,16 @@ export const updateDimension = async (req: Request, res: Response, next: NextFun
   try {
     const dataset = await DatasetRepository.getById(res.locals.datasetId, {
       factTable: true,
-      draftRevision: { dataTable: { dataTableDescriptions: true } },
-      revisions: { dataTable: { dataTableDescriptions: true } }
+      draftRevision: { dataTable: { dataTableDescriptions: true } }
     });
 
-    const latestRevision = getLatestRevision(dataset);
+    const draftRevision = dataset.draftRevision;
+
+    if (!draftRevision) {
+      logger.error('No draft revision found on dataset');
+      next(new UnknownException('errors.no_revision'));
+      return;
+    }
 
     switch (dimensionPatchRequest.dimension_type) {
       case DimensionType.DatePeriod:
@@ -175,7 +185,7 @@ export const updateDimension = async (req: Request, res: Response, next: NextFun
 
       case DimensionType.Text:
         await setupTextDimension(dimension);
-        preview = await getFactTableColumnPreview(dataset, latestRevision!, dimension.factTableColumn);
+        preview = await getFactTableColumnPreview(dataset, draftRevision.id, dimension.factTableColumn);
         break;
 
       case DimensionType.Numeric:
