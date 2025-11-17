@@ -69,7 +69,7 @@ export const sendDimensionPreview = async (req: Request, res: Response, next: Ne
   try {
     dataset = await DatasetRepository.getById(res.locals.datasetId, {
       factTable: true,
-      draftRevision: { dataTable: { dataTableDescriptions: true } }
+      draftRevision: true
     });
 
     const draftRevision = dataset.draftRevision;
@@ -125,8 +125,7 @@ export const attachLookupTableToDimension = async (req: Request, res: Response, 
 
   const dataset = await DatasetRepository.getById(datasetId, {
     factTable: true,
-    draftRevision: { dataTable: { dataTableDescriptions: true } },
-    revisions: { dataTable: { dataTableDescriptions: true } }
+    draftRevision: { dataTable: { dataTableDescriptions: true } }
   });
 
   const draftRevision = dataset.draftRevision;
@@ -174,22 +173,14 @@ export const updateDimension = async (req: Request, res: Response, next: NextFun
   const dimensionPatchRequest = req.body as DimensionPatchDto;
   let preview: ViewDTO | ViewErrDTO;
 
-  const dataset = await DatasetRepository.getById(res.locals.datasetId, {
-    factTable: true,
-    draftRevision: { dataTable: { dataTableDescriptions: true } },
-    revisions: { dataTable: { dataTableDescriptions: true } }
-  });
-
-  const latestRevision = getLatestRevision(dataset);
-
   const buildId = randomUUID();
 
-  try {
-    const dataset = await DatasetRepository.getById(res.locals.datasetId, {
-      factTable: true,
-      draftRevision: { dataTable: { dataTableDescriptions: true } }
-    });
+  const dataset = await DatasetRepository.getById(res.locals.datasetId, {
+    factTable: true,
+    draftRevision: { dataTable: { dataTableDescriptions: true } }
+  });
 
+  try {
     const draftRevision = dataset.draftRevision;
 
     if (!draftRevision) {

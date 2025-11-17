@@ -27,11 +27,11 @@ import { getFileService } from '../utils/get-file-service';
 import { FACT_TABLE_NAME, makeCubeSafeString, VALIDATION_TABLE_NAME } from './cube-builder';
 import { YearType } from '../enums/year-type';
 import { dbManager } from '../db/database-manager';
-import { Revision } from '../entities/dataset/revision';
 import { stringify } from 'csv-stringify/sync';
 import { FileType } from '../enums/file-type';
 import { previewGenerator, sampleSize } from '../utils/preview-generator';
 import { cleanUpPostgresValidationSchema, createPostgresValidationSchema } from '../utils/mock-cube-handler';
+import { ViewErrorDtoException } from '../exceptions/view-error-dto-exception';
 
 export interface ValidatedSourceAssignment {
   dataValues: SourceAssignmentDTO | null;
@@ -529,13 +529,7 @@ export const createDateDimensionLookup = async (
   }
 
   if (dateDimensionTable.length === 0) {
-    throw {
-      status: 400,
-      message: 'errors.dimension.no_matching_dates',
-      error: null,
-      dataLength: dateData.length,
-      nonMatchingValues: []
-    };
+    throw new ViewErrorDtoException(400, 'errors.dimension.no_matching_dates', undefined, dateData.length);
   }
 
   const singleLangDateDimensionTable = dateDimensionTable.filter(
@@ -545,13 +539,13 @@ export const createDateDimensionLookup = async (
     `Date Data length = ${dateData.length}, Date Dimension Table length = ${singleLangDateDimensionTable.length}`
   );
   if (dateData.length !== singleLangDateDimensionTable.length) {
-    throw {
-      status: 400,
-      message: 'errors.dimension.no_matching_dates',
-      error: null,
-      dataLength: dateData.length - singleLangDateDimensionTable.length,
-      nonMatchingValues: dateData.filter((row) => !dateDimensionTable.some((item) => item.dateCode === row.date_data))
-    };
+    throw new ViewErrorDtoException(
+      400,
+      'errors.dimension.no_matching_dates',
+      undefined,
+      dateData.length - singleLangDateDimensionTable.length,
+      dateData.filter((row) => !dateDimensionTable.some((item) => item.dateCode === row.date_data))
+    );
   }
 
   const csv = Buffer.from(
@@ -624,12 +618,7 @@ export const createDateDimensionLookup = async (
     await createDimensionQueryRunner.query(statements.join('\n'));
   } catch (error) {
     logger.error(error, `Something went wrong trying to create the date dimension table`);
-    throw {
-      status: 500,
-      message: 'errors.dimension_validation.unknown_error',
-      error,
-      dataLength: dateData.length
-    };
+    throw new ViewErrorDtoException(500, 'errors.dimension_validation.unknown_error', error, dateData.length);
   } finally {
     void createDimensionQueryRunner.release();
   }

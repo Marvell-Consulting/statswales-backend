@@ -490,22 +490,11 @@ export const updateSources = async (req: Request, res: Response, next: NextFunct
   }
 
   const buildId = randomUUID();
-  let updatedDataset: Dataset;
-  try {
-    updatedDataset = await DatasetRepository.getById(dataset.id);
-    res.json({
-      dataset: DatasetDTO.fromDataset(updatedDataset),
-      build_id: buildId
-    });
-  } catch (err) {
-    logger.error(err, `An error occurred trying to process the source assignments: ${err}`);
-    if (err instanceof SourceAssignmentException) {
-      next(new BadRequestException(err.message));
-    } else {
-      next(new UnknownException('errors.unknown_server_error'));
-    }
-    return;
-  }
+  const updatedDataset = await DatasetRepository.getById(dataset.id);
+  res.json({
+    dataset: DatasetDTO.fromDataset(updatedDataset),
+    build_id: buildId
+  });
 
   void createAllCubeFiles(updatedDataset.id, revision.id, userId, CubeBuildType.FullCube, buildId).catch((err) => {
     logger.error(err, `Failed to create cube files for build ${buildId}`);
