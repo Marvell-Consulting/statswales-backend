@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto';
+
 import { NextFunction, Request, Response } from 'express';
 import { t } from 'i18next';
 import JSZip from 'jszip';
@@ -40,10 +42,9 @@ import { RevisionProvider } from '../entities/dataset/revision-provider';
 import { TopicDTO } from '../dtos/topic-dto';
 import { RevisionTopic } from '../entities/dataset/revision-topic';
 import { TopicSelectionDTO } from '../dtos/topic-selection-dto';
-
 import { factTableValidatorFromSource } from '../services/fact-table-validator';
 import { FactTableValidationException } from '../exceptions/fact-table-validation-exception';
-import { addDirectoryToZip, collectFiles } from '../utils/dataset-controller-utils';
+import { addDirectoryToZip, collectFiles } from '../utils/file-utils';
 import { NotAllowedException } from '../exceptions/not-allowed.exception';
 import { GroupRole } from '../enums/group-role';
 import { DatasetInclude } from '../enums/dataset-include';
@@ -64,7 +65,6 @@ import { createFrontendView } from '../services/consumer-view';
 import { UserGroup } from '../entities/user/user-group';
 import { bootstrapCubeBuildProcess } from '../utils/lookup-table-utils';
 import { CubeBuildStatus } from '../enums/cube-build-status';
-import { randomUUID } from 'node:crypto';
 import { CubeBuildType } from '../enums/cube-build-type';
 import { BuildLog, CompleteStatus } from '../entities/dataset/build-log';
 import { sleep } from '../utils/sleep';
