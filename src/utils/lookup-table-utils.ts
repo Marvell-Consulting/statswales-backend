@@ -589,7 +589,7 @@ async function bootStrapValidationTable(revisionId: string, dataset: Dataset): P
       return;
     }
   } catch (err) {
-    logger.warn(err, 'Something went wrong trying query the postgres schema');
+    logger.warn(err, 'Something went wrong trying to query the postgres schema');
     throw err;
   }
   const transactionBlock = setupValidationTableFromDataset(revisionId, dataset);
