@@ -14,11 +14,11 @@ import { UnknownException } from '../exceptions/unknown.exception';
 import { DimensionMetadataDTO } from '../dtos/dimension-metadata-dto';
 import { validateAndUpload } from '../services/incoming-file-processor';
 import {
-  getDimensionPreview,
-  setupTextDimension,
   createAndValidateDateDimension,
-  validateNumericDimension,
-  getFactTableColumnPreview
+  getDimensionPreview,
+  getFactTableColumnPreview,
+  setupTextDimension,
+  validateNumericDimension
 } from '../services/dimension-processor';
 import { validateLookupTable } from '../services/lookup-table-handler';
 import { viewErrorGenerators } from '../utils/view-error-generators';
@@ -30,6 +30,8 @@ import { getFileService } from '../utils/get-file-service';
 import { TempFile } from '../interfaces/temp-file';
 import { cleanupTmpFile, uploadAvScan } from '../services/virus-scanner';
 import { updateRevisionTasks } from '../utils/update-revision-tasks';
+import { randomUUID } from 'node:crypto';
+import { CubeBuildType } from '../enums/cube-build-type';
 
 export const getDimensionInfo = async (req: Request, res: Response): Promise<void> => {
   res.json(DimensionDTO.fromDimension(res.locals.dimension));
@@ -67,7 +69,7 @@ export const sendDimensionPreview = async (req: Request, res: Response, next: Ne
   try {
     dataset = await DatasetRepository.getById(res.locals.datasetId, {
       factTable: true,
-      draftRevision: { dataTable: { dataTableDescriptions: true } }
+      draftRevision: true
     });
 
     const draftRevision = dataset.draftRevision;
@@ -88,7 +90,8 @@ export const sendDimensionPreview = async (req: Request, res: Response, next: Ne
     }
 
     let preview: ViewDTO | ViewErrDTO;
-    if (dimension.type === DimensionType.Raw) {
+
+    if (dimension.type === DimensionType.Raw || dimension.extractor === null) {
       preview = await getFactTableColumnPreview(dataset, draftRevision.id, dimension.factTableColumn);
     } else {
       preview = await getDimensionPreview(dataset, dimension, req.language);
@@ -120,20 +123,21 @@ export const attachLookupTableToDimension = async (req: Request, res: Response, 
   const { datasetId, dimension } = res.locals;
   const language = req.language.toLowerCase();
 
+  const dataset = await DatasetRepository.getById(datasetId, {
+    factTable: true,
+    draftRevision: { dataTable: { dataTableDescriptions: true } }
+  });
+
+  const draftRevision = dataset.draftRevision;
+  if (!draftRevision) {
+    logger.error('No draft revision found on dataset');
+    next(new UnknownException('errors.no_revision'));
+    return;
+  }
+
+  const buildId = randomUUID();
+
   try {
-    const dataset = await DatasetRepository.getById(datasetId, {
-      factTable: true,
-      draftRevision: { dataTable: { dataTableDescriptions: true } },
-      revisions: { dataTable: { dataTableDescriptions: true } }
-    });
-
-    const draftRevision = dataset.draftRevision;
-    if (!draftRevision) {
-      logger.error('No draft revision found on dataset');
-      next(new UnknownException('errors.no_revision'));
-      return;
-    }
-
     const dataTable = await validateAndUpload(tmpFile, datasetId, 'lookup_table');
     const result = await validateLookupTable(dataTable, dataset, draftRevision, dimension, language);
 
@@ -143,9 +147,10 @@ export const attachLookupTableToDimension = async (req: Request, res: Response, 
       res.json(result);
       return;
     }
-
+    result.extension = {
+      build_id: buildId
+    };
     await updateRevisionTasks(dataset, dimension.id, 'dimension');
-    await createAllCubeFiles(dataset.id, dataset.draftRevision!.id, userId);
     res.json(result);
   } catch (err) {
     logger.error(err, `An error occurred trying to handle the lookup table`);
@@ -153,6 +158,12 @@ export const attachLookupTableToDimension = async (req: Request, res: Response, 
   } finally {
     void cleanupTmpFile(tmpFile);
   }
+
+  void createAllCubeFiles(dataset.id, dataset.draftRevision!.id, userId, CubeBuildType.FullCube, buildId).catch(
+    (err) => {
+      logger.error(err, 'Something went wrong trying to build the cube after attaching a lookup table');
+    }
+  );
 };
 
 export const updateDimension = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
@@ -162,12 +173,14 @@ export const updateDimension = async (req: Request, res: Response, next: NextFun
   const dimensionPatchRequest = req.body as DimensionPatchDto;
   let preview: ViewDTO | ViewErrDTO;
 
-  try {
-    const dataset = await DatasetRepository.getById(res.locals.datasetId, {
-      factTable: true,
-      draftRevision: { dataTable: { dataTableDescriptions: true } }
-    });
+  const buildId = randomUUID();
 
+  const dataset = await DatasetRepository.getById(res.locals.datasetId, {
+    factTable: true,
+    draftRevision: { dataTable: { dataTableDescriptions: true } }
+  });
+
+  try {
     const draftRevision = dataset.draftRevision;
 
     if (!draftRevision) {
@@ -220,23 +233,22 @@ export const updateDimension = async (req: Request, res: Response, next: NextFun
       return;
     } else {
       await updateRevisionTasks(dataset, dimension.id, 'dimension');
-      try {
-        await createAllCubeFiles(dataset.id, dataset.draftRevision!.id, userId);
-      } catch (error) {
-        logger.error(error, `An error occurred trying to create a base cube`);
-        res.status(500);
-        res.json(
-          viewErrorGenerators(500, dataset.id, 'dimension_type', 'errors.dimension_validation.cube_creation_failed', {})
-        );
-        return;
-      }
     }
+    preview.extension = {
+      build_id: buildId
+    };
     res.status(202);
     res.json(preview);
   } catch (err) {
     logger.error(err, `An error occurred trying to update the dimension`);
     next(new UnknownException('errors.dimension_update'));
   }
+
+  void createAllCubeFiles(dataset.id, dataset.draftRevision!.id, userId, CubeBuildType.FullCube, buildId).catch(
+    (err) => {
+      logger.error(err, 'Something went wrong trying to build the cube when updating the dimension');
+    }
+  );
 };
 
 export const updateDimensionMetadata = async (req: Request, res: Response): Promise<void> => {
@@ -262,9 +274,17 @@ export const updateDimensionMetadata = async (req: Request, res: Response): Prom
   await metadata.save();
   const updatedDimension = await Dimension.findOneByOrFail({ id: dimension.id });
   await updateRevisionTasks(dataset, dimension.id, 'dimension');
-  await createAllCubeFiles(dataset.id, dataset.draftRevision!.id, userId);
+  const buildId = randomUUID();
   res.status(202);
-  res.json(DimensionDTO.fromDimension(updatedDimension));
+  res.json({
+    dimension: DimensionDTO.fromDimension(updatedDimension),
+    build_id: buildId
+  });
+  void createAllCubeFiles(dataset.id, dataset.draftRevision!.id, userId, CubeBuildType.FullCube, buildId).catch(
+    (err) => {
+      logger.error(err, 'Something went wrong trying to build the cube after updating the dimensions metadata');
+    }
+  );
 };
 
 export const getDimensionLookupTableInfo = async (req: Request, res: Response): Promise<void> => {
