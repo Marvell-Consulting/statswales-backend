@@ -90,7 +90,7 @@ export const deleteDraftRevision = async (req: Request, res: Response, next: Nex
 
 export const getDataTablePreview = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   const datasetId: string = res.locals.datasetId;
-  const revision = res.locals.revision;
+  const revision: Revision = res.locals.revision;
 
   const page_number: number = Number.parseInt(req.query.page_number as string, 10) || 1;
   const page_size: number = Number.parseInt(req.query.page_size as string, 10) || DEFAULT_PAGE_SIZE;
@@ -112,7 +112,7 @@ export const getDataTablePreview = async (req: Request, res: Response, next: Nex
 
 export const getRevisionPreview = async (req: Request, res: Response): Promise<void> => {
   const dataset: Dataset = res.locals.dataset;
-  const revision = res.locals.revision;
+  const revision: Revision = res.locals.revision;
   const lang = req.language;
   const start = performance.now();
 
@@ -123,7 +123,7 @@ export const getRevisionPreview = async (req: Request, res: Response): Promise<v
 
   try {
     const end = performance.now();
-    const cubePreview = await createFrontendView(dataset, revision, lang, page_number, page_size, sortBy, filters);
+    const cubePreview = await createFrontendView(dataset, revision.id, lang, page_number, page_size, sortBy, filters);
     const time = Math.round(end - start);
     logger.info(`Cube revision preview took ${time}ms`);
 
@@ -146,10 +146,11 @@ export const getRevisionPreviewFilters = async (req: Request, res: Response): Pr
     throw new NotFoundException('errors.no_revision');
   }
 
-  const filters = await getFilters(revision, lang);
+  const filters = await getFilters(revision.id, lang);
   res.json(filters);
 };
 
+// TODO: remove this endpoint once frontend stops calling it - it's a no-op
 export const confirmFactTable = async (req: Request, res: Response): Promise<void> => {
   const revision = res.locals.revision;
   const dto = DataTableDto.fromDataTable(revision.dataTable);
@@ -158,7 +159,7 @@ export const confirmFactTable = async (req: Request, res: Response): Promise<voi
 
 export const downloadRawFactTable = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   const datasetId = res.locals.datasetId;
-  const revision = res.locals.revision;
+  const revision: Revision = res.locals.revision;
   logger.info('User requested to down files...');
   let readable: Readable;
 
@@ -217,7 +218,7 @@ export const downloadRawFactTable = async (req: Request, res: Response, next: Ne
 };
 
 export const getRevisionInfo = async (req: Request, res: Response): Promise<void> => {
-  const revision = res.locals.revision;
+  const revision: Revision = res.locals.revision;
   res.json(RevisionDTO.fromRevision(revision));
 };
 
@@ -323,7 +324,7 @@ export const updateDataTable = async (req: Request, res: Response, next: NextFun
 
 export const removeFactTableFromRevision = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   const datasetId = res.locals.datasetId;
-  const revision = res.locals.revision;
+  const revision: Revision = res.locals.revision;
 
   if (!revision.dataTable) {
     next(new NotFoundException('errors.revision_id_invalid'));
@@ -493,24 +494,24 @@ export const regenerateRevisionCube = async (req: Request, res: Response, next: 
 // };
 
 export const downloadRevisionCubeAsJSON = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-  const revision = res.locals.revision;
+  const revision: Revision = res.locals.revision;
   const sortByQuery = req.query.sort_by ? (JSON.parse(req.query.sort_by as string) as SortByInterface[]) : undefined;
   const filterQuery = req.query.filter ? (JSON.parse(req.query.filter as string) as FilterInterface[]) : undefined;
   const view = req.query.view as string;
   try {
-    createStreamingJSONFilteredView(res, revision, req.language, view, sortByQuery, filterQuery);
+    createStreamingJSONFilteredView(res, revision.id, req.language, view, sortByQuery, filterQuery);
   } catch (err) {
     next(err);
   }
 };
 
 export const downloadRevisionCubeAsCSV = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-  const revision = res.locals.revision;
+  const revision: Revision = res.locals.revision;
   const sortByQuery = req.query.sort_by ? (JSON.parse(req.query.sort_by as string) as SortByInterface[]) : undefined;
   const filterQuery = req.query.filter ? (JSON.parse(req.query.filter as string) as FilterInterface[]) : undefined;
   const view = req.query.view as string;
   try {
-    createStreamingCSVFilteredView(res, revision, req.language, view, sortByQuery, filterQuery);
+    createStreamingCSVFilteredView(res, revision.id, req.language, view, sortByQuery, filterQuery);
   } catch (err) {
     next(err);
   }
@@ -547,12 +548,12 @@ export const downloadRevisionCubeAsCSV = async (req: Request, res: Response, nex
 // };
 
 export const downloadRevisionCubeAsExcel = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-  const revision = res.locals.revision;
+  const revision: Revision = res.locals.revision;
   const sortByQuery = req.query.sort_by ? (JSON.parse(req.query.sort_by as string) as SortByInterface[]) : undefined;
   const filterQuery = req.query.filter ? (JSON.parse(req.query.filter as string) as FilterInterface[]) : undefined;
   const view = req.query.view as string;
   try {
-    createStreamingExcelFilteredView(res, revision, req.language, view, sortByQuery, filterQuery);
+    createStreamingExcelFilteredView(res, revision.id, req.language, view, sortByQuery, filterQuery);
   } catch (err) {
     next(err);
   }
@@ -573,7 +574,7 @@ export const createNewRevision = async (req: Request, res: Response, next: NextF
 };
 
 export const getRevisionBuildLog = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-  const revision = res.locals.revision;
+  const revision: Revision = res.locals.revision;
   const pageSize = req.query.size ? Number.parseInt(req.query.size as string) : 30;
   const pageNo = req.query.page ? Number.parseInt(req.query.page as string) * pageSize : 0;
   const typeError = req.query.type ? await hasError(buildTypeValidator(), req) : false;

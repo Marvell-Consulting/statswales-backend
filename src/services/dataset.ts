@@ -98,6 +98,11 @@ export class DatasetService {
       draftRevision: { dataTable: true }
     });
 
+    const draftRevision = dataset.draftRevision;
+    if (!draftRevision) {
+      throw new BadRequestException('errors.update_fact_table.no_draft_revision');
+    }
+
     logger.debug('Uploading new fact table file to filestore');
     const dataTable = await validateAndUpload(file, datasetId, 'data_table');
 
@@ -107,14 +112,14 @@ export class DatasetService {
       col.factTableColumn = col.columnName;
     });
 
-    if (dataset.draftRevision?.revisionIndex === 1) {
+    if (draftRevision.revisionIndex === 1) {
       await removeAllDimensions(dataset);
       await removeMeasure(dataset);
     }
 
-    await RevisionRepository.replaceDataTable(dataset.draftRevision!, dataTable);
+    await RevisionRepository.replaceDataTable(draftRevision, dataTable);
     await DatasetRepository.replaceFactTable(dataset, dataTable);
-    await createAllCubeFiles(datasetId, dataset.draftRevision!.id, userId);
+    await createAllCubeFiles(datasetId, draftRevision.id, userId);
 
     return DatasetRepository.getById(datasetId, {});
   }
