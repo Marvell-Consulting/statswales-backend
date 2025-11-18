@@ -16,7 +16,7 @@ import { SUPPORTED_LOCALES } from '../middleware/translation';
 import { MeasureLookupTableExtractor } from '../extractors/measure-lookup-extractor';
 import { DataValueFormat } from '../enums/data-value-format';
 import { dbManager } from '../db/database-manager';
-import { FACT_TABLE_NAME } from '../services/cube-builder';
+import { FACT_TABLE_NAME, setupValidationTableFromDataset, VALIDATION_TABLE_NAME } from '../services/cube-builder';
 import { DatasetRepository } from '../repositories/dataset';
 import { UnknownException } from '../exceptions/unknown.exception';
 import { DateExtractor } from '../extractors/date-extractor';
@@ -492,9 +492,12 @@ export const validateMeasureTableContent = async (
 export const bootstrapCubeBuildProcess = async (datasetId: string, revisionId: string): Promise<void> => {
   const datasetRelations: FindOptionsRelations<Dataset> = {
     factTable: true,
-    dimensions: { lookupTable: true }
+    dimensions: { lookupTable: true },
+    measure: true
   };
+
   const dataset = await DatasetRepository.getById(datasetId, datasetRelations);
+  await bootStrapValidationTable(revisionId, dataset);
 
   const dimensions = dataset.dimensions.filter((dim) => LookupTableTypes.includes(dim.type));
   let loadedLookupTables: { table_name: string }[];
@@ -572,3 +575,30 @@ export const bootstrapCubeBuildProcess = async (datasetId: string, revisionId: s
   rev.endDate = coverage.endDate;
   await rev.save();
 };
+
+async function bootStrapValidationTable(revisionId: string, dataset: Dataset): Promise<void> {
+  const queryRunner = dbManager.getCubeDataSource().createQueryRunner();
+  const checkForValidationTableQuery = pgformat(
+    `SELECT table_name FROM information_schema.tables WHERE table_schema = %L AND table_name = %L`,
+    revisionId,
+    VALIDATION_TABLE_NAME
+  );
+  try {
+    const validationTableExists = await queryRunner.query(checkForValidationTableQuery);
+    if (validationTableExists.length > 0) {
+      return;
+    }
+  } catch (err) {
+    logger.warn(err, 'Something went wrong trying to query the postgres schema');
+    throw err;
+  }
+  const transactionBlock = setupValidationTableFromDataset(revisionId, dataset);
+  try {
+    await queryRunner.query(transactionBlock.statements.join('\n'));
+  } catch (err) {
+    logger.warn(err, `Something went wrong trying to create new validation table for revision ${revisionId}`);
+    throw err;
+  } finally {
+    void queryRunner.release();
+  }
+}

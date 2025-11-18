@@ -556,15 +556,17 @@ function setFactCountInCube(buildId: string): string {
   );
 }
 
-function setupValidationTableFromDataset(buildId: string, dataset: Dataset): TransactionBlock {
-  const statements: string[] = ['BEGIN TRANSACTION;'];
-  statements.push(
-    pgformat(
-      `CREATE TABLE %I.%I (reference TEXT, fact_table_column TEXT, PRIMARY KEY (reference, fact_table_column));`,
-      buildId,
-      VALIDATION_TABLE_NAME
-    )
+export function createValidationTableQuery(schemaId: string): string {
+  return pgformat(
+    `CREATE TABLE %I.%I (reference TEXT, fact_table_column TEXT, PRIMARY KEY (reference, fact_table_column));`,
+    schemaId,
+    VALIDATION_TABLE_NAME
   );
+}
+
+export function setupValidationTableFromDataset(buildId: string, dataset: Dataset): TransactionBlock {
+  const statements: string[] = ['BEGIN TRANSACTION;'];
+  statements.push(createValidationTableQuery(buildId));
   const unionParts: string[] = [];
   if (dataset.measure) {
     const measureCol = dataset.measure.factTableColumn;
