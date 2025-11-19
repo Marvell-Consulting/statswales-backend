@@ -147,6 +147,26 @@ interface RollingType {
 
 function getRollingType(type: string): RollingType | undefined {
   switch (type) {
+    case '10Y':
+      return {
+        increment: { years: 10 },
+        description: 'date_format.rolling.5_year_ending'
+      };
+    case '5Y':
+      return {
+        increment: { years: 5 },
+        description: 'date_format.rolling.4_year_ending'
+      };
+    case '3Y':
+      return {
+        increment: { years: 3 },
+        description: 'date_format.rolling.3_year_ending'
+      };
+    case '2Y':
+      return {
+        increment: { years: 2 },
+        description: 'date_format.rolling.2_year_ending'
+      };
     case 'YE':
       return {
         increment: { years: 1 },
