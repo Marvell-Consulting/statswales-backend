@@ -193,6 +193,7 @@
     },
     "rolling": {
       "year_ending": "Blwyddyn yn gorffen {{date}}",
+      "half_year_ending": "Hanner blwyddyn yn dod i ben {{date}}",
       "quarter_ending": "Chwarter yn gorffen {{date}}",
       "month_ending": "Mis yn gorffen {{date}}",
       "fortnight_ending": "Pythefnos yn gorffen {{date}}",

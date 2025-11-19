@@ -196,6 +196,7 @@
     },
     "rolling": {
       "year_ending": "Year ending {{date}}",
+      "half_year_ending": "Half year ending {{date}}",
       "quarter_ending": "Quarter ending {{date}}",
       "month_ending": "Month ending {{date}}",
       "fortnight_ending": "Fortnight ending {{date}}",
