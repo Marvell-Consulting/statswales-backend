@@ -29,7 +29,6 @@ import { Dimension } from '../entities/dataset/dimension';
 import { revisionStartAndEndDateFinder } from './revision';
 import { DateDimensionTypes, LookupTableTypes } from '../enums/dimension-type';
 import { RevisionRepository } from '../repositories/revision';
-import { Schema } from 'node:inspector';
 
 export function convertDataTableToLookupTable(dataTable: DataTable): LookupTable {
   const lookupTable = new LookupTable();
@@ -525,7 +524,7 @@ export const bootstrapCubeBuildProcess = async (datasetId: string, revisionId: s
   let revisionSchema: string;
   if (currentSchema.length > 0) {
     revisionSchema = currentSchema[0].schema_name;
-  } else if(previousSchema.length > 0) {
+  } else if (previousSchema.length > 0) {
     revisionSchema = previousSchema[0].schema_name;
   } else {
     throw new Error('Unable to find schema to build validation table from');
