@@ -28,6 +28,7 @@ import { Revision } from '../entities/dataset/revision';
 import { Dimension } from '../entities/dataset/dimension';
 import { revisionStartAndEndDateFinder } from './revision';
 import { DateDimensionTypes, LookupTableTypes } from '../enums/dimension-type';
+import { RevisionRepository } from '../repositories/revision';
 
 export function convertDataTableToLookupTable(dataTable: DataTable): LookupTable {
   const lookupTable = new LookupTable();
@@ -497,7 +498,39 @@ export const bootstrapCubeBuildProcess = async (datasetId: string, revisionId: s
   };
 
   const dataset = await DatasetRepository.getById(datasetId, datasetRelations);
-  await bootStrapValidationTable(revisionId, dataset);
+  const revision = await RevisionRepository.getById(revisionId);
+
+  const schemaFinder = dbManager.getCubeDataSource().createQueryRunner();
+  const checkCurrentRevisionSchema = pgformat(
+    'SELECT nspname AS schema_name FROM pg_namespace WHERE nspname = %L;',
+    revision.id
+  );
+  const checkPreviousRevisionSchema = pgformat(
+    'SELECT nspname AS schema_name FROM pg_namespace WHERE nspname = %L;',
+    revision.previousRevisionId
+  );
+  let currentSchema: { schema_name: string }[];
+  let previousSchema: { schema_name: string }[];
+  try {
+    currentSchema = await schemaFinder.query(checkCurrentRevisionSchema);
+    previousSchema = await schemaFinder.query(checkPreviousRevisionSchema);
+  } catch (err) {
+    logger.warn(err, 'Something went wrong trying to query postgres pg_namespace table');
+    throw err;
+  } finally {
+    void schemaFinder.release();
+  }
+
+  let revisionSchema: string;
+  if (currentSchema.length > 0) {
+    revisionSchema = currentSchema[0].schema_name;
+  } else if (previousSchema.length > 0) {
+    revisionSchema = previousSchema[0].schema_name;
+  } else {
+    throw new Error('Unable to find schema to build validation table from');
+  }
+
+  await bootStrapValidationTable(revisionSchema, dataset);
 
   const dimensions = dataset.dimensions.filter((dim) => LookupTableTypes.includes(dim.type));
   let loadedLookupTables: { table_name: string }[];
@@ -540,7 +573,7 @@ export const bootstrapCubeBuildProcess = async (datasetId: string, revisionId: s
     if (DateDimensionTypes.includes(dimension.type)) {
       try {
         const actionId = randomUUID();
-        await createDateTableInValidationCube(revisionId, datasetId, actionId, factTableCol, dimension);
+        await createDateTableInValidationCube(revisionSchema, datasetId, actionId, factTableCol, dimension);
       } catch (err) {
         logger.error(err, 'Failed to recreate date lookup table and save to database');
         throw err;
@@ -576,11 +609,11 @@ export const bootstrapCubeBuildProcess = async (datasetId: string, revisionId: s
   await rev.save();
 };
 
-async function bootStrapValidationTable(revisionId: string, dataset: Dataset): Promise<void> {
+async function bootStrapValidationTable(revisionSchema: string, dataset: Dataset): Promise<void> {
   const queryRunner = dbManager.getCubeDataSource().createQueryRunner();
   const checkForValidationTableQuery = pgformat(
     `SELECT table_name FROM information_schema.tables WHERE table_schema = %L AND table_name = %L`,
-    revisionId,
+    revisionSchema,
     VALIDATION_TABLE_NAME
   );
   try {
@@ -592,11 +625,11 @@ async function bootStrapValidationTable(revisionId: string, dataset: Dataset): P
     logger.warn(err, 'Something went wrong trying to query the postgres schema');
     throw err;
   }
-  const transactionBlock = setupValidationTableFromDataset(revisionId, dataset);
+  const transactionBlock = setupValidationTableFromDataset(revisionSchema, dataset);
   try {
     await queryRunner.query(transactionBlock.statements.join('\n'));
   } catch (err) {
-    logger.warn(err, `Something went wrong trying to create new validation table for revision ${revisionId}`);
+    logger.warn(err, `Something went wrong trying to create new validation table for revision ${revisionSchema}`);
     throw err;
   } finally {
     void queryRunner.release();
