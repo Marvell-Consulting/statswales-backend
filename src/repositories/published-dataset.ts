@@ -193,7 +193,7 @@ export const PublishedDatasetRepository = dataSource.getRepository(Dataset).exte
     const resultQuery = qb.offset(offset).limit(limit);
 
     if (!sortBy || sortBy.length === 0) {
-      sortBy = [{ columnName: 'd.first_published_at', direction: 'DESC' }];
+      sortBy = [{ columnName: 'first_published_at', direction: 'DESC' }];
     }
 
     const sortOpts: Record<string, string> = {
