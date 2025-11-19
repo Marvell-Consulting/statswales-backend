@@ -152,6 +152,11 @@ function getRollingType(type: string): RollingType | undefined {
         increment: { years: 1 },
         description: 'date_format.rolling.year_ending'
       };
+    case 'HE':
+      return {
+        increment: { months: 6 },
+        description: 'date_format.rolling.half_year_ending'
+      };
     case 'QE':
       return {
         increment: { months: 3 },
