@@ -195,6 +195,10 @@
       "rolling": "Rolling Month"
     },
     "rolling": {
+      "10_year_ending": "10 Years to end {{date}}",
+      "5_year_ending": "5 Years to end {{date}}",
+      "3_year_ending": "3 Years to end {{date}}",
+      "2_year_ending": "2 Years to end {{date}}",
       "year_ending": "Year ending {{date}}",
       "half_year_ending": "Half year ending {{date}}",
       "quarter_ending": "Quarter ending {{date}}",
