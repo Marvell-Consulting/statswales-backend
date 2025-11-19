@@ -332,17 +332,41 @@ export const listSubTopics = async (req: Request, res: Response, next: NextFunct
       care', which can have sub-topics, such as 'Dental services'. For a given topic_id, this endpoint returns a
       list of what sits under that topic - either sub-topics or published datasets tagged directly to that topic."
     #swagger.autoQuery = false
-     #swagger.parameters['page_size'] = {
+    #swagger.parameters['page_size'] = {
       description: 'Number of datasets per page when datasets are returned',
       in: 'query',
       type: 'integer',
       default: 1000
     }
+    #swagger.parameters['sort_by'] = {
+      description: `Columns to sort the data by. The value should be a JSON array of objects sent as a URL encoded string.`,
+      in: 'query',
+      required: false,
+      content: {
+        'application/json': {
+          schema: {
+            type: 'array',
+            items: {
+              type: 'object',
+              properties: {
+                columnName: {
+                  type: 'string',
+                  enum: ['first_published_at', 'last_updated_at', 'title']
+                },
+                direction: {
+                  type: 'string',
+                  enum: ['ASC', 'DESC']
+                }
+              }
+            }
+          }
+        }
+      }
+    }
     #swagger.parameters['$ref'] = [
       '#/components/parameters/language',
       '#/components/parameters/topic_id',
-      '#/components/parameters/page_number',
-      '#/components/parameters/sort_by'
+      '#/components/parameters/page_number'
     ]
     #swagger.responses[200] = {
       description: 'A list of what sits under a given topic - either sub-topics or published datasets tagged directly
