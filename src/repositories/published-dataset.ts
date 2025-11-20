@@ -179,7 +179,7 @@ export const PublishedDatasetRepository = dataSource.getRepository(Dataset).exte
             .innerJoin('rev.revisionTopics', 'rt')
             .andWhere('rev.publish_at < NOW()')
             .andWhere('rev.approved_at < NOW()')
-            .groupBy('rev.id, rm.title')
+            .groupBy('rev.dataset_id, rev.id, rev.publish_at, rm.title')
             .orderBy('rev.dataset_id')
             .addOrderBy('rev.publish_at', 'DESC');
         },
