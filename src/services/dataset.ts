@@ -46,6 +46,7 @@ import { StorageService } from '../interfaces/storage-service';
 import { TempFile } from '../interfaces/temp-file';
 import { dbManager } from '../db/database-manager';
 import { getFileService } from '../utils/get-file-service';
+import { bootstrapCubeBuildProcess } from '../utils/lookup-table-utils';
 
 export class DatasetService {
   lang: Locale;
@@ -299,6 +300,7 @@ export class DatasetService {
 
   async approvePublication(datasetId: string, revisionId: string, user: User): Promise<Dataset> {
     const start = performance.now();
+    await bootstrapCubeBuildProcess(datasetId, revisionId);
     await createAllCubeFiles(datasetId, revisionId, user.id);
     const scheduledRevision = await RevisionRepository.approvePublication(revisionId, `${revisionId}.duckdb`, user);
     const approvedDataset = await DatasetRepository.publish(scheduledRevision);
