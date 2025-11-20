@@ -169,21 +169,24 @@ export const PublishedDatasetRepository = dataSource.getRepository(Dataset).exte
       ])
       .innerJoin(
         (subQuery) => {
-          // only join the latest published revision for each dataset
+          // only include the latest published revision for each dataset, with their topics
           return subQuery
-            .select('DISTINCT ON (rev.dataset_id) rev.*, rm.title AS title')
+            .select(
+              'DISTINCT ON (rev.dataset_id) rev.dataset_id, rev.id, rev.publish_at, rm.title AS title, ARRAY_AGG(rt.topic_id::TEXT) AS topic_ids'
+            )
             .from(Revision, 'rev')
             .innerJoin('rev.metadata', 'rm', 'rm.revision_id = rev.id AND rm.language LIKE :lang', { lang: `${lang}%` })
             .innerJoin('rev.revisionTopics', 'rt')
-            .where('rt.topicId = :topicId', { topicId })
             .andWhere('rev.publish_at < NOW()')
             .andWhere('rev.approved_at < NOW()')
+            .groupBy('rev.dataset_id, rev.id, rev.publish_at, rm.title')
             .orderBy('rev.dataset_id')
             .addOrderBy('rev.publish_at', 'DESC');
         },
         'r',
         'r.dataset_id = d.id'
       )
+      .andWhere('r.topic_ids @> ARRAY[:topicId]', { topicId })
       .andWhere('d.first_published_at IS NOT NULL')
       .andWhere('d.first_published_at < NOW()')
       .groupBy('d.id, r.id, r.title, d.first_published_at, r.publish_at, d.archived_at');
