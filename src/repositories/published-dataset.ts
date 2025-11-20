@@ -172,7 +172,7 @@ export const PublishedDatasetRepository = dataSource.getRepository(Dataset).exte
           // only include the latest published revision for each dataset, with their topics
           return subQuery
             .select(
-              'rev.dataset_id, rev.id, rev.publish_at, rm.title AS title, ARRAY_AGG(rt.topic_id::TEXT) AS topic_ids'
+              'DISTINCT ON (rev.dataset_id) rev.dataset_id, rev.id, rev.publish_at, rm.title AS title, ARRAY_AGG(rt.topic_id::TEXT) AS topic_ids'
             )
             .from(Revision, 'rev')
             .innerJoin('rev.metadata', 'rm', 'rm.revision_id = rev.id AND rm.language LIKE :lang', { lang: `${lang}%` })
@@ -181,8 +181,7 @@ export const PublishedDatasetRepository = dataSource.getRepository(Dataset).exte
             .andWhere('rev.approved_at < NOW()')
             .groupBy('rev.id, rm.title')
             .orderBy('rev.dataset_id')
-            .addOrderBy('rev.publish_at', 'DESC')
-            .limit(1);
+            .addOrderBy('rev.publish_at', 'DESC');
         },
         'r',
         'r.dataset_id = d.id'
