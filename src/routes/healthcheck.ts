@@ -10,8 +10,47 @@ import { StorageService } from '../interfaces/storage-service';
 import { Locale } from '../enums/locale';
 import { UserDTO } from '../dtos/user/user-dto';
 import { config } from '../config';
+import { Pool } from 'pg';
 
 const healthcheck = Router();
+
+interface PoolClientsSnapshot {
+  min: number;
+  max: number;
+  idle: number;
+  waiting: number;
+  expired: number;
+  total: number;
+  isFull: boolean;
+}
+
+interface PoolStats {
+  name: string;
+  connectionTimeout: string; // e.g. "5000ms"
+  idleTimeout: string; // e.g. "10000ms"
+  clients: PoolClientsSnapshot;
+}
+
+const dbPoolStats = (pool: Pool): PoolStats | Error => {
+  if (!pool) {
+    return new Error('Pool info not available');
+  }
+
+  return {
+    name: pool.options.application_name ?? 'unknown',
+    connectionTimeout: `${pool.options.connectionTimeoutMillis ?? 0}ms`,
+    idleTimeout: `${pool.options.idleTimeoutMillis ?? 0}ms`,
+    clients: {
+      min: pool.options.min ?? 0,
+      max: pool.options.max ?? 0,
+      idle: pool.idleCount,
+      waiting: pool.waitingCount,
+      expired: pool.expiredCount,
+      total: pool.totalCount,
+      isFull: pool.options.max !== undefined ? pool.totalCount >= pool.options.max : false
+    }
+  };
+};
 
 const checkAppDb = async (): Promise<boolean> => {
   await dbManager.getAppDataSource().manager.query('SELECT 1 AS connected');
@@ -35,6 +74,7 @@ const timeout = (timer: number, service: string): Promise<string> =>
 
 const checkConnections = async (req: Request, res: Response): Promise<void> => {
   const healthConfig = config.healthcheck;
+  const poolStats: (PoolStats | Error)[] = [dbPoolStats(dbManager.getAppPool()), dbPoolStats(dbManager.getCubePool())];
 
   try {
     const results = await Promise.all([
@@ -47,7 +87,7 @@ const checkConnections = async (req: Request, res: Response): Promise<void> => {
     });
   } catch (err) {
     logger.error(err, 'Healthcheck failed');
-    res.status(500).json({ error: 'service down' });
+    res.status(500).json({ error: 'service down', poolStats });
     return;
   }
 
@@ -74,44 +114,11 @@ healthcheck.get('/jwt', passport.authenticate('jwt', { session: false }), (req: 
   res.json({ message: 'success', user: UserDTO.fromUser(req.user as User, req.language as Locale) });
 });
 
-healthcheck.get('/db', async (req: Request, res: Response) => {
+healthcheck.get('/db', (_req: Request, res: Response) => {
   try {
-    const appPool = dbManager.getAppPool();
-    const cubePool = dbManager.getCubePool();
-
-    if (!appPool || !cubePool) {
-      throw new Error('Database pools are not available');
-    }
-
     res.json({
-      appPool: {
-        name: appPool.options.application_name,
-        connectionTimeout: `${appPool.options.connectionTimeoutMillis}ms`,
-        idleTimeout: `${appPool.options.idleTimeoutMillis}ms`,
-        clients: {
-          min: appPool.options.min,
-          max: appPool.options.max,
-          idle: appPool.idleCount,
-          waiting: appPool.waitingCount,
-          expired: appPool.expiredCount,
-          total: appPool.totalCount,
-          isFull: appPool.totalCount >= appPool.options.max
-        }
-      },
-      cubePool: {
-        name: cubePool.options.application_name,
-        connectionTimeout: `${cubePool.options.connectionTimeoutMillis}ms`,
-        idleTimeout: `${cubePool.options.idleTimeoutMillis}ms`,
-        clients: {
-          min: cubePool.options.min,
-          max: cubePool.options.max,
-          idle: cubePool.idleCount,
-          waiting: cubePool.waitingCount,
-          expired: cubePool.expiredCount,
-          total: cubePool.totalCount,
-          isFull: cubePool.totalCount >= cubePool.options.max
-        }
-      }
+      appPool: dbPoolStats(dbManager.getAppPool()),
+      cubePool: dbPoolStats(dbManager.getCubePool())
     });
   } catch (error) {
     logger.error(error, 'Error fetching database pool information');
