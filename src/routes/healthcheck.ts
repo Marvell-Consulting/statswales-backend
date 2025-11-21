@@ -33,11 +33,11 @@ interface PoolStats {
 
 const dbPoolStats = (pool: Pool): PoolStats | Error => {
   if (!pool) {
-    return new Error('App pool info not available');
+    return new Error('Pool info not available');
   }
 
   return {
-    name: pool.options.application_name ?? 'app-pool',
+    name: pool.options.application_name ?? 'unknown',
     connectionTimeout: `${pool.options.connectionTimeoutMillis ?? 0}ms`,
     idleTimeout: `${pool.options.idleTimeoutMillis ?? 0}ms`,
     clients: {
@@ -74,12 +74,9 @@ const timeout = (timer: number, service: string): Promise<string> =>
 
 const checkConnections = async (req: Request, res: Response): Promise<void> => {
   const healthConfig = config.healthcheck;
-  const poolStats: (PoolStats | Error)[] = [];
+  const poolStats: (PoolStats | Error)[] = [dbPoolStats(dbManager.getAppPool()), dbPoolStats(dbManager.getCubePool())];
 
   try {
-    poolStats.push(dbPoolStats(dbManager.getAppPool()));
-    poolStats.push(dbPoolStats(dbManager.getCubePool()));
-
     const results = await Promise.all([
       Promise.race([checkAppDb(), timeout(healthConfig.dbTimeoutMs, 'app-db')]),
       Promise.race([checkCubeDb(), timeout(healthConfig.dbTimeoutMs, 'cube-db')]),
