@@ -622,7 +622,11 @@ async function bootStrapValidationTable(revisionSchema: string, dataset: Dataset
       return;
     }
   } catch (err) {
-    logger.warn(err, 'Something went wrong trying to query the postgres schema');
+    void queryRunner.release();
+    logger.fatal(
+      err,
+      'Something went wrong trying to query the postgres information_schema.  Database connection not available?'
+    );
     throw err;
   }
   const transactionBlock = setupValidationTableFromDataset(revisionSchema, dataset);

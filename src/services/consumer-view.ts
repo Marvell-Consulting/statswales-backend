@@ -225,7 +225,7 @@ async function coreViewChooser(lang: string, revisionId: string): Promise<string
     logger.error(err, 'Unable to query available views from postgres');
     throw err;
   } finally {
-    cubeDB.release();
+    void cubeDB.release();
   }
 
   if (availableMaterializedView.length > 0) {
@@ -246,7 +246,7 @@ async function getColumns(revisionId: string, lang: string, view: string): Promi
     logger.error(err, 'Unable to get columns from cube metadata table');
     throw err;
   } finally {
-    cubeDB.release();
+    void cubeDB.release();
   }
 
   let columns = ['*'];
@@ -289,7 +289,7 @@ export const createFrontendView = async (
     logger.error(err, 'Unable to get dimension and fact table column names from cube');
     throw err;
   } finally {
-    filterTableQuery.release();
+    void filterTableQuery.release();
   }
 
   const coreView = await coreViewChooser(lang, revisionId);
@@ -314,7 +314,7 @@ export const createFrontendView = async (
     logger.error(err, 'Failed to extract totals using the base query');
     throw err;
   } finally {
-    totalsQueryConnection.release();
+    void totalsQueryConnection.release();
   }
   const totalLines = Number(totals[0].totalLines);
   const totalPages = Math.max(1, Math.ceil(totalLines / pageSize));
@@ -333,7 +333,7 @@ export const createFrontendView = async (
     logger.error(err, `Something went wrong trying to get cube data`);
     throw err;
   } finally {
-    cubeDB.release();
+    void cubeDB.release();
   }
   const startLine = pageSize * (pageNumber - 1) + 1;
 
@@ -388,7 +388,7 @@ export const createFrontendView = async (
   } catch (err) {
     logger.error(err, `Something went wrong trying to fetch the used note codes`);
   } finally {
-    noteCodeQueryConnection.release();
+    void noteCodeQueryConnection.release();
   }
 
   return {
