@@ -86,8 +86,8 @@ const checkConnections = async (req: Request, res: Response): Promise<void> => {
       if (isString(result) && result.includes('timeout')) throw new Error(result);
     });
   } catch (err) {
-    logger.error(err, 'Healthcheck failed');
-    res.status(500).json({ error: 'service down', poolStats });
+    logger.error(err, `connection check failed - poolStats: ${JSON.stringify(poolStats || [])}`);
+    res.status(500).json({ error: 'connection check failed' });
     return;
   }
 
