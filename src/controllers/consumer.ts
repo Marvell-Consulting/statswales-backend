@@ -26,6 +26,7 @@ import { DownloadFormat } from '../enums/download-format';
 import { DEFAULT_PAGE_SIZE } from '../utils/page-defaults';
 import { UserGroupRepository } from '../repositories/user-group';
 import { PublisherDTO } from '../dtos/publisher-dto';
+import { ConsumerRevisionDTO } from '../dtos/consumer-revision-dto';
 
 export const listPublishedDatasets = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   /*
@@ -417,6 +418,13 @@ export const listSubTopics = async (req: Request, res: Response, next: NextFunct
     logger.error(error, 'Error listing published topics');
     next(new UnknownException());
   }
+};
+
+export const getPublicationHistory = async (req: Request, res: Response): Promise<void> => {
+  const revisions = await PublishedDatasetRepository.getHistoryById(res.locals.datasetId);
+  const revisionDTOs = revisions.map((rev) => ConsumerRevisionDTO.fromRevision(rev));
+
+  res.json(revisionDTOs);
 };
 
 export const fixSwaggerDocGenerationWeirdness = (): void => {
