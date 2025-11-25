@@ -610,32 +610,37 @@ export const bootstrapCubeBuildProcess = async (datasetId: string, revisionId: s
 };
 
 async function bootStrapValidationTable(revisionSchema: string, dataset: Dataset): Promise<void> {
-  const queryRunner = dbManager.getCubeDataSource().createQueryRunner();
+  const checkTableQueryRunner = dbManager.getCubeDataSource().createQueryRunner();
   const checkForValidationTableQuery = pgformat(
     `SELECT table_name FROM information_schema.tables WHERE table_schema = %L AND table_name = %L`,
     revisionSchema,
     VALIDATION_TABLE_NAME
   );
+  let validationTableExists: { table_name: string }[];
   try {
-    const validationTableExists = await queryRunner.query(checkForValidationTableQuery);
-    if (validationTableExists.length > 0) {
-      return;
-    }
+    validationTableExists = await checkTableQueryRunner.query(checkForValidationTableQuery);
   } catch (err) {
-    void queryRunner.release();
     logger.fatal(
       err,
       'Something went wrong trying to query the postgres information_schema.  Database connection not available?'
     );
     throw err;
+  } finally {
+    void checkTableQueryRunner.release();
   }
+
+  if (validationTableExists.length > 0) {
+    return;
+  }
+
+  const createValidationTableQueryRunner = dbManager.getCubeDataSource().createQueryRunner();
   const transactionBlock = setupValidationTableFromDataset(revisionSchema, dataset);
   try {
-    await queryRunner.query(transactionBlock.statements.join('\n'));
+    await createValidationTableQueryRunner.query(transactionBlock.statements.join('\n'));
   } catch (err) {
     logger.warn(err, `Something went wrong trying to create new validation table for revision ${revisionSchema}`);
     throw err;
   } finally {
-    void queryRunner.release();
+    void createValidationTableQueryRunner.release();
   }
 }
