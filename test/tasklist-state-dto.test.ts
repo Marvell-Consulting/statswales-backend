@@ -814,7 +814,7 @@ describe('TasklistStateDTO', () => {
       expect(result.translation.import).toBe(TaskListStatus.NotStarted);
     });
 
-    it('should allow publishing for updates even with incomplete sections', () => {
+    it('should require a reason for updates', () => {
       const dataset = {
         dimensions: []
       } as unknown as Dataset;
@@ -838,6 +838,62 @@ describe('TasklistStateDTO', () => {
             language: 'en',
             title: null,
             updatedAt: new Date()
+          },
+          {
+            language: 'cy',
+            title: null,
+            updatedAt: new Date()
+          }
+        ],
+        revisionTopics: [],
+        revisionProviders: [],
+        relatedLinks: [],
+        updateFrequency: null,
+        designation: null,
+        publishAt: new Date()
+      } as unknown as Revision;
+
+      mockCollectTranslations.collectTranslations.mockReturnValue([]);
+
+      const translationEvents = [
+        {
+          action: 'import',
+          createdAt: new Date(),
+          data: []
+        }
+      ] as unknown as EventLog[];
+
+      const result = TasklistStateDTO.fromDataset(dataset, revision, 'en', translationEvents);
+
+      expect(result.isUpdate).toBe(true);
+      expect(result.canPublish).toBe(false);
+    });
+
+    it('should allow publishing for updates even with incomplete sections', () => {
+      const dataset = {
+        dimensions: []
+      } as unknown as Dataset;
+
+      const revision = {
+        previousRevisionId: 'prev-123',
+        previousRevision: {
+          metadata: [
+            { language: 'en', title: 'Old Title' },
+            { language: 'cy', title: 'Hen Deitl' }
+          ],
+          revisionTopics: [],
+          revisionProviders: [],
+          relatedLinks: [],
+          updateFrequency: null,
+          designation: null
+        },
+        dataTable: null,
+        metadata: [
+          {
+            language: 'en',
+            title: null,
+            updatedAt: new Date(),
+            reason: 'a reason for the update'
           },
           {
             language: 'cy',
