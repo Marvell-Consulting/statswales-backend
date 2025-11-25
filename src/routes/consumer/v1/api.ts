@@ -11,7 +11,8 @@ import {
   listSubTopics,
   listRootTopics,
   getPublishedDatasetFilters,
-  getPostgresPivotTable
+  getPostgresPivotTable,
+  getPublicationHistory
 } from '../../../controllers/consumer';
 import { NotFoundException } from '../../../exceptions/not-found.exception';
 import { PublishedDatasetRepository } from '../../../repositories/published-dataset';
@@ -62,6 +63,7 @@ publicApiRouter.get('/topic', listRootTopics);
 publicApiRouter.get('/topic/:topic_id', listSubTopics);
 
 publicApiRouter.get('/:dataset_id', loadPublishedDataset(), getPublishedDatasetById);
+publicApiRouter.get('/:dataset_id/history', loadPublishedDataset(), getPublicationHistory);
 
 publicApiRouter.get('/:dataset_id/view', loadPublishedDataset(), getPublishedDatasetView);
 publicApiRouter.get('/:dataset_id/view/filters', loadPublishedDataset(), getPublishedDatasetFilters);

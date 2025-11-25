@@ -214,5 +214,21 @@ export const PublishedDatasetRepository = dataSource.getRepository(Dataset).exte
     const [data, count] = await Promise.all([resultQuery.getRawMany(), countQuery.getCount()]);
 
     return { data, count };
+  },
+
+  async getHistoryById(datasetId: string): Promise<Revision[]> {
+    const now = new Date();
+
+    return dataSource.getRepository(Revision).find({
+      where: {
+        datasetId,
+        publishAt: And(Not(IsNull()), LessThan(now)),
+        approvedAt: And(Not(IsNull()), LessThan(now))
+      },
+      order: {
+        publishAt: 'DESC'
+      },
+      relations: { metadata: true }
+    });
   }
 });
