@@ -786,7 +786,7 @@ export const createStreamingDuckDBPivotView = async (
     logger.trace(`Running filter table query:\n\n${filterTableQuery}\n\n`);
     filterTableColumnQueryResult = await filterTableQueryRunner.query(filterTableQuery);
   } catch (error) {
-    logger.error(error, 'Something went wrong trying to the filter table in the cube');
+    logger.error(error, 'Something went wrong trying to query the filter table in the cube');
     throw new UnknownException('errors.unknown_error');
   } finally {
     void filterTableQueryRunner.release();
