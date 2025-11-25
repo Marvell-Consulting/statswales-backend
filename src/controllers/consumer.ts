@@ -111,9 +111,10 @@ export const getPublishedDatasetView = async (req: Request, res: Response): Prom
     }
   */
   const dataset = await PublishedDatasetRepository.getById(res.locals.datasetId, withAll);
+  const publishedRevision = dataset.publishedRevision;
   const lang = req.language;
 
-  if (!dataset.publishedRevision) {
+  if (!publishedRevision) {
     throw new NotFoundException('errors.no_revision');
   }
 
@@ -136,17 +137,13 @@ export const getPublishedDatasetView = async (req: Request, res: Response): Prom
     throw new BadRequestException('errors.filter.invalid');
   }
 
-  const preview = await createFrontendView(
-    dataset,
-    dataset.publishedRevision,
-    lang,
-    pageNumber,
-    pageSize,
-    sortBy,
-    filter
-  );
-
-  res.json(preview);
+  try {
+    const preview = await createFrontendView(dataset, publishedRevision.id, lang, pageNumber, pageSize, sortBy, filter);
+    res.status(200).json(preview);
+  } catch (error) {
+    logger.error(error, 'Something went wrong trying to query the cube');
+    throw new UnknownException('errors.consumer_view.cube_query_failed');
+  }
 };
 
 export const getPublishedDatasetFilters = async (req: Request, res: Response): Promise<void> => {
@@ -168,14 +165,15 @@ export const getPublishedDatasetFilters = async (req: Request, res: Response): P
     }
   */
   const dataset = await PublishedDatasetRepository.getById(res.locals.datasetId, { publishedRevision: true });
+  const publishedRevision = dataset.publishedRevision;
   const lang = req.language.toLowerCase();
   logger.debug(`Fetching filters for published dataset with language: ${lang}`);
 
-  if (!dataset.publishedRevision) {
+  if (!publishedRevision) {
     throw new NotFoundException('errors.no_revision');
   }
 
-  const filters = await getFilters(dataset.publishedRevision, lang || 'en-gb');
+  const filters = await getFilters(publishedRevision.id, lang || 'en-gb');
   res.json(filters);
 };
 
@@ -228,9 +226,9 @@ export const downloadPublishedDataset = async (req: Request, res: Response, next
     throw new BadRequestException('errors.filter.invalid');
   }
 
-  const revision = dataset.publishedRevision;
+  const publishedRevision = dataset.publishedRevision;
 
-  if (!revision?.onlineCubeFilename) {
+  if (!publishedRevision?.onlineCubeFilename) {
     next(new NotFoundException('errors.no_revision'));
     return;
   }
@@ -238,13 +236,13 @@ export const downloadPublishedDataset = async (req: Request, res: Response, next
   try {
     switch (format as DuckdbOutputType) {
       case DuckdbOutputType.Csv:
-        createStreamingCSVFilteredView(res, revision, req.language, view, sortBy, filter);
+        createStreamingCSVFilteredView(res, publishedRevision.id, req.language, view, sortBy, filter);
         break;
       case DuckdbOutputType.Json:
-        createStreamingJSONFilteredView(res, revision, req.language, view, sortBy, filter);
+        createStreamingJSONFilteredView(res, publishedRevision.id, req.language, view, sortBy, filter);
         break;
       case DuckdbOutputType.Excel:
-        createStreamingExcelFilteredView(res, revision, req.language, view, sortBy, filter);
+        createStreamingExcelFilteredView(res, publishedRevision.id, req.language, view, sortBy, filter);
         break;
       default:
         next(new BadRequestException('file format currently not supported'));
@@ -281,14 +279,14 @@ export const getPostgresPivotTable = async (req: Request, res: Response, next: N
     throw new BadRequestException('No Y Axis present');
   }
 
-  const revision = dataset.publishedRevision;
+  const publishedRevision = dataset.publishedRevision;
 
-  if (!revision?.onlineCubeFilename) {
+  if (!publishedRevision?.onlineCubeFilename) {
     next(new NotFoundException('errors.no_revision'));
     return;
   }
   try {
-    void createStreamingPostgresPivotView(res, revision, req.language, xAxis, yAxis, filter);
+    void createStreamingPostgresPivotView(res, publishedRevision.id, req.language, xAxis, yAxis, filter);
   } catch (err) {
     logger.error(err, 'An error occurred trying to produce postgres pivot as JSON');
     next(new UnknownException());
@@ -339,7 +337,7 @@ export const getDuckDBPivotTable = async (req: Request, res: Response, next: Nex
   }
 
   try {
-    void createStreamingDuckDBPivotView(res, revision, req.language, view, xAxisColumn, pivotCols, sortBy, filter);
+    void createStreamingDuckDBPivotView(res, revision.id, req.language, view, xAxisColumn, pivotCols, sortBy, filter);
   } catch (err) {
     logger.error(err, 'An error occurred trying to download published dataset');
     next(new UnknownException());
@@ -386,17 +384,41 @@ export const listSubTopics = async (req: Request, res: Response, next: NextFunct
       care', which can have sub-topics, such as 'Dental services'. For a given topic_id, this endpoint returns a
       list of what sits under that topic - either sub-topics or published datasets tagged directly to that topic."
     #swagger.autoQuery = false
-     #swagger.parameters['page_size'] = {
+    #swagger.parameters['page_size'] = {
       description: 'Number of datasets per page when datasets are returned',
       in: 'query',
       type: 'integer',
       default: 1000
     }
+    #swagger.parameters['sort_by'] = {
+      description: `Columns to sort the data by. The value should be a JSON array of objects sent as a URL encoded string.`,
+      in: 'query',
+      required: false,
+      content: {
+        'application/json': {
+          schema: {
+            type: 'array',
+            items: {
+              type: 'object',
+              properties: {
+                columnName: {
+                  type: 'string',
+                  enum: ['first_published_at', 'last_updated_at', 'title']
+                },
+                direction: {
+                  type: 'string',
+                  enum: ['ASC', 'DESC']
+                }
+              }
+            }
+          }
+        }
+      }
+    }
     #swagger.parameters['$ref'] = [
       '#/components/parameters/language',
       '#/components/parameters/topic_id',
-      '#/components/parameters/page_number',
-      '#/components/parameters/sort_by'
+      '#/components/parameters/page_number'
     ]
     #swagger.responses[200] = {
       description: 'A list of what sits under a given topic - either sub-topics or published datasets tagged directly
@@ -409,8 +431,7 @@ export const listSubTopics = async (req: Request, res: Response, next: NextFunct
   const lang = req.language as Locale;
 
   if (topicId && !/\d+/.test(topicId)) {
-    logger.error('invalid topic id');
-    next(new BadRequestException('errors.invalid_topic_id'));
+    next(new NotFoundException('errors.invalid_topic_id'));
     return;
   }
 

@@ -1,3 +1,7 @@
+/* eslint-disable import/no-named-as-default-member */
+// this is the correct way to call i18next according to their docs
+// linter was being whiny about not importing use
+
 import i18next from 'i18next';
 import Backend from 'i18next-fs-backend';
 import * as i18nextMiddleware from 'i18next-http-middleware';

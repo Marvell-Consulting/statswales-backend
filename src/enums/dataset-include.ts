@@ -3,7 +3,7 @@ export enum DatasetInclude {
   Developer = 'developer',
   LatestRevision = 'latest',
   Meta = 'metadata',
-  Data = 'data',
+  DraftDataTable = 'draft_data',
   Measure = 'measure',
   Dimensions = 'dimensions',
   Overview = 'overview'

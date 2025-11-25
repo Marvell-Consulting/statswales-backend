@@ -84,6 +84,42 @@
             }
           },
           {
+            "name": "sort_by",
+            "description": "Columns to sort the data by. The value should be a JSON array of objects sent as a URL encoded string.",
+            "in": "query",
+            "required": false,
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "columnName": {
+                        "type": "string",
+                        "enum": [
+                          "first_published_at",
+                          "last_updated_at",
+                          "title"
+                        ]
+                      },
+                      "direction": {
+                        "type": "string",
+                        "enum": [
+                          "ASC",
+                          "DESC"
+                        ]
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
             "$ref": "#/components/parameters/language"
           },
           {
@@ -91,9 +127,6 @@
           },
           {
             "$ref": "#/components/parameters/page_number"
-          },
-          {
-            "$ref": "#/components/parameters/sort_by"
           }
         ],
         "responses": {
@@ -256,13 +289,15 @@
   "components": {
     "parameters": {
       "language": {
-        "name": "accept-language",
-        "in": "header",
-        "description": "Language to use for the response, either \"cy-gb\" for Welsh or \"en-gb\" for English",
+        "name": "lang",
+        "in": "query",
+        "description": "Language to use for the response, \"cy\" or \"cy-gb\" for Welsh and \"en\" or \"en-gb\" for English",
         "required": false,
         "schema": {
           "type": "string",
           "enum": [
+            "cy",
+            "en",
             "cy-gb",
             "en-gb"
           ],

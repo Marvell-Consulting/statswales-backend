@@ -192,7 +192,12 @@
       "rolling": "Mis Treigl"
     },
     "rolling": {
+      "10_year_ending": "10 mlynedd i ddod i ben {{date}}",
+      "5_year_ending": "5 mlynedd i ddod i ben {{date}}",
+      "3_year_ending": "3 mlynedd i ddod i ben {{date}}",
+      "2_year_ending": "2 mlynedd i ddod i ben {{date}}",
       "year_ending": "Blwyddyn yn gorffen {{date}}",
+      "half_year_ending": "Hanner blwyddyn yn dod i ben {{date}}",
       "quarter_ending": "Chwarter yn gorffen {{date}}",
       "month_ending": "Mis yn gorffen {{date}}",
       "fortnight_ending": "Pythefnos yn gorffen {{date}}",

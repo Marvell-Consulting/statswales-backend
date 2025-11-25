@@ -28,7 +28,7 @@ const parseTranslationsFromStream = async (stream: Readable | ReadStream): Promi
       .pipe(csvParser)
       .on('data', (row) => translations.push(row as TranslationDTO))
       .on('error', (error: Error) => {
-        logger.error(error, 'Error parsing translations CSV');
+        logger.warn(error, 'Error parsing translations CSV');
         reject(new BadRequestException('errors.translation_file.invalid.format'));
       })
       .on('end', () => resolve(translations));
@@ -78,7 +78,7 @@ export const validateImport = async (req: Request, res: Response, next: NextFunc
   try {
     tmpFile = await uploadAvScan(req);
   } catch (err) {
-    logger.error(err, 'There was a problem uploading the translation file');
+    logger.warn(err, 'There was a problem uploading the translation file');
     next(err);
     return;
   }
@@ -88,7 +88,7 @@ export const validateImport = async (req: Request, res: Response, next: NextFunc
     const fileStream = createReadStream(tmpFile.path);
 
     fileStream.on('error', (error) => {
-      logger.error(error, 'Error reading the uploaded translation file');
+      logger.warn(error, 'Error reading the uploaded translation file');
       next(new BadRequestException('errors.translation_file.invalid.file'));
       return;
     });
@@ -138,6 +138,7 @@ export const validateImport = async (req: Request, res: Response, next: NextFunc
 export const applyImport = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   logger.info('Updating translations from CSV...');
   const datasetId = res.locals.datasetId;
+  const userId = req.user?.id;
 
   try {
     const fileStream = await req.fileService.loadStream(TRANSLATION_FILENAME, datasetId);
@@ -154,7 +155,7 @@ export const applyImport = async (req: Request, res: Response, next: NextFunctio
       client: 'sw3-frontend'
     });
     try {
-      await createAllCubeFiles(dataset.id, dataset.draftRevisionId!);
+      await createAllCubeFiles(dataset.id, dataset.draftRevisionId!, userId);
     } catch (error) {
       logger.error(error, 'Error rebuilding cube after translations applied');
       next(new UnknownException('errors.cube_validation.failed'));

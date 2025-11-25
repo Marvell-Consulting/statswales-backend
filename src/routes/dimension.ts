@@ -21,7 +21,6 @@ import { fileStreaming } from '../middleware/file-streaming';
 export const loadDimension = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   const dimensionIdError = await hasError(dimensionIdValidator(), req);
   if (dimensionIdError) {
-    logger.error(dimensionIdError);
     next(new NotFoundException('errors.dimension_id_invalid'));
     return;
   }
@@ -31,14 +30,12 @@ export const loadDimension = async (req: Request, res: Response, next: NextFunct
     const dimension = await DimensionRepository.getById(req.params.dimension_id);
     res.locals.dimension_id = dimension.id;
     res.locals.dimension = dimension;
-  } catch (err) {
-    logger.error(`Failed to load dimension, error: ${err}`);
+  } catch (_err) {
     next(new NotFoundException('errors.no_dimension'));
     return;
   }
 
   if (res.locals.dimension.datasetId !== res.locals.datasetId) {
-    logger.error('Dimension does not belong to dataset');
     next(new NotFoundException('errors.dimension_id_invalid'));
     return;
   }
@@ -72,7 +69,7 @@ router.post('/by-id/:dimension_id/lookup', fileStreaming(), loadDimension, attac
 
 // PATCH /dataset/:dataset_id/dimension/id/:dimension_id/
 // Takes a patch request and validates the request against the fact table
-// If it fails it sends back an error
+// If it fails, it sends back an error
 router.patch('/by-id/:dimension_id', jsonParser, loadDimension, updateDimension);
 
 // PATCH /:dataset_id/dimension/by-id/:dimension_id/meta

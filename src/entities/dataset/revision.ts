@@ -121,4 +121,10 @@ export class Revision extends BaseEntity {
     default: CubeType.DuckDBCube
   })
   cubeType: CubeType | null;
+
+  @Column({ name: 'start_date', type: 'timestamp without time zone', nullable: true })
+  startDate: Date | null;
+
+  @Column({ name: 'end_date', type: 'timestamp without time zone', nullable: true })
+  endDate: Date | null;
 }

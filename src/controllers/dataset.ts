@@ -1,5 +1,6 @@
+import { randomUUID } from 'node:crypto';
+
 import { NextFunction, Request, Response } from 'express';
-import { last, sortBy } from 'lodash';
 import { t } from 'i18next';
 import JSZip from 'jszip';
 
@@ -8,11 +9,11 @@ import {
   DatasetRepository,
   withDeveloperPreview,
   withDimensions,
+  withDraftAndDataTable,
   withDraftAndMeasure,
   withDraftAndMetadata,
   withDraftAndProviders,
   withDraftAndTopics,
-  withDraftForCube,
   withFactTable,
   withLatestRevision,
   withStandardPreview
@@ -21,7 +22,7 @@ import { Locale } from '../enums/locale';
 import { logger } from '../utils/logger';
 import { UnknownException } from '../exceptions/unknown.exception';
 import { DatasetDTO } from '../dtos/dataset-dto';
-import { userGroupIdValidator, hasError, titleValidator } from '../validators';
+import { hasError, titleValidator, userGroupIdValidator } from '../validators';
 import { BadRequestException } from '../exceptions/bad-request.exception';
 import { ViewErrDTO } from '../dtos/view-dto';
 import { arrayValidator, dtoValidator } from '../validators/dto-validator';
@@ -41,10 +42,9 @@ import { RevisionProvider } from '../entities/dataset/revision-provider';
 import { TopicDTO } from '../dtos/topic-dto';
 import { RevisionTopic } from '../entities/dataset/revision-topic';
 import { TopicSelectionDTO } from '../dtos/topic-selection-dto';
-
 import { factTableValidatorFromSource } from '../services/fact-table-validator';
 import { FactTableValidationException } from '../exceptions/fact-table-validation-exception';
-import { addDirectoryToZip, collectFiles } from '../utils/dataset-controller-utils';
+import { addDirectoryToZip, collectFiles } from '../utils/file-utils';
 import { NotAllowedException } from '../exceptions/not-allowed.exception';
 import { GroupRole } from '../enums/group-role';
 import { DatasetInclude } from '../enums/dataset-include';
@@ -63,6 +63,13 @@ import { TaskAction } from '../enums/task-action';
 import { TaskService } from '../services/task';
 import { createFrontendView } from '../services/consumer-view';
 import { UserGroup } from '../entities/user/user-group';
+import { bootstrapCubeBuildProcess } from '../utils/lookup-table-utils';
+import { CubeBuildStatus } from '../enums/cube-build-status';
+import { CubeBuildType } from '../enums/cube-build-type';
+import { BuildLog, CompleteStatus } from '../entities/dataset/build-log';
+import { sleep } from '../utils/sleep';
+import { RevisionList, RevisionRepository } from '../repositories/revision';
+import { BuildLogRepository } from '../repositories/build-log';
 
 export const listUserDatasets = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
@@ -116,8 +123,8 @@ export const getDatasetById = async (req: Request, res: Response): Promise<void>
       dataset = await DatasetRepository.getById(datasetId, withLatestRevision);
       break;
 
-    case DatasetInclude.Data:
-      dataset = await DatasetRepository.getById(datasetId, withDraftForCube);
+    case DatasetInclude.DraftDataTable:
+      dataset = await DatasetRepository.getById(datasetId, withDraftAndDataTable);
       break;
 
     case DatasetInclude.Dimensions:
@@ -218,6 +225,7 @@ export const createDataset = async (req: Request, res: Response, next: NextFunct
 export const uploadDataTable = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   const dataset: Dataset = res.locals.dataset;
   let tmpFile: TempFile;
+  const userId = req.user?.id;
 
   try {
     tmpFile = await uploadAvScan(req);
@@ -231,7 +239,7 @@ export const uploadDataTable = async (req: Request, res: Response, next: NextFun
   logger.debug(`File received: ${tmpFile.originalname}, mimetype: ${tmpFile.mimetype}, size: ${tmpFile.size} bytes`);
 
   try {
-    const updatedDataset = await req.datasetService.updateFactTable(dataset.id, tmpFile);
+    const updatedDataset = await req.datasetService.updateFactTable(dataset.id, tmpFile, userId);
     const dto = DatasetDTO.fromDataset(updatedDataset);
     res.status(201).json(dto);
     return;
@@ -257,12 +265,11 @@ export const uploadDataTable = async (req: Request, res: Response, next: NextFun
 };
 
 export const cubePreview = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-  const dataset = await DatasetRepository.getById(res.locals.datasetId, withDraftForCube);
-  const latestRevision = dataset.draftRevision ?? last(sortBy(dataset?.revisions, 'revisionIndex'));
+  const dataset = await DatasetRepository.getById(res.locals.datasetId);
   const lang = req.language.split('-')[0];
 
-  if (!latestRevision) {
-    next(new UnknownException('errors.no_revision'));
+  if (!dataset.endRevisionId) {
+    next(new UnknownException('errors.no_end_revision'));
     return;
   }
 
@@ -271,22 +278,24 @@ export const cubePreview = async (req: Request, res: Response, next: NextFunctio
   const page_size: number = Number.parseInt(req.query.page_size as string, 10) || DEFAULT_PAGE_SIZE;
   const sortByQuery = req.query.sort_by ? (JSON.parse(req.query.sort_by as string) as SortByInterface[]) : undefined;
   const filterQuery = req.query.filter ? (JSON.parse(req.query.filter as string) as FilterInterface[]) : undefined;
-  const cubePreview = await createFrontendView(
-    dataset,
-    latestRevision,
-    lang,
-    page_number,
-    page_size,
-    sortByQuery,
-    filterQuery
-  );
-  const end = performance.now();
-  const time = Math.round(end - start);
-  logger.info(`Generating preview of cube took ${time}ms`);
-  if ((cubePreview as ViewErrDTO).errors) {
-    res.status(500);
+  try {
+    const cubePreview = await createFrontendView(
+      dataset,
+      dataset.endRevisionId,
+      lang,
+      page_number,
+      page_size,
+      sortByQuery,
+      filterQuery
+    );
+    const end = performance.now();
+    const time = Math.round(end - start);
+    logger.info(`Generating preview of cube took ${time}ms`);
+    res.json(cubePreview);
+  } catch (error) {
+    logger.error(error, 'Something went wrong trying to query the cube');
+    throw new UnknownException('errors.consumer_view.cube_query_failed');
   }
-  res.json(cubePreview);
 };
 
 export const updateMetadata = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
@@ -299,7 +308,7 @@ export const updateMetadata = async (req: Request, res: Response, next: NextFunc
     if (err instanceof BadRequestException) {
       err.validationErrors?.forEach((error) => {
         if (!error.constraints) return;
-        Object.values(error.constraints).forEach((message) => logger.error(message));
+        Object.values(error.constraints).forEach((message) => logger.warn(message));
       });
       next(err);
       return;
@@ -340,15 +349,15 @@ export const addDataProvider = async (req: Request, res: Response, next: NextFun
     res.status(201);
     res.json(DatasetDTO.fromDataset(updatedDataset));
   } catch (err: unknown) {
-    logger.error(err, 'failed to add provider');
     if (err instanceof BadRequestException) {
       err.validationErrors?.forEach((error) => {
         if (!error.constraints) return;
-        Object.values(error.constraints).forEach((message) => logger.error(message));
+        Object.values(error.constraints).forEach((message) => logger.warn(message));
       });
       next(err);
       return;
     }
+    logger.error(err, 'failed to add provider');
     next(new UnknownException('errors.provider_update_error'));
   }
 };
@@ -360,15 +369,15 @@ export const updateDataProviders = async (req: Request, res: Response, next: Nex
     res.status(201);
     res.json(DatasetDTO.fromDataset(updatedDataset));
   } catch (err: unknown) {
-    logger.error(err, 'failed to update providers');
     if (err instanceof BadRequestException) {
       err.validationErrors?.forEach((error) => {
         if (!error.constraints) return;
-        Object.values(error.constraints).forEach((message) => logger.error(message));
+        Object.values(error.constraints).forEach((message) => logger.warn(message));
       });
       next(err);
       return;
     }
+    logger.error(err, 'failed to update providers');
     next(new UnknownException('errors.provider_update_error'));
   }
 };
@@ -395,7 +404,7 @@ export const updateTopics = async (req: Request, res: Response, next: NextFuncti
     if (err instanceof BadRequestException) {
       err.validationErrors?.forEach((error) => {
         if (!error.constraints) return;
-        Object.values(error.constraints).forEach((message) => logger.error(message));
+        Object.values(error.constraints).forEach((message) => logger.warn(message));
       });
       next(err);
       return;
@@ -405,10 +414,11 @@ export const updateTopics = async (req: Request, res: Response, next: NextFuncti
 };
 
 export const updateSources = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-  const dataset = await DatasetRepository.getById(res.locals.datasetId, withDraftForCube);
+  const dataset = await DatasetRepository.getById(res.locals.datasetId, withDraftAndDataTable);
   const revision = dataset.draftRevision;
   const dataTable = revision?.dataTable;
   const sourceAssignment = req.body;
+  const userId = req.user?.id;
 
   if (!sourceAssignment) {
     next(new BadRequestException('Could not assign source types to import'));
@@ -471,18 +481,24 @@ export const updateSources = async (req: Request, res: Response, next: NextFunct
 
   try {
     await createDimensionsFromSourceAssignment(dataset, dataTable, validatedSourceAssignment);
-    const updatedDataset = await DatasetRepository.getById(dataset.id);
-    await createAllCubeFiles(updatedDataset.id, revision.id);
-    res.json(DatasetDTO.fromDataset(updatedDataset));
   } catch (err) {
-    logger.error(err, `An error occurred trying to process the source assignments: ${err}`);
-
+    logger.warn(err, 'Something went wrong trying to setup raw dimensions and measure');
     if (err instanceof SourceAssignmentException) {
       next(new BadRequestException(err.message));
-    } else {
-      next(new UnknownException('errors.unknown_server_error'));
+      return;
     }
   }
+
+  const buildId = randomUUID();
+  const updatedDataset = await DatasetRepository.getById(dataset.id);
+  res.json({
+    dataset: DatasetDTO.fromDataset(updatedDataset),
+    build_id: buildId
+  });
+
+  void createAllCubeFiles(updatedDataset.id, revision.id, userId, CubeBuildType.FullCube, buildId).catch((err) => {
+    logger.error(err, `Failed to create cube files for build ${buildId}`);
+  });
 };
 
 export const getFactTableDefinition = async (req: Request, res: Response): Promise<void> => {
@@ -498,8 +514,8 @@ export const getAllFilesForDataset = async (req: Request, res: Response): Promis
   const zip = new JSZip();
 
   try {
-    const dataset = await DatasetRepository.getById(datasetId, withDraftForCube);
-    const datasetFiles = collectFiles(dataset);
+    const dataset = await DatasetRepository.getById(datasetId);
+    const datasetFiles = await collectFiles(dataset.id);
     await addDirectoryToZip(zip, datasetFiles, dataset.id, req.fileService);
     zip.file('dataset.json', JSON.stringify(DatasetDTO.fromDataset(dataset)));
   } catch (err) {
@@ -527,8 +543,7 @@ export const listAllFilesInDataset = async (req: Request, res: Response, next: N
   const datasetId: string = res.locals.datasetId;
 
   try {
-    const dataset = await DatasetRepository.getById(datasetId, withDraftForCube);
-    const datasetFiles = collectFiles(dataset);
+    const datasetFiles = await collectFiles(datasetId);
     const files = Array.from(datasetFiles.values());
     res.json(files);
   } catch (err) {
@@ -605,3 +620,126 @@ export const datasetActionRequest = async (req: Request, res: Response, next: Ne
 
   res.status(204).end();
 };
+
+export const rebuildAll = async (req: Request, res: Response): Promise<void> => {
+  const user = req.user as User;
+
+  const activeBuilds = await BuildLogRepository.getAllActiveBulkBuilds();
+  if (activeBuilds.length > 1) {
+    logger.info(`There is already an active rebuild process with id ${activeBuilds[0].id}...`);
+    res
+      .status(409)
+      .json({
+        build_id: activeBuilds[0].id,
+        message: 'There is already an active rebuild process. Track with the build_id.'
+      })
+      .end();
+    return;
+  }
+  const buildLogEntry = await BuildLog.startBuild(null, CubeBuildType.AllCubes, user.id);
+  res.status(202).json({ build_id: buildLogEntry.id }).end();
+  void rebuildDatasetList(buildLogEntry, await RevisionRepository.getAllRevisionIds(), user);
+};
+
+export const rebuildDrafts = async (req: Request, res: Response): Promise<void> => {
+  const user = req.user as User;
+
+  const activeBuilds = await BuildLogRepository.getAllActiveBulkBuilds();
+  if (activeBuilds.length > 1) {
+    logger.info(`There is already an active rebuild process with id ${activeBuilds[0].id}...`);
+    res
+      .status(409)
+      .json({
+        build_id: activeBuilds[0].id,
+        message: 'There is already an active rebuild process. Track with the build_id.'
+      })
+      .end();
+    return;
+  }
+  const buildLogEntry = await BuildLog.startBuild(null, CubeBuildType.DraftCubes, user.id);
+  res.status(202).json({ build_id: buildLogEntry.id }).end();
+  void rebuildDatasetList(buildLogEntry, await RevisionRepository.getAllDraftRevisionIds(), user);
+};
+
+async function rebuildDatasetList(buildLogEntry: BuildLog, revisionList: RevisionList[], user: User): Promise<void> {
+  let buildTypeStr = 'all';
+  if (buildLogEntry.type === CubeBuildType.DraftCubes) {
+    buildTypeStr = 'all draft';
+  }
+
+  logger.info(`[${buildLogEntry.id}]: Starting process to rebuild ${buildTypeStr} cubes`);
+  const failedBuilds: {
+    buildId: string;
+    revisionId: string;
+    error: string;
+  }[] = [];
+
+  const buildScript = {
+    current_build: null as string | null,
+    total_builds: 0,
+    successful_builds: 0,
+    failed_builds: 0,
+    all_builds: [] as string[],
+    successfully_built: [] as string[],
+    failed_to_build: [] as string[]
+  };
+
+  for (const rev of revisionList) {
+    const buildId = randomUUID();
+    buildScript.all_builds.push(buildId);
+    buildScript.current_build = buildId;
+    buildLogEntry.buildScript = JSON.stringify(buildScript, null, 2);
+    buildLogEntry.status = CubeBuildStatus.Building;
+    await buildLogEntry.save();
+    try {
+      await bootstrapCubeBuildProcess(rev.dataset_id, rev.id);
+    } catch (err) {
+      logger.warn(err, `[${buildLogEntry.id}]: Failed to rebuild cube for revision ${rev.id}`);
+      failedBuilds.push({
+        buildId: buildId.toString(),
+        revisionId: rev.id,
+        error: JSON.stringify(err)
+      });
+      continue;
+    }
+
+    void createAllCubeFiles(rev.dataset_id, rev.id, user.id, CubeBuildType.FullCube, buildId).catch((err: Error) => {
+      logger.warn(err, 'Cube builder threw an error while trying to rebuild the cube');
+    });
+
+    await sleep(5000);
+    let build: BuildLog;
+    try {
+      build = await BuildLog.findOneOrFail({ where: { id: buildId.toString() } });
+    } catch (err) {
+      logger.error(err, 'Failed to find build log entry');
+      continue;
+    }
+    while (!CompleteStatus.includes(build.status)) {
+      await sleep(10000);
+      await build.reload();
+    }
+    if (build.status === CubeBuildStatus.Failed) {
+      logger.warn(`[${buildLogEntry}]: Cube for revision ${rev.id} has been failed to rebuild.`);
+      buildScript.failed_to_build.push(buildId);
+      buildScript.failed_builds++;
+      failedBuilds.push({
+        buildId,
+        revisionId: rev.id,
+        error: JSON.stringify(build.errors)
+      });
+    } else {
+      buildScript.successfully_built.push(buildId);
+      buildScript.successful_builds++;
+      logger.info(`[${buildLogEntry.id}]: Cube for revision ${rev.id} has been rebuilt successfully.`);
+    }
+    buildScript.current_build = null;
+    buildScript.total_builds++;
+    buildLogEntry.buildScript = JSON.stringify(buildScript, null, 2);
+    await buildLogEntry.save();
+  }
+  if (failedBuilds.length > 0) buildLogEntry.errors = JSON.stringify(failedBuilds, null, 2);
+  buildLogEntry.completeBuild(CubeBuildStatus.Completed);
+  await buildLogEntry.save();
+  logger.info(`[${buildLogEntry.id}]: Finished rebuild of ${buildTypeStr} cubes`);
+}

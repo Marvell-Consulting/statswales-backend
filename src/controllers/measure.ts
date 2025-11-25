@@ -20,10 +20,13 @@ import { createAllCubeFiles } from '../services/cube-builder';
 import { cleanupTmpFile, uploadAvScan } from '../services/virus-scanner';
 import { TempFile } from '../interfaces/temp-file';
 import { updateRevisionTasks } from '../utils/update-revision-tasks';
+import { randomUUID } from 'node:crypto';
+import { CubeBuildType } from '../enums/cube-build-type';
 
 export const resetMeasure = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   const dataset = res.locals.dataset;
   const measure = dataset.measure;
+  const userId = req.user?.id;
   if (!measure) {
     next(new NotFoundException('errors.measure_missing'));
     return;
@@ -47,7 +50,7 @@ export const resetMeasure = async (req: Request, res: Response, next: NextFuncti
   measure.joinColumn = null;
   logger.debug('Saving measure and returning dataset');
   await measure.save();
-  await createAllCubeFiles(dataset.id, dataset.draftRevision!.id);
+  await createAllCubeFiles(dataset.id, dataset.draftRevision!.id, userId);
   const updateDataset = await Dataset.findOneByOrFail({ id: dataset.id });
   const dto = DatasetDTO.fromDataset(updateDataset);
   res.json(dto);
@@ -55,6 +58,7 @@ export const resetMeasure = async (req: Request, res: Response, next: NextFuncti
 
 export const attachLookupTableToMeasure = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   let tmpFile: TempFile;
+  const userId = req.user?.id;
 
   try {
     tmpFile = await uploadAvScan(req);
@@ -70,6 +74,8 @@ export const attachLookupTableToMeasure = async (req: Request, res: Response, ne
     draftRevision: { dataTable: true }
   });
 
+  const buildID = randomUUID();
+
   try {
     const dataTable = await validateAndUpload(tmpFile, dataset.id, 'lookup_table');
     const lang = req.language.toLowerCase();
@@ -81,16 +87,24 @@ export const attachLookupTableToMeasure = async (req: Request, res: Response, ne
       res.json(result);
       return;
     }
+    result.extension = {
+      build_id: buildID
+    };
     await updateRevisionTasks(dataset, dataset.measure.id, 'measure');
-    await createAllCubeFiles(dataset.id, dataset.draftRevision!.id);
     res.status((result as ViewErrDTO).status || 200);
     res.json(result);
   } catch (err) {
     logger.error(err, `An error occurred trying to process and upload the file`);
     next(new UnknownException('errors.upload_error'));
   } finally {
-    cleanupTmpFile(tmpFile);
+    void cleanupTmpFile(tmpFile);
   }
+
+  void createAllCubeFiles(dataset.id, dataset.draftRevision!.id, userId, CubeBuildType.FullCube, buildID).catch(
+    (err) => {
+      logger.error(err, 'Something went wrong trying to build the cube when attaching a measure lookup');
+    }
+  );
 };
 
 export const getPreviewOfMeasure = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
@@ -122,6 +136,7 @@ export const updateMeasureMetadata = async (req: Request, res: Response, next: N
     measure: { metadata: true },
     draftRevision: true
   });
+  const userId = req.user?.id;
 
   const measure = dataset.measure;
   if (!measure) {
@@ -147,9 +162,20 @@ export const updateMeasureMetadata = async (req: Request, res: Response, next: N
 
   const updatedMeasureMetadata = await metadata.save();
   await updateRevisionTasks(dataset, dataset.measure.id, 'measure');
-  await createAllCubeFiles(dataset.id, dataset.draftRevision!.id);
+  const buildID = randomUUID();
+  await createAllCubeFiles(dataset.id, dataset.draftRevision!.id, userId, CubeBuildType.FullCube, buildID).catch(
+    (err) => {
+      logger.error(
+        err,
+        `Something went wrong trying to build the cube after buildID=${buildID} for datasetId=${dataset.id} and revisionId=${dataset.draftRevision!.id}`
+      );
+    }
+  );
 
-  res.json(DimensionMetadataDTO.fromDimensionMetadata(updatedMeasureMetadata));
+  res.json({
+    dimension: DimensionMetadataDTO.fromDimensionMetadata(updatedMeasureMetadata),
+    build_id: buildID
+  });
 };
 
 export const getMeasureInfo = async (req: Request, res: Response): Promise<void> => {

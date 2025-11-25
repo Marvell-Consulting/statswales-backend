@@ -3,6 +3,8 @@ import { body, check, param, ValidationChain } from 'express-validator';
 import { UserStatus } from '../enums/user-status';
 import { DownloadFormat } from '../enums/download-format';
 import { UserGroupStatus } from '../enums/user-group-status';
+import { CubeBuildType } from '../enums/cube-build-type';
+import { CubeBuildStatus } from '../enums/cube-build-status';
 
 export const hasError = async (validator: ValidationChain, req: Request): Promise<boolean> => {
   return !(await validator.run(req)).isEmpty();
@@ -32,3 +34,9 @@ export const userGroupIdValidator = (userGroupIds: string[]): ValidationChain =>
 
 export const formatValidator = (): ValidationChain =>
   param('format').trim().notEmpty().isIn(Object.values(DownloadFormat));
+
+export const buildTypeValidator = (): ValidationChain =>
+  check('type').notEmpty().trim().isIn(Object.values(CubeBuildType));
+
+export const buildStatusValidator = (): ValidationChain =>
+  check('status').notEmpty().trim().isIn(Object.values(CubeBuildStatus));

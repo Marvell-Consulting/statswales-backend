@@ -1,10 +1,9 @@
-import { add, format, isBefore, isDate, isValid, parse, parseISO, sub } from 'date-fns';
+import { add, format, isBefore, isDate, isValid, parse, parseISO, sub, Duration } from 'date-fns';
 
 import { logger } from '../utils/logger';
 import { YearType } from '../enums/year-type';
 import { DateExtractor } from '../extractors/date-extractor';
 import { SUPPORTED_LOCALES, t } from '../middleware/translation';
-import { Duration } from 'date-fns';
 import { FactTableColumn } from '../entities/dataset/fact-table-column';
 import { format as pgformat } from '@scaleleap/pg-format/lib/pg-format';
 
@@ -148,10 +147,35 @@ interface RollingType {
 
 function getRollingType(type: string): RollingType | undefined {
   switch (type) {
+    case 'XY':
+      return {
+        increment: { years: 10 },
+        description: 'date_format.rolling.5_year_ending'
+      };
+    case '5Y':
+      return {
+        increment: { years: 5 },
+        description: 'date_format.rolling.4_year_ending'
+      };
+    case '3Y':
+      return {
+        increment: { years: 3 },
+        description: 'date_format.rolling.3_year_ending'
+      };
+    case '2Y':
+      return {
+        increment: { years: 2 },
+        description: 'date_format.rolling.2_year_ending'
+      };
     case 'YE':
       return {
         increment: { years: 1 },
         description: 'date_format.rolling.year_ending'
+      };
+    case 'HE':
+      return {
+        increment: { months: 6 },
+        description: 'date_format.rolling.half_year_ending'
       };
     case 'QE':
       return {

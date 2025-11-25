@@ -63,7 +63,7 @@ const initJwt = async (userRepository: Repository<User>, jwtConfig: JWTConfig): 
           });
 
           if (!user) {
-            logger.error('jwt auth failed: user account could not be found');
+            logger.warn('jwt auth failed: user account could not be found');
             done(null, undefined, { message: 'User not recognised' });
             return;
           }
@@ -119,7 +119,7 @@ const initEntraId = async (userRepository: Repository<User>, entraIdConfig: Entr
     const userInfo = await openIdClient.fetchUserInfo(openidConfig, tokens.access_token, sub);
 
     if (!userInfo?.sub || !userInfo?.email) {
-      logger.error('entraid auth failed: account is missing user id or email address and we need both');
+      logger.warn('entraid auth failed: account is missing user id or email address and we need both');
       done(null, undefined, { message: 'entraid account does not have a user id or email, cannot login' });
       return;
     }
@@ -172,7 +172,7 @@ const initEntraId = async (userRepository: Repository<User>, entraIdConfig: Entr
         return;
       }
 
-      logger.error('No matching user found, cannot log in');
+      logger.warn('No matching user found, cannot log in');
       done(null, undefined, { message: 'User not recognised' });
       return;
     } catch (error) {

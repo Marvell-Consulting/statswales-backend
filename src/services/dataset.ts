@@ -1,4 +1,4 @@
-import { FindOptionsRelations, In, JsonContains } from 'typeorm';
+import { In, JsonContains } from 'typeorm';
 
 import { format as pgformat } from '@scaleleap/pg-format';
 import { RevisionMetadataDTO } from '../dtos/revistion-metadata-dto';
@@ -46,8 +46,7 @@ import { StorageService } from '../interfaces/storage-service';
 import { TempFile } from '../interfaces/temp-file';
 import { dbManager } from '../db/database-manager';
 import { getFileService } from '../utils/get-file-service';
-import { DimensionType } from '../enums/dimension-type';
-import { DateExtractor } from '../extractors/date-extractor';
+import { bootstrapCubeBuildProcess } from '../utils/lookup-table-utils';
 
 export class DatasetService {
   lang: Locale;
@@ -94,11 +93,16 @@ export class DatasetService {
     return DatasetRepository.getById(dataset.id, {});
   }
 
-  async updateFactTable(datasetId: string, file: TempFile): Promise<Dataset> {
+  async updateFactTable(datasetId: string, file: TempFile, userId?: string): Promise<Dataset> {
     const dataset = await DatasetRepository.getById(datasetId, {
       factTable: true,
       draftRevision: { dataTable: true }
     });
+
+    const draftRevision = dataset.draftRevision;
+    if (!draftRevision) {
+      throw new BadRequestException('errors.update_fact_table.no_draft_revision');
+    }
 
     logger.debug('Uploading new fact table file to filestore');
     const dataTable = await validateAndUpload(file, datasetId, 'data_table');
@@ -109,14 +113,14 @@ export class DatasetService {
       col.factTableColumn = col.columnName;
     });
 
-    if (dataset.draftRevision?.revisionIndex === 1) {
+    if (draftRevision.revisionIndex === 1) {
       await removeAllDimensions(dataset);
       await removeMeasure(dataset);
     }
 
-    await RevisionRepository.replaceDataTable(dataset.draftRevision!, dataTable);
+    await RevisionRepository.replaceDataTable(draftRevision, dataTable);
     await DatasetRepository.replaceFactTable(dataset, dataTable);
-    await createAllCubeFiles(datasetId, dataset.draftRevision!.id);
+    await createAllCubeFiles(datasetId, draftRevision.id, userId);
 
     return DatasetRepository.getById(datasetId, {});
   }
@@ -296,34 +300,10 @@ export class DatasetService {
 
   async approvePublication(datasetId: string, revisionId: string, user: User): Promise<Dataset> {
     const start = performance.now();
-    await createAllCubeFiles(datasetId, revisionId);
-    const datasetRelations: FindOptionsRelations<Dataset> = {
-      dimensions: true
-    };
-    const datasetWithDimensions = await DatasetRepository.getById(datasetId, datasetRelations);
-    let startDate: Date | null = null;
-    let endDate: Date | null = null;
-    datasetWithDimensions.dimensions
-      .filter((dim) => dim.type === DimensionType.DatePeriod || dim.type === DimensionType.Date)
-      .forEach((dim) => {
-        const extractor = dim.extractor as DateExtractor;
-        if (extractor.lookupTableStart) {
-          if (!startDate) {
-            startDate = extractor.lookupTableStart;
-          } else if (extractor.lookupTableStart < startDate) {
-            startDate = extractor.lookupTableStart;
-          }
-        }
-        if (extractor.lookupTableEnd) {
-          if (!endDate) {
-            endDate = extractor.lookupTableEnd;
-          } else if (extractor.lookupTableEnd > endDate) {
-            endDate = extractor.lookupTableEnd;
-          }
-        }
-      });
+    await bootstrapCubeBuildProcess(datasetId, revisionId);
+    await createAllCubeFiles(datasetId, revisionId, user.id);
     const scheduledRevision = await RevisionRepository.approvePublication(revisionId, `${revisionId}.duckdb`, user);
-    const approvedDataset = await DatasetRepository.publish(scheduledRevision, startDate, endDate);
+    const approvedDataset = await DatasetRepository.publish(scheduledRevision);
     const time = Math.round(performance.now() - start);
     logger.info(`Publication approved, time: ${time}ms`);
 
@@ -367,7 +347,6 @@ export class DatasetService {
     const draft = dataset.draftRevision;
 
     if (!draft || draft.id !== revisionId) {
-      logger.error(`Dataset does not have a draft revision or the revision id does not match the current draft`);
       throw new BadRequestException('errors.delete_draft_revision.no_draft_revision');
     }
 
@@ -503,6 +482,6 @@ export class DatasetService {
 
     // create a new draft revision based on the now unpublished revision
     dataset = await this.createRevision(datasetId, user);
-    await createAllCubeFiles(dataset.id, dataset.draftRevision!.id);
+    await createAllCubeFiles(dataset.id, dataset.draftRevision!.id, user.id);
   }
 }

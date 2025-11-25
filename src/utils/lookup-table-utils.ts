@@ -1,4 +1,4 @@
-import { QueryRunner } from 'typeorm';
+import { FindOptionsRelations, QueryRunner } from 'typeorm';
 import { format as pgformat } from '@scaleleap/pg-format';
 import { t } from 'i18next';
 
@@ -16,7 +16,19 @@ import { SUPPORTED_LOCALES } from '../middleware/translation';
 import { MeasureLookupTableExtractor } from '../extractors/measure-lookup-extractor';
 import { DataValueFormat } from '../enums/data-value-format';
 import { dbManager } from '../db/database-manager';
-import { FACT_TABLE_NAME } from '../services/cube-builder';
+import { FACT_TABLE_NAME, setupValidationTableFromDataset, VALIDATION_TABLE_NAME } from '../services/cube-builder';
+import { DatasetRepository } from '../repositories/dataset';
+import { UnknownException } from '../exceptions/unknown.exception';
+import { DateExtractor } from '../extractors/date-extractor';
+import { randomUUID } from 'node:crypto';
+import { createDateTableInValidationCube } from '../services/revision';
+import { getFileImportAndSaveToDisk, loadFileIntoLookupTablesSchema } from './file-utils';
+import { LookupTableExtractor } from '../extractors/lookup-table-extractor';
+import { Revision } from '../entities/dataset/revision';
+import { Dimension } from '../entities/dataset/dimension';
+import { revisionStartAndEndDateFinder } from './revision';
+import { DateDimensionTypes, LookupTableTypes } from '../enums/dimension-type';
+import { RevisionRepository } from '../repositories/revision';
 
 export function convertDataTableToLookupTable(dataTable: DataTable): LookupTable {
   const lookupTable = new LookupTable();
@@ -133,6 +145,47 @@ export const lookForJoinColumn = (
 
   logger.debug(`Found a join column ${possibleJoinColumns[0].columnName}`);
   return possibleJoinColumns[0].columnName;
+};
+
+export const lookForPossibleJoinColumn = (
+  lookupTableColumns: DataTableDescription[],
+  factTableColumn: string,
+  tableLanguage: Locale
+): string[] => {
+  const refCol = lookupTableColumns.find((col) => col.columnName.toLowerCase().startsWith('ref'));
+  const refCodeCol = lookupTableColumns.find((col) =>
+    col.columnName.toLowerCase().includes(t('lookup_column_headers.refcode', { lng: tableLanguage }).toLowerCase())
+  );
+
+  if (refCol) return [refCol.columnName];
+  if (refCodeCol) return [refCodeCol.columnName];
+
+  if (lookupTableColumns.find((col) => col.columnName.toLowerCase() === factTableColumn.toLowerCase())) {
+    return [factTableColumn];
+  }
+
+  const possibleJoinColumns = lookupTableColumns.filter((info) => {
+    const columnName = info.columnName.toLowerCase();
+    if (columnName.includes(t('lookup_column_headers.decimal', { lng: tableLanguage }))) return false;
+    if (columnName.includes(t('lookup_column_headers.hierarchy', { lng: tableLanguage }))) return false;
+    if (columnName.includes(t('lookup_column_headers.format', { lng: tableLanguage }))) return false;
+    if (columnName.includes(t('lookup_column_headers.description', { lng: tableLanguage }))) return false;
+    if (columnName.includes(t('lookup_column_headers.sort', { lng: tableLanguage }))) return false;
+    if (columnName.includes(t('lookup_column_headers.notes', { lng: tableLanguage }))) return false;
+    if (columnName.includes(t('lookup_column_headers.type', { lng: tableLanguage }))) return false;
+    if (columnName.includes(t('lookup_column_headers.lang', { lng: tableLanguage }))) return false;
+    if (columnName.includes('lang')) return false;
+
+    logger.debug(`Looks like column ${columnName} is a join column`);
+    return true;
+  });
+
+  if (possibleJoinColumns.length === 0) {
+    throw new Error('Could not find a column to join against the fact table.');
+  }
+
+  logger.debug(`Found ${possibleJoinColumns.length} possible join columns in the lookup`);
+  return possibleJoinColumns.map((col) => col.columnName);
 };
 
 export const validateLookupTableLanguages = async (
@@ -389,8 +442,9 @@ async function checkFormatColumn(cubeDB: QueryRunner, schemaId: string, lookupTa
       Object.values(DataValueFormat)
         .map((format) => format.toString().toLowerCase())
         .indexOf(format.toLowerCase()) === -1
-    )
+    ) {
       unmatchedFormats.push(format);
+    }
   }
   return unmatchedFormats;
 }
@@ -435,3 +489,153 @@ export const validateMeasureTableContent = async (
   }
   return undefined;
 };
+
+export const bootstrapCubeBuildProcess = async (datasetId: string, revisionId: string): Promise<void> => {
+  const datasetRelations: FindOptionsRelations<Dataset> = {
+    factTable: true,
+    dimensions: { lookupTable: true },
+    measure: true
+  };
+
+  const dataset = await DatasetRepository.getById(datasetId, datasetRelations);
+  const revision = await RevisionRepository.getById(revisionId);
+
+  const schemaFinder = dbManager.getCubeDataSource().createQueryRunner();
+  const checkCurrentRevisionSchema = pgformat(
+    'SELECT nspname AS schema_name FROM pg_namespace WHERE nspname = %L;',
+    revision.id
+  );
+  const checkPreviousRevisionSchema = pgformat(
+    'SELECT nspname AS schema_name FROM pg_namespace WHERE nspname = %L;',
+    revision.previousRevisionId
+  );
+  let currentSchema: { schema_name: string }[];
+  let previousSchema: { schema_name: string }[];
+  try {
+    currentSchema = await schemaFinder.query(checkCurrentRevisionSchema);
+    previousSchema = await schemaFinder.query(checkPreviousRevisionSchema);
+  } catch (err) {
+    logger.warn(err, 'Something went wrong trying to query postgres pg_namespace table');
+    throw err;
+  } finally {
+    void schemaFinder.release();
+  }
+
+  let revisionSchema: string;
+  if (currentSchema.length > 0) {
+    revisionSchema = currentSchema[0].schema_name;
+  } else if (previousSchema.length > 0) {
+    revisionSchema = previousSchema[0].schema_name;
+  } else {
+    throw new Error('Unable to find schema to build validation table from');
+  }
+
+  await bootStrapValidationTable(revisionSchema, dataset);
+
+  const dimensions = dataset.dimensions.filter((dim) => LookupTableTypes.includes(dim.type));
+  let loadedLookupTables: { table_name: string }[];
+  const queryRunner = dbManager.getCubeDataSource().createQueryRunner();
+  try {
+    loadedLookupTables = await queryRunner.query(
+      pgformat(`SELECT table_name FROM information_schema.tables WHERE table_schema = %L`, 'lookup_tables')
+    );
+  } catch (err) {
+    logger.error(err, 'Unable to get lookup tables from postgres information schema');
+    throw new UnknownException('errors.cube_builder.cube_build_failed');
+  } finally {
+    void queryRunner.release();
+  }
+
+  for (const dimension of dimensions) {
+    let rebuildLookup = false;
+    if (DateDimensionTypes.includes(dimension.type)) {
+      const extractor = dimension.extractor as DateExtractor;
+      if (!extractor.lookupTableStart) rebuildLookup = true;
+    }
+    if (!dimension.lookupTable) {
+      rebuildLookup = true;
+    } else {
+      const lookupId = dimension.lookupTable.id || '';
+      if (!loadedLookupTables.some((t) => t.table_name === lookupId)) rebuildLookup = true;
+    }
+    if (!rebuildLookup) continue;
+    logger.warn(`The lookup table for ${dimension.type} dimension with id ${dimension.id} is missing.  Rebuilding...`);
+
+    const factTableCol = dataset.factTable!.find(
+      (factTableCol) => factTableCol.columnName === dimension.factTableColumn
+    );
+
+    if (!factTableCol) {
+      logger.warn('Dimension has no matching fact table column, skipping.  This may result in cube build failures');
+      continue;
+    }
+
+    if (DateDimensionTypes.includes(dimension.type)) {
+      try {
+        const actionId = randomUUID();
+        await createDateTableInValidationCube(revisionSchema, datasetId, actionId, factTableCol, dimension);
+      } catch (err) {
+        logger.error(err, 'Failed to recreate date lookup table and save to database');
+        throw err;
+      }
+    } else {
+      let filePath: string;
+      try {
+        filePath = await getFileImportAndSaveToDisk(dataset, dimension.lookupTable!);
+      } catch (err) {
+        logger.error(err, 'Failed to get file from blob storage and save it to disk');
+        throw err;
+      }
+      try {
+        await loadFileIntoLookupTablesSchema(
+          dataset,
+          dimension.lookupTable!,
+          dimension.extractor as LookupTableExtractor,
+          factTableCol,
+          dimension.joinColumn!,
+          filePath
+        );
+      } catch (err) {
+        logger.error(err, 'Failed to recreate lookup table in database.');
+        throw err;
+      }
+    }
+  }
+  const revisedDimensions = await Dimension.findBy({ datasetId: datasetId });
+  const coverage = revisionStartAndEndDateFinder(revisedDimensions);
+  const rev = await Revision.findOneByOrFail({ id: revisionId });
+  rev.startDate = coverage.startDate;
+  rev.endDate = coverage.endDate;
+  await rev.save();
+};
+
+async function bootStrapValidationTable(revisionSchema: string, dataset: Dataset): Promise<void> {
+  const queryRunner = dbManager.getCubeDataSource().createQueryRunner();
+  const checkForValidationTableQuery = pgformat(
+    `SELECT table_name FROM information_schema.tables WHERE table_schema = %L AND table_name = %L`,
+    revisionSchema,
+    VALIDATION_TABLE_NAME
+  );
+  try {
+    const validationTableExists = await queryRunner.query(checkForValidationTableQuery);
+    if (validationTableExists.length > 0) {
+      return;
+    }
+  } catch (err) {
+    void queryRunner.release();
+    logger.fatal(
+      err,
+      'Something went wrong trying to query the postgres information_schema.  Database connection not available?'
+    );
+    throw err;
+  }
+  const transactionBlock = setupValidationTableFromDataset(revisionSchema, dataset);
+  try {
+    await queryRunner.query(transactionBlock.statements.join('\n'));
+  } catch (err) {
+    logger.warn(err, `Something went wrong trying to create new validation table for revision ${revisionSchema}`);
+    throw err;
+  } finally {
+    void queryRunner.release();
+  }
+}

@@ -5,7 +5,6 @@ import Cursor from 'pg-cursor';
 import { format as pgformat } from '@scaleleap/pg-format/lib/pg-format';
 import { format as csvFormat } from '@fast-csv/format';
 
-import { Revision } from '../entities/dataset/revision';
 import { validateParams } from '../validators/preview-validator';
 import { ViewDTO, ViewErrDTO } from '../dtos/view-dto';
 import { DatasetDTO } from '../dtos/dataset-dto';
@@ -97,10 +96,10 @@ export function transformHierarchy(factTableColumn: string, columnName: string, 
   };
 }
 
-export const getFilters = async (revision: Revision, language: string): Promise<FilterTable[]> => {
+export const getFilters = async (revisionId: string, language: string): Promise<FilterTable[]> => {
   const cubeDB = dbManager.getCubeDataSource().createQueryRunner();
   try {
-    const filterTableQuery = pgformat('SELECT * FROM %I.filter_table WHERE language = %L;', revision.id, language);
+    const filterTableQuery = pgformat('SELECT * FROM %I.filter_table WHERE language = %L;', revisionId, language);
     const filterTable: FilterRow[] = await cubeDB.query(filterTableQuery);
     const columnData = new Map<string, FilterRow[]>();
 
@@ -135,7 +134,7 @@ export const getFilters = async (revision: Revision, language: string): Promise<
 };
 
 function createBaseQuery(
-  revision: Revision,
+  revisionId: string,
   view: string,
   locale: string,
   columns: string[],
@@ -194,14 +193,14 @@ function createBaseQuery(
     throw err;
   }
 
-  let schemaID = pgformat('%I', revision.id);
+  let schemaID = pgformat('%I', revisionId);
   if (target !== 'postgres') {
-    schemaID = pgformat('%I.%I', target, revision.id);
+    schemaID = pgformat('%I.%I', target, revisionId);
   }
 
   if (columns[0] === '*') {
     return pgformat(
-      'SELECT * FROM %I.%I %s %s',
+      'SELECT * FROM %s.%I %s %s',
       schemaID,
       view,
       filterQuery ? `WHERE ${filterQuery}` : '',
@@ -209,9 +208,9 @@ function createBaseQuery(
     );
   } else {
     return pgformat(
-      'SELECT %s FROM %I.%I %s %s',
+      'SELECT %s FROM %s.%I %s %s',
       columns.join(', '),
-      revision.id,
+      schemaID,
       view,
       filterQuery ? `WHERE ${filterQuery}` : '',
       sortByQuery ? `ORDER BY ${sortByQuery}` : ''
@@ -219,7 +218,7 @@ function createBaseQuery(
   }
 }
 
-async function coreViewChooser(lang: string, revision: Revision): Promise<string> {
+async function coreViewChooser(lang: string, revisionId: string): Promise<string> {
   let availableMaterializedView: { matviewname: string }[];
   const cubeDB = dbManager.getCubeDataSource().createQueryRunner();
   try {
@@ -227,14 +226,14 @@ async function coreViewChooser(lang: string, revision: Revision): Promise<string
       pgformat(
         `SELECT * FROM pg_matviews WHERE matviewname = %L AND schemaname = %L;`,
         `${CORE_VIEW_NAME}_mat_${lang}`,
-        revision.id
+        revisionId
       )
     );
   } catch (err) {
     logger.error(err, 'Unable to query available views from postgres');
     throw err;
   } finally {
-    cubeDB.release();
+    void cubeDB.release();
   }
 
   if (availableMaterializedView.length > 0) {
@@ -255,7 +254,7 @@ async function getColumns(revisionId: string, lang: string, view: string): Promi
     logger.error(err, 'Unable to get columns from cube metadata table');
     throw err;
   } finally {
-    cubeDB.release();
+    void cubeDB.release();
   }
 
   let columns = ['*'];
@@ -279,7 +278,7 @@ interface FactTableToDimensionName {
 
 export const createFrontendView = async (
   dataset: Dataset,
-  revision: Revision,
+  revisionId: string,
   locale: string,
   pageNumber: number,
   pageSize: number,
@@ -292,20 +291,20 @@ export const createFrontendView = async (
   const filterTableQuery = dbManager.getCubeDataSource().createQueryRunner();
   try {
     filterTableColumnQueryResult = await filterTableQuery.query(
-      pgformat('SELECT DISTINCT fact_table_column, dimension_name, language FROM %I.filter_table;', revision.id)
+      pgformat('SELECT DISTINCT fact_table_column, dimension_name, language FROM %I.filter_table;', revisionId)
     );
   } catch (err) {
     logger.error(err, 'Unable to get dimension and fact table column names from cube');
     throw err;
   } finally {
-    filterTableQuery.release();
+    void filterTableQuery.release();
   }
 
-  const coreView = await coreViewChooser(lang, revision);
-  const selectColumns = await getColumns(revision.id, lang, 'frontend');
+  const coreView = await coreViewChooser(lang, revisionId);
+  const selectColumns = await getColumns(revisionId, lang, 'frontend');
 
   const baseQuery = createBaseQuery(
-    revision,
+    revisionId,
     coreView,
     locale,
     selectColumns,
@@ -323,7 +322,7 @@ export const createFrontendView = async (
     logger.error(err, 'Failed to extract totals using the base query');
     throw err;
   } finally {
-    totalsQueryConnection.release();
+    void totalsQueryConnection.release();
   }
   const totalLines = Number(totals[0].totalLines);
   const totalPages = Math.max(1, Math.ceil(totalLines / pageSize));
@@ -342,7 +341,7 @@ export const createFrontendView = async (
     logger.error(err, `Something went wrong trying to get cube data`);
     throw err;
   } finally {
-    cubeDB.release();
+    void cubeDB.release();
   }
   const startLine = pageSize * (pageNumber - 1) + 1;
 
@@ -390,14 +389,14 @@ export const createFrontendView = async (
     note_codes = (
       await noteCodeQueryConnection.query(
         `SELECT DISTINCT UNNEST(STRING_TO_ARRAY(code, ',')) AS code
-          FROM "${revision.id}".all_notes
+          FROM "${revisionId}".all_notes
           ORDER BY code ASC`
       )
     )?.map((row: { code: string }) => row.code);
   } catch (err) {
     logger.error(err, `Something went wrong trying to fetch the used note codes`);
   } finally {
-    noteCodeQueryConnection.release();
+    void noteCodeQueryConnection.release();
   }
 
   return {
@@ -418,7 +417,7 @@ export const createFrontendView = async (
 
 export const createStreamingJSONFilteredView = async (
   res: Response,
-  revision: Revision,
+  revisionId: string,
   locale: string,
   view = 'raw',
   sortBy?: SortByInterface[],
@@ -429,14 +428,14 @@ export const createStreamingJSONFilteredView = async (
   const viewName = checkAvailableViews(view);
   const [cubeDBConn] = (await dbManager.getCubeDataSource().driver.obtainMasterConnection()) as [PoolClient];
   const filterTableColumnQueryResult: QueryResult<FactTableToDimensionName> = await cubeDBConn.query(
-    pgformat('SELECT DISTINCT fact_table_column, dimension_name, language FROM %I.filter_table;', revision.id)
+    pgformat('SELECT DISTINCT fact_table_column, dimension_name, language FROM %I.filter_table;', revisionId)
   );
 
   try {
-    const coreView = await coreViewChooser(lang, revision);
-    const selectColumns = await getColumns(revision.id, lang, viewName);
+    const coreView = await coreViewChooser(lang, revisionId);
+    const selectColumns = await getColumns(revisionId, lang, viewName);
     const baseQuery = createBaseQuery(
-      revision,
+      revisionId,
       coreView,
       locale,
       selectColumns,
@@ -473,7 +472,7 @@ export const createStreamingJSONFilteredView = async (
 
 export const createStreamingCSVFilteredView = async (
   res: Response,
-  revision: Revision,
+  revisionId: string,
   locale: string,
   view = 'raw',
   sortBy?: SortByInterface[],
@@ -484,14 +483,14 @@ export const createStreamingCSVFilteredView = async (
   const viewName = checkAvailableViews(view);
   const [cubeDBConn] = (await dbManager.getCubeDataSource().driver.obtainMasterConnection()) as [PoolClient];
   const filterTableColumnQueryResult: QueryResult<FactTableToDimensionName> = await cubeDBConn.query(
-    pgformat('SELECT DISTINCT fact_table_column, dimension_name, language FROM %I.filter_table;', revision.id)
+    pgformat('SELECT DISTINCT fact_table_column, dimension_name, language FROM %I.filter_table;', revisionId)
   );
 
   try {
-    const coreView = await coreViewChooser(lang, revision);
-    const selectColumns = await getColumns(revision.id, lang, viewName);
+    const coreView = await coreViewChooser(lang, revisionId);
+    const selectColumns = await getColumns(revisionId, lang, viewName);
     const baseQuery = createBaseQuery(
-      revision,
+      revisionId,
       coreView,
       locale,
       selectColumns,
@@ -526,7 +525,7 @@ export const createStreamingCSVFilteredView = async (
 
 export const createStreamingExcelFilteredView = async (
   res: Response,
-  revision: Revision,
+  revisionId: string,
   locale: string,
   view = 'raw',
   sortBy?: SortByInterface[],
@@ -537,14 +536,14 @@ export const createStreamingExcelFilteredView = async (
   const viewName = checkAvailableViews(view);
   const [cubeDBConn] = (await dbManager.getCubeDataSource().driver.obtainMasterConnection()) as [PoolClient];
   const filterTableColumnQueryResult: QueryResult<FactTableToDimensionName> = await cubeDBConn.query(
-    pgformat('SELECT DISTINCT fact_table_column, dimension_name, language FROM %I.filter_table;', revision.id)
+    pgformat('SELECT DISTINCT fact_table_column, dimension_name, language FROM %I.filter_table;', revisionId)
   );
 
   try {
-    const coreView = await coreViewChooser(lang, revision);
-    const selectColumns = await getColumns(revision.id, lang, viewName);
+    const coreView = await coreViewChooser(lang, revisionId);
+    const selectColumns = await getColumns(revisionId, lang, viewName);
     const baseQuery = createBaseQuery(
-      revision,
+      revisionId,
       coreView,
       locale,
       selectColumns,
@@ -558,11 +557,11 @@ export const createStreamingExcelFilteredView = async (
       // eslint-disable-next-line @typescript-eslint/naming-convention
       'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
       // eslint-disable-next-line @typescript-eslint/naming-convention
-      'Content-disposition': `attachment;filename=${revision.id}.xlsx`
+      'Content-disposition': `attachment;filename=${revisionId}.xlsx`
     });
     res.flushHeaders();
     const workbook = new ExcelJS.stream.xlsx.WorkbookWriter({
-      filename: `${revision.id}.xlsx`,
+      filename: `${revisionId}.xlsx`,
       useStyles: true,
       useSharedStrings: true,
       stream: res
@@ -632,7 +631,7 @@ function createSQLStandardPivotQuery(
 
 export const createStreamingPostgresPivotView = async (
   res: Response,
-  revision: Revision,
+  revisionId: string,
   locale: string,
   xAxis: string,
   yAxis: string,
@@ -644,7 +643,7 @@ export const createStreamingPostgresPivotView = async (
   const factTableColToDimensionRunner = dbManager.getCubeDataSource().createQueryRunner();
   const factTableColToDimensionQuery = pgformat(
     'SELECT DISTINCT fact_table_column, dimension_name, language FROM %I.filter_table;',
-    revision.id
+    revisionId
   );
   let filterTableColumnQueryResult: FactTableToDimensionName[];
   try {
@@ -697,7 +696,7 @@ export const createStreamingPostgresPivotView = async (
 
   const xAxisValuesQuery = pgformat(
     'SELECT description FROM %I.filter_table WHERE language LIKE %L AND dimension_name = %L',
-    revision.id,
+    revisionId,
     `${locale.toLowerCase()}%`,
     xAxis
   );
@@ -716,9 +715,9 @@ export const createStreamingPostgresPivotView = async (
   // queryRunner.query() does not support Cursor so we need to obtain underlying PostgreSQL connection
   const [cubeDBConn] = (await dbManager.getCubeDataSource().driver.obtainMasterConnection()) as [PoolClient];
   try {
-    const coreView = await coreViewChooser(lang, revision);
+    const coreView = await coreViewChooser(lang, revisionId);
     const pivotQuery = createSQLStandardPivotQuery(
-      revision.id,
+      revisionId,
       coreView,
       lang,
       xAxisField,
@@ -765,7 +764,7 @@ export const createStreamingPostgresPivotView = async (
 
 export const createStreamingDuckDBPivotView = async (
   res: Response,
-  revision: Revision,
+  revisionId: string,
   locale: string,
   view = 'raw',
   xAxisColumn: string,
@@ -781,7 +780,7 @@ export const createStreamingDuckDBPivotView = async (
   let filterTableColumnQueryResult: FactTableToDimensionName[];
   const filterTableQuery = pgformat(
     'SELECT DISTINCT fact_table_column, dimension_name, language FROM %I.filter_table;',
-    revision.id
+    revisionId
   );
   try {
     logger.trace(`Running filter table query:\n\n${filterTableQuery}\n\n`);
@@ -796,8 +795,8 @@ export const createStreamingDuckDBPivotView = async (
   let coreView: string;
   let selectColumns: string[];
   try {
-    coreView = await coreViewChooser(lang, revision);
-    selectColumns = await getColumns(revision.id, lang, viewName);
+    coreView = await coreViewChooser(lang, revisionId);
+    selectColumns = await getColumns(revisionId, lang, viewName);
   } catch (error) {
     logger.error(error, 'Something went wrong trying to get metadata about the cube');
     throw new UnknownException('errors.unknown_error');
@@ -806,7 +805,7 @@ export const createStreamingDuckDBPivotView = async (
   let baseQuery: string;
   try {
     baseQuery = createBaseQuery(
-      revision,
+      revisionId,
       coreView,
       locale,
       selectColumns,

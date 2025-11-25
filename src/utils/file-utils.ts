@@ -1,26 +1,32 @@
 import { writeFile } from 'node:fs/promises';
-
-import { format as pgformat } from '@scaleleap/pg-format';
 import { randomUUID } from 'node:crypto';
+import { performance } from 'node:perf_hooks';
+
+import JSZip from 'jszip';
+import { DuckDBConnection } from '@duckdb/node-api';
+import { format as pgformat } from '@scaleleap/pg-format';
 
 import { Dataset } from '../entities/dataset/dataset';
 import { FileImportInterface } from '../entities/dataset/file-import.interface';
 import { FileType } from '../enums/file-type';
-
 import { logger } from './logger';
 import { getFileService } from './get-file-service';
 import { asyncTmpName } from './async-tmp';
 import { duckdb } from '../services/duckdb';
 import { FACT_TABLE_NAME } from '../services/cube-builder';
 import { DataTable } from '../entities/dataset/data-table';
-import { performance } from 'node:perf_hooks';
 import { performanceReporting } from './performance-reporting';
 import { LookupTable } from '../entities/dataset/lookup-table';
 import { LookupTableExtractor } from '../extractors/lookup-table-extractor';
 import { FactTableColumn } from '../entities/dataset/fact-table-column';
-import { SUPPORTED_LOCALES } from '../middleware/translation';
+import { SUPPORTED_LOCALES, t } from '../middleware/translation';
 import { languageMatcherCaseStatement } from './lookup-table-utils';
-import { DuckDBConnection } from '@duckdb/node-api';
+import { runQueryBlock } from './run-query-block';
+import { FileImportDto } from '../dtos/file-import';
+import { FileImportType } from '../enums/file-import-type';
+import { DatasetRepository } from '../repositories/dataset';
+import { DataLakeFileEntry } from '../interfaces/datalake-file-entry';
+import { StorageService } from '../interfaces/storage-service';
 
 export const getFileImportAndSaveToDisk = async (
   dataset: Dataset,
@@ -58,15 +64,23 @@ export const createLookupTableQuery = (
   schemaName: string,
   lookupTableName: string,
   referenceColumnName: string,
-  referenceColumnType: string
+  referenceColumnType: string,
+  otherColumns?: string[]
 ): string => {
+  const otherColumnsStatement: string[] = [];
+  if (otherColumns && otherColumns.length > 0) {
+    otherColumns.forEach((column) => {
+      otherColumnsStatement.push(pgformat('%I text', column));
+    });
+  }
   return pgformat(
-    'CREATE TABLE %I.%I (%I %s NOT NULL, language VARCHAR(5) NOT NULL, description TEXT NOT NULL, notes TEXT, sort_order INTEGER, hierarchy %s);',
+    'CREATE TABLE %I.%I (%I %s NOT NULL, language VARCHAR(5) NOT NULL, description TEXT NOT NULL, notes TEXT, sort_order INTEGER, hierarchy %s %s);',
     schemaName,
     lookupTableName,
     referenceColumnName,
     referenceColumnType,
-    referenceColumnType
+    referenceColumnType,
+    otherColumnsStatement.length > 0 ? `, ${otherColumnsStatement.join(', ')}` : ''
   );
 };
 
@@ -141,10 +155,12 @@ export async function loadFileIntoLookupTablesSchema(
     await quack.run(builtInsertQuery);
   }
   logger.debug(`Dropping original lookup table ${lookupTableName}`);
-  await quack.run(pgformat('DROP TABLE %I.%I', 'memory', lookupTableName));
-  await quack.run(
+  const statements = [
+    pgformat('DROP TABLE %I.%I;', 'memory', lookupTableName),
+    pgformat('DROP TABLE IF EXISTS %I.%I;', 'lookup_tables_db', lookupTable.id),
     pgformat('CREATE TABLE %I.%I AS SELECT * FROM %I.%I;', 'lookup_tables_db', lookupTable.id, 'memory', dimTable)
-  );
+  ];
+  await quack.run(statements.join('\n'));
   quack.disconnectSync();
   performanceReporting(Math.round(start - performance.now()), 500, 'Loading a lookup table in to postgres');
 }
@@ -182,5 +198,179 @@ export const loadFileIntoCube = async (
   } catch (error) {
     logger.error(error, `Failed to load file in to DuckDB.`);
     throw error;
+  }
+};
+
+export async function convertLookupTableToSW3Format(
+  mockCubeId: string,
+  lookupTable: LookupTable,
+  extractor: LookupTableExtractor,
+  factTableColumn: FactTableColumn,
+  lookupReferenceColumn: string
+): Promise<void> {
+  const statements = ['BEGIN TRANSACTION;'];
+  statements.push(
+    createLookupTableQuery(
+      mockCubeId,
+      lookupTable.id,
+      factTableColumn.columnName,
+      factTableColumn.columnDatatype,
+      extractor.otherColumns
+    )
+  );
+  let additionalCols: string[] | undefined;
+  if (extractor.otherColumns && extractor.otherColumns.length > 0) {
+    additionalCols = extractor.otherColumns.map((col) => pgformat('CAST (%I AS TEXT)', col));
+  }
+
+  logger.debug(`Converting lookup table using extractor: ${JSON.stringify(extractor, null, 2)}`);
+
+  if (extractor.isSW2Format) {
+    const dataExtractorParts = [];
+    for (const locale of SUPPORTED_LOCALES) {
+      const descriptionCol = extractor.descriptionColumns.find(
+        (col) => col.lang.toLowerCase() === locale.toLowerCase()
+      );
+      const notesCol = extractor.notesColumns?.find((col) => col.lang.toLowerCase() === locale.toLowerCase());
+      const notesColStr = notesCol ? pgformat('%I', notesCol.name) : 'NULL';
+      const sortStr = extractor.sortColumn ? pgformat('%I', extractor.sortColumn) : 'NULL';
+      const hierarchyCol = extractor.hierarchyColumn
+        ? pgformat('%I', extractor.hierarchyColumn)
+        : pgformat('CAST(NULL AS %s)', factTableColumn.columnDatatype);
+      dataExtractorParts.push(
+        pgformat(
+          'SELECT %I AS %I, %L as language, %I as description, %s as notes, %s as sort_order, %s as hierarchy %s FROM %I.%I',
+          lookupReferenceColumn,
+          factTableColumn.columnName,
+          locale.toLowerCase(),
+          descriptionCol?.name,
+          notesColStr,
+          sortStr,
+          hierarchyCol,
+          additionalCols ? `, ${additionalCols.join(', ')}` : '',
+          mockCubeId,
+          `lookup_table`
+        )
+      );
+    }
+    statements.push(pgformat(`INSERT INTO %I.%I %s;`, mockCubeId, lookupTable.id, dataExtractorParts.join(' UNION ')));
+  } else {
+    const languageMatcher = languageMatcherCaseStatement(extractor.languageColumn);
+    const notesStr = extractor.notesColumns ? pgformat('%I', extractor.notesColumns[0].name) : 'NULL';
+    const sortStr = extractor.sortColumn ? pgformat('%I', extractor.sortColumn) : 'NULL';
+    const hierarchyStr = extractor.hierarchyColumn
+      ? pgformat('%I', extractor.hierarchyColumn)
+      : pgformat('CAST(NULL AS %s)', factTableColumn.columnDatatype);
+    const dataExtractorParts = pgformat(
+      `SELECT %I AS %I, %s as language, %I as description, %s as notes, %s as sort_order, %s as hierarchy %s FROM %I.%I;`,
+      lookupReferenceColumn,
+      factTableColumn.columnName,
+      languageMatcher,
+      extractor.descriptionColumns[0].name,
+      notesStr,
+      sortStr,
+      hierarchyStr,
+      additionalCols ? `, ${additionalCols.join(', ')}` : '',
+      mockCubeId,
+      `lookup_table`
+    );
+    statements.push(pgformat(`INSERT INTO %I.%I %s`, mockCubeId, lookupTable.id, dataExtractorParts));
+  }
+
+  for (const locale of SUPPORTED_LOCALES) {
+    statements.push(
+      pgformat(
+        'UPDATE %I.%I SET language = %L WHERE language = lower(%L);',
+        mockCubeId,
+        lookupTable.id,
+        locale.toLowerCase(),
+        locale.split('-')[0]
+      )
+    );
+    statements.push(
+      pgformat(
+        'UPDATE %I.%I SET language = %L WHERE language = lower(%L);',
+        mockCubeId,
+        lookupTable.id,
+        locale.toLowerCase(),
+        locale.toLowerCase()
+      )
+    );
+    for (const sublocale of SUPPORTED_LOCALES) {
+      statements.push(
+        pgformat(
+          'UPDATE %I.%I SET language = %L WHERE language = lower(%L);',
+          mockCubeId,
+          lookupTable.id,
+          sublocale.toLowerCase(),
+          t(`language.${sublocale.split('-')[0]}`, { lng: locale })
+        ).toLowerCase()
+      );
+    }
+  }
+
+  statements.push('COMMIT;');
+  logger.debug('Converting lookup table to correct SW3 format');
+  return runQueryBlock(statements);
+}
+
+export const collectFiles = async (datasetId: string): Promise<Map<string, FileImportDto>> => {
+  const files = new Map<string, FileImportDto>();
+
+  const dataset = await DatasetRepository.getById(datasetId, {
+    measure: { lookupTable: true },
+    dimensions: { lookupTable: true },
+    revisions: { dataTable: true }
+  });
+
+  if (dataset?.measure && dataset.measure.lookupTable) {
+    const fileImport = FileImportDto.fromFileImport(dataset.measure.lookupTable);
+    fileImport.type = FileImportType.Measure;
+    fileImport.parent_id = dataset.id;
+    files.set(dataset.measure.lookupTable.filename, fileImport);
+  }
+
+  dataset?.dimensions?.forEach((dimension) => {
+    if (dimension.lookupTable) {
+      const fileImport = FileImportDto.fromFileImport(dimension.lookupTable);
+      fileImport.type = FileImportType.Dimension;
+      fileImport.parent_id = dimension.id;
+      files.set(dimension.lookupTable.filename, fileImport);
+    }
+  });
+
+  dataset?.revisions?.forEach((revision) => {
+    if (revision.dataTable) {
+      const fileImport = FileImportDto.fromFileImport(revision.dataTable);
+      fileImport.type = FileImportType.DataTable;
+      fileImport.parent_id = revision.id;
+      files.set(revision.dataTable.filename, fileImport);
+    }
+  });
+
+  return files;
+};
+
+export const addDirectoryToZip = async (
+  zip: JSZip,
+  datasetFiles: Map<string, FileImportDto>,
+  directory: string,
+  fileService: StorageService
+): Promise<void> => {
+  const directoryList = await fileService.listFiles(directory);
+  for (const fileEntry of directoryList) {
+    let filename: string;
+    if ((fileEntry as DataLakeFileEntry).name) {
+      const entry = fileEntry as DataLakeFileEntry;
+      if (entry.isDirectory) {
+        await addDirectoryToZip(zip, datasetFiles, `${directory}/${entry.name}`, fileService);
+        continue;
+      }
+      filename = (fileEntry as DataLakeFileEntry).name;
+    } else {
+      filename = fileEntry as string;
+    }
+    const originalFilename = datasetFiles.get(filename)?.filename || filename;
+    zip.file(originalFilename, await fileService.loadBuffer(filename, directory));
   }
 };

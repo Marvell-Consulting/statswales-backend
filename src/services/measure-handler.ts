@@ -28,7 +28,7 @@ import { MeasureRow } from '../entities/dataset/measure-row';
 import { SUPPORTED_LOCALES } from '../middleware/translation';
 import { DisplayType } from '../enums/display-type';
 import { getFileService } from '../utils/get-file-service';
-import { FACT_TABLE_NAME, measureTableCreateStatement } from './cube-builder';
+import { measureTableCreateStatement, VALIDATION_TABLE_NAME } from './cube-builder';
 import { FileValidationErrorType, FileValidationException } from '../exceptions/validation-exception';
 import { FactTableColumn } from '../entities/dataset/fact-table-column';
 import { Locale } from '../enums/locale';
@@ -126,10 +126,11 @@ function createExtractor(
     const descriptionStr = t('lookup_column_headers.description', { lng: tableLanguage });
     const langStr = t('lookup_column_headers.lang', { lng: tableLanguage });
     let notesColumns: ColumnDescriptor[] | undefined;
-    if (protoLookupTable.dataTableDescriptions.filter((info) => info.columnName.toLowerCase().startsWith(noteStr)))
+    if (protoLookupTable.dataTableDescriptions.filter((info) => info.columnName.toLowerCase().startsWith(noteStr))) {
       notesColumns = protoLookupTable.dataTableDescriptions
         .filter((info) => info.columnName.toLowerCase().startsWith(noteStr))
         .map((info) => columnIdentification(info));
+    }
     const extractor = {
       tableLanguage,
       sortColumn: protoLookupTable.dataTableDescriptions.find((info) =>
@@ -641,10 +642,11 @@ async function getMeasurePreviewWithoutExtractor(
   try {
     preview = await cubeDB.query(
       pgformat(
-        'SELECT DISTINCT %I FROM %I.%I ORDER BY %I ASC LIMIT %L;',
+        'SELECT DISTINCT reference AS %I FROM %I.%I WHERE fact_table_column = %L ORDER BY %I ASC LIMIT %L;',
         measure.factTableColumn,
         revision.id,
-        FACT_TABLE_NAME,
+        VALIDATION_TABLE_NAME,
+        measure.factTableColumn,
         measure.factTableColumn,
         sampleSize
       )
@@ -746,8 +748,9 @@ export const getMeasurePreview = async (
     // If there's a revision task for the measure empty the measure table to preview the raw column
     if (revisionTasks && revisionTasks.measure) measure.measureTable = [];
 
-    if (measure.measureTable && measure.measureTable.length > 0)
+    if (measure.measureTable && measure.measureTable.length > 0) {
       return await getMeasurePreviewWithExtractor(dataset, measure, dataset.draftRevision!, lang);
+    }
 
     return await getMeasurePreviewWithoutExtractor(dataset, measure, dataset.draftRevision!);
   } catch (error) {

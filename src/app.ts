@@ -27,6 +27,7 @@ import { userRouter } from './routes/user';
 import { publicApiRouter } from './routes/consumer/v1/api';
 import { apiDocRouter } from './routes/consumer/v1/docs';
 import { strictTransport } from './middleware/strict-transport';
+import { buildLogRouter } from './routes/build-log';
 
 const app: Application = express();
 checkConfig();
@@ -52,6 +53,7 @@ const jwtAuth = passport.authenticate('jwt', { session: false });
 
 // authenticated routes
 app.use('/dataset', rateLimiter, jwtAuth, datasetRouter);
+app.use('/build', rateLimiter, jwtAuth, buildLogRouter);
 app.use('/provider', rateLimiter, jwtAuth, providerRouter);
 app.use('/topic', rateLimiter, jwtAuth, topicRouter);
 app.use('/organisation', rateLimiter, jwtAuth, organisationRouter);

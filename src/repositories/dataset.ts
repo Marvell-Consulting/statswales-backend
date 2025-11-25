@@ -78,14 +78,6 @@ export const withDimensions: FindOptionsRelations<Dataset> = {
   dimensions: { metadata: true, lookupTable: true }
 };
 
-export const withDraftForCube: FindOptionsRelations<Dataset> = {
-  factTable: true,
-  draftRevision: { dataTable: { dataTableDescriptions: true } },
-  dimensions: { metadata: true, lookupTable: true },
-  measure: { metadata: true, measureTable: true, lookupTable: true },
-  revisions: { dataTable: { dataTableDescriptions: true } }
-};
-
 const listAllQuery = (qb: QueryBuilder<Dataset>, lang: Locale): SelectQueryBuilder<Dataset> => {
   return qb
     .select(['d.id AS id', 'r.title AS title', 'r.title_alt AS title_alt', 'r.updated_at AS last_updated_at'])
@@ -269,15 +261,13 @@ export const DatasetRepository = dataSource.getRepository(Dataset).extend({
     return { data, count };
   },
 
-  async publish(revision: Revision, startDate: Date | null, endDate: Date | null): Promise<Dataset> {
+  async publish(revision: Revision): Promise<Dataset> {
     const dataset = await this.getById(revision.datasetId, { startRevision: true });
 
     if (!dataset.startRevision) {
       throw new Error(`Dataset ${dataset.id} does not have a start revision`);
     }
 
-    dataset.startDate = startDate;
-    dataset.endDate = endDate;
     dataset.draftRevision = null;
     dataset.publishedRevision = revision;
     dataset.firstPublishedAt = dataset.startRevision!.publishAt;
