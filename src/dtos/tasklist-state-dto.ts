@@ -266,9 +266,11 @@ export class TasklistStateDTO {
     const dataTableComplete = isUpdate || dto.datatable === TaskListStatus.Completed;
     const dimensionsComplete =
       isUpdate || (dataTableComplete && every(dto.dimensions, (dim) => dim.status === TaskListStatus.Completed));
-    const metadataComplete =
-      (isUpdate && dto.metadata.reason === TaskListStatus.Completed) ||
-      every(dto.metadata, (status) => status === TaskListStatus.Completed);
+
+    const metadataComplete = isUpdate
+      ? dto.metadata.reason === TaskListStatus.Completed
+      : every(dto.metadata, (status) => status === TaskListStatus.Completed);
+
     const publishingComplete = every(dto.publishing, (status) => status === TaskListStatus.Completed);
     const translationsComplete = [TaskListStatus.Completed, TaskListStatus.Unchanged].includes(dto.translation.import);
 
