@@ -223,7 +223,8 @@ export const PublishedDatasetRepository = dataSource.getRepository(Dataset).exte
       where: {
         datasetId,
         publishAt: And(Not(IsNull()), LessThan(now)),
-        approvedAt: And(Not(IsNull()), LessThan(now))
+        approvedAt: And(Not(IsNull()), LessThan(now)),
+        unpublishedAt: IsNull()
       },
       order: {
         publishAt: 'DESC'
