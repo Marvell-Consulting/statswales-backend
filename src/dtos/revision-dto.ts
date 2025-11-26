@@ -33,6 +33,8 @@ export class RevisionDTO {
   related_links?: RelatedLinkDTO[];
   providers?: RevisionProviderDTO[];
   topics?: TopicDTO[];
+  coverage_start_date?: Date | null;
+  coverage_end_date?: Date | null;
 
   tasks?: RevisionTask;
 
@@ -51,6 +53,8 @@ export class RevisionDTO {
     revDto.approved_at = revision.approvedAt?.toISOString();
     revDto.approved_by = revision.approvedBy?.name;
     revDto.created_by = revision.createdBy?.name;
+    revDto.coverage_start_date = revision.startDate;
+    revDto.coverage_end_date = revision.endDate;
 
     if (revision.dataTable) {
       revDto.data_table = DataTableDto.fromDataTable(revision.dataTable);
