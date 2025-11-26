@@ -5,7 +5,8 @@ export const translatableMetadataKeys: (keyof RevisionMetadata)[] = [
   'summary',
   'collection',
   'quality',
-  'roundingDescription'
+  'roundingDescription',
+  'reason'
 ] as const;
 
 export type TranslatableMetadataKey = (typeof translatableMetadataKeys)[number];
