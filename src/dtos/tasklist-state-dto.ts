@@ -20,6 +20,7 @@ export interface MetadataStatus {
   related: TaskListStatus;
   sources: TaskListStatus;
   topics: TaskListStatus;
+  reason?: TaskListStatus;
 }
 
 export interface TranslationStatus {
@@ -147,7 +148,8 @@ export class TasklistStateDTO {
         topics: isEqual(topics, prevTopics) ? TaskListStatus.Unchanged : TaskListStatus.Updated,
         related: isEqual(prevRevision.relatedLinks, revision.relatedLinks)
           ? TaskListStatus.Unchanged
-          : TaskListStatus.Updated
+          : TaskListStatus.Updated,
+        reason: metadata.reason ? TaskListStatus.Completed : TaskListStatus.NotStarted
       };
     }
 
@@ -264,7 +266,11 @@ export class TasklistStateDTO {
     const dataTableComplete = isUpdate || dto.datatable === TaskListStatus.Completed;
     const dimensionsComplete =
       isUpdate || (dataTableComplete && every(dto.dimensions, (dim) => dim.status === TaskListStatus.Completed));
-    const metadataComplete = isUpdate || every(dto.metadata, (status) => status === TaskListStatus.Completed);
+
+    const metadataComplete = isUpdate
+      ? dto.metadata.reason === TaskListStatus.Completed
+      : every(dto.metadata, (status) => status === TaskListStatus.Completed);
+
     const publishingComplete = every(dto.publishing, (status) => status === TaskListStatus.Completed);
     const translationsComplete = [TaskListStatus.Completed, TaskListStatus.Unchanged].includes(dto.translation.import);
 
