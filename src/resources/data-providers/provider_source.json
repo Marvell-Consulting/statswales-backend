@@ -4544,5 +4544,53 @@
     "language": "en-gb",
     "name": "Incident Recording System",
     "provider_id": "0333a8dc-d7b0-49ff-bb8e-93f2ec41aaf0"
+  },
+  {
+    "id": "59886dcf-30bf-41ad-a08d-6c51777411ad",
+    "language": "cy-gb",
+    "name": "Arolwg Adnoddau Teuluol (FRS)",
+    "provider_id": "e850ccdb-79de-4c48-9762-30018a61c7e0"
+  },
+  {
+    "id": "59886dcf-30bf-41ad-a08d-6c51777411ad",
+    "language": "en-gb",
+    "name": "Family Resources Survey (FRS)",
+    "provider_id": "e850ccdb-79de-4c48-9762-30018a61c7e0"
+  },
+  {
+    "id": "60ea18e3-566b-4588-ba75-d0a6edeba414",
+    "language": "cy-gb",
+    "name": "Safon Ansawdd Tai Cymru (WHQS)",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "60ea18e3-566b-4588-ba75-d0a6edeba414",
+    "language": "en-gb",
+    "name": "Welsh Housing Quality Standard (WHQS)",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "5c0e7010-4855-461c-852e-e68c5216df35",
+    "language": "cy-gb",
+    "name": "Rhentu Doeth Cymru",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "5c0e7010-4855-461c-852e-e68c5216df35",
+    "language": "en-gb",
+    "name": "Rent Smart Wales",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "1c02107e-8931-4cd7-aac2-56af2e2e716c",
+    "language": "cy-gb",
+    "name": "Adroddiad Connected Nations",
+    "provider_id": "d315d747-41ec-4c1d-a051-75bdbe9acb3e"
+  },
+  {
+    "id": "1c02107e-8931-4cd7-aac2-56af2e2e716c",
+    "language": "en-gb",
+    "name": "Connected Nations report",
+    "provider_id": "d315d747-41ec-4c1d-a051-75bdbe9acb3e"
   }
 ]
