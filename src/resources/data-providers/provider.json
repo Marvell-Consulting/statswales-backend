@@ -638,5 +638,55 @@
     "id": "dad72f9a-0e82-413f-a86d-7f463b202ff0",
     "language": "en-gb",
     "name": "Registered Social Landlords (RSLs)"
+  },
+  {
+    "id": "d315d747-41ec-4c1d-a051-75bdbe9acb3e",
+    "language": "cy-gb",
+    "name": "Ofcom"
+  },
+  {
+    "id": "d315d747-41ec-4c1d-a051-75bdbe9acb3e",
+    "language": "en-gb",
+    "name": "Ofcom"
+  },
+  {
+    "id": "fad18a8a-5ee4-43a4-813a-82789725f187",
+    "language": "cy-gb",
+    "name": "Y Weinyddiaeth Tai, Cymunedau a Llywodraeth Leol"
+  },
+  {
+    "id": "fad18a8a-5ee4-43a4-813a-82789725f187",
+    "language": "en-gb",
+    "name": "Ministry of Housing Communities and Local Government"
+  },
+  {
+    "id": "d3c50b04-d0bb-4105-ac8d-375ddfd5d20a",
+    "language": "cy-gb",
+    "name": "Cyngor Prif Swyddogion Heddlu Cenedlaethol"
+  },
+  {
+    "id": "d3c50b04-d0bb-4105-ac8d-375ddfd5d20a",
+    "language": "en-gb",
+    "name": "National Police Chiefs Council"
+  },
+  {
+    "id": "4d188edd-4d86-466b-b1e9-1462dfa89ec9",
+    "language": "cy-gb",
+    "name": "Heddluoedd Cymru"
+  },
+  {
+    "id": "4d188edd-4d86-466b-b1e9-1462dfa89ec9",
+    "language": "en-gb",
+    "name": "Welsh police forces"
+  },
+  {
+    "id": "7499dd10-86c5-4292-9def-227775dd9747",
+    "language": "cy-gb",
+    "name": "Prifysgol Abertawe"
+  },
+  {
+    "id": "7499dd10-86c5-4292-9def-227775dd9747",
+    "language": "en-gb",
+    "name": "Swansea University"
   }
 ]
