@@ -12,6 +12,7 @@ export const collectTranslations = (dataset: Dataset, includeIds = false, revisi
 
   // ignore roundingDescription if rounding isn't applied
   const metadataKeys = translatableMetadataKeys.filter((key) => {
+    if (revision.revisionIndex === 1 && key === 'reason') return false; // don't include reason for first revision
     return revision.roundingApplied === true ? true : key !== 'roundingDescription';
   });
 
