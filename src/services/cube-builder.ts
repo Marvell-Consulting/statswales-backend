@@ -1973,7 +1973,7 @@ function setupMeasuresAndDataValues(
   orderByStatements: string[]
 ): TransactionBlock {
   let createMeasureTable = true;
-  if (revision.tasks && revision.tasks.measure) {
+  if (revision.tasks && revision.tasks.measure && !revision.tasks.measure.lookupTableUpdated) {
     createMeasureTable = false;
   }
 
