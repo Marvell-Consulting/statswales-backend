@@ -57,6 +57,10 @@ export class RevisionMetadataDTO {
   @IsOptional()
   designation?: Designation;
 
+  @IsString()
+  @IsOptional()
+  reason?: string;
+
   static fromRevisionMetadata(meta: RevisionMetadata): RevisionMetadataDTO {
     const dto = new RevisionMetadataDTO();
     dto.language = meta.language;
@@ -65,6 +69,7 @@ export class RevisionMetadataDTO {
     dto.collection = meta.collection;
     dto.quality = meta.quality;
     dto.rounding_description = meta.roundingDescription;
+    dto.reason = meta.reason ?? undefined;
 
     return dto;
   }
@@ -76,7 +81,8 @@ export class RevisionMetadataDTO {
       summary: dto.summary,
       collection: dto.collection,
       quality: dto.quality,
-      roundingDescription: dto.rounding_description
+      roundingDescription: dto.rounding_description,
+      reason: dto.reason
     };
 
     const revision: Partial<Revision> = {
