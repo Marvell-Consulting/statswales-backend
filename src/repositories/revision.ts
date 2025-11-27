@@ -180,6 +180,7 @@ export const RevisionRepository = dataSource.getRepository(Revision).extend({
     const metadata = prevRevision.metadata.map((meta) =>
       RevisionMetadata.create({
         ...meta,
+        reason: undefined,
         revision: undefined,
         createdAt: undefined,
         updatedAt: undefined
