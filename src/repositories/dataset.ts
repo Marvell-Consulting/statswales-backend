@@ -15,8 +15,6 @@ import { FactTableColumn } from '../entities/dataset/fact-table-column';
 import { FactTableColumnType } from '../enums/fact-table-column-type';
 import { User } from '../entities/user/user';
 import { getUserGroupIdsForUser } from '../utils/get-permissions-for-user';
-import { DatasetStats } from '../interfaces/dashboard-stats';
-import { CORE_VIEW_NAME } from '../services/cube-builder';
 
 export const withStandardPreview: FindOptionsRelations<Dataset> = {
   createdBy: true,
@@ -287,117 +285,5 @@ export const DatasetRepository = dataSource.getRepository(Dataset).extend({
     const dataset = await this.getById(datasetId);
     dataset.archivedAt = null;
     return await this.save(dataset);
-  },
-
-  async getDashboardStats(lang: Locale): Promise<DatasetStats> {
-    logger.debug('Getting dashboard statistics for datasets');
-
-    const coreViewName = `${CORE_VIEW_NAME}_mat_en`;
-
-    const statusQuery = this.query(`
-      WITH dataset_stats AS (
-        SELECT
-          d.id,
-          CASE
-            WHEN d.archived_at IS NOT NULL AND d.archived_at < NOW() THEN 'archived'
-            WHEN pr.unpublished_at IS NOT NULL AND pr.unpublished_at < NOW() THEN 'offline'
-            WHEN d.first_published_at IS NOT NULL AND d.first_published_at < NOW() THEN 'live'
-            ELSE 'new'
-          END as status,
-          CASE
-            WHEN d.first_published_at IS NOT NULL AND t.action = 'publish' AND t.status = 'requested' THEN 'update_pending_approval'
-            WHEN t.action = 'publish' AND t.status = 'requested' THEN 'pending_approval'
-            WHEN t.action = 'publish' AND t.status = 'rejected' THEN 'changes_requested'
-            WHEN t.action = 'unpublish' AND t.status = 'requested' THEN 'unpublish_requested'
-            WHEN t.action = 'archive' AND t.status = 'requested' THEN 'archive_requested'
-            WHEN t.action = 'unarchive' AND t.status = 'requested' THEN 'unarchive_requested'
-            WHEN pr.unpublished_at IS NOT NULL AND pr.unpublished_at < NOW() THEN 'unpublished'
-            WHEN d.first_published_at IS NOT NULL AND d.first_published_at < NOW() AND r.approved_at IS NOT NULL AND r.publish_at < NOW() THEN 'published'
-            WHEN d.first_published_at IS NOT NULL AND d.first_published_at < NOW() AND r.approved_at IS NOT NULL AND r.publish_at > NOW() THEN 'update_scheduled'
-            WHEN d.first_published_at IS NOT NULL AND d.first_published_at > NOW() AND r.approved_at IS NOT NULL AND r.publish_at > NOW() THEN 'scheduled'
-            WHEN d.first_published_at IS NOT NULL AND d.first_published_at < NOW() AND r.approved_at IS NULL THEN 'update_incomplete'
-            WHEN d.first_published_at IS NULL AND r.approved_at IS NULL THEN 'incomplete'
-            ELSE 'incomplete'
-          END as publishing_status
-        FROM dataset d
-        INNER JOIN (
-          SELECT DISTINCT ON (rev.dataset_id) rev.*
-          FROM revision rev
-          ORDER BY rev.dataset_id, rev.created_at DESC
-        ) r ON r.dataset_id = d.id
-        LEFT JOIN revision pr ON d.published_revision_id = pr.id
-        LEFT JOIN task t ON d.id = t.dataset_id AND t.open = true
-      )
-      SELECT
-        COUNT(*) as total,
-        COUNT(*) FILTER (WHERE publishing_status = 'published') as published,
-        COUNT(*) FILTER (WHERE status = 'archived') as archived,
-        COUNT(*) FILTER (WHERE status = 'offline') as offline,
-        COUNT(*) FILTER (WHERE publishing_status = 'incomplete' OR publishing_status = 'update_incomplete') as incomplete,
-        COUNT(*) FILTER (WHERE publishing_status = 'pending_approval' OR publishing_status = 'update_pending_approval') as pending_approval,
-        COUNT(*) FILTER (WHERE publishing_status = 'scheduled' OR publishing_status = 'update_scheduled') as scheduled,
-        COUNT(*) FILTER (WHERE publishing_status = 'unpublish_requested' OR publishing_status = 'archive_requested' OR publishing_status = 'unarchive_requested') as action_requested
-      FROM dataset_stats
-    `);
-
-    const largestQuery = this.query(
-      `
-      WITH largest_tables AS (
-        SELECT oid::regclass::text AS objectname, reltuples AS row_count, pg_relation_size(oid) AS size_bytes
-        FROM pg_class
-        WHERE relkind IN ('m')
-        AND oid::regclass::text LIKE $1
-        AND pg_relation_size(oid) > 0
-        ORDER  BY reltuples DESC
-      )
-      SELECT
-        r.dataset_id AS dataset_id,
-        rm.title AS title,
-        MAX(lt.row_count) AS row_count,
-        MAX(lt.size_bytes) AS size_bytes
-      FROM revision r
-      INNER JOIN largest_tables lt ON '"'||r.id||'".'||$2 = lt.objectname
-      INNER JOIN revision_metadata rm ON rm.revision_id = r.id AND rm.language LIKE $3
-      GROUP BY r.dataset_id, rm.title, lt.row_count, lt.size_bytes
-      ORDER BY lt.row_count DESC
-      LIMIT 10;
-    `,
-      [`%${coreViewName}`, coreViewName, `${lang}%`]
-    );
-
-    const longestQuery = this.query(
-      `
-        SELECT r.dataset_id AS dataset_id, rm.title AS title,
-        CASE
-          WHEN r.approved_at IS NULL THEN EXTRACT(EPOCH FROM (NOW()::timestamp - r.created_at::timestamp))::int
-          ELSE EXTRACT(EPOCH FROM (r.approved_at::timestamp - r.created_at::timestamp))::int
-        END AS interval,
-        CASE
-          WHEN r.approved_at IS NOT NULL AND r.publish_at < NOW() THEN 'published'
-          WHEN r.approved_at IS NOT NULL AND r.publish_at > NOW() THEN 'scheduled'
-          ELSE 'incomplete'
-        END AS status
-        FROM revision r
-        INNER JOIN revision_metadata rm ON rm.revision_id = r.id AND rm.language LIKE $1
-        ORDER BY interval DESC
-        LIMIT 10
-      `,
-      [`${lang}%`]
-    );
-
-    const [status, largest, longest] = await Promise.all([statusQuery, largestQuery, longestQuery]);
-
-    const summary = {
-      incomplete: Number(status[0].incomplete),
-      pending_approval: Number(status[0].pending_approval),
-      scheduled: Number(status[0].scheduled),
-      published: Number(status[0].published),
-      action_requested: Number(status[0].action_requested),
-      archived: Number(status[0].archived),
-      offline: Number(status[0].offline),
-      total: Number(status[0].total)
-    };
-
-    return { summary, largest, longest };
   }
 });
