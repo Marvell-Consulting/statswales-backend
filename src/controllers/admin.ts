@@ -6,7 +6,7 @@ import { UserGroupDTO } from '../dtos/user/user-group-dto';
 import { UnknownException } from '../exceptions/unknown.exception';
 import { UserGroupRepository } from '../repositories/user-group';
 import { NotFoundException } from '../exceptions/not-found.exception';
-import { groupStatusValidator, hasError, userStatusValidator, uuidValidator } from '../validators';
+import { groupStatusValidator, hasError, similarByValidator, userStatusValidator, uuidValidator } from '../validators';
 import { arrayValidator, dtoValidator } from '../validators/dto-validator';
 import { UserGroupMetadataDTO } from '../dtos/user/user-group-metadata-dto';
 import { UserRepository } from '../repositories/user';
@@ -278,6 +278,12 @@ export const dashboard = async (req: Request, res: Response, next: NextFunction)
 export const similarDatasets = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   const similarBy = (req.query.by as DatasetSimilarBy) || DatasetSimilarBy.Sources;
   let csv: unknown[] = [];
+
+  const similarByError = await hasError(similarByValidator(), req);
+  if (similarByError) {
+    next(new BadRequestException('errors.similar_by_invalid'));
+    return;
+  }
 
   try {
     switch (similarBy) {

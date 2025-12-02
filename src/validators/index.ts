@@ -1,10 +1,11 @@
 import { Request } from 'express';
-import { body, check, param, ValidationChain } from 'express-validator';
+import { body, check, param, query, ValidationChain } from 'express-validator';
 import { UserStatus } from '../enums/user-status';
 import { DownloadFormat } from '../enums/download-format';
 import { UserGroupStatus } from '../enums/user-group-status';
 import { CubeBuildType } from '../enums/cube-build-type';
 import { CubeBuildStatus } from '../enums/cube-build-status';
+import { DatasetSimilarBy } from '../enums/dataset-similar-by';
 
 export const hasError = async (validator: ValidationChain, req: Request): Promise<boolean> => {
   return !(await validator.run(req)).isEmpty();
@@ -40,3 +41,6 @@ export const buildTypeValidator = (): ValidationChain =>
 
 export const buildStatusValidator = (): ValidationChain =>
   check('status').notEmpty().trim().isIn(Object.values(CubeBuildStatus));
+
+export const similarByValidator = (): ValidationChain =>
+  query('by').notEmpty().trim().isIn(Object.values(DatasetSimilarBy));
