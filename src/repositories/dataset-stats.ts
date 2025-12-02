@@ -196,10 +196,13 @@ export const DatasetStatsRepository = dataSource.getRepository(Dataset).extend({
         JOIN topic t ON t.id = rt.topic_id
         WHERE r.id IN ('${result.revision_ids.join("', '")}')
       `);
-      result.dimension_count = dimensions[0].dimensions.length;
-      result.dimensions = dimensions[0].dimensions;
-      result.topic_count = dimensions[0].topics.length;
-      result.topics = dimensions[0].topics;
+
+      if (dimensions && dimensions.length > 0) {
+        result.dimension_count = dimensions[0].dimensions.length;
+        result.dimensions = dimensions[0].dimensions;
+        result.topic_count = dimensions[0].topics.length;
+        result.topics = dimensions[0].topics;
+      }
     }
 
     return sourceResults;
