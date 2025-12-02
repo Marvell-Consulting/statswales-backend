@@ -6,7 +6,7 @@ import { UserGroupDTO } from '../dtos/user/user-group-dto';
 import { UnknownException } from '../exceptions/unknown.exception';
 import { UserGroupRepository } from '../repositories/user-group';
 import { NotFoundException } from '../exceptions/not-found.exception';
-import { groupStatusValidator, hasError, userStatusValidator, uuidValidator } from '../validators';
+import { groupStatusValidator, hasError, similarByValidator, userStatusValidator, uuidValidator } from '../validators';
 import { arrayValidator, dtoValidator } from '../validators/dto-validator';
 import { UserGroupMetadataDTO } from '../dtos/user/user-group-metadata-dto';
 import { UserRepository } from '../repositories/user';
@@ -19,8 +19,10 @@ import { GlobalRole } from '../enums/global-role';
 import { RoleSelectionDTO } from '../dtos/user/role-selection-dto';
 import { UserStatus } from '../enums/user-status';
 import { UserGroupStatus } from '../enums/user-group-status';
-import { DatasetRepository } from '../repositories/dataset';
 import { DashboardStats, DatasetStats, UserGroupStats, UserStats } from '../interfaces/dashboard-stats';
+import { DatasetStatsRepository } from '../repositories/dataset-stats';
+import { stringify } from 'csv';
+import { DatasetSimilarBy } from '../enums/dataset-similar-by';
 
 export const loadUserGroup = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   const userGroupIdError = await hasError(uuidValidator('user_group_id'), req);
@@ -260,7 +262,7 @@ export const dashboard = async (req: Request, res: Response, next: NextFunction)
     logger.info('Getting dashboard statistics...');
 
     const [datasets, users, groups]: [DatasetStats, UserStats, UserGroupStats] = await Promise.all([
-      DatasetRepository.getDashboardStats(req.language as Locale),
+      DatasetStatsRepository.getDashboardStats(req.language as Locale),
       UserRepository.getDashboardStats(),
       UserGroupRepository.getDashboardStats()
     ]);
@@ -269,6 +271,87 @@ export const dashboard = async (req: Request, res: Response, next: NextFunction)
     res.json(stats);
   } catch (err) {
     logger.error(err, 'Error getting dashboard statistics');
+    next(new UnknownException());
+  }
+};
+
+export const similarDatasets = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  const similarBy = (req.query.by as DatasetSimilarBy) || DatasetSimilarBy.Sources;
+  let csv: unknown[] = [];
+
+  const similarByError = await hasError(similarByValidator(), req);
+  if (similarByError) {
+    next(new BadRequestException('errors.similar_by_invalid'));
+    return;
+  }
+
+  try {
+    switch (similarBy) {
+      case DatasetSimilarBy.Sources: {
+        logger.info('Getting similar datasets report by shared sources...');
+        const sharedSources = await DatasetStatsRepository.shareSources();
+
+        csv = sharedSources.map((row) => ({
+          sources: row.sources.join('\n'),
+          dataset_count: row.dataset_count,
+          datasets: row.datasets.join('\n'),
+          dataset_ids: row.dataset_ids.join('\n'),
+          revision_ids: row.revision_ids.join('\n'),
+          dimension_count: row.dimension_count ?? '',
+          dimensions: row.dimensions ? row.dimensions.join('\n') : '',
+          topic_count: row.topic_count ?? '',
+          topics: row.topics ? row.topics.join('\n') : ''
+        }));
+        break;
+      }
+
+      case DatasetSimilarBy.Dimensions: {
+        logger.info('Getting similar datasets report by shared dimensions...');
+        const sharedDimensions = await DatasetStatsRepository.shareDimensions();
+
+        csv = sharedDimensions.map((row) => ({
+          dimensions: row.dimensions.join('\n'),
+          dataset_count: row.dataset_count,
+          datasets: row.datasets.join('\n'),
+          dataset_ids: row.dataset_ids.join('\n')
+        }));
+        break;
+      }
+
+      case DatasetSimilarBy.Title: {
+        logger.info('Getting similar datasets report by title similarity...');
+        const similarTitles = await DatasetStatsRepository.similarTitles();
+
+        csv = similarTitles.map((row) => ({
+          title_1: row.title_1,
+          title_2: row.title_2,
+          similarity_score: row.similarity_score.toFixed(3)
+        }));
+        break;
+      }
+
+      case DatasetSimilarBy.Facts: {
+        logger.info('Getting similar datasets report by same fact table...');
+        const sameFactTables = await DatasetStatsRepository.sameFactTable();
+
+        csv = sameFactTables.map((row) => ({
+          original_filenames: row.original_filenames.join('\n'),
+          datatable_hash: row.datatable_hash,
+          count: row.count,
+          datasets: row.datasets.join('\n')
+        }));
+        break;
+      }
+
+      default:
+        next(new BadRequestException('errors.similar_by_invalid'));
+        return;
+    }
+
+    res.setHeader('Content-Type', 'text/csv');
+    stringify(csv, { bom: true, header: true, quoted_string: true }).pipe(res);
+  } catch (err) {
+    logger.error(err, 'Error getting similar datasets');
     next(new UnknownException());
   }
 };
