@@ -185,7 +185,8 @@ export const DatasetStatsRepository = dataSource.getRepository(Dataset).extend({
       ORDER BY dataset_count DESC`);
 
     for (const result of sourceResults) {
-      const dimensions = await this.query(`
+      const dimensions = await this.query(
+        `
         SELECT
           jsonb_agg(DISTINCT dm.name) AS dimensions,
           jsonb_agg(DISTINCT t.name_en) AS topics
@@ -194,8 +195,10 @@ export const DatasetStatsRepository = dataSource.getRepository(Dataset).extend({
         JOIN revision r ON r.dataset_id = d.dataset_id
         JOIN revision_topic rt ON rt.revision_id = r.id
         JOIN topic t ON t.id = rt.topic_id
-        WHERE r.id IN ('${result.revision_ids.join("', '")}')
-      `);
+        WHERE r.id = ANY($1)
+      `,
+        [result.revision_ids]
+      );
 
       if (dimensions && dimensions.length > 0) {
         result.dimension_count = dimensions[0].dimensions.length;
