@@ -22,7 +22,6 @@ export interface ShareDimensionsResult {
   dataset_count: number;
   datasets: string[];
   dataset_ids: string[];
-  revision_ids: string[];
 }
 
 export interface SimilarTitlesResult {
@@ -160,9 +159,7 @@ export const DatasetStatsRepository = dataSource.getRepository(Dataset).extend({
   },
 
   async shareSources(): Promise<ShareSourcesResult[]> {
-    const qr = dataSource.createQueryRunner();
-
-    const sourceResults = await qr.query(`
+    const sourceResults = await this.query(`
       SELECT
         sources,
         COUNT(dataset_id) AS dataset_count,
@@ -188,7 +185,7 @@ export const DatasetStatsRepository = dataSource.getRepository(Dataset).extend({
       ORDER BY dataset_count DESC`);
 
     for (const result of sourceResults) {
-      const dimensions = await qr.query(`
+      const dimensions = await this.query(`
         SELECT
           jsonb_agg(DISTINCT dm.name) AS dimensions,
           jsonb_agg(DISTINCT t.name_en) AS topics
@@ -205,14 +202,11 @@ export const DatasetStatsRepository = dataSource.getRepository(Dataset).extend({
       result.topics = dimensions[0].topics;
     }
 
-    await qr.release();
     return sourceResults;
   },
 
   async shareDimensions(): Promise<ShareDimensionsResult[]> {
-    const qr = dataSource.createQueryRunner();
-
-    const results = await qr.query(`
+    const results = await this.query(`
       SELECT
         dimensions,
         COUNT(dataset_id) AS dataset_count,
@@ -243,16 +237,13 @@ export const DatasetStatsRepository = dataSource.getRepository(Dataset).extend({
         dataset_count DESC
     `);
 
-    await qr.release();
     return results;
   },
 
   async similarTitles(): Promise<SimilarTitlesResult[]> {
-    const qr = dataSource.createQueryRunner();
+    await this.query(`SET pg_trgm.similarity_threshold = 0.6`);
 
-    await qr.query(`SET pg_trgm.similarity_threshold = 0.6`);
-
-    const results = await qr.query(`
+    const results = await this.query(`
       WITH latest_revisions AS (
         ${latestPublishedRevisionsQuery}
       )
@@ -266,14 +257,11 @@ export const DatasetStatsRepository = dataSource.getRepository(Dataset).extend({
         AND rm2.revision_id IN (SELECT id FROM latest_revisions)
       ORDER  BY similarity_score DESC`);
 
-    await qr.release();
     return results;
   },
 
   async sameFactTable(): Promise<SameFactTableResult[]> {
-    const qr = dataSource.createQueryRunner();
-
-    const results = await qr.query(`
+    const results = await this.query(`
       SELECT
         jsonb_agg(dt.original_filename) AS original_filenames,
         dt.hash AS datatable_hash,
@@ -288,7 +276,6 @@ export const DatasetStatsRepository = dataSource.getRepository(Dataset).extend({
       ORDER BY COUNT(r.id) DESC
     `);
 
-    await qr.release();
     return results;
   }
 });
