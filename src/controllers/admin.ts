@@ -1,4 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
+import { stringify } from 'csv';
 
 import { logger } from '../utils/logger';
 import { Locale } from '../enums/locale';
@@ -21,7 +22,6 @@ import { UserStatus } from '../enums/user-status';
 import { UserGroupStatus } from '../enums/user-group-status';
 import { DashboardStats, DatasetStats, UserGroupStats, UserStats } from '../interfaces/dashboard-stats';
 import { DatasetStatsRepository } from '../repositories/dataset-stats';
-import { stringify } from 'csv';
 import { DatasetSimilarBy } from '../enums/dataset-similar-by';
 
 export const loadUserGroup = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
@@ -293,13 +293,15 @@ export const similarDatasets = async (req: Request, res: Response, next: NextFun
 
         csv = sharedSources.map((row) => ({
           sources: row.sources.join('\n'),
-          dataset_count: row.dataset_count,
+          datasets_count: row.datasets_count,
           datasets: row.datasets.join('\n'),
           dataset_ids: row.dataset_ids.join('\n'),
           revision_ids: row.revision_ids.join('\n'),
-          dimension_count: row.dimension_count ?? '',
-          dimensions: row.dimensions ? row.dimensions.join('\n') : '',
-          topic_count: row.topic_count ?? '',
+          dimensions_all_count: row.dimensions_count ?? '',
+          dimensions_all: row.dimensions ? row.dimensions.join('\n') : '',
+          dimensions_common_count: row.dimensions_common_count ?? '',
+          dimensions_common: row.dimensions_common ? row.dimensions_common.join('\n') : '',
+          topic_count: row.topics_count ?? '',
           topics: row.topics ? row.topics.join('\n') : ''
         }));
         break;
@@ -311,7 +313,7 @@ export const similarDatasets = async (req: Request, res: Response, next: NextFun
 
         csv = sharedDimensions.map((row) => ({
           dimensions: row.dimensions.join('\n'),
-          dataset_count: row.dataset_count,
+          datasets_count: row.datasets_count,
           datasets: row.datasets.join('\n'),
           dataset_ids: row.dataset_ids.join('\n')
         }));
