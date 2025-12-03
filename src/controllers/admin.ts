@@ -301,7 +301,7 @@ export const similarDatasets = async (req: Request, res: Response, next: NextFun
           dimensions: row.dimensions ? row.dimensions.join('\n') : '',
           dimensions_common_count: row.dimensions_common_count ?? '',
           dimensions_common: row.dimensions_common ? row.dimensions_common.join('\n') : '',
-          topic_count: row.topics_count ?? '',
+          topics_count: row.topics_count ?? '',
           topics: row.topics ? row.topics.join('\n') : ''
         }));
         break;
