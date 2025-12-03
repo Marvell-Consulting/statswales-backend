@@ -289,7 +289,7 @@ export const similarDatasets = async (req: Request, res: Response, next: NextFun
     switch (similarBy) {
       case DatasetSimilarBy.Sources: {
         logger.info('Getting similar datasets report by shared sources...');
-        const sharedSources = await DatasetStatsRepository.shareSources();
+        const sharedSources = await DatasetStatsRepository.shareSources(req.language as Locale);
 
         csv = sharedSources.map((row) => ({
           sources: row.sources.join('\n'),
@@ -307,7 +307,7 @@ export const similarDatasets = async (req: Request, res: Response, next: NextFun
 
       case DatasetSimilarBy.Dimensions: {
         logger.info('Getting similar datasets report by shared dimensions...');
-        const sharedDimensions = await DatasetStatsRepository.shareDimensions();
+        const sharedDimensions = await DatasetStatsRepository.shareDimensions(req.language as Locale);
 
         csv = sharedDimensions.map((row) => ({
           dimensions: row.dimensions.join('\n'),
@@ -320,7 +320,7 @@ export const similarDatasets = async (req: Request, res: Response, next: NextFun
 
       case DatasetSimilarBy.Title: {
         logger.info('Getting similar datasets report by title similarity...');
-        const similarTitles = await DatasetStatsRepository.similarTitles();
+        const similarTitles = await DatasetStatsRepository.similarTitles(req.language as Locale);
 
         csv = similarTitles.map((row) => ({
           title_1: row.title_1,
@@ -332,7 +332,7 @@ export const similarDatasets = async (req: Request, res: Response, next: NextFun
 
       case DatasetSimilarBy.Facts: {
         logger.info('Getting similar datasets report by same fact table...');
-        const sameFactTables = await DatasetStatsRepository.sameFactTable();
+        const sameFactTables = await DatasetStatsRepository.sameFactTable(req.language as Locale);
 
         csv = sameFactTables.map((row) => ({
           original_filenames: row.original_filenames.join('\n'),
