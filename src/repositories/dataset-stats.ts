@@ -198,10 +198,9 @@ export const DatasetStatsRepository = dataSource.getRepository(Dataset).extend({
           jsonb_agg(DISTINCT dm.name ORDER BY dm.name) AS dimensions,
           COUNT(DISTINCT dm.name) AS dimensions_count
         FROM grouped_sources gs
-        JOIN LATERAL unnest(ARRAY(SELECT jsonb_array_elements_text(gs.revision_ids))::uuid[]) AS rev_id ON true
-        JOIN dimension d ON d.dataset_id IN (SELECT jsonb_array_elements_text(gs.dataset_ids)::uuid)
+        CROSS JOIN LATERAL jsonb_array_elements_text(gs.dataset_ids) AS dataset_id_text
+        JOIN dimension d ON d.dataset_id = dataset_id_text::uuid
         JOIN dimension_metadata dm ON dm.dimension_id = d.id AND LOWER(dm.language) = $1
-        JOIN revision r ON r.dataset_id = d.dataset_id AND r.id = rev_id
         GROUP BY gs.sources
       ),
       common_dimensions AS (
@@ -209,14 +208,13 @@ export const DatasetStatsRepository = dataSource.getRepository(Dataset).extend({
           gs.sources,
           gs.datasets_count,
           dm.name AS dimension_name,
-          COUNT(DISTINCT r.dataset_id) AS dataset_count
+          COUNT(DISTINCT d.dataset_id) AS dataset_count
         FROM grouped_sources gs
-        JOIN LATERAL unnest(ARRAY(SELECT jsonb_array_elements_text(gs.revision_ids))::uuid[]) AS rev_id ON true
-        JOIN dimension d ON d.dataset_id IN (SELECT jsonb_array_elements_text(gs.dataset_ids)::uuid)
+        CROSS JOIN LATERAL jsonb_array_elements_text(gs.dataset_ids) AS dataset_id_text
+        JOIN dimension d ON d.dataset_id = dataset_id_text::uuid
         JOIN dimension_metadata dm ON dm.dimension_id = d.id AND LOWER(dm.language) = $1
-        JOIN revision r ON r.dataset_id = d.dataset_id AND r.id = rev_id
         GROUP BY gs.sources, gs.datasets_count, dm.name
-        HAVING COUNT(DISTINCT r.dataset_id) = gs.datasets_count
+        HAVING COUNT(DISTINCT d.dataset_id) = gs.datasets_count
       ),
       common_dimensions_agg AS (
         SELECT
@@ -232,8 +230,8 @@ export const DatasetStatsRepository = dataSource.getRepository(Dataset).extend({
           jsonb_agg(DISTINCT t.name_en ORDER BY t.name_en) AS topics,
           COUNT(DISTINCT t.name_en) AS topics_count
         FROM grouped_sources gs
-        JOIN LATERAL unnest(ARRAY(SELECT jsonb_array_elements_text(gs.revision_ids))::uuid[]) AS rev_id ON true
-        JOIN revision_topic rt ON rt.revision_id = rev_id
+        CROSS JOIN LATERAL jsonb_array_elements_text(gs.revision_ids) AS rev_id
+        JOIN revision_topic rt ON rt.revision_id = rev_id::uuid
         JOIN topic t ON t.id = rt.topic_id
         GROUP BY gs.sources
       )
