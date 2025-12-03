@@ -195,7 +195,7 @@ export const DatasetStatsRepository = dataSource.getRepository(Dataset).extend({
       all_dimensions AS (
         SELECT
           gs.sources,
-          jsonb_agg(DISTINCT dm.name) AS dimensions,
+          jsonb_agg(DISTINCT dm.name ORDER BY dm.name) AS dimensions,
           COUNT(DISTINCT dm.name) AS dimensions_count
         FROM grouped_sources gs
         JOIN LATERAL unnest(ARRAY(SELECT jsonb_array_elements_text(gs.revision_ids))::uuid[]) AS rev_id ON true
