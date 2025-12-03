@@ -180,15 +180,15 @@ export const DatasetStatsRepository = dataSource.getRepository(Dataset).extend({
         FROM revision_provider rp
         JOIN revision r ON rp.revision_id = r.id
         JOIN revision_metadata rm ON rm.revision_id = r.id AND LOWER(rm.language) = $1
-        JOIN provider_source ps ON rp.provider_source_id = ps.id AND LOWER(ps.language) = $2
-        WHERE rp.language = $1
+        JOIN provider_source ps ON rp.provider_source_id = ps.id AND LOWER(ps.language) = $1
+        WHERE LOWER(rp.language) = $1
         AND rp.revision_id IN (${latestPublishedRevisionsQuery})
         GROUP BY r.dataset_id, r.id, rm.title
       )
       GROUP BY sources
       HAVING COUNT(dataset_id) > 1
       ORDER BY dataset_count DESC`,
-      [lang, lang]
+      [lang]
     );
 
     for (const result of sourceResults) {
@@ -241,7 +241,7 @@ export const DatasetStatsRepository = dataSource.getRepository(Dataset).extend({
             revision r
             JOIN revision_metadata rm ON rm.revision_id = r.id AND LOWER(rm.language) = $1
             JOIN dimension dim ON dim.dataset_id = r.dataset_id
-            JOIN dimension_metadata dm ON dm.dimension_id = dim.id AND LOWER(dm.language) = $2
+            JOIN dimension_metadata dm ON dm.dimension_id = dim.id AND LOWER(dm.language) = $1
           WHERE r.id IN (
             ${latestPublishedRevisionsQuery}
             )
@@ -254,7 +254,7 @@ export const DatasetStatsRepository = dataSource.getRepository(Dataset).extend({
       ORDER BY
         dataset_count DESC
     `,
-      [lang, lang]
+      [lang]
     );
 
     return results.length > 0 ? results : [{ dimensions: [], dataset_count: 0, datasets: [], dataset_ids: [] }];
@@ -275,11 +275,11 @@ export const DatasetStatsRepository = dataSource.getRepository(Dataset).extend({
       JOIN revision_metadata rm2 ON rm1.revision_id <> rm2.revision_id
       AND rm1.title % rm2.title
       WHERE LOWER(rm1.language) = $1
-        AND LOWER(rm2.language) = $2
+        AND LOWER(rm2.language) = $1
         AND rm1.revision_id IN (SELECT id FROM latest_revisions)
         AND rm2.revision_id IN (SELECT id FROM latest_revisions)
       ORDER  BY similarity_score DESC`,
-      [lang, lang]
+      [lang]
     );
 
     return results.length > 0 ? results : [{ similarity_score: 0, title_1: '', title_2: '' }];
