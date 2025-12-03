@@ -167,18 +167,12 @@ export const DatasetStatsRepository = dataSource.getRepository(Dataset).extend({
 
     const sourceResults: ShareSourcesResult[] = await this.query(
       `
-      SELECT
-        sources,
-        COUNT(dataset_id) AS datasets_count,
-        jsonb_agg(concat(title, ' [', dataset_id, ']')) AS datasets,
-        jsonb_agg(dataset_id) AS dataset_ids,
-        jsonb_agg(revision_id) AS revision_ids
-      FROM (
+      WITH source_groups AS (
         SELECT
           r.dataset_id AS dataset_id,
           r.id AS revision_id,
           rm.title AS title,
-          jsonb_agg(ps.name) AS sources
+          jsonb_agg(ps.name ORDER BY ps.name) AS sources
         FROM revision_provider rp
         JOIN revision r ON rp.revision_id = r.id
         JOIN revision_metadata rm ON rm.revision_id = r.id AND LOWER(rm.language) = $1
@@ -186,58 +180,83 @@ export const DatasetStatsRepository = dataSource.getRepository(Dataset).extend({
         WHERE LOWER(rp.language) = $1
         AND rp.revision_id IN (${latestPublishedRevisionsQuery})
         GROUP BY r.dataset_id, r.id, rm.title
+      ),
+      grouped_sources AS (
+        SELECT
+          sources,
+          COUNT(dataset_id) AS datasets_count,
+          jsonb_agg(concat(title, ' [', dataset_id, ']')) AS datasets,
+          jsonb_agg(dataset_id) AS dataset_ids,
+          jsonb_agg(revision_id) AS revision_ids
+        FROM source_groups
+        GROUP BY sources
+        HAVING COUNT(dataset_id) > 1
+      ),
+      all_dimensions AS (
+        SELECT
+          gs.sources,
+          jsonb_agg(DISTINCT dm.name) AS dimensions,
+          COUNT(DISTINCT dm.name) AS dimensions_count
+        FROM grouped_sources gs
+        JOIN LATERAL unnest(ARRAY(SELECT jsonb_array_elements_text(gs.revision_ids))::uuid[]) AS rev_id ON true
+        JOIN dimension d ON d.dataset_id IN (SELECT jsonb_array_elements_text(gs.dataset_ids)::uuid)
+        JOIN dimension_metadata dm ON dm.dimension_id = d.id AND LOWER(dm.language) = $1
+        JOIN revision r ON r.dataset_id = d.dataset_id AND r.id = rev_id
+        GROUP BY gs.sources
+      ),
+      common_dimensions AS (
+        SELECT
+          gs.sources,
+          gs.datasets_count,
+          dm.name AS dimension_name,
+          COUNT(DISTINCT r.dataset_id) AS dataset_count
+        FROM grouped_sources gs
+        JOIN LATERAL unnest(ARRAY(SELECT jsonb_array_elements_text(gs.revision_ids))::uuid[]) AS rev_id ON true
+        JOIN dimension d ON d.dataset_id IN (SELECT jsonb_array_elements_text(gs.dataset_ids)::uuid)
+        JOIN dimension_metadata dm ON dm.dimension_id = d.id AND LOWER(dm.language) = $1
+        JOIN revision r ON r.dataset_id = d.dataset_id AND r.id = rev_id
+        GROUP BY gs.sources, gs.datasets_count, dm.name
+        HAVING COUNT(DISTINCT r.dataset_id) = gs.datasets_count
+      ),
+      common_dimensions_agg AS (
+        SELECT
+          sources,
+          jsonb_agg(dimension_name) AS dimensions_common,
+          COUNT(dimension_name) AS dimensions_common_count
+        FROM common_dimensions
+        GROUP BY sources
+      ),
+      all_topics AS (
+        SELECT
+          gs.sources,
+          jsonb_agg(DISTINCT t.name_en) AS topics,
+          COUNT(DISTINCT t.name_en) AS topics_count
+        FROM grouped_sources gs
+        JOIN LATERAL unnest(ARRAY(SELECT jsonb_array_elements_text(gs.revision_ids))::uuid[]) AS rev_id ON true
+        JOIN revision_topic rt ON rt.revision_id = rev_id
+        JOIN topic t ON t.id = rt.topic_id
+        GROUP BY gs.sources
       )
-      GROUP BY sources
-      HAVING COUNT(dataset_id) > 1
-      ORDER BY datasets_count DESC`,
+      SELECT
+        gs.sources,
+        gs.datasets_count,
+        gs.datasets,
+        gs.dataset_ids,
+        gs.revision_ids,
+        COALESCE(ad.dimensions_count, 0) AS dimensions_count,
+        COALESCE(ad.dimensions, '[]'::jsonb) AS dimensions,
+        COALESCE(cd.dimensions_common_count, 0) AS dimensions_common_count,
+        COALESCE(cd.dimensions_common, '[]'::jsonb) AS dimensions_common,
+        COALESCE(at.topics_count, 0) AS topics_count,
+        COALESCE(at.topics, '[]'::jsonb) AS topics
+      FROM grouped_sources gs
+      LEFT JOIN all_dimensions ad ON ad.sources = gs.sources
+      LEFT JOIN common_dimensions_agg cd ON cd.sources = gs.sources
+      LEFT JOIN all_topics at ON at.sources = gs.sources
+      ORDER BY gs.datasets_count DESC
+      `,
       [lang]
     );
-
-    for (const row of sourceResults) {
-      const dimensions = await this.query(
-        `
-        SELECT
-          jsonb_agg(DISTINCT dm.name) AS dimensions,
-          jsonb_agg(DISTINCT t.name_en) AS topics
-        FROM dimension d
-        JOIN dimension_metadata dm ON dm.dimension_id = d.id AND LOWER(dm.language) = $1
-        JOIN revision r ON r.dataset_id = d.dataset_id
-        JOIN revision_topic rt ON rt.revision_id = r.id
-        JOIN topic t ON t.id = rt.topic_id
-        WHERE r.id = ANY($2)
-      `,
-        [lang, row.revision_ids]
-      );
-
-      if (dimensions?.length > 0) {
-        row.dimensions_count = dimensions[0].dimensions.length;
-        row.dimensions = dimensions[0].dimensions;
-        row.topics_count = dimensions[0].topics.length;
-        row.topics = dimensions[0].topics;
-      }
-
-      // Find dimensions that appear in every dataset
-      const commonDimensions = await this.query(
-        `
-        SELECT jsonb_agg(dimension_name) AS dimensions_common
-        FROM (
-          SELECT dm.name AS dimension_name
-          FROM dimension d
-          JOIN dimension_metadata dm ON dm.dimension_id = d.id AND LOWER(dm.language) = $1
-          JOIN revision r ON r.dataset_id = d.dataset_id
-          WHERE r.id = ANY($2)
-          GROUP BY dm.name
-          HAVING COUNT(DISTINCT r.dataset_id) = $3
-        ) AS dimensions
-      `,
-        [lang, row.revision_ids, row.datasets_count]
-      );
-
-      if (commonDimensions?.length > 0) {
-        row.dimensions_common = commonDimensions[0].dimensions_common || [];
-        row.dimensions_common_count = commonDimensions[0].dimensions_common?.length || 0;
-      }
-    }
 
     const emptyResult: ShareSourcesResult = {
       sources: [],
