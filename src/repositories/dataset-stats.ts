@@ -266,6 +266,8 @@ export const DatasetStatsRepository = dataSource.getRepository(Dataset).extend({
       revision_ids: [],
       dimensions_count: 0,
       dimensions: [],
+      dimensions_common_count: 0,
+      dimensions_common: [],
       topics_count: 0,
       topics: []
     };
