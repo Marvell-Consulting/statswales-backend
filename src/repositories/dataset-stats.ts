@@ -46,8 +46,10 @@ const latestPublishedRevisionsQuery = `
 `;
 
 export const DatasetStatsRepository = dataSource.getRepository(Dataset).extend({
-  async getDashboardStats(lang: Locale): Promise<DatasetStats> {
+  async getDashboardStats(locale: Locale): Promise<DatasetStats> {
     logger.debug('Getting dashboard statistics for datasets');
+
+    const lang = locale.includes('en') ? 'en-gb' : 'cy-gb';
 
     const coreViewName = `${CORE_VIEW_NAME}_mat_en`;
 
@@ -114,12 +116,12 @@ export const DatasetStatsRepository = dataSource.getRepository(Dataset).extend({
         MAX(lt.size_bytes) AS size_bytes
       FROM revision r
       INNER JOIN largest_tables lt ON '"'||r.id||'".'||$2 = lt.objectname
-      INNER JOIN revision_metadata rm ON rm.revision_id = r.id AND rm.language LIKE $3
+      INNER JOIN revision_metadata rm ON rm.revision_id = r.id AND LOWER(rm.language) = $3
       GROUP BY r.dataset_id, rm.title, lt.row_count, lt.size_bytes
       ORDER BY lt.row_count DESC
       LIMIT 10;
     `,
-      [`%${coreViewName}`, coreViewName, `${lang}%`]
+      [`%${coreViewName}`, coreViewName, lang]
     );
 
     const longestQuery = this.query(
@@ -135,11 +137,11 @@ export const DatasetStatsRepository = dataSource.getRepository(Dataset).extend({
           ELSE 'incomplete'
         END AS status
         FROM revision r
-        INNER JOIN revision_metadata rm ON rm.revision_id = r.id AND rm.language LIKE $1
+        INNER JOIN revision_metadata rm ON rm.revision_id = r.id AND LOWER(rm.language) = $1
         ORDER BY interval DESC
         LIMIT 10
       `,
-      [`${lang}%`]
+      [lang]
     );
 
     const [status, largest, longest] = await Promise.all([statusQuery, largestQuery, longestQuery]);
