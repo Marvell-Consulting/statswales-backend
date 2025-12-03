@@ -46,8 +46,10 @@ const latestPublishedRevisionsQuery = `
 `;
 
 export const DatasetStatsRepository = dataSource.getRepository(Dataset).extend({
-  async getDashboardStats(lang: Locale): Promise<DatasetStats> {
+  async getDashboardStats(locale: Locale): Promise<DatasetStats> {
     logger.debug('Getting dashboard statistics for datasets');
+
+    const lang = locale.includes('en') ? 'en-gb' : 'cy-gb';
 
     const coreViewName = `${CORE_VIEW_NAME}_mat_en`;
 
@@ -114,12 +116,12 @@ export const DatasetStatsRepository = dataSource.getRepository(Dataset).extend({
         MAX(lt.size_bytes) AS size_bytes
       FROM revision r
       INNER JOIN largest_tables lt ON '"'||r.id||'".'||$2 = lt.objectname
-      INNER JOIN revision_metadata rm ON rm.revision_id = r.id AND rm.language LIKE $3
+      INNER JOIN revision_metadata rm ON rm.revision_id = r.id AND LOWER(rm.language) = $3
       GROUP BY r.dataset_id, rm.title, lt.row_count, lt.size_bytes
       ORDER BY lt.row_count DESC
       LIMIT 10;
     `,
-      [`%${coreViewName}`, coreViewName, `${lang}%`]
+      [`%${coreViewName}`, coreViewName, lang]
     );
 
     const longestQuery = this.query(
@@ -135,11 +137,11 @@ export const DatasetStatsRepository = dataSource.getRepository(Dataset).extend({
           ELSE 'incomplete'
         END AS status
         FROM revision r
-        INNER JOIN revision_metadata rm ON rm.revision_id = r.id AND rm.language LIKE $1
+        INNER JOIN revision_metadata rm ON rm.revision_id = r.id AND LOWER(rm.language) = $1
         ORDER BY interval DESC
         LIMIT 10
       `,
-      [`${lang}%`]
+      [lang]
     );
 
     const [status, largest, longest] = await Promise.all([statusQuery, largestQuery, longestQuery]);
@@ -158,8 +160,11 @@ export const DatasetStatsRepository = dataSource.getRepository(Dataset).extend({
     return { summary, largest, longest };
   },
 
-  async shareSources(): Promise<ShareSourcesResult[]> {
-    const sourceResults = await this.query(`
+  async shareSources(locale: Locale): Promise<ShareSourcesResult[]> {
+    const lang = locale.includes('en') ? 'en-gb' : 'cy-gb';
+
+    const sourceResults = await this.query(
+      `
       SELECT
         sources,
         COUNT(dataset_id) AS dataset_count,
@@ -174,15 +179,17 @@ export const DatasetStatsRepository = dataSource.getRepository(Dataset).extend({
           jsonb_agg(ps.name) AS sources
         FROM revision_provider rp
         JOIN revision r ON rp.revision_id = r.id
-        JOIN revision_metadata rm ON rm.revision_id = r.id AND rm."language" = 'en-GB'
-        JOIN provider_source ps ON rp.provider_source_id = ps.id AND ps."language" = 'en-gb'
-        WHERE rp."language" = 'en-gb'
+        JOIN revision_metadata rm ON rm.revision_id = r.id AND LOWER(rm.language) = $1
+        JOIN provider_source ps ON rp.provider_source_id = ps.id AND LOWER(ps.language) = $1
+        WHERE LOWER(rp.language) = $1
         AND rp.revision_id IN (${latestPublishedRevisionsQuery})
         GROUP BY r.dataset_id, r.id, rm.title
       )
       GROUP BY sources
       HAVING COUNT(dataset_id) > 1
-      ORDER BY dataset_count DESC`);
+      ORDER BY dataset_count DESC`,
+      [lang]
+    );
 
     for (const result of sourceResults) {
       const dimensions = await this.query(
@@ -191,13 +198,13 @@ export const DatasetStatsRepository = dataSource.getRepository(Dataset).extend({
           jsonb_agg(DISTINCT dm.name) AS dimensions,
           jsonb_agg(DISTINCT t.name_en) AS topics
         FROM dimension d
-        JOIN dimension_metadata dm ON dm.dimension_id = d.id AND dm."language" = 'en-GB'
+        JOIN dimension_metadata dm ON dm.dimension_id = d.id AND LOWER(dm.language) = $1
         JOIN revision r ON r.dataset_id = d.dataset_id
         JOIN revision_topic rt ON rt.revision_id = r.id
         JOIN topic t ON t.id = rt.topic_id
-        WHERE r.id = ANY($1)
+        WHERE r.id = ANY($2)
       `,
-        [result.revision_ids]
+        [lang, result.revision_ids]
       );
 
       if (dimensions && dimensions.length > 0) {
@@ -208,11 +215,16 @@ export const DatasetStatsRepository = dataSource.getRepository(Dataset).extend({
       }
     }
 
-    return sourceResults;
+    return sourceResults.length > 0
+      ? sourceResults
+      : [{ sources: [], dataset_count: 0, datasets: [], dataset_ids: [], revision_ids: [] }];
   },
 
-  async shareDimensions(): Promise<ShareDimensionsResult[]> {
-    const results = await this.query(`
+  async shareDimensions(locale: Locale): Promise<ShareDimensionsResult[]> {
+    const lang = locale.includes('en') ? 'en-gb' : 'cy-gb';
+
+    const results = await this.query(
+      `
       SELECT
         dimensions,
         COUNT(dataset_id) AS dataset_count,
@@ -227,9 +239,9 @@ export const DatasetStatsRepository = dataSource.getRepository(Dataset).extend({
             jsonb_agg(dm.name) AS dimensions
           FROM
             revision r
-            JOIN revision_metadata rm ON rm.revision_id = r.id AND rm."language" = 'en-GB'
+            JOIN revision_metadata rm ON rm.revision_id = r.id AND LOWER(rm.language) = $1
             JOIN dimension dim ON dim.dataset_id = r.dataset_id
-            JOIN dimension_metadata dm ON dm.dimension_id = dim.id AND dm."language" = 'en-GB'
+            JOIN dimension_metadata dm ON dm.dimension_id = dim.id AND LOWER(dm.language) = $1
           WHERE r.id IN (
             ${latestPublishedRevisionsQuery}
             )
@@ -241,15 +253,20 @@ export const DatasetStatsRepository = dataSource.getRepository(Dataset).extend({
         COUNT(dataset_id) > 1
       ORDER BY
         dataset_count DESC
-    `);
+    `,
+      [lang]
+    );
 
-    return results;
+    return results.length > 0 ? results : [{ dimensions: [], dataset_count: 0, datasets: [], dataset_ids: [] }];
   },
 
-  async similarTitles(): Promise<SimilarTitlesResult[]> {
+  async similarTitles(locale: Locale): Promise<SimilarTitlesResult[]> {
+    const lang = locale.includes('en') ? 'en-gb' : 'cy-gb';
+
     await this.query(`SET pg_trgm.similarity_threshold = 0.6`);
 
-    const results = await this.query(`
+    const results = await this.query(
+      `
       WITH latest_revisions AS (
         ${latestPublishedRevisionsQuery}
       )
@@ -257,31 +274,38 @@ export const DatasetStatsRepository = dataSource.getRepository(Dataset).extend({
       FROM revision_metadata rm1
       JOIN revision_metadata rm2 ON rm1.revision_id <> rm2.revision_id
       AND rm1.title % rm2.title
-      WHERE rm1."language" = 'en-GB'
-        AND rm2."language" = 'en-GB'
+      WHERE LOWER(rm1.language) = $1
+        AND LOWER(rm2.language) = $1
         AND rm1.revision_id IN (SELECT id FROM latest_revisions)
         AND rm2.revision_id IN (SELECT id FROM latest_revisions)
-      ORDER  BY similarity_score DESC`);
+      ORDER  BY similarity_score DESC`,
+      [lang]
+    );
 
-    return results;
+    return results.length > 0 ? results : [{ similarity_score: 0, title_1: '', title_2: '' }];
   },
 
-  async sameFactTable(): Promise<SameFactTableResult[]> {
-    const results = await this.query(`
+  async sameFactTable(locale: Locale): Promise<SameFactTableResult[]> {
+    const lang = locale.includes('en') ? 'en-gb' : 'cy-gb';
+
+    const results = await this.query(
+      `
       SELECT
         jsonb_agg(dt.original_filename) AS original_filenames,
         dt.hash AS datatable_hash,
         COUNT(r.id) AS count,
         jsonb_agg(concat(title, ' [', dataset_id, ']')) AS datasets
       FROM revision r
-      JOIN revision_metadata rm ON rm.revision_id = r.id AND rm."language" = 'en-GB'
+      JOIN revision_metadata rm ON rm.revision_id = r.id AND LOWER(rm.language) = $1
       JOIN data_table dt ON r.data_table_id = dt.id
       WHERE r.id IN (${latestPublishedRevisionsQuery})
       GROUP BY dt.hash
       HAVING COUNT(r.id) > 1
       ORDER BY COUNT(r.id) DESC
-    `);
+    `,
+      [lang]
+    );
 
-    return results;
+    return results.length > 0 ? results : [{ original_filenames: [], datatable_hash: '', count: 0, datasets: [] }];
   }
 });
