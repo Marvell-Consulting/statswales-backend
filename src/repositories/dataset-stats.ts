@@ -229,7 +229,7 @@ export const DatasetStatsRepository = dataSource.getRepository(Dataset).extend({
       all_topics AS (
         SELECT
           gs.sources,
-          jsonb_agg(DISTINCT t.name_en) AS topics,
+          jsonb_agg(DISTINCT t.name_en ORDER BY t.name_en) AS topics,
           COUNT(DISTINCT t.name_en) AS topics_count
         FROM grouped_sources gs
         JOIN LATERAL unnest(ARRAY(SELECT jsonb_array_elements_text(gs.revision_ids))::uuid[]) AS rev_id ON true
