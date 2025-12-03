@@ -185,9 +185,9 @@ export const DatasetStatsRepository = dataSource.getRepository(Dataset).extend({
         SELECT
           sources,
           COUNT(dataset_id) AS datasets_count,
-          jsonb_agg(concat(title, ' [', dataset_id, ']')) AS datasets,
-          jsonb_agg(dataset_id) AS dataset_ids,
-          jsonb_agg(revision_id) AS revision_ids
+          jsonb_agg(concat(title, ' [', dataset_id, ']') ORDER BY title) AS datasets,
+          jsonb_agg(dataset_id ORDER BY title) AS dataset_ids,
+          jsonb_agg(revision_id ORDER BY title) AS revision_ids
         FROM source_groups
         GROUP BY sources
         HAVING COUNT(dataset_id) > 1
