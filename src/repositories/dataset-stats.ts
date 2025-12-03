@@ -221,7 +221,7 @@ export const DatasetStatsRepository = dataSource.getRepository(Dataset).extend({
       common_dimensions_agg AS (
         SELECT
           sources,
-          jsonb_agg(dimension_name) AS dimensions_common,
+          jsonb_agg(dimension_name ORDER BY dimension_name) AS dimensions_common,
           COUNT(dimension_name) AS dimensions_common_count
         FROM common_dimensions
         GROUP BY sources
