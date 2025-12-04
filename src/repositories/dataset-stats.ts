@@ -7,19 +7,21 @@ import { DatasetStats } from '../interfaces/dashboard-stats';
 
 export interface ShareSourcesResult {
   sources: string[];
-  dataset_count: number;
+  datasets_count: number;
   datasets: string[];
   dataset_ids: string[];
   revision_ids: string[];
-  dimension_count?: number;
+  dimensions_count?: number;
   dimensions?: string[];
-  topic_count?: number;
+  dimensions_common_count?: number;
+  dimensions_common?: string[];
+  topics_count?: number;
   topics?: string[];
 }
 
 export interface ShareDimensionsResult {
   dimensions: string[];
-  dataset_count: number;
+  datasets_count: number;
   datasets: string[];
   dataset_ids: string[];
 }
@@ -163,20 +165,14 @@ export const DatasetStatsRepository = dataSource.getRepository(Dataset).extend({
   async shareSources(locale: Locale): Promise<ShareSourcesResult[]> {
     const lang = locale.includes('en') ? 'en-gb' : 'cy-gb';
 
-    const sourceResults = await this.query(
+    const sourceResults: ShareSourcesResult[] = await this.query(
       `
-      SELECT
-        sources,
-        COUNT(dataset_id) AS dataset_count,
-        jsonb_agg(concat(title, ' [', dataset_id, ']')) AS datasets,
-        jsonb_agg(dataset_id) AS dataset_ids,
-        jsonb_agg(revision_id) AS revision_ids
-      FROM (
+      WITH source_groups AS (
         SELECT
           r.dataset_id AS dataset_id,
           r.id AS revision_id,
           rm.title AS title,
-          jsonb_agg(ps.name) AS sources
+          jsonb_agg(ps.name ORDER BY ps.name) AS sources
         FROM revision_provider rp
         JOIN revision r ON rp.revision_id = r.id
         JOIN revision_metadata rm ON rm.revision_id = r.id AND LOWER(rm.language) = $1
@@ -184,50 +180,107 @@ export const DatasetStatsRepository = dataSource.getRepository(Dataset).extend({
         WHERE LOWER(rp.language) = $1
         AND rp.revision_id IN (${latestPublishedRevisionsQuery})
         GROUP BY r.dataset_id, r.id, rm.title
+      ),
+      grouped_sources AS (
+        SELECT
+          sources,
+          COUNT(dataset_id) AS datasets_count,
+          jsonb_agg(concat(title, ' [', dataset_id, ']') ORDER BY title) AS datasets,
+          jsonb_agg(dataset_id ORDER BY title) AS dataset_ids,
+          jsonb_agg(revision_id ORDER BY title) AS revision_ids
+        FROM source_groups
+        GROUP BY sources
+        HAVING COUNT(dataset_id) > 1
+      ),
+      all_dimensions AS (
+        SELECT
+          gs.sources,
+          jsonb_agg(DISTINCT dm.name ORDER BY dm.name) AS dimensions,
+          COUNT(DISTINCT dm.name) AS dimensions_count
+        FROM grouped_sources gs
+        CROSS JOIN LATERAL jsonb_array_elements_text(gs.dataset_ids) AS dataset_id_text
+        JOIN dimension d ON d.dataset_id = dataset_id_text::uuid
+        JOIN dimension_metadata dm ON dm.dimension_id = d.id AND LOWER(dm.language) = $1
+        GROUP BY gs.sources
+      ),
+      common_dimensions AS (
+        SELECT
+          gs.sources,
+          gs.datasets_count,
+          dm.name AS dimension_name,
+          COUNT(DISTINCT d.dataset_id) AS dataset_count
+        FROM grouped_sources gs
+        CROSS JOIN LATERAL jsonb_array_elements_text(gs.dataset_ids) AS dataset_id_text
+        JOIN dimension d ON d.dataset_id = dataset_id_text::uuid
+        JOIN dimension_metadata dm ON dm.dimension_id = d.id AND LOWER(dm.language) = $1
+        GROUP BY gs.sources, gs.datasets_count, dm.name
+        HAVING COUNT(DISTINCT d.dataset_id) = gs.datasets_count
+      ),
+      common_dimensions_agg AS (
+        SELECT
+          sources,
+          jsonb_agg(dimension_name ORDER BY dimension_name) AS dimensions_common,
+          COUNT(dimension_name) AS dimensions_common_count
+        FROM common_dimensions
+        GROUP BY sources
+      ),
+      all_topics AS (
+        SELECT
+          gs.sources,
+          jsonb_agg(DISTINCT t.name_en ORDER BY t.name_en) AS topics,
+          COUNT(DISTINCT t.name_en) AS topics_count
+        FROM grouped_sources gs
+        CROSS JOIN LATERAL jsonb_array_elements_text(gs.revision_ids) AS rev_id
+        JOIN revision_topic rt ON rt.revision_id = rev_id::uuid
+        JOIN topic t ON t.id = rt.topic_id
+        GROUP BY gs.sources
       )
-      GROUP BY sources
-      HAVING COUNT(dataset_id) > 1
-      ORDER BY dataset_count DESC`,
+      SELECT
+        gs.sources,
+        gs.datasets_count,
+        gs.datasets,
+        gs.dataset_ids,
+        gs.revision_ids,
+        COALESCE(ad.dimensions_count, 0) AS dimensions_count,
+        COALESCE(ad.dimensions, '[]'::jsonb) AS dimensions,
+        COALESCE(cd.dimensions_common_count, 0) AS dimensions_common_count,
+        COALESCE(cd.dimensions_common, '[]'::jsonb) AS dimensions_common,
+        COALESCE(at.topics_count, 0) AS topics_count,
+        COALESCE(at.topics, '[]'::jsonb) AS topics
+      FROM grouped_sources gs
+      LEFT JOIN all_dimensions ad ON ad.sources = gs.sources
+      LEFT JOIN common_dimensions_agg cd ON cd.sources = gs.sources
+      LEFT JOIN all_topics at ON at.sources = gs.sources
+      ORDER BY gs.datasets_count DESC
+      `,
       [lang]
     );
 
-    for (const result of sourceResults) {
-      const dimensions = await this.query(
-        `
-        SELECT
-          jsonb_agg(DISTINCT dm.name) AS dimensions,
-          jsonb_agg(DISTINCT t.name_en) AS topics
-        FROM dimension d
-        JOIN dimension_metadata dm ON dm.dimension_id = d.id AND LOWER(dm.language) = $1
-        JOIN revision r ON r.dataset_id = d.dataset_id
-        JOIN revision_topic rt ON rt.revision_id = r.id
-        JOIN topic t ON t.id = rt.topic_id
-        WHERE r.id = ANY($2)
-      `,
-        [lang, result.revision_ids]
-      );
+    const emptyResult: ShareSourcesResult = {
+      sources: [],
+      datasets_count: 0,
+      datasets: [],
+      dataset_ids: [],
+      revision_ids: [],
+      dimensions_count: 0,
+      dimensions: [],
+      dimensions_common_count: 0,
+      dimensions_common: [],
+      topics_count: 0,
+      topics: []
+    };
 
-      if (dimensions && dimensions.length > 0) {
-        result.dimension_count = dimensions[0].dimensions.length;
-        result.dimensions = dimensions[0].dimensions;
-        result.topic_count = dimensions[0].topics.length;
-        result.topics = dimensions[0].topics;
-      }
-    }
-
-    return sourceResults.length > 0
-      ? sourceResults
-      : [{ sources: [], dataset_count: 0, datasets: [], dataset_ids: [], revision_ids: [] }];
+    return sourceResults.length > 0 ? sourceResults : [emptyResult];
   },
 
   async shareDimensions(locale: Locale): Promise<ShareDimensionsResult[]> {
     const lang = locale.includes('en') ? 'en-gb' : 'cy-gb';
 
-    const results = await this.query(
+    const results: ShareDimensionsResult[] = await this.query(
       `
       SELECT
         dimensions,
-        COUNT(dataset_id) AS dataset_count,
+        COUNT(dataset_id) AS datasets_count,
         jsonb_agg(concat(title, ' [', dataset_id, ']')) AS datasets,
         jsonb_agg(dataset_id) AS dataset_ids
       FROM
@@ -252,12 +305,12 @@ export const DatasetStatsRepository = dataSource.getRepository(Dataset).extend({
       HAVING
         COUNT(dataset_id) > 1
       ORDER BY
-        dataset_count DESC
+        datasets_count DESC
     `,
       [lang]
     );
 
-    return results.length > 0 ? results : [{ dimensions: [], dataset_count: 0, datasets: [], dataset_ids: [] }];
+    return results.length > 0 ? results : [{ dimensions: [], datasets_count: 0, datasets: [], dataset_ids: [] }];
   },
 
   async similarTitles(locale: Locale): Promise<SimilarTitlesResult[]> {
@@ -265,7 +318,7 @@ export const DatasetStatsRepository = dataSource.getRepository(Dataset).extend({
 
     await this.query(`SET pg_trgm.similarity_threshold = 0.6`);
 
-    const results = await this.query(
+    const results: SimilarTitlesResult[] = await this.query(
       `
       WITH latest_revisions AS (
         ${latestPublishedRevisionsQuery}
@@ -288,7 +341,7 @@ export const DatasetStatsRepository = dataSource.getRepository(Dataset).extend({
   async sameFactTable(locale: Locale): Promise<SameFactTableResult[]> {
     const lang = locale.includes('en') ? 'en-gb' : 'cy-gb';
 
-    const results = await this.query(
+    const results: SameFactTableResult[] = await this.query(
       `
       SELECT
         jsonb_agg(dt.original_filename) AS original_filenames,
