@@ -6,18 +6,20 @@ import { logger } from '../../../utils/logger';
 import {
   listPublishedDatasets,
   getPublishedDatasetById,
-  downloadPublishedDataset,
   getPublishedDatasetView,
   listSubTopics,
   listRootTopics,
   getPublishedDatasetFilters,
-  getPostgresPivotTable
-} from '../../../controllers/consumer';
+  getPostgresPivotTable,
+  getPublishedRevisionById
+} from '../../../controllers/consumer-v2';
 import { NotFoundException } from '../../../exceptions/not-found.exception';
 import { PublishedDatasetRepository } from '../../../repositories/published-dataset';
-import { hasError, datasetIdValidator } from '../../../validators';
+import { hasError, datasetIdValidator, revisionIdValidator } from '../../../validators';
 import { Dataset } from '../../../entities/dataset/dataset';
 import { NotAllowedException } from '../../../exceptions/not-allowed.exception';
+import { Revision } from '../../../entities/dataset/revision';
+import { RevisionRepository } from '../../../repositories/revision';
 
 export const publicApiV2Router = Router();
 
@@ -44,28 +46,53 @@ export const loadPublishedDataset = (relations?: FindOptionsRelations<Dataset>) 
   };
 };
 
+export const loadPublishedRevision = (relations?: FindOptionsRelations<Revision>) => {
+  return async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    const revisionIdError = await hasError(revisionIdValidator(), req);
+
+    if (revisionIdError) {
+      next(new NotFoundException('errors.revision_id_invalid'));
+      return;
+    }
+
+    try {
+      logger.debug(`Loading published revision ${req.params.dataset_id}...`);
+      const revision = await RevisionRepository.getById(req.params.revision_id, relations);
+      res.locals.revision_id = revision.id;
+      res.locals.revision = revision;
+    } catch (_err) {
+      next(new NotFoundException('errors.no_revision'));
+      return;
+    }
+    next();
+  };
+};
+
 publicApiV2Router.use(cors()); // allow browser XMLHttpRequests from any domain
 
 publicApiV2Router.use((req: Request, res: Response, next: NextFunction) => {
-  if (req.method !== 'GET') {
-    next(new NotAllowedException('errors.method_not_allowed'));
-    return;
-  }
-
   res.vary('Accept-Language'); // vary response cache on language header
   next();
 });
 
 publicApiV2Router.get('/', listPublishedDatasets);
-
 publicApiV2Router.get('/topic', listRootTopics);
 publicApiV2Router.get('/topic/:topic_id', listSubTopics);
 
 publicApiV2Router.get('/:dataset_id', loadPublishedDataset(), getPublishedDatasetById);
+publicApiV2Router.get(
+  '/:dataset_id/revision/:revision_id',
+  loadPublishedDataset(),
+  loadPublishedRevision(),
+  getPublishedRevisionById
+);
 
-publicApiV2Router.get('/:dataset_id/view', loadPublishedDataset(), getPublishedDatasetView);
-publicApiV2Router.get('/:dataset_id/view/filters', loadPublishedDataset(), getPublishedDatasetFilters);
+publicApiV2Router.get('/:dataset_id/filters', loadPublishedDataset(), getPublishedDatasetFilters);
+publicApiV2Router.get('/:dataset_id/data', loadPublishedDataset(), getPublishedDatasetView);
+publicApiV2Router.get('/:dataset_id/data/:filter_id', loadPublishedDataset(), getPublishedDatasetView);
 
-publicApiV2Router.get('/:dataset_id/download/:format', loadPublishedDataset(), downloadPublishedDataset);
+publicApiV2Router.post('/:dataset_id/pivot', loadPublishedDataset(), getPostgresPivotTable);
+publicApiV2Router.post('/:dataset_id/data', loadPublishedDataset(), getPostgresPivotTable);
 
-publicApiV2Router.get('/:dataset_id/pivot/postgres', loadPublishedDataset(), getPostgresPivotTable);
+// Hidden route
+publicApiV2Router.get('/:dataset_id/postgres_pivot', loadPublishedDataset(), getPostgresPivotTable);

@@ -1,8 +1,8 @@
 import { MeasureRow } from '../entities/dataset/measure-row';
 
 export class MeasureRowDto {
-  measure_id: string;
-  language: string;
+  measure_id?: string;
+  language?: string;
   reference: string;
   sort_order?: number;
   description: string;
