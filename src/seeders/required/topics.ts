@@ -1,10 +1,11 @@
+import 'dotenv/config';
 import fs from 'node:fs';
 
 import { parse } from 'csv';
-import { Seeder } from '@jorgebodega/typeorm-seeding';
 import { DataSource } from 'typeorm';
 
 import { logger } from '../../utils/logger';
+import { dataSource } from '../../db/data-source';
 import { Topic } from '../../entities/dataset/topic';
 
 interface CSVRow {
@@ -16,9 +17,15 @@ interface CSVRow {
   l2_cy: string;
 }
 
-export default class TopicSeeder extends Seeder {
-  async run(dataSource: DataSource): Promise<void> {
+export class TopicSeeder {
+  async run(): Promise<void> {
+    logger.info('Starting TopicSeeder...');
+
+    await dataSource.initialize();
     await this.seedTopics(dataSource);
+    await dataSource.destroy();
+
+    logger.info('TopicSeeder finished.');
   }
 
   async seedTopics(dataSource: DataSource): Promise<void> {
@@ -45,3 +52,14 @@ export default class TopicSeeder extends Seeder {
     logger.info(`Seeded ${topics.length} topics`);
   }
 }
+
+Promise.resolve()
+  .then(async () => {
+    const seeder = new TopicSeeder();
+    await seeder.run();
+  })
+  .catch(async (err) => {
+    logger.error(err);
+    await dataSource.destroy();
+    process.exit(1);
+  });

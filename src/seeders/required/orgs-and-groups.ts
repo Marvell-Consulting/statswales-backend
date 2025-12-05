@@ -1,7 +1,8 @@
-import { Seeder } from '@jorgebodega/typeorm-seeding';
+import 'dotenv/config';
 import { DataSource, DeepPartial, IsNull } from 'typeorm';
 
 import { logger } from '../../utils/logger';
+import { dataSource } from '../../db/data-source';
 import { Organisation } from '../../entities/user/organisation';
 import { Locale } from '../../enums/locale';
 import { Dataset } from '../../entities/dataset/dataset';
@@ -42,10 +43,16 @@ export const stage1Group: DeepPartial<UserGroup> = {
   ]
 };
 
-export default class OrgsAndGroupsSeeder extends Seeder {
-  async run(dataSource: DataSource): Promise<void> {
+export class OrgsAndGroupsSeeder {
+  async run(): Promise<void> {
+    logger.info('Starting DataProviderSeeder...');
+
+    await dataSource.initialize();
     await this.seedOrganisations(dataSource);
     await this.seedUserGroups(dataSource);
+    await dataSource.destroy();
+
+    logger.info('DataProviderSeeder finished.');
   }
 
   async seedOrganisations(dataSource: DataSource): Promise<Organisation[]> {
@@ -65,3 +72,14 @@ export default class OrgsAndGroupsSeeder extends Seeder {
     return savedGroups;
   }
 }
+
+Promise.resolve()
+  .then(async () => {
+    const seeder = new OrgsAndGroupsSeeder();
+    await seeder.run();
+  })
+  .catch(async (err) => {
+    logger.error(err);
+    await dataSource.destroy();
+    process.exit(1);
+  });
