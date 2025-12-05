@@ -44,42 +44,43 @@ export const stage1Group: DeepPartial<UserGroup> = {
 };
 
 export class OrgsAndGroupsSeeder {
-  async run(): Promise<void> {
-    logger.info('Starting DataProviderSeeder...');
-
-    await dataSource.initialize();
-    await this.seedOrganisations(dataSource);
-    await this.seedUserGroups(dataSource);
-    await dataSource.destroy();
-
-    logger.info('DataProviderSeeder finished.');
+  constructor(private ds: DataSource) {
+    this.ds = ds;
   }
 
-  async seedOrganisations(dataSource: DataSource): Promise<Organisation[]> {
-    const savedOrgs = await dataSource.getRepository(Organisation).save(organisations);
+  async run(): Promise<void> {
+    logger.info('Starting OrgsAndGroupsSeeder...');
+    await this.seedOrganisations();
+    await this.seedUserGroups();
+    logger.info('OrgsAndGroupsSeeder finished.');
+  }
+
+  async seedOrganisations(): Promise<Organisation[]> {
+    const savedOrgs = await this.ds.getRepository(Organisation).save(organisations);
     logger.info(`Seeded ${savedOrgs.length} organisations`);
     return savedOrgs;
   }
 
-  async seedUserGroups(dataSource: DataSource): Promise<UserGroup[]> {
+  async seedUserGroups(): Promise<UserGroup[]> {
     const defaultGroups: DeepPartial<UserGroup>[] = [stage1Group];
-    const savedGroups = await dataSource.getRepository(UserGroup).save(defaultGroups);
+    const savedGroups = await this.ds.getRepository(UserGroup).save(defaultGroups);
     logger.info(`Seeded ${savedGroups.length} groups`);
 
     logger.info('assigning any unassigned datasets to the stage 1 group');
-    await dataSource.getRepository(Dataset).update({ userGroupId: IsNull() }, { userGroupId: stage1Group.id });
-
+    await this.ds.getRepository(Dataset).update({ userGroupId: IsNull() }, { userGroupId: stage1Group.id });
     return savedGroups;
   }
 }
 
 Promise.resolve()
   .then(async () => {
-    const seeder = new OrgsAndGroupsSeeder();
-    await seeder.run();
+    if (!dataSource.isInitialized) await dataSource.initialize();
+    await new OrgsAndGroupsSeeder(dataSource).run();
   })
   .catch(async (err) => {
     logger.error(err);
-    await dataSource.destroy();
-    process.exit(1);
+    process.exitCode = 1;
+  })
+  .finally(async () => {
+    if (dataSource.isInitialized) await dataSource.destroy();
   });

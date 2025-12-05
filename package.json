@@ -32,6 +32,10 @@
     "seed:required:js": "node ./dist/seeders/required/data-providers.js && node ./dist/seeders/required/orgs-and-groups.js && node ./dist/seeders/required/topics.js",
     "seed:providers": "ts-node ./src/seeders/required/data-providers.ts",
     "seed:providers:js": "node ./dist/seeders/required/data-providers.js",
+    "seed:orgs": "ts-node ./src/seeders/required/orgs-and-groups.ts",
+    "seed:orgs:js": "node ./dist/seeders/required/orgs-and-groups.js",
+    "seed:topics": "ts-node ./src/seeders/required/topics.ts",
+    "seed:topics:js": "node ./dist/seeders/required/topics.js",
     "seed:ci": "ts-node ./src/seeders/tests/seed.ts",
     "init:ci": "typeorm migration:run -d ./dist/db/data-source.js && npm run seed:required:js && node ./dist/seeders/tests/seed.js",
     "init:prod": "typeorm migration:run -d ./dist/db/data-source.js && npm run seed:required:js"

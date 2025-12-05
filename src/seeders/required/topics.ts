@@ -17,19 +17,19 @@ interface CSVRow {
   l2_cy: string;
 }
 
-export class TopicSeeder {
+export class TopicsSeeder {
+  constructor(private ds: DataSource) {
+    this.ds = ds;
+  }
+
   async run(): Promise<void> {
     logger.info('Starting TopicSeeder...');
-
-    await dataSource.initialize();
-    await this.seedTopics(dataSource);
-    await dataSource.destroy();
-
+    await this.seedTopics();
     logger.info('TopicSeeder finished.');
   }
 
-  async seedTopics(dataSource: DataSource): Promise<void> {
-    const em = dataSource.createEntityManager();
+  async seedTopics(): Promise<void> {
+    const em = this.ds.createEntityManager();
     const csv = `${__dirname}/../../resources/topics/topics.csv`;
     const parserOpts = { delimiter: ',', bom: true, skip_empty_lines: true, columns: true };
     const topics: Topic[] = [];
@@ -55,11 +55,13 @@ export class TopicSeeder {
 
 Promise.resolve()
   .then(async () => {
-    const seeder = new TopicSeeder();
-    await seeder.run();
+    if (!dataSource.isInitialized) await dataSource.initialize();
+    await new TopicsSeeder(dataSource).run();
   })
   .catch(async (err) => {
     logger.error(err);
-    await dataSource.destroy();
-    process.exit(1);
+    process.exitCode = 1;
+  })
+  .finally(async () => {
+    if (dataSource.isInitialized) await dataSource.destroy();
   });

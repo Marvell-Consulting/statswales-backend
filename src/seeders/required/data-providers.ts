@@ -9,27 +9,27 @@ import providers from '../../resources/data-providers/provider.json';
 import providerSources from '../../resources/data-providers/provider_source.json';
 
 export class DataProviderSeeder {
+  constructor(private ds: DataSource) {
+    this.ds = ds;
+  }
+
   async run(): Promise<void> {
     logger.info('Starting DataProviderSeeder...');
-
-    await dataSource.initialize();
-    await this.seedProviders(dataSource);
-    await this.seedProviderSources(dataSource);
-    await dataSource.destroy();
-
+    await this.seedProviders();
+    await this.seedProviderSources();
     logger.info('DataProviderSeeder finished.');
   }
 
-  async seedProviders(datasource: DataSource): Promise<void> {
+  async seedProviders(): Promise<void> {
     logger.info('Seeding providers...');
-    const em = datasource.createEntityManager();
+    const em = this.ds.createEntityManager();
     const savedProviders = await em.save(Provider, providers);
     logger.info(`Seeded ${savedProviders.length} providers`);
   }
 
-  async seedProviderSources(dataSource: DataSource): Promise<void> {
+  async seedProviderSources(): Promise<void> {
     logger.info('Seeding provider sources...');
-    const em = dataSource.createEntityManager();
+    const em = this.ds.createEntityManager();
     const sources: DeepPartial<ProviderSource>[] = providerSources.map((pSource) => ({
       id: pSource.id,
       sw2Id: pSource.sw2_id,
@@ -44,11 +44,13 @@ export class DataProviderSeeder {
 
 Promise.resolve()
   .then(async () => {
-    const seeder = new DataProviderSeeder();
-    await seeder.run();
+    if (!dataSource.isInitialized) await dataSource.initialize();
+    await new DataProviderSeeder(dataSource).run();
   })
   .catch(async (err) => {
     logger.error(err);
-    await dataSource.destroy();
-    process.exit(1);
+    process.exitCode = 1;
+  })
+  .finally(async () => {
+    if (dataSource.isInitialized) await dataSource.destroy();
   });
