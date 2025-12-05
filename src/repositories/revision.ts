@@ -33,6 +33,12 @@ export const withMetadataAndProviders: FindOptionsRelations<Revision> = {
   revisionProviders: { provider: true, providerSource: true }
 };
 
+export const withMetadataProvidersAndTopic: FindOptionsRelations<Revision> = {
+  metadata: true,
+  revisionProviders: { provider: true, providerSource: true },
+  revisionTopics: { topic: true }
+};
+
 export type RevisionList = { id: string; dataset_id: string };
 
 export const RevisionRepository = dataSource.getRepository(Revision).extend({

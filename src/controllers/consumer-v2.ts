@@ -5,7 +5,6 @@ import { Locale } from '../enums/locale';
 import { UnknownException } from '../exceptions/unknown.exception';
 import { PublishedDatasetRepository, withAll } from '../repositories/published-dataset';
 import { NotFoundException } from '../exceptions/not-found.exception';
-import { ConsumerDatasetDTO } from '../dtos/consumer-dataset-dto';
 import { BadRequestException } from '../exceptions/bad-request.exception';
 import { ConsumerOutFormats } from '../enums/consumer-output-formats';
 import {
@@ -24,9 +23,9 @@ import { SortByInterface } from '../interfaces/sort-by-interface';
 import { FilterInterface } from '../interfaces/filterInterface';
 import { DownloadFormat } from '../enums/download-format';
 import { DEFAULT_PAGE_SIZE } from '../utils/page-defaults';
-import { UserGroupRepository } from '../repositories/user-group';
-import { PublisherDTO } from '../dtos/publisher-dto';
 import { ConsumerRevisionDTO } from '../dtos/consumer-revision-dto';
+import { DatasetDTO } from '../dtos/consumer/dataset';
+import { FullRevision } from '../dtos/consumer/revision';
 
 export const listPublishedDatasets = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   /*
@@ -66,7 +65,7 @@ export const listPublishedDatasets = async (req: Request, res: Response, next: N
 export const getPublishedDatasetById = async (req: Request, res: Response): Promise<void> => {
   /*
     #swagger.summary = "Get a published dataset's metadata"
-    #swagger.description = 'This endpoint returns all metadata for a published dataset.'
+    #swagger.description = 'This endpoint returns all consumer metadata for a published dataset.'
     #swagger.parameters['$ref'] = [
       '#/components/parameters/language',
       '#/components/parameters/dataset_id'
@@ -76,15 +75,15 @@ export const getPublishedDatasetById = async (req: Request, res: Response): Prom
       schema: { $ref: "#/components/schemas/Dataset" }
     }
   */
-  const dataset = await PublishedDatasetRepository.getById(res.locals.datasetId, withAll);
-  const datasetDTO = ConsumerDatasetDTO.fromDataset(dataset);
-
-  if (dataset.userGroupId) {
-    const userGroup = await UserGroupRepository.getByIdWithOrganisation(dataset.userGroupId);
-    datasetDTO.publisher = PublisherDTO.fromUserGroup(userGroup, req.language as Locale);
-  }
-
+  const language = req.query.languague ? (req.query.languague as Locale) : ('en-GB' as Locale);
+  const datasetDTO = await DatasetDTO.fromDatasetId(res.locals.datasetId, language);
   res.json(datasetDTO);
+};
+
+export const getPublishedRevisionById = async (req: Request, res: Response): Promise<void> => {
+  const language = req.query.languague ? (req.query.languague as Locale) : ('en-GB' as Locale);
+  const revisionDto = FullRevision.fromRevision(res.locals.revision, language);
+  res.json(revisionDto);
 };
 
 export const getPublishedDatasetView = async (req: Request, res: Response): Promise<void> => {
