@@ -1,10 +1,11 @@
+import 'dotenv/config';
 import fs from 'node:fs';
 
 import { parse } from 'csv';
-import { Seeder } from '@jorgebodega/typeorm-seeding';
 import { DataSource } from 'typeorm';
 
 import { logger } from '../../utils/logger';
+import { dataSource } from '../../db/data-source';
 import { Topic } from '../../entities/dataset/topic';
 
 interface CSVRow {
@@ -16,13 +17,19 @@ interface CSVRow {
   l2_cy: string;
 }
 
-export default class TopicSeeder extends Seeder {
-  async run(dataSource: DataSource): Promise<void> {
-    await this.seedTopics(dataSource);
+export class TopicsSeeder {
+  constructor(private ds: DataSource) {
+    this.ds = ds;
   }
 
-  async seedTopics(dataSource: DataSource): Promise<void> {
-    const em = dataSource.createEntityManager();
+  async run(): Promise<void> {
+    logger.info('Starting TopicSeeder...');
+    await this.seedTopics();
+    logger.info('TopicSeeder finished.');
+  }
+
+  async seedTopics(): Promise<void> {
+    const em = this.ds.createEntityManager();
     const csv = `${__dirname}/../../resources/topics/topics.csv`;
     const parserOpts = { delimiter: ',', bom: true, skip_empty_lines: true, columns: true };
     const topics: Topic[] = [];
@@ -45,3 +52,16 @@ export default class TopicSeeder extends Seeder {
     logger.info(`Seeded ${topics.length} topics`);
   }
 }
+
+Promise.resolve()
+  .then(async () => {
+    if (!dataSource.isInitialized) await dataSource.initialize();
+    await new TopicsSeeder(dataSource).run();
+  })
+  .catch(async (err) => {
+    logger.error(err);
+    process.exitCode = 1;
+  })
+  .finally(async () => {
+    if (dataSource.isInitialized) await dataSource.destroy();
+  });
