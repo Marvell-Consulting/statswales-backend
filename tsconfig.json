@@ -1,5 +1,5 @@
 {
-  "extends": "@tsconfig/node22/tsconfig.json",
+  "extends": "@tsconfig/node24/tsconfig.json",
   "exclude": ["./coverage", "./dist", "./test", "jest.config.ts", "eslint.config.mjs", "./scripts"],
   "compilerOptions": {
     "rootDir": "src" /* Specify the root folder within your source files. */,
