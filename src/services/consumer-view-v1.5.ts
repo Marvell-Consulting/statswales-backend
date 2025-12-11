@@ -18,7 +18,8 @@ import { CORE_VIEW_NAME } from './cube-builder';
 import { getColumnHeaders } from '../utils/column-headers';
 import { t } from 'i18next';
 import cubeConfig from '../config/cube-view.json';
-import { FactTableToDimensionName } from '../interfaces/fact-table-column-to-dimension-name';
+import { ConsumerOutFormats } from '../enums/consumer-output-formats';
+import { ConsumerRequestBody } from '../dtos/consumer/consumer-request-body';
 
 const EXCEL_ROW_LIMIT = 1048500; // Excel Limit is 1048576 but removed 76 rows
 const CURSOR_ROW_LIMIT = 500;
@@ -95,14 +96,100 @@ export function transformHierarchy(factTableColumn: string, columnName: string, 
   };
 }
 
-export const getFilters = async (revisionId: string, language: string): Promise<FilterTable[]> => {
-  const cubeDB = dbManager.getCubeDataSource().createQueryRunner();
-  try {
-    const filterTableQuery = pgformat('SELECT * FROM %I.filter_table WHERE language = %L;', revisionId, language);
-    const filterTable: FilterRow[] = await cubeDB.query(filterTableQuery);
-    const columnData = new Map<string, FilterRow[]>();
+async function processCursorToCsv(cursor: Cursor, filename: string, res: Response): Promise<void> {
+  let rows = await cursor.read(CURSOR_ROW_LIMIT);
+  res.writeHead(200, {
+    // eslint-disable-next-line @typescript-eslint/naming-convention
+    'Content-Type': 'text/csv',
+    // eslint-disable-next-line @typescript-eslint/naming-convention
+    'Content-disposition': `attachment;filename=${filename}.csv`
+  });
+  if (rows.length > 0) {
+    const stream = csvFormat({ delimiter: ',', headers: true });
+    stream.pipe(res);
+    while (rows.length > 0) {
+      rows.map((row: unknown) => {
+        stream.write(row);
+      });
+      rows = await cursor.read(CURSOR_ROW_LIMIT);
+    }
+  } else {
+    res.write('\n');
+  }
+  res.end();
+}
 
-    for (const row of filterTable) {
+async function processCursorToExcel(cursor: Cursor, filename: string, res: Response): Promise<void> {
+  let rows = await cursor.read(CURSOR_ROW_LIMIT);
+  res.writeHead(200, {
+    // eslint-disable-next-line @typescript-eslint/naming-convention
+    'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    // eslint-disable-next-line @typescript-eslint/naming-convention
+    'Content-disposition': `attachment;filename=${filename}.xlsx`
+  });
+  res.flushHeaders();
+  const workbook = new ExcelJS.stream.xlsx.WorkbookWriter({
+    filename: `${filename}.xlsx`,
+    useStyles: true,
+    useSharedStrings: true,
+    stream: res
+  });
+  let sheetCount = 1;
+  let totalRows = 0;
+  let worksheet = workbook.addWorksheet(`Sheet-${sheetCount}`);
+  if (rows.length > 0) {
+    worksheet.addRow(Object.keys(rows[0]));
+    while (rows.length > 0) {
+      for (const row of rows) {
+        if (row === null) break;
+        const data = Object.values(row).map((val) => (isNaN(Number(val)) ? val : Number(val)));
+        worksheet.addRow(Object.values(data)).commit();
+      }
+      totalRows += CURSOR_ROW_LIMIT;
+      if (totalRows > EXCEL_ROW_LIMIT) {
+        worksheet.commit();
+        sheetCount++;
+        totalRows = 0;
+        worksheet = workbook.addWorksheet(`Sheet-${sheetCount}`);
+      }
+      rows = await cursor.read(CURSOR_ROW_LIMIT);
+    }
+  }
+  worksheet.commit();
+  await workbook.commit();
+}
+
+async function processCursorToJson(cursor: Cursor, filename: string, res: Response): Promise<void> {
+  let rows = await cursor.read(CURSOR_ROW_LIMIT);
+  res.writeHead(200, {
+    // eslint-disable-next-line @typescript-eslint/naming-convention
+    'Content-Type': 'application/json',
+    // eslint-disable-next-line @typescript-eslint/naming-convention
+    'Content-disposition': `attachment;filename=${filename}.json`
+  });
+  res.write('[');
+  let firstRow = true;
+  while (rows.length > 0) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    rows.forEach((row: any) => {
+      if (firstRow) {
+        firstRow = false;
+      } else {
+        res.write(',\n');
+      }
+      res.write(JSON.stringify(row));
+    });
+    rows = await cursor.read(CURSOR_ROW_LIMIT);
+  }
+  res.write(']');
+  res.end();
+}
+
+async function processCursorToFrontendFilterView(cursor: Cursor, res: Response): Promise<void> {
+  let rows: FilterRow[] = await cursor.read(CURSOR_ROW_LIMIT);
+  const columnData = new Map<string, FilterRow[]>();
+  while (rows.length > 0) {
+    rows.forEach((row: FilterRow) => {
       let data = columnData.get(row.fact_table_column);
       if (data) {
         data.push(row);
@@ -110,25 +197,66 @@ export const getFilters = async (revisionId: string, language: string): Promise<
         data = [row];
       }
       columnData.set(row.fact_table_column, data);
+    });
+    rows = await cursor.read(CURSOR_ROW_LIMIT);
+  }
+  const filterData: FilterTable[] = [];
+  for (const col of columnData.keys()) {
+    const data = columnData.get(col);
+    if (!data) {
+      continue;
     }
+    const hierarchy = transformHierarchy(data[0].fact_table_column, data[0].dimension_name, data);
+    filterData.push(hierarchy);
+  }
+  res.write(filterData);
+}
 
-    const filterData: FilterTable[] = [];
+async function processCursorToFrontend(cursor: Cursor, res: Response): Promise<void> {}
 
-    for (const col of columnData.keys()) {
-      const data = columnData.get(col);
-      if (!data) {
-        continue;
-      }
-      const hierarchy = transformHierarchy(data[0].fact_table_column, data[0].dimension_name, data);
-      filterData.push(hierarchy);
-    }
+const processCursor = async (
+  cursor: Cursor,
+  format: ConsumerOutFormats,
+  revisionId: string,
+  res: Response
+): Promise<void> => {
+  switch (format) {
+    case ConsumerOutFormats.Csv:
+      await processCursorToCsv(cursor, revisionId, res);
+      break;
+    case ConsumerOutFormats.Json:
+      await processCursorToJson(cursor, revisionId, res);
+      break;
+    case ConsumerOutFormats.View:
+      await processCursorToFrontend(cursor, res);
+      break;
+    case ConsumerOutFormats.Filter:
+      await processCursorToFrontendFilterView(cursor, res);
+      break;
+    case ConsumerOutFormats.Excel:
+      await processCursorToExcel(cursor, revisionId, res);
+      break;
+    default:
+      res.status(400).json({ error: 'Format not supported' });
+  }
+};
 
-    return filterData;
+export const getFilters = async (
+  revisionId: string,
+  res: Response,
+  language: string,
+  format: ConsumerOutFormats
+): Promise<void> => {
+  const [cubeDBConn] = (await dbManager.getCubeDataSource().driver.obtainMasterConnection()) as [PoolClient];
+  const filterTableQuery = pgformat('SELECT * FROM %I.filter_table WHERE language = %L;', revisionId, language);
+  try {
+    const cursor = cubeDBConn.query(new Cursor(filterTableQuery));
+    await processCursor(cursor, format, revisionId, res);
   } catch (err) {
     logger.error(err, 'Something went wrong trying to get the filter table from the database server');
     throw err;
   } finally {
-    cubeDB.release();
+    cubeDBConn.release();
   }
 };
 
@@ -211,30 +339,7 @@ function createBaseQuery(
   }
 }
 
-async function coreViewChooser(lang: string, revisionId: string): Promise<string> {
-  let availableMaterializedView: { matviewname: string }[];
-  const cubeDB = dbManager.getCubeDataSource().createQueryRunner();
-  try {
-    availableMaterializedView = await cubeDB.query(
-      pgformat(
-        `SELECT * FROM pg_matviews WHERE matviewname = %L AND schemaname = %L;`,
-        `${CORE_VIEW_NAME}_mat_${lang}`,
-        revisionId
-      )
-    );
-  } catch (err) {
-    logger.error(err, 'Unable to query available views from postgres');
-    throw err;
-  } finally {
-    void cubeDB.release();
-  }
 
-  if (availableMaterializedView.length > 0) {
-    return `${CORE_VIEW_NAME}_mat_${lang}`;
-  } else {
-    return `${CORE_VIEW_NAME}_${lang}`;
-  }
-}
 
 async function getColumns(revisionId: string, lang: string, view: string): Promise<string[]> {
   let columnsMetadata: { value: string }[];
@@ -257,18 +362,18 @@ async function getColumns(revisionId: string, lang: string, view: string): Promi
   return columns;
 }
 
-function checkAvailableViews(view: string): string {
-  const foundView = cubeConfig.find((config) => config.name === view);
-  if (!foundView) return 'raw';
-  else return view;
+interface FactTableToDimensionName {
+  fact_table_column: string;
+  dimension_name: string;
+  language: string;
 }
 
 export const createFrontendView = async (
   dataset: Dataset,
   revisionId: string,
   locale: string,
-  pageNumber: number,
-  pageSize: number,
+  pageNumber?: number,
+  pageSize?: number,
   sortBy?: SortByInterface[],
   filterBy?: FilterInterface[]
 ): Promise<ViewDTO | ViewErrDTO> => {
@@ -312,18 +417,24 @@ export const createFrontendView = async (
     void totalsQueryConnection.release();
   }
   const totalLines = Number(totals[0].totalLines);
-  const totalPages = Math.max(1, Math.ceil(totalLines / pageSize));
-  const errors = validateParams(pageNumber, totalPages, pageSize);
-
-  if (errors.length > 0) {
-    return { status: 400, errors, dataset_id: dataset.id };
+  let dataQuery = baseQuery;
+  if (pageSize && pageNumber) {
+    const totalPages = Math.max(1, Math.ceil(totalLines / pageSize));
+    const errors = validateParams(pageNumber, totalPages, pageSize);
+    if (errors.length > 0) {
+      return { status: 400, errors, dataset_id: dataset.id };
+    }
+    dataQuery = pgformat('%s LIMIT %L OFFSET %L', baseQuery, pageSize, (pageNumber - 1) * pageSize);
   }
 
-  const dataQuery = pgformat('%s LIMIT %L OFFSET %L', baseQuery, pageSize, (pageNumber - 1) * pageSize);
-  const cubeDB = dbManager.getCubeDataSource().createQueryRunner();
-  let preview: unknown[] | undefined;
+  const currentDataset = await DatasetRepository.getById(dataset.id);
+
+
+  const [cubeDBConn] = (await dbManager.getCubeDataSource().driver.obtainMasterConnection()) as [PoolClient];
+
   try {
-    preview = await cubeDB.query(dataQuery);
+    const cursor = cubeDBConn.query(new Cursor(dataQuery));
+    await processCursor(cursor, ConsumerOutFormats.View, revisionId, res);
   } catch (err) {
     logger.error(err, `Something went wrong trying to get cube data`);
     throw err;
@@ -334,7 +445,7 @@ export const createFrontendView = async (
 
   // PATCH: Handle empty preview result
   if (!preview || preview.length === 0) {
-    const currentDataset = await DatasetRepository.getById(dataset.id);
+    const currentDataset = await DatasetRepository.getById(revision.datasetId);
     return {
       dataset: DatasetDTO.fromDataset(currentDataset),
       current_page: pageNumber,
@@ -402,13 +513,28 @@ export const createFrontendView = async (
   };
 };
 
-export const createStreamingJSONFilteredView = async (
+function resolveColumns() {}
+
+function resolveFilterValues() {}
+
+export const createQueryId = async (
   res: Response,
   revisionId: string,
-  locale: string,
-  view = 'raw',
-  sortBy?: SortByInterface[],
-  filterBy?: FilterInterface[]
+  queryRequest: ConsumerRequestBody
+): Promise<void> => {
+
+}
+
+export const createSteamingDataView = async (
+  res: Response,
+  revisionId: string,
+  queryId: string
+) {
+
+}
+
+export const createStreamingJSONFilteredView = async (
+
 ): Promise<void> => {
   // queryRunner.query() does not support Cursor so we need to obtain underlying PostgreSQL connection
   const lang = locale.split('-')[0];
