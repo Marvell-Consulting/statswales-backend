@@ -160,7 +160,7 @@
             "$ref": "#/components/parameters/dataset_id"
           },
           {
-            "name": "languague",
+            "name": "language",
             "in": "query",
             "schema": {
               "type": "string"
