@@ -1,11 +1,11 @@
-/* eslint-disable no-console */
-
-import { Seeder } from '@jorgebodega/typeorm-seeding';
+import 'dotenv/config';
 import { DataSource } from 'typeorm';
 
+import { dataSource } from '../../db/data-source';
 import { User } from '../../entities/user/user';
 import { config } from '../../config';
 import { AppEnv } from '../../config/env.enum';
+import { logger } from '../../utils/logger';
 
 import { testUsers } from './fixtures/users';
 import { UserGroup } from '../../entities/user/user-group';
@@ -13,26 +13,46 @@ import { testGroups } from './fixtures/group';
 
 // This seeder loads test fixtures used by the e2e tests on the frontend. This needs to be run before
 // the frontend tests so that the test users are available in the database.
-export default class SeedTestFixtures extends Seeder {
-  async run(dataSource: DataSource): Promise<void> {
+export class TestSeeder {
+  constructor(private ds: DataSource) {
+    this.ds = ds;
+  }
+
+  async run(): Promise<void> {
     if (![AppEnv.Local, AppEnv.Ci].includes(config.env)) {
       throw new Error('SeedTestFixtures is only intended to be run in local or test environments');
     }
-    await this.seedTestGroup(dataSource);
-    await this.seedUsers(dataSource);
+
+    logger.info('Starting TestSeeder...');
+    await this.seedTestGroup();
+    await this.seedUsers();
+    logger.info('TestSeeder finished.');
   }
 
-  async seedTestGroup(dataSource: DataSource): Promise<void> {
-    console.log(`Seeding test groups...`);
-    const entityManager = dataSource.createEntityManager();
+  async seedTestGroup(): Promise<void> {
+    logger.info(`Seeding ${testGroups.length} test groups...`);
+    const entityManager = this.ds.createEntityManager();
     const groups = entityManager.create(UserGroup, testGroups);
-    await dataSource.getRepository(UserGroup).save(groups);
+    await this.ds.getRepository(UserGroup).save(groups);
   }
 
-  async seedUsers(dataSource: DataSource): Promise<void> {
-    console.log(`Seeding ${testUsers.length} test users...`);
-    const entityManager = dataSource.createEntityManager();
+  async seedUsers(): Promise<void> {
+    logger.info(`Seeding ${testUsers.length} test users...`);
+    const entityManager = this.ds.createEntityManager();
     const users = entityManager.create(User, testUsers);
-    await dataSource.getRepository(User).save(users);
+    await this.ds.getRepository(User).save(users);
   }
 }
+
+Promise.resolve()
+  .then(async () => {
+    if (!dataSource.isInitialized) await dataSource.initialize();
+    await new TestSeeder(dataSource).run();
+  })
+  .catch(async (err) => {
+    logger.error(err);
+    process.exitCode = 1;
+  })
+  .finally(async () => {
+    if (dataSource.isInitialized) await dataSource.destroy();
+  });

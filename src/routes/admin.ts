@@ -15,7 +15,8 @@ import {
   updateUserRoles,
   updateUserStatus,
   updateUserGroupStatus,
-  dashboard
+  dashboard,
+  similarDatasets
 } from '../controllers/admin';
 import { ForbiddenException } from '../exceptions/forbidden.exception';
 import { logger } from '../utils/logger';
@@ -36,6 +37,7 @@ adminRouter.use((req, res, next) => {
 });
 
 adminRouter.get('/dashboard', dashboard);
+adminRouter.get('/similar/datasets', similarDatasets);
 
 adminRouter.get('/role', listRoles);
 
