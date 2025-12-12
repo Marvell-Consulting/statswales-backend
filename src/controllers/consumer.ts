@@ -429,6 +429,58 @@ export const getPublicationHistory = async (req: Request, res: Response): Promis
   res.json(revisionDTOs);
 };
 
+export const searchPublishedDatasets = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  /*
+    #swagger.summary = 'Search published datasets'
+    #swagger.description = 'This endpoint performs a full-text search across published dataset titles and summaries.'
+    #swagger.autoQuery = false
+    #swagger.parameters['$ref'] = [
+      '#/components/parameters/language',
+      '#/components/parameters/page_number',
+      '#/components/parameters/page_size'
+    ]
+    #swagger.parameters['q'] = {
+      in: 'query',
+      description: 'Search query string',
+      required: true,
+      schema: { type: 'string' }
+    }
+    #swagger.responses[200] = {
+      description: 'A paginated list of matching published datasets',
+      content: {
+        'application/json': {
+          schema: { $ref: "#/components/schemas/DatasetsWithCount" }
+        }
+      }
+    }
+  */
+  logger.info('Searching published datasets...');
+
+  try {
+    const lang = req.language as Locale;
+    const query = req.query.q as string;
+    const pageNumber = parseInt(req.query.page_number as string, 10) || 1;
+    const pageSize = parseInt(req.query.page_size as string, 10) || DEFAULT_PAGE_SIZE;
+
+    if (!query || query.trim().length === 0) {
+      next(new BadRequestException('errors.search_query_required'));
+      return;
+    }
+
+    const results = await PublishedDatasetRepository.searchPublishedByLanguage(
+      lang,
+      query.trim(),
+      pageNumber,
+      pageSize
+    );
+
+    res.json(results);
+  } catch (err) {
+    logger.error(err, 'Failed to search published datasets');
+    next(new UnknownException());
+  }
+};
+
 export const fixSwaggerDocGenerationWeirdness = (): void => {
   // Since we added return types to the functions above, Swagger-autogen has started to completely ignore the docs
   // for listRootTopics and listSubTopics actions. It's very strange and I do not know exactly why, possibly to do with
