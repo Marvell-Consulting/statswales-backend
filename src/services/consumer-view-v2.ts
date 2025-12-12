@@ -162,7 +162,7 @@ async function processCursorToFrontendFilterView(cursor: Cursor, res: Response):
     const hierarchy = transformHierarchy(data[0].fact_table_column, data[0].dimension_name, data);
     filterData.push(hierarchy);
   }
-  res.write(filterData);
+  res.json(filterData);
 }
 
 async function processCursorToFrontend(
