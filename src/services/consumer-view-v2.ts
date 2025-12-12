@@ -177,8 +177,8 @@ async function processCursorToFrontend(
   pageNumber = pageNumber ? pageNumber : 1;
   const page_info = {
     total_records: queryStore.totalLines,
-    start_record: pageSize * pageNumber,
-    end_record: pageSize * pageNumber + pageSize
+    start_record: pageSize * (pageNumber - 1),
+    end_record: pageSize * pageNumber
   };
   res.writeHead(200, {
     // eslint-disable-next-line @typescript-eslint/naming-convention
