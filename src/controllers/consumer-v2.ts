@@ -3,29 +3,28 @@ import { NextFunction, Request, Response } from 'express';
 import { logger } from '../utils/logger';
 import { Locale } from '../enums/locale';
 import { UnknownException } from '../exceptions/unknown.exception';
-import { PublishedDatasetRepository, withAll } from '../repositories/published-dataset';
+import { PublishedDatasetRepository, withPublishedRevision } from '../repositories/published-dataset';
 import { NotFoundException } from '../exceptions/not-found.exception';
 import { BadRequestException } from '../exceptions/bad-request.exception';
 import { ConsumerOutFormats } from '../enums/consumer-output-formats';
-import {
-  createFrontendView,
-  createStreamingCSVFilteredView,
-  createStreamingExcelFilteredView,
-  createStreamingJSONFilteredView,
-  createStreamingPostgresPivotView,
-  getFilters
-} from '../services/consumer-view';
-import { hasError, formatValidator } from '../validators';
+import { format2Validator, hasError } from '../validators';
 import { TopicDTO } from '../dtos/topic-dto';
 import { PublishedTopicsDTO } from '../dtos/published-topics-dto';
 import { TopicRepository } from '../repositories/topic';
 import { SortByInterface } from '../interfaces/sort-by-interface';
-import { FilterInterface } from '../interfaces/filterInterface';
-import { DownloadFormat } from '../enums/download-format';
 import { DEFAULT_PAGE_SIZE } from '../utils/page-defaults';
 import { ConsumerRevisionDTO } from '../dtos/consumer-revision-dto';
 import { DatasetDTO } from '../dtos/consumer/dataset';
 import { FullRevision } from '../dtos/consumer/revision';
+import {
+  createQueryStoreEntry,
+  sendConsumerDataToUser,
+  sendConsumerDataToUserNoFilter,
+  sendFilterTableToUser
+} from '../services/consumer-view-v2';
+import { Dataset } from '../entities/dataset/dataset';
+import { Revision } from '../entities/dataset/revision';
+import { ConsumerOptions } from '../interfaces/consumer-options';
 
 export const listPublishedDatasets = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   /*
@@ -86,210 +85,142 @@ export const getPublishedRevisionById = async (req: Request, res: Response): Pro
   res.json(revisionDto);
 };
 
-export const getPublishedDatasetView = async (req: Request, res: Response): Promise<void> => {
-  /*
-    #swagger.summary = 'Get a paginated view of a published dataset'
-    #swagger.description = 'This endpoint returns a paginated view of a published dataset, with optional sorting and
-      filtering.'
-    #swagger.autoQuery = false
-    #swagger.parameters['$ref'] = [
-      '#/components/parameters/language',
-      '#/components/parameters/dataset_id',
-      '#/components/parameters/page_number',
-      '#/components/parameters/page_size',
-      '#/components/parameters/sort_by',
-      '#/components/parameters/filter'
-    ]
-    #swagger.responses[200] = {
-      description: 'A paginated view of a published dataset, with optional sorting and filtering',
-      content: {
-        'application/json': {
-          schema: { $ref: "#/components/schemas/DatasetView" }
-        }
-      }
-    }
-  */
-  const dataset = await PublishedDatasetRepository.getById(res.locals.datasetId, withAll);
+async function apiSetup(
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<{
+  dataset: Dataset;
+  publishedRevision?: Revision;
+  sort?: string[];
+  format?: ConsumerOutFormats;
+  pageNumber?: number;
+  pageSize?: number;
+  language: Locale;
+  errors: boolean;
+}> {
+  const dataset = await PublishedDatasetRepository.getById(res.locals.datasetId, withPublishedRevision);
   const publishedRevision = dataset.publishedRevision;
-  const lang = req.language;
+  const language = req.language as Locale;
 
   if (!publishedRevision) {
-    throw new NotFoundException('errors.no_revision');
-  }
-
-  const pageNumber: number = Number.parseInt(req.query.page_number as string, 10) || 1;
-  const pageSize: number = Number.parseInt(req.query.page_size as string, 10) || DEFAULT_PAGE_SIZE;
-  let sortBy: SortByInterface[] | undefined;
-  let filter: FilterInterface[] | undefined;
-
-  try {
-    sortBy = req.query.sort_by ? (JSON.parse(req.query.sort_by as string) as SortByInterface[]) : undefined;
-  } catch (err) {
-    logger.warn(err, 'Error parsing sort_by query parameters');
-    throw new BadRequestException('errors.sort_by.invalid');
-  }
-
-  try {
-    filter = req.query.filter ? (JSON.parse(req.query.filter as string) as FilterInterface[]) : undefined;
-  } catch (err) {
-    logger.warn(err, 'Error parsing filter query parameters');
-    throw new BadRequestException('errors.filter.invalid');
-  }
-
-  try {
-    const preview = await createFrontendView(dataset, publishedRevision.id, lang, pageNumber, pageSize, sortBy, filter);
-    res.status(200).json(preview);
-  } catch (error) {
-    logger.error(error, 'Something went wrong trying to query the cube');
-    throw new UnknownException('errors.consumer_view.cube_query_failed');
-  }
-};
-
-export const getPublishedDatasetFilters = async (req: Request, res: Response): Promise<void> => {
-  /*
-    #swagger.summary = 'Get a list of the filters available for a paginated view of a published dataset'
-    #swagger.description = 'This endpoint returns a list of the filters available for a paginated view of a published
-      dataset. These are based on the variables used in the dataset, for example local authorities or financial years.'
-    #swagger.autoQuery = false
-    #swagger.parameters['$ref'] = [
-      '#/components/parameters/language'
-    ]
-    #swagger.responses[200] = {
-      description: 'A list of the filters available for a paginated view of a published dataset',
-      content: {
-        'application/json': {
-          schema: { $ref: "#/components/schemas/Filters" }
-        }
-      }
-    }
-  */
-  const dataset = await PublishedDatasetRepository.getById(res.locals.datasetId, { publishedRevision: true });
-  const publishedRevision = dataset.publishedRevision;
-  const lang = req.language.toLowerCase();
-  logger.debug(`Fetching filters for published dataset with language: ${lang}`);
-
-  if (!publishedRevision) {
-    throw new NotFoundException('errors.no_revision');
-  }
-
-  const filters = await getFilters(publishedRevision.id, lang || 'en-gb');
-  res.json(filters);
-};
-
-export const downloadPublishedDataset = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-  /*
-    #swagger.summary = 'Download a published dataset as a file'
-    #swagger.description = 'This endpoint returns a published dataset file in a specified format.'
-    #swagger.autoQuery = false
-    #swagger.parameters['$ref'] = [
-      '#/components/parameters/language',
-      '#/components/parameters/dataset_id',
-      '#/components/parameters/format',
-      '#/components/parameters/sort_by',
-      '#/components/parameters/filter'
-    ]
-    #swagger.responses[200] = {
-      description: 'A published dataset file in a specified format',
-      content: {
-        'application/octet-stream': {
-          schema: { type: 'string', format: 'binary', example: 'data.csv' }
-        }
-      }
-    }
-  */
-  const formatError = await hasError(formatValidator(), req);
-
-  if (formatError) {
-    const availableFormats = Object.values(DownloadFormat).join(', ');
-    next(new BadRequestException(`file format must be specified (${availableFormats})`));
-    return;
-  }
-
-  const format = req.params.format;
-  const view = req.query.view as string;
-  const dataset = await PublishedDatasetRepository.getById(res.locals.datasetId, withAll);
-  let sortBy: SortByInterface[] | undefined;
-  let filter: FilterInterface[] | undefined;
-
-  try {
-    sortBy = req.query.sort_by ? (JSON.parse(req.query.sort_by as string) as SortByInterface[]) : undefined;
-  } catch (err) {
-    logger.warn(err, 'Error parsing sort_by query parameters');
-    throw new BadRequestException('errors.sort_by.invalid');
-  }
-
-  try {
-    filter = req.query.filter ? (JSON.parse(req.query.filter as string) as FilterInterface[]) : undefined;
-  } catch (err) {
-    logger.warn(err, 'Error parsing filter query parameters');
-    throw new BadRequestException('errors.filter.invalid');
-  }
-
-  const publishedRevision = dataset.publishedRevision;
-
-  if (!publishedRevision?.onlineCubeFilename) {
     next(new NotFoundException('errors.no_revision'));
-    return;
+    return {
+      dataset,
+      language,
+      errors: true
+    };
   }
 
-  try {
-    switch (format as ConsumerOutFormats) {
-      case ConsumerOutFormats.Csv:
-        createStreamingCSVFilteredView(res, publishedRevision.id, req.language, view, sortBy, filter);
-        break;
-      case ConsumerOutFormats.Json:
-        createStreamingJSONFilteredView(res, publishedRevision.id, req.language, view, sortBy, filter);
-        break;
-      case ConsumerOutFormats.Excel:
-        createStreamingExcelFilteredView(res, publishedRevision.id, req.language, view, sortBy, filter);
-        break;
-      default:
-        next(new BadRequestException('file format currently not supported'));
+  let format: ConsumerOutFormats | undefined;
+
+  if (req.query.format) {
+    logger.trace(`Format = ${req.query.format}`);
+    const formatError = await hasError(format2Validator(), req);
+
+    if (formatError) {
+      const availableFormats = Object.values(ConsumerOutFormats).join(', ').replace('filter, ', '');
+      next(new BadRequestException(`file format must be specified (${availableFormats})`));
+      return {
+        dataset,
+        language,
+        errors: true
+      };
     }
-  } catch (err) {
-    logger.error(err, 'An error occurred trying to download published dataset');
-    next(new UnknownException());
+
+    format = req.query.format as ConsumerOutFormats;
+
+    if (format === ConsumerOutFormats.Filter) {
+      next(new BadRequestException(`Filter is only available on the filter endpoint.`));
+      return {
+        dataset,
+        language,
+        errors: true
+      };
+    }
   }
+
+  const pageNumber: number | undefined = req.query.page_number
+    ? Number.parseInt(req.query.page_number as string, 10)
+    : undefined;
+  const pageSize: number | undefined = req.query.page_size
+    ? Number.parseInt(req.query.page_size as string, 10) || DEFAULT_PAGE_SIZE
+    : undefined;
+  const sort: string[] | undefined = req.query.sort ? (req.query.sort as string).split(',') : undefined;
+  return {
+    dataset,
+    publishedRevision,
+    language,
+    format,
+    sort,
+    pageNumber,
+    pageSize,
+    errors: false
+  };
+}
+
+export const getPublishedDatasetViewNoFilters = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  const { dataset, language, format, sort, pageNumber, pageSize, errors } = await apiSetup(req, res, next);
+  if (errors) return;
+  await sendConsumerDataToUserNoFilter(res, next, language, dataset, pageNumber, pageSize, format, sort);
 };
 
-export const getPostgresPivotTable = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-  /*
-  #swagger.ignore = true
-   */
-  const dataset = await PublishedDatasetRepository.getById(res.locals.datasetId, withAll);
-
-  let filter: FilterInterface[] | undefined;
-  try {
-    filter = req.query.filter ? (JSON.parse(req.query.filter as string) as FilterInterface[]) : undefined;
-  } catch (err) {
-    logger.warn(err, 'Error parsing filter query parameters');
-    throw new BadRequestException('errors.filter.invalid');
-  }
-
-  const xAxis = req.query.x?.toString();
-  if (!xAxis) {
-    logger.warn(`No X Axis present`);
-    throw new BadRequestException('No X Axis present');
-  }
-
-  const yAxis = req.query.y?.toString();
-  if (!yAxis) {
-    logger.warn(`No Y Axis present`);
-    throw new BadRequestException('No Y Axis present');
-  }
-
-  const publishedRevision = dataset.publishedRevision;
-
-  if (!publishedRevision?.onlineCubeFilename) {
-    next(new NotFoundException('errors.no_revision'));
+export const getPublishedDatasetViewFilters = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  const { dataset, language, format, sort, pageNumber, pageSize, errors } = await apiSetup(req, res, next);
+  if (errors) return;
+  const filterId: string | undefined = req.params.filter_id ? (req.params.filter_id as string) : undefined;
+  logger.debug(`Filter ID = ${filterId}`);
+  if (!filterId) {
+    next(new NotFoundException('errors.no_filter_id'));
     return;
   }
+  await sendConsumerDataToUser(res, next, language, dataset, filterId, pageNumber, pageSize, format, sort);
+};
+
+export const generateFilterId = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  const { dataset, publishedRevision, errors } = await apiSetup(req, res, next);
+  if (errors) return;
+
+  let consumerOptions: ConsumerOptions | undefined;
   try {
-    void createStreamingPostgresPivotView(res, publishedRevision.id, req.language, xAxis, yAxis, filter);
+    logger.debug(`req body = ${JSON.stringify(req.body)}`);
+    consumerOptions = req.body ? (req.body as ConsumerOptions) : undefined;
   } catch (err) {
-    logger.error(err, 'An error occurred trying to produce postgres pivot as JSON');
-    next(new UnknownException());
+    logger.warn(err, 'Error parsing filter query parameters');
+    next(new BadRequestException('errors.bad_json'));
+    return;
   }
+  if (!consumerOptions) {
+    next(new BadRequestException('errors.filter.missing'));
+    return;
+  }
+  await createQueryStoreEntry(res, next, dataset, publishedRevision!, consumerOptions);
+};
+
+export const getPublishedDatasetFilters = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  const { publishedRevision, language, errors } = await apiSetup(req, res, next);
+  if (errors) return;
+  let format: ConsumerOutFormats | undefined;
+  if (req.query.format) {
+    const formatError = await hasError(format2Validator(), req);
+
+    if (formatError) {
+      const availableFormats = Object.values(ConsumerOutFormats).join(', ');
+      next(new BadRequestException(`file format must be specified (${availableFormats})`));
+      return;
+    }
+
+    format = req.query.format as ConsumerOutFormats;
+  }
+  await sendFilterTableToUser(res, next, language, publishedRevision!, format);
 };
 
 export const listRootTopics = async (req: Request, res: Response, next: NextFunction): Promise<void> => {

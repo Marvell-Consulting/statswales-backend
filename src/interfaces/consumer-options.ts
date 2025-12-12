@@ -6,7 +6,7 @@ export interface ConsumerOptions {
     y: string | string[];
   };
   filters: Record<string, string[]>[];
-  options: {
+  options?: {
     use_raw_column_names?: boolean; // Default: true
     use_reference_values?: boolean; // Default: true
     data_value_type?: 'raw' | 'formatted' | 'with_note_codes';

@@ -4,6 +4,6 @@ export enum ConsumerOutFormats {
   Excel = 'xlsx',
   Html = 'html',
   View = 'frontend',
-  Filter = 'filter',
-  Parquet = 'parquet'
+  Filter = 'filter'
+  // Parquet = 'parquet'
 }

@@ -3,9 +3,7 @@ import { UpdateFrequencyDTO } from '../update-frequency-dto';
 import { Designation } from '../../enums/designation';
 import { RelatedLinkDTO } from '../related-link-dto';
 import { RevisionProviderDTO } from '../revision-provider-dto';
-import { TopicDTO } from '../topic-dto';
 import { Revision } from '../../entities/dataset/revision';
-import { ProviderDTO } from '../provider-dto';
 import { RevisionTopicDTO } from '../revision-topic-dto';
 
 export interface LiteRevision {

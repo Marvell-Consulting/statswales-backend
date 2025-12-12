@@ -1,4 +1,4 @@
-import { NextFunction, Router, Request, Response } from 'express';
+import express, { NextFunction, Router, Request, Response } from 'express';
 import { FindOptionsRelations } from 'typeorm';
 import cors from 'cors';
 
@@ -6,22 +6,23 @@ import { logger } from '../../../utils/logger';
 import {
   listPublishedDatasets,
   getPublishedDatasetById,
-  getPublishedDatasetView,
   listSubTopics,
   listRootTopics,
-  getPublishedDatasetFilters,
-  getPostgresPivotTable,
-  getPublishedRevisionById
+  getPublishedRevisionById,
+  getPublishedDatasetViewNoFilters,
+  getPublishedDatasetViewFilters,
+  generateFilterId,
+  getPublishedDatasetFilters
 } from '../../../controllers/consumer-v2';
 import { NotFoundException } from '../../../exceptions/not-found.exception';
 import { PublishedDatasetRepository } from '../../../repositories/published-dataset';
 import { hasError, datasetIdValidator, revisionIdValidator } from '../../../validators';
 import { Dataset } from '../../../entities/dataset/dataset';
-import { NotAllowedException } from '../../../exceptions/not-allowed.exception';
 import { Revision } from '../../../entities/dataset/revision';
 import { RevisionRepository } from '../../../repositories/revision';
 
 export const publicApiV2Router = Router();
+const jsonParser = express.json();
 
 export const loadPublishedDataset = (relations?: FindOptionsRelations<Dataset>) => {
   return async (req: Request, res: Response, next: NextFunction): Promise<void> => {
@@ -88,11 +89,8 @@ publicApiV2Router.get(
 );
 
 publicApiV2Router.get('/:dataset_id/filters', loadPublishedDataset(), getPublishedDatasetFilters);
-publicApiV2Router.get('/:dataset_id/data', loadPublishedDataset(), getPublishedDatasetView);
-publicApiV2Router.get('/:dataset_id/data/:filter_id', loadPublishedDataset(), getPublishedDatasetView);
+publicApiV2Router.get('/:dataset_id/data', loadPublishedDataset(), getPublishedDatasetViewNoFilters);
+publicApiV2Router.get('/:dataset_id/data/:filter_id', loadPublishedDataset(), getPublishedDatasetViewFilters);
+publicApiV2Router.post('/:dataset_id/data', loadPublishedDataset(), jsonParser, generateFilterId);
 
-publicApiV2Router.post('/:dataset_id/pivot', loadPublishedDataset(), getPostgresPivotTable);
-publicApiV2Router.post('/:dataset_id/data', loadPublishedDataset(), getPostgresPivotTable);
-
-// Hidden route
-publicApiV2Router.get('/:dataset_id/postgres_pivot', loadPublishedDataset(), getPostgresPivotTable);
+// publicApiV2Router.post('/:dataset_id/pivot', loadPublishedDataset(), getPostgresPivotTable);

@@ -7,12 +7,10 @@ import { FilterRow } from '../interfaces/filter-row';
 import { FilterTable } from '../interfaces/filter-table';
 import { dbManager } from '../db/database-manager';
 import { format as pgformat } from '@scaleleap/pg-format/lib/pg-format';
-import { CORE_VIEW_NAME } from './cube-builder';
 import { logger } from '../utils/logger';
 import { t } from 'i18next';
 import { ConsumerOptions } from '../interfaces/consumer-options';
 import { QueryStore } from '../entities/query-store';
-import cubeConfig from '../config/cube-view.json';
 import { Locale } from '../enums/locale';
 import { SUPPORTED_LOCALES } from '../middleware/translation';
 import { createHash } from 'node:crypto';
@@ -23,22 +21,32 @@ import { Dataset } from '../entities/dataset/dataset';
 import { NotFoundException } from '../exceptions/not-found.exception';
 import { DEFAULT_PAGE_SIZE } from '../utils/page-defaults';
 import { PoolClient } from 'pg';
+import {
+  checkAvailableViews,
+  coreViewChooser,
+  getColumns,
+  getFilterTable,
+  getFilterTableQuery,
+  resolveDimensionToFactTableColumn,
+  resolveFactColumnToDimension,
+  resolveFactDescriptionToReference,
+  transformHierarchy
+} from '../utils/consumer';
+import { Revision } from '../entities/dataset/revision';
+import { FactTableToDimensionName } from '../interfaces/fact-table-column-to-dimension-name';
+import { DatasetRepository } from '../repositories/dataset';
+import { DatasetDTO } from '../dtos/dataset-dto';
 
-const EXCEL_ROW_LIMIT = 1048500; // Excel Limit is 1048576 but removed 76 rows
+const EXCEL_ROW_LIMIT = 1048500; // Excel Limit is 1,048,576 but removed 76 rows
 const CURSOR_ROW_LIMIT = 500;
 
 const DEFAULT_CONSUMER_OPTIONS: ConsumerOptions = { filters: [], options: { data_value_type: 'raw' } };
-function generationOptionsHash(datasetId: string, options?: ConsumerOptions) {
+
+function generationOptionsHash(datasetId: string, options?: ConsumerOptions): string {
   if (!options) options = DEFAULT_CONSUMER_OPTIONS;
   return createHash('sha256')
     .update(`${datasetId}:${JSON.stringify(options)}`)
     .digest('hex');
-}
-
-interface FactTableToDimensionName {
-  fact_table_column: string;
-  dimension_name: string;
-  language: string;
 }
 
 async function processCursorToCsv(cursor: Cursor, queryStore: QueryStore, res: Response): Promise<void> {
@@ -64,17 +72,17 @@ async function processCursorToCsv(cursor: Cursor, queryStore: QueryStore, res: R
   res.end();
 }
 
-async function processCursorToExcel(cursor: Cursor, filename: string, res: Response): Promise<void> {
+async function processCursorToExcel(cursor: Cursor, queryStore: QueryStore, res: Response): Promise<void> {
   let rows = await cursor.read(CURSOR_ROW_LIMIT);
   res.writeHead(200, {
     // eslint-disable-next-line @typescript-eslint/naming-convention
     'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
     // eslint-disable-next-line @typescript-eslint/naming-convention
-    'Content-disposition': `attachment;filename=${filename}.xlsx`
+    'Content-disposition': `attachment;filename=${queryStore.datasetId}.xlsx`
   });
   res.flushHeaders();
   const workbook = new ExcelJS.stream.xlsx.WorkbookWriter({
-    filename: `${filename}.xlsx`,
+    filename: `${queryStore.datasetId}.xlsx`,
     useStyles: true,
     useSharedStrings: true,
     stream: res
@@ -157,73 +165,82 @@ async function processCursorToFrontendFilterView(cursor: Cursor, res: Response):
   res.write(filterData);
 }
 
-async function processCursorToFrontend(cursor: Cursor, queryStore: QueryStore, res: Response): Promise<void> {
-
+async function processCursorToFrontend(
+  cursor: Cursor,
+  queryStore: QueryStore,
+  pageNumber: number | undefined,
+  pageSize: number | undefined,
+  res: Response
+): Promise<void> {
+  const currentDataset = await DatasetRepository.getById(queryStore.datasetId);
+  pageSize = pageSize ? pageSize : queryStore.totalLines;
+  pageNumber = pageNumber ? pageNumber : 1;
+  const page_info = {
+    total_records: queryStore.totalLines,
+    start_record: pageSize * pageNumber,
+    end_record: pageSize * pageNumber + pageSize
+  };
+  res.writeHead(200, {
+    // eslint-disable-next-line @typescript-eslint/naming-convention
+    'Content-Type': 'application/json',
+    // eslint-disable-next-line @typescript-eslint/naming-convention
+    'Content-disposition': `attachment;filename=${queryStore.datasetId}.json`
+  });
+  res.write('{');
+  res.write(`"dataset": ${JSON.stringify(DatasetDTO.fromDataset(currentDataset))},`);
+  res.write(`"current_page": ${pageNumber},`);
+  res.write(`"page_info": ${JSON.stringify(page_info)},`);
+  res.write(`"page_size": ${pageSize},`);
+  res.write(`"total_pages": ${Math.max(1, Math.ceil(queryStore.totalLines / pageSize))},`);
+  let rows = await cursor.read(CURSOR_ROW_LIMIT);
+  res.write(`"headers": ${JSON.stringify(Object.keys(rows[0]))},`);
+  res.write('"data": [');
+  let firstRow = true;
+  while (rows.length > 0) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    rows.forEach((row: any) => {
+      if (firstRow) {
+        firstRow = false;
+      } else {
+        res.write(',\n');
+      }
+      res.write(JSON.stringify(Object.values(row)));
+    });
+    rows = await cursor.read(CURSOR_ROW_LIMIT);
+  }
+  res.write(']');
+  res.write(`}`);
+  res.end();
 }
 
-const processCursor = (
+const processCursor = async (
   cursor: Cursor,
   format: ConsumerOutFormats,
   queryStore: QueryStore,
+  pageSize: number | undefined,
+  pageNumber: number | undefined,
   res: Response
-): void => {
+): Promise<void> => {
   switch (format) {
     case ConsumerOutFormats.Csv:
-      void processCursorToCsv(cursor, queryStore, res);
+      await processCursorToCsv(cursor, queryStore, res);
       break;
     case ConsumerOutFormats.Json:
-      void processCursorToJson(cursor, queryStore, res);
+      await processCursorToJson(cursor, queryStore, res);
       break;
     case ConsumerOutFormats.View:
-      void processCursorToFrontend(cursor, queryStore, res);
+      await processCursorToFrontend(cursor, queryStore, pageNumber, pageSize, res);
       break;
     case ConsumerOutFormats.Filter:
-      void processCursorToFrontendFilterView(cursor, queryStore, res);
+      await processCursorToFrontendFilterView(cursor, res);
       break;
     case ConsumerOutFormats.Excel:
-      void processCursorToExcel(cursor, queryStore, res);
+      await processCursorToExcel(cursor, queryStore, res);
       break;
     default:
       res.status(400).json({ error: 'Format not supported' });
   }
 };
-
-function resolveDimensionToFactTableColumn(
-  columnName: string,
-  factTableToDimensionNames: FactTableToDimensionName[]
-): string {
-  const col = factTableToDimensionNames.find((col) => columnName.toLowerCase() === col.dimension_name.toLowerCase());
-  if (!col) {
-    throw new Error('Column not found');
-  }
-  return col.fact_table_column;
-}
-
-function resolveFactColumnToDimension(
-  columnName: string,
-  locale: string,
-  filterTable: FactTableToDimensionName[]
-): string {
-  const col = filterTable.find(
-    (col) =>
-      col.fact_table_column.toLowerCase() === columnName.toLowerCase() &&
-      col.language.toLowerCase() === locale.toLowerCase()
-  );
-  if (!col) {
-    throw new Error('Column not found');
-  }
-  return col.dimension_name;
-}
-
-function resolveFactDescriptionToReference(referenceValues: string[], filterTable: FilterRow[]): string[] {
-  const resolvedValues: string[] = [];
-  for (const val of referenceValues) {
-    const resVal = filterTable.find((row) => row.description.toLowerCase() === val.toLowerCase());
-    if (resVal) resolvedValues.push(resVal?.reference);
-    else throw new Error('Value not found');
-  }
-  return resolvedValues;
-}
 
 function createBaseQuery(
   revisionId: string,
@@ -234,8 +251,8 @@ function createBaseQuery(
   request?: ConsumerOptions
 ): string {
   const refColumnPostfix = `_${t('column_headers.reference', { lng: locale })}`;
-  const useRefValues = request?.options.use_reference_values ? request?.options.use_reference_values : true;
-  const useRawColumns = request?.options.use_raw_column_names ? request?.options.use_raw_column_names : true;
+  const useRefValues = request?.options?.use_reference_values ? request?.options.use_reference_values : true;
+  const useRawColumns = request?.options?.use_raw_column_names ? request?.options.use_raw_column_names : true;
 
   const filters: string[] = [];
   if (request?.filters && request?.filters.length > 0) {
@@ -253,81 +270,35 @@ function createBaseQuery(
         );
         filterValues = resolveFactDescriptionToReference(filterValues, filterTableValues);
       }
-      colName = `${colName}-${refColumnPostfix}`;
+      colName = `${colName}${refColumnPostfix}`;
       filters.push(pgformat('%I in (%L)', colName, filterValues));
     }
   }
 
   if (columns[0] === '*') {
     return pgformat(
-      'SELECT * FROM %I.%I %s %s',
+      'SELECT * FROM %I.%I %s',
       revisionId,
       view,
-      filters ? `WHERE ${filters.join(' AND ')}` : ''
+      filters.length > 0 ? `WHERE ${filters.join(' AND ')}` : ''
     );
   } else {
     return pgformat(
-      'SELECT %s FROM %I.%I %s %s',
+      'SELECT %s FROM %I.%I %s',
       columns.join(', '),
       revisionId,
       view,
-      filters ? `WHERE ${filters.join(' AND ')}` : ''
+      filters.length > 0 ? `WHERE ${filters.join(' AND ')}` : ''
     );
   }
 }
 
-async function coreViewChooser(lang: string, revisionId: string): Promise<string> {
-  let availableMaterializedView: { matviewname: string }[];
-  const cubeDB = dbManager.getCubeDataSource().createQueryRunner();
-  try {
-    availableMaterializedView = await cubeDB.query(
-      pgformat(
-        `SELECT * FROM pg_matviews WHERE matviewname = %L AND schemaname = %L;`,
-        `${CORE_VIEW_NAME}_mat_${lang}`,
-        revisionId
-      )
-    );
-  } catch (err) {
-    logger.error(err, 'Unable to query available views from postgres');
-    throw err;
-  } finally {
-    void cubeDB.release();
+function convertMapToObject(queryMap: Map<Locale, string>): Record<string, string> {
+  const newObject: Record<string, string> = {};
+  for (const [key, value] of queryMap) {
+    newObject[key] = value;
   }
-
-  if (availableMaterializedView.length > 0) {
-    return `${CORE_VIEW_NAME}_mat_${lang}`;
-  } else {
-    return `${CORE_VIEW_NAME}_${lang}`;
-  }
-}
-
-function checkAvailableViews(view: string | undefined): string {
-  if (!view) return 'raw';
-  if (view === 'with_note_codes') view = 'frontend';
-  const foundView = cubeConfig.find((config) => config.name === view);
-  if (!foundView) return 'raw';
-  else return view;
-}
-
-async function getColumns(revisionId: string, lang: string, view: string): Promise<string[]> {
-  let columnsMetadata: { value: string }[];
-  const cubeDB = dbManager.getCubeDataSource().createQueryRunner();
-  try {
-    columnsMetadata = await cubeDB.query(
-      pgformat(`SELECT value FROM %I.metadata WHERE key = %L`, revisionId, `${view}_${lang}_columns`)
-    );
-  } catch (err) {
-    logger.error(err, 'Unable to get columns from cube metadata table');
-    throw err;
-  } finally {
-    void cubeDB.release();
-  }
-
-  let columns = ['*'];
-  if (columnsMetadata.length > 0) {
-    columns = JSON.parse(columnsMetadata[0].value) as string[];
-  }
-  return columns;
+  return newObject;
 }
 
 async function generateQueryStore(
@@ -337,9 +308,10 @@ async function generateQueryStore(
   consumerOptionsHash: string,
   queryStore: QueryStore | null
 ): Promise<QueryStore> {
-  const viewName = checkAvailableViews(consumerOptions.options.data_value_type);
+  const dataValueType = consumerOptions.options?.data_value_type ? consumerOptions.options.data_value_type : undefined;
+  const viewName = checkAvailableViews(dataValueType);
   const queryMap = new Map<Locale, string>();
-  const filterTable = await getFactTableToDimensionName(revisionId);
+  const filterTable = await getFilterTable(revisionId);
 
   for (const locale of SUPPORTED_LOCALES) {
     const lang = locale.split('-')[0];
@@ -349,11 +321,11 @@ async function generateQueryStore(
     queryMap.set(locale, baseQuery);
   }
 
-  let totals: { total_lines: number }[] = [];
+  const totals: { total_lines: number }[] = [];
   for (const locale of SUPPORTED_LOCALES) {
     const queryRunner = dbManager.getCubeDataSource().createQueryRunner();
     let query = queryMap.get(locale)!;
-    query = pgformat('SELECT COUNT(*) as total_lines FROM (%s);');
+    query = pgformat('SELECT COUNT(*) as total_lines FROM (%s);', query);
     try {
       logger.trace(`Testing query and getting a line count: ${query}`);
       totals.push(...(await queryRunner.query(query)));
@@ -365,7 +337,14 @@ async function generateQueryStore(
     }
   }
 
-  const queryStoreId = customAlphabet('1234567890abcdef-', 12)();
+  const nanoId = customAlphabet('1234567890abcdefghjklmnpqrstuvwxy_', 12);
+  let queryStoreId = nanoId();
+  let checkStore = QueryStore.findOneBy({ id: queryStoreId });
+  while (checkStore) {
+    logger.warn('Conflicting Nano ID found.  Regenerating...');
+    queryStoreId = nanoId();
+    checkStore = QueryStore.findOneBy({ id: queryStoreId });
+  }
 
   const totalLines = totals[0].total_lines;
   for (const line of totals) {
@@ -375,26 +354,27 @@ async function generateQueryStore(
     }
   }
 
-  const factTableToDimensionNameSet = new Set<FactTableToDimensionName>();
-  for (const row of filterTable) {
-    factTableToDimensionNameSet.add({
+  const factTableToDimensionNameArr: FactTableToDimensionName[] = filterTable.map((row) => {
+    return {
       fact_table_column: row.fact_table_column,
       dimension_name: row.dimension_name,
       language: row.language
-    });
-  }
+    };
+  });
+  const factTableToDimensionNameSet = new Set<FactTableToDimensionName>(factTableToDimensionNameArr);
 
   if (!queryStore) {
     queryStore = new QueryStore();
     queryStore.id = queryStoreId;
+    queryStore.requestObject = consumerOptions;
     queryStore.hash = consumerOptionsHash;
     queryStore.datasetId = datasetId;
     queryStore.revisionId = revisionId;
-    queryStore.query = queryMap;
+    queryStore.query = convertMapToObject(queryMap);
     queryStore.totalLines = totalLines;
     queryStore.columnMapping = Array.from(factTableToDimensionNameSet);
   } else {
-    queryStore.query = queryMap;
+    queryStore.query = convertMapToObject(queryMap);
     queryStore.revisionId = revisionId;
     queryStore.totalLines = totalLines;
     queryStore.columnMapping = Array.from(factTableToDimensionNameSet);
@@ -402,23 +382,23 @@ async function generateQueryStore(
   return queryStore.save();
 }
 
-export const createStreamingFilteredView = async (
+export const createQueryStoreEntry = async (
   res: Response,
   next: NextFunction,
-  datasetId: string,
-  revisionId: string,
+  dataset: Dataset,
+  revision: Revision,
   consumerOptions: ConsumerOptions
 ): Promise<void> => {
   // create hash from filtering options
-  const consumerOptionsHash = generationOptionsHash(datasetId, consumerOptions);
+  const consumerOptionsHash = generationOptionsHash(dataset.id, consumerOptions);
   let queryStore = await QueryStore.findOneBy({ hash: consumerOptionsHash });
-  if (queryStore && queryStore.revisionId === revisionId) {
-    res.redirect(`/dataset/${datasetId}/data/${queryStore.id}`);
+  if (queryStore && queryStore.revisionId === revision.id) {
+    res.redirect(`/v2/${dataset.id}/data/${queryStore.id}`);
     return;
   }
 
   try {
-    queryStore = await generateQueryStore(datasetId, revisionId, consumerOptions, consumerOptionsHash, queryStore);
+    queryStore = await generateQueryStore(dataset.id, revision.id, consumerOptions, consumerOptionsHash, queryStore);
   } catch (err) {
     if ((err as Error).message === 'No column found') {
       logger.debug(err, 'An error occurred trying to create the base query');
@@ -432,52 +412,22 @@ export const createStreamingFilteredView = async (
     }
     return;
   }
-  res.redirect(`/dataset/${datasetId}/data/${queryStore.id}`);
+  res.redirect(`/v2/${dataset.id}/data/${queryStore.id}`);
 };
 
-export const sendConsumerDataToUser = async (
+async function processQueryStore(
   res: Response,
   next: NextFunction,
   locale: Locale,
-  dataset: Dataset,
-  filter_id?: string,
+  queryStore: QueryStore,
   page?: number,
   pageSize?: number,
   format?: ConsumerOutFormats,
   sort?: string[]
-): Promise<void> => {
-  let queryStore: QueryStore | null = null;
-  if (!filter_id) {
-    queryStore = await QueryStore.findOneBy({ hash: generationOptionsHash(dataset.id) });
-  } else {
-    queryStore = await QueryStore.findOneBy({ id: filter_id });
-  }
-
-  if (!queryStore && !filter_id) {
-    queryStore = await generateQueryStore(
-      dataset.id,
-      dataset.publishedRevisionId!,
-      DEFAULT_CONSUMER_OPTIONS,
-      generationOptionsHash(dataset.id),
-      null
-    );
-  } else if (queryStore && queryStore.revisionId !== dataset.publishedRevisionId) {
-    queryStore = await generateQueryStore(
-      dataset.id,
-      dataset.publishedRevisionId!,
-      queryStore.requestObject,
-      generationOptionsHash(dataset.id, queryStore.requestObject),
-      null
-    );
-  } else {
-    next(new NotFoundException());
-    return;
-  }
-
-  let query = queryStore.query.get(locale)!;
-
+): Promise<void> {
+  let query = queryStore.query[`${locale}-GB`];
   if (sort && sort.length > 0) {
-    const sortBy: string[] = []
+    const sortBy: string[] = [];
     for (const sortOption of sort) {
       const colName = sortOption.split('|')[0];
       const directionStr = sortOption.split('|')[1].toUpperCase();
@@ -486,7 +436,7 @@ export const sendConsumerDataToUser = async (
         return;
       }
       let confirmedCol: string;
-      let colType: 'fact' | 'dimension'
+      let colType: 'fact' | 'dimension';
       if (resolveFactColumnToDimension(colName, 'en-GB', queryStore.columnMapping)) {
         colType = 'fact';
       } else if (resolveDimensionToFactTableColumn(colName, queryStore.columnMapping)) {
@@ -517,7 +467,98 @@ export const sendConsumerDataToUser = async (
   const [cubeDBConn] = (await dbManager.getCubeDataSource().driver.obtainMasterConnection()) as [PoolClient];
   const cursor = cubeDBConn.query(new Cursor(query));
   try {
-    await processCursor(cursor, format ? format : ConsumerOutFormats.Json, queryStore, res);
+    await processCursor(cursor, format ? format : ConsumerOutFormats.Json, queryStore, page, pageSize, res);
+  } catch (error) {
+    logger.warn(error, 'Something went wrong while trying to process the database cursor');
+    next(new UnknownException());
+  } finally {
+    void cubeDBConn.release();
+  }
+}
+
+export const sendConsumerDataToUserNoFilter = async (
+  res: Response,
+  next: NextFunction,
+  locale: Locale,
+  dataset: Dataset,
+  page?: number,
+  pageSize?: number,
+  format?: ConsumerOutFormats,
+  sort?: string[]
+): Promise<void> => {
+  let queryStore = await QueryStore.findOneBy({ hash: generationOptionsHash(dataset.id) });
+  if (!queryStore) {
+    queryStore = await generateQueryStore(
+      dataset.id,
+      dataset.publishedRevisionId!,
+      DEFAULT_CONSUMER_OPTIONS,
+      generationOptionsHash(dataset.id),
+      null
+    );
+  } else if (queryStore && queryStore.revisionId !== dataset.publishedRevisionId) {
+    queryStore = await generateQueryStore(
+      dataset.id,
+      dataset.publishedRevisionId!,
+      DEFAULT_CONSUMER_OPTIONS,
+      generationOptionsHash(dataset.id),
+      null
+    );
+  }
+  await processQueryStore(res, next, locale, queryStore, page, pageSize, format, sort);
+};
+
+export const sendConsumerDataToUser = async (
+  res: Response,
+  next: NextFunction,
+  locale: Locale,
+  dataset: Dataset,
+  filterId: string,
+  page?: number,
+  pageSize?: number,
+  format?: ConsumerOutFormats,
+  sort?: string[]
+): Promise<void> => {
+  let queryStore: QueryStore | null = null;
+  queryStore = await QueryStore.findOneBy({ id: filterId });
+
+  if (!queryStore) {
+    logger.trace(`Query stroe object with ID ${filterId} Not Found`);
+    next(new NotFoundException());
+    return;
   }
 
+  if (queryStore && queryStore.revisionId !== dataset.publishedRevisionId) {
+    logger.trace('Query store object is out of step with revision.  Regenerating.');
+    queryStore = await generateQueryStore(
+      dataset.id,
+      dataset.publishedRevisionId!,
+      queryStore.requestObject,
+      generationOptionsHash(dataset.id, queryStore.requestObject),
+      null
+    );
+  }
+
+  await processQueryStore(res, next, locale, queryStore, page, pageSize, format, sort);
+};
+
+export const sendFilterTableToUser = async (
+  res: Response,
+  next: NextFunction,
+  locale: Locale,
+  revision: Revision,
+  format?: ConsumerOutFormats
+): Promise<void> => {
+  const [cubeDBConn] = (await dbManager.getCubeDataSource().driver.obtainMasterConnection()) as [PoolClient];
+  const cursor = cubeDBConn.query(new Cursor(getFilterTableQuery(revision.id, locale)));
+  const queryStore = new QueryStore();
+  queryStore.datasetId = revision.datasetId;
+  queryStore.revisionId = revision.id;
+  try {
+    await processCursor(cursor, format ? format : ConsumerOutFormats.Json, queryStore, undefined, undefined, res);
+  } catch (error) {
+    logger.warn(error, 'Something went wrong while trying to process the database cursor');
+    next(new UnknownException());
+  } finally {
+    void cubeDBConn.release();
+  }
 };
