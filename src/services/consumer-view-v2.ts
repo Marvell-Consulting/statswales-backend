@@ -465,7 +465,7 @@ async function processQueryStore(
       next(new BadRequestException('errors.page_size_to_high'));
       return;
     }
-    query = pgformat(`%s LIMIT %L OFFSET %L;`, pageSize, page);
+    query = pgformat(`%s LIMIT %L OFFSET %L;`, query, pageSize, (page - 1) * pageSize);
   }
 
   const [cubeDBConn] = (await dbManager.getCubeDataSource().driver.obtainMasterConnection()) as [PoolClient];
