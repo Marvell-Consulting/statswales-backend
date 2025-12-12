@@ -526,7 +526,7 @@ export const sendConsumerDataToUser = async (
   queryStore = await QueryStore.findOneBy({ id: filterId });
 
   if (!queryStore) {
-    logger.trace(`Query stroe object with ID ${filterId} Not Found`);
+    logger.trace(`Query store object with ID ${filterId} Not Found`);
     next(new NotFoundException());
     return;
   }
