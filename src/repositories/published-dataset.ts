@@ -135,6 +135,64 @@ export const PublishedDatasetRepository = dataSource.getRepository(Dataset).exte
     return { data, count };
   },
 
+  async searchPublishedByLanguage(
+    locale: Locale,
+    query: string,
+    page: number,
+    limit: number
+  ): Promise<ResultsetWithCount<DatasetListItemDTO>> {
+    const lang = locale.includes('en') ? Locale.EnglishGb : Locale.WelshGb;
+    const tsconfig = locale.includes('en') ? 'english' : 'simple';
+    const offset = (page - 1) * limit;
+
+    const latestRevisionCte = dataSource
+      .createQueryBuilder()
+      .select([
+        'rev.dataset_id AS dataset_id',
+        'rev.id AS id',
+        'rev.publish_at AS publish_at',
+        'rm.title AS title',
+        'rm.fts AS fts'
+      ])
+      .from(Revision, 'rev')
+      .innerJoin('rev.metadata', 'rm', 'rm.language = :lang', { lang })
+      .where('rev.publish_at < NOW()')
+      .andWhere('rev.approved_at < NOW()')
+      .andWhere('rev.unpublished_at IS NULL')
+      .distinctOn(['rev.dataset_id'])
+      .orderBy('rev.dataset_id')
+      .addOrderBy('rev.publish_at', 'DESC');
+
+    const baseQb = this.createQueryBuilder('d')
+      .addCommonTableExpression(latestRevisionCte, 'latest_rev')
+      .setParameters({ lang, tsconfig, query })
+      .innerJoin('latest_rev', 'lr', 'lr.dataset_id = d.id')
+      .andWhere('d.first_published_at IS NOT NULL')
+      .andWhere('d.first_published_at < NOW()')
+      .andWhere('lr.fts @@ websearch_to_tsquery(:tsconfig, :query)');
+
+    const resultQuery = baseQb
+      .clone()
+      .select([
+        'd.id AS id',
+        'lr.title AS title',
+        'd.first_published_at AS first_published_at',
+        'lr.publish_at AS last_updated_at',
+        'd.archived_at AS archived_at',
+        'ts_rank(lr.fts, websearch_to_tsquery(:tsconfig, :query)) AS rank'
+      ])
+      .orderBy('rank', 'DESC')
+      .addOrderBy('d.first_published_at', 'DESC')
+      .offset(offset)
+      .limit(limit);
+
+    const countRow = await baseQb.clone().select('COUNT(DISTINCT d.id)', 'count').getRawOne();
+    const count = parseInt((countRow?.count as string) ?? '0', 10);
+    const data = await resultQuery.getRawMany();
+
+    return { data, count };
+  },
+
   async listPublishedTopics(lang: Locale, topicId?: string): Promise<Topic[]> {
     const latestPublishedRevisions = await dataSource
       .getRepository(Revision)

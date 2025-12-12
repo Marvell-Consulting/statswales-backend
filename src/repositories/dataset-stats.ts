@@ -44,6 +44,7 @@ const latestPublishedRevisionsQuery = `
   FROM revision rev
   WHERE rev.approved_at IS NOT NULL
   AND rev.publish_at < NOW()
+  AND rev.unpublished_at IS NULL
   ORDER BY rev.dataset_id, rev.created_at DESC
 `;
 
