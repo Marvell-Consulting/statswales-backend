@@ -339,11 +339,11 @@ async function generateQueryStore(
 
   const nanoId = customAlphabet('1234567890abcdefghjklmnpqrstuvwxy_', 12);
   let queryStoreId = nanoId();
-  let checkStore = QueryStore.findOneBy({ id: queryStoreId });
+  let checkStore = await QueryStore.findOneBy({ id: queryStoreId });
   while (checkStore) {
     logger.warn('Conflicting Nano ID found.  Regenerating...');
     queryStoreId = nanoId();
-    checkStore = QueryStore.findOneBy({ id: queryStoreId });
+    checkStore = await QueryStore.findOneBy({ id: queryStoreId });
   }
 
   const totalLines = totals[0].total_lines;
@@ -432,12 +432,16 @@ async function processQueryStore(
   let query = queryStore.query[`${locale}-GB`];
   if (sort && sort.length > 0) {
     const sortBy: string[] = [];
+    const sortColumnPostfix = `_${t('column_headers.sort', { lng: locale })}`;
     for (const sortOption of sort) {
       const colName = sortOption.split('|')[0];
-      const directionStr = sortOption.split('|')[1].toUpperCase();
-      if (directionStr !== 'ASC' && directionStr !== 'DESC') {
-        next(new BadRequestException(`Sort directions must be ASC or DESC`));
-        return;
+      let directionStr = '';
+      if (sortOption.split('|').length > 1) {
+        directionStr = sortOption.split('|')[1].toUpperCase();
+        if (directionStr !== 'ASC' && directionStr !== 'DESC') {
+          next(new BadRequestException(`Sort directions must be ASC or DESC`));
+          return;
+        }
       }
       let confirmedCol: string;
       let colType: 'fact' | 'dimension';
@@ -454,7 +458,8 @@ async function processQueryStore(
       } else {
         confirmedCol = resolveFactColumnToDimension(colName, locale, queryStore.columnMapping);
       }
-      sortBy.push(pgformat('%I %s', confirmedCol, directionStr));
+
+      sortBy.push(pgformat('%I %s', `${confirmedCol}${sortColumnPostfix}`, directionStr));
     }
     query = pgformat('%s ORDER BY %s', query, sortBy.join(', '));
   }

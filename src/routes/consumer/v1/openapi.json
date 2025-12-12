@@ -313,7 +313,7 @@
             }
           },
           {
-            "name": "languague",
+            "name": "language",
             "in": "query",
             "schema": {
               "type": "string"

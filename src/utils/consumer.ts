@@ -7,6 +7,7 @@ import { CORE_VIEW_NAME } from '../services/cube-builder';
 import { logger } from './logger';
 import cubeConfig from '../config/cube-view.json';
 import { Locale } from '../enums/locale';
+import { t } from 'i18next';
 
 export function transformHierarchy(factTableColumn: string, columnName: string, input: FilterRow[]): FilterTable {
   const nodeMap = new Map<string, FilterValues>(); // reference → node
@@ -63,7 +64,16 @@ export function resolveDimensionToFactTableColumn(
   columnName: string,
   factTableToDimensionNames: FactTableToDimensionName[]
 ): string {
-  const col = factTableToDimensionNames.find((col) => columnName.toLowerCase() === col.dimension_name.toLowerCase());
+  switch (columnName.toLowerCase()) {
+    case 'data_values':
+    case 'data':
+    case t('column_headers.data_values', { lng: 'en-GB' }).toLowerCase():
+    case t('column_headers.data_values', { lng: 'cy-GB' }).toLowerCase():
+      return 'data_values';
+  }
+  const col = factTableToDimensionNames.find(
+    (col) => columnName.toLowerCase().trim() === col.dimension_name.toLowerCase()
+  );
   if (!col) {
     throw new Error('Column not found');
   }
@@ -75,13 +85,20 @@ export function resolveFactColumnToDimension(
   locale: string,
   filterTable: FactTableToDimensionName[]
 ): string {
+  logger.debug(`Resolving column: ${columnName} with locale: ${locale}`);
+  switch (columnName.toLowerCase().trim()) {
+    case 'data_values':
+    case 'data':
+    case t('column_headers.data_values').toLowerCase():
+      return t('column_headers.data_values', { lng: locale });
+  }
   const col = filterTable.find(
     (col) =>
-      col.fact_table_column.toLowerCase() === columnName.toLowerCase() &&
-      col.language.toLowerCase() === locale.toLowerCase()
+      col.fact_table_column.toLowerCase() === columnName.toLowerCase().trim() &&
+      col.language.toLowerCase().includes(locale.toLowerCase())
   );
   if (!col) {
-    throw new Error('Column not found');
+    throw new Error(`Column not found: ${columnName}`);
   }
   return col.dimension_name;
 }
