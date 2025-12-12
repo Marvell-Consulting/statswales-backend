@@ -354,14 +354,18 @@ async function generateQueryStore(
     }
   }
 
-  const factTableToDimensionNameArr: FactTableToDimensionName[] = filterTable.map((row) => {
-    return {
-      fact_table_column: row.fact_table_column,
-      dimension_name: row.dimension_name,
-      language: row.language
-    };
-  });
-  const factTableToDimensionNameSet = new Set<FactTableToDimensionName>(factTableToDimensionNameArr);
+  const cubeDB = dbManager.getCubeDataSource().createQueryRunner();
+  let factTableToDimensionName: FactTableToDimensionName[];
+  try {
+    factTableToDimensionName = await cubeDB.query(
+      pgformat('SELECT DISTINCT fact_table_column, dimension_name, language FROM %I.filter_table;', revisionId)
+    );
+  } catch (err) {
+    logger.warn(err, `Failed to query the filter table for cube ${revisionId}`);
+    throw err;
+  } finally {
+    void cubeDB.release();
+  }
 
   if (!queryStore) {
     queryStore = new QueryStore();
@@ -372,12 +376,12 @@ async function generateQueryStore(
     queryStore.revisionId = revisionId;
     queryStore.query = convertMapToObject(queryMap);
     queryStore.totalLines = totalLines;
-    queryStore.columnMapping = Array.from(factTableToDimensionNameSet);
+    queryStore.columnMapping = factTableToDimensionName;
   } else {
     queryStore.query = convertMapToObject(queryMap);
     queryStore.revisionId = revisionId;
     queryStore.totalLines = totalLines;
-    queryStore.columnMapping = Array.from(factTableToDimensionNameSet);
+    queryStore.columnMapping = factTableToDimensionName;
   }
   return queryStore.save();
 }

@@ -8,7 +8,6 @@ import { CubeBuildStatus } from '../enums/cube-build-status';
 import { ConsumerOutFormats } from '../enums/consumer-output-formats';
 import { DatasetSimilarBy } from '../enums/dataset-similar-by';
 
-
 export const hasError = async (validator: ValidationChain, req: Request): Promise<boolean> => {
   return !(await validator.run(req)).isEmpty();
 };
