@@ -3,6 +3,7 @@ import {
   PrimaryColumn,
   Column,
   BaseEntity,
+  Index,
   ManyToOne,
   JoinColumn,
   CreateDateColumn,
@@ -32,6 +33,7 @@ export class RevisionMetadata extends BaseEntity {
   })
   language: string;
 
+  @Index('idx_title_trgm_gist', { synchronize: false })
   @Column({ type: 'text', nullable: true })
   title?: string;
 
