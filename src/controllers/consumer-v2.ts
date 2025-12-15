@@ -14,8 +14,6 @@ import { TopicRepository } from '../repositories/topic';
 import { SortByInterface } from '../interfaces/sort-by-interface';
 import { DEFAULT_PAGE_SIZE } from '../utils/page-defaults';
 import { ConsumerRevisionDTO } from '../dtos/consumer-revision-dto';
-import { DatasetDTO } from '../dtos/consumer/dataset';
-import { FullRevision } from '../dtos/consumer/revision';
 import {
   createQueryStoreEntry,
   sendConsumerDataToUser,
@@ -25,6 +23,8 @@ import {
 import { Dataset } from '../entities/dataset/dataset';
 import { Revision } from '../entities/dataset/revision';
 import { ConsumerOptions } from '../interfaces/consumer-options';
+import { SingleLanguageDatasetDTO } from '../dtos/consumer/single-language-dataset-dto';
+import { SingleLanguageRevisionDTO } from '../dtos/consumer/single-language-revision-dto';
 
 export const listPublishedDatasets = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   /*
@@ -75,13 +75,14 @@ export const getPublishedDatasetById = async (req: Request, res: Response): Prom
     }
   */
   const lang = req.language as Locale;
-  const datasetDTO = await DatasetDTO.fromDatasetId(res.locals.datasetId, lang);
+  const dataset = await PublishedDatasetRepository.getById(res.locals.datasetId, withPublishedRevision);
+  const datasetDTO = SingleLanguageDatasetDTO.fromDataset(dataset, lang);
   res.json(datasetDTO);
 };
 
 export const getPublishedRevisionById = async (req: Request, res: Response): Promise<void> => {
   const lang = req.language as Locale;
-  const revisionDto = FullRevision.fromRevision(res.locals.revision, lang);
+  const revisionDto = SingleLanguageRevisionDTO.fromRevision(res.locals.revision, lang);
   res.json(revisionDto);
 };
 

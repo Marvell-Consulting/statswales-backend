@@ -39,6 +39,7 @@ export const withAll: FindOptionsRelations<Dataset> = {
 
 export const withPublishedRevision: FindOptionsRelations<Dataset> = {
   createdBy: true,
+  userGroup: { metadata: true, organisation: { metadata: true } },
   publishedRevision: {
     metadata: true,
     revisionProviders: { provider: true, providerSource: true },
