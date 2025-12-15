@@ -74,14 +74,14 @@ export const getPublishedDatasetById = async (req: Request, res: Response): Prom
       schema: { $ref: "#/components/schemas/Dataset" }
     }
   */
-  const language = req.query.language ? (req.query.language as Locale) : ('en-GB' as Locale);
-  const datasetDTO = await DatasetDTO.fromDatasetId(res.locals.datasetId, language);
+  const lang = req.language as Locale;
+  const datasetDTO = await DatasetDTO.fromDatasetId(res.locals.datasetId, lang);
   res.json(datasetDTO);
 };
 
 export const getPublishedRevisionById = async (req: Request, res: Response): Promise<void> => {
-  const language = req.query.language ? (req.query.language as Locale) : ('en-GB' as Locale);
-  const revisionDto = FullRevision.fromRevision(res.locals.revision, language);
+  const lang = req.language as Locale;
+  const revisionDto = FullRevision.fromRevision(res.locals.revision, lang);
   res.json(revisionDto);
 };
 
