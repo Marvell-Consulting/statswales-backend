@@ -4,6 +4,7 @@ import { logger } from '../utils/logger';
 import { Locale } from '../enums/locale';
 import { UnknownException } from '../exceptions/unknown.exception';
 import { PublishedDatasetRepository, withPublishedRevision } from '../repositories/published-dataset';
+import { PublishedRevisionRepository } from '../repositories/published-revision';
 import { NotFoundException } from '../exceptions/not-found.exception';
 import { BadRequestException } from '../exceptions/bad-request.exception';
 import { ConsumerOutFormats } from '../enums/consumer-output-formats';
@@ -82,7 +83,8 @@ export const getPublishedDatasetById = async (req: Request, res: Response): Prom
 
 export const getPublishedRevisionById = async (req: Request, res: Response): Promise<void> => {
   const lang = req.language as Locale;
-  const revisionDto = SingleLanguageRevisionDTO.fromRevision(res.locals.revision, lang);
+  const revision = await PublishedRevisionRepository.getById(res.locals.revision_id);
+  const revisionDto = SingleLanguageRevisionDTO.fromRevision(revision, lang);
   res.json(revisionDto);
 };
 
