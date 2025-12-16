@@ -1,14 +1,14 @@
-import { TasklistStateDTO } from '../src/dtos/tasklist-state-dto';
-import { TaskListStatus } from '../src/enums/task-list-status';
-import { DimensionType } from '../src/enums/dimension-type';
-import { Dataset } from '../src/entities/dataset/dataset';
-import { Revision } from '../src/entities/dataset/revision';
-import { EventLog } from '../src/entities/event-log';
+import { TasklistStateDTO } from '../../src/dtos/tasklist-state-dto';
+import { TaskListStatus } from '../../src/enums/task-list-status';
+import { DimensionType } from '../../src/enums/dimension-type';
+import { Dataset } from '../../src/entities/dataset/dataset';
+import { Revision } from '../../src/entities/dataset/revision';
+import { EventLog } from '../../src/entities/event-log';
 
 // Mock dependencies
-jest.mock('../src/utils/collect-translations');
+jest.mock('../../src/utils/collect-translations');
 
-const mockCollectTranslations = jest.requireMock('../src/utils/collect-translations');
+const mockCollectTranslations = jest.requireMock('../../src/utils/collect-translations');
 
 describe('TasklistStateDTO', () => {
   beforeEach(() => {
