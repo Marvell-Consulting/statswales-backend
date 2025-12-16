@@ -7,7 +7,6 @@ import { PublishedDatasetRepository, withAll } from '../repositories/published-d
 import { NotFoundException } from '../exceptions/not-found.exception';
 import { ConsumerDatasetDTO } from '../dtos/consumer-dataset-dto';
 import { BadRequestException } from '../exceptions/bad-request.exception';
-import { ConsumerOutFormats } from '../enums/consumer-output-formats';
 import {
   createFrontendView,
   createStreamingCSVFilteredView,
@@ -234,14 +233,14 @@ export const downloadPublishedDataset = async (req: Request, res: Response, next
   }
 
   try {
-    switch (format as ConsumerOutFormats) {
-      case ConsumerOutFormats.Csv:
+    switch (format as DownloadFormat) {
+      case DownloadFormat.Csv:
         createStreamingCSVFilteredView(res, publishedRevision.id, req.language, view, sortBy, filter);
         break;
-      case ConsumerOutFormats.Json:
+      case DownloadFormat.Json:
         createStreamingJSONFilteredView(res, publishedRevision.id, req.language, view, sortBy, filter);
         break;
-      case ConsumerOutFormats.Excel:
+      case DownloadFormat.Xlsx:
         createStreamingExcelFilteredView(res, publishedRevision.id, req.language, view, sortBy, filter);
         break;
       default:
