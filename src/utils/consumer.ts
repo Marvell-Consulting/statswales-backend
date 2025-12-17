@@ -179,8 +179,8 @@ export async function getFilterTable(revisionId: string): Promise<FilterRow[]> {
   }
 }
 
-export function getFilterTableQuery(revisionId: string, local?: Locale): string {
-  if (!local) {
+export function getFilterTableQuery(revisionId: string, locale?: Locale): string {
+  if (!locale) {
     return pgformat(
       'SELECT reference, language, fact_table_column, dimension_name, description, hierarchy FROM %I.filter_table;',
       revisionId
@@ -189,6 +189,6 @@ export function getFilterTableQuery(revisionId: string, local?: Locale): string 
   return pgformat(
     'SELECT reference, language, fact_table_column, dimension_name, description, hierarchy FROM %I.filter_table WHERE language LIKE %L;',
     revisionId,
-    `${local.toLowerCase().split('-')[0]}%`
+    `${locale.toLowerCase().split('-')[0]}%`
   );
 }
