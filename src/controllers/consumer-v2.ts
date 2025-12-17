@@ -7,8 +7,8 @@ import { PublishedDatasetRepository, withPublishedRevision } from '../repositori
 import { PublishedRevisionRepository } from '../repositories/published-revision';
 import { NotFoundException } from '../exceptions/not-found.exception';
 import { BadRequestException } from '../exceptions/bad-request.exception';
-import { ConsumerOutFormats } from '../enums/consumer-output-formats';
-import { format2Validator, hasError } from '../validators';
+import { OutputFormats } from '../enums/output-formats';
+import { format2Validator, pageNumberValidator, pageSizeValidator } from '../validators';
 import { TopicDTO } from '../dtos/topic-dto';
 import { PublishedTopicsDTO } from '../dtos/published-topics-dto';
 import { TopicRepository } from '../repositories/topic';
@@ -16,16 +16,23 @@ import { SortByInterface } from '../interfaces/sort-by-interface';
 import { DEFAULT_PAGE_SIZE } from '../utils/page-defaults';
 import { ConsumerRevisionDTO } from '../dtos/consumer-revision-dto';
 import {
-  createQueryStoreEntry,
-  sendConsumerDataToUser,
-  sendConsumerDataToUserNoFilter,
-  sendFilterTableToUser
+  getDataQuery,
+  sendCsv,
+  sendExcel,
+  cursorToFrontend,
+  sendJson,
+  sendFilters
 } from '../services/consumer-view-v2';
 import { Dataset } from '../entities/dataset/dataset';
-import { Revision } from '../entities/dataset/revision';
-import { ConsumerOptions } from '../interfaces/consumer-options';
+import { DataOptionsDTO } from '../dtos/data-options-dto';
 import { SingleLanguageDatasetDTO } from '../dtos/consumer/single-language-dataset-dto';
 import { SingleLanguageRevisionDTO } from '../dtos/consumer/single-language-revision-dto';
+import { PageOptions } from '../interfaces/page-options';
+import { FieldValidationError, matchedData } from 'express-validator';
+import { dtoValidator } from '../validators/dto-validator';
+import { QueryStoreRepository } from '../repositories/query-store';
+import { QueryStore } from '../entities/query-store';
+import { getFilterTableQuery } from '../utils/consumer';
 
 export const listPublishedDatasets = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   /*
@@ -88,142 +95,82 @@ export const getPublishedRevisionById = async (req: Request, res: Response): Pro
   res.json(revisionDto);
 };
 
-async function apiSetup(
-  req: Request,
-  res: Response,
-  next: NextFunction
-): Promise<{
-  dataset: Dataset;
-  publishedRevision?: Revision;
-  sort?: string[];
-  format?: ConsumerOutFormats;
-  pageNumber?: number;
-  pageSize?: number;
-  language: Locale;
-  errors: boolean;
-}> {
-  const dataset = await PublishedDatasetRepository.getById(res.locals.datasetId, withPublishedRevision);
-  const publishedRevision = dataset.publishedRevision;
-  const language = req.language as Locale;
+async function parsePageOptions(req: Request): Promise<PageOptions> {
+  logger.debug('Parsing page options from request...');
+  const validations = [format2Validator(), pageNumberValidator(), pageSizeValidator()];
 
-  if (!publishedRevision) {
-    next(new NotFoundException('errors.no_revision'));
-    return {
-      dataset,
-      language,
-      errors: true
-    };
-  }
-
-  let format: ConsumerOutFormats | undefined;
-
-  if (req.query.format) {
-    logger.trace(`Format = ${req.query.format}`);
-    const formatError = await hasError(format2Validator(), req);
-
-    if (formatError) {
-      const availableFormats = Object.values(ConsumerOutFormats).join(', ').replace('filter, ', '');
-      next(new BadRequestException(`file format must be specified (${availableFormats})`));
-      return {
-        dataset,
-        language,
-        errors: true
-      };
-    }
-
-    format = req.query.format as ConsumerOutFormats;
-
-    if (format === ConsumerOutFormats.Filter) {
-      next(new BadRequestException(`Filter is only available on the filter endpoint.`));
-      return {
-        dataset,
-        language,
-        errors: true
-      };
+  for (const validation of validations) {
+    const result = await validation.run(req);
+    if (!result.isEmpty()) {
+      const error = result.array()[0] as FieldValidationError;
+      throw new BadRequestException(`${error.msg} for ${error.path}`);
     }
   }
 
-  const pageNumber: number | undefined = req.query.page_number
-    ? Number.parseInt(req.query.page_number as string, 10)
-    : undefined;
-  const pageSize: number | undefined = req.query.page_size
-    ? Number.parseInt(req.query.page_size as string, 10) || DEFAULT_PAGE_SIZE
-    : undefined;
-  const sort: string[] | undefined = req.query.sort ? (req.query.sort as string).split(',') : undefined;
+  const params = matchedData(req);
+
   return {
-    dataset,
-    publishedRevision,
-    language,
-    format,
-    sort,
-    pageNumber,
-    pageSize,
-    errors: false
+    format: (params.format as OutputFormats) ?? OutputFormats.Json,
+    pageNumber: params.pageNumber ?? 1,
+    pageSize: params.pageSize ?? DEFAULT_PAGE_SIZE,
+    sort: params.sort ?? [],
+    locale: req.language as Locale
   };
 }
 
-export const getPublishedDatasetViewNoFilters = async (
-  req: Request,
-  res: Response,
-  next: NextFunction
-): Promise<void> => {
-  const { dataset, language, format, sort, pageNumber, pageSize, errors } = await apiSetup(req, res, next);
-  if (errors) return;
-  await sendConsumerDataToUserNoFilter(res, next, language, dataset, pageNumber, pageSize, format, sort);
-};
+export const getPublishedDatasetView = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  logger.debug(`Getting dataset view for ${res.locals.datasetId}...`);
+  const filterId = req.params.filter_id as string | undefined;
+  const dataset = res.locals.dataset as Dataset;
+  if (!dataset.publishedRevisionId) return next(new NotFoundException('errors.no_published_revision'));
 
-export const getPublishedDatasetViewFilters = async (
-  req: Request,
-  res: Response,
-  next: NextFunction
-): Promise<void> => {
-  const { dataset, language, format, sort, pageNumber, pageSize, errors } = await apiSetup(req, res, next);
-  if (errors) return;
-  const filterId: string | undefined = req.params.filter_id ? (req.params.filter_id as string) : undefined;
-  logger.debug(`Filter ID = ${filterId}`);
-  if (!filterId) {
-    next(new NotFoundException('errors.no_filter_id'));
-    return;
+  try {
+    const pageOptions = await parsePageOptions(req);
+    const queryStore = filterId
+      ? await QueryStoreRepository.getById(filterId)
+      : await QueryStoreRepository.getByRequest(dataset.id, dataset.publishedRevisionId);
+
+    const query = await getDataQuery(queryStore, pageOptions);
+    await sendFormattedResponse(query, queryStore, pageOptions, res);
+  } catch (err) {
+    if (err instanceof NotFoundException || err instanceof BadRequestException) {
+      return next(err);
+    }
+    next(new UnknownException());
   }
-  await sendConsumerDataToUser(res, next, language, dataset, filterId, pageNumber, pageSize, format, sort);
 };
 
 export const generateFilterId = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-  const { dataset, publishedRevision, errors } = await apiSetup(req, res, next);
-  if (errors) return;
+  logger.debug(`Generating filter ID for published dataset ${res.locals.datasetId}...`);
+  const dataset = res.locals.dataset as Dataset;
+  if (!dataset.publishedRevisionId) return next(new NotFoundException('errors.no_published_revision'));
 
-  let consumerOptions: ConsumerOptions | undefined;
   try {
-    logger.debug(`req body = ${JSON.stringify(req.body)}`);
-    consumerOptions = req.body ? (req.body as ConsumerOptions) : undefined;
+    logger.trace(`req body = ${JSON.stringify(req.body)}`);
+    const dataOptions = await dtoValidator(DataOptionsDTO, req.body);
+    const queryStore = await QueryStoreRepository.getByRequest(dataset.id, dataset.publishedRevisionId, dataOptions);
+    res.redirect(`/v2/${dataset.id}/data/${queryStore.id}`);
   } catch (err) {
-    logger.warn(err, 'Error parsing filter query parameters');
-    next(new BadRequestException('errors.bad_json'));
-    return;
+    logger.error(err, 'Error generating filter ID');
+    return next(new UnknownException());
   }
-  if (!consumerOptions) {
-    next(new BadRequestException('errors.filter.missing'));
-    return;
-  }
-  await createQueryStoreEntry(res, next, dataset, publishedRevision!, consumerOptions);
 };
 
 export const getPublishedDatasetFilters = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-  const { publishedRevision, language, errors } = await apiSetup(req, res, next);
-  if (errors) return;
-  let format: ConsumerOutFormats | undefined;
-  if (req.query.format) {
-    const formatError = await hasError(format2Validator(), req);
+  logger.debug('Getting published dataset filters...');
+  const dataset = res.locals.dataset as Dataset;
+  if (!dataset.publishedRevisionId) throw new NotFoundException('errors.no_published_revision');
 
-    if (formatError) {
-      const availableFormats = Object.values(ConsumerOutFormats).join(', ');
-      next(new BadRequestException(`file format must be specified (${availableFormats})`));
-      return;
+  try {
+    const locale = req.language as Locale;
+    const query = await getFilterTableQuery(dataset.publishedRevisionId, locale);
+    await sendFilters(query, res);
+  } catch (err) {
+    if (err instanceof NotFoundException || err instanceof BadRequestException) {
+      return next(err);
     }
-
-    format = req.query.format as ConsumerOutFormats;
+    next(err);
   }
-  await sendFilterTableToUser(res, next, language, publishedRevision!, format);
 };
 
 export const listRootTopics = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
@@ -363,9 +310,22 @@ export const getPublicationHistory = async (req: Request, res: Response): Promis
   res.json(revisionDTOs);
 };
 
-export const fixSwaggerDocGenerationWeirdness = (): void => {
-  // Since we added return types to the functions above, Swagger-autogen has started to completely ignore the docs
-  // for listRootTopics and listSubTopics actions. It's very strange and I do not know exactly why, possibly to do with
-  // the code parser and colons?? At this point I do not have the time or inclination to debug third-party code to work
-  // out the reason, and adding this useless function seems to fix the issue!
+export const sendFormattedResponse = async (
+  query: string,
+  queryStore: QueryStore,
+  pageOptions: PageOptions,
+  res: Response
+): Promise<void> => {
+  switch (pageOptions.format) {
+    case OutputFormats.Csv:
+      return sendCsv(query, queryStore, res);
+    case OutputFormats.Excel:
+      return sendExcel(query, queryStore, res);
+    case OutputFormats.Json:
+      return sendJson(query, queryStore, res);
+    case OutputFormats.View:
+      return cursorToFrontend(query, queryStore, pageOptions, res);
+    default:
+      res.status(400).json({ error: 'Format not supported' });
+  }
 };

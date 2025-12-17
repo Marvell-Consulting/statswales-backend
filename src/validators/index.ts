@@ -5,7 +5,7 @@ import { DownloadFormat } from '../enums/download-format';
 import { UserGroupStatus } from '../enums/user-group-status';
 import { CubeBuildType } from '../enums/cube-build-type';
 import { CubeBuildStatus } from '../enums/cube-build-status';
-import { ConsumerOutFormats } from '../enums/consumer-output-formats';
+import { OutputFormats } from '../enums/output-formats';
 import { DatasetSimilarBy } from '../enums/dataset-similar-by';
 
 export const hasError = async (validator: ValidationChain, req: Request): Promise<boolean> => {
@@ -24,11 +24,15 @@ export const uuidValidator = (paramName: string): ValidationChain => param(param
 
 export const titleValidator = (): ValidationChain => body('title').trim().notEmpty();
 
-export const pageNumberValidator = (): ValidationChain => check('page_number').trim().notEmpty().isInt().toInt();
+export const pageNumberValidator = (): ValidationChain =>
+  check('page_number').optional().trim().notEmpty().isInt().toInt();
 
-export const pageSizeValidator = (): ValidationChain => check('page_size').trim().notEmpty().isInt().toInt();
+export const pageSizeValidator = (): ValidationChain => check('page_size').optional().trim().notEmpty().isInt().toInt();
+
+export const filterIdValidator = (): ValidationChain => check('filter_id').trim().notEmpty().isString();
 
 export const userStatusValidator = (): ValidationChain => body('status').isIn(Object.values(UserStatus));
+
 export const groupStatusValidator = (): ValidationChain => body('status').isIn(Object.values(UserGroupStatus));
 
 export const userGroupIdValidator = (userGroupIds: string[]): ValidationChain =>
@@ -38,7 +42,7 @@ export const formatValidator = (): ValidationChain =>
   param('format').trim().notEmpty().isIn(Object.values(DownloadFormat));
 
 export const format2Validator = (): ValidationChain =>
-  check('format').toLowerCase().trim().notEmpty().isIn(Object.values(ConsumerOutFormats));
+  check('format').optional().toLowerCase().trim().notEmpty().isIn(Object.values(OutputFormats));
 
 export const buildTypeValidator = (): ValidationChain =>
   check('type').notEmpty().trim().isIn(Object.values(CubeBuildType));

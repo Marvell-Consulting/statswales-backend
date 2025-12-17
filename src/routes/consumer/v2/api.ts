@@ -8,21 +8,20 @@ import {
   listSubTopics,
   listRootTopics,
   getPublishedRevisionById,
-  getPublishedDatasetViewNoFilters,
-  getPublishedDatasetViewFilters,
-  generateFilterId,
-  getPublishedDatasetFilters
+  getPublishedDatasetView,
+  getPublishedDatasetFilters,
+  generateFilterId
 } from '../../../controllers/consumer-v2';
 import { NotFoundException } from '../../../exceptions/not-found.exception';
 import { PublishedDatasetRepository } from '../../../repositories/published-dataset';
 import { PublishedRevisionRepository } from '../../../repositories/published-revision';
-import { hasError, datasetIdValidator, revisionIdValidator } from '../../../validators';
+import { hasError, uuidValidator } from '../../../validators';
 
 export const publicApiV2Router = Router();
 const jsonParser = express.json();
 
 export const ensurePublishedDataset = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-  const datasetIdError = await hasError(datasetIdValidator(), req);
+  const datasetIdError = await hasError(uuidValidator('dataset_id'), req);
 
   if (datasetIdError) {
     next(new NotFoundException('errors.dataset_id_invalid'));
@@ -32,6 +31,11 @@ export const ensurePublishedDataset = async (req: Request, res: Response, next: 
   try {
     logger.debug(`Loading published dataset ${req.params.dataset_id}...`);
     const dataset = await PublishedDatasetRepository.getById(req.params.dataset_id);
+
+    if (!dataset.publishedRevisionId) {
+      throw new Error('dataset has no published revision');
+    }
+
     res.locals.datasetId = dataset.id;
     res.locals.dataset = dataset;
   } catch (_err) {
@@ -43,7 +47,7 @@ export const ensurePublishedDataset = async (req: Request, res: Response, next: 
 };
 
 export const ensurePublishedRevision = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-  const revisionIdError = await hasError(revisionIdValidator(), req);
+  const revisionIdError = await hasError(uuidValidator('revision_id'), req);
 
   if (revisionIdError) {
     next(new NotFoundException('errors.revision_id_invalid'));
@@ -55,7 +59,7 @@ export const ensurePublishedRevision = async (req: Request, res: Response, next:
     const revision = await PublishedRevisionRepository.getById(req.params.revision_id);
 
     if (revision.datasetId !== res.locals.datasetId) {
-      throw new Error('Revision does not belong to dataset');
+      throw new Error('revision does not belong to dataset');
     }
 
     res.locals.revision_id = revision.id;
@@ -87,8 +91,8 @@ publicApiV2Router.get(
 );
 
 publicApiV2Router.get('/:dataset_id/filters', ensurePublishedDataset, getPublishedDatasetFilters);
-publicApiV2Router.get('/:dataset_id/data', ensurePublishedDataset, getPublishedDatasetViewNoFilters);
-publicApiV2Router.get('/:dataset_id/data/:filter_id', ensurePublishedDataset, getPublishedDatasetViewFilters);
 publicApiV2Router.post('/:dataset_id/data', ensurePublishedDataset, jsonParser, generateFilterId);
+publicApiV2Router.get('/:dataset_id/data', ensurePublishedDataset, getPublishedDatasetView);
+publicApiV2Router.get('/:dataset_id/data/:filter_id', ensurePublishedDataset, getPublishedDatasetView);
 
 // publicApiV2Router.post('/:dataset_id/pivot', loadPublishedDataset(), getPostgresPivotTable);
