@@ -19,7 +19,7 @@ import {
   getDataQuery,
   sendCsv,
   sendExcel,
-  cursorToFrontend,
+  sendFrontendView,
   sendJson,
   sendFilters
 } from '../services/consumer-view-v2';
@@ -149,7 +149,7 @@ export const generateFilterId = async (req: Request, res: Response, next: NextFu
     logger.trace(`req body = ${JSON.stringify(req.body)}`);
     const dataOptions = await dtoValidator(DataOptionsDTO, req.body);
     const queryStore = await QueryStoreRepository.getByRequest(dataset.id, dataset.publishedRevisionId, dataOptions);
-    res.redirect(`/v2/${dataset.id}/data/${queryStore.id}`);
+    res.json({ filterId: queryStore.id });
   } catch (err) {
     logger.error(err, 'Error generating filter ID');
     return next(new UnknownException());
@@ -324,7 +324,7 @@ export const sendFormattedResponse = async (
     case OutputFormats.Json:
       return sendJson(query, queryStore, res);
     case OutputFormats.View:
-      return cursorToFrontend(query, queryStore, pageOptions, res);
+      return sendFrontendView(query, queryStore, pageOptions, res);
     default:
       res.status(400).json({ error: 'Format not supported' });
   }

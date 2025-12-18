@@ -111,7 +111,7 @@ export const QueryStoreRepository = dataSource.getRepository(QueryStore).extend(
     let id = nanoId();
 
     while (true) {
-      const existing = await this.getById(id);
+      const existing = await this.findOneBy({ id });
       if (!existing) break;
       logger.warn(`Collision detected for query store ${id}, regenerating...`);
       id = nanoId();

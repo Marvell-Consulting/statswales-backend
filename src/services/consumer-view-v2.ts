@@ -171,7 +171,7 @@ export async function sendFilters(query: string, res: Response): Promise<void> {
   }
 }
 
-export async function cursorToFrontend(
+export async function sendFrontendView(
   query: string,
   queryStore: QueryStore,
   pageOptions: PageOptions,
@@ -180,17 +180,12 @@ export async function cursorToFrontend(
   const [cubeDBConn] = (await dbManager.getCubeDataSource().driver.obtainMasterConnection()) as [PoolClient];
 
   try {
-    const cursor = cubeDBConn.query(new Cursor(query));
     let { pageNumber, pageSize } = pageOptions;
+    const cursor = cubeDBConn.query(new Cursor(query));
     const currentDataset = await DatasetRepository.getById(queryStore.datasetId);
-    pageSize = pageSize ? pageSize : queryStore.totalLines;
-    pageNumber = pageNumber ? pageNumber : 1;
-
-    const page_info = {
-      total_records: queryStore.totalLines,
-      start_record: pageSize * (pageNumber - 1),
-      end_record: pageSize * pageNumber
-    };
+    pageSize = pageSize || queryStore.totalLines;
+    pageNumber = pageNumber || 1;
+    const startRecord = pageSize * (pageNumber - 1);
 
     res.writeHead(200, {
       // eslint-disable-next-line @typescript-eslint/naming-convention
@@ -200,14 +195,15 @@ export async function cursorToFrontend(
     });
     res.write('{');
     res.write(`"dataset": ${JSON.stringify(DatasetDTO.fromDataset(currentDataset))},`);
+    res.write(`"filters": ${JSON.stringify(queryStore.requestObject.filters || [])},`);
     res.write(`"current_page": ${pageNumber},`);
-    res.write(`"page_info": ${JSON.stringify(page_info)},`);
     res.write(`"page_size": ${pageSize},`);
     res.write(`"total_pages": ${Math.max(1, Math.ceil(queryStore.totalLines / pageSize))},`);
     let rows = await cursor.read(CURSOR_ROW_LIMIT);
     res.write(`"headers": ${JSON.stringify(Object.keys(rows[0]))},`);
     res.write('"data": [');
     let firstRow = true;
+    let rowCount = 0;
     while (rows.length > 0) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       rows.forEach((row: any) => {
@@ -217,10 +213,18 @@ export async function cursorToFrontend(
           res.write(',\n');
         }
         res.write(JSON.stringify(Object.values(row)));
+        rowCount++;
       });
       rows = await cursor.read(CURSOR_ROW_LIMIT);
     }
-    res.write(']');
+    res.write('],');
+    const page_info = {
+      total_records: queryStore.totalLines,
+      start_record: startRecord,
+      end_record: startRecord + rowCount
+    };
+    res.write(`"page_info": ${JSON.stringify(page_info)}`);
+
     res.write(`}`);
     res.end();
   } finally {
@@ -231,7 +235,7 @@ export async function cursorToFrontend(
 export async function getDataQuery(queryStore: QueryStore, pageOptions: PageOptions): Promise<string> {
   logger.debug(`Generating data query from query store id ${queryStore.id}...`);
   const { locale, pageNumber, pageSize, sort } = pageOptions;
-  let query = queryStore.query[`${locale}-GB`];
+  let query = queryStore.query[locale];
 
   if (sort && sort.length > 0) {
     const sortBy: string[] = [];
@@ -267,12 +271,15 @@ export async function getDataQuery(queryStore: QueryStore, pageOptions: PageOpti
     query = pgformat('%s ORDER BY %s', query, sortBy.join(', '));
   }
 
-  if (pageNumber) {
-    if (pageNumber > queryStore.totalLines / pageSize) {
-      throw new BadRequestException('errors.page_size_to_high');
-    }
-    query = pgformat(`%s LIMIT %L OFFSET %L;`, query, pageSize, (pageNumber - 1) * pageSize);
+  const limit = pageSize || queryStore.totalLines;
+  const offset = (pageNumber - 1) * limit;
+  const totalPages = Math.ceil(queryStore.totalLines / limit);
+
+  if (pageNumber > totalPages) {
+    throw new BadRequestException('errors.page_number_too_high');
   }
+
+  query = pgformat(`%s LIMIT %L OFFSET %L;`, query, limit, offset);
 
   return query;
 }
