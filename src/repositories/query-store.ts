@@ -50,7 +50,7 @@ function createBaseQuery(
       if (useRawColumns) {
         colName = resolveFactColumnToDimension(colName, locale, filterTable);
       } else {
-        resolveDimensionToFactTableColumn(colName, filterTable);
+        colName = resolveDimensionToFactTableColumn(colName, filterTable);
       }
       if (!useRefValues) {
         const filterTableValues = filterTable.filter(
@@ -153,7 +153,7 @@ export const QueryStoreRepository = dataSource.getRepository(QueryStore).extend(
     const totalLines = totals[0].total_lines;
 
     for (const line of totals) {
-      if (line.total_lines != totalLines) {
+      if (line.total_lines !== totalLines) {
         logger.warn(`Base query for query store ${id} is producing inconsistent result`);
         break;
       }

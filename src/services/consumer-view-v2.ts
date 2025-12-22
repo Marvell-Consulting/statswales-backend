@@ -209,10 +209,13 @@ export async function sendFrontendView(
     res.write(`"filters": ${JSON.stringify(queryStore.requestObject.filters || [])},`);
 
     let rows = await cursor.read(CURSOR_ROW_LIMIT);
-    const tableHeaders = Object.keys(rows[0]);
-    const headers = getColumnHeaders(dataset, tableHeaders, filters);
 
-    res.write(`"headers": ${JSON.stringify(headers)},`);
+    if (rows.length > 0) {
+      const tableHeaders = Object.keys(rows[0]);
+      const headers = getColumnHeaders(dataset, tableHeaders, filters);
+      res.write(`"headers": ${JSON.stringify(headers)},`);
+    }
+
     res.write('"data": [');
     let firstRow = true;
     let rowCount = 0;
