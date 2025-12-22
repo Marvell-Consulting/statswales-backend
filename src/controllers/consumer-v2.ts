@@ -16,7 +16,7 @@ import { SortByInterface } from '../interfaces/sort-by-interface';
 import { DEFAULT_PAGE_SIZE } from '../utils/page-defaults';
 import { ConsumerRevisionDTO } from '../dtos/consumer-revision-dto';
 import {
-  getDataQuery,
+  buildDataQuery,
   sendCsv,
   sendExcel,
   sendFrontendView,
@@ -139,12 +139,13 @@ export const getPublishedDatasetData = async (req: Request, res: Response, next:
       ? await QueryStoreRepository.getById(filterId)
       : await QueryStoreRepository.getByRequest(dataset.id, dataset.publishedRevisionId);
 
-    const query = await getDataQuery(queryStore, pageOptions);
+    const query = await buildDataQuery(queryStore, pageOptions);
     await sendFormattedResponse(query, queryStore, pageOptions, res);
   } catch (err) {
     if (err instanceof NotFoundException || err instanceof BadRequestException) {
       return next(err);
     }
+    logger.error(err, 'Error getting published dataset data');
     next(new UnknownException());
   }
 };

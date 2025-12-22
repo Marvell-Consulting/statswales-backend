@@ -11,7 +11,7 @@ import { FilterTable } from '../interfaces/filter-table';
 import { dbManager } from '../db/database-manager';
 import { QueryStore } from '../entities/query-store';
 import { BadRequestException } from '../exceptions/bad-request.exception';
-import { resolveDimensionToFactTableColumn, resolveFactColumnToDimension, transformHierarchy } from '../utils/consumer';
+import { transformHierarchy } from '../utils/consumer';
 import { DatasetRepository } from '../repositories/dataset';
 import { PageOptions } from '../interfaces/page-options';
 import { logger } from '../utils/logger';
@@ -248,42 +248,20 @@ export async function sendFrontendView(
   }
 }
 
-export async function getDataQuery(queryStore: QueryStore, pageOptions: PageOptions): Promise<string> {
-  logger.debug(`Generating data query from query store id ${queryStore.id}...`);
+export async function buildDataQuery(queryStore: QueryStore, pageOptions: PageOptions): Promise<string> {
+  logger.debug(`Building data query from query store id ${queryStore.id}...`);
   const { locale, pageNumber, pageSize, sort } = pageOptions;
   let query = queryStore.query[locale];
 
   if (sort && sort.length > 0) {
     const sortBy: string[] = [];
     const sortColumnPostfix = `_${t('column_headers.sort', { lng: locale })}`;
+
     for (const sortOption of sort) {
-      const colName = sortOption.split('|')[0];
-      let directionStr = '';
-      if (sortOption.split('|').length > 1) {
-        directionStr = sortOption.split('|')[1].toUpperCase();
-        if (directionStr !== 'ASC' && directionStr !== 'DESC') {
-          throw new BadRequestException(`Sort directions must be ASC or DESC`);
-        }
-      }
-      let confirmedCol: string;
-      let colType: 'fact' | 'dimension';
-
-      if (resolveFactColumnToDimension(colName, 'en-GB', queryStore.columnMapping)) {
-        colType = 'fact';
-      } else if (resolveDimensionToFactTableColumn(colName, queryStore.columnMapping)) {
-        colType = 'dimension';
-      } else {
-        throw new BadRequestException(`Sort column ${colName} not found`);
-      }
-
-      if (colType === 'dimension') {
-        confirmedCol = colName;
-      } else {
-        confirmedCol = resolveFactColumnToDimension(colName, locale, queryStore.columnMapping);
-      }
-
-      sortBy.push(pgformat('%I %s', `${confirmedCol}${sortColumnPostfix}`, directionStr));
+      const [colName, direction = 'asc'] = sortOption.split('|');
+      sortBy.push(pgformat('%I %s', `${colName}${sortColumnPostfix}`, direction.toUpperCase()));
     }
+
     query = pgformat('%s ORDER BY %s', query, sortBy.join(', '));
   }
 
