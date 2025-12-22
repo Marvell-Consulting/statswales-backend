@@ -13,9 +13,10 @@ import { QueryStore } from '../entities/query-store';
 import { BadRequestException } from '../exceptions/bad-request.exception';
 import { resolveDimensionToFactTableColumn, resolveFactColumnToDimension, transformHierarchy } from '../utils/consumer';
 import { DatasetRepository } from '../repositories/dataset';
-import { DatasetDTO } from '../dtos/dataset-dto';
 import { PageOptions } from '../interfaces/page-options';
 import { logger } from '../utils/logger';
+import { ConsumerDatasetDTO } from '../dtos/consumer-dataset-dto';
+import { getColumnHeaders } from '../utils/column-headers';
 
 const EXCEL_ROW_LIMIT = 1048500; // Excel Limit is 1,048,576 but removed 76 rows
 const CURSOR_ROW_LIMIT = 500;
@@ -177,14 +178,24 @@ export async function sendFrontendView(
   pageOptions: PageOptions,
   res: Response
 ): Promise<void> {
+  logger.info(`Sending Frontend View for query id ${queryStore.id}...`);
   const [cubeDBConn] = (await dbManager.getCubeDataSource().driver.obtainMasterConnection()) as [PoolClient];
+  const queryRunner = dbManager.getCubeDataSource().createQueryRunner();
 
   try {
-    let { pageNumber, pageSize } = pageOptions;
+    const { pageNumber = 1, pageSize = queryStore.totalLines, locale } = pageOptions;
+    const lang = locale.includes('en') ? 'en-gb' : 'cy-gb';
+
+    const filters = await queryRunner.query(
+      pgformat(
+        'SELECT DISTINCT fact_table_column, dimension_name FROM %I.filter_table WHERE language = %L;',
+        queryStore.revisionId,
+        lang
+      )
+    );
+
     const cursor = cubeDBConn.query(new Cursor(query));
-    const currentDataset = await DatasetRepository.getById(queryStore.datasetId);
-    pageSize = pageSize || queryStore.totalLines;
-    pageNumber = pageNumber || 1;
+    const dataset = await DatasetRepository.getById(queryStore.datasetId, { factTable: true, dimensions: true });
     const startRecord = pageSize * (pageNumber - 1);
 
     res.writeHead(200, {
@@ -194,13 +205,14 @@ export async function sendFrontendView(
       'Content-disposition': `attachment;filename=${queryStore.datasetId}.json`
     });
     res.write('{');
-    res.write(`"dataset": ${JSON.stringify(DatasetDTO.fromDataset(currentDataset))},`);
+    res.write(`"dataset": ${JSON.stringify(ConsumerDatasetDTO.fromDataset(dataset))},`);
     res.write(`"filters": ${JSON.stringify(queryStore.requestObject.filters || [])},`);
-    res.write(`"current_page": ${pageNumber},`);
-    res.write(`"page_size": ${pageSize},`);
-    res.write(`"total_pages": ${Math.max(1, Math.ceil(queryStore.totalLines / pageSize))},`);
+
     let rows = await cursor.read(CURSOR_ROW_LIMIT);
-    res.write(`"headers": ${JSON.stringify(Object.keys(rows[0]))},`);
+    const tableHeaders = Object.keys(rows[0]);
+    const headers = getColumnHeaders(dataset, tableHeaders, filters);
+
+    res.write(`"headers": ${JSON.stringify(headers)},`);
     res.write('"data": [');
     let firstRow = true;
     let rowCount = 0;
@@ -219,6 +231,9 @@ export async function sendFrontendView(
     }
     res.write('],');
     const page_info = {
+      current_page: pageNumber,
+      page_size: pageSize,
+      total_pages: Math.max(1, Math.ceil(queryStore.totalLines / pageSize)),
       total_records: queryStore.totalLines,
       start_record: startRecord,
       end_record: startRecord + rowCount
@@ -229,6 +244,7 @@ export async function sendFrontendView(
     res.end();
   } finally {
     void cubeDBConn.release();
+    void queryRunner.release();
   }
 }
 

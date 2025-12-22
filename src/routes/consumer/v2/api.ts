@@ -8,7 +8,7 @@ import {
   listSubTopics,
   listRootTopics,
   getPublishedRevisionById,
-  getPublishedDatasetView,
+  getPublishedDatasetData,
   getPublishedDatasetFilters,
   generateFilterId
 } from '../../../controllers/consumer-v2';
@@ -91,8 +91,8 @@ publicApiV2Router.get(
 );
 
 publicApiV2Router.get('/:dataset_id/filters', ensurePublishedDataset, getPublishedDatasetFilters);
-publicApiV2Router.get('/:dataset_id/data', ensurePublishedDataset, getPublishedDatasetView);
 publicApiV2Router.post('/:dataset_id/data', ensurePublishedDataset, jsonParser, generateFilterId);
-publicApiV2Router.get('/:dataset_id/data/:filter_id', ensurePublishedDataset, getPublishedDatasetView);
+publicApiV2Router.get('/:dataset_id/data', ensurePublishedDataset, getPublishedDatasetData);
+publicApiV2Router.get('/:dataset_id/data/:filter_id', ensurePublishedDataset, getPublishedDatasetData);
 
 // publicApiV2Router.post('/:dataset_id/pivot', loadPublishedDataset(), getPostgresPivotTable);

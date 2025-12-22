@@ -33,6 +33,7 @@ import { dtoValidator } from '../validators/dto-validator';
 import { QueryStoreRepository } from '../repositories/query-store';
 import { QueryStore } from '../entities/query-store';
 import { getFilterTableQuery } from '../utils/consumer';
+import { sortObjToString } from '../utils/sort-obj-to-string';
 
 export const listPublishedDatasets = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   /*
@@ -108,18 +109,26 @@ async function parsePageOptions(req: Request): Promise<PageOptions> {
   }
 
   const params = matchedData(req);
+  let sort: string[] = [];
+
+  try {
+    const sortBy = req.query.sort_by ? (JSON.parse(req.query.sort_by as string) as SortByInterface[]) : undefined;
+    sort = sortBy ? sortObjToString(sortBy) : [];
+  } catch (_err) {
+    logger.warn('failed to parse sort_by parameter');
+  }
 
   return {
     format: (params.format as OutputFormats) ?? OutputFormats.Json,
-    pageNumber: params.pageNumber ?? 1,
-    pageSize: params.pageSize ?? DEFAULT_PAGE_SIZE,
-    sort: params.sort ?? [],
+    pageNumber: params.page_number ?? 1,
+    pageSize: params.page_size ?? DEFAULT_PAGE_SIZE,
+    sort,
     locale: req.language as Locale
   };
 }
 
-export const getPublishedDatasetView = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-  logger.debug(`Getting dataset view for ${res.locals.datasetId}...`);
+export const getPublishedDatasetData = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  logger.debug(`Getting dataset data for ${res.locals.datasetId}...`);
   const filterId = req.params.filter_id as string | undefined;
   const dataset = res.locals.dataset as Dataset;
   if (!dataset.publishedRevisionId) return next(new NotFoundException('errors.no_published_revision'));
@@ -317,14 +326,14 @@ export const sendFormattedResponse = async (
   res: Response
 ): Promise<void> => {
   switch (pageOptions.format) {
+    case OutputFormats.View:
+      return sendFrontendView(query, queryStore, pageOptions, res);
     case OutputFormats.Csv:
       return sendCsv(query, queryStore, res);
     case OutputFormats.Excel:
       return sendExcel(query, queryStore, res);
     case OutputFormats.Json:
       return sendJson(query, queryStore, res);
-    case OutputFormats.View:
-      return sendFrontendView(query, queryStore, pageOptions, res);
     default:
       res.status(400).json({ error: 'Format not supported' });
   }
