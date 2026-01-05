@@ -44,6 +44,7 @@ export async function sendCsv(query: string, queryStore: QueryStore, res: Respon
         });
         rows = await cursor.read(CURSOR_ROW_LIMIT);
       }
+      stream.end();
     } else {
       res.write('\n');
     }
