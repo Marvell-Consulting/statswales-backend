@@ -48,8 +48,9 @@ export class DataOptionsDTO {
   @Type(() => PivotDTO)
   pivot?: PivotDTO;
 
+  @IsOptional()
   @IsArray()
-  filters: Filter[];
+  filters?: Filter[];
 
   @IsOptional()
   @ValidateNested()
