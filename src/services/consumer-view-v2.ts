@@ -18,7 +18,7 @@ import { logger } from '../utils/logger';
 import { ConsumerDatasetDTO } from '../dtos/consumer-dataset-dto';
 import { getColumnHeaders } from '../utils/column-headers';
 
-const EXCEL_ROW_LIMIT = 1048500; // Excel Limit is 1,048,576 but removed 76 rows
+const EXCEL_ROW_LIMIT = 1048576 - 76; // Excel Limit is 1,048,576 but removed 76 rows because ?
 const CURSOR_ROW_LIMIT = 500;
 
 export async function sendCsv(query: string, queryStore: QueryStore, res: Response): Promise<void> {
