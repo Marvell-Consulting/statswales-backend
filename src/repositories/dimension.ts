@@ -12,5 +12,16 @@ export const DimensionRepository = dataSource.getRepository(Dimension).extend({
         lookupTable: true
       }
     });
+  },
+
+  async getByDatasetId(id: string): Promise<Dimension[]> {
+    return dataSource.getRepository(Dimension).find({
+      where: {
+        datasetId: id
+      },
+      relations: {
+        metadata: true
+      }
+    });
   }
 });

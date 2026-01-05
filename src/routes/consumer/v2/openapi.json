@@ -1,14 +1,14 @@
 {
   "openapi": "3.1.1",
   "info": {
-    "version": "1.0.0",
+    "version": "2.0.0",
     "title": "StatsWales public API",
     "description": "This page will help you use the public API for StatsWales. If you need any other support,\n      <a href=\"mailto:StatsWales@gov.wales\">contact StatsWales</a>."
   },
   "servers": [
     {
       "description": "Public API",
-      "url": "{{backendURL}}/v1"
+      "url": "{{backendURL}}/v2"
     }
   ],
   "paths": {
@@ -151,7 +151,7 @@
     "/{dataset_id}": {
       "get": {
         "summary": "Get a published dataset's metadata",
-        "description": "This endpoint returns all metadata for a published dataset.",
+        "description": "This endpoint returns all consumer metadata for a published dataset.",
         "parameters": [
           {
             "$ref": "#/components/parameters/language"
@@ -179,48 +179,9 @@
         }
       }
     },
-    "/{dataset_id}/view": {
+    "/{dataset_id}/revision/{revision_id}": {
       "get": {
-        "summary": "Get a paginated view of a published dataset",
-        "description": "This endpoint returns a paginated view of a published dataset, with optional sorting and  filtering.",
-        "parameters": [
-          {
-            "$ref": "#/components/parameters/language"
-          },
-          {
-            "$ref": "#/components/parameters/dataset_id"
-          },
-          {
-            "$ref": "#/components/parameters/page_number"
-          },
-          {
-            "$ref": "#/components/parameters/page_size"
-          },
-          {
-            "$ref": "#/components/parameters/sort_by"
-          },
-          {
-            "$ref": "#/components/parameters/filter"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "A paginated view of a published dataset, with optional sorting and filtering",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/DatasetView"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/{dataset_id}/view/filters": {
-      "get": {
-        "summary": "Get a list of the filters available for a paginated view of a published dataset",
-        "description": "This endpoint returns a list of the filters available for a paginated view of a published  dataset. These are based on the variables used in the dataset, for example local authorities or financial years.",
+        "description": "",
         "parameters": [
           {
             "name": "dataset_id",
@@ -231,56 +192,103 @@
             }
           },
           {
-            "$ref": "#/components/parameters/language"
+            "name": "revision_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
           "200": {
-            "description": "A list of the filters available for a paginated view of a published dataset",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Filters"
-                }
-              }
-            }
+            "description": "OK"
           }
         }
       }
     },
-    "/{dataset_id}/download/{format}": {
+    "/{dataset_id}/filters": {
       "get": {
-        "summary": "Download a published dataset as a file",
-        "description": "This endpoint returns a published dataset file in a specified format.",
+        "description": "",
         "parameters": [
           {
-            "$ref": "#/components/parameters/language"
-          },
+            "name": "dataset_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": ""
+          }
+        }
+      }
+    },
+    "/{dataset_id}/data": {
+      "post": {
+        "description": "",
+        "parameters": [
           {
-            "$ref": "#/components/parameters/dataset_id"
-          },
-          {
-            "$ref": "#/components/parameters/format"
-          },
-          {
-            "$ref": "#/components/parameters/sort_by"
-          },
-          {
-            "$ref": "#/components/parameters/filter"
+            "name": "dataset_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
           "200": {
-            "description": "A published dataset file in a specified format",
-            "content": {
-              "application/octet-stream": {
-                "schema": {
-                  "type": "string",
-                  "format": "binary",
-                  "example": "data.csv"
-                }
-              }
+            "description": "OK"
+          }
+        }
+      },
+      "get": {
+        "description": "",
+        "parameters": [
+          {
+            "name": "dataset_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
             }
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": ""
+          }
+        }
+      }
+    },
+    "/{dataset_id}/data/{filter_id}": {
+      "get": {
+        "description": "",
+        "parameters": [
+          {
+            "name": "dataset_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "filter_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": ""
           }
         }
       }

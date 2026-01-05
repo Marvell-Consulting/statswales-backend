@@ -4,7 +4,7 @@ import { createJsWithTsPreset } from 'ts-jest';
 const config: Config = {
   ...createJsWithTsPreset({ tsconfig: 'tsconfig.spec.json' }),
   // openid-client and it's deps are now published as ESM and need transpiling to CJS
-  transformIgnorePatterns: ['/node_modules/(?!(openid-client|oauth4webapi|jose)/)'],
+  transformIgnorePatterns: ['/node_modules/(?!(openid-client|oauth4webapi|jose|nanoid)/)'],
   verbose: true,
   reporters: ['default', ['jest-junit', { outputDirectory: 'coverage/test-report', outputName: 'junit-report.xml' }]],
   testEnvironment: 'node',

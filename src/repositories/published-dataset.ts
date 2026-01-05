@@ -37,6 +37,16 @@ export const withAll: FindOptionsRelations<Dataset> = {
   revisions: true
 };
 
+export const withPublishedRevision: FindOptionsRelations<Dataset> = {
+  createdBy: true,
+  userGroup: { metadata: true, organisation: { metadata: true } },
+  publishedRevision: {
+    metadata: true,
+    revisionProviders: { provider: true, providerSource: true },
+    revisionTopics: { topic: true }
+  }
+};
+
 export const PublishedDatasetRepository = dataSource.getRepository(Dataset).extend({
   async getById(id: string, relations: FindOptionsRelations<Dataset> = {}): Promise<Dataset> {
     const start = performance.now();

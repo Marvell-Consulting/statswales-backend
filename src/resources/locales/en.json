@@ -108,6 +108,7 @@
     "data": "data"
   },
   "column_headers": {
+    "data": "data",
     "data_values": "Data values",
     "measure": "Data description",
     "note_codes": "Note codes",
