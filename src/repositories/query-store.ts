@@ -108,13 +108,19 @@ export const QueryStoreRepository = dataSource.getRepository(QueryStore).extend(
   async generate(datasetId: string, revisionId: string, dataOptions: DataOptionsDTO): Promise<QueryStore> {
     logger.debug(`Generating new query store entry for dataset ${datasetId}, revision ${revisionId}...`);
     const hash = generateHash(datasetId, revisionId, dataOptions);
+    let remainingAttempts = 10;
     let id = nanoId();
 
-    while (true) {
+    while (remainingAttempts > 0) {
       const existing = await this.findOneBy({ id });
       if (!existing) break;
+      remainingAttempts--;
       logger.warn(`Collision detected for query store ${id}, regenerating...`);
       id = nanoId();
+    }
+
+    if (remainingAttempts === 0) {
+      throw new Error('Failed to generate unique id for query store entry after multiple attempts');
     }
 
     const queryStore = QueryStore.create({
