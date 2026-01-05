@@ -115,7 +115,6 @@ async function parsePageOptions(req: Request): Promise<PageOptions> {
     const sortBy = req.query.sort_by ? (JSON.parse(req.query.sort_by as string) as SortByInterface[]) : undefined;
     sort = sortBy ? sortObjToString(sortBy) : [];
   } catch (_err) {
-    logger.warn('failed to parse sort_by parameter');
     throw new BadRequestException('errors.invalid_sort_by');
   }
 
