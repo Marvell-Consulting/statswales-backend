@@ -3,7 +3,7 @@
   "info": {
     "version": "1.0.0",
     "title": "StatsWales public API",
-    "description": "This page will help you use the public API for StatsWales. If you need any other support,\n      <a href=\"mailto:StatsWales@gov.wales\">contact StatsWales<a>."
+    "description": "This page will help you use the public API for StatsWales. If you need any other support,\n      <a href=\"mailto:StatsWales@gov.wales\">contact StatsWales</a>."
   },
   "servers": [
     {

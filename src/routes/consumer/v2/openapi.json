@@ -3,12 +3,12 @@
   "info": {
     "version": "2.0.0",
     "title": "StatsWales public API",
-    "description": "This page will help you use the public API for StatsWales. If you need any other support,\n      <a href=\"mailto:StatsWales@gov.wales\">contact StatsWales<a>."
+    "description": "This page will help you use the public API for StatsWales. If you need any other support,\n      <a href=\"mailto:StatsWales@gov.wales\">contact StatsWales</a>."
   },
   "servers": [
     {
       "description": "Public API",
-      "url": "{{backendURL}}/v1"
+      "url": "{{backendURL}}/v2"
     }
   ],
   "paths": {
@@ -158,13 +158,6 @@
           },
           {
             "$ref": "#/components/parameters/dataset_id"
-          },
-          {
-            "name": "language",
-            "in": "query",
-            "schema": {
-              "type": "string"
-            }
           }
         ],
         "responses": {
@@ -205,13 +198,6 @@
             "schema": {
               "type": "string"
             }
-          },
-          {
-            "name": "language",
-            "in": "query",
-            "schema": {
-              "type": "string"
-            }
           }
         ],
         "responses": {
@@ -232,13 +218,6 @@
             "schema": {
               "type": "string"
             }
-          },
-          {
-            "name": "format",
-            "in": "query",
-            "schema": {
-              "type": "string"
-            }
           }
         ],
         "responses": {
@@ -249,7 +228,7 @@
       }
     },
     "/{dataset_id}/data": {
-      "get": {
+      "post": {
         "description": "",
         "parameters": [
           {
@@ -262,12 +241,12 @@
           }
         ],
         "responses": {
-          "default": {
-            "description": ""
+          "200": {
+            "description": "OK"
           }
         }
       },
-      "post": {
+      "get": {
         "description": "",
         "parameters": [
           {
