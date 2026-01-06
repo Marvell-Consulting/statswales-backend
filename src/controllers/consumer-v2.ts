@@ -156,7 +156,7 @@ export const generateFilterId = async (req: Request, res: Response, next: NextFu
   if (!dataset.publishedRevisionId) return next(new NotFoundException('errors.no_published_revision'));
 
   try {
-    logger.trace(`req body = ${JSON.stringify(req.body)}`);
+    // logger.trace(`req body = ${JSON.stringify(req.body)}`);
     const dataOptions = await dtoValidator(DataOptionsDTO, req.body);
     const queryStore = await QueryStoreRepository.getByRequest(dataset.id, dataset.publishedRevisionId, dataOptions);
     res.json({ filterId: queryStore.id });
