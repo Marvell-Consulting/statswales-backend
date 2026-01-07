@@ -50,7 +50,7 @@ export async function sendCsv(query: string, queryStore: QueryStore, res: Respon
     }
     res.end();
   } finally {
-    void cubeDBConn.release();
+    await cubeDBConn.release();
   }
 }
 
@@ -99,7 +99,7 @@ export async function sendExcel(query: string, queryStore: QueryStore, res: Resp
     worksheet.commit();
     await workbook.commit();
   } finally {
-    void cubeDBConn.release();
+    await cubeDBConn.release();
   }
 }
 
@@ -134,7 +134,7 @@ export async function sendJson(query: string, queryStore: QueryStore, res: Respo
     res.write(']');
     res.end();
   } finally {
-    void cubeDBConn.release();
+    await cubeDBConn.release();
   }
 }
 
@@ -169,7 +169,7 @@ export async function sendFilters(query: string, res: Response): Promise<void> {
     }
     res.json(filterData);
   } finally {
-    void cubeDBConn.release();
+    await cubeDBConn.release();
   }
 }
 
@@ -247,8 +247,8 @@ export async function sendFrontendView(
     res.write(`}`);
     res.end();
   } finally {
-    void cubeDBConn.release();
-    void queryRunner.release();
+    await cubeDBConn.release();
+    await queryRunner.release();
   }
 }
 

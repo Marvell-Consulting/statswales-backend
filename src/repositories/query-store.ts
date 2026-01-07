@@ -10,17 +10,8 @@ import { QueryStore } from '../entities/query-store';
 import { logger } from '../utils/logger';
 import { Locale } from '../enums/locale';
 import { FactTableToDimensionName } from '../interfaces/fact-table-column-to-dimension-name';
-import { SUPPORTED_LOCALES, t } from '../middleware/translation';
-import {
-  checkAvailableViews,
-  getFilterTable,
-  coreViewChooser,
-  getColumns,
-  resolveDimensionToFactTableColumn,
-  resolveFactColumnToDimension,
-  resolveFactDescriptionToReference
-} from '../utils/consumer';
-import { FilterRow } from '../interfaces/filter-row';
+import { SUPPORTED_LOCALES } from '../middleware/translation';
+import { checkAvailableViews, getFilterTable, coreViewChooser, getColumns, createBaseQuery } from '../utils/consumer';
 
 const nanoId = customAlphabet('1234567890abcdefghjklmnpqrstuvwxy', 12);
 
@@ -28,57 +19,6 @@ function generateHash(datasetId: string, revisionId: string, options: DataOption
   return createHash('sha256')
     .update(`${datasetId}:${revisionId}:${JSON.stringify(options)}`)
     .digest('hex');
-}
-
-function createBaseQuery(
-  revisionId: string,
-  view: string,
-  locale: string,
-  columns: string[],
-  filterTable: FilterRow[],
-  dataOptions?: DataOptionsDTO
-): string {
-  const refColumnPostfix = `_${t('column_headers.reference', { lng: locale })}`;
-  const useRefValues = dataOptions?.options?.use_reference_values ?? true;
-  const useRawColumns = dataOptions?.options?.use_raw_column_names ?? true;
-  const filters: string[] = [];
-
-  if (dataOptions?.filters && dataOptions?.filters.length > 0) {
-    for (const filter of dataOptions.filters) {
-      let colName = Object.keys(filter)[0];
-      let filterValues = Object.values(filter)[0];
-      if (useRawColumns) {
-        colName = resolveFactColumnToDimension(colName, locale, filterTable);
-      } else {
-        colName = resolveDimensionToFactTableColumn(colName, filterTable);
-      }
-      if (!useRefValues) {
-        const filterTableValues = filterTable.filter(
-          (row) => row.fact_table_column.toLowerCase() === colName.toLowerCase()
-        );
-        filterValues = resolveFactDescriptionToReference(filterValues, filterTableValues);
-      }
-      colName = `${colName}${refColumnPostfix}`;
-      filters.push(pgformat('%I in (%L)', colName, filterValues));
-    }
-  }
-
-  if (columns[0] === '*') {
-    return pgformat(
-      'SELECT * FROM %I.%I %s',
-      revisionId,
-      view,
-      filters.length > 0 ? `WHERE ${filters.join(' AND ')}` : ''
-    );
-  } else {
-    return pgformat(
-      'SELECT %s FROM %I.%I %s',
-      columns.join(', '),
-      revisionId,
-      view,
-      filters.length > 0 ? `WHERE ${filters.join(' AND ')}` : ''
-    );
-  }
 }
 
 export const QueryStoreRepository = dataSource.getRepository(QueryStore).extend({
@@ -131,12 +71,14 @@ export const QueryStoreRepository = dataSource.getRepository(QueryStore).extend(
       hash
     });
 
+    logger.debug(`Creating base queries for all supported locales for query store ${id}...`);
+
     const dataValueType = dataOptions.options?.data_value_type;
     const viewName = checkAvailableViews(dataValueType);
     const queryMap = new Map<Locale, string>();
-    const filterTable = await getFilterTable(revisionId);
     const totals: { total_lines: number }[] = [];
-    const queryRunner = dbManager.getCubeDataSource().createQueryRunner();
+    const filterTable = await getFilterTable(revisionId);
+    const cubeDataSource = dbManager.getCubeDataSource();
 
     try {
       for (const locale of SUPPORTED_LOCALES) {
@@ -145,15 +87,13 @@ export const QueryStoreRepository = dataSource.getRepository(QueryStore).extend(
         const selectColumns = await getColumns(revisionId, lang, viewName);
         const baseQuery = createBaseQuery(revisionId, coreView, locale, selectColumns, filterTable, dataOptions);
         queryMap.set(locale, baseQuery);
-        const query = pgformat('SELECT COUNT(*) as total_lines FROM (%s);', baseQuery);
-        logger.trace(`Testing query and getting a line count: ${query}`);
-        totals.push(...(await queryRunner.query(query)));
+        const lineCountQuery = pgformat('SELECT COUNT(*) as total_lines FROM (%s);', baseQuery);
+        const lineCountResult = await cubeDataSource.query(lineCountQuery);
+        totals.push(...lineCountResult);
       }
     } catch (err) {
       logger.error(err, 'Failed to run generated base query');
       throw err;
-    } finally {
-      void queryRunner.release();
     }
 
     const totalLines = totals[0].total_lines;
@@ -165,17 +105,14 @@ export const QueryStoreRepository = dataSource.getRepository(QueryStore).extend(
       }
     }
 
-    const cubeDB = dbManager.getCubeDataSource().createQueryRunner();
     let factTableToDimensionName: FactTableToDimensionName[];
     try {
-      factTableToDimensionName = await cubeDB.query(
+      factTableToDimensionName = await cubeDataSource.query(
         pgformat('SELECT DISTINCT fact_table_column, dimension_name, language FROM %I.filter_table;', revisionId)
       );
     } catch (err) {
       logger.warn(err, `Failed to query the filter table for cube ${revisionId}`);
       throw err;
-    } finally {
-      void cubeDB.release();
     }
 
     queryStore.query = Object.fromEntries(queryMap);
