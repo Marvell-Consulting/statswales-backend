@@ -228,20 +228,20 @@ export function createBaseQuery(
     }
   }
 
-  if (columns[0] === '*') {
+  if (columns.length === 0 || columns[0] === '*') {
     return pgformat(
       'SELECT * FROM %I.%I %s',
       revisionId,
       view,
       filters.length > 0 ? `WHERE ${filters.join(' AND ')}` : ''
     );
-  } else {
-    return pgformat(
-      'SELECT %s FROM %I.%I %s',
-      columns.join(', '),
-      revisionId,
-      view,
-      filters.length > 0 ? `WHERE ${filters.join(' AND ')}` : ''
-    );
   }
+
+  return pgformat(
+    'SELECT %s FROM %I.%I %s',
+    columns.map((column) => pgformat('%I', column)).join(', '),
+    revisionId,
+    view,
+    filters.length > 0 ? `WHERE ${filters.join(' AND ')}` : ''
+  );
 }
