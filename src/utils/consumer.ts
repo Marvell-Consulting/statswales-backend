@@ -8,6 +8,7 @@ import { logger } from './logger';
 import cubeConfig from '../config/cube-view.json';
 import { Locale } from '../enums/locale';
 import { t } from 'i18next';
+import { DataOptionsDTO } from '../dtos/data-options-dto';
 
 export function transformHierarchy(factTableColumn: string, columnName: string, input: FilterRow[]): FilterTable {
   const nodeMap = new Map<string, FilterValues>(); // reference → node
@@ -114,10 +115,12 @@ export function resolveFactDescriptionToReference(referenceValues: string[], fil
 }
 
 export async function coreViewChooser(lang: string, revisionId: string): Promise<string> {
+  logger.debug(`Checking available views for revision ${revisionId} and language ${lang}...`);
   let availableMaterializedView: { matviewname: string }[];
-  const cubeDB = dbManager.getCubeDataSource().createQueryRunner();
+  const cubeDataSource = dbManager.getCubeDataSource();
+
   try {
-    availableMaterializedView = await cubeDB.query(
+    availableMaterializedView = await cubeDataSource.query(
       pgformat(
         `SELECT * FROM pg_matviews WHERE matviewname = %L AND schemaname = %L;`,
         `${CORE_VIEW_NAME}_mat_${lang}`,
@@ -127,8 +130,6 @@ export async function coreViewChooser(lang: string, revisionId: string): Promise
   } catch (err) {
     logger.error(err, 'Unable to query available views from postgres');
     throw err;
-  } finally {
-    void cubeDB.release();
   }
 
   if (availableMaterializedView.length > 0) {
@@ -147,17 +148,17 @@ export function checkAvailableViews(view: string | undefined): string {
 }
 
 export async function getColumns(revisionId: string, lang: string, view: string): Promise<string[]> {
+  logger.debug(`Getting columns for revision ${revisionId}, view ${view}, language ${lang}...`);
   let columnsMetadata: { value: string }[];
-  const cubeDB = dbManager.getCubeDataSource().createQueryRunner();
+  const cubeDataSource = dbManager.getCubeDataSource();
+
   try {
-    columnsMetadata = await cubeDB.query(
+    columnsMetadata = await cubeDataSource.query(
       pgformat(`SELECT value FROM %I.metadata WHERE key = %L`, revisionId, `${view}_${lang}_columns`)
     );
   } catch (err) {
     logger.error(err, 'Unable to get columns from cube metadata table');
     throw err;
-  } finally {
-    void cubeDB.release();
   }
 
   let columns = ['*'];
@@ -168,14 +169,13 @@ export async function getColumns(revisionId: string, lang: string, view: string)
 }
 
 export async function getFilterTable(revisionId: string): Promise<FilterRow[]> {
-  const cubeDB = dbManager.getCubeDataSource().createQueryRunner();
+  const cubeDataSource = dbManager.getCubeDataSource();
   try {
-    return cubeDB.query(getFilterTableQuery(revisionId));
+    const result = await cubeDataSource.query(getFilterTableQuery(revisionId));
+    return result as FilterRow[];
   } catch (err) {
     logger.error(err, `Something went wrong trying to get the filter table from cube ${revisionId}`);
     throw err;
-  } finally {
-    void cubeDB.release();
   }
 }
 
@@ -190,5 +190,58 @@ export function getFilterTableQuery(revisionId: string, locale?: Locale): string
     'SELECT reference, language, fact_table_column, dimension_name, description, hierarchy FROM %I.filter_table WHERE language LIKE %L;',
     revisionId,
     `${locale.toLowerCase().split('-')[0]}%`
+  );
+}
+
+export function createBaseQuery(
+  revisionId: string,
+  view: string,
+  locale: string,
+  columns: string[],
+  filterTable: FilterRow[],
+  dataOptions?: DataOptionsDTO
+): string {
+  logger.debug(`Creating base query for revision ${revisionId}, view ${view}, locale ${locale}...`);
+
+  const refColumnPostfix = `_${t('column_headers.reference', { lng: locale })}`;
+  const useRefValues = dataOptions?.options?.use_reference_values ?? true;
+  const useRawColumns = dataOptions?.options?.use_raw_column_names ?? true;
+  const filters: string[] = [];
+
+  if (dataOptions?.filters && dataOptions?.filters.length > 0) {
+    for (const filter of dataOptions.filters) {
+      let colName = Object.keys(filter)[0];
+      let filterValues = Object.values(filter)[0];
+      if (useRawColumns) {
+        colName = resolveFactColumnToDimension(colName, locale, filterTable);
+      } else {
+        colName = resolveDimensionToFactTableColumn(colName, filterTable);
+      }
+      if (!useRefValues) {
+        const filterTableValues = filterTable.filter(
+          (row) => row.fact_table_column.toLowerCase() === colName.toLowerCase()
+        );
+        filterValues = resolveFactDescriptionToReference(filterValues, filterTableValues);
+      }
+      colName = `${colName}${refColumnPostfix}`;
+      filters.push(pgformat('%I in (%L)', colName, filterValues));
+    }
+  }
+
+  if (columns.length === 0 || columns[0] === '*') {
+    return pgformat(
+      'SELECT * FROM %I.%I %s',
+      revisionId,
+      view,
+      filters.length > 0 ? `WHERE ${filters.join(' AND ')}` : ''
+    );
+  }
+
+  return pgformat(
+    'SELECT %s FROM %I.%I %s',
+    columns.map((column) => pgformat('%I', column)).join(', '),
+    revisionId,
+    view,
+    filters.length > 0 ? `WHERE ${filters.join(' AND ')}` : ''
   );
 }
