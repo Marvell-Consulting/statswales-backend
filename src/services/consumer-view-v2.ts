@@ -83,7 +83,10 @@ export async function sendExcel(query: string, queryStore: QueryStore, res: Resp
       while (rows.length > 0) {
         for (const row of rows) {
           if (row === null) break;
-          const data = Object.values(row).map((val) => (isNaN(Number(val)) ? val : Number(val)));
+          const data = Object.values(row).map((val) => {
+            if (!val) return null;
+            return isNaN(Number(val)) ? val : Number(val);
+          });
           worksheet.addRow(Object.values(data)).commit();
         }
         totalRows += CURSOR_ROW_LIMIT;
