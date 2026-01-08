@@ -239,7 +239,7 @@ export function createBaseQuery(
 
   return pgformat(
     'SELECT %s FROM %I.%I %s',
-    columns.map((column) => pgformat('%I', column)).join(', '),
+    columns.join(', '),
     revisionId,
     view,
     filters.length > 0 ? `WHERE ${filters.join(' AND ')}` : ''
