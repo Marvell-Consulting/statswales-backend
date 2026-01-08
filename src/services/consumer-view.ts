@@ -513,7 +513,6 @@ export const createStreamingExcelFilteredView = async (
           if (row === null) break;
           const data = Object.values(row).map((val) => {
             if (!val) return null;
-            if (val === '') return null;
             return isNaN(Number(val)) ? val : Number(val);
           });
           worksheet.addRow(Object.values(data)).commit();
