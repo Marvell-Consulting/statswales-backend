@@ -1,13 +1,8 @@
 import { IsBoolean, IsEnum, IsOptional, IsString, IsArray, ValidateNested } from 'class-validator';
 import { Type } from 'class-transformer';
+import { DataValueType } from '../enums/data-value-type';
 
 type Filter = Record<string, string[]>;
-
-enum DataValueType {
-  Raw = 'raw',
-  Formatted = 'formatted',
-  WithNoteCodes = 'with_note_codes'
-}
 
 enum PivotBackend {
   Postgres = 'postgres',
@@ -64,5 +59,14 @@ export const DEFAULT_DATA_OPTIONS: DataOptionsDTO = {
     use_raw_column_names: true,
     use_reference_values: true,
     data_value_type: DataValueType.Raw
+  }
+};
+
+export const FRONTEND_DATA_OPTIONS: DataOptionsDTO = {
+  filters: [],
+  options: {
+    use_raw_column_names: false,
+    use_reference_values: true,
+    data_value_type: DataValueType.WithNoteCodes
   }
 };
