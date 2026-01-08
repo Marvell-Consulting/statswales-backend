@@ -5,7 +5,7 @@ import { customAlphabet } from 'nanoid';
 
 import { dataSource } from '../db/data-source';
 import { dbManager } from '../db/database-manager';
-import { DataOptionsDTO, DEFAULT_DATA_OPTIONS } from '../dtos/data-options-dto';
+import { DataOptionsDTO } from '../dtos/data-options-dto';
 import { QueryStore } from '../entities/query-store';
 import { logger } from '../utils/logger';
 import { Locale } from '../enums/locale';
@@ -32,9 +32,8 @@ export const QueryStoreRepository = dataSource.getRepository(QueryStore).extend(
     return this.findOneByOrFail({ hash });
   },
 
-  async getByRequest(datasetId: string, revisionId: string, dataOptions?: DataOptionsDTO): Promise<QueryStore> {
+  async getByRequest(datasetId: string, revisionId: string, dataOptions: DataOptionsDTO): Promise<QueryStore> {
     logger.debug(`Looking for query store entry for dataset ${datasetId}, revision ${revisionId}...`);
-    if (!dataOptions) dataOptions = DEFAULT_DATA_OPTIONS;
     const hash = generateHash(datasetId, revisionId, dataOptions);
 
     try {

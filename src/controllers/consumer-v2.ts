@@ -24,7 +24,7 @@ import {
   sendFilters
 } from '../services/consumer-view-v2';
 import { Dataset } from '../entities/dataset/dataset';
-import { DataOptionsDTO } from '../dtos/data-options-dto';
+import { DataOptionsDTO, DEFAULT_DATA_OPTIONS, FRONTEND_DATA_OPTIONS } from '../dtos/data-options-dto';
 import { SingleLanguageDatasetDTO } from '../dtos/consumer/single-language-dataset-dto';
 import { SingleLanguageRevisionDTO } from '../dtos/consumer/single-language-revision-dto';
 import { PageOptions } from '../interfaces/page-options';
@@ -135,9 +135,11 @@ export const getPublishedDatasetData = async (req: Request, res: Response, next:
 
   try {
     const pageOptions = await parsePageOptions(req);
+    const dataOptions = pageOptions.format === OutputFormats.Frontend ? FRONTEND_DATA_OPTIONS : DEFAULT_DATA_OPTIONS;
+
     const queryStore = filterId
       ? await QueryStoreRepository.getById(filterId)
-      : await QueryStoreRepository.getByRequest(dataset.id, dataset.publishedRevisionId);
+      : await QueryStoreRepository.getByRequest(dataset.id, dataset.publishedRevisionId, dataOptions);
 
     const query = await buildDataQuery(queryStore, pageOptions);
     await sendFormattedResponse(query, queryStore, pageOptions, res);
@@ -326,7 +328,7 @@ export const sendFormattedResponse = async (
   res: Response
 ): Promise<void> => {
   switch (pageOptions.format) {
-    case OutputFormats.View:
+    case OutputFormats.Frontend:
       return sendFrontendView(query, queryStore, pageOptions, res);
     case OutputFormats.Csv:
       return sendCsv(query, queryStore, res);
