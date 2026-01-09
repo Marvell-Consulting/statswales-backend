@@ -1,8 +1,7 @@
 import { IsBoolean, IsEnum, IsOptional, IsString, IsArray, ValidateNested } from 'class-validator';
 import { Type } from 'class-transformer';
 import { DataValueType } from '../enums/data-value-type';
-
-type Filter = Record<string, string[]>;
+import { FilterV2 } from '../interfaces/filterInterface';
 
 enum PivotBackend {
   Postgres = 'postgres',
@@ -45,7 +44,7 @@ export class DataOptionsDTO {
 
   @IsOptional()
   @IsArray()
-  filters?: Filter[];
+  filters?: FilterV2[];
 
   @IsOptional()
   @ValidateNested()
