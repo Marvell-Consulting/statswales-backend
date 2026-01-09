@@ -208,10 +208,7 @@ export async function sendFrontendView(
       );
       note_codes = noteCodeRows?.map((row: { code: string }) => row.code) ?? [];
     } catch (error) {
-      logger.error(
-        `Failed to fetch note codes for revisionId ${queryStore.revisionId}: ${(error as Error).message}`,
-        { error }
-      );
+      logger.error(error, `Failed to fetch note codes for revisionId ${queryStore.revisionId}`);
       note_codes = [];
     }
 
