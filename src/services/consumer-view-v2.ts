@@ -198,14 +198,22 @@ export async function sendFrontendView(
       )
     );
 
-    const note_codes = (
-      await queryRunner.query(
+    let note_codes: string[] = [];
+    try {
+      const noteCodeRows = await queryRunner.query(
         pgformat(
           `SELECT DISTINCT UNNEST(STRING_TO_ARRAY(code, ',')) AS code FROM %I.all_notes ORDER BY code ASC`,
           queryStore.revisionId
         )
-      )
-    )?.map((row: { code: string }) => row.code);
+      );
+      note_codes = noteCodeRows?.map((row: { code: string }) => row.code) ?? [];
+    } catch (error) {
+      logger.error(
+        `Failed to fetch note codes for revisionId ${queryStore.revisionId}: ${(error as Error).message}`,
+        { error }
+      );
+      note_codes = [];
+    }
 
     const cursor = cubeDBConn.query(new Cursor(query));
     const dataset = await DatasetRepository.getById(queryStore.datasetId, { factTable: true, dimensions: true });
