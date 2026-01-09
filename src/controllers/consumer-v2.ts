@@ -25,7 +25,6 @@ import {
 } from '../services/consumer-view-v2';
 import { Dataset } from '../entities/dataset/dataset';
 import { DataOptionsDTO, DEFAULT_DATA_OPTIONS, FRONTEND_DATA_OPTIONS } from '../dtos/data-options-dto';
-import { SingleLanguageDatasetDTO } from '../dtos/consumer/single-language-dataset-dto';
 import { SingleLanguageRevisionDTO } from '../dtos/consumer/single-language-revision-dto';
 import { PageOptions } from '../interfaces/page-options';
 import { FieldValidationError, matchedData } from 'express-validator';
@@ -34,6 +33,9 @@ import { QueryStoreRepository } from '../repositories/query-store';
 import { QueryStore } from '../entities/query-store';
 import { getFilterTableQuery } from '../utils/consumer';
 import { sortObjToString } from '../utils/sort-obj-to-string';
+import { ConsumerDatasetDTO } from '../dtos/consumer-dataset-dto';
+import { PublisherDTO } from '../dtos/publisher-dto';
+import { UserGroupRepository } from '../repositories/user-group';
 
 export const listPublishedDatasets = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   /*
@@ -85,7 +87,13 @@ export const getPublishedDatasetById = async (req: Request, res: Response): Prom
   */
   const lang = req.language as Locale;
   const dataset = await PublishedDatasetRepository.getById(res.locals.datasetId, withPublishedRevision);
-  const datasetDTO = SingleLanguageDatasetDTO.fromDataset(dataset, lang);
+  const datasetDTO = ConsumerDatasetDTO.fromDataset(dataset);
+
+  if (dataset.userGroupId) {
+    const userGroup = await UserGroupRepository.getByIdWithOrganisation(dataset.userGroupId);
+    datasetDTO.publisher = PublisherDTO.fromUserGroup(userGroup, lang);
+  }
+
   res.json(datasetDTO);
 };
 
