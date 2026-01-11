@@ -34,6 +34,8 @@ import { ConsumerDatasetDTO } from '../dtos/consumer-dataset-dto';
 import { PublisherDTO } from '../dtos/publisher-dto';
 import { UserGroupRepository } from '../repositories/user-group';
 import { parsePageOptions } from '../utils/parse-page-options';
+import { createPivotFromQuery } from '../services/pivots';
+import { format2Validator, pageNumberValidator, pageSizeValidator } from '../validators';
 
 export const listPublishedDatasets = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   /*
@@ -102,6 +104,78 @@ export const getPublishedRevisionById = async (req: Request, res: Response): Pro
   res.json(revisionDto);
 };
 
+async function parsePageOptions(req: Request): Promise<PageOptions> {
+  logger.debug('Parsing page options from request...');
+  const validations = [format2Validator(), pageNumberValidator(), pageSizeValidator()];
+
+  for (const validation of validations) {
+    const result = await validation.run(req);
+    if (!result.isEmpty()) {
+      const error = result.array()[0] as FieldValidationError;
+      throw new BadRequestException(`${error.msg} for ${error.path}`);
+    }
+  }
+
+  const params = matchedData(req);
+  let sort: string[] = [];
+
+  try {
+    const sortBy = req.query.sort_by ? (JSON.parse(req.query.sort_by as string) as SortByInterface[]) : undefined;
+    sort = sortBy ? sortObjToString(sortBy) : [];
+  } catch (_err) {
+    throw new BadRequestException('errors.invalid_sort_by');
+  }
+
+  return {
+    format: (params.format as OutputFormats) ?? OutputFormats.Json,
+    pageNumber: params.page_number ?? 1,
+    pageSize: params.page_size ?? DEFAULT_PAGE_SIZE,
+    sort,
+    locale: req.language as Locale
+  };
+}
+
+async function parsePivotPageOptions(req: Request): Promise<PageOptions> {
+  logger.debug('Parsing page options from request...');
+  const validations = [format2Validator(), pageNumberValidator(), pageSizeValidator()];
+
+  for (const validation of validations) {
+    const result = await validation.run(req);
+    if (!result.isEmpty()) {
+      const error = result.array()[0] as FieldValidationError;
+      throw new BadRequestException(`${error.msg} for ${error.path}`);
+    }
+  }
+
+  const params = matchedData(req);
+  let sort: string[] = [];
+
+  try {
+    const sortBy = req.query.sort_by ? (JSON.parse(req.query.sort_by as string) as SortByInterface[]) : undefined;
+    sort = sortBy ? sortObjToString(sortBy) : [];
+  } catch (_err) {
+    throw new BadRequestException('errors.invalid_sort_by');
+  }
+
+  let xAxis: string | string[] = req.query.x as string;
+  let yAxis: string | string[] = req.query.y as string;
+  if (!xAxis || !yAxis) throw new BadRequestException('errors.invalid_pivot_params');
+  xAxis = xAxis.split(',').map((x) => x.trim());
+  yAxis = yAxis.split(',').map((y) => y.trim());
+  if (xAxis.length === 1) xAxis = xAxis[0];
+  if (yAxis.length === 1) yAxis = yAxis[0];
+
+  return {
+    x: xAxis,
+    y: yAxis,
+    format: (params.format as OutputFormats) ?? OutputFormats.Json,
+    pageNumber: params.page_number ?? 1,
+    pageSize: params.page_size ?? DEFAULT_PAGE_SIZE,
+    sort,
+    locale: req.language as Locale
+  };
+}
+
 export const getPublishedDatasetData = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   logger.debug(`Getting dataset data for ${res.locals.datasetId}...`);
   const filterId = req.params.filter_id as string | undefined;
@@ -118,6 +192,30 @@ export const getPublishedDatasetData = async (req: Request, res: Response, next:
 
     const query = await buildDataQuery(queryStore, pageOptions);
     await sendFormattedResponse(query, queryStore, pageOptions, res);
+  } catch (err) {
+    if (err instanceof NotFoundException || err instanceof BadRequestException) {
+      return next(err);
+    }
+    logger.error(err, 'Error getting published dataset data');
+    next(new UnknownException());
+  }
+};
+
+export const getPublishedDatasetPivot = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  logger.debug(`Getting dataset data for ${res.locals.datasetId}...`);
+  const filterId = req.params.filter_id as string | undefined;
+  const dataset = res.locals.dataset as Dataset;
+  if (!dataset.publishedRevisionId) return next(new NotFoundException('errors.no_published_revision'));
+
+  try {
+    const pageOptions = await parsePivotPageOptions(req);
+    const dataOptions = pageOptions.format === OutputFormats.Frontend ? FRONTEND_DATA_OPTIONS : DEFAULT_DATA_OPTIONS;
+
+    const queryStore = filterId
+      ? await QueryStoreRepository.getById(filterId)
+      : await QueryStoreRepository.getByRequest(dataset.id, dataset.publishedRevisionId, dataOptions);
+
+    await createPivotFromQuery(res, queryStore, pageOptions);
   } catch (err) {
     if (err instanceof NotFoundException || err instanceof BadRequestException) {
       return next(err);
