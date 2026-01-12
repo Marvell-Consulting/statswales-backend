@@ -50,18 +50,14 @@ import { GroupRole } from '../enums/group-role';
 import { DatasetInclude } from '../enums/dataset-include';
 import { EventLogDTO } from '../dtos/event-log-dto';
 import { EventLog } from '../entities/event-log';
-import { SortByInterface } from '../interfaces/sort-by-interface';
-import { FilterInterface } from '../interfaces/filterInterface';
 import { cleanupTmpFile, uploadAvScan } from '../services/virus-scanner';
 import { TempFile } from '../interfaces/temp-file';
-import { DEFAULT_PAGE_SIZE } from '../utils/page-defaults';
 import { PublisherDTO } from '../dtos/publisher-dto';
 import { UserGroupRepository } from '../repositories/user-group';
 import { dbManager } from '../db/database-manager';
 import { format as pgformat } from '@scaleleap/pg-format/lib/pg-format';
 import { TaskAction } from '../enums/task-action';
 import { TaskService } from '../services/task';
-import { createFrontendView } from '../services/consumer-view';
 import { UserGroup } from '../entities/user/user-group';
 import { bootstrapCubeBuildProcess } from '../utils/lookup-table-utils';
 import { CubeBuildStatus } from '../enums/cube-build-status';
@@ -70,6 +66,14 @@ import { BuildLog, CompleteStatus } from '../entities/dataset/build-log';
 import { sleep } from '../utils/sleep';
 import { RevisionList, RevisionRepository } from '../repositories/revision';
 import { BuildLogRepository } from '../repositories/build-log';
+import { DataOptionsDTO, DEFAULT_DATA_OPTIONS, FRONTEND_DATA_OPTIONS } from '../dtos/data-options-dto';
+import { NotFoundException } from '../exceptions/not-found.exception';
+import { QueryStoreRepository } from '../repositories/query-store';
+import { parsePageOptions } from '../utils/parse-page-options';
+import { OutputFormats } from '../enums/output-formats';
+import { buildDataQuery, sendCsv, sendExcel, sendFrontendView, sendJson } from '../services/consumer-view-v2';
+import { QueryStore } from '../entities/query-store';
+import { PageOptions } from '../interfaces/page-options';
 
 export const listUserDatasets = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
@@ -264,37 +268,63 @@ export const uploadDataTable = async (req: Request, res: Response, next: NextFun
   }
 };
 
-export const cubePreview = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-  const dataset = await DatasetRepository.getById(res.locals.datasetId);
-  const lang = req.language.split('-')[0];
+export const generateFilterId = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  logger.debug(`Generating filter ID for dataset preview ${res.locals.datasetId}...`);
+  const dataset = res.locals.dataset as Dataset;
+  if (!dataset.endRevisionId) return next(new NotFoundException('errors.no_end_revision'));
 
-  if (!dataset.endRevisionId) {
-    next(new UnknownException('errors.no_end_revision'));
-    return;
-  }
-
-  const start = performance.now();
-  const page_number: number = Number.parseInt(req.query.page_number as string, 10) || 1;
-  const page_size: number = Number.parseInt(req.query.page_size as string, 10) || DEFAULT_PAGE_SIZE;
-  const sortByQuery = req.query.sort_by ? (JSON.parse(req.query.sort_by as string) as SortByInterface[]) : undefined;
-  const filterQuery = req.query.filter ? (JSON.parse(req.query.filter as string) as FilterInterface[]) : undefined;
   try {
-    const cubePreview = await createFrontendView(
-      dataset,
-      dataset.endRevisionId,
-      lang,
-      page_number,
-      page_size,
-      sortByQuery,
-      filterQuery
-    );
-    const end = performance.now();
-    const time = Math.round(end - start);
-    logger.info(`Generating preview of cube took ${time}ms`);
-    res.json(cubePreview);
-  } catch (error) {
-    logger.error(error, 'Something went wrong trying to query the cube');
-    throw new UnknownException('errors.consumer_view.cube_query_failed');
+    const dataOptions = await dtoValidator(DataOptionsDTO, req.body);
+    const queryStore = await QueryStoreRepository.getByRequest(dataset.id, dataset.endRevisionId, dataOptions);
+    res.json({ filterId: queryStore.id });
+  } catch (err) {
+    logger.error(err, 'Error generating filter ID');
+    return next(new UnknownException());
+  }
+};
+
+export const datasetPreview = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  logger.debug(`Getting dataset preview for ${res.locals.datasetId}...`);
+  const filterId = req.params.filter_id as string | undefined;
+  const dataset = res.locals.dataset as Dataset;
+  if (!dataset.endRevisionId) return next(new NotFoundException('errors.no_end_revision'));
+
+  try {
+    const pageOptions = await parsePageOptions(req);
+    const dataOptions = pageOptions.format === OutputFormats.Frontend ? FRONTEND_DATA_OPTIONS : DEFAULT_DATA_OPTIONS;
+
+    const queryStore = filterId
+      ? await QueryStoreRepository.getById(filterId)
+      : await QueryStoreRepository.getByRequest(dataset.id, dataset.endRevisionId, dataOptions);
+
+    const query = await buildDataQuery(queryStore, pageOptions);
+    await sendFormattedResponse(query, queryStore, pageOptions, res);
+  } catch (err) {
+    if (err instanceof NotFoundException || err instanceof BadRequestException) {
+      return next(err);
+    }
+    logger.error(err, 'Error getting published dataset data');
+    next(new UnknownException());
+  }
+};
+
+export const sendFormattedResponse = async (
+  query: string,
+  queryStore: QueryStore,
+  pageOptions: PageOptions,
+  res: Response
+): Promise<void> => {
+  switch (pageOptions.format) {
+    case OutputFormats.Frontend:
+      return sendFrontendView(query, queryStore, pageOptions, res);
+    case OutputFormats.Csv:
+      return sendCsv(query, queryStore, res);
+    case OutputFormats.Excel:
+      return sendExcel(query, queryStore, res);
+    case OutputFormats.Json:
+      return sendJson(query, queryStore, res);
+    default:
+      res.status(400).json({ error: 'Format not supported' });
   }
 };
 

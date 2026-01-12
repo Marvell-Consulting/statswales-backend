@@ -2,12 +2,10 @@ import 'reflect-metadata';
 
 import express, { Router } from 'express';
 
-import { downloadCubeAsCSV, downloadCubeAsExcel, downloadCubeAsJSON } from '../controllers/cube';
 import {
   addDataProvider,
   createDataset,
   uploadDataTable,
-  cubePreview,
   getDataProviders,
   getTasklist,
   getTopics,
@@ -23,7 +21,9 @@ import {
   getAllFilesForDataset,
   updateDatasetGroup,
   getHistory,
-  datasetActionRequest
+  datasetActionRequest,
+  generateFilterId,
+  datasetPreview
 } from '../controllers/dataset';
 import { datasetAuth } from '../middleware/dataset-auth';
 import { fileStreaming } from '../middleware/file-streaming';
@@ -67,21 +67,12 @@ datasetRouter.patch('/:dataset_id/metadata', jsonParser, updateMetadata);
 // Returns a DTO object that includes the draft revision
 datasetRouter.post('/:dataset_id/data', fileStreaming(), uploadDataTable);
 
-// GET /dataset/:dataset_id/view
-// Returns a view of the data file attached to the import
-datasetRouter.get('/:dataset_id/view', cubePreview);
+// Generates a filter ID for the current dataset preview filter selection
+datasetRouter.post('/:dataset_id/preview', jsonParser, generateFilterId);
 
-// GET /dataset/:dataset_id/cube/json
-// Returns a JSON file representation of the default view of the cube
-datasetRouter.get('/:dataset_id/cube/json', downloadCubeAsJSON);
-
-// GET /dataset/:dataset_id/cube/csv
-// Returns a CSV file representation of the default view of the cube
-datasetRouter.get('/:dataset_id/cube/csv', downloadCubeAsCSV);
-
-// GET /dataset/:dataset_id/cube/excel
-// Returns a CSV file representation of the default view of the cube
-datasetRouter.get('/:dataset_id/cube/excel', downloadCubeAsExcel);
+// Returns a preview of the dataset data based on the filter ID if provided
+datasetRouter.get('/:dataset_id/preview', datasetPreview);
+datasetRouter.get('/:dataset_id/preview/:filter_id', datasetPreview);
 
 datasetRouter.get('/:dataset_id/sources', getFactTableDefinition);
 
