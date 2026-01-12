@@ -5,7 +5,7 @@ import { QueryStore } from '../entities/query-store';
 import { PageOptions } from '../interfaces/page-options';
 import { duckdb } from './duckdb';
 import { t } from '../middleware/translation';
-import { DuckDBResultReader } from '@duckdb/node-api';
+import { DuckDBResult, DuckDBResultReader } from '@duckdb/node-api';
 import { logger } from '../utils/logger';
 import { OutputFormats } from '../enums/output-formats';
 import { format as csvFormat } from '@fast-csv/format';
@@ -13,29 +13,31 @@ import ExcelJS from 'exceljs';
 
 const EXCEL_ROW_LIMIT = 1048576 - 76; // Excel Limit is 1,048,576 but removed 76 rows because ?
 
-async function pivotToJson(res: Response, pivot: DuckDBResultReader): Promise<void> {
+async function pivotToJson(res: Response, pivot: DuckDBResult): Promise<void> {
   res.setHeader('content-type', 'application/json');
   res.flushHeaders();
   res.write('{ "pivot": [');
-  await pivot.readUntil(100);
-
-  while (!pivot.done) {
-    const rows = pivot.getRows();
+  let rows = await pivot.getRowObjects();
+  while (rows.length > 0) {
     const lastRowIndex = rows.length - 1;
     rows.forEach((row: unknown, index: number) => {
-      res.write(JSON.stringify(row));
-      if (!pivot.done && index !== lastRowIndex) {
-        res.write(',');
+      if (index < lastRowIndex) {
+        res.write(`${JSON.stringify(row)},\n`);
+      } else {
+        res.write(`${JSON.stringify(row)}`);
       }
     });
-    await pivot.readUntil(100);
+    rows = await pivot.getRowObjects();
+    if (rows.length > 0) {
+      res.write(',\n');
+    }
   }
   res.write(']');
   res.write('}');
   res.end();
 }
 
-async function pivotToCsv(res: Response, pivot: DuckDBResultReader): Promise<void> {
+async function pivotToCsv(res: Response, pivot: DuckDBResult): Promise<void> {
   res.writeHead(200, {
     // eslint-disable-next-line @typescript-eslint/naming-convention
     'Content-Type': 'text/csv',
@@ -44,21 +46,20 @@ async function pivotToCsv(res: Response, pivot: DuckDBResultReader): Promise<voi
   });
   const stream = csvFormat({ delimiter: ',', headers: true });
   stream.pipe(res);
-  await pivot.readUntil(100);
 
-  while (!pivot.done) {
-    const rows = pivot.getRows();
+  let rows = await pivot.getRowObjects();
+  while (rows.length > 0) {
     rows.map((row: unknown) => {
       stream.write(row);
     });
-    await pivot.readUntil(100);
+    rows = await pivot.getRowObjects();
   }
   res.write('\n');
   res.end();
   stream.end();
 }
 
-async function pivotToExcel(res: Response, pivot: DuckDBResultReader): Promise<void> {
+async function pivotToExcel(res: Response, pivot: DuckDBResult): Promise<void> {
   res.writeHead(200, {
     // eslint-disable-next-line @typescript-eslint/naming-convention
     'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
@@ -75,35 +76,32 @@ async function pivotToExcel(res: Response, pivot: DuckDBResultReader): Promise<v
   let sheetCount = 1;
   let totalRows = 0;
   let worksheet = workbook.addWorksheet(`Sheet-${sheetCount}`);
-  await pivot.readUntil(100);
 
-  while (!pivot.done) {
-    const rows = pivot.getRows();
-    worksheet.addRow(Object.keys(rows[0]));
-    while (rows.length > 0) {
-      for (const row of rows) {
-        if (row === null) break;
-        const data = Object.values(row).map((val) => {
-          if (!val) return null;
-          return isNaN(Number(val)) ? val : Number(val);
-        });
-        worksheet.addRow(Object.values(data)).commit();
-      }
-      totalRows += rows.length;
-      if (totalRows > EXCEL_ROW_LIMIT) {
-        worksheet.commit();
-        sheetCount++;
-        totalRows = 0;
-        worksheet = workbook.addWorksheet(`Sheet-${sheetCount}`);
-      }
+  let rows = await pivot.getRowObjects();
+  worksheet.addRow(Object.keys(rows[0]));
+  while (rows.length > 0) {
+    for (const row of rows) {
+      if (row === null) break;
+      const data = Object.values(row).map((val) => {
+        if (!val) return null;
+        return isNaN(Number(val)) ? val : Number(val);
+      });
+      worksheet.addRow(Object.values(data)).commit();
     }
-    await pivot.readUntil(100);
+    totalRows += rows.length;
+    if (totalRows > EXCEL_ROW_LIMIT) {
+      worksheet.commit();
+      sheetCount++;
+      totalRows = 0;
+      worksheet = workbook.addWorksheet(`Sheet-${sheetCount}`);
+    }
+    rows = await pivot.getRowObjects();
   }
   worksheet.commit();
   await workbook.commit();
 }
 
-async function pivotToHtml(res: Response, pivot: DuckDBResultReader): Promise<void> {
+async function pivotToHtml(res: Response, pivot: DuckDBResult): Promise<void> {
   res.setHeader('content-type', 'text/html');
   res.flushHeaders();
   res.write(
@@ -118,27 +116,31 @@ async function pivotToHtml(res: Response, pivot: DuckDBResultReader): Promise<vo
       '<thead><tr>'
   );
 
-  await pivot.readUntil(100);
-  let rows = pivot.getRows();
+  let rows = await pivot.getRowObjects();
   Object.keys(rows[0]).forEach((key) => {
     res.write(`<th>${key}</th>`);
   });
   res.write('</tr></thead><tbody>');
-  while (!pivot.done) {
+  while (rows.length > 0) {
     for (const row of rows) {
       res.write('<tr>');
-      Object.values(row).forEach((value) => {
-        res.write(`<td>${value}</td>`);
+      Object.values(row).forEach((value, idx) => {
+
+        if (idx === 0) {
+          res.write(`<th>${value === null ? '' : value}</th>`);
+        } else {
+          res.write(`<td>${value === null ? '' : value}</td>`);
+        }
       });
       res.write('</tr>');
     }
-    await pivot.readUntil(100);
-    rows = pivot.getRows();
+    rows = await pivot.getRowObjects();
   }
   res.write('</tbody>\n' + '</table>\n' + '</body>\n' + '</html>\n');
+  res.end();
 }
 
-async function formatChooser(res: Response, pivot: DuckDBResultReader, pageOptions: PageOptions): Promise<void> {
+async function formatChooser(res: Response, pivot: DuckDBResult, pageOptions: PageOptions): Promise<void> {
   switch (pageOptions.format) {
     case OutputFormats.Json:
       await pivotToJson(res, pivot);
@@ -163,17 +165,22 @@ export async function createPivotFromQuery(
   pageOptions: PageOptions
 ): Promise<void> {
   const quack = await duckdb();
-  const query = queryStore.query[pageOptions.locale];
-  const dataValuesCol = t('columns.data_values', { lng: pageOptions.locale });
+  const lang = pageOptions.locale === 'en' ? 'en-GB' : pageOptions.locale;
+  const query = queryStore.query[lang].replaceAll(
+    pgformat('%I', queryStore.revisionId),
+    pgformat('%I.%I', 'cube_db', queryStore.revisionId)
+  );
+  const dataValuesCol = t('column_headers.data_values', { lng: pageOptions.locale });
   const pivotQuery = pgformat(
-    'PIVOT (%s) ON %I USING first(%I) GROUP BY %s;',
+    'PIVOT (%s) ON %I USING first(%I) GROUP BY %I;',
     query,
     pageOptions.x,
     dataValuesCol,
     pageOptions.y
   );
+  logger.debug(`Pivot Query = ${pivotQuery}`);
   try {
-    const pivot = await quack.streamAndRead(pivotQuery);
+    const pivot = await quack.stream(pivotQuery);
     await formatChooser(res, pivot, pageOptions);
   } catch (err) {
     logger.error(err, 'Error creating pivot from query');
