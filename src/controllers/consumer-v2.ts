@@ -8,7 +8,6 @@ import { PublishedRevisionRepository } from '../repositories/published-revision'
 import { NotFoundException } from '../exceptions/not-found.exception';
 import { BadRequestException } from '../exceptions/bad-request.exception';
 import { OutputFormats } from '../enums/output-formats';
-import { format2Validator, pageNumberValidator, pageSizeValidator } from '../validators';
 import { TopicDTO } from '../dtos/topic-dto';
 import { PublishedTopicsDTO } from '../dtos/published-topics-dto';
 import { TopicRepository } from '../repositories/topic';
@@ -27,15 +26,14 @@ import { Dataset } from '../entities/dataset/dataset';
 import { DataOptionsDTO, DEFAULT_DATA_OPTIONS, FRONTEND_DATA_OPTIONS } from '../dtos/data-options-dto';
 import { SingleLanguageRevisionDTO } from '../dtos/consumer/single-language-revision-dto';
 import { PageOptions } from '../interfaces/page-options';
-import { FieldValidationError, matchedData } from 'express-validator';
 import { dtoValidator } from '../validators/dto-validator';
 import { QueryStoreRepository } from '../repositories/query-store';
 import { QueryStore } from '../entities/query-store';
 import { getFilterTableQuery } from '../utils/consumer';
-import { sortObjToString } from '../utils/sort-obj-to-string';
 import { ConsumerDatasetDTO } from '../dtos/consumer-dataset-dto';
 import { PublisherDTO } from '../dtos/publisher-dto';
 import { UserGroupRepository } from '../repositories/user-group';
+import { parsePageOptions } from '../utils/parse-page-options';
 
 export const listPublishedDatasets = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   /*
@@ -103,37 +101,6 @@ export const getPublishedRevisionById = async (req: Request, res: Response): Pro
   const revisionDto = SingleLanguageRevisionDTO.fromRevision(revision, lang);
   res.json(revisionDto);
 };
-
-async function parsePageOptions(req: Request): Promise<PageOptions> {
-  logger.debug('Parsing page options from request...');
-  const validations = [format2Validator(), pageNumberValidator(), pageSizeValidator()];
-
-  for (const validation of validations) {
-    const result = await validation.run(req);
-    if (!result.isEmpty()) {
-      const error = result.array()[0] as FieldValidationError;
-      throw new BadRequestException(`${error.msg} for ${error.path}`);
-    }
-  }
-
-  const params = matchedData(req);
-  let sort: string[] = [];
-
-  try {
-    const sortBy = req.query.sort_by ? (JSON.parse(req.query.sort_by as string) as SortByInterface[]) : undefined;
-    sort = sortBy ? sortObjToString(sortBy) : [];
-  } catch (_err) {
-    throw new BadRequestException('errors.invalid_sort_by');
-  }
-
-  return {
-    format: (params.format as OutputFormats) ?? OutputFormats.Json,
-    pageNumber: params.page_number ?? 1,
-    pageSize: params.page_size ?? DEFAULT_PAGE_SIZE,
-    sort,
-    locale: req.language as Locale
-  };
-}
 
 export const getPublishedDatasetData = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   logger.debug(`Getting dataset data for ${res.locals.datasetId}...`);
