@@ -128,7 +128,7 @@ async function parsePageOptions(req: Request): Promise<PageOptions> {
 
   return {
     format: (params.format as OutputFormats) ?? OutputFormats.Json,
-    pageNumber: params.page_number ?? 1,
+    pageNumber: params.page_number ?? undefined,
     pageSize: params.page_size ?? DEFAULT_PAGE_SIZE,
     sort,
     locale: req.language as Locale

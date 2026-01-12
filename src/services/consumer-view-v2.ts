@@ -299,7 +299,11 @@ export async function buildDataQuery(queryStore: QueryStore, pageOptions: PageOp
     throw new BadRequestException('errors.page_number_too_high');
   }
 
-  query = pgformat(`%s LIMIT %L OFFSET %L;`, query, limit, offset);
+  if (pageNumber) {
+    query = pgformat(`%s LIMIT %L OFFSET %L;`, query, limit, offset);
+  }
+
+  logger.debug(`Query = ${query}`);
 
   return query;
 }
