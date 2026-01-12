@@ -148,7 +148,7 @@ export function checkAvailableViews(view: string | undefined): string {
 }
 
 export async function getColumns(revisionId: string, lang: string, view: string): Promise<string[]> {
-  logger.debug(`Getting columns for revision ${revisionId}, view ${view}, language ${lang}...`);
+  logger.debug(`Getting columns for revision: '${revisionId}', view: '${view}', language: '${lang}'...`);
   let columnsMetadata: { value: string }[];
   const cubeDataSource = dbManager.getCubeDataSource();
 

@@ -198,6 +198,20 @@ export async function sendFrontendView(
       )
     );
 
+    let note_codes: string[] = [];
+    try {
+      const noteCodeRows = await queryRunner.query(
+        pgformat(
+          `SELECT DISTINCT UNNEST(STRING_TO_ARRAY(code, ',')) AS code FROM %I.all_notes ORDER BY code ASC`,
+          queryStore.revisionId
+        )
+      );
+      note_codes = noteCodeRows?.map((row: { code: string }) => row.code) ?? [];
+    } catch (error) {
+      logger.error(error, `Failed to fetch note codes for revisionId ${queryStore.revisionId}`);
+      note_codes = [];
+    }
+
     const cursor = cubeDBConn.query(new Cursor(query));
     const dataset = await DatasetRepository.getById(queryStore.datasetId, { factTable: true, dimensions: true });
     const startRecord = pageSize * (pageNumber - 1);
@@ -211,6 +225,7 @@ export async function sendFrontendView(
     res.write('{');
     res.write(`"dataset": ${JSON.stringify(ConsumerDatasetDTO.fromDataset(dataset))},`);
     res.write(`"filters": ${JSON.stringify(queryStore.requestObject.filters || [])},`);
+    res.write(`"note_codes": ${JSON.stringify(note_codes || [])},`);
 
     let rows = await cursor.read(CURSOR_ROW_LIMIT);
 
