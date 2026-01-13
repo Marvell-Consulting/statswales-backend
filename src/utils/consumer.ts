@@ -73,9 +73,10 @@ export function resolveDimensionToFactTableColumn(
       return 'data_values';
   }
   const col = factTableToDimensionNames.find(
-    (col) => columnName.toLowerCase().trim() === col.dimension_name.toLowerCase()
+    (col) => columnName.toLowerCase().trim() === col.dimension_name.toLowerCase().trim()
   );
   if (!col) {
+    logger.debug(`${columnName} Column not found`);
     throw new Error('Column not found');
   }
   return col.fact_table_column;
