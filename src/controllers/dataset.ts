@@ -303,7 +303,7 @@ export const datasetPreview = async (req: Request, res: Response, next: NextFunc
     if (err instanceof NotFoundException || err instanceof BadRequestException) {
       return next(err);
     }
-    logger.error(err, 'Error getting published dataset data');
+    logger.error(err, 'Error getting dataset preview');
     next(new UnknownException());
   }
 };
