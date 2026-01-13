@@ -273,7 +273,8 @@ export async function sendFrontendView(
 export async function buildDataQuery(queryStore: QueryStore, pageOptions: PageOptions): Promise<string> {
   logger.debug(`Building data query from query store id ${queryStore.id}...`);
   const { locale, pageNumber, pageSize, sort } = pageOptions;
-  let query = queryStore.query[locale];
+  const lang = locale.includes('en') ? 'en-GB' : 'cy-GB';
+  let query = queryStore.query[lang] || queryStore.query['en-GB'];
 
   if (sort && sort.length > 0) {
     const sortBy: string[] = [];
