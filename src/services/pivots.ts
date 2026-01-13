@@ -5,15 +5,60 @@ import { QueryStore } from '../entities/query-store';
 import { PageOptions } from '../interfaces/page-options';
 import { duckdb } from './duckdb';
 import { t } from '../middleware/translation';
-import { DuckDBResult, DuckDBResultReader } from '@duckdb/node-api';
+import { DuckDBResult } from '@duckdb/node-api';
 import { logger } from '../utils/logger';
 import { OutputFormats } from '../enums/output-formats';
 import { format as csvFormat } from '@fast-csv/format';
 import ExcelJS from 'exceljs';
+import { Dataset } from '../entities/dataset/dataset';
+import { DatasetDTO } from '../dtos/dataset-dto';
+import { dbManager } from '../db/database-manager';
 
 const EXCEL_ROW_LIMIT = 1048576 - 76; // Excel Limit is 1,048,576 but removed 76 rows because ?
 
 async function pivotToJson(res: Response, pivot: DuckDBResult): Promise<void> {
+  res.setHeader('content-type', 'application/json');
+  res.flushHeaders();
+  res.write('{ "pivot": [');
+  let rows = await pivot.getRowObjects();
+  while (rows.length > 0) {
+    const lastRowIndex = rows.length - 1;
+    rows.forEach((row: unknown, index: number) => {
+      if (index < lastRowIndex) {
+        res.write(`${JSON.stringify(row)},\n`);
+      } else {
+        res.write(`${JSON.stringify(row)}`);
+      }
+    });
+    rows = await pivot.getRowObjects();
+    if (rows.length > 0) {
+      res.write(',\n');
+    }
+  }
+  res.write(']');
+  res.write('}');
+  res.end();
+}
+
+async function pivotToFrontend(res: Response, pivot: DuckDBResult, queryStore: QueryStore): Promise<void> {
+  const dataset = await Dataset.findOneOrFail({ id: queryStore.datasetId });
+  const datasetDto = DatasetDTO.fromDataset(dataset);
+  let note_codes: string[] = [];
+  const queryRunner = dbManager.getCubeDataSource().createQueryRunner();
+  try {
+    const noteCodeRows = await queryRunner.query(
+      pgformat(
+        `SELECT DISTINCT UNNEST(STRING_TO_ARRAY(code, ',')) AS code FROM %I.all_notes ORDER BY code ASC`,
+        queryStore.revisionId
+      )
+    );
+    note_codes = noteCodeRows?.map((row: { code: string }) => row.code) ?? [];
+  } catch (error) {
+    logger.error(error, `Failed to fetch note codes for revisionId ${queryStore.revisionId}`);
+    note_codes = [];
+  } finally {
+    await queryRunner.release();
+  }
   res.setHeader('content-type', 'application/json');
   res.flushHeaders();
   res.write('{ "pivot": [');
@@ -140,7 +185,12 @@ async function pivotToHtml(res: Response, pivot: DuckDBResult): Promise<void> {
   res.end();
 }
 
-async function formatChooser(res: Response, pivot: DuckDBResult, pageOptions: PageOptions): Promise<void> {
+async function formatChooser(
+  res: Response,
+  pivot: DuckDBResult,
+  pageOptions: PageOptions,
+  queryStore: QueryStore
+): Promise<void> {
   switch (pageOptions.format) {
     case OutputFormats.Json:
       await pivotToJson(res, pivot);
@@ -154,8 +204,9 @@ async function formatChooser(res: Response, pivot: DuckDBResult, pageOptions: Pa
     case OutputFormats.Html:
       await pivotToHtml(res, pivot);
       break;
-    default:
-      logger.error('Invalid format specified');
+    case OutputFormats.Frontend:
+      await pivotToFrontend(res, pivot, queryStore);
+      break;
   }
 }
 
@@ -181,7 +232,7 @@ export async function createPivotFromQuery(
   logger.debug(`Pivot Query = ${pivotQuery}`);
   try {
     const pivot = await quack.stream(pivotQuery);
-    await formatChooser(res, pivot, pageOptions);
+    await formatChooser(res, pivot, pageOptions, queryStore);
   } catch (err) {
     logger.error(err, 'Error creating pivot from query');
   } finally {
