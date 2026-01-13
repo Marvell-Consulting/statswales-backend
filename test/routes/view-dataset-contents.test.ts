@@ -58,13 +58,13 @@ describe('API Endpoints for viewing the contents of a dataset', () => {
 
   test('Get a view of cube returns the dataset', async () => {
     const res = await request(app)
-      .get(`/dataset/${dataset1Id}/view`)
+      .get(`/dataset/${dataset1Id}/preview?format=frontend`)
       .set(getAuthHeader(user))
       .query({ page_number: 1, page_size: 100 });
     expect(res.status).toBe(200);
-    expect(res.body.current_page).toBe(1);
-    expect(res.body.total_pages).toBe(13);
-    expect(res.body.page_size).toBe(100);
+    expect(res.body.page_info.current_page).toBe(1);
+    expect(res.body.page_info.total_pages).toBe(13);
+    expect(res.body.page_info.page_size).toBe(100);
     expect(res.body.headers).toEqual([
       { index: -1, name: 'YearCode', source_type: 'unknown' },
       { index: 0, name: 'AreaCode', source_type: 'unknown' },
@@ -83,11 +83,11 @@ describe('API Endpoints for viewing the contents of a dataset', () => {
     const dataset = await DatasetRepository.create({ createdBy: user, userGroupId: userGroup.id }).save();
 
     const res = await request(app)
-      .get(`/dataset/${dataset.id}/view`)
+      .get(`/dataset/${dataset.id}/preview?format=frontend`)
       .set(getAuthHeader(user))
       .query({ page_number: 2, page_size: 100 });
 
-    expect(res.status).toBe(500);
+    expect(res.status).toBe(404);
     expect(res.body).toEqual({ error: 'errors.no_end_revision' });
   });
 
