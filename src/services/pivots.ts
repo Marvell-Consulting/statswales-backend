@@ -10,9 +10,10 @@ import { logger } from '../utils/logger';
 import { OutputFormats } from '../enums/output-formats';
 import { format as csvFormat } from '@fast-csv/format';
 import ExcelJS from 'exceljs';
-import { Dataset } from '../entities/dataset/dataset';
-import { DatasetDTO } from '../dtos/dataset-dto';
 import { dbManager } from '../db/database-manager';
+import { DatasetRepository } from '../repositories/dataset';
+import { getColumnHeaders } from '../utils/column-headers';
+import { ConsumerDatasetDTO } from '../dtos/consumer-dataset-dto';
 
 const EXCEL_ROW_LIMIT = 1048576 - 76; // Excel Limit is 1,048,576 but removed 76 rows because ?
 
@@ -40,10 +41,18 @@ async function pivotToJson(res: Response, pivot: DuckDBResult): Promise<void> {
   res.end();
 }
 
-async function pivotToFrontend(res: Response, pivot: DuckDBResult, queryStore: QueryStore): Promise<void> {
-  const dataset = await Dataset.findOneOrFail({ id: queryStore.datasetId });
-  const datasetDto = DatasetDTO.fromDataset(dataset);
+async function pivotToFrontend(
+  res: Response,
+  lang: string,
+  pivot: DuckDBResult,
+  queryStore: QueryStore,
+  pageOptions: PageOptions
+): Promise<void> {
+  const { pageNumber = 1, pageSize = queryStore.totalLines } = pageOptions;
+  const startRecord = pageSize * (pageNumber - 1);
+  const dataset = await DatasetRepository.getById(queryStore.datasetId, { factTable: true, dimensions: true });
   let note_codes: string[] = [];
+  let filters: { fact_table_column: string; dimension_name: string }[] = [];
   const queryRunner = dbManager.getCubeDataSource().createQueryRunner();
   try {
     const noteCodeRows = await queryRunner.query(
@@ -53,16 +62,53 @@ async function pivotToFrontend(res: Response, pivot: DuckDBResult, queryStore: Q
       )
     );
     note_codes = noteCodeRows?.map((row: { code: string }) => row.code) ?? [];
+    filters = await queryRunner.query(
+      pgformat(
+        'SELECT DISTINCT fact_table_column, dimension_name FROM %I.filter_table WHERE language = %L;',
+        queryStore.revisionId,
+        lang
+      )
+    );
   } catch (error) {
     logger.error(error, `Failed to fetch note codes for revisionId ${queryStore.revisionId}`);
     note_codes = [];
   } finally {
     await queryRunner.release();
   }
-  res.setHeader('content-type', 'application/json');
-  res.flushHeaders();
-  res.write('{ "pivot": [');
+  res.writeHead(200, {
+    // eslint-disable-next-line @typescript-eslint/naming-convention
+    'Content-Type': 'application/json',
+    // eslint-disable-next-line @typescript-eslint/naming-convention
+    'Content-disposition': `attachment;filename=${queryStore.datasetId}.json`
+  });
+  res.write('{');
+  res.write(`"dataset": ${JSON.stringify(ConsumerDatasetDTO.fromDataset(dataset))},`);
+  res.write(`"filters": ${JSON.stringify(queryStore.requestObject.filters || [])},`);
+  res.write(`"note_codes": ${JSON.stringify(note_codes || [])},`);
+
   let rows = await pivot.getRowObjects();
+  if (rows.length > 0) {
+    const tableHeaders = Object.keys(rows[0]);
+    const headers = getColumnHeaders(dataset, tableHeaders, filters);
+    res.write(`"headers": ${JSON.stringify(headers)},`);
+  }
+
+  res.write('"data": [');
+  let firstRow = true;
+  let rowCount = 0;
+  while (rows.length > 0) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    rows.forEach((row: any) => {
+      if (firstRow) {
+        firstRow = false;
+      } else {
+        res.write(',\n');
+      }
+      res.write(JSON.stringify(Object.values(row)));
+      rowCount++;
+    });
+    rows = await pivot.getRowObjects();
+  }
   while (rows.length > 0) {
     const lastRowIndex = rows.length - 1;
     rows.forEach((row: unknown, index: number) => {
@@ -77,8 +123,18 @@ async function pivotToFrontend(res: Response, pivot: DuckDBResult, queryStore: Q
       res.write(',\n');
     }
   }
-  res.write(']');
-  res.write('}');
+  res.write('],');
+  const page_info = {
+    current_page: pageNumber,
+    page_size: pageSize,
+    total_pages: Math.max(1, Math.ceil(queryStore.totalLines / pageSize)),
+    total_records: queryStore.totalLines,
+    start_record: startRecord,
+    end_record: startRecord + rowCount
+  };
+  res.write(`"page_info": ${JSON.stringify(page_info)}`);
+
+  res.write(`}`);
   res.end();
 }
 
@@ -170,7 +226,6 @@ async function pivotToHtml(res: Response, pivot: DuckDBResult): Promise<void> {
     for (const row of rows) {
       res.write('<tr>');
       Object.values(row).forEach((value, idx) => {
-
         if (idx === 0) {
           res.write(`<th>${value === null ? '' : value}</th>`);
         } else {
@@ -187,6 +242,7 @@ async function pivotToHtml(res: Response, pivot: DuckDBResult): Promise<void> {
 
 async function formatChooser(
   res: Response,
+  lang: string,
   pivot: DuckDBResult,
   pageOptions: PageOptions,
   queryStore: QueryStore
@@ -205,7 +261,7 @@ async function formatChooser(
       await pivotToHtml(res, pivot);
       break;
     case OutputFormats.Frontend:
-      await pivotToFrontend(res, pivot, queryStore);
+      await pivotToFrontend(res, lang, pivot, queryStore, pageOptions);
       break;
   }
 }
@@ -232,7 +288,7 @@ export async function createPivotFromQuery(
   logger.debug(`Pivot Query = ${pivotQuery}`);
   try {
     const pivot = await quack.stream(pivotQuery);
-    await formatChooser(res, pivot, pageOptions, queryStore);
+    await formatChooser(res, lang, pivot, pageOptions, queryStore);
   } catch (err) {
     logger.error(err, 'Error creating pivot from query');
   } finally {
