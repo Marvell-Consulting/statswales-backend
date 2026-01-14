@@ -1,7 +1,9 @@
 import path from 'node:path';
 import * as fs from 'node:fs';
 import { createHash } from 'node:crypto';
+
 import { format as pgformat } from '@scaleleap/pg-format';
+import { parse } from 'csv-parse';
 
 import { Dataset } from '../../src/entities/dataset/dataset';
 import { Revision } from '../../src/entities/dataset/revision';
@@ -19,11 +21,10 @@ import { RevisionMetadata } from '../../src/entities/dataset/revision-metadata';
 import { DimensionRepository } from '../../src/repositories/dimension';
 import { DatasetRepository } from '../../src/repositories/dataset';
 import { logger } from '../../src/utils/logger';
-import { Readable } from 'node:stream';
 import { createAllCubeFiles } from '../../src/services/cube-builder';
-import { parse } from 'csv';
 import { cubeDataSource } from '../../src/db/cube-source';
 import { uuidV4 } from '../../src/utils/uuid';
+import { TempFile } from '../../src/interfaces/temp-file';
 
 export async function createSmallDataset(
   datasetId: string,
@@ -45,17 +46,10 @@ export async function createSmallDataset(
   dataTable.fileType = fileType;
   dataTable.mimeType = mimeType;
 
-  const fileObj: Express.Multer.File = {
+  const fileObj: TempFile = {
     originalname: path.basename(testFile),
     mimetype: mimeType,
-    path: testFile,
-    fieldname: '',
-    encoding: '',
-    size: 0,
-    stream: new Readable(),
-    destination: '',
-    filename: '',
-    buffer: Buffer.alloc(0)
+    path: testFile
   };
 
   const dataTableDescriptions = await validateFileAndExtractTableInfo(fileObj, dataTable, 'data_table');

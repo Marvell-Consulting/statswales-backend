@@ -1,5 +1,6 @@
 import { format as pgformat } from '@scaleleap/pg-format/lib/pg-format';
 import crypto from 'node:crypto';
+import { stringify } from 'csv-stringify/sync';
 
 import { SourceAssignmentDTO } from '../dtos/source-assignment-dto';
 import { DataTable } from '../entities/dataset/data-table';
@@ -27,7 +28,6 @@ import { getFileService } from '../utils/get-file-service';
 import { FACT_TABLE_NAME, makeCubeSafeString, VALIDATION_TABLE_NAME } from './cube-builder';
 import { YearType } from '../enums/year-type';
 import { dbManager } from '../db/database-manager';
-import { stringify } from 'csv-stringify/sync';
 import { FileType } from '../enums/file-type';
 import { previewGenerator, sampleSize } from '../utils/preview-generator';
 import { cleanUpPostgresValidationSchema, createPostgresValidationSchema } from '../utils/mock-cube-handler';
