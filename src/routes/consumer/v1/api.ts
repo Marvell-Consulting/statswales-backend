@@ -12,8 +12,7 @@ import {
   listRootTopics,
   getPublishedDatasetFilters,
   getPostgresPivotTable,
-  getPublicationHistory,
-  searchPublishedDatasets
+  getPublicationHistory
 } from '../../../controllers/consumer';
 import { NotFoundException } from '../../../exceptions/not-found.exception';
 import { PublishedDatasetRepository } from '../../../repositories/published-dataset';
@@ -59,8 +58,6 @@ publicApiRouter.use((req: Request, res: Response, next: NextFunction) => {
 });
 
 publicApiRouter.get('/', listPublishedDatasets);
-
-publicApiRouter.get('/search', searchPublishedDatasets);
 
 publicApiRouter.get('/topic', listRootTopics);
 publicApiRouter.get('/topic/:topic_id', listSubTopics);
