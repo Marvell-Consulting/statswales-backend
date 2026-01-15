@@ -10,7 +10,8 @@ import {
   getPublishedRevisionById,
   getPublishedDatasetData,
   getPublishedDatasetFilters,
-  generateFilterId
+  generateFilterId,
+  searchPublishedDatasets
 } from '../../../controllers/consumer-v2';
 import { NotFoundException } from '../../../exceptions/not-found.exception';
 import { PublishedDatasetRepository } from '../../../repositories/published-dataset';
@@ -79,6 +80,9 @@ publicApiV2Router.use((req: Request, res: Response, next: NextFunction) => {
 });
 
 publicApiV2Router.get('/', listPublishedDatasets);
+
+publicApiV2Router.get('/search', searchPublishedDatasets);
+
 publicApiV2Router.get('/topic', listRootTopics);
 publicApiV2Router.get('/topic/:topic_id', listSubTopics);
 
