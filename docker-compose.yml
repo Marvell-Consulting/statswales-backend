@@ -31,8 +31,7 @@ services:
       - "10002:10002"
 
   clamav:
-    image: clamav/clamav:latest
-    platform: linux/amd64 # no arm64 image currently available, force amd64
+    image: clamav/clamav-debian:latest
     ports:
       - '3310:3310'
     environment:
