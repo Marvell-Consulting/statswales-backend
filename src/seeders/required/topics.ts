@@ -1,7 +1,7 @@
 import 'dotenv/config';
 import fs from 'node:fs';
 
-import { parse } from 'csv';
+import { parse } from 'csv-parse';
 import { DataSource } from 'typeorm';
 
 import { logger } from '../../utils/logger';

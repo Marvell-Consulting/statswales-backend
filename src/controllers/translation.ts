@@ -2,7 +2,8 @@ import { createReadStream, ReadStream } from 'node:fs';
 import { Readable } from 'node:stream';
 
 import { Request, Response, NextFunction } from 'express';
-import { parse, stringify } from 'csv';
+import { stringify } from 'csv-stringify';
+import { parse } from 'csv-parse';
 
 import { logger } from '../utils/logger';
 import { UnknownException } from '../exceptions/unknown.exception';

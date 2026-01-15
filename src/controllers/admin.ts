@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
-import { stringify } from 'csv';
+import { stringify } from 'csv-stringify';
 
 import { logger } from '../utils/logger';
 import { Locale } from '../enums/locale';

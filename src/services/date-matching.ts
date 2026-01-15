@@ -7,11 +7,6 @@ import { SUPPORTED_LOCALES, t } from '../middleware/translation';
 import { FactTableColumn } from '../entities/dataset/fact-table-column';
 import { format as pgformat } from '@scaleleap/pg-format/lib/pg-format';
 
-export interface SnifferResult {
-  extractor: DateExtractor;
-  previewTable: string[];
-}
-
 // The following interfaces are all internal to the time matcher
 interface YearTypeDetails {
   start: string;
@@ -43,15 +38,15 @@ export const createDatePeriodTableQuery = (
   return pgformat(
     `
       CREATE TABLE %I.%I (
-                           %I %s,
-                           language VARCHAR(5),
+        %I %s,
+        language VARCHAR(5),
         description VARCHAR,
         start_date TIMESTAMP WITHOUT TIME ZONE,
         end_date TIMESTAMP WITHOUT TIME ZONE,
         date_type VARCHAR,
         sort_order BIGINT,
         hierarchy %s
-        );`,
+      );`,
     schemaId,
     tableName,
     factTableColumn.columnName,

@@ -1,7 +1,4 @@
-import { Readable } from 'node:stream';
-
 import { FactTableColumnType } from '../enums/fact-table-column-type';
-
 import { Error } from './error';
 import { DatasetDTO } from './dataset-dto';
 import { DataTableDto } from './data-table-dto';
@@ -34,9 +31,4 @@ export interface ViewDTO {
   data: string[][] | unknown[][];
   extension?: object;
   note_codes?: string[];
-}
-
-export interface ViewStream {
-  success: boolean;
-  stream: Readable;
 }
