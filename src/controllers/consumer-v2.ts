@@ -43,6 +43,11 @@ import { UserGroupRepository } from '../repositories/user-group';
 import { createPivotOutputUsingDuckDB, createPivotQuery, langToLocale } from '../services/pivots';
 import { FieldValidationError, matchedData } from 'express-validator';
 import { parsePageOptions } from '../utils/parse-page-options';
+import { FieldValidationError, matchedData } from 'express-validator';
+import { SearchMode } from '../enums/search-mode';
+import { DatasetListItemDTO } from '../dtos/dataset-list-item-dto';
+import { ResultsetWithCount } from '../interfaces/resultset-with-count';
+import { searchKeywordsValidator, searchModeValidator } from '../validators';
 
 export const listPublishedDatasets = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   /*
@@ -521,7 +526,7 @@ export const searchPublishedDatasets = async (req: Request, res: Response, next:
       '#/components/parameters/page_number',
       '#/components/parameters/page_size'
     ]
-    #swagger.parameters['q'] = {
+    #swagger.parameters['keywords'] = {
       in: 'query',
       description: 'Search query string',
       required: true,
@@ -536,25 +541,24 @@ export const searchPublishedDatasets = async (req: Request, res: Response, next:
       }
     }
   */
-  logger.info('Searching published datasets...');
 
   try {
-    const lang = req.language as Locale;
-    const query = req.query.q as string;
-    const pageNumber = parseInt(req.query.page_number as string, 10) || 1;
-    const pageSize = parseInt(req.query.page_size as string, 10) || DEFAULT_PAGE_SIZE;
-
-    if (!query || query.trim().length === 0) {
-      next(new BadRequestException('errors.search_query_required'));
-      return;
+    for (const validation of [searchKeywordsValidator(), searchModeValidator()]) {
+      const result = await validation.run(req);
+      if (!result.isEmpty()) {
+        const error = result.array()[0] as FieldValidationError;
+        throw new BadRequestException(`${error.msg} for ${error.path}`);
+      }
     }
 
-    const results = await PublishedDatasetRepository.searchPublishedByLanguage(
-      lang,
-      query.trim(),
-      pageNumber,
-      pageSize
-    );
+    const { mode = SearchMode.Basic, keywords } = matchedData(req);
+    const { pageNumber, pageSize, locale } = await parsePageOptions(req);
+    logger.info(`Searching published datasets with mode: ${mode} keywords: ${keywords} lang: ${locale}`);
+
+    const results: ResultsetWithCount<DatasetListItemDTO> =
+      mode === SearchMode.FTS
+        ? await PublishedDatasetRepository.searchFTS(locale, keywords, pageNumber, pageSize)
+        : await PublishedDatasetRepository.searchBasic(locale, keywords, pageNumber, pageSize);
 
     res.json(results);
   } catch (err) {
