@@ -315,9 +315,15 @@ export async function createPivotFromQuery(
     throw new BadRequestException('X is required for pivot creation');
   }
   if (Array.isArray(x)) {
-    x = x.map((val) => pgformat('%I', columnFinderValidator(val, lang, filterTable))).join(` ||  ' and ' || `);
+    x = x.map((val) => pgformat('%I', columnFinderValidator(val, lang, filterTable)));
+    x.forEach((val) => {
+      if (!query.includes(val)) {
+        throw new BadRequestException(`X value ${val} is not present in the query`);
+      }
+    });
+    x = x.join(` || ' & ' || `);
   } else {
-    x = columnFinderValidator(x, lang, filterTable);
+    x = pgformat('%I', columnFinderValidator(x, lang, filterTable));
   }
 
   let y = pageOptions.y;
@@ -325,13 +331,19 @@ export async function createPivotFromQuery(
     throw new BadRequestException('Y is required for pivot creation');
   }
   if (Array.isArray(y)) {
-    y = y.map((val) => pgformat('%I', columnFinderValidator(val, lang, filterTable))).join(', ');
+    y = y.map((val) => pgformat('%I', columnFinderValidator(val, lang, filterTable)));
+    y.forEach((val) => {
+      if (!query.includes(val)) {
+        throw new BadRequestException(`Y value ${val} is not present in the query`);
+      }
+    });
+    y = y.join(', ');
   } else {
-    y = columnFinderValidator(y, lang, filterTable);
+    y = pgformat('%I', columnFinderValidator(y, lang, filterTable));
   }
 
   const pivotQuery = pgformat(
-    'PIVOT (%s) ON %I USING first(%I) GROUP BY %I %s;',
+    'PIVOT (%s) ON %s USING first(%I) GROUP BY %s %s;',
     query,
     x,
     dataValuesCol,
