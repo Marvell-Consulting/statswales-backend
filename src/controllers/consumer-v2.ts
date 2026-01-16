@@ -34,6 +34,11 @@ import { ConsumerDatasetDTO } from '../dtos/consumer-dataset-dto';
 import { PublisherDTO } from '../dtos/publisher-dto';
 import { UserGroupRepository } from '../repositories/user-group';
 import { parsePageOptions } from '../utils/parse-page-options';
+import { FieldValidationError, matchedData } from 'express-validator';
+import { SearchMode } from '../enums/search-mode';
+import { DatasetListItemDTO } from '../dtos/dataset-list-item-dto';
+import { ResultsetWithCount } from '../interfaces/resultset-with-count';
+import { searchKeywordsValidator, searchModeValidator } from '../validators';
 
 export const listPublishedDatasets = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   /*
@@ -313,5 +318,56 @@ export const sendFormattedResponse = async (
       return sendJson(query, queryStore, res);
     default:
       res.status(400).json({ error: 'Format not supported' });
+  }
+};
+
+export const searchPublishedDatasets = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  /*
+    #swagger.summary = 'Search published datasets'
+    #swagger.description = 'This endpoint performs a full-text search across published dataset titles and summaries.'
+    #swagger.autoQuery = false
+    #swagger.parameters['$ref'] = [
+      '#/components/parameters/language',
+      '#/components/parameters/page_number',
+      '#/components/parameters/page_size'
+    ]
+    #swagger.parameters['keywords'] = {
+      in: 'query',
+      description: 'Search query string',
+      required: true,
+      schema: { type: 'string' }
+    }
+    #swagger.responses[200] = {
+      description: 'A paginated list of matching published datasets',
+      content: {
+        'application/json': {
+          schema: { $ref: "#/components/schemas/DatasetsWithCount" }
+        }
+      }
+    }
+  */
+
+  try {
+    for (const validation of [searchKeywordsValidator(), searchModeValidator()]) {
+      const result = await validation.run(req);
+      if (!result.isEmpty()) {
+        const error = result.array()[0] as FieldValidationError;
+        throw new BadRequestException(`${error.msg} for ${error.path}`);
+      }
+    }
+
+    const { mode = SearchMode.Basic, keywords } = matchedData(req);
+    const { pageNumber, pageSize, locale } = await parsePageOptions(req);
+    logger.info(`Searching published datasets with mode: ${mode} keywords: ${keywords} lang: ${locale}`);
+
+    const results: ResultsetWithCount<DatasetListItemDTO> =
+      mode === SearchMode.FTS
+        ? await PublishedDatasetRepository.searchFTS(locale, keywords, pageNumber, pageSize)
+        : await PublishedDatasetRepository.searchBasic(locale, keywords, pageNumber, pageSize);
+
+    res.json(results);
+  } catch (err) {
+    logger.error(err, 'Failed to search published datasets');
+    next(new UnknownException());
   }
 };
