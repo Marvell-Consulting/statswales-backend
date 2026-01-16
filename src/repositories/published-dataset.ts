@@ -10,7 +10,8 @@ import {
   FindOptionsRelations,
   In,
   Like,
-  Raw
+  Raw,
+  SelectQueryBuilder
 } from 'typeorm';
 import { has, isObjectLike, omit, set } from 'lodash';
 
@@ -45,6 +46,35 @@ export const withPublishedRevision: FindOptionsRelations<Dataset> = {
     revisionProviders: { provider: true, providerSource: true },
     revisionTopics: { topic: true }
   }
+};
+
+const getBaseSearchQuery = (lang: Locale): SelectQueryBuilder<Dataset> => {
+  const latestPublishedRevisionCte = dataSource
+    .createQueryBuilder()
+    .select([
+      'rev.dataset_id AS dataset_id',
+      'rev.id AS revision_id',
+      'rev.publish_at AS publish_at',
+      'rm.title AS title',
+      'rm.fts AS fts'
+    ])
+    .from(Revision, 'rev')
+    .innerJoin('rev.metadata', 'rm', 'rm.language = :lang', { lang })
+    .where('rev.publish_at < NOW()')
+    .andWhere('rev.approved_at < NOW()')
+    .andWhere('rev.unpublished_at IS NULL')
+    .distinctOn(['rev.dataset_id'])
+    .orderBy('rev.dataset_id')
+    .addOrderBy('rev.publish_at', 'DESC');
+
+  const baseQb = dataSource
+    .createQueryBuilder(Dataset, 'd')
+    .addCommonTableExpression(latestPublishedRevisionCte, 'published_rev')
+    .innerJoin('published_rev', 'pr', 'pr.dataset_id = d.id')
+    .andWhere('d.first_published_at IS NOT NULL')
+    .andWhere('d.first_published_at < NOW()');
+
+  return baseQb;
 };
 
 export const PublishedDatasetRepository = dataSource.getRepository(Dataset).extend({
@@ -131,64 +161,6 @@ export const PublishedDatasetRepository = dataSource.getRepository(Dataset).exte
     const countQuery = qb.clone();
     const resultQuery = qb.orderBy('d.first_published_at', 'DESC').offset(offset).limit(limit);
     const [data, count] = await Promise.all([resultQuery.getRawMany(), countQuery.getCount()]);
-
-    return { data, count };
-  },
-
-  async searchPublishedByLanguage(
-    locale: Locale,
-    query: string,
-    page: number,
-    limit: number
-  ): Promise<ResultsetWithCount<DatasetListItemDTO>> {
-    const lang = locale.includes('en') ? Locale.EnglishGb : Locale.WelshGb;
-    const tsconfig = locale.includes('en') ? 'english' : 'simple';
-    const offset = (page - 1) * limit;
-
-    const latestRevisionCte = dataSource
-      .createQueryBuilder()
-      .select([
-        'rev.dataset_id AS dataset_id',
-        'rev.id AS id',
-        'rev.publish_at AS publish_at',
-        'rm.title AS title',
-        'rm.fts AS fts'
-      ])
-      .from(Revision, 'rev')
-      .innerJoin('rev.metadata', 'rm', 'rm.language = :lang', { lang })
-      .where('rev.publish_at < NOW()')
-      .andWhere('rev.approved_at < NOW()')
-      .andWhere('rev.unpublished_at IS NULL')
-      .distinctOn(['rev.dataset_id'])
-      .orderBy('rev.dataset_id')
-      .addOrderBy('rev.publish_at', 'DESC');
-
-    const baseQb = this.createQueryBuilder('d')
-      .addCommonTableExpression(latestRevisionCte, 'latest_rev')
-      .setParameters({ lang, tsconfig, query })
-      .innerJoin('latest_rev', 'lr', 'lr.dataset_id = d.id')
-      .andWhere('d.first_published_at IS NOT NULL')
-      .andWhere('d.first_published_at < NOW()')
-      .andWhere('lr.fts @@ websearch_to_tsquery(:tsconfig, :query)');
-
-    const resultQuery = baseQb
-      .clone()
-      .select([
-        'd.id AS id',
-        'lr.title AS title',
-        'd.first_published_at AS first_published_at',
-        'lr.publish_at AS last_updated_at',
-        'd.archived_at AS archived_at',
-        'ts_rank(lr.fts, websearch_to_tsquery(:tsconfig, :query)) AS rank'
-      ])
-      .orderBy('rank', 'DESC')
-      .addOrderBy('d.first_published_at', 'DESC')
-      .offset(offset)
-      .limit(limit);
-
-    const countRow = await baseQb.clone().select('COUNT(DISTINCT d.id)', 'count').getRawOne();
-    const count = parseInt((countRow?.count as string) ?? '0', 10);
-    const data = await resultQuery.getRawMany();
 
     return { data, count };
   },
@@ -299,5 +271,75 @@ export const PublishedDatasetRepository = dataSource.getRepository(Dataset).exte
       },
       relations: { metadata: true }
     });
+  },
+
+  async searchBasic(
+    locale: Locale,
+    query: string,
+    page: number,
+    limit: number
+  ): Promise<ResultsetWithCount<DatasetListItemDTO>> {
+    const lang = locale.includes('en') ? Locale.EnglishGb : Locale.WelshGb;
+    const offset = (page - 1) * limit;
+
+    const baseQuery = getBaseSearchQuery(lang).andWhere('pr.title ILIKE :query', { query: `%${query}%` });
+
+    const countRow = await baseQuery.clone().select('COUNT(DISTINCT d.id)', 'count').getRawOne();
+    const count = parseInt((countRow?.count as string) ?? '0', 10);
+
+    const resultQuery = baseQuery
+      .clone()
+      .select([
+        'd.id AS id',
+        'pr.title AS title',
+        'd.first_published_at AS first_published_at',
+        'pr.publish_at AS last_updated_at',
+        'd.archived_at AS archived_at'
+      ])
+      .offset(offset)
+      .limit(limit);
+
+    logger.trace(resultQuery.getSql());
+    const data = await resultQuery.getRawMany();
+
+    return { data, count };
+  },
+
+  async searchFTS(
+    locale: Locale,
+    query: string,
+    page: number,
+    limit: number
+  ): Promise<ResultsetWithCount<DatasetListItemDTO>> {
+    const lang = locale.includes('en') ? Locale.EnglishGb : Locale.WelshGb;
+    const tsconfig = locale.includes('en') ? 'english' : 'simple';
+    const offset = (page - 1) * limit;
+
+    const baseQuery = getBaseSearchQuery(lang)
+      .andWhere('pr.fts @@ websearch_to_tsquery(:tsconfig, :query)')
+      .setParameters({ tsconfig, query });
+
+    const countRow = await baseQuery.clone().select('COUNT(DISTINCT d.id)', 'count').getRawOne();
+    const count = parseInt((countRow?.count as string) ?? '0', 10);
+
+    const resultQuery = baseQuery
+      .clone()
+      .select([
+        'd.id AS id',
+        'pr.title AS title',
+        'd.first_published_at AS first_published_at',
+        'pr.publish_at AS last_updated_at',
+        'd.archived_at AS archived_at',
+        'ts_rank(pr.fts, websearch_to_tsquery(:tsconfig, :query)) AS rank'
+      ])
+      .orderBy('rank', 'DESC')
+      .addOrderBy('d.first_published_at', 'DESC')
+      .offset(offset)
+      .limit(limit);
+
+    logger.trace(resultQuery.getSql());
+    const data = await resultQuery.getRawMany();
+
+    return { data, count };
   }
 });
