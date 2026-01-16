@@ -14,6 +14,9 @@ import { dbManager } from '../db/database-manager';
 import { DatasetRepository } from '../repositories/dataset';
 import { getColumnHeaders } from '../utils/column-headers';
 import { ConsumerDatasetDTO } from '../dtos/consumer-dataset-dto';
+import { getFilterTable, resolveDimensionToFactTableColumn, resolveFactColumnToDimension } from '../utils/consumer';
+import { FactTableToDimensionName } from '../interfaces/fact-table-column-to-dimension-name';
+import { BadRequestException } from '../exceptions/bad-request.exception';
 
 const EXCEL_ROW_LIMIT = 1048576 - 76; // Excel Limit is 1,048,576 but removed 76 rows because ?
 
@@ -266,26 +269,76 @@ async function formatChooser(
   }
 }
 
+function langToLocale(lang: string): string {
+  if (lang.length === 5) lang = lang.substring(0, 2);
+  switch (lang) {
+    case 'en':
+      return 'en-GB';
+    case 'cy':
+      return 'cy-GB';
+    default:
+      return 'en-GB';
+  }
+}
+
+function validateColOnly(columnName: string, locale: string, filterTable: FactTableToDimensionName[]): string {
+  resolveDimensionToFactTableColumn(columnName, filterTable);
+  return columnName;
+}
+
 export async function createPivotFromQuery(
   res: Response,
   queryStore: QueryStore,
   pageOptions: PageOptions
 ): Promise<void> {
   const quack = await duckdb();
-  const lang = pageOptions.locale === 'en' ? 'en-GB' : pageOptions.locale;
+  const lang = langToLocale(pageOptions.locale);
   const query = queryStore.query[lang].replaceAll(
     pgformat('%I', queryStore.revisionId),
     pgformat('%I.%I', 'cube_db', queryStore.revisionId)
   );
+  const filterTable: FactTableToDimensionName[] = await getFilterTable(queryStore.revisionId);
+  let columnFinderValidator = validateColOnly;
+  if (queryStore.requestObject.options?.use_raw_column_names) {
+    columnFinderValidator = resolveFactColumnToDimension;
+  }
+
   const dataValuesCol = t('column_headers.data_values', { lng: pageOptions.locale });
+
+  let pagingQuery = '';
+  if (pageOptions.pageSize) {
+    pagingQuery = `LIMIT ${pageOptions.pageSize} OFFSET ${pageOptions.pageSize * (pageOptions.pageNumber - 1)}`;
+  }
+
+  let x = pageOptions.x;
+  if (!x) {
+    throw new BadRequestException('X is required for pivot creation');
+  }
+  if (Array.isArray(x)) {
+    x = x.map((val) => pgformat('%I', columnFinderValidator(val, lang, filterTable))).join(` ||  ' and ' || `);
+  } else {
+    x = columnFinderValidator(x, lang, filterTable);
+  }
+
+  let y = pageOptions.y;
+  if (!y) {
+    throw new BadRequestException('Y is required for pivot creation');
+  }
+  if (Array.isArray(y)) {
+    y = y.map((val) => pgformat('%I', columnFinderValidator(val, lang, filterTable))).join(', ');
+  } else {
+    y = columnFinderValidator(y, lang, filterTable);
+  }
+
   const pivotQuery = pgformat(
-    'PIVOT (%s) ON %I USING first(%I) GROUP BY %I;',
+    'PIVOT (%s) ON %I USING first(%I) GROUP BY %I %s;',
     query,
-    pageOptions.x,
+    x,
     dataValuesCol,
-    pageOptions.y
+    y,
+    pagingQuery
   );
-  logger.debug(`Pivot Query = ${pivotQuery}`);
+  logger.trace(`Pivot Query = ${pivotQuery}`);
   try {
     const pivot = await quack.stream(pivotQuery);
     await formatChooser(res, lang, pivot, pageOptions, queryStore);
