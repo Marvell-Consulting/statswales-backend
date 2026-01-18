@@ -29,13 +29,19 @@ import { PageOptions } from '../interfaces/page-options';
 import { dtoValidator } from '../validators/dto-validator';
 import { QueryStoreRepository } from '../repositories/query-store';
 import { QueryStore } from '../entities/query-store';
-import { getFilterTableQuery } from '../utils/consumer';
+import { format2Validator, pageNumberValidator, pageSizeValidator } from '../validators';
+import {
+  getFilterTable,
+  getFilterTableQuery,
+  resolveDimensionToFactTableColumn,
+  resolveFactColumnToDimension
+} from '../utils/consumer';
+import { sortObjToString } from '../utils/sort-obj-to-string';
 import { ConsumerDatasetDTO } from '../dtos/consumer-dataset-dto';
 import { PublisherDTO } from '../dtos/publisher-dto';
 import { UserGroupRepository } from '../repositories/user-group';
-import { parsePageOptions } from '../utils/parse-page-options';
-import { createPivotFromQuery } from '../services/pivots';
-import { format2Validator, pageNumberValidator, pageSizeValidator } from '../validators';
+import { createPivotFromQuery, langToLocale } from '../services/pivots';
+import { FieldValidationError, matchedData } from 'express-validator';
 
 export const listPublishedDatasets = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   /*
@@ -222,6 +228,119 @@ export const getPublishedDatasetPivot = async (req: Request, res: Response, next
     }
     logger.error(err, 'Error getting published dataset data');
     next(new UnknownException());
+  }
+};
+
+export const getPublishedDatasetPivotFromId = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  logger.debug(`Getting dataset data for ${res.locals.datasetId}...`);
+  const filterId = req.params.filter_id as string | undefined;
+  const dataset = res.locals.dataset as Dataset;
+  if (!dataset.publishedRevisionId) return next(new NotFoundException('errors.no_published_revision'));
+
+  try {
+    const pageOptions = await parsePivotPageOptions(req);
+    const dataOptions = pageOptions.format === OutputFormats.Frontend ? FRONTEND_DATA_OPTIONS : DEFAULT_DATA_OPTIONS;
+
+    const queryStore = filterId
+      ? await QueryStoreRepository.getById(filterId)
+      : await QueryStoreRepository.getByRequest(dataset.id, dataset.publishedRevisionId, dataOptions);
+
+    if (!queryStore.requestObject.pivot) {
+      throw new BadRequestException('errors.not_a_pivot_filter');
+    }
+
+    pageOptions.x = queryStore.requestObject.pivot.x;
+    pageOptions.y = queryStore.requestObject.pivot.y;
+
+    await createPivotFromQuery(res, queryStore, pageOptions);
+  } catch (err) {
+    if (err instanceof NotFoundException || err instanceof BadRequestException) {
+      return next(err);
+    }
+    logger.error(err, 'Error getting published dataset data');
+    next(new UnknownException());
+  }
+};
+
+export const generatePivotFilterId = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  logger.debug(`Generating filter ID for published dataset ${res.locals.datasetId}...`);
+  const dataset = res.locals.dataset as Dataset;
+  if (!dataset.publishedRevisionId) return next(new NotFoundException('errors.no_published_revision'));
+
+  const dataOptions = await dtoValidator(DataOptionsDTO, req.body);
+  if (!dataOptions.pivot) {
+    throw new BadRequestException('errors.no_pivot_information');
+  }
+  if (!dataOptions.pivot.x) {
+    throw new BadRequestException('errors.pivot_requires_x');
+  }
+  if (!dataOptions.pivot.y) {
+    throw new BadRequestException('errors.pivot_requires_y');
+  }
+
+  if (dataOptions.pivot.x.split(',').length > 1 || dataOptions.pivot.y.split(',').length > 1) {
+    throw new BadRequestException('errors.pivot_only_one_column');
+  }
+
+  const lang = langToLocale(dataOptions.locale);
+  const filterTable = await getFilterTable(dataset.publishedRevisionId);
+
+  let xCol = dataOptions.pivot.x;
+  let yCol = dataOptions.pivot.y;
+  if (dataOptions.options.use_raw_column_names) {
+    try {
+      xCol = resolveFactColumnToDimension(xCol, lang, filterTable);
+    } catch (_) {
+      throw new BadRequestException('X Column not found in dataset');
+    }
+    try {
+      yCol = resolveFactColumnToDimension(yCol, lang, filterTable);
+    } catch (_) {
+      throw new BadRequestException('Y Column not found in dataset');
+    }
+  } else {
+    try {
+      xCol = resolveDimensionToFactTableColumn(xCol, filterTable);
+    } catch (_) {
+      throw new BadRequestException('X Column not found in dataset');
+    }
+    try {
+      yCol = resolveDimensionToFactTableColumn(yCol, filterTable);
+    } catch (_) {
+      throw new BadRequestException('Y Column not found in dataset');
+    }
+  }
+
+  if (dataOptions?.filters && dataOptions?.filters.length > 0) {
+    for (const filter of dataOptions.filters) {
+      let colName = Object.keys(filter)[0];
+      const filterValues = Object.values(filter)[0] as string[];
+      if (dataOptions.options.use_raw_column_names) {
+        colName = resolveFactColumnToDimension(colName, lang, filterTable);
+      } else {
+        colName = resolveDimensionToFactTableColumn(colName, filterTable);
+      }
+
+      if (colName === xCol || colName === yCol) {
+        continue;
+      }
+
+      if (filterValues.length > 0) {
+        throw new BadRequestException('Non X and Y columns must contain only one value');
+      }
+    }
+  }
+
+  try {
+    const queryStore = await QueryStoreRepository.getByRequest(dataset.id, dataset.publishedRevisionId, dataOptions);
+    res.json({ filterId: queryStore.id });
+  } catch (err) {
+    logger.error(err, 'Error generating filter ID');
+    return next(new UnknownException());
   }
 };
 

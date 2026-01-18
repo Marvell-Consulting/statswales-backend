@@ -269,7 +269,7 @@ async function formatChooser(
   }
 }
 
-function langToLocale(lang: string): string {
+export function langToLocale(lang: string): string {
   if (lang.length === 5) lang = lang.substring(0, 2);
   switch (lang) {
     case 'en':
@@ -281,7 +281,7 @@ function langToLocale(lang: string): string {
   }
 }
 
-function validateColOnly(columnName: string, locale: string, filterTable: FactTableToDimensionName[]): string {
+export function validateColOnly(columnName: string, locale: string, filterTable: FactTableToDimensionName[]): string {
   resolveDimensionToFactTableColumn(columnName, filterTable);
   return columnName;
 }
