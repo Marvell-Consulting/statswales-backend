@@ -1,6 +1,6 @@
 import { MigrationInterface, QueryRunner } from 'typeorm';
 
-export class FullTextSearch1765453276886 implements MigrationInterface {
+export class FullTextSearch1768843794468 implements MigrationInterface {
   public async up(queryRunner: QueryRunner): Promise<void> {
     await queryRunner.query(`CREATE EXTENSION IF NOT EXISTS unaccent;`);
     await queryRunner.query(
@@ -18,13 +18,13 @@ export class FullTextSearch1765453276886 implements MigrationInterface {
       UPDATE revision_metadata SET fts = (
         setweight(
           to_tsvector(
-            'simple'::regconfig,
+            CASE WHEN language = 'en-GB' THEN 'english'::regconfig ELSE 'simple'::regconfig END,
             unaccent(coalesce(title, ''))
           ), 'A'
         ) ||
         setweight(
           to_tsvector(
-            'simple'::regconfig,
+            CASE WHEN language = 'en-GB' THEN 'english'::regconfig ELSE 'simple'::regconfig END,
             unaccent(coalesce(summary, ''))
           ), 'B'
         )
@@ -38,13 +38,13 @@ export class FullTextSearch1765453276886 implements MigrationInterface {
         NEW.fts := (
           setweight(
             to_tsvector(
-              'simple'::regconfig,
+              CASE WHEN NEW.language = 'en-GB' THEN 'english'::regconfig ELSE 'simple'::regconfig END,
               unaccent(coalesce(NEW.title, ''))
             ), 'A'
           ) ||
           setweight(
             to_tsvector(
-              'simple'::regconfig,
+              CASE WHEN NEW.language = 'en-GB' THEN 'english'::regconfig ELSE 'simple'::regconfig END,
               unaccent(coalesce(NEW.summary, ''))
             ), 'B'
           )

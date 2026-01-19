@@ -48,35 +48,6 @@ export const withPublishedRevision: FindOptionsRelations<Dataset> = {
   }
 };
 
-const getBaseSearchQuery = (lang: Locale): SelectQueryBuilder<Dataset> => {
-  const latestPublishedRevisionCte = dataSource
-    .createQueryBuilder()
-    .select([
-      'rev.dataset_id AS dataset_id',
-      'rev.id AS revision_id',
-      'rev.publish_at AS publish_at',
-      'rm.title AS title',
-      'rm.fts AS fts'
-    ])
-    .from(Revision, 'rev')
-    .innerJoin('rev.metadata', 'rm', 'rm.language = :lang', { lang })
-    .where('rev.publish_at < NOW()')
-    .andWhere('rev.approved_at < NOW()')
-    .andWhere('rev.unpublished_at IS NULL')
-    .distinctOn(['rev.dataset_id'])
-    .orderBy('rev.dataset_id')
-    .addOrderBy('rev.publish_at', 'DESC');
-
-  const baseQb = dataSource
-    .createQueryBuilder(Dataset, 'd')
-    .addCommonTableExpression(latestPublishedRevisionCte, 'published_rev')
-    .innerJoin('published_rev', 'pr', 'pr.dataset_id = d.id')
-    .andWhere('d.first_published_at IS NOT NULL')
-    .andWhere('d.first_published_at < NOW()');
-
-  return baseQb;
-};
-
 export const PublishedDatasetRepository = dataSource.getRepository(Dataset).extend({
   async getById(id: string, relations: FindOptionsRelations<Dataset> = {}): Promise<Dataset> {
     const start = performance.now();
@@ -330,7 +301,8 @@ export const PublishedDatasetRepository = dataSource.getRepository(Dataset).exte
         'd.first_published_at AS first_published_at',
         'pr.publish_at AS last_updated_at',
         'd.archived_at AS archived_at',
-        'ts_rank(pr.fts, websearch_to_tsquery(:tsconfig, :query)) AS rank'
+        'ts_rank(pr.fts, websearch_to_tsquery(:tsconfig, :query)) AS rank',
+        'ts_headline(pr.title, websearch_to_tsquery(:tsconfig, :query)) AS match'
       ])
       .orderBy('rank', 'DESC')
       .addOrderBy('d.first_published_at', 'DESC')
@@ -343,3 +315,32 @@ export const PublishedDatasetRepository = dataSource.getRepository(Dataset).exte
     return { data, count };
   }
 });
+
+const getBaseSearchQuery = (lang: Locale): SelectQueryBuilder<Dataset> => {
+  const latestPublishedRevisionCte = dataSource
+    .createQueryBuilder()
+    .select([
+      'rev.dataset_id AS dataset_id',
+      'rev.id AS revision_id',
+      'rev.publish_at AS publish_at',
+      'rm.title AS title',
+      'rm.fts AS fts'
+    ])
+    .from(Revision, 'rev')
+    .innerJoin('rev.metadata', 'rm', 'rm.language = :lang', { lang })
+    .where('rev.publish_at < NOW()')
+    .andWhere('rev.approved_at < NOW()')
+    .andWhere('rev.unpublished_at IS NULL')
+    .distinctOn(['rev.dataset_id'])
+    .orderBy('rev.dataset_id')
+    .addOrderBy('rev.publish_at', 'DESC');
+
+  const baseQb = dataSource
+    .createQueryBuilder(Dataset, 'd')
+    .addCommonTableExpression(latestPublishedRevisionCte, 'published_rev')
+    .innerJoin('published_rev', 'pr', 'pr.dataset_id = d.id')
+    .andWhere('d.first_published_at IS NOT NULL')
+    .andWhere('d.first_published_at < NOW()');
+
+  return baseQb;
+};
