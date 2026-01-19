@@ -112,20 +112,6 @@ async function pivotToFrontend(
     });
     rows = await pivot.getRowObjects();
   }
-  while (rows.length > 0) {
-    const lastRowIndex = rows.length - 1;
-    rows.forEach((row: unknown, index: number) => {
-      if (index < lastRowIndex) {
-        res.write(`${JSON.stringify(row)},\n`);
-      } else {
-        res.write(`${JSON.stringify(row)}`);
-      }
-    });
-    rows = await pivot.getRowObjects();
-    if (rows.length > 0) {
-      res.write(',\n');
-    }
-  }
   res.write('],');
   const page_info = {
     current_page: pageNumber,
@@ -146,7 +132,7 @@ async function pivotToCsv(res: Response, pivot: DuckDBResult): Promise<void> {
     // eslint-disable-next-line @typescript-eslint/naming-convention
     'Content-Type': 'text/csv',
     // eslint-disable-next-line @typescript-eslint/naming-convention
-    'Content-disposition': `attachment;filename=${pivot} ${Date.now()}.csv`
+    'Content-disposition': `attachment;filename=pivot-${Date.now()}.csv`
   });
   const stream = csvFormat({ delimiter: ',', headers: true });
   stream.pipe(res);
@@ -168,7 +154,7 @@ async function pivotToExcel(res: Response, pivot: DuckDBResult): Promise<void> {
     // eslint-disable-next-line @typescript-eslint/naming-convention
     'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
     // eslint-disable-next-line @typescript-eslint/naming-convention
-    'Content-disposition': `attachment;filename=${pivot} ${Date.now()}.xlsx`
+    'Content-disposition': `attachment;filename=pivot-${Date.now()}.xlsx`
   });
   res.flushHeaders();
   const workbook = new ExcelJS.stream.xlsx.WorkbookWriter({
