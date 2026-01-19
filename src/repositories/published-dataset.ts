@@ -24,6 +24,7 @@ import { Locale } from '../enums/locale';
 import { Topic } from '../entities/dataset/topic';
 import { Revision } from '../entities/dataset/revision';
 import { SortByInterface } from '../interfaces/sort-by-interface';
+import { SearchResultDTO } from '../dtos/search-result-dto';
 
 export const withAll: FindOptionsRelations<Dataset> = {
   createdBy: true,
@@ -249,7 +250,7 @@ export const PublishedDatasetRepository = dataSource.getRepository(Dataset).exte
     query: string,
     page: number,
     limit: number
-  ): Promise<ResultsetWithCount<DatasetListItemDTO>> {
+  ): Promise<ResultsetWithCount<SearchResultDTO>> {
     const lang = locale.includes('en') ? Locale.EnglishGb : Locale.WelshGb;
     const offset = (page - 1) * limit;
 
@@ -263,6 +264,7 @@ export const PublishedDatasetRepository = dataSource.getRepository(Dataset).exte
       .select([
         'd.id AS id',
         'pr.title AS title',
+        'pr.summary AS summary',
         'd.first_published_at AS first_published_at',
         'pr.publish_at AS last_updated_at',
         'd.archived_at AS archived_at'
@@ -271,7 +273,7 @@ export const PublishedDatasetRepository = dataSource.getRepository(Dataset).exte
       .limit(limit);
 
     logger.trace(resultQuery.getSql());
-    const data = await resultQuery.getRawMany();
+    const data = (await resultQuery.getRawMany()) as SearchResultDTO[];
 
     return { data, count };
   },
@@ -281,7 +283,7 @@ export const PublishedDatasetRepository = dataSource.getRepository(Dataset).exte
     query: string,
     page: number,
     limit: number
-  ): Promise<ResultsetWithCount<DatasetListItemDTO>> {
+  ): Promise<ResultsetWithCount<SearchResultDTO>> {
     const lang = locale.includes('en') ? Locale.EnglishGb : Locale.WelshGb;
     const tsconfig = locale.includes('en') ? 'english' : 'simple';
     const offset = (page - 1) * limit;
@@ -298,6 +300,7 @@ export const PublishedDatasetRepository = dataSource.getRepository(Dataset).exte
       .select([
         'd.id AS id',
         'pr.title AS title',
+        'pr.summary AS summary',
         'd.first_published_at AS first_published_at',
         'pr.publish_at AS last_updated_at',
         'd.archived_at AS archived_at',
@@ -310,7 +313,7 @@ export const PublishedDatasetRepository = dataSource.getRepository(Dataset).exte
       .limit(limit);
 
     logger.trace(resultQuery.getSql());
-    const data = await resultQuery.getRawMany();
+    const data = (await resultQuery.getRawMany()) as SearchResultDTO[];
 
     return { data, count };
   }
@@ -324,6 +327,7 @@ const getBaseSearchQuery = (lang: Locale): SelectQueryBuilder<Dataset> => {
       'rev.id AS revision_id',
       'rev.publish_at AS publish_at',
       'rm.title AS title',
+      'rm.summary AS summary',
       'rm.fts AS fts'
     ])
     .from(Revision, 'rev')
