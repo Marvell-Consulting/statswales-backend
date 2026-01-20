@@ -48,6 +48,7 @@ import { SearchMode } from '../enums/search-mode';
 import { DatasetListItemDTO } from '../dtos/dataset-list-item-dto';
 import { ResultsetWithCount } from '../interfaces/resultset-with-count';
 import { searchKeywordsValidator, searchModeValidator } from '../validators';
+import { SearchLog } from '../entities/search-log';
 
 export const listPublishedDatasets = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   /*
@@ -559,6 +560,8 @@ export const searchPublishedDatasets = async (req: Request, res: Response, next:
       mode === SearchMode.FTS
         ? await PublishedDatasetRepository.searchFTS(locale, keywords, pageNumber, pageSize)
         : await PublishedDatasetRepository.searchBasic(locale, keywords, pageNumber, pageSize);
+
+    await SearchLog.create({ keywords }).save();
 
     res.json(results);
   } catch (err) {

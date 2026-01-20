@@ -1,7 +1,19 @@
 import { MigrationInterface, QueryRunner } from 'typeorm';
 
-export class FullTextSearch1768843794468 implements MigrationInterface {
+export class Search1768913380304 implements MigrationInterface {
+  name = 'Search1768913380304';
+
   public async up(queryRunner: QueryRunner): Promise<void> {
+    await queryRunner.query(
+      `CREATE TABLE "search_log" (
+        "id" uuid NOT NULL DEFAULT uuid_generate_v4(),
+        "keywords" text NOT NULL,
+        "created_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
+        CONSTRAINT "PK_search_log_id" PRIMARY KEY ("id")
+      )`
+    );
+
+    // full text search setup
     await queryRunner.query(`CREATE EXTENSION IF NOT EXISTS unaccent;`);
     await queryRunner.query(
       `CREATE INDEX IF NOT EXISTS IDX_title_trgm_gist_ci ON revision_metadata USING GIN ((lower(title)) gin_trgm_ops);`
@@ -77,5 +89,7 @@ export class FullTextSearch1768843794468 implements MigrationInterface {
     await queryRunner.query(`ALTER TABLE revision_metadata DROP COLUMN IF EXISTS fts;`);
     await queryRunner.query(`DROP INDEX IF EXISTS IDX_title_trgm_gist_ci;`);
     await queryRunner.query(`DROP EXTENSION IF EXISTS unaccent;`);
+
+    await queryRunner.query(`DROP TABLE "search_log"`);
   }
 }
