@@ -522,10 +522,9 @@ function periodDateTableCreator(dateFormat: DateExtractor, dataColumn: string[])
 
 function dateTableCreator(dateFormat: DateExtractor, dataColumn: string[]): DateReferenceDataItem[] {
   const testVal = dataColumn.at(0);
-  let endingCheck = false;
-  if (testVal?.toString().toUpperCase().substring(1, 2).includes('E')) endingCheck = true;
-  if (testVal?.toString().toUpperCase().substring(1, 2).includes('Y')) endingCheck = true;
-  logger.debug(`Ending check: ${endingCheck} based on ${testVal?.toString().toUpperCase().substring(1, 2)}`);
+  const secondChar = testVal?.toString().toUpperCase().substring(1, 2) ?? '';
+  const endingCheck = secondChar.includes('E') || secondChar.includes('Y');
+  logger.debug(`Ending check: ${endingCheck} based on ${secondChar}`);
   if (endingCheck) {
     logger.debug('Period ending creation running...');
     return periodDateTableCreator(dateFormat, dataColumn);
