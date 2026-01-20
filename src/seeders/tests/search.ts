@@ -27,9 +27,7 @@ const delay = (ms: number): Promise<void> => new Promise((resolve) => setTimeout
 
 // This seeder loads test fixtures used for testing search quality.
 export class SearchSeeder {
-  constructor(private ds: DataSource) {
-    this.ds = ds;
-  }
+  constructor(private ds: DataSource) {}
 
   async run(): Promise<void> {
     if (![AppEnv.Local, AppEnv.Ci].includes(config.env)) {
