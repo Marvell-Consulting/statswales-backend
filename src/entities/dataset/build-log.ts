@@ -37,10 +37,10 @@ export class BuildLog extends BaseEntity {
   @Column({ type: 'text', nullable: true, name: 'build_script' })
   buildScript: string | null;
 
-  @Column({ type: 'text', nullable: true, name: 'errors' })
+  @Column({ name: 'errors', type: 'text', nullable: true })
   errors: string | null;
 
-  @Column({ name: 'revision_id' })
+  @Column({ name: 'revision_id', type: 'uuid', nullable: true })
   revisionId: string | null;
 
   @ManyToOne(() => Revision, (revision) => revision.builds, {

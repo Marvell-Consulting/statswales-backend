@@ -3,6 +3,7 @@ export enum DimensionType {
   Text = 'text',
   Numeric = 'numeric',
   Symbol = 'symbol',
+  Geography = 'geography',
   LookupTable = 'lookup_table',
   DatePeriod = 'date_period',
   Date = 'date',
