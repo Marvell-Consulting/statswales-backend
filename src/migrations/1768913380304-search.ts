@@ -8,6 +8,7 @@ export class Search1768913380304 implements MigrationInterface {
       `CREATE TABLE "search_log" (
         "id" uuid NOT NULL DEFAULT uuid_generate_v4(),
         "keywords" text NOT NULL,
+        "result_count" integer,
         "created_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
         CONSTRAINT "PK_search_log_id" PRIMARY KEY ("id")
       )`

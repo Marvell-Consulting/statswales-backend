@@ -8,6 +8,9 @@ export class SearchLog extends BaseEntity {
   @Column({ name: 'keywords', type: 'text', nullable: false })
   keywords: string;
 
+  @Column({ name: 'result_count', type: 'integer', nullable: true })
+  resultCount?: number;
+
   @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
   createdAt: Date;
 }

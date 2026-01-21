@@ -561,7 +561,7 @@ export const searchPublishedDatasets = async (req: Request, res: Response, next:
         ? await PublishedDatasetRepository.searchFTS(locale, keywords, pageNumber, pageSize)
         : await PublishedDatasetRepository.searchBasic(locale, keywords, pageNumber, pageSize);
 
-    await SearchLog.create({ keywords }).save();
+    await SearchLog.create({ keywords, resultCount: results.count }).save();
 
     res.json(results);
   } catch (err) {
