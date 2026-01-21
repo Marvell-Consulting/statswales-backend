@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { stringify } from 'csv-stringify';
+import { subDays } from 'date-fns';
 
 import { logger } from '../utils/logger';
 import { Locale } from '../enums/locale';
@@ -362,8 +363,9 @@ export const similarDatasets = async (req: Request, res: Response, next: NextFun
 export const downloadSearchLogs = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
     logger.info('Getting search logs report...');
-
-    const logs = await SearchLogRepository.getAll();
+    const start = req.query.start ? new Date(req.query.start as string) : subDays(new Date(), 30);
+    const end = req.query.end ? new Date(req.query.end as string) : new Date();
+    const logs = await SearchLogRepository.getByPeriod(start, end);
 
     const csv = logs.map((log) => ({
       timestamp: log.createdAt.toISOString(),
