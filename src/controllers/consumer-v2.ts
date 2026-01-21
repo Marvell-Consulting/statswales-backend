@@ -545,9 +545,9 @@ export const searchPublishedDatasets = async (req: Request, res: Response, next:
 
   try {
     for (const validation of [searchKeywordsValidator(), searchModeValidator()]) {
-      const result = await validation.run(req);
-      if (!result.isEmpty()) {
-        const error = result.array()[0] as FieldValidationError;
+      const errors = await validation.run(req);
+      if (!errors.isEmpty()) {
+        const error = errors.array()[0] as FieldValidationError;
         throw new BadRequestException(`${error.msg} for ${error.path}`);
       }
     }

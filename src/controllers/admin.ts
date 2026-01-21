@@ -23,6 +23,7 @@ import { UserGroupStatus } from '../enums/user-group-status';
 import { DashboardStats, DatasetStats, UserGroupStats, UserStats } from '../interfaces/dashboard-stats';
 import { DatasetStatsRepository } from '../repositories/dataset-stats';
 import { DatasetSimilarBy } from '../enums/dataset-similar-by';
+import { SearchLogRepository } from '../repositories/search-log';
 
 export const loadUserGroup = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   const userGroupIdError = await hasError(uuidValidator('user_group_id'), req);
@@ -354,6 +355,26 @@ export const similarDatasets = async (req: Request, res: Response, next: NextFun
     stringify(csv, { bom: true, header: true, quoted_string: true }).pipe(res);
   } catch (err) {
     logger.error(err, 'Error getting similar datasets');
+    next(new UnknownException());
+  }
+};
+
+export const downloadSearchLogs = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    logger.info('Getting search logs report...');
+
+    const logs = await SearchLogRepository.getAll();
+
+    const csv = logs.map((log) => ({
+      timestamp: log.createdAt.toISOString(),
+      keywords: log.keywords,
+      result_count: log.resultCount ?? ''
+    }));
+
+    res.setHeader('Content-Type', 'text/csv');
+    stringify(csv, { bom: true, header: true, quoted_string: true }).pipe(res);
+  } catch (err) {
+    logger.error(err, 'Error getting search logs');
     next(new UnknownException());
   }
 };
