@@ -31,8 +31,10 @@ jest.mock('../../src/utils/logger', () => ({
 import { format2Validator, pageNumberValidator, pageSizeValidator } from '../../src/validators';
 import { matchedData } from 'express-validator';
 
+type MockRequest = Partial<Request> & { language?: Locale };
+
 describe('parsePageOptions', () => {
-  let mockRequest: Partial<Request>;
+  let mockRequest: MockRequest;
   let mockValidationResult: any;
 
   beforeEach(() => {
@@ -101,7 +103,7 @@ describe('parsePageOptions', () => {
       });
     });
 
-    it('should parse format as json when specified', async () => {
+    it('should parse format as json when specified with default pageSize', async () => {
       mockRequest.query = {
         format: 'json'
       };
@@ -113,9 +115,25 @@ describe('parsePageOptions', () => {
       const result = await parsePageOptions(mockRequest as Request);
 
       expect(result.format).toBe(OutputFormats.Json);
+      expect(result.pageSize).toBe(DEFAULT_PAGE_SIZE);
     });
 
-    it('should parse format as xlsx when specified', async () => {
+    it('should parse format as csv when specified with undefined pageSize', async () => {
+      mockRequest.query = {
+        format: 'csv'
+      };
+
+      (matchedData as jest.Mock).mockReturnValue({
+        format: OutputFormats.Csv
+      });
+
+      const result = await parsePageOptions(mockRequest as Request);
+
+      expect(result.format).toBe(OutputFormats.Csv);
+      expect(result.pageSize).toBeUndefined();
+    });
+
+    it('should parse format as xlsx when specified with undefined pageSize', async () => {
       mockRequest.query = {
         format: 'xlsx'
       };
@@ -127,9 +145,10 @@ describe('parsePageOptions', () => {
       const result = await parsePageOptions(mockRequest as Request);
 
       expect(result.format).toBe(OutputFormats.Excel);
+      expect(result.pageSize).toBeUndefined();
     });
 
-    it('should parse format as frontend when specified', async () => {
+    it('should parse format as frontend when specified with default pageSize', async () => {
       mockRequest.query = {
         format: 'frontend'
       };
@@ -141,6 +160,7 @@ describe('parsePageOptions', () => {
       const result = await parsePageOptions(mockRequest as Request);
 
       expect(result.format).toBe(OutputFormats.Frontend);
+      expect(result.pageSize).toBe(DEFAULT_PAGE_SIZE);
     });
 
     it('should parse page number correctly', async () => {
