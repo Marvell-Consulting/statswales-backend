@@ -12,7 +12,7 @@ import { DEFAULT_PAGE_SIZE } from './page-defaults';
 import { sortObjToString } from './sort-obj-to-string';
 
 const defaultPageSize = (format: OutputFormats): number | undefined => {
-  return format === OutputFormats.Frontend ? DEFAULT_PAGE_SIZE : undefined;
+  return [OutputFormats.Frontend, OutputFormats.Json].includes(format) ? DEFAULT_PAGE_SIZE : undefined;
 };
 
 export async function parsePageOptions(req: Request): Promise<PageOptions> {
