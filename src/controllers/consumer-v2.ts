@@ -520,7 +520,7 @@ export const sendFormattedResponse = async (
 export const searchPublishedDatasets = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   /*
     #swagger.summary = 'Search published datasets'
-    #swagger.description = 'This endpoint performs a full-text search across published dataset titles and summaries.'
+    #swagger.description = 'This endpoint performs a search across published dataset titles and summaries.'
     #swagger.autoQuery = false
     #swagger.parameters['$ref'] = [
       '#/components/parameters/language',
@@ -556,7 +556,7 @@ export const searchPublishedDatasets = async (req: Request, res: Response, next:
     const { pageNumber, pageSize, locale } = await parsePageOptions(req);
     logger.info(`Searching published datasets with mode: ${mode} keywords: ${keywords} lang: ${locale}`);
 
-    let results: ResultsetWithCount<DatasetListItemDTO> = { data: [], count: 0 };
+    let results: ResultsetWithCount<DatasetListItemDTO>;
 
     switch (mode) {
       case SearchMode.Basic:
