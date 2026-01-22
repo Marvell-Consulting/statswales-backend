@@ -7,6 +7,7 @@ export class Search1768913380304 implements MigrationInterface {
     await queryRunner.query(
       `CREATE TABLE "search_log" (
         "id" uuid NOT NULL DEFAULT uuid_generate_v4(),
+        "mode" text NOT NULL,
         "keywords" text NOT NULL,
         "result_count" integer,
         "created_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),

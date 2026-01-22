@@ -1,9 +1,13 @@
 import { BaseEntity, Column, CreateDateColumn, Entity, PrimaryGeneratedColumn } from 'typeorm';
+import { SearchMode } from '../enums/search-mode';
 
 @Entity({ name: 'search_log' })
 export class SearchLog extends BaseEntity {
   @PrimaryGeneratedColumn('uuid', { primaryKeyConstraintName: 'PK_search_log_id' })
   id: string;
+
+  @Column({ name: 'search_mode', type: 'text', nullable: false })
+  mode: SearchMode;
 
   @Column({ name: 'keywords', type: 'text', nullable: false })
   keywords: string;

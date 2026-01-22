@@ -278,6 +278,39 @@ export const PublishedDatasetRepository = dataSource.getRepository(Dataset).exte
     return { data, count };
   },
 
+  async searchBasicSplit(
+    locale: Locale,
+    query: string,
+    page: number,
+    limit: number
+  ): Promise<ResultsetWithCount<SearchResultDTO>> {
+    const lang = locale.includes('en') ? Locale.EnglishGb : Locale.WelshGb;
+    const offset = (page - 1) * limit;
+
+    const baseQuery = getBaseSearchQuery(lang).andWhere('pr.title ILIKE :query', { query: `%${query}%` });
+
+    const countRow = await baseQuery.clone().select('COUNT(DISTINCT d.id)', 'count').getRawOne();
+    const count = parseInt((countRow?.count as string) ?? '0', 10);
+
+    const resultQuery = baseQuery
+      .clone()
+      .select([
+        'd.id AS id',
+        'pr.title AS title',
+        'pr.summary AS summary',
+        'd.first_published_at AS first_published_at',
+        'pr.publish_at AS last_updated_at',
+        'd.archived_at AS archived_at'
+      ])
+      .offset(offset)
+      .limit(limit);
+
+    logger.trace(resultQuery.getSql());
+    const data = (await resultQuery.getRawMany()) as SearchResultDTO[];
+
+    return { data, count };
+  },
+
   async searchFTS(
     locale: Locale,
     query: string,

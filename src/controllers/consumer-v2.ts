@@ -556,12 +556,31 @@ export const searchPublishedDatasets = async (req: Request, res: Response, next:
     const { pageNumber, pageSize, locale } = await parsePageOptions(req);
     logger.info(`Searching published datasets with mode: ${mode} keywords: ${keywords} lang: ${locale}`);
 
-    const results: ResultsetWithCount<DatasetListItemDTO> =
-      mode === SearchMode.FTS
-        ? await PublishedDatasetRepository.searchFTS(locale, keywords, pageNumber, pageSize)
-        : await PublishedDatasetRepository.searchBasic(locale, keywords, pageNumber, pageSize);
+    let results: ResultsetWithCount<DatasetListItemDTO> = { data: [], count: 0 };
 
-    await SearchLog.create({ keywords, resultCount: results.count }).save();
+    switch (mode) {
+      case SearchMode.Basic:
+        results = await PublishedDatasetRepository.searchBasic(locale, keywords, pageNumber, pageSize);
+        break;
+
+      case SearchMode.BasicSplit:
+        results = await PublishedDatasetRepository.searchBasicSplit(locale, keywords, pageNumber, pageSize);
+        break;
+
+      case SearchMode.FTS:
+        results = await PublishedDatasetRepository.searchFTS(locale, keywords, pageNumber, pageSize);
+        break;
+
+      case SearchMode.FTSSimple:
+      case SearchMode.Fuzzy:
+        logger.warn(`Search mode ${mode} is not yet implemented`);
+        break;
+
+      default:
+        throw new BadRequestException('errors.invalid_search_mode');
+    }
+
+    await SearchLog.create({ mode, keywords, resultCount: results.count }).save();
 
     res.json(results);
   } catch (err) {

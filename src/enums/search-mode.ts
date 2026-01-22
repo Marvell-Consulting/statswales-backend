@@ -1,4 +1,7 @@
 export enum SearchMode {
   Basic = 'basic',
-  FTS = 'fts'
+  BasicSplit = 'basic_split',
+  FTS = 'fts',
+  FTSSimple = 'fts_simple',
+  Fuzzy = 'fuzzy'
 }
