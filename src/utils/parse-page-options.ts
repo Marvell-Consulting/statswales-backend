@@ -11,6 +11,10 @@ import { logger } from './logger';
 import { DEFAULT_PAGE_SIZE } from './page-defaults';
 import { sortObjToString } from './sort-obj-to-string';
 
+const defaultPageSize = (format: OutputFormats): number | undefined => {
+  return format === OutputFormats.Frontend ? DEFAULT_PAGE_SIZE : undefined;
+};
+
 export async function parsePageOptions(req: Request): Promise<PageOptions> {
   logger.debug('Parsing page options from request...');
   const validations = [format2Validator(), pageNumberValidator(), pageSizeValidator()];
@@ -24,6 +28,10 @@ export async function parsePageOptions(req: Request): Promise<PageOptions> {
   }
 
   const params = matchedData(req);
+  const format = (params.format as OutputFormats) ?? OutputFormats.Json;
+  const pageNumber = params.page_number ?? 1;
+  const pageSize = params.page_size ?? defaultPageSize(format);
+  const locale = req.language as Locale;
   let sort: string[] = [];
 
   try {
@@ -33,11 +41,5 @@ export async function parsePageOptions(req: Request): Promise<PageOptions> {
     throw new BadRequestException('errors.invalid_sort_by');
   }
 
-  return {
-    format: (params.format as OutputFormats) ?? OutputFormats.Json,
-    pageNumber: params.page_number ?? 1,
-    pageSize: params.page_size ?? DEFAULT_PAGE_SIZE,
-    sort,
-    locale: req.language as Locale
-  };
+  return { format, pageNumber, pageSize, sort, locale };
 }
