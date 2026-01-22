@@ -334,59 +334,21 @@ export const PublishedDatasetRepository = dataSource.getRepository(Dataset).exte
   async searchFTS(
     locale: Locale,
     keywords: string,
+    forceSimple = false,
     page?: number,
     limit?: number
   ): Promise<ResultsetWithCount<SearchResultDTO>> {
     const lang = locale.includes('en') ? Locale.EnglishGb : Locale.WelshGb;
-    const tsconfig = locale.includes('en') ? 'english' : 'simple';
     const offset = page && limit ? (page - 1) * limit : undefined;
+    const baseQuery = getBaseSearchQuery(lang);
 
-    const baseQuery = getBaseSearchQuery(lang)
-      .andWhere('pr.fts @@ websearch_to_tsquery(:tsconfig, :keywords)')
-      .setParameters({ tsconfig, keywords });
-
-    const countRow = await baseQuery.clone().select('COUNT(DISTINCT d.id)', 'count').getRawOne();
-    const count = parseInt((countRow?.count as string) ?? '0', 10);
-
-    const resultQuery = baseQuery
-      .clone()
-      .select([
-        'd.id AS id',
-        'pr.title AS title',
-        'pr.summary AS summary',
-        'd.first_published_at AS first_published_at',
-        'pr.publish_at AS last_updated_at',
-        'd.archived_at AS archived_at',
-        'ts_rank(pr.fts, websearch_to_tsquery(:tsconfig, :keywords)) AS rank',
-        'ts_headline(pr.title, websearch_to_tsquery(:tsconfig, :keywords)) AS match'
-      ])
-      .orderBy('rank', 'DESC')
-      .addOrderBy('d.first_published_at', 'DESC');
-
-    if (offset !== undefined && limit !== undefined) {
-      resultQuery.offset(offset).limit(limit);
+    if (locale.includes('en') && !forceSimple) {
+      baseQuery.andWhere(`pr.fts @@ websearch_to_tsquery('english', :keywords)`);
+    } else {
+      baseQuery.andWhere(`pr.fts_simple @@ websearch_to_tsquery('simple', :keywords)`);
     }
 
-    logger.trace(resultQuery.getSql());
-    const data = (await resultQuery.getRawMany()) as SearchResultDTO[];
-
-    return { data, count };
-  },
-
-  async searchFTSSimple(
-    locale: Locale,
-    keywords: string,
-    page?: number,
-    limit?: number
-  ): Promise<ResultsetWithCount<SearchResultDTO>> {
-    const lang = locale.includes('en') ? Locale.EnglishGb : Locale.WelshGb;
-    const tsconfig = 'simple'; // same as searchFTS but we force simple config for all languages
-    const offset = page && limit ? (page - 1) * limit : undefined;
-
-    const baseQuery = getBaseSearchQuery(lang)
-      .andWhere('pr.fts_simple @@ websearch_to_tsquery(:tsconfig, :keywords)')
-      .setParameters({ tsconfig, keywords });
-
+    baseQuery.setParameters({ keywords });
     const countRow = await baseQuery.clone().select('COUNT(DISTINCT d.id)', 'count').getRawOne();
     const count = parseInt((countRow?.count as string) ?? '0', 10);
 
@@ -398,12 +360,16 @@ export const PublishedDatasetRepository = dataSource.getRepository(Dataset).exte
         'pr.summary AS summary',
         'd.first_published_at AS first_published_at',
         'pr.publish_at AS last_updated_at',
-        'd.archived_at AS archived_at',
-        'ts_rank(pr.fts_simple, websearch_to_tsquery(:tsconfig, :keywords)) AS rank',
-        'ts_headline(pr.title, websearch_to_tsquery(:tsconfig, :keywords)) AS match'
+        'd.archived_at AS archived_at'
       ])
       .orderBy('rank', 'DESC')
       .addOrderBy('d.first_published_at', 'DESC');
+
+    if (locale.includes('en') && !forceSimple) {
+      resultQuery.addSelect(`ts_rank(pr.fts, websearch_to_tsquery('english', :keywords)) AS rank`);
+    } else {
+      resultQuery.addSelect(`ts_rank(pr.fts_simple, websearch_to_tsquery('simple', :keywords)) AS rank`);
+    }
 
     if (offset !== undefined && limit !== undefined) {
       resultQuery.offset(offset).limit(limit);

@@ -568,11 +568,11 @@ export const searchPublishedDatasets = async (req: Request, res: Response, next:
         break;
 
       case SearchMode.FTS:
-        results = await PublishedDatasetRepository.searchFTS(locale, keywords, pageNumber, pageSize);
+        results = await PublishedDatasetRepository.searchFTS(locale, keywords, false, pageNumber, pageSize);
         break;
 
       case SearchMode.FTSSimple:
-        results = await PublishedDatasetRepository.searchFTSSimple(locale, keywords, pageNumber, pageSize);
+        results = await PublishedDatasetRepository.searchFTS(locale, keywords, true, pageNumber, pageSize);
         break;
 
       case SearchMode.Fuzzy:
