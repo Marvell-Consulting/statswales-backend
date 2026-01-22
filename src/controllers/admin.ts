@@ -369,6 +369,7 @@ export const downloadSearchLogs = async (req: Request, res: Response, next: Next
 
     const csv = logs.map((log) => ({
       timestamp: log.createdAt.toISOString(),
+      mode: log.mode,
       keywords: log.keywords,
       result_count: log.resultCount ?? ''
     }));
