@@ -389,10 +389,12 @@ export const PublishedDatasetRepository = dataSource.getRepository(Dataset).exte
   ): Promise<ResultsetWithCount<SearchResultDTO>> {
     const lang = locale.includes('en') ? Locale.EnglishGb : Locale.WelshGb;
     const offset = page && limit ? (page - 1) * limit : undefined;
+    const similarityThreshold = 0.3;
 
     const baseQuery = getBaseSearchQuery(lang).andWhere(
-      `word_similarity(:keywords, pr.title) > 0.3 OR word_similarity(:keywords, pr.summary) > 0.3`,
-      { keywords }
+      `word_similarity(:keywords, pr.title) > :similarityThreshold
+       OR word_similarity(:keywords, pr.summary) > :similarityThreshold`,
+      { keywords, similarityThreshold }
     );
 
     const countRow = await baseQuery.clone().select('COUNT(DISTINCT d.id)', 'count').getRawOne();
