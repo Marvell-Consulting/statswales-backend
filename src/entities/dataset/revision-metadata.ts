@@ -61,6 +61,10 @@ export class RevisionMetadata extends BaseEntity {
   updatedAt: Date;
 
   @Index('idx_revision_metadata_fts_gin', { synchronize: false })
-  @Column({ type: 'tsvector', select: false, nullable: true })
+  @Column({ name: 'fts', type: 'tsvector', select: false, nullable: true })
   fts: string;
+
+  @Index('idx_revision_metadata_fts_simple_gin', { synchronize: false })
+  @Column({ name: 'fts_simple', type: 'tsvector', select: false, nullable: true })
+  ftsSimple: string;
 }

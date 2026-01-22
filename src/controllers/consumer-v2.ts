@@ -572,8 +572,11 @@ export const searchPublishedDatasets = async (req: Request, res: Response, next:
         break;
 
       case SearchMode.FTSSimple:
+        results = await PublishedDatasetRepository.searchFTSSimple(locale, keywords, pageNumber, pageSize);
+        break;
+
       case SearchMode.Fuzzy:
-        logger.warn(`Search mode ${mode} is not yet implemented`);
+        results = await PublishedDatasetRepository.searchFuzzy(locale, keywords, pageNumber, pageSize);
         break;
 
       default:

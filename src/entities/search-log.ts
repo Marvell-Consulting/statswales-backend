@@ -6,7 +6,7 @@ export class SearchLog extends BaseEntity {
   @PrimaryGeneratedColumn('uuid', { primaryKeyConstraintName: 'PK_search_log_id' })
   id: string;
 
-  @Column({ name: 'search_mode', type: 'text', nullable: false })
+  @Column({ name: 'mode', type: 'text', nullable: false })
   mode: SearchMode;
 
   @Column({ name: 'keywords', type: 'text', nullable: false })

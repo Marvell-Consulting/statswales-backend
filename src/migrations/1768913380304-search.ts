@@ -21,48 +21,48 @@ export class Search1768913380304 implements MigrationInterface {
       `CREATE INDEX IF NOT EXISTS IDX_title_trgm_gist_ci ON revision_metadata USING GIN ((lower(title)) gin_trgm_ops);`
     );
 
-    // Add plain tsvector column (trigger will maintain it)
+    // Add tsvector columns (trigger will maintain them)
     await queryRunner.query(`
       ALTER TABLE revision_metadata
-      ADD COLUMN IF NOT EXISTS fts tsvector;
+      ADD COLUMN IF NOT EXISTS fts tsvector,
+      ADD COLUMN IF NOT EXISTS fts_simple tsvector;
     `);
 
     // Backfill existing rows
     await queryRunner.query(`
-      UPDATE revision_metadata SET fts = (
-        setweight(
-          to_tsvector(
-            CASE WHEN language = 'en-GB' THEN 'english'::regconfig ELSE 'simple'::regconfig END,
-            unaccent(coalesce(title, ''))
-          ), 'A'
-        ) ||
-        setweight(
-          to_tsvector(
-            CASE WHEN language = 'en-GB' THEN 'english'::regconfig ELSE 'simple'::regconfig END,
-            unaccent(coalesce(summary, ''))
-          ), 'B'
-        )
-      );
+      UPDATE revision_metadata SET
+        fts = CASE
+          WHEN language = 'en-GB' THEN (
+            setweight(to_tsvector('english', unaccent(coalesce(title, ''))), 'A') ||
+            setweight(to_tsvector('english', unaccent(coalesce(summary, ''))), 'B')
+          )
+          ELSE NULL
+        END,
+        fts_simple = (
+          setweight(to_tsvector('simple', unaccent(coalesce(title, ''))), 'A') ||
+          setweight(to_tsvector('simple', unaccent(coalesce(summary, ''))), 'B')
+        );
     `);
 
-    // Create trigger function to maintain fts on insert/update
+    // Create trigger function to maintain fts columns on insert/update
     await queryRunner.query(`
       CREATE OR REPLACE FUNCTION revision_metadata_update_fts() RETURNS trigger AS $$
       BEGIN
-        NEW.fts := (
-          setweight(
-            to_tsvector(
-              CASE WHEN NEW.language = 'en-GB' THEN 'english'::regconfig ELSE 'simple'::regconfig END,
-              unaccent(coalesce(NEW.title, ''))
-            ), 'A'
-          ) ||
-          setweight(
-            to_tsvector(
-              CASE WHEN NEW.language = 'en-GB' THEN 'english'::regconfig ELSE 'simple'::regconfig END,
-              unaccent(coalesce(NEW.summary, ''))
-            ), 'B'
+        -- fts: English config for en-GB, NULL for other languages
+        NEW.fts := CASE
+          WHEN NEW.language = 'en-GB' THEN (
+            setweight(to_tsvector('english', unaccent(coalesce(NEW.title, ''))), 'A') ||
+            setweight(to_tsvector('english', unaccent(coalesce(NEW.summary, ''))), 'B')
           )
+          ELSE NULL
+        END;
+
+        -- fts_simple: simple config for all languages
+        NEW.fts_simple := (
+          setweight(to_tsvector('simple', unaccent(coalesce(NEW.title, ''))), 'A') ||
+          setweight(to_tsvector('simple', unaccent(coalesce(NEW.summary, ''))), 'B')
         );
+
         RETURN NEW;
       END
       $$ LANGUAGE plpgsql;
@@ -78,16 +78,21 @@ export class Search1768913380304 implements MigrationInterface {
       EXECUTE FUNCTION revision_metadata_update_fts();
     `);
 
-    // Index the tsvector column
+    // Index the tsvector columns
     await queryRunner.query(
       `CREATE INDEX IF NOT EXISTS IDX_revision_metadata_fts_gin ON revision_metadata USING GIN (fts);`
+    );
+    await queryRunner.query(
+      `CREATE INDEX IF NOT EXISTS IDX_revision_metadata_fts_simple_gin ON revision_metadata USING GIN (fts_simple);`
     );
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {
+    await queryRunner.query(`DROP INDEX IF EXISTS IDX_revision_metadata_fts_simple_gin;`);
     await queryRunner.query(`DROP INDEX IF EXISTS IDX_revision_metadata_fts_gin;`);
     await queryRunner.query(`DROP TRIGGER IF EXISTS revision_metadata_fts_trg ON revision_metadata;`);
     await queryRunner.query(`DROP FUNCTION IF EXISTS revision_metadata_update_fts;`);
+    await queryRunner.query(`ALTER TABLE revision_metadata DROP COLUMN IF EXISTS fts_simple;`);
     await queryRunner.query(`ALTER TABLE revision_metadata DROP COLUMN IF EXISTS fts;`);
     await queryRunner.query(`DROP INDEX IF EXISTS IDX_title_trgm_gist_ci;`);
     await queryRunner.query(`DROP EXTENSION IF EXISTS unaccent;`);
