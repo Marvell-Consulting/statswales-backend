@@ -588,6 +588,9 @@ export const searchPublishedDatasets = async (req: Request, res: Response, next:
     res.json(results);
   } catch (err) {
     logger.error(err, 'Failed to search published datasets');
+    if (err instanceof NotFoundException || err instanceof BadRequestException) {
+      return next(err);
+    }
     next(new UnknownException());
   }
 };
