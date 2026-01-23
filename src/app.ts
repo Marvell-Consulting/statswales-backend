@@ -27,7 +27,7 @@ import { userRouter } from './routes/user';
 import { publicApiRouter } from './routes/consumer/v1/api';
 import { apiDocRouter } from './routes/consumer/v1/docs';
 import { publicApiV2Router } from './routes/consumer/v2/api';
-import { apiV2DocRouter } from './routes/consumer/v2/docs';
+// import { apiV2DocRouter } from './routes/consumer/v2/docs';
 import { strictTransport } from './middleware/strict-transport';
 import { buildLogRouter } from './routes/build-log';
 
@@ -50,7 +50,7 @@ app.use('/auth', rateLimiter, authRouter);
 app.use('/healthcheck', rateLimiter, healthcheckRouter);
 app.use('/v1/docs', rateLimiter, apiDocRouter);
 app.use('/v1', rateLimiter, publicApiRouter);
-app.use('/v2/docs', rateLimiter, apiV2DocRouter);
+// app.use('/v2/docs', rateLimiter, apiV2DocRouter);
 app.use('/v2', rateLimiter, publicApiV2Router);
 
 const jwtAuth = passport.authenticate('jwt', { session: false });
