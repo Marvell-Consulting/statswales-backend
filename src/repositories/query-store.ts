@@ -33,7 +33,7 @@ export const QueryStoreRepository = dataSource.getRepository(QueryStore).extend(
   },
 
   async getByRequest(datasetId: string, revisionId: string, dataOptions: DataOptionsDTO): Promise<QueryStore> {
-    logger.debug(`Looking for query store entry for dataset ${datasetId}, revision ${revisionId}...`);
+    logger.info(`Looking for query store entry for dataset ${datasetId}, revision ${revisionId}...`);
     const hash = generateHash(datasetId, revisionId, dataOptions);
 
     try {
@@ -45,7 +45,7 @@ export const QueryStoreRepository = dataSource.getRepository(QueryStore).extend(
   },
 
   async generate(datasetId: string, revisionId: string, dataOptions: DataOptionsDTO): Promise<QueryStore> {
-    logger.debug(`Generating new query store entry for dataset ${datasetId}, revision ${revisionId}...`);
+    logger.info(`Generating new query store entry for dataset ${datasetId}, revision ${revisionId}...`);
     const hash = generateHash(datasetId, revisionId, dataOptions);
     let remainingAttempts = 10;
     let id = nanoId();

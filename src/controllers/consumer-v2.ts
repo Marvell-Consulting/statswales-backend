@@ -119,6 +119,10 @@ export const getPublishedDatasetData = async (req: Request, res: Response, next:
     const query = await buildDataQuery(queryStore, pageOptions);
     await sendFormattedResponse(query, queryStore, pageOptions, res);
   } catch (err) {
+    if (res.headersSent) {
+      logger.error(err, 'Error detected fetching data after headers already sent');
+      return;
+    }
     if (err instanceof NotFoundException || err instanceof BadRequestException) {
       return next(err);
     }
@@ -128,7 +132,7 @@ export const getPublishedDatasetData = async (req: Request, res: Response, next:
 };
 
 export const generateFilterId = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-  logger.debug(`Generating filter ID for published dataset ${res.locals.datasetId}...`);
+  logger.info(`Generating filter ID for published dataset ${res.locals.datasetId}...`);
   const dataset = res.locals.dataset as Dataset;
   if (!dataset.publishedRevisionId) return next(new NotFoundException('errors.no_published_revision'));
 
@@ -137,6 +141,9 @@ export const generateFilterId = async (req: Request, res: Response, next: NextFu
     const queryStore = await QueryStoreRepository.getByRequest(dataset.id, dataset.publishedRevisionId, dataOptions);
     res.json({ filterId: queryStore.id });
   } catch (err) {
+    if (err instanceof NotFoundException || err instanceof BadRequestException) {
+      return next(err);
+    }
     logger.error(err, 'Error generating filter ID');
     return next(new UnknownException());
   }
