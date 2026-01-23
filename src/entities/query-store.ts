@@ -32,9 +32,9 @@ export class QueryStore extends BaseEntity {
   @Column({ name: 'column_mapping', type: 'jsonb', nullable: false })
   columnMapping: FactTableToDimensionName[];
 
-  @CreateDateColumn({ name: 'created_at', type: 'timestamptz', nullable: true })
+  @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
   createdAt: Date;
 
-  @UpdateDateColumn({ name: 'updated_at', type: 'timestamptz', nullable: true })
+  @UpdateDateColumn({ name: 'updated_at', type: 'timestamptz' })
   updatedAt: Date;
 }
