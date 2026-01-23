@@ -10,7 +10,10 @@ import {
   getPublishedRevisionById,
   getPublishedDatasetData,
   getPublishedDatasetFilters,
-  generateFilterId
+  generateFilterId,
+  getPublishedDatasetPivot,
+  generatePivotFilterId,
+  getPublishedDatasetPivotFromId
 } from '../../../controllers/consumer-v2';
 import { NotFoundException } from '../../../exceptions/not-found.exception';
 import { PublishedDatasetRepository } from '../../../repositories/published-dataset';
@@ -92,7 +95,12 @@ publicApiV2Router.get(
 
 publicApiV2Router.get('/:dataset_id/filters', ensurePublishedDataset, getPublishedDatasetFilters);
 publicApiV2Router.post('/:dataset_id/data', ensurePublishedDataset, jsonParser, generateFilterId);
+publicApiV2Router.post('/:dataset_id/pivot', ensurePublishedDataset, jsonParser, generatePivotFilterId);
 publicApiV2Router.get('/:dataset_id/data', ensurePublishedDataset, getPublishedDatasetData);
 publicApiV2Router.get('/:dataset_id/data/:filter_id', ensurePublishedDataset, getPublishedDatasetData);
+publicApiV2Router.get('/:dataset_id/pivot/:filter_id', ensurePublishedDataset, getPublishedDatasetPivotFromId);
+// Hidden end point... Not intended for consumers at this stage.  Pivots any existing query and allows for
+// more complex multidimensional pivots.
+publicApiV2Router.get('/:dataset_id/data/:filter_id/pivot', ensurePublishedDataset, getPublishedDatasetPivot);
 
 // publicApiV2Router.post('/:dataset_id/pivot', loadPublishedDataset(), getPostgresPivotTable);

@@ -7,4 +7,6 @@ export interface PageOptions {
   pageSize?: number;
   sort: string[];
   locale: Locale;
+  y?: string[] | string;
+  x?: string[] | string;
 }

@@ -52,6 +52,12 @@ export class DataOptionsDTO {
   options?: ColumnOptionsDTO;
 }
 
+export class PivotOptionsDTO extends DataOptionsDTO {
+  @ValidateNested()
+  @Type(() => PivotDTO)
+  declare pivot: PivotDTO;
+}
+
 export const DEFAULT_DATA_OPTIONS: DataOptionsDTO = {
   filters: [],
   options: {

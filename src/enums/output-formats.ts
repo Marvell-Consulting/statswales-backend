@@ -2,7 +2,7 @@ export enum OutputFormats {
   Csv = 'csv',
   Json = 'json',
   Excel = 'xlsx',
-  Frontend = 'frontend'
-  // Html = 'html',
+  Frontend = 'frontend',
+  Html = 'html'
   // Parquet = 'parquet'
 }

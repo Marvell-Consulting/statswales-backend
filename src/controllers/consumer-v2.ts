@@ -23,16 +23,25 @@ import {
   sendFilters
 } from '../services/consumer-view-v2';
 import { Dataset } from '../entities/dataset/dataset';
-import { DataOptionsDTO, DEFAULT_DATA_OPTIONS, FRONTEND_DATA_OPTIONS } from '../dtos/data-options-dto';
+import { DataOptionsDTO, DEFAULT_DATA_OPTIONS, FRONTEND_DATA_OPTIONS, PivotOptionsDTO } from '../dtos/data-options-dto';
 import { SingleLanguageRevisionDTO } from '../dtos/consumer/single-language-revision-dto';
 import { PageOptions } from '../interfaces/page-options';
 import { dtoValidator } from '../validators/dto-validator';
 import { QueryStoreRepository } from '../repositories/query-store';
 import { QueryStore } from '../entities/query-store';
-import { getFilterTableQuery } from '../utils/consumer';
+import { format2Validator, pageNumberValidator, pageSizeValidator } from '../validators';
+import {
+  getFilterTable,
+  getFilterTableQuery,
+  resolveDimensionToFactTableColumn,
+  resolveFactColumnToDimension
+} from '../utils/consumer';
+import { sortObjToString } from '../utils/sort-obj-to-string';
 import { ConsumerDatasetDTO } from '../dtos/consumer-dataset-dto';
 import { PublisherDTO } from '../dtos/publisher-dto';
 import { UserGroupRepository } from '../repositories/user-group';
+import { createPivotOutputUsingDuckDB, createPivotQuery, langToLocale } from '../services/pivots';
+import { FieldValidationError, matchedData } from 'express-validator';
 import { parsePageOptions } from '../utils/parse-page-options';
 
 export const listPublishedDatasets = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
@@ -102,6 +111,47 @@ export const getPublishedRevisionById = async (req: Request, res: Response): Pro
   res.json(revisionDto);
 };
 
+async function parsePivotPageOptions(req: Request): Promise<PageOptions> {
+  logger.debug('Parsing page options from request...');
+  const validations = [format2Validator(), pageNumberValidator(), pageSizeValidator()];
+
+  for (const validation of validations) {
+    const result = await validation.run(req);
+    if (!result.isEmpty()) {
+      const error = result.array()[0] as FieldValidationError;
+      throw new BadRequestException(`${error.msg} for ${error.path}`);
+    }
+  }
+
+  const params = matchedData(req);
+  let sort: string[] = [];
+
+  try {
+    const sortBy = req.query.sort_by ? (JSON.parse(req.query.sort_by as string) as SortByInterface[]) : undefined;
+    sort = sortBy ? sortObjToString(sortBy) : [];
+  } catch (_err) {
+    throw new BadRequestException('errors.invalid_sort_by');
+  }
+
+  let xAxis: string | string[] = req.query.x as string;
+  let yAxis: string | string[] = req.query.y as string;
+  if (!xAxis || !yAxis) throw new BadRequestException('errors.invalid_pivot_params');
+  xAxis = xAxis.split(',').map((x) => x.trim());
+  yAxis = yAxis.split(',').map((y) => y.trim());
+  if (xAxis.length === 1) xAxis = xAxis[0];
+  if (yAxis.length === 1) yAxis = yAxis[0];
+
+  return {
+    x: xAxis,
+    y: yAxis,
+    format: (params.format as OutputFormats) ?? OutputFormats.Json,
+    pageNumber: params.page_number ?? 1,
+    pageSize: params.page_size ?? DEFAULT_PAGE_SIZE,
+    sort,
+    locale: req.language as Locale
+  };
+}
+
 export const getPublishedDatasetData = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   logger.debug(`Getting dataset data for ${res.locals.datasetId}...`);
   const filterId = req.params.filter_id as string | undefined;
@@ -128,6 +178,144 @@ export const getPublishedDatasetData = async (req: Request, res: Response, next:
     }
     logger.error(err, 'Error getting published dataset data');
     next(new UnknownException());
+  }
+};
+
+// Hidden end point allows pivots on existing non-pivot queries and allows for multi-dimensional pivots
+export const getPublishedDatasetPivot = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  /*
+  #swagger.ignore = true
+   */
+  logger.debug(`Getting dataset data for ${res.locals.datasetId}...`);
+  const filterId = req.params.filter_id as string | undefined;
+  const dataset = res.locals.dataset as Dataset;
+  if (!dataset.publishedRevisionId) return next(new NotFoundException('errors.no_published_revision'));
+
+  try {
+    const pageOptions = await parsePivotPageOptions(req);
+    const dataOptions = pageOptions.format === OutputFormats.Frontend ? FRONTEND_DATA_OPTIONS : DEFAULT_DATA_OPTIONS;
+
+    const queryStore = filterId
+      ? await QueryStoreRepository.getById(filterId)
+      : await QueryStoreRepository.getByRequest(dataset.id, dataset.publishedRevisionId, dataOptions);
+
+    const lang = langToLocale(pageOptions.locale);
+
+    const pivotQuery = await createPivotQuery(lang, queryStore, pageOptions);
+    await createPivotOutputUsingDuckDB(res, lang, pivotQuery, pageOptions, queryStore);
+  } catch (err) {
+    if (err instanceof NotFoundException || err instanceof BadRequestException) {
+      return next(err);
+    }
+    logger.error(err, 'Error getting published dataset data');
+    next(new UnknownException());
+  }
+};
+
+export const getPublishedDatasetPivotFromId = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  logger.debug(`Getting dataset data for ${res.locals.datasetId}...`);
+  const filterId = req.params.filter_id as string | undefined;
+  const dataset = res.locals.dataset as Dataset;
+  if (!dataset.publishedRevisionId) return next(new NotFoundException('errors.no_published_revision'));
+
+  try {
+    const pageOptions = await parsePivotPageOptions(req);
+    const dataOptions = pageOptions.format === OutputFormats.Frontend ? FRONTEND_DATA_OPTIONS : DEFAULT_DATA_OPTIONS;
+
+    const queryStore = filterId
+      ? await QueryStoreRepository.getById(filterId)
+      : await QueryStoreRepository.getByRequest(dataset.id, dataset.publishedRevisionId, dataOptions);
+
+    if (!queryStore.requestObject.pivot) {
+      throw new BadRequestException('errors.not_a_pivot_filter');
+    }
+
+    pageOptions.x = queryStore.requestObject.pivot.x;
+    pageOptions.y = queryStore.requestObject.pivot.y;
+
+    const lang = langToLocale(pageOptions.locale);
+
+    const pivotQuery = await createPivotQuery(lang, queryStore, pageOptions);
+    await createPivotOutputUsingDuckDB(res, lang, pivotQuery, pageOptions, queryStore);
+  } catch (err) {
+    if (err instanceof NotFoundException || err instanceof BadRequestException) {
+      return next(err);
+    }
+    logger.error(err, 'Error getting published dataset data');
+    next(new UnknownException());
+  }
+};
+
+export const generatePivotFilterId = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  logger.debug(`Generating filter ID for published dataset ${res.locals.datasetId}...`);
+  const dataset = res.locals.dataset as Dataset;
+  if (!dataset.publishedRevisionId) return next(new NotFoundException('errors.no_published_revision'));
+
+  const dataOptions = await dtoValidator(PivotOptionsDTO, req.body);
+
+  if (dataOptions.pivot.x.split(',').length > 1 || dataOptions.pivot.y.split(',').length > 1) {
+    throw new BadRequestException('errors.pivot_only_one_column');
+  }
+
+  const lang = langToLocale(dataOptions.locale);
+  const filterTable = await getFilterTable(dataset.publishedRevisionId);
+
+  let xCol = dataOptions.pivot.x;
+  let yCol = dataOptions.pivot.y;
+  if (dataOptions.options.use_raw_column_names) {
+    try {
+      xCol = resolveFactColumnToDimension(xCol, lang, filterTable);
+    } catch (_) {
+      throw new BadRequestException('X Column not found in dataset');
+    }
+    try {
+      yCol = resolveFactColumnToDimension(yCol, lang, filterTable);
+    } catch (_) {
+      throw new BadRequestException('Y Column not found in dataset');
+    }
+  } else {
+    try {
+      xCol = resolveDimensionToFactTableColumn(xCol, filterTable);
+    } catch (_) {
+      throw new BadRequestException('X Column not found in dataset');
+    }
+    try {
+      yCol = resolveDimensionToFactTableColumn(yCol, filterTable);
+    } catch (_) {
+      throw new BadRequestException('Y Column not found in dataset');
+    }
+  }
+
+  if (dataOptions?.filters && dataOptions?.filters.length > 0) {
+    for (const filter of dataOptions.filters) {
+      let colName = Object.keys(filter)[0];
+      const filterValues = Object.values(filter)[0] as string[];
+      if (dataOptions.options.use_raw_column_names) {
+        colName = resolveFactColumnToDimension(colName, lang, filterTable);
+      } else {
+        colName = resolveDimensionToFactTableColumn(colName, filterTable);
+      }
+
+      if (colName === xCol || colName === yCol) {
+        continue;
+      }
+
+      if (filterValues.length > 0) {
+        throw new BadRequestException('Non X and Y columns must contain only one value');
+      }
+    }
+  }
+
+  try {
+    const queryStore = await QueryStoreRepository.getByRequest(dataset.id, dataset.publishedRevisionId, dataOptions);
+    res.json({ filterId: queryStore.id });
+  } catch (err) {
+    logger.error(err, 'Error generating filter ID');
+    return next(new UnknownException());
   }
 };
 
