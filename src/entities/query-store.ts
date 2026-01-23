@@ -1,4 +1,4 @@
-import { BaseEntity, Column, Entity, Index, PrimaryColumn } from 'typeorm';
+import { BaseEntity, Column, CreateDateColumn, Entity, Index, PrimaryColumn, UpdateDateColumn } from 'typeorm';
 import { DataOptionsDTO } from '../dtos/data-options-dto';
 import { FactTableToDimensionName } from '../interfaces/fact-table-column-to-dimension-name';
 
@@ -31,4 +31,10 @@ export class QueryStore extends BaseEntity {
 
   @Column({ name: 'column_mapping', type: 'jsonb', nullable: false })
   columnMapping: FactTableToDimensionName[];
+
+  @CreateDateColumn({ name: 'created_at', type: 'timestamptz', nullable: true })
+  createdAt: Date;
+
+  @UpdateDateColumn({ name: 'updated_at', type: 'timestamptz', nullable: true })
+  updatedAt: Date;
 }
