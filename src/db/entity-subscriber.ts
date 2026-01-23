@@ -21,7 +21,7 @@ type AnyEntity = BaseEntity | ObjectLiteral;
 type WriteEvent = InsertEvent<AnyEntity> | UpdateEvent<AnyEntity> | RemoveEvent<AnyEntity>;
 
 // prevent logging of event_log table (infinite loop!) and anything else we want to ignore
-const ignoreTables: string[] = ['event_log', 'build_log'];
+const ignoreTables: string[] = ['event_log', 'build_log', 'query_store'];
 
 // ignore some common props from the logged value that can be easily retrieved elsewhere
 const ignoreProps: string[] = ['id', 'createdAt', 'updatedAt', 'createdBy'];
