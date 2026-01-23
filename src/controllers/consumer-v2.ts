@@ -23,7 +23,7 @@ import {
   sendFilters
 } from '../services/consumer-view-v2';
 import { Dataset } from '../entities/dataset/dataset';
-import { DataOptionsDTO, DEFAULT_DATA_OPTIONS, FRONTEND_DATA_OPTIONS } from '../dtos/data-options-dto';
+import { DataOptionsDTO, DEFAULT_DATA_OPTIONS, FRONTEND_DATA_OPTIONS, PivotOptionsDTO } from '../dtos/data-options-dto';
 import { SingleLanguageRevisionDTO } from '../dtos/consumer/single-language-revision-dto';
 import { PageOptions } from '../interfaces/page-options';
 import { dtoValidator } from '../validators/dto-validator';
@@ -40,8 +40,9 @@ import { sortObjToString } from '../utils/sort-obj-to-string';
 import { ConsumerDatasetDTO } from '../dtos/consumer-dataset-dto';
 import { PublisherDTO } from '../dtos/publisher-dto';
 import { UserGroupRepository } from '../repositories/user-group';
-import { createPivotFromQuery, langToLocale } from '../services/pivots';
+import { createPivotOutputUsingDuckDB, createPivotQuery, langToLocale } from '../services/pivots';
 import { FieldValidationError, matchedData } from 'express-validator';
+import { parsePageOptions } from '../utils/parse-page-options';
 
 export const listPublishedDatasets = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   /*
@@ -110,37 +111,6 @@ export const getPublishedRevisionById = async (req: Request, res: Response): Pro
   res.json(revisionDto);
 };
 
-async function parsePageOptions(req: Request): Promise<PageOptions> {
-  logger.debug('Parsing page options from request...');
-  const validations = [format2Validator(), pageNumberValidator(), pageSizeValidator()];
-
-  for (const validation of validations) {
-    const result = await validation.run(req);
-    if (!result.isEmpty()) {
-      const error = result.array()[0] as FieldValidationError;
-      throw new BadRequestException(`${error.msg} for ${error.path}`);
-    }
-  }
-
-  const params = matchedData(req);
-  let sort: string[] = [];
-
-  try {
-    const sortBy = req.query.sort_by ? (JSON.parse(req.query.sort_by as string) as SortByInterface[]) : undefined;
-    sort = sortBy ? sortObjToString(sortBy) : [];
-  } catch (_err) {
-    throw new BadRequestException('errors.invalid_sort_by');
-  }
-
-  return {
-    format: (params.format as OutputFormats) ?? OutputFormats.Json,
-    pageNumber: params.page_number ?? undefined,
-    pageSize: params.page_size ?? DEFAULT_PAGE_SIZE,
-    sort,
-    locale: req.language as Locale
-  };
-}
-
 async function parsePivotPageOptions(req: Request): Promise<PageOptions> {
   logger.debug('Parsing page options from request...');
   const validations = [format2Validator(), pageNumberValidator(), pageSizeValidator()];
@@ -207,7 +177,11 @@ export const getPublishedDatasetData = async (req: Request, res: Response, next:
   }
 };
 
+// Hidden end point allows pivots on existing non-pivot queries and allows for multi-dimensional pivots
 export const getPublishedDatasetPivot = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  /*
+  #swagger.ignore = true
+   */
   logger.debug(`Getting dataset data for ${res.locals.datasetId}...`);
   const filterId = req.params.filter_id as string | undefined;
   const dataset = res.locals.dataset as Dataset;
@@ -221,7 +195,10 @@ export const getPublishedDatasetPivot = async (req: Request, res: Response, next
       ? await QueryStoreRepository.getById(filterId)
       : await QueryStoreRepository.getByRequest(dataset.id, dataset.publishedRevisionId, dataOptions);
 
-    await createPivotFromQuery(res, queryStore, pageOptions);
+    const lang = langToLocale(pageOptions.locale);
+
+    const pivotQuery = await createPivotQuery(lang, queryStore, pageOptions);
+    await createPivotOutputUsingDuckDB(res, lang, pivotQuery, pageOptions, queryStore);
   } catch (err) {
     if (err instanceof NotFoundException || err instanceof BadRequestException) {
       return next(err);
@@ -256,7 +233,10 @@ export const getPublishedDatasetPivotFromId = async (
     pageOptions.x = queryStore.requestObject.pivot.x;
     pageOptions.y = queryStore.requestObject.pivot.y;
 
-    await createPivotFromQuery(res, queryStore, pageOptions);
+    const lang = langToLocale(pageOptions.locale);
+
+    const pivotQuery = await createPivotQuery(lang, queryStore, pageOptions);
+    await createPivotOutputUsingDuckDB(res, lang, pivotQuery, pageOptions, queryStore);
   } catch (err) {
     if (err instanceof NotFoundException || err instanceof BadRequestException) {
       return next(err);
@@ -271,16 +251,7 @@ export const generatePivotFilterId = async (req: Request, res: Response, next: N
   const dataset = res.locals.dataset as Dataset;
   if (!dataset.publishedRevisionId) return next(new NotFoundException('errors.no_published_revision'));
 
-  const dataOptions = await dtoValidator(DataOptionsDTO, req.body);
-  if (!dataOptions.pivot) {
-    throw new BadRequestException('errors.no_pivot_information');
-  }
-  if (!dataOptions.pivot.x) {
-    throw new BadRequestException('errors.pivot_requires_x');
-  }
-  if (!dataOptions.pivot.y) {
-    throw new BadRequestException('errors.pivot_requires_y');
-  }
+  const dataOptions = await dtoValidator(PivotOptionsDTO, req.body);
 
   if (dataOptions.pivot.x.split(',').length > 1 || dataOptions.pivot.y.split(',').length > 1) {
     throw new BadRequestException('errors.pivot_only_one_column');

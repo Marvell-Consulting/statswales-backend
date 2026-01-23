@@ -229,29 +229,37 @@ async function pivotToHtml(res: Response, pivot: DuckDBResult): Promise<void> {
   res.end();
 }
 
-async function formatChooser(
+export async function createPivotOutputUsingDuckDB(
   res: Response,
   lang: string,
-  pivot: DuckDBResult,
+  pivotQuery: string,
   pageOptions: PageOptions,
   queryStore: QueryStore
 ): Promise<void> {
-  switch (pageOptions.format) {
-    case OutputFormats.Json:
-      await pivotToJson(res, pivot);
-      break;
-    case OutputFormats.Csv:
-      await pivotToCsv(res, pivot);
-      break;
-    case OutputFormats.Excel:
-      await pivotToExcel(res, pivot);
-      break;
-    case OutputFormats.Html:
-      await pivotToHtml(res, pivot);
-      break;
-    case OutputFormats.Frontend:
-      await pivotToFrontend(res, lang, pivot, queryStore, pageOptions);
-      break;
+  const quack = await duckdb();
+  try {
+    const pivot = await quack.stream(pivotQuery);
+    switch (pageOptions.format) {
+      case OutputFormats.Json:
+        await pivotToJson(res, pivot);
+        break;
+      case OutputFormats.Csv:
+        await pivotToCsv(res, pivot);
+        break;
+      case OutputFormats.Excel:
+        await pivotToExcel(res, pivot);
+        break;
+      case OutputFormats.Html:
+        await pivotToHtml(res, pivot);
+        break;
+      case OutputFormats.Frontend:
+        await pivotToFrontend(res, lang, pivot, queryStore, pageOptions);
+        break;
+    }
+  } catch (err) {
+    logger.error(err, 'Error creating pivot from query');
+  } finally {
+    quack.closeSync();
   }
 }
 
@@ -272,13 +280,11 @@ export function validateColOnly(columnName: string, locale: string, filterTable:
   return columnName;
 }
 
-export async function createPivotFromQuery(
-  res: Response,
+export async function createPivotQuery(
+  lang: string,
   queryStore: QueryStore,
   pageOptions: PageOptions
-): Promise<void> {
-  const quack = await duckdb();
-  const lang = langToLocale(pageOptions.locale);
+): Promise<string> {
   const query = queryStore.query[lang].replaceAll(
     pgformat('%I', queryStore.revisionId),
     pgformat('%I.%I', 'cube_db', queryStore.revisionId)
@@ -328,23 +334,7 @@ export async function createPivotFromQuery(
     y = pgformat('%I', columnFinderValidator(y, lang, filterTable));
   }
 
-  const pivotQuery = pgformat(
-    'PIVOT (%s) ON %s USING first(%I) GROUP BY %s %s;',
-    query,
-    x,
-    dataValuesCol,
-    y,
-    pagingQuery
-  );
-  logger.trace(`Pivot Query = ${pivotQuery}`);
-  try {
-    const pivot = await quack.stream(pivotQuery);
-    await formatChooser(res, lang, pivot, pageOptions, queryStore);
-  } catch (err) {
-    logger.error(err, 'Error creating pivot from query');
-  } finally {
-    quack.closeSync();
-  }
+  return pgformat('PIVOT (%s) ON %s USING first(%I) GROUP BY %s %s;', query, x, dataValuesCol, y, pagingQuery);
 }
 
 // async function createPivotFromPost(): Promise<void> {}

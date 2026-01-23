@@ -99,6 +99,8 @@ publicApiV2Router.post('/:dataset_id/pivot', ensurePublishedDataset, jsonParser,
 publicApiV2Router.get('/:dataset_id/data', ensurePublishedDataset, getPublishedDatasetData);
 publicApiV2Router.get('/:dataset_id/data/:filter_id', ensurePublishedDataset, getPublishedDatasetData);
 publicApiV2Router.get('/:dataset_id/pivot/:filter_id', ensurePublishedDataset, getPublishedDatasetPivotFromId);
+// Hidden end point... Not intended for consumers at this stage.  Pivots any existing query and allows for
+// more complex multidimensional pivots.
 publicApiV2Router.get('/:dataset_id/data/:filter_id/pivot', ensurePublishedDataset, getPublishedDatasetPivot);
 
 // publicApiV2Router.post('/:dataset_id/pivot', loadPublishedDataset(), getPostgresPivotTable);

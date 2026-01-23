@@ -340,34 +340,6 @@
           }
         }
       }
-    },
-    "/{dataset_id}/data/{filter_id}/pivot": {
-      "get": {
-        "description": "",
-        "parameters": [
-          {
-            "name": "dataset_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "filter_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "default": {
-            "description": ""
-          }
-        }
-      }
     }
   },
   "components": {
