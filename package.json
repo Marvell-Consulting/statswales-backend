@@ -111,7 +111,7 @@
     "i18next-http-middleware": "^3.9.0",
     "jsonwebtoken": "^9.0.3",
     "jszip": "^3.10.1",
-    "lodash": "^4.17.21",
+    "lodash": "^4.17.23",
     "nanoid": "^5.1.6",
     "openid-client": "^6.8.1",
     "passport": "^0.7.0",
