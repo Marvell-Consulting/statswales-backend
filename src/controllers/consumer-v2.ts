@@ -29,7 +29,13 @@ import { PageOptions } from '../interfaces/page-options';
 import { dtoValidator } from '../validators/dto-validator';
 import { QueryStoreRepository } from '../repositories/query-store';
 import { QueryStore } from '../entities/query-store';
-import { format2Validator, pageNumberValidator, pageSizeValidator } from '../validators';
+import {
+  format2Validator,
+  pageNumberValidator,
+  pageSizeValidator,
+  searchKeywordsValidator,
+  searchModeValidator
+} from '../validators';
 import {
   getFilterTable,
   getFilterTableQuery,
@@ -43,11 +49,9 @@ import { UserGroupRepository } from '../repositories/user-group';
 import { createPivotOutputUsingDuckDB, createPivotQuery, langToLocale } from '../services/pivots';
 import { FieldValidationError, matchedData } from 'express-validator';
 import { parsePageOptions } from '../utils/parse-page-options';
-import { FieldValidationError, matchedData } from 'express-validator';
 import { SearchMode } from '../enums/search-mode';
 import { DatasetListItemDTO } from '../dtos/dataset-list-item-dto';
 import { ResultsetWithCount } from '../interfaces/resultset-with-count';
-import { searchKeywordsValidator, searchModeValidator } from '../validators';
 import { SearchLog } from '../entities/search-log';
 
 export const listPublishedDatasets = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
