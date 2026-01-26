@@ -1,4 +1,5 @@
 import { Response } from 'express';
+import { escape } from 'lodash';
 import { PoolClient } from 'pg';
 import Cursor from 'pg-cursor';
 import { format as pgformat } from '@scaleleap/pg-format/lib/pg-format';
@@ -153,7 +154,7 @@ export async function sendHtml(query: string, queryStore: QueryStore, res: Respo
         '<html lang="en">\n' +
         '<head>\n' +
         '    <meta charset="utf-8">\n' +
-        '    <title>HTML Document Title</title>\n' +
+        `    <title>${queryStore.datasetId}</title>\n` +
         '</head>\n' +
         '<body>\n' +
         '<table>\n' +
@@ -161,15 +162,21 @@ export async function sendHtml(query: string, queryStore: QueryStore, res: Respo
     );
 
     let rows = await cursor.read(CURSOR_ROW_LIMIT);
+    if (rows.length === 0) {
+      // No rows returned; close the table and document without headers or body rows.
+      res.write('</tr></thead><tbody></tbody>\n' + '</table>\n' + '</body>\n' + '</html>\n');
+      res.end();
+      return;
+    }
     Object.keys(rows[0]).forEach((key) => {
-      res.write(`<th>${key}</th>`);
+      res.write(`<th>${escape(key)}</th>`);
     });
     res.write('</tr></thead><tbody>');
     while (rows.length > 0) {
       for (const row of rows) {
         res.write('<tr>');
         Object.values(row).forEach((value) => {
-          res.write(`<td>${value === null ? '' : value}</td>`);
+          res.write(`<td>${value === null ? '' : escape(value as string)}</td>`);
         });
         res.write('</tr>');
       }
