@@ -141,57 +141,51 @@ interface RollingType {
 }
 
 function getRollingType(type: string): RollingType | undefined {
-  switch (type) {
-    case 'XY':
+  if (type.toUpperCase().charAt(1) === 'Y') {
+    if (type.toUpperCase() === 'XY') {
       return {
         increment: { years: 10 },
-        description: 'date_format.rolling.5_year_ending'
+        description: 'date_format.rolling.10_year_ending'
       };
-    case '5Y':
-      return {
-        increment: { years: 5 },
-        description: 'date_format.rolling.4_year_ending'
-      };
-    case '3Y':
-      return {
-        increment: { years: 3 },
-        description: 'date_format.rolling.3_year_ending'
-      };
-    case '2Y':
-      return {
-        increment: { years: 2 },
-        description: 'date_format.rolling.2_year_ending'
-      };
-    case 'YE':
-      return {
-        increment: { years: 1 },
-        description: 'date_format.rolling.year_ending'
-      };
-    case 'HE':
-      return {
-        increment: { months: 6 },
-        description: 'date_format.rolling.half_year_ending'
-      };
-    case 'QE':
-      return {
-        increment: { months: 3 },
-        description: 'date_format.rolling.quarter_ending'
-      };
-    case 'ME':
-      return {
-        increment: { months: 1 },
-        description: 'date_format.rolling.month_ending'
-      };
-    case 'FE':
-      return {
-        increment: { weeks: 2 },
-        description: 'date_format.rolling.fortnight_ending'
-      };
-    case 'WE':
-      return {
-        increment: { weeks: 1 },
-        description: 'date_format.rolling.week_ending'
-      };
+    }
+    const yearCount = isNaN(Number(type.charAt(0))) ? Number(type.charAt(0)) : 10;
+    return {
+      increment: { years: Number(yearCount) },
+      description: `date_format.rolling.${yearCount}_year_ending`
+    };
+  } else {
+    switch (type) {
+      case 'YE':
+        return {
+          increment: { years: 1 },
+          description: 'date_format.rolling.year_ending'
+        };
+      case 'HE':
+        return {
+          increment: { months: 6 },
+          description: 'date_format.rolling.half_year_ending'
+        };
+      case 'QE':
+        return {
+          increment: { months: 3 },
+          description: 'date_format.rolling.quarter_ending'
+        };
+      case 'ME':
+        return {
+          increment: { months: 1 },
+          description: 'date_format.rolling.month_ending'
+        };
+      case 'FE':
+        return {
+          increment: { weeks: 2 },
+          description: 'date_format.rolling.fortnight_ending'
+        };
+      case 'WE':
+        return {
+          increment: { weeks: 1 },
+          description: 'date_format.rolling.week_ending'
+        };
+    }
   }
 }
 
