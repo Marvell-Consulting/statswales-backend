@@ -341,6 +341,9 @@ export const PublishedDatasetRepository = dataSource.getRepository(Dataset).exte
     const lang = locale.includes('en') ? Locale.EnglishGb : Locale.WelshGb;
     const offset = page && limit ? (page - 1) * limit : undefined;
     const baseQuery = getBaseSearchQuery(lang);
+    const similarityThreshold = 0.7;
+
+    await this.query(`SET pg_trgm.similarity_threshold = ${similarityThreshold}`);
 
     if (locale.includes('en') && !forceSimple) {
       baseQuery.andWhere(`pr.fts @@ websearch_to_tsquery('english', :keywords)`);
@@ -367,8 +370,20 @@ export const PublishedDatasetRepository = dataSource.getRepository(Dataset).exte
 
     if (locale.includes('en') && !forceSimple) {
       resultQuery.addSelect(`ts_rank(pr.fts, websearch_to_tsquery('english', :keywords)) AS rank`);
+      resultQuery.addSelect(
+        `ts_headline('english', COALESCE(pr.title, ''), websearch_to_tsquery('english', :keywords), 'StartSel=<mark>, StopSel=</mark>, MaxFragments=3, MaxWords=30, MinWords=15') AS match_title`
+      );
+      resultQuery.addSelect(
+        `ts_headline('english', COALESCE(pr.summary, ''), websearch_to_tsquery('english', :keywords), 'StartSel=<mark>, StopSel=</mark>, MaxFragments=3, MaxWords=30, MinWords=15') AS match_summary`
+      );
     } else {
       resultQuery.addSelect(`ts_rank(pr.fts_simple, websearch_to_tsquery('simple', :keywords)) AS rank`);
+      resultQuery.addSelect(
+        `ts_headline('simple', COALESCE(pr.title, ''), websearch_to_tsquery('simple', :keywords), 'StartSel=<mark>, StopSel=</mark>, MaxFragments=3, MaxWords=30, MinWords=15') AS match_title`
+      );
+      resultQuery.addSelect(
+        `ts_headline('simple', COALESCE(pr.summary, ''), websearch_to_tsquery('simple', :keywords), 'StartSel=<mark>, StopSel=</mark>, MaxFragments=3, MaxWords=30, MinWords=15') AS match_summary`
+      );
     }
 
     if (offset !== undefined && limit !== undefined) {
@@ -389,7 +404,7 @@ export const PublishedDatasetRepository = dataSource.getRepository(Dataset).exte
   ): Promise<ResultsetWithCount<SearchResultDTO>> {
     const lang = locale.includes('en') ? Locale.EnglishGb : Locale.WelshGb;
     const offset = page && limit ? (page - 1) * limit : undefined;
-    const similarityThreshold = 0.3;
+    const similarityThreshold = 0.5;
 
     const baseQuery = getBaseSearchQuery(lang).andWhere(
       `word_similarity(:keywords, pr.title) > :similarityThreshold
