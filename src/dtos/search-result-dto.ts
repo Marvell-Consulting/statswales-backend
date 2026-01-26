@@ -3,6 +3,8 @@ export interface SearchResultDTO {
   title: string;
   summary?: string;
   match?: string;
+  match_title?: string;
+  match_summary?: string;
   rank?: string;
   first_published_at?: string;
   unpublished_at?: string;
