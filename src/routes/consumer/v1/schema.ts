@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/naming-convention */
 
+import { CubeView } from '../../../enums/cube-view';
 import { DownloadFormat } from '../../../enums/download-format';
 import { DEFAULT_PAGE_SIZE } from '../../../utils/page-defaults';
 
@@ -81,6 +82,14 @@ export const schema = {
           description: 'JSON string containing an array of filter objects'
         },
         example: `[{"columnName": "Area", "values": ["England","Wales"]}, {"columnName": "Year", "values": ["2020"]}]`
+      },
+      view: {
+        name: 'view',
+        in: 'query',
+        description: 'Choosen whether to include additional columns such as ref codes and hierarchies in the download.',
+        required: false,
+        schema: { type: 'string', enum: Object.values(CubeView) },
+        example: 'formatted_extended'
       }
     },
     '@schemas': {
