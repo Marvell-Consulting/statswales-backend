@@ -186,7 +186,8 @@ export const downloadPublishedDataset = async (req: Request, res: Response, next
       '#/components/parameters/dataset_id',
       '#/components/parameters/format',
       '#/components/parameters/sort_by',
-      '#/components/parameters/filter'
+      '#/components/parameters/filter',
+      '#/components/parameters/view'
     ]
     #swagger.responses[200] = {
       description: 'A published dataset file in a specified format',
