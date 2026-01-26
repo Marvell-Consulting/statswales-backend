@@ -141,6 +141,47 @@ export async function sendJson(query: string, queryStore: QueryStore, res: Respo
   }
 }
 
+export async function sendHtml(query: string, queryStore: QueryStore, res: Response): Promise<void> {
+  const [cubeDBConn] = (await dbManager.getCubeDataSource().driver.obtainMasterConnection()) as [PoolClient];
+
+  try {
+    const cursor = cubeDBConn.query(new Cursor(query));
+    res.setHeader('content-type', 'text/html');
+    res.flushHeaders();
+    res.write(
+      '<!DOCTYPE html>\n' +
+        '<html lang="en">\n' +
+        '<head>\n' +
+        '    <meta charset="utf-8">\n' +
+        '    <title>HTML Document Title</title>\n' +
+        '</head>\n' +
+        '<body>\n' +
+        '<table>\n' +
+        '<thead><tr>'
+    );
+
+    let rows = await cursor.read(CURSOR_ROW_LIMIT);
+    Object.keys(rows[0]).forEach((key) => {
+      res.write(`<th>${key}</th>`);
+    });
+    res.write('</tr></thead><tbody>');
+    while (rows.length > 0) {
+      for (const row of rows) {
+        res.write('<tr>');
+        Object.values(row).forEach((value) => {
+          res.write(`<td>${value === null ? '' : value}</td>`);
+        });
+        res.write('</tr>');
+      }
+      rows = await cursor.read(CURSOR_ROW_LIMIT);
+    }
+    res.write('</tbody>\n' + '</table>\n' + '</body>\n' + '</html>\n');
+    res.end();
+  } finally {
+    await cubeDBConn.release();
+  }
+}
+
 export async function sendFilters(query: string, res: Response): Promise<void> {
   logger.debug('Sending filters...');
   const [cubeDBConn] = (await dbManager.getCubeDataSource().driver.obtainMasterConnection()) as [PoolClient];
