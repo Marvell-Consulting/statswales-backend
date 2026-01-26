@@ -264,6 +264,7 @@ export async function createPivotOutputUsingDuckDB(
 }
 
 export function langToLocale(lang: string): string {
+  if (!lang) return 'en-GB';
   if (lang.length === 5) lang = lang.substring(0, 2);
   switch (lang) {
     case 'en':

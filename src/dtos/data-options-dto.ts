@@ -10,9 +10,11 @@ enum PivotBackend {
 
 class PivotDTO {
   @IsEnum(PivotBackend)
+  @IsOptional()
   backend: PivotBackend; // Default: 'duckdb'
 
   @IsBoolean()
+  @IsOptional()
   include_performance: boolean; // Default: false
 
   @IsString({ each: true })

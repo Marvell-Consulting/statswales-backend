@@ -121,7 +121,7 @@ export const getPublishedRevisionById = async (req: Request, res: Response): Pro
   res.json(revisionDto);
 };
 
-async function parsePivotPageOptions(req: Request): Promise<PageOptions> {
+async function parsePivotPageOptions(req: Request, validateXY = true): Promise<PageOptions> {
   logger.debug('Parsing page options from request...');
   const validations = [format2Validator(), pageNumberValidator(), pageSizeValidator()];
 
@@ -142,14 +142,17 @@ async function parsePivotPageOptions(req: Request): Promise<PageOptions> {
   } catch (_err) {
     throw new BadRequestException('errors.invalid_sort_by');
   }
-
-  let xAxis: string | string[] = req.query.x as string;
-  let yAxis: string | string[] = req.query.y as string;
-  if (!xAxis || !yAxis) throw new BadRequestException('errors.invalid_pivot_params');
-  xAxis = xAxis.split(',').map((x) => x.trim());
-  yAxis = yAxis.split(',').map((y) => y.trim());
-  if (xAxis.length === 1) xAxis = xAxis[0];
-  if (yAxis.length === 1) yAxis = yAxis[0];
+  let xAxis: string | string[] | undefined = undefined;
+  let yAxis: string | string[] | undefined = undefined;
+  if (validateXY) {
+    xAxis = req.query.x as string;
+    yAxis = req.query.y as string;
+    if (!xAxis || !yAxis) throw new BadRequestException('errors.invalid_pivot_params');
+    xAxis = xAxis.split(',').map((x) => x.trim());
+    yAxis = yAxis.split(',').map((y) => y.trim());
+    if (xAxis.length === 1) xAxis = xAxis[0];
+    if (yAxis.length === 1) yAxis = yAxis[0];
+  }
 
   return {
     x: xAxis,
@@ -233,7 +236,7 @@ export const getPublishedDatasetPivotFromId = async (
   if (!dataset.publishedRevisionId) return next(new NotFoundException('errors.no_published_revision'));
 
   try {
-    const pageOptions = await parsePivotPageOptions(req);
+    const pageOptions = await parsePivotPageOptions(req, false);
     const dataOptions = pageOptions.format === OutputFormats.Frontend ? FRONTEND_DATA_OPTIONS : DEFAULT_DATA_OPTIONS;
 
     const queryStore = filterId
@@ -249,7 +252,9 @@ export const getPublishedDatasetPivotFromId = async (
 
     const lang = langToLocale(pageOptions.locale);
 
+    logger.debug('Generating query for pivot');
     const pivotQuery = await createPivotQuery(lang, queryStore, pageOptions);
+    logger.debug(`Generating pivot query output using query ${pivotQuery}`);
     await createPivotOutputUsingDuckDB(res, lang, pivotQuery, pageOptions, queryStore);
   } catch (err) {
     if (err instanceof NotFoundException || err instanceof BadRequestException) {
@@ -314,8 +319,8 @@ export const generatePivotFilterId = async (req: Request, res: Response, next: N
         continue;
       }
 
-      if (filterValues.length > 0) {
-        throw new BadRequestException('Non X and Y columns must contain only one value');
+      if (filterValues.length > 1) {
+        throw new BadRequestException('Non X and Y columns cannot contain multiple values');
       }
     }
   }
