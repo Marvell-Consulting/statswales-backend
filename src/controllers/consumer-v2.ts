@@ -320,7 +320,7 @@ export const generatePivotFilterId = async (req: Request, res: Response, next: N
       }
 
       if (filterValues.length > 1) {
-        throw new BadRequestException('Non X and Y columns must contain only one value');
+        throw new BadRequestException('Non X and Y columns cannot contain multiple values');
       }
     }
   }
