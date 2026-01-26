@@ -29,7 +29,13 @@ import { PageOptions } from '../interfaces/page-options';
 import { dtoValidator } from '../validators/dto-validator';
 import { QueryStoreRepository } from '../repositories/query-store';
 import { QueryStore } from '../entities/query-store';
-import { format2Validator, pageNumberValidator, pageSizeValidator } from '../validators';
+import {
+  format2Validator,
+  pageNumberValidator,
+  pageSizeValidator,
+  searchKeywordsValidator,
+  searchModeValidator
+} from '../validators';
 import {
   getFilterTable,
   getFilterTableQuery,
@@ -43,6 +49,10 @@ import { UserGroupRepository } from '../repositories/user-group';
 import { createPivotOutputUsingDuckDB, createPivotQuery, langToLocale } from '../services/pivots';
 import { FieldValidationError, matchedData } from 'express-validator';
 import { parsePageOptions } from '../utils/parse-page-options';
+import { SearchMode } from '../enums/search-mode';
+import { DatasetListItemDTO } from '../dtos/dataset-list-item-dto';
+import { ResultsetWithCount } from '../interfaces/resultset-with-count';
+import { SearchLog } from '../entities/search-log';
 
 export const listPublishedDatasets = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   /*
@@ -508,5 +518,83 @@ export const sendFormattedResponse = async (
       return sendJson(query, queryStore, res);
     default:
       res.status(400).json({ error: 'Format not supported' });
+  }
+};
+
+export const searchPublishedDatasets = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  /*
+    #swagger.summary = 'Search published datasets'
+    #swagger.description = 'This endpoint performs a search across published dataset titles and summaries.'
+    #swagger.autoQuery = false
+    #swagger.parameters['$ref'] = [
+      '#/components/parameters/language',
+      '#/components/parameters/page_number',
+      '#/components/parameters/page_size'
+    ]
+    #swagger.parameters['keywords'] = {
+      in: 'query',
+      description: 'Search query string',
+      required: true,
+      schema: { type: 'string' }
+    }
+    #swagger.responses[200] = {
+      description: 'A paginated list of matching published datasets',
+      content: {
+        'application/json': {
+          schema: { $ref: "#/components/schemas/DatasetsWithCount" }
+        }
+      }
+    }
+  */
+
+  try {
+    for (const validation of [searchKeywordsValidator(), searchModeValidator()]) {
+      const errors = await validation.run(req);
+      if (!errors.isEmpty()) {
+        const error = errors.array()[0] as FieldValidationError;
+        throw new BadRequestException(`${error.msg} for ${error.path}`);
+      }
+    }
+
+    const { mode = SearchMode.Basic, keywords } = matchedData(req);
+    const { pageNumber, pageSize, locale } = await parsePageOptions(req);
+    logger.info(`Searching published datasets with mode: ${mode} keywords: ${keywords} lang: ${locale}`);
+
+    let results: ResultsetWithCount<DatasetListItemDTO>;
+
+    switch (mode) {
+      case SearchMode.Basic:
+        results = await PublishedDatasetRepository.searchBasic(locale, keywords, pageNumber, pageSize);
+        break;
+
+      case SearchMode.BasicSplit:
+        results = await PublishedDatasetRepository.searchBasicSplit(locale, keywords, pageNumber, pageSize);
+        break;
+
+      case SearchMode.FTS:
+        results = await PublishedDatasetRepository.searchFTS(locale, keywords, false, pageNumber, pageSize);
+        break;
+
+      case SearchMode.FTSSimple:
+        results = await PublishedDatasetRepository.searchFTS(locale, keywords, true, pageNumber, pageSize);
+        break;
+
+      case SearchMode.Fuzzy:
+        results = await PublishedDatasetRepository.searchFuzzy(locale, keywords, pageNumber, pageSize);
+        break;
+
+      default:
+        throw new BadRequestException('errors.invalid_search_mode');
+    }
+
+    await SearchLog.create({ mode, keywords, resultCount: results.count }).save();
+
+    res.json(results);
+  } catch (err) {
+    logger.error(err, 'Failed to search published datasets');
+    if (err instanceof NotFoundException || err instanceof BadRequestException) {
+      return next(err);
+    }
+    next(new UnknownException());
   }
 };

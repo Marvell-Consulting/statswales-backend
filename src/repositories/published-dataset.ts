@@ -10,7 +10,9 @@ import {
   FindOptionsRelations,
   In,
   Like,
-  Raw
+  Raw,
+  SelectQueryBuilder,
+  Brackets
 } from 'typeorm';
 import { has, isObjectLike, omit, set } from 'lodash';
 
@@ -23,6 +25,7 @@ import { Locale } from '../enums/locale';
 import { Topic } from '../entities/dataset/topic';
 import { Revision } from '../entities/dataset/revision';
 import { SortByInterface } from '../interfaces/sort-by-interface';
+import { SearchResultDTO } from '../dtos/search-result-dto';
 
 export const withAll: FindOptionsRelations<Dataset> = {
   createdBy: true,
@@ -241,5 +244,217 @@ export const PublishedDatasetRepository = dataSource.getRepository(Dataset).exte
       },
       relations: { metadata: true }
     });
+  },
+
+  async searchBasic(
+    locale: Locale,
+    keywords: string,
+    page?: number,
+    limit?: number
+  ): Promise<ResultsetWithCount<SearchResultDTO>> {
+    const lang = locale.includes('en') ? Locale.EnglishGb : Locale.WelshGb;
+    const offset = page && limit ? (page - 1) * limit : undefined;
+
+    const baseQuery = getBaseSearchQuery(lang).andWhere('(pr.title ILIKE :keywords OR pr.summary ILIKE :keywords)', {
+      keywords: `%${keywords}%`
+    });
+
+    const countRow = await baseQuery.clone().select('COUNT(DISTINCT d.id)', 'count').getRawOne();
+    const count = parseInt((countRow?.count as string) ?? '0', 10);
+
+    const resultQuery = baseQuery
+      .clone()
+      .select([
+        'd.id AS id',
+        'pr.title AS title',
+        'pr.summary AS summary',
+        'd.first_published_at AS first_published_at',
+        'pr.publish_at AS last_updated_at',
+        'd.archived_at AS archived_at'
+      ]);
+
+    if (offset !== undefined && limit !== undefined) {
+      resultQuery.offset(offset).limit(limit);
+    }
+
+    logger.trace(resultQuery.getSql());
+    const data = (await resultQuery.getRawMany()) as SearchResultDTO[];
+
+    return { data, count };
+  },
+
+  async searchBasicSplit(
+    locale: Locale,
+    keywords: string,
+    page?: number,
+    limit?: number
+  ): Promise<ResultsetWithCount<SearchResultDTO>> {
+    const lang = locale.includes('en') ? Locale.EnglishGb : Locale.WelshGb;
+    const offset = page && limit ? (page - 1) * limit : undefined;
+    const words = keywords.split(/\s+/).filter((word) => word.length > 0);
+    const baseQuery = getBaseSearchQuery(lang);
+
+    baseQuery.andWhere(
+      new Brackets((qb) => {
+        words.forEach((word, i) => {
+          const param = { [`word${i}`]: `%${word}%` };
+          qb.andWhere(
+            new Brackets((inner) => {
+              inner.where(`pr.title ILIKE :word${i}`, param).orWhere(`pr.summary ILIKE :word${i}`, param);
+            })
+          );
+        });
+      })
+    );
+
+    const countRow = await baseQuery.clone().select('COUNT(DISTINCT d.id)', 'count').getRawOne();
+    const count = parseInt((countRow?.count as string) ?? '0', 10);
+
+    const resultQuery = baseQuery
+      .clone()
+      .select([
+        'd.id AS id',
+        'pr.title AS title',
+        'pr.summary AS summary',
+        'd.first_published_at AS first_published_at',
+        'pr.publish_at AS last_updated_at',
+        'd.archived_at AS archived_at'
+      ]);
+
+    if (offset !== undefined && limit !== undefined) {
+      resultQuery.offset(offset).limit(limit);
+    }
+
+    logger.trace(resultQuery.getSql());
+    const data = (await resultQuery.getRawMany()) as SearchResultDTO[];
+
+    return { data, count };
+  },
+
+  async searchFTS(
+    locale: Locale,
+    keywords: string,
+    forceSimple = false,
+    page?: number,
+    limit?: number
+  ): Promise<ResultsetWithCount<SearchResultDTO>> {
+    const lang = locale.includes('en') ? Locale.EnglishGb : Locale.WelshGb;
+    const offset = page && limit ? (page - 1) * limit : undefined;
+    const baseQuery = getBaseSearchQuery(lang);
+
+    if (locale.includes('en') && !forceSimple) {
+      baseQuery.andWhere(`pr.fts @@ websearch_to_tsquery('english', :keywords)`);
+    } else {
+      baseQuery.andWhere(`pr.fts_simple @@ websearch_to_tsquery('simple', :keywords)`);
+    }
+
+    baseQuery.setParameters({ keywords });
+    const countRow = await baseQuery.clone().select('COUNT(DISTINCT d.id)', 'count').getRawOne();
+    const count = parseInt((countRow?.count as string) ?? '0', 10);
+
+    const resultQuery = baseQuery
+      .clone()
+      .select([
+        'd.id AS id',
+        'pr.title AS title',
+        'pr.summary AS summary',
+        'd.first_published_at AS first_published_at',
+        'pr.publish_at AS last_updated_at',
+        'd.archived_at AS archived_at'
+      ])
+      .orderBy('rank', 'DESC')
+      .addOrderBy('d.first_published_at', 'DESC');
+
+    if (locale.includes('en') && !forceSimple) {
+      resultQuery.addSelect(`ts_rank(pr.fts, websearch_to_tsquery('english', :keywords)) AS rank`);
+    } else {
+      resultQuery.addSelect(`ts_rank(pr.fts_simple, websearch_to_tsquery('simple', :keywords)) AS rank`);
+    }
+
+    if (offset !== undefined && limit !== undefined) {
+      resultQuery.offset(offset).limit(limit);
+    }
+
+    logger.trace(resultQuery.getSql());
+    const data = (await resultQuery.getRawMany()) as SearchResultDTO[];
+
+    return { data, count };
+  },
+
+  async searchFuzzy(
+    locale: Locale,
+    keywords: string,
+    page?: number,
+    limit?: number
+  ): Promise<ResultsetWithCount<SearchResultDTO>> {
+    const lang = locale.includes('en') ? Locale.EnglishGb : Locale.WelshGb;
+    const offset = page && limit ? (page - 1) * limit : undefined;
+    const similarityThreshold = 0.3;
+
+    const baseQuery = getBaseSearchQuery(lang).andWhere(
+      `word_similarity(:keywords, pr.title) > :similarityThreshold
+       OR word_similarity(:keywords, pr.summary) > :similarityThreshold`,
+      { keywords, similarityThreshold }
+    );
+
+    const countRow = await baseQuery.clone().select('COUNT(DISTINCT d.id)', 'count').getRawOne();
+    const count = parseInt((countRow?.count as string) ?? '0', 10);
+
+    const resultQuery = baseQuery
+      .clone()
+      .select([
+        'd.id AS id',
+        'pr.title AS title',
+        'pr.summary AS summary',
+        'd.first_published_at AS first_published_at',
+        'pr.publish_at AS last_updated_at',
+        'd.archived_at AS archived_at',
+        `GREATEST(
+          word_similarity(pr.title, :keywords),
+          word_similarity(pr.summary, :keywords)
+        ) AS rank`
+      ])
+      .orderBy('rank', 'DESC')
+      .addOrderBy('d.first_published_at', 'DESC');
+
+    if (offset !== undefined && limit !== undefined) {
+      resultQuery.offset(offset).limit(limit);
+    }
+
+    logger.trace(resultQuery.getSql());
+    const data = (await resultQuery.getRawMany()) as SearchResultDTO[];
+
+    return { data, count };
   }
 });
+
+const getBaseSearchQuery = (lang: Locale): SelectQueryBuilder<Dataset> => {
+  const latestPublishedRevisionCte = dataSource
+    .createQueryBuilder()
+    .select([
+      'rev.dataset_id AS dataset_id',
+      'rev.id AS revision_id',
+      'rev.publish_at AS publish_at',
+      'rm.title AS title',
+      'rm.summary AS summary',
+      'rm.fts AS fts',
+      'rm.fts_simple AS fts_simple'
+    ])
+    .from(Revision, 'rev')
+    .innerJoin('rev.metadata', 'rm', 'rm.language = :lang', { lang })
+    .where('rev.publish_at < NOW()')
+    .andWhere('rev.approved_at < NOW()')
+    .andWhere('rev.unpublished_at IS NULL')
+    .distinctOn(['rev.dataset_id'])
+    .orderBy('rev.dataset_id')
+    .addOrderBy('rev.publish_at', 'DESC');
+
+  const baseQb = dataSource
+    .createQueryBuilder(Dataset, 'd')
+    .addCommonTableExpression(latestPublishedRevisionCte, 'published_rev')
+    .innerJoin('published_rev', 'pr', 'pr.dataset_id = d.id')
+    .andWhere('d.first_published_at IS NOT NULL')
+    .andWhere('d.first_published_at < NOW()');
+
+  return baseQb;
+};

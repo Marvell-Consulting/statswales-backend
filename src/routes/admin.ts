@@ -16,7 +16,8 @@ import {
   updateUserStatus,
   updateUserGroupStatus,
   dashboard,
-  similarDatasets
+  similarDatasets,
+  downloadSearchLogs
 } from '../controllers/admin';
 import { ForbiddenException } from '../exceptions/forbidden.exception';
 import { logger } from '../utils/logger';
@@ -55,3 +56,5 @@ adminRouter.post('/user', jsonParser, createUser);
 adminRouter.get('/user/:user_id', loadUser, getUserById);
 adminRouter.patch('/user/:user_id/role', loadUser, jsonParser, updateUserRoles);
 adminRouter.patch('/user/:user_id/status', loadUser, jsonParser, updateUserStatus);
+
+adminRouter.get('/search-logs', downloadSearchLogs);

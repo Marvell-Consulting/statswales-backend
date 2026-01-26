@@ -59,4 +59,12 @@ export class RevisionMetadata extends BaseEntity {
   // If one is updated and the others aren't then mark as needing translation
   @UpdateDateColumn({ name: 'updated_at', type: 'timestamptz' })
   updatedAt: Date;
+
+  @Index('idx_revision_metadata_fts_gin', { synchronize: false })
+  @Column({ name: 'fts', type: 'tsvector', select: false, nullable: true })
+  fts: string;
+
+  @Index('idx_revision_metadata_fts_simple_gin', { synchronize: false })
+  @Column({ name: 'fts_simple', type: 'tsvector', select: false, nullable: true })
+  ftsSimple: string;
 }

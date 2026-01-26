@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { stringify } from 'csv-stringify';
+import { subDays } from 'date-fns';
 
 import { logger } from '../utils/logger';
 import { Locale } from '../enums/locale';
@@ -23,6 +24,7 @@ import { UserGroupStatus } from '../enums/user-group-status';
 import { DashboardStats, DatasetStats, UserGroupStats, UserStats } from '../interfaces/dashboard-stats';
 import { DatasetStatsRepository } from '../repositories/dataset-stats';
 import { DatasetSimilarBy } from '../enums/dataset-similar-by';
+import { SearchLogRepository } from '../repositories/search-log';
 
 export const loadUserGroup = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   const userGroupIdError = await hasError(uuidValidator('user_group_id'), req);
@@ -354,6 +356,28 @@ export const similarDatasets = async (req: Request, res: Response, next: NextFun
     stringify(csv, { bom: true, header: true, quoted_string: true }).pipe(res);
   } catch (err) {
     logger.error(err, 'Error getting similar datasets');
+    next(new UnknownException());
+  }
+};
+
+export const downloadSearchLogs = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    logger.info('Getting search logs report...');
+    const start = req.query.start ? new Date(req.query.start as string) : subDays(new Date(), 30);
+    const end = req.query.end ? new Date(req.query.end as string) : new Date();
+    const logs = await SearchLogRepository.getByPeriod(start, end);
+
+    const csv = logs.map((log) => ({
+      timestamp: log.createdAt.toISOString(),
+      mode: log.mode,
+      keywords: log.keywords,
+      result_count: log.resultCount ?? ''
+    }));
+
+    res.setHeader('Content-Type', 'text/csv');
+    stringify(csv, { bom: true, header: true, quoted_string: true }).pipe(res);
+  } catch (err) {
+    logger.error(err, 'Error getting search logs');
     next(new UnknownException());
   }
 };

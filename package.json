@@ -36,6 +36,7 @@
     "seed:orgs:js": "node ./dist/seeders/required/orgs-and-groups.js",
     "seed:topics": "ts-node ./src/seeders/required/topics.ts",
     "seed:topics:js": "node ./dist/seeders/required/topics.js",
+    "seed:search": "ts-node ./src/seeders/tests/search.ts",
     "seed:ci": "ts-node ./src/seeders/tests/seed.ts",
     "init:ci": "typeorm migration:run -d ./dist/db/data-source.js && npm run seed:required:js && node ./dist/seeders/tests/seed.js",
     "init:prod": "typeorm migration:run -d ./dist/db/data-source.js && npm run seed:required:js"

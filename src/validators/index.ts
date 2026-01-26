@@ -7,6 +7,7 @@ import { CubeBuildType } from '../enums/cube-build-type';
 import { CubeBuildStatus } from '../enums/cube-build-status';
 import { OutputFormats } from '../enums/output-formats';
 import { DatasetSimilarBy } from '../enums/dataset-similar-by';
+import { SearchMode } from '../enums/search-mode';
 
 export const hasError = async (validator: ValidationChain, req: Request): Promise<boolean> => {
   return !(await validator.run(req)).isEmpty();
@@ -52,3 +53,6 @@ export const buildStatusValidator = (): ValidationChain =>
 
 export const similarByValidator = (): ValidationChain =>
   query('by').notEmpty().trim().isIn(Object.values(DatasetSimilarBy));
+
+export const searchKeywordsValidator = (): ValidationChain => check('keywords').trim().notEmpty().isString();
+export const searchModeValidator = (): ValidationChain => check('mode').optional().isIn(Object.values(SearchMode));
