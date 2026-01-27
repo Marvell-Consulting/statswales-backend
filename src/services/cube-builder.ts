@@ -35,6 +35,7 @@ import { NoteCode, NoteCodes } from '../enums/note-code';
 import { UniqueMeasureDetails } from '../interfaces/unique-measure-details';
 import { MeasureFormat } from '../interfaces/measure-format';
 import { RevisionRepository } from '../repositories/revision';
+import { QueryStore } from '../entities/query-store';
 
 export const FACT_TABLE_NAME = 'fact_table';
 export const METADATA_TABLE_NAME = 'metadata';
@@ -174,6 +175,12 @@ export const createAllCubeFiles = async (
 
   build.status = CubeBuildStatus.Materializing;
   await build.save();
+
+  // Purge query store on unpublished cube changes
+  if (dataset.draftRevisionId === buildRevisionId) {
+    await QueryStore.delete({ revisionId: buildRevisionId });
+  }
+
   // don't wait for this, can happen in the background so we can send the response earlier
   logger.debug('Running async process...');
   void createMaterialisedView(buildRevisionId, dataset, build.id, cubeBuild, cubeBuildConfig).catch((err) => {
