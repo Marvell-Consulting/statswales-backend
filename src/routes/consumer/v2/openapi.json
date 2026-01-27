@@ -43,29 +43,10 @@
     },
     "/search": {
       "get": {
-        "summary": "Search published datasets",
-        "description": "This endpoint performs a search across published dataset titles and summaries.",
-        "parameters": [
-          {
-            "$ref": "#/components/parameters/language"
-          },
-          {
-            "$ref": "#/components/parameters/page_number"
-          },
-          {
-            "$ref": "#/components/parameters/page_size"
-          }
-        ],
+        "description": "",
         "responses": {
-          "200": {
-            "description": "A paginated list of matching published datasets",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/DatasetsWithCount"
-                }
-              }
-            }
+          "default": {
+            "description": ""
           }
         }
       }

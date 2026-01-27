@@ -18,9 +18,10 @@ import {
   buildDataQuery,
   sendCsv,
   sendExcel,
+  sendFilters,
   sendFrontendView,
-  sendJson,
-  sendFilters
+  sendHtml,
+  sendJson
 } from '../services/consumer-view-v2';
 import { Dataset } from '../entities/dataset/dataset';
 import { DataOptionsDTO, DEFAULT_DATA_OPTIONS, FRONTEND_DATA_OPTIONS, PivotOptionsDTO } from '../dtos/data-options-dto';
@@ -521,6 +522,8 @@ export const sendFormattedResponse = async (
       return sendExcel(query, queryStore, res);
     case OutputFormats.Json:
       return sendJson(query, queryStore, res);
+    case OutputFormats.Html:
+      return sendHtml(query, queryStore, res);
     default:
       res.status(400).json({ error: 'Format not supported' });
   }
