@@ -16,5 +16,23 @@ export const PublishedRevisionRepository = dataSource.getRepository(Revision).ex
     };
 
     return this.findOneOrFail(findOptions);
+  },
+
+  async getLatestByDatasetId(datasetId: string, relations: FindOptionsRelations<Revision> = {}): Promise<Revision> {
+    const now = new Date();
+
+    const findOptions: FindOneOptions<Revision> = {
+      where: {
+        datasetId,
+        publishAt: And(Not(IsNull()), LessThan(now)),
+        approvedAt: And(Not(IsNull()), LessThan(now))
+      },
+      order: {
+        publishAt: 'DESC'
+      },
+      relations
+    };
+
+    return this.findOneOrFail(findOptions);
   }
 });
