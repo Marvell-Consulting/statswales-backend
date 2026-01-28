@@ -170,7 +170,9 @@ export const getPublishedDatasetData = async (req: Request, res: Response, next:
   logger.debug(`Getting dataset data for ${res.locals.datasetId}...`);
   const filterId = req.params.filter_id as string | undefined;
   const dataset = res.locals.dataset as Dataset;
-  if (!dataset.publishedRevisionId) return next(new NotFoundException('errors.no_published_revision'));
+
+  const publishedRevision = await PublishedRevisionRepository.getLatestByDatasetId(dataset.id);
+  if (!publishedRevision) return next(new NotFoundException('errors.no_published_revision'));
 
   try {
     const pageOptions = await parsePageOptions(req);
@@ -178,7 +180,7 @@ export const getPublishedDatasetData = async (req: Request, res: Response, next:
 
     const queryStore = filterId
       ? await QueryStoreRepository.getById(filterId)
-      : await QueryStoreRepository.getByRequest(dataset.id, dataset.publishedRevisionId, dataOptions);
+      : await QueryStoreRepository.getByRequest(dataset.id, publishedRevision.id, dataOptions);
 
     const query = await buildDataQuery(queryStore, pageOptions);
     await sendFormattedResponse(query, queryStore, pageOptions, res);
@@ -203,7 +205,8 @@ export const getPublishedDatasetPivot = async (req: Request, res: Response, next
   logger.debug(`Getting dataset data for ${res.locals.datasetId}...`);
   const filterId = req.params.filter_id as string | undefined;
   const dataset = res.locals.dataset as Dataset;
-  if (!dataset.publishedRevisionId) return next(new NotFoundException('errors.no_published_revision'));
+  const publishedRevision = await PublishedRevisionRepository.getLatestByDatasetId(dataset.id);
+  if (!publishedRevision) return next(new NotFoundException('errors.no_published_revision'));
 
   try {
     const pageOptions = await parsePivotPageOptions(req);
@@ -211,7 +214,7 @@ export const getPublishedDatasetPivot = async (req: Request, res: Response, next
 
     const queryStore = filterId
       ? await QueryStoreRepository.getById(filterId)
-      : await QueryStoreRepository.getByRequest(dataset.id, dataset.publishedRevisionId, dataOptions);
+      : await QueryStoreRepository.getByRequest(dataset.id, publishedRevision.id, dataOptions);
 
     const lang = langToLocale(pageOptions.locale);
 
@@ -234,7 +237,8 @@ export const getPublishedDatasetPivotFromId = async (
   logger.debug(`Getting dataset data for ${res.locals.datasetId}...`);
   const filterId = req.params.filter_id as string | undefined;
   const dataset = res.locals.dataset as Dataset;
-  if (!dataset.publishedRevisionId) return next(new NotFoundException('errors.no_published_revision'));
+  const publishedRevision = await PublishedRevisionRepository.getLatestByDatasetId(dataset.id);
+  if (!publishedRevision) return next(new NotFoundException('errors.no_published_revision'));
 
   try {
     const pageOptions = await parsePivotPageOptions(req, false);
@@ -242,7 +246,7 @@ export const getPublishedDatasetPivotFromId = async (
 
     const queryStore = filterId
       ? await QueryStoreRepository.getById(filterId)
-      : await QueryStoreRepository.getByRequest(dataset.id, dataset.publishedRevisionId, dataOptions);
+      : await QueryStoreRepository.getByRequest(dataset.id, publishedRevision.id, dataOptions);
 
     if (!queryStore.requestObject.pivot) {
       throw new BadRequestException('errors.not_a_pivot_filter');
@@ -269,7 +273,8 @@ export const getPublishedDatasetPivotFromId = async (
 export const generatePivotFilterId = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   logger.debug(`Generating filter ID for published dataset ${res.locals.datasetId}...`);
   const dataset = res.locals.dataset as Dataset;
-  if (!dataset.publishedRevisionId) return next(new NotFoundException('errors.no_published_revision'));
+  const publishedRevision = await PublishedRevisionRepository.getLatestByDatasetId(dataset.id);
+  if (!publishedRevision) return next(new NotFoundException('errors.no_published_revision'));
 
   const dataOptions = await dtoValidator(PivotOptionsDTO, req.body);
 
@@ -278,7 +283,7 @@ export const generatePivotFilterId = async (req: Request, res: Response, next: N
   }
 
   const lang = langToLocale(dataOptions.locale);
-  const filterTable = await getFilterTable(dataset.publishedRevisionId);
+  const filterTable = await getFilterTable(publishedRevision.id);
 
   let xCol = dataOptions.pivot.x;
   let yCol = dataOptions.pivot.y;
@@ -327,7 +332,7 @@ export const generatePivotFilterId = async (req: Request, res: Response, next: N
   }
 
   try {
-    const queryStore = await QueryStoreRepository.getByRequest(dataset.id, dataset.publishedRevisionId, dataOptions);
+    const queryStore = await QueryStoreRepository.getByRequest(dataset.id, publishedRevision.id, dataOptions);
     res.json({ filterId: queryStore.id });
   } catch (err) {
     logger.error(err, 'Error generating filter ID');
@@ -338,11 +343,12 @@ export const generatePivotFilterId = async (req: Request, res: Response, next: N
 export const generateFilterId = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   logger.info(`Generating filter ID for published dataset ${res.locals.datasetId}...`);
   const dataset = res.locals.dataset as Dataset;
-  if (!dataset.publishedRevisionId) return next(new NotFoundException('errors.no_published_revision'));
+  const publishedRevision = await PublishedRevisionRepository.getLatestByDatasetId(dataset.id);
+  if (!publishedRevision) return next(new NotFoundException('errors.no_published_revision'));
 
   try {
     const dataOptions = await dtoValidator(DataOptionsDTO, req.body);
-    const queryStore = await QueryStoreRepository.getByRequest(dataset.id, dataset.publishedRevisionId, dataOptions);
+    const queryStore = await QueryStoreRepository.getByRequest(dataset.id, publishedRevision.id, dataOptions);
     res.json({ filterId: queryStore.id });
   } catch (err) {
     if (err instanceof NotFoundException || err instanceof BadRequestException) {
@@ -356,11 +362,12 @@ export const generateFilterId = async (req: Request, res: Response, next: NextFu
 export const getPublishedDatasetFilters = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   logger.debug('Getting published dataset filters...');
   const dataset = res.locals.dataset as Dataset;
-  if (!dataset.publishedRevisionId) throw new NotFoundException('errors.no_published_revision');
+  const publishedRevision = await PublishedRevisionRepository.getLatestByDatasetId(dataset.id);
+  if (!publishedRevision) return next(new NotFoundException('errors.no_published_revision'));
 
   try {
     const locale = req.language as Locale;
-    const query = await getFilterTableQuery(dataset.publishedRevisionId, locale);
+    const query = await getFilterTableQuery(publishedRevision.id, locale);
     await sendFilters(query, res);
   } catch (err) {
     if (err instanceof NotFoundException || err instanceof BadRequestException) {
