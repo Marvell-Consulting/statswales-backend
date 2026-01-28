@@ -10,7 +10,8 @@ export const PublishedRevisionRepository = dataSource.getRepository(Revision).ex
       where: {
         id,
         publishAt: And(Not(IsNull()), LessThan(now)),
-        approvedAt: And(Not(IsNull()), LessThan(now))
+        approvedAt: And(Not(IsNull()), LessThan(now)),
+        unpublishedAt: IsNull()
       },
       relations
     };
@@ -28,7 +29,8 @@ export const PublishedRevisionRepository = dataSource.getRepository(Revision).ex
       where: {
         datasetId,
         publishAt: And(Not(IsNull()), LessThan(now)),
-        approvedAt: And(Not(IsNull()), LessThan(now))
+        approvedAt: And(Not(IsNull()), LessThan(now)),
+        unpublishedAt: IsNull()
       },
       order: {
         publishAt: 'DESC'
