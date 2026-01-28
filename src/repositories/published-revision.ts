@@ -18,7 +18,10 @@ export const PublishedRevisionRepository = dataSource.getRepository(Revision).ex
     return this.findOneOrFail(findOptions);
   },
 
-  async getLatestByDatasetId(datasetId: string, relations: FindOptionsRelations<Revision> = {}): Promise<Revision> {
+  async getLatestByDatasetId(
+    datasetId: string,
+    relations: FindOptionsRelations<Revision> = {}
+  ): Promise<Revision | null> {
     const now = new Date();
 
     const findOptions: FindOneOptions<Revision> = {
@@ -33,6 +36,6 @@ export const PublishedRevisionRepository = dataSource.getRepository(Revision).ex
       relations
     };
 
-    return this.findOneOrFail(findOptions);
+    return this.findOne(findOptions);
   }
 });
