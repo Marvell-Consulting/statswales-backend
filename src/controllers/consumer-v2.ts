@@ -250,7 +250,7 @@ export const getFilterIdDetails = async (req: Request, res: Response, next: Next
     if (err instanceof NotFoundException || err instanceof BadRequestException) {
       return next(err);
     }
-    logger.error(err, 'Error getting published dataset data');
+    logger.error(err, 'Error getting filter ID details');
     next(new UnknownException());
   }
 };
