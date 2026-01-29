@@ -688,5 +688,15 @@
     "id": "7499dd10-86c5-4292-9def-227775dd9747",
     "language": "en-gb",
     "name": "Swansea University"
+  },
+  {
+    "id": "f8a3c5d2-7b1e-4f9a-8c6d-3e2a1b0f9d8c",
+    "language": "cy-gb",
+    "name": "Ysbytai annibynnol"
+  },
+  {
+    "id": "f8a3c5d2-7b1e-4f9a-8c6d-3e2a1b0f9d8c",
+    "language": "en-gb",
+    "name": "Independent hospitals"
   }
 ]
