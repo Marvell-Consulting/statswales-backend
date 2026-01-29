@@ -59,6 +59,7 @@ describe('PublishedRevisionRepository', () => {
       await dbManager.initDataSources();
       await user.save();
     } catch (err) {
+      // eslint-disable-next-line no-console
       console.error('Failed to initialise test database', err);
       await dbManager.getAppDataSource().dropDatabase();
       await dbManager.destroyDataSources();
@@ -117,21 +118,15 @@ describe('PublishedRevisionRepository', () => {
     });
 
     it('should throw when the revision has a future publishAt date', async () => {
-      await expect(PublishedRevisionRepository.getById(futurePublishRevision.id)).rejects.toThrow(
-        EntityNotFoundError
-      );
+      await expect(PublishedRevisionRepository.getById(futurePublishRevision.id)).rejects.toThrow(EntityNotFoundError);
     });
 
     it('should throw when the revision has a future approvedAt date', async () => {
-      await expect(PublishedRevisionRepository.getById(futureApprovalRevision.id)).rejects.toThrow(
-        EntityNotFoundError
-      );
+      await expect(PublishedRevisionRepository.getById(futureApprovalRevision.id)).rejects.toThrow(EntityNotFoundError);
     });
 
     it('should throw when the revision has been unpublished', async () => {
-      await expect(PublishedRevisionRepository.getById(unpublishedRevision.id)).rejects.toThrow(
-        EntityNotFoundError
-      );
+      await expect(PublishedRevisionRepository.getById(unpublishedRevision.id)).rejects.toThrow(EntityNotFoundError);
     });
 
     it('should throw when the revision is a draft (null publishAt and approvedAt)', async () => {
@@ -180,12 +175,11 @@ describe('PublishedRevisionRepository', () => {
 
     describe('with multiple published revisions', () => {
       let dataset: Dataset;
-      let olderRev: Revision;
       let newerRev: Revision;
 
       beforeAll(async () => {
         dataset = await createDataset(user);
-        olderRev = await createRevision(dataset, user, 1, {
+        await createRevision(dataset, user, 1, {
           publishAt: pastDate(72),
           approvedAt: pastDate(96)
         });

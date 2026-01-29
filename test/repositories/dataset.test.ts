@@ -4,7 +4,6 @@ import { dbManager } from '../../src/db/database-manager';
 import { Dataset } from '../../src/entities/dataset/dataset';
 import { Revision } from '../../src/entities/dataset/revision';
 import { DataTable } from '../../src/entities/dataset/data-table';
-import { DataTableDescription } from '../../src/entities/dataset/data-table-description';
 import { FactTableColumn } from '../../src/entities/dataset/fact-table-column';
 import { RevisionMetadata } from '../../src/entities/dataset/revision-metadata';
 import { UserGroup } from '../../src/entities/user/user-group';
@@ -15,8 +14,6 @@ import { User } from '../../src/entities/user/user';
 import { Locale } from '../../src/enums/locale';
 import { FactTableColumnType } from '../../src/enums/fact-table-column-type';
 import { uuidV4 } from '../../src/utils/uuid';
-import { FileType } from '../../src/enums/file-type';
-import { DataTableAction } from '../../src/enums/data-table-action';
 
 jest.mock('../../src/services/blob-storage', () => {
   return function BlobStorage() {
@@ -34,10 +31,6 @@ let userGroup: UserGroup;
 
 function pastDate(hoursAgo: number): Date {
   return new Date(Date.now() - hoursAgo * 60 * 60 * 1000);
-}
-
-function futureDate(hoursAhead: number): Date {
-  return new Date(Date.now() + hoursAhead * 60 * 60 * 1000);
 }
 
 async function createDataset(createdBy: User, overrides: Partial<Dataset> = {}): Promise<Dataset> {
@@ -113,6 +106,7 @@ describe('DatasetRepository', () => {
       ugMetaCy.name = 'Test Group CY';
       await ugMetaCy.save();
     } catch (err) {
+      // eslint-disable-next-line no-console
       console.error('Failed to initialise test database', err);
       await dbManager.getAppDataSource().dropDatabase();
       await dbManager.destroyDataSources();
@@ -406,9 +400,7 @@ describe('DatasetRepository', () => {
     beforeAll(async () => {
       // Create users
       userWithGroups = getTestUser('list-user-with-groups');
-      userWithGroups.groupRoles = [
-        { groupId: userGroup.id, roles: ['editor'] } as any
-      ];
+      userWithGroups.groupRoles = [{ groupId: userGroup.id, roles: ['editor'] } as any];
       await userWithGroups.save();
 
       userWithoutGroups = getTestUser('list-user-no-groups');
@@ -436,13 +428,7 @@ describe('DatasetRepository', () => {
     });
 
     it('should search within user filtered groups', async () => {
-      const result = await DatasetRepository.listForUser(
-        userWithGroups,
-        Locale.EnglishGb,
-        1,
-        100,
-        'User Group'
-      );
+      const result = await DatasetRepository.listForUser(userWithGroups, Locale.EnglishGb, 1, 100, 'User Group');
 
       const titles = result.data.map((d: any) => d.title);
       expect(titles).toContain('User Group Dataset');

@@ -182,8 +182,7 @@ const mockValidateSourceAssignment = jest.fn();
 const mockCreateDimensionsFromSourceAssignment = jest.fn();
 jest.mock('../../src/services/dimension-processor', () => ({
   validateSourceAssignment: (...args: unknown[]) => mockValidateSourceAssignment(...args),
-  createDimensionsFromSourceAssignment: (...args: unknown[]) =>
-    mockCreateDimensionsFromSourceAssignment(...args)
+  createDimensionsFromSourceAssignment: (...args: unknown[]) => mockCreateDimensionsFromSourceAssignment(...args)
 }));
 
 // Mock fact-table-validator
@@ -339,9 +338,7 @@ function createMockRequest(overrides: Partial<Request> = {}): Request {
     user: {
       id: uuidV4(),
       name: 'test-user',
-      groupRoles: [
-        { groupId: 'group-1', roles: ['editor', 'approver'] }
-      ]
+      groupRoles: [{ groupId: 'group-1', roles: ['editor', 'approver'] }]
     },
     datasetService: {
       createNew: jest.fn(),
@@ -593,9 +590,7 @@ describe('Dataset controller', () => {
       draftRevision.dataTable = { id: 'dt-1' } as any;
       const datasetWithDraft = createMockDataset(dataset.id);
       datasetWithDraft.draftRevision = draftRevision;
-      datasetWithDraft.dimensions = [
-        { lookupTable: { id: 'lt-1' } } as any
-      ];
+      datasetWithDraft.dimensions = [{ lookupTable: { id: 'lt-1' } } as any];
 
       mockDatasetGetById.mockResolvedValue(datasetWithDraft);
       mockDatasetDeleteById.mockResolvedValue(undefined);
@@ -605,6 +600,7 @@ describe('Dataset controller', () => {
 
       await deleteDraftDatasetById(req, res, mockNext);
 
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
       const { dbManager } = require('../../src/db/database-manager');
       const queryRunner = dbManager.getCubeDataSource().createQueryRunner();
       expect(queryRunner.query).toHaveBeenCalled();
@@ -696,9 +692,7 @@ describe('Dataset controller', () => {
       await uploadDataTable(req, res, mockNext);
 
       expect(res.status).toHaveBeenCalledWith(500);
-      expect(res.json).toHaveBeenCalledWith(
-        expect.objectContaining({ status: 500, dataset_id: dataset.id })
-      );
+      expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ status: 500, dataset_id: dataset.id }));
       expect(mockCleanupTmpFile).toHaveBeenCalledWith(tmpFile);
     });
 
@@ -1182,7 +1176,7 @@ describe('Dataset controller', () => {
       dataset.draftRevision = revision;
 
       mockDatasetGetById.mockResolvedValue(dataset);
-      const { SourceAssignmentException } = jest.requireMock('../../src/exceptions/source-assignment.exception') || {};
+      jest.requireMock('../../src/exceptions/source-assignment.exception');
       const assignmentError = { status: 422, message: 'bad assignment' };
       mockValidateSourceAssignment.mockImplementation(() => {
         throw assignmentError;
@@ -1194,9 +1188,7 @@ describe('Dataset controller', () => {
       await updateSources(req, res, mockNext);
 
       expect(res.status).toHaveBeenCalledWith(422);
-      expect(res.json).toHaveBeenCalledWith(
-        expect.objectContaining({ status: 422, dataset_id: datasetId })
-      );
+      expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ status: 422, dataset_id: datasetId }));
     });
 
     it('should return dataset with build_id on success', async () => {
@@ -1421,9 +1413,7 @@ describe('Dataset controller', () => {
       await rebuildAll(req, res);
 
       expect(res.status).toHaveBeenCalledWith(409);
-      expect(res.json).toHaveBeenCalledWith(
-        expect.objectContaining({ build_id: 'build-1' })
-      );
+      expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ build_id: 'build-1' }));
     });
 
     it('should return 202 with build_id when no active builds', async () => {
@@ -1459,9 +1449,7 @@ describe('Dataset controller', () => {
       await rebuildDrafts(req, res);
 
       expect(res.status).toHaveBeenCalledWith(409);
-      expect(res.json).toHaveBeenCalledWith(
-        expect.objectContaining({ build_id: 'build-1' })
-      );
+      expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ build_id: 'build-1' }));
     });
 
     it('should return 202 with build_id when no active builds', async () => {

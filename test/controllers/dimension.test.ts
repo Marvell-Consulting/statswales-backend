@@ -2,7 +2,6 @@ import { Request, Response, NextFunction } from 'express';
 import { Readable } from 'node:stream';
 
 import { UnknownException } from '../../src/exceptions/unknown.exception';
-import { Dimension } from '../../src/entities/dataset/dimension';
 import { DimensionType } from '../../src/enums/dimension-type';
 import { uuidV4 } from '../../src/utils/uuid';
 
@@ -118,7 +117,6 @@ jest.mock('../../src/utils/get-file-service', () => ({
 
 // Mock Dimension entity static methods
 const mockFindOneByOrFail = jest.fn();
-const mockDimensionSave = jest.fn();
 jest.mock('../../src/entities/dataset/dimension', () => ({
   Dimension: {
     findOneByOrFail: (...args: unknown[]) => mockFindOneByOrFail(...args)
@@ -472,9 +470,7 @@ describe('Dimension controller', () => {
 
       await attachLookupTableToDimension(req, res, mockNext);
 
-      expect(res.json).toHaveBeenCalledWith(
-        expect.objectContaining({ extension: { build_id: expect.any(String) } })
-      );
+      expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ extension: { build_id: expect.any(String) } }));
       expect(mockCleanupTmpFile).toHaveBeenCalledWith(tmpFile);
       expect(mockUpdateRevisionTasks).toHaveBeenCalledWith(dataset, dimension.id, 'dimension');
     });
@@ -519,9 +515,7 @@ describe('Dimension controller', () => {
         'en'
       );
       expect(res.status).toHaveBeenCalledWith(202);
-      expect(res.json).toHaveBeenCalledWith(
-        expect.objectContaining({ extension: { build_id: expect.any(String) } })
-      );
+      expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ extension: { build_id: expect.any(String) } }));
     });
 
     it('should handle Text type via setupTextDimension + getFactTableColumnPreview', async () => {
@@ -762,7 +756,9 @@ describe('Dimension controller', () => {
 
       expect((req as any).fileService.loadStream).toHaveBeenCalledWith('stored-file.csv', dataset.id);
       expect(res.writeHead).toHaveBeenCalledWith(200, {
+        // eslint-disable-next-line @typescript-eslint/naming-convention
         'Content-Type': 'text/csv',
+        // eslint-disable-next-line @typescript-eslint/naming-convention
         'Content-Disposition': 'attachment; filename=my-lookup.csv'
       });
       expect(mockStream.pipe).toHaveBeenCalledWith(res);

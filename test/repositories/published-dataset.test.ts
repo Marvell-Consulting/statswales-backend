@@ -79,6 +79,7 @@ describe('PublishedDatasetRepository', () => {
       await dbManager.initDataSources();
       await user.save();
     } catch (err) {
+      // eslint-disable-next-line no-console
       console.error('Failed to initialise test database', err);
       await dbManager.getAppDataSource().dropDatabase();
       await dbManager.destroyDataSources();

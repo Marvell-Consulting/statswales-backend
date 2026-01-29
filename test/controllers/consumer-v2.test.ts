@@ -255,6 +255,7 @@ describe('consumer-v2 controller - scheduled publish date handling', () => {
 
       mockGetLatestByDatasetId.mockResolvedValue(publishedRev);
 
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
       const { dtoValidator } = require('../../src/validators/dto-validator');
       dtoValidator.mockResolvedValue({
         pivot: { x: 'col_a', y: 'col_b' },
@@ -266,6 +267,7 @@ describe('consumer-v2 controller - scheduled publish date handling', () => {
       const mockQueryStore = { id: uuidV4() };
       mockGetByRequest.mockResolvedValue(mockQueryStore);
 
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
       const { resolveDimensionToFactTableColumn } = require('../../src/utils/consumer');
       resolveDimensionToFactTableColumn.mockImplementation((col: string) => col);
 
@@ -330,6 +332,7 @@ describe('consumer-v2 controller - scheduled publish date handling', () => {
       mockGetLatestByDatasetId.mockResolvedValue(publishedRev);
       mockGetFilterTableQuery.mockResolvedValue('SELECT 1');
 
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
       const { sendFilters } = require('../../src/services/consumer-view-v2');
       sendFilters.mockResolvedValue(undefined);
 

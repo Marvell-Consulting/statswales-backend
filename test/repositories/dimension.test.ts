@@ -31,10 +31,7 @@ async function createDataset(createdBy: User): Promise<Dataset> {
   return ds.save();
 }
 
-async function createDimension(
-  dataset: Dataset,
-  overrides: Partial<Dimension> = {}
-): Promise<Dimension> {
+async function createDimension(dataset: Dataset, overrides: Partial<Dimension> = {}): Promise<Dimension> {
   const dim = new Dimension();
   dim.id = uuidV4();
   dim.datasetId = dataset.id;
@@ -78,6 +75,7 @@ describe('DimensionRepository', () => {
       await dbManager.initDataSources();
       await user.save();
     } catch (err) {
+      // eslint-disable-next-line no-console
       console.error('Failed to initialise test database', err);
       await dbManager.getAppDataSource().dropDatabase();
       await dbManager.destroyDataSources();
@@ -93,7 +91,6 @@ describe('DimensionRepository', () => {
   describe('getById', () => {
     let dataset: Dataset;
     let dimensionWithMeta: Dimension;
-    let dimensionWithLookup: Dimension;
     let dimensionPlain: Dimension;
 
     beforeAll(async () => {
@@ -104,7 +101,7 @@ describe('DimensionRepository', () => {
       await createDimensionMetadata(dimensionWithMeta, 'cy-GB', 'Welsh Name');
 
       const lookupTable = await createLookupTable();
-      dimensionWithLookup = await createDimension(dataset, { lookupTable });
+      await createDimension(dataset, { lookupTable });
 
       dimensionPlain = await createDimension(dataset);
     });
