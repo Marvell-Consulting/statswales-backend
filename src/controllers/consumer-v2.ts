@@ -54,6 +54,7 @@ import { SearchMode } from '../enums/search-mode';
 import { DatasetListItemDTO } from '../dtos/dataset-list-item-dto';
 import { ResultsetWithCount } from '../interfaces/resultset-with-count';
 import { SearchLog } from '../entities/search-log';
+import { QueryStoreDto } from '../dtos/query-store-dto';
 
 export const listPublishedDatasets = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   /*
@@ -225,6 +226,30 @@ export const getPublishedDatasetPivot = async (req: Request, res: Response, next
       return next(err);
     }
     logger.error(err, 'Error getting published dataset data');
+    next(new UnknownException());
+  }
+};
+
+export const getFilterIdDetails = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  const filterId = req.params.filter_id as string | undefined;
+  const dataset = res.locals.dataset as Dataset;
+  const publishedRevision = await PublishedRevisionRepository.getLatestByDatasetId(dataset.id);
+  if (!publishedRevision) return next(new NotFoundException('errors.no_published_revision'));
+  if (!filterId) return next(new NotFoundException('errors.filter_id_not_found'));
+
+  try {
+    const queryStore = await QueryStoreRepository.getById(filterId);
+
+    if (!queryStore) {
+      throw new NotFoundException('errors.filter_id_not_found');
+    }
+
+    res.status(200).send(QueryStoreDto.fromQueryStore(queryStore));
+  } catch (err) {
+    if (err instanceof NotFoundException || err instanceof BadRequestException) {
+      return next(err);
+    }
+    logger.error(err, 'Error getting filter ID details');
     next(new UnknownException());
   }
 };
