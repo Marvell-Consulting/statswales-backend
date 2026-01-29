@@ -231,7 +231,6 @@ export const getPublishedDatasetPivot = async (req: Request, res: Response, next
 };
 
 export const getFilterIdDetails = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-  logger.debug(`Getting dataset data for ${res.locals.datasetId}...`);
   const filterId = req.params.filter_id as string | undefined;
   const dataset = res.locals.dataset as Dataset;
   const publishedRevision = await PublishedRevisionRepository.getLatestByDatasetId(dataset.id);
