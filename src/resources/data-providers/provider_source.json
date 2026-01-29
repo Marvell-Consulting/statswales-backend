@@ -4592,5 +4592,29 @@
     "language": "en-gb",
     "name": "Connected Nations report",
     "provider_id": "d315d747-41ec-4c1d-a051-75bdbe9acb3e"
+  },
+  {
+    "id": "a7b2c4d1-9e8f-4a3b-8c5d-6f1e2a3b4c5d",
+    "language": "cy-gb",
+    "name": "Casgliad STATS1 ysgolion annibynnol",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "a7b2c4d1-9e8f-4a3b-8c5d-6f1e2a3b4c5d",
+    "language": "en-gb",
+    "name": "Independent schools STATS1 collection",
+    "provider_id": "98aed6ef-122c-430b-988c-92258cb372f5"
+  },
+  {
+    "id": "b9c1d3e2-5f4a-4b8c-9d7e-1a2b3c4d5e6f",
+    "language": "cy-gb",
+    "name": "KP90 ffurflenni casglu data",
+    "provider_id": "845a54df-8eeb-4ff2-94a9-9db823324a20"
+  },
+  {
+    "id": "b9c1d3e2-5f4a-4b8c-9d7e-1a2b3c4d5e6f",
+    "language": "en-gb",
+    "name": "KP90 data collection forms",
+    "provider_id": "845a54df-8eeb-4ff2-94a9-9db823324a20"
   }
 ]
