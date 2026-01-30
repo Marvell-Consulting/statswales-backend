@@ -25,9 +25,10 @@ const CURSOR_ROW_LIMIT = 500;
 export async function sendCsv(query: string, queryStore: QueryStore, res: Response): Promise<void> {
   logger.debug(`Sending CSV for query id ${queryStore.id}...`);
   const [cubeDBConn] = (await dbManager.getCubeDataSource().driver.obtainMasterConnection()) as [PoolClient];
+  let cursor: Cursor | null = null;
 
   try {
-    const cursor = cubeDBConn.query(new Cursor(query));
+    cursor = cubeDBConn.query(new Cursor(query));
     let rows = await cursor.read(CURSOR_ROW_LIMIT);
 
     res.writeHead(200, {
@@ -50,7 +51,17 @@ export async function sendCsv(query: string, queryStore: QueryStore, res: Respon
       res.write('\n');
     }
     res.end();
+  } catch (err) {
+    logger.error(err, `Error sending CSV for query id ${queryStore.id}`);
+    throw err;
   } finally {
+    if (cursor) {
+      try {
+        await cursor.close();
+      } catch (cursorErr) {
+        logger.warn(cursorErr, 'Failed to close cursor');
+      }
+    }
     await cubeDBConn.release();
   }
 }
@@ -58,9 +69,10 @@ export async function sendCsv(query: string, queryStore: QueryStore, res: Respon
 export async function sendExcel(query: string, queryStore: QueryStore, res: Response): Promise<void> {
   logger.debug(`Sending Excel for query id ${queryStore.id}...`);
   const [cubeDBConn] = (await dbManager.getCubeDataSource().driver.obtainMasterConnection()) as [PoolClient];
+  let cursor: Cursor | null = null;
 
   try {
-    const cursor = cubeDBConn.query(new Cursor(query));
+    cursor = cubeDBConn.query(new Cursor(query));
     let rows = await cursor.read(CURSOR_ROW_LIMIT);
 
     res.writeHead(200, {
@@ -102,7 +114,17 @@ export async function sendExcel(query: string, queryStore: QueryStore, res: Resp
     }
     worksheet.commit();
     await workbook.commit();
+  } catch (err) {
+    logger.error(err, `Error sending Excel for query id ${queryStore.id}`);
+    throw err;
   } finally {
+    if (cursor) {
+      try {
+        await cursor.close();
+      } catch (cursorErr) {
+        logger.warn(cursorErr, 'Failed to close cursor');
+      }
+    }
     await cubeDBConn.release();
   }
 }
@@ -110,9 +132,10 @@ export async function sendExcel(query: string, queryStore: QueryStore, res: Resp
 export async function sendJson(query: string, queryStore: QueryStore, res: Response): Promise<void> {
   logger.debug(`Sending JSON for query id ${queryStore.id}...`);
   const [cubeDBConn] = (await dbManager.getCubeDataSource().driver.obtainMasterConnection()) as [PoolClient];
+  let cursor: Cursor | null = null;
 
   try {
-    const cursor = cubeDBConn.query(new Cursor(query));
+    cursor = cubeDBConn.query(new Cursor(query));
     let rows = await cursor.read(CURSOR_ROW_LIMIT);
 
     res.writeHead(200, {
@@ -137,16 +160,27 @@ export async function sendJson(query: string, queryStore: QueryStore, res: Respo
     }
     res.write(']');
     res.end();
+  } catch (err) {
+    logger.error(err, `Error sending JSON for query id ${queryStore.id}`);
+    throw err;
   } finally {
+    if (cursor) {
+      try {
+        await cursor.close();
+      } catch (cursorErr) {
+        logger.warn(cursorErr, 'Failed to close cursor');
+      }
+    }
     await cubeDBConn.release();
   }
 }
 
 export async function sendHtml(query: string, queryStore: QueryStore, res: Response): Promise<void> {
   const [cubeDBConn] = (await dbManager.getCubeDataSource().driver.obtainMasterConnection()) as [PoolClient];
+  let cursor: Cursor | null = null;
 
   try {
-    const cursor = cubeDBConn.query(new Cursor(query));
+    cursor = cubeDBConn.query(new Cursor(query));
     res.setHeader('content-type', 'text/html');
     res.flushHeaders();
     res.write(
@@ -184,7 +218,17 @@ export async function sendHtml(query: string, queryStore: QueryStore, res: Respo
     }
     res.write('</tbody>\n' + '</table>\n' + '</body>\n' + '</html>\n');
     res.end();
+  } catch (err) {
+    logger.error(err, `Error sending HTML for query id ${queryStore.id}`);
+    throw err;
   } finally {
+    if (cursor) {
+      try {
+        await cursor.close();
+      } catch (cursorErr) {
+        logger.warn(cursorErr, 'Failed to close cursor');
+      }
+    }
     await cubeDBConn.release();
   }
 }
@@ -192,9 +236,10 @@ export async function sendHtml(query: string, queryStore: QueryStore, res: Respo
 export async function sendFilters(query: string, res: Response): Promise<void> {
   logger.debug('Sending filters...');
   const [cubeDBConn] = (await dbManager.getCubeDataSource().driver.obtainMasterConnection()) as [PoolClient];
+  let cursor: Cursor | null = null;
 
   try {
-    const cursor = cubeDBConn.query(new Cursor(query));
+    cursor = cubeDBConn.query(new Cursor(query));
     let rows: FilterRow[] = await cursor.read(CURSOR_ROW_LIMIT);
     const columnData = new Map<string, FilterRow[]>();
     while (rows.length > 0) {
@@ -219,7 +264,17 @@ export async function sendFilters(query: string, res: Response): Promise<void> {
       filterData.push(hierarchy);
     }
     res.json(filterData);
+  } catch (err) {
+    logger.error(err, 'Error sending filters');
+    throw err;
   } finally {
+    if (cursor) {
+      try {
+        await cursor.close();
+      } catch (cursorErr) {
+        logger.warn(cursorErr, 'Failed to close cursor');
+      }
+    }
     await cubeDBConn.release();
   }
 }
@@ -233,6 +288,7 @@ export async function sendFrontendView(
   logger.info(`Sending Frontend View for query id ${queryStore.id}...`);
   const [cubeDBConn] = (await dbManager.getCubeDataSource().driver.obtainMasterConnection()) as [PoolClient];
   const queryRunner = dbManager.getCubeDataSource().createQueryRunner();
+  let cursor: Cursor | null = null;
 
   try {
     const { pageNumber = 1, pageSize = queryStore.totalLines, locale } = pageOptions;
@@ -260,22 +316,25 @@ export async function sendFrontendView(
       note_codes = [];
     }
 
-    const cursor = cubeDBConn.query(new Cursor(query));
+    logger.debug(`Creating cursor...`);
+    cursor = cubeDBConn.query(new Cursor(query));
+
+    logger.debug(`Fetching dataset ${queryStore.datasetId}...`);
     const dataset = await DatasetRepository.getById(queryStore.datasetId, { factTable: true, dimensions: true });
     const startRecord = pageSize * (pageNumber - 1);
 
     res.writeHead(200, {
       // eslint-disable-next-line @typescript-eslint/naming-convention
-      'Content-Type': 'application/json',
-      // eslint-disable-next-line @typescript-eslint/naming-convention
-      'Content-disposition': `attachment;filename=${queryStore.datasetId}.json`
+      'Content-Type': 'application/json'
     });
     res.write('{');
     res.write(`"dataset": ${JSON.stringify(ConsumerDatasetDTO.fromDataset(dataset))},`);
     res.write(`"filters": ${JSON.stringify(queryStore.requestObject.filters || [])},`);
     res.write(`"note_codes": ${JSON.stringify(note_codes || [])},`);
 
+    logger.debug(`Reading first batch of rows from cursor...`);
     let rows = await cursor.read(CURSOR_ROW_LIMIT);
+    logger.debug(`Read first ${rows.length} rows from cursor`);
 
     if (rows.length > 0) {
       const tableHeaders = Object.keys(rows[0]);
@@ -312,7 +371,18 @@ export async function sendFrontendView(
 
     res.write(`}`);
     res.end();
+    logger.debug(`Frontend view sent successfully, ${rowCount} rows written`);
+  } catch (err) {
+    logger.error(err, `Error sending Frontend View for query id ${queryStore.id}`);
+    throw err;
   } finally {
+    if (cursor) {
+      try {
+        await cursor.close();
+      } catch (cursorErr) {
+        logger.warn(cursorErr, 'Failed to close cursor');
+      }
+    }
     await cubeDBConn.release();
     await queryRunner.release();
   }
@@ -323,6 +393,10 @@ export async function buildDataQuery(queryStore: QueryStore, pageOptions: PageOp
   const { locale, pageNumber, pageSize, sort } = pageOptions;
   const lang = locale.includes('en') ? 'en-GB' : 'cy-GB';
   let query = queryStore.query[lang] || queryStore.query['en-GB'];
+
+  if (!query) {
+    throw new Error(`No query found for language ${lang} or fallback en-GB`);
+  }
 
   if (sort && sort.length > 0) {
     const sortBy: string[] = [];
