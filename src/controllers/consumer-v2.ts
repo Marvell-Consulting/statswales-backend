@@ -194,7 +194,7 @@ export const getPublishedDatasetData = async (req: Request, res: Response, next:
       return next(err);
     }
     logger.error(err, 'Error getting published dataset data');
-    next(new UnknownException());
+    next(new UnknownException('errors.dataset_data_fetch_error'));
   }
 };
 

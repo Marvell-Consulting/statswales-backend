@@ -50,11 +50,11 @@ export async function sendCsv(query: string, queryStore: QueryStore, res: Respon
     } else {
       res.write('\n');
     }
-    res.end();
   } catch (err) {
     logger.error(err, `Error sending CSV for query id ${queryStore.id}`);
     throw err;
   } finally {
+    if (res.headersSent) res.end();
     if (cursor) {
       try {
         await cursor.close();
@@ -118,6 +118,7 @@ export async function sendExcel(query: string, queryStore: QueryStore, res: Resp
     logger.error(err, `Error sending Excel for query id ${queryStore.id}`);
     throw err;
   } finally {
+    if (res.headersSent) res.end();
     if (cursor) {
       try {
         await cursor.close();
@@ -159,11 +160,11 @@ export async function sendJson(query: string, queryStore: QueryStore, res: Respo
       rows = await cursor.read(CURSOR_ROW_LIMIT);
     }
     res.write(']');
-    res.end();
   } catch (err) {
     logger.error(err, `Error sending JSON for query id ${queryStore.id}`);
     throw err;
   } finally {
+    if (res.headersSent) res.end();
     if (cursor) {
       try {
         await cursor.close();
@@ -199,7 +200,6 @@ export async function sendHtml(query: string, queryStore: QueryStore, res: Respo
     if (rows.length === 0) {
       // No rows returned; close the table and document without headers or body rows.
       res.write('</tr></thead><tbody></tbody>\n' + '</table>\n' + '</body>\n' + '</html>\n');
-      res.end();
       return;
     }
     Object.keys(rows[0]).forEach((key) => {
@@ -217,11 +217,11 @@ export async function sendHtml(query: string, queryStore: QueryStore, res: Respo
       rows = await cursor.read(CURSOR_ROW_LIMIT);
     }
     res.write('</tbody>\n' + '</table>\n' + '</body>\n' + '</html>\n');
-    res.end();
   } catch (err) {
     logger.error(err, `Error sending HTML for query id ${queryStore.id}`);
     throw err;
   } finally {
+    if (res.headersSent) res.end();
     if (cursor) {
       try {
         await cursor.close();
@@ -266,6 +266,7 @@ export async function sendFilters(query: string, res: Response): Promise<void> {
     res.json(filterData);
   } catch (err) {
     logger.error(err, 'Error sending filters');
+    if (res.headersSent) res.end();
     throw err;
   } finally {
     if (cursor) {
@@ -323,6 +324,10 @@ export async function sendFrontendView(
     const dataset = await DatasetRepository.getById(queryStore.datasetId, { factTable: true, dimensions: true });
     const startRecord = pageSize * (pageNumber - 1);
 
+    logger.debug(`Reading first batch of rows from cursor...`);
+    let rows = await cursor.read(CURSOR_ROW_LIMIT);
+    logger.debug(`Read first ${rows.length} rows from cursor`);
+
     res.writeHead(200, {
       // eslint-disable-next-line @typescript-eslint/naming-convention
       'Content-Type': 'application/json'
@@ -331,10 +336,6 @@ export async function sendFrontendView(
     res.write(`"dataset": ${JSON.stringify(ConsumerDatasetDTO.fromDataset(dataset))},`);
     res.write(`"filters": ${JSON.stringify(queryStore.requestObject.filters || [])},`);
     res.write(`"note_codes": ${JSON.stringify(note_codes || [])},`);
-
-    logger.debug(`Reading first batch of rows from cursor...`);
-    let rows = await cursor.read(CURSOR_ROW_LIMIT);
-    logger.debug(`Read first ${rows.length} rows from cursor`);
 
     if (rows.length > 0) {
       const tableHeaders = Object.keys(rows[0]);
@@ -368,23 +369,28 @@ export async function sendFrontendView(
       end_record: startRecord + rowCount
     };
     res.write(`"page_info": ${JSON.stringify(page_info)}`);
-
     res.write(`}`);
-    res.end();
     logger.debug(`Frontend view sent successfully, ${rowCount} rows written`);
   } catch (err) {
     logger.error(err, `Error sending Frontend View for query id ${queryStore.id}`);
     throw err;
   } finally {
+    if (res.headersSent) res.end();
+    logger.warn('Cleaning up...');
+
     if (cursor) {
       try {
-        await cursor.close();
+        await Promise.race([
+          cursor.close(),
+          new Promise((_, reject) => setTimeout(() => reject(new Error('Cursor close timeout')), 5000))
+        ]);
       } catch (cursorErr) {
         logger.warn(cursorErr, 'Failed to close cursor');
       }
     }
     await cubeDBConn.release();
     await queryRunner.release();
+    logger.debug('Cleanup complete');
   }
 }
 
