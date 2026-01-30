@@ -235,10 +235,13 @@ export const getFilterIdDetails = async (req: Request, res: Response, next: Next
   const dataset = res.locals.dataset as Dataset;
   const publishedRevision = await PublishedRevisionRepository.getLatestByDatasetId(dataset.id);
   if (!publishedRevision) return next(new NotFoundException('errors.no_published_revision'));
-  if (!filterId) return next(new NotFoundException('errors.filter_id_not_found'));
+  const pageOptions = await parsePageOptions(req);
 
   try {
-    const queryStore = await QueryStoreRepository.getById(filterId);
+    const dataOptions = pageOptions.format === OutputFormats.Frontend ? FRONTEND_DATA_OPTIONS : DEFAULT_DATA_OPTIONS;
+    const queryStore = filterId
+      ? await QueryStoreRepository.getById(filterId)
+      : await QueryStoreRepository.getByRequest(dataset.id, publishedRevision.id, dataOptions);
 
     if (!queryStore) {
       throw new NotFoundException('errors.filter_id_not_found');

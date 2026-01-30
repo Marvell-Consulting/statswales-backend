@@ -74,6 +74,8 @@ import { OutputFormats } from '../enums/output-formats';
 import { buildDataQuery, sendCsv, sendExcel, sendFrontendView, sendJson } from '../services/consumer-view-v2';
 import { QueryStore } from '../entities/query-store';
 import { PageOptions } from '../interfaces/page-options';
+import { Revision } from '../entities/dataset/revision';
+import { dataSource } from '../db/data-source';
 
 export const listUserDatasets = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
@@ -651,6 +653,18 @@ export const datasetActionRequest = async (req: Request, res: Response, next: Ne
   res.status(204).end();
 };
 
+export const rebuildQueryStore = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  const allRevisions = await Revision.find();
+  for (const revision of allRevisions) {
+    if (revision.publishAt && revision.publishAt.getTime() > Date.now()) {
+      await QueryStore.delete({ revisionId: revision.id });
+    } else {
+      await QueryStoreRepository.rebuildQueriesForRevision(revision.id);
+    }
+  }
+  res.status(204).end();
+};
+
 export const rebuildAll = async (req: Request, res: Response): Promise<void> => {
   const user = req.user as User;
 
@@ -762,6 +776,11 @@ async function rebuildDatasetList(buildLogEntry: BuildLog, revisionList: Revisio
       buildScript.successfully_built.push(buildId);
       buildScript.successful_builds++;
       logger.info(`[${buildLogEntry.id}]: Cube for revision ${rev.id} has been rebuilt successfully.`);
+      if (buildLogEntry.type === CubeBuildType.DraftCubes) {
+        await QueryStore.delete({ revisionId: rev.id });
+      } else {
+        await QueryStoreRepository.rebuildQueriesForRevision(rev.id);
+      }
     }
     buildScript.current_build = null;
     buildScript.total_builds++;
