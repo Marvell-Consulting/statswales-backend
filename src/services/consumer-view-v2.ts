@@ -286,15 +286,13 @@ export async function sendFrontendView(
   res: Response
 ): Promise<void> {
   logger.info(`Sending Frontend View for query id ${queryStore.id}...`);
-  const [cubeDBConn] = (await dbManager.getCubeDataSource().driver.obtainMasterConnection()) as [PoolClient];
-  const queryRunner = dbManager.getCubeDataSource().createQueryRunner();
-  let cursor: Cursor | null = null;
+  const cubeDataSource = dbManager.getCubeDataSource();
 
   try {
     const { pageNumber = 1, pageSize = queryStore.totalLines, locale } = pageOptions;
     const lang = locale.includes('en') ? 'en-gb' : 'cy-gb';
 
-    const filters = await queryRunner.query(
+    const filters = await cubeDataSource.query(
       pgformat(
         'SELECT DISTINCT fact_table_column, dimension_name FROM %I.filter_table WHERE language = %L;',
         queryStore.revisionId,
@@ -304,7 +302,7 @@ export async function sendFrontendView(
 
     let note_codes: string[] = [];
     try {
-      const noteCodeRows = await queryRunner.query(
+      const noteCodeRows = await cubeDataSource.query(
         pgformat(
           `SELECT DISTINCT UNNEST(STRING_TO_ARRAY(code, ',')) AS code FROM %I.all_notes ORDER BY code ASC`,
           queryStore.revisionId
@@ -316,75 +314,49 @@ export async function sendFrontendView(
       note_codes = [];
     }
 
-    logger.debug(`Creating cursor...`);
-    cursor = cubeDBConn.query(new Cursor(query));
-
     logger.debug(`Fetching dataset ${queryStore.datasetId}...`);
     const dataset = await DatasetRepository.getById(queryStore.datasetId, { factTable: true, dimensions: true });
-    const startRecord = pageSize * (pageNumber - 1);
 
-    res.writeHead(200, {
-      // eslint-disable-next-line @typescript-eslint/naming-convention
-      'Content-Type': 'application/json'
-    });
-    res.write('{');
-    res.write(`"dataset": ${JSON.stringify(ConsumerDatasetDTO.fromDataset(dataset))},`);
-    res.write(`"filters": ${JSON.stringify(queryStore.requestObject.filters || [])},`);
-    res.write(`"note_codes": ${JSON.stringify(note_codes || [])},`);
+    logger.debug(`Fetching view data for query id ${queryStore.id}...`);
+    const rows = await cubeDataSource.query(query);
+    logger.debug(`Fetched ${rows.length} rows`);
 
-    logger.debug(`Reading first batch of rows from cursor...`);
-    let rows = await cursor.read(CURSOR_ROW_LIMIT);
-    logger.debug(`Read first ${rows.length} rows from cursor`);
-
+    // Build headers from the first row if available
+    let headers: ReturnType<typeof getColumnHeaders> | undefined;
     if (rows.length > 0) {
       const tableHeaders = Object.keys(rows[0]);
-      const headers = getColumnHeaders(dataset, tableHeaders, filters);
-      res.write(`"headers": ${JSON.stringify(headers)},`);
+      headers = getColumnHeaders(dataset, tableHeaders, filters);
     }
 
-    res.write('"data": [');
-    let firstRow = true;
-    let rowCount = 0;
-    while (rows.length > 0) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      rows.forEach((row: any) => {
-        if (firstRow) {
-          firstRow = false;
-        } else {
-          res.write(',\n');
-        }
-        res.write(JSON.stringify(Object.values(row)));
-        rowCount++;
-      });
-      rows = await cursor.read(CURSOR_ROW_LIMIT);
-    }
-    res.write('],');
-    const page_info = {
-      current_page: pageNumber,
-      page_size: pageSize,
-      total_pages: Math.max(1, Math.ceil(queryStore.totalLines / pageSize)),
-      total_records: queryStore.totalLines,
-      start_record: startRecord,
-      end_record: startRecord + rowCount
+    // Transform rows to arrays of values
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const data = rows.map((row: any) => Object.values(row));
+
+    const start_record = pageSize * (pageNumber - 1);
+    const end_record = start_record + rows.length;
+    const total_pages = Math.max(1, Math.ceil(queryStore.totalLines / pageSize));
+
+    const response = {
+      dataset: ConsumerDatasetDTO.fromDataset(dataset),
+      filters: queryStore.requestObject.filters || [],
+      note_codes: note_codes || [],
+      ...(headers && { headers }),
+      data,
+      page_info: {
+        current_page: pageNumber,
+        page_size: pageSize,
+        total_pages,
+        total_records: queryStore.totalLines,
+        start_record,
+        end_record
+      }
     };
-    res.write(`"page_info": ${JSON.stringify(page_info)}`);
 
-    res.write(`}`);
-    res.end();
-    logger.debug(`Frontend view sent successfully, ${rowCount} rows written`);
+    res.json(response);
+    logger.debug(`Frontend view sent successfully for query id ${queryStore.id}`);
   } catch (err) {
     logger.error(err, `Error sending Frontend View for query id ${queryStore.id}`);
     throw err;
-  } finally {
-    if (cursor) {
-      try {
-        await cursor.close();
-      } catch (cursorErr) {
-        logger.warn(cursorErr, 'Failed to close cursor');
-      }
-    }
-    await cubeDBConn.release();
-    await queryRunner.release();
   }
 }
 
