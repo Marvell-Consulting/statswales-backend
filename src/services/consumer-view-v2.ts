@@ -50,11 +50,11 @@ export async function sendCsv(query: string, queryStore: QueryStore, res: Respon
     } else {
       res.write('\n');
     }
-    res.end();
   } catch (err) {
     logger.error(err, `Error sending CSV for query id ${queryStore.id}`);
     throw err;
   } finally {
+    if (res.headersSent) res.end();
     if (cursor) {
       try {
         await cursor.close();
@@ -118,6 +118,7 @@ export async function sendExcel(query: string, queryStore: QueryStore, res: Resp
     logger.error(err, `Error sending Excel for query id ${queryStore.id}`);
     throw err;
   } finally {
+    if (res.headersSent) res.end();
     if (cursor) {
       try {
         await cursor.close();
@@ -159,11 +160,11 @@ export async function sendJson(query: string, queryStore: QueryStore, res: Respo
       rows = await cursor.read(CURSOR_ROW_LIMIT);
     }
     res.write(']');
-    res.end();
   } catch (err) {
     logger.error(err, `Error sending JSON for query id ${queryStore.id}`);
     throw err;
   } finally {
+    if (res.headersSent) res.end();
     if (cursor) {
       try {
         await cursor.close();
@@ -199,7 +200,6 @@ export async function sendHtml(query: string, queryStore: QueryStore, res: Respo
     if (rows.length === 0) {
       // No rows returned; close the table and document without headers or body rows.
       res.write('</tr></thead><tbody></tbody>\n' + '</table>\n' + '</body>\n' + '</html>\n');
-      res.end();
       return;
     }
     Object.keys(rows[0]).forEach((key) => {
@@ -217,11 +217,11 @@ export async function sendHtml(query: string, queryStore: QueryStore, res: Respo
       rows = await cursor.read(CURSOR_ROW_LIMIT);
     }
     res.write('</tbody>\n' + '</table>\n' + '</body>\n' + '</html>\n');
-    res.end();
   } catch (err) {
     logger.error(err, `Error sending HTML for query id ${queryStore.id}`);
     throw err;
   } finally {
+    if (res.headersSent) res.end();
     if (cursor) {
       try {
         await cursor.close();
