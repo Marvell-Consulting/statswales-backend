@@ -266,9 +266,7 @@ export async function sendFrontendView(
 
     res.writeHead(200, {
       // eslint-disable-next-line @typescript-eslint/naming-convention
-      'Content-Type': 'application/json',
-      // eslint-disable-next-line @typescript-eslint/naming-convention
-      'Content-disposition': `attachment;filename=${queryStore.datasetId}.json`
+      'Content-Type': 'application/json'
     });
     res.write('{');
     res.write(`"dataset": ${JSON.stringify(ConsumerDatasetDTO.fromDataset(dataset))},`);
