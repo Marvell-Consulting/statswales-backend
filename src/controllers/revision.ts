@@ -48,6 +48,8 @@ import { buildStatusValidator, buildTypeValidator, hasError } from '../validator
 import { CubeBuildType } from '../enums/cube-build-type';
 import { CubeBuildStatus } from '../enums/cube-build-status';
 import { BuildLogRepository } from '../repositories/build-log';
+import { QueryStore } from '../entities/query-store';
+import { QueryStoreRepository } from '../repositories/query-store';
 
 export const getDataTable = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   const revision: Revision = res.locals.revision;
@@ -443,6 +445,14 @@ export const regenerateRevisionCube = async (req: Request, res: Response, next: 
   const start = performance.now();
   try {
     await createAllCubeFiles(datasetId, revision.id, userId);
+    // If this is draft revision we can just purge the query store,
+    // otherwise we can attempt to rebuild all the queries preserving
+    // their IDs so as not to break peoples links.
+    if (revision.publishAt && revision.publishAt?.getTime() < Date.now()) {
+      await QueryStore.delete({ revisionId: revision.id });
+    } else {
+      await QueryStoreRepository.rebuildQueriesForRevision(revision.id);
+    }
   } catch (err) {
     logger.error(err, `Something went wrong trying to create the cube`);
     const exception = new UnknownException('errors.cube_builder.cube_build_failed');
