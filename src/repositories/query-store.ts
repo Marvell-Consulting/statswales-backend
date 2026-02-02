@@ -149,7 +149,7 @@ export const QueryStoreRepository = dataSource.getRepository(QueryStore).extend(
         await this.updateEntry(entry);
       } catch (error) {
         logger.warn(error, `Entry with ID ${entry.id} could not be regenerated.  Removing entry`);
-        // await QueryStore.remove(entry);
+        await QueryStore.remove(entry);
       }
     }
   },
@@ -161,7 +161,7 @@ export const QueryStoreRepository = dataSource.getRepository(QueryStore).extend(
         await this.updateEntry(entry);
       } catch (error) {
         logger.warn(error, `Entry with ID ${entry.id} could not be regenerated.  Removing entry`);
-        // await QueryStore.remove(entry);
+        await QueryStore.remove(entry);
       }
     }
   },
@@ -172,7 +172,7 @@ export const QueryStoreRepository = dataSource.getRepository(QueryStore).extend(
       await this.updateEntry(entry);
     } catch (error) {
       logger.warn(error, `Entry with ID ${entry.id} could not be regenerated.  Removing entry`);
-      // await QueryStore.remove(entry);
+      await QueryStore.remove(entry);
     }
   },
 

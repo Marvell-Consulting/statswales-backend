@@ -75,7 +75,6 @@ import { buildDataQuery, sendCsv, sendExcel, sendFrontendView, sendJson } from '
 import { QueryStore } from '../entities/query-store';
 import { PageOptions } from '../interfaces/page-options';
 import { Revision } from '../entities/dataset/revision';
-import { dataSource } from '../db/data-source';
 
 export const listUserDatasets = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
@@ -653,10 +652,10 @@ export const datasetActionRequest = async (req: Request, res: Response, next: Ne
   res.status(204).end();
 };
 
-export const rebuildQueryStore = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+export const rebuildQueryStore = async (req: Request, res: Response): Promise<void> => {
   const allRevisions = await Revision.find();
   for (const revision of allRevisions) {
-    if (revision.publishAt && revision.publishAt.getTime() > Date.now()) {
+    if (!revision.publishAt || revision.publishAt.getTime() > Date.now()) {
       await QueryStore.delete({ revisionId: revision.id });
     } else {
       await QueryStoreRepository.rebuildQueriesForRevision(revision.id);

@@ -448,7 +448,7 @@ export const regenerateRevisionCube = async (req: Request, res: Response, next: 
     // If this is draft revision we can just purge the query store,
     // otherwise we can attempt to rebuild all the queries preserving
     // their IDs so as not to break peoples links.
-    if (revision.publishAt && revision.publishAt?.getTime() < Date.now()) {
+    if (!revision.publishAt || revision.publishAt.getTime() > Date.now()) {
       await QueryStore.delete({ revisionId: revision.id });
     } else {
       await QueryStoreRepository.rebuildQueriesForRevision(revision.id);
