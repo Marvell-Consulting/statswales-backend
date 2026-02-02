@@ -74,7 +74,6 @@ import { OutputFormats } from '../enums/output-formats';
 import { buildDataQuery, sendCsv, sendExcel, sendFrontendView, sendJson } from '../services/consumer-view-v2';
 import { QueryStore } from '../entities/query-store';
 import { PageOptions } from '../interfaces/page-options';
-import { Revision } from '../entities/dataset/revision';
 
 export const listUserDatasets = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
@@ -653,14 +652,7 @@ export const datasetActionRequest = async (req: Request, res: Response, next: Ne
 };
 
 export const rebuildQueryStore = async (req: Request, res: Response): Promise<void> => {
-  const allRevisions = await Revision.find();
-  for (const revision of allRevisions) {
-    if (!revision.publishAt || revision.publishAt.getTime() > Date.now()) {
-      await QueryStore.delete({ revisionId: revision.id });
-    } else {
-      await QueryStoreRepository.rebuildQueriesForRevision(revision.id);
-    }
-  }
+  await QueryStoreRepository.rebuildAll();
   res.status(204).end();
 };
 
