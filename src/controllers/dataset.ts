@@ -651,6 +651,11 @@ export const datasetActionRequest = async (req: Request, res: Response, next: Ne
   res.status(204).end();
 };
 
+export const rebuildQueryStore = async (req: Request, res: Response): Promise<void> => {
+  await QueryStoreRepository.rebuildAll();
+  res.status(204).end();
+};
+
 export const rebuildAll = async (req: Request, res: Response): Promise<void> => {
   const user = req.user as User;
 
@@ -762,6 +767,11 @@ async function rebuildDatasetList(buildLogEntry: BuildLog, revisionList: Revisio
       buildScript.successfully_built.push(buildId);
       buildScript.successful_builds++;
       logger.info(`[${buildLogEntry.id}]: Cube for revision ${rev.id} has been rebuilt successfully.`);
+      if (buildLogEntry.type === CubeBuildType.DraftCubes) {
+        await QueryStore.delete({ revisionId: rev.id });
+      } else {
+        await QueryStoreRepository.rebuildQueriesForRevision(rev.id);
+      }
     }
     buildScript.current_build = null;
     buildScript.total_builds++;

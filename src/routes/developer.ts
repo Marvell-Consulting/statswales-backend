@@ -1,6 +1,6 @@
 import { Router } from 'express';
 
-import { listAllDatasets, rebuildAll, rebuildDrafts } from '../controllers/dataset';
+import { listAllDatasets, rebuildAll, rebuildDrafts, rebuildQueryStore } from '../controllers/dataset';
 import { ensureDeveloper } from '../middleware/ensure-developer';
 
 export const devRouter = Router();
@@ -20,3 +20,5 @@ devRouter.post('/rebuild/all', rebuildAll);
 // Rebuilds all draft (unpublished) revisions must be developer or service admin
 // Returns 201 only or error
 devRouter.post('/rebuild/drafts', rebuildDrafts);
+
+devRouter.post('/rebuild/query-store', rebuildQueryStore);
