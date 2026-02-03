@@ -158,18 +158,16 @@ describe('PublishedDatasetRepository', () => {
       expect(result.publishedRevision).toBeNull();
     });
 
-    it('should NOT filter on unpublishedAt (current behaviour)', async () => {
+    it('should return publishedRevision as null when no unpublished revision exists', async () => {
       const ds = await createDataset(user, { firstPublishedAt: pastDate(96) });
-      const unpubRev = await createRevision(ds, user, 1, {
+      await createRevision(ds, user, 1, {
         publishAt: pastDate(48),
         approvedAt: pastDate(72),
         unpublishedAt: pastDate(1)
       });
 
       const result = await PublishedDatasetRepository.getById(ds.id, withPublishedRevision);
-      // getById does not exclude unpublished revisions from publishedRevision
-      expect(result.publishedRevision).not.toBeNull();
-      expect(result.publishedRevision!.id).toBe(unpubRev.id);
+      expect(result.publishedRevision).toBeNull();
     });
 
     it('should throw for non-existent dataset id', async () => {
@@ -250,7 +248,7 @@ describe('PublishedDatasetRepository', () => {
       const result = await PublishedDatasetRepository.listPublishedByLanguage(Locale.EnglishGb, 1, 100);
       const match = result.data.find((d: any) => d.id === ds.id);
       expect(match).toBeDefined();
-      expect(match.title).toBe('English Title');
+      expect(match?.title).toBe('English Title');
     });
 
     it('should respect pagination', async () => {
@@ -304,7 +302,7 @@ describe('PublishedDatasetRepository', () => {
       const result = await PublishedDatasetRepository.listPublishedByLanguage(Locale.EnglishGb, 1, 1000);
       const match = result.data.find((d: any) => d.id === ds.id);
       expect(match).toBeDefined();
-      expect(match.title).toBe('Current Title');
+      expect(match?.title).toBe('Current Title');
     });
 
     it('should return empty resultset when nothing is published', async () => {
