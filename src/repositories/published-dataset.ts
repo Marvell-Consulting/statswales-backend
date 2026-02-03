@@ -65,7 +65,11 @@ export const PublishedDatasetRepository = dataSource.getRepository(Dataset).exte
     };
 
     if (has(relations, 'revisions')) {
-      set(findOptions, 'where.revisions', { approvedAt: LessThan(now), publishAt: LessThan(now) });
+      set(findOptions, 'where.revisions', {
+        approvedAt: LessThan(now),
+        publishAt: LessThan(now),
+        unpublishedAt: IsNull()
+      });
       set(findOptions, 'order', { revisions: { publishAt: 'DESC' } });
     }
 
@@ -78,7 +82,7 @@ export const PublishedDatasetRepository = dataSource.getRepository(Dataset).exte
 
       // publishedRevision must be manually loaded to ensure the publish_at has passed
       const publishedRevision = await dataSource.getRepository(Revision).findOne({
-        where: { datasetId: id, approvedAt: LessThan(now), publishAt: LessThan(now) },
+        where: { datasetId: id, approvedAt: LessThan(now), publishAt: LessThan(now), unpublishedAt: IsNull() },
         order: { publishAt: 'DESC' },
         relations
       });
@@ -120,6 +124,7 @@ export const PublishedDatasetRepository = dataSource.getRepository(Dataset).exte
             .innerJoin('rev.metadata', 'rm', 'rm.revision_id = rev.id AND rm.language LIKE :lang', { lang: `${lang}%` })
             .andWhere('rev.publish_at < NOW()')
             .andWhere('rev.approved_at < NOW()')
+            .andWhere('rev.unpublished_at IS NULL')
             .orderBy('rev.dataset_id')
             .addOrderBy('rev.publish_at', 'DESC');
         },
@@ -145,6 +150,7 @@ export const PublishedDatasetRepository = dataSource.getRepository(Dataset).exte
       .select('DISTINCT ON (r.dataset_id) r.id AS id')
       .where('r.publish_at < NOW()')
       .andWhere('r.approved_at < NOW()')
+      .andWhere('r.unpublished_at IS NULL')
       .orderBy('r.dataset_id')
       .addOrderBy('r.publish_at', 'DESC')
       .getRawMany();
@@ -192,6 +198,7 @@ export const PublishedDatasetRepository = dataSource.getRepository(Dataset).exte
             .innerJoin('rev.revisionTopics', 'rt')
             .andWhere('rev.publish_at < NOW()')
             .andWhere('rev.approved_at < NOW()')
+            .andWhere('rev.unpublished_at IS NULL')
             .groupBy('rev.dataset_id, rev.id, rev.publish_at, rm.title')
             .orderBy('rev.dataset_id')
             .addOrderBy('rev.publish_at', 'DESC');
