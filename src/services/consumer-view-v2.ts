@@ -28,8 +28,7 @@ export async function sendCsv(query: string, queryStore: QueryStore, res: Respon
   let dbStream: QueryStream | null = null;
 
   try {
-    const queryStream = new QueryStream(query, [], { highWaterMark: BATCH_ROWS });
-    dbStream = cubeDBConn.query(queryStream);
+    dbStream = cubeDBConn.query(new QueryStream(query, [], { highWaterMark: BATCH_ROWS }));
     const csvStream = csvFormat({ delimiter: ',', headers: true });
 
     res.setHeader('Content-Type', 'text/csv');
@@ -39,10 +38,8 @@ export async function sendCsv(query: string, queryStore: QueryStore, res: Respon
       let hasData = false;
 
       dbStream!.on('data', () => (hasData = true));
-      dbStream!.pipe(csvStream).pipe(res, { end: false });
       dbStream!.on('error', reject);
       csvStream.on('error', reject);
-
       csvStream.on('finish', () => {
         if (!hasData) {
           res.write('\n'); // Write a newline for empty CSV
@@ -50,6 +47,8 @@ export async function sendCsv(query: string, queryStore: QueryStore, res: Respon
         res.end();
         resolve();
       });
+
+      dbStream!.pipe(csvStream).pipe(res, { end: false });
     });
   } catch (err) {
     logger.error(err, `Error sending CSV for query id ${queryStore.id}`);
@@ -69,8 +68,7 @@ export async function sendExcel(query: string, queryStore: QueryStore, res: Resp
   let dbStream: QueryStream | null = null;
 
   try {
-    const queryStream = new QueryStream(query, [], { highWaterMark: BATCH_ROWS });
-    dbStream = cubeDBConn.query(queryStream);
+    dbStream = cubeDBConn.query(new QueryStream(query, [], { highWaterMark: BATCH_ROWS }));
 
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
     res.setHeader('Content-Disposition', `attachment;filename=${queryStore.datasetId}.xlsx`);
@@ -89,6 +87,8 @@ export async function sendExcel(query: string, queryStore: QueryStore, res: Resp
     let isFirstRow = true;
 
     await new Promise<void>((resolve, reject) => {
+      dbStream!.on('error', reject);
+
       dbStream!.on('data', (row: Record<string, unknown>) => {
         if (row === null) return;
 
@@ -113,8 +113,6 @@ export async function sendExcel(query: string, queryStore: QueryStore, res: Resp
           worksheet = workbook.addWorksheet(`Sheet-${sheetCount}`);
         }
       });
-
-      dbStream!.on('error', reject);
 
       dbStream!.on('end', async () => {
         try {
@@ -144,14 +142,15 @@ export async function sendJson(query: string, queryStore: QueryStore, res: Respo
   let dbStream: QueryStream | null = null;
 
   try {
-    const queryStream = new QueryStream(query, [], { highWaterMark: BATCH_ROWS });
-    dbStream = cubeDBConn.query(queryStream);
+    dbStream = cubeDBConn.query(new QueryStream(query, [], { highWaterMark: BATCH_ROWS }));
 
     res.setHeader('Content-Type', 'application/json');
     res.setHeader('Content-Disposition', `attachment;filename=${queryStore.datasetId}.json`);
 
     await new Promise<void>((resolve, reject) => {
       let isFirstRow = true;
+
+      dbStream!.on('error', reject);
 
       res.write('[');
 
@@ -163,8 +162,6 @@ export async function sendJson(query: string, queryStore: QueryStore, res: Respo
         }
         res.write(JSON.stringify(row));
       });
-
-      dbStream!.on('error', reject);
 
       dbStream!.on('end', () => {
         res.write(']');
@@ -190,8 +187,7 @@ export async function sendHtml(query: string, queryStore: QueryStore, res: Respo
   let dbStream: QueryStream | null = null;
 
   try {
-    const queryStream = new QueryStream(query, [], { highWaterMark: BATCH_ROWS });
-    dbStream = cubeDBConn.query(queryStream);
+    dbStream = cubeDBConn.query(new QueryStream(query, [], { highWaterMark: BATCH_ROWS }));
 
     res.setHeader('Content-Type', 'text/html');
     res.flushHeaders();
@@ -212,6 +208,8 @@ export async function sendHtml(query: string, queryStore: QueryStore, res: Respo
       let isFirstRow = true;
       let hasData = false;
 
+      dbStream!.on('error', reject);
+
       dbStream!.on('data', (row: Record<string, unknown>) => {
         hasData = true;
 
@@ -231,8 +229,6 @@ export async function sendHtml(query: string, queryStore: QueryStore, res: Respo
         });
         res.write('</tr>');
       });
-
-      dbStream!.on('error', reject);
 
       dbStream!.on('end', () => {
         if (!hasData) {
