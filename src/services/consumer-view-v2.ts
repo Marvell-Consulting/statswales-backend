@@ -255,23 +255,18 @@ export async function sendFilters(query: string, res: Response): Promise<void> {
   const [cubeDBConn] = (await dbManager.getCubeDataSource().driver.obtainMasterConnection()) as [PoolClient];
 
   try {
-    const queryStream = new QueryStream(query, [], { highWaterMark: BATCH_ROWS });
-    const dbStream = cubeDBConn.query(queryStream);
+    const result = await cubeDBConn.query(query);
+    const rows = result.rows as FilterRow[];
     const columnData = new Map<string, FilterRow[]>();
 
-    await new Promise<void>((resolve, reject) => {
-      dbStream.on('data', (row: FilterRow) => {
-        let data = columnData.get(row.fact_table_column);
-        if (data) {
-          data.push(row);
-        } else {
-          data = [row];
-        }
-        columnData.set(row.fact_table_column, data);
-      });
-
-      dbStream.on('error', reject);
-      dbStream.on('end', () => resolve());
+    rows.forEach((row: FilterRow) => {
+      let data = columnData.get(row.fact_table_column);
+      if (data) {
+        data.push(row);
+      } else {
+        data = [row];
+      }
+      columnData.set(row.fact_table_column, data);
     });
 
     const filterData: FilterTable[] = [];
