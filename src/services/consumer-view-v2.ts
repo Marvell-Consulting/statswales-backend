@@ -32,7 +32,6 @@ export async function sendCsv(query: string, queryStore: QueryStore, res: Respon
     dbStream = cubeDBConn.query(queryStream);
     const csvStream = csvFormat({ delimiter: ',', headers: true });
 
-    // Set response headers
     res.setHeader('Content-Type', 'text/csv');
     res.setHeader('Content-Disposition', `attachment;filename=${queryStore.datasetId}.csv`);
 
