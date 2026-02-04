@@ -1,7 +1,7 @@
 import { Response } from 'express';
 import { escape } from 'lodash';
 import { PoolClient } from 'pg';
-import Cursor from 'pg-cursor';
+import QueryStream from 'pg-query-stream';
 import { format as pgformat } from '@scaleleap/pg-format/lib/pg-format';
 import { format as csvFormat } from '@fast-csv/format';
 import ExcelJS from 'exceljs';
@@ -20,48 +20,44 @@ import { ConsumerDatasetDTO } from '../dtos/consumer-dataset-dto';
 import { getColumnHeaders } from '../utils/column-headers';
 
 const EXCEL_ROW_LIMIT = 1048576 - 76; // Excel Limit is 1,048,576 but removed 76 rows because ?
-const CURSOR_ROW_LIMIT = 500;
+const BATCH_ROWS = 500;
 
 export async function sendCsv(query: string, queryStore: QueryStore, res: Response): Promise<void> {
   logger.debug(`Sending CSV for query id ${queryStore.id}...`);
   const [cubeDBConn] = (await dbManager.getCubeDataSource().driver.obtainMasterConnection()) as [PoolClient];
-  let cursor: Cursor | null = null;
 
   try {
-    cursor = cubeDBConn.query(new Cursor(query));
-    let rows = await cursor.read(CURSOR_ROW_LIMIT);
+    const queryStream = new QueryStream(query, [], { highWaterMark: BATCH_ROWS });
+    const dbStream = cubeDBConn.query(queryStream);
+    const csvStream = csvFormat({ delimiter: ',', headers: true });
 
-    res.writeHead(200, {
-      // eslint-disable-next-line @typescript-eslint/naming-convention
-      'Content-Type': 'text/csv',
-      // eslint-disable-next-line @typescript-eslint/naming-convention
-      'Content-disposition': `attachment;filename=${queryStore.datasetId}.csv`
+    // Set response headers
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', `attachment;filename=${queryStore.datasetId}.csv`);
+
+    await new Promise<void>((resolve, reject) => {
+      let hasData = false;
+
+      dbStream.on('data', () => (hasData = true));
+      dbStream.pipe(csvStream).pipe(res, { end: false });
+      dbStream.on('error', reject);
+      csvStream.on('error', reject);
+
+      csvStream.on('finish', () => {
+        if (!hasData) {
+          res.write('\n'); // Write a newline to represent an empty CSV
+        }
+        res.end();
+        resolve();
+      });
     });
-    if (rows.length > 0) {
-      const stream = csvFormat({ delimiter: ',', headers: true });
-      stream.pipe(res);
-      while (rows.length > 0) {
-        rows.map((row: unknown) => {
-          stream.write(row);
-        });
-        rows = await cursor.read(CURSOR_ROW_LIMIT);
-      }
-      stream.end();
-    } else {
-      res.write('\n');
-    }
   } catch (err) {
     logger.error(err, `Error sending CSV for query id ${queryStore.id}`);
+    if (!res.headersSent) {
+      res.status(500).end();
+    }
     throw err;
   } finally {
-    if (res.headersSent) res.end();
-    if (cursor) {
-      try {
-        await cursor.close();
-      } catch (cursorErr) {
-        logger.warn(cursorErr, 'Failed to close cursor');
-      }
-    }
     await cubeDBConn.release();
   }
 }
@@ -69,63 +65,72 @@ export async function sendCsv(query: string, queryStore: QueryStore, res: Respon
 export async function sendExcel(query: string, queryStore: QueryStore, res: Response): Promise<void> {
   logger.debug(`Sending Excel for query id ${queryStore.id}...`);
   const [cubeDBConn] = (await dbManager.getCubeDataSource().driver.obtainMasterConnection()) as [PoolClient];
-  let cursor: Cursor | null = null;
 
   try {
-    cursor = cubeDBConn.query(new Cursor(query));
-    let rows = await cursor.read(CURSOR_ROW_LIMIT);
+    const queryStream = new QueryStream(query, [], { highWaterMark: BATCH_ROWS });
+    const dbStream = cubeDBConn.query(queryStream);
 
-    res.writeHead(200, {
-      // eslint-disable-next-line @typescript-eslint/naming-convention
-      'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-      // eslint-disable-next-line @typescript-eslint/naming-convention
-      'Content-disposition': `attachment;filename=${queryStore.datasetId}.xlsx`
-    });
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment;filename=${queryStore.datasetId}.xlsx`);
     res.flushHeaders();
+
     const workbook = new ExcelJS.stream.xlsx.WorkbookWriter({
       filename: `${queryStore.datasetId}.xlsx`,
       useStyles: true,
       useSharedStrings: true,
       stream: res
     });
+
     let sheetCount = 1;
     let totalRows = 0;
     let worksheet = workbook.addWorksheet(`Sheet-${sheetCount}`);
-    if (rows.length > 0) {
-      worksheet.addRow(Object.keys(rows[0]));
-      while (rows.length > 0) {
-        for (const row of rows) {
-          if (row === null) break;
-          const data = Object.values(row).map((val) => {
-            if (!val) return null;
-            return isNaN(Number(val)) ? val : Number(val);
-          });
-          worksheet.addRow(Object.values(data)).commit();
+    let isFirstRow = true;
+
+    await new Promise<void>((resolve, reject) => {
+      dbStream.on('data', (row: Record<string, unknown>) => {
+        if (row === null) return;
+
+        // Add headers from first row
+        if (isFirstRow) {
+          worksheet.addRow(Object.keys(row));
+          isFirstRow = false;
         }
-        totalRows += CURSOR_ROW_LIMIT;
+
+        // Transform and add data row
+        const data = Object.values(row).map((val) => {
+          if (!val) return null;
+          return isNaN(Number(val)) ? val : Number(val);
+        });
+        worksheet.addRow(data).commit();
+
+        totalRows++;
         if (totalRows > EXCEL_ROW_LIMIT) {
           worksheet.commit();
           sheetCount++;
           totalRows = 0;
           worksheet = workbook.addWorksheet(`Sheet-${sheetCount}`);
         }
-        rows = await cursor.read(CURSOR_ROW_LIMIT);
-      }
-    }
-    worksheet.commit();
-    await workbook.commit();
+      });
+
+      dbStream.on('error', reject);
+
+      dbStream.on('end', async () => {
+        try {
+          worksheet.commit();
+          await workbook.commit();
+          resolve();
+        } catch (err) {
+          reject(err);
+        }
+      });
+    });
   } catch (err) {
     logger.error(err, `Error sending Excel for query id ${queryStore.id}`);
+    if (!res.headersSent) {
+      res.status(500).end();
+    }
     throw err;
   } finally {
-    if (res.headersSent) res.end();
-    if (cursor) {
-      try {
-        await cursor.close();
-      } catch (cursorErr) {
-        logger.warn(cursorErr, 'Failed to close cursor');
-      }
-    }
     await cubeDBConn.release();
   }
 }
@@ -133,102 +138,114 @@ export async function sendExcel(query: string, queryStore: QueryStore, res: Resp
 export async function sendJson(query: string, queryStore: QueryStore, res: Response): Promise<void> {
   logger.debug(`Sending JSON for query id ${queryStore.id}...`);
   const [cubeDBConn] = (await dbManager.getCubeDataSource().driver.obtainMasterConnection()) as [PoolClient];
-  let cursor: Cursor | null = null;
 
   try {
-    cursor = cubeDBConn.query(new Cursor(query));
-    let rows = await cursor.read(CURSOR_ROW_LIMIT);
+    const queryStream = new QueryStream(query, [], { highWaterMark: BATCH_ROWS });
+    const dbStream = cubeDBConn.query(queryStream);
 
-    res.writeHead(200, {
-      // eslint-disable-next-line @typescript-eslint/naming-convention
-      'Content-Type': 'application/json',
-      // eslint-disable-next-line @typescript-eslint/naming-convention
-      'Content-disposition': `attachment;filename=${queryStore.datasetId}.json`
-    });
-    res.write('[');
-    let firstRow = true;
-    while (rows.length > 0) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      rows.forEach((row: any) => {
-        if (firstRow) {
-          firstRow = false;
+    res.setHeader('Content-Type', 'application/json');
+    res.setHeader('Content-Disposition', `attachment;filename=${queryStore.datasetId}.json`);
+
+    await new Promise<void>((resolve, reject) => {
+      let isFirstRow = true;
+
+      res.write('[');
+
+      dbStream.on('data', (row: unknown) => {
+        if (isFirstRow) {
+          isFirstRow = false;
         } else {
           res.write(',\n');
         }
         res.write(JSON.stringify(row));
       });
-      rows = await cursor.read(CURSOR_ROW_LIMIT);
-    }
-    res.write(']');
+
+      dbStream.on('error', reject);
+
+      dbStream.on('end', () => {
+        res.write(']');
+        res.end();
+        resolve();
+      });
+    });
   } catch (err) {
     logger.error(err, `Error sending JSON for query id ${queryStore.id}`);
+    if (!res.headersSent) {
+      res.status(500).end();
+    }
     throw err;
   } finally {
-    if (res.headersSent) res.end();
-    if (cursor) {
-      try {
-        await cursor.close();
-      } catch (cursorErr) {
-        logger.warn(cursorErr, 'Failed to close cursor');
-      }
-    }
     await cubeDBConn.release();
   }
 }
 
 export async function sendHtml(query: string, queryStore: QueryStore, res: Response): Promise<void> {
+  logger.debug(`Sending HTML for query id ${queryStore.id}...`);
   const [cubeDBConn] = (await dbManager.getCubeDataSource().driver.obtainMasterConnection()) as [PoolClient];
-  let cursor: Cursor | null = null;
 
   try {
-    cursor = cubeDBConn.query(new Cursor(query));
-    res.setHeader('content-type', 'text/html');
-    res.flushHeaders();
-    res.write(
-      '<!DOCTYPE html>\n' +
-        '<html lang="en">\n' +
-        '<head>\n' +
-        '    <meta charset="utf-8">\n' +
-        `    <title>${queryStore.datasetId}</title>\n` +
-        '</head>\n' +
-        '<body>\n' +
-        '<table>\n' +
-        '<thead><tr>'
-    );
+    const queryStream = new QueryStream(query, [], { highWaterMark: BATCH_ROWS });
+    const dbStream = cubeDBConn.query(queryStream);
 
-    let rows = await cursor.read(CURSOR_ROW_LIMIT);
-    if (rows.length === 0) {
-      // No rows returned; close the table and document without headers or body rows.
-      res.write('</tr></thead><tbody></tbody>\n' + '</table>\n' + '</body>\n' + '</html>\n');
-      return;
-    }
-    Object.keys(rows[0]).forEach((key) => {
-      res.write(`<th>${escape(key)}</th>`);
-    });
-    res.write('</tr></thead><tbody>');
-    while (rows.length > 0) {
-      for (const row of rows) {
+    res.setHeader('Content-Type', 'text/html');
+    res.flushHeaders();
+
+    res.write(`
+      <!DOCTYPE html>
+      <html lang="en">
+      <head>
+          <meta charset="utf-8">
+          <title>${queryStore.datasetId}</title>
+      </head>
+      <body>
+      <table>
+      <thead><tr>
+    `);
+
+    await new Promise<void>((resolve, reject) => {
+      let isFirstRow = true;
+      let hasData = false;
+
+      dbStream.on('data', (row: Record<string, unknown>) => {
+        hasData = true;
+
+        // Add headers from first row
+        if (isFirstRow) {
+          Object.keys(row).forEach((key) => {
+            res.write(`<th>${escape(key)}</th>`);
+          });
+          res.write('</tr></thead><tbody>');
+          isFirstRow = false;
+        }
+
+        // Add data row
         res.write('<tr>');
         Object.values(row).forEach((value) => {
           res.write(`<td>${value === null ? '' : escape(value as string)}</td>`);
         });
         res.write('</tr>');
-      }
-      rows = await cursor.read(CURSOR_ROW_LIMIT);
-    }
-    res.write('</tbody>\n' + '</table>\n' + '</body>\n' + '</html>\n');
+      });
+
+      dbStream.on('error', reject);
+
+      dbStream.on('end', () => {
+        if (!hasData) {
+          res.write(`</tr></thead><tbody></tbody>`);
+        } else {
+          res.write(`</tbody>`);
+        }
+        res.write(`</table></body></html>`);
+        res.end();
+        resolve();
+      });
+    });
   } catch (err) {
     logger.error(err, `Error sending HTML for query id ${queryStore.id}`);
+    if (!res.headersSent) {
+      res.status(500).end();
+    }
     throw err;
   } finally {
-    if (res.headersSent) res.end();
-    if (cursor) {
-      try {
-        await cursor.close();
-      } catch (cursorErr) {
-        logger.warn(cursorErr, 'Failed to close cursor');
-      }
-    }
     await cubeDBConn.release();
   }
 }
@@ -236,14 +253,14 @@ export async function sendHtml(query: string, queryStore: QueryStore, res: Respo
 export async function sendFilters(query: string, res: Response): Promise<void> {
   logger.debug('Sending filters...');
   const [cubeDBConn] = (await dbManager.getCubeDataSource().driver.obtainMasterConnection()) as [PoolClient];
-  let cursor: Cursor | null = null;
 
   try {
-    cursor = cubeDBConn.query(new Cursor(query));
-    let rows: FilterRow[] = await cursor.read(CURSOR_ROW_LIMIT);
+    const queryStream = new QueryStream(query, [], { highWaterMark: BATCH_ROWS });
+    const dbStream = cubeDBConn.query(queryStream);
     const columnData = new Map<string, FilterRow[]>();
-    while (rows.length > 0) {
-      rows.forEach((row: FilterRow) => {
+
+    await new Promise<void>((resolve, reject) => {
+      dbStream.on('data', (row: FilterRow) => {
         let data = columnData.get(row.fact_table_column);
         if (data) {
           data.push(row);
@@ -252,8 +269,11 @@ export async function sendFilters(query: string, res: Response): Promise<void> {
         }
         columnData.set(row.fact_table_column, data);
       });
-      rows = await cursor.read(CURSOR_ROW_LIMIT);
-    }
+
+      dbStream.on('error', reject);
+      dbStream.on('end', () => resolve());
+    });
+
     const filterData: FilterTable[] = [];
     for (const col of columnData.keys()) {
       const data = columnData.get(col);
@@ -268,13 +288,6 @@ export async function sendFilters(query: string, res: Response): Promise<void> {
     logger.error(err, 'Error sending filters');
     throw err;
   } finally {
-    if (cursor) {
-      try {
-        await cursor.close();
-      } catch (cursorErr) {
-        logger.warn(cursorErr, 'Failed to close cursor');
-      }
-    }
     await cubeDBConn.release();
   }
 }
