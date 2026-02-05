@@ -156,6 +156,25 @@ function createMockPoolClient(stream: Readable) {
   };
 }
 
+// Helper to create a mock stream that emits an error after some rows
+function createErrorStream(rowsBeforeError: Record<string, unknown>[], error: Error): Readable {
+  let index = 0;
+  const stream = new Readable({
+    objectMode: true,
+    read() {
+      setImmediate(() => {
+        if (index < rowsBeforeError.length) {
+          this.push(rowsBeforeError[index]);
+          index++;
+        } else {
+          this.destroy(error);
+        }
+      });
+    }
+  });
+  return stream;
+}
+
 describe('consumer-view-v2 service', () => {
   beforeEach(() => {
     jest.clearAllMocks();
@@ -213,6 +232,19 @@ describe('consumer-view-v2 service', () => {
 
       await expect(sendCsv('SELECT * FROM test', queryStore, res)).rejects.toThrow('Connection error');
     });
+
+    it('should handle database query stream error', async () => {
+      const dbError = new Error('Database query failed');
+      const errorStream = createErrorStream([{ col1: 'value1' }], dbError);
+      const mockPoolClient = createMockPoolClient(errorStream);
+      mockObtainMasterConnection.mockResolvedValue([mockPoolClient]);
+
+      const queryStore = createMockQueryStore();
+      const res = createMockStreamResponse();
+
+      await expect(sendCsv('SELECT * FROM test', queryStore, res)).rejects.toThrow('Database query failed');
+      expect(mockRelease).toHaveBeenCalled();
+    });
   });
 
   describe('sendExcel', () => {
@@ -264,6 +296,19 @@ describe('consumer-view-v2 service', () => {
       const res = createMockStreamResponse();
 
       await expect(sendExcel('SELECT * FROM test', queryStore, res)).rejects.toThrow('DB error');
+    });
+
+    it('should handle database query stream error', async () => {
+      const dbError = new Error('Excel query failed');
+      const errorStream = createErrorStream([{ col1: 'value1' }], dbError);
+      const mockPoolClient = createMockPoolClient(errorStream);
+      mockObtainMasterConnection.mockResolvedValue([mockPoolClient]);
+
+      const queryStore = createMockQueryStore();
+      const res = createMockStreamResponse();
+
+      await expect(sendExcel('SELECT * FROM test', queryStore, res)).rejects.toThrow('Excel query failed');
+      expect(mockRelease).toHaveBeenCalled();
     });
   });
 
@@ -325,6 +370,19 @@ describe('consumer-view-v2 service', () => {
       expect(() => JSON.parse(output)).not.toThrow();
       const parsed = JSON.parse(output);
       expect(parsed).toHaveLength(3);
+    });
+
+    it('should handle database query stream error', async () => {
+      const dbError = new Error('JSON query failed');
+      const errorStream = createErrorStream([{ col1: 'value1' }], dbError);
+      const mockPoolClient = createMockPoolClient(errorStream);
+      mockObtainMasterConnection.mockResolvedValue([mockPoolClient]);
+
+      const queryStore = createMockQueryStore();
+      const res = createMockStreamResponse();
+
+      await expect(sendJson('SELECT * FROM test', queryStore, res)).rejects.toThrow('JSON query failed');
+      expect(mockRelease).toHaveBeenCalled();
     });
   });
 
@@ -430,6 +488,19 @@ describe('consumer-view-v2 service', () => {
 
       const output = res.writtenData.join('');
       expect(output).toContain('<tbody></tbody>');
+    });
+
+    it('should handle database query stream error', async () => {
+      const dbError = new Error('HTML query failed');
+      const errorStream = createErrorStream([{ col1: 'value1' }], dbError);
+      const mockPoolClient = createMockPoolClient(errorStream);
+      mockObtainMasterConnection.mockResolvedValue([mockPoolClient]);
+
+      const queryStore = createMockQueryStore();
+      const res = createMockStreamResponse();
+
+      await expect(sendHtml('SELECT * FROM test', queryStore, res)).rejects.toThrow('HTML query failed');
+      expect(mockRelease).toHaveBeenCalled();
     });
   });
 
