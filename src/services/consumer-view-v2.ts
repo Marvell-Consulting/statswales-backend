@@ -21,7 +21,7 @@ import { ConsumerDatasetDTO } from '../dtos/consumer-dataset-dto';
 import { getColumnHeaders } from '../utils/column-headers';
 
 const EXCEL_ROW_LIMIT = 1048576 - 76; // Excel Limit is 1,048,576 but removed 76 rows because ?
-const BATCH_ROWS = 500;
+const HIGH_WATER_MARK = 500; // max rows to buffer in memory at once when streaming from the database
 
 export async function sendCsv(query: string, queryStore: QueryStore, res: Response): Promise<void> {
   logger.debug(`Sending CSV for query id ${queryStore.id}...`);
@@ -30,7 +30,7 @@ export async function sendCsv(query: string, queryStore: QueryStore, res: Respon
   let hasData = false;
 
   try {
-    dbStream = cubeDBConn.query(new QueryStream(query, [], { highWaterMark: BATCH_ROWS }));
+    dbStream = cubeDBConn.query(new QueryStream(query, [], { highWaterMark: HIGH_WATER_MARK }));
     dbStream.on('data', () => (hasData = true));
 
     const csvStream = csvFormat({ delimiter: ',', headers: true });
@@ -62,7 +62,7 @@ export async function sendExcel(query: string, queryStore: QueryStore, res: Resp
   let dbStream: QueryStream | null = null;
 
   try {
-    dbStream = cubeDBConn.query(new QueryStream(query, [], { highWaterMark: BATCH_ROWS }));
+    dbStream = cubeDBConn.query(new QueryStream(query, [], { highWaterMark: HIGH_WATER_MARK }));
 
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
     res.setHeader('Content-Disposition', `attachment;filename=${queryStore.datasetId}.xlsx`);
@@ -124,7 +124,7 @@ export async function sendJson(query: string, queryStore: QueryStore, res: Respo
   let dbStream: QueryStream | null = null;
 
   try {
-    dbStream = cubeDBConn.query(new QueryStream(query, [], { highWaterMark: BATCH_ROWS }));
+    dbStream = cubeDBConn.query(new QueryStream(query, [], { highWaterMark: HIGH_WATER_MARK }));
 
     res.setHeader('Content-Type', 'application/json');
     res.setHeader('Content-Disposition', `attachment;filename=${queryStore.datasetId}.json`);
@@ -161,7 +161,7 @@ export async function sendHtml(query: string, queryStore: QueryStore, res: Respo
   let dbStream: QueryStream | null = null;
 
   try {
-    dbStream = cubeDBConn.query(new QueryStream(query, [], { highWaterMark: BATCH_ROWS }));
+    dbStream = cubeDBConn.query(new QueryStream(query, [], { highWaterMark: HIGH_WATER_MARK }));
 
     res.setHeader('Content-Type', 'text/html');
     res.flushHeaders();
