@@ -57,7 +57,7 @@ export const getDefaultConfig = (): AppConfig => {
       database: process.env.DB_DATABASE!,
       ssl: true,
       synchronize: false,
-      poolSize: parseInt(process.env.DB_POOL_SIZE || '5', 10),
+      poolSize: parseInt(process.env.DB_POOL_SIZE || '25', 10),
       maxUses: parseInt(process.env.DB_MAX_USES || '7500', 10),
       idleTimeoutMs: parseInt(process.env.DB_IDLE_TIMEOUT_MS || '10000', 10),
       connectionTimeoutMs: parseInt(process.env.DB_CONNECTION_TIMEOUT_MS || '2000', 10)
