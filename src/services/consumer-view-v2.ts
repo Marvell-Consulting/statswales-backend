@@ -1,4 +1,5 @@
 import { Response } from 'express';
+import { pipeline } from 'node:stream/promises';
 import { escape } from 'lodash';
 import { PoolClient } from 'pg';
 import QueryStream from 'pg-query-stream';
@@ -26,30 +27,23 @@ export async function sendCsv(query: string, queryStore: QueryStore, res: Respon
   logger.debug(`Sending CSV for query id ${queryStore.id}...`);
   const [cubeDBConn] = (await dbManager.getCubeDataSource().driver.obtainMasterConnection()) as [PoolClient];
   let dbStream: QueryStream | null = null;
+  let hasData = false;
 
   try {
     dbStream = cubeDBConn.query(new QueryStream(query, [], { highWaterMark: BATCH_ROWS }));
+    dbStream.on('data', () => (hasData = true));
+
     const csvStream = csvFormat({ delimiter: ',', headers: true });
 
     res.setHeader('Content-Type', 'text/csv');
     res.setHeader('Content-Disposition', `attachment;filename=${queryStore.datasetId}.csv`);
 
-    await new Promise<void>((resolve, reject) => {
-      let hasData = false;
+    await pipeline(dbStream, csvStream, res, { end: false });
 
-      dbStream!.on('data', () => (hasData = true));
-      dbStream!.on('error', reject);
-      csvStream.on('error', reject);
-      csvStream.on('finish', () => {
-        if (!hasData) {
-          res.write('\n'); // Write a newline for empty CSV
-        }
-        res.end();
-        resolve();
-      });
-
-      dbStream!.pipe(csvStream).pipe(res, { end: false });
-    });
+    if (!hasData) {
+      res.write('\n'); // Write a newline for empty CSV to avoid zero-byte file issues in some clients
+    }
+    res.end();
   } catch (err) {
     logger.error(err, `Error sending CSV for query id ${queryStore.id}`);
     dbStream?.destroy();
@@ -86,44 +80,32 @@ export async function sendExcel(query: string, queryStore: QueryStore, res: Resp
     let worksheet = workbook.addWorksheet(`Sheet-${sheetCount}`);
     let isFirstRow = true;
 
-    await new Promise<void>((resolve, reject) => {
-      dbStream!.on('error', reject);
+    for await (const row of dbStream as AsyncIterable<Record<string, unknown>>) {
+      if (row === null) continue;
 
-      dbStream!.on('data', (row: Record<string, unknown>) => {
-        if (row === null) return;
+      // Add headers from first row
+      if (isFirstRow) {
+        worksheet.addRow(Object.keys(row));
+        isFirstRow = false;
+      }
 
-        // Add headers from first row
-        if (isFirstRow) {
-          worksheet.addRow(Object.keys(row));
-          isFirstRow = false;
-        }
-
-        // Transform and add data row
-        const data = Object.values(row).map((val) => {
-          if (!val) return null;
-          return isNaN(Number(val)) ? val : Number(val);
-        });
-        worksheet.addRow(data).commit();
-
-        totalRows++;
-        if (totalRows > EXCEL_ROW_LIMIT) {
-          worksheet.commit();
-          sheetCount++;
-          totalRows = 0;
-          worksheet = workbook.addWorksheet(`Sheet-${sheetCount}`);
-        }
+      const data = Object.values(row).map((val) => {
+        if (!val) return null;
+        return isNaN(Number(val)) ? val : Number(val);
       });
+      worksheet.addRow(data).commit();
 
-      dbStream!.on('end', async () => {
-        try {
-          worksheet.commit();
-          await workbook.commit();
-          resolve();
-        } catch (err) {
-          reject(err);
-        }
-      });
-    });
+      totalRows++;
+      if (totalRows > EXCEL_ROW_LIMIT) {
+        worksheet.commit();
+        sheetCount++;
+        totalRows = 0;
+        worksheet = workbook.addWorksheet(`Sheet-${sheetCount}`);
+      }
+    }
+
+    worksheet.commit();
+    await workbook.commit();
   } catch (err) {
     logger.error(err, `Error sending Excel for query id ${queryStore.id}`);
     dbStream?.destroy();
@@ -147,28 +129,20 @@ export async function sendJson(query: string, queryStore: QueryStore, res: Respo
     res.setHeader('Content-Type', 'application/json');
     res.setHeader('Content-Disposition', `attachment;filename=${queryStore.datasetId}.json`);
 
-    await new Promise<void>((resolve, reject) => {
-      let isFirstRow = true;
+    res.write('[');
+    let isFirstRow = true;
 
-      dbStream!.on('error', reject);
+    for await (const row of dbStream as AsyncIterable<unknown>) {
+      if (isFirstRow) {
+        isFirstRow = false;
+      } else {
+        res.write(',\n');
+      }
+      res.write(JSON.stringify(row));
+    }
 
-      res.write('[');
-
-      dbStream!.on('data', (row: unknown) => {
-        if (isFirstRow) {
-          isFirstRow = false;
-        } else {
-          res.write(',\n');
-        }
-        res.write(JSON.stringify(row));
-      });
-
-      dbStream!.on('end', () => {
-        res.write(']');
-        res.end();
-        resolve();
-      });
-    });
+    res.write(']');
+    res.end();
   } catch (err) {
     logger.error(err, `Error sending JSON for query id ${queryStore.id}`);
     dbStream?.destroy();
@@ -204,43 +178,36 @@ export async function sendHtml(query: string, queryStore: QueryStore, res: Respo
       <thead><tr>
     `);
 
-    await new Promise<void>((resolve, reject) => {
-      let isFirstRow = true;
-      let hasData = false;
+    let isFirstRow = true;
+    let hasData = false;
 
-      dbStream!.on('error', reject);
+    for await (const row of dbStream as AsyncIterable<Record<string, unknown>>) {
+      hasData = true;
 
-      dbStream!.on('data', (row: Record<string, unknown>) => {
-        hasData = true;
-
-        // Add headers from first row
-        if (isFirstRow) {
-          Object.keys(row).forEach((key) => {
-            res.write(`<th>${escape(key)}</th>`);
-          });
-          res.write('</tr></thead><tbody>');
-          isFirstRow = false;
-        }
-
-        // Add data row
-        res.write('<tr>');
-        Object.values(row).forEach((value) => {
-          res.write(`<td>${value === null ? '' : escape(value as string)}</td>`);
+      // Add headers from first row
+      if (isFirstRow) {
+        Object.keys(row).forEach((key) => {
+          res.write(`<th>${escape(key)}</th>`);
         });
-        res.write('</tr>');
-      });
+        res.write('</tr></thead><tbody>');
+        isFirstRow = false;
+      }
 
-      dbStream!.on('end', () => {
-        if (!hasData) {
-          res.write(`</tr></thead><tbody></tbody>`);
-        } else {
-          res.write(`</tbody>`);
-        }
-        res.write(`</table></body></html>`);
-        res.end();
-        resolve();
+      // Add data row
+      res.write('<tr>');
+      Object.values(row).forEach((value) => {
+        res.write(`<td>${value === null ? '' : escape(value as string)}</td>`);
       });
-    });
+      res.write('</tr>');
+    }
+
+    if (!hasData) {
+      res.write(`</tr></thead><tbody></tbody>`);
+    } else {
+      res.write(`</tbody>`);
+    }
+    res.write(`</table></body></html>`);
+    res.end();
   } catch (err) {
     logger.error(err, `Error sending HTML for query id ${queryStore.id}`);
     dbStream?.destroy();
