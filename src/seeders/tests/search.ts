@@ -19,6 +19,7 @@ import { DatasetDTO } from '../../dtos/dataset-dto';
 import { RevisionMetadataDTO } from '../../dtos/revistion-metadata-dto';
 import { DatasetListItemDTO } from '../../dtos/dataset-list-item-dto';
 import { ResultsetWithCount } from '../../interfaces/resultset-with-count';
+import { uuidV4 } from '../../utils/uuid';
 
 const prodApiUrl = 'https://api.stats.gov.wales/v1/';
 
@@ -68,57 +69,58 @@ export class SearchSeeder {
         logger.debug(`Fetching published revision metadata for dataset ${liveDataset.id}...`);
         const response = await fetch(`${prodApiUrl}${liveDataset.id}?lang=en-gb`);
 
-        if (response.ok) {
-          const fullDatasetDTO = (await response.json()) as DatasetDTO;
-          publishedRevMeta = fullDatasetDTO.published_revision?.metadata;
-
-          dataset = await Dataset.create({
-            id: liveDataset.id,
-            createdBy: publisher,
-            userGroup: group,
-            firstPublishedAt
-          }).save();
+        if (!response.ok) {
+          throw new Error(`Failed: ${response.status} ${response.statusText}`);
         }
+
+        const fullDatasetDTO = (await response.json()) as DatasetDTO;
+        publishedRevMeta = fullDatasetDTO.published_revision?.metadata;
+
+        dataset = await Dataset.create({
+          id: liveDataset.id,
+          createdBy: publisher,
+          userGroup: group,
+          firstPublishedAt
+        }).save();
+
+        const revision = await Revision.create({
+          id: fullDatasetDTO.published_revision?.id || uuidV4(),
+          revisionIndex: 1,
+          datasetId: liveDataset.id,
+          createdBy: publisher,
+          publishAt: firstPublishedAt,
+          approvedAt: firstPublishedAt,
+          approvedBy: approver,
+          metadata: [
+            RevisionMetadata.create({
+              language: Locale.EnglishGb,
+              title: publishedRevMeta?.find((meta) => meta.language === Locale.EnglishGb)?.title,
+              summary: publishedRevMeta?.find((meta) => meta.language === Locale.EnglishGb)?.summary,
+              collection: publishedRevMeta?.find((meta) => meta.language === Locale.EnglishGb)?.collection,
+              quality: publishedRevMeta?.find((meta) => meta.language === Locale.EnglishGb)?.quality
+            }),
+            RevisionMetadata.create({
+              language: Locale.WelshGb,
+              title: publishedRevMeta?.find((meta) => meta.language === Locale.WelshGb)?.title,
+              summary: publishedRevMeta?.find((meta) => meta.language === Locale.WelshGb)?.summary,
+              collection: publishedRevMeta?.find((meta) => meta.language === Locale.WelshGb)?.collection,
+              quality: publishedRevMeta?.find((meta) => meta.language === Locale.WelshGb)?.quality
+            })
+          ]
+        }).save();
+
+        dataset = await Dataset.merge(dataset, {
+          startRevision: revision,
+          endRevision: revision,
+          publishedRevision: revision
+        }).save();
+
+        datasets.push(dataset);
+        await delay(API_DELAY_MS);
       } catch (err) {
         logger.warn(`Failed to fetch metadata for dataset ${liveDataset.id}: ${err}`);
-        continue; // skip this dataset but continue with the next ones
+        // skip dataset and continue with the next one
       }
-
-      // Delay to respect API rate limit (100 req/min)
-      await delay(API_DELAY_MS);
-
-      const revision = await Revision.create({
-        revisionIndex: 1,
-        datasetId: liveDataset.id,
-        createdBy: publisher,
-        publishAt: firstPublishedAt,
-        approvedAt: firstPublishedAt,
-        approvedBy: approver,
-        metadata: [
-          RevisionMetadata.create({
-            language: Locale.EnglishGb,
-            title: publishedRevMeta?.find((meta) => meta.language === Locale.EnglishGb)?.title,
-            summary: publishedRevMeta?.find((meta) => meta.language === Locale.EnglishGb)?.summary,
-            collection: publishedRevMeta?.find((meta) => meta.language === Locale.EnglishGb)?.collection,
-            quality: publishedRevMeta?.find((meta) => meta.language === Locale.EnglishGb)?.quality
-          }),
-          RevisionMetadata.create({
-            language: Locale.WelshGb,
-            title: publishedRevMeta?.find((meta) => meta.language === Locale.WelshGb)?.title,
-            summary: publishedRevMeta?.find((meta) => meta.language === Locale.WelshGb)?.summary,
-            collection: publishedRevMeta?.find((meta) => meta.language === Locale.WelshGb)?.collection,
-            quality: publishedRevMeta?.find((meta) => meta.language === Locale.WelshGb)?.quality
-          })
-        ]
-      }).save();
-
-      dataset = await Dataset.merge(dataset!, {
-        startRevision: revision,
-        endRevision: revision,
-        publishedRevision: revision
-      }).save();
-
-      datasets.push(dataset);
     }
 
     logger.info(`Saved ${datasets.length} datasets for search quality tests.`);
