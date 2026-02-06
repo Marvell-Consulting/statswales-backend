@@ -5,7 +5,7 @@ export class FixSearchTrigger1770379200000 implements MigrationInterface {
 
   public async up(queryRunner: QueryRunner): Promise<void> {
     // Drop and recreate the trigger to include updated_at in the UPDATE OF clause as it changes on every write to the
-    // revision metadata. Not sure why but the orginal trigger was not firing when revisions were created or updated,
+    // revision metadata. Not sure why but the original trigger was not firing when revisions were created or updated,
     // possibly due to the way TypeORM handles update queries.
     await queryRunner.query(`
       DROP TRIGGER IF EXISTS revision_metadata_fts_trg ON revision_metadata;
