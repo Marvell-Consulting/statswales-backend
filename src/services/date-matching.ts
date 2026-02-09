@@ -142,13 +142,13 @@ interface RollingType {
 
 function getRollingType(type: string): RollingType | undefined {
   if (type.toUpperCase().charAt(1) === 'Y') {
-    if (type.toUpperCase() === 'XY') {
+    if (type.toUpperCase().includes('X')) {
       return {
         increment: { years: 10 },
         description: 'date_format.rolling.10_year_ending'
       };
     }
-    const yearCount = isNaN(Number(type.charAt(0))) ? Number(type.charAt(0)) : 10;
+    const yearCount = isNaN(Number(type.charAt(0))) ? 10 : Number(type.charAt(0));
     return {
       increment: { years: Number(yearCount) },
       description: `date_format.rolling.${yearCount}_year_ending`
