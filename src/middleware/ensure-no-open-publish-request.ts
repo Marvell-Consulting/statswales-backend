@@ -15,7 +15,7 @@ export const ensureNoOpenPublishRequest = async (req: Request, res: Response, ne
       return next(new BadRequestException('errors.dataset.has_open_publish_request'));
     }
   } catch (err) {
-    next(err);
+    return next(err);
   }
 
   next();
