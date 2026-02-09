@@ -25,12 +25,14 @@ import {
   generateFilterId,
   datasetPreview
 } from '../controllers/dataset';
+import { getTasksForDataset } from '../controllers/task';
 import { datasetAuth } from '../middleware/dataset-auth';
 import { fileStreaming } from '../middleware/file-streaming';
 
 import { revisionRouter } from './revision';
 import { dimensionRouter } from './dimension';
 import { measureRouter } from './measure';
+import { ensureNoOpenPublishRequest } from '../middleware/ensure-no-open-publish-request';
 
 const jsonParser = express.json();
 
@@ -60,12 +62,12 @@ datasetRouter.get('/:dataset_id', getDatasetById);
 
 // PATCH /dataset/:dataset_id/metadata
 // Updates the dataset info with the provided data
-datasetRouter.patch('/:dataset_id/metadata', jsonParser, updateMetadata);
+datasetRouter.patch('/:dataset_id/metadata', ensureNoOpenPublishRequest, jsonParser, updateMetadata);
 
 // POST /dataset/:dataset_id/data
 // Upload a data file to a dataset
 // Returns a DTO object that includes the draft revision
-datasetRouter.post('/:dataset_id/data', fileStreaming(), uploadDataTable);
+datasetRouter.post('/:dataset_id/data', ensureNoOpenPublishRequest, fileStreaming(), uploadDataTable);
 
 // Generates a filter ID for the current dataset preview filter selection
 datasetRouter.post('/:dataset_id/preview', jsonParser, generateFilterId);
@@ -90,11 +92,15 @@ datasetRouter.get('/:dataset_id/fact-table', getFactTableDefinition);
 // Notes: There can only be one object with a type of "dataValue" and one object with a type of "noteCodes"
 // and one object with a value of "measure"
 // Returns a JSON object with the current state of the dataset including the dimensions created.
-datasetRouter.patch('/:dataset_id/sources', jsonParser, updateSources);
+datasetRouter.patch('/:dataset_id/sources', ensureNoOpenPublishRequest, jsonParser, updateSources);
 
 // GET /dataset/:dataset_id/tasklist
 // Returns a JSON object with info on what parts of the dataset have been created
 datasetRouter.get('/:dataset_id/tasklist', getTasklist);
+
+// GET /dataset/:dataset_id/tasks
+// Returns the tasks for the dataset
+datasetRouter.get('/:dataset_id/tasks', getTasksForDataset);
 
 // GET /dataset/:dataset_id/providers
 // Returns the data providers for the dataset
@@ -102,11 +108,11 @@ datasetRouter.get('/:dataset_id/providers', jsonParser, getDataProviders);
 
 // POST /dataset/:dataset_id/providers
 // Adds a new data provider for the dataset
-datasetRouter.post('/:dataset_id/providers', jsonParser, addDataProvider);
+datasetRouter.post('/:dataset_id/providers', ensureNoOpenPublishRequest, jsonParser, addDataProvider);
 
 // PATCH /dataset/:dataset_id/providers
 // Updates the data providers for the dataset
-datasetRouter.patch('/:dataset_id/providers', jsonParser, updateDataProviders);
+datasetRouter.patch('/:dataset_id/providers', ensureNoOpenPublishRequest, jsonParser, updateDataProviders);
 
 // GET /dataset/:dataset_id/topics
 // Returns the topics for the dataset
@@ -114,7 +120,7 @@ datasetRouter.get('/:dataset_id/topics', jsonParser, getTopics);
 
 // PATCH /dataset/:dataset_id/topics
 // Updates the topics for the dataset
-datasetRouter.patch('/:dataset_id/topics', jsonParser, updateTopics);
+datasetRouter.patch('/:dataset_id/topics', ensureNoOpenPublishRequest, jsonParser, updateTopics);
 
 // GET /dataset/:dataset_id/download
 // Downloads everything from the datalake relating to this dataset as a zip file
@@ -126,7 +132,7 @@ datasetRouter.get('/:dataset_id/list-files', listAllFilesInDataset);
 
 // PATCH /dataset/:dataset_id/group
 // Updates the user group for the dataset
-datasetRouter.patch('/:dataset_id/group', jsonParser, updateDatasetGroup);
+datasetRouter.patch('/:dataset_id/group', ensureNoOpenPublishRequest, jsonParser, updateDatasetGroup);
 
 // GET /dataset/:dataset_id/history
 // List the event history for this dataset

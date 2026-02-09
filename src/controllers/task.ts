@@ -15,6 +15,21 @@ export const getTask = async (req: Request, res: Response): Promise<void> => {
   res.json(TaskDTO.fromTask(res.locals.task));
 };
 
+export const getTasksForDataset = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  const datasetId = req.params.dataset_id;
+  const open = req.query.open === 'true' ? true : req.query.open === 'false' ? false : undefined;
+  const taskService = new TaskService();
+
+  try {
+    if (!datasetId) throw new BadRequestException('errors.dataset_id.missing');
+    const tasks = await taskService.getTasksForDataset(datasetId, open);
+    const taskDTOs = tasks.map((task) => TaskDTO.fromTask(task));
+    res.json(taskDTOs);
+  } catch (err) {
+    next(err);
+  }
+};
+
 export const taskDecision = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   let task = res.locals.task;
   const taskService = new TaskService();
