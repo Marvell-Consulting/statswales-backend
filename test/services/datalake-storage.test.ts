@@ -140,4 +140,168 @@ describe('DataLakeStorage', () => {
       { name: 'file2.txt', path: 'file2.txt', isDirectory: false }
     ]);
   });
+
+  // --- Accessor methods ---
+
+  it('should return the service client', () => {
+    const serviceClient = dataLakeStorage.getServiceClient();
+    expect(serviceClient).toBeInstanceOf(DataLakeServiceClient);
+  });
+
+  // --- Error handling ---
+
+  it('should throw when loadStream response has no readableStreamBody', async () => {
+    fileClientMock.read.mockResolvedValue({ readableStreamBody: undefined } as any);
+
+    await expect(dataLakeStorage.loadStream('test-file', 'test-directory')).rejects.toThrow(
+      "Failed to download file 'test-file' from datalake"
+    );
+  });
+
+  it('should propagate error when saveBuffer fails', async () => {
+    fileClientMock.upload.mockRejectedValue(new Error('Network error'));
+
+    await expect(dataLakeStorage.saveBuffer('file.txt', 'dir', Buffer.from('data'))).rejects.toThrow('Network error');
+  });
+
+  it('should propagate error when loadBuffer fails', async () => {
+    fileClientMock.readToBuffer.mockRejectedValue(new Error('Auth failure'));
+
+    await expect(dataLakeStorage.loadBuffer('file.txt', 'dir')).rejects.toThrow('Auth failure');
+  });
+
+  it('should propagate error when saveStream fails', async () => {
+    fileClientMock.uploadStream.mockRejectedValue(new Error('Timeout'));
+
+    await expect(dataLakeStorage.saveStream('file.txt', 'dir', Readable.from(['x']))).rejects.toThrow('Timeout');
+  });
+
+  it('should propagate error when delete fails', async () => {
+    fileClientMock.deleteIfExists.mockRejectedValue(new Error('Service unavailable'));
+
+    await expect(dataLakeStorage.delete('file.txt', 'dir')).rejects.toThrow('Service unavailable');
+  });
+
+  it('should propagate error when deleteDirectory fails', async () => {
+    directoryClientMock.deleteIfExists.mockRejectedValue(new Error('Forbidden'));
+
+    await expect(dataLakeStorage.deleteDirectory('dir')).rejects.toThrow('Forbidden');
+  });
+
+  // --- Verifying directory creation before saves ---
+
+  it('should create directory before saving buffer', async () => {
+    const buffer = Buffer.from('test');
+    const createResponse = { succeeded: true } as unknown as DirectoryCreateIfNotExistsResponse;
+    const uploadResponse = { requestId: 'r1' } as FileUploadResponse;
+
+    directoryClientMock.createIfNotExists.mockResolvedValueOnce(createResponse);
+    fileClientMock.upload.mockResolvedValueOnce(uploadResponse);
+
+    await dataLakeStorage.saveBuffer('file.txt', 'my-dir', buffer);
+
+    expect(directoryClientMock.createIfNotExists).toHaveBeenCalled();
+    expect(fileClientMock.upload).toHaveBeenCalledWith(buffer);
+
+    const createOrder = directoryClientMock.createIfNotExists.mock.invocationCallOrder[0];
+    const uploadOrder = fileClientMock.upload.mock.invocationCallOrder[0];
+    expect(createOrder).toBeLessThan(uploadOrder);
+  });
+
+  it('should create directory before saving stream', async () => {
+    const stream = Readable.from(['data']);
+    const createResponse = { succeeded: true } as unknown as DirectoryCreateIfNotExistsResponse;
+    const uploadResponse = { requestId: 'r1' } as FileUploadResponse;
+
+    directoryClientMock.createIfNotExists.mockResolvedValueOnce(createResponse);
+    fileClientMock.uploadStream.mockResolvedValueOnce(uploadResponse);
+
+    await dataLakeStorage.saveStream('file.txt', 'my-dir', stream);
+
+    expect(directoryClientMock.createIfNotExists).toHaveBeenCalled();
+    expect(fileClientMock.uploadStream).toHaveBeenCalledWith(stream);
+
+    const createOrder = directoryClientMock.createIfNotExists.mock.invocationCallOrder[0];
+    const uploadOrder = fileClientMock.uploadStream.mock.invocationCallOrder[0];
+    expect(createOrder).toBeLessThan(uploadOrder);
+  });
+
+  // --- Edge cases ---
+
+  it('should handle empty buffer upload', async () => {
+    const emptyBuffer = Buffer.alloc(0);
+    const response = { requestId: 'r1' } as FileUploadResponse;
+    directoryClientMock.createIfNotExists.mockResolvedValueOnce({} as DirectoryCreateIfNotExistsResponse);
+    fileClientMock.upload.mockResolvedValueOnce(response);
+
+    const result = await dataLakeStorage.saveBuffer('empty.txt', 'dir', emptyBuffer);
+
+    expect(fileClientMock.upload).toHaveBeenCalledWith(emptyBuffer);
+    expect(result).toBe(response);
+  });
+
+  it('should return empty array when listing empty directory', async () => {
+    const fileIterator = {
+      async *[Symbol.asyncIterator]() {
+        // yields nothing
+      }
+    } as unknown as PagedAsyncIterableIterator<Path, FileSystemListPathsResponse>;
+
+    fsClientMock.listPaths.mockReturnValue(fileIterator);
+
+    const result = await dataLakeStorage.listFiles('empty-dir');
+    expect(result).toEqual([]);
+  });
+
+  it('should skip files with undefined name when listing', async () => {
+    const files = [
+      { name: 'file1.txt', isDirectory: false },
+      { name: undefined, isDirectory: false },
+      { name: 'file2.txt', isDirectory: true }
+    ];
+
+    const fileIterator = {
+      async *[Symbol.asyncIterator]() {
+        yield* files;
+      }
+    } as unknown as PagedAsyncIterableIterator<Path, FileSystemListPathsResponse>;
+
+    fsClientMock.listPaths.mockReturnValue(fileIterator);
+
+    const result = await dataLakeStorage.listFiles('dir');
+    expect(result).toEqual([
+      { name: 'file1.txt', path: 'file1.txt', isDirectory: false },
+      { name: 'file2.txt', path: 'file2.txt', isDirectory: true }
+    ]);
+  });
+
+  it('should default isDirectory to false when not set', async () => {
+    const files = [{ name: 'file.txt' }];
+
+    const fileIterator = {
+      async *[Symbol.asyncIterator]() {
+        yield* files;
+      }
+    } as unknown as PagedAsyncIterableIterator<Path, FileSystemListPathsResponse>;
+
+    fsClientMock.listPaths.mockReturnValue(fileIterator);
+
+    const result = await dataLakeStorage.listFiles('dir');
+    expect(result).toEqual([{ name: 'file.txt', path: 'file.txt', isDirectory: false }]);
+  });
+
+  it('should extract basename from full path in listFiles', async () => {
+    const files = [{ name: 'dir/subdir/deep-file.csv', isDirectory: false }];
+
+    const fileIterator = {
+      async *[Symbol.asyncIterator]() {
+        yield* files;
+      }
+    } as unknown as PagedAsyncIterableIterator<Path, FileSystemListPathsResponse>;
+
+    fsClientMock.listPaths.mockReturnValue(fileIterator);
+
+    const result = await dataLakeStorage.listFiles('dir');
+    expect(result).toEqual([{ name: 'deep-file.csv', path: 'dir/subdir/deep-file.csv', isDirectory: false }]);
+  });
 });
