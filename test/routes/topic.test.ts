@@ -39,6 +39,8 @@ describe('Topics', () => {
   beforeAll(async () => {
     try {
       await dbManager.initDataSources();
+      await dbManager.getAppDataSource().dropDatabase();
+      await dbManager.getAppDataSource().runMigrations();
       await initPassport(dbManager.getAppDataSource());
       await user.save();
       await dbManager.getAppDataSource().manager.save(Topic, topics);

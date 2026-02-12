@@ -73,6 +73,8 @@ describe('DimensionRepository', () => {
   beforeAll(async () => {
     try {
       await dbManager.initDataSources();
+      await dbManager.getAppDataSource().dropDatabase();
+      await dbManager.getAppDataSource().runMigrations();
       await user.save();
     } catch (err) {
       // eslint-disable-next-line no-console

@@ -378,18 +378,38 @@ export const PublishedDatasetRepository = dataSource.getRepository(Dataset).exte
     if (locale.includes('en') && !forceSimple) {
       resultQuery.addSelect(`ts_rank(pr.fts, websearch_to_tsquery('english', :keywords)) AS rank`);
       resultQuery.addSelect(
-        `ts_headline('english', COALESCE(pr.title, ''), websearch_to_tsquery('english', :keywords), 'StartSel=<mark>, StopSel=</mark>, MaxFragments=3, MaxWords=30, MinWords=15') AS match_title`
+        `ts_headline(
+          'english',
+          COALESCE(pr.title, ''),
+          websearch_to_tsquery('english', :keywords),
+          'StartSel=<mark>, StopSel=</mark>, HighlightAll=TRUE'
+        ) AS match_title`
       );
       resultQuery.addSelect(
-        `ts_headline('english', COALESCE(pr.summary, ''), websearch_to_tsquery('english', :keywords), 'StartSel=<mark>, StopSel=</mark>, MaxFragments=3, MaxWords=30, MinWords=15') AS match_summary`
+        `ts_headline(
+          'english',
+          COALESCE(pr.summary, ''),
+          websearch_to_tsquery('english', :keywords),
+          'StartSel=<mark>, StopSel=</mark>, MaxFragments=3, MaxWords=30, MinWords=15'
+        ) AS match_summary`
       );
     } else {
       resultQuery.addSelect(`ts_rank(pr.fts_simple, websearch_to_tsquery('simple', :keywords)) AS rank`);
       resultQuery.addSelect(
-        `ts_headline('simple', COALESCE(pr.title, ''), websearch_to_tsquery('simple', :keywords), 'StartSel=<mark>, StopSel=</mark>, MaxFragments=3, MaxWords=30, MinWords=15') AS match_title`
+        `ts_headline(
+          'simple',
+          COALESCE(pr.title, ''),
+          websearch_to_tsquery('simple', :keywords),
+          'StartSel=<mark>, StopSel=</mark>, HighlightAll=TRUE'
+        ) AS match_title`
       );
       resultQuery.addSelect(
-        `ts_headline('simple', COALESCE(pr.summary, ''), websearch_to_tsquery('simple', :keywords), 'StartSel=<mark>, StopSel=</mark>, MaxFragments=3, MaxWords=30, MinWords=15') AS match_summary`
+        `ts_headline(
+          'simple',
+          COALESCE(pr.summary, ''),
+          websearch_to_tsquery('simple', :keywords),
+          'StartSel=<mark>, StopSel=</mark>, MaxFragments=3, MaxWords=30, MinWords=15'
+        ) AS match_summary`
       );
     }
 
