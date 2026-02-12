@@ -102,7 +102,7 @@ export default class BlobStorage implements StorageService {
   ): Promise<void> {
     for await (const blob of containerClient.listBlobsByHierarchy(this.delimiter, { prefix })) {
       if (blob.kind === 'prefix') {
-        await this.listHierarchical(containerClient, `${prefix}${blob.name}`, blobAction);
+        await this.listHierarchical(containerClient, blob.name, blobAction);
       } else {
         if (blobAction) {
           await blobAction(blob);

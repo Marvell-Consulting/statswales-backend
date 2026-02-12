@@ -228,7 +228,7 @@ describe('BlobStorage', () => {
     // Verify correct prefixes were used for top-level and recursive calls
     expect(callArgs).toHaveLength(2);
     expect(callArgs[0]).toEqual({ prefix: '1234' });
-    expect(callArgs[1]).toEqual({ prefix: '12341234/subdir/' });
+    expect(callArgs[1]).toEqual({ prefix: '1234/subdir/' });
   });
 
   it('should delete files inside nested virtual directories', async () => {
@@ -257,6 +257,6 @@ describe('BlobStorage', () => {
     // Verify correct prefixes were used for top-level and recursive calls
     expect(callArgs).toHaveLength(2);
     expect(callArgs[0]).toEqual({ prefix: '1234' });
-    expect(callArgs[1]).toEqual({ prefix: '12341234/subdir/' });
+    expect(callArgs[1]).toEqual({ prefix: '1234/subdir/' });
   });
 });
