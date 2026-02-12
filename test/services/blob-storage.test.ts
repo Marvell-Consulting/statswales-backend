@@ -212,10 +212,10 @@ describe('BlobStorage', () => {
     const topLevel = [{ kind: 'prefix', name: '1234/subdir/' }];
     const nested = [{ name: '1234/subdir/file.csv' }];
 
-    let callCount = 0;
-    containerClientMock.listBlobsByHierarchy = jest.fn().mockImplementation(function* (_delimiter) {
-      if (callCount === 0) {
-        callCount++;
+    const callArgs: { prefix: string }[] = [];
+    containerClientMock.listBlobsByHierarchy = jest.fn().mockImplementation(function* (_delimiter, opts) {
+      callArgs.push(opts);
+      if (callArgs.length === 1) {
         yield* topLevel;
       } else {
         yield* nested;
@@ -224,16 +224,21 @@ describe('BlobStorage', () => {
 
     const result = await blobStorage.listFiles('1234');
     expect(result).toEqual(['1234/subdir/file.csv']);
+
+    // Verify correct prefixes were used for top-level and recursive calls
+    expect(callArgs).toHaveLength(2);
+    expect(callArgs[0]).toEqual({ prefix: '1234' });
+    expect(callArgs[1]).toEqual({ prefix: '12341234/subdir/' });
   });
 
   it('should delete files inside nested virtual directories', async () => {
     const topLevel = [{ kind: 'prefix', name: '1234/subdir/' }];
     const nested = [{ name: '1234/subdir/file1.csv' }, { name: '1234/subdir/file2.csv' }];
 
-    let callCount = 0;
-    containerClientMock.listBlobsByHierarchy = jest.fn().mockImplementation(function* (_delimiter, _opts) {
-      if (callCount === 0) {
-        callCount++;
+    const callArgs: { prefix: string }[] = [];
+    containerClientMock.listBlobsByHierarchy = jest.fn().mockImplementation(function* (_delimiter, opts) {
+      callArgs.push(opts);
+      if (callArgs.length === 1) {
         yield* topLevel;
       } else {
         yield* nested;
@@ -248,5 +253,10 @@ describe('BlobStorage', () => {
     await blobStorage.deleteDirectory('1234');
 
     expect(blockBlobClientMock.deleteIfExists).toHaveBeenCalledTimes(2);
+
+    // Verify correct prefixes were used for top-level and recursive calls
+    expect(callArgs).toHaveLength(2);
+    expect(callArgs[0]).toEqual({ prefix: '1234' });
+    expect(callArgs[1]).toEqual({ prefix: '12341234/subdir/' });
   });
 });

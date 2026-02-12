@@ -202,6 +202,10 @@ describe('DataLakeStorage', () => {
 
     expect(directoryClientMock.createIfNotExists).toHaveBeenCalled();
     expect(fileClientMock.upload).toHaveBeenCalledWith(buffer);
+
+    const createOrder = directoryClientMock.createIfNotExists.mock.invocationCallOrder[0];
+    const uploadOrder = fileClientMock.upload.mock.invocationCallOrder[0];
+    expect(createOrder).toBeLessThan(uploadOrder);
   });
 
   it('should create directory before saving stream', async () => {
@@ -216,6 +220,10 @@ describe('DataLakeStorage', () => {
 
     expect(directoryClientMock.createIfNotExists).toHaveBeenCalled();
     expect(fileClientMock.uploadStream).toHaveBeenCalledWith(stream);
+
+    const createOrder = directoryClientMock.createIfNotExists.mock.invocationCallOrder[0];
+    const uploadOrder = fileClientMock.uploadStream.mock.invocationCallOrder[0];
+    expect(createOrder).toBeLessThan(uploadOrder);
   });
 
   // --- Edge cases ---
