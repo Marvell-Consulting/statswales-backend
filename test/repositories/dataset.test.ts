@@ -87,6 +87,8 @@ describe('DatasetRepository', () => {
   beforeAll(async () => {
     try {
       await dbManager.initDataSources();
+      await dbManager.getAppDataSource().dropDatabase();
+      await dbManager.getAppDataSource().runMigrations();
       await user.save();
 
       // Create a user group with metadata (required for listAll / listForUser INNER JOINs)
@@ -351,7 +353,7 @@ describe('DatasetRepository', () => {
 
       // group_name should be set
       const alphaItem = result.data.find((d: any) => d.title === 'Alpha Dataset');
-      expect(alphaItem.group_name).toBe('Test Group EN');
+      expect(alphaItem!.group_name).toBe('Test Group EN');
     });
 
     it('should apply search filter on title (ILIKE)', async () => {
@@ -383,13 +385,13 @@ describe('DatasetRepository', () => {
       const result = await DatasetRepository.listAll(Locale.EnglishGb, 1, 100);
 
       const alphaItem = result.data.find((d: any) => d.title === 'Alpha Dataset');
-      expect(alphaItem.status).toBe('new');
+      expect(alphaItem!.status).toBe('new');
 
       const betaItem = result.data.find((d: any) => d.title === 'Beta Dataset');
-      expect(betaItem.status).toBe('live');
+      expect(betaItem!.status).toBe('live');
 
       const gammaItem = result.data.find((d: any) => d.title === 'Gamma Archived');
-      expect(gammaItem.status).toBe('archived');
+      expect(gammaItem!.status).toBe('archived');
     });
   });
 
