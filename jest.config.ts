@@ -11,6 +11,15 @@ const config: Config = {
   coverageDirectory: './coverage',
   collectCoverage: true,
   coverageReporters: ['cobertura', 'lcov', 'html', 'text'],
+  // add threshold to ensure we don't drop below the current level of coverage
+  coverageThreshold: {
+    global: {
+      statements: 54,
+      branches: 39,
+      functions: 49,
+      lines: 53,
+    },
+  },
   coveragePathIgnorePatterns: [
     '/node_modules',
     '/test/',
