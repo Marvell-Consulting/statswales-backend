@@ -62,13 +62,17 @@ async function createRevisionWithMetadata(
   revisionIndex: number,
   title: string,
   language: string,
-  overrides: Partial<Revision> = {}
+  overrides: Partial<Revision> = {},
+  summary?: string
 ): Promise<Revision> {
   const rev = await createRevision(dataset, createdBy, revisionIndex, overrides);
   const meta = new RevisionMetadata();
   meta.id = rev.id;
   meta.language = language;
   meta.title = title;
+  if (summary !== undefined) {
+    meta.summary = summary;
+  }
   await meta.save();
   return rev;
 }
@@ -77,6 +81,8 @@ describe('PublishedDatasetRepository', () => {
   beforeAll(async () => {
     try {
       await dbManager.initDataSources();
+      await dbManager.getAppDataSource().dropDatabase();
+      await dbManager.getAppDataSource().runMigrations();
       await user.save();
     } catch (err) {
       // eslint-disable-next-line no-console
@@ -313,6 +319,368 @@ describe('PublishedDatasetRepository', () => {
       expect(result).toHaveProperty('data');
       expect(result).toHaveProperty('count');
       expect(Array.isArray(result.data)).toBe(true);
+    });
+  });
+
+  describe('searchBasic', () => {
+    let searchDs1: Dataset;
+    let searchDs2: Dataset;
+    let searchDs3: Dataset;
+
+    beforeAll(async () => {
+      searchDs1 = await createDataset(user, { firstPublishedAt: pastDate(72) });
+      await createRevisionWithMetadata(
+        searchDs1,
+        user,
+        1,
+        'Population Statistics Wales',
+        Locale.EnglishGb,
+        { publishAt: pastDate(72), approvedAt: pastDate(96) },
+        'Annual population estimates for Wales by local authority'
+      );
+
+      searchDs2 = await createDataset(user, { firstPublishedAt: pastDate(48) });
+      await createRevisionWithMetadata(
+        searchDs2,
+        user,
+        1,
+        'School Attendance Report',
+        Locale.EnglishGb,
+        { publishAt: pastDate(48), approvedAt: pastDate(72) },
+        'Attendance figures for primary and secondary schools'
+      );
+
+      searchDs3 = await createDataset(user, { firstPublishedAt: pastDate(24) });
+      await createRevisionWithMetadata(
+        searchDs3,
+        user,
+        1,
+        'Housing Data Summary',
+        Locale.EnglishGb,
+        { publishAt: pastDate(24), approvedAt: pastDate(48) },
+        'Statistics on housing completions and population density'
+      );
+    });
+
+    it('should find datasets matching title keyword', async () => {
+      const result = await PublishedDatasetRepository.searchBasic(Locale.EnglishGb, 'Population', 1, 100);
+      const ids = result.data.map((d) => d.id);
+      expect(ids).toContain(searchDs1.id);
+    });
+
+    it('should find datasets matching summary keyword', async () => {
+      const result = await PublishedDatasetRepository.searchBasic(Locale.EnglishGb, 'attendance', 1, 100);
+      const ids = result.data.map((d) => d.id);
+      expect(ids).toContain(searchDs2.id);
+    });
+
+    it('should be case-insensitive', async () => {
+      const result = await PublishedDatasetRepository.searchBasic(Locale.EnglishGb, 'HOUSING', 1, 100);
+      const ids = result.data.map((d) => d.id);
+      expect(ids).toContain(searchDs3.id);
+    });
+
+    it('should return correct count', async () => {
+      const result = await PublishedDatasetRepository.searchBasic(Locale.EnglishGb, 'population', 1, 100);
+      // searchDs1 has "Population" in title, searchDs3 has "population" in summary
+      expect(result.count).toBeGreaterThanOrEqual(2);
+    });
+
+    it('should return empty when no match', async () => {
+      const result = await PublishedDatasetRepository.searchBasic(Locale.EnglishGb, 'xyznonexistent', 1, 100);
+      expect(result.data).toHaveLength(0);
+      expect(result.count).toBe(0);
+    });
+
+    it('should respect pagination', async () => {
+      const result = await PublishedDatasetRepository.searchBasic(Locale.EnglishGb, 'Statistics', 1, 1);
+      expect(result.data.length).toBeLessThanOrEqual(1);
+      expect(result.count).toBeGreaterThanOrEqual(2);
+    });
+
+    it('should return expected fields in results', async () => {
+      const result = await PublishedDatasetRepository.searchBasic(Locale.EnglishGb, 'Population', 1, 100);
+      const match = result.data.find((d) => d.id === searchDs1.id);
+      expect(match).toBeDefined();
+      expect(match!.title).toBe('Population Statistics Wales');
+      expect(match!.summary).toBe('Annual population estimates for Wales by local authority');
+      expect(match!.first_published_at).toBeDefined();
+      expect(match!.last_updated_at).toBeDefined();
+    });
+
+    it('should not include unpublished datasets', async () => {
+      const unpubDs = await createDataset(user, { firstPublishedAt: null });
+      await createRevisionWithMetadata(
+        unpubDs,
+        user,
+        1,
+        'Population Unpublished',
+        Locale.EnglishGb,
+        { publishAt: pastDate(24), approvedAt: pastDate(48) },
+        'Should not appear in search'
+      );
+
+      const result = await PublishedDatasetRepository.searchBasic(Locale.EnglishGb, 'Population Unpublished', 1, 100);
+      const ids = result.data.map((d) => d.id);
+      expect(ids).not.toContain(unpubDs.id);
+    });
+  });
+
+  describe('searchBasicSplit', () => {
+    let splitDs1: Dataset;
+    let splitDs2: Dataset;
+
+    beforeAll(async () => {
+      splitDs1 = await createDataset(user, { firstPublishedAt: pastDate(72) });
+      await createRevisionWithMetadata(
+        splitDs1,
+        user,
+        1,
+        'Economic Growth Indicators',
+        Locale.EnglishGb,
+        { publishAt: pastDate(72), approvedAt: pastDate(96) },
+        'Quarterly economic growth data for the United Kingdom'
+      );
+
+      splitDs2 = await createDataset(user, { firstPublishedAt: pastDate(48) });
+      await createRevisionWithMetadata(
+        splitDs2,
+        user,
+        1,
+        'Employment Trends Analysis',
+        Locale.EnglishGb,
+        { publishAt: pastDate(48), approvedAt: pastDate(72) },
+        'Monthly employment indicators across regions'
+      );
+    });
+
+    it('should match datasets where all words appear across title and summary', async () => {
+      const result = await PublishedDatasetRepository.searchBasicSplit(Locale.EnglishGb, 'Economic Quarterly', 1, 100);
+      const ids = result.data.map((d) => d.id);
+      expect(ids).toContain(splitDs1.id);
+      expect(ids).not.toContain(splitDs2.id);
+    });
+
+    it('should require all words to match (AND logic)', async () => {
+      // "Economic" matches splitDs1, "Employment" matches splitDs2 — no single dataset has both
+      const result = await PublishedDatasetRepository.searchBasicSplit(Locale.EnglishGb, 'Economic Employment', 1, 100);
+      const ids = result.data.map((d) => d.id);
+      expect(ids).not.toContain(splitDs1.id);
+      expect(ids).not.toContain(splitDs2.id);
+    });
+
+    it('should be case-insensitive', async () => {
+      const result = await PublishedDatasetRepository.searchBasicSplit(Locale.EnglishGb, 'economic growth', 1, 100);
+      const ids = result.data.map((d) => d.id);
+      expect(ids).toContain(splitDs1.id);
+    });
+
+    it('should return empty when no match', async () => {
+      const result = await PublishedDatasetRepository.searchBasicSplit(Locale.EnglishGb, 'xyznonexistent', 1, 100);
+      expect(result.data).toHaveLength(0);
+      expect(result.count).toBe(0);
+    });
+
+    it('should respect pagination', async () => {
+      const result = await PublishedDatasetRepository.searchBasicSplit(Locale.EnglishGb, 'indicators', 1, 1);
+      expect(result.data.length).toBeLessThanOrEqual(1);
+      // Both datasets contain "indicators"
+      expect(result.count).toBeGreaterThanOrEqual(2);
+    });
+  });
+
+  describe('searchFTS', () => {
+    let ftsDs1: Dataset;
+    let ftsDs2: Dataset;
+    let ftsDs3: Dataset;
+
+    beforeAll(async () => {
+      ftsDs1 = await createDataset(user, { firstPublishedAt: pastDate(72) });
+      await createRevisionWithMetadata(
+        ftsDs1,
+        user,
+        1,
+        'Transport Infrastructure Investment',
+        Locale.EnglishGb,
+        { publishAt: pastDate(72), approvedAt: pastDate(96) },
+        'Government spending on roads railways and bridges in Wales'
+      );
+
+      ftsDs2 = await createDataset(user, { firstPublishedAt: pastDate(48) });
+      await createRevisionWithMetadata(
+        ftsDs2,
+        user,
+        1,
+        'Healthcare Workforce Planning',
+        Locale.EnglishGb,
+        { publishAt: pastDate(48), approvedAt: pastDate(72) },
+        'NHS staffing levels and recruitment across Welsh hospitals'
+      );
+
+      ftsDs3 = await createDataset(user, { firstPublishedAt: pastDate(24) });
+      await createRevisionWithMetadata(
+        ftsDs3,
+        user,
+        1,
+        'Trafnidiaeth Cymru',
+        Locale.WelshGb,
+        { publishAt: pastDate(24), approvedAt: pastDate(48) },
+        'Gwariant y llywodraeth ar ffyrdd a rheilffyrdd yng Nghymru'
+      );
+    });
+
+    it('should find datasets using English full-text search', async () => {
+      const result = await PublishedDatasetRepository.searchFTS(
+        Locale.EnglishGb,
+        'transport investment',
+        false,
+        1,
+        100
+      );
+      const ids = result.data.map((d) => d.id);
+      expect(ids).toContain(ftsDs1.id);
+    });
+
+    it('should use English stemming (e.g. "investing" matches "investment")', async () => {
+      const result = await PublishedDatasetRepository.searchFTS(Locale.EnglishGb, 'investing', false, 1, 100);
+      const ids = result.data.map((d) => d.id);
+      expect(ids).toContain(ftsDs1.id);
+    });
+
+    it('should return match_title and match_summary with highlight marks for English', async () => {
+      const result = await PublishedDatasetRepository.searchFTS(Locale.EnglishGb, 'transport', false, 1, 100);
+      const match = result.data.find((d) => d.id === ftsDs1.id);
+      expect(match).toBeDefined();
+      expect(match!.match_title).toContain('<mark>');
+      expect(match!.rank).toBeDefined();
+    });
+
+    it('should use simple config when forceSimple is true', async () => {
+      const result = await PublishedDatasetRepository.searchFTS(Locale.EnglishGb, 'healthcare', true, 1, 100);
+      const ids = result.data.map((d) => d.id);
+      expect(ids).toContain(ftsDs2.id);
+    });
+
+    it('should use simple config for Welsh locale', async () => {
+      const result = await PublishedDatasetRepository.searchFTS(Locale.WelshGb, 'Trafnidiaeth', false, 1, 100);
+      const ids = result.data.map((d) => d.id);
+      expect(ids).toContain(ftsDs3.id);
+    });
+
+    it('should return empty when no match', async () => {
+      const result = await PublishedDatasetRepository.searchFTS(Locale.EnglishGb, 'xyznonexistent', false, 1, 100);
+      expect(result.data).toHaveLength(0);
+      expect(result.count).toBe(0);
+    });
+
+    it('should respect pagination', async () => {
+      const result = await PublishedDatasetRepository.searchFTS(Locale.EnglishGb, 'wales', false, 1, 1);
+      expect(result.data.length).toBeLessThanOrEqual(1);
+    });
+
+    it('should not include unpublished datasets', async () => {
+      const unpubDs = await createDataset(user, { firstPublishedAt: null });
+      await createRevisionWithMetadata(
+        unpubDs,
+        user,
+        1,
+        'Transport Unpublished Dataset',
+        Locale.EnglishGb,
+        { publishAt: pastDate(24), approvedAt: pastDate(48) },
+        'Should not appear in FTS search'
+      );
+
+      const result = await PublishedDatasetRepository.searchFTS(
+        Locale.EnglishGb,
+        'Transport Unpublished',
+        false,
+        1,
+        100
+      );
+      const ids = result.data.map((d) => d.id);
+      expect(ids).not.toContain(unpubDs.id);
+    });
+  });
+
+  describe('searchFuzzy', () => {
+    let fuzzyDs1: Dataset;
+    let fuzzyDs2: Dataset;
+
+    beforeAll(async () => {
+      fuzzyDs1 = await createDataset(user, { firstPublishedAt: pastDate(72) });
+      await createRevisionWithMetadata(
+        fuzzyDs1,
+        user,
+        1,
+        'Environmental Pollution Monitoring',
+        Locale.EnglishGb,
+        { publishAt: pastDate(72), approvedAt: pastDate(96) },
+        'Air quality measurements across industrial regions of Wales'
+      );
+
+      fuzzyDs2 = await createDataset(user, { firstPublishedAt: pastDate(48) });
+      await createRevisionWithMetadata(
+        fuzzyDs2,
+        user,
+        1,
+        'Agricultural Production Output',
+        Locale.EnglishGb,
+        { publishAt: pastDate(48), approvedAt: pastDate(72) },
+        'Annual crop and livestock production statistics'
+      );
+    });
+
+    it('should find datasets with similar title words', async () => {
+      const result = await PublishedDatasetRepository.searchFuzzy(Locale.EnglishGb, 'Pollution Monitoring', 1, 100);
+      const ids = result.data.map((d) => d.id);
+      expect(ids).toContain(fuzzyDs1.id);
+    });
+
+    it('should find datasets with similar summary words', async () => {
+      const result = await PublishedDatasetRepository.searchFuzzy(Locale.EnglishGb, 'Agricultural Production', 1, 100);
+      const ids = result.data.map((d) => d.id);
+      expect(ids).toContain(fuzzyDs2.id);
+    });
+
+    it('should include rank in results', async () => {
+      const result = await PublishedDatasetRepository.searchFuzzy(Locale.EnglishGb, 'Pollution', 1, 100);
+      const match = result.data.find((d) => d.id === fuzzyDs1.id);
+      expect(match).toBeDefined();
+      expect(match!.rank).toBeDefined();
+      expect(parseFloat(match!.rank!)).toBeGreaterThan(0);
+    });
+
+    it('should return empty when no match', async () => {
+      const result = await PublishedDatasetRepository.searchFuzzy(Locale.EnglishGb, 'xyzqwkjhg', 1, 100);
+      expect(result.data).toHaveLength(0);
+      expect(result.count).toBe(0);
+    });
+
+    it('should respect pagination', async () => {
+      const result = await PublishedDatasetRepository.searchFuzzy(Locale.EnglishGb, 'Production', 1, 1);
+      expect(result.data.length).toBeLessThanOrEqual(1);
+    });
+
+    it('should not include unpublished datasets', async () => {
+      const unpubDs = await createDataset(user, { firstPublishedAt: null });
+      await createRevisionWithMetadata(
+        unpubDs,
+        user,
+        1,
+        'Environmental Unpublished Data',
+        Locale.EnglishGb,
+        { publishAt: pastDate(24), approvedAt: pastDate(48) },
+        'Should not appear in fuzzy search'
+      );
+
+      const result = await PublishedDatasetRepository.searchFuzzy(
+        Locale.EnglishGb,
+        'Environmental Unpublished',
+        1,
+        100
+      );
+      const ids = result.data.map((d) => d.id);
+      expect(ids).not.toContain(unpubDs.id);
     });
   });
 });
