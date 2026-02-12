@@ -25,6 +25,8 @@ describe('Healthcheck', () => {
   beforeAll(async () => {
     try {
       await dbManager.initDataSources();
+      await dbManager.getAppDataSource().dropDatabase();
+      await dbManager.getAppDataSource().runMigrations();
       await initPassport(dbManager.getAppDataSource());
     } catch (error) {
       logger.error(error, 'Could not initialise test database');

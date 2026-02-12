@@ -56,6 +56,8 @@ describe('API Endpoints', () => {
   beforeAll(async () => {
     try {
       await dbManager.initDataSources();
+      await dbManager.getAppDataSource().dropDatabase();
+      await dbManager.getAppDataSource().runMigrations();
       await initPassport(dbManager.getAppDataSource());
       queryRunner = dbManager.getAppDataSource().createQueryRunner();
       await queryRunner.dropSchema('data_tables', true, true);

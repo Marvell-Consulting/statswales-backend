@@ -43,6 +43,8 @@ describe('API Endpoints for viewing dataset objects', () => {
   beforeAll(async () => {
     try {
       await dbManager.initDataSources();
+      await dbManager.getAppDataSource().dropDatabase();
+      await dbManager.getAppDataSource().runMigrations();
       queryRunner = dbManager.getAppDataSource().createQueryRunner();
       await queryRunner.dropSchema('data_tables', true, true);
       await queryRunner.dropSchema(revision1Id, true, true);
