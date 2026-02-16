@@ -9,6 +9,7 @@ import { logger } from '../../utils/logger';
 
 import { testUsers } from './fixtures/users';
 import { UserGroup } from '../../entities/user/user-group';
+import { UserGroupRole } from '../../entities/user/user-group-role';
 import { testGroups } from './fixtures/group';
 
 // This seeder loads test fixtures used by the e2e tests on the frontend. This needs to be run before
@@ -38,6 +39,18 @@ export class TestSeeder {
 
   async seedUsers(): Promise<void> {
     logger.info(`Seeding ${testUsers.length} test users...`);
+
+    // Remove existing group roles for test users so re-runs don't hit unique constraint violations
+    const userIds = testUsers.map((u) => u.id).filter(Boolean) as string[];
+    if (userIds.length > 0) {
+      await this.ds
+        .createQueryBuilder()
+        .delete()
+        .from(UserGroupRole)
+        .where('user_id IN (:...userIds)', { userIds })
+        .execute();
+    }
+
     const entityManager = this.ds.createEntityManager();
     const users = entityManager.create(User, testUsers);
     await this.ds.getRepository(User).save(users);
