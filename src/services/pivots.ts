@@ -87,6 +87,7 @@ async function pivotToFrontend(
   res.write('{');
   res.write(`"dataset": ${JSON.stringify(ConsumerDatasetDTO.fromDataset(dataset))},`);
   res.write(`"filters": ${JSON.stringify(queryStore.requestObject.filters || [])},`);
+  res.write(`"pivot": ${JSON.stringify(queryStore.requestObject.pivot || {})},`);
   res.write(`"note_codes": ${JSON.stringify(note_codes || [])},`);
 
   let rows = await pivot.getRowObjects();
