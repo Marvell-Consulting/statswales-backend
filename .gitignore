@@ -43,5 +43,8 @@ certs/*
 .idea
 *.iml
 
+# Ignore AI tooling files
+.claude
+
 # Ignore generated test files
 src/seeders/tests/fixtures/*.csv
