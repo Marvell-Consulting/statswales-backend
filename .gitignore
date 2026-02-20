@@ -43,5 +43,7 @@ certs/*
 .idea
 *.iml
 
+.claude/
+
 # Ignore generated test files
 src/seeders/tests/fixtures/*.csv
