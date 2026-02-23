@@ -18,6 +18,7 @@ import { getFilterTable, resolveDimensionToFactTableColumn, resolveFactColumnToD
 import { FactTableToDimensionName } from '../interfaces/fact-table-column-to-dimension-name';
 import { BadRequestException } from '../exceptions/bad-request.exception';
 import { FilterRow } from '../interfaces/filter-row';
+import { UnknownException } from '../exceptions/unknown.exception';
 
 const EXCEL_ROW_LIMIT = 1048576 - 76; // Excel Limit is 1,048,576 but removed 76 rows because ?
 
