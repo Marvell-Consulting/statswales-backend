@@ -265,7 +265,7 @@ export async function createPivotOutputUsingDuckDB(
         break;
     }
   } catch (err) {
-    if ((err as Error).message.includes('Binder Error')) {
+    if (err instanceof Error && err.message.includes('Binder Error')) {
       throw new BadRequestException('Invalid sort by column');
     }
     logger.error(err, 'Error creating pivot from query');
