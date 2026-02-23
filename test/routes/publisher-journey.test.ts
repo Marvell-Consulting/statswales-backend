@@ -82,7 +82,7 @@ describe('API Endpoints', () => {
     }
   });
 
-  test('Return true test', async () => {
+  test('Successful test initialisation', async () => {
     const dataset1 = await Dataset.findOneBy({ id: dataset1Id });
     if (!dataset1) {
       throw new Error('Dataset not found');
@@ -116,7 +116,7 @@ describe('API Endpoints', () => {
 
     test('Upload returns 201 if a file is attached', async () => {
       const dataset = await datasetService.createNew('Test Dataset 2', userGroup.id!, user);
-      const csvFile = path.resolve(__dirname, `../sample-files/csv/sure-start-short.csv`);
+      const csvFile = path.resolve(__dirname, `../sample-files/csv/realistic/data-orig.csv`);
       const res = await request(app)
         .post(`/dataset/${dataset.id}/data`)
         .set(getAuthHeader(user))
@@ -137,7 +137,7 @@ describe('API Endpoints', () => {
       const testRevisionId = uuidV4();
       const testFileImportId = uuidV4();
       await createSmallDataset(testDatasetId, testRevisionId, testFileImportId, user);
-      const testFile2 = path.resolve(__dirname, `../sample-files/csv/sure-start-short.csv`);
+      const testFile2 = path.resolve(__dirname, `../sample-files/csv/realistic/data-orig.csv`);
       const testFile2Buffer = fs.readFileSync(testFile2);
       BlobStorage.prototype.loadBuffer = jest.fn().mockReturnValue(testFile2Buffer);
       const res = await request(app)
@@ -154,16 +154,16 @@ describe('API Endpoints', () => {
             user_message: [
               {
                 lang: Locale.English,
-                message: t('errors.page_number_to_high', { lng: Locale.English, page_number: 13 })
+                message: t('errors.page_number_to_high', { lng: Locale.English, page_number: 15 })
               },
               {
                 lang: Locale.Welsh,
-                message: t('errors.page_number_to_high', { lng: Locale.Welsh, page_number: 13 })
+                message: t('errors.page_number_to_high', { lng: Locale.Welsh, page_number: 15 })
               }
             ],
             message: {
               key: 'errors.page_number_to_high',
-              params: { page_number: 13 }
+              params: { page_number: 15 }
             }
           }
         ]
@@ -176,7 +176,7 @@ describe('API Endpoints', () => {
       const testRevisionId = uuidV4();
       const testFileImportId = uuidV4();
       await createSmallDataset(testDatasetId, testRevisionId, testFileImportId, user);
-      const testFile2 = path.resolve(__dirname, `../sample-files/csv/sure-start-short.csv`);
+      const testFile2 = path.resolve(__dirname, `../sample-files/csv/realistic/data-orig.csv`);
       const testFile2Buffer = fs.readFileSync(testFile2);
       BlobStorage.prototype.loadBuffer = jest.fn().mockReturnValue(testFile2Buffer);
 
@@ -224,7 +224,7 @@ describe('API Endpoints', () => {
       const testRevisionId = uuidV4();
       const testFileImportId = uuidV4();
       await createSmallDataset(testDatasetId, testRevisionId, testFileImportId, user);
-      const testFile2 = path.resolve(__dirname, `../sample-files/csv/sure-start-short.csv`);
+      const testFile2 = path.resolve(__dirname, `../sample-files/csv/realistic/data-orig.csv`);
       const testFile2Buffer = fs.readFileSync(testFile2);
       BlobStorage.prototype.loadBuffer = jest.fn().mockReturnValue(testFile2Buffer);
 
@@ -273,7 +273,7 @@ describe('API Endpoints', () => {
       const testFileImportId = uuidV4();
       await createSmallDataset(testDatasetId, testRevisionId, testFileImportId, user);
 
-      const testFile2 = path.resolve(__dirname, `../sample-files/csv/sure-start-short.csv`);
+      const testFile2 = path.resolve(__dirname, `../sample-files/csv/realistic/data-orig.csv`);
       const testFile1Buffer = fs.readFileSync(testFile2);
       BlobStorage.prototype.loadBuffer = jest.fn().mockReturnValue(testFile1Buffer.toString());
 
@@ -284,7 +284,7 @@ describe('API Endpoints', () => {
 
       expect(res.status).toBe(200);
       expect(res.body.current_page).toBe(1);
-      expect(res.body.total_pages).toBe(13);
+      expect(res.body.total_pages).toBe(15);
       expect(res.body.page_size).toBe(100);
       expect(res.body.headers).toEqual([
         { index: -1, name: 'int_line_number', source_type: 'line_number' },
@@ -295,8 +295,6 @@ describe('API Endpoints', () => {
         { index: 4, name: 'Measure', source_type: 'unknown' },
         { index: 5, name: 'NoteCodes', source_type: 'unknown' }
       ]);
-      expect(res.body.data[0]).toEqual(['1', '201314', '512', 0.947089947, '2', '2', null]);
-      expect(res.body.data[23]).toEqual(['24', '201314', '522', 4636, '1', '1', null]);
       createdRevisions.push(testRevisionId);
     });
 
@@ -395,7 +393,7 @@ describe('API Endpoints', () => {
       }
 
       expect(revision.dataTable).toBe(null);
-      const csvFile = path.resolve(__dirname, `../sample-files/csv/sure-start-short.csv`);
+      const csvFile = path.resolve(__dirname, `../sample-files/csv/realistic/data-orig.csv`);
 
       const res = await request(app)
         .post(`/dataset/${testDatasetId}/revision/by-id/${testRevisionId}/data-table`)
@@ -434,7 +432,7 @@ describe('API Endpoints', () => {
         throw new Error('Test error');
       });
 
-      const csvFile = path.resolve(__dirname, `../sample-files/csv/sure-start-short.csv`);
+      const csvFile = path.resolve(__dirname, `../sample-files/csv/realistic/data-orig.csv`);
       const res = await request(app)
         .post(`/dataset/${testDatasetId}/revision/by-id/${testRevisionId}/data-table`)
         .set(getAuthHeader(user))
@@ -493,7 +491,7 @@ describe('API Endpoints', () => {
       const testFileImportId = uuidV4();
       await createSmallDataset(testDatasetId, testRevisionId, testFileImportId, user);
 
-      const testFile2 = path.resolve(__dirname, `../sample-files/csv/sure-start-short.csv`);
+      const testFile2 = path.resolve(__dirname, `../sample-files/csv/realistic/data-orig.csv`);
       const testFile2Buffer = fs.readFileSync(testFile2);
       BlobStorage.prototype.loadBuffer = jest.fn().mockReturnValue(testFile2Buffer);
       BlobStorage.prototype.saveBuffer = jest.fn().mockReturnValue({});

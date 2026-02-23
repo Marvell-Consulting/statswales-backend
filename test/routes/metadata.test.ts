@@ -237,7 +237,7 @@ describe('API Endpoints for viewing dataset objects', () => {
       });
 
       test('Get file from a revision and import returns 200 and complete file data if stored in the Data Lake', async () => {
-        const testFile2 = path.resolve(__dirname, `../sample-files/csv/test-data-2.csv`);
+        const testFile2 = path.resolve(__dirname, `../sample-files/csv/realistic/data-orig.csv`);
         const testFileStream = createReadStream(testFile2);
         const testFile2Buffer = await readFile(testFile2);
         loadStreamMock.mockImplementation(() => {

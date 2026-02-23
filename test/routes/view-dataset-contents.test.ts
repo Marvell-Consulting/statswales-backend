@@ -65,7 +65,7 @@ describe('API Endpoints for viewing the contents of a dataset', () => {
       .query({ page_number: 1, page_size: 100 });
     expect(res.status).toBe(200);
     expect(res.body.page_info.current_page).toBe(1);
-    expect(res.body.page_info.total_pages).toBe(13);
+    expect(res.body.page_info.total_pages).toBe(15);
     expect(res.body.page_info.page_size).toBe(100);
     expect(res.body.headers).toEqual([
       { index: -1, name: 'YearCode', source_type: 'unknown' },
@@ -75,7 +75,7 @@ describe('API Endpoints for viewing the contents of a dataset', () => {
       { index: 3, name: 'Measure', source_type: 'unknown' },
       { index: 4, name: 'NoteCodes', source_type: 'unknown' }
     ]);
-    expect(res.body.data[0]).toEqual(['201314', '512', 0.947089947, '2', '2', null]);
+    expect(res.body.data[0]).toEqual(['201314', '512', 1.111801242, '2', '2', null]);
     // If this test fails don't just change the output to match.  It's failure implies something in the cube builder
     // has changed the view significantly.  Probably a broken join statement.
     expect(res.body.data[23]).toEqual(['201314', '522', 4636, '1', '1', null]);
