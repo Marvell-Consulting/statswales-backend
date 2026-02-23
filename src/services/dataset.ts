@@ -104,6 +104,10 @@ export class DatasetService {
       throw new BadRequestException('errors.update_fact_table.no_draft_revision');
     }
 
+    if (draftRevision.revisionIndex !== 1) {
+      throw new BadRequestException('errors.update_fact_table.not_first_revision');
+    }
+
     logger.debug('Uploading new fact table file to filestore');
     const dataTable = await validateAndUpload(file, datasetId, 'data_table');
 

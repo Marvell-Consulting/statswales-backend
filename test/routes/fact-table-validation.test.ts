@@ -178,6 +178,48 @@ describe('Fact table validation (integration)', () => {
     });
   });
 
+  describe('Published dataset - uploadDataTable guard', () => {
+    test('Uploading via the dataset data route after publication returns 400', async () => {
+      // Step 1: Create dataset with valid data and assign sources
+      const { datasetId, revisionId } = await createDatasetAndUploadCsv(path.join(CSV_DIR, 'minimal/data.csv'));
+      const assignRes = await request(app)
+        .patch(`/dataset/${datasetId}/sources`)
+        .set(getAuthHeader(user))
+        .send(minimalSourceAssignment());
+      expect(assignRes.status).toBe(200);
+
+      // Step 2: Simulate publication
+      const revision = await Revision.findOneOrFail({ where: { id: revisionId } });
+      revision.approvedAt = new Date();
+      revision.approvedBy = user;
+      revision.publishAt = new Date();
+      revision.onlineCubeFilename = `${revisionId}.duckdb`;
+      await revision.save();
+
+      await DatasetRepository.save({
+        id: datasetId,
+        publishedRevision: revision,
+        draftRevision: null
+      });
+
+      // Step 3: Create revision 2 (creates a new draft revision with revisionIndex 2)
+      const newRevRes = await request(app).post(`/dataset/${datasetId}/revision/`).set(getAuthHeader(user));
+      expect(newRevRes.status).toBe(201);
+      createdRevisions.push(newRevRes.body.id);
+
+      // Step 4: Try to upload via the dataset data route (uploadDataTable)
+      // This should be rejected because the draft revision is not the first revision
+      const uploadRes = await request(app)
+        .post(`/dataset/${datasetId}/data`)
+        .set(getAuthHeader(user))
+        .attach('csv', path.join(CSV_DIR, 'minimal/data.csv'));
+
+      expect(uploadRes.status).toBe(400);
+      expect(uploadRes.body.errors).toBeDefined();
+      expect(uploadRes.body.errors[0].message.key).toBe('errors.update_fact_table.not_first_revision');
+    });
+  });
+
   describe('Subsequent revision - duplicate facts on update', () => {
     test('Uploading a CSV with duplicates to revision 2 returns 400 with duplicate_fact error', async () => {
       // Step 1: Create dataset with valid data and assign sources
