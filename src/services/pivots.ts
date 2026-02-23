@@ -351,10 +351,14 @@ export async function createPivotQuery(
     const sortParts: string[] = [];
     for (const col of pageOptions.sort) {
       const sortCol = col.split('|');
-      sortParts.push(pgformat('%I %s', sortCol[0], sortCol[1].toUpperCase()));
+      const direction = (sortCol[1] || '').toUpperCase();
+      if (direction !== 'ASC' && direction !== 'DESC') {
+        throw new BadRequestException(`Invalid sort direction: ${sortCol[1]}`);
+      }
+      sortParts.push(`${pgformat('%I', sortCol[0])} ${direction}`);
     }
     if (sortParts.length > 0) {
-      sortQuery = pgformat('ORDER BY %s', sortParts.join(', '));
+      sortQuery = 'ORDER BY ' + sortParts.join(', ');
     }
   }
 
