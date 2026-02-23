@@ -23,7 +23,8 @@ interface FactTableDefinition {
 
 export const factTableValidatorFromSource = async (
   dataset: Dataset,
-  validatedSourceAssignment: ValidatedSourceAssignment
+  validatedSourceAssignment: ValidatedSourceAssignment,
+  schemaOverride?: string
 ): Promise<void> => {
   const revision = dataset.draftRevision;
 
@@ -36,6 +37,7 @@ export const factTableValidatorFromSource = async (
   }
 
   logger.debug(`Validating fact table for revision ${revision.id}`);
+  const schema = schemaOverride ?? revision.id;
 
   if (!dataset.factTable) {
     throw new Error(`Unable to find fact table for dataset ${dataset.id}`);
@@ -108,7 +110,7 @@ export const factTableValidatorFromSource = async (
   const numericValidationQuery = pgformat(
     "SELECT %I as data_value FROM %I.%I WHERE CAST(%I AS TEXT) !~ '^([+-]?[0-9]+[.]?[0-9]*|[.][0-9]+)$';",
     dataValCol.column_name,
-    revision.id,
+    schema,
     FACT_TABLE_NAME,
     dataValCol.column_name
   );
@@ -159,7 +161,7 @@ export const factTableValidatorFromSource = async (
   logger.debug(`Dropping primary key if it exists on fact_table`);
   const dropPKQuery = pgformat(
     `ALTER TABLE %I.%I DROP CONSTRAINT IF EXISTS %I;`,
-    revision.id,
+    schema,
     FACT_TABLE_NAME,
     `${FACT_TABLE_NAME}_pkey`
   );
@@ -173,7 +175,7 @@ export const factTableValidatorFromSource = async (
   }
 
   logger.debug(`Adding primary key to fact_table with columns: ${primaryKeyDef.join(', ')}`);
-  const pkQuery = pgformat('ALTER TABLE %I.%I ADD PRIMARY KEY (%I)', revision.id, FACT_TABLE_NAME, primaryKeyDef);
+  const pkQuery = pgformat('ALTER TABLE %I.%I ADD PRIMARY KEY (%I)', schema, FACT_TABLE_NAME, primaryKeyDef);
   const addKeyRunner = dbManager.getCubeDataSource().createQueryRunner();
   try {
     await addKeyRunner.query(pkQuery);
@@ -181,12 +183,12 @@ export const factTableValidatorFromSource = async (
     logger.error(err, 'Failed to apply primary key to fact table.');
     if ((err as Error).message.includes('could not create unique index')) {
       let error: FactTableValidationException | undefined;
-      error = await identifyDuplicateFacts(addKeyRunner, revision.id, primaryKeyDef);
+      error = await identifyDuplicateFacts(addKeyRunner, schema, primaryKeyDef);
       if (error) throw error;
-      error = await identifyIncompleteFacts(addKeyRunner, revision.id, primaryKeyDef);
+      error = await identifyIncompleteFacts(addKeyRunner, schema, primaryKeyDef);
       if (error) throw error;
     } else if ((err as Error).message.includes('contains null values')) {
-      const error = await identifyIncompleteFacts(addKeyRunner, revision.id, primaryKeyDef);
+      const error = await identifyIncompleteFacts(addKeyRunner, schema, primaryKeyDef);
       if (error) throw error;
       throw new FactTableValidationException(
         'Incomplete facts found in fact table.',
@@ -203,7 +205,7 @@ export const factTableValidatorFromSource = async (
     void addKeyRunner.release();
   }
 
-  await validateNoteCodesColumn(validatedSourceAssignment.noteCodes, revision.id);
+  await validateNoteCodesColumn(validatedSourceAssignment.noteCodes, schema);
 };
 
 async function validateNoteCodesColumn(noteCodeColumn: SourceAssignmentDTO | null, revisionId: string): Promise<void> {
@@ -389,4 +391,48 @@ async function identifyDuplicateFacts(
     );
   }
   return undefined;
+}
+
+/**
+ * Reconstructs a ValidatedSourceAssignment from the dataset's persisted FactTableColumn[].
+ * Used during update flows where source assignments have already been saved.
+ */
+export function sourceAssignmentFromFactTable(factTableColumns: FactTableColumn[]): ValidatedSourceAssignment {
+  const result: ValidatedSourceAssignment = {
+    dataValues: null,
+    measure: null,
+    noteCodes: null,
+    dimensions: [],
+    ignore: []
+  };
+
+  for (const col of factTableColumns) {
+    const dto: SourceAssignmentDTO = {
+      column_index: col.columnIndex,
+      column_name: col.columnName,
+      column_type: col.columnType
+    };
+
+    switch (col.columnType) {
+      case FactTableColumnType.DataValues:
+        result.dataValues = dto;
+        break;
+      case FactTableColumnType.Measure:
+        result.measure = dto;
+        break;
+      case FactTableColumnType.NoteCodes:
+        result.noteCodes = dto;
+        break;
+      case FactTableColumnType.Time:
+      case FactTableColumnType.Dimension:
+        result.dimensions.push(dto);
+        break;
+      case FactTableColumnType.LineNumber:
+      case FactTableColumnType.Ignore:
+        result.ignore.push(dto);
+        break;
+    }
+  }
+
+  return result;
 }

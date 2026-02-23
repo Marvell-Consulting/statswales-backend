@@ -483,6 +483,43 @@ describe('sourceAssignmentFromFactTable', () => {
     expect(result.ignore).toHaveLength(0);
   });
 
+  test('treats Time columns as dimensions', () => {
+    const columns: FactTableColumn[] = [
+      makeFactTableColumn({ columnName: 'period', columnIndex: 0, columnType: FactTableColumnType.Time }),
+      makeFactTableColumn({ columnName: 'area', columnIndex: 1, columnType: FactTableColumnType.Dimension }),
+      makeFactTableColumn({ columnName: 'data', columnIndex: 2, columnType: FactTableColumnType.DataValues }),
+      makeFactTableColumn({ columnName: 'measure', columnIndex: 3, columnType: FactTableColumnType.Measure }),
+      makeFactTableColumn({ columnName: 'notes', columnIndex: 4, columnType: FactTableColumnType.NoteCodes })
+    ];
+
+    const result = sourceAssignmentFromFactTable(columns);
+
+    expect(result.dimensions).toHaveLength(2);
+    expect(result.dimensions[0]).toEqual({
+      column_index: 0,
+      column_name: 'period',
+      column_type: FactTableColumnType.Time
+    });
+    expect(result.dimensions[1]).toEqual({
+      column_index: 1,
+      column_name: 'area',
+      column_type: FactTableColumnType.Dimension
+    });
+  });
+
+  test('treats LineNumber columns as ignored', () => {
+    const columns: FactTableColumn[] = [
+      makeFactTableColumn({ columnName: 'line_number', columnIndex: 0, columnType: FactTableColumnType.LineNumber }),
+      makeFactTableColumn({ columnName: 'data', columnIndex: 1, columnType: FactTableColumnType.DataValues })
+    ];
+
+    const result = sourceAssignmentFromFactTable(columns);
+
+    expect(result.ignore).toHaveLength(1);
+    expect(result.ignore[0].column_type).toBe(FactTableColumnType.LineNumber);
+    expect(result.dataValues).not.toBeNull();
+  });
+
   test('handles empty column array', () => {
     const result = sourceAssignmentFromFactTable([]);
 

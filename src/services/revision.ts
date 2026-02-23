@@ -33,6 +33,7 @@ import { MeasureRow } from '../entities/dataset/measure-row';
 import { DateExtractor } from '../extractors/date-extractor';
 import { config } from '../config';
 import { revisionStartAndEndDateFinder } from '../utils/revision';
+import { factTableValidatorFromSource, sourceAssignmentFromFactTable } from './fact-table-validator';
 
 export async function attachUpdateDataTableToRevision(
   datasetId: string,
@@ -120,6 +121,21 @@ export async function attachUpdateDataTableToRevision(
     logger.info(`Cube update validation took ${time}ms`);
     await dataTable.remove();
     throw error;
+  }
+
+  // Validate fact table (duplicates, non-numeric values, incomplete facts, note codes)
+  // against the validation cube that was just built
+  dataset.draftRevision = revision;
+  const validatedSourceAssignment = sourceAssignmentFromFactTable(dataset.factTable!);
+  try {
+    await factTableValidatorFromSource(dataset, validatedSourceAssignment, buildId);
+  } catch (err) {
+    const end = performance.now();
+    const time = Math.round(end - start);
+    logger.info(`Cube update validation took ${time}ms`);
+    if (!config.cube_builder.preserve_failed) void cleanUpValidationCube(buildId);
+    await dataTable.remove();
+    throw err;
   }
 
   const revisionTasks: RevisionTask = {

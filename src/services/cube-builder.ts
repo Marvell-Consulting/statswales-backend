@@ -1042,7 +1042,8 @@ function loadFactTableFromPreviousRevision(
   dataValuesColumn: FactTableColumn,
   notesCodeColumn: FactTableColumn,
   factIdentifiers: FactTableColumn[],
-  factTableCompositeKey: string[]
+  factTableCompositeKey: string[],
+  skipPrimaryKey = false
 ): TransactionBlock {
   const buildStatements: string[] = ['BEGIN TRANSACTION;'];
   if (buildRevision.previousRevisionId) {
@@ -1062,7 +1063,9 @@ function loadFactTableFromPreviousRevision(
     ...dataTableActions(buildId, dataTable, factTableDef, notesCodeColumn, dataValuesColumn, factIdentifiers)
   );
   buildStatements.push(cleanupNotesCodeColumn(buildId, notesCodeColumn));
-  buildStatements.push(createPrimaryKeyOnFactTable(buildId, factTableCompositeKey));
+  if (!skipPrimaryKey) {
+    buildStatements.push(createPrimaryKeyOnFactTable(buildId, factTableCompositeKey));
+  }
   buildStatements.push('COMMIT;');
 
   return {
@@ -2141,7 +2144,8 @@ function createValidationCube(
       factTableInfo.dataValuesColumn!,
       factTableInfo.notesCodeColumn!,
       factTableInfo.factIdentifiers,
-      factTableInfo.compositeKey
+      factTableInfo.compositeKey,
+      true // skip PK — the fact table validator handles duplicate/incomplete detection
     )
   );
 
