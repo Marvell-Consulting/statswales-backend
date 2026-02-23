@@ -210,7 +210,7 @@ async function pivotToHtml(res: Response, pivot: DuckDBResult): Promise<void> {
   );
 
   let rows = await pivot.getRowObjects();
-  while (rows.length === 0) {
+  if (rows.length === 0) {
     res.write('</tr>\n</thead>\n<tbody>\n</tbody>\n' + '</table>\n' + '</body>\n' + '</html>\n');
     res.end();
     return;
