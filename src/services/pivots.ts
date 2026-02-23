@@ -17,6 +17,8 @@ import { ConsumerDatasetDTO } from '../dtos/consumer-dataset-dto';
 import { getFilterTable, resolveDimensionToFactTableColumn, resolveFactColumnToDimension } from '../utils/consumer';
 import { FactTableToDimensionName } from '../interfaces/fact-table-column-to-dimension-name';
 import { BadRequestException } from '../exceptions/bad-request.exception';
+import { FilterRow } from '../interfaces/filter-row';
+import { UnknownException } from '../exceptions/unknown.exception';
 
 const EXCEL_ROW_LIMIT = 1048576 - 76; // Excel Limit is 1,048,576 but removed 76 rows because ?
 
@@ -208,6 +210,11 @@ async function pivotToHtml(res: Response, pivot: DuckDBResult): Promise<void> {
   );
 
   let rows = await pivot.getRowObjects();
+  if (rows.length === 0) {
+    res.write('</tr>\n</thead>\n<tbody>\n</tbody>\n' + '</table>\n' + '</body>\n' + '</html>\n');
+    res.end();
+    return;
+  }
   Object.keys(rows[0]).forEach((key) => {
     res.write(`<th>${key}</th>`);
   });
@@ -258,7 +265,11 @@ export async function createPivotOutputUsingDuckDB(
         break;
     }
   } catch (err) {
+    if (err instanceof Error && err.message.includes('Binder Error')) {
+      throw new BadRequestException('Invalid sort by column');
+    }
     logger.error(err, 'Error creating pivot from query');
+    throw new UnknownException('Pivot query failed to run');
   } finally {
     quack.closeSync();
   }
@@ -291,7 +302,7 @@ export async function createPivotQuery(
     pgformat('%I', queryStore.revisionId),
     pgformat('%I.%I', 'cube_db', queryStore.revisionId)
   );
-  const filterTable: FactTableToDimensionName[] = await getFilterTable(queryStore.revisionId);
+  const filterTable: FilterRow[] = await getFilterTable(queryStore.revisionId);
   let columnFinderValidator = validateColOnly;
   if (queryStore.requestObject.options?.use_raw_column_names) {
     columnFinderValidator = resolveFactColumnToDimension;
@@ -336,7 +347,31 @@ export async function createPivotQuery(
     y = pgformat('%I', columnFinderValidator(y, lang, filterTable));
   }
 
-  return pgformat('PIVOT (%s) ON %s USING first(%I) GROUP BY %s %s;', query, x, dataValuesCol, y, pagingQuery);
+  let sortQuery = '';
+  if (pageOptions.sort.length > 0) {
+    const sortParts: string[] = [];
+    for (const col of pageOptions.sort) {
+      const sortCol = col.split('|');
+      const direction = (sortCol[1] || '').toUpperCase();
+      if (direction !== 'ASC' && direction !== 'DESC') {
+        throw new BadRequestException(`Invalid sort direction: ${sortCol[1]}`);
+      }
+      sortParts.push(`${pgformat('%I', sortCol[0])} ${direction}`);
+    }
+    if (sortParts.length > 0) {
+      sortQuery = 'ORDER BY ' + sortParts.join(', ');
+    }
+  }
+
+  return pgformat(
+    'PIVOT (%s) ON %s USING first(%I) GROUP BY %s %s %s',
+    query,
+    x,
+    dataValuesCol,
+    y,
+    sortQuery,
+    pagingQuery
+  );
 }
 
 // async function createPivotFromPost(): Promise<void> {}
