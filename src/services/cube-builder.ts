@@ -545,11 +545,12 @@ function createCubeBaseTables(revisionId: string, buildId: string, factTableQuer
 
 function createValidationTableEntries(buildId: string, columnName: string): string {
   return pgformat(
-    'SELECT DISTINCT CAST(%I AS TEXT) as reference, %L as fact_table_column FROM %I.%I',
+    'SELECT DISTINCT CAST(%I AS TEXT) as reference, %L as fact_table_column FROM %I.%I WHERE %I IS NOT NULL',
     columnName,
     columnName,
     buildId,
-    FACT_TABLE_NAME
+    FACT_TABLE_NAME,
+    columnName
   );
 }
 
