@@ -250,6 +250,23 @@ export const uploadDataTable = async (req: Request, res: Response, next: NextFun
   } catch (err) {
     logger.error(err, 'Failed to update the fact table');
     const lang = req.language as Locale;
+
+    if (err instanceof BadRequestException) {
+      const error: ViewErrDTO = {
+        status: 400,
+        dataset_id: dataset.id,
+        errors: [
+          {
+            field: 'csv',
+            message: { key: err.message, params: {} },
+            user_message: [{ lang, message: t(err.message, { lng: lang }) }]
+          }
+        ]
+      };
+      res.status(400).json(error);
+      return;
+    }
+
     const error: ViewErrDTO = {
       status: 500,
       dataset_id: dataset.id,

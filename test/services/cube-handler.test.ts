@@ -76,22 +76,22 @@ describe('API Endpoints', () => {
     test('for CSV type files', async () => {
       const quack = await duckdb();
       const tableName = 'data_table';
-      const testFilePath = path.resolve(__dirname, `../sample-files/csv/sure-start-short.csv`);
+      const testFilePath = path.resolve(__dirname, `../sample-files/csv/minimal/data.csv`);
       const testFileInterface: FileImportInterface = {
         id: uuidV4(),
         mimeType: 'text/csv',
         fileType: FileType.Csv,
         encoding: 'utf-8',
-        filename: 'sure-start-short.csv',
-        originalFilename: 'sure-start-short.csv',
+        filename: 'data.csv',
+        originalFilename: 'data.csv',
         hash: '',
         uploadedAt: new Date()
       };
       await loadFileIntoCube(quack, testFileInterface.fileType, testFilePath, tableName, 'memory');
       const tableData = await quack.run(`SELECT * FROM ${tableName}`);
-      expect(tableData.rowCount).toBe(24);
+      expect(tableData.rowCount).toBe(2);
       const rowsJson = await tableData.getRowsJson();
-      expect(Object.keys(rowsJson[0]).length).toBe(6);
+      expect(Object.keys(rowsJson[0]).length).toBe(4);
       quack.disconnectSync();
     });
   });

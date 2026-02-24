@@ -31,7 +31,7 @@ export async function createSmallDataset(
   revisionId: string,
   importId: string,
   user: User,
-  testFilePath = '../sample-files/csv/sure-start-data.csv',
+  testFilePath = '../sample-files/csv/realistic/data-orig.csv',
   fileType = FileType.Csv
 ): Promise<Dataset> {
   const testFile = path.resolve(__dirname, testFilePath);
@@ -197,7 +197,7 @@ async function createTestCube(revisionId: string, dataTableId: string) {
     `;
     await cubeDB.query(createDataTableSQL);
     const parserOpts = { delimiter: ',', bom: true, skip_empty_lines: true, columns: true };
-    const dataFile = path.resolve(__dirname, '../sample-files/csv/sure-start-data.csv');
+    const dataFile = path.resolve(__dirname, '../sample-files/csv/realistic/data-orig.csv');
     const parseCSV = async (): Promise<void> => {
       const csvParser: AsyncIterable<any> = fs.createReadStream(dataFile).pipe(parse(parserOpts));
       for await (const row of csvParser) {
@@ -218,7 +218,7 @@ export async function createFullDataset(
   revisionId: string,
   dataTableId: string,
   user: User,
-  testFilePath = '../sample-files/csv/sure-start-data.csv',
+  testFilePath = '../sample-files/csv/realistic/data-orig.csv',
   fileType = FileType.Csv,
   dimensionDescriptorJson = sureStartShortDimensionDescriptor
 ): Promise<void> {
