@@ -53,7 +53,7 @@ async function pivotToFrontend(
   queryStore: QueryStore,
   pageOptions: PageOptions
 ): Promise<void> {
-  const { pageNumber = 1, pageSize = queryStore.totalLines } = pageOptions;
+  const { pageNumber = 1, pageSize = 100 } = pageOptions;
   const startRecord = pageSize * (pageNumber - 1);
   const dataset = await DatasetRepository.getById(queryStore.datasetId, { factTable: true, dimensions: true });
   let note_codes: string[] = [];
@@ -116,11 +116,12 @@ async function pivotToFrontend(
     rows = await pivot.getRowObjects();
   }
   res.write('],');
+  const totalPages = queryStore.totalPivotLines ? Math.max(1, Math.ceil(queryStore.totalPivotLines / pageSize)) : 0;
   const page_info = {
     current_page: pageNumber,
     page_size: pageSize,
-    total_pages: Math.max(1, Math.ceil(queryStore.totalLines / pageSize)),
-    total_records: queryStore.totalLines,
+    total_pages: totalPages,
+    total_records: queryStore.totalPivotLines,
     start_record: startRecord,
     end_record: startRecord + rowCount
   };
@@ -293,6 +294,19 @@ export function validateColOnly(columnName: string, locale: string, filterTable:
   return columnName;
 }
 
+export async function getPivotRowCount(query: string): Promise<number> {
+  const quack = await duckdb();
+  try {
+    const result = await quack.run(query);
+    return result.rowCount;
+  } catch (err) {
+    logger.error(err, 'Something went wrong trying to run the pivot query to get the line count');
+    throw new UnknownException('Pivot line count failed to run the pivot query');
+  } finally {
+    quack.closeSync();
+  }
+}
+
 export async function createPivotQuery(
   lang: string,
   queryStore: QueryStore,
@@ -373,5 +387,3 @@ export async function createPivotQuery(
     pagingQuery
   );
 }
-
-// async function createPivotFromPost(): Promise<void> {}
