@@ -18,7 +18,7 @@ export class QueryStore extends BaseEntity {
   @Column({ name: 'revision_id', type: 'uuid', nullable: false })
   revisionId: string;
 
-  // The request object from the post request, used to regenerate the entry
+  // The request object from the post-request, used to regenerate the entry
   @Column({ name: 'request_object', type: 'jsonb', nullable: false })
   requestObject: DataOptionsDTO;
 
@@ -28,6 +28,9 @@ export class QueryStore extends BaseEntity {
 
   @Column({ name: 'total_lines', type: 'int', nullable: false })
   totalLines: number;
+
+  @Column({ name: 'total_pivot_lines', type: 'int', nullable: false })
+  totalPivotLines: number;
 
   @Column({ name: 'column_mapping', type: 'jsonb', nullable: false })
   columnMapping: FactTableToDimensionName[];

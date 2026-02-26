@@ -47,7 +47,7 @@ import { sortObjToString } from '../utils/sort-obj-to-string';
 import { ConsumerDatasetDTO } from '../dtos/consumer-dataset-dto';
 import { PublisherDTO } from '../dtos/publisher-dto';
 import { UserGroupRepository } from '../repositories/user-group';
-import { createPivotOutputUsingDuckDB, createPivotQuery, langToLocale } from '../services/pivots';
+import { createPivotOutputUsingDuckDB, createPivotQuery, getPivotRowCount, langToLocale } from '../services/pivots';
 import { FieldValidationError, matchedData } from 'express-validator';
 import { parsePageOptions } from '../utils/parse-page-options';
 import { SearchMode } from '../enums/search-mode';
@@ -361,6 +361,16 @@ export const generatePivotFilterId = async (req: Request, res: Response, next: N
 
   try {
     const queryStore = await QueryStoreRepository.getByRequest(dataset.id, publishedRevision.id, dataOptions);
+    const query = await createPivotQuery(req.language, queryStore, {
+      format: OutputFormats.Json,
+      locale: req.language as Locale,
+      pageNumber: 0,
+      sort: [],
+      x: dataOptions.pivot.x,
+      y: dataOptions.pivot.y
+    });
+    queryStore.totalPivotLines = await getPivotRowCount(query);
+    await queryStore.save();
     res.json({ filterId: queryStore.id });
   } catch (err) {
     logger.error(err, 'Error generating filter ID');
