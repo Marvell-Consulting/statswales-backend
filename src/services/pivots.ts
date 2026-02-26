@@ -116,10 +116,11 @@ async function pivotToFrontend(
     rows = await pivot.getRowObjects();
   }
   res.write('],');
+  const totalPages = queryStore.totalPivotLines ? Math.max(1, Math.ceil(queryStore.totalPivotLines / pageSize)) : 0;
   const page_info = {
     current_page: pageNumber,
     page_size: pageSize,
-    total_pages: Math.max(1, Math.ceil(queryStore.totalPivotLines / pageSize)),
+    total_pages: totalPages,
     total_records: queryStore.totalPivotLines,
     start_record: startRecord,
     end_record: startRecord + rowCount
