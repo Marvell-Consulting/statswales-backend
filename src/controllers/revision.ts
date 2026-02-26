@@ -314,7 +314,9 @@ export const updateDataTable = async (req: Request, res: Response, next: NextFun
               }
             ]
           }
-        ]
+        ],
+        data: error.data,
+        headers: error.headers
       };
       res.json(viewErr);
       return;
