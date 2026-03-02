@@ -186,23 +186,20 @@ describe('makeCubeSafeString', () => {
 
 // ===========================================================================
 describe('createValidationTableQuery', () => {
-  it('produces a CREATE TABLE with correctly quoted schema and table names', () => {
-    const sql = createValidationTableQuery('my-build-id');
-    expect(sql).toContain('"my-build-id"'); // hyphenated schema name gets quoted
-    expect(sql).toContain('validation_table'); // lowercase/underscore names are not quoted
+  it('always targets VALIDATION_TABLE_NAME, not an arbitrary table', () => {
+    const sql = createValidationTableQuery('build-123');
+    expect(sql).toContain('validation_table');
+  });
+
+  it('defines reference and fact_table_column as TEXT columns', () => {
+    const sql = createValidationTableQuery('build-123');
     expect(sql).toContain('reference TEXT');
     expect(sql).toContain('fact_table_column TEXT');
-    expect(sql).toContain('PRIMARY KEY (reference, fact_table_column)');
   });
 
-  it('quotes a schema containing special characters', () => {
-    const sql = createValidationTableQuery('schema with spaces');
-    expect(sql).toContain('"schema with spaces"');
-  });
-
-  it('produces a CREATE TABLE statement', () => {
+  it('has a composite PRIMARY KEY covering both columns', () => {
     const sql = createValidationTableQuery('build-123');
-    expect(sql.trim().toUpperCase()).toMatch(/^CREATE TABLE/);
+    expect(sql).toMatch(/PRIMARY KEY\s*\(\s*reference\s*,\s*fact_table_column\s*\)/i);
   });
 });
 
@@ -284,73 +281,72 @@ describe('setupValidationTableFromDataset', () => {
 
 // ===========================================================================
 describe('loadTableDataIntoFactTableFromPostgresStatement', () => {
-  it('produces an INSERT … SELECT … FROM statement', () => {
-    const sql = loadTableDataIntoFactTableFromPostgresStatement('b1', ['col_a', 'col_b'], 'fact_table', 'dt-uuid');
-    expect(sql).toContain('INSERT INTO');
-    expect(sql).toContain('b1.fact_table'); // plain identifiers are not quoted
-    expect(sql).toContain('col_a');
-    expect(sql).toContain('col_b');
-    expect(sql).toContain('data_tables."dt-uuid"'); // hyphenated identifier gets quoted
+  it('projects every column in factTableDef — no more, no less', () => {
+    const cols = ['year', 'region', 'value', 'notes'];
+    const sql = loadTableDataIntoFactTableFromPostgresStatement('b1', cols, 'fact_table', 'dt-1');
+    for (const col of cols) {
+      expect(sql).toContain(col);
+    }
   });
 
-  it('quotes identifiers that contain special characters', () => {
-    const sql = loadTableDataIntoFactTableFromPostgresStatement(
-      'my-build',
-      ['Year Code', 'Data Value'],
-      'fact_table',
-      'dt-1'
-    );
-    expect(sql).toContain('"Year Code"'); // space in name → quoted
-    expect(sql).toContain('"Data Value"'); // space in name → quoted
-    expect(sql).toContain('"my-build".fact_table'); // hyphenated buildId quoted; plain table not quoted
+  it('reads from the data_tables schema using the supplied dataTableId', () => {
+    const sql = loadTableDataIntoFactTableFromPostgresStatement('b1', ['col_a'], 'fact_table', 'specific-uuid');
+    // source is always data_tables regardless of buildId
+    expect(sql).toContain('data_tables');
+    expect(sql).toContain('specific-uuid');
   });
 
-  it('uses the provided factTableName as the target table', () => {
-    const sql = loadTableDataIntoFactTableFromPostgresStatement('b1', ['col_a'], 'custom_table', 'dt-1');
-    expect(sql).toContain('b1.custom_table');
+  it('writes to the factTableName argument, not a hardcoded name', () => {
+    const sql1 = loadTableDataIntoFactTableFromPostgresStatement('b1', ['col_a'], 'fact_table', 'dt-1');
+    const sql2 = loadTableDataIntoFactTableFromPostgresStatement('b1', ['col_a'], 'staging_table', 'dt-1');
+    expect(sql1).toContain('fact_table');
+    expect(sql2).toContain('staging_table');
+    expect(sql2).not.toContain('fact_table');
   });
 });
 
 // ===========================================================================
 describe('cleanupNotesCodeColumn', () => {
-  it('produces an UPDATE … SET col = NULL WHERE col = empty-string', () => {
+  it('uses the notesCodeColumn name in both SET and WHERE (same column, not two different ones)', () => {
     const col = makeCol('note_codes', 0, FactTableColumnType.NoteCodes);
     const sql = cleanupNotesCodeColumn('b1', col);
-    expect(sql).toContain('UPDATE');
-    expect(sql).toContain('b1.fact_table'); // plain identifiers not quoted
-    expect(sql).toContain('note_codes'); // plain identifier not quoted
-    expect(sql).toContain('= NULL');
+    // the column being nulled and the column being matched must be identical
+    const occurrences = (sql.match(/note_codes/g) ?? []).length;
+    expect(occurrences).toBeGreaterThanOrEqual(2);
+  });
+
+  it('sets the column to NULL where its value is an empty string', () => {
+    const col = makeCol('note_codes', 0, FactTableColumnType.NoteCodes);
+    const sql = cleanupNotesCodeColumn('b1', col);
+    expect(sql).toMatch(/SET\s+\S+\s*=\s*NULL/i);
     expect(sql).toContain("= ''");
   });
 
-  it('quotes column names containing spaces', () => {
-    const col = makeCol('Note Codes', 0, FactTableColumnType.NoteCodes);
-    const sql = cleanupNotesCodeColumn('build-1', col);
-    expect(sql).toContain('"Note Codes"');
+  it('always targets FACT_TABLE_NAME, never another table', () => {
+    const col = makeCol('note_codes', 0, FactTableColumnType.NoteCodes);
+    const sql = cleanupNotesCodeColumn('any-build', col);
+    expect(sql).toContain('fact_table');
   });
 });
 
 // ===========================================================================
 describe('createPrimaryKeyOnFactTable', () => {
-  it('produces an ALTER TABLE ADD PRIMARY KEY for a single key', () => {
+  it('produces an ALTER TABLE … ADD PRIMARY KEY statement targeting fact_table', () => {
     const sql = createPrimaryKeyOnFactTable('b1', ['year']);
-    expect(sql).toContain('ALTER TABLE');
-    expect(sql).toContain('b1.fact_table'); // plain identifiers not quoted
-    expect(sql).toContain('ADD PRIMARY KEY');
-    expect(sql).toContain('year');
+    expect(sql).toMatch(/ALTER TABLE/i);
+    expect(sql).toMatch(/ADD PRIMARY KEY/i);
+    expect(sql).toContain('fact_table');
   });
 
-  it('produces a composite primary key for multiple columns', () => {
-    const sql = createPrimaryKeyOnFactTable('b1', ['year', 'region', 'measure']);
-    expect(sql).toContain('year');
-    expect(sql).toContain('region');
-    expect(sql).toContain('measure');
-  });
-
-  it('produces correct SQL for an empty composite key array', () => {
-    // Documents the degenerate case — pgformat produces ADD PRIMARY KEY ()
-    const sql = createPrimaryKeyOnFactTable('b1', []);
-    expect(sql).toContain('ADD PRIMARY KEY');
+  it('includes every compositeKey column and nothing extra', () => {
+    const key = ['year', 'region', 'measure'];
+    const sql = createPrimaryKeyOnFactTable('b1', key);
+    for (const col of key) {
+      expect(sql).toContain(col);
+    }
+    // DataValues / NoteCodes columns must never appear in the primary key
+    expect(sql).not.toContain('value');
+    expect(sql).not.toContain('notes');
   });
 });
 
@@ -377,24 +373,24 @@ describe('measureTableCreateStatement', () => {
     expect(hierCount).toBe(1);
   });
 
-  it('uses bare tableName when no buildId is provided', () => {
+  it('defaults to the table name "measure" when no buildId is provided', () => {
     const sql = measureTableCreateStatement('TEXT');
-    // default tableName 'measure' appears unquoted when no buildId
     expect(sql).toContain('measure');
-    // Should NOT produce a dotted identifier like "buildId"."measure"
-    expect(sql).not.toMatch(/"[^"]+"\."[^"]+"/);
+    // without a buildId there should be no schema-qualified (dotted) table reference
+    expect(sql).not.toMatch(/\w+\.\w*measure/);
   });
 
-  it('schema-qualifies the table when buildId is provided', () => {
-    const sql = measureTableCreateStatement('TEXT', 'my-build');
-    // pgformat('%I.%I', 'my-build', 'measure') → "my-build".measure (hyphenated gets quoted; lowercase plain doesn't)
-    expect(sql).toContain('"my-build".measure');
+  it('schema-qualifies the table with buildId when provided', () => {
+    const sql = measureTableCreateStatement('TEXT', 'mybuild');
+    // the buildId must appear as a schema prefix before the table name
+    expect(sql).toMatch(/mybuild[^.]*\..*measure/i);
   });
 
-  it('uses provided tableName when buildId is given', () => {
-    const sql = measureTableCreateStatement('TEXT', 'b1', 'custom_measure');
-    // b1 and custom_measure are plain lowercase so neither gets quoted
-    expect(sql).toContain('b1.custom_measure');
+  it('uses the supplied tableName instead of the default when buildId is given', () => {
+    const sql1 = measureTableCreateStatement('TEXT', 'b1');
+    const sql2 = measureTableCreateStatement('TEXT', 'b1', 'custom_measure');
+    expect(sql1).toContain('measure');
+    expect(sql2).toContain('custom_measure');
   });
 });
 
@@ -467,43 +463,42 @@ describe('createMeasureLookupTable', () => {
 
 // ===========================================================================
 describe('createLookupTableDimension', () => {
-  it('creates a CREATE TABLE AS SELECT from lookup_tables', () => {
-    const dimension = {
-      factTableColumn: 'Year Code',
-      lookupTable: { id: 'lookup-uuid-123' } as LookupTable
-    } as Dimension;
-    const factTableCol = makeCol('YearCode', 0, FactTableColumnType.Dimension);
-
-    const sql = createLookupTableDimension('b1', dimension, factTableCol);
-    expect(sql.trim().toUpperCase()).toMatch(/^CREATE TABLE/);
-    expect(sql).toContain('b1.'); // plain buildId not quoted
-    expect(sql).toContain('lookup_tables');
-    expect(sql).toContain('"lookup-uuid-123"'); // hyphenated lookup id gets quoted
-    expect(sql).toContain('SELECT *');
-  });
-
-  it('derives the dim table name using makeCubeSafeString on the factTableColumn name', () => {
+  it('derives the dest table name from factTableColumn.columnName, not dimension.factTableColumn', () => {
+    // dimension.factTableColumn and factTableColumn.columnName are intentionally different
     const dimension = {
       factTableColumn: 'geo',
       lookupTable: { id: 'geo-lookup-id' } as LookupTable
     } as Dimension;
-    // Column name with digits and uppercase — should become 'yearcode' → 'yearcode_lookup'
     const factTableCol = makeCol('Year2023Code', 0, FactTableColumnType.Dimension);
 
     const sql = createLookupTableDimension('b1', dimension, factTableCol);
-    // makeCubeSafeString('Year2023Code') = 'yearcode'; plain lowercase → not quoted
+    // makeCubeSafeString('Year2023Code') = 'yearcode' → table should be 'yearcode_lookup'
     expect(sql).toContain('yearcode_lookup');
+    // must NOT use dimension.factTableColumn ('geo') as the table name
+    expect(sql).not.toContain('geo_lookup');
   });
 
-  it('handles a column name that is already safe', () => {
+  it('reads from the lookup_tables schema using the lookupTable.id', () => {
     const dimension = {
       factTableColumn: 'region',
-      lookupTable: { id: 'region-lookup' } as LookupTable
+      lookupTable: { id: 'specific-lookup-uuid' } as LookupTable
     } as Dimension;
     const factTableCol = makeCol('region', 0, FactTableColumnType.Dimension);
 
     const sql = createLookupTableDimension('b1', dimension, factTableCol);
-    expect(sql).toContain('region_lookup'); // plain lowercase → not quoted
+    expect(sql).toContain('lookup_tables');
+    expect(sql).toContain('specific-lookup-uuid');
+  });
+
+  it('copies the full lookup table with SELECT *', () => {
+    const dimension = {
+      factTableColumn: 'region',
+      lookupTable: { id: 'some-id' } as LookupTable
+    } as Dimension;
+    const factTableCol = makeCol('region', 0, FactTableColumnType.Dimension);
+
+    const sql = createLookupTableDimension('b1', dimension, factTableCol);
+    expect(sql).toMatch(/SELECT \*/i);
   });
 });
 

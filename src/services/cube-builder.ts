@@ -2072,9 +2072,9 @@ function createNotesTable(
   // We perform join operations to this view as we want to turn a csv such as `a,r` in to `Average, Revised`.
   statements.push(
     pgformat(
-      `CREATE TABLE %I.all_notes AS SELECT fact_table.%I as code, note_codes.language as language, string_agg(DISTINCT note_codes.description, ', ') as description
+      `CREATE TABLE %I.all_notes AS SELECT ${FACT_TABLE_NAME}.%I as code, note_codes.language as language, string_agg(DISTINCT note_codes.description, ', ') as description
           FROM %I.${FACT_TABLE_NAME} JOIN %I.note_codes ON array_position(string_to_array(${FACT_TABLE_NAME}.%I, ','), note_codes.code) IS NOT NULL
-          GROUP BY fact_table.%I, note_codes.language;`,
+          GROUP BY ${FACT_TABLE_NAME}.%I, note_codes.language;`,
       buildId,
       notesColumn.columnName,
       buildId,
