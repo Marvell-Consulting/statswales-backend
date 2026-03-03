@@ -267,12 +267,17 @@ async function createBasePostgresCube(
   const metaDataStatements = [
     'BEGIN TRANSACTION;',
     pgformat(
-      'INSERT INTO %I.metadata VALUES (%L, %L);',
+      `INSERT INTO %I.${METADATA_TABLE_NAME} VALUES (%L, %L);`,
       build.id,
       CubeMetaDataKeys.BuildScript,
       fullBuildScript.join('\n')
     ),
-    pgformat('INSERT INTO %I.metadata VALUES (%L, %L);', build.id, CubeMetaDataKeys.BuildResults, 'SUCCESS'),
+    pgformat(
+      `INSERT INTO %I.${METADATA_TABLE_NAME} VALUES (%L, %L);`,
+      build.id,
+      CubeMetaDataKeys.BuildResults,
+      'SUCCESS'
+    ),
     'COMMIT;'
   ];
   cubeBuilder.transactionBlocks.push({ buildStage: BuildStage.PostBuildMetadata, statements: metaDataStatements });
@@ -303,12 +308,17 @@ async function createBasePostgresCube(
         const metaDataUpdateStatements = [
           'BEGIN TRANSACTION;',
           pgformat(
-            'INSERT INTO %I.metadata VALUES (%L, %L);',
+            `INSERT INTO %I.${METADATA_TABLE_NAME} VALUES (%L, %L);`,
             build.id,
             CubeMetaDataKeys.BuildScript,
             attemptedBuildScript.join('\n')
           ),
-          pgformat('INSERT INTO %I.metadata VALUES (%L, %L);', build.id, CubeMetaDataKeys.BuildResults, err),
+          pgformat(
+            `INSERT INTO %I.${METADATA_TABLE_NAME} VALUES (%L, %L);`,
+            build.id,
+            CubeMetaDataKeys.BuildResults,
+            err
+          ),
           'COMMIT;'
         ];
         await cubeDB.query(metaDataUpdateStatements.join('\n'));
@@ -362,7 +372,7 @@ async function createMaterialisedView(
     statements.push(pgformat('DROP VIEW %I.%I;', revisionId, `${CORE_VIEW_NAME}_${lang}`));
     statements.push(
       pgformat(
-        `UPDATE %I.metadata SET value = %L WHERE key = %L;`,
+        `UPDATE %I.${METADATA_TABLE_NAME} SET value = %L WHERE key = %L;`,
         revisionId,
         CubeBuildStatus.Completed,
         CubeMetaDataKeys.BuildStatus
@@ -370,7 +380,7 @@ async function createMaterialisedView(
     );
     statements.push(
       pgformat(
-        `INSERT INTO %I.metadata VALUES(%L, %L);`,
+        `INSERT INTO %I.${METADATA_TABLE_NAME} VALUES(%L, %L);`,
         revisionId,
         CubeMetaDataKeys.BuildFinished,
         new Date().toISOString()
@@ -404,13 +414,13 @@ async function createMaterialisedView(
       const errorStatements = [
         'BEGIN TRANSACTION;',
         pgformat(
-          'UPDATE %I.metadata SET value = %L WHERE key = %L;',
+          `UPDATE %I.${METADATA_TABLE_NAME} SET value = %L WHERE key = %L;`,
           revisionId,
           CubeBuildStatus.Failed,
           CubeMetaDataKeys.BuildStatus
         ),
         pgformat(
-          'UPDATE %I.metadata SET value = %L WHERE key = %L;',
+          `UPDATE %I.${METADATA_TABLE_NAME} SET value = %L WHERE key = %L;`,
           revisionId,
           JSON.stringify(error),
           CubeMetaDataKeys.BuildResults
@@ -502,15 +512,26 @@ export function setupCubeBuilder(dataset: Dataset, buildId: string): FactTableIn
 
 function createCubeBaseTables(revisionId: string, buildId: string, factTableQuery: string): TransactionBlock {
   const statements: string[] = ['BEGIN TRANSACTION;', factTableQuery];
-  statements.push(pgformat(`CREATE TABLE IF NOT EXISTS %I.metadata (key VARCHAR, value VARCHAR);`, buildId));
-  statements.push(pgformat('INSERT INTO %I.metadata VALUES (%L, %L);', buildId, CubeMetaDataKeys.Revision, revisionId));
-  statements.push(pgformat('INSERT INTO %I.metadata VALUES (%L, %L);', buildId, CubeMetaDataKeys.Build, buildId));
   statements.push(
-    pgformat('INSERT INTO %I.metadata VALUES (%L, %L);', buildId, CubeMetaDataKeys.BuildStart, new Date().toISOString())
+    pgformat(`CREATE TABLE IF NOT EXISTS %I.${METADATA_TABLE_NAME} (key VARCHAR, value VARCHAR);`, buildId)
+  );
+  statements.push(
+    pgformat(`INSERT INTO %I.${METADATA_TABLE_NAME} VALUES (%L, %L);`, buildId, CubeMetaDataKeys.Revision, revisionId)
+  );
+  statements.push(
+    pgformat(`INSERT INTO %I.${METADATA_TABLE_NAME} VALUES (%L, %L);`, buildId, CubeMetaDataKeys.Build, buildId)
   );
   statements.push(
     pgformat(
-      'INSERT INTO %I.metadata VALUES (%L, %L);',
+      `INSERT INTO %I.${METADATA_TABLE_NAME} VALUES (%L, %L);`,
+      buildId,
+      CubeMetaDataKeys.BuildStart,
+      new Date().toISOString()
+    )
+  );
+  statements.push(
+    pgformat(
+      `INSERT INTO %I.${METADATA_TABLE_NAME} VALUES (%L, %L);`,
       buildId,
       CubeMetaDataKeys.BuildStatus,
       CubeBuildStatus.Building
@@ -519,7 +540,7 @@ function createCubeBaseTables(revisionId: string, buildId: string, factTableQuer
   statements.push(
     pgformat(
       `
-        CREATE TABLE %I.%I (
+        CREATE TABLE %I.${FILTER_TABLE_NAME} (
          reference VARCHAR,
          language VARCHAR,
          fact_table_column VARCHAR,
@@ -529,12 +550,16 @@ function createCubeBaseTables(revisionId: string, buildId: string, factTableQuer
          PRIMARY KEY (reference, language, fact_table_column)
         );
       `,
-      buildId,
-      'filter_table'
+      buildId
     )
   );
   statements.push(
-    pgformat('INSERT INTO %I.metadata VALUES (%L, %L);', buildId, CubeMetaDataKeys.BuildScript, statements.join('\n'))
+    pgformat(
+      `INSERT INTO %I.${METADATA_TABLE_NAME} VALUES (%L, %L);`,
+      buildId,
+      CubeMetaDataKeys.BuildScript,
+      statements.join('\n')
+    )
   );
   statements.push('COMMIT;');
   return {
@@ -717,12 +742,12 @@ function createCubeNoSources(
     coreViewSQL.set(locale, createCoreCubeViewSQL(endRevision.id, coreCubeViewSelectBuilder, locale, [], []));
     viewBuilderStage.statements.push(pgformat('CREATE VIEW %I.%I AS %s;', buildId, coreViewName, coreCubeViewSQL));
     viewBuilderStage.statements.push(
-      pgformat(`INSERT INTO %I.metadata VALUES (%L, %L);`, buildId, coreViewName, coreCubeViewSQL)
+      pgformat(`INSERT INTO %I.${METADATA_TABLE_NAME} VALUES (%L, %L);`, buildId, coreViewName, coreCubeViewSQL)
     );
   }
   viewBuilderStage.statements.push(
     pgformat(
-      'UPDATE %I.metadata SET value = %L WHERE key = %L;',
+      `UPDATE %I.${METADATA_TABLE_NAME} SET value = %L WHERE key = %L;`,
       buildId,
       CubeMetaDataKeys.BuildStatus,
       CubeBuildStatus.Materializing
@@ -1214,7 +1239,7 @@ function setupMeasureAndDataValuesNoLookup(
     );
     statements.push(
       pgformat(
-        `INSERT INTO %I.filter_table SELECT DISTINCT CAST(%I AS VARCHAR), %L, %L, %L, CAST(%I AS VARCHAR), null FROM %I.%I ORDER BY %I;`,
+        `INSERT INTO %I.${FILTER_TABLE_NAME} SELECT DISTINCT CAST(%I AS VARCHAR), %L, %L, %L, CAST(%I AS VARCHAR), null FROM %I.%I ORDER BY %I;`,
         buildId,
         measureColumn.columnName,
         locale.toLowerCase(),
@@ -1469,7 +1494,7 @@ function setupMeasureAndDataValuesWithLookup(
     const columnName = t('column_headers.measure', { lng: locale });
     statements.push(
       pgformat(
-        `INSERT INTO %I.filter_table SELECT CAST(reference AS VARCHAR), language, %L, %L, description, CAST(hierarchy AS VARCHAR) FROM %I.measure WHERE language = %L ORDER BY sort_order, reference;`,
+        `INSERT INTO %I.${FILTER_TABLE_NAME} SELECT CAST(reference AS VARCHAR), language, %L, %L, description, CAST(hierarchy AS VARCHAR) FROM %I.measure WHERE language = %L ORDER BY sort_order, reference;`,
         buildId,
         measureColumn.columnName,
         columnName,
@@ -1527,7 +1552,7 @@ function rawDimensionProcessor(
     }
     statements.push(
       pgformat(
-        `INSERT INTO %I.filter_table
+        `INSERT INTO %I.${FILTER_TABLE_NAME}
        SELECT DISTINCT CAST(%I AS VARCHAR), %L, %L, %L, CAST (%I AS VARCHAR), NULL
        FROM %I.%I ORDER BY %I;`,
         buildId,
@@ -1648,7 +1673,7 @@ function setupLookupTableDimension(
     const columnName = dimension.metadata.find((info) => info.language === locale)?.name || dimension.factTableColumn;
     statements.push(
       pgformat(
-        `INSERT INTO %I.filter_table
+        `INSERT INTO %I.${FILTER_TABLE_NAME}
               SELECT reference, language, fact_table_column, dimension_name, description, hierarchy
               FROM (SELECT DISTINCT
               CAST(%I AS VARCHAR) AS reference, language, %L AS fact_table_column, %L AS dimension_name, description, hierarchy, sort_order
@@ -1760,7 +1785,7 @@ function setupNumericDimension(
     const columnName = dimension.metadata.find((info) => info.language === locale)?.name || dimension.factTableColumn;
     statements.push(
       pgformat(
-        `INSERT INTO %I.filter_table
+        `INSERT INTO %I.${FILTER_TABLE_NAME}
          SELECT DISTINCT CAST(%I AS VARCHAR), %L, %L, %L, CAST (%I AS VARCHAR), NULL
          FROM %I.%I ORDER BY %I;`,
         buildId,
@@ -1829,7 +1854,7 @@ function setupTextDimension(
     const columnName = dimension.metadata.find((info) => info.language === locale)?.name || dimension.factTableColumn;
     statements.push(
       pgformat(
-        `INSERT INTO %I.filter_table
+        `INSERT INTO %I.${FILTER_TABLE_NAME}
          SELECT DISTINCT CAST(%I AS VARCHAR), %L, %L, %L, CAST (%I AS VARCHAR), NULL
          FROM %I.%I;`,
         buildId,
@@ -1955,7 +1980,7 @@ function setupDimensions(
   }
   statements.push(
     pgformat(
-      'INSERT INTO %I.metadata VALUES (%L, %L);',
+      `INSERT INTO %I.${METADATA_TABLE_NAME} VALUES (%L, %L);`,
       buildId,
       CubeMetaDataKeys.LookupTables,
       JSON.stringify(Array.from(lookupTables))
@@ -2047,9 +2072,9 @@ function createNotesTable(
   // We perform join operations to this view as we want to turn a csv such as `a,r` in to `Average, Revised`.
   statements.push(
     pgformat(
-      `CREATE TABLE %I.all_notes AS SELECT fact_table.%I as code, note_codes.language as language, string_agg(DISTINCT note_codes.description, ', ') as description
-          FROM %I.fact_table JOIN %I.note_codes ON array_position(string_to_array(fact_table.%I, ','), note_codes.code) IS NOT NULL
-          GROUP BY fact_table.%I, note_codes.language;`,
+      `CREATE TABLE %I.all_notes AS SELECT ${FACT_TABLE_NAME}.%I as code, note_codes.language as language, string_agg(DISTINCT note_codes.description, ', ') as description
+          FROM %I.${FACT_TABLE_NAME} JOIN %I.note_codes ON array_position(string_to_array(${FACT_TABLE_NAME}.%I, ','), note_codes.code) IS NOT NULL
+          GROUP BY ${FACT_TABLE_NAME}.%I, note_codes.language;`,
       buildId,
       notesColumn.columnName,
       buildId,
@@ -2078,7 +2103,7 @@ function createNotesTable(
   );
   statements.push(
     pgformat(
-      `INSERT INTO %I.metadata VALUES ('note_codes', (SELECT ARRAY_TO_STRING(ARRAY(SELECT DISTINCT unnest(string_to_array(%I, ',')) from %I.%I WHERE %I IS NOT NULL), ',') AS note_codes));`,
+      `INSERT INTO %I.${METADATA_TABLE_NAME} VALUES ('note_codes', (SELECT ARRAY_TO_STRING(ARRAY(SELECT DISTINCT unnest(string_to_array(%I, ',')) from %I.%I WHERE %I IS NOT NULL), ',') AS note_codes));`,
       buildId,
       notesColumn.columnName,
       buildId,
@@ -2109,11 +2134,16 @@ function createViewsFromConfig(
       cols = factTable.map((col) => pgformat('%I', col.columnName)) || ['*'];
     }
     const SQL = pgformat('SELECT %s FROM %I.%I', cols.join(', '), buildId, baseViewName);
-    statements.push(pgformat('DELETE FROM %I.metadata WHERE key = %L;', buildId, viewName));
-    statements.push(pgformat('INSERT INTO %I.metadata VALUES (%L, %L);', buildId, viewName, SQL));
-    statements.push(pgformat('DELETE FROM %I.metadata WHERE key = %L;', buildId, `${viewName}_columns`));
+    statements.push(pgformat(`DELETE FROM %I.${METADATA_TABLE_NAME} WHERE key = %L;`, buildId, viewName));
+    statements.push(pgformat(`INSERT INTO %I.${METADATA_TABLE_NAME} VALUES (%L, %L);`, buildId, viewName, SQL));
+    statements.push(pgformat(`DELETE FROM %I.${METADATA_TABLE_NAME} WHERE key = %L;`, buildId, `${viewName}_columns`));
     statements.push(
-      pgformat('INSERT INTO %I.metadata VALUES (%L, %L);', buildId, `${viewName}_columns`, JSON.stringify(cols))
+      pgformat(
+        `INSERT INTO %I.${METADATA_TABLE_NAME} VALUES (%L, %L);`,
+        buildId,
+        `${viewName}_columns`,
+        JSON.stringify(cols)
+      )
     );
     statements.push(pgformat('DROP VIEW IF EXISTS %I.%I;', buildId, viewName));
     statements.push(pgformat('CREATE VIEW %I.%I AS %s;', buildId, viewName, SQL));
@@ -2165,12 +2195,12 @@ function createValidationCube(
     coreViewSQLMap.set(locale, coreCubeViewSQL);
     viewBuilderStage.statements.push(pgformat('CREATE VIEW %I.%I AS %s;', buildId, coreViewName, coreCubeViewSQL));
     viewBuilderStage.statements.push(
-      pgformat(`INSERT INTO %I.metadata VALUES (%L, %L);`, buildId, coreViewName, coreCubeViewSQL)
+      pgformat(`INSERT INTO %I.${METADATA_TABLE_NAME} VALUES (%L, %L);`, buildId, coreViewName, coreCubeViewSQL)
     );
   }
   viewBuilderStage.statements.push(
     pgformat(
-      'UPDATE %I.metadata SET value = %L WHERE key = %L;',
+      `UPDATE %I.${METADATA_TABLE_NAME} SET value = %L WHERE key = %L;`,
       buildId,
       CubeMetaDataKeys.BuildStatus,
       CubeBuildStatus.Materializing
@@ -2280,12 +2310,12 @@ function createFullCube(
     viewBuildStatements.push(pgformat('CREATE VIEW %I.%I AS %s;', buildId, coreViewName, coreCubeViewSQL));
     viewBuildStatements.push(pgformat('SELECT * FROM %I.%I LIMIT 500;', buildId, coreViewName));
     viewBuildStatements.push(
-      pgformat(`INSERT INTO %I.metadata VALUES (%L, %L);`, buildId, coreViewName, coreCubeViewSQL)
+      pgformat(`INSERT INTO %I.${METADATA_TABLE_NAME} VALUES (%L, %L);`, buildId, coreViewName, coreCubeViewSQL)
     );
 
     viewBuildStatements.push(
       pgformat(
-        `INSERT INTO %I.metadata VALUES (%L, %L);`,
+        `INSERT INTO %I.${METADATA_TABLE_NAME} VALUES (%L, %L);`,
         buildId,
         `${CORE_VIEW_NAME}_columns_${lang}`,
         JSON.stringify(Array.from(columnNames.get(locale)?.values() || []))
@@ -2296,7 +2326,7 @@ function createFullCube(
   }
   viewBuildStatements.push(
     pgformat(
-      'UPDATE %I.metadata SET value = %L WHERE key = %L;',
+      `UPDATE %I.${METADATA_TABLE_NAME} SET value = %L WHERE key = %L;`,
       buildId,
       CubeMetaDataKeys.BuildStatus,
       CubeBuildStatus.Materializing
