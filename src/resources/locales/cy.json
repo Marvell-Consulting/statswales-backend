@@ -193,22 +193,22 @@
       "rolling": "Mis Treigl"
     },
     "rolling": {
-      "10_year_ending": "10 mlynedd yn dod i ben ar {{date}}",
-      "9_year_ending": "9 mlynedd yn dod i ben ar {{date}}",
-      "8_year_ending": "8 mlynedd yn dod i ben ar {{date}}",
-      "7_year_ending": "7 mlynedd yn dod i ben ar {{date}}",
-      "6_year_ending": "6 mlynedd yn dod i ben ar {{date}}",
-      "5_year_ending": "5 mlynedd yn dod i ben ar {{date}}",
-      "4_year_ending": "4 blynedd yn dod i ben ar {{date}}",
-      "3_year_ending": "3 blynedd yn dod i ben ar {{date}}",
-      "2_year_ending": "2 flynedd yn dod i ben ar {{date}}",
-      "1_year_ending": "Blwyddyn yn gorffen {{date}}",
-      "year_ending": "Blwyddyn yn gorffen {{date}}",
-      "half_year_ending": "Hanner blwyddyn yn dod i ben {{date}}",
-      "quarter_ending": "Chwarter yn gorffen {{date}}",
-      "month_ending": "Mis yn gorffen {{date}}",
-      "fortnight_ending": "Pythefnos yn gorffen {{date}}",
-      "week_ending": "Wythnos yn gorffen {{date}}"
+      "10_year_ending": "10 mlynedd yn gorffen ar {{date}}",
+      "9_year_ending": "9 mlynedd yn gorffen ar {{date}}",
+      "8_year_ending": "8 mlynedd yn gorffen ar {{date}}",
+      "7_year_ending": "7 mlynedd yn gorffen ar {{date}}",
+      "6_year_ending": "6 mlynedd yn gorffen ar {{date}}",
+      "5_year_ending": "5 mlynedd yn gorffen ar {{date}}",
+      "4_year_ending": "4 mlynedd yn gorffen ar {{date}}",
+      "3_year_ending": "3 blynedd yn gorffen ar {{date}}",
+      "2_year_ending": "2 flynedd yn gorffen ar {{date}}",
+      "1_year_ending": "Blwyddyn yn gorffen ar {{date}}",
+      "year_ending": "Blwyddyn yn gorffen ar {{date}}",
+      "half_year_ending": "Hanner blwyddyn yn gorffen ar {{date}}",
+      "quarter_ending": "Chwarter yn gorffen ar {{date}}",
+      "month_ending": "Mis yn gorffen ar {{date}}",
+      "fortnight_ending": "Pythefnos yn gorffen ar {{date}}",
+      "week_ending": "Wythnos yn gorffen ar {{date}}"
     }
   },
   "months": {
