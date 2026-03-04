@@ -10,7 +10,7 @@ import { UserGroup } from '../../entities/user/user-group';
 import { group1 } from './fixtures/group';
 
 import { Dataset } from '../../entities/dataset/dataset';
-import { approver1, publisher1 } from './fixtures/users';
+import { approvers, publishers } from './fixtures/users';
 import { Revision } from '../../entities/dataset/revision';
 import { User } from '../../entities/user/user';
 import { RevisionMetadata } from '../../entities/dataset/revision-metadata';
@@ -55,8 +55,8 @@ export class SearchSeeder {
   async seedDatasets(liveDatasets: ResultsetWithCount<DatasetListItemDTO>): Promise<void> {
     logger.info(`Seeding ${liveDatasets.count} datasets for search quality tests...`);
 
-    const publisher = await this.ds.getRepository(User).findOneByOrFail({ id: publisher1.id });
-    const approver = await this.ds.getRepository(User).findOneByOrFail({ id: approver1.id });
+    const publisher = await this.ds.getRepository(User).findOneByOrFail({ id: publishers[0].id });
+    const approver = await this.ds.getRepository(User).findOneByOrFail({ id: approvers[0].id });
     const group = await this.ds.getRepository(UserGroup).findOneByOrFail({ id: group1.id });
     const datasets: Dataset[] = [];
 
