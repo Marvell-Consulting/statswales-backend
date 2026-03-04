@@ -112,9 +112,14 @@ export const getDataTablePreview = async (req: Request, res: Response, next: Nex
   res.json(filePreview);
 };
 
-export const getRevisionPreview = async (req: Request, res: Response): Promise<void> => {
+export const getRevisionPreview = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   const dataset: Dataset = res.locals.dataset;
   const revision: Revision = res.locals.revision;
+
+  if (!revision.dataTableId) {
+    return next(new NotFoundException('errors.no_data_table'));
+  }
+
   const lang = req.language;
   const start = performance.now();
 

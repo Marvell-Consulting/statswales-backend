@@ -86,10 +86,12 @@ jest.mock('../../src/repositories/build-log', () => ({
 // Mock RevisionRepository
 const mockGetAllRevisionIds = jest.fn();
 const mockGetAllDraftRevisionIds = jest.fn();
+const mockRevisionFindOneBy = jest.fn();
 jest.mock('../../src/repositories/revision', () => ({
   RevisionRepository: {
     getAllRevisionIds: (...args: unknown[]) => mockGetAllRevisionIds(...args),
-    getAllDraftRevisionIds: (...args: unknown[]) => mockGetAllDraftRevisionIds(...args)
+    getAllDraftRevisionIds: (...args: unknown[]) => mockGetAllDraftRevisionIds(...args),
+    findOneBy: (...args: unknown[]) => mockRevisionFindOneBy(...args)
   }
 }));
 
@@ -765,10 +767,12 @@ describe('Dataset controller', () => {
 
     it('should create new QueryStore when no filterId', async () => {
       const dataset = createMockDataset();
+      const dataTableId = uuidV4();
       dataset.endRevisionId = uuidV4();
       const mockQueryStore = { id: uuidV4(), requestObject: {} };
       const pageOptions = { format: OutputFormats.Json, pageNumber: 1, pageSize: 100 };
 
+      mockRevisionFindOneBy.mockResolvedValue({ id: dataset.endRevisionId, dataTableId });
       mockParsePageOptions.mockResolvedValue(pageOptions);
       mockQueryStoreGetByRequest.mockResolvedValue(mockQueryStore);
       mockBuildDataQuery.mockResolvedValue('SELECT 1');
@@ -785,11 +789,13 @@ describe('Dataset controller', () => {
 
     it('should use existing QueryStore when filterId provided', async () => {
       const dataset = createMockDataset();
+      const dataTableId = uuidV4();
       dataset.endRevisionId = uuidV4();
       const filterId = uuidV4();
       const mockQueryStore = { id: filterId, requestObject: {} };
       const pageOptions = { format: OutputFormats.Json, pageNumber: 1, pageSize: 100 };
 
+      mockRevisionFindOneBy.mockResolvedValue({ id: dataset.endRevisionId, dataTableId });
       mockParsePageOptions.mockResolvedValue(pageOptions);
       mockQueryStoreGetById.mockResolvedValue(mockQueryStore);
       mockBuildDataQuery.mockResolvedValue('SELECT 1');
@@ -806,8 +812,10 @@ describe('Dataset controller', () => {
 
     it('should pass known exceptions (NotFoundException, BadRequestException) through to next', async () => {
       const dataset = createMockDataset();
+      const dataTableId = uuidV4();
       dataset.endRevisionId = uuidV4();
 
+      mockRevisionFindOneBy.mockResolvedValue({ id: dataset.endRevisionId, dataTableId });
       mockParsePageOptions.mockRejectedValue(new BadRequestException('bad'));
 
       const req = createMockRequest({ params: {} });
@@ -1400,6 +1408,79 @@ describe('Dataset controller', () => {
 
       expect(res.status).toHaveBeenCalledWith(204);
       expect(res.end).toHaveBeenCalled();
+    });
+  });
+
+  describe('datasetPreview', () => {
+    it('should return 404 when endRevisionId is missing', async () => {
+      const datasetId = uuidV4();
+      const dataset = createMockDataset(datasetId);
+      dataset.endRevisionId = undefined;
+
+      const req = createMockRequest();
+      const res = createMockResponse({ locals: { datasetId, dataset } });
+
+      await datasetPreview(req, res, mockNext);
+
+      expect(mockNext).toHaveBeenCalledWith(expect.any(NotFoundException));
+      expect(mockNext.mock.calls[0][0].message).toBe('errors.no_end_revision');
+    });
+
+    it('should return 404 when revision has no data table', async () => {
+      const datasetId = uuidV4();
+      const endRevisionId = uuidV4();
+      const dataset = createMockDataset(datasetId);
+      dataset.endRevisionId = endRevisionId;
+
+      mockRevisionFindOneBy.mockResolvedValue({ id: endRevisionId, dataTableId: null });
+
+      const req = createMockRequest();
+      const res = createMockResponse({ locals: { datasetId, dataset } });
+
+      await datasetPreview(req, res, mockNext);
+
+      expect(mockRevisionFindOneBy).toHaveBeenCalledWith({ id: endRevisionId });
+      expect(mockNext).toHaveBeenCalledWith(expect.any(NotFoundException));
+      expect(mockNext.mock.calls[0][0].message).toBe('errors.no_data_table');
+    });
+
+    it('should return 404 when revision is not found', async () => {
+      const datasetId = uuidV4();
+      const endRevisionId = uuidV4();
+      const dataset = createMockDataset(datasetId);
+      dataset.endRevisionId = endRevisionId;
+
+      mockRevisionFindOneBy.mockResolvedValue(null);
+
+      const req = createMockRequest();
+      const res = createMockResponse({ locals: { datasetId, dataset } });
+
+      await datasetPreview(req, res, mockNext);
+
+      expect(mockNext).toHaveBeenCalledWith(expect.any(NotFoundException));
+      expect(mockNext.mock.calls[0][0].message).toBe('errors.no_data_table');
+    });
+
+    it('should proceed when revision has data table', async () => {
+      const datasetId = uuidV4();
+      const endRevisionId = uuidV4();
+      const dataTableId = uuidV4();
+      const dataset = createMockDataset(datasetId);
+      dataset.endRevisionId = endRevisionId;
+
+      mockRevisionFindOneBy.mockResolvedValue({ id: endRevisionId, dataTableId });
+      mockParsePageOptions.mockResolvedValue({ format: OutputFormats.Frontend });
+      mockQueryStoreGetByRequest.mockResolvedValue({ id: 'qs-1' });
+      mockBuildDataQuery.mockResolvedValue('SELECT * FROM table');
+      mockSendFrontendView.mockResolvedValue(undefined);
+
+      const req = createMockRequest();
+      const res = createMockResponse({ locals: { datasetId, dataset } });
+
+      await datasetPreview(req, res, mockNext);
+
+      expect(mockNext).not.toHaveBeenCalled();
+      expect(mockParsePageOptions).toHaveBeenCalled();
     });
   });
 
