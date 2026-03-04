@@ -307,6 +307,9 @@ export const datasetPreview = async (req: Request, res: Response, next: NextFunc
   if (!dataset.endRevisionId) return next(new NotFoundException('errors.no_end_revision'));
 
   try {
+    const endRevision = await RevisionRepository.findOneBy({ id: dataset.endRevisionId });
+    if (!endRevision?.dataTableId) return next(new NotFoundException('errors.no_data_table'));
+
     const pageOptions = await parsePageOptions(req);
     const dataOptions = pageOptions.format === OutputFormats.Frontend ? FRONTEND_DATA_OPTIONS : DEFAULT_DATA_OPTIONS;
 

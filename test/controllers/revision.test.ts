@@ -155,7 +155,8 @@ import {
   getRevisionInfo,
   getDataTablePreview,
   removeFactTableFromRevision,
-  getRevisionBuildLog
+  getRevisionBuildLog,
+  getRevisionPreview
 } from '../../src/controllers/revision';
 import { DataTable } from '../../src/entities/dataset/data-table';
 import { getFilePreview } from '../../src/services/incoming-file-processor';
@@ -645,6 +646,33 @@ describe('Revision controller', () => {
       await getRevisionBuildLog(req, res, mockNext);
 
       expect(mockNext).toHaveBeenCalledWith(expect.any(BadRequestException));
+    });
+  });
+
+  describe('getRevisionPreview', () => {
+    it('should return 404 when revision has no data table', async () => {
+      const dataset = createMockDataset();
+      const revision = createMockRevision({ dataTableId: undefined });
+      const req = createMockRequest();
+      const res = createMockResponse({ locals: { dataset, revision } });
+
+      await getRevisionPreview(req, res, mockNext);
+
+      expect(mockNext).toHaveBeenCalledWith(expect.any(NotFoundException));
+      expect((mockNext.mock.calls[0][0] as unknown as NotFoundException).message).toBe('errors.no_data_table');
+    });
+
+    it('should return 404 when revision dataTableId is null', async () => {
+      const dataset = createMockDataset();
+      const revision = createMockRevision();
+      revision.dataTableId = null as unknown as undefined;
+      const req = createMockRequest();
+      const res = createMockResponse({ locals: { dataset, revision } });
+
+      await getRevisionPreview(req, res, mockNext);
+
+      expect(mockNext).toHaveBeenCalledWith(expect.any(NotFoundException));
+      expect((mockNext.mock.calls[0][0] as unknown as NotFoundException).message).toBe('errors.no_data_table');
     });
   });
 });
