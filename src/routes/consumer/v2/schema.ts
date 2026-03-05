@@ -417,6 +417,101 @@ export const schemaV2 = {
           }
         }
       },
+      FilterId: {
+        type: 'object',
+        properties: {
+          filterId: { type: 'string', format: 'uuid', description: 'Unique identifier for the stored filter/query' }
+        },
+        example: { filterId: '3fa85f64-5717-4562-b3fc-2c963f66afa6' }
+      },
+      DataOptions: {
+        type: 'object',
+        properties: {
+          filters: {
+            type: 'array',
+            description: 'Filters to apply to the dataset',
+            items: {
+              type: 'object',
+              properties: {
+                columnName: { type: 'string', description: 'The dimension column to filter on' },
+                values: {
+                  type: 'array',
+                  items: { type: 'string' },
+                  description: 'The values to include'
+                }
+              }
+            },
+            example: [{ columnName: 'Year', values: ['2020', '2021'] }]
+          },
+          options: {
+            type: 'object',
+            properties: {
+              use_raw_column_names: {
+                type: 'boolean',
+                description: 'Use raw fact-table column names instead of dimension names',
+                default: true
+              },
+              use_reference_values: {
+                type: 'boolean',
+                description: 'Use reference codes instead of display values',
+                default: true
+              },
+              data_value_type: {
+                type: 'string',
+                description: 'How data values are returned',
+                enum: ['raw', 'with_note_codes']
+              }
+            }
+          }
+        }
+      },
+      PivotOptions: {
+        allOf: [
+          { $ref: '#/components/schemas/DataOptions' },
+          {
+            type: 'object',
+            required: ['pivot'],
+            properties: {
+              pivot: {
+                type: 'object',
+                required: ['x', 'y'],
+                properties: {
+                  x: { type: 'string', description: 'Column to use as the pivot X axis' },
+                  y: { type: 'string', description: 'Column to use as the pivot Y axis' },
+                  backend: {
+                    type: 'string',
+                    enum: ['postgres', 'duckdb'],
+                    description: 'Backend engine to use for the pivot (default: duckdb)'
+                  },
+                  include_performance: {
+                    type: 'boolean',
+                    description: 'Include performance metadata in the response',
+                    default: false
+                  }
+                }
+              }
+            }
+          }
+        ]
+      },
+      QueryStore: {
+        type: 'object',
+        properties: {
+          id: { type: 'string', format: 'uuid', description: 'Unique identifier for the stored query' },
+          hash: { type: 'string', description: 'Hash of the query parameters for deduplication' },
+          datasetId: { type: 'string', format: 'uuid', description: 'Dataset this query belongs to' },
+          revisionId: { type: 'string', format: 'uuid', description: 'Revision this query belongs to' },
+          requestObject: { $ref: '#/components/schemas/DataOptions' },
+          totalLines: { type: 'integer', description: 'Total number of rows matching the query' },
+          columnMapping: {
+            type: 'array',
+            description: 'Mapping of fact-table column names to dimension display names',
+            items: { type: 'object' }
+          },
+          createdAt: { type: 'string', format: 'date-time' },
+          updatedAt: { type: 'string', format: 'date-time' }
+        }
+      },
       Filters: {
         type: 'array',
         items: { $ref: '#/components/schemas/Filter' },

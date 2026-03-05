@@ -117,6 +117,29 @@ export const getPublishedDatasetById = async (req: Request, res: Response): Prom
 };
 
 export const getPublishedRevisionById = async (req: Request, res: Response): Promise<void> => {
+  /*
+    #swagger.summary = 'Get a specific published revision by ID'
+    #swagger.description = 'Returns metadata for a specific published revision of a dataset.'
+    #swagger.autoQuery = false
+    #swagger.parameters['$ref'] = [
+      '#/components/parameters/language',
+      '#/components/parameters/dataset_id'
+    ]
+    #swagger.parameters['revision_id'] = {
+      in: 'path',
+      description: 'The unique identifier of the revision',
+      required: true,
+      schema: { type: 'string', format: 'uuid' }
+    }
+    #swagger.responses[200] = {
+      description: 'Metadata for the requested revision',
+      content: {
+        'application/json': {
+          schema: { $ref: "#/components/schemas/Revision" }
+        }
+      }
+    }
+  */
   const lang = req.language as Locale;
   const revision = await PublishedRevisionRepository.getById(res.locals.revision_id);
   const revisionDto = SingleLanguageRevisionDTO.fromRevision(revision, lang);
@@ -168,6 +191,32 @@ async function parsePivotPageOptions(req: Request, validateXY = true): Promise<P
 }
 
 export const getPublishedDatasetData = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  /*
+    #swagger.summary = 'Get paginated data for a dataset'
+    #swagger.description = 'Returns a paginated view of the dataset data. An optional filter ID (from the POST /data endpoint) can be provided to apply stored filter and display options.'
+    #swagger.autoQuery = false
+    #swagger.parameters['$ref'] = [
+      '#/components/parameters/language',
+      '#/components/parameters/dataset_id',
+      '#/components/parameters/page_number',
+      '#/components/parameters/page_size',
+      '#/components/parameters/sort_by'
+    ]
+    #swagger.parameters['filter_id'] = {
+      in: 'path',
+      description: 'Optional filter ID returned by the POST /data endpoint',
+      required: false,
+      schema: { type: 'string', format: 'uuid' }
+    }
+    #swagger.responses[200] = {
+      description: 'A paginated view of the dataset data',
+      content: {
+        'application/json': {
+          schema: { $ref: "#/components/schemas/DatasetView" }
+        }
+      }
+    }
+  */
   logger.debug(`Getting dataset data for ${res.locals.datasetId}...`);
   const filterId = req.params.filter_id as string | undefined;
   const dataset = res.locals.dataset as Dataset;
@@ -231,6 +280,28 @@ export const getPublishedDatasetPivot = async (req: Request, res: Response, next
 };
 
 export const getFilterIdDetails = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  /*
+    #swagger.summary = 'Get details of a stored filter query'
+    #swagger.description = 'Returns the full query configuration stored under a filter ID, including the total number of matching rows and column mappings.'
+    #swagger.autoQuery = false
+    #swagger.parameters['$ref'] = [
+      '#/components/parameters/dataset_id'
+    ]
+    #swagger.parameters['filter_id'] = {
+      in: 'path',
+      description: 'Optional filter ID to retrieve; omit to get the default query for the dataset',
+      required: false,
+      schema: { type: 'string', format: 'uuid' }
+    }
+    #swagger.responses[200] = {
+      description: 'The stored query configuration',
+      content: {
+        'application/json': {
+          schema: { $ref: "#/components/schemas/QueryStore" }
+        }
+      }
+    }
+  */
   const filterId = req.params.filter_id as string | undefined;
   const dataset = res.locals.dataset as Dataset;
   const publishedRevision = await PublishedRevisionRepository.getLatestByDatasetId(dataset.id);
@@ -262,6 +333,32 @@ export const getPublishedDatasetPivotFromId = async (
   res: Response,
   next: NextFunction
 ): Promise<void> => {
+  /*
+    #swagger.summary = 'Get a pivot view of a dataset using a stored filter ID'
+    #swagger.description = 'Returns a pivot table view of the dataset data using the configuration stored in a pivot filter ID (created via POST /pivot).'
+    #swagger.autoQuery = false
+    #swagger.parameters['$ref'] = [
+      '#/components/parameters/language',
+      '#/components/parameters/dataset_id',
+      '#/components/parameters/page_number',
+      '#/components/parameters/page_size',
+      '#/components/parameters/sort_by'
+    ]
+    #swagger.parameters['filter_id'] = {
+      in: 'path',
+      description: 'Pivot filter ID returned by the POST /pivot endpoint',
+      required: true,
+      schema: { type: 'string', format: 'uuid' }
+    }
+    #swagger.responses[200] = {
+      description: 'A paginated pivot view of the dataset data',
+      content: {
+        'application/json': {
+          schema: { $ref: "#/components/schemas/DatasetView" }
+        }
+      }
+    }
+  */
   logger.debug(`Getting dataset data for ${res.locals.datasetId}...`);
   const filterId = req.params.filter_id as string | undefined;
   const dataset = res.locals.dataset as Dataset;
@@ -299,6 +396,28 @@ export const getPublishedDatasetPivotFromId = async (
 };
 
 export const generatePivotFilterId = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  /*
+    #swagger.summary = 'Generate a filter ID for a pivot query'
+    #swagger.description = 'Stores a set of pivot configuration and filter options as a reusable query, returning a filter ID that can be passed to the pivot endpoint.'
+    #swagger.autoQuery = false
+    #swagger.parameters['$ref'] = ['#/components/parameters/dataset_id']
+    #swagger.requestBody = {
+      required: true,
+      content: {
+        'application/json': {
+          schema: { $ref: "#/components/schemas/PivotOptions" }
+        }
+      }
+    }
+    #swagger.responses[200] = {
+      description: 'The generated filter ID',
+      content: {
+        'application/json': {
+          schema: { $ref: "#/components/schemas/FilterId" }
+        }
+      }
+    }
+  */
   logger.debug(`Generating filter ID for published dataset ${res.locals.datasetId}...`);
   const dataset = res.locals.dataset as Dataset;
   const publishedRevision = await PublishedRevisionRepository.getLatestByDatasetId(dataset.id);
@@ -385,6 +504,28 @@ export const generatePivotFilterId = async (req: Request, res: Response, next: N
 };
 
 export const generateFilterId = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  /*
+    #swagger.summary = 'Generate a filter ID for a dataset query'
+    #swagger.description = 'Stores a set of filter and display options as a reusable query, returning a filter ID that can be passed to the data and pivot endpoints.'
+    #swagger.autoQuery = false
+    #swagger.parameters['$ref'] = ['#/components/parameters/dataset_id']
+    #swagger.requestBody = {
+      required: true,
+      content: {
+        'application/json': {
+          schema: { $ref: "#/components/schemas/DataOptions" }
+        }
+      }
+    }
+    #swagger.responses[200] = {
+      description: 'The generated filter ID',
+      content: {
+        'application/json': {
+          schema: { $ref: "#/components/schemas/FilterId" }
+        }
+      }
+    }
+  */
   logger.info(`Generating filter ID for published dataset ${res.locals.datasetId}...`);
   const dataset = res.locals.dataset as Dataset;
   const publishedRevision = await PublishedRevisionRepository.getLatestByDatasetId(dataset.id);
@@ -404,6 +545,23 @@ export const generateFilterId = async (req: Request, res: Response, next: NextFu
 };
 
 export const getPublishedDatasetFilters = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  /*
+    #swagger.summary = 'Get the available filters for a dataset'
+    #swagger.description = 'Returns all filterable dimensions and their available values for the latest published revision of a dataset.'
+    #swagger.autoQuery = false
+    #swagger.parameters['$ref'] = [
+      '#/components/parameters/language',
+      '#/components/parameters/dataset_id'
+    ]
+    #swagger.responses[200] = {
+      description: 'A list of filterable dimensions with their available values',
+      content: {
+        'application/json': {
+          schema: { $ref: "#/components/schemas/Filters" }
+        }
+      }
+    }
+  */
   logger.debug('Getting published dataset filters...');
   const dataset = res.locals.dataset as Dataset;
   const publishedRevision = await PublishedRevisionRepository.getLatestByDatasetId(dataset.id);
