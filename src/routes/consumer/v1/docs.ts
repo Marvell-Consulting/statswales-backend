@@ -1,12 +1,9 @@
 import { Router } from 'express';
-import swaggerUi, { SwaggerUiOptions } from 'swagger-ui-express';
 
 import spec from './openapi.json';
 import { config } from '../../../config';
 
 export const apiDocRouter = Router();
-
-const opts: SwaggerUiOptions = { customSiteTitle: 'StatsWales API v1' };
 
 // Replace the placeholder in the OpenAPI spec with the actual backend URL
 const consumerApiSpec = JSON.parse(JSON.stringify(spec).replaceAll('{{backendURL}}', config.backend.url));
@@ -14,5 +11,10 @@ const consumerApiSpec = JSON.parse(JSON.stringify(spec).replaceAll('{{backendURL
 apiDocRouter.get('/swagger.json', (_req, res) => {
   res.json(consumerApiSpec);
 });
-apiDocRouter.use('/', swaggerUi.serve);
-apiDocRouter.get('/', swaggerUi.setup(consumerApiSpec, opts));
+
+// swagger-ui-express uses a shared singleton for swagger-ui-init.js, so multiple swaggerUi.setup()
+// calls in the same app overwrite each other. Redirect to the combined /docs/ UI instead,
+// pre-selecting the v1 spec via the urls.primaryName query parameter.
+apiDocRouter.get('/', (_req, res) => {
+  res.redirect('/docs/?urls.primaryName=API%20v1%20(legacy)');
+});
