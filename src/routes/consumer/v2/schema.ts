@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/naming-convention */
 
 import { DownloadFormat } from '../../../enums/download-format';
+import { DataValueType } from '../../../enums/data-value-type';
 import { DEFAULT_PAGE_SIZE } from '../../../utils/page-defaults';
 
 export const schemaV2 = {
@@ -8,9 +9,49 @@ export const schemaV2 = {
     version: '2.0.0',
     title: 'StatsWales public API',
     description: `This page will help you use the public API for StatsWales. If you need any other support,
-      <a href="mailto:StatsWales@gov.wales">contact StatsWales</a>.`
+      <a href="mailto:StatsWales@gov.wales">contact StatsWales</a>.
+
+<h2>Quick start</h2>
+<p><code>GET /{dataset_id}/data</code> returns all rows for the latest published revision, paginated with default display options.</p>
+
+<h2>Filtering data</h2>
+<ol>
+  <li><strong>Discover filters</strong> — <code>GET /{dataset_id}/filters</code> returns every filterable dimension and its allowed values (column names and reference codes).</li>
+  <li><strong>Create a filter</strong> — <code>POST /{dataset_id}/data</code> with a JSON body containing your chosen filters and display options. Returns a reusable <code>filter_id</code> (UUID). Submitting identical filters returns the same ID.</li>
+  <li><strong>Fetch filtered data</strong> — <code>GET /{dataset_id}/data/{filter_id}</code> returns paginated rows matching your filter.</li>
+</ol>
+
+<h2>Pivot tables</h2>
+<ol>
+  <li><code>POST /{dataset_id}/pivot</code> with x/y axis columns and optional filters. Returns a <code>filter_id</code>.</li>
+  <li><code>GET /{dataset_id}/pivot/{filter_id}</code> returns the cross-tabulated view.</li>
+</ol>
+
+<h2>Display options</h2>
+<p>When creating a filter, you can include an <code>options</code> object:</p>
+<ul>
+  <li><code>use_raw_column_names</code> — when <code>true</code> (default), column headers use internal fact-table names (e.g. <code>AreaCode</code>); when <code>false</code>, they use human-readable dimension names (e.g. <code>Area</code>).</li>
+  <li><code>use_reference_values</code> — when <code>true</code> (default), cell values are reference codes (e.g. <code>K02000001</code>); when <code>false</code>, they are human-readable descriptions (e.g. <code>United Kingdom</code>).</li>
+  <li><code>data_value_type</code> — controls how the data/measure value column is returned: <code>by_data_and_notes</code>, <code>by_data</code>, or <code>by_notes</code>.</li>
+</ul>
+
+<h2>Language</h2>
+<p>Add <code>?lang=cy</code> to any request to receive Welsh-language labels and descriptions. Defaults to English (<code>en-gb</code>).</p>`
   },
   servers: [{ description: 'Public API', url: '{{backendURL}}/v2' }],
+  tags: [
+    { name: 'Datasets', description: 'Browse, search, and retrieve metadata for published datasets.' },
+    { name: 'Topics', description: 'Navigate the topic hierarchy used to categorise datasets.' },
+    {
+      name: 'Data',
+      description: 'Retrieve paginated tabular data for a dataset, with optional filtering and sorting.'
+    },
+    { name: 'Pivot', description: 'Retrieve a cross-tabulated (pivot table) view of dataset data.' },
+    {
+      name: 'Query',
+      description: 'Inspect stored query configurations, including filter options, row counts, and column mappings.'
+    }
+  ],
   components: {
     parameters: {
       language: {
@@ -432,16 +473,20 @@ export const schemaV2 = {
       },
       Filter: {
         type: 'object',
+        description: 'A single filterable dimension and its allowed values.',
         properties: {
-          factTableColumn: { type: 'string' },
-          columnName: { type: 'string' },
+          factTableColumn: { type: 'string', description: 'Internal fact-table column name, e.g. AreaCode' },
+          columnName: {
+            type: 'string',
+            description: 'Human-readable dimension name — use this as the key in your filter object'
+          },
           values: {
             type: 'array',
             items: {
               type: 'object',
               properties: {
-                reference: { type: 'string' },
-                description: { type: 'string' }
+                reference: { type: 'string', description: 'Reference code to use in filter values' },
+                description: { type: 'string', description: 'Human-readable label (language-dependent)' }
               }
             }
           }
@@ -449,47 +494,56 @@ export const schemaV2 = {
       },
       FilterId: {
         type: 'object',
+        description:
+          'A reusable, shareable identifier for a stored set of filters and display options. The same filter inputs always produce the same ID.',
         properties: {
-          filterId: { type: 'string', format: 'uuid', description: 'Unique identifier for the stored filter/query' }
+          filterId: {
+            type: 'string',
+            format: 'uuid',
+            description:
+              'UUID for the stored query. Pass this to GET /{dataset_id}/data/{filter_id} or GET /{dataset_id}/pivot/{filter_id} to retrieve filtered results.'
+          }
         },
         example: { filterId: '3fa85f64-5717-4562-b3fc-2c963f66afa6' }
       },
       DataOptions: {
         type: 'object',
+        description:
+          'Row filters and display options to store as a reusable query. Use column names and reference codes from GET /{dataset_id}/filters.',
         properties: {
           filters: {
             type: 'array',
-            description: 'Filters to apply to the dataset',
+            description:
+              'Each object has a single key (a column name from GET /filters) mapped to an array of reference codes. Multiple objects combine with AND logic; multiple values within one object combine with OR logic.',
             items: {
               type: 'object',
-              properties: {
-                columnName: { type: 'string', description: 'The dimension column to filter on' },
-                values: {
-                  type: 'array',
-                  items: { type: 'string' },
-                  description: 'The values to include'
-                }
+              additionalProperties: {
+                type: 'array',
+                items: { type: 'string' }
               }
             },
-            example: [{ columnName: 'Year', values: ['2020', '2021'] }]
+            example: [{ Year: ['2020', '2021'] }, { Area: ['W92000004'] }]
           },
           options: {
             type: 'object',
             properties: {
               use_raw_column_names: {
                 type: 'boolean',
-                description: 'Use raw fact-table column names instead of dimension names',
+                description:
+                  'When true (default), column headers use internal fact-table names (e.g. AreaCode). When false, headers use human-readable dimension names (e.g. Area).',
                 default: true
               },
               use_reference_values: {
                 type: 'boolean',
-                description: 'Use reference codes instead of display values',
+                description:
+                  'When true (default), cell values are reference codes (e.g. K02000001). When false, values are human-readable descriptions (e.g. United Kingdom).',
                 default: true
               },
               data_value_type: {
                 type: 'string',
-                description: 'How data values are returned',
-                enum: ['raw', 'with_note_codes']
+                description:
+                  'Controls how the data/measure value column is returned: by_data_and_notes (default — value and notes combined), by_data (value only), or by_notes (notes only).',
+                enum: Object.values(DataValueType)
               }
             }
           }
@@ -506,8 +560,8 @@ export const schemaV2 = {
                 type: 'object',
                 required: ['x', 'y'],
                 properties: {
-                  x: { type: 'string', description: 'Column to use as the pivot X axis' },
-                  y: { type: 'string', description: 'Column to use as the pivot Y axis' },
+                  x: { type: 'string', description: 'Column name for the horizontal axis of the pivot table' },
+                  y: { type: 'string', description: 'Column name for the vertical axis of the pivot table' },
                   backend: {
                     type: 'string',
                     enum: ['postgres', 'duckdb'],
@@ -532,11 +586,23 @@ export const schemaV2 = {
           datasetId: { type: 'string', format: 'uuid', description: 'Dataset this query belongs to' },
           revisionId: { type: 'string', format: 'uuid', description: 'Revision this query belongs to' },
           requestObject: { $ref: '#/components/schemas/DataOptions' },
+          query: {
+            type: 'object',
+            additionalProperties: { type: 'string' },
+            description: 'Key-value map of query parameters'
+          },
           totalLines: { type: 'integer', description: 'Total number of rows matching the query' },
           columnMapping: {
             type: 'array',
             description: 'Mapping of fact-table column names to dimension display names',
-            items: { type: 'object' }
+            items: {
+              type: 'object',
+              properties: {
+                fact_table_column: { type: 'string' },
+                dimension_name: { type: 'string' },
+                language: { type: 'string' }
+              }
+            }
           },
           createdAt: { type: 'string', format: 'date-time' },
           updatedAt: { type: 'string', format: 'date-time' }
