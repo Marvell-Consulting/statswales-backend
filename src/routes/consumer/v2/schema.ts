@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/naming-convention */
 
 import { DownloadFormat } from '../../../enums/download-format';
+import { DataValueType } from '../../../enums/data-value-type';
 import { DEFAULT_PAGE_SIZE } from '../../../utils/page-defaults';
 
 export const schemaV2 = {
@@ -459,19 +460,16 @@ export const schemaV2 = {
         properties: {
           filters: {
             type: 'array',
-            description: 'Filters to apply to the dataset',
+            description:
+              'Filters to apply to the dataset. Each filter is an object whose key is the column name and whose value is an array of strings.',
             items: {
               type: 'object',
-              properties: {
-                columnName: { type: 'string', description: 'The dimension column to filter on' },
-                values: {
-                  type: 'array',
-                  items: { type: 'string' },
-                  description: 'The values to include'
-                }
+              additionalProperties: {
+                type: 'array',
+                items: { type: 'string' }
               }
             },
-            example: [{ columnName: 'Year', values: ['2020', '2021'] }]
+            example: [{ Year: ['2020', '2021'] }]
           },
           options: {
             type: 'object',
@@ -489,7 +487,7 @@ export const schemaV2 = {
               data_value_type: {
                 type: 'string',
                 description: 'How data values are returned',
-                enum: ['raw', 'with_note_codes']
+                enum: Object.values(DataValueType)
               }
             }
           }
@@ -532,11 +530,23 @@ export const schemaV2 = {
           datasetId: { type: 'string', format: 'uuid', description: 'Dataset this query belongs to' },
           revisionId: { type: 'string', format: 'uuid', description: 'Revision this query belongs to' },
           requestObject: { $ref: '#/components/schemas/DataOptions' },
+          query: {
+            type: 'object',
+            additionalProperties: { type: 'string' },
+            description: 'Key-value map of query parameters'
+          },
           totalLines: { type: 'integer', description: 'Total number of rows matching the query' },
           columnMapping: {
             type: 'array',
             description: 'Mapping of fact-table column names to dimension display names',
-            items: { type: 'object' }
+            items: {
+              type: 'object',
+              properties: {
+                fact_table_column: { type: 'string' },
+                dimension_name: { type: 'string' },
+                language: { type: 'string' }
+              }
+            }
           },
           createdAt: { type: 'string', format: 'date-time' },
           updatedAt: { type: 'string', format: 'date-time' }

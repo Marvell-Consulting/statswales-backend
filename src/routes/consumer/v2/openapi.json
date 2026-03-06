@@ -1121,27 +1121,19 @@
         "properties": {
           "filters": {
             "type": "array",
-            "description": "Filters to apply to the dataset",
+            "description": "Filters to apply to the dataset. Each filter is an object whose key is the column name and whose value is an array of strings.",
             "items": {
               "type": "object",
-              "properties": {
-                "columnName": {
-                  "type": "string",
-                  "description": "The dimension column to filter on"
-                },
-                "values": {
-                  "type": "array",
-                  "items": {
-                    "type": "string"
-                  },
-                  "description": "The values to include"
+              "additionalProperties": {
+                "type": "array",
+                "items": {
+                  "type": "string"
                 }
               }
             },
             "example": [
               {
-                "columnName": "Year",
-                "values": [
+                "Year": [
                   "2020",
                   "2021"
                 ]
@@ -1166,6 +1158,9 @@
                 "description": "How data values are returned",
                 "enum": [
                   "raw",
+                  "raw_extended",
+                  "formatted",
+                  "formatted_extended",
                   "with_note_codes"
                 ]
               }
@@ -1243,6 +1238,13 @@
           "requestObject": {
             "$ref": "#/components/schemas/DataOptions"
           },
+          "query": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "Key-value map of query parameters"
+          },
           "totalLines": {
             "type": "integer",
             "description": "Total number of rows matching the query"
@@ -1251,7 +1253,18 @@
             "type": "array",
             "description": "Mapping of fact-table column names to dimension display names",
             "items": {
-              "type": "object"
+              "type": "object",
+              "properties": {
+                "fact_table_column": {
+                  "type": "string"
+                },
+                "dimension_name": {
+                  "type": "string"
+                },
+                "language": {
+                  "type": "string"
+                }
+              }
             }
           },
           "createdAt": {
