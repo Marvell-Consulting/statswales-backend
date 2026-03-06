@@ -155,41 +155,12 @@ publicApiV2Router.get(
       care', which can have sub-topics, such as 'Dental services'. For a given topic_id, this endpoint returns a
       list of what sits under that topic - either sub-topics or published datasets tagged directly to that topic."
     #swagger.autoQuery = false
-    #swagger.parameters['page_size'] = {
-      description: 'Number of datasets per page when datasets are returned',
-      in: 'query',
-      type: 'integer',
-      default: 1000
-    }
-    #swagger.parameters['sort_by'] = {
-      description: 'Columns to sort the data by. The value should be a JSON array of objects sent as a URL encoded string.',
-      in: 'query',
-      required: false,
-      content: {
-        'application/json': {
-          schema: {
-            type: 'array',
-            items: {
-              type: 'object',
-              properties: {
-                columnName: {
-                  type: 'string',
-                  enum: ['first_published_at', 'last_updated_at', 'title']
-                },
-                direction: {
-                  type: 'string',
-                  enum: ['ASC', 'DESC']
-                }
-              }
-            }
-          }
-        }
-      }
-    }
     #swagger.parameters['$ref'] = [
       '#/components/parameters/language',
       '#/components/parameters/topic_id',
-      '#/components/parameters/page_number'
+      '#/components/parameters/page_number',
+      '#/components/parameters/page_size',
+      '#/components/parameters/sort_by'
     ]
     #swagger.responses[200] = {
       description: 'A list of what sits under a given topic - either sub-topics or published datasets tagged directly to that topic.',
@@ -227,14 +198,9 @@ publicApiV2Router.get(
     #swagger.autoQuery = false
     #swagger.parameters['$ref'] = [
       '#/components/parameters/language',
-      '#/components/parameters/dataset_id'
+      '#/components/parameters/dataset_id',
+      '#/components/parameters/revision_id'
     ]
-    #swagger.parameters['revision_id'] = {
-      in: 'path',
-      description: 'The unique identifier of the revision',
-      required: true,
-      schema: { type: 'string', format: 'uuid' }
-    }
     #swagger.responses[200] = {
       description: 'Metadata for the requested revision',
       content: {
@@ -366,14 +332,9 @@ publicApiV2Router.get(
       '#/components/parameters/dataset_id',
       '#/components/parameters/page_number',
       '#/components/parameters/page_size',
-      '#/components/parameters/sort_by'
+      '#/components/parameters/sort_by',
+      '#/components/parameters/filter_id'
     ]
-    #swagger.parameters['filter_id'] = {
-      in: 'path',
-      description: 'Filter ID returned by the POST /data endpoint',
-      required: true,
-      schema: { type: 'string', format: 'uuid' }
-    }
     #swagger.responses[200] = {
       description: 'A paginated view of the dataset data',
       content: {
@@ -398,14 +359,9 @@ publicApiV2Router.get(
       '#/components/parameters/dataset_id',
       '#/components/parameters/page_number',
       '#/components/parameters/page_size',
-      '#/components/parameters/sort_by'
+      '#/components/parameters/sort_by',
+      '#/components/parameters/filter_id'
     ]
-    #swagger.parameters['filter_id'] = {
-      in: 'path',
-      description: 'Pivot filter ID returned by the POST /pivot endpoint',
-      required: true,
-      schema: { type: 'string', format: 'uuid' }
-    }
     #swagger.responses[200] = {
       description: 'A paginated pivot view of the dataset data',
       content: {
@@ -445,13 +401,10 @@ publicApiV2Router.get(
     #swagger.summary = 'Get details of a stored filter query'
     #swagger.description = 'Returns the full query configuration stored under a filter ID, including the total number of matching rows and column mappings.'
     #swagger.autoQuery = false
-    #swagger.parameters['$ref'] = ['#/components/parameters/dataset_id']
-    #swagger.parameters['filter_id'] = {
-      in: 'path',
-      description: 'Filter ID to retrieve',
-      required: true,
-      schema: { type: 'string', format: 'uuid' }
-    }
+    #swagger.parameters['$ref'] = [
+      '#/components/parameters/dataset_id',
+      '#/components/parameters/filter_id'
+    ]
     #swagger.responses[200] = {
       description: 'The stored query configuration',
       content: {

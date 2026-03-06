@@ -61,14 +61,23 @@ export const schemaV2 = {
       sort_by: {
         name: 'sort_by',
         in: 'query',
-        description: `Columns to sort the data by. The value should be a JSON array of objects sent as a URL encoded
-        string.`,
+        description:
+          'Columns to sort the data by. The value should be a JSON array of objects sent as a URL encoded string.',
         required: false,
-        schema: {
-          type: 'string',
-          description: 'JSON string containing an array of sort objects'
-        },
-        example: '[{"columnName": "Year","direction": "ASC"},{"columnName": "Measure","direction": "DESC"}]'
+        content: {
+          'application/json': {
+            schema: {
+              type: 'array',
+              items: {
+                type: 'object',
+                properties: {
+                  columnName: { type: 'string' },
+                  direction: { type: 'string', enum: ['ASC', 'DESC'] }
+                }
+              }
+            }
+          }
+        }
       },
       filter: {
         name: 'filter',
@@ -88,6 +97,20 @@ export const schemaV2 = {
         description: 'Search query string',
         required: true,
         schema: { type: 'string' }
+      },
+      revision_id: {
+        name: 'revision_id',
+        in: 'path',
+        description: 'The unique identifier of the revision',
+        required: true,
+        schema: { type: 'string', format: 'uuid' }
+      },
+      filter_id: {
+        name: 'filter_id',
+        in: 'path',
+        description: 'Filter ID returned by the POST /data or POST /pivot endpoint',
+        required: true,
+        schema: { type: 'string', format: 'uuid' }
       }
     },
     '@schemas': {

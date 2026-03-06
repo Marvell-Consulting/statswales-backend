@@ -110,51 +110,6 @@
         "description": "Datasets are tagged to topics. There are top-level topics, such as 'Health and social  care', which can have sub-topics, such as 'Dental services'. For a given topic_id, this endpoint returns a  list of what sits under that topic - either sub-topics or published datasets tagged directly to that topic.",
         "parameters": [
           {
-            "name": "page_size",
-            "description": "Number of datasets per page when datasets are returned",
-            "in": "query",
-            "default": 1000,
-            "schema": {
-              "type": "integer"
-            }
-          },
-          {
-            "name": "sort_by",
-            "description": "Columns to sort the data by. The value should be a JSON array of objects sent as a URL encoded string.",
-            "in": "query",
-            "required": false,
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "type": "object",
-                    "properties": {
-                      "columnName": {
-                        "type": "string",
-                        "enum": [
-                          "first_published_at",
-                          "last_updated_at",
-                          "title"
-                        ]
-                      },
-                      "direction": {
-                        "type": "string",
-                        "enum": [
-                          "ASC",
-                          "DESC"
-                        ]
-                      }
-                    }
-                  }
-                }
-              }
-            },
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
             "$ref": "#/components/parameters/language"
           },
           {
@@ -162,6 +117,12 @@
           },
           {
             "$ref": "#/components/parameters/page_number"
+          },
+          {
+            "$ref": "#/components/parameters/page_size"
+          },
+          {
+            "$ref": "#/components/parameters/sort_by"
           }
         ],
         "responses": {
@@ -221,18 +182,13 @@
         "description": "Returns metadata for a specific published revision of a dataset.",
         "parameters": [
           {
-            "name": "revision_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
             "$ref": "#/components/parameters/language"
           },
           {
             "$ref": "#/components/parameters/dataset_id"
+          },
+          {
+            "$ref": "#/components/parameters/revision_id"
           }
         ],
         "responses": {
@@ -385,14 +341,6 @@
         "description": "Returns a paginated view of the dataset data using the options stored in the given filter ID.",
         "parameters": [
           {
-            "name": "filter_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
             "$ref": "#/components/parameters/language"
           },
           {
@@ -406,6 +354,9 @@
           },
           {
             "$ref": "#/components/parameters/sort_by"
+          },
+          {
+            "$ref": "#/components/parameters/filter_id"
           }
         ],
         "responses": {
@@ -429,14 +380,6 @@
         "description": "Returns a pivot table view of the dataset data using the configuration stored in a pivot filter ID (created via POST /pivot).",
         "parameters": [
           {
-            "name": "filter_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
             "$ref": "#/components/parameters/language"
           },
           {
@@ -450,6 +393,9 @@
           },
           {
             "$ref": "#/components/parameters/sort_by"
+          },
+          {
+            "$ref": "#/components/parameters/filter_id"
           }
         ],
         "responses": {
@@ -497,15 +443,10 @@
         "description": "Returns the full query configuration stored under a filter ID, including the total number of matching rows and column mappings.",
         "parameters": [
           {
-            "name": "filter_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
+            "$ref": "#/components/parameters/dataset_id"
           },
           {
-            "$ref": "#/components/parameters/dataset_id"
+            "$ref": "#/components/parameters/filter_id"
           }
         ],
         "responses": {
@@ -601,13 +542,30 @@
       "sort_by": {
         "name": "sort_by",
         "in": "query",
-        "description": "Columns to sort the data by. The value should be a JSON array of objects sent as a URL encoded\n        string.",
+        "description": "Columns to sort the data by. The value should be a JSON array of objects sent as a URL encoded string.",
         "required": false,
-        "schema": {
-          "type": "string",
-          "description": "JSON string containing an array of sort objects"
-        },
-        "example": "[{\"columnName\": \"Year\",\"direction\": \"ASC\"},{\"columnName\": \"Measure\",\"direction\": \"DESC\"}]"
+        "content": {
+          "application/json": {
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "columnName": {
+                    "type": "string"
+                  },
+                  "direction": {
+                    "type": "string",
+                    "enum": [
+                      "ASC",
+                      "DESC"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        }
       },
       "filter": {
         "name": "filter",
@@ -627,6 +585,26 @@
         "required": true,
         "schema": {
           "type": "string"
+        }
+      },
+      "revision_id": {
+        "name": "revision_id",
+        "in": "path",
+        "description": "The unique identifier of the revision",
+        "required": true,
+        "schema": {
+          "type": "string",
+          "format": "uuid"
+        }
+      },
+      "filter_id": {
+        "name": "filter_id",
+        "in": "path",
+        "description": "Filter ID returned by the POST /data or POST /pivot endpoint",
+        "required": true,
+        "schema": {
+          "type": "string",
+          "format": "uuid"
         }
       }
     },
