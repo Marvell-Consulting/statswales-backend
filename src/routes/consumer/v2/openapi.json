@@ -38,17 +38,38 @@
               }
             }
           }
-        }
+        },
+        "autoQuery": false
       }
     },
     "/search": {
       "get": {
-        "description": "",
-        "responses": {
-          "default": {
-            "description": ""
+        "summary": "Search published datasets",
+        "description": "This endpoint performs a search across published dataset titles and summaries.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/language"
+          },
+          {
+            "$ref": "#/components/parameters/page_number"
+          },
+          {
+            "$ref": "#/components/parameters/page_size"
           }
-        }
+        ],
+        "responses": {
+          "200": {
+            "description": "A paginated list of matching published datasets",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DatasetsWithCount"
+                }
+              }
+            }
+          }
+        },
+        "autoQuery": false
       }
     },
     "/topic": {
@@ -76,7 +97,8 @@
               }
             }
           }
-        }
+        },
+        "autoQuery": false
       }
     },
     "/topic/{topic_id}": {
@@ -141,7 +163,7 @@
         ],
         "responses": {
           "200": {
-            "description": "A list of what sits under a given topic - either sub-topics or published datasets tagged directly  to that topic.",
+            "description": "A list of what sits under a given topic - either sub-topics or published datasets tagged directly to that topic.",
             "content": {
               "application/json": {
                 "schema": {
@@ -155,7 +177,8 @@
               }
             }
           }
-        }
+        },
+        "autoQuery": false
       }
     },
     "/{dataset_id}": {
@@ -220,7 +243,8 @@
               }
             }
           }
-        }
+        },
+        "autoQuery": false
       }
     },
     "/{dataset_id}/filters": {
@@ -246,7 +270,8 @@
               }
             }
           }
-        }
+        },
+        "autoQuery": false
       }
     },
     "/{dataset_id}/data": {
@@ -270,6 +295,7 @@
             }
           }
         },
+        "autoQuery": false,
         "requestBody": {
           "required": true,
           "content": {
@@ -283,7 +309,7 @@
       },
       "get": {
         "summary": "Get paginated data for a dataset",
-        "description": "Returns a paginated view of the dataset data. An optional filter ID (from the POST /data endpoint) can be provided to apply stored filter and display options.",
+        "description": "Returns a paginated view of the dataset data.",
         "parameters": [
           {
             "$ref": "#/components/parameters/language"
@@ -312,7 +338,8 @@
               }
             }
           }
-        }
+        },
+        "autoQuery": false
       }
     },
     "/{dataset_id}/pivot": {
@@ -336,6 +363,7 @@
             }
           }
         },
+        "autoQuery": false,
         "requestBody": {
           "required": true,
           "content": {
@@ -350,8 +378,8 @@
     },
     "/{dataset_id}/data/{filter_id}": {
       "get": {
-        "summary": "Get paginated data for a dataset",
-        "description": "Returns a paginated view of the dataset data. An optional filter ID (from the POST /data endpoint) can be provided to apply stored filter and display options.",
+        "summary": "Get paginated data for a dataset using a stored filter",
+        "description": "Returns a paginated view of the dataset data using the options stored in the given filter ID.",
         "parameters": [
           {
             "name": "filter_id",
@@ -388,21 +416,15 @@
               }
             }
           }
-        }
+        },
+        "autoQuery": false
       }
     },
     "/{dataset_id}/pivot/{filter_id}": {
       "get": {
-        "description": "",
+        "summary": "Get a pivot view of a dataset using a stored filter ID",
+        "description": "Returns a pivot table view of the dataset data using the configuration stored in a pivot filter ID (created via POST /pivot).",
         "parameters": [
-          {
-            "name": "dataset_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
           {
             "name": "filter_id",
             "in": "path",
@@ -410,47 +432,67 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/language"
+          },
+          {
+            "$ref": "#/components/parameters/dataset_id"
+          },
+          {
+            "$ref": "#/components/parameters/page_number"
+          },
+          {
+            "$ref": "#/components/parameters/page_size"
+          },
+          {
+            "$ref": "#/components/parameters/sort_by"
           }
         ],
         "responses": {
-          "default": {
-            "description": ""
+          "200": {
+            "description": "A paginated pivot view of the dataset data",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DatasetView"
+                }
+              }
+            }
           }
-        }
+        },
+        "autoQuery": false
       }
     },
     "/{dataset_id}/query/": {
       "get": {
-        "description": "",
+        "summary": "Get details of the default query for a dataset",
+        "description": "Returns the full query configuration for the default (unfiltered) query for a dataset, including the total number of rows and column mappings.",
         "parameters": [
           {
-            "name": "dataset_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
+            "$ref": "#/components/parameters/dataset_id"
           }
         ],
         "responses": {
-          "default": {
-            "description": ""
+          "200": {
+            "description": "The stored query configuration",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QueryStore"
+                }
+              }
+            }
           }
-        }
+        },
+        "autoQuery": false
       }
     },
     "/{dataset_id}/query/{filter_id}": {
       "get": {
-        "description": "",
+        "summary": "Get details of a stored filter query",
+        "description": "Returns the full query configuration stored under a filter ID, including the total number of matching rows and column mappings.",
         "parameters": [
-          {
-            "name": "dataset_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
           {
             "name": "filter_id",
             "in": "path",
@@ -458,13 +500,24 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/dataset_id"
           }
         ],
         "responses": {
-          "default": {
-            "description": ""
+          "200": {
+            "description": "The stored query configuration",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QueryStore"
+                }
+              }
+            }
           }
-        }
+        },
+        "autoQuery": false
       }
     }
   },

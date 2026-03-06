@@ -57,17 +57,202 @@ publicApiRouter.use((req: Request, res: Response, next: NextFunction) => {
   next();
 });
 
-publicApiRouter.get('/', listPublishedDatasets);
+publicApiRouter.get(
+  '/',
+  /*
+    #swagger.summary = 'Get a list of all published datasets'
+    #swagger.description = 'This endpoint returns a list of all published datasets.'
+    #swagger.autoQuery = false
+    #swagger.parameters['$ref'] = [
+      '#/components/parameters/language',
+      '#/components/parameters/page_number',
+      '#/components/parameters/page_size'
+    ]
+    #swagger.responses[200] = {
+      description: 'A paginated list of all published datasets',
+      content: {
+        'application/json': {
+          schema: { $ref: "#/components/schemas/DatasetsWithCount" }
+        }
+      }
+    }
+  */
+  listPublishedDatasets
+);
 
-publicApiRouter.get('/topic', listRootTopics);
-publicApiRouter.get('/topic/:topic_id', listSubTopics);
+publicApiRouter.get(
+  '/topic',
+  /*
+    #swagger.summary = 'Get a list of top-level topics'
+    #swagger.description = "Datasets are tagged to topics. There are top-level topics, such as 'Health and social care',
+      which can have sub-topics, such as 'Dental services'. This endpoint returns a list of all top-level topics that
+      have at least one published dataset tagged to them."
+    #swagger.autoQuery = false
+    #swagger.parameters['$ref'] = ['#/components/parameters/language']
+    #swagger.responses[200] = {
+      description: 'A list of all top-level topics that have at least one published dataset tagged to them.',
+      schema: { $ref: "#/components/schemas/RootTopics" }
+    }
+  */
+  listRootTopics
+);
 
-publicApiRouter.get('/:dataset_id', loadPublishedDataset(), getPublishedDatasetById);
-publicApiRouter.get('/:dataset_id/history', loadPublishedDataset(), getPublicationHistory);
+publicApiRouter.get(
+  '/topic/:topic_id',
+  /*
+    #swagger.summary = 'Get a list of what sits under a given topic'
+    #swagger.description = "Datasets are tagged to topics. There are top-level topics, such as 'Health and social
+      care', which can have sub-topics, such as 'Dental services'. For a given topic_id, this endpoint returns a
+      list of what sits under that topic - either sub-topics or published datasets tagged directly to that topic."
+    #swagger.autoQuery = false
+    #swagger.parameters['page_size'] = {
+      description: 'Number of datasets per page when datasets are returned',
+      in: 'query',
+      type: 'integer',
+      default: 1000
+    }
+    #swagger.parameters['sort_by'] = {
+      description: 'Columns to sort the data by. The value should be a JSON array of objects sent as a URL encoded string.',
+      in: 'query',
+      required: false,
+      content: {
+        'application/json': {
+          schema: {
+            type: 'array',
+            items: {
+              type: 'object',
+              properties: {
+                columnName: {
+                  type: 'string',
+                  enum: ['first_published_at', 'last_updated_at', 'title']
+                },
+                direction: {
+                  type: 'string',
+                  enum: ['ASC', 'DESC']
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+    #swagger.parameters['$ref'] = [
+      '#/components/parameters/language',
+      '#/components/parameters/topic_id',
+      '#/components/parameters/page_number'
+    ]
+    #swagger.responses[200] = {
+      description: 'A list of what sits under a given topic - either sub-topics or published datasets tagged directly to that topic.',
+      schema: { $ref: "#/components/schemas/PublishedTopics" }
+    }
+  */
+  listSubTopics
+);
 
-publicApiRouter.get('/:dataset_id/view', loadPublishedDataset(), getPublishedDatasetView);
-publicApiRouter.get('/:dataset_id/view/filters', loadPublishedDataset(), getPublishedDatasetFilters);
+publicApiRouter.get(
+  '/:dataset_id',
+  loadPublishedDataset(),
+  /*
+    #swagger.summary = "Get a published dataset's metadata"
+    #swagger.description = 'This endpoint returns all metadata for a published dataset.'
+    #swagger.parameters['$ref'] = [
+      '#/components/parameters/language',
+      '#/components/parameters/dataset_id'
+    ]
+    #swagger.responses[200] = {
+      description: 'A json object containing all metadata for a published dataset',
+      schema: { $ref: "#/components/schemas/Dataset" }
+    }
+  */
+  getPublishedDatasetById
+);
 
-publicApiRouter.get('/:dataset_id/download/:format', loadPublishedDataset(), downloadPublishedDataset);
+publicApiRouter.get(
+  '/:dataset_id/history',
+  loadPublishedDataset(),
+  /* #swagger.ignore = true */
+  getPublicationHistory
+);
 
-publicApiRouter.get('/:dataset_id/pivot/postgres', loadPublishedDataset(), getPostgresPivotTable);
+publicApiRouter.get(
+  '/:dataset_id/view',
+  loadPublishedDataset(),
+  /*
+    #swagger.summary = 'Get a paginated view of a published dataset'
+    #swagger.description = 'This endpoint returns a paginated view of a published dataset, with optional sorting and filtering.'
+    #swagger.autoQuery = false
+    #swagger.parameters['$ref'] = [
+      '#/components/parameters/language',
+      '#/components/parameters/dataset_id',
+      '#/components/parameters/page_number',
+      '#/components/parameters/page_size',
+      '#/components/parameters/sort_by',
+      '#/components/parameters/filter'
+    ]
+    #swagger.responses[200] = {
+      description: 'A paginated view of a published dataset, with optional sorting and filtering',
+      content: {
+        'application/json': {
+          schema: { $ref: "#/components/schemas/DatasetView" }
+        }
+      }
+    }
+  */
+  getPublishedDatasetView
+);
+
+publicApiRouter.get(
+  '/:dataset_id/view/filters',
+  loadPublishedDataset(),
+  /*
+    #swagger.summary = 'Get a list of the filters available for a paginated view of a published dataset'
+    #swagger.description = 'This endpoint returns a list of the filters available for a paginated view of a published dataset. These are based on the variables used in the dataset, for example local authorities or financial years.'
+    #swagger.autoQuery = false
+    #swagger.parameters['$ref'] = [
+      '#/components/parameters/language'
+    ]
+    #swagger.responses[200] = {
+      description: 'A list of the filters available for a paginated view of a published dataset',
+      content: {
+        'application/json': {
+          schema: { $ref: "#/components/schemas/Filters" }
+        }
+      }
+    }
+  */
+  getPublishedDatasetFilters
+);
+
+publicApiRouter.get(
+  '/:dataset_id/download/:format',
+  loadPublishedDataset(),
+  /*
+    #swagger.summary = 'Download a published dataset as a file'
+    #swagger.description = 'This endpoint returns a published dataset file in a specified format.'
+    #swagger.autoQuery = false
+    #swagger.parameters['$ref'] = [
+      '#/components/parameters/language',
+      '#/components/parameters/dataset_id',
+      '#/components/parameters/format',
+      '#/components/parameters/sort_by',
+      '#/components/parameters/filter',
+      '#/components/parameters/view'
+    ]
+    #swagger.responses[200] = {
+      description: 'A published dataset file in a specified format',
+      content: {
+        'application/octet-stream': {
+          schema: { type: 'string', format: 'binary', example: 'data.csv' }
+        }
+      }
+    }
+  */
+  downloadPublishedDataset
+);
+
+publicApiRouter.get(
+  '/:dataset_id/pivot/postgres',
+  loadPublishedDataset(),
+  /* #swagger.ignore = true */
+  getPostgresPivotTable
+);

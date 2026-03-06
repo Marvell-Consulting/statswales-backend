@@ -38,7 +38,8 @@
               }
             }
           }
-        }
+        },
+        "autoQuery": false
       }
     },
     "/topic": {
@@ -66,7 +67,8 @@
               }
             }
           }
-        }
+        },
+        "autoQuery": false
       }
     },
     "/topic/{topic_id}": {
@@ -131,7 +133,7 @@
         ],
         "responses": {
           "200": {
-            "description": "A list of what sits under a given topic - either sub-topics or published datasets tagged directly  to that topic.",
+            "description": "A list of what sits under a given topic - either sub-topics or published datasets tagged directly to that topic.",
             "content": {
               "application/json": {
                 "schema": {
@@ -145,7 +147,8 @@
               }
             }
           }
-        }
+        },
+        "autoQuery": false
       }
     },
     "/{dataset_id}": {
@@ -182,7 +185,7 @@
     "/{dataset_id}/view": {
       "get": {
         "summary": "Get a paginated view of a published dataset",
-        "description": "This endpoint returns a paginated view of a published dataset, with optional sorting and  filtering.",
+        "description": "This endpoint returns a paginated view of a published dataset, with optional sorting and filtering.",
         "parameters": [
           {
             "$ref": "#/components/parameters/language"
@@ -214,13 +217,14 @@
               }
             }
           }
-        }
+        },
+        "autoQuery": false
       }
     },
     "/{dataset_id}/view/filters": {
       "get": {
         "summary": "Get a list of the filters available for a paginated view of a published dataset",
-        "description": "This endpoint returns a list of the filters available for a paginated view of a published  dataset. These are based on the variables used in the dataset, for example local authorities or financial years.",
+        "description": "This endpoint returns a list of the filters available for a paginated view of a published dataset. These are based on the variables used in the dataset, for example local authorities or financial years.",
         "parameters": [
           {
             "name": "dataset_id",
@@ -245,7 +249,8 @@
               }
             }
           }
-        }
+        },
+        "autoQuery": false
       }
     },
     "/{dataset_id}/download/{format}": {
@@ -285,7 +290,8 @@
               }
             }
           }
-        }
+        },
+        "autoQuery": false
       }
     }
   },
