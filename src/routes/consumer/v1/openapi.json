@@ -77,51 +77,6 @@
         "description": "Datasets are tagged to topics. There are top-level topics, such as 'Health and social  care', which can have sub-topics, such as 'Dental services'. For a given topic_id, this endpoint returns a  list of what sits under that topic - either sub-topics or published datasets tagged directly to that topic.",
         "parameters": [
           {
-            "name": "page_size",
-            "description": "Number of datasets per page when datasets are returned",
-            "in": "query",
-            "default": 1000,
-            "schema": {
-              "type": "integer"
-            }
-          },
-          {
-            "name": "sort_by",
-            "description": "Columns to sort the data by. The value should be a JSON array of objects sent as a URL encoded string.",
-            "in": "query",
-            "required": false,
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "type": "object",
-                    "properties": {
-                      "columnName": {
-                        "type": "string",
-                        "enum": [
-                          "first_published_at",
-                          "last_updated_at",
-                          "title"
-                        ]
-                      },
-                      "direction": {
-                        "type": "string",
-                        "enum": [
-                          "ASC",
-                          "DESC"
-                        ]
-                      }
-                    }
-                  }
-                }
-              }
-            },
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
             "$ref": "#/components/parameters/language"
           },
           {
@@ -129,6 +84,12 @@
           },
           {
             "$ref": "#/components/parameters/page_number"
+          },
+          {
+            "$ref": "#/components/parameters/page_size"
+          },
+          {
+            "$ref": "#/components/parameters/sort_by"
           }
         ],
         "responses": {
@@ -372,13 +333,30 @@
       "sort_by": {
         "name": "sort_by",
         "in": "query",
-        "description": "Columns to sort the data by. The value should be a JSON array of objects sent as a URL encoded\n        string.",
+        "description": "Columns to sort the data by. The value should be a JSON array of objects sent as a URL encoded string.",
         "required": false,
-        "schema": {
-          "type": "string",
-          "description": "JSON string containing an array of sort objects"
-        },
-        "example": "[{\"columnName\": \"Year\",\"direction\": \"ASC\"},{\"columnName\": \"Measure\",\"direction\": \"DESC\"}]"
+        "content": {
+          "application/json": {
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "columnName": {
+                    "type": "string"
+                  },
+                  "direction": {
+                    "type": "string",
+                    "enum": [
+                      "ASC",
+                      "DESC"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        }
       },
       "filter": {
         "name": "filter",
