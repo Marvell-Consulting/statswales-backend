@@ -115,14 +115,9 @@ publicApiV2Router.get(
     #swagger.parameters['$ref'] = [
       '#/components/parameters/language',
       '#/components/parameters/page_number',
-      '#/components/parameters/page_size'
+      '#/components/parameters/page_size',
+      '#/components/parameters/keywords'
     ]
-    #swagger.parameters['keywords'] = {
-      in: 'query',
-      description: 'Search query string',
-      required: true,
-      schema: { type: 'string' }
-    }
     #swagger.responses[200] = {
       description: 'A paginated list of matching published datasets',
       content: {

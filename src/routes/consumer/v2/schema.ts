@@ -81,6 +81,13 @@ export const schemaV2 = {
           description: 'JSON string containing an array of filter objects'
         },
         example: `[{"columnName": "Area", "values": ["England","Wales"]}, {"columnName": "Year", "values": ["2020"]}]`
+      },
+      keywords: {
+        name: 'keywords',
+        in: 'query',
+        description: 'Search query string',
+        required: true,
+        schema: { type: 'string' }
       }
     },
     '@schemas': {
