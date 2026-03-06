@@ -3,7 +3,7 @@
   "info": {
     "version": "2.0.0",
     "title": "StatsWales public API",
-    "description": "This page will help you use the public API for StatsWales. If you need any other support,\n      <a href=\"mailto:StatsWales@gov.wales\">contact StatsWales</a>."
+    "description": "This page will help you use the public API for StatsWales. If you need any other support,\n      <a href=\"mailto:StatsWales@gov.wales\">contact StatsWales</a>.\n\n<h2>Quick start</h2>\n<p><code>GET /{dataset_id}/data</code> returns all rows for the latest published revision, paginated with default display options.</p>\n\n<h2>Filtering data</h2>\n<ol>\n  <li><strong>Discover filters</strong> — <code>GET /{dataset_id}/filters</code> returns every filterable dimension and its allowed values (column names and reference codes).</li>\n  <li><strong>Create a filter</strong> — <code>POST /{dataset_id}/data</code> with a JSON body containing your chosen filters and display options. Returns a reusable <code>filter_id</code> (UUID). Submitting identical filters returns the same ID.</li>\n  <li><strong>Fetch filtered data</strong> — <code>GET /{dataset_id}/data/{filter_id}</code> returns paginated rows matching your filter.</li>\n</ol>\n\n<h2>Pivot tables</h2>\n<ol>\n  <li><code>POST /{dataset_id}/pivot</code> with x/y axis columns and optional filters. Returns a <code>filter_id</code>.</li>\n  <li><code>GET /{dataset_id}/pivot/{filter_id}</code> returns the cross-tabulated view.</li>\n</ol>\n\n<h2>Display options</h2>\n<p>When creating a filter, you can include an <code>options</code> object:</p>\n<ul>\n  <li><code>use_raw_column_names</code> — when <code>true</code> (default), column headers use internal fact-table names (e.g. <code>AreaCode</code>); when <code>false</code>, they use human-readable dimension names (e.g. <code>Area</code>).</li>\n  <li><code>use_reference_values</code> — when <code>true</code> (default), cell values are reference codes (e.g. <code>K02000001</code>); when <code>false</code>, they are human-readable descriptions (e.g. <code>United Kingdom</code>).</li>\n  <li><code>data_value_type</code> — controls how the data/measure value column is returned: <code>by_data_and_notes</code>, <code>by_data</code>, or <code>by_notes</code>.</li>\n</ul>\n\n<h2>Language</h2>\n<p>Add <code>?lang=cy</code> to any request to receive Welsh-language labels and descriptions. Defaults to English (<code>en-gb</code>).</p>"
   },
   "servers": [
     {
@@ -11,11 +11,36 @@
       "url": "{{backendURL}}/v2"
     }
   ],
+  "tags": [
+    {
+      "name": "Datasets",
+      "description": "Browse, search, and retrieve metadata for published datasets."
+    },
+    {
+      "name": "Topics",
+      "description": "Navigate the topic hierarchy used to categorise datasets."
+    },
+    {
+      "name": "Data",
+      "description": "Retrieve paginated tabular data for a dataset, with optional filtering and sorting."
+    },
+    {
+      "name": "Pivot",
+      "description": "Retrieve a cross-tabulated (pivot table) view of dataset data."
+    },
+    {
+      "name": "Query",
+      "description": "Inspect stored query configurations, including filter options, row counts, and column mappings."
+    }
+  ],
   "paths": {
     "/": {
       "get": {
+        "tags": [
+          "Datasets"
+        ],
         "summary": "Get a list of all published datasets",
-        "description": "This endpoint returns a list of all published datasets.",
+        "description": "Returns a paginated list of all published datasets, ordered by most recently updated.",
         "parameters": [
           {
             "$ref": "#/components/parameters/language"
@@ -44,8 +69,11 @@
     },
     "/search": {
       "get": {
+        "tags": [
+          "Datasets"
+        ],
         "summary": "Search published datasets",
-        "description": "This endpoint performs a search across published dataset titles and summaries.",
+        "description": "Full-text search across dataset titles and summaries. Returns paginated results ranked by relevance.",
         "parameters": [
           {
             "$ref": "#/components/parameters/language"
@@ -77,6 +105,9 @@
     },
     "/topic": {
       "get": {
+        "tags": [
+          "Topics"
+        ],
         "summary": "Get a list of top-level topics",
         "description": "Datasets are tagged to topics. There are top-level topics, such as 'Health and social care',  which can have sub-topics, such as 'Dental services'. This endpoint returns a list of all top-level topics that  have at least one published dataset tagged to them.",
         "parameters": [
@@ -106,6 +137,9 @@
     },
     "/topic/{topic_id}": {
       "get": {
+        "tags": [
+          "Topics"
+        ],
         "summary": "Get a list of what sits under a given topic",
         "description": "Datasets are tagged to topics. There are top-level topics, such as 'Health and social  care', which can have sub-topics, such as 'Dental services'. For a given topic_id, this endpoint returns a  list of what sits under that topic - either sub-topics or published datasets tagged directly to that topic.",
         "parameters": [
@@ -147,8 +181,11 @@
     },
     "/{dataset_id}": {
       "get": {
+        "tags": [
+          "Datasets"
+        ],
         "summary": "Get a published dataset's metadata",
-        "description": "This endpoint returns all consumer metadata for a published dataset.",
+        "description": "Returns full metadata for a published dataset including revision details, update frequency, related links, and topics.",
         "parameters": [
           {
             "$ref": "#/components/parameters/language"
@@ -178,8 +215,11 @@
     },
     "/{dataset_id}/revision/{revision_id}": {
       "get": {
+        "tags": [
+          "Datasets"
+        ],
         "summary": "Get a specific published revision by ID",
-        "description": "Returns metadata for a specific published revision of a dataset.",
+        "description": "Returns metadata for a specific published revision. Use the dataset metadata endpoint to discover available revision IDs.",
         "parameters": [
           {
             "$ref": "#/components/parameters/language"
@@ -208,8 +248,11 @@
     },
     "/{dataset_id}/filters": {
       "get": {
+        "tags": [
+          "Data"
+        ],
         "summary": "Get the available filters for a dataset",
-        "description": "Returns all filterable dimensions and their available values for the latest published revision of a dataset.",
+        "description": "Lists every filterable dimension and its allowed values. Use the column names and reference codes from this response to build a filter object for POST /{dataset_id}/data.",
         "parameters": [
           {
             "$ref": "#/components/parameters/language"
@@ -235,8 +278,11 @@
     },
     "/{dataset_id}/data": {
       "post": {
+        "tags": [
+          "Data"
+        ],
         "summary": "Generate a filter ID for a dataset query",
-        "description": "Stores a set of filter and display options as a reusable query, returning a filter ID that can be passed to the data and pivot endpoints.",
+        "description": "Stores row filters and display options as a reusable query. Returns a filter ID (UUID) for use with GET /{dataset_id}/data/{filter_id}. Submitting identical filters returns the same ID.",
         "parameters": [
           {
             "$ref": "#/components/parameters/dataset_id"
@@ -267,8 +313,11 @@
         }
       },
       "get": {
+        "tags": [
+          "Data"
+        ],
         "summary": "Get paginated data for a dataset",
-        "description": "Returns a paginated view of the dataset data.",
+        "description": "Returns all rows for the latest published revision, paginated, with default display options. To apply filters, first create a filter via POST /{dataset_id}/data, then use GET /{dataset_id}/data/{filter_id}.",
         "parameters": [
           {
             "$ref": "#/components/parameters/language"
@@ -303,8 +352,11 @@
     },
     "/{dataset_id}/pivot": {
       "post": {
+        "tags": [
+          "Pivot"
+        ],
         "summary": "Generate a filter ID for a pivot query",
-        "description": "Stores a set of pivot configuration and filter options as a reusable query, returning a filter ID that can be passed to the pivot endpoint.",
+        "description": "Stores a pivot configuration (x/y axes) with optional filters and display options. Returns a filter ID for GET /{dataset_id}/pivot/{filter_id}.",
         "parameters": [
           {
             "$ref": "#/components/parameters/dataset_id"
@@ -337,8 +389,11 @@
     },
     "/{dataset_id}/data/{filter_id}": {
       "get": {
+        "tags": [
+          "Data"
+        ],
         "summary": "Get paginated data for a dataset using a stored filter",
-        "description": "Returns a paginated view of the dataset data using the options stored in the given filter ID.",
+        "description": "Returns paginated data filtered and formatted according to the stored filter ID. Create a filter ID by POSTing to /{dataset_id}/data.",
         "parameters": [
           {
             "$ref": "#/components/parameters/language"
@@ -376,8 +431,11 @@
     },
     "/{dataset_id}/pivot/{filter_id}": {
       "get": {
+        "tags": [
+          "Pivot"
+        ],
         "summary": "Get a pivot view of a dataset using a stored filter ID",
-        "description": "Returns a pivot table view of the dataset data using the configuration stored in a pivot filter ID (created via POST /pivot).",
+        "description": "Returns a cross-tabulated pivot view using the configuration stored in the given filter ID.",
         "parameters": [
           {
             "$ref": "#/components/parameters/language"
@@ -415,8 +473,11 @@
     },
     "/{dataset_id}/query/": {
       "get": {
+        "tags": [
+          "Query"
+        ],
         "summary": "Get details of the default query for a dataset",
-        "description": "Returns the full query configuration for the default (unfiltered) query for a dataset, including the total number of rows and column mappings.",
+        "description": "Returns the default (unfiltered) query configuration, including total row count and column name mappings.",
         "parameters": [
           {
             "$ref": "#/components/parameters/dataset_id"
@@ -439,8 +500,11 @@
     },
     "/{dataset_id}/query/{filter_id}": {
       "get": {
+        "tags": [
+          "Query"
+        ],
         "summary": "Get details of a stored filter query",
-        "description": "Returns the full query configuration stored under a filter ID, including the total number of matching rows and column mappings.",
+        "description": "Returns the full stored query configuration for a filter ID — useful for inspecting what filters and options a filter ID contains.",
         "parameters": [
           {
             "$ref": "#/components/parameters/dataset_id"
@@ -1080,12 +1144,15 @@
       },
       "Filter": {
         "type": "object",
+        "description": "A single filterable dimension and its allowed values.",
         "properties": {
           "factTableColumn": {
-            "type": "string"
+            "type": "string",
+            "description": "Internal fact-table column name, e.g. AreaCode"
           },
           "columnName": {
-            "type": "string"
+            "type": "string",
+            "description": "Human-readable dimension name — use this as the key in your filter object"
           },
           "values": {
             "type": "array",
@@ -1093,10 +1160,12 @@
               "type": "object",
               "properties": {
                 "reference": {
-                  "type": "string"
+                  "type": "string",
+                  "description": "Reference code to use in filter values"
                 },
                 "description": {
-                  "type": "string"
+                  "type": "string",
+                  "description": "Human-readable label (language-dependent)"
                 }
               }
             }
@@ -1105,11 +1174,12 @@
       },
       "FilterId": {
         "type": "object",
+        "description": "A reusable, shareable identifier for a stored set of filters and display options. The same filter inputs always produce the same ID.",
         "properties": {
           "filterId": {
             "type": "string",
             "format": "uuid",
-            "description": "Unique identifier for the stored filter/query"
+            "description": "UUID for the stored query. Pass this to GET /{dataset_id}/data/{filter_id} or GET /{dataset_id}/pivot/{filter_id} to retrieve filtered results."
           }
         },
         "example": {
@@ -1118,10 +1188,11 @@
       },
       "DataOptions": {
         "type": "object",
+        "description": "Row filters and display options to store as a reusable query. Use column names and reference codes from GET /{dataset_id}/filters.",
         "properties": {
           "filters": {
             "type": "array",
-            "description": "Filters to apply to the dataset. Each filter is an object whose key is the column name and whose value is an array of strings.",
+            "description": "Each object has a single key (a column name from GET /filters) mapped to an array of reference codes. Multiple objects combine with AND logic; multiple values within one object combine with OR logic.",
             "items": {
               "type": "object",
               "additionalProperties": {
@@ -1137,6 +1208,11 @@
                   "2020",
                   "2021"
                 ]
+              },
+              {
+                "Area": [
+                  "W92000004"
+                ]
               }
             ]
           },
@@ -1145,17 +1221,17 @@
             "properties": {
               "use_raw_column_names": {
                 "type": "boolean",
-                "description": "Use raw fact-table column names instead of dimension names",
+                "description": "When true (default), column headers use internal fact-table names (e.g. AreaCode). When false, headers use human-readable dimension names (e.g. Area).",
                 "default": true
               },
               "use_reference_values": {
                 "type": "boolean",
-                "description": "Use reference codes instead of display values",
+                "description": "When true (default), cell values are reference codes (e.g. K02000001). When false, values are human-readable descriptions (e.g. United Kingdom).",
                 "default": true
               },
               "data_value_type": {
                 "type": "string",
-                "description": "How data values are returned",
+                "description": "Controls how the data/measure value column is returned: by_data_and_notes (default — value and notes combined), by_data (value only), or by_notes (notes only).",
                 "enum": [
                   "raw",
                   "raw_extended",
@@ -1188,11 +1264,11 @@
                 "properties": {
                   "x": {
                     "type": "string",
-                    "description": "Column to use as the pivot X axis"
+                    "description": "Column name for the horizontal axis of the pivot table"
                   },
                   "y": {
                     "type": "string",
-                    "description": "Column to use as the pivot Y axis"
+                    "description": "Column name for the vertical axis of the pivot table"
                   },
                   "backend": {
                     "type": "string",
