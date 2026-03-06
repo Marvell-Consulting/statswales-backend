@@ -62,14 +62,23 @@ export const schema = {
       sort_by: {
         name: 'sort_by',
         in: 'query',
-        description: `Columns to sort the data by. The value should be a JSON array of objects sent as a URL encoded
-        string.`,
+        description:
+          'Columns to sort the data by. The value should be a JSON array of objects sent as a URL encoded string.',
         required: false,
-        schema: {
-          type: 'string',
-          description: 'JSON string containing an array of sort objects'
-        },
-        example: '[{"columnName": "Year","direction": "ASC"},{"columnName": "Measure","direction": "DESC"}]'
+        content: {
+          'application/json': {
+            schema: {
+              type: 'array',
+              items: {
+                type: 'object',
+                properties: {
+                  columnName: { type: 'string' },
+                  direction: { type: 'string', enum: ['ASC', 'DESC'] }
+                }
+              }
+            }
+          }
+        }
       },
       filter: {
         name: 'filter',

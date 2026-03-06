@@ -38,7 +38,8 @@
               }
             }
           }
-        }
+        },
+        "autoQuery": false
       }
     },
     "/topic": {
@@ -66,7 +67,8 @@
               }
             }
           }
-        }
+        },
+        "autoQuery": false
       }
     },
     "/topic/{topic_id}": {
@@ -75,51 +77,6 @@
         "description": "Datasets are tagged to topics. There are top-level topics, such as 'Health and social  care', which can have sub-topics, such as 'Dental services'. For a given topic_id, this endpoint returns a  list of what sits under that topic - either sub-topics or published datasets tagged directly to that topic.",
         "parameters": [
           {
-            "name": "page_size",
-            "description": "Number of datasets per page when datasets are returned",
-            "in": "query",
-            "default": 1000,
-            "schema": {
-              "type": "integer"
-            }
-          },
-          {
-            "name": "sort_by",
-            "description": "Columns to sort the data by. The value should be a JSON array of objects sent as a URL encoded string.",
-            "in": "query",
-            "required": false,
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "type": "object",
-                    "properties": {
-                      "columnName": {
-                        "type": "string",
-                        "enum": [
-                          "first_published_at",
-                          "last_updated_at",
-                          "title"
-                        ]
-                      },
-                      "direction": {
-                        "type": "string",
-                        "enum": [
-                          "ASC",
-                          "DESC"
-                        ]
-                      }
-                    }
-                  }
-                }
-              }
-            },
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
             "$ref": "#/components/parameters/language"
           },
           {
@@ -127,11 +84,17 @@
           },
           {
             "$ref": "#/components/parameters/page_number"
+          },
+          {
+            "$ref": "#/components/parameters/page_size"
+          },
+          {
+            "$ref": "#/components/parameters/sort_by"
           }
         ],
         "responses": {
           "200": {
-            "description": "A list of what sits under a given topic - either sub-topics or published datasets tagged directly  to that topic.",
+            "description": "A list of what sits under a given topic - either sub-topics or published datasets tagged directly to that topic.",
             "content": {
               "application/json": {
                 "schema": {
@@ -145,7 +108,8 @@
               }
             }
           }
-        }
+        },
+        "autoQuery": false
       }
     },
     "/{dataset_id}": {
@@ -182,7 +146,7 @@
     "/{dataset_id}/view": {
       "get": {
         "summary": "Get a paginated view of a published dataset",
-        "description": "This endpoint returns a paginated view of a published dataset, with optional sorting and  filtering.",
+        "description": "This endpoint returns a paginated view of a published dataset, with optional sorting and filtering.",
         "parameters": [
           {
             "$ref": "#/components/parameters/language"
@@ -214,24 +178,20 @@
               }
             }
           }
-        }
+        },
+        "autoQuery": false
       }
     },
     "/{dataset_id}/view/filters": {
       "get": {
         "summary": "Get a list of the filters available for a paginated view of a published dataset",
-        "description": "This endpoint returns a list of the filters available for a paginated view of a published  dataset. These are based on the variables used in the dataset, for example local authorities or financial years.",
+        "description": "This endpoint returns a list of the filters available for a paginated view of a published dataset. These are based on the variables used in the dataset, for example local authorities or financial years.",
         "parameters": [
           {
-            "name": "dataset_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
+            "$ref": "#/components/parameters/language"
           },
           {
-            "$ref": "#/components/parameters/language"
+            "$ref": "#/components/parameters/dataset_id"
           }
         ],
         "responses": {
@@ -245,7 +205,8 @@
               }
             }
           }
-        }
+        },
+        "autoQuery": false
       }
     },
     "/{dataset_id}/download/{format}": {
@@ -285,7 +246,8 @@
               }
             }
           }
-        }
+        },
+        "autoQuery": false
       }
     }
   },
@@ -366,13 +328,30 @@
       "sort_by": {
         "name": "sort_by",
         "in": "query",
-        "description": "Columns to sort the data by. The value should be a JSON array of objects sent as a URL encoded\n        string.",
+        "description": "Columns to sort the data by. The value should be a JSON array of objects sent as a URL encoded string.",
         "required": false,
-        "schema": {
-          "type": "string",
-          "description": "JSON string containing an array of sort objects"
-        },
-        "example": "[{\"columnName\": \"Year\",\"direction\": \"ASC\"},{\"columnName\": \"Measure\",\"direction\": \"DESC\"}]"
+        "content": {
+          "application/json": {
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "columnName": {
+                    "type": "string"
+                  },
+                  "direction": {
+                    "type": "string",
+                    "enum": [
+                      "ASC",
+                      "DESC"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        }
       },
       "filter": {
         "name": "filter",

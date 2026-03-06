@@ -57,24 +57,6 @@ import { SearchLog } from '../entities/search-log';
 import { QueryStoreDto } from '../dtos/query-store-dto';
 
 export const listPublishedDatasets = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-  /*
-    #swagger.summary = 'Get a list of all published datasets'
-    #swagger.description = 'This endpoint returns a list of all published datasets.'
-    #swagger.autoQuery = false
-    #swagger.parameters['$ref'] = [
-      '#/components/parameters/language',
-      '#/components/parameters/page_number',
-      '#/components/parameters/page_size'
-    ]
-    #swagger.responses[200] = {
-      description: 'A paginated list of all published datasets',
-      content: {
-        'application/json': {
-          schema: { $ref: "#/components/schemas/DatasetsWithCount" }
-        }
-      }
-    }
-  */
   logger.info('Listing published datasets...');
 
   try {
@@ -92,18 +74,6 @@ export const listPublishedDatasets = async (req: Request, res: Response, next: N
 };
 
 export const getPublishedDatasetById = async (req: Request, res: Response): Promise<void> => {
-  /*
-    #swagger.summary = "Get a published dataset's metadata"
-    #swagger.description = 'This endpoint returns all consumer metadata for a published dataset.'
-    #swagger.parameters['$ref'] = [
-      '#/components/parameters/language',
-      '#/components/parameters/dataset_id'
-    ]
-    #swagger.responses[200] = {
-      description: 'A json object containing all metadata for a published dataset',
-      schema: { $ref: "#/components/schemas/Dataset" }
-    }
-  */
   const lang = req.language as Locale;
   const dataset = await PublishedDatasetRepository.getById(res.locals.datasetId, withPublishedRevision);
   const datasetDTO = ConsumerDatasetDTO.fromDataset(dataset);
@@ -200,9 +170,6 @@ export const getPublishedDatasetData = async (req: Request, res: Response, next:
 
 // Hidden end point allows pivots on existing non-pivot queries and allows for multi-dimensional pivots
 export const getPublishedDatasetPivot = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-  /*
-  #swagger.ignore = true
-   */
   logger.debug(`Getting dataset data for ${res.locals.datasetId}...`);
   const filterId = req.params.filter_id as string | undefined;
   const dataset = res.locals.dataset as Dataset;
@@ -422,18 +389,6 @@ export const getPublishedDatasetFilters = async (req: Request, res: Response, ne
 };
 
 export const listRootTopics = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-  /*
-    #swagger.summary = 'Get a list of top-level topics'
-    #swagger.description = "Datasets are tagged to topics. There are top-level topics, such as 'Health and social care',
-      which can have sub-topics, such as 'Dental services'. This endpoint returns a list of all top-level topics that
-      have at least one published dataset tagged to them."
-    #swagger.autoQuery = false
-    #swagger.parameters['$ref'] = ['#/components/parameters/language']
-    #swagger.responses[200] = {
-      description: 'A list of all top-level topics that have at least one published dataset tagged to them.',
-      schema: { $ref: "#/components/schemas/RootTopics" }
-    }
-  */
   logger.info('fetching root level topics with at least one published dataset');
 
   try {
@@ -455,54 +410,6 @@ export const listRootTopics = async (req: Request, res: Response, next: NextFunc
 };
 
 export const listSubTopics = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-  /*
-    #swagger.summary = 'Get a list of what sits under a given topic'
-    #swagger.description = "Datasets are tagged to topics. There are top-level topics, such as 'Health and social
-      care', which can have sub-topics, such as 'Dental services'. For a given topic_id, this endpoint returns a
-      list of what sits under that topic - either sub-topics or published datasets tagged directly to that topic."
-    #swagger.autoQuery = false
-    #swagger.parameters['page_size'] = {
-      description: 'Number of datasets per page when datasets are returned',
-      in: 'query',
-      type: 'integer',
-      default: 1000
-    }
-    #swagger.parameters['sort_by'] = {
-      description: `Columns to sort the data by. The value should be a JSON array of objects sent as a URL encoded string.`,
-      in: 'query',
-      required: false,
-      content: {
-        'application/json': {
-          schema: {
-            type: 'array',
-            items: {
-              type: 'object',
-              properties: {
-                columnName: {
-                  type: 'string',
-                  enum: ['first_published_at', 'last_updated_at', 'title']
-                },
-                direction: {
-                  type: 'string',
-                  enum: ['ASC', 'DESC']
-                }
-              }
-            }
-          }
-        }
-      }
-    }
-    #swagger.parameters['$ref'] = [
-      '#/components/parameters/language',
-      '#/components/parameters/topic_id',
-      '#/components/parameters/page_number'
-    ]
-    #swagger.responses[200] = {
-      description: 'A list of what sits under a given topic - either sub-topics or published datasets tagged directly
-       to that topic.',
-      schema: { $ref: "#/components/schemas/PublishedTopics" }
-    }
-  */
   logger.info('fetching sub-topics with at least one published dataset');
   const topicId = req.params.topic_id;
   const lang = req.language as Locale;
@@ -549,9 +456,6 @@ export const listSubTopics = async (req: Request, res: Response, next: NextFunct
 };
 
 export const getPublicationHistory = async (req: Request, res: Response): Promise<void> => {
-  /*
-    #swagger.ignore = true
-  */
   const revisions = await PublishedDatasetRepository.getHistoryById(res.locals.datasetId);
   const revisionDTOs = revisions.map((rev) => ConsumerRevisionDTO.fromRevision(rev));
 
@@ -581,31 +485,6 @@ export const sendFormattedResponse = async (
 };
 
 export const searchPublishedDatasets = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-  /*
-    #swagger.summary = 'Search published datasets'
-    #swagger.description = 'This endpoint performs a search across published dataset titles and summaries.'
-    #swagger.autoQuery = false
-    #swagger.parameters['$ref'] = [
-      '#/components/parameters/language',
-      '#/components/parameters/page_number',
-      '#/components/parameters/page_size'
-    ]
-    #swagger.parameters['keywords'] = {
-      in: 'query',
-      description: 'Search query string',
-      required: true,
-      schema: { type: 'string' }
-    }
-    #swagger.responses[200] = {
-      description: 'A paginated list of matching published datasets',
-      content: {
-        'application/json': {
-          schema: { $ref: "#/components/schemas/DatasetsWithCount" }
-        }
-      }
-    }
-  */
-
   try {
     for (const validation of [searchKeywordsValidator(), searchModeValidator()]) {
       const errors = await validation.run(req);

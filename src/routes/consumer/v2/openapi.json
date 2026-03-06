@@ -38,17 +38,41 @@
               }
             }
           }
-        }
+        },
+        "autoQuery": false
       }
     },
     "/search": {
       "get": {
-        "description": "",
-        "responses": {
-          "default": {
-            "description": ""
+        "summary": "Search published datasets",
+        "description": "This endpoint performs a search across published dataset titles and summaries.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/language"
+          },
+          {
+            "$ref": "#/components/parameters/page_number"
+          },
+          {
+            "$ref": "#/components/parameters/page_size"
+          },
+          {
+            "$ref": "#/components/parameters/keywords"
           }
-        }
+        ],
+        "responses": {
+          "200": {
+            "description": "A paginated list of matching published datasets",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DatasetsWithCount"
+                }
+              }
+            }
+          }
+        },
+        "autoQuery": false
       }
     },
     "/topic": {
@@ -76,7 +100,8 @@
               }
             }
           }
-        }
+        },
+        "autoQuery": false
       }
     },
     "/topic/{topic_id}": {
@@ -85,51 +110,6 @@
         "description": "Datasets are tagged to topics. There are top-level topics, such as 'Health and social  care', which can have sub-topics, such as 'Dental services'. For a given topic_id, this endpoint returns a  list of what sits under that topic - either sub-topics or published datasets tagged directly to that topic.",
         "parameters": [
           {
-            "name": "page_size",
-            "description": "Number of datasets per page when datasets are returned",
-            "in": "query",
-            "default": 1000,
-            "schema": {
-              "type": "integer"
-            }
-          },
-          {
-            "name": "sort_by",
-            "description": "Columns to sort the data by. The value should be a JSON array of objects sent as a URL encoded string.",
-            "in": "query",
-            "required": false,
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "type": "object",
-                    "properties": {
-                      "columnName": {
-                        "type": "string",
-                        "enum": [
-                          "first_published_at",
-                          "last_updated_at",
-                          "title"
-                        ]
-                      },
-                      "direction": {
-                        "type": "string",
-                        "enum": [
-                          "ASC",
-                          "DESC"
-                        ]
-                      }
-                    }
-                  }
-                }
-              }
-            },
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
             "$ref": "#/components/parameters/language"
           },
           {
@@ -137,11 +117,17 @@
           },
           {
             "$ref": "#/components/parameters/page_number"
+          },
+          {
+            "$ref": "#/components/parameters/page_size"
+          },
+          {
+            "$ref": "#/components/parameters/sort_by"
           }
         ],
         "responses": {
           "200": {
-            "description": "A list of what sits under a given topic - either sub-topics or published datasets tagged directly  to that topic.",
+            "description": "A list of what sits under a given topic - either sub-topics or published datasets tagged directly to that topic.",
             "content": {
               "application/json": {
                 "schema": {
@@ -155,7 +141,8 @@
               }
             }
           }
-        }
+        },
+        "autoQuery": false
       }
     },
     "/{dataset_id}": {
@@ -191,212 +178,290 @@
     },
     "/{dataset_id}/revision/{revision_id}": {
       "get": {
-        "description": "",
+        "summary": "Get a specific published revision by ID",
+        "description": "Returns metadata for a specific published revision of a dataset.",
         "parameters": [
           {
-            "name": "dataset_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
+            "$ref": "#/components/parameters/language"
           },
           {
-            "name": "revision_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
+            "$ref": "#/components/parameters/dataset_id"
+          },
+          {
+            "$ref": "#/components/parameters/revision_id"
           }
         ],
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "Metadata for the requested revision",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Revision"
+                }
+              }
+            }
           }
-        }
+        },
+        "autoQuery": false
       }
     },
     "/{dataset_id}/filters": {
       "get": {
-        "description": "",
+        "summary": "Get the available filters for a dataset",
+        "description": "Returns all filterable dimensions and their available values for the latest published revision of a dataset.",
         "parameters": [
           {
-            "name": "dataset_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
+            "$ref": "#/components/parameters/language"
+          },
+          {
+            "$ref": "#/components/parameters/dataset_id"
           }
         ],
         "responses": {
-          "default": {
-            "description": ""
+          "200": {
+            "description": "A list of filterable dimensions with their available values",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Filters"
+                }
+              }
+            }
           }
-        }
+        },
+        "autoQuery": false
       }
     },
     "/{dataset_id}/data": {
       "post": {
-        "description": "",
+        "summary": "Generate a filter ID for a dataset query",
+        "description": "Stores a set of filter and display options as a reusable query, returning a filter ID that can be passed to the data and pivot endpoints.",
         "parameters": [
           {
-            "name": "dataset_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
+            "$ref": "#/components/parameters/dataset_id"
           }
         ],
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "The generated filter ID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FilterId"
+                }
+              }
+            }
+          }
+        },
+        "autoQuery": false,
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DataOptions"
+              }
+            }
           }
         }
       },
       "get": {
-        "description": "",
+        "summary": "Get paginated data for a dataset",
+        "description": "Returns a paginated view of the dataset data.",
         "parameters": [
           {
-            "name": "dataset_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "default": {
-            "description": ""
-          }
-        }
-      }
-    },
-    "/{dataset_id}/pivot": {
-      "post": {
-        "description": "",
-        "parameters": [
+            "$ref": "#/components/parameters/language"
+          },
           {
-            "name": "dataset_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
+            "$ref": "#/components/parameters/dataset_id"
+          },
+          {
+            "$ref": "#/components/parameters/page_number"
+          },
+          {
+            "$ref": "#/components/parameters/page_size"
+          },
+          {
+            "$ref": "#/components/parameters/sort_by"
           }
         ],
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "A paginated view of the dataset data",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DatasetView"
+                }
+              }
+            }
+          }
+        },
+        "autoQuery": false
+      }
+    },
+    "/{dataset_id}/pivot": {
+      "post": {
+        "summary": "Generate a filter ID for a pivot query",
+        "description": "Stores a set of pivot configuration and filter options as a reusable query, returning a filter ID that can be passed to the pivot endpoint.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/dataset_id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The generated filter ID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FilterId"
+                }
+              }
+            }
+          }
+        },
+        "autoQuery": false,
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PivotOptions"
+              }
+            }
           }
         }
       }
     },
     "/{dataset_id}/data/{filter_id}": {
       "get": {
-        "description": "",
+        "summary": "Get paginated data for a dataset using a stored filter",
+        "description": "Returns a paginated view of the dataset data using the options stored in the given filter ID.",
         "parameters": [
           {
-            "name": "dataset_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
+            "$ref": "#/components/parameters/language"
           },
           {
-            "name": "filter_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
+            "$ref": "#/components/parameters/dataset_id"
+          },
+          {
+            "$ref": "#/components/parameters/page_number"
+          },
+          {
+            "$ref": "#/components/parameters/page_size"
+          },
+          {
+            "$ref": "#/components/parameters/sort_by"
+          },
+          {
+            "$ref": "#/components/parameters/filter_id"
           }
         ],
         "responses": {
-          "default": {
-            "description": ""
+          "200": {
+            "description": "A paginated view of the dataset data",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DatasetView"
+                }
+              }
+            }
           }
-        }
+        },
+        "autoQuery": false
       }
     },
     "/{dataset_id}/pivot/{filter_id}": {
       "get": {
-        "description": "",
+        "summary": "Get a pivot view of a dataset using a stored filter ID",
+        "description": "Returns a pivot table view of the dataset data using the configuration stored in a pivot filter ID (created via POST /pivot).",
         "parameters": [
           {
-            "name": "dataset_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
+            "$ref": "#/components/parameters/language"
           },
           {
-            "name": "filter_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
+            "$ref": "#/components/parameters/dataset_id"
+          },
+          {
+            "$ref": "#/components/parameters/page_number"
+          },
+          {
+            "$ref": "#/components/parameters/page_size"
+          },
+          {
+            "$ref": "#/components/parameters/sort_by"
+          },
+          {
+            "$ref": "#/components/parameters/filter_id"
           }
         ],
         "responses": {
-          "default": {
-            "description": ""
+          "200": {
+            "description": "A paginated pivot view of the dataset data",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DatasetView"
+                }
+              }
+            }
           }
-        }
+        },
+        "autoQuery": false
       }
     },
     "/{dataset_id}/query/": {
       "get": {
-        "description": "",
+        "summary": "Get details of the default query for a dataset",
+        "description": "Returns the full query configuration for the default (unfiltered) query for a dataset, including the total number of rows and column mappings.",
         "parameters": [
           {
-            "name": "dataset_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
+            "$ref": "#/components/parameters/dataset_id"
           }
         ],
         "responses": {
-          "default": {
-            "description": ""
+          "200": {
+            "description": "The stored query configuration",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QueryStore"
+                }
+              }
+            }
           }
-        }
+        },
+        "autoQuery": false
       }
     },
     "/{dataset_id}/query/{filter_id}": {
       "get": {
-        "description": "",
+        "summary": "Get details of a stored filter query",
+        "description": "Returns the full query configuration stored under a filter ID, including the total number of matching rows and column mappings.",
         "parameters": [
           {
-            "name": "dataset_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
+            "$ref": "#/components/parameters/dataset_id"
           },
           {
-            "name": "filter_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
+            "$ref": "#/components/parameters/filter_id"
           }
         ],
         "responses": {
-          "default": {
-            "description": ""
+          "200": {
+            "description": "The stored query configuration",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QueryStore"
+                }
+              }
+            }
           }
-        }
+        },
+        "autoQuery": false
       }
     }
   },
@@ -477,13 +542,30 @@
       "sort_by": {
         "name": "sort_by",
         "in": "query",
-        "description": "Columns to sort the data by. The value should be a JSON array of objects sent as a URL encoded\n        string.",
+        "description": "Columns to sort the data by. The value should be a JSON array of objects sent as a URL encoded string.",
         "required": false,
-        "schema": {
-          "type": "string",
-          "description": "JSON string containing an array of sort objects"
-        },
-        "example": "[{\"columnName\": \"Year\",\"direction\": \"ASC\"},{\"columnName\": \"Measure\",\"direction\": \"DESC\"}]"
+        "content": {
+          "application/json": {
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "columnName": {
+                    "type": "string"
+                  },
+                  "direction": {
+                    "type": "string",
+                    "enum": [
+                      "ASC",
+                      "DESC"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        }
       },
       "filter": {
         "name": "filter",
@@ -495,6 +577,35 @@
           "description": "JSON string containing an array of filter objects"
         },
         "example": "[{\"columnName\": \"Area\", \"values\": [\"England\",\"Wales\"]}, {\"columnName\": \"Year\", \"values\": [\"2020\"]}]"
+      },
+      "keywords": {
+        "name": "keywords",
+        "in": "query",
+        "description": "Search query string",
+        "required": true,
+        "schema": {
+          "type": "string"
+        }
+      },
+      "revision_id": {
+        "name": "revision_id",
+        "in": "path",
+        "description": "The unique identifier of the revision",
+        "required": true,
+        "schema": {
+          "type": "string",
+          "format": "uuid"
+        }
+      },
+      "filter_id": {
+        "name": "filter_id",
+        "in": "path",
+        "description": "Filter ID returned by the POST /data or POST /pivot endpoint",
+        "required": true,
+        "schema": {
+          "type": "string",
+          "format": "uuid"
+        }
       }
     },
     "schemas": {
@@ -989,6 +1100,167 @@
                 }
               }
             }
+          }
+        }
+      },
+      "FilterId": {
+        "type": "object",
+        "properties": {
+          "filterId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Unique identifier for the stored filter/query"
+          }
+        },
+        "example": {
+          "filterId": "3fa85f64-5717-4562-b3fc-2c963f66afa6"
+        }
+      },
+      "DataOptions": {
+        "type": "object",
+        "properties": {
+          "filters": {
+            "type": "array",
+            "description": "Filters to apply to the dataset",
+            "items": {
+              "type": "object",
+              "properties": {
+                "columnName": {
+                  "type": "string",
+                  "description": "The dimension column to filter on"
+                },
+                "values": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "The values to include"
+                }
+              }
+            },
+            "example": [
+              {
+                "columnName": "Year",
+                "values": [
+                  "2020",
+                  "2021"
+                ]
+              }
+            ]
+          },
+          "options": {
+            "type": "object",
+            "properties": {
+              "use_raw_column_names": {
+                "type": "boolean",
+                "description": "Use raw fact-table column names instead of dimension names",
+                "default": true
+              },
+              "use_reference_values": {
+                "type": "boolean",
+                "description": "Use reference codes instead of display values",
+                "default": true
+              },
+              "data_value_type": {
+                "type": "string",
+                "description": "How data values are returned",
+                "enum": [
+                  "raw",
+                  "with_note_codes"
+                ]
+              }
+            }
+          }
+        }
+      },
+      "PivotOptions": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/DataOptions"
+          },
+          {
+            "type": "object",
+            "required": [
+              "pivot"
+            ],
+            "properties": {
+              "pivot": {
+                "type": "object",
+                "required": [
+                  "x",
+                  "y"
+                ],
+                "properties": {
+                  "x": {
+                    "type": "string",
+                    "description": "Column to use as the pivot X axis"
+                  },
+                  "y": {
+                    "type": "string",
+                    "description": "Column to use as the pivot Y axis"
+                  },
+                  "backend": {
+                    "type": "string",
+                    "enum": [
+                      "postgres",
+                      "duckdb"
+                    ],
+                    "description": "Backend engine to use for the pivot (default: duckdb)"
+                  },
+                  "include_performance": {
+                    "type": "boolean",
+                    "description": "Include performance metadata in the response",
+                    "default": false
+                  }
+                }
+              }
+            }
+          }
+        ]
+      },
+      "QueryStore": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Unique identifier for the stored query"
+          },
+          "hash": {
+            "type": "string",
+            "description": "Hash of the query parameters for deduplication"
+          },
+          "datasetId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Dataset this query belongs to"
+          },
+          "revisionId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Revision this query belongs to"
+          },
+          "requestObject": {
+            "$ref": "#/components/schemas/DataOptions"
+          },
+          "totalLines": {
+            "type": "integer",
+            "description": "Total number of rows matching the query"
+          },
+          "columnMapping": {
+            "type": "array",
+            "description": "Mapping of fact-table column names to dimension display names",
+            "items": {
+              "type": "object"
+            }
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
           }
         }
       },
