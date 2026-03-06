@@ -188,15 +188,10 @@
         "description": "This endpoint returns a list of the filters available for a paginated view of a published dataset. These are based on the variables used in the dataset, for example local authorities or financial years.",
         "parameters": [
           {
-            "name": "dataset_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
+            "$ref": "#/components/parameters/language"
           },
           {
-            "$ref": "#/components/parameters/language"
+            "$ref": "#/components/parameters/dataset_id"
           }
         ],
         "responses": {

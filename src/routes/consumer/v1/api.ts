@@ -180,7 +180,8 @@ publicApiRouter.get(
     #swagger.description = 'This endpoint returns a list of the filters available for a paginated view of a published dataset. These are based on the variables used in the dataset, for example local authorities or financial years.'
     #swagger.autoQuery = false
     #swagger.parameters['$ref'] = [
-      '#/components/parameters/language'
+      '#/components/parameters/language',
+      '#/components/parameters/dataset_id'
     ]
     #swagger.responses[200] = {
       description: 'A list of the filters available for a paginated view of a published dataset',
