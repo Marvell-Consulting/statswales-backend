@@ -2,7 +2,7 @@ import { ConsumerRevisionDTO } from '../../src/dtos/consumer-revision-dto';
 import { Dimension } from '../../src/entities/dataset/dimension';
 import { Revision } from '../../src/entities/dataset/revision';
 import { DimensionType } from '../../src/enums/dimension-type';
-import { isPublished, revisionStartAndEndDateFinder } from '../../src/utils/revision';
+import { isPublished, revisionStartAndEndDateFinder, widenCoverageRange } from '../../src/utils/revision';
 
 describe('revision utils', () => {
   beforeEach(() => {
@@ -72,6 +72,87 @@ describe('revision utils', () => {
       dto.publish_at = '2025-05-15T00:00:00Z';
 
       expect(isPublished(dto)).toBe(false);
+    });
+  });
+
+  describe('widenCoverageRange', () => {
+    it('should set start and end when current has no existing dates', () => {
+      const result = widenCoverageRange(
+        { startDate: null, endDate: null },
+        { startDate: new Date('2020-01-01'), endDate: new Date('2023-12-31') }
+      );
+
+      expect(result.startDate).toEqual(new Date('2020-01-01'));
+      expect(result.endDate).toEqual(new Date('2023-12-31'));
+    });
+
+    it('should widen start date when incoming starts earlier', () => {
+      const result = widenCoverageRange(
+        { startDate: new Date('2021-01-01'), endDate: new Date('2023-12-31') },
+        { startDate: new Date('2020-01-01'), endDate: new Date('2023-12-31') }
+      );
+
+      expect(result.startDate).toEqual(new Date('2020-01-01'));
+    });
+
+    it('should widen end date when incoming ends later', () => {
+      const result = widenCoverageRange(
+        { startDate: new Date('2020-01-01'), endDate: new Date('2023-12-31') },
+        { startDate: new Date('2020-01-01'), endDate: new Date('2024-06-30') }
+      );
+
+      expect(result.endDate).toEqual(new Date('2024-06-30'));
+    });
+
+    it('should NOT narrow start date when incoming starts later', () => {
+      const result = widenCoverageRange(
+        { startDate: new Date('2020-01-01'), endDate: new Date('2023-12-31') },
+        { startDate: new Date('2021-06-01'), endDate: new Date('2023-12-31') }
+      );
+
+      expect(result.startDate).toEqual(new Date('2020-01-01'));
+    });
+
+    it('should NOT narrow end date when incoming ends earlier', () => {
+      const result = widenCoverageRange(
+        { startDate: new Date('2020-01-01'), endDate: new Date('2023-12-31') },
+        { startDate: new Date('2020-01-01'), endDate: new Date('2022-06-30') }
+      );
+
+      expect(result.endDate).toEqual(new Date('2023-12-31'));
+    });
+
+    it('should handle null incoming dates gracefully (no change)', () => {
+      const result = widenCoverageRange(
+        { startDate: new Date('2020-01-01'), endDate: new Date('2023-12-31') },
+        { startDate: null, endDate: null }
+      );
+
+      expect(result.startDate).toEqual(new Date('2020-01-01'));
+      expect(result.endDate).toEqual(new Date('2023-12-31'));
+    });
+
+    it('should widen correctly across multiple sequential calls (multiple dimensions)', () => {
+      let range = widenCoverageRange(
+        { startDate: null, endDate: null },
+        { startDate: new Date('2021-01-01'), endDate: new Date('2022-12-31') }
+      );
+      range = widenCoverageRange(range, { startDate: new Date('2019-06-01'), endDate: new Date('2024-06-30') });
+      range = widenCoverageRange(range, { startDate: new Date('2020-01-01'), endDate: new Date('2023-12-31') });
+
+      expect(range.startDate).toEqual(new Date('2019-06-01'));
+      expect(range.endDate).toEqual(new Date('2024-06-30'));
+    });
+
+    it('regression: should NOT narrow range when incoming is a subset', () => {
+      const result = widenCoverageRange(
+        { startDate: new Date('2020-01-01'), endDate: new Date('2023-12-31') },
+        { startDate: new Date('2021-01-01'), endDate: new Date('2022-12-31') }
+      );
+
+      // Range must stay 2020-2023, not narrow to 2021-2022
+      expect(result.startDate).toEqual(new Date('2020-01-01'));
+      expect(result.endDate).toEqual(new Date('2023-12-31'));
     });
   });
 
