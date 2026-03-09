@@ -100,26 +100,16 @@ jobs:
           context: .
           platforms: ${{ github.event_name == 'pull_request' && 'linux/amd64' || 'linux/amd64,linux/arm64' }}
           push: ${{ github.event_name != 'pull_request' }}
+          load: ${{ github.event_name == 'pull_request' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      # Export a single-platform image as tar for Trivy scanning.
-      # Uses cached layers from the build above so this is near-instant.
-      - name: Export image for scanning
-        uses: docker/build-push-action@d08e5c354a6adb9ed34480a06d141179aa583294 # v7.0.0
-        with:
-          context: .
-          platforms: linux/amd64
-          tags: ${{ steps.meta.outputs.tags }}
-          outputs: type=docker,dest=${{ github.workspace }}/image.tar
-          cache-from: type=gha
-
       - name: Fail on Trivy vulnerability scanner CRITICAL
         uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # 0.35.0
         with:
-          input: /github/workspace/image.tar
+          image-ref: ghcr.io/marvell-consulting/statswales-backend:${{ steps.meta.outputs.version }}
           exit-code: '1'
           ignore-unfixed: true
           vuln-type: 'os,library'
@@ -129,7 +119,7 @@ jobs:
       - name: Run Trivy vulnerability CRITICAL,HIGH
         uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # 0.35.0
         with:
-          input: /github/workspace/image.tar
+          image-ref: ghcr.io/marvell-consulting/statswales-backend:${{ steps.meta.outputs.version }}
           exit-code: '0'
           format: 'template'
           template: '@/contrib/sarif.tpl'
