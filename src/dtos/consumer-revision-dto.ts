@@ -22,6 +22,8 @@ export class ConsumerRevisionDTO {
   rounding_applied?: boolean;
   update_frequency?: UpdateFrequencyDTO;
   designation?: Designation;
+  coverage_start_date?: string;
+  coverage_end_date?: string;
   related_links?: RelatedLinkDTO[];
   providers?: RevisionProviderDTO[];
   topics?: TopicDTO[];
@@ -38,6 +40,8 @@ export class ConsumerRevisionDTO {
     revDto.unpublished_at = revision.unpublishedAt?.toISOString();
     revDto.approved_at = revision.approvedAt?.toISOString();
 
+    revDto.coverage_start_date = revision.startDate?.toISOString();
+    revDto.coverage_end_date = revision.endDate?.toISOString();
     revDto.rounding_applied = revision.roundingApplied;
     revDto.update_frequency = revision.updateFrequency;
     revDto.designation = revision.designation;
