@@ -710,6 +710,16 @@
             "format": "date-time",
             "description": "Publication date of the revision in ISO 8601 format"
           },
+          "coverage_start_date": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Start of the time period covered by the data in this revision, in ISO 8601 format. Only present for datasets with date-type dimensions."
+          },
+          "coverage_end_date": {
+            "type": "string",
+            "format": "date-time",
+            "description": "End of the time period covered by the data in this revision, in ISO 8601 format. Only present for datasets with date-type dimensions."
+          },
           "metadata": {
             "type": "array",
             "items": {
