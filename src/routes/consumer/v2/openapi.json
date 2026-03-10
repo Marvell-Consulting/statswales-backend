@@ -3,7 +3,7 @@
   "info": {
     "version": "2.0.0",
     "title": "StatsWales public API",
-    "description": "This page will help you use the public API for StatsWales. If you need any other support,\n      <a href=\"mailto:StatsWales@gov.wales\">contact StatsWales</a>.\n\n<h2>Quick start</h2>\n<p><code>GET /{dataset_id}/data</code> returns all rows for the latest published revision, paginated with default display options.</p>\n\n<h2>Filtering data</h2>\n<ol>\n  <li><strong>Discover filters</strong> — <code>GET /{dataset_id}/filters</code> returns every filterable dimension and its allowed values (column names and reference codes).</li>\n  <li><strong>Create a filter</strong> — <code>POST /{dataset_id}/data</code> with a JSON body containing your chosen filters and display options. Returns a reusable <code>filter_id</code> (UUID). Submitting identical filters returns the same ID.</li>\n  <li><strong>Fetch filtered data</strong> — <code>GET /{dataset_id}/data/{filter_id}</code> returns paginated rows matching your filter.</li>\n</ol>\n\n<h2>Pivot tables</h2>\n<ol>\n  <li><code>POST /{dataset_id}/pivot</code> with x/y axis columns and optional filters. Returns a <code>filter_id</code>.</li>\n  <li><code>GET /{dataset_id}/pivot/{filter_id}</code> returns the cross-tabulated view.</li>\n</ol>\n\n<h2>Display options</h2>\n<p>When creating a filter, you can include an <code>options</code> object:</p>\n<ul>\n  <li><code>use_raw_column_names</code> — when <code>true</code> (default), column headers use internal fact-table names (e.g. <code>AreaCode</code>); when <code>false</code>, they use human-readable dimension names (e.g. <code>Area</code>).</li>\n  <li><code>use_reference_values</code> — when <code>true</code> (default), cell values are reference codes (e.g. <code>K02000001</code>); when <code>false</code>, they are human-readable descriptions (e.g. <code>United Kingdom</code>).</li>\n  <li><code>data_value_type</code> — selects which cube view to use, controlling how data values are represented and which extra columns are included. Default: <code>raw</code>.</li>\n</ul>\n<table>\n  <tr><th><code>data_value_type</code></th><th>description</th></tr>\n  <tr><td><code>raw</code></td><td>Raw data values and dates (default)</td></tr>\n  <tr><td><code>raw_extended</code></td><td>Raw values plus reference codes, hierarchies, and sort orders</td></tr>\n  <tr><td><code>formatted</code></td><td>Formatted data values, no dates</td></tr>\n  <tr><td><code>formatted_extended</code></td><td>Formatted values and dates plus reference codes, hierarchies, and sort orders</td></tr>\n  <tr><td><code>with_note_codes</code></td><td>Data values annotated with note markers</td></tr>\n</table>\n\n<h2>Language</h2>\n<p>Add <code>?lang=cy</code> to any request to receive Welsh-language labels and descriptions. Defaults to English (<code>en-gb</code>).</p>"
+    "description": "This page will help you use the public API for StatsWales. If you need any other support,\n      <a href=\"mailto:StatsWales@gov.wales\">contact StatsWales</a>.\n\n<h2>Quick start</h2>\n<p><code>GET /{dataset_id}/data</code> returns all rows for the latest published revision, paginated with default display options.</p>\n\n<h2>Filtering data</h2>\n<ol>\n  <li><strong>Discover filters</strong> — <code>GET /{dataset_id}/filters</code> returns every filterable dimension and its allowed values (column names and reference codes).</li>\n  <li><strong>Create a filter</strong> — <code>POST /{dataset_id}/data</code> with a JSON body containing your chosen filters and display options. Returns a reusable <code>filter_id</code> (12-character string identifier). Submitting identical filters returns the same ID.</li>\n  <li><strong>Fetch filtered data</strong> — <code>GET /{dataset_id}/data/{filter_id}</code> returns paginated rows matching your filter.</li>\n</ol>\n\n<h2>Pivot tables</h2>\n<ol>\n  <li><code>POST /{dataset_id}/pivot</code> with x/y axis columns and optional filters. Returns a <code>filter_id</code>.</li>\n  <li><code>GET /{dataset_id}/pivot/{filter_id}</code> returns the cross-tabulated view.</li>\n</ol>\n\n<h2>Display options</h2>\n<p>When creating a filter, you can include an <code>options</code> object:</p>\n<ul>\n  <li><code>use_raw_column_names</code> — when <code>true</code> (default), column headers use internal fact-table names (e.g. <code>AreaCode</code>); when <code>false</code>, they use human-readable dimension names (e.g. <code>Area</code>).</li>\n  <li><code>use_reference_values</code> — when <code>true</code> (default), cell values are reference codes (e.g. <code>K02000001</code>); when <code>false</code>, they are human-readable descriptions (e.g. <code>United Kingdom</code>).</li>\n  <li><code>data_value_type</code> — selects which cube view to use, controlling how data values are represented and which extra columns are included. Default: <code>raw</code>.</li>\n</ul>\n<table>\n  <tr><th><code>data_value_type</code></th><th>description</th></tr>\n  <tr><td><code>raw</code></td><td>Raw data values and dates (default)</td></tr>\n  <tr><td><code>raw_extended</code></td><td>Raw values plus reference codes, hierarchies, and sort orders</td></tr>\n  <tr><td><code>formatted</code></td><td>Formatted data values, no dates</td></tr>\n  <tr><td><code>formatted_extended</code></td><td>Formatted values and dates plus reference codes, hierarchies, and sort orders</td></tr>\n  <tr><td><code>with_note_codes</code></td><td>Data values annotated with note markers</td></tr>\n</table>\n\n<h2>Language</h2>\n<p>Add <code>?lang=cy</code> to any request to receive Welsh-language labels and descriptions. Defaults to English (<code>en-gb</code>).</p>"
   },
   "servers": [
     {
@@ -667,8 +667,7 @@
         "description": "Filter ID returned by the POST /data or POST /pivot endpoint",
         "required": true,
         "schema": {
-          "type": "string",
-          "format": "uuid"
+          "type": "string"
         }
       }
     },
@@ -1188,12 +1187,11 @@
         "properties": {
           "filterId": {
             "type": "string",
-            "format": "uuid",
-            "description": "UUID for the stored query. Pass this to GET /{dataset_id}/data/{filter_id} or GET /{dataset_id}/pivot/{filter_id} to retrieve filtered results."
+            "description": "Identifier for the stored query. Pass this to GET /{dataset_id}/data/{filter_id} or GET /{dataset_id}/pivot/{filter_id} to retrieve filtered results."
           }
         },
         "example": {
-          "filterId": "3fa85f64-5717-4562-b3fc-2c963f66afa6"
+          "filterId": "a1b2c3d4e5f6"
         }
       },
       "DataOptions": {
@@ -1248,7 +1246,8 @@
                   "formatted",
                   "formatted_extended",
                   "with_note_codes"
-                ]
+                ],
+                "default": "raw"
               }
             }
           }

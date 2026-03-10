@@ -17,7 +17,7 @@ export const schemaV2 = {
 <h2>Filtering data</h2>
 <ol>
   <li><strong>Discover filters</strong> — <code>GET /{dataset_id}/filters</code> returns every filterable dimension and its allowed values (column names and reference codes).</li>
-  <li><strong>Create a filter</strong> — <code>POST /{dataset_id}/data</code> with a JSON body containing your chosen filters and display options. Returns a reusable <code>filter_id</code> (UUID). Submitting identical filters returns the same ID.</li>
+  <li><strong>Create a filter</strong> — <code>POST /{dataset_id}/data</code> with a JSON body containing your chosen filters and display options. Returns a reusable <code>filter_id</code> (12-character string identifier). Submitting identical filters returns the same ID.</li>
   <li><strong>Fetch filtered data</strong> — <code>GET /{dataset_id}/data/{filter_id}</code> returns paginated rows matching your filter.</li>
 </ol>
 
@@ -159,7 +159,7 @@ export const schemaV2 = {
         in: 'path',
         description: 'Filter ID returned by the POST /data or POST /pivot endpoint',
         required: true,
-        schema: { type: 'string', format: 'uuid' }
+        schema: { type: 'string' }
       }
     },
     '@schemas': {
@@ -519,12 +519,11 @@ export const schemaV2 = {
         properties: {
           filterId: {
             type: 'string',
-            format: 'uuid',
             description:
-              'UUID for the stored query. Pass this to GET /{dataset_id}/data/{filter_id} or GET /{dataset_id}/pivot/{filter_id} to retrieve filtered results.'
+              'Identifier for the stored query. Pass this to GET /{dataset_id}/data/{filter_id} or GET /{dataset_id}/pivot/{filter_id} to retrieve filtered results.'
           }
         },
-        example: { filterId: '3fa85f64-5717-4562-b3fc-2c963f66afa6' }
+        example: { filterId: 'a1b2c3d4e5f6' }
       },
       DataOptions: {
         type: 'object',
@@ -563,7 +562,8 @@ export const schemaV2 = {
                 type: 'string',
                 description:
                   'Selects the cube view used for data output. raw (default): raw data values and dates. raw_extended: raw values plus reference codes, hierarchies, and sort orders. formatted: formatted data values, no dates. formatted_extended: formatted values and dates plus reference codes, hierarchies, and sort orders. with_note_codes: data values annotated with note markers.',
-                enum: Object.values(DataValueType)
+                enum: Object.values(DataValueType),
+                default: DataValueType.Raw
               }
             }
           }
