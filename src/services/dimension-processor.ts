@@ -28,6 +28,7 @@ import { getFileService } from '../utils/get-file-service';
 import { FACT_TABLE_NAME, makeCubeSafeString, VALIDATION_TABLE_NAME } from './cube-builder';
 import { YearType } from '../enums/year-type';
 import { dbManager } from '../db/database-manager';
+import { widenCoverageRange } from '../utils/revision';
 import { FileType } from '../enums/file-type';
 import { previewGenerator, sampleSize } from '../utils/preview-generator';
 import { cleanUpPostgresValidationSchema, createPostgresValidationSchema } from '../utils/mock-cube-handler';
@@ -690,17 +691,12 @@ export const createAndValidateDateDimension = async (
     }
   }
 
-  if (!revision.startDate) {
-    revision.startDate = extractor.lookupTableStart;
-  } else if (revision.startDate < extractor.lookupTableStart) {
-    revision.startDate = extractor.lookupTableStart;
-  }
-
-  if (!revision.endDate) {
-    revision.endDate = extractor.lookupTableEnd;
-  } else if (revision.endDate > extractor.lookupTableEnd) {
-    revision.endDate = extractor.lookupTableEnd;
-  }
+  const widened = widenCoverageRange(
+    { startDate: revision.startDate, endDate: revision.endDate },
+    { startDate: extractor.lookupTableStart, endDate: extractor.lookupTableEnd }
+  );
+  revision.startDate = widened.startDate;
+  revision.endDate = widened.endDate;
 
   await revision.save();
 

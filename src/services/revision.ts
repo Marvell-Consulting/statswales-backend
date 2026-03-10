@@ -32,7 +32,7 @@ import { validateLookupTableReferenceValues } from '../utils/lookup-table-utils'
 import { MeasureRow } from '../entities/dataset/measure-row';
 import { DateExtractor } from '../extractors/date-extractor';
 import { config } from '../config';
-import { revisionStartAndEndDateFinder } from '../utils/revision';
+import { revisionStartAndEndDateFinder, widenCoverageRange } from '../utils/revision';
 import { factTableValidatorFromSource, sourceAssignmentFromFactTable } from './fact-table-validator';
 
 export async function attachUpdateDataTableToRevision(
@@ -217,17 +217,9 @@ export async function attachUpdateDataTableToRevision(
     await dim.save();
   }
   const coverage = revisionStartAndEndDateFinder(dimensionToUpdate);
-  if (!revision.startDate) {
-    revision.startDate = coverage.startDate;
-  } else if (coverage.startDate && revision.startDate > coverage.startDate) {
-    revision.startDate = coverage.startDate;
-  }
-
-  if (!revision.endDate) {
-    revision.endDate = coverage.endDate;
-  } else if (coverage.endDate && revision.endDate < coverage.endDate) {
-    revision.endDate = coverage.endDate;
-  }
+  const widened = widenCoverageRange({ startDate: revision.startDate, endDate: revision.endDate }, coverage);
+  revision.startDate = widened.startDate;
+  revision.endDate = widened.endDate;
 
   revision.tasks = revisionTasks;
   await revision.save();
