@@ -32,8 +32,16 @@ export const schemaV2 = {
 <ul>
   <li><code>use_raw_column_names</code> — when <code>true</code> (default), column headers use internal fact-table names (e.g. <code>AreaCode</code>); when <code>false</code>, they use human-readable dimension names (e.g. <code>Area</code>).</li>
   <li><code>use_reference_values</code> — when <code>true</code> (default), cell values are reference codes (e.g. <code>K02000001</code>); when <code>false</code>, they are human-readable descriptions (e.g. <code>United Kingdom</code>).</li>
-  <li><code>data_value_type</code> — controls how the data/measure value column is returned: <code>by_data_and_notes</code>, <code>by_data</code>, or <code>by_notes</code>.</li>
+  <li><code>data_value_type</code> — selects which cube view to use, controlling how data values are represented and which extra columns are included. Default: <code>raw</code>.</li>
 </ul>
+<table>
+  <tr><th><code>data_value_type</code></th><th>description</th></tr>
+  <tr><td><code>raw</code></td><td>Raw data values and dates (default)</td></tr>
+  <tr><td><code>raw_extended</code></td><td>Raw values plus reference codes, hierarchies, and sort orders</td></tr>
+  <tr><td><code>formatted</code></td><td>Formatted data values, no dates</td></tr>
+  <tr><td><code>formatted_extended</code></td><td>Formatted values and dates plus reference codes, hierarchies, and sort orders</td></tr>
+  <tr><td><code>with_note_codes</code></td><td>Data values annotated with note markers</td></tr>
+</table>
 
 <h2>Language</h2>
 <p>Add <code>?lang=cy</code> to any request to receive Welsh-language labels and descriptions. Defaults to English (<code>en-gb</code>).</p>`
@@ -554,7 +562,7 @@ export const schemaV2 = {
               data_value_type: {
                 type: 'string',
                 description:
-                  'Controls how the data/measure value column is returned: by_data_and_notes (default — value and notes combined), by_data (value only), or by_notes (notes only).',
+                  'Selects the cube view used for data output. raw (default): raw data values and dates. raw_extended: raw values plus reference codes, hierarchies, and sort orders. formatted: formatted data values, no dates. formatted_extended: formatted values and dates plus reference codes, hierarchies, and sort orders. with_note_codes: data values annotated with note markers.',
                 enum: Object.values(DataValueType)
               }
             }
