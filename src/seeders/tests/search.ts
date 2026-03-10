@@ -118,14 +118,15 @@ export class SearchSeeder {
           publishedRevision: revision
         }).save();
 
+        if (dataset) {
+          datasets.push(dataset);
+        }
+
         await delay(API_DELAY_MS);
       } catch (err) {
         logger.warn(`Failed to fetch metadata for dataset ${liveDataset.id}: ${err}`);
         // skip dataset and continue with the next one
-      }
-
-      if (dataset) {
-        datasets.push(dataset);
+        dataset = undefined;
       }
     }
 
