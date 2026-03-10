@@ -19,8 +19,8 @@ import { hasError, formatValidator } from '../validators';
 import { TopicDTO } from '../dtos/topic-dto';
 import { PublishedTopicsDTO } from '../dtos/published-topics-dto';
 import { TopicRepository } from '../repositories/topic';
-import { SortByInterface } from '../interfaces/sort-by-interface';
 import { FilterInterface } from '../interfaces/filterInterface';
+import { parseSortByToObjects } from '../utils/parse-sort-by-param';
 import { DownloadFormat } from '../enums/download-format';
 import { DEFAULT_PAGE_SIZE } from '../utils/page-defaults';
 import { UserGroupRepository } from '../repositories/user-group';
@@ -67,15 +67,9 @@ export const getPublishedDatasetView = async (req: Request, res: Response): Prom
 
   const pageNumber: number = Number.parseInt(req.query.page_number as string, 10) || 1;
   const pageSize: number = Number.parseInt(req.query.page_size as string, 10) || DEFAULT_PAGE_SIZE;
-  let sortBy: SortByInterface[] | undefined;
   let filter: FilterInterface[] | undefined;
 
-  try {
-    sortBy = req.query.sort_by ? (JSON.parse(req.query.sort_by as string) as SortByInterface[]) : undefined;
-  } catch (err) {
-    logger.warn(err, 'Error parsing sort_by query parameters');
-    throw new BadRequestException('errors.sort_by.invalid');
-  }
+  const sortBy = parseSortByToObjects(req.query.sort_by as string);
 
   try {
     filter = req.query.filter ? (JSON.parse(req.query.filter as string) as FilterInterface[]) : undefined;
@@ -119,15 +113,9 @@ export const downloadPublishedDataset = async (req: Request, res: Response, next
   const format = req.params.format;
   const view = req.query.view as string;
   const dataset = await PublishedDatasetRepository.getById(res.locals.datasetId, withAll);
-  let sortBy: SortByInterface[] | undefined;
   let filter: FilterInterface[] | undefined;
 
-  try {
-    sortBy = req.query.sort_by ? (JSON.parse(req.query.sort_by as string) as SortByInterface[]) : undefined;
-  } catch (err) {
-    logger.warn(err, 'Error parsing sort_by query parameters');
-    throw new BadRequestException('errors.sort_by.invalid');
-  }
+  const sortBy = parseSortByToObjects(req.query.sort_by as string);
 
   try {
     filter = req.query.filter ? (JSON.parse(req.query.filter as string) as FilterInterface[]) : undefined;
@@ -231,10 +219,11 @@ export const listSubTopics = async (req: Request, res: Response, next: NextFunct
     return;
   }
 
-  const sortBy: SortByInterface[] = req.query.sort_by ? JSON.parse(req.query.sort_by as string) : [];
+  const allowedColumns = ['first_published_at', 'last_updated_at', 'title'];
+  const sortBy = parseSortByToObjects(req.query.sort_by as string) ?? [];
 
   sortBy.forEach((sort) => {
-    if (!['first_published_at', 'last_updated_at', 'title'].includes(sort.columnName)) {
+    if (!allowedColumns.includes(sort.columnName)) {
       throw new BadRequestException('errors.invalid_sort_by');
     }
   });

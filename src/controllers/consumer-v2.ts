@@ -11,7 +11,6 @@ import { OutputFormats } from '../enums/output-formats';
 import { TopicDTO } from '../dtos/topic-dto';
 import { PublishedTopicsDTO } from '../dtos/published-topics-dto';
 import { TopicRepository } from '../repositories/topic';
-import { SortByInterface } from '../interfaces/sort-by-interface';
 import { DEFAULT_PAGE_SIZE } from '../utils/page-defaults';
 import { ConsumerRevisionDTO } from '../dtos/consumer-revision-dto';
 import {
@@ -43,7 +42,7 @@ import {
   resolveDimensionToFactTableColumn,
   resolveFactColumnToDimension
 } from '../utils/consumer';
-import { sortObjToString } from '../utils/sort-obj-to-string';
+import { parseSortByParam, parseSortByToObjects } from '../utils/parse-sort-by-param';
 import { ConsumerDatasetDTO } from '../dtos/consumer-dataset-dto';
 import { PublisherDTO } from '../dtos/publisher-dto';
 import { UserGroupRepository } from '../repositories/user-group';
@@ -106,14 +105,7 @@ async function parsePivotPageOptions(req: Request, validateXY = true): Promise<P
   }
 
   const params = matchedData(req);
-  let sort: string[] = [];
-
-  try {
-    const sortBy = req.query.sort_by ? (JSON.parse(req.query.sort_by as string) as SortByInterface[]) : undefined;
-    sort = sortBy ? sortObjToString(sortBy) : [];
-  } catch (_err) {
-    throw new BadRequestException('errors.invalid_sort_by');
-  }
+  const sort = parseSortByParam(req.query.sort_by as string);
   let xAxis: string | string[] | undefined = undefined;
   let yAxis: string | string[] | undefined = undefined;
   if (validateXY) {
@@ -419,10 +411,11 @@ export const listSubTopics = async (req: Request, res: Response, next: NextFunct
     return;
   }
 
-  const sortBy: SortByInterface[] = req.query.sort_by ? JSON.parse(req.query.sort_by as string) : [];
+  const allowedColumns = ['first_published_at', 'last_updated_at', 'title'];
+  const sortBy = parseSortByToObjects(req.query.sort_by as string) ?? [];
 
   sortBy.forEach((sort) => {
-    if (!['first_published_at', 'last_updated_at', 'title'].includes(sort.columnName)) {
+    if (!allowedColumns.includes(sort.columnName)) {
       throw new BadRequestException('errors.invalid_sort_by');
     }
   });

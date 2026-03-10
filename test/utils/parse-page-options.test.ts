@@ -269,18 +269,48 @@ describe('parsePageOptions', () => {
       expect(result.sort).toEqual([]);
     });
 
+    it('should parse new colon format with single column', async () => {
+      mockRequest.query = {
+        sort_by: 'name:asc'
+      };
+
+      const result = await parsePageOptions(mockRequest as Request);
+
+      expect(result.sort).toEqual(['name|asc']);
+    });
+
+    it('should parse new colon format with multiple columns', async () => {
+      mockRequest.query = {
+        sort_by: 'name:asc,age:desc'
+      };
+
+      const result = await parsePageOptions(mockRequest as Request);
+
+      expect(result.sort).toEqual(['name|asc', 'age|desc']);
+    });
+
+    it('should parse new colon format with default direction', async () => {
+      mockRequest.query = {
+        sort_by: 'name'
+      };
+
+      const result = await parsePageOptions(mockRequest as Request);
+
+      expect(result.sort).toEqual(['name|asc']);
+    });
+
     it('should throw BadRequestException when sort_by is invalid JSON', async () => {
       mockRequest.query = {
-        sort_by: 'invalid-json'
+        sort_by: '[invalid-json'
       };
 
       await expect(parsePageOptions(mockRequest as Request)).rejects.toThrow(BadRequestException);
       await expect(parsePageOptions(mockRequest as Request)).rejects.toThrow('errors.invalid_sort_by');
     });
 
-    it('should throw BadRequestException when sort_by is malformed', async () => {
+    it('should throw BadRequestException when sort_by has invalid direction', async () => {
       mockRequest.query = {
-        sort_by: '{"columnName": "test"'
+        sort_by: 'name:up'
       };
 
       await expect(parsePageOptions(mockRequest as Request)).rejects.toThrow(BadRequestException);
