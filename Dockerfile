@@ -15,7 +15,7 @@ RUN npm run build
 # This is the deployable image
 FROM node:24-slim AS runner
 
-RUN apt update && apt upgrade -y && apt install -y --no-install-recommends curl
+RUN apt-get update && apt-get upgrade -y && apt-get install -y --no-install-recommends curl && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
