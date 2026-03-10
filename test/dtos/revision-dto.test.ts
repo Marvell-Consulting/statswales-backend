@@ -2,7 +2,7 @@ jest.mock('../../src/dtos/data-table-dto', () => ({
   DataTableDto: { fromDataTable: jest.fn().mockReturnValue({ id: 'dt-stub' }) }
 }));
 
-jest.mock('../../src/dtos/revistion-metadata-dto', () => ({
+jest.mock('../../src/dtos/revision-metadata-dto', () => ({
   RevisionMetadataDTO: { fromRevisionMetadata: jest.fn().mockReturnValue({ id: 'meta-stub' }) }
 }));
 
@@ -21,7 +21,7 @@ jest.mock('../../src/dtos/related-link-dto', () => ({
 import { Revision } from '../../src/entities/dataset/revision';
 import { RevisionDTO } from '../../src/dtos/revision-dto';
 import { DataTableDto } from '../../src/dtos/data-table-dto';
-import { RevisionMetadataDTO } from '../../src/dtos/revistion-metadata-dto';
+import { RevisionMetadataDTO } from '../../src/dtos/revision-metadata-dto';
 import { RevisionProviderDTO } from '../../src/dtos/revision-provider-dto';
 import { TopicDTO } from '../../src/dtos/topic-dto';
 import { RelatedLinkDTO } from '../../src/dtos/related-link-dto';

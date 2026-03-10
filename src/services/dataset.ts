@@ -1,7 +1,7 @@
 import { In, JsonContains } from 'typeorm';
 
 import { format as pgformat } from '@scaleleap/pg-format';
-import { RevisionMetadataDTO } from '../dtos/revistion-metadata-dto';
+import { RevisionMetadataDTO } from '../dtos/revision-metadata-dto';
 import { TranslationDTO } from '../dtos/translations-dto';
 import { Dataset } from '../entities/dataset/dataset';
 import { User } from '../entities/user/user';

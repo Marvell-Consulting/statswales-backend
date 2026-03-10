@@ -16,7 +16,7 @@ import { User } from '../../entities/user/user';
 import { RevisionMetadata } from '../../entities/dataset/revision-metadata';
 import { Locale } from '../../enums/locale';
 import { DatasetDTO } from '../../dtos/dataset-dto';
-import { RevisionMetadataDTO } from '../../dtos/revistion-metadata-dto';
+import { RevisionMetadataDTO } from '../../dtos/revision-metadata-dto';
 import { DatasetListItemDTO } from '../../dtos/dataset-list-item-dto';
 import { ResultsetWithCount } from '../../interfaces/resultset-with-count';
 import { uuidV4 } from '../../utils/uuid';
@@ -61,7 +61,7 @@ export class SearchSeeder {
     const datasets: Dataset[] = [];
 
     for (const liveDataset of liveDatasets.data) {
-      let dataset: Dataset;
+      let dataset: Dataset | undefined;
       let publishedRevMeta: RevisionMetadataDTO[] | undefined;
       const firstPublishedAt = new Date(liveDataset.first_published_at || Date.now());
 
@@ -83,6 +83,9 @@ export class SearchSeeder {
           firstPublishedAt
         }).save();
 
+        const englishMeta = publishedRevMeta?.find((meta) => meta.language === Locale.EnglishGb);
+        const welshMeta = publishedRevMeta?.find((meta) => meta.language === Locale.WelshGb);
+
         const revision = await Revision.create({
           id: fullDatasetDTO.published_revision?.id || uuidV4(),
           revisionIndex: 1,
@@ -94,17 +97,17 @@ export class SearchSeeder {
           metadata: [
             RevisionMetadata.create({
               language: Locale.EnglishGb,
-              title: publishedRevMeta?.find((meta) => meta.language === Locale.EnglishGb)?.title,
-              summary: publishedRevMeta?.find((meta) => meta.language === Locale.EnglishGb)?.summary,
-              collection: publishedRevMeta?.find((meta) => meta.language === Locale.EnglishGb)?.collection,
-              quality: publishedRevMeta?.find((meta) => meta.language === Locale.EnglishGb)?.quality
+              title: englishMeta?.title,
+              summary: englishMeta?.summary,
+              collection: englishMeta?.collection,
+              quality: englishMeta?.quality
             }),
             RevisionMetadata.create({
               language: Locale.WelshGb,
-              title: publishedRevMeta?.find((meta) => meta.language === Locale.WelshGb)?.title,
-              summary: publishedRevMeta?.find((meta) => meta.language === Locale.WelshGb)?.summary,
-              collection: publishedRevMeta?.find((meta) => meta.language === Locale.WelshGb)?.collection,
-              quality: publishedRevMeta?.find((meta) => meta.language === Locale.WelshGb)?.quality
+              title: welshMeta?.title,
+              summary: welshMeta?.summary,
+              collection: welshMeta?.collection,
+              quality: welshMeta?.quality
             })
           ]
         }).save();
@@ -115,11 +118,14 @@ export class SearchSeeder {
           publishedRevision: revision
         }).save();
 
-        datasets.push(dataset);
         await delay(API_DELAY_MS);
       } catch (err) {
         logger.warn(`Failed to fetch metadata for dataset ${liveDataset.id}: ${err}`);
         // skip dataset and continue with the next one
+      }
+
+      if (dataset) {
+        datasets.push(dataset);
       }
     }
 

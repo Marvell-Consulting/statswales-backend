@@ -4,7 +4,7 @@ import { RevisionTopic } from '../entities/dataset/revision-topic';
 import { Designation } from '../enums/designation';
 import { RelatedLinkDTO } from './related-link-dto';
 import { RevisionProviderDTO } from './revision-provider-dto';
-import { RevisionMetadataDTO } from './revistion-metadata-dto';
+import { RevisionMetadataDTO } from './revision-metadata-dto';
 import { TopicDTO } from './topic-dto';
 import { UpdateFrequencyDTO } from './update-frequency-dto';
 

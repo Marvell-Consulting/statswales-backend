@@ -9,7 +9,7 @@ import { User } from '../entities/user/user';
 import { RevisionMetadata } from '../entities/dataset/revision-metadata';
 import { SUPPORTED_LOCALES } from '../middleware/translation';
 import { Locale } from '../enums/locale';
-import { RevisionMetadataDTO } from '../dtos/revistion-metadata-dto';
+import { RevisionMetadataDTO } from '../dtos/revision-metadata-dto';
 import { RevisionProvider } from '../entities/dataset/revision-provider';
 import { RevisionTopic } from '../entities/dataset/revision-topic';
 
