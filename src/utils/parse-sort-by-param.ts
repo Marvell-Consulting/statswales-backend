@@ -24,7 +24,7 @@ export function parseSortByParam(raw: string | undefined): string[] {
 
   try {
     return raw.split(',').map((segment) => {
-      const [column, direction] = segment.split(':');
+      const [column, direction] = segment.trim().split(':');
       if (!column) throw new Error('empty column name');
       const dir = (direction || 'asc').toLowerCase();
       if (dir !== 'asc' && dir !== 'desc') throw new Error(`invalid direction: ${dir}`);
