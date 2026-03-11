@@ -362,7 +362,7 @@
           "Pivot"
         ],
         "summary": "Generate a filter ID for a specific pivot query",
-        "description": "<p>Generates a filter ID for a chosen combination of pivot configuration, filters and  display options. This ID is always the same for the same combinations.</p>  <p>You need to create a JSON body that contains sections for ‘pivot’, ‘filters’ and ‘options’.</p>  <p>The ‘pivot’ section should contain the variables you want use for the:</p>  <ul>  <li>columns of the pivot table, or “x” axis</li>  <li>rows of the pivot table, or “y” axis</li>  </ul>  <p>You can find out what the ‘filters’ and ‘options’ sections should include in the ‘Generate a filter ID for a  specific query’ endpoint.</p>",
+        "description": "<p>Generates a filter ID for a chosen combination of pivot configuration, filters and  display options. This ID is always the same for the same combinations.</p>  <p>You need to send a JSON body that contains sections for ‘pivot’, ‘filters’ and ‘options’.</p>  <p>The ‘pivot’ section should contain the variables you want use for the:</p>  <ul>  <li>columns of the pivot table, or “x” axis</li>  <li>rows of the pivot table, or “y” axis</li>  </ul>  <p>You can find out what the ‘filters’ and ‘options’ sections should include in the ‘Generate a filter ID for a  specific query’ endpoint.</p>",
         "parameters": [
           {
             "$ref": "#/components/parameters/dataset_id"

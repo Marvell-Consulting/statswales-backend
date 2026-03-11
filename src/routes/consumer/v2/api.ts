@@ -355,7 +355,7 @@ publicApiV2Router.post(
     #swagger.summary = "Generate a filter ID for a specific pivot query"
     #swagger.description = "<p>Generates a filter ID for a chosen combination of pivot configuration, filters and
       display options. This ID is always the same for the same combinations.</p>
-      <p>You need to create a JSON body that contains sections for ‘pivot’, ‘filters’ and ‘options’.</p>
+      <p>You need to send a JSON body that contains sections for ‘pivot’, ‘filters’ and ‘options’.</p>
       <p>The ‘pivot’ section should contain the variables you want use for the:</p>
       <ul>
         <li>columns of the pivot table, or “x” axis</li>
