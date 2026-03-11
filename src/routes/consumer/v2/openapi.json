@@ -216,39 +216,6 @@
         }
       }
     },
-    "/{dataset_id}/revision/{revision_id}": {
-      "get": {
-        "tags": [
-          "Datasets"
-        ],
-        "summary": "Get metadata for a specific published revision",
-        "description": "Returns metadata for a specific published revision of a dataset. You can get revision IDs  from the ‘Get a published dataset's metadata’ endpoint.",
-        "parameters": [
-          {
-            "$ref": "#/components/parameters/language"
-          },
-          {
-            "$ref": "#/components/parameters/dataset_id"
-          },
-          {
-            "$ref": "#/components/parameters/revision_id"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Metadata for the requested revision in the requested language",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SingleLanguageRevision"
-                }
-              }
-            }
-          }
-        },
-        "autoQuery": false
-      }
-    },
     "/{dataset_id}/filters": {
       "get": {
         "tags": [

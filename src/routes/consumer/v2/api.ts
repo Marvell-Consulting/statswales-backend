@@ -202,26 +202,7 @@ publicApiV2Router.get(
   '/:dataset_id/revision/:revision_id',
   ensurePublishedDataset,
   ensurePublishedRevision,
-  /*
-    #swagger.tags = ['Datasets']
-    #swagger.summary = "Get metadata for a specific published revision"
-    #swagger.description = "Returns metadata for a specific published revision of a dataset. You can get revision IDs
-      from the ‘Get a published dataset's metadata’ endpoint."
-    #swagger.autoQuery = false
-    #swagger.parameters['$ref'] = [
-      '#/components/parameters/language',
-      '#/components/parameters/dataset_id',
-      '#/components/parameters/revision_id'
-    ]
-    #swagger.responses[200] = {
-      description: 'Metadata for the requested revision in the requested language',
-      content: {
-        'application/json': {
-          schema: { $ref: "#/components/schemas/SingleLanguageRevision" }
-        }
-      }
-    }
-  */
+  /* #swagger.ignore = true */
   getPublishedRevisionById
 );
 
