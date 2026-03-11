@@ -118,13 +118,14 @@ publicApiV2Router.get(
       '#/components/parameters/language',
       '#/components/parameters/page_number',
       '#/components/parameters/page_size',
-      '#/components/parameters/keywords'
+      '#/components/parameters/keywords',
+      '#/components/parameters/search_mode'
     ]
     #swagger.responses[200] = {
       description: 'A paginated list of matching published datasets',
       content: {
         'application/json': {
-          schema: { $ref: "#/components/schemas/DatasetsWithCount" }
+          schema: { $ref: "#/components/schemas/SearchResultsWithCount" }
         }
       }
     }
@@ -200,7 +201,7 @@ publicApiV2Router.get(
   /*
     #swagger.tags = ['Datasets']
     #swagger.summary = 'Get a specific published revision by ID'
-    #swagger.description = 'Returns metadata for a specific published revision. Use the dataset metadata endpoint to discover available revision IDs.'
+    #swagger.description = 'Returns metadata for a specific published revision, filtered to the requested language. Use the dataset metadata endpoint to discover available revision IDs.'
     #swagger.autoQuery = false
     #swagger.parameters['$ref'] = [
       '#/components/parameters/language',
@@ -208,10 +209,10 @@ publicApiV2Router.get(
       '#/components/parameters/revision_id'
     ]
     #swagger.responses[200] = {
-      description: 'Metadata for the requested revision',
+      description: 'Metadata for the requested revision in the requested language',
       content: {
         'application/json': {
-          schema: { $ref: "#/components/schemas/Revision" }
+          schema: { $ref: "#/components/schemas/SingleLanguageRevision" }
         }
       }
     }
@@ -250,7 +251,7 @@ publicApiV2Router.post(
   /*
     #swagger.tags = ['Data']
     #swagger.summary = 'Generate a filter ID for a dataset query'
-    #swagger.description = 'Stores row filters and display options as a reusable query. Returns a filter ID (UUID) for use with GET /{dataset_id}/data/{filter_id}. Submitting identical filters returns the same ID.'
+    #swagger.description = 'Stores row filters and display options as a reusable query. Returns a 12-character filter ID for use with GET /{dataset_id}/data/{filter_id}. Submitting identical filters returns the same ID.'
     #swagger.autoQuery = false
     #swagger.parameters['$ref'] = ['#/components/parameters/dataset_id']
     #swagger.requestBody = {
@@ -309,7 +310,7 @@ publicApiV2Router.get(
   /*
     #swagger.tags = ['Data']
     #swagger.summary = 'Get paginated data for a dataset'
-    #swagger.description = 'Returns all rows for the latest published revision, paginated, with default display options. To apply filters, first create a filter via POST /{dataset_id}/data, then use GET /{dataset_id}/data/{filter_id}.'
+    #swagger.description = 'Returns rows for the latest published revision as a JSON array of objects. Each object has column names as keys. The response includes a Content-Disposition header for download. To apply filters, first create a filter via POST /{dataset_id}/data, then use GET /{dataset_id}/data/{filter_id}.'
     #swagger.autoQuery = false
     #swagger.parameters['$ref'] = [
       '#/components/parameters/language',
@@ -319,10 +320,10 @@ publicApiV2Router.get(
       '#/components/parameters/sort_by'
     ]
     #swagger.responses[200] = {
-      description: 'A paginated view of the dataset data',
+      description: 'A JSON array of data row objects',
       content: {
         'application/json': {
-          schema: { $ref: "#/components/schemas/DatasetView" }
+          schema: { type: 'array', items: { $ref: "#/components/schemas/DataRow" } }
         }
       }
     }
@@ -336,7 +337,7 @@ publicApiV2Router.get(
   /*
     #swagger.tags = ['Data']
     #swagger.summary = 'Get paginated data for a dataset using a stored filter'
-    #swagger.description = 'Returns paginated data filtered and formatted according to the stored filter ID. Create a filter ID by POSTing to /{dataset_id}/data.'
+    #swagger.description = 'Returns data filtered and formatted according to the stored filter ID as a JSON array of objects. Create a filter ID by POSTing to /{dataset_id}/data.'
     #swagger.autoQuery = false
     #swagger.parameters['$ref'] = [
       '#/components/parameters/language',
@@ -347,10 +348,10 @@ publicApiV2Router.get(
       '#/components/parameters/filter_id'
     ]
     #swagger.responses[200] = {
-      description: 'A paginated view of the dataset data',
+      description: 'A JSON array of filtered data row objects',
       content: {
         'application/json': {
-          schema: { $ref: "#/components/schemas/DatasetView" }
+          schema: { type: 'array', items: { $ref: "#/components/schemas/DataRow" } }
         }
       }
     }
@@ -389,21 +390,7 @@ publicApiV2Router.get(
 publicApiV2Router.get(
   '/:dataset_id/query/',
   ensurePublishedDataset,
-  /*
-    #swagger.tags = ['Query']
-    #swagger.summary = 'Get details of the default query for a dataset'
-    #swagger.description = 'Returns the default (unfiltered) query configuration, including total row count and column name mappings.'
-    #swagger.autoQuery = false
-    #swagger.parameters['$ref'] = ['#/components/parameters/dataset_id']
-    #swagger.responses[200] = {
-      description: 'The stored query configuration',
-      content: {
-        'application/json': {
-          schema: { $ref: "#/components/schemas/QueryStore" }
-        }
-      }
-    }
-  */
+  /* #swagger.ignore = true */
   getFilterIdDetails
 );
 
