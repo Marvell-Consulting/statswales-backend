@@ -68,7 +68,7 @@ export const schemaV2 = {
       page_size: {
         name: 'page_size',
         in: 'query',
-        description: 'Number of datasets per page',
+        description: 'Number of values or results per page',
         required: false,
         schema: { type: 'integer', default: DEFAULT_PAGE_SIZE }
       },
@@ -704,8 +704,16 @@ export const schemaV2 = {
                 type: 'object',
                 required: ['x', 'y'],
                 properties: {
-                  x: { type: 'string', description: 'Column name for the horizontal axis of the pivot table' },
-                  y: { type: 'string', description: 'Column name for the vertical axis of the pivot table' },
+                  x: {
+                    type: 'string',
+                    description: 'Column name for the horizontal axis of the pivot table',
+                    example: 'Year'
+                  },
+                  y: {
+                    type: 'string',
+                    description: 'Column name for the vertical axis of the pivot table',
+                    example: 'Area'
+                  },
                   backend: {
                     type: 'string',
                     enum: ['postgres', 'duckdb'],

@@ -87,8 +87,9 @@ publicApiV2Router.get(
   '/',
   /*
     #swagger.tags = ['Datasets']
-    #swagger.summary = 'Get a list of all published datasets'
-    #swagger.description = 'Returns a paginated list of all published datasets, ordered by most recently updated.'
+    #swagger.summary = "Get a list of all published datasets"
+    #swagger.description = "Returns a paginated list of all published datasets
+      and their IDs, ordered by most recently updated."
     #swagger.autoQuery = false
     #swagger.parameters['$ref'] = [
       '#/components/parameters/language',
@@ -96,7 +97,7 @@ publicApiV2Router.get(
       '#/components/parameters/page_size'
     ]
     #swagger.responses[200] = {
-      description: 'A paginated list of all published datasets',
+      description: 'A paginated list of all published datasets and their IDs',
       content: {
         'application/json': {
           schema: { $ref: "#/components/schemas/DatasetsWithCount" }
@@ -111,8 +112,9 @@ publicApiV2Router.get(
   '/search',
   /*
     #swagger.tags = ['Datasets']
-    #swagger.summary = 'Search published datasets'
-    #swagger.description = 'Full-text search across dataset titles and summaries. Returns paginated results ranked by relevance.'
+    #swagger.summary = "Search published datasets"
+    #swagger.description = "Full-text search across dataset titles and summaries.
+      Returns paginated results ranked by relevance."
     #swagger.autoQuery = false
     #swagger.parameters['$ref'] = [
       '#/components/parameters/language',
@@ -122,7 +124,7 @@ publicApiV2Router.get(
       '#/components/parameters/search_mode'
     ]
     #swagger.responses[200] = {
-      description: 'A paginated list of matching published datasets',
+      description: 'A paginated list of matching published datasets and their IDs',
       content: {
         'application/json': {
           schema: { $ref: "#/components/schemas/SearchResultsWithCount" }
@@ -137,7 +139,7 @@ publicApiV2Router.get(
   '/topic',
   /*
     #swagger.tags = ['Topics']
-    #swagger.summary = 'Get a list of top-level topics'
+    #swagger.summary = "Get a list of top-level topics"
     #swagger.description = "Datasets are tagged to topics. There are top-level topics, such as 'Health and social care',
       which can have sub-topics, such as 'Dental services'. This endpoint returns a list of all top-level topics that
       have at least one published dataset tagged to them."
@@ -155,7 +157,7 @@ publicApiV2Router.get(
   '/topic/:topic_id',
   /*
     #swagger.tags = ['Topics']
-    #swagger.summary = 'Get a list of what sits under a given topic'
+    #swagger.summary = "Get a list of what sits under a given topic"
     #swagger.description = "Datasets are tagged to topics. There are top-level topics, such as 'Health and social
       care', which can have sub-topics, such as 'Dental services'. For a given topic_id, this endpoint returns a
       list of what sits under that topic - either sub-topics or published datasets tagged directly to that topic."
@@ -168,7 +170,8 @@ publicApiV2Router.get(
       '#/components/parameters/sort_by'
     ]
     #swagger.responses[200] = {
-      description: 'A list of what sits under a given topic - either sub-topics or published datasets tagged directly to that topic.',
+      description: "A list of what sits under a given topic - either sub-topics or published datasets tagged directly
+        to that topic.",
       schema: { $ref: "#/components/schemas/PublishedTopics" }
     }
   */
@@ -181,7 +184,9 @@ publicApiV2Router.get(
   /*
     #swagger.tags = ['Datasets']
     #swagger.summary = "Get a published dataset's metadata"
-    #swagger.description = 'Returns full metadata for a published dataset including revision details, update frequency, related links, and topics.'
+    #swagger.description = "Returns current metadata for a published dataset, including dataset history, summaries,
+      topics and related links. You can get dataset IDs from the ‘Lists of datasets and topics’ endpoints. Dataset
+      history includes revision IDs for any revisions of the dataset."
     #swagger.parameters['$ref'] = [
       '#/components/parameters/language',
       '#/components/parameters/dataset_id'
@@ -200,8 +205,9 @@ publicApiV2Router.get(
   ensurePublishedRevision,
   /*
     #swagger.tags = ['Datasets']
-    #swagger.summary = 'Get a specific published revision by ID'
-    #swagger.description = 'Returns metadata for a specific published revision, filtered to the requested language. Use the dataset metadata endpoint to discover available revision IDs.'
+    #swagger.summary = "Get metadata for a specific published revision"
+    #swagger.description = "Returns metadata for a specific published revision of a dataset. You can get revision IDs
+      from the ‘Get a published dataset&#39;s metadata’ endpoint."
     #swagger.autoQuery = false
     #swagger.parameters['$ref'] = [
       '#/components/parameters/language',
@@ -225,8 +231,19 @@ publicApiV2Router.get(
   ensurePublishedDataset,
   /*
     #swagger.tags = ['Data']
-    #swagger.summary = 'Get the available filters for a dataset'
-    #swagger.description = 'Lists every filterable dimension and its allowed values. Use the column names and reference codes from this response to build a filter object for POST /{dataset_id}/data.'
+    #swagger.summary = "Get available filters for a dataset"
+    #swagger.description = "<p>Returns a list of variables in a dataset that can be
+      filtered, and all filterable values for each variable.</p>
+      <p>Variables have a:</p>
+      <ul>
+        <li>'factTableColumn' name which is used when the dataset is originally created</li>
+        <li>human-readable 'columnName'</li>
+      </ul>
+      <p>Values have a:</p>
+      <ul>
+        <li>'reference' code</li>
+        <li>human-readable 'description'</li>
+      </ul>"
     #swagger.autoQuery = false
     #swagger.parameters['$ref'] = [
       '#/components/parameters/language',
@@ -250,8 +267,63 @@ publicApiV2Router.post(
   jsonParser,
   /*
     #swagger.tags = ['Data']
-    #swagger.summary = 'Generate a filter ID for a dataset query'
-    #swagger.description = 'Stores row filters and display options as a reusable query. Returns a 12-character filter ID for use with GET /{dataset_id}/data/{filter_id}. Submitting identical filters returns the same ID.'
+    #swagger.summary = "Generate a filter ID for a specific query"
+    #swagger.description = "<p>Generates a filter ID for a chosen combination of filters and display options. This ID is
+      always the same for the same combinations.</p>
+      <p>You need to send a JSON body that contains sections for 'filters' and 'options'.</p>
+      <p>The 'filters' section should contain the 'columnName' of the variable and the 'reference' codes for the values
+      you want to filter in. You can get these from the 'Get available filters for a dataset' endpoint.</p>
+      <p>The 'options' section should contain the following:</p>
+      <table>
+        <thead>
+          <tr>
+            <th>Option</th>
+            <th>Value</th>
+            <th>Meaning</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td rowspan='2'>use_raw_column_names</td>
+            <td>true [default]</td>
+            <td>Variables use ‘factTableColumn’ names, such as ‘AreaCode’</td>
+          </tr>
+          <tr>
+            <td>false</td>
+            <td>Variables use human-readable ‘columnName’, such as ‘Area’</td>
+          </tr>
+          <tr>
+            <td rowspan='2'>use_reference_values</td>
+            <td>true [default]</td>
+            <td>Variable values use ‘reference’ codes, such as ‘K02000001’</td>
+          </tr>
+          <tr>
+            <td>false</td>
+            <td>Variable values use human-readable ‘description’, such as ‘United Kingdom’</td>
+          </tr>
+          <tr>
+            <td rowspan='5'>data_value_type</td>
+            <td>raw [default]</td>
+            <td>Raw data values and dates</td>
+          </tr>
+          <tr>
+            <td>raw_extended</td>
+            <td>Raw data values and dates. Plus additional columns added to the table for reference codes, hierarchies and sort codes.</td>
+          </tr>
+          <tr>
+            <td>formatted</td>
+            <td>Formatted data values, including rounding to decimal places and commas to separate thousands. Does not include formatted dates.</td>
+          </tr>
+          <tr>
+            <td>formatted_extended</td>
+            <td>Formatted data values and dates, including rounding to decimal places and commas to separate thousands. Plus additional columns added to the table for reference codes, hierarchies and sort codes.</td>
+          </tr>
+          <tr>
+            <td>with_note_codes</td>
+            <td>Data values annotated with shorthand to provide extra detail</td>
+          </tr>
+        </tbody>
+      </table>"
     #swagger.autoQuery = false
     #swagger.parameters['$ref'] = ['#/components/parameters/dataset_id']
     #swagger.requestBody = {
@@ -280,8 +352,17 @@ publicApiV2Router.post(
   jsonParser,
   /*
     #swagger.tags = ['Pivot']
-    #swagger.summary = 'Generate a filter ID for a pivot query'
-    #swagger.description = 'Stores a pivot configuration (x/y axes) with optional filters and display options. Returns a filter ID for GET /{dataset_id}/pivot/{filter_id}.'
+    #swagger.summary = "Generate a filter ID for a specific pivot query"
+    #swagger.description = "<p>Generates a filter ID for a chosen combination of pivot configuration, filters and
+      display options. This ID is always the same for the same combinations.</p>
+      <p>You need to create a JSON body that contains sections for ‘pivot’, ‘filters’ and ‘options’.</p>
+      <p>The ‘pivot’ section should contain the variables you want use for the:</p>
+      <ul>
+        <li>columns of the pivot table, or “x” axis</li>
+        <li>rows of the pivot table, or “y” axis</li>
+      </ul>
+      <p>You can find out what the ‘filters’ and ‘options’ sections should include in the ‘Generate a filter ID for a
+      specific query’ endpoint.</p>"
     #swagger.autoQuery = false
     #swagger.parameters['$ref'] = ['#/components/parameters/dataset_id']
     #swagger.requestBody = {
@@ -309,8 +390,12 @@ publicApiV2Router.get(
   ensurePublishedDataset,
   /*
     #swagger.tags = ['Data']
-    #swagger.summary = 'Get paginated data for a dataset'
-    #swagger.description = 'Returns rows for the latest published revision as a JSON array of objects. Each object has column names as keys. The response includes a Content-Disposition header for download. To apply filters, first create a filter via POST /{dataset_id}/data, then use GET /{dataset_id}/data/{filter_id}.'
+    #swagger.summary = "Get paginated data for a dataset"
+    #swagger.description = "Returns rows for the latest published revision as a
+      JSON array of objects. Each object has column names as keys. The
+      response includes a Content-Disposition header for download. To apply
+      filters, first create a filter via POST /{dataset_id}/data, then use
+      GET /{dataset_id}/data/{filter_id}."
     #swagger.autoQuery = false
     #swagger.parameters['$ref'] = [
       '#/components/parameters/language',
@@ -336,8 +421,9 @@ publicApiV2Router.get(
   ensurePublishedDataset,
   /*
     #swagger.tags = ['Data']
-    #swagger.summary = 'Get paginated data for a dataset using a stored filter'
-    #swagger.description = 'Returns data filtered and formatted according to the stored filter ID as a JSON array of objects. Create a filter ID by POSTing to /{dataset_id}/data.'
+    #swagger.summary = "Get a filtered data table for a dataset"
+    #swagger.description = "Returns current data for a published dataset, filtered and displayed according to the
+      chosen options for a specific filter ID."
     #swagger.autoQuery = false
     #swagger.parameters['$ref'] = [
       '#/components/parameters/language',
@@ -364,8 +450,9 @@ publicApiV2Router.get(
   ensurePublishedDataset,
   /*
     #swagger.tags = ['Pivot']
-    #swagger.summary = 'Get a pivot view of a dataset using a stored filter ID'
-    #swagger.description = 'Returns a cross-tabulated pivot view using the configuration stored in the given filter ID.'
+    #swagger.summary = "Get a pivot table for a dataset"
+    #swagger.description = "Returns a pivot table for a published dataset, filtered and displayed according to the
+      chosen options for a specific filter ID."
     #swagger.autoQuery = false
     #swagger.parameters['$ref'] = [
       '#/components/parameters/language',
@@ -399,8 +486,8 @@ publicApiV2Router.get(
   ensurePublishedDataset,
   /*
     #swagger.tags = ['Query']
-    #swagger.summary = 'Get details of a stored filter query'
-    #swagger.description = 'Returns the full stored query configuration for a filter ID — useful for inspecting what filters and options a filter ID contains.'
+    #swagger.summary = "Get details of a filter query"
+    #swagger.description = "Returns the chosen options and configuration for a specific filter ID."
     #swagger.autoQuery = false
     #swagger.parameters['$ref'] = [
       '#/components/parameters/dataset_id',
@@ -418,7 +505,7 @@ publicApiV2Router.get(
   getFilterIdDetails
 );
 
-// Hidden endpoint — not intended for consumers. Pivots any existing query and allows for
+// Experimental endpoint — not intended for consumers. Pivots any existing query and allows for
 // more complex multidimensional pivots.
 publicApiV2Router.get(
   '/:dataset_id/data/:filter_id/pivot',
