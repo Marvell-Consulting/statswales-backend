@@ -9,7 +9,8 @@ export const schemaV2 = {
     version: '2.0.0',
     title: 'StatsWales public API',
     description: `This page will help you use the public API for StatsWales. If you need any other support,
-      <a href="mailto:StatsWales@gov.wales">contact StatsWales</a>.`
+      <a href="mailto:StatsWales@gov.wales">contact StatsWales</a>.
+      <p>Note: You can add <code>?lang=cy</code> to any request to get Welsh language labels and descriptions.</p>`
   },
   servers: [{ description: 'Public API', url: '{{backendURL}}/v2' }],
   tags: [
