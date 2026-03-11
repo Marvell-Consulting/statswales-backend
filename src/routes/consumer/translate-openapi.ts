@@ -29,9 +29,11 @@ export function translateSpec(spec: Record<string, any>, translations: Translati
   }
 
   // Translate operation summaries, descriptions, and response descriptions
+  const httpMethods = new Set(['get', 'post', 'put', 'delete', 'patch', 'options', 'head', 'trace']);
   if (translated.paths) {
     for (const [path, methods] of Object.entries<any>(translated.paths)) {
       for (const [method, operation] of Object.entries<any>(methods)) {
+        if (!httpMethods.has(method.toLowerCase())) continue;
         const key = `${method.toUpperCase()} ${path}`;
 
         // Operation summary/description
