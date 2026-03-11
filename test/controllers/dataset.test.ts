@@ -278,7 +278,7 @@ jest.mock('../../src/entities/dataset/build-log', () => ({
 }));
 
 // Mock RevisionMetadataDTO (class needed by dtoValidator)
-jest.mock('../../src/dtos/revistion-metadata-dto', () => ({
+jest.mock('../../src/dtos/revision-metadata-dto', () => ({
   RevisionMetadataDTO: class RevisionMetadataDTO {}
 }));
 

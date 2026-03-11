@@ -21,7 +21,7 @@ import { DataTable } from '../../src/entities/dataset/data-table';
 import { DatasetService } from '../../src/services/dataset';
 import { logger } from '../../src/utils/logger';
 import { RevisionRepository } from '../../src/repositories/revision';
-import { RevisionMetadataDTO } from '../../src/dtos/revistion-metadata-dto';
+import { RevisionMetadataDTO } from '../../src/dtos/revision-metadata-dto';
 import { uuidV4 } from '../../src/utils/uuid';
 import { createFullDataset, createSmallDataset } from '../helpers/test-helper';
 import { getTestUser, getTestUserGroup } from '../helpers/get-test-user';

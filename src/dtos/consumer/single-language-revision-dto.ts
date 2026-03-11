@@ -1,6 +1,6 @@
 import { Locale } from '../../enums/locale';
 import { Designation } from '../../enums/designation';
-import { RevisionMetadataDTO } from '../revistion-metadata-dto';
+import { RevisionMetadataDTO } from '../revision-metadata-dto';
 import { UpdateFrequencyDTO } from '../update-frequency-dto';
 import { RevisionProviderDTO } from '../revision-provider-dto';
 import { RevisionProvider } from '../../entities/dataset/revision-provider';
