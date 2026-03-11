@@ -10,41 +10,7 @@ export const schemaV2 = {
     title: 'StatsWales public API',
     description: `This page will help you use the public API for StatsWales. If you need any other support,
       <a href="mailto:StatsWales@gov.wales">contact StatsWales</a>.
-
-<h2>Quick start</h2>
-<p><code>GET /{dataset_id}/data</code> returns all rows for the latest published revision, paginated with default display options.</p>
-
-<h2>Filtering data</h2>
-<ol>
-  <li><strong>Discover filters</strong> — <code>GET /{dataset_id}/filters</code> returns every filterable dimension and its allowed values (column names and reference codes).</li>
-  <li><strong>Create a filter</strong> — <code>POST /{dataset_id}/data</code> with a JSON body containing your chosen filters and display options. Returns a reusable <code>filter_id</code> (12-character string identifier). Submitting identical filters returns the same ID.</li>
-  <li><strong>Fetch filtered data</strong> — <code>GET /{dataset_id}/data/{filter_id}</code> returns paginated rows matching your filter.</li>
-</ol>
-
-<h2>Pivot tables</h2>
-<ol>
-  <li><code>POST /{dataset_id}/pivot</code> with x/y axis columns and optional filters. Returns a <code>filter_id</code>.</li>
-  <li><code>GET /{dataset_id}/pivot/{filter_id}</code> returns the cross-tabulated view.</li>
-</ol>
-
-<h2>Display options</h2>
-<p>When creating a filter, you can include an <code>options</code> object:</p>
-<ul>
-  <li><code>use_raw_column_names</code> — when <code>true</code> (default), column headers use internal fact-table names (e.g. <code>AreaCode</code>); when <code>false</code>, they use human-readable dimension names (e.g. <code>Area</code>).</li>
-  <li><code>use_reference_values</code> — when <code>true</code> (default), cell values are reference codes (e.g. <code>K02000001</code>); when <code>false</code>, they are human-readable descriptions (e.g. <code>United Kingdom</code>).</li>
-  <li><code>data_value_type</code> — selects which cube view to use, controlling how data values are represented and which extra columns are included. Default: <code>raw</code>.</li>
-</ul>
-<table>
-  <tr><th><code>data_value_type</code></th><th>description</th></tr>
-  <tr><td><code>raw</code></td><td>Raw data values and dates (default)</td></tr>
-  <tr><td><code>raw_extended</code></td><td>Raw values plus reference codes, hierarchies, and sort orders</td></tr>
-  <tr><td><code>formatted</code></td><td>Formatted data values, no dates</td></tr>
-  <tr><td><code>formatted_extended</code></td><td>Formatted values and dates plus reference codes, hierarchies, and sort orders</td></tr>
-  <tr><td><code>with_note_codes</code></td><td>Data values annotated with note markers</td></tr>
-</table>
-
-<h2>Language</h2>
-<p>Add <code>?lang=cy</code> to any request to receive Welsh-language labels and descriptions. Defaults to English (<code>en-gb</code>).</p>`
+      <p>Note: You can add <code>?lang=cy</code> to any request to get Welsh language labels and descriptions.</p>`
   },
   servers: [{ description: 'Public API', url: '{{backendURL}}/v2' }],
   tags: [
@@ -103,7 +69,7 @@ export const schemaV2 = {
       page_size: {
         name: 'page_size',
         in: 'query',
-        description: 'Number of datasets per page',
+        description: 'Number of values or results per page',
         required: false,
         schema: { type: 'integer', default: DEFAULT_PAGE_SIZE }
       },
@@ -111,7 +77,7 @@ export const schemaV2 = {
         name: 'sort_by',
         in: 'query',
         description:
-          'Columns to sort the data by. Colon-separated column:direction pairs, comma-delimited for multiple columns. Direction defaults to asc if omitted. Also accepts legacy JSON array format for backwards compatibility.',
+          'How to sort the data. You need to include the `columnName` and whether the column is ascending or descending (`asc` or `desc`). Direction is ascending by default. See example for how to format this.',
         required: false,
         schema: { type: 'string' },
         example: 'title:asc,last_updated_at:desc'
@@ -148,19 +114,102 @@ export const schemaV2 = {
         description: 'Filter ID returned by the POST /data or POST /pivot endpoint',
         required: true,
         schema: { type: 'string' }
+      },
+      search_mode: {
+        name: 'mode',
+        in: 'query',
+        description:
+          "Search algorithm to use. **basic** (default): case-insensitive substring match against title and summary. **basic_split**: splits keywords into individual words and requires all of them to appear (AND logic). **fts**: PostgreSQL full-text search using language-aware stemming and ranking — returns `rank`, `match_title`, and `match_summary` fields with highlighted matches. **fts_simple**: like fts but uses the 'simple' dictionary (no stemming), useful for Welsh-language searches. **fuzzy**: trigram-based similarity matching — tolerant of typos and partial matches.",
+        required: false,
+        schema: {
+          type: 'string',
+          enum: ['basic', 'basic_split', 'fts', 'fts_simple', 'fuzzy'],
+          default: 'basic'
+        }
       }
     },
     '@schemas': {
+      RevisionMetadata: {
+        type: 'object',
+        properties: {
+          language: {
+            type: 'string',
+            description: 'Language code of the metadata, e.g. "en-GB" or "cy-GB"'
+          },
+          title: { type: 'string', description: 'Title of the revision in the specified language' },
+          summary: { type: 'string', description: 'Summary of the revision in the specified language' },
+          collection: {
+            type: 'string',
+            description: 'Collection name for the revision in the specified language'
+          },
+          quality: {
+            type: 'string',
+            description: 'Quality information for the revision in the specified language'
+          },
+          rounding_description: {
+            type: 'string',
+            description: 'Description of rounding applied to the data in this revision'
+          },
+          reason: {
+            type: 'string',
+            description: 'Reason for the update, present on revisions after the first'
+          }
+        }
+      },
+      UpdateFrequency: {
+        type: 'object',
+        properties: {
+          update_type: {
+            type: 'string',
+            enum: ['update', 'replacement', 'none'],
+            description:
+              'Type of update: "update" for new data added, "replacement" for full replacement, "none" for no further updates'
+          },
+          date: {
+            type: 'object',
+            description: 'Next expected update date',
+            properties: {
+              day: { type: 'string', description: 'Day of the month' },
+              month: { type: 'string', description: 'Month number' },
+              year: { type: 'string', description: 'Four-digit year' }
+            }
+          }
+        }
+      },
+      RelatedLink: {
+        type: 'object',
+        properties: {
+          id: { type: 'string', description: 'Unique identifier for the related link' },
+          url: { type: 'string', format: 'uri', description: 'URL of the related link' },
+          label_en: { type: 'string', description: 'Label of the related link in English' },
+          label_cy: { type: 'string', description: 'Label of the related link in Welsh' },
+          created_at: {
+            type: 'string',
+            format: 'date-time',
+            description: 'Creation date of the related link in ISO 8601 format'
+          }
+        }
+      },
+      Provider: {
+        type: 'object',
+        properties: {
+          id: { type: 'string', format: 'uuid' },
+          group_id: { type: 'string', format: 'uuid' },
+          revision_id: { type: 'string', format: 'uuid' },
+          language: { type: 'string', description: 'Language code, e.g. "en-gb" or "cy-gb"' },
+          provider_id: { type: 'string', format: 'uuid' },
+          provider_name: { type: 'string', description: 'Name of the data provider' },
+          source_id: { type: 'string', format: 'uuid' },
+          source_name: { type: 'string', description: 'Name of the data source' },
+          created_at: { type: 'string', format: 'date-time' }
+        }
+      },
       Revision: {
         type: 'object',
+        description: 'Revision as returned within a dataset response (all languages included in metadata).',
         properties: {
           id: { type: 'string', format: 'uuid', description: 'Unique identifier for the revision' },
           revision_index: { type: 'integer', description: 'Version number, starting from 1' },
-          dataset_id: {
-            type: 'string',
-            format: 'uuid',
-            description: 'Unique identifier for the dataset this revision belongs to'
-          },
           previous_revision_id: {
             type: 'string',
             format: 'uuid',
@@ -176,10 +225,20 @@ export const schemaV2 = {
             format: 'date-time',
             description: 'Last update date of the revision in ISO 8601 format'
           },
+          approved_at: {
+            type: 'string',
+            format: 'date-time',
+            description: 'Approval date of the revision in ISO 8601 format'
+          },
           publish_at: {
             type: 'string',
             format: 'date-time',
             description: 'Publication date of the revision in ISO 8601 format'
+          },
+          unpublished_at: {
+            type: 'string',
+            format: 'date-time',
+            description: 'Date the revision was unpublished, if applicable'
           },
           coverage_start_date: {
             type: 'string',
@@ -195,79 +254,27 @@ export const schemaV2 = {
           },
           metadata: {
             type: 'array',
-            items: {
-              type: 'object',
-              properties: {
-                language: {
-                  type: 'string',
-                  description: 'Language of the metadata, e.g., "en" for English, "cy" for Welsh'
-                },
-                title: {
-                  type: 'string',
-                  description: 'Title of the revision in the specified language'
-                },
-                summary: {
-                  type: 'string',
-                  description: 'Summary of the revision in the specified language'
-                },
-                collection: {
-                  type: 'string',
-                  description: 'Collection name for the revision in the specified language'
-                },
-                quality: {
-                  type: 'string',
-                  description: 'Quality information for the revision in the specified language'
-                },
-                rounding_description: {
-                  type: 'string',
-                  description: 'Description of rounding applied to the data in this revision'
-                }
-              }
-            },
-            description: 'Array of metadata key-value pairs for the revision'
+            items: { $ref: '#/components/schemas/RevisionMetadata' },
+            description: 'Metadata for each language (typically en-GB and cy-GB)'
           },
           rounding_applied: {
             type: 'boolean',
             description: 'Indicates if rounding was applied to the data in this revision'
           },
-          update_frequency: {
-            type: 'object',
-            properties: {
-              is_updated: {
-                type: 'boolean',
-                description: 'Indicates if the dataset is updated regularly'
-              },
-              frequency_value: {
-                type: 'integer',
-                description: 'The numeric value of the update frequency'
-              },
-              frequency_unit: {
-                type: 'string',
-                description: 'The unit of the update frequency',
-                enum: ['day', 'week', 'month', 'year']
-              }
-            }
-          },
+          update_frequency: { $ref: '#/components/schemas/UpdateFrequency' },
           designation: {
             type: 'string',
-            description: 'The designation of the revision'
+            description: 'Statistical designation of the revision',
+            enum: ['official', 'accredited', 'in_development', 'management', 'none']
           },
           related_links: {
             type: 'array',
-            items: {
-              type: 'object',
-              properties: {
-                id: { type: 'string', description: 'Unique identifier for the related link' },
-                url: { type: 'string', format: 'uri', description: 'URL of the related link' },
-                label_en: { type: 'string', description: 'Label of the related link in English' },
-                label_cy: { type: 'string', description: 'Label of the related link in Welsh' },
-                created_at: {
-                  type: 'string',
-                  format: 'date-time',
-                  description: 'Creation date of the related link in ISO 8601 format'
-                }
-              }
-            }
+            items: { $ref: '#/components/schemas/RelatedLink' }
+          },
+          providers: {
+            type: 'array',
+            items: { $ref: '#/components/schemas/Provider' },
+            description: 'Data providers and sources for this revision'
           },
           topics: {
             type: 'array',
@@ -275,52 +282,157 @@ export const schemaV2 = {
           }
         }
       },
+      SingleLanguageRevision: {
+        type: 'object',
+        description:
+          'Revision as returned by the /revision/:revision_id endpoint — metadata is a single object filtered to the requested language.',
+        properties: {
+          id: { type: 'string', format: 'uuid', description: 'Unique identifier for the revision' },
+          revision_index: { type: 'integer', description: 'Version number, starting from 1' },
+          previous_revision_id: {
+            type: 'string',
+            format: 'uuid',
+            description: 'Unique identifier for the previous revision, if any'
+          },
+          updated_at: {
+            type: 'string',
+            format: 'date-time',
+            description: 'Last update date of the revision in ISO 8601 format'
+          },
+          publish_at: {
+            type: 'string',
+            format: 'date-time',
+            description: 'Publication date of the revision in ISO 8601 format'
+          },
+          coverage_start_date: {
+            type: 'string',
+            format: 'date-time',
+            description: 'Start of the time period covered by the data'
+          },
+          coverage_end_date: {
+            type: 'string',
+            format: 'date-time',
+            description: 'End of the time period covered by the data'
+          },
+          metadata: {
+            $ref: '#/components/schemas/RevisionMetadata',
+            description: 'Metadata filtered to the requested language'
+          },
+          rounding_applied: {
+            type: 'boolean',
+            description: 'Indicates if rounding was applied to the data in this revision'
+          },
+          update_frequency: { $ref: '#/components/schemas/UpdateFrequency' },
+          designation: {
+            type: 'string',
+            description: 'Statistical designation of the revision',
+            enum: ['official', 'accredited', 'in_development', 'management', 'none']
+          },
+          related_links: {
+            type: 'array',
+            items: { $ref: '#/components/schemas/RelatedLink' }
+          },
+          providers: {
+            type: 'array',
+            items: { $ref: '#/components/schemas/Provider' },
+            description: 'Data providers and sources, filtered to the requested language'
+          },
+          topics: {
+            type: 'array',
+            items: {
+              type: 'object',
+              properties: {
+                id: { type: 'integer', description: 'ID of the topic' },
+                path: { type: 'string', description: 'Path of the topic' },
+                name: { type: 'string', description: 'Name of the topic in the requested language' }
+              }
+            }
+          }
+        }
+      },
+      Publisher: {
+        type: 'object',
+        properties: {
+          group: {
+            type: 'object',
+            properties: {
+              id: { type: 'string', format: 'uuid' },
+              name: { type: 'string', description: 'Name of the publishing group' },
+              email: { type: 'string', description: 'Contact email for the publishing group' }
+            }
+          },
+          organisation: {
+            type: 'object',
+            properties: {
+              id: { type: 'string', format: 'uuid' },
+              name: { type: 'string', description: 'Name of the publishing organisation' }
+            }
+          }
+        }
+      },
       Dataset: {
         type: 'object',
         properties: {
           id: { type: 'string', format: 'uuid', description: 'Unique identifier for the dataset' },
-          live: {
+          first_published_at: {
             type: 'string',
             format: 'date-time',
             description: 'First publication date of the dataset in ISO 8601 format'
           },
+          archived_at: {
+            type: 'string',
+            format: 'date-time',
+            nullable: true,
+            description: 'Date the dataset was archived in ISO 8601 format, or null if not archived'
+          },
           start_date: {
             type: 'string',
-            format: 'date',
-            description: 'Start date of the dataset in ISO 8601 format'
+            format: 'date-time',
+            nullable: true,
+            description:
+              'Legacy field — start of the time period covered by the dataset. Not set for newer datasets; use coverage_start_date on the published revision instead.'
           },
           end_date: {
             type: 'string',
-            format: 'date',
-            description: 'End date of the dataset in ISO 8601 format'
+            format: 'date-time',
+            nullable: true,
+            description:
+              'Legacy field — end of the time period covered by the dataset. Not set for newer datasets; use coverage_end_date on the published revision instead.'
           },
           published_revision: { $ref: '#/components/schemas/Revision' },
-          revisions: { type: 'array', items: { $ref: '#/components/schemas/Revision' } },
-          dimensions: {}
+          publisher: { $ref: '#/components/schemas/Publisher' }
         },
         example: {
           id: '141baa8a-2ed0-45cb-ad4a-83de8c2333b5',
-          live: '2023-01-01T00:00:00Z',
-          start_date: '2020-01-01',
-          end_date: '2023-12-31',
+          first_published_at: '2023-01-01T00:00:00Z',
           published_revision: {
             id: 'd1f2e3a4-5678-90ab-cdef-1234567890ab',
             revision_index: 5,
-            dataset_id: '141baa8a-2ed0-45cb-ad4a-83de8c2333b5',
             previous_revision_id: 'c0b1a2d3-4567-89ab-cdef-1234567890ab',
             created_at: '2023-01-01T00:00:00Z',
             updated_at: '2023-01-02T00:00:00Z',
+            approved_at: '2023-01-02T00:00:00Z',
             publish_at: '2023-01-03T00:00:00Z',
             metadata: [
-              { language: 'en', title: 'Population Estimates', summary: 'Annual population estimates for Wales' },
               {
-                language: 'cy',
+                language: 'en-GB',
+                title: 'Population Estimates',
+                summary: 'Annual population estimates for Wales',
+                collection: 'Population',
+                quality: 'National Statistics',
+                rounding_description: ''
+              },
+              {
+                language: 'cy-GB',
                 title: 'Amcangyfrifon poblogaeth',
-                summary: 'Amcangyfrifon poblogaeth flynyddol ar gyfer Cymru'
+                summary: 'Amcangyfrifon poblogaeth flynyddol ar gyfer Cymru',
+                collection: 'Poblogaeth',
+                quality: 'Ystadegau Gwladol',
+                rounding_description: ''
               }
             ],
             rounding_applied: false,
-            update_frequency: { is_updated: true, frequency_value: 1, frequency_unit: 'year' },
+            update_frequency: { update_type: 'update', date: { day: '15', month: '06', year: '2025' } },
             designation: 'official',
             related_links: [
               {
@@ -331,7 +443,24 @@ export const schemaV2 = {
                 created_at: '2023-01-01T00:00:00Z'
               }
             ],
-            topics: [{ id: 1, path: '1', name: 'Population', name_en: 'Population', name_cy: 'Poblogaeth' }]
+            providers: [
+              {
+                id: '95a3acb0-2f60-4ded-8b63-3df7a9d3d2dd',
+                group_id: 'a8bcf16d-99e1-45f5-bba1-a4f6978b85cd',
+                revision_id: 'd1f2e3a4-5678-90ab-cdef-1234567890ab',
+                language: 'en-gb',
+                provider_id: '98aed6ef-122c-430b-988c-92258cb372f5',
+                provider_name: 'Welsh Government',
+                source_id: 'c571cc07-ba84-48ee-be47-645a7711a905',
+                source_name: 'National Survey for Wales',
+                created_at: '2023-01-01T00:00:00Z'
+              }
+            ],
+            topics: [{ id: 1, path: '1', name_en: 'Population', name_cy: 'Poblogaeth' }]
+          },
+          publisher: {
+            group: { id: 'b080588c-86b0-46e1-87be-10776bc43743', name: 'Statistics team', email: 'stats@gov.wales' },
+            organisation: { id: '4ef4facf-c488-4837-a65b-e66d4b525965', name: 'Welsh Government' }
           }
         }
       },
@@ -345,7 +474,7 @@ export const schemaV2 = {
           },
           title: {
             type: 'string',
-            description: 'Title of the dataset (in the language requested via accept-language header)'
+            description: 'Title of the dataset in the requested language'
           },
           first_published_at: {
             type: 'string',
@@ -360,7 +489,34 @@ export const schemaV2 = {
           archived_at: {
             type: 'string',
             format: 'date-time',
-            description: 'Date the dataset was archived in ISO 8601 format, if applicable'
+            nullable: true,
+            description: 'Date the dataset was archived in ISO 8601 format, or null if not archived'
+          }
+        }
+      },
+      SearchResultItem: {
+        type: 'object',
+        description: 'A dataset search result. Extends DatasetListItem with search-specific fields.',
+        properties: {
+          id: { type: 'string', format: 'uuid', description: 'Unique identifier for the dataset' },
+          title: { type: 'string', description: 'Title of the dataset' },
+          summary: { type: 'string', description: 'Summary of the dataset' },
+          first_published_at: { type: 'string', format: 'date-time' },
+          last_updated_at: { type: 'string', format: 'date-time' },
+          archived_at: { type: 'string', format: 'date-time', nullable: true },
+          rank: {
+            type: 'number',
+            description: 'Relevance score (present for fts, fts_simple and fuzzy modes)'
+          },
+          match_title: {
+            type: 'string',
+            description:
+              'Title with search term highlights wrapped in <mark> tags (present for fts and fts_simple modes)'
+          },
+          match_summary: {
+            type: 'string',
+            description:
+              'Summary with search term highlights wrapped in <mark> tags (present for fts and fts_simple modes)'
           }
         }
       },
@@ -375,48 +531,35 @@ export const schemaV2 = {
             {
               id: '141baa8a-2ed0-45cb-ad4a-83de8c2333b5',
               title: 'Population Estimates',
-              first_published_at: '2023-01-01T00:00:00Z'
+              first_published_at: '2023-01-01T00:00:00Z',
+              last_updated_at: '2023-06-15T00:00:00Z',
+              archived_at: null
             },
             {
               id: '0ff18b56-0a4f-4ac3-a198-197aa48cc9e1',
               title: 'Economic Indicators',
-              first_published_at: '2023-02-01T00:00:00Z'
+              first_published_at: '2023-02-01T00:00:00Z',
+              last_updated_at: '2023-07-01T00:00:00Z',
+              archived_at: null
             }
           ],
           count: 57
         }
       },
-      DatasetView: {
+      SearchResultsWithCount: {
         type: 'object',
         properties: {
-          dataset: { $ref: '#/components/schemas/Dataset' },
-          current_page: { type: 'integer', description: 'Current page number' },
-          page_info: {
-            type: 'object',
-            properties: {
-              total_records: { type: 'integer', description: 'Total number of records in the dataset' },
-              start_record: { type: 'integer', description: 'Starting record number for the current page' },
-              end_record: { type: 'integer', description: 'Ending record number for the current page' }
-            }
-          },
-          page_size: { type: 'integer', description: 'Number of records per page' },
-          total_pages: { type: 'integer', description: 'Total number of pages available' },
-          headers: {
-            type: 'array',
-            items: {
-              type: 'object',
-              properties: {
-                index: { type: 'integer', description: 'Index of the header' },
-                name: { type: 'string', description: 'Name of the header' },
-                source_type: { type: 'string', description: 'Source type of the header' }
-              }
-            }
-          },
-          data: {
-            type: 'array',
-            description: 'Tabular data for the dataset',
-            items: { type: 'array', items: { type: 'string' } }
-          }
+          data: { type: 'array', items: { $ref: '#/components/schemas/SearchResultItem' } },
+          count: { type: 'integer', description: 'Total number of matching datasets' }
+        }
+      },
+      DataRow: {
+        type: 'object',
+        description:
+          'A single data row as a JSON object. Keys are column names (fact-table names by default) and values are data values.',
+        additionalProperties: {
+          nullable: true,
+          oneOf: [{ type: 'string' }, { type: 'number' }, { type: 'boolean' }]
         }
       },
       Topic: {
@@ -449,23 +592,16 @@ export const schemaV2 = {
             {
               id: 1,
               path: '1',
-              name: "Busnes, economi a'r farchnad lafur",
+              name: 'Business, economy and labour market',
               name_en: 'Business, economy and labour market',
               name_cy: "Busnes, economi a'r farchnad lafur"
             },
             {
               id: 13,
               path: '13',
-              name: 'Addysg a hyfforddiant',
+              name: 'Education and training',
               name_en: 'Education and training',
               name_cy: 'Addysg a hyfforddiant'
-            },
-            {
-              id: 23,
-              path: '23',
-              name: 'Amgylchedd, ynni ac amaethyddiaeth',
-              name_en: 'Environment, energy and agriculture',
-              name_cy: 'Amgylchedd, ynni ac amaethyddiaeth'
             }
           ]
         }
@@ -474,9 +610,33 @@ export const schemaV2 = {
         type: 'object',
         properties: {
           selectedTopic: { $ref: '#/components/schemas/SubTopic' },
-          children: { type: 'array', items: [] },
-          parents: { type: 'array', items: { $ref: '#/components/schemas/Topic' } },
-          datasets: { $ref: '#/components/schemas/DatasetsWithCount' }
+          children: {
+            type: 'array',
+            items: { $ref: '#/components/schemas/Topic' },
+            description:
+              'Sub-topics under the selected topic. Empty array if this is a leaf topic (in which case datasets will be populated).'
+          },
+          parents: {
+            type: 'array',
+            items: { $ref: '#/components/schemas/Topic' },
+            description: 'Ancestor topics from root to the selected topic'
+          },
+          datasets: {
+            $ref: '#/components/schemas/DatasetsWithCount',
+            description: 'Datasets tagged to this topic. Only present for leaf topics (topics with no children).'
+          }
+        }
+      },
+      FilterValue: {
+        type: 'object',
+        properties: {
+          reference: { type: 'string', description: 'Reference code to use in filter values' },
+          description: { type: 'string', description: 'Human-readable label (language-dependent)' },
+          children: {
+            type: 'array',
+            items: { $ref: '#/components/schemas/FilterValue' },
+            description: 'Child values for hierarchical dimensions (e.g. Wales → local authorities)'
+          }
         }
       },
       Filter: {
@@ -490,13 +650,7 @@ export const schemaV2 = {
           },
           values: {
             type: 'array',
-            items: {
-              type: 'object',
-              properties: {
-                reference: { type: 'string', description: 'Reference code to use in filter values' },
-                description: { type: 'string', description: 'Human-readable label (language-dependent)' }
-              }
-            }
+            items: { $ref: '#/components/schemas/FilterValue' }
           }
         }
       },
@@ -508,7 +662,7 @@ export const schemaV2 = {
           filterId: {
             type: 'string',
             description:
-              'Identifier for the stored query. Pass this to GET /{dataset_id}/data/{filter_id} or GET /{dataset_id}/pivot/{filter_id} to retrieve filtered results.'
+              '12-character identifier for the stored query. Pass this to GET /{dataset_id}/data/{filter_id} or GET /{dataset_id}/pivot/{filter_id} to retrieve filtered results.'
           }
         },
         example: { filterId: 'a1b2c3d4e5f6' }
@@ -533,6 +687,8 @@ export const schemaV2 = {
           },
           options: {
             type: 'object',
+            description:
+              'Display options. If omitted, defaults to use_raw_column_names: true, use_reference_values: true, data_value_type: raw.',
             properties: {
               use_raw_column_names: {
                 type: 'boolean',
@@ -568,8 +724,16 @@ export const schemaV2 = {
                 type: 'object',
                 required: ['x', 'y'],
                 properties: {
-                  x: { type: 'string', description: 'Column name for the horizontal axis of the pivot table' },
-                  y: { type: 'string', description: 'Column name for the vertical axis of the pivot table' },
+                  x: {
+                    type: 'string',
+                    description: 'Column name for the horizontal axis of the pivot table',
+                    example: 'Year'
+                  },
+                  y: {
+                    type: 'string',
+                    description: 'Column name for the vertical axis of the pivot table',
+                    example: 'Area'
+                  },
                   backend: {
                     type: 'string',
                     enum: ['postgres', 'duckdb'],
@@ -589,7 +753,7 @@ export const schemaV2 = {
       QueryStore: {
         type: 'object',
         properties: {
-          id: { type: 'string', format: 'uuid', description: 'Unique identifier for the stored query' },
+          id: { type: 'string', description: '12-character identifier for the stored query' },
           hash: { type: 'string', description: 'Hash of the query parameters for deduplication' },
           datasetId: { type: 'string', format: 'uuid', description: 'Dataset this query belongs to' },
           revisionId: { type: 'string', format: 'uuid', description: 'Revision this query belongs to' },
@@ -597,7 +761,7 @@ export const schemaV2 = {
           query: {
             type: 'object',
             additionalProperties: { type: 'string' },
-            description: 'Key-value map of query parameters'
+            description: 'Key-value map of language code to SQL query string'
           },
           totalLines: { type: 'integer', description: 'Total number of rows matching the query' },
           columnMapping: {
@@ -634,10 +798,14 @@ export const schemaV2 = {
             factTableColumn: 'AreaCode',
             columnName: 'Area',
             values: [
-              { reference: 'K02000001', description: 'United Kingdom' },
-              { reference: 'K03000001', description: 'Great Britain' },
-              { reference: 'E92000001', description: 'England' },
-              { reference: 'E12000001', description: 'North East' }
+              {
+                reference: 'K02000001',
+                description: 'United Kingdom',
+                children: [
+                  { reference: 'K03000001', description: 'Great Britain' },
+                  { reference: 'E92000001', description: 'England' }
+                ]
+              }
             ]
           }
         ]

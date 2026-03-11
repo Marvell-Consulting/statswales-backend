@@ -269,12 +269,16 @@ export const generatePivotFilterId = async (req: Request, res: Response, next: N
     throw new BadRequestException('errors.pivot_only_one_column');
   }
 
+  if (!dataOptions.options) {
+    dataOptions.options = DEFAULT_DATA_OPTIONS.options;
+  }
+
   const lang = langToLocale(dataOptions.locale);
   const filterTable = await getFilterTable(publishedRevision.id);
 
   let xCol = dataOptions.pivot.x;
   let yCol = dataOptions.pivot.y;
-  if (dataOptions.options.use_raw_column_names) {
+  if (dataOptions.options?.use_raw_column_names) {
     try {
       xCol = resolveFactColumnToDimension(xCol, lang, filterTable);
     } catch (_) {
@@ -302,7 +306,7 @@ export const generatePivotFilterId = async (req: Request, res: Response, next: N
     for (const filter of dataOptions.filters) {
       let colName = Object.keys(filter)[0];
       const filterValues = Object.values(filter)[0] as string[];
-      if (dataOptions.options.use_raw_column_names) {
+      if (dataOptions.options?.use_raw_column_names) {
         colName = resolveFactColumnToDimension(colName, lang, filterTable);
       } else {
         colName = resolveDimensionToFactTableColumn(colName, filterTable);
