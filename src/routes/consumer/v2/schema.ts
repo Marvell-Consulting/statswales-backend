@@ -382,7 +382,22 @@ export const schemaV2 = {
           archived_at: {
             type: 'string',
             format: 'date-time',
-            description: 'Date the dataset was archived in ISO 8601 format, if applicable'
+            nullable: true,
+            description: 'Date the dataset was archived in ISO 8601 format, or null if not archived'
+          },
+          start_date: {
+            type: 'string',
+            format: 'date-time',
+            nullable: true,
+            description:
+              'Legacy field — start of the time period covered by the dataset. Not set for newer datasets; use coverage_start_date on the published revision instead.'
+          },
+          end_date: {
+            type: 'string',
+            format: 'date-time',
+            nullable: true,
+            description:
+              'Legacy field — end of the time period covered by the dataset. Not set for newer datasets; use coverage_end_date on the published revision instead.'
           },
           published_revision: { $ref: '#/components/schemas/Revision' },
           publisher: { $ref: '#/components/schemas/Publisher' }
@@ -474,7 +489,8 @@ export const schemaV2 = {
           archived_at: {
             type: 'string',
             format: 'date-time',
-            description: 'Date the dataset was archived in ISO 8601 format, if applicable'
+            nullable: true,
+            description: 'Date the dataset was archived in ISO 8601 format, or null if not archived'
           }
         }
       },
@@ -487,10 +503,10 @@ export const schemaV2 = {
           summary: { type: 'string', description: 'Summary of the dataset' },
           first_published_at: { type: 'string', format: 'date-time' },
           last_updated_at: { type: 'string', format: 'date-time' },
-          archived_at: { type: 'string', format: 'date-time' },
+          archived_at: { type: 'string', format: 'date-time', nullable: true },
           rank: {
             type: 'number',
-            description: 'Relevance score (present for fts and fts_simple modes)'
+            description: 'Relevance score (present for fts, fts_simple and fuzzy modes)'
           },
           match_title: {
             type: 'string',
@@ -541,7 +557,10 @@ export const schemaV2 = {
         type: 'object',
         description:
           'A single data row as a JSON object. Keys are column names (fact-table names by default) and values are data values.',
-        additionalProperties: { type: 'string' }
+        additionalProperties: {
+          nullable: true,
+          oneOf: [{ type: 'string' }, { type: 'number' }, { type: 'boolean' }]
+        }
       },
       Topic: {
         type: 'object',

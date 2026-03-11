@@ -184,9 +184,8 @@ publicApiV2Router.get(
   /*
     #swagger.tags = ['Datasets']
     #swagger.summary = "Get a published dataset's metadata"
-    #swagger.description = "Returns current metadata for a published dataset, including dataset history, summaries,
-      topics and related links. You can get dataset IDs from the ‘Lists of datasets and topics’ endpoints. Dataset
-      history includes revision IDs for any revisions of the dataset."
+    #swagger.description = "Returns current metadata for a published dataset, including dataset summaries,
+      topics and related links. You can get dataset IDs from the ‘Lists of datasets and topics’ endpoints."
     #swagger.parameters['$ref'] = [
       '#/components/parameters/language',
       '#/components/parameters/dataset_id'
@@ -207,7 +206,7 @@ publicApiV2Router.get(
     #swagger.tags = ['Datasets']
     #swagger.summary = "Get metadata for a specific published revision"
     #swagger.description = "Returns metadata for a specific published revision of a dataset. You can get revision IDs
-      from the ‘Get a published dataset&#39;s metadata’ endpoint."
+      from the ‘Get a published dataset's metadata’ endpoint."
     #swagger.autoQuery = false
     #swagger.parameters['$ref'] = [
       '#/components/parameters/language',
