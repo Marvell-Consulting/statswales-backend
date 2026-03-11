@@ -5,7 +5,7 @@ export const v2CyTranslations: TranslationMap = {
   info: {
     title: 'API cyhoeddus YstadegauCymru',
     description:
-      "Bydd y dudalen hon yn eich helpu i ddefnyddio'r API cyhoeddus ar gyfer YstadegauCymru. Os oes angen unrhyw gymorth arall arnoch,\n      <a href=\"mailto:StatsWales@gov.wales\">cysylltwch ag YstadegauCymru</a>.\n\n<h2>Cychwyn cyflym</h2>\n<p><code>GET /{dataset_id}/data</code> yn dychwelyd pob rhes ar gyfer y diwygiad cyhoeddedig diweddaraf, wedi'i dudalennu gydag opsiynau arddangos rhagosodedig.</p>\n\n<h2>Hidlo data</h2>\n<ol>\n  <li><strong>Darganfod hidlyddion</strong> — <code>GET /{dataset_id}/filters</code> yn dychwelyd pob dimensiwn y gellir ei hidlo a'i werthoedd a ganiateir (enwau colofnau a chodau cyfeirio).</li>\n  <li><strong>Creu hidlydd</strong> — <code>POST /{dataset_id}/data</code> gyda chorff JSON sy'n cynnwys eich hidlyddion a'ch opsiynau arddangos dewisol. Yn dychwelyd <code>filter_id</code> (UUID) y gellir ei ailddefnyddio. Mae cyflwyno hidlyddion unfath yn dychwelyd yr un ID.</li>\n  <li><strong>Nôl data wedi'i hidlo</strong> — <code>GET /{dataset_id}/data/{filter_id}</code> yn dychwelyd rhesi tudalenedig sy'n cyd-fynd â'ch hidlydd.</li>\n</ol>\n\n<h2>Tablau colyn</h2>\n<ol>\n  <li><code>POST /{dataset_id}/pivot</code> gyda cholofnau echelin x/y a hidlyddion dewisol. Yn dychwelyd <code>filter_id</code>.</li>\n  <li><code>GET /{dataset_id}/pivot/{filter_id}</code> yn dychwelyd y golwg croes-dablu.</li>\n</ol>\n\n<h2>Opsiynau arddangos</h2>\n<p>Wrth greu hidlydd, gallwch gynnwys gwrthrych <code>options</code>:</p>\n<ul>\n  <li><code>use_raw_column_names</code> — pan fo'n <code>true</code> (rhagosodedig), mae penawdau colofnau'n defnyddio enwau tabl ffeithiau mewnol (e.e. <code>AreaCode</code>); pan fo'n <code>false</code>, maent yn defnyddio enwau dimensiynau darllenadwy (e.e. <code>Area</code>).</li>\n  <li><code>use_reference_values</code> — pan fo'n <code>true</code> (rhagosodedig), mae gwerthoedd celloedd yn godau cyfeirio (e.e. <code>K02000001</code>); pan fo'n <code>false</code>, maent yn ddisgrifiadau darllenadwy (e.e. <code>United Kingdom</code>).</li>\n  <li><code>data_value_type</code> — yn rheoli sut mae'r golofn gwerth data/mesur yn cael ei dychwelyd: <code>by_data_and_notes</code>, <code>by_data</code>, neu <code>by_notes</code>.</li>\n</ul>\n\n<h2>Iaith</h2>\n<p>Ychwanegwch <code>?lang=cy</code> at unrhyw gais i dderbyn labeli a disgrifiadau Cymraeg. Saesneg yw'r rhagosodiad (<code>en-gb</code>).</p>"
+      'Bydd y dudalen hon yn eich helpu i ddefnyddio\'r API cyhoeddus ar gyfer YstadegauCymru. Os oes angen unrhyw gymorth arall arnoch,\n      <a href="mailto:StatsWales@gov.wales">cysylltwch ag YstadegauCymru</a>.\n      <p>Nodyn: Gallwch ychwanegu <code>?lang=cy</code> at unrhyw gais i dderbyn labeli a disgrifiadau Cymraeg.</p>'
   },
   tags: {
     Datasets: 'Pori, chwilio, a chael metadata ar gyfer setiau data cyhoeddedig.',
@@ -18,7 +18,8 @@ export const v2CyTranslations: TranslationMap = {
   operations: {
     'GET /': {
       summary: "Cael rhestr o'r holl setiau data cyhoeddedig",
-      description: "Yn dychwelyd rhestr dudalenedig o'r holl setiau data cyhoeddedig, wedi'u trefnu yn ôl y diweddaraf."
+      description:
+        "Yn dychwelyd rhestr dudalenedig o'r holl setiau data cyhoeddedig a'u IDau, wedi'u trefnu yn ôl y diweddaraf."
     },
     'GET /search': {
       summary: 'Chwilio setiau data cyhoeddedig',
@@ -38,59 +39,49 @@ export const v2CyTranslations: TranslationMap = {
     'GET /{dataset_id}': {
       summary: 'Cael metadata set ddata gyhoeddedig',
       description:
-        'Yn dychwelyd metadata llawn ar gyfer set ddata gyhoeddedig gan gynnwys manylion diwygio, amlder diweddaru, dynodiad, dolenni cysylltiedig, a phynciau.'
-    },
-    'GET /{dataset_id}/revision/{revision_id}': {
-      summary: 'Cael diwygiad cyhoeddedig penodol yn ôl ID',
-      description:
-        'Yn dychwelyd metadata ar gyfer diwygiad cyhoeddedig penodol. Defnyddiwch y pwynt terfyn metadata set ddata i ddarganfod IDau diwygiad sydd ar gael.'
+        "Yn dychwelyd metadata cyfredol ar gyfer set ddata gyhoeddedig, gan gynnwys crynodebau setiau data, pynciau a dolenni cysylltiedig. Gallwch gael IDau setiau data o'r pwyntiau terfyn 'Rhestrau o setiau data a phynciau'."
     },
     'GET /{dataset_id}/filters': {
       summary: 'Cael yr hidlyddion sydd ar gael ar gyfer set ddata',
       description:
-        "Yn rhestru pob dimensiwn y gellir ei hidlo a'i werthoedd a ganiateir. Defnyddiwch yr enwau colofnau a'r codau cyfeirio a ddychwelwyd wrth greu hidlyddion gyda POST /data."
+        "<p>Yn dychwelyd rhestr o newidynnau mewn set ddata y gellir eu hidlo, a'r holl werthoedd y gellir eu hidlo ar gyfer pob newidyn.</p>  <p>Mae gan newidynnau:</p>  <ul>  <li>enw 'factTableColumn' a ddefnyddir wrth greu'r set ddata yn wreiddiol</li>  <li>'columnName' darllenadwy</li>  </ul>  <p>Mae gan werthoedd:</p>  <ul>  <li>cod 'reference'</li>  <li>'description' darllenadwy</li>  </ul>"
     },
     'POST /{dataset_id}/data': {
-      summary: 'Cynhyrchu ID hidlydd ar gyfer ymholiad set ddata',
+      summary: 'Cynhyrchu ID hidlydd ar gyfer ymholiad penodol',
       description:
-        "Yn storio hidlyddion rhesi ac opsiynau arddangos fel ymholiad y gellir ei ailddefnyddio. Yn dychwelyd ID hidlydd (UUID) i'w ddefnyddio gyda GET /data/{filter_id}. Mae cyflwyno hidlyddion unfath yn dychwelyd yr un ID."
+        "<p>Yn cynhyrchu ID hidlydd ar gyfer cyfuniad dewisol o hidlyddion ac opsiynau arddangos. Mae'r ID bob amser yr un fath ar gyfer yr un cyfuniadau.</p>  <p>Mae angen i chi anfon corff JSON sy'n cynnwys adrannau ar gyfer 'filters' ac 'options'.</p>  <p>Dylai'r adran 'filters' gynnwys 'columnName' y newidyn a chodau 'reference' y gwerthoedd rydych am eu hidlo i mewn. Gallwch gael y rhain o'r pwynt terfyn 'Cael yr hidlyddion sydd ar gael ar gyfer set ddata'.</p>  <p>Dylai'r adran 'options' gynnwys y canlynol:</p>  <table>  <thead>  <tr>  <th>Opsiwn</th>  <th>Gwerth</th>  <th>Ystyr</th>  </tr>  </thead>  <tbody>  <tr>  <td rowspan='2'>use_raw_column_names</td>  <td>true [rhagosodedig]</td>  <td>Mae newidynnau'n defnyddio enwau 'factTableColumn', megis 'AreaCode'</td>  </tr>  <tr>  <td>false</td>  <td>Mae newidynnau'n defnyddio 'columnName' darllenadwy, megis 'Area'</td>  </tr>  <tr>  <td rowspan='2'>use_reference_values</td>  <td>true [rhagosodedig]</td>  <td>Mae gwerthoedd newidynnau'n defnyddio codau 'reference', megis 'K02000001'</td>  </tr>  <tr>  <td>false</td>  <td>Mae gwerthoedd newidynnau'n defnyddio 'description' darllenadwy, megis 'United Kingdom'</td>  </tr>  <tr>  <td rowspan='5'>data_value_type</td>  <td>raw [rhagosodedig]</td>  <td>Gwerthoedd data amrwd a dyddiadau</td>  </tr>  <tr>  <td>raw_extended</td>  <td>Gwerthoedd data amrwd a dyddiadau. Gyda cholofnau ychwanegol wedi'u hychwanegu at y tabl ar gyfer codau cyfeirio, hierarchaethau a chodau trefnu.</td>  </tr>  <tr>  <td>formatted</td>  <td>Gwerthoedd data wedi'u fformatio, gan gynnwys talgrynnu i leoedd degol a chomas i wahanu miloedd. Nid yw'n cynnwys dyddiadau wedi'u fformatio.</td>  </tr>  <tr>  <td>formatted_extended</td>  <td>Gwerthoedd data a dyddiadau wedi'u fformatio, gan gynnwys talgrynnu i leoedd degol a chomas i wahanu miloedd. Gyda cholofnau ychwanegol wedi'u hychwanegu at y tabl ar gyfer codau cyfeirio, hierarchaethau a chodau trefnu.</td>  </tr>  <tr>  <td>with_note_codes</td>  <td>Gwerthoedd data wedi'u hanodi â llaw-fer i roi manylder ychwanegol</td>  </tr>  </tbody>  </table>"
     },
     'GET /{dataset_id}/data': {
       summary: 'Cael data tudalenedig ar gyfer set ddata',
       description:
-        "Yn dychwelyd pob rhes ar gyfer y diwygiad cyhoeddedig diweddaraf, wedi'i dudalennu, gydag opsiynau arddangos rhagosodedig. Ar gyfer data wedi'i hidlo, crëwch hidlydd yn gyntaf gyda POST /data."
+        "Yn dychwelyd rhesi ar gyfer y diwygiad cyhoeddedig diweddaraf fel arae JSON o wrthrychau. Mae gan bob gwrthrych enwau colofnau fel allweddi. Mae'r ymateb yn cynnwys pennawd Content-Disposition ar gyfer lawrlwytho. I gymhwyso hidlyddion, crëwch hidlydd yn gyntaf drwy POST /{dataset_id}/data, yna defnyddiwch GET /{dataset_id}/data/{filter_id}."
     },
     'POST /{dataset_id}/pivot': {
-      summary: 'Cynhyrchu ID hidlydd ar gyfer ymholiad colyn',
+      summary: 'Cynhyrchu ID hidlydd ar gyfer ymholiad colyn penodol',
       description:
-        "Yn storio ffurfweddiad colyn (echelinau x/y) gyda hidlyddion ac opsiynau arddangos dewisol. Yn dychwelyd ID hidlydd i'w ddefnyddio gyda GET /pivot/{filter_id}."
+        "<p>Yn cynhyrchu ID hidlydd ar gyfer cyfuniad dewisol o ffurfweddiad colyn, hidlyddion ac opsiynau arddangos. Mae'r ID bob amser yr un fath ar gyfer yr un cyfuniadau.</p>  <p>Mae angen i chi anfon corff JSON sy'n cynnwys adrannau ar gyfer 'pivot', 'filters' ac 'options'.</p>  <p>Dylai'r adran 'pivot' gynnwys y newidynnau rydych am eu defnyddio ar gyfer:</p>  <ul>  <li>colofnau'r tabl colyn, neu echelin \"x\"</li>  <li>rhesi'r tabl colyn, neu echelin \"y\"</li>  </ul>  <p>Gallwch ddarganfod beth ddylai'r adrannau 'filters' ac 'options' gynnwys yn y pwynt terfyn 'Cynhyrchu ID hidlydd ar gyfer ymholiad penodol'.</p>"
     },
     'GET /{dataset_id}/data/{filter_id}': {
-      summary: "Cael data tudalenedig ar gyfer set ddata gan ddefnyddio hidlydd wedi'i storio",
-      description: "Yn dychwelyd data tudalenedig wedi'i hidlo a'i fformatio yn ôl yr ID hidlydd wedi'i storio."
+      summary: "Cael tabl data wedi'i hidlo ar gyfer set ddata",
+      description:
+        "Yn dychwelyd data cyfredol ar gyfer set ddata gyhoeddedig, wedi'i hidlo a'i arddangos yn ôl yr opsiynau a ddewiswyd ar gyfer ID hidlydd penodol."
     },
     'GET /{dataset_id}/pivot/{filter_id}': {
-      summary: "Cael golwg colyn o set ddata gan ddefnyddio ID hidlydd wedi'i storio",
+      summary: 'Cael tabl colyn ar gyfer set ddata',
       description:
-        "Yn dychwelyd golwg colyn croes-dablu gan ddefnyddio'r ffurfweddiad wedi'i storio yn yr ID hidlydd a roddwyd."
-    },
-    'GET /{dataset_id}/query/': {
-      summary: 'Cael manylion yr ymholiad rhagosodedig ar gyfer set ddata',
-      description:
-        'Yn dychwelyd ffurfweddiad yr ymholiad rhagosodedig (heb ei hidlo), gan gynnwys cyfanswm cyfrif rhesi a mapio colofnau.'
+        "Yn dychwelyd tabl colyn ar gyfer set ddata gyhoeddedig, wedi'i hidlo a'i arddangos yn ôl yr opsiynau a ddewiswyd ar gyfer ID hidlydd penodol."
     },
     'GET /{dataset_id}/query/{filter_id}': {
-      summary: "Cael manylion ymholiad hidlydd wedi'i storio",
-      description:
-        "Yn dychwelyd ffurfweddiad llawn yr ymholiad wedi'i storio ar gyfer ID hidlydd — defnyddiol ar gyfer archwilio pa hidlyddion ac opsiynau sydd ar waith."
+      summary: 'Cael manylion ymholiad hidlydd',
+      description: "Yn dychwelyd yr opsiynau a'r ffurfweddiad a ddewiswyd ar gyfer ID hidlydd penodol."
     }
   },
   responses: {
     'GET /': {
-      '200': "Rhestr dudalenedig o'r holl setiau data cyhoeddedig"
+      '200': "Rhestr dudalenedig o'r holl setiau data cyhoeddedig a'u IDau"
     },
     'GET /search': {
-      '200': "Rhestr dudalenedig o setiau data cyhoeddedig sy'n cyfateb"
+      '200': "Rhestr dudalenedig o setiau data cyhoeddedig sy'n cyfateb a'u IDau"
     },
     'GET /topic': {
       '200': "Rhestr o'r holl bynciau lefel uchaf sydd ag o leiaf un set ddata gyhoeddedig wedi'i thagio iddynt."
@@ -102,9 +93,6 @@ export const v2CyTranslations: TranslationMap = {
     'GET /{dataset_id}': {
       '200': "Gwrthrych JSON sy'n cynnwys yr holl fetadata ar gyfer set ddata gyhoeddedig"
     },
-    'GET /{dataset_id}/revision/{revision_id}': {
-      '200': 'Metadata ar gyfer y diwygiad y gofynnwyd amdano'
-    },
     'GET /{dataset_id}/filters': {
       '200': "Rhestr o ddimensiynau y gellir eu hidlo gyda'u gwerthoedd sydd ar gael"
     },
@@ -112,19 +100,16 @@ export const v2CyTranslations: TranslationMap = {
       '200': 'Yr ID hidlydd a gynhyrchwyd'
     },
     'GET /{dataset_id}/data': {
-      '200': "Golwg dudalenedig o ddata'r set ddata"
+      '200': 'Arae JSON o wrthrychau rhes data'
     },
     'POST /{dataset_id}/pivot': {
       '200': 'Yr ID hidlydd a gynhyrchwyd'
     },
     'GET /{dataset_id}/data/{filter_id}': {
-      '200': "Golwg dudalenedig o ddata'r set ddata"
+      '200': "Arae JSON o wrthrychau rhes data wedi'u hidlo"
     },
     'GET /{dataset_id}/pivot/{filter_id}': {
       '200': "Golwg colyn dudalenedig o ddata'r set ddata"
-    },
-    'GET /{dataset_id}/query/': {
-      '200': "Ffurfweddiad yr ymholiad wedi'i storio"
     },
     'GET /{dataset_id}/query/{filter_id}': {
       '200': "Ffurfweddiad yr ymholiad wedi'i storio"
@@ -137,13 +122,15 @@ export const v2CyTranslations: TranslationMap = {
     topic_id: 'Dynodwr unigryw y pwnc a ddymunir',
     format: 'Fformat ffeil ar gyfer y lawrlwythiad',
     page_number: 'Rhif tudalen ar gyfer tudalennu',
-    page_size: 'Nifer y setiau data fesul tudalen',
+    page_size: 'Nifer y gwerthoedd neu ganlyniadau fesul tudalen',
     sort_by:
-      "Colofnau i drefnu'r data yn ôl. Dylai'r gwerth fod yn arae JSON o wrthrychau wedi'i anfon fel llinyn wedi'i amgodio URL.",
+      "Sut i drefnu'r data. Mae angen i chi gynnwys y `columnName` ac a yw'r golofn yn esgynnol neu'n ddisgynnol (`asc` neu `desc`). Mae'r cyfeiriad yn esgynnol yn ddiofyn. Gweler yr enghraifft am sut i fformatio hyn.",
     filter:
       "Priodweddau i hidlo'r data yn ôl. Dylai'r gwerth fod yn arae JSON o wrthrychau wedi'i anfon fel llinyn wedi'i amgodio URL.",
     keywords: 'Llinyn ymholiad chwilio',
     revision_id: 'Dynodwr unigryw y diwygiad',
-    filter_id: 'ID hidlydd a ddychwelwyd gan y pwynt terfyn POST /data neu POST /pivot'
+    filter_id: 'ID hidlydd a ddychwelwyd gan y pwynt terfyn POST /data neu POST /pivot',
+    search_mode:
+      "Algorithm chwilio i'w ddefnyddio. **basic** (rhagosodedig): cyfatebiad is-linyn heb wahaniaethu llythrennau mawr/bach yn erbyn teitl a chrynodeb. **basic_split**: yn rhannu allweddeiriau'n eiriau unigol ac yn mynnu bod pob un yn ymddangos (rhesymeg AND). **fts**: chwilio testun llawn PostgreSQL gan ddefnyddio bôn-eiriau sy'n ymwybodol o iaith a graddio — yn dychwelyd meysydd `rank`, `match_title`, a `match_summary` gyda chyfatebiadau wedi'u hamlygu. **fts_simple**: fel fts ond yn defnyddio'r geiriadur 'syml' (dim bôn-eirio), defnyddiol ar gyfer chwiliadau Cymraeg. **fuzzy**: cyfatebiaeth tebygrwydd yn seiliedig ar drigram — yn goddef gwallau teipio a chyfatebiadau rhannol."
   }
 };
