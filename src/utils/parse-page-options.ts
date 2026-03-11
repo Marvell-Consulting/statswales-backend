@@ -5,11 +5,10 @@ import { FieldValidationError, matchedData } from 'express-validator';
 import { OutputFormats } from '../enums/output-formats';
 import { BadRequestException } from '../exceptions/bad-request.exception';
 import { PageOptions } from '../interfaces/page-options';
-import { SortByInterface } from '../interfaces/sort-by-interface';
 import { format2Validator, pageNumberValidator, pageSizeValidator } from '../validators';
 import { logger } from './logger';
 import { DEFAULT_PAGE_SIZE } from './page-defaults';
-import { sortObjToString } from './sort-obj-to-string';
+import { parseSortByParam } from './parse-sort-by-param';
 
 const defaultPageSize = (format: OutputFormats): number | undefined => {
   return [OutputFormats.Frontend, OutputFormats.Json].includes(format) ? DEFAULT_PAGE_SIZE : undefined;
@@ -32,14 +31,7 @@ export async function parsePageOptions(req: Request): Promise<PageOptions> {
   const pageNumber = params.page_number ?? 1;
   const pageSize = params.page_size ?? defaultPageSize(format);
   const locale = req.language as Locale;
-  let sort: string[] = [];
-
-  try {
-    const sortBy = req.query.sort_by ? (JSON.parse(req.query.sort_by as string) as SortByInterface[]) : undefined;
-    sort = sortBy ? sortObjToString(sortBy) : [];
-  } catch (_err) {
-    throw new BadRequestException('errors.invalid_sort_by');
-  }
+  const sort = parseSortByParam(req.query.sort_by as string);
 
   return { format, pageNumber, pageSize, sort, locale };
 }

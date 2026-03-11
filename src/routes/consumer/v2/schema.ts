@@ -111,22 +111,10 @@ export const schemaV2 = {
         name: 'sort_by',
         in: 'query',
         description:
-          'Columns to sort the data by. The value should be a JSON array of objects sent as a URL encoded string.',
+          'Columns to sort the data by. Colon-separated column:direction pairs, comma-delimited for multiple columns. Direction defaults to asc if omitted. Also accepts legacy JSON array format for backwards compatibility.',
         required: false,
-        content: {
-          'application/json': {
-            schema: {
-              type: 'array',
-              items: {
-                type: 'object',
-                properties: {
-                  columnName: { type: 'string' },
-                  direction: { type: 'string', enum: ['ASC', 'DESC'] }
-                }
-              }
-            }
-          }
-        }
+        schema: { type: 'string' },
+        example: 'title:asc,last_updated_at:desc'
       },
       filter: {
         name: 'filter',

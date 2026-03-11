@@ -27,8 +27,8 @@ import { FileValidationException } from '../exceptions/validation-exception';
 import { FactTableValidationException } from '../exceptions/fact-table-validation-exception';
 import { NotAllowedException } from '../exceptions/not-allowed.exception';
 import { Dataset } from '../entities/dataset/dataset';
-import { SortByInterface } from '../interfaces/sort-by-interface';
 import { FilterInterface } from '../interfaces/filterInterface';
+import { parseSortByToObjects } from '../utils/parse-sort-by-param';
 import {
   createFrontendView,
   createStreamingCSVFilteredView,
@@ -125,7 +125,7 @@ export const getRevisionPreview = async (req: Request, res: Response, next: Next
 
   const page_number: number = Number.parseInt(req.query.page_number as string, 10) || 1;
   const page_size: number = Number.parseInt(req.query.page_size as string, 10) || DEFAULT_PAGE_SIZE;
-  const sortBy = req.query.sort_by ? (JSON.parse(req.query.sort_by as string) as SortByInterface[]) : undefined;
+  const sortBy = parseSortByToObjects(req.query.sort_by as string);
   const filters = req.query.filter ? (JSON.parse(req.query.filter as string) as FilterInterface[]) : undefined;
 
   try {
@@ -512,7 +512,7 @@ export const regenerateRevisionCube = async (req: Request, res: Response, next: 
 
 export const downloadRevisionCubeAsJSON = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   const revision: Revision = res.locals.revision;
-  const sortByQuery = req.query.sort_by ? (JSON.parse(req.query.sort_by as string) as SortByInterface[]) : undefined;
+  const sortByQuery = parseSortByToObjects(req.query.sort_by as string);
   const filterQuery = req.query.filter ? (JSON.parse(req.query.filter as string) as FilterInterface[]) : undefined;
   const view = req.query.view as string;
   try {
@@ -524,7 +524,7 @@ export const downloadRevisionCubeAsJSON = async (req: Request, res: Response, ne
 
 export const downloadRevisionCubeAsCSV = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   const revision: Revision = res.locals.revision;
-  const sortByQuery = req.query.sort_by ? (JSON.parse(req.query.sort_by as string) as SortByInterface[]) : undefined;
+  const sortByQuery = parseSortByToObjects(req.query.sort_by as string);
   const filterQuery = req.query.filter ? (JSON.parse(req.query.filter as string) as FilterInterface[]) : undefined;
   const view = req.query.view as string;
   try {
@@ -566,7 +566,7 @@ export const downloadRevisionCubeAsCSV = async (req: Request, res: Response, nex
 
 export const downloadRevisionCubeAsExcel = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   const revision: Revision = res.locals.revision;
-  const sortByQuery = req.query.sort_by ? (JSON.parse(req.query.sort_by as string) as SortByInterface[]) : undefined;
+  const sortByQuery = parseSortByToObjects(req.query.sort_by as string);
   const filterQuery = req.query.filter ? (JSON.parse(req.query.filter as string) as FilterInterface[]) : undefined;
   const view = req.query.view as string;
   try {
