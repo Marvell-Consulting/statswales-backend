@@ -17,7 +17,7 @@ export const schemaV2 = {
 <h2>Filtering data</h2>
 <ol>
   <li><strong>Discover filters</strong> — <code>GET /{dataset_id}/filters</code> returns every filterable dimension and its allowed values (column names and reference codes).</li>
-  <li><strong>Create a filter</strong> — <code>POST /{dataset_id}/data</code> with a JSON body containing your chosen filters and display options. Returns a reusable <code>filter_id</code> (UUID). Submitting identical filters returns the same ID.</li>
+  <li><strong>Create a filter</strong> — <code>POST /{dataset_id}/data</code> with a JSON body containing your chosen filters and display options. Returns a reusable <code>filter_id</code> (12-character string identifier). Submitting identical filters returns the same ID.</li>
   <li><strong>Fetch filtered data</strong> — <code>GET /{dataset_id}/data/{filter_id}</code> returns paginated rows matching your filter.</li>
 </ol>
 
@@ -32,8 +32,16 @@ export const schemaV2 = {
 <ul>
   <li><code>use_raw_column_names</code> — when <code>true</code> (default), column headers use internal fact-table names (e.g. <code>AreaCode</code>); when <code>false</code>, they use human-readable dimension names (e.g. <code>Area</code>).</li>
   <li><code>use_reference_values</code> — when <code>true</code> (default), cell values are reference codes (e.g. <code>K02000001</code>); when <code>false</code>, they are human-readable descriptions (e.g. <code>United Kingdom</code>).</li>
-  <li><code>data_value_type</code> — controls how the data/measure value column is returned: <code>by_data_and_notes</code>, <code>by_data</code>, or <code>by_notes</code>.</li>
+  <li><code>data_value_type</code> — selects which cube view to use, controlling how data values are represented and which extra columns are included. Default: <code>raw</code>.</li>
 </ul>
+<table>
+  <tr><th><code>data_value_type</code></th><th>description</th></tr>
+  <tr><td><code>raw</code></td><td>Raw data values and dates (default)</td></tr>
+  <tr><td><code>raw_extended</code></td><td>Raw values plus reference codes, hierarchies, and sort orders</td></tr>
+  <tr><td><code>formatted</code></td><td>Formatted data values, no dates</td></tr>
+  <tr><td><code>formatted_extended</code></td><td>Formatted values and dates plus reference codes, hierarchies, and sort orders</td></tr>
+  <tr><td><code>with_note_codes</code></td><td>Data values annotated with note markers</td></tr>
+</table>
 
 <h2>Language</h2>
 <p>Add <code>?lang=cy</code> to any request to receive Welsh-language labels and descriptions. Defaults to English (<code>en-gb</code>).</p>`
@@ -151,7 +159,7 @@ export const schemaV2 = {
         in: 'path',
         description: 'Filter ID returned by the POST /data or POST /pivot endpoint',
         required: true,
-        schema: { type: 'string', format: 'uuid' }
+        schema: { type: 'string' }
       }
     },
     '@schemas': {
@@ -511,12 +519,11 @@ export const schemaV2 = {
         properties: {
           filterId: {
             type: 'string',
-            format: 'uuid',
             description:
-              'UUID for the stored query. Pass this to GET /{dataset_id}/data/{filter_id} or GET /{dataset_id}/pivot/{filter_id} to retrieve filtered results.'
+              'Identifier for the stored query. Pass this to GET /{dataset_id}/data/{filter_id} or GET /{dataset_id}/pivot/{filter_id} to retrieve filtered results.'
           }
         },
-        example: { filterId: '3fa85f64-5717-4562-b3fc-2c963f66afa6' }
+        example: { filterId: 'a1b2c3d4e5f6' }
       },
       DataOptions: {
         type: 'object',
@@ -554,8 +561,9 @@ export const schemaV2 = {
               data_value_type: {
                 type: 'string',
                 description:
-                  'Controls how the data/measure value column is returned: by_data_and_notes (default — value and notes combined), by_data (value only), or by_notes (notes only).',
-                enum: Object.values(DataValueType)
+                  'Selects the cube view used for data output. raw (default): raw data values and dates. raw_extended: raw values plus reference codes, hierarchies, and sort orders. formatted: formatted data values, no dates. formatted_extended: formatted values and dates plus reference codes, hierarchies, and sort orders. with_note_codes: data values annotated with note markers.',
+                enum: Object.values(DataValueType),
+                default: DataValueType.Raw
               }
             }
           }
