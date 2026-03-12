@@ -92,6 +92,7 @@ export interface AppConfig {
     threads: number;
     memory: string;
     writeTimeOut: number;
+    maxConcurrency: number;
   };
   clamav: {
     host: string;

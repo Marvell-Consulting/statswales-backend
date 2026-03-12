@@ -33,7 +33,7 @@ import { FileValidationErrorType, FileValidationException } from '../exceptions/
 import { FactTableColumn } from '../entities/dataset/fact-table-column';
 import { Locale } from '../enums/locale';
 import { DataValueFormat } from '../enums/data-value-format';
-import { duckdb } from './duckdb';
+import { acquireDuckDB } from './duckdb';
 import { Revision } from '../entities/dataset/revision';
 import { performanceReporting } from '../utils/performance-reporting';
 import { FileType } from '../enums/file-type';
@@ -203,11 +203,11 @@ async function createMeasureTable(
   const start = performance.now();
   const tmpTableName = randomUUID();
   const lookupTableName = randomUUID();
-  const quack = await duckdb();
+  const { duckdb, duckRelease } = await acquireDuckDB();
   logger.debug(`Creating empty measure table`);
-  await quack.run(measureTableCreateStatement(measureColumn.columnDatatype, 'memory', lookupTableName));
+  await duckdb.run(measureTableCreateStatement(measureColumn.columnDatatype, 'memory', lookupTableName));
   logger.debug(`Loading measure lookup table into memory`);
-  await loadFileIntoCube(quack, fileType, path, tmpTableName, 'memory');
+  await loadFileIntoCube(duckdb, fileType, path, tmpTableName, 'memory');
   const viewComponents: string[] = [];
   logger.debug(`Setting up measure insert query`);
   let formatColumn = 'NULL AS format,';
@@ -331,7 +331,7 @@ async function createMeasureTable(
 
   try {
     logger.trace(`Running query:\n\n${statements.join('\n')}\n\n`);
-    await quack.run(statements.join('\n'));
+    await duckdb.run(statements.join('\n'));
   } catch (err) {
     logger.error(err, `Something went wrong trying to extract the lookup tables contents to measure.`);
     const error = err as { errorType?: string; message: string };
@@ -360,13 +360,13 @@ async function createMeasureTable(
   }
 
   try {
-    await quack.run(pgformat('DROP TABLE IF EXISTS %I.%I', 'lookup_tables_db', measureId));
-    await quack.run(
+    await duckdb.run(pgformat('DROP TABLE IF EXISTS %I.%I', 'lookup_tables_db', measureId));
+    await duckdb.run(
       pgformat('CREATE TABLE %I.%I AS SELECT * FROM %I.%I;', 'lookup_tables_db', measureId, 'memory', lookupTableName)
     );
   } catch (err) {
     logger.error(err, 'Something went wrong trying to copy the measure table to postgres');
-    quack.disconnectSync();
+    duckRelease();
     throw new FileValidationException('errors.measure_validation.copy_failure', FileValidationErrorType.unknown);
   }
 
@@ -374,7 +374,7 @@ async function createMeasureTable(
   const getTableContentsQuery = pgformat(`SELECT * FROM %I.%I;`, 'memory', lookupTableName);
   try {
     logger.trace(`Getting table contents using query:\n\n${getTableContentsQuery}\n\n`);
-    tableContents = await quack.runAndReadAll(getTableContentsQuery);
+    tableContents = await duckdb.runAndReadAll(getTableContentsQuery);
   } catch (err) {
     logger.error(err, 'Something went wrong trying to read the measure table in duckdb');
     throw new FileValidationException('errors.measure_validation.copy_failure', FileValidationErrorType.unknown);
@@ -400,12 +400,12 @@ async function createMeasureTable(
   // logger.trace(`Measure table contents: ${JSON.stringify(measureTable, null, 2)}`);
 
   try {
-    await quack.run(pgformat('DROP TABLE IF EXISTS %I.%I', 'memory', lookupTableName));
-    await quack.run(pgformat('DROP TABLE IF EXISTS %I.%I', 'memory', tmpTableName));
+    await duckdb.run(pgformat('DROP TABLE IF EXISTS %I.%I', 'memory', lookupTableName));
+    await duckdb.run(pgformat('DROP TABLE IF EXISTS %I.%I', 'memory', tmpTableName));
   } catch (err) {
     logger.warn(err, 'Something went wrong trying to cleanup measure tables in memory');
   } finally {
-    quack.disconnectSync();
+    duckRelease();
   }
 
   performanceReporting(performance.now() - start, 500, 'Loading measure lookup table into postgres');

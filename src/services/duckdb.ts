@@ -1,5 +1,6 @@
 import { DuckDBConnection, DuckDBInstance } from '@duckdb/node-api';
 import { format as pgformat } from '@scaleleap/pg-format';
+import { Semaphore } from 'async-mutex';
 
 import { logger as parentLogger } from '../utils/logger';
 import { config } from '../config';
@@ -18,7 +19,7 @@ const logger = parentLogger.child({ module: 'DuckDB' });
 
 let duckDBInstance: DuckDBInstance | undefined;
 
-export const duckdb = async (): Promise<DuckDBConnection> => {
+const duckdb = async (): Promise<DuckDBConnection> => {
   const { threads, memory } = config.duckdb;
 
   if (!duckDBInstance) {
@@ -74,3 +75,22 @@ export const duckdb = async (): Promise<DuckDBConnection> => {
   logger.debug('Successfully connected to duckDB');
   return duckdb;
 };
+
+export interface DuckDBHandle {
+  duckdb: DuckDBConnection;
+  duckRelease: () => void;
+}
+
+const semaphore = new Semaphore(config.duckdb.maxConcurrency);
+
+export async function acquireDuckDB(): Promise<DuckDBHandle> {
+  const [, release] = await semaphore.acquire();
+  const conn = await duckdb();
+  return {
+    duckdb: conn,
+    duckRelease(): void {
+      conn.disconnectSync();
+      release();
+    }
+  };
+}

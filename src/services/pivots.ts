@@ -3,7 +3,7 @@ import { Response } from 'express';
 import { format as pgformat } from '@scaleleap/pg-format/lib/pg-format';
 import { QueryStore } from '../entities/query-store';
 import { PageOptions } from '../interfaces/page-options';
-import { duckdb } from './duckdb';
+import { acquireDuckDB } from './duckdb';
 import { t } from '../middleware/translation';
 import { DuckDBResult } from '@duckdb/node-api';
 import { logger } from '../utils/logger';
@@ -245,9 +245,9 @@ export async function createPivotOutputUsingDuckDB(
   pageOptions: PageOptions,
   queryStore: QueryStore
 ): Promise<void> {
-  const quack = await duckdb();
+  const { duckdb, duckRelease } = await acquireDuckDB();
   try {
-    const pivot = await quack.stream(pivotQuery);
+    const pivot = await duckdb.stream(pivotQuery);
     switch (pageOptions.format) {
       case OutputFormats.Json:
         await pivotToJson(res, pivot);
@@ -272,7 +272,7 @@ export async function createPivotOutputUsingDuckDB(
     logger.error(err, 'Error creating pivot from query');
     throw new UnknownException('Pivot query failed to run');
   } finally {
-    quack.closeSync();
+    duckRelease();
   }
 }
 
@@ -295,15 +295,15 @@ export function validateColOnly(columnName: string, locale: string, filterTable:
 }
 
 export async function getPivotRowCount(query: string): Promise<number> {
-  const quack = await duckdb();
+  const { duckdb, duckRelease } = await acquireDuckDB();
   try {
-    const result = await quack.run(query);
+    const result = await duckdb.run(query);
     return result.rowCount;
   } catch (err) {
     logger.error(err, 'Something went wrong trying to run the pivot query to get the line count');
     throw new UnknownException('Pivot line count failed to run the pivot query');
   } finally {
-    quack.closeSync();
+    duckRelease();
   }
 }
 

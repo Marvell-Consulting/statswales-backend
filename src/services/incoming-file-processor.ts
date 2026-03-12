@@ -12,7 +12,7 @@ import { DatasetRepository } from '../repositories/dataset';
 import { FileType } from '../enums/file-type';
 import { DataTableDescription } from '../entities/dataset/data-table-description';
 import { DataTableAction } from '../enums/data-table-action';
-import { duckdb, DuckDBDatabases } from './duckdb';
+import { DuckDBDatabases, acquireDuckDB } from './duckdb';
 import { getFileService } from '../utils/get-file-service';
 import { FileValidationErrorType, FileValidationException } from '../exceptions/validation-exception';
 import { DuckDBException } from '../exceptions/duckdb-exception';
@@ -49,115 +49,114 @@ export async function validateFileAndExtractTableInfo(
   dataTable: DataTable,
   type: 'data_table' | 'lookup_table'
 ): Promise<DataTableDescription[]> {
-  const temporaryTableName: string = randomUUID();
-  const quack = await duckdb();
-  let tableHeaders: DuckDBResultReader;
-  const createTableQuery = getCreateTableQuery(dataTable.fileType);
-
+  const { duckdb, duckRelease } = await acquireDuckDB();
   try {
-    logger.debug(`Attempting to read the file using duckdb`);
-    if (dataTable.fileType === FileType.Csv) {
-      try {
-        dataTable.encoding = 'utf-8';
-        await quack.run(pgformat(createTableQuery, temporaryTableName, file.path, dataTable.encoding));
-      } catch (err) {
-        dataTable.encoding = 'latin-1';
-        logger.warn(err, 'Failed to import file into duckDB with UTF-8 encoding trying latin-1');
-        await quack.run(pgformat(createTableQuery, temporaryTableName, file.path, dataTable.encoding));
+    const temporaryTableName: string = randomUUID();
+    let tableHeaders: DuckDBResultReader;
+    const createTableQuery = getCreateTableQuery(dataTable.fileType);
+
+    try {
+      logger.debug(`Attempting to read the file using duckdb`);
+      if (dataTable.fileType === FileType.Csv) {
+        try {
+          dataTable.encoding = 'utf-8';
+          await duckdb.run(pgformat(createTableQuery, temporaryTableName, file.path, dataTable.encoding));
+        } catch (err) {
+          dataTable.encoding = 'latin-1';
+          logger.warn(err, 'Failed to import file into duckDB with UTF-8 encoding trying latin-1');
+          await duckdb.run(pgformat(createTableQuery, temporaryTableName, file.path, dataTable.encoding));
+        }
+      } else {
+        await duckdb.run(pgformat(createTableQuery, temporaryTableName, file.path));
       }
+    } catch (error) {
+      logger.error(error, `Something went wrong trying to extract table information using DuckDB.`);
+
+      if ((error as DuckDBException).stack.includes('Invalid unicode')) {
+        throw new FileValidationException(`File encoding is not supported`, FileValidationErrorType.InvalidUnicode);
+      } else if ((error as DuckDBException).stack.includes('CSV Error on Line')) {
+        throw new FileValidationException(`Errors in CSV file`, FileValidationErrorType.InvalidCsv);
+      }
+      throw new FileValidationException(
+        `Unknown error occurred, please refer to the log for more information`,
+        FileValidationErrorType.unknown
+      );
+    }
+
+    const statements: string[] = ['BEGIN TRANSACTION;'];
+    if (type === 'data_table') {
+      statements.push(
+        ...[
+          pgformat(`DROP TABLE IF EXISTS %I.%I;`, DuckDBDatabases.DataTables, dataTable.id),
+          pgformat(
+            'CREATE TABLE %I.%I AS SELECT * FROM %I;',
+            DuckDBDatabases.DataTables,
+            dataTable.id,
+            temporaryTableName
+          )
+        ]
+      );
     } else {
-      await quack.run(pgformat(createTableQuery, temporaryTableName, file.path));
+      statements.push(
+        ...[
+          pgformat(`DROP TABLE IF EXISTS %I.%I;`, DuckDBDatabases.LookupTables, `${dataTable.id}_tmp`),
+          pgformat(
+            'CREATE TABLE %I.%I AS SELECT * FROM %I;',
+            DuckDBDatabases.LookupTables,
+            `${dataTable.id}_tmp`,
+            temporaryTableName
+          )
+        ]
+      );
     }
-  } catch (error) {
-    logger.error(error, `Something went wrong trying to extract table information using DuckDB.`);
-    logger.debug('Releasing duckdb connection');
-    quack.disconnectSync();
+    statements.push('END TRANSACTION;');
 
-    if ((error as DuckDBException).stack.includes('Invalid unicode')) {
-      throw new FileValidationException(`File encoding is not supported`, FileValidationErrorType.InvalidUnicode);
-    } else if ((error as DuckDBException).stack.includes('CSV Error on Line')) {
-      throw new FileValidationException(`Errors in CSV file`, FileValidationErrorType.InvalidCsv);
+    try {
+      logger.debug(`Copying data table to postgres ${type} schema using id: ${dataTable.id}`);
+      logger.trace(`Running query to create ${type}:\n\n${statements.join('\n')}\n\n`);
+      await duckdb.run(statements.join('\n'));
+    } catch (error) {
+      logger.error(error, `Something went wrong saving ${type} to postgres`);
+      throw new FileValidationException(
+        `Unknown error occurred, please refer to the log for more information: ${JSON.stringify(error)}`,
+        FileValidationErrorType.unknown
+      );
     }
-    throw new FileValidationException(
-      `Unknown error occurred, please refer to the log for more information`,
-      FileValidationErrorType.unknown
-    );
-  }
 
-  const statements: string[] = ['BEGIN TRANSACTION;'];
-  if (type === 'data_table') {
-    statements.push(
-      ...[
-        pgformat(`DROP TABLE IF EXISTS %I.%I;`, DuckDBDatabases.DataTables, dataTable.id),
+    try {
+      tableHeaders = await duckdb.runAndReadAll(
         pgformat(
-          'CREATE TABLE %I.%I AS SELECT * FROM %I;',
-          DuckDBDatabases.DataTables,
-          dataTable.id,
+          `SELECT (row_number() OVER ())-1 as index, column_name, column_type FROM (DESCRIBE %I);`,
           temporaryTableName
         )
-      ]
-    );
-  } else {
-    statements.push(
-      ...[
-        pgformat(`DROP TABLE IF EXISTS %I.%I;`, DuckDBDatabases.LookupTables, `${dataTable.id}_tmp`),
-        pgformat(
-          'CREATE TABLE %I.%I AS SELECT * FROM %I;',
-          DuckDBDatabases.LookupTables,
-          `${dataTable.id}_tmp`,
-          temporaryTableName
-        )
-      ]
-    );
-  }
-  statements.push('END TRANSACTION;');
+      );
+      await duckdb.run(pgformat('DROP TABLE IF EXISTS %I;', temporaryTableName));
+    } catch (error) {
+      logger.error(error, 'Something went wrong trying to extract table information using DuckDB.');
+      throw new FileValidationException(
+        `Unknown error occurred, please refer to the log for more information`,
+        FileValidationErrorType.unknown
+      );
+    }
 
-  try {
-    logger.debug(`Copying data table to postgres ${type} schema using id: ${dataTable.id}`);
-    logger.trace(`Running query to create ${type}:\n\n${statements.join('\n')}\n\n`);
-    await quack.run(statements.join('\n'));
-  } catch (error) {
-    logger.error(error, `Something went wrong saving ${type} to postgres`);
-    quack.disconnectSync();
-    throw new FileValidationException(
-      `Unknown error occurred, please refer to the log for more information: ${JSON.stringify(error)}`,
-      FileValidationErrorType.unknown
-    );
-  }
+    if (tableHeaders.getRows().length === 0) {
+      throw new FileValidationException(`Failed to parse CSV into columns`, FileValidationErrorType.InvalidCsv);
+    }
 
-  try {
-    tableHeaders = await quack.runAndReadAll(
-      pgformat(
-        `SELECT (row_number() OVER ())-1 as index, column_name, column_type FROM (DESCRIBE %I);`,
-        temporaryTableName
-      )
-    );
-    await quack.run(pgformat('DROP TABLE IF EXISTS %I;', temporaryTableName));
-  } catch (error) {
-    logger.error(error, 'Something went wrong trying to extract table information using DuckDB.');
-    throw new FileValidationException(
-      `Unknown error occurred, please refer to the log for more information`,
-      FileValidationErrorType.unknown
-    );
+    if (tableHeaders.getRows().length === 1 && dataTable.fileType === FileType.Csv) {
+      throw new FileValidationException(`Failed to parse CSV into columns`, FileValidationErrorType.InvalidCsv);
+    }
+
+    return tableHeaders.getRowObjectsJson().map((header) => {
+      const info = new DataTableDescription();
+      info.columnName = header.column_name as string;
+      info.columnIndex = header.index as number;
+      info.columnDatatype = header.column_type as string;
+      return info;
+    });
   } finally {
-    quack.disconnectSync();
+    duckRelease();
   }
-
-  if (tableHeaders.getRows().length === 0) {
-    throw new FileValidationException(`Failed to parse CSV into columns`, FileValidationErrorType.InvalidCsv);
-  }
-
-  if (tableHeaders.getRows().length === 1 && dataTable.fileType === FileType.Csv) {
-    throw new FileValidationException(`Failed to parse CSV into columns`, FileValidationErrorType.InvalidCsv);
-  }
-
-  return tableHeaders.getRowObjectsJson().map((header) => {
-    const info = new DataTableDescription();
-    info.columnName = header.column_name as string;
-    info.columnIndex = header.index as number;
-    info.columnDatatype = header.column_type as string;
-    return info;
-  });
 }
 
 export const validateAndUpload = async (

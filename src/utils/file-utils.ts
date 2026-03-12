@@ -12,7 +12,7 @@ import { FileType } from '../enums/file-type';
 import { logger } from './logger';
 import { getFileService } from './get-file-service';
 import { asyncTmpName } from './async-tmp';
-import { duckdb } from '../services/duckdb';
+import { acquireDuckDB } from '../services/duckdb';
 import { FACT_TABLE_NAME } from '../services/cube-builder';
 import { DataTable } from '../entities/dataset/data-table';
 import { performanceReporting } from './performance-reporting';
@@ -45,18 +45,21 @@ export async function loadFileIntoDataTablesSchema(
   filePath?: string
 ): Promise<void> {
   const start = performance.now();
-  const quack = await duckdb();
-  let dataTableFile;
-  if (filePath) {
-    dataTableFile = filePath;
-  } else {
-    dataTableFile = await getFileImportAndSaveToDisk(dataset, dataTable);
+  const { duckdb, duckRelease } = await acquireDuckDB();
+  try {
+    let dataTableFile;
+    if (filePath) {
+      dataTableFile = filePath;
+    } else {
+      dataTableFile = await getFileImportAndSaveToDisk(dataset, dataTable);
+    }
+    await loadFileIntoCube(duckdb, dataTable.fileType, dataTableFile, FACT_TABLE_NAME, 'memory');
+    await duckdb.run(
+      pgformat('CREATE TABLE data_tables_db.%I AS SELECT * FROM memory.%I;', dataTable.id, FACT_TABLE_NAME)
+    );
+  } finally {
+    duckRelease();
   }
-  await loadFileIntoCube(quack, dataTable.fileType, dataTableFile, FACT_TABLE_NAME, 'memory');
-  await quack.run(
-    pgformat('CREATE TABLE data_tables_db.%I AS SELECT * FROM memory.%I;', dataTable.id, FACT_TABLE_NAME)
-  );
-  quack.disconnectSync();
   performanceReporting(Math.round(start - performance.now()), 500, 'Loading a data table in to postgres');
 }
 
@@ -93,80 +96,88 @@ export async function loadFileIntoLookupTablesSchema(
   filePath?: string
 ): Promise<void> {
   const start = performance.now();
-  const quack = await duckdb();
+  const { duckdb, duckRelease } = await acquireDuckDB();
   const dimTable = randomUUID();
-  await quack.run(
-    createLookupTableQuery('memory', dimTable, factTableColumn.columnName, factTableColumn.columnDatatype)
-  );
-  let lookupTableFile;
-  if (filePath) {
-    lookupTableFile = filePath;
-  } else {
-    lookupTableFile = await getFileImportAndSaveToDisk(dataset, lookupTable!);
-  }
-  const lookupTableName = randomUUID();
-  await loadFileIntoCube(quack, lookupTable.fileType, lookupTableFile, lookupTableName, 'memory');
-  if (extractor.isSW2Format) {
-    logger.debug('Lookup table is SW2 format');
-    const dataExtractorParts = [];
-    for (const locale of SUPPORTED_LOCALES) {
-      const descriptionCol = extractor.descriptionColumns.find(
-        (col) => col.lang.toLowerCase() === locale.toLowerCase()
-      );
-      const notesCol = extractor.notesColumns?.find((col) => col.lang.toLowerCase() === locale.toLowerCase());
-      const notesColStr = notesCol ? pgformat('%I', notesCol.name) : 'NULL';
-      const sortStr = extractor.sortColumn ? pgformat('%I', extractor.sortColumn) : 'NULL';
-      const hierarchyCol = extractor.hierarchyColumn ? pgformat('%I', extractor.hierarchyColumn) : 'NULL';
-      dataExtractorParts.push(
-        pgformat(
-          'SELECT %I AS %I, %L as language, %I as description, %s as notes, %s as sort_order, %s as hierarchy FROM %I.%I',
-          joinColumn,
-          factTableColumn.columnName,
-          locale.toLowerCase(),
-          descriptionCol?.name,
-          notesColStr,
-          sortStr,
-          hierarchyCol,
-          'memory',
-          lookupTableName
-        )
-      );
-    }
-    const builtInsertQuery = pgformat(`INSERT INTO %I.%I %s;`, 'memory', dimTable, dataExtractorParts.join(' UNION '));
-    await quack.run(builtInsertQuery);
-  } else {
-    const languageMatcher = languageMatcherCaseStatement(extractor.languageColumn);
-    const notesStr = extractor.notesColumns ? pgformat('%I', extractor.notesColumns[0].name) : 'NULL';
-    const sortStr = extractor.sortColumn ? pgformat('%I', extractor.sortColumn) : 'NULL';
-    const hierarchyStr = extractor.hierarchyColumn ? pgformat('%I', extractor.hierarchyColumn) : 'NULL';
-    const dataExtractorParts = pgformat(
-      `SELECT %I AS %I, %s as language, %I as description, %s as notes, %s as sort_order, %s as hierarchy FROM %I.%I;`,
-      joinColumn,
-      factTableColumn.columnName,
-      languageMatcher,
-      extractor.descriptionColumns[0].name,
-      notesStr,
-      sortStr,
-      hierarchyStr,
-      'memory',
-      lookupTableName
+  try {
+    await duckdb.run(
+      createLookupTableQuery('memory', dimTable, factTableColumn.columnName, factTableColumn.columnDatatype)
     );
-    const builtInsertQuery = pgformat(`INSERT INTO %I.%I %s`, 'memory', dimTable, dataExtractorParts);
-    await quack.run(builtInsertQuery);
+    let lookupTableFile;
+    if (filePath) {
+      lookupTableFile = filePath;
+    } else {
+      lookupTableFile = await getFileImportAndSaveToDisk(dataset, lookupTable!);
+    }
+    const lookupTableName = randomUUID();
+    await loadFileIntoCube(duckdb, lookupTable.fileType, lookupTableFile, lookupTableName, 'memory');
+    if (extractor.isSW2Format) {
+      logger.debug('Lookup table is SW2 format');
+      const dataExtractorParts = [];
+      for (const locale of SUPPORTED_LOCALES) {
+        const descriptionCol = extractor.descriptionColumns.find(
+          (col) => col.lang.toLowerCase() === locale.toLowerCase()
+        );
+        const notesCol = extractor.notesColumns?.find((col) => col.lang.toLowerCase() === locale.toLowerCase());
+        const notesColStr = notesCol ? pgformat('%I', notesCol.name) : 'NULL';
+        const sortStr = extractor.sortColumn ? pgformat('%I', extractor.sortColumn) : 'NULL';
+        const hierarchyCol = extractor.hierarchyColumn ? pgformat('%I', extractor.hierarchyColumn) : 'NULL';
+        dataExtractorParts.push(
+          pgformat(
+            'SELECT %I AS %I, %L as language, %I as description, %s as notes, %s as sort_order, %s as hierarchy FROM %I.%I',
+            joinColumn,
+            factTableColumn.columnName,
+            locale.toLowerCase(),
+            descriptionCol?.name,
+            notesColStr,
+            sortStr,
+            hierarchyCol,
+            'memory',
+            lookupTableName
+          )
+        );
+      }
+      const builtInsertQuery = pgformat(
+        `INSERT INTO %I.%I %s;`,
+        'memory',
+        dimTable,
+        dataExtractorParts.join(' UNION ')
+      );
+      await duckdb.run(builtInsertQuery);
+    } else {
+      const languageMatcher = languageMatcherCaseStatement(extractor.languageColumn);
+      const notesStr = extractor.notesColumns ? pgformat('%I', extractor.notesColumns[0].name) : 'NULL';
+      const sortStr = extractor.sortColumn ? pgformat('%I', extractor.sortColumn) : 'NULL';
+      const hierarchyStr = extractor.hierarchyColumn ? pgformat('%I', extractor.hierarchyColumn) : 'NULL';
+      const dataExtractorParts = pgformat(
+        `SELECT %I AS %I, %s as language, %I as description, %s as notes, %s as sort_order, %s as hierarchy FROM %I.%I;`,
+        joinColumn,
+        factTableColumn.columnName,
+        languageMatcher,
+        extractor.descriptionColumns[0].name,
+        notesStr,
+        sortStr,
+        hierarchyStr,
+        'memory',
+        lookupTableName
+      );
+      const builtInsertQuery = pgformat(`INSERT INTO %I.%I %s`, 'memory', dimTable, dataExtractorParts);
+      await duckdb.run(builtInsertQuery);
+    }
+    logger.debug(`Dropping original lookup table ${lookupTableName}`);
+    const statements = [
+      pgformat('DROP TABLE %I.%I;', 'memory', lookupTableName),
+      pgformat('DROP TABLE IF EXISTS %I.%I;', 'lookup_tables_db', lookupTable.id),
+      pgformat('CREATE TABLE %I.%I AS SELECT * FROM %I.%I;', 'lookup_tables_db', lookupTable.id, 'memory', dimTable)
+    ];
+    await duckdb.run(statements.join('\n'));
+  } finally {
+    duckRelease();
   }
-  logger.debug(`Dropping original lookup table ${lookupTableName}`);
-  const statements = [
-    pgformat('DROP TABLE %I.%I;', 'memory', lookupTableName),
-    pgformat('DROP TABLE IF EXISTS %I.%I;', 'lookup_tables_db', lookupTable.id),
-    pgformat('CREATE TABLE %I.%I AS SELECT * FROM %I.%I;', 'lookup_tables_db', lookupTable.id, 'memory', dimTable)
-  ];
-  await quack.run(statements.join('\n'));
-  quack.disconnectSync();
   performanceReporting(Math.round(start - performance.now()), 500, 'Loading a lookup table in to postgres');
 }
 
 export const loadFileIntoCube = async (
-  quack: DuckDBConnection,
+  duckdb: DuckDBConnection,
   fileType: FileType,
   tempFile: string,
   tableName: string,
@@ -194,7 +205,7 @@ export const loadFileIntoCube = async (
   const insertQuery = pgformat('CREATE TABLE %I.%I AS SELECT * FROM %s;', schema, tableName, fileLoaderMethod);
   try {
     logger.trace(`Running create data table query:\n\n${insertQuery}\n\n`);
-    await quack.run(insertQuery);
+    await duckdb.run(insertQuery);
   } catch (error) {
     logger.error(error, `Failed to load file in to DuckDB.`);
     throw error;
