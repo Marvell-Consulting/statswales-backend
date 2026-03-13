@@ -14,12 +14,11 @@ import { DatasetRepository } from '../repositories/dataset';
 import { SortByInterface } from '../interfaces/sort-by-interface';
 import { FilterInterface } from '../interfaces/filterInterface';
 import { dbManager } from '../db/database-manager';
-import { CORE_VIEW_NAME } from './cube-builder';
 import { getColumnHeaders } from '../utils/column-headers';
 import { t } from 'i18next';
 import cubeConfig from '../config/cube-view.json';
 import { FactTableToDimensionName } from '../interfaces/fact-table-column-to-dimension-name';
-import { transformHierarchy } from '../utils/consumer';
+import { coreViewChooser, transformHierarchy } from '../utils/consumer';
 
 const EXCEL_ROW_LIMIT = 1048500; // Excel Limit is 1048576 but removed 76 rows
 const CURSOR_ROW_LIMIT = 500;
@@ -158,31 +157,6 @@ function createBaseQuery(
       filterQuery ? `WHERE ${filterQuery}` : '',
       sortByQuery ? `ORDER BY ${sortByQuery}` : ''
     );
-  }
-}
-
-async function coreViewChooser(lang: string, revisionId: string): Promise<string> {
-  let availableMaterializedView: { matviewname: string }[];
-  const cubeDB = dbManager.getCubeDataSource().createQueryRunner();
-  try {
-    availableMaterializedView = await cubeDB.query(
-      pgformat(
-        `SELECT * FROM pg_matviews WHERE matviewname = %L AND schemaname = %L;`,
-        `${CORE_VIEW_NAME}_mat_${lang}`,
-        revisionId
-      )
-    );
-  } catch (err) {
-    logger.error(err, 'Unable to query available views from postgres');
-    throw err;
-  } finally {
-    void cubeDB.release();
-  }
-
-  if (availableMaterializedView.length > 0) {
-    return `${CORE_VIEW_NAME}_mat_${lang}`;
-  } else {
-    return `${CORE_VIEW_NAME}_${lang}`;
   }
 }
 
