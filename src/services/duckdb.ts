@@ -1,5 +1,6 @@
 import { DuckDBConnection, DuckDBInstance } from '@duckdb/node-api';
 import { format as pgformat } from '@scaleleap/pg-format';
+import { Mutex, Semaphore } from 'async-mutex';
 
 import { logger as parentLogger } from '../utils/logger';
 import { config } from '../config';
@@ -17,13 +18,19 @@ export enum DuckDBDatabases {
 const logger = parentLogger.child({ module: 'DuckDB' });
 
 let duckDBInstance: DuckDBInstance | undefined;
+const initMutex = new Mutex();
 
-export const duckdb = async (): Promise<DuckDBConnection> => {
-  const { threads, memory } = config.duckdb;
+async function ensureInstance(): Promise<DuckDBInstance> {
+  return initMutex.runExclusive(async () => {
+    if (duckDBInstance) {
+      return duckDBInstance;
+    }
 
-  if (!duckDBInstance) {
-    logger.debug(`Creating DuckDB instance with ${threads} thread(s) and ${memory} memory limit.`);
-    duckDBInstance = await DuckDBInstance.create(':memory:', {
+    const { threads, memory } = config.duckdb;
+    logger.debug(
+      `Creating DuckDB instance with ${threads} thread(s), ${memory} memory limit, and attaching postgres...`
+    );
+    const instance = await DuckDBInstance.create(':memory:', {
       threads: threads.toString(),
       memory_limit: memory,
       default_block_size: '16384',
@@ -31,19 +38,19 @@ export const duckdb = async (): Promise<DuckDBConnection> => {
       preserve_insertion_order: 'false'
     });
 
-    const setupConn = await duckDBInstance.connect();
-    logger.debug('Establishing connections between duckdb and postgres...');
+    const setupConn = await instance.connect();
     try {
       await setupConn.run(`LOAD 'postgres';`);
-      await setupConn.run(`
-          CREATE OR REPLACE SECRET (
-            TYPE postgres,
-            HOST '${config.database.host}',
-            PORT ${config.database.port},
-            DATABASE '${config.database.database}',
-            USER '${config.database.username}',
-            PASSWORD '${config.database.password}'
-          );`);
+      await setupConn.run(
+        pgformat(
+          `CREATE OR REPLACE SECRET (TYPE postgres, HOST %L, PORT %s, DATABASE %L, USER %L, PASSWORD %L);`,
+          config.database.host,
+          config.database.port,
+          config.database.database,
+          config.database.username,
+          config.database.password
+        )
+      );
       await setupConn.run(pgformat("ATTACH OR REPLACE '' AS %I (TYPE postgres);", DuckDBDatabases.CubeDb));
       await setupConn.run(
         pgformat(
@@ -65,12 +72,45 @@ export const duckdb = async (): Promise<DuckDBConnection> => {
     } finally {
       setupConn.disconnectSync();
     }
-    logger.debug('Successfully set up duckDB instance');
-  } else {
-    logger.debug('Using existing duckdb instance');
-  }
 
-  const duckdb = await duckDBInstance.connect();
-  logger.debug('Successfully connected to duckDB');
-  return duckdb;
+    duckDBInstance = instance;
+    logger.debug('DuckDB instance ready');
+    return instance;
+  });
+}
+
+const duckdb = async (): Promise<DuckDBConnection> => {
+  const instance = await ensureInstance();
+  return instance.connect();
 };
+
+export interface DuckDBHandle {
+  duckdb: DuckDBConnection;
+  releaseDuckDB: () => void;
+}
+
+const { maxConcurrency } = config.duckdb;
+const semaphore = new Semaphore(maxConcurrency);
+
+export async function acquireDuckDB(): Promise<DuckDBHandle> {
+  logger.debug(`Acquiring DuckDB connection (${maxConcurrency - semaphore.getValue()}/${maxConcurrency} in use)`);
+  const [, release] = await semaphore.acquire();
+  let conn: DuckDBConnection;
+  try {
+    conn = await duckdb();
+  } catch (err) {
+    release();
+    throw err;
+  }
+  let released = false;
+  return {
+    duckdb: conn,
+    releaseDuckDB(): void {
+      if (released) return;
+      released = true;
+      conn.disconnectSync();
+      release();
+      logger.debug(`Released DuckDB connection (${maxConcurrency - semaphore.getValue()}/${maxConcurrency} in use)`);
+    }
+  };
+}

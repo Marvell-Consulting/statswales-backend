@@ -1,12 +1,24 @@
+import fs from 'node:fs';
+
 import pino from 'pino';
 import pinoHttp from 'pino-http';
 import pick from 'lodash/pick';
 
 import { config } from '../config';
 
-export const logger = pino({
-  level: config.logger.level
-});
+function createLogger(): pino.Logger {
+  const logFile = process.env.LOG_FILE;
+  if (logFile) {
+    const streams: pino.StreamEntry[] = [
+      { stream: process.stdout },
+      { stream: fs.createWriteStream(logFile, { flags: 'a' }) }
+    ];
+    return pino({ level: config.logger.level }, pino.multistream(streams));
+  }
+  return pino({ level: config.logger.level });
+}
+
+export const logger = createLogger();
 
 export const httpLogger = pinoHttp({
   logger,
