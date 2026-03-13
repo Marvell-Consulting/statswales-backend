@@ -113,11 +113,11 @@ describe('acquireDuckDB', () => {
     const handle = await acquireDuckDB();
 
     expect(handle.duckdb).toBeDefined();
-    expect(handle.duckRelease).toBeInstanceOf(Function);
+    expect(handle.releaseDuckDB).toBeInstanceOf(Function);
 
     const conn = handle.duckdb as unknown as { disconnectSync: jest.Mock };
     expect(conn.disconnectSync).not.toHaveBeenCalled();
-    handle.duckRelease();
+    handle.releaseDuckDB();
     expect(conn.disconnectSync).toHaveBeenCalledTimes(1);
   });
 
@@ -143,7 +143,7 @@ describe('acquireDuckDB', () => {
 
       // With maxConcurrency=1, this would hang if the permit leaked
       const handle = await acquireDuckDB();
-      handle.duckRelease();
+      handle.releaseDuckDB();
     } finally {
       if (origEnv === undefined) {
         delete process.env.DUCKDB_MAX_CONCURRENCY;
@@ -168,29 +168,29 @@ describe('acquireDuckDB', () => {
 
     const handle = await acquireDuckDB();
     expect(mockCreate).toHaveBeenCalledTimes(2);
-    handle.duckRelease();
+    handle.releaseDuckDB();
   });
 
   test('reuses existing instance on subsequent calls', async () => {
     const { acquireDuckDB } = loadModule();
 
     const handle1 = await acquireDuckDB();
-    handle1.duckRelease();
+    handle1.releaseDuckDB();
 
     const handle2 = await acquireDuckDB();
-    handle2.duckRelease();
+    handle2.releaseDuckDB();
 
     expect(mockCreate).toHaveBeenCalledTimes(1);
   });
 
-  test('duckRelease is idempotent', async () => {
+  test('releaseDuckDB is idempotent', async () => {
     const { acquireDuckDB } = loadModule();
     const handle = await acquireDuckDB();
 
     const conn = handle.duckdb as unknown as { disconnectSync: jest.Mock };
-    handle.duckRelease();
-    handle.duckRelease();
-    handle.duckRelease();
+    handle.releaseDuckDB();
+    handle.releaseDuckDB();
+    handle.releaseDuckDB();
 
     expect(conn.disconnectSync).toHaveBeenCalledTimes(1);
   });

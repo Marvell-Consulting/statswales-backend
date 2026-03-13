@@ -74,7 +74,7 @@ describe('API Endpoints', () => {
 
   describe('Load Data Table SQL test', () => {
     test('for CSV type files', async () => {
-      const { duckdb, duckRelease } = await acquireDuckDB();
+      const { duckdb, releaseDuckDB } = await acquireDuckDB();
       try {
         const tableName = 'data_table';
         const testFilePath = path.resolve(__dirname, `../sample-files/csv/minimal/data.csv`);
@@ -94,7 +94,7 @@ describe('API Endpoints', () => {
         const rowsJson = await tableData.getRowsJson();
         expect(Object.keys(rowsJson[0]).length).toBe(4);
       } finally {
-        duckRelease();
+        releaseDuckDB();
       }
     });
   });

@@ -203,7 +203,7 @@ async function createMeasureTable(
   const start = performance.now();
   const tmpTableName = randomUUID();
   const lookupTableName = randomUUID();
-  const { duckdb, duckRelease } = await acquireDuckDB();
+  const { duckdb, releaseDuckDB } = await acquireDuckDB();
   try {
     logger.debug(`Creating empty measure table`);
     await duckdb.run(measureTableCreateStatement(measureColumn.columnDatatype, 'memory', lookupTableName));
@@ -410,7 +410,7 @@ async function createMeasureTable(
 
     return measureTable;
   } finally {
-    duckRelease();
+    releaseDuckDB();
   }
 }
 

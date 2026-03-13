@@ -245,7 +245,7 @@ export async function createPivotOutputUsingDuckDB(
   pageOptions: PageOptions,
   queryStore: QueryStore
 ): Promise<void> {
-  const { duckdb, duckRelease } = await acquireDuckDB();
+  const { duckdb, releaseDuckDB } = await acquireDuckDB();
   try {
     const pivot = await duckdb.stream(pivotQuery);
     switch (pageOptions.format) {
@@ -272,7 +272,7 @@ export async function createPivotOutputUsingDuckDB(
     logger.error(err, 'Error creating pivot from query');
     throw new UnknownException('Pivot query failed to run');
   } finally {
-    duckRelease();
+    releaseDuckDB();
   }
 }
 
@@ -295,7 +295,7 @@ export function validateColOnly(columnName: string, locale: string, filterTable:
 }
 
 export async function getPivotRowCount(query: string): Promise<number> {
-  const { duckdb, duckRelease } = await acquireDuckDB();
+  const { duckdb, releaseDuckDB } = await acquireDuckDB();
   try {
     const result = await duckdb.run(query);
     return result.rowCount;
@@ -303,7 +303,7 @@ export async function getPivotRowCount(query: string): Promise<number> {
     logger.error(err, 'Something went wrong trying to run the pivot query to get the line count');
     throw new UnknownException('Pivot line count failed to run the pivot query');
   } finally {
-    duckRelease();
+    releaseDuckDB();
   }
 }
 

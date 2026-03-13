@@ -49,7 +49,7 @@ export async function validateFileAndExtractTableInfo(
   dataTable: DataTable,
   type: 'data_table' | 'lookup_table'
 ): Promise<DataTableDescription[]> {
-  const { duckdb, duckRelease } = await acquireDuckDB();
+  const { duckdb, releaseDuckDB } = await acquireDuckDB();
   try {
     const temporaryTableName: string = randomUUID();
     let tableHeaders: DuckDBResultReader;
@@ -155,7 +155,7 @@ export async function validateFileAndExtractTableInfo(
       return info;
     });
   } finally {
-    duckRelease();
+    releaseDuckDB();
   }
 }
 

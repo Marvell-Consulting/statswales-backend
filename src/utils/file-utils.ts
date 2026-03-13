@@ -45,7 +45,7 @@ export async function loadFileIntoDataTablesSchema(
   filePath?: string
 ): Promise<void> {
   const start = performance.now();
-  const { duckdb, duckRelease } = await acquireDuckDB();
+  const { duckdb, releaseDuckDB } = await acquireDuckDB();
   try {
     let dataTableFile;
     if (filePath) {
@@ -58,7 +58,7 @@ export async function loadFileIntoDataTablesSchema(
       pgformat('CREATE TABLE data_tables_db.%I AS SELECT * FROM memory.%I;', dataTable.id, FACT_TABLE_NAME)
     );
   } finally {
-    duckRelease();
+    releaseDuckDB();
   }
   performanceReporting(Math.round(start - performance.now()), 500, 'Loading a data table in to postgres');
 }
@@ -96,7 +96,7 @@ export async function loadFileIntoLookupTablesSchema(
   filePath?: string
 ): Promise<void> {
   const start = performance.now();
-  const { duckdb, duckRelease } = await acquireDuckDB();
+  const { duckdb, releaseDuckDB } = await acquireDuckDB();
   const dimTable = randomUUID();
   try {
     await duckdb.run(
@@ -171,7 +171,7 @@ export async function loadFileIntoLookupTablesSchema(
     ];
     await duckdb.run(statements.join('\n'));
   } finally {
-    duckRelease();
+    releaseDuckDB();
   }
   performanceReporting(Math.round(start - performance.now()), 500, 'Loading a lookup table in to postgres');
 }

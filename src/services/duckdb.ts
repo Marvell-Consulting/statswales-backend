@@ -86,7 +86,7 @@ const duckdb = async (): Promise<DuckDBConnection> => {
 
 export interface DuckDBHandle {
   duckdb: DuckDBConnection;
-  duckRelease: () => void;
+  releaseDuckDB: () => void;
 }
 
 const { maxConcurrency } = config.duckdb;
@@ -105,7 +105,7 @@ export async function acquireDuckDB(): Promise<DuckDBHandle> {
   let released = false;
   return {
     duckdb: conn,
-    duckRelease(): void {
+    releaseDuckDB(): void {
       if (released) return;
       released = true;
       conn.disconnectSync();
