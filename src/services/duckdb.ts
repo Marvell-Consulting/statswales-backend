@@ -61,6 +61,7 @@ const duckdb = async (): Promise<DuckDBConnection> => {
         )
       );
     } catch (error) {
+      duckDBInstance = undefined;
       logger.fatal(error, 'Something went wrong trying to setup DuckDB postgres connections');
       throw error;
     } finally {
@@ -85,7 +86,13 @@ const semaphore = new Semaphore(config.duckdb.maxConcurrency);
 
 export async function acquireDuckDB(): Promise<DuckDBHandle> {
   const [, release] = await semaphore.acquire();
-  const conn = await duckdb();
+  let conn: DuckDBConnection;
+  try {
+    conn = await duckdb();
+  } catch (err) {
+    release();
+    throw err;
+  }
   return {
     duckdb: conn,
     duckRelease(): void {
