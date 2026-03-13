@@ -283,19 +283,6 @@ export const updateDataTable = async (req: Request, res: Response, next: NextFun
       const updateAction = req.body.update_action ? (req.body.update_action as DataTableAction) : DataTableAction.Add;
       await attachUpdateDataTableToRevision(datasetId, revision, dataTable, updateAction, columnMatcher, userId);
     }
-    try {
-      logger.info('Revision update complete, creating cube files');
-      await bootstrapCubeBuildProcess(datasetId, revision.id);
-      await createAllCubeFiles(datasetId, revision.id, userId);
-    } catch (err) {
-      logger.error(err, `Something went wrong trying to create the cube`);
-      next(new UnknownException('errors.cube_builder.cube_build_failed'));
-      return;
-    }
-
-    const updatedDataset = await DatasetRepository.getById(datasetId);
-    res.status(201);
-    res.json(DatasetDTO.fromDataset(updatedDataset));
   } catch (err) {
     logger.error(err, `An error occurred trying to update the dataset`);
     const error = err as FactTableValidationException;
@@ -328,6 +315,19 @@ export const updateDataTable = async (req: Request, res: Response, next: NextFun
     }
     logger.error(err, `An unknown error occurred trying to update the dataset`);
     next(new UnknownException('errors.fact_table_validation.unknown_error'));
+    return;
+  }
+
+  try {
+    logger.info('Revision update complete, creating cube files');
+    await bootstrapCubeBuildProcess(datasetId, revision.id);
+    await createAllCubeFiles(datasetId, revision.id, userId);
+    const updatedDataset = await DatasetRepository.getById(datasetId);
+    res.status(201);
+    res.json(DatasetDTO.fromDataset(updatedDataset));
+  } catch (err) {
+    logger.error(err, `Something went wrong trying to create the cube`);
+    next(new UnknownException('errors.cube_builder.cube_build_failed'));
   }
 };
 
@@ -446,11 +446,10 @@ export const regenerateRevisionCube = async (req: Request, res: Response, next: 
   const revision: Revision = res.locals.revision;
   const userId = req.user?.id;
 
-  await bootstrapCubeBuildProcess(datasetId, revision.id);
-
   const startTime = new Date(Date.now());
   const start = performance.now();
   try {
+    await bootstrapCubeBuildProcess(datasetId, revision.id);
     await createAllCubeFiles(datasetId, revision.id, userId);
     // If this is draft revision we can just purge the query store,
     // otherwise we can attempt to rebuild all the queries preserving
