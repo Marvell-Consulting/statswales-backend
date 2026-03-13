@@ -54,7 +54,7 @@ export const createAllCubeFiles = async (
   userId?: string,
   buildType = CubeBuildType.FullCube,
   buildId = crypto.randomUUID(),
-  awaitMaterialization = false
+  awaitMaterialisation = false
 ): Promise<void> => {
   // const datasetRelations: FindOptionsRelations<Dataset> = {
   //   factTable: true,
@@ -182,7 +182,7 @@ export const createAllCubeFiles = async (
     await QueryStore.delete({ revisionId: buildRevisionId });
   }
 
-  if (awaitMaterialization) {
+  if (awaitMaterialisation) {
     logger.debug('Awaiting materialised view creation...');
     await createMaterialisedView(buildRevisionId, dataset, build.id, cubeBuild, cubeBuildConfig);
   } else {
