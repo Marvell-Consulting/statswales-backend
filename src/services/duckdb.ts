@@ -89,12 +89,11 @@ export interface DuckDBHandle {
   duckRelease: () => void;
 }
 
-const semaphore = new Semaphore(config.duckdb.maxConcurrency);
+const { maxConcurrency } = config.duckdb;
+const semaphore = new Semaphore(maxConcurrency);
 
 export async function acquireDuckDB(): Promise<DuckDBHandle> {
-  logger.debug(
-    `Acquiring DuckDB connection (${config.duckdb.maxConcurrency - semaphore.getValue()}/${config.duckdb.maxConcurrency} in use)`
-  );
+  logger.debug(`Acquiring DuckDB connection (${maxConcurrency - semaphore.getValue()}/${maxConcurrency} in use)`);
   const [, release] = await semaphore.acquire();
   let conn: DuckDBConnection;
   try {
@@ -111,9 +110,7 @@ export async function acquireDuckDB(): Promise<DuckDBHandle> {
       released = true;
       conn.disconnectSync();
       release();
-      logger.debug(
-        `Released DuckDB connection (${config.duckdb.maxConcurrency - semaphore.getValue()}/${config.duckdb.maxConcurrency} in use)`
-      );
+      logger.debug(`Released DuckDB connection (${maxConcurrency - semaphore.getValue()}/${maxConcurrency} in use)`);
     }
   };
 }
