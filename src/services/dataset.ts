@@ -306,7 +306,7 @@ export class DatasetService {
   async approvePublication(datasetId: string, revisionId: string, user: User): Promise<Dataset> {
     const start = performance.now();
     await bootstrapCubeBuildProcess(datasetId, revisionId);
-    await createAllCubeFiles(datasetId, revisionId, user.id);
+    await createAllCubeFiles(datasetId, revisionId, user.id, undefined, undefined, true);
     const scheduledRevision = await RevisionRepository.approvePublication(revisionId, `${revisionId}.duckdb`, user);
     const approvedDataset = await DatasetRepository.publish(scheduledRevision);
     const time = Math.round(performance.now() - start);
