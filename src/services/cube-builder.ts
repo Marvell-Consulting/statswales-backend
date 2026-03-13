@@ -144,6 +144,7 @@ export const createAllCubeFiles = async (
 
   if (buildType === CubeBuildType.ValidationCube) {
     build.completeBuild(CubeBuildStatus.Completed);
+    await build.save();
     logger.debug('Validation cube build complete');
     return;
   }
