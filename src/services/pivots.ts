@@ -247,6 +247,7 @@ export async function createPivotOutputUsingDuckDB(
 ): Promise<void> {
   const { duckdb, releaseDuckDB } = await acquireDuckDB();
   try {
+    await duckdb.run('CALL pg_clear_cache();');
     const pivot = await duckdb.stream(pivotQuery);
     switch (pageOptions.format) {
       case OutputFormats.Json:
@@ -297,6 +298,7 @@ export function validateColOnly(columnName: string, locale: string, filterTable:
 export async function getPivotRowCount(query: string): Promise<number> {
   const { duckdb, releaseDuckDB } = await acquireDuckDB();
   try {
+    await duckdb.run('CALL pg_clear_cache();');
     const result = await duckdb.run(query);
     return result.rowCount;
   } catch (err) {
