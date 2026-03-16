@@ -651,7 +651,7 @@ export const datasetActionRequest = async (req: Request, res: Response, next: Ne
 
   const datasetId = res.locals.datasetId;
   const user = req.user as User;
-  const { reason } = req.body;
+  const { reason, replacement_dataset_id, auto_redirect } = req.body;
   const taskService = new TaskService();
 
   switch (action) {
@@ -661,7 +661,7 @@ export const datasetActionRequest = async (req: Request, res: Response, next: Ne
       await taskService.requestUnpublish(datasetId, user, reason);
       break;
     case TaskAction.Archive:
-      await taskService.requestArchive(datasetId, user, reason);
+      await taskService.requestArchive(datasetId, user, reason, replacement_dataset_id, auto_redirect);
       break;
     case TaskAction.Unarchive:
       await taskService.requestUnarchive(datasetId, user, reason);

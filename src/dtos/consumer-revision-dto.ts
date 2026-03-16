@@ -8,6 +8,7 @@ import { RevisionMetadataDTO } from './revision-metadata-dto';
 import { TopicDTO } from './topic-dto';
 import { UpdateFrequencyDTO } from './update-frequency-dto';
 
+// WARNING: Make sure to filter any props the consumer side should not have access to
 export class ConsumerRevisionDTO {
   id: string;
   dataset_id?: string;

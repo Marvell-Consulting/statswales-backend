@@ -385,6 +385,28 @@ export const schemaV2 = {
             nullable: true,
             description: 'Date the dataset was archived in ISO 8601 format, or null if not archived'
           },
+          replaced_by: {
+            type: 'object',
+            nullable: true,
+            description:
+              'Details of the replacement dataset, if this dataset has been archived with a replacement. Null if no replacement was specified.',
+            properties: {
+              dataset_id: {
+                type: 'string',
+                format: 'uuid',
+                description: 'ID of the dataset that replaces this one'
+              },
+              dataset_title: {
+                type: 'string',
+                nullable: true,
+                description: 'Title of the replacement dataset, or null if the dataset no longer exists'
+              },
+              auto_redirect: {
+                type: 'boolean',
+                description: 'When true, consumers should redirect to the replacement dataset automatically'
+              }
+            }
+          },
           start_date: {
             type: 'string',
             format: 'date-time',

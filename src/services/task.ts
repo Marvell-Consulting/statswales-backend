@@ -6,6 +6,7 @@ import { TaskAction } from '../enums/task-action';
 import { TaskStatus } from '../enums/task-status';
 import { User } from '../entities/user/user';
 import { DatasetRepository } from '../repositories/dataset';
+import { PublishedDatasetRepository } from '../repositories/published-dataset';
 import { getPublishingStatus } from '../utils/dataset-status';
 import { PublishingStatus } from '../enums/publishing-status';
 import { BadRequestException } from '../exceptions/bad-request.exception';
@@ -82,7 +83,13 @@ export class TaskService {
     return this.update(task.id, TaskStatus.Rejected, false, user, reason);
   }
 
-  async requestArchive(datasetId: string, user: User, reason: string): Promise<void> {
+  async requestArchive(
+    datasetId: string,
+    user: User,
+    reason: string,
+    replacementDatasetId?: string,
+    autoRedirect?: boolean
+  ): Promise<void> {
     logger.info(`Requesting archive for dataset ${datasetId}`);
     const dataset = await DatasetRepository.getById(datasetId, { tasks: true });
 
@@ -91,7 +98,23 @@ export class TaskService {
       throw new BadRequestException('errors.request_archive.open_tasks');
     }
 
-    await this.create(datasetId, TaskAction.Archive, user, reason, { revisionId: dataset.endRevisionId });
+    const metadata: TaskMetadata = { revisionId: dataset.endRevisionId };
+    if (replacementDatasetId) {
+      try {
+        const replacement = await PublishedDatasetRepository.getById(replacementDatasetId, {
+          publishedRevision: { metadata: true }
+        });
+        const title = replacement.publishedRevision?.metadata?.[0]?.title;
+        metadata.replacementDatasetId = replacementDatasetId;
+        metadata.replacementDatasetTitle = title;
+        metadata.autoRedirect = autoRedirect ?? false;
+      } catch {
+        logger.error(`Replacement dataset ${replacementDatasetId} not found or not published`);
+        throw new BadRequestException('errors.request_archive.replacement_not_published');
+      }
+    }
+
+    await this.create(datasetId, TaskAction.Archive, user, reason, metadata);
   }
 
   async approveArchive(taskId: string, user: User): Promise<Task> {
@@ -99,7 +122,9 @@ export class TaskService {
     const dataset = task.dataset!;
     logger.info(`Approving archive for dataset ${dataset.id}`);
 
-    await DatasetRepository.archive(dataset.id);
+    const replacementDatasetId = task.metadata?.replacementDatasetId as string | undefined;
+    const autoRedirect = task.metadata?.autoRedirect as boolean | undefined;
+    await DatasetRepository.archive(dataset.id, replacementDatasetId, autoRedirect);
     return this.update(task.id, TaskStatus.Approved, false, user, null);
   }
 
