@@ -388,36 +388,36 @@
           "id": {
             "type": "string",
             "format": "uuid",
-            "description": "Unique identifier for the revision"
+            "description": "Dynodwr unigryw ar gyfer y diwygiad"
           },
           "revision_index": {
             "type": "integer",
-            "description": "Version number, starting from 1"
+            "description": "Rhif fersiwn, yn dechrau o 1"
           },
           "dataset_id": {
             "type": "string",
             "format": "uuid",
-            "description": "Unique identifier for the dataset this revision belongs to"
+            "description": "Dynodwr unigryw ar gyfer y set ddata y mae'r diwygiad hwn yn perthyn iddi"
           },
           "previous_revision_id": {
             "type": "string",
             "format": "uuid",
-            "description": "Unique identifier for the previous revision, if any"
+            "description": "Dynodwr unigryw ar gyfer y diwygiad blaenorol, os oes un"
           },
           "created_at": {
             "type": "string",
             "format": "date-time",
-            "description": "Creation date of the revision in ISO 8601 format"
+            "description": "Dyddiad creu'r diwygiad ar fformat ISO 8601"
           },
           "updated_at": {
             "type": "string",
             "format": "date-time",
-            "description": "Last update date of the revision in ISO 8601 format"
+            "description": "Dyddiad diweddaru diwethaf y diwygiad ar fformat ISO 8601"
           },
           "publish_at": {
             "type": "string",
             "format": "date-time",
-            "description": "Publication date of the revision in ISO 8601 format"
+            "description": "Dyddiad cyhoeddi'r diwygiad ar fformat ISO 8601"
           },
           "metadata": {
             "type": "array",
@@ -426,50 +426,50 @@
               "properties": {
                 "language": {
                   "type": "string",
-                  "description": "Language of the metadata, e.g., \"en\" for English, \"cy\" for Welsh"
+                  "description": "Iaith y metadata, e.e. \"en\" ar gyfer Saesneg, \"cy\" ar gyfer Cymraeg"
                 },
                 "title": {
                   "type": "string",
-                  "description": "Title of the revision in the specified language"
+                  "description": "Teitl y diwygiad yn yr iaith a nodwyd"
                 },
                 "summary": {
                   "type": "string",
-                  "description": "Summary of the revision in the specified language"
+                  "description": "Crynodeb o'r diwygiad yn yr iaith a nodwyd"
                 },
                 "collection": {
                   "type": "string",
-                  "description": "Collection name for the revision in the specified language"
+                  "description": "Enw'r casgliad ar gyfer y diwygiad yn yr iaith a nodwyd"
                 },
                 "quality": {
                   "type": "string",
-                  "description": "Quality information for the revision in the specified language"
+                  "description": "Gwybodaeth ansawdd ar gyfer y diwygiad yn yr iaith a nodwyd"
                 },
                 "rounding_description": {
                   "type": "string",
-                  "description": "Description of rounding applied to the data in this revision"
+                  "description": "Disgrifiad o'r talgrynnu a gymhwyswyd i'r data yn y diwygiad hwn"
                 }
               }
             },
-            "description": "Array of metadata key-value pairs for the revision"
+            "description": "Arae o barau allwedd-gwerth metadata ar gyfer y diwygiad"
           },
           "rounding_applied": {
             "type": "boolean",
-            "description": "Indicates if rounding was applied to the data in this revision"
+            "description": "Yn nodi a gymhwyswyd talgrynnu i'r data yn y diwygiad hwn"
           },
           "update_frequency": {
             "type": "object",
             "properties": {
               "is_updated": {
                 "type": "boolean",
-                "description": "Indicates if the dataset is updated regularly"
+                "description": "Yn nodi a yw'r set ddata'n cael ei diweddaru'n rheolaidd"
               },
               "frequency_value": {
                 "type": "integer",
-                "description": "The numeric value of the update frequency"
+                "description": "Gwerth rhifiadol amlder y diweddaru"
               },
               "frequency_unit": {
                 "type": "string",
-                "description": "The unit of the update frequency",
+                "description": "Uned amlder y diweddaru",
                 "enum": [
                   "day",
                   "week",
@@ -481,7 +481,7 @@
           },
           "designation": {
             "type": "string",
-            "description": "The designation of the revision"
+            "description": "Dynodiad y diwygiad"
           },
           "related_links": {
             "type": "array",
@@ -490,25 +490,25 @@
               "properties": {
                 "id": {
                   "type": "string",
-                  "description": "Unique identifier for the related link"
+                  "description": "Dynodwr unigryw ar gyfer y ddolen gysylltiedig"
                 },
                 "url": {
                   "type": "string",
                   "format": "uri",
-                  "description": "URL of the related link"
+                  "description": "URL y ddolen gysylltiedig"
                 },
                 "label_en": {
                   "type": "string",
-                  "description": "Label of the related link in English"
+                  "description": "Label y ddolen gysylltiedig yn Saesneg"
                 },
                 "label_cy": {
                   "type": "string",
-                  "description": "Label of the related link in Welsh"
+                  "description": "Label y ddolen gysylltiedig yn Gymraeg"
                 },
                 "created_at": {
                   "type": "string",
                   "format": "date-time",
-                  "description": "Creation date of the related link in ISO 8601 format"
+                  "description": "Dyddiad creu'r ddolen gysylltiedig ar fformat ISO 8601"
                 }
               }
             }
@@ -527,22 +527,22 @@
           "id": {
             "type": "string",
             "format": "uuid",
-            "description": "Unique identifier for the dataset"
+            "description": "Dynodwr unigryw ar gyfer y set ddata"
           },
           "live": {
             "type": "string",
             "format": "date-time",
-            "description": "First publication date of the dataset in ISO 8601 format"
+            "description": "Dyddiad cyhoeddi cyntaf y set ddata ar fformat ISO 8601"
           },
           "start_date": {
             "type": "string",
             "format": "date",
-            "description": "Start date of the dataset in ISO 8601 format"
+            "description": "Dyddiad dechrau y set ddata ar fformat ISO 8601"
           },
           "end_date": {
             "type": "string",
             "format": "date",
-            "description": "End date of the dataset in ISO 8601 format"
+            "description": "Dyddiad diwedd y set ddata ar fformat ISO 8601"
           },
           "published_revision": {
             "$ref": "#/components/schemas/Revision"
@@ -614,26 +614,26 @@
           "id": {
             "type": "string",
             "format": "uuid",
-            "description": "Unique identifier for the dataset"
+            "description": "Dynodwr unigryw ar gyfer y set ddata"
           },
           "title": {
             "type": "string",
-            "description": "Title of the dataset (in the language requested via accept-language header)"
+            "description": "Teitl y set ddata (yn yr iaith a ofynnwyd amdani drwy'r pennawd accept-language)"
           },
           "first_published_at": {
             "type": "string",
             "format": "date-time",
-            "description": "First publication date of the dataset in ISO 8601 format"
+            "description": "Dyddiad cyhoeddi cyntaf y set ddata ar fformat ISO 8601"
           },
           "last_updated_at": {
             "type": "string",
             "format": "date-time",
-            "description": "Date of the most recent update to the dataset in ISO 8601 format"
+            "description": "Dyddiad y diweddariad diweddaraf i'r set ddata ar fformat ISO 8601"
           },
           "archived_at": {
             "type": "string",
             "format": "date-time",
-            "description": "Date the dataset was archived in ISO 8601 format, if applicable"
+            "description": "Dyddiad archifio'r set ddata ar fformat ISO 8601, os yn berthnasol"
           }
         }
       },
@@ -648,7 +648,7 @@
           },
           "count": {
             "type": "integer",
-            "description": "Total number of datasets"
+            "description": "Cyfanswm nifer y setiau data"
           }
         },
         "example": {
@@ -675,32 +675,32 @@
           },
           "current_page": {
             "type": "integer",
-            "description": "Current page number"
+            "description": "Rhif y dudalen gyfredol"
           },
           "page_info": {
             "type": "object",
             "properties": {
               "total_records": {
                 "type": "integer",
-                "description": "Total number of records in the dataset"
+                "description": "Cyfanswm nifer y cofnodion yn y set ddata"
               },
               "start_record": {
                 "type": "integer",
-                "description": "Starting record number for the current page"
+                "description": "Rhif y cofnod cychwynnol ar gyfer y dudalen gyfredol"
               },
               "end_record": {
                 "type": "integer",
-                "description": "Ending record number for the current page"
+                "description": "Rhif y cofnod olaf ar gyfer y dudalen gyfredol"
               }
             }
           },
           "page_size": {
             "type": "integer",
-            "description": "Number of records per page"
+            "description": "Nifer y cofnodion fesul tudalen"
           },
           "total_pages": {
             "type": "integer",
-            "description": "Total number of pages available"
+            "description": "Cyfanswm nifer y tudalennau sydd ar gael"
           },
           "headers": {
             "type": "array",
@@ -709,22 +709,22 @@
               "properties": {
                 "index": {
                   "type": "integer",
-                  "description": "Index of the header"
+                  "description": "Mynegai'r pennawd"
                 },
                 "name": {
                   "type": "string",
-                  "description": "Name of the header"
+                  "description": "Enw'r pennawd"
                 },
                 "source_type": {
                   "type": "string",
-                  "description": "Source type of the header"
+                  "description": "Math ffynhonnell y pennawd"
                 }
               }
             }
           },
           "data": {
             "type": "array",
-            "description": "Tabular data for the dataset",
+            "description": "Data tabulaidd ar gyfer y set ddata",
             "items": {
               "type": "array",
               "items": {
@@ -739,27 +739,27 @@
         "properties": {
           "id": {
             "type": "integer",
-            "description": "ID of the topic",
+            "description": "ID y pwnc",
             "example": 92
           },
           "path": {
             "type": "string",
-            "description": "Path of the topic",
+            "description": "Llwybr y pwnc",
             "example": "92"
           },
           "name": {
             "type": "string",
-            "description": "Name in the current language",
+            "description": "Enw yn yr iaith gyfredol",
             "example": "Transport"
           },
           "name_en": {
             "type": "string",
-            "description": "Name of the topic in English",
+            "description": "Enw'r pwnc yn Saesneg",
             "example": "Transport"
           },
           "name_cy": {
             "type": "string",
-            "description": "Name of the topic in Welsh",
+            "description": "Enw'r pwnc yn Gymraeg",
             "example": "Trafnidiaeth"
           }
         }
@@ -769,27 +769,27 @@
         "properties": {
           "id": {
             "type": "integer",
-            "description": "ID of the topic",
+            "description": "ID y pwnc",
             "example": 93
           },
           "path": {
             "type": "string",
-            "description": "Path of the topic",
+            "description": "Llwybr y pwnc",
             "example": "92.93"
           },
           "name": {
             "type": "string",
-            "description": "Name in the current language",
+            "description": "Enw yn yr iaith gyfredol",
             "example": "Air"
           },
           "name_en": {
             "type": "string",
-            "description": "Name of the topic in English",
+            "description": "Enw'r pwnc yn Saesneg",
             "example": "Air"
           },
           "name_cy": {
             "type": "string",
-            "description": "Name of the topic in Welsh",
+            "description": "Enw'r pwnc yn Gymraeg",
             "example": "Awyr"
           }
         }

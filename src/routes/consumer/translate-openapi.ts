@@ -1,4 +1,9 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
+export interface SchemaTranslation {
+  description?: string;
+  properties?: Record<string, SchemaTranslation>;
+}
+
 export interface TranslationMap {
   info?: {
     title?: string;
@@ -8,6 +13,32 @@ export interface TranslationMap {
   operations?: Record<string, { summary?: string; description?: string }>; // "GET /" → translations
   responses?: Record<string, Record<string, string>>; // "GET /" → { "200": "Welsh description" }
   parameters?: Record<string, string>; // parameter name → Welsh description
+  schemas?: Record<string, SchemaTranslation>; // schema name → property translations
+}
+
+function translateSchemaProperties(schema: Record<string, any>, translation: SchemaTranslation): void {
+  if (translation.description) {
+    schema.description = translation.description;
+  }
+  if (translation.properties) {
+    // Collect all property bags to translate: direct, allOf items, and array items
+    const propertyBags: Record<string, any>[] = [];
+    if (schema.properties) propertyBags.push(schema.properties);
+    if (schema.items?.properties) propertyBags.push(schema.items.properties);
+    if (Array.isArray(schema.allOf)) {
+      for (const item of schema.allOf) {
+        if (item.properties) propertyBags.push(item.properties);
+      }
+    }
+
+    for (const bag of propertyBags) {
+      for (const [propName, propTranslation] of Object.entries(translation.properties)) {
+        if (bag[propName]) {
+          translateSchemaProperties(bag[propName], propTranslation);
+        }
+      }
+    }
+  }
 }
 
 export function translateSpec(spec: Record<string, any>, translations: TranslationMap): Record<string, any> {
@@ -51,6 +82,15 @@ export function translateSpec(spec: Record<string, any>, translations: Translati
             }
           }
         }
+      }
+    }
+  }
+
+  // Translate schema component property descriptions
+  if (translations.schemas && translated.components?.schemas) {
+    for (const [schemaName, schemaTranslation] of Object.entries(translations.schemas)) {
+      if (translated.components.schemas[schemaName]) {
+        translateSchemaProperties(translated.components.schemas[schemaName], schemaTranslation);
       }
     }
   }
