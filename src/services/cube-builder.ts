@@ -447,6 +447,7 @@ async function createMaterialisedView(
     logger.error(error, 'Something went wrong trying to create the materialized views in the cube.');
     build.completeBuild(CubeBuildStatus.Failed, fullBuildScriptArr.join('\n'), JSON.stringify(error));
     await build.save();
+    throw error;
   } finally {
     void cubeDB.release();
   }
