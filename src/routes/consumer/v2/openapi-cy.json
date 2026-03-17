@@ -625,31 +625,31 @@
         "properties": {
           "language": {
             "type": "string",
-            "description": "Language code of the metadata, e.g. \"en-GB\" or \"cy-GB\""
+            "description": "Cod iaith y metadata, e.e. \"en-GB\" neu \"cy-GB\""
           },
           "title": {
             "type": "string",
-            "description": "Title of the revision in the specified language"
+            "description": "Teitl y diwygiad yn yr iaith a nodwyd"
           },
           "summary": {
             "type": "string",
-            "description": "Summary of the revision in the specified language"
+            "description": "Crynodeb o'r diwygiad yn yr iaith a nodwyd"
           },
           "collection": {
             "type": "string",
-            "description": "Collection name for the revision in the specified language"
+            "description": "Enw'r casgliad ar gyfer y diwygiad yn yr iaith a nodwyd"
           },
           "quality": {
             "type": "string",
-            "description": "Quality information for the revision in the specified language"
+            "description": "Gwybodaeth ansawdd ar gyfer y diwygiad yn yr iaith a nodwyd"
           },
           "rounding_description": {
             "type": "string",
-            "description": "Description of rounding applied to the data in this revision"
+            "description": "Disgrifiad o'r talgrynnu a gymhwyswyd i'r data yn y diwygiad hwn"
           },
           "reason": {
             "type": "string",
-            "description": "Reason for the update, present on revisions after the first"
+            "description": "Rheswm dros y diweddariad, yn bresennol ar ddiwygiadau ar ôl y cyntaf"
           }
         }
       },
@@ -663,23 +663,23 @@
               "replacement",
               "none"
             ],
-            "description": "Type of update: \"update\" for new data added, \"replacement\" for full replacement, \"none\" for no further updates"
+            "description": "Math o ddiweddariad: \"update\" ar gyfer data newydd wedi'i ychwanegu, \"replacement\" ar gyfer amnewid llawn, \"none\" am ddim diweddariadau pellach"
           },
           "date": {
             "type": "object",
-            "description": "Next expected update date",
+            "description": "Dyddiad diweddaru disgwyliedig nesaf",
             "properties": {
               "day": {
                 "type": "string",
-                "description": "Day of the month"
+                "description": "Diwrnod y mis"
               },
               "month": {
                 "type": "string",
-                "description": "Month number"
+                "description": "Rhif y mis"
               },
               "year": {
                 "type": "string",
-                "description": "Four-digit year"
+                "description": "Blwyddyn pedwar digid"
               }
             }
           }
@@ -690,25 +690,25 @@
         "properties": {
           "id": {
             "type": "string",
-            "description": "Unique identifier for the related link"
+            "description": "Dynodwr unigryw ar gyfer y ddolen gysylltiedig"
           },
           "url": {
             "type": "string",
             "format": "uri",
-            "description": "URL of the related link"
+            "description": "URL y ddolen gysylltiedig"
           },
           "label_en": {
             "type": "string",
-            "description": "Label of the related link in English"
+            "description": "Label y ddolen gysylltiedig yn Saesneg"
           },
           "label_cy": {
             "type": "string",
-            "description": "Label of the related link in Welsh"
+            "description": "Label y ddolen gysylltiedig yn Gymraeg"
           },
           "created_at": {
             "type": "string",
             "format": "date-time",
-            "description": "Creation date of the related link in ISO 8601 format"
+            "description": "Dyddiad creu'r ddolen gysylltiedig ar fformat ISO 8601"
           }
         }
       },
@@ -729,7 +729,7 @@
           },
           "language": {
             "type": "string",
-            "description": "Language code, e.g. \"en-gb\" or \"cy-gb\""
+            "description": "Cod iaith, e.e. \"en-gb\" neu \"cy-gb\""
           },
           "provider_id": {
             "type": "string",
@@ -737,7 +737,7 @@
           },
           "provider_name": {
             "type": "string",
-            "description": "Name of the data provider"
+            "description": "Enw darparwr y data"
           },
           "source_id": {
             "type": "string",
@@ -745,7 +745,7 @@
           },
           "source_name": {
             "type": "string",
-            "description": "Name of the data source"
+            "description": "Enw ffynhonnell y data"
           },
           "created_at": {
             "type": "string",
@@ -755,74 +755,74 @@
       },
       "Revision": {
         "type": "object",
-        "description": "Revision as returned within a dataset response (all languages included in metadata).",
+        "description": "Diwygiad fel y'i dychwelir o fewn ymateb set ddata (pob iaith wedi'i chynnwys yn y metadata).",
         "properties": {
           "id": {
             "type": "string",
             "format": "uuid",
-            "description": "Unique identifier for the revision"
+            "description": "Dynodwr unigryw ar gyfer y diwygiad"
           },
           "revision_index": {
             "type": "integer",
-            "description": "Version number, starting from 1"
+            "description": "Rhif fersiwn, yn dechrau o 1"
           },
           "previous_revision_id": {
             "type": "string",
             "format": "uuid",
-            "description": "Unique identifier for the previous revision, if any"
+            "description": "Dynodwr unigryw ar gyfer y diwygiad blaenorol, os oes un"
           },
           "created_at": {
             "type": "string",
             "format": "date-time",
-            "description": "Creation date of the revision in ISO 8601 format"
+            "description": "Dyddiad creu'r diwygiad ar fformat ISO 8601"
           },
           "updated_at": {
             "type": "string",
             "format": "date-time",
-            "description": "Last update date of the revision in ISO 8601 format"
+            "description": "Dyddiad diweddaru diwethaf y diwygiad ar fformat ISO 8601"
           },
           "approved_at": {
             "type": "string",
             "format": "date-time",
-            "description": "Approval date of the revision in ISO 8601 format"
+            "description": "Dyddiad cymeradwyo'r diwygiad ar fformat ISO 8601"
           },
           "publish_at": {
             "type": "string",
             "format": "date-time",
-            "description": "Publication date of the revision in ISO 8601 format"
+            "description": "Dyddiad cyhoeddi'r diwygiad ar fformat ISO 8601"
           },
           "unpublished_at": {
             "type": "string",
             "format": "date-time",
-            "description": "Date the revision was unpublished, if applicable"
+            "description": "Dyddiad dadgyhoeddi'r diwygiad, os yn berthnasol"
           },
           "coverage_start_date": {
             "type": "string",
             "format": "date-time",
-            "description": "Start of the time period covered by the data in this revision, in ISO 8601 format. Only present for datasets with date-type dimensions."
+            "description": "Dechrau'r cyfnod amser a gwmpesir gan y data yn y diwygiad hwn, ar fformat ISO 8601. Yn bresennol ar gyfer setiau data â dimensiynau math dyddiad yn unig."
           },
           "coverage_end_date": {
             "type": "string",
             "format": "date-time",
-            "description": "End of the time period covered by the data in this revision, in ISO 8601 format. Only present for datasets with date-type dimensions."
+            "description": "Diwedd y cyfnod amser a gwmpesir gan y data yn y diwygiad hwn, ar fformat ISO 8601. Yn bresennol ar gyfer setiau data â dimensiynau math dyddiad yn unig."
           },
           "metadata": {
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/RevisionMetadata"
             },
-            "description": "Metadata for each language (typically en-GB and cy-GB)"
+            "description": "Metadata ar gyfer pob iaith (en-GB a cy-GB fel arfer)"
           },
           "rounding_applied": {
             "type": "boolean",
-            "description": "Indicates if rounding was applied to the data in this revision"
+            "description": "Yn nodi a gymhwyswyd talgrynnu i'r data yn y diwygiad hwn"
           },
           "update_frequency": {
             "$ref": "#/components/schemas/UpdateFrequency"
           },
           "designation": {
             "type": "string",
-            "description": "Statistical designation of the revision",
+            "description": "Dynodiad ystadegol y diwygiad",
             "enum": [
               "official",
               "accredited",
@@ -842,7 +842,7 @@
             "items": {
               "$ref": "#/components/schemas/Provider"
             },
-            "description": "Data providers and sources for this revision"
+            "description": "Darparwyr data a ffynonellau ar gyfer y diwygiad hwn"
           },
           "topics": {
             "type": "array",
@@ -854,56 +854,56 @@
       },
       "SingleLanguageRevision": {
         "type": "object",
-        "description": "Revision as returned by the /revision/:revision_id endpoint — metadata is a single object filtered to the requested language.",
+        "description": "Diwygiad fel y'i dychwelir gan y pwynt terfyn /revision/:revision_id — mae'r metadata yn wrthrych sengl wedi'i hidlo i'r iaith a ofynnwyd amdani.",
         "properties": {
           "id": {
             "type": "string",
             "format": "uuid",
-            "description": "Unique identifier for the revision"
+            "description": "Dynodwr unigryw ar gyfer y diwygiad"
           },
           "revision_index": {
             "type": "integer",
-            "description": "Version number, starting from 1"
+            "description": "Rhif fersiwn, yn dechrau o 1"
           },
           "previous_revision_id": {
             "type": "string",
             "format": "uuid",
-            "description": "Unique identifier for the previous revision, if any"
+            "description": "Dynodwr unigryw ar gyfer y diwygiad blaenorol, os oes un"
           },
           "updated_at": {
             "type": "string",
             "format": "date-time",
-            "description": "Last update date of the revision in ISO 8601 format"
+            "description": "Dyddiad diweddaru diwethaf y diwygiad ar fformat ISO 8601"
           },
           "publish_at": {
             "type": "string",
             "format": "date-time",
-            "description": "Publication date of the revision in ISO 8601 format"
+            "description": "Dyddiad cyhoeddi'r diwygiad ar fformat ISO 8601"
           },
           "coverage_start_date": {
             "type": "string",
             "format": "date-time",
-            "description": "Start of the time period covered by the data"
+            "description": "Dechrau'r cyfnod amser a gwmpesir gan y data"
           },
           "coverage_end_date": {
             "type": "string",
             "format": "date-time",
-            "description": "End of the time period covered by the data"
+            "description": "Diwedd y cyfnod amser a gwmpesir gan y data"
           },
           "metadata": {
             "$ref": "#/components/schemas/RevisionMetadata",
-            "description": "Metadata filtered to the requested language"
+            "description": "Metadata wedi'i hidlo i'r iaith a ofynnwyd amdani"
           },
           "rounding_applied": {
             "type": "boolean",
-            "description": "Indicates if rounding was applied to the data in this revision"
+            "description": "Yn nodi a gymhwyswyd talgrynnu i'r data yn y diwygiad hwn"
           },
           "update_frequency": {
             "$ref": "#/components/schemas/UpdateFrequency"
           },
           "designation": {
             "type": "string",
-            "description": "Statistical designation of the revision",
+            "description": "Dynodiad ystadegol y diwygiad",
             "enum": [
               "official",
               "accredited",
@@ -923,7 +923,7 @@
             "items": {
               "$ref": "#/components/schemas/Provider"
             },
-            "description": "Data providers and sources, filtered to the requested language"
+            "description": "Darparwyr data a ffynonellau, wedi'u hidlo i'r iaith a ofynnwyd amdani"
           },
           "topics": {
             "type": "array",
@@ -959,11 +959,11 @@
               },
               "name": {
                 "type": "string",
-                "description": "Name of the publishing group"
+                "description": "Enw'r grŵp cyhoeddi"
               },
               "email": {
                 "type": "string",
-                "description": "Contact email for the publishing group"
+                "description": "E-bost cyswllt ar gyfer y grŵp cyhoeddi"
               }
             }
           },
@@ -976,7 +976,7 @@
               },
               "name": {
                 "type": "string",
-                "description": "Name of the publishing organisation"
+                "description": "Enw'r sefydliad cyhoeddi"
               }
             }
           }
@@ -988,37 +988,37 @@
           "id": {
             "type": "string",
             "format": "uuid",
-            "description": "Unique identifier for the dataset"
+            "description": "Dynodwr unigryw ar gyfer y set ddata"
           },
           "first_published_at": {
             "type": "string",
             "format": "date-time",
-            "description": "First publication date of the dataset in ISO 8601 format"
+            "description": "Dyddiad cyhoeddi cyntaf y set ddata ar fformat ISO 8601"
           },
           "archived_at": {
             "type": "string",
             "format": "date-time",
             "nullable": true,
-            "description": "Date the dataset was archived in ISO 8601 format, or null if not archived"
+            "description": "Dyddiad archifio'r set ddata ar fformat ISO 8601, neu null os nad yw wedi'i harchifio"
           },
           "replaced_by": {
             "type": "object",
             "nullable": true,
-            "description": "Details of the replacement dataset, if this dataset has been archived with a replacement. Null if no replacement was specified.",
+            "description": "Manylion y set ddata amnewid, os yw'r set ddata hon wedi'i harchifio gydag amnewid. Null os na nodwyd amnewid.",
             "properties": {
               "dataset_id": {
                 "type": "string",
                 "format": "uuid",
-                "description": "ID of the dataset that replaces this one"
+                "description": "ID y set ddata sy'n disodli hon"
               },
               "dataset_title": {
                 "type": "string",
                 "nullable": true,
-                "description": "Title of the replacement dataset"
+                "description": "Teitl y set ddata amnewid"
               },
               "auto_redirect": {
                 "type": "boolean",
-                "description": "When true, consumers should redirect to the replacement dataset automatically"
+                "description": "Pan yn wir, dylai defnyddwyr gael eu hailgyfeirio i'r set ddata amnewid yn awtomatig"
               }
             }
           },
@@ -1026,13 +1026,13 @@
             "type": "string",
             "format": "date-time",
             "nullable": true,
-            "description": "Legacy field — start of the time period covered by the dataset. Not set for newer datasets; use coverage_start_date on the published revision instead."
+            "description": "Maes etifeddol — dechrau'r cyfnod amser a gwmpesir gan y set ddata. Heb ei osod ar gyfer setiau data mwy newydd; defnyddiwch coverage_start_date ar y diwygiad cyhoeddedig yn lle hynny."
           },
           "end_date": {
             "type": "string",
             "format": "date-time",
             "nullable": true,
-            "description": "Legacy field — end of the time period covered by the dataset. Not set for newer datasets; use coverage_end_date on the published revision instead."
+            "description": "Maes etifeddol — diwedd y cyfnod amser a gwmpesir gan y set ddata. Heb ei osod ar gyfer setiau data mwy newydd; defnyddiwch coverage_end_date ar y diwygiad cyhoeddedig yn lle hynny."
           },
           "published_revision": {
             "$ref": "#/components/schemas/Revision"
@@ -1130,46 +1130,46 @@
           "id": {
             "type": "string",
             "format": "uuid",
-            "description": "Unique identifier for the dataset"
+            "description": "Dynodwr unigryw ar gyfer y set ddata"
           },
           "title": {
             "type": "string",
-            "description": "Title of the dataset in the requested language"
+            "description": "Teitl y set ddata yn yr iaith a ofynnwyd amdani"
           },
           "first_published_at": {
             "type": "string",
             "format": "date-time",
-            "description": "First publication date of the dataset in ISO 8601 format"
+            "description": "Dyddiad cyhoeddi cyntaf y set ddata ar fformat ISO 8601"
           },
           "last_updated_at": {
             "type": "string",
             "format": "date-time",
-            "description": "Date of the most recent update to the dataset in ISO 8601 format"
+            "description": "Dyddiad y diweddariad diweddaraf i'r set ddata ar fformat ISO 8601"
           },
           "archived_at": {
             "type": "string",
             "format": "date-time",
             "nullable": true,
-            "description": "Date the dataset was archived in ISO 8601 format, or null if not archived"
+            "description": "Dyddiad archifio'r set ddata ar fformat ISO 8601, neu null os nad yw wedi'i harchifio"
           }
         }
       },
       "SearchResultItem": {
         "type": "object",
-        "description": "A dataset search result. Extends DatasetListItem with search-specific fields.",
+        "description": "Canlyniad chwilio set ddata. Yn ymestyn DatasetListItem gyda meysydd sy'n benodol i chwilio.",
         "properties": {
           "id": {
             "type": "string",
             "format": "uuid",
-            "description": "Unique identifier for the dataset"
+            "description": "Dynodwr unigryw ar gyfer y set ddata"
           },
           "title": {
             "type": "string",
-            "description": "Title of the dataset"
+            "description": "Teitl y set ddata"
           },
           "summary": {
             "type": "string",
-            "description": "Summary of the dataset"
+            "description": "Crynodeb o'r set ddata"
           },
           "first_published_at": {
             "type": "string",
@@ -1186,15 +1186,15 @@
           },
           "rank": {
             "type": "number",
-            "description": "Relevance score (present for fts, fts_simple and fuzzy modes)"
+            "description": "Sgôr perthnasedd (yn bresennol ar gyfer moddau fts, fts_simple a fuzzy)"
           },
           "match_title": {
             "type": "string",
-            "description": "Title with search term highlights wrapped in <mark> tags (present for fts and fts_simple modes)"
+            "description": "Teitl gyda thermau chwilio wedi'u hamlygu mewn tagiau <mark> (yn bresennol ar gyfer moddau fts a fts_simple)"
           },
           "match_summary": {
             "type": "string",
-            "description": "Summary with search term highlights wrapped in <mark> tags (present for fts and fts_simple modes)"
+            "description": "Crynodeb gyda thermau chwilio wedi'u hamlygu mewn tagiau <mark> (yn bresennol ar gyfer moddau fts a fts_simple)"
           }
         }
       },
@@ -1209,7 +1209,7 @@
           },
           "count": {
             "type": "integer",
-            "description": "Total number of datasets"
+            "description": "Cyfanswm nifer y setiau data"
           }
         },
         "example": {
@@ -1243,13 +1243,13 @@
           },
           "count": {
             "type": "integer",
-            "description": "Total number of matching datasets"
+            "description": "Cyfanswm nifer y setiau data sy'n cyfateb"
           }
         }
       },
       "DataRow": {
         "type": "object",
-        "description": "A single data row as a JSON object. Keys are column names (fact-table names by default) and values are data values.",
+        "description": "Rhes ddata sengl fel gwrthrych JSON. Mae allweddi yn enwau colofnau (enwau tabl ffeithiau yn ddiofyn) a gwerthoedd yn werthoedd data.",
         "additionalProperties": {
           "nullable": true,
           "oneOf": [
@@ -1270,27 +1270,27 @@
         "properties": {
           "id": {
             "type": "integer",
-            "description": "ID of the topic",
+            "description": "ID y pwnc",
             "example": 92
           },
           "path": {
             "type": "string",
-            "description": "Path of the topic",
+            "description": "Llwybr y pwnc",
             "example": "92"
           },
           "name": {
             "type": "string",
-            "description": "Name in the current language",
+            "description": "Enw yn yr iaith gyfredol",
             "example": "Transport"
           },
           "name_en": {
             "type": "string",
-            "description": "Name of the topic in English",
+            "description": "Enw'r pwnc yn Saesneg",
             "example": "Transport"
           },
           "name_cy": {
             "type": "string",
-            "description": "Name of the topic in Welsh",
+            "description": "Enw'r pwnc yn Gymraeg",
             "example": "Trafnidiaeth"
           }
         }
@@ -1300,27 +1300,27 @@
         "properties": {
           "id": {
             "type": "integer",
-            "description": "ID of the topic",
+            "description": "ID y pwnc",
             "example": 93
           },
           "path": {
             "type": "string",
-            "description": "Path of the topic",
+            "description": "Llwybr y pwnc",
             "example": "92.93"
           },
           "name": {
             "type": "string",
-            "description": "Name in the current language",
+            "description": "Enw yn yr iaith gyfredol",
             "example": "Air"
           },
           "name_en": {
             "type": "string",
-            "description": "Name of the topic in English",
+            "description": "Enw'r pwnc yn Saesneg",
             "example": "Air"
           },
           "name_cy": {
             "type": "string",
-            "description": "Name of the topic in Welsh",
+            "description": "Enw'r pwnc yn Gymraeg",
             "example": "Awyr"
           }
         }
@@ -1365,18 +1365,18 @@
             "items": {
               "$ref": "#/components/schemas/Topic"
             },
-            "description": "Sub-topics under the selected topic. Empty array if this is a leaf topic (in which case datasets will be populated)."
+            "description": "Is-bynciau o dan y pwnc a ddewiswyd. Arae gwag os mai pwnc dail yw hwn (yn yr achos hwnnw bydd setiau data wedi'u llenwi)."
           },
           "parents": {
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/Topic"
             },
-            "description": "Ancestor topics from root to the selected topic"
+            "description": "Pynciau hynafiaid o'r gwraidd i'r pwnc a ddewiswyd"
           },
           "datasets": {
             "$ref": "#/components/schemas/DatasetsWithCount",
-            "description": "Datasets tagged to this topic. Only present for leaf topics (topics with no children)."
+            "description": "Setiau data wedi'u tagio i'r pwnc hwn. Yn bresennol ar gyfer pynciau dail yn unig (pynciau heb blant)."
           }
         }
       },
@@ -1385,32 +1385,32 @@
         "properties": {
           "reference": {
             "type": "string",
-            "description": "Reference code to use in filter values"
+            "description": "Cod cyfeirio i'w ddefnyddio mewn gwerthoedd hidlo"
           },
           "description": {
             "type": "string",
-            "description": "Human-readable label (language-dependent)"
+            "description": "Label darllenadwy (yn dibynnu ar iaith)"
           },
           "children": {
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/FilterValue"
             },
-            "description": "Child values for hierarchical dimensions (e.g. Wales → local authorities)"
+            "description": "Gwerthoedd plentyn ar gyfer dimensiynau hierarchaidd (e.e. Cymru → awdurdodau lleol)"
           }
         }
       },
       "Filter": {
         "type": "object",
-        "description": "A single filterable dimension and its allowed values.",
+        "description": "Dimensiwn hidladwy sengl a'i werthoedd a ganiateir.",
         "properties": {
           "factTableColumn": {
             "type": "string",
-            "description": "Internal fact-table column name, e.g. AreaCode"
+            "description": "Enw colofn fewnol y tabl ffeithiau, e.e. AreaCode"
           },
           "columnName": {
             "type": "string",
-            "description": "Human-readable dimension name — use this as the key in your filter object"
+            "description": "Enw dimensiwn darllenadwy — defnyddiwch hwn fel yr allwedd yn eich gwrthrych hidlo"
           },
           "values": {
             "type": "array",
@@ -1422,11 +1422,11 @@
       },
       "FilterId": {
         "type": "object",
-        "description": "A reusable, shareable identifier for a stored set of filters and display options. The same filter inputs always produce the same ID.",
+        "description": "Dynodwr ailddefnyddiadwy y gellir ei rannu ar gyfer set o hidlyddion ac opsiynau arddangos wedi'u storio. Mae'r un mewnbynnau hidlo bob amser yn cynhyrchu'r un ID.",
         "properties": {
           "filterId": {
             "type": "string",
-            "description": "12-character identifier for the stored query. Pass this to GET /{dataset_id}/data/{filter_id} or GET /{dataset_id}/pivot/{filter_id} to retrieve filtered results."
+            "description": "Dynodwr 12 nod ar gyfer yr ymholiad wedi'i storio. Pasiwch hwn i GET /{dataset_id}/data/{filter_id} neu GET /{dataset_id}/pivot/{filter_id} i gael canlyniadau wedi'u hidlo."
           }
         },
         "example": {
@@ -1435,11 +1435,11 @@
       },
       "DataOptions": {
         "type": "object",
-        "description": "Row filters and display options to store as a reusable query. Use column names and reference codes from GET /{dataset_id}/filters.",
+        "description": "Hidlyddion rhesi ac opsiynau arddangos i'w storio fel ymholiad ailddefnyddiadwy. Defnyddiwch enwau colofnau a chodau cyfeirio o GET /{dataset_id}/filters.",
         "properties": {
           "filters": {
             "type": "array",
-            "description": "Each object has a single key (a column name from GET /filters) mapped to an array of reference codes. Multiple objects combine with AND logic; multiple values within one object combine with OR logic.",
+            "description": "Mae gan bob gwrthrych un allwedd (enw colofn o GET /filters) wedi'i mapio i arae o godau cyfeirio. Mae gwrthrychau lluosog yn cyfuno â rhesymeg AND; mae gwerthoedd lluosog o fewn un gwrthrych yn cyfuno â rhesymeg OR.",
             "items": {
               "type": "object",
               "additionalProperties": {
@@ -1465,21 +1465,21 @@
           },
           "options": {
             "type": "object",
-            "description": "Display options. If omitted, defaults to use_raw_column_names: true, use_reference_values: true, data_value_type: raw.",
+            "description": "Opsiynau arddangos. Os heb eu darparu, y rhagosodiadau yw use_raw_column_names: true, use_reference_values: true, data_value_type: raw.",
             "properties": {
               "use_raw_column_names": {
                 "type": "boolean",
-                "description": "When true (default), column headers use internal fact-table names (e.g. AreaCode). When false, headers use human-readable dimension names (e.g. Area).",
+                "description": "Pan yn wir (rhagosodedig), mae penawdau colofnau'n defnyddio enwau mewnol y tabl ffeithiau (e.e. AreaCode). Pan yn ffug, mae penawdau'n defnyddio enwau dimensiwn darllenadwy (e.e. Area).",
                 "default": true
               },
               "use_reference_values": {
                 "type": "boolean",
-                "description": "When true (default), cell values are reference codes (e.g. K02000001). When false, values are human-readable descriptions (e.g. United Kingdom).",
+                "description": "Pan yn wir (rhagosodedig), mae gwerthoedd celloedd yn godau cyfeirio (e.e. K02000001). Pan yn ffug, mae gwerthoedd yn ddisgrifiadau darllenadwy (e.e. United Kingdom).",
                 "default": true
               },
               "data_value_type": {
                 "type": "string",
-                "description": "Selects the cube view used for data output. raw (default): raw data values and dates. raw_extended: raw values plus reference codes, hierarchies, and sort orders. formatted: formatted data values, no dates. formatted_extended: formatted values and dates plus reference codes, hierarchies, and sort orders. with_note_codes: data values annotated with note markers.",
+                "description": "Yn dewis y golwg ciwb a ddefnyddir ar gyfer allbwn data. raw (rhagosodedig): gwerthoedd data amrwd a dyddiadau. raw_extended: gwerthoedd amrwd ynghyd â chodau cyfeirio, hierarchaethau, a threfnau trefnu. formatted: gwerthoedd data wedi'u fformatio, dim dyddiadau. formatted_extended: gwerthoedd a dyddiadau wedi'u fformatio ynghyd â chodau cyfeirio, hierarchaethau, a threfnau trefnu. with_note_codes: gwerthoedd data wedi'u hanodi â marcwyr nodiadau.",
                 "enum": [
                   "raw",
                   "raw_extended",
@@ -1513,12 +1513,12 @@
                 "properties": {
                   "x": {
                     "type": "string",
-                    "description": "Column name for the horizontal axis of the pivot table",
+                    "description": "Enw'r golofn ar gyfer echelin lorweddol y tabl colyn",
                     "example": "Year"
                   },
                   "y": {
                     "type": "string",
-                    "description": "Column name for the vertical axis of the pivot table",
+                    "description": "Enw'r golofn ar gyfer echelin fertigol y tabl colyn",
                     "example": "Area"
                   },
                   "backend": {
@@ -1527,11 +1527,11 @@
                       "postgres",
                       "duckdb"
                     ],
-                    "description": "Backend engine to use for the pivot (default: duckdb)"
+                    "description": "Peiriant ôl-ben i'w ddefnyddio ar gyfer y colyn (rhagosodedig: duckdb)"
                   },
                   "include_performance": {
                     "type": "boolean",
-                    "description": "Include performance metadata in the response",
+                    "description": "Cynnwys metadata perfformiad yn yr ymateb",
                     "default": false
                   }
                 }
@@ -1545,21 +1545,21 @@
         "properties": {
           "id": {
             "type": "string",
-            "description": "12-character identifier for the stored query"
+            "description": "Dynodwr 12 nod ar gyfer yr ymholiad wedi'i storio"
           },
           "hash": {
             "type": "string",
-            "description": "Hash of the query parameters for deduplication"
+            "description": "Hash o baramedrau'r ymholiad ar gyfer dyblygu"
           },
           "datasetId": {
             "type": "string",
             "format": "uuid",
-            "description": "Dataset this query belongs to"
+            "description": "Y set ddata y mae'r ymholiad hwn yn perthyn iddi"
           },
           "revisionId": {
             "type": "string",
             "format": "uuid",
-            "description": "Revision this query belongs to"
+            "description": "Y diwygiad y mae'r ymholiad hwn yn perthyn iddo"
           },
           "requestObject": {
             "$ref": "#/components/schemas/DataOptions"
@@ -1569,15 +1569,15 @@
             "additionalProperties": {
               "type": "string"
             },
-            "description": "Key-value map of language code to SQL query string"
+            "description": "Map allwedd-gwerth o god iaith i linyn ymholiad SQL"
           },
           "totalLines": {
             "type": "integer",
-            "description": "Total number of rows matching the query"
+            "description": "Cyfanswm nifer y rhesi sy'n cyfateb i'r ymholiad"
           },
           "columnMapping": {
             "type": "array",
-            "description": "Mapping of fact-table column names to dimension display names",
+            "description": "Mapio enwau colofnau'r tabl ffeithiau i enwau arddangos dimensiynau",
             "items": {
               "type": "object",
               "properties": {

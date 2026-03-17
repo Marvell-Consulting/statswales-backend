@@ -1,5 +1,299 @@
 /* eslint-disable @typescript-eslint/naming-convention */
-import { TranslationMap } from '../translate-openapi';
+import { TranslationMap, SchemaTranslation } from '../translate-openapi';
+
+const schemaTranslations: Record<string, SchemaTranslation> = {
+  RevisionMetadata: {
+    properties: {
+      language: { description: 'Cod iaith y metadata, e.e. "en-GB" neu "cy-GB"' },
+      title: { description: 'Teitl y diwygiad yn yr iaith a nodwyd' },
+      summary: { description: "Crynodeb o'r diwygiad yn yr iaith a nodwyd" },
+      collection: { description: "Enw'r casgliad ar gyfer y diwygiad yn yr iaith a nodwyd" },
+      quality: { description: 'Gwybodaeth ansawdd ar gyfer y diwygiad yn yr iaith a nodwyd' },
+      rounding_description: {
+        description: "Disgrifiad o'r talgrynnu a gymhwyswyd i'r data yn y diwygiad hwn"
+      },
+      reason: { description: 'Rheswm dros y diweddariad, yn bresennol ar ddiwygiadau ar ôl y cyntaf' }
+    }
+  },
+  UpdateFrequency: {
+    properties: {
+      update_type: {
+        description:
+          'Math o ddiweddariad: "update" ar gyfer data newydd wedi\'i ychwanegu, "replacement" ar gyfer amnewid llawn, "none" am ddim diweddariadau pellach'
+      },
+      date: {
+        description: 'Dyddiad diweddaru disgwyliedig nesaf',
+        properties: {
+          day: { description: 'Diwrnod y mis' },
+          month: { description: 'Rhif y mis' },
+          year: { description: 'Blwyddyn pedwar digid' }
+        }
+      }
+    }
+  },
+  RelatedLink: {
+    properties: {
+      id: { description: 'Dynodwr unigryw ar gyfer y ddolen gysylltiedig' },
+      url: { description: 'URL y ddolen gysylltiedig' },
+      label_en: { description: 'Label y ddolen gysylltiedig yn Saesneg' },
+      label_cy: { description: 'Label y ddolen gysylltiedig yn Gymraeg' },
+      created_at: { description: "Dyddiad creu'r ddolen gysylltiedig ar fformat ISO 8601" }
+    }
+  },
+  Provider: {
+    properties: {
+      language: { description: 'Cod iaith, e.e. "en-gb" neu "cy-gb"' },
+      provider_name: { description: 'Enw darparwr y data' },
+      source_name: { description: 'Enw ffynhonnell y data' }
+    }
+  },
+  Revision: {
+    description: "Diwygiad fel y'i dychwelir o fewn ymateb set ddata (pob iaith wedi'i chynnwys yn y metadata).",
+    properties: {
+      id: { description: 'Dynodwr unigryw ar gyfer y diwygiad' },
+      revision_index: { description: 'Rhif fersiwn, yn dechrau o 1' },
+      previous_revision_id: { description: 'Dynodwr unigryw ar gyfer y diwygiad blaenorol, os oes un' },
+      created_at: { description: "Dyddiad creu'r diwygiad ar fformat ISO 8601" },
+      updated_at: { description: 'Dyddiad diweddaru diwethaf y diwygiad ar fformat ISO 8601' },
+      approved_at: { description: "Dyddiad cymeradwyo'r diwygiad ar fformat ISO 8601" },
+      publish_at: { description: "Dyddiad cyhoeddi'r diwygiad ar fformat ISO 8601" },
+      unpublished_at: { description: "Dyddiad dadgyhoeddi'r diwygiad, os yn berthnasol" },
+      coverage_start_date: {
+        description:
+          "Dechrau'r cyfnod amser a gwmpesir gan y data yn y diwygiad hwn, ar fformat ISO 8601. Yn bresennol ar gyfer setiau data â dimensiynau math dyddiad yn unig."
+      },
+      coverage_end_date: {
+        description:
+          'Diwedd y cyfnod amser a gwmpesir gan y data yn y diwygiad hwn, ar fformat ISO 8601. Yn bresennol ar gyfer setiau data â dimensiynau math dyddiad yn unig.'
+      },
+      metadata: { description: 'Metadata ar gyfer pob iaith (en-GB a cy-GB fel arfer)' },
+      rounding_applied: {
+        description: "Yn nodi a gymhwyswyd talgrynnu i'r data yn y diwygiad hwn"
+      },
+      designation: { description: 'Dynodiad ystadegol y diwygiad' },
+      providers: { description: 'Darparwyr data a ffynonellau ar gyfer y diwygiad hwn' }
+    }
+  },
+  SingleLanguageRevision: {
+    description:
+      "Diwygiad fel y'i dychwelir gan y pwynt terfyn /revision/:revision_id — mae'r metadata yn wrthrych sengl wedi'i hidlo i'r iaith a ofynnwyd amdani.",
+    properties: {
+      id: { description: 'Dynodwr unigryw ar gyfer y diwygiad' },
+      revision_index: { description: 'Rhif fersiwn, yn dechrau o 1' },
+      previous_revision_id: { description: 'Dynodwr unigryw ar gyfer y diwygiad blaenorol, os oes un' },
+      updated_at: { description: 'Dyddiad diweddaru diwethaf y diwygiad ar fformat ISO 8601' },
+      publish_at: { description: "Dyddiad cyhoeddi'r diwygiad ar fformat ISO 8601" },
+      coverage_start_date: { description: "Dechrau'r cyfnod amser a gwmpesir gan y data" },
+      coverage_end_date: { description: 'Diwedd y cyfnod amser a gwmpesir gan y data' },
+      metadata: { description: "Metadata wedi'i hidlo i'r iaith a ofynnwyd amdani" },
+      rounding_applied: {
+        description: "Yn nodi a gymhwyswyd talgrynnu i'r data yn y diwygiad hwn"
+      },
+      designation: { description: 'Dynodiad ystadegol y diwygiad' },
+      providers: { description: "Darparwyr data a ffynonellau, wedi'u hidlo i'r iaith a ofynnwyd amdani" }
+    }
+  },
+  Publisher: {
+    properties: {
+      group: {
+        properties: {
+          name: { description: "Enw'r grŵp cyhoeddi" },
+          email: { description: 'E-bost cyswllt ar gyfer y grŵp cyhoeddi' }
+        }
+      },
+      organisation: {
+        properties: {
+          name: { description: "Enw'r sefydliad cyhoeddi" }
+        }
+      }
+    }
+  },
+  Dataset: {
+    properties: {
+      id: { description: 'Dynodwr unigryw ar gyfer y set ddata' },
+      first_published_at: { description: 'Dyddiad cyhoeddi cyntaf y set ddata ar fformat ISO 8601' },
+      archived_at: {
+        description: "Dyddiad archifio'r set ddata ar fformat ISO 8601, neu null os nad yw wedi'i harchifio"
+      },
+      replaced_by: {
+        description:
+          "Manylion y set ddata amnewid, os yw'r set ddata hon wedi'i harchifio gydag amnewid. Null os na nodwyd amnewid.",
+        properties: {
+          dataset_id: { description: "ID y set ddata sy'n disodli hon" },
+          dataset_title: { description: 'Teitl y set ddata amnewid' },
+          auto_redirect: {
+            description: "Pan yn wir, dylai defnyddwyr gael eu hailgyfeirio i'r set ddata amnewid yn awtomatig"
+          }
+        }
+      },
+      start_date: {
+        description:
+          "Maes etifeddol — dechrau'r cyfnod amser a gwmpesir gan y set ddata. Heb ei osod ar gyfer setiau data mwy newydd; defnyddiwch coverage_start_date ar y diwygiad cyhoeddedig yn lle hynny."
+      },
+      end_date: {
+        description:
+          'Maes etifeddol — diwedd y cyfnod amser a gwmpesir gan y set ddata. Heb ei osod ar gyfer setiau data mwy newydd; defnyddiwch coverage_end_date ar y diwygiad cyhoeddedig yn lle hynny.'
+      }
+    }
+  },
+  DatasetListItem: {
+    properties: {
+      id: { description: 'Dynodwr unigryw ar gyfer y set ddata' },
+      title: { description: 'Teitl y set ddata yn yr iaith a ofynnwyd amdani' },
+      first_published_at: { description: 'Dyddiad cyhoeddi cyntaf y set ddata ar fformat ISO 8601' },
+      last_updated_at: {
+        description: "Dyddiad y diweddariad diweddaraf i'r set ddata ar fformat ISO 8601"
+      },
+      archived_at: {
+        description: "Dyddiad archifio'r set ddata ar fformat ISO 8601, neu null os nad yw wedi'i harchifio"
+      }
+    }
+  },
+  SearchResultItem: {
+    description: "Canlyniad chwilio set ddata. Yn ymestyn DatasetListItem gyda meysydd sy'n benodol i chwilio.",
+    properties: {
+      id: { description: 'Dynodwr unigryw ar gyfer y set ddata' },
+      title: { description: 'Teitl y set ddata' },
+      summary: { description: "Crynodeb o'r set ddata" },
+      rank: { description: 'Sgôr perthnasedd (yn bresennol ar gyfer moddau fts, fts_simple a fuzzy)' },
+      match_title: {
+        description:
+          "Teitl gyda thermau chwilio wedi'u hamlygu mewn tagiau <mark> (yn bresennol ar gyfer moddau fts a fts_simple)"
+      },
+      match_summary: {
+        description:
+          "Crynodeb gyda thermau chwilio wedi'u hamlygu mewn tagiau <mark> (yn bresennol ar gyfer moddau fts a fts_simple)"
+      }
+    }
+  },
+  DatasetsWithCount: {
+    properties: {
+      count: { description: 'Cyfanswm nifer y setiau data' }
+    }
+  },
+  SearchResultsWithCount: {
+    properties: {
+      count: { description: "Cyfanswm nifer y setiau data sy'n cyfateb" }
+    }
+  },
+  DataRow: {
+    description:
+      'Rhes ddata sengl fel gwrthrych JSON. Mae allweddi yn enwau colofnau (enwau tabl ffeithiau yn ddiofyn) a gwerthoedd yn werthoedd data.'
+  },
+  Topic: {
+    properties: {
+      id: { description: 'ID y pwnc' },
+      path: { description: 'Llwybr y pwnc' },
+      name: { description: 'Enw yn yr iaith gyfredol' },
+      name_en: { description: "Enw'r pwnc yn Saesneg" },
+      name_cy: { description: "Enw'r pwnc yn Gymraeg" }
+    }
+  },
+  SubTopic: {
+    properties: {
+      id: { description: 'ID y pwnc' },
+      path: { description: 'Llwybr y pwnc' },
+      name: { description: 'Enw yn yr iaith gyfredol' },
+      name_en: { description: "Enw'r pwnc yn Saesneg" },
+      name_cy: { description: "Enw'r pwnc yn Gymraeg" }
+    }
+  },
+  RootTopics: {},
+  PublishedTopics: {
+    properties: {
+      children: {
+        description:
+          "Is-bynciau o dan y pwnc a ddewiswyd. Arae gwag os mai pwnc dail yw hwn (yn yr achos hwnnw bydd setiau data wedi'u llenwi)."
+      },
+      parents: { description: "Pynciau hynafiaid o'r gwraidd i'r pwnc a ddewiswyd" },
+      datasets: {
+        description:
+          "Setiau data wedi'u tagio i'r pwnc hwn. Yn bresennol ar gyfer pynciau dail yn unig (pynciau heb blant)."
+      }
+    }
+  },
+  FilterValue: {
+    properties: {
+      reference: { description: "Cod cyfeirio i'w ddefnyddio mewn gwerthoedd hidlo" },
+      description: { description: 'Label darllenadwy (yn dibynnu ar iaith)' },
+      children: {
+        description: 'Gwerthoedd plentyn ar gyfer dimensiynau hierarchaidd (e.e. Cymru → awdurdodau lleol)'
+      }
+    }
+  },
+  Filter: {
+    description: "Dimensiwn hidladwy sengl a'i werthoedd a ganiateir.",
+    properties: {
+      factTableColumn: { description: 'Enw colofn fewnol y tabl ffeithiau, e.e. AreaCode' },
+      columnName: {
+        description: 'Enw dimensiwn darllenadwy — defnyddiwch hwn fel yr allwedd yn eich gwrthrych hidlo'
+      }
+    }
+  },
+  FilterId: {
+    description:
+      "Dynodwr ailddefnyddiadwy y gellir ei rannu ar gyfer set o hidlyddion ac opsiynau arddangos wedi'u storio. Mae'r un mewnbynnau hidlo bob amser yn cynhyrchu'r un ID.",
+    properties: {
+      filterId: {
+        description:
+          "Dynodwr 12 nod ar gyfer yr ymholiad wedi'i storio. Pasiwch hwn i GET /{dataset_id}/data/{filter_id} neu GET /{dataset_id}/pivot/{filter_id} i gael canlyniadau wedi'u hidlo."
+      }
+    }
+  },
+  DataOptions: {
+    description:
+      "Hidlyddion rhesi ac opsiynau arddangos i'w storio fel ymholiad ailddefnyddiadwy. Defnyddiwch enwau colofnau a chodau cyfeirio o GET /{dataset_id}/filters.",
+    properties: {
+      filters: {
+        description:
+          "Mae gan bob gwrthrych un allwedd (enw colofn o GET /filters) wedi'i mapio i arae o godau cyfeirio. Mae gwrthrychau lluosog yn cyfuno â rhesymeg AND; mae gwerthoedd lluosog o fewn un gwrthrych yn cyfuno â rhesymeg OR."
+      },
+      options: {
+        description:
+          'Opsiynau arddangos. Os heb eu darparu, y rhagosodiadau yw use_raw_column_names: true, use_reference_values: true, data_value_type: raw.',
+        properties: {
+          use_raw_column_names: {
+            description:
+              "Pan yn wir (rhagosodedig), mae penawdau colofnau'n defnyddio enwau mewnol y tabl ffeithiau (e.e. AreaCode). Pan yn ffug, mae penawdau'n defnyddio enwau dimensiwn darllenadwy (e.e. Area)."
+          },
+          use_reference_values: {
+            description:
+              'Pan yn wir (rhagosodedig), mae gwerthoedd celloedd yn godau cyfeirio (e.e. K02000001). Pan yn ffug, mae gwerthoedd yn ddisgrifiadau darllenadwy (e.e. United Kingdom).'
+          },
+          data_value_type: {
+            description:
+              "Yn dewis y golwg ciwb a ddefnyddir ar gyfer allbwn data. raw (rhagosodedig): gwerthoedd data amrwd a dyddiadau. raw_extended: gwerthoedd amrwd ynghyd â chodau cyfeirio, hierarchaethau, a threfnau trefnu. formatted: gwerthoedd data wedi'u fformatio, dim dyddiadau. formatted_extended: gwerthoedd a dyddiadau wedi'u fformatio ynghyd â chodau cyfeirio, hierarchaethau, a threfnau trefnu. with_note_codes: gwerthoedd data wedi'u hanodi â marcwyr nodiadau."
+          }
+        }
+      }
+    }
+  },
+  PivotOptions: {
+    properties: {
+      pivot: {
+        properties: {
+          x: { description: "Enw'r golofn ar gyfer echelin lorweddol y tabl colyn" },
+          y: { description: "Enw'r golofn ar gyfer echelin fertigol y tabl colyn" },
+          backend: { description: "Peiriant ôl-ben i'w ddefnyddio ar gyfer y colyn (rhagosodedig: duckdb)" },
+          include_performance: { description: 'Cynnwys metadata perfformiad yn yr ymateb' }
+        }
+      }
+    }
+  },
+  QueryStore: {
+    properties: {
+      id: { description: "Dynodwr 12 nod ar gyfer yr ymholiad wedi'i storio" },
+      hash: { description: "Hash o baramedrau'r ymholiad ar gyfer dyblygu" },
+      datasetId: { description: "Y set ddata y mae'r ymholiad hwn yn perthyn iddi" },
+      revisionId: { description: "Y diwygiad y mae'r ymholiad hwn yn perthyn iddo" },
+      query: { description: 'Map allwedd-gwerth o god iaith i linyn ymholiad SQL' },
+      totalLines: { description: "Cyfanswm nifer y rhesi sy'n cyfateb i'r ymholiad" },
+      columnMapping: {
+        description: "Mapio enwau colofnau'r tabl ffeithiau i enwau arddangos dimensiynau"
+      }
+    }
+  }
+};
 
 export const v2CyTranslations: TranslationMap = {
   info: {
@@ -132,5 +426,6 @@ export const v2CyTranslations: TranslationMap = {
     filter_id: 'ID hidlydd a ddychwelwyd gan y pwynt terfyn POST /data neu POST /pivot',
     search_mode:
       "Algorithm chwilio i'w ddefnyddio. **basic** (rhagosodedig): cyfatebiad is-linyn heb wahaniaethu llythrennau mawr/bach yn erbyn teitl a chrynodeb. **basic_split**: yn rhannu allweddeiriau'n eiriau unigol ac yn mynnu bod pob un yn ymddangos (rhesymeg AND). **fts**: chwilio testun llawn PostgreSQL gan ddefnyddio bôn-eiriau sy'n ymwybodol o iaith a graddio — yn dychwelyd meysydd `rank`, `match_title`, a `match_summary` gyda chyfatebiadau wedi'u hamlygu. **fts_simple**: fel fts ond yn defnyddio'r geiriadur 'syml' (dim bôn-eirio), defnyddiol ar gyfer chwiliadau Cymraeg. **fuzzy**: cyfatebiaeth tebygrwydd yn seiliedig ar drigram — yn goddef gwallau teipio a chyfatebiadau rhannol."
-  }
+  },
+  schemas: schemaTranslations
 };
