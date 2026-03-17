@@ -82,7 +82,8 @@ export class DatasetService {
     return DatasetRepository.getById(datasetId, {
       publishedRevision: { metadata: true },
       endRevision: { metadata: true },
-      tasks: { createdBy: true, updatedBy: true }
+      tasks: { createdBy: true, updatedBy: true },
+      replacementDataset: { publishedRevision: { metadata: true } }
     });
   }
 

@@ -29,7 +29,7 @@ export class QueryStore extends BaseEntity {
   @Column({ name: 'total_lines', type: 'int', nullable: false })
   totalLines: number;
 
-  @Column({ name: 'total_pivot_lines', type: 'int' })
+  @Column({ name: 'total_pivot_lines', type: 'int', nullable: true })
   totalPivotLines: number | null;
 
   @Column({ name: 'column_mapping', type: 'jsonb', nullable: false })

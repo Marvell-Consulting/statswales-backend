@@ -31,6 +31,7 @@ export class DatasetDTO {
   start_date?: Date | null;
   end_date?: Date | null;
   user_group_id?: string;
+  replaced_by?: { dataset_id: string; dataset_title?: string; auto_redirect: boolean };
   tasks?: TaskDTO[];
   publisher?: PublisherDTO;
 
@@ -42,6 +43,14 @@ export class DatasetDTO {
 
     dto.first_published_at = dataset.firstPublishedAt?.toISOString();
     dto.archived_at = dataset.archivedAt?.toISOString();
+
+    if (dataset.replacementDatasetId) {
+      dto.replaced_by = {
+        dataset_id: dataset.replacementDatasetId,
+        dataset_title: dataset.replacementDataset?.publishedRevision?.metadata?.[0]?.title ?? undefined,
+        auto_redirect: dataset.replacementAutoRedirect ?? false
+      };
+    }
 
     dto.dimensions = dataset.dimensions?.map((dimension: Dimension) => DimensionDTO.fromDimension(dimension));
     dto.revisions = dataset.revisions?.map((revision: Revision) => RevisionDTO.fromRevision(revision));

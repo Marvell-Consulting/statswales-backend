@@ -22,7 +22,7 @@ import { Locale } from '../enums/locale';
 import { logger } from '../utils/logger';
 import { UnknownException } from '../exceptions/unknown.exception';
 import { DatasetDTO } from '../dtos/dataset-dto';
-import { hasError, titleValidator, userGroupIdValidator } from '../validators';
+import { hasError, titleValidator, uuidValidator, userGroupIdValidator } from '../validators';
 import { BadRequestException } from '../exceptions/bad-request.exception';
 import { ViewErrDTO } from '../dtos/view-dto';
 import { arrayValidator, dtoValidator } from '../validators/dto-validator';
@@ -651,7 +651,12 @@ export const datasetActionRequest = async (req: Request, res: Response, next: Ne
 
   const datasetId = res.locals.datasetId;
   const user = req.user as User;
-  const { reason } = req.body;
+  const { reason, replacement_dataset_id, auto_redirect } = req.body;
+
+  if (replacement_dataset_id !== undefined && (await hasError(uuidValidator('replacement_dataset_id'), req))) {
+    throw new BadRequestException('errors.request_archive.invalid_replacement_id');
+  }
+
   const taskService = new TaskService();
 
   switch (action) {
@@ -661,7 +666,7 @@ export const datasetActionRequest = async (req: Request, res: Response, next: Ne
       await taskService.requestUnpublish(datasetId, user, reason);
       break;
     case TaskAction.Archive:
-      await taskService.requestArchive(datasetId, user, reason);
+      await taskService.requestArchive(datasetId, user, reason, replacement_dataset_id, auto_redirect === true);
       break;
     case TaskAction.Unarchive:
       await taskService.requestUnarchive(datasetId, user, reason);

@@ -37,7 +37,8 @@ export const withAll: FindOptionsRelations<Dataset> = {
     revisionProviders: { provider: true, providerSource: true },
     revisionTopics: { topic: true }
   },
-  revisions: true
+  revisions: true,
+  replacementDataset: { publishedRevision: { metadata: true } }
 };
 
 export const withPublishedRevision: FindOptionsRelations<Dataset> = {
@@ -47,7 +48,8 @@ export const withPublishedRevision: FindOptionsRelations<Dataset> = {
     metadata: true,
     revisionProviders: { provider: true, providerSource: true },
     revisionTopics: { topic: true }
-  }
+  },
+  replacementDataset: { publishedRevision: { metadata: true } }
 };
 
 export const PublishedDatasetRepository = dataSource.getRepository(Dataset).extend({

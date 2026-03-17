@@ -42,6 +42,16 @@ export class Dataset extends BaseEntity {
   @Column({ name: 'archived_at', type: 'timestamptz', nullable: true })
   archivedAt: Date | null;
 
+  @Column({ name: 'replacement_dataset_id', type: 'uuid', nullable: true })
+  replacementDatasetId: string | null;
+
+  @ManyToOne(() => Dataset, { nullable: true })
+  @JoinColumn({ name: 'replacement_dataset_id', foreignKeyConstraintName: 'FK_dataset_replacement_dataset_id' })
+  replacementDataset: Dataset | null;
+
+  @Column({ name: 'replacement_auto_redirect', type: 'boolean', nullable: false, default: false })
+  replacementAutoRedirect: boolean;
+
   @Column({ name: 'start_date', type: 'date', nullable: true })
   startDate: Date | null;
 

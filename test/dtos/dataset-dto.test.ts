@@ -183,5 +183,45 @@ describe('DatasetDTO', () => {
 
       expect(dto.archived_at).toBe('2025-06-01T00:00:00.000Z');
     });
+
+    it('should omit replaced_by when replacementDatasetId is not set', () => {
+      const dto = DatasetDTO.fromDataset(makeDataset({ replacementDatasetId: null }));
+
+      expect(dto.replaced_by).toBeUndefined();
+    });
+
+    it('should populate replaced_by when replacementDatasetId is set', () => {
+      const dto = DatasetDTO.fromDataset(
+        makeDataset({
+          replacementDatasetId: 'rep-ds-1',
+          replacementAutoRedirect: true,
+          replacementDataset: {
+            publishedRevision: { metadata: [{ title: 'Replacement Title' }] }
+          }
+        })
+      );
+
+      expect(dto.replaced_by).toEqual({
+        dataset_id: 'rep-ds-1',
+        dataset_title: 'Replacement Title',
+        auto_redirect: true
+      });
+    });
+
+    it('should default auto_redirect to false when replacementAutoRedirect is falsy', () => {
+      const dto = DatasetDTO.fromDataset(
+        makeDataset({
+          replacementDatasetId: 'rep-ds-1',
+          replacementAutoRedirect: undefined,
+          replacementDataset: null
+        })
+      );
+
+      expect(dto.replaced_by).toEqual({
+        dataset_id: 'rep-ds-1',
+        dataset_title: undefined,
+        auto_redirect: false
+      });
+    });
   });
 });

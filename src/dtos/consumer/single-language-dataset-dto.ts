@@ -12,6 +12,7 @@ export class SingleLanguageDatasetDTO {
   id: string;
   first_published_at?: string;
   archived_at?: string;
+  replaced_by?: { dataset_id: string; dataset_title?: string; auto_redirect: boolean };
   start_date?: string;
   end_date?: string;
   data_description?: SingleLanguageMeasureDTO;
@@ -25,6 +26,14 @@ export class SingleLanguageDatasetDTO {
     dto.id = dataset.id;
     dto.first_published_at = dataset.firstPublishedAt?.toISOString();
     dto.archived_at = dataset.archivedAt?.toISOString();
+    if (dataset.replacementDatasetId) {
+      dto.replaced_by = {
+        dataset_id: dataset.replacementDatasetId,
+        dataset_title:
+          dataset.replacementDataset?.publishedRevision?.metadata?.find((m) => m.language === lang)?.title ?? undefined,
+        auto_redirect: dataset.replacementAutoRedirect ?? false
+      };
+    }
     dto.start_date = dataset.startDate?.toISOString();
     dto.end_date = dataset.endDate?.toISOString();
 

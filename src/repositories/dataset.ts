@@ -273,10 +273,16 @@ export const DatasetRepository = dataSource.getRepository(Dataset).extend({
     return this.save(dataset);
   },
 
-  async archive(datasetId: string): Promise<Dataset> {
+  async archive(
+    datasetId: string,
+    replacementDatasetId?: string | null,
+    replacementAutoRedirect?: boolean
+  ): Promise<Dataset> {
     logger.info(`Archiving dataset ${datasetId}`);
     const dataset = await this.getById(datasetId);
     dataset.archivedAt = new Date();
+    dataset.replacementDatasetId = replacementDatasetId ?? null;
+    dataset.replacementAutoRedirect = replacementAutoRedirect ?? false;
     return await this.save(dataset);
   },
 
@@ -284,6 +290,8 @@ export const DatasetRepository = dataSource.getRepository(Dataset).extend({
     logger.info(`Unarchiving dataset ${datasetId}`);
     const dataset = await this.getById(datasetId);
     dataset.archivedAt = null;
+    dataset.replacementDatasetId = null;
+    dataset.replacementAutoRedirect = false;
     return await this.save(dataset);
   }
 });
