@@ -21,7 +21,7 @@ export const dimensionIdValidator = (): ValidationChain => param('dimension_id')
 
 export const providerIdValidator = (): ValidationChain => param('provider_id').trim().notEmpty().isUUID(4);
 
-export const uuidValidator = (paramName: string): ValidationChain => param(paramName).trim().notEmpty().isUUID(4);
+export const uuidValidator = (paramName: string): ValidationChain => check(paramName).trim().notEmpty().isUUID(4);
 
 export const titleValidator = (): ValidationChain => body('title').trim().notEmpty();
 

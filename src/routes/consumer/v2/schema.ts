@@ -399,7 +399,7 @@ export const schemaV2 = {
               dataset_title: {
                 type: 'string',
                 nullable: true,
-                description: 'Title of the replacement dataset, or null if the dataset no longer exists'
+                description: 'Title of the replacement dataset'
               },
               auto_redirect: {
                 type: 'boolean',

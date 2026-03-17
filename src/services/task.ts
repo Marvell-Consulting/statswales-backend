@@ -100,16 +100,23 @@ export class TaskService {
 
     const metadata: TaskMetadata = { revisionId: dataset.endRevisionId };
     if (replacementDatasetId) {
+      if (replacementDatasetId === datasetId) {
+        throw new BadRequestException('errors.request_archive.replacement_is_self');
+      }
       try {
         const replacement = await PublishedDatasetRepository.getById(replacementDatasetId, {
           publishedRevision: { metadata: true }
         });
+        if (replacement.archivedAt) {
+          throw new BadRequestException('errors.request_archive.replacement_archived');
+        }
         const title = replacement.publishedRevision?.metadata?.[0]?.title;
         metadata.replacementDatasetId = replacementDatasetId;
         metadata.replacementDatasetTitle = title;
         metadata.autoRedirect = autoRedirect ?? false;
-      } catch {
-        logger.error(`Replacement dataset ${replacementDatasetId} not found or not published`);
+      } catch (err) {
+        if (err instanceof BadRequestException) throw err;
+        logger.error({ err }, `Replacement dataset ${replacementDatasetId} not found or not published`);
         throw new BadRequestException('errors.request_archive.replacement_not_published');
       }
     }

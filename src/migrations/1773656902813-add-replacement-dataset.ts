@@ -5,7 +5,7 @@ export class AddReplacementDataset1773656902813 implements MigrationInterface {
 
   public async up(queryRunner: QueryRunner): Promise<void> {
     await queryRunner.query(`ALTER TABLE "dataset" ADD "replacement_dataset_id" uuid`);
-    await queryRunner.query(`ALTER TABLE "dataset" ADD "replacement_auto_redirect" boolean DEFAULT false`);
+    await queryRunner.query(`ALTER TABLE "dataset" ADD "replacement_auto_redirect" boolean NOT NULL DEFAULT false`);
     await queryRunner.query(
       `ALTER TABLE "dataset" ADD CONSTRAINT "FK_dataset_replacement_dataset_id" FOREIGN KEY ("replacement_dataset_id") REFERENCES "dataset"("id") ON DELETE NO ACTION ON UPDATE NO ACTION`
     );
