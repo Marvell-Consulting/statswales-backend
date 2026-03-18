@@ -15,8 +15,13 @@ import { FileType } from '../../src/enums/file-type';
 import path from 'node:path';
 import { FileImportInterface } from '../../src/entities/dataset/file-import.interface';
 import { QueryRunner } from 'typeorm';
-import { loadFileIntoCube } from '../../src/utils/file-utils';
+import { loadFileIntoCube, convertLookupTableToSW3Format } from '../../src/utils/file-utils';
 import { uuidV4 } from '../../src/utils/uuid';
+import { LookupTable } from '../../src/entities/dataset/lookup-table';
+import { LookupTableExtractor } from '../../src/extractors/lookup-table-extractor';
+import { FactTableColumn } from '../../src/entities/dataset/fact-table-column';
+import { Locale } from '../../src/enums/locale';
+import { format as pgformat } from '@scaleleap/pg-format';
 
 jest.mock('../../src/services/blob-storage');
 
@@ -95,6 +100,84 @@ describe('API Endpoints', () => {
         expect(Object.keys(rowsJson[0]).length).toBe(4);
       } finally {
         releaseDuckDB();
+      }
+    });
+  });
+
+  describe('Load lookup table with empty hierarchy column', () => {
+    test('should handle empty hierarchy values without type cast errors in Postgres', async () => {
+      const factTableColumn = await FactTableColumn.findOneByOrFail({
+        id: dataset1Id,
+        columnName: 'AreaCode'
+      });
+
+      const mockCubeId = uuidV4();
+      const lookupTable = new LookupTable();
+      lookupTable.id = uuidV4();
+      lookupTable.filename = 'test-lookup.csv';
+      lookupTable.originalFilename = 'test-lookup.csv';
+      lookupTable.fileType = FileType.Csv;
+      lookupTable.isStatsWales2Format = true;
+      lookupTable.mimeType = 'text/csv';
+      lookupTable.hash = 'test-hash';
+
+      const extractor: LookupTableExtractor = {
+        tableLanguage: Locale.EnglishGb,
+        descriptionColumns: [
+          { lang: 'en-gb', name: 'Description_en' },
+          { lang: 'cy-gb', name: 'Description_cy' }
+        ],
+        sortColumn: 'SortOrder',
+        hierarchyColumn: 'Hierarchy',
+        notesColumns: [
+          { lang: 'en-gb', name: 'Notes_en' },
+          { lang: 'cy-gb', name: 'Notes_cy' }
+        ],
+        isSW2Format: true
+      };
+
+      // Mimic how the file processor loads CSV data into Postgres. Numeric columns
+      // get their detected types, but Hierarchy (all empty) ends up as VARCHAR.
+      const cubeRunner = dbManager.getCubeDataSource().createQueryRunner();
+      try {
+        await cubeRunner.query(pgformat('CREATE SCHEMA IF NOT EXISTS %I;', mockCubeId));
+        await cubeRunner.query(
+          pgformat(
+            `CREATE TABLE %I.lookup_table (
+              "AreaCode" BIGINT,
+              "Description_en" TEXT,
+              "Description_cy" TEXT,
+              "Hierarchy" VARCHAR,
+              "SortOrder" INTEGER,
+              "Notes_en" TEXT,
+              "Notes_cy" TEXT
+            );`,
+            mockCubeId
+          )
+        );
+        // Insert rows with empty hierarchy values (empty strings, as CSV parser would produce)
+        await cubeRunner.query(
+          pgformat(
+            `INSERT INTO %I.lookup_table VALUES
+              (512, 'Isle of Anglesey', 'Ynys Môn', '', 1, '', ''),
+              (514, 'Gwynedd', 'Gwynedd', '', 2, '', ''),
+              (596, 'Wales', 'Cymru', '', 0, '', '');`,
+            mockCubeId
+          )
+        );
+
+        // This should not throw — before the fix, Postgres rejected the INSERT because
+        // the hierarchy column was typed as BIGINT but received VARCHAR empty strings
+        await convertLookupTableToSW3Format(mockCubeId, lookupTable, extractor, factTableColumn, 'AreaCode');
+
+        // Verify hierarchy values are NULL, not empty strings
+        const result = await cubeRunner.query(
+          pgformat('SELECT DISTINCT hierarchy FROM %I.%I;', mockCubeId, lookupTable.id)
+        );
+        expect(result.map((r: any) => r.hierarchy)).toEqual([null]);
+      } finally {
+        await cubeRunner.query(pgformat('DROP SCHEMA IF EXISTS %I CASCADE;', mockCubeId));
+        await cubeRunner.release();
       }
     });
   });

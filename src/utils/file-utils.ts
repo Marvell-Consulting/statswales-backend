@@ -63,6 +63,10 @@ export async function loadFileIntoDataTablesSchema(
   performanceReporting(Math.round(start - performance.now()), 500, 'Loading a data table in to postgres');
 }
 
+const hierarchySelectExpression = (columnName?: string): string => {
+  return columnName ? pgformat("NULLIF(TRIM(CAST(%I AS TEXT)), '')", columnName) : 'NULL';
+};
+
 export const createLookupTableQuery = (
   schemaName: string,
   lookupTableName: string,
@@ -77,11 +81,10 @@ export const createLookupTableQuery = (
     });
   }
   return pgformat(
-    'CREATE TABLE %I.%I (%I %s NOT NULL, language VARCHAR(5) NOT NULL, description TEXT NOT NULL, notes TEXT, sort_order INTEGER, hierarchy %s %s);',
+    'CREATE TABLE %I.%I (%I %s NOT NULL, language VARCHAR(5) NOT NULL, description TEXT NOT NULL, notes TEXT, sort_order INTEGER, hierarchy VARCHAR %s);',
     schemaName,
     lookupTableName,
     referenceColumnName,
-    referenceColumnType,
     referenceColumnType,
     otherColumnsStatement.length > 0 ? `, ${otherColumnsStatement.join(', ')}` : ''
   );
@@ -120,7 +123,7 @@ export async function loadFileIntoLookupTablesSchema(
         const notesCol = extractor.notesColumns?.find((col) => col.lang.toLowerCase() === locale.toLowerCase());
         const notesColStr = notesCol ? pgformat('%I', notesCol.name) : 'NULL';
         const sortStr = extractor.sortColumn ? pgformat('%I', extractor.sortColumn) : 'NULL';
-        const hierarchyCol = extractor.hierarchyColumn ? pgformat('%I', extractor.hierarchyColumn) : 'NULL';
+        const hierarchyCol = hierarchySelectExpression(extractor.hierarchyColumn);
         dataExtractorParts.push(
           pgformat(
             'SELECT %I AS %I, %L as language, %I as description, %s as notes, %s as sort_order, %s as hierarchy FROM %I.%I',
@@ -147,7 +150,7 @@ export async function loadFileIntoLookupTablesSchema(
       const languageMatcher = languageMatcherCaseStatement(extractor.languageColumn);
       const notesStr = extractor.notesColumns ? pgformat('%I', extractor.notesColumns[0].name) : 'NULL';
       const sortStr = extractor.sortColumn ? pgformat('%I', extractor.sortColumn) : 'NULL';
-      const hierarchyStr = extractor.hierarchyColumn ? pgformat('%I', extractor.hierarchyColumn) : 'NULL';
+      const hierarchyStr = hierarchySelectExpression(extractor.hierarchyColumn);
       const dataExtractorParts = pgformat(
         `SELECT %I AS %I, %s as language, %I as description, %s as notes, %s as sort_order, %s as hierarchy FROM %I.%I;`,
         joinColumn,
@@ -245,9 +248,7 @@ export async function convertLookupTableToSW3Format(
       const notesCol = extractor.notesColumns?.find((col) => col.lang.toLowerCase() === locale.toLowerCase());
       const notesColStr = notesCol ? pgformat('%I', notesCol.name) : 'NULL';
       const sortStr = extractor.sortColumn ? pgformat('%I', extractor.sortColumn) : 'NULL';
-      const hierarchyCol = extractor.hierarchyColumn
-        ? pgformat('%I', extractor.hierarchyColumn)
-        : pgformat('CAST(NULL AS %s)', factTableColumn.columnDatatype);
+      const hierarchyCol = hierarchySelectExpression(extractor.hierarchyColumn);
       dataExtractorParts.push(
         pgformat(
           'SELECT %I AS %I, %L as language, %I as description, %s as notes, %s as sort_order, %s as hierarchy %s FROM %I.%I',
@@ -269,9 +270,7 @@ export async function convertLookupTableToSW3Format(
     const languageMatcher = languageMatcherCaseStatement(extractor.languageColumn);
     const notesStr = extractor.notesColumns ? pgformat('%I', extractor.notesColumns[0].name) : 'NULL';
     const sortStr = extractor.sortColumn ? pgformat('%I', extractor.sortColumn) : 'NULL';
-    const hierarchyStr = extractor.hierarchyColumn
-      ? pgformat('%I', extractor.hierarchyColumn)
-      : pgformat('CAST(NULL AS %s)', factTableColumn.columnDatatype);
+    const hierarchyStr = hierarchySelectExpression(extractor.hierarchyColumn);
     const dataExtractorParts = pgformat(
       `SELECT %I AS %I, %s as language, %I as description, %s as notes, %s as sort_order, %s as hierarchy %s FROM %I.%I;`,
       lookupReferenceColumn,
