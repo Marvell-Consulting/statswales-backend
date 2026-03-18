@@ -114,8 +114,8 @@ describe('API Endpoints', () => {
       const mockCubeId = uuidV4();
       const lookupTable = new LookupTable();
       lookupTable.id = uuidV4();
-      lookupTable.filename = 'area-lookup-empty-hierarchy.csv';
-      lookupTable.originalFilename = 'area-lookup-empty-hierarchy.csv';
+      lookupTable.filename = 'test-lookup.csv';
+      lookupTable.originalFilename = 'test-lookup.csv';
       lookupTable.fileType = FileType.Csv;
       lookupTable.isStatsWales2Format = true;
       lookupTable.mimeType = 'text/csv';
@@ -136,13 +136,11 @@ describe('API Endpoints', () => {
         isSW2Format: true
       };
 
-      // Set up a Postgres schema with a lookup_table containing the CSV data,
-      // mimicking how the file processor loads CSV data into Postgres (all columns as VARCHAR/TEXT).
+      // Mimic how the file processor loads CSV data into Postgres. Numeric columns
+      // get their detected types, but Hierarchy (all empty) ends up as VARCHAR.
       const cubeRunner = dbManager.getCubeDataSource().createQueryRunner();
       try {
         await cubeRunner.query(pgformat('CREATE SCHEMA IF NOT EXISTS %I;', mockCubeId));
-        // Mimic how the file processor loads CSV data into Postgres. Numeric columns
-        // get their detected types, but Hierarchy (all empty) ends up as VARCHAR.
         await cubeRunner.query(
           pgformat(
             `CREATE TABLE %I.lookup_table (
