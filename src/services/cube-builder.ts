@@ -53,7 +53,8 @@ export const createAllCubeFiles = async (
   buildRevisionId: string,
   userId?: string,
   buildType = CubeBuildType.FullCube,
-  buildId = crypto.randomUUID()
+  buildId = crypto.randomUUID(),
+  awaitMaterialisation = false
 ): Promise<void> => {
   // const datasetRelations: FindOptionsRelations<Dataset> = {
   //   factTable: true,
@@ -143,6 +144,7 @@ export const createAllCubeFiles = async (
 
   if (buildType === CubeBuildType.ValidationCube) {
     build.completeBuild(CubeBuildStatus.Completed);
+    await build.save();
     logger.debug('Validation cube build complete');
     return;
   }
@@ -181,14 +183,19 @@ export const createAllCubeFiles = async (
     await QueryStore.delete({ revisionId: buildRevisionId });
   }
 
-  // don't wait for this, can happen in the background so we can send the response earlier
-  logger.debug('Running async process...');
-  void createMaterialisedView(buildRevisionId, dataset, build.id, cubeBuild, cubeBuildConfig).catch((err) => {
-    logger.error(
-      err,
-      `[build ID: ${build.id}] An error occurred trying to create materialised view for revision ${buildRevisionId}`
-    );
-  });
+  if (awaitMaterialisation) {
+    logger.debug('Awaiting materialised view creation...');
+    await createMaterialisedView(buildRevisionId, dataset, build.id, cubeBuild, cubeBuildConfig);
+  } else {
+    // don't wait for this, can happen in the background so we can send the response earlier
+    logger.debug(`Fire-and-forget materialised view creation for revision ${buildRevisionId}`);
+    void createMaterialisedView(buildRevisionId, dataset, build.id, cubeBuild, cubeBuildConfig).catch((err) => {
+      logger.error(
+        err,
+        `[build ID: ${build.id}] An error occurred trying to create materialised view for revision ${buildRevisionId}`
+      );
+    });
+  }
 };
 
 // This is the core cube builder
@@ -408,6 +415,9 @@ async function createMaterialisedView(
   try {
     logger.trace(`Running query:\n\n${buildStatements}\n\n`);
     await cubeDB.query(buildStatements);
+    build.completeBuild(CubeBuildStatus.Completed, fullBuildScriptArr.join('\n'));
+    await build.save();
+    performanceReporting(Math.round(performance.now() - viewCreation), 3000, 'Setting up the materialized views');
   } catch (error) {
     await cubeDB.query('ROLLBACK;');
     try {
@@ -437,13 +447,10 @@ async function createMaterialisedView(
     logger.error(error, 'Something went wrong trying to create the materialized views in the cube.');
     build.completeBuild(CubeBuildStatus.Failed, fullBuildScriptArr.join('\n'), JSON.stringify(error));
     await build.save();
+    throw error;
   } finally {
     void cubeDB.release();
   }
-
-  build.completeBuild(CubeBuildStatus.Completed, fullBuildScriptArr.join('\n'));
-  await build.save();
-  performanceReporting(Math.round(performance.now() - viewCreation), 3000, 'Setting up the materialized views');
 }
 
 /*
