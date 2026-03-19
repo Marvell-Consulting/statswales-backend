@@ -73,11 +73,10 @@ export async function abuseDetection(): Promise<string> {
   const repeated5xx = await query(`
     SELECT
       method,
-      regexp_replace(split_part(url, '?', 1),
-        '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}', ':id', 'g') AS route,
+      route,
       count(*) AS cnt
     FROM logs
-    WHERE status_code BETWEEN 500 AND 599 AND url IS NOT NULL
+    WHERE status_code BETWEEN 500 AND 599 AND route IS NOT NULL
     GROUP BY method, route
     HAVING count(*) >= 3
     ORDER BY cnt DESC

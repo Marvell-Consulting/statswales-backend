@@ -41,7 +41,7 @@ export async function errors(): Promise<string> {
     LIMIT 5
   `);
   if (stacks.length > 0) {
-    lines.push(heading(3, 'Example Stack Traces (top 5 error types)'));
+    lines.push(heading(3, 'Example Stack Traces (top 5 by frequency)'));
     for (const s of stacks) {
       lines.push(`**${s.error_type}: ${(s.first_line as string).substring(0, 100)}**\n`);
       const stackLines = (s.err_stack as string).split('\n').slice(0, 15);
@@ -51,11 +51,10 @@ export async function errors(): Promise<string> {
 
   const routes = await query(`
     SELECT
-      regexp_replace(split_part(url, '?', 1),
-        '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}', ':id', 'g') AS route,
+      route,
       count(*) AS cnt
     FROM logs
-    WHERE level >= 50 AND url IS NOT NULL
+    WHERE level >= 50 AND route IS NOT NULL
     GROUP BY route
     ORDER BY cnt DESC
     LIMIT 15

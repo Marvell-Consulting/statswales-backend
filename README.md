@@ -119,11 +119,11 @@ A DuckDB-powered script is available for analysing Azure log exports. It parses 
 a markdown report covering errors, performance, status codes, abuse detection, coverage gaps, and time-of-day patterns.
 
 ```bash
-npm run analyse-logs -- ./path/to/logs.csv > report.md
+npm run --silent analyse-logs -- ./path/to/logs.csv > report.md
 ```
 
-The CSV should be an Azure Container Apps log export with at minimum the columns `TimeGenerated [UTC]`,
-`ContainerAppName_s`, and `Log_s`. The script filters out non-JSON log entries automatically.
+The CSV should be an Azure Container Apps log export containing a `Log_s` column with JSON-formatted log entries.
+The script filters out non-JSON rows automatically.
 
 The report sections are modular — see `scripts/analyse-logs/sections/` to add or modify analysis sections.
 

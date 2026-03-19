@@ -36,8 +36,7 @@ export async function statusCodes(): Promise<string> {
         WHEN status_code = 404 THEN 'not found'
         ELSE 'other 4xx'
       END AS kind,
-      regexp_replace(split_part(url, '?', 1),
-        '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}', ':id', 'g') AS route,
+      route,
       count(*) AS cnt
     FROM logs
     WHERE status_code BETWEEN 400 AND 499
@@ -57,8 +56,7 @@ export async function statusCodes(): Promise<string> {
   const fivexx = await query(`
     SELECT
       status_code,
-      regexp_replace(split_part(url, '?', 1),
-        '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}', ':id', 'g') AS route,
+      route,
       count(*) AS cnt
     FROM logs
     WHERE status_code BETWEEN 500 AND 599

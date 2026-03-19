@@ -40,11 +40,7 @@ export async function coverageGaps(): Promise<string> {
   const warns = await query(`
     SELECT
       COALESCE(msg, 'no message') AS message,
-      COALESCE(
-        regexp_replace(split_part(url, '?', 1),
-          '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}', ':id', 'g'),
-        'n/a'
-      ) AS route,
+      COALESCE(route, 'n/a') AS route,
       count(*) AS cnt
     FROM logs
     WHERE level = 40
@@ -63,24 +59,19 @@ export async function coverageGaps(): Promise<string> {
   // Routes that never error
   const noErrors = await query(`
     WITH all_routes AS (
-      SELECT DISTINCT
-        regexp_replace(split_part(url, '?', 1),
-          '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}', ':id', 'g') AS route
+      SELECT DISTINCT route
       FROM logs
-      WHERE url IS NOT NULL AND url NOT LIKE '%/healthcheck%'
+      WHERE route IS NOT NULL AND url NOT LIKE '%/healthcheck%'
     ),
     error_routes AS (
-      SELECT DISTINCT
-        regexp_replace(split_part(url, '?', 1),
-          '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}', ':id', 'g') AS route
+      SELECT DISTINCT route
       FROM logs
-      WHERE level >= 50 AND url IS NOT NULL
+      WHERE level >= 50 AND route IS NOT NULL
     )
     SELECT ar.route, count(*) AS request_count
     FROM all_routes ar
     LEFT JOIN error_routes er ON ar.route = er.route
-    INNER JOIN logs l ON regexp_replace(split_part(l.url, '?', 1),
-      '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}', ':id', 'g') = ar.route
+    INNER JOIN logs l ON l.route = ar.route
     WHERE er.route IS NULL
     GROUP BY ar.route
     ORDER BY request_count DESC

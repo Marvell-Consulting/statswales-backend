@@ -55,12 +55,11 @@ export async function timeOfDay(): Promise<string> {
   const offHours = await query(`
     SELECT
       method,
-      regexp_replace(split_part(url, '?', 1),
-        '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}', ':id', 'g') AS route,
+      route,
       count(*) AS cnt
     FROM logs
     WHERE extract(hour FROM to_timestamp(log_time / 1000)) BETWEEN 0 AND 5
-      AND url IS NOT NULL
+      AND route IS NOT NULL
       AND url NOT LIKE '%/healthcheck%'
     GROUP BY method, route
     ORDER BY cnt DESC

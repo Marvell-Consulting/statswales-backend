@@ -11,7 +11,7 @@ import { coverageGaps } from './sections/coverage-gaps';
 import { timeOfDay } from './sections/time-of-day';
 
 async function createBaseView(csvPath: string): Promise<void> {
-  const absolutePath = path.resolve(csvPath);
+  const absolutePath = path.resolve(csvPath).replace(/'/g, "''");
   await run(`
     CREATE OR REPLACE TEMP TABLE logs AS
     SELECT
@@ -26,7 +26,9 @@ async function createBaseView(csvPath: string): Promise<void> {
       json_extract_string("Log_s", '$.err.type') AS err_type,
       json_extract_string("Log_s", '$.err.message') AS err_message,
       json_extract_string("Log_s", '$.err.stack') AS err_stack,
-      json_extract("Log_s", '$.req.query') AS query_params
+      json_extract("Log_s", '$.req.query') AS query_params,
+      regexp_replace(split_part(json_extract_string("Log_s", '$.req.url'), '?', 1),
+        '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}', ':id', 'g') AS route
     FROM read_csv('${absolutePath}', header=true, ignore_errors=true)
     WHERE "Log_s" IS NOT NULL AND left(trim("Log_s"), 1) = '{'
   `);
@@ -41,23 +43,25 @@ async function main(): Promise<void> {
   }
 
   await initDuckDB();
-  await createBaseView(csvPath);
+  try {
+    await createBaseView(csvPath);
 
-  const sections = [
-    heading(1, 'Production Log Analysis Report'),
-    `_Generated: ${new Date().toISOString()}_\n`,
-    await overview(),
-    await errors(),
-    await performance(),
-    await statusCodes(),
-    await abuseDetection(),
-    await coverageGaps(),
-    await timeOfDay()
-  ];
+    const sections = [
+      heading(1, 'Production Log Analysis Report'),
+      `_Generated: ${new Date().toISOString()}_\n`,
+      await overview(),
+      await errors(),
+      await performance(),
+      await statusCodes(),
+      await abuseDetection(),
+      await coverageGaps(),
+      await timeOfDay()
+    ];
 
-  process.stdout.write(sections.join('\n'));
-
-  await closeDuckDB();
+    process.stdout.write(sections.join('\n'));
+  } finally {
+    await closeDuckDB();
+  }
 }
 
 main().catch((err) => {

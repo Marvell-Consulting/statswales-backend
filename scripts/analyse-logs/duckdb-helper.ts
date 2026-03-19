@@ -12,13 +12,9 @@ export async function initDuckDB(): Promise<DuckDBConnection> {
   return connection;
 }
 
-export async function query(sql: string, ...params: unknown[]): Promise<Record<string, unknown>[]> {
+export async function query(sql: string): Promise<Record<string, unknown>[]> {
   if (!connection) throw new Error('DuckDB not initialised — call initDuckDB() first');
-  const prepared = await connection.prepare(sql);
-  for (let i = 0; i < params.length; i++) {
-    prepared.bindVarchar(i + 1, String(params[i]));
-  }
-  const result = await prepared.runAndReadAll();
+  const result = await connection.runAndReadAll(sql);
   return result.getRowObjectsJson() as Record<string, unknown>[];
 }
 

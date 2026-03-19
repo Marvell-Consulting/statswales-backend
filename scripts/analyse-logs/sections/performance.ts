@@ -7,8 +7,7 @@ export async function performance(): Promise<string> {
   const byRoute = await query(`
     SELECT
       method,
-      regexp_replace(split_part(url, '?', 1),
-        '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}', ':id', 'g') AS route,
+      route,
       count(*) AS cnt,
       round(quantile_cont(response_time, 0.5)::DOUBLE, 1) AS p50,
       round(quantile_cont(response_time, 0.95)::DOUBLE, 1) AS p95,
