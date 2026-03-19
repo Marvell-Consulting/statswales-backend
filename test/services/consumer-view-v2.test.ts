@@ -684,7 +684,11 @@ describe('consumer-view-v2 service', () => {
     it('should add ORDER BY for sort options', async () => {
       const queryStore = createMockQueryStore({
         query: { 'en-GB': 'SELECT * FROM test_table' },
-        totalLines: 100
+        totalLines: 100,
+        columnMapping: [
+          { fact_table_column: 'area_code', dimension_name: 'area', language: 'en-gb' },
+          { fact_table_column: 'year_code', dimension_name: 'year', language: 'en-gb' }
+        ]
       });
       const pageOptions: PageOptions = {
         format: OutputFormats.Frontend,
@@ -699,6 +703,45 @@ describe('consumer-view-v2 service', () => {
       expect(result).toContain('ORDER BY');
       expect(result).toContain('ASC');
       expect(result).toContain('DESC');
+    });
+
+    it('should throw BadRequestException for sort column not in view', async () => {
+      const queryStore = createMockQueryStore({
+        query: { 'en-GB': 'SELECT * FROM test_table' },
+        totalLines: 100,
+        columnMapping: [{ fact_table_column: 'area_code', dimension_name: 'area', language: 'en-gb' }]
+      });
+      const pageOptions: PageOptions = {
+        format: OutputFormats.Frontend,
+        sort: ['nonexistent|asc'],
+        locale: Locale.EnglishGb,
+        pageNumber: 1,
+        pageSize: 10
+      };
+
+      await expect(buildDataQuery(queryStore, pageOptions)).rejects.toThrow(BadRequestException);
+    });
+
+    it('should validate sort columns against the correct locale', async () => {
+      const queryStore = createMockQueryStore({
+        query: { 'en-GB': 'SELECT * FROM test_table', 'cy-GB': 'SELECT * FROM test_table' },
+        totalLines: 100,
+        columnMapping: [
+          { fact_table_column: 'area_code', dimension_name: 'area', language: 'en-gb' },
+          { fact_table_column: 'area_code', dimension_name: 'ardal', language: 'cy-gb' }
+        ]
+      });
+
+      // English column name should fail for Welsh locale
+      const pageOptions: PageOptions = {
+        format: OutputFormats.Frontend,
+        sort: ['area|asc'],
+        locale: Locale.WelshGb,
+        pageNumber: 1,
+        pageSize: 10
+      };
+
+      await expect(buildDataQuery(queryStore, pageOptions)).rejects.toThrow(BadRequestException);
     });
 
     it('should throw BadRequestException for page number beyond total pages', async () => {

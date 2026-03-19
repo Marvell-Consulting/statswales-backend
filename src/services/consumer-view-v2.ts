@@ -351,9 +351,15 @@ export async function buildDataQuery(queryStore: QueryStore, pageOptions: PageOp
   if (sort && sort.length > 0) {
     const sortBy: string[] = [];
     const sortColumnPostfix = `_${t('column_headers.sort', { lng: locale })}`;
+    const validColumns = queryStore.columnMapping
+      .filter((m) => m.language === lang.toLowerCase())
+      .map((m) => m.dimension_name);
 
     for (const sortOption of sort) {
       const [colName, direction = 'asc'] = sortOption.split('|');
+      if (!validColumns.includes(colName)) {
+        throw new BadRequestException('errors.invalid_sort_by');
+      }
       sortBy.push(pgformat('%I %s', `${colName}${sortColumnPostfix}`, direction.toUpperCase()));
     }
 

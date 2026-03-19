@@ -54,6 +54,31 @@ describe('parseSortByParam', () => {
     expect(() => parseSortByParam('[invalid')).toThrow(BadRequestException);
   });
 
+  it('should throw BadRequestException for JSON with missing columnName', () => {
+    const json = JSON.stringify([{ direction: 'ASC' }]);
+    expect(() => parseSortByParam(json)).toThrow(BadRequestException);
+  });
+
+  it('should throw BadRequestException for JSON with empty columnName', () => {
+    const json = JSON.stringify([{ columnName: '', direction: 'ASC' }]);
+    expect(() => parseSortByParam(json)).toThrow(BadRequestException);
+  });
+
+  it('should throw BadRequestException for JSON with whitespace-only columnName', () => {
+    const json = JSON.stringify([{ columnName: '   ', direction: 'ASC' }]);
+    expect(() => parseSortByParam(json)).toThrow(BadRequestException);
+  });
+
+  it('should throw BadRequestException for JSON with invalid direction', () => {
+    const json = JSON.stringify([{ columnName: 'title', direction: 'UP' }]);
+    expect(() => parseSortByParam(json)).toThrow(BadRequestException);
+  });
+
+  it('should trim whitespace from JSON columnName', () => {
+    const json = JSON.stringify([{ columnName: '  title  ', direction: 'ASC' }]);
+    expect(parseSortByParam(json)).toEqual(['title|asc']);
+  });
+
   it('should throw BadRequestException for invalid direction', () => {
     expect(() => parseSortByParam('title:up')).toThrow(BadRequestException);
   });
