@@ -16,7 +16,10 @@ export function parseSortByParam(raw: string | undefined): string[] {
   if (raw.startsWith('[')) {
     try {
       const parsed = JSON.parse(raw) as SortByInterface[];
-      return parsed.map((s) => `${s.columnName}|${s.direction ? s.direction.toLowerCase() : 'asc'}`);
+      return parsed.map((s) => {
+        if (!s.columnName) throw new Error('missing columnName');
+        return `${s.columnName}|${s.direction ? s.direction.toLowerCase() : 'asc'}`;
+      });
     } catch {
       throw new BadRequestException('errors.invalid_sort_by');
     }
