@@ -4,6 +4,7 @@
   "description": "StatsWales Backend Application",
   "main": "server.js",
   "scripts": {
+    "analyse-logs": "ts-node ./scripts/analyse-logs/index.ts",
     "docs:generate": "ts-node ./scripts/generate-docs.ts",
     "clean": "rimraf dist",
     "copy-assets": "ts-node ./scripts/copy-assets.ts",
