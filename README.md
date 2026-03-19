@@ -113,6 +113,20 @@ e.g.
 npm run migration:generate -- ./src/migration/initial-schema
 ```
 
+## Analysing production logs
+
+A DuckDB-powered script is available for analysing Azure log exports. It parses the JSON `Log_s` column and generates
+a markdown report covering errors, performance, status codes, abuse detection, coverage gaps, and time-of-day patterns.
+
+```bash
+npm run --silent analyse-logs -- ./path/to/logs.csv > report.md
+```
+
+The CSV should be an Azure Container Apps log export containing a `Log_s` column with JSON-formatted log entries.
+The script filters out non-JSON rows automatically.
+
+The report sections are modular — see `scripts/analyse-logs/sections/` to add or modify analysis sections.
+
 ## Deploying the service
 
 The app is deployed as a container, based on [Dockerfile](Dockerfile).
