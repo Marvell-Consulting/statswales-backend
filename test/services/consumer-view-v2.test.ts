@@ -686,8 +686,8 @@ describe('consumer-view-v2 service', () => {
         query: { 'en-GB': 'SELECT * FROM test_table' },
         totalLines: 100,
         columnMapping: [
-          { fact_table_column: 'area_code', dimension_name: 'area', language: 'en-GB' },
-          { fact_table_column: 'year_code', dimension_name: 'year', language: 'en-GB' }
+          { fact_table_column: 'area_code', dimension_name: 'area', language: 'en-gb' },
+          { fact_table_column: 'year_code', dimension_name: 'year', language: 'en-gb' }
         ]
       });
       const pageOptions: PageOptions = {
@@ -709,7 +709,7 @@ describe('consumer-view-v2 service', () => {
       const queryStore = createMockQueryStore({
         query: { 'en-GB': 'SELECT * FROM test_table' },
         totalLines: 100,
-        columnMapping: [{ fact_table_column: 'area_code', dimension_name: 'area', language: 'en-GB' }]
+        columnMapping: [{ fact_table_column: 'area_code', dimension_name: 'area', language: 'en-gb' }]
       });
       const pageOptions: PageOptions = {
         format: OutputFormats.Frontend,
@@ -727,8 +727,8 @@ describe('consumer-view-v2 service', () => {
         query: { 'en-GB': 'SELECT * FROM test_table', 'cy-GB': 'SELECT * FROM test_table' },
         totalLines: 100,
         columnMapping: [
-          { fact_table_column: 'area_code', dimension_name: 'area', language: 'en-GB' },
-          { fact_table_column: 'area_code', dimension_name: 'ardal', language: 'cy-GB' }
+          { fact_table_column: 'area_code', dimension_name: 'area', language: 'en-gb' },
+          { fact_table_column: 'area_code', dimension_name: 'ardal', language: 'cy-gb' }
         ]
       });
 

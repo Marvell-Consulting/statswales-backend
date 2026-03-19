@@ -351,7 +351,9 @@ export async function buildDataQuery(queryStore: QueryStore, pageOptions: PageOp
   if (sort && sort.length > 0) {
     const sortBy: string[] = [];
     const sortColumnPostfix = `_${t('column_headers.sort', { lng: locale })}`;
-    const validColumns = queryStore.columnMapping.filter((m) => m.language === lang).map((m) => m.dimension_name);
+    const validColumns = queryStore.columnMapping
+      .filter((m) => m.language === lang.toLowerCase())
+      .map((m) => m.dimension_name);
 
     for (const sortOption of sort) {
       const [colName, direction = 'asc'] = sortOption.split('|');
