@@ -177,6 +177,7 @@
       "tax": "Tax Year",
       "meteorological": "Meteorological Year",
       "academic": "Academic Year",
+      "higher_academic": "Higher Education Academic Year",
       "rolling": "Rolling Year"
     },
     "quarter": {
