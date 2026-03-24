@@ -705,6 +705,26 @@ describe('consumer-view-v2 service', () => {
       expect(result).toContain('DESC');
     });
 
+    it('should allow sorting by Data values column', async () => {
+      const queryStore = createMockQueryStore({
+        query: { 'en-GB': 'SELECT * FROM test_table' },
+        totalLines: 100,
+        columnMapping: [{ fact_table_column: 'area_code', dimension_name: 'area', language: 'en-gb' }]
+      });
+      const pageOptions: PageOptions = {
+        format: OutputFormats.Frontend,
+        sort: ['column_headers.data_values|asc'],
+        locale: Locale.EnglishGb,
+        pageNumber: 1,
+        pageSize: 10
+      };
+
+      const result = await buildDataQuery(queryStore, pageOptions);
+
+      expect(result).toContain('ORDER BY');
+      expect(result).toContain('ASC');
+    });
+
     it('should throw BadRequestException for sort column not in view', async () => {
       const queryStore = createMockQueryStore({
         query: { 'en-GB': 'SELECT * FROM test_table' },
