@@ -177,6 +177,7 @@
       "tax": "Tax Year",
       "meteorological": "Meteorological Year",
       "academic": "Academic Year",
+      "higher_academic": "Higher Education Academic Year",
       "rolling": "Rolling Year"
     },
     "quarter": {
@@ -185,6 +186,7 @@
       "tax": "Tax Quarter",
       "meteorological": "Meteorological Season",
       "academic": "Academic Quarter",
+      "higher_academic": "Higher Education Academic Quarter",
       "rolling": "Rolling Quarter"
     },
     "month": {
@@ -193,6 +195,7 @@
       "tax": "Tax Month",
       "meteorological": "Meteorological Month",
       "academic": "Academic Month",
+      "higher_academic": "Higher Education Academic Month",
       "rolling": "Rolling Month"
     },
     "rolling": {

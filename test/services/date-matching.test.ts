@@ -135,6 +135,15 @@ describe('date-matching', () => {
       expect(result[0].end).toEqual(expectedEnd);
     });
 
+    test('Higher Academic year starts Sep 1 and ends Aug 31', () => {
+      const extractor: DateExtractor = { type: YearType.HigherAcademic, yearFormat: 'YYYY/YY' };
+      const result = dateDimensionReferenceTableCreator(extractor, [{ dateCode: '2023/24' }]);
+      const expectedStart = parse('2023-08-01', 'yyyy-MM-dd', new Date());
+      const expectedEnd = add(expectedStart, { months: 12, seconds: -1 });
+      expect(result[0].start).toEqual(expectedStart);
+      expect(result[0].end).toEqual(expectedEnd);
+    });
+
     test('Meteorological year starts Mar 1 and ends Feb 28/29', () => {
       const extractor: DateExtractor = { type: YearType.Meteorological, yearFormat: 'YYYY-YY' };
       const result = dateDimensionReferenceTableCreator(extractor, [{ dateCode: '2023-24' }]);
