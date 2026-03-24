@@ -354,6 +354,7 @@ export async function buildDataQuery(queryStore: QueryStore, pageOptions: PageOp
     const validColumns = queryStore.columnMapping
       .filter((m) => m.language === lang.toLowerCase())
       .map((m) => m.dimension_name);
+    validColumns.push(t('column_headers.data_values', { lng: locale }));
 
     for (const sortOption of sort) {
       const [colName, direction = 'asc'] = sortOption.split('|');
