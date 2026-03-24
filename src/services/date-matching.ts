@@ -65,7 +65,7 @@ function yearType(type: YearType, startDay = 1, startMonth = 1): YearTypeDetails
     case YearType.Academic:
       return { start: '09-01', type: YearType.Academic, separator: '/' };
     case YearType.HigherAcademic:
-      return { start: '08-01', type: YearType.Academic, separator: '/' };
+      return { start: '08-01', type: YearType.HigherAcademic, separator: '/' };
     case YearType.Meteorological:
       return { start: '03-01', type: YearType.Meteorological, separator: '-' };
     case YearType.Calendar:
