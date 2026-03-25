@@ -423,7 +423,7 @@ export const v2CyTranslations: TranslationMap = {
       "Nodweddion er mwyn hidlo'r data. Dylai'r gwerth fod yn arae JSON o wrthrychau a anfonwyd fel llinyn URL wedi'i amgodio.",
     keywords: 'Chwilio llinyn ymholiad',
     revision_id: 'Dynodwr unigryw y diwygiad',
-    filter_id: "ID hidlo wedi'i ddychwelyd gan y pwynt terfyn POST /data neu POST /pivot",
+    filter_id: "ID hidlo wedi'i ddychwelyd gan y pwynt terfyn POST /{dataset_id}/data neu POST /{dataset_id}/pivot",
     search_mode:
       "Algorithm chwilio i'w ddefnyddio. **basic** (diofyn): paru is-linyn heb fod yn sensitif i faint llythrennau yn erbyn teitl a chrynodeb. **basic_split**: yn rhannu geiriau allweddol yn eiriau unigol ac yn mynnu eu bod oll yn ymddangos (rhesymeg AND). **fts**: chwiliad testun llawn PostgreSQL gan ddefnyddio bôn-eiriau ymwybodol o iaith a graddio — yn dychwelyd meysydd `rank`, `match_title`, a `match_summary` gyda pharu wedi'u hamlygu. **fts_simple**: fel fts ond yn defnyddio'r geiriadur 'simple' (dim bôn-eirio), sy'n ddefnyddiol ar gyfer chwiliadau Cymraeg. **fuzzy**: paru tebygrwydd yn seiliedig ar drigram — yn goddef camgymeriadau teipio a pharu rhannol."
   },

@@ -595,7 +595,7 @@
       "filter_id": {
         "name": "filter_id",
         "in": "path",
-        "description": "ID hidlo wedi'i ddychwelyd gan y pwynt terfyn POST /data neu POST /pivot",
+        "description": "ID hidlo wedi'i ddychwelyd gan y pwynt terfyn POST /{dataset_id}/data neu POST /{dataset_id}/pivot",
         "required": true,
         "schema": {
           "type": "string"
