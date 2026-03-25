@@ -2,6 +2,7 @@
 
 import { DownloadFormat } from '../../../enums/download-format';
 import { DataValueType } from '../../../enums/data-value-type';
+import { OutputFormats } from '../../../enums/output-formats';
 import { DEFAULT_PAGE_SIZE } from '../../../utils/page-defaults';
 
 export const schemaV2 = {
@@ -72,6 +73,14 @@ export const schemaV2 = {
         description: 'Number of values or results per page',
         required: false,
         schema: { type: 'integer', default: DEFAULT_PAGE_SIZE }
+      },
+      output_format: {
+        name: 'format',
+        in: 'query',
+        description:
+          'Output format for the response. Download formats (csv, xlsx, json) return the full dataset as a file attachment. Frontend and html return paginated or streamed responses.',
+        required: false,
+        schema: { type: 'string', enum: Object.values(OutputFormats), default: 'json' }
       },
       sort_by: {
         name: 'sort_by',

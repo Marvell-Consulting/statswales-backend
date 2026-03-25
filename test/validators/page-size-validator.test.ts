@@ -30,9 +30,14 @@ describe('pageSizeValidator', () => {
     expect(result.isEmpty()).toBe(true);
   });
 
-  it('should reject page_size above the maximum', async () => {
+  it('should accept page_size above the maximum (format-aware cap is applied downstream)', async () => {
     const result = await validate({ page_size: String(MAX_PAGE_SIZE + 1) });
-    expect(result.isEmpty()).toBe(false);
+    expect(result.isEmpty()).toBe(true);
+  });
+
+  it('should accept very large page_size values (for download formats)', async () => {
+    const result = await validate({ page_size: '100000' });
+    expect(result.isEmpty()).toBe(true);
   });
 
   it('should reject page_size of 0', async () => {

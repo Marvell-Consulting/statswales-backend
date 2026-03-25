@@ -380,6 +380,7 @@ publicApiV2Router.get(
     #swagger.parameters['$ref'] = [
       '#/components/parameters/language',
       '#/components/parameters/dataset_id',
+      '#/components/parameters/output_format',
       '#/components/parameters/page_number',
       '#/components/parameters/page_size',
       '#/components/parameters/sort_by'
@@ -408,6 +409,7 @@ publicApiV2Router.get(
     #swagger.parameters['$ref'] = [
       '#/components/parameters/language',
       '#/components/parameters/dataset_id',
+      '#/components/parameters/output_format',
       '#/components/parameters/page_number',
       '#/components/parameters/page_size',
       '#/components/parameters/sort_by',
@@ -437,6 +439,7 @@ publicApiV2Router.get(
     #swagger.parameters['$ref'] = [
       '#/components/parameters/language',
       '#/components/parameters/dataset_id',
+      '#/components/parameters/output_format',
       '#/components/parameters/page_number',
       '#/components/parameters/page_size',
       '#/components/parameters/sort_by',

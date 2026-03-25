@@ -7,7 +7,7 @@ import { PublishedDatasetRepository, withPublishedRevision } from '../repositori
 import { PublishedRevisionRepository } from '../repositories/published-revision';
 import { NotFoundException } from '../exceptions/not-found.exception';
 import { BadRequestException } from '../exceptions/bad-request.exception';
-import { OutputFormats } from '../enums/output-formats';
+import { isDownloadFormat, OutputFormats } from '../enums/output-formats';
 import { TopicDTO } from '../dtos/topic-dto';
 import { PublishedTopicsDTO } from '../dtos/published-topics-dto';
 import { TopicRepository } from '../repositories/topic';
@@ -119,12 +119,19 @@ async function parsePivotPageOptions(req: Request, validateXY = true): Promise<P
     if (yAxis.length === 1) yAxis = yAxis[0];
   }
 
+  const format = (params.format as OutputFormats) ?? OutputFormats.Json;
+  const pageSize = params.page_size ?? (isDownloadFormat(format) ? undefined : DEFAULT_PAGE_SIZE);
+
+  if (!isDownloadFormat(format) && pageSize !== undefined && pageSize > MAX_PAGE_SIZE) {
+    throw new BadRequestException(`page_size must not exceed ${MAX_PAGE_SIZE}`);
+  }
+
   return {
     x: xAxis,
     y: yAxis,
-    format: (params.format as OutputFormats) ?? OutputFormats.Json,
+    format,
     pageNumber: params.page_number ?? 1,
-    pageSize: params.page_size ?? DEFAULT_PAGE_SIZE,
+    pageSize,
     sort,
     locale: req.language as Locale
   };
