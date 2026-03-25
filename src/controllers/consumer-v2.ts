@@ -11,7 +11,8 @@ import { OutputFormats } from '../enums/output-formats';
 import { TopicDTO } from '../dtos/topic-dto';
 import { PublishedTopicsDTO } from '../dtos/published-topics-dto';
 import { TopicRepository } from '../repositories/topic';
-import { DEFAULT_PAGE_SIZE } from '../utils/page-defaults';
+import { DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE } from '../utils/page-defaults';
+import { clamp } from '../utils/clamp';
 import { ConsumerRevisionDTO } from '../dtos/consumer-revision-dto';
 import {
   buildDataQuery,
@@ -60,8 +61,8 @@ export const listPublishedDatasets = async (req: Request, res: Response, next: N
 
   try {
     const lang = req.language as Locale;
-    const pageNumber = parseInt(req.query.page_number as string, 10) || 1;
-    const pageSize = parseInt(req.query.page_size as string, 10) || DEFAULT_PAGE_SIZE;
+    const pageNumber = Math.max(1, parseInt(req.query.page_number as string, 10) || 1);
+    const pageSize = clamp(parseInt(req.query.page_size as string, 10) || DEFAULT_PAGE_SIZE, 1, MAX_PAGE_SIZE);
 
     const results = await PublishedDatasetRepository.listPublishedByLanguage(lang, pageNumber, pageSize);
 
@@ -433,8 +434,8 @@ export const listSubTopics = async (req: Request, res: Response, next: NextFunct
 
     if (isLeafTopic) {
       // if this is a leaf topic (no children) then also fetch datasets
-      const pageNumber = parseInt(req.query.page_number as string, 10) || 1;
-      const pageSize = parseInt(req.query.page_size as string, 10) || 1000;
+      const pageNumber = Math.max(1, parseInt(req.query.page_number as string, 10) || 1);
+      const pageSize = clamp(parseInt(req.query.page_size as string, 10) || 1000, 1, MAX_PAGE_SIZE);
       datasets = await PublishedDatasetRepository.listPublishedByTopic(topicId, lang, pageNumber, pageSize, sortBy);
     }
 

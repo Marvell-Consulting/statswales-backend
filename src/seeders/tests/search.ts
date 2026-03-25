@@ -33,7 +33,7 @@ export class SearchSeeder {
   constructor(private ds: DataSource) {}
 
   async fetchDatasetList(): Promise<ResultsetWithCount<DatasetListItemDTO>> {
-    const response = await fetch(prodApiUrl + '?lang=en-gb&page_size=100000');
+    const response = await fetch(prodApiUrl + '?lang=en-gb&page_size=10000');
     if (!response.ok) {
       throw new Error(`Failed to fetch all datasets: ${response.status} ${response.statusText}`);
     }
