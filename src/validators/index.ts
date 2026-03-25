@@ -8,6 +8,7 @@ import { CubeBuildStatus } from '../enums/cube-build-status';
 import { OutputFormats } from '../enums/output-formats';
 import { DatasetSimilarBy } from '../enums/dataset-similar-by';
 import { SearchMode } from '../enums/search-mode';
+import { MAX_PAGE_SIZE } from '../utils/page-defaults';
 
 export const hasError = async (validator: ValidationChain, req: Request): Promise<boolean> => {
   return !(await validator.run(req)).isEmpty();
@@ -28,7 +29,8 @@ export const titleValidator = (): ValidationChain => body('title').trim().notEmp
 export const pageNumberValidator = (): ValidationChain =>
   check('page_number').optional().trim().notEmpty().isInt().toInt();
 
-export const pageSizeValidator = (): ValidationChain => check('page_size').optional().trim().notEmpty().isInt().toInt();
+export const pageSizeValidator = (): ValidationChain =>
+  check('page_size').optional().trim().notEmpty().isInt({ min: 1, max: MAX_PAGE_SIZE }).toInt();
 
 export const filterIdValidator = (): ValidationChain => check('filter_id').trim().notEmpty().isString();
 
