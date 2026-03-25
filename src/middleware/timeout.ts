@@ -1,9 +1,9 @@
-import { Request, Response, NextFunction } from 'express';
+import { Request, Response, NextFunction, RequestHandler } from 'express';
 
 import { config } from '../config';
 import { logger } from '../utils/logger';
 
-export function requestTimeout(timeoutMs: number) {
+export function requestTimeout(timeoutMs: number): RequestHandler {
   return (req: Request, res: Response, next: NextFunction): void => {
     if (res.locals._requestTimer) {
       clearTimeout(res.locals._requestTimer);

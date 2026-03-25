@@ -47,7 +47,7 @@ async function generateQuery(dataOptions: DataOptionsDTO, revisionId: string): P
       if (totalLines === 0 && queryMap.size === 1) {
         const lineCountQuery = pgformat('SELECT COUNT(*) as total_lines FROM (%s);', baseQuery);
         const lineCountResult = await cubeDataSource.query(lineCountQuery);
-        totalLines = lineCountResult[0].total_lines;
+        totalLines = Number(lineCountResult[0].total_lines);
       }
     }
   } catch (err) {

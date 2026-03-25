@@ -71,7 +71,8 @@ export interface AppConfig {
     maxUses?: number;
     idleTimeoutMs?: number;
     connectionTimeoutMs?: number;
-    statementTimeoutMs?: number;
+    appStatementTimeoutMs?: number;
+    cubeStatementTimeoutMs?: number;
   };
   auth: {
     providers: AuthProvider[];
