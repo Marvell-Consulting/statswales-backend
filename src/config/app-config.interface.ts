@@ -55,6 +55,10 @@ export interface AppConfig {
     windowMs: number;
     maxRequests: number;
   };
+  requestTimeout: {
+    defaultMs: number;
+    longMs: number;
+  };
   database: {
     host: string;
     port: number;
@@ -67,6 +71,7 @@ export interface AppConfig {
     maxUses?: number;
     idleTimeoutMs?: number;
     connectionTimeoutMs?: number;
+    statementTimeoutMs?: number;
   };
   auth: {
     providers: AuthProvider[];

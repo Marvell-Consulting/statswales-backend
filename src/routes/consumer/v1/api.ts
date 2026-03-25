@@ -15,6 +15,7 @@ import {
   getPublicationHistory
 } from '../../../controllers/consumer';
 import { NotFoundException } from '../../../exceptions/not-found.exception';
+import { longTimeout } from '../../../middleware/timeout';
 import { PublishedDatasetRepository } from '../../../repositories/published-dataset';
 import { hasError, datasetIdValidator } from '../../../validators';
 import { Dataset } from '../../../entities/dataset/dataset';
@@ -219,6 +220,7 @@ publicApiRouter.get(
       }
     }
   */
+  longTimeout,
   downloadPublishedDataset
 );
 
