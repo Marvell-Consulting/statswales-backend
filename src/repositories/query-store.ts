@@ -27,15 +27,11 @@ interface QueryStoreUpdate {
   columnMapping: FactTableToDimensionName[];
 }
 
-async function generateQuery(
-  storeID: string,
-  dataOptions: DataOptionsDTO,
-  revisionId: string
-): Promise<QueryStoreUpdate> {
+async function generateQuery(dataOptions: DataOptionsDTO, revisionId: string): Promise<QueryStoreUpdate> {
   const dataValueType = dataOptions.options?.data_value_type;
   const viewName = checkAvailableViews(dataValueType);
   const queryMap = new Map<Locale, string>();
-  const totals: { total_lines: number }[] = [];
+  let totalLines = 0;
   const filterTable = await getFilterTable(revisionId);
   const cubeDataSource = dbManager.getCubeDataSource();
 
@@ -46,22 +42,17 @@ async function generateQuery(
       const selectColumns = await getColumns(revisionId, lang, viewName);
       const baseQuery = createBaseQuery(revisionId, coreView, locale, selectColumns, filterTable, dataOptions);
       queryMap.set(locale, baseQuery);
-      const lineCountQuery = pgformat('SELECT COUNT(*) as total_lines FROM (%s);', baseQuery);
-      const lineCountResult = await cubeDataSource.query(lineCountQuery);
-      totals.push(...lineCountResult);
+
+      // Row count is locale-independent — only count once using the first locale
+      if (totalLines === 0 && queryMap.size === 1) {
+        const lineCountQuery = pgformat('SELECT COUNT(*) as total_lines FROM (%s);', baseQuery);
+        const lineCountResult = await cubeDataSource.query(lineCountQuery);
+        totalLines = lineCountResult[0].total_lines;
+      }
     }
   } catch (err) {
     logger.error(err, 'Failed to run generated base query');
     throw err;
-  }
-
-  const totalLines = totals[0].total_lines;
-
-  for (const line of totals) {
-    if (line.total_lines !== totalLines) {
-      logger.warn(`Base query for query store ${storeID} is producing inconsistent result`);
-      break;
-    }
   }
 
   let factTableToDimensionName: FactTableToDimensionName[];
@@ -132,7 +123,7 @@ export const QueryStoreRepository = dataSource.getRepository(QueryStore).extend(
 
     logger.debug(`Creating base queries for all supported locales for query store ${id}...`);
 
-    const { queryMap, totalLines, columnMapping } = await generateQuery(id, dataOptions, revisionId);
+    const { queryMap, totalLines, columnMapping } = await generateQuery(dataOptions, revisionId);
 
     queryStore.query = Object.fromEntries(queryMap);
     queryStore.totalLines = totalLines;
@@ -197,11 +188,7 @@ export const QueryStoreRepository = dataSource.getRepository(QueryStore).extend(
   },
 
   async updateEntry(entry: QueryStore): Promise<void> {
-    const { queryMap, totalLines, columnMapping } = await generateQuery(
-      entry.id,
-      entry.requestObject,
-      entry.revisionId
-    );
+    const { queryMap, totalLines, columnMapping } = await generateQuery(entry.requestObject, entry.revisionId);
     entry.totalLines = totalLines;
     entry.columnMapping = columnMapping;
     entry.query = Object.fromEntries(queryMap);
