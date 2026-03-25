@@ -26,7 +26,8 @@ const dataSourceOpts: DataSourceOptions = {
     max: config.database.poolSize,
     maxUses: config.database.maxUses,
     idleTimeoutMillis: config.database.idleTimeoutMs,
-    connectionTimeoutMillis: config.database.connectionTimeoutMs
+    connectionTimeoutMillis: config.database.connectionTimeoutMs,
+    statement_timeout: config.database.statementTimeoutMs
   }
 };
 
