@@ -27,7 +27,7 @@ RUN npm ci --omit=dev
 # copy in the built application source from the builder image
 COPY --from=builder --chown=node:node /app/dist ./dist
 
-HEALTHCHECK --interval=30s --timeout=3s --start-period=30s --retries=3 \
+HEALTHCHECK --interval=60s --timeout=3s --start-period=30s --retries=3 \
     CMD curl --fail http://localhost:3000/healthcheck/ || exit 1
 
 ENV NODE_ENV=production
