@@ -49,7 +49,7 @@ app.use(initServices);
 app.use(defaultTimeout);
 
 // public routes
-app.use('/', rateLimiter, (req: Request, res: Response) => {
+app.get('/', rateLimiter, (req: Request, res: Response) => {
   res.json({ message: 'success' }); // prevent 404s on root path (avoids logs being flooded with 404s)
 });
 
