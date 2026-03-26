@@ -22,7 +22,8 @@ import { TopicRepository } from '../repositories/topic';
 import { FilterInterface } from '../interfaces/filterInterface';
 import { parseSortByToObjects } from '../utils/parse-sort-by-param';
 import { DownloadFormat } from '../enums/download-format';
-import { DEFAULT_PAGE_SIZE } from '../utils/page-defaults';
+import { DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE } from '../utils/page-defaults';
+import { clamp } from '../utils/clamp';
 import { UserGroupRepository } from '../repositories/user-group';
 import { PublisherDTO } from '../dtos/publisher-dto';
 import { ConsumerRevisionDTO } from '../dtos/consumer-revision-dto';
@@ -33,7 +34,7 @@ export const listPublishedDatasets = async (req: Request, res: Response, next: N
   try {
     const lang = req.language as Locale;
     const pageNumber = parseInt(req.query.page_number as string, 10) || 1;
-    const pageSize = parseInt(req.query.page_size as string, 10) || DEFAULT_PAGE_SIZE;
+    const pageSize = clamp(parseInt(req.query.page_size as string, 10) || DEFAULT_PAGE_SIZE, 1, MAX_PAGE_SIZE);
 
     const results = await PublishedDatasetRepository.listPublishedByLanguage(lang, pageNumber, pageSize);
 
@@ -66,7 +67,11 @@ export const getPublishedDatasetView = async (req: Request, res: Response): Prom
   }
 
   const pageNumber: number = Number.parseInt(req.query.page_number as string, 10) || 1;
-  const pageSize: number = Number.parseInt(req.query.page_size as string, 10) || DEFAULT_PAGE_SIZE;
+  const pageSize: number = clamp(
+    Number.parseInt(req.query.page_size as string, 10) || DEFAULT_PAGE_SIZE,
+    1,
+    MAX_PAGE_SIZE
+  );
   let filter: FilterInterface[] | undefined;
 
   const sortBy = parseSortByToObjects(req.query.sort_by as string);

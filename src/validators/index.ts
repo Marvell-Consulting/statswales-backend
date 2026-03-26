@@ -28,7 +28,8 @@ export const titleValidator = (): ValidationChain => body('title').trim().notEmp
 export const pageNumberValidator = (): ValidationChain =>
   check('page_number').optional().trim().notEmpty().isInt().toInt();
 
-export const pageSizeValidator = (): ValidationChain => check('page_size').optional().trim().notEmpty().isInt().toInt();
+export const pageSizeValidator = (): ValidationChain =>
+  check('page_size').optional().trim().notEmpty().isInt({ min: 1 }).toInt();
 
 export const filterIdValidator = (): ValidationChain => check('filter_id').trim().notEmpty().isString();
 

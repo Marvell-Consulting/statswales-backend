@@ -296,6 +296,9 @@
             "$ref": "#/components/parameters/dataset_id"
           },
           {
+            "$ref": "#/components/parameters/output_format"
+          },
+          {
             "$ref": "#/components/parameters/page_number"
           },
           {
@@ -375,6 +378,9 @@
             "$ref": "#/components/parameters/dataset_id"
           },
           {
+            "$ref": "#/components/parameters/output_format"
+          },
+          {
             "$ref": "#/components/parameters/page_number"
           },
           {
@@ -418,6 +424,9 @@
           },
           {
             "$ref": "#/components/parameters/dataset_id"
+          },
+          {
+            "$ref": "#/components/parameters/output_format"
           },
           {
             "$ref": "#/components/parameters/page_number"
@@ -550,6 +559,23 @@
         "schema": {
           "type": "integer",
           "default": 100
+        }
+      },
+      "output_format": {
+        "name": "format",
+        "in": "query",
+        "description": "Output format for the response. Download formats (csv, xlsx, json) return the full dataset as a file attachment. Frontend and html return paginated or streamed responses.",
+        "required": false,
+        "schema": {
+          "type": "string",
+          "enum": [
+            "csv",
+            "json",
+            "xlsx",
+            "frontend",
+            "html"
+          ],
+          "default": "json"
         }
       },
       "sort_by": {

@@ -7,11 +7,12 @@ import { PublishedDatasetRepository, withPublishedRevision } from '../repositori
 import { PublishedRevisionRepository } from '../repositories/published-revision';
 import { NotFoundException } from '../exceptions/not-found.exception';
 import { BadRequestException } from '../exceptions/bad-request.exception';
-import { OutputFormats } from '../enums/output-formats';
+import { isDownloadFormat, OutputFormats } from '../enums/output-formats';
 import { TopicDTO } from '../dtos/topic-dto';
 import { PublishedTopicsDTO } from '../dtos/published-topics-dto';
 import { TopicRepository } from '../repositories/topic';
-import { DEFAULT_PAGE_SIZE } from '../utils/page-defaults';
+import { DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE } from '../utils/page-defaults';
+import { clamp } from '../utils/clamp';
 import { ConsumerRevisionDTO } from '../dtos/consumer-revision-dto';
 import {
   buildDataQuery,
@@ -60,8 +61,8 @@ export const listPublishedDatasets = async (req: Request, res: Response, next: N
 
   try {
     const lang = req.language as Locale;
-    const pageNumber = parseInt(req.query.page_number as string, 10) || 1;
-    const pageSize = parseInt(req.query.page_size as string, 10) || DEFAULT_PAGE_SIZE;
+    const pageNumber = Math.max(1, parseInt(req.query.page_number as string, 10) || 1);
+    const pageSize = clamp(parseInt(req.query.page_size as string, 10) || DEFAULT_PAGE_SIZE, 1, MAX_PAGE_SIZE);
 
     const results = await PublishedDatasetRepository.listPublishedByLanguage(lang, pageNumber, pageSize);
 
@@ -118,12 +119,19 @@ async function parsePivotPageOptions(req: Request, validateXY = true): Promise<P
     if (yAxis.length === 1) yAxis = yAxis[0];
   }
 
+  const format = (params.format as OutputFormats) ?? OutputFormats.Json;
+  const pageSize = params.page_size ?? (isDownloadFormat(format) ? undefined : DEFAULT_PAGE_SIZE);
+
+  if (!isDownloadFormat(format) && pageSize !== undefined && pageSize > MAX_PAGE_SIZE) {
+    throw new BadRequestException(`page_size must not exceed ${MAX_PAGE_SIZE}`);
+  }
+
   return {
     x: xAxis,
     y: yAxis,
-    format: (params.format as OutputFormats) ?? OutputFormats.Json,
+    format,
     pageNumber: params.page_number ?? 1,
-    pageSize: params.page_size ?? DEFAULT_PAGE_SIZE,
+    pageSize,
     sort,
     locale: req.language as Locale
   };
@@ -433,8 +441,8 @@ export const listSubTopics = async (req: Request, res: Response, next: NextFunct
 
     if (isLeafTopic) {
       // if this is a leaf topic (no children) then also fetch datasets
-      const pageNumber = parseInt(req.query.page_number as string, 10) || 1;
-      const pageSize = parseInt(req.query.page_size as string, 10) || 1000;
+      const pageNumber = Math.max(1, parseInt(req.query.page_number as string, 10) || 1);
+      const pageSize = clamp(parseInt(req.query.page_size as string, 10) || 1000, 1, MAX_PAGE_SIZE);
       datasets = await PublishedDatasetRepository.listPublishedByTopic(topicId, lang, pageNumber, pageSize, sortBy);
     }
 
