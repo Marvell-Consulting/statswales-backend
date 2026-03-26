@@ -29,6 +29,7 @@ import { hasError, revisionIdValidator } from '../validators';
 import { NotFoundException } from '../exceptions/not-found.exception';
 import { RevisionRepository, withMetadataAndProviders } from '../repositories/revision';
 import { fileStreaming } from '../middleware/file-streaming';
+import { longTimeout } from '../middleware/timeout';
 import { getBuiltLogEntry } from '../controllers/build-log';
 
 // middleware that loads the revision and stores it in res.locals
@@ -89,7 +90,7 @@ router.get('/by-id/:revision_id/preview/filters', loadRevision(), getRevisionPre
 
 // POST /dataset/:dataset_id/revision/id/:revision_id/data-table
 // Upload an updated data file for the revision
-router.post('/by-id/:revision_id/data-table', loadRevision(), fileStreaming(), updateDataTable);
+router.post('/by-id/:revision_id/data-table', longTimeout, loadRevision(), fileStreaming(), updateDataTable);
 
 // GET /dataset/:dataset_id/revision/by-id/:revision_id/data-table
 // Returns details of a data-table
@@ -131,11 +132,11 @@ router.post('/by-id/:revision_id/withdraw', loadRevision(), withdrawFromPublicat
 
 // GET /dataset/:dataset_id/revision/by-id/:revision_id/cube/json
 // Returns the specific revision of the dataset as a JSON file
-router.get('/by-id/:revision_id/cube/json', loadRevision(), downloadRevisionCubeAsJSON);
+router.get('/by-id/:revision_id/cube/json', longTimeout, loadRevision(), downloadRevisionCubeAsJSON);
 
 // GET /dataset/:dataset_id/revision/by-id/:revision_id/cube/csv
 // Returns the specific revision of the dataset as a CSV file
-router.get('/by-id/:revision_id/cube/csv', loadRevision(), downloadRevisionCubeAsCSV);
+router.get('/by-id/:revision_id/cube/csv', longTimeout, loadRevision(), downloadRevisionCubeAsCSV);
 
 // GET /dataset/:dataset_id/revision/by-id/:revision_id/cube/parquet
 // Returns the specific revision of the dataset as a Parquet file
@@ -143,7 +144,7 @@ router.get('/by-id/:revision_id/cube/csv', loadRevision(), downloadRevisionCubeA
 
 // GET /dataset/:dataset_id/revision/by-id/:revision_id/cube/excel
 // Returns the specific revision of the dataset as an Excel file
-router.get('/by-id/:revision_id/cube/xlsx', loadRevision(), downloadRevisionCubeAsExcel);
+router.get('/by-id/:revision_id/cube/xlsx', longTimeout, loadRevision(), downloadRevisionCubeAsExcel);
 
 // GET /dataset/:dataset_id/revision/by-id/:revision_id/builds
 // Returns the n most recent build log entries for the revision

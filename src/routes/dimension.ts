@@ -17,6 +17,7 @@ import { dimensionIdValidator, hasError } from '../validators';
 import { NotFoundException } from '../exceptions/not-found.exception';
 import { DimensionRepository } from '../repositories/dimension';
 import { fileStreaming } from '../middleware/file-streaming';
+import { longTimeout } from '../middleware/timeout';
 
 export const loadDimension = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   const dimensionIdError = await hasError(dimensionIdValidator(), req);
@@ -65,7 +66,7 @@ router.get('/by-id/:dimension_id/preview', loadDimension, sendDimensionPreview);
 // POST /:dataset_id/dimension/by-id/:dimension_id/lookup
 // Attaches a lookup table to do a dimension and validates
 // the lookup table.
-router.post('/by-id/:dimension_id/lookup', fileStreaming(), loadDimension, attachLookupTableToDimension);
+router.post('/by-id/:dimension_id/lookup', longTimeout, fileStreaming(), loadDimension, attachLookupTableToDimension);
 
 // PATCH /dataset/:dataset_id/dimension/id/:dimension_id/
 // Takes a patch request and validates the request against the fact table

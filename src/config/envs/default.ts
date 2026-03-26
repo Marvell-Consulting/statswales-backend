@@ -49,6 +49,10 @@ export const getDefaultConfig = (): AppConfig => {
       windowMs: 60000,
       maxRequests: 100
     },
+    requestTimeout: {
+      defaultMs: parseInt(process.env.REQUEST_TIMEOUT_MS || '30000', 10),
+      longMs: parseInt(process.env.REQUEST_TIMEOUT_LONG_MS || '300000', 10)
+    },
     database: {
       host: process.env.DB_HOST!,
       port: parseInt(process.env.DB_PORT || '5432', 10),
@@ -60,7 +64,9 @@ export const getDefaultConfig = (): AppConfig => {
       poolSize: parseInt(process.env.DB_POOL_SIZE || '25', 10),
       maxUses: parseInt(process.env.DB_MAX_USES || '7500', 10),
       idleTimeoutMs: parseInt(process.env.DB_IDLE_TIMEOUT_MS || '10000', 10),
-      connectionTimeoutMs: parseInt(process.env.DB_CONNECTION_TIMEOUT_MS || '2000', 10)
+      connectionTimeoutMs: parseInt(process.env.DB_CONNECTION_TIMEOUT_MS || '2000', 10),
+      appStatementTimeoutMs: parseInt(process.env.DB_APP_STATEMENT_TIMEOUT_MS || '30000', 10),
+      cubeStatementTimeoutMs: parseInt(process.env.DB_CUBE_STATEMENT_TIMEOUT_MS || '120000', 10)
     },
     auth: {
       providers: [],

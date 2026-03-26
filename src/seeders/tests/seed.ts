@@ -1,7 +1,7 @@
 import 'dotenv/config';
 import { DataSource } from 'typeorm';
 
-import { dataSource } from '../../db/data-source';
+import { dataSource } from '../../db/migration-source';
 import { User } from '../../entities/user/user';
 import { config } from '../../config';
 import { AppEnv } from '../../config/env.enum';

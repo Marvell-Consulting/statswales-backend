@@ -2,7 +2,7 @@ import 'dotenv/config';
 import { DataSource, DeepPartial } from 'typeorm';
 
 import { logger } from '../../utils/logger';
-import { dataSource } from '../../db/data-source';
+import { dataSource } from '../../db/migration-source';
 import { Provider } from '../../entities/dataset/provider';
 import { ProviderSource } from '../../entities/dataset/provider-source';
 import providers from '../../resources/data-providers/provider.json';

@@ -3,6 +3,7 @@ import { Router } from 'express';
 import { datasetAuth } from '../middleware/dataset-auth';
 import { applyImport, translationPreview, translationExport, validateImport } from '../controllers/translation';
 import { fileStreaming } from '../middleware/file-streaming';
+import { longTimeout } from '../middleware/timeout';
 
 export const translationRouter = Router();
 
@@ -21,7 +22,7 @@ translationRouter.get('/:dataset_id/export', translationExport);
 
 // POST /translation/:dataset_id/import
 // Validates the imported translations from a CSV file
-translationRouter.post('/:dataset_id/import', fileStreaming(), validateImport);
+translationRouter.post('/:dataset_id/import', longTimeout, fileStreaming(), validateImport);
 
 // PATCH /translation/:dataset_id/import
 // Applies the imported translations to the dataset

@@ -28,7 +28,8 @@ const dataSourceOpts: DataSourceOptions = {
     max: dbConfig.poolSize,
     maxUses: dbConfig.maxUses,
     idleTimeoutMillis: dbConfig.idleTimeoutMs,
-    connectionTimeoutMillis: dbConfig.connectionTimeoutMs
+    connectionTimeoutMillis: dbConfig.connectionTimeoutMs,
+    statement_timeout: dbConfig.cubeStatementTimeoutMs
   }
 };
 

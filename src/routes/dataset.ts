@@ -28,6 +28,7 @@ import {
 import { getTasksForDataset } from '../controllers/task';
 import { datasetAuth } from '../middleware/dataset-auth';
 import { fileStreaming } from '../middleware/file-streaming';
+import { longTimeout } from '../middleware/timeout';
 
 import { revisionRouter } from './revision';
 import { dimensionRouter } from './dimension';
@@ -67,7 +68,7 @@ datasetRouter.patch('/:dataset_id/metadata', ensureNoOpenPublishRequest, jsonPar
 // POST /dataset/:dataset_id/data
 // Upload a data file to a dataset
 // Returns a DTO object that includes the draft revision
-datasetRouter.post('/:dataset_id/data', ensureNoOpenPublishRequest, fileStreaming(), uploadDataTable);
+datasetRouter.post('/:dataset_id/data', longTimeout, ensureNoOpenPublishRequest, fileStreaming(), uploadDataTable);
 
 // Generates a filter ID for the current dataset preview filter selection
 datasetRouter.post('/:dataset_id/preview', jsonParser, generateFilterId);
@@ -124,7 +125,7 @@ datasetRouter.patch('/:dataset_id/topics', ensureNoOpenPublishRequest, jsonParse
 
 // GET /dataset/:dataset_id/download
 // Downloads everything from the datalake relating to this dataset as a zip file
-datasetRouter.get('/:dataset_id/download', getAllFilesForDataset);
+datasetRouter.get('/:dataset_id/download', longTimeout, getAllFilesForDataset);
 
 // GET /dataset/:dataset_id/list-files
 // List all the files which are used to build the cube

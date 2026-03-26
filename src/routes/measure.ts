@@ -12,6 +12,7 @@ import {
   updateMeasureMetadata
 } from '../controllers/measure';
 import { fileStreaming } from '../middleware/file-streaming';
+import { longTimeout } from '../middleware/timeout';
 
 const jsonParser = express.json();
 
@@ -23,7 +24,7 @@ router.get('/', getMeasureInfo);
 
 // POST /:dataset_id/measure
 // Attaches a measure lookup table to a dataset and validates it.
-router.post('/', fileStreaming(), attachLookupTableToMeasure);
+router.post('/', longTimeout, fileStreaming(), attachLookupTableToMeasure);
 
 // DELETE /dataset/:dataset_id/measure/reset
 router.delete('/reset', resetMeasure);

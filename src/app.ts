@@ -9,6 +9,7 @@ import { httpLogger } from './utils/logger';
 import { checkConfig } from './config/check-config';
 import { i18next, i18nextMiddleware } from './middleware/translation';
 import { rateLimiter } from './middleware/rate-limiter';
+import { defaultTimeout } from './middleware/timeout';
 import session from './middleware/session';
 import { requestContext } from './middleware/context';
 import { authRouter } from './routes/auth';
@@ -45,6 +46,7 @@ app.use(session);
 app.use(requestContext);
 app.use(strictTransport);
 app.use(initServices);
+app.use(defaultTimeout);
 
 // public routes
 app.use('/auth', rateLimiter, authRouter);

@@ -18,6 +18,7 @@ import {
   getFilterIdDetails
 } from '../../../controllers/consumer-v2';
 import { NotFoundException } from '../../../exceptions/not-found.exception';
+import { longTimeout } from '../../../middleware/timeout';
 import { PublishedDatasetRepository } from '../../../repositories/published-dataset';
 import { PublishedRevisionRepository } from '../../../repositories/published-revision';
 import { hasError, uuidValidator } from '../../../validators';
@@ -367,6 +368,7 @@ publicApiV2Router.post(
 
 publicApiV2Router.get(
   '/:dataset_id/data',
+  longTimeout,
   ensurePublishedDataset,
   /*
     #swagger.tags = ['Data']
@@ -399,6 +401,7 @@ publicApiV2Router.get(
 
 publicApiV2Router.get(
   '/:dataset_id/data/:filter_id',
+  longTimeout,
   ensurePublishedDataset,
   /*
     #swagger.tags = ['Data']
@@ -429,6 +432,7 @@ publicApiV2Router.get(
 
 publicApiV2Router.get(
   '/:dataset_id/pivot/:filter_id',
+  longTimeout,
   ensurePublishedDataset,
   /*
     #swagger.tags = ['Pivot']
@@ -492,6 +496,7 @@ publicApiV2Router.get(
 // more complex multidimensional pivots.
 publicApiV2Router.get(
   '/:dataset_id/data/:filter_id/pivot',
+  longTimeout,
   ensurePublishedDataset,
   /* #swagger.ignore = true */
   getPublishedDatasetPivot
