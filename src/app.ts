@@ -1,6 +1,6 @@
 import 'reflect-metadata';
 
-import express, { Application } from 'express';
+import express, { Request, Response, Application } from 'express';
 import passport from 'passport';
 import cookieParser from 'cookie-parser';
 
@@ -49,6 +49,10 @@ app.use(initServices);
 app.use(defaultTimeout);
 
 // public routes
+app.get('/', rateLimiter, (req: Request, res: Response) => {
+  res.json({ message: 'success' }); // prevent 404s on root path (avoids logs being flooded with 404s)
+});
+
 app.use('/auth', rateLimiter, authRouter);
 app.use('/healthcheck', rateLimiter, healthcheckRouter);
 app.use('/docs', rateLimiter, combinedDocRouter);
