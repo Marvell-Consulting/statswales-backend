@@ -5,7 +5,7 @@ import { parse } from 'csv-parse';
 import { DataSource } from 'typeorm';
 
 import { logger } from '../../utils/logger';
-import { dataSource } from '../../db/migration-source';
+import { dataSource } from '../../db/data-source';
 import { Topic } from '../../entities/dataset/topic';
 
 interface CSVRow {
