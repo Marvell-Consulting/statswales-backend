@@ -51,8 +51,8 @@ export class DatabaseManager {
     try {
       await dataSource.initialize();
     } catch (error) {
-      this.logger.error(error);
-      return;
+      this.logger.error(error, `Failed to initialize ${name} datasource`);
+      throw error;
     }
 
     this.logger.info(`${name} datasource '${dataSource.options.database}' ready`);
