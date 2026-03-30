@@ -2,7 +2,7 @@ import 'dotenv/config';
 import { DataSource, DeepPartial, IsNull } from 'typeorm';
 
 import { logger } from '../../utils/logger';
-import { dataSource } from '../../db/migration-source';
+import { dataSource } from '../../db/data-source';
 import { Organisation } from '../../entities/user/organisation';
 import { Locale } from '../../enums/locale';
 import { Dataset } from '../../entities/dataset/dataset';
