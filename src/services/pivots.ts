@@ -30,7 +30,7 @@ const EXCEL_ROW_LIMIT = 1048576 - 76; // Excel Limit is 1,048,576 but removed 76
  * sort information is unavailable (e.g. numeric/text dimensions without
  * a lookup table, or multi-dimensional pivots).
  */
-async function getSortedPivotColumns(
+export async function getSortedPivotColumns(
   rawColumnOrder: string[],
   pageOptions: PageOptions,
   queryStore: QueryStore,
@@ -105,8 +105,9 @@ async function pivotToJson(res: Response, pivot: DuckDBResult, columnOrder: stri
       } else {
         res.write(',\n');
       }
-      const ordered = Object.fromEntries(columnOrder.map((col, i) => [col, row[i]]));
-      res.write(JSON.stringify(ordered));
+      const jsonRow =
+        '{' + columnOrder.map((col, i) => `${JSON.stringify(col)}:${JSON.stringify(row[i])}`).join(',') + '}';
+      res.write(jsonRow);
     }
   }
   res.write(']');
