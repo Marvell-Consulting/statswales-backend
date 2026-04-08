@@ -309,6 +309,41 @@ describe('pivots service', () => {
       expect(mockCubeQuery).not.toHaveBeenCalled();
     });
 
+    it('resolves x as raw fact table column name when dimension name lookup fails', async () => {
+      const columns = ['Area', '2020', '2022', '2021'];
+      const pageOptions = defaultPageOptions({ x: 'DateRef' });
+
+      // resolveDimensionToFactTableColumn throws — x is a raw column name, not a dimension name
+      mockResolveDimensionToFactTableColumn.mockImplementation(() => {
+        throw new Error('Column not found');
+      });
+      // But the filter table has the fact_table_column
+      mockGetFilterTable.mockResolvedValue([{ fact_table_column: 'DateRef', dimension_name: 'Date', language: 'en' }]);
+      mockGetById.mockResolvedValue({
+        factTable: [{ columnName: 'DateRef' }],
+        dimensions: [{ factTableColumn: 'DateRef', type: DimensionType.Date }]
+      });
+      mockCubeQuery.mockResolvedValue([{ description: '2022' }, { description: '2021' }, { description: '2020' }]);
+
+      const result = await getSortedPivotColumns(columns, pageOptions, queryStore, 'en');
+
+      expect(result).toEqual(['Area', '2022', '2021', '2020']);
+    });
+
+    it('returns original order when x matches neither dimension name nor fact table column', async () => {
+      const columns = ['Area', '2020', '2021'];
+      const pageOptions = defaultPageOptions({ x: 'Unknown' });
+
+      mockResolveDimensionToFactTableColumn.mockImplementation(() => {
+        throw new Error('Column not found');
+      });
+      mockGetFilterTable.mockResolvedValue([{ fact_table_column: 'DateRef', dimension_name: 'Date', language: 'en' }]);
+
+      const result = await getSortedPivotColumns(columns, pageOptions, queryStore, 'en');
+
+      expect(result).toEqual(columns);
+    });
+
     it('falls back to original order on query failure', async () => {
       const columns = ['Area', '2020', '2021'];
       const pageOptions = defaultPageOptions();

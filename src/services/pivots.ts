@@ -51,7 +51,22 @@ export async function getSortedPivotColumns(
   try {
     const dataset = await DatasetRepository.getById(queryStore.datasetId, { factTable: true, dimensions: true });
     const filterTable = await getFilterTable(queryStore.revisionId);
-    const factCol = resolveDimensionToFactTableColumn(pageOptions.x, filterTable);
+
+    // pageOptions.x may be a translated dimension name (e.g. "Date") or a raw
+    // fact table column name (e.g. "DateRef"). Try resolving as a dimension name
+    // first, then fall back to checking fact_table_column directly.
+    let factCol: string;
+    try {
+      factCol = resolveDimensionToFactTableColumn(pageOptions.x, filterTable);
+    } catch {
+      const byFactCol = filterTable.find(
+        (f) => f.fact_table_column.toLowerCase() === pageOptions.x!.toString().toLowerCase()
+      );
+      if (!byFactCol) {
+        return rawColumnOrder;
+      }
+      factCol = byFactCol.fact_table_column;
+    }
     const dimension = dataset.dimensions?.find((d) => d.factTableColumn === factCol);
 
     if (!dimension || !LookupTableTypes.includes(dimension.type)) {
@@ -65,7 +80,7 @@ export async function getSortedPivotColumns(
     const cubeDataSource = dbManager.getCubeDataSource();
     const sortRows: { description: string }[] = await cubeDataSource.query(
       pgformat(
-        `SELECT DISTINCT description FROM %I.%I WHERE language = %L ORDER BY sort_order %s, description`,
+        `SELECT description FROM (SELECT DISTINCT description, sort_order FROM %I.%I WHERE language = %L) sub ORDER BY sort_order %s, description`,
         queryStore.revisionId,
         dimTable,
         lang.toLowerCase(),
