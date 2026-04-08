@@ -5,7 +5,7 @@ import { QueryStore } from '../entities/query-store';
 import { PageOptions } from '../interfaces/page-options';
 import { acquireDuckDB } from './duckdb';
 import { t } from '../middleware/translation';
-import { DuckDBResult } from '@duckdb/node-api';
+import { DuckDBResult, DuckDBValue } from '@duckdb/node-api';
 import { logger } from '../utils/logger';
 import { OutputFormats } from '../enums/output-formats';
 import { format as csvFormat } from '@fast-csv/format';
@@ -19,26 +19,110 @@ import { FactTableToDimensionName } from '../interfaces/fact-table-column-to-dim
 import { BadRequestException } from '../exceptions/bad-request.exception';
 import { FilterRow } from '../interfaces/filter-row';
 import { UnknownException } from '../exceptions/unknown.exception';
+import { makeCubeSafeString } from './cube-builder';
+import { DimensionType, LookupTableTypes } from '../enums/dimension-type';
 
 const EXCEL_ROW_LIMIT = 1048576 - 76; // Excel Limit is 1,048,576 but removed 76 rows because ?
 
-async function pivotToJson(res: Response, pivot: DuckDBResult): Promise<void> {
+/**
+ * Query the lookup table for the x dimension to get the correct sort order
+ * for pivot column headers. Falls back to the original column order when
+ * sort information is unavailable (e.g. numeric/text dimensions without
+ * a lookup table, or multi-dimensional pivots).
+ */
+export async function getSortedPivotColumns(
+  rawColumnOrder: string[],
+  pageOptions: PageOptions,
+  queryStore: QueryStore,
+  lang: string
+): Promise<string[]> {
+  if (!pageOptions.x || Array.isArray(pageOptions.x)) {
+    return rawColumnOrder;
+  }
+
+  const yCount = Array.isArray(pageOptions.y) ? pageOptions.y.length : 1;
+  const yColumns = rawColumnOrder.slice(0, yCount);
+  const xValueColumns = rawColumnOrder.slice(yCount);
+
+  if (xValueColumns.length <= 1) {
+    return rawColumnOrder;
+  }
+
+  try {
+    const dataset = await DatasetRepository.getById(queryStore.datasetId, { factTable: true, dimensions: true });
+    const filterTable = await getFilterTable(queryStore.revisionId);
+
+    // pageOptions.x may be a translated dimension name (e.g. "Date") or a raw
+    // fact table column name (e.g. "DateRef"). Try resolving as a dimension name
+    // first, then fall back to checking fact_table_column directly.
+    let factCol: string;
+    try {
+      factCol = resolveDimensionToFactTableColumn(pageOptions.x, filterTable);
+    } catch {
+      const byFactCol = filterTable.find(
+        (f) => f.fact_table_column.toLowerCase() === pageOptions.x!.toString().toLowerCase()
+      );
+      if (!byFactCol) {
+        return rawColumnOrder;
+      }
+      factCol = byFactCol.fact_table_column;
+    }
+    const dimension = dataset.dimensions?.find((d) => d.factTableColumn === factCol);
+
+    if (!dimension || !LookupTableTypes.includes(dimension.type)) {
+      return rawColumnOrder;
+    }
+
+    const dimTable = `${makeCubeSafeString(factCol)}_lookup`;
+    const isDateDimension = dimension.type === DimensionType.DatePeriod || dimension.type === DimensionType.Date;
+    const sortDirection = isDateDimension ? 'DESC' : 'ASC';
+
+    const cubeDataSource = dbManager.getCubeDataSource();
+    const sortRows: { description: string }[] = await cubeDataSource.query(
+      pgformat(
+        `SELECT description FROM (SELECT DISTINCT description, sort_order FROM %I.%I WHERE language = %L) sub ORDER BY sort_order %s, description`,
+        queryStore.revisionId,
+        dimTable,
+        lang.toLowerCase(),
+        sortDirection
+      )
+    );
+
+    if (sortRows.length === 0) {
+      return rawColumnOrder;
+    }
+
+    const sortPosition = new Map<string, number>();
+    sortRows.forEach((row, idx) => sortPosition.set(row.description, idx));
+
+    const sorted = [...xValueColumns].sort((a, b) => {
+      const posA = sortPosition.get(a) ?? Number.MAX_SAFE_INTEGER;
+      const posB = sortPosition.get(b) ?? Number.MAX_SAFE_INTEGER;
+      return posA - posB;
+    });
+
+    return [...yColumns, ...sorted];
+  } catch (err) {
+    logger.warn(err, 'Failed to determine pivot column sort order, using default order');
+    return rawColumnOrder;
+  }
+}
+
+async function pivotToJson(res: Response, pivot: DuckDBResult, columnOrder: string[]): Promise<void> {
   res.setHeader('content-type', 'application/json');
   res.flushHeaders();
   res.write('{ "pivot": [');
-  let rows = await pivot.getRowObjects();
-  while (rows.length > 0) {
-    const lastRowIndex = rows.length - 1;
-    rows.forEach((row: unknown, index: number) => {
-      if (index < lastRowIndex) {
-        res.write(`${JSON.stringify(row)},\n`);
+  let first = true;
+  for await (const rows of pivot.yieldRows()) {
+    for (const row of rows) {
+      if (first) {
+        first = false;
       } else {
-        res.write(`${JSON.stringify(row)}`);
+        res.write(',\n');
       }
-    });
-    rows = await pivot.getRowObjects();
-    if (rows.length > 0) {
-      res.write(',\n');
+      const jsonRow =
+        '{' + columnOrder.map((col, i) => `${JSON.stringify(col)}:${JSON.stringify(row[i])}`).join(',') + '}';
+      res.write(jsonRow);
     }
   }
   res.write(']');
@@ -50,6 +134,7 @@ async function pivotToFrontend(
   res: Response,
   lang: string,
   pivot: DuckDBResult,
+  columnOrder: string[],
   queryStore: QueryStore,
   pageOptions: PageOptions
 ): Promise<void> {
@@ -92,28 +177,22 @@ async function pivotToFrontend(
   res.write(`"pivot": ${JSON.stringify(queryStore.requestObject.pivot || {})},`);
   res.write(`"note_codes": ${JSON.stringify(note_codes || [])},`);
 
-  let rows = await pivot.getRowObjects();
-  if (rows.length > 0) {
-    const tableHeaders = Object.keys(rows[0]);
-    const headers = getColumnHeaders(dataset, tableHeaders, filters);
-    res.write(`"headers": ${JSON.stringify(headers)},`);
-  }
+  const headers = getColumnHeaders(dataset, columnOrder, filters);
+  res.write(`"headers": ${JSON.stringify(headers)},`);
 
   res.write('"data": [');
   let firstRow = true;
   let rowCount = 0;
-  while (rows.length > 0) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    rows.forEach((row: any) => {
+  for await (const rows of pivot.yieldRows()) {
+    for (const row of rows) {
       if (firstRow) {
         firstRow = false;
       } else {
         res.write(',\n');
       }
-      res.write(JSON.stringify(Object.values(row)));
+      res.write(JSON.stringify(row));
       rowCount++;
-    });
-    rows = await pivot.getRowObjects();
+    }
   }
   res.write('],');
   const totalPages = queryStore.totalPivotLines ? Math.max(1, Math.ceil(queryStore.totalPivotLines / pageSize)) : 0;
@@ -131,29 +210,27 @@ async function pivotToFrontend(
   res.end();
 }
 
-async function pivotToCsv(res: Response, pivot: DuckDBResult): Promise<void> {
+async function pivotToCsv(res: Response, pivot: DuckDBResult, columnOrder: string[]): Promise<void> {
   res.writeHead(200, {
     // eslint-disable-next-line @typescript-eslint/naming-convention
     'Content-Type': 'text/csv',
     // eslint-disable-next-line @typescript-eslint/naming-convention
     'Content-disposition': `attachment;filename=pivot-${Date.now()}.csv`
   });
-  const stream = csvFormat({ delimiter: ',', headers: true });
+  const stream = csvFormat({ delimiter: ',', headers: columnOrder });
   stream.pipe(res);
 
-  let rows = await pivot.getRowObjects();
-  while (rows.length > 0) {
-    rows.map((row: unknown) => {
+  for await (const rows of pivot.yieldRows()) {
+    for (const row of rows) {
       stream.write(row);
-    });
-    rows = await pivot.getRowObjects();
+    }
   }
   res.write('\n');
   res.end();
   stream.end();
 }
 
-async function pivotToExcel(res: Response, pivot: DuckDBResult): Promise<void> {
+async function pivotToExcel(res: Response, pivot: DuckDBResult, columnOrder: string[]): Promise<void> {
   res.writeHead(200, {
     // eslint-disable-next-line @typescript-eslint/naming-convention
     'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
@@ -162,7 +239,6 @@ async function pivotToExcel(res: Response, pivot: DuckDBResult): Promise<void> {
   });
   res.flushHeaders();
   const workbook = new ExcelJS.stream.xlsx.WorkbookWriter({
-    filename: `${pivot} ${Date.now()}.xlsx`,
     useStyles: true,
     useSharedStrings: true,
     stream: res
@@ -171,16 +247,15 @@ async function pivotToExcel(res: Response, pivot: DuckDBResult): Promise<void> {
   let totalRows = 0;
   let worksheet = workbook.addWorksheet(`Sheet-${sheetCount}`);
 
-  let rows = await pivot.getRowObjects();
-  worksheet.addRow(Object.keys(rows[0]));
-  while (rows.length > 0) {
+  worksheet.addRow(columnOrder);
+  for await (const rows of pivot.yieldRows()) {
     for (const row of rows) {
       if (row === null) break;
-      const data = Object.values(row).map((val) => {
+      const data = row.map((val: DuckDBValue) => {
         if (!val) return null;
         return isNaN(Number(val)) ? val : Number(val);
       });
-      worksheet.addRow(Object.values(data)).commit();
+      worksheet.addRow(data).commit();
     }
     totalRows += rows.length;
     if (totalRows > EXCEL_ROW_LIMIT) {
@@ -189,13 +264,12 @@ async function pivotToExcel(res: Response, pivot: DuckDBResult): Promise<void> {
       totalRows = 0;
       worksheet = workbook.addWorksheet(`Sheet-${sheetCount}`);
     }
-    rows = await pivot.getRowObjects();
   }
   worksheet.commit();
   await workbook.commit();
 }
 
-async function pivotToHtml(res: Response, pivot: DuckDBResult): Promise<void> {
+async function pivotToHtml(res: Response, pivot: DuckDBResult, columnOrder: string[]): Promise<void> {
   res.setHeader('content-type', 'text/html');
   res.flushHeaders();
   res.write(
@@ -210,20 +284,19 @@ async function pivotToHtml(res: Response, pivot: DuckDBResult): Promise<void> {
       '<thead><tr>'
   );
 
-  let rows = await pivot.getRowObjects();
-  if (rows.length === 0) {
+  if (columnOrder.length === 0) {
     res.write('</tr>\n</thead>\n<tbody>\n</tbody>\n' + '</table>\n' + '</body>\n' + '</html>\n');
     res.end();
     return;
   }
-  Object.keys(rows[0]).forEach((key) => {
+  columnOrder.forEach((key) => {
     res.write(`<th>${key}</th>`);
   });
   res.write('</tr></thead><tbody>');
-  while (rows.length > 0) {
+  for await (const rows of pivot.yieldRows()) {
     for (const row of rows) {
       res.write('<tr>');
-      Object.values(row).forEach((value, idx) => {
+      row.forEach((value: DuckDBValue, idx: number) => {
         if (idx === 0) {
           res.write(`<th>${value === null ? '' : value}</th>`);
         } else {
@@ -232,7 +305,6 @@ async function pivotToHtml(res: Response, pivot: DuckDBResult): Promise<void> {
       });
       res.write('</tr>');
     }
-    rows = await pivot.getRowObjects();
   }
   res.write('</tbody>\n' + '</table>\n' + '</body>\n' + '</html>\n');
   res.end();
@@ -249,21 +321,22 @@ export async function createPivotOutputUsingDuckDB(
   try {
     await duckdb.run('CALL pg_clear_cache();');
     const pivot = await duckdb.stream(pivotQuery);
+    const columnOrder = await getSortedPivotColumns(pivot.columnNames(), pageOptions, queryStore, lang);
     switch (pageOptions.format) {
       case OutputFormats.Json:
-        await pivotToJson(res, pivot);
+        await pivotToJson(res, pivot, columnOrder);
         break;
       case OutputFormats.Csv:
-        await pivotToCsv(res, pivot);
+        await pivotToCsv(res, pivot, columnOrder);
         break;
       case OutputFormats.Excel:
-        await pivotToExcel(res, pivot);
+        await pivotToExcel(res, pivot, columnOrder);
         break;
       case OutputFormats.Html:
-        await pivotToHtml(res, pivot);
+        await pivotToHtml(res, pivot, columnOrder);
         break;
       case OutputFormats.Frontend:
-        await pivotToFrontend(res, lang, pivot, queryStore, pageOptions);
+        await pivotToFrontend(res, lang, pivot, columnOrder, queryStore, pageOptions);
         break;
     }
   } catch (err) {
