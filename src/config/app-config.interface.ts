@@ -54,6 +54,7 @@ export interface AppConfig {
   rateLimit: {
     windowMs: number;
     maxRequests: number;
+    bypassToken?: string;
   };
   requestTimeout: {
     defaultMs: number;
@@ -112,4 +113,12 @@ export interface AppConfig {
 
 // list any optional properties here so we can ignore missing values when we check the config on boot
 // it would be nice to get them directly from the interface, but interfaces are compile-time only
-export const optionalProperties = ['redisUrl', 'redisPassword', 'entraid', 'blob', 'datalake', 'cube_builder'];
+export const optionalProperties = [
+  'redisUrl',
+  'redisPassword',
+  'entraid',
+  'blob',
+  'datalake',
+  'cube_builder',
+  'bypassToken'
+];

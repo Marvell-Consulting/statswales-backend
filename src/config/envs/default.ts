@@ -47,7 +47,8 @@ export const getDefaultConfig = (): AppConfig => {
     },
     rateLimit: {
       windowMs: 60000,
-      maxRequests: 100
+      maxRequests: 100,
+      bypassToken: process.env.RATE_LIMIT_BYPASS_TOKEN || undefined
     },
     requestTimeout: {
       defaultMs: parseInt(process.env.REQUEST_TIMEOUT_MS || '30000', 10),

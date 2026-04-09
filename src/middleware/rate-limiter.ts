@@ -3,7 +3,7 @@ import { rateLimit, RateLimitRequestHandler } from 'express-rate-limit';
 
 import { config } from '../config';
 
-const bypass = (re: Request, res: Response, next: NextFunction): void => next();
+const bypass = (_req: Request, _res: Response, next: NextFunction): void => next();
 
 const limit = (): RateLimitRequestHandler => {
   return rateLimit({
@@ -19,4 +19,16 @@ const limit = (): RateLimitRequestHandler => {
   });
 };
 
-export const rateLimiter = config.rateLimit.windowMs === -1 ? bypass : limit();
+const rateLimitHandler = config.rateLimit.windowMs === -1 ? bypass : limit();
+
+export const rateLimiter = (req: Request, res: Response, next: NextFunction): void => {
+  const { bypassToken } = config.rateLimit;
+  const headerToken = req.headers['x-rate-limit-bypass'];
+
+  if (bypassToken && headerToken === bypassToken) {
+    next();
+    return;
+  }
+
+  rateLimitHandler(req, res, next);
+};
