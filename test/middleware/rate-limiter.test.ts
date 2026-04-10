@@ -13,6 +13,16 @@ jest.mock('../../src/config', () => ({
   config: mockConfig
 }));
 
+jest.mock('../../src/utils/logger', () => ({
+  logger: {
+    trace: jest.fn(),
+    debug: jest.fn(),
+    info: jest.fn(),
+    warn: jest.fn(),
+    error: jest.fn()
+  }
+}));
+
 function createApp() {
   // Re-import the module each time to get a fresh rate limiter with a clean counter
   let rateLimiter: express.RequestHandler;
