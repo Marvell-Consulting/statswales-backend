@@ -1,3 +1,5 @@
+import { timingSafeEqual } from 'node:crypto';
+
 import { Request, Response, NextFunction } from 'express';
 import { rateLimit, RateLimitRequestHandler } from 'express-rate-limit';
 
@@ -23,9 +25,14 @@ const rateLimitHandler = config.rateLimit.windowMs === -1 ? bypass : limit();
 
 export const rateLimiter = (req: Request, res: Response, next: NextFunction): void => {
   const { bypassToken } = config.rateLimit;
-  const headerToken = req.headers['x-rate-limit-bypass'];
+  const headerToken = req.get('x-rate-limit-bypass');
 
-  if (bypassToken && headerToken === bypassToken) {
+  if (
+    bypassToken &&
+    headerToken &&
+    bypassToken.length === headerToken.length &&
+    timingSafeEqual(Buffer.from(bypassToken), Buffer.from(headerToken))
+  ) {
     next();
     return;
   }
