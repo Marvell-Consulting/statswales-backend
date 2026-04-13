@@ -24,6 +24,7 @@ import {
   sendJson
 } from '../services/consumer-view-v2';
 import { Dataset } from '../entities/dataset/dataset';
+import { DatasetRepository } from '../repositories/dataset';
 import { DataOptionsDTO, DEFAULT_DATA_OPTIONS, FRONTEND_DATA_OPTIONS, PivotOptionsDTO } from '../dtos/data-options-dto';
 import { SingleLanguageRevisionDTO } from '../dtos/consumer/single-language-revision-dto';
 import { PageOptions } from '../interfaces/page-options';
@@ -383,7 +384,8 @@ export const getPublishedDatasetFilters = async (req: Request, res: Response, ne
   try {
     const locale = req.language as Locale;
     const query = await getFilterTableQuery(publishedRevision.id, locale);
-    await sendFilters(query, res);
+    const datasetWithDimensions = await DatasetRepository.getById(dataset.id, { dimensions: true });
+    await sendFilters(query, res, publishedRevision.id, datasetWithDimensions.dimensions ?? []);
   } catch (err) {
     if (err instanceof NotFoundException || err instanceof BadRequestException) {
       return next(err);

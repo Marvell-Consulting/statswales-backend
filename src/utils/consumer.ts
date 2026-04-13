@@ -3,12 +3,14 @@ import { FilterRow } from '../interfaces/filter-row';
 import { FactTableToDimensionName } from '../interfaces/fact-table-column-to-dimension-name';
 import { dbManager } from '../db/database-manager';
 import { format as pgformat } from '@scaleleap/pg-format/lib/pg-format';
-import { CORE_VIEW_NAME } from '../services/cube-builder';
+import { CORE_VIEW_NAME, makeCubeSafeString } from '../services/cube-builder';
 import { logger } from './logger';
 import cubeConfig from '../config/cube-view.json';
 import { Locale } from '../enums/locale';
 import { t } from 'i18next';
 import { DataOptionsDTO } from '../dtos/data-options-dto';
+import { Dimension } from '../entities/dataset/dimension';
+import { DimensionType } from '../enums/dimension-type';
 
 export function transformHierarchy(factTableColumn: string, columnName: string, input: FilterRow[]): FilterTable {
   const nodeMap = new Map<string, FilterValues>(); // reference → node
@@ -59,6 +61,46 @@ export function transformHierarchy(factTableColumn: string, columnName: string, 
     columnName: columnName,
     values: roots
   };
+}
+
+export async function sortFilterRowsForDateDimensions(
+  revisionId: string,
+  language: string,
+  dimensions: Dimension[],
+  columnData: Map<string, FilterRow[]>
+): Promise<Map<string, FilterRow[]>> {
+  const cubeDataSource = dbManager.getCubeDataSource();
+
+  const entries = await Promise.all(
+    Array.from(columnData.entries()).map(async ([factTableColumn, rows]): Promise<[string, FilterRow[]]> => {
+      const dimension = dimensions.find((d) => d.factTableColumn === factTableColumn);
+      const isDateDimension = dimension?.type === DimensionType.DatePeriod || dimension?.type === DimensionType.Date;
+
+      if (!isDateDimension) return [factTableColumn, rows];
+
+      try {
+        const dimTable = `${makeCubeSafeString(factTableColumn)}_lookup`;
+        const sortRows: { reference: string; sort_order: number }[] = await cubeDataSource.query(
+          pgformat(
+            'SELECT CAST(%I AS VARCHAR) AS reference, sort_order FROM %I.%I WHERE language = %L',
+            factTableColumn,
+            revisionId,
+            dimTable,
+            language
+          )
+        );
+
+        const sortMap = new Map(sortRows.map((r) => [r.reference, r.sort_order]));
+        const sorted = [...rows].sort((a, b) => (sortMap.get(b.reference) ?? 0) - (sortMap.get(a.reference) ?? 0));
+        return [factTableColumn, sorted];
+      } catch (err) {
+        logger.warn(err, `Failed to sort date dimension ${factTableColumn}, using default order`);
+        return [factTableColumn, rows];
+      }
+    })
+  );
+
+  return new Map(entries);
 }
 
 export function resolveDimensionToFactTableColumn(

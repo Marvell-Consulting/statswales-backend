@@ -93,7 +93,10 @@ export const getPublishedDatasetView = async (req: Request, res: Response): Prom
 };
 
 export const getPublishedDatasetFilters = async (req: Request, res: Response): Promise<void> => {
-  const dataset = await PublishedDatasetRepository.getById(res.locals.datasetId, { publishedRevision: true });
+  const dataset = await PublishedDatasetRepository.getById(res.locals.datasetId, {
+    publishedRevision: true,
+    dimensions: true
+  });
   const publishedRevision = dataset.publishedRevision;
   const lang = req.language.toLowerCase();
   logger.debug(`Fetching filters for published dataset with language: ${lang}`);
@@ -102,7 +105,7 @@ export const getPublishedDatasetFilters = async (req: Request, res: Response): P
     throw new NotFoundException('errors.no_revision');
   }
 
-  const filters = await getFilters(publishedRevision.id, lang || 'en-gb');
+  const filters = await getFilters(publishedRevision.id, lang || 'en-gb', dataset.dimensions ?? []);
   res.json(filters);
 };
 

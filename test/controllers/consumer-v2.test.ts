@@ -45,6 +45,14 @@ jest.mock('../../src/repositories/query-store', () => ({
   }
 }));
 
+// Mock DatasetRepository
+const mockDatasetGetById = jest.fn();
+jest.mock('../../src/repositories/dataset', () => ({
+  DatasetRepository: {
+    getById: (...args: unknown[]) => mockDatasetGetById(...args)
+  }
+}));
+
 // Mock consumer-view-v2 service
 const mockBuildDataQuery = jest.fn();
 jest.mock('../../src/services/consumer-view-v2', () => ({
@@ -331,6 +339,7 @@ describe('consumer-v2 controller - scheduled publish date handling', () => {
 
       mockGetLatestByDatasetId.mockResolvedValue(publishedRev);
       mockGetFilterTableQuery.mockResolvedValue('SELECT 1');
+      mockDatasetGetById.mockResolvedValue({ id: dataset.id, dimensions: [] });
 
       // eslint-disable-next-line @typescript-eslint/no-require-imports
       const { sendFilters } = require('../../src/services/consumer-view-v2');

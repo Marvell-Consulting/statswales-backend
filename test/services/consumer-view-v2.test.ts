@@ -45,7 +45,8 @@ jest.mock('../../src/repositories/dataset', () => ({
 
 // Mock consumer utils
 jest.mock('../../src/utils/consumer', () => ({
-  transformHierarchy: jest.fn((col, dim, data) => ({ column: col, dimension: dim, data }))
+  transformHierarchy: jest.fn((col, dim, data) => ({ column: col, dimension: dim, data })),
+  sortFilterRowsForDateDimensions: jest.fn((_rev, _lang, _dims, columnData) => Promise.resolve(columnData))
 }));
 
 // Mock column headers
@@ -519,7 +520,7 @@ describe('consumer-view-v2 service', () => {
 
       const res = createMockStreamResponse();
 
-      await sendFilters('SELECT * FROM filters', res);
+      await sendFilters('SELECT * FROM filters', res, 'test-revision-id');
 
       expect(res.json).toHaveBeenCalled();
       const jsonArg = (res.json as jest.Mock).mock.calls[0][0];
@@ -536,7 +537,7 @@ describe('consumer-view-v2 service', () => {
 
       const res = createMockStreamResponse();
 
-      await expect(sendFilters('SELECT * FROM filters', res)).rejects.toThrow('Query failed');
+      await expect(sendFilters('SELECT * FROM filters', res, 'test-revision-id')).rejects.toThrow('Query failed');
       expect(mockRelease).toHaveBeenCalled();
     });
   });

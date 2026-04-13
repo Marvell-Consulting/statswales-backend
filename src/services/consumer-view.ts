@@ -18,7 +18,8 @@ import { getColumnHeaders } from '../utils/column-headers';
 import { t } from 'i18next';
 import cubeConfig from '../config/cube-view.json';
 import { FactTableToDimensionName } from '../interfaces/fact-table-column-to-dimension-name';
-import { coreViewChooser, transformHierarchy } from '../utils/consumer';
+import { coreViewChooser, sortFilterRowsForDateDimensions, transformHierarchy } from '../utils/consumer';
+import { Dimension } from '../entities/dataset/dimension';
 
 const EXCEL_ROW_LIMIT = 1048500; // Excel Limit is 1048576 but removed 76 rows
 const CURSOR_ROW_LIMIT = 500;
@@ -44,7 +45,11 @@ interface FilterRow {
   hierarchy: string;
 }
 
-export const getFilters = async (revisionId: string, language: string): Promise<FilterTable[]> => {
+export const getFilters = async (
+  revisionId: string,
+  language: string,
+  dimensions: Dimension[] = []
+): Promise<FilterTable[]> => {
   const cubeDB = dbManager.getCubeDataSource().createQueryRunner();
   try {
     const filterTableQuery = pgformat('SELECT * FROM %I.filter_table WHERE language = %L;', revisionId, language);
@@ -61,10 +66,12 @@ export const getFilters = async (revisionId: string, language: string): Promise<
       columnData.set(row.fact_table_column, data);
     }
 
+    const sortedColumnData = await sortFilterRowsForDateDimensions(revisionId, language, dimensions, columnData);
+
     const filterData: FilterTable[] = [];
 
-    for (const col of columnData.keys()) {
-      const data = columnData.get(col);
+    for (const col of sortedColumnData.keys()) {
+      const data = sortedColumnData.get(col);
       if (!data) {
         continue;
       }

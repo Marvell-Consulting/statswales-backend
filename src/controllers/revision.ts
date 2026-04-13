@@ -153,7 +153,8 @@ export const getRevisionPreviewFilters = async (req: Request, res: Response): Pr
     throw new NotFoundException('errors.no_revision');
   }
 
-  const filters = await getFilters(revision.id, lang);
+  const dataset = await DatasetRepository.getById(revision.datasetId, { dimensions: true });
+  const filters = await getFilters(revision.id, lang, dataset.dimensions ?? []);
   res.json(filters);
 };
 

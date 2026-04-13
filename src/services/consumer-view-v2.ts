@@ -13,7 +13,8 @@ import { FilterTable } from '../interfaces/filter-table';
 import { dbManager } from '../db/database-manager';
 import { QueryStore } from '../entities/query-store';
 import { BadRequestException } from '../exceptions/bad-request.exception';
-import { transformHierarchy } from '../utils/consumer';
+import { sortFilterRowsForDateDimensions, transformHierarchy } from '../utils/consumer';
+import { Dimension } from '../entities/dataset/dimension';
 import { DatasetRepository } from '../repositories/dataset';
 import { PageOptions } from '../interfaces/page-options';
 import { logger } from '../utils/logger';
@@ -220,7 +221,12 @@ export async function sendHtml(query: string, queryStore: QueryStore, res: Respo
   }
 }
 
-export async function sendFilters(query: string, res: Response): Promise<void> {
+export async function sendFilters(
+  query: string,
+  res: Response,
+  revisionId: string,
+  dimensions: Dimension[] = []
+): Promise<void> {
   logger.debug('Sending filters...');
   const [cubeDBConn] = (await dbManager.getCubeDataSource().driver.obtainMasterConnection()) as [PoolClient];
 
@@ -239,9 +245,12 @@ export async function sendFilters(query: string, res: Response): Promise<void> {
       columnData.set(row.fact_table_column, data);
     });
 
+    const language = rows.length > 0 ? rows[0].language : 'en-gb';
+    const sortedColumnData = await sortFilterRowsForDateDimensions(revisionId, language, dimensions, columnData);
+
     const filterData: FilterTable[] = [];
-    for (const col of columnData.keys()) {
-      const data = columnData.get(col);
+    for (const col of sortedColumnData.keys()) {
+      const data = sortedColumnData.get(col);
       if (!data) {
         continue;
       }
