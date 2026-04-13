@@ -624,6 +624,103 @@ describe('pivots service', () => {
       });
     });
 
+    describe('column reordering aligns cell data with headers', () => {
+      // DuckDB returns columns in its own order (e.g. ['Area', '2020', '2022', '2021']),
+      // but getSortedPivotColumns reorders them (e.g. ['Area', '2022', '2021', '2020']).
+      // These tests verify that cell values follow the reordered headers, not the original order.
+
+      const duckDbColumns = ['Area', '2020', '2022', '2021'];
+      const duckDbRows: DuckDBValue[][] = [
+        ['Cardiff', 100, 300, 200],
+        ['Swansea', 150, 350, 250]
+      ];
+      // Sorted order from lookup: 2022 DESC, 2021, 2020
+      const sortedLookup = [{ description: '2022' }, { description: '2021' }, { description: '2020' }];
+
+      function setupReorderingMocks() {
+        setupMockDuckDB(duckDbColumns, duckDbRows);
+        mockGetFilterTable.mockResolvedValue([
+          { fact_table_column: 'period_col', dimension_name: 'Period', language: 'en' }
+        ]);
+        mockResolveDimensionToFactTableColumn.mockReturnValue('period_col');
+        mockGetById.mockResolvedValue({
+          factTable: [{ columnName: 'period_col' }],
+          dimensions: [{ factTableColumn: 'period_col', type: DimensionType.DatePeriod }]
+        });
+        mockCubeQuery.mockResolvedValue(sortedLookup);
+      }
+
+      it('JSON: cell values match reordered column headers', async () => {
+        setupReorderingMocks();
+        const res = createMockStreamResponse();
+        const queryStore = createMockQueryStore();
+        const pageOptions = defaultPageOptions({ format: OutputFormats.Json });
+
+        await createPivotOutputUsingDuckDB(res, 'en', 'PIVOT (...)', pageOptions, queryStore);
+
+        const output = res.writtenData.join('');
+        const parsed = JSON.parse(output);
+
+        expect(parsed.pivot[0]).toEqual({ Area: 'Cardiff', '2022': 300, '2021': 200, '2020': 100 });
+        expect(parsed.pivot[1]).toEqual({ Area: 'Swansea', '2022': 350, '2021': 250, '2020': 150 });
+
+        // Also verify key order in raw JSON string (skip the outer "pivot" key)
+        const allKeys = [...output.matchAll(/"([^"]+)":/g)].map((m) => m[1]);
+        const rowKeys = allKeys.filter((k) => k !== 'pivot');
+        // Both rows should have keys in the same sorted order
+        expect(rowKeys.slice(0, 4)).toEqual(['Area', '2022', '2021', '2020']);
+        expect(rowKeys.slice(4, 8)).toEqual(['Area', '2022', '2021', '2020']);
+      });
+
+      it('CSV: cell values match reordered column headers', async () => {
+        setupReorderingMocks();
+        const res = createMockStreamResponse();
+        const queryStore = createMockQueryStore();
+        const pageOptions = defaultPageOptions({ format: OutputFormats.Csv });
+
+        await createPivotOutputUsingDuckDB(res, 'en', 'PIVOT (...)', pageOptions, queryStore);
+
+        const output = res.writtenData.join('');
+        const lines = output.trim().split('\n');
+
+        expect(lines[0]).toBe('Area,2022,2021,2020');
+        expect(lines[1]).toBe('Cardiff,300,200,100');
+        expect(lines[2]).toBe('Swansea,350,250,150');
+      });
+
+      it('HTML: cell values match reordered column headers', async () => {
+        setupReorderingMocks();
+        const res = createMockStreamResponse();
+        const queryStore = createMockQueryStore();
+        const pageOptions = defaultPageOptions({ format: OutputFormats.Html });
+
+        await createPivotOutputUsingDuckDB(res, 'en', 'PIVOT (...)', pageOptions, queryStore);
+
+        const output = res.writtenData.join('');
+
+        expect(output).toContain('<th>Area</th><th>2022</th><th>2021</th><th>2020</th>');
+        expect(output).toContain('<th>Cardiff</th><td>300</td><td>200</td><td>100</td>');
+        expect(output).toContain('<th>Swansea</th><td>350</td><td>250</td><td>150</td>');
+      });
+
+      it('Frontend: cell values match reordered column headers', async () => {
+        setupReorderingMocks();
+        mockQueryRunnerQuery.mockResolvedValue([]);
+        const res = createMockStreamResponse();
+        const queryStore = createMockQueryStore();
+        const pageOptions = defaultPageOptions({ format: OutputFormats.Frontend });
+
+        await createPivotOutputUsingDuckDB(res, 'en', 'PIVOT (...)', pageOptions, queryStore);
+
+        const output = res.writtenData.join('');
+        const parsed = JSON.parse(output);
+
+        // Frontend data is arrays — values must be in sorted column order
+        expect(parsed.data[0]).toEqual(['Cardiff', 300, 200, 100]);
+        expect(parsed.data[1]).toEqual(['Swansea', 350, 250, 150]);
+      });
+    });
+
     describe('error handling', () => {
       it('releases DuckDB on success', async () => {
         setupMockDuckDB(['Area'], [['Cardiff']]);
