@@ -90,6 +90,7 @@ jest.mock('../../src/services/cube-builder', () => ({
   )
 }));
 
+import ExcelJS from 'exceljs';
 import { DuckDBValue } from '@duckdb/node-api';
 import { QueryStore } from '../../src/entities/query-store';
 import { PageOptions } from '../../src/interfaces/page-options';
@@ -164,6 +165,28 @@ function createMockStreamResponse(): Response & { writtenData: string[] } {
   res.status = jest.fn().mockReturnThis();
   res.json = jest.fn();
   (res as any).headersSent = false;
+
+  return res;
+}
+
+// Helper to create a mock Response that captures binary data (for Excel tests)
+function createMockBinaryResponse(): Response & { getBuffer: () => Promise<Buffer> } {
+  const stream = new PassThrough();
+  const chunks: Buffer[] = [];
+  stream.on('data', (chunk) => chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)));
+
+  const res = stream as unknown as Response & { getBuffer: () => Promise<Buffer> };
+  res.setHeader = jest.fn().mockReturnThis();
+  res.writeHead = jest.fn().mockReturnThis();
+  res.flushHeaders = jest.fn();
+  res.status = jest.fn().mockReturnThis();
+  res.json = jest.fn();
+  (res as any).headersSent = false;
+  res.getBuffer = () =>
+    new Promise<Buffer>((resolve) => {
+      stream.on('end', () => resolve(Buffer.concat(chunks)));
+      if (stream.readableEnded) resolve(Buffer.concat(chunks));
+    });
 
   return res;
 }
@@ -718,6 +741,30 @@ describe('pivots service', () => {
         // Frontend data is arrays — values must be in sorted column order
         expect(parsed.data[0]).toEqual(['Cardiff', 300, 200, 100]);
         expect(parsed.data[1]).toEqual(['Swansea', 350, 250, 150]);
+      });
+
+      it('Excel: cell values match reordered column headers', async () => {
+        setupReorderingMocks();
+        const res = createMockBinaryResponse();
+        const queryStore = createMockQueryStore();
+        const pageOptions = defaultPageOptions({ format: OutputFormats.Excel });
+
+        await createPivotOutputUsingDuckDB(res, 'en', 'PIVOT (...)', pageOptions, queryStore);
+
+        const buffer = await res.getBuffer();
+        const workbook = new ExcelJS.Workbook();
+        // @ts-expect-error ExcelJS types expect old Buffer, Node 24 returns Buffer<ArrayBuffer>
+        await workbook.xlsx.load(buffer);
+
+        const worksheet = workbook.getWorksheet(1)!;
+        const headerRow = worksheet.getRow(1).values as (string | number)[];
+        const dataRow1 = worksheet.getRow(2).values as (string | number)[];
+        const dataRow2 = worksheet.getRow(3).values as (string | number)[];
+
+        // ExcelJS row values are 1-indexed (index 0 is empty)
+        expect(headerRow.slice(1)).toEqual(['Area', '2022', '2021', '2020']);
+        expect(dataRow1.slice(1)).toEqual(['Cardiff', 300, 200, 100]);
+        expect(dataRow2.slice(1)).toEqual(['Swansea', 350, 250, 150]);
       });
     });
 

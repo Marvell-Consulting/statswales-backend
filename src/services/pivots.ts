@@ -277,7 +277,7 @@ async function pivotToExcel(
       if (row === null) break;
       const data = columnMapping.map((srcIdx) => {
         const val = row[srcIdx];
-        if (!val) return null;
+        if (val === null || val === undefined) return null;
         return isNaN(Number(val)) ? val : Number(val);
       });
       worksheet.addRow(data).commit();
