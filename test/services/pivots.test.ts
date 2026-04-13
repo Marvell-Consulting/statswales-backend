@@ -90,6 +90,7 @@ jest.mock('../../src/services/cube-builder', () => ({
   )
 }));
 
+import ExcelJS from 'exceljs';
 import { DuckDBValue } from '@duckdb/node-api';
 import { QueryStore } from '../../src/entities/query-store';
 import { PageOptions } from '../../src/interfaces/page-options';
@@ -164,6 +165,28 @@ function createMockStreamResponse(): Response & { writtenData: string[] } {
   res.status = jest.fn().mockReturnThis();
   res.json = jest.fn();
   (res as any).headersSent = false;
+
+  return res;
+}
+
+// Helper to create a mock Response that captures binary data (for Excel tests)
+function createMockBinaryResponse(): Response & { getBuffer: () => Promise<Buffer> } {
+  const stream = new PassThrough();
+  const chunks: Buffer[] = [];
+  stream.on('data', (chunk) => chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)));
+
+  const res = stream as unknown as Response & { getBuffer: () => Promise<Buffer> };
+  res.setHeader = jest.fn().mockReturnThis();
+  res.writeHead = jest.fn().mockReturnThis();
+  res.flushHeaders = jest.fn();
+  res.status = jest.fn().mockReturnThis();
+  res.json = jest.fn();
+  (res as any).headersSent = false;
+  res.getBuffer = () =>
+    new Promise<Buffer>((resolve) => {
+      stream.on('end', () => resolve(Buffer.concat(chunks)));
+      if (stream.readableEnded) resolve(Buffer.concat(chunks));
+    });
 
   return res;
 }
@@ -621,6 +644,127 @@ describe('pivots service', () => {
         expect(parsed.data[1]).toEqual(['Swansea', 150, 250]);
         expect(parsed.page_info.total_records).toBe(50);
         expect(parsed.page_info.current_page).toBe(1);
+      });
+    });
+
+    describe('column reordering aligns cell data with headers', () => {
+      // DuckDB returns columns in its own order (e.g. ['Area', '2020', '2022', '2021']),
+      // but getSortedPivotColumns reorders them (e.g. ['Area', '2022', '2021', '2020']).
+      // These tests verify that cell values follow the reordered headers, not the original order.
+
+      const duckDbColumns = ['Area', '2020', '2022', '2021'];
+      const duckDbRows: DuckDBValue[][] = [
+        ['Cardiff', 100, 300, 200],
+        ['Swansea', 150, 350, 250]
+      ];
+      // Sorted order from lookup: 2022 DESC, 2021, 2020
+      const sortedLookup = [{ description: '2022' }, { description: '2021' }, { description: '2020' }];
+
+      function setupReorderingMocks() {
+        setupMockDuckDB(duckDbColumns, duckDbRows);
+        mockGetFilterTable.mockResolvedValue([
+          { fact_table_column: 'period_col', dimension_name: 'Period', language: 'en' }
+        ]);
+        mockResolveDimensionToFactTableColumn.mockReturnValue('period_col');
+        mockGetById.mockResolvedValue({
+          factTable: [{ columnName: 'period_col' }],
+          dimensions: [{ factTableColumn: 'period_col', type: DimensionType.DatePeriod }]
+        });
+        mockCubeQuery.mockResolvedValue(sortedLookup);
+      }
+
+      it('JSON: cell values match reordered column headers', async () => {
+        setupReorderingMocks();
+        const res = createMockStreamResponse();
+        const queryStore = createMockQueryStore();
+        const pageOptions = defaultPageOptions({ format: OutputFormats.Json });
+
+        await createPivotOutputUsingDuckDB(res, 'en', 'PIVOT (...)', pageOptions, queryStore);
+
+        const output = res.writtenData.join('');
+        const parsed = JSON.parse(output);
+
+        expect(parsed.pivot[0]).toEqual({ Area: 'Cardiff', '2022': 300, '2021': 200, '2020': 100 });
+        expect(parsed.pivot[1]).toEqual({ Area: 'Swansea', '2022': 350, '2021': 250, '2020': 150 });
+
+        // Also verify key order in raw JSON string (skip the outer "pivot" key)
+        const allKeys = [...output.matchAll(/"([^"]+)":/g)].map((m) => m[1]);
+        const rowKeys = allKeys.filter((k) => k !== 'pivot');
+        // Both rows should have keys in the same sorted order
+        expect(rowKeys.slice(0, 4)).toEqual(['Area', '2022', '2021', '2020']);
+        expect(rowKeys.slice(4, 8)).toEqual(['Area', '2022', '2021', '2020']);
+      });
+
+      it('CSV: cell values match reordered column headers', async () => {
+        setupReorderingMocks();
+        const res = createMockStreamResponse();
+        const queryStore = createMockQueryStore();
+        const pageOptions = defaultPageOptions({ format: OutputFormats.Csv });
+
+        await createPivotOutputUsingDuckDB(res, 'en', 'PIVOT (...)', pageOptions, queryStore);
+
+        const output = res.writtenData.join('');
+        const lines = output.trim().split('\n');
+
+        expect(lines[0]).toBe('Area,2022,2021,2020');
+        expect(lines[1]).toBe('Cardiff,300,200,100');
+        expect(lines[2]).toBe('Swansea,350,250,150');
+      });
+
+      it('HTML: cell values match reordered column headers', async () => {
+        setupReorderingMocks();
+        const res = createMockStreamResponse();
+        const queryStore = createMockQueryStore();
+        const pageOptions = defaultPageOptions({ format: OutputFormats.Html });
+
+        await createPivotOutputUsingDuckDB(res, 'en', 'PIVOT (...)', pageOptions, queryStore);
+
+        const output = res.writtenData.join('');
+
+        expect(output).toContain('<th>Area</th><th>2022</th><th>2021</th><th>2020</th>');
+        expect(output).toContain('<th>Cardiff</th><td>300</td><td>200</td><td>100</td>');
+        expect(output).toContain('<th>Swansea</th><td>350</td><td>250</td><td>150</td>');
+      });
+
+      it('Frontend: cell values match reordered column headers', async () => {
+        setupReorderingMocks();
+        mockQueryRunnerQuery.mockResolvedValue([]);
+        const res = createMockStreamResponse();
+        const queryStore = createMockQueryStore();
+        const pageOptions = defaultPageOptions({ format: OutputFormats.Frontend });
+
+        await createPivotOutputUsingDuckDB(res, 'en', 'PIVOT (...)', pageOptions, queryStore);
+
+        const output = res.writtenData.join('');
+        const parsed = JSON.parse(output);
+
+        // Frontend data is arrays — values must be in sorted column order
+        expect(parsed.data[0]).toEqual(['Cardiff', 300, 200, 100]);
+        expect(parsed.data[1]).toEqual(['Swansea', 350, 250, 150]);
+      });
+
+      it('Excel: cell values match reordered column headers', async () => {
+        setupReorderingMocks();
+        const res = createMockBinaryResponse();
+        const queryStore = createMockQueryStore();
+        const pageOptions = defaultPageOptions({ format: OutputFormats.Excel });
+
+        await createPivotOutputUsingDuckDB(res, 'en', 'PIVOT (...)', pageOptions, queryStore);
+
+        const buffer = await res.getBuffer();
+        const workbook = new ExcelJS.Workbook();
+        // @ts-expect-error ExcelJS types expect old Buffer, Node 24 returns Buffer<ArrayBuffer>
+        await workbook.xlsx.load(buffer);
+
+        const worksheet = workbook.getWorksheet(1)!;
+        const headerRow = worksheet.getRow(1).values as (string | number)[];
+        const dataRow1 = worksheet.getRow(2).values as (string | number)[];
+        const dataRow2 = worksheet.getRow(3).values as (string | number)[];
+
+        // ExcelJS row values are 1-indexed (index 0 is empty)
+        expect(headerRow.slice(1)).toEqual(['Area', '2022', '2021', '2020']);
+        expect(dataRow1.slice(1)).toEqual(['Cardiff', 300, 200, 100]);
+        expect(dataRow2.slice(1)).toEqual(['Swansea', 350, 250, 150]);
       });
     });
 

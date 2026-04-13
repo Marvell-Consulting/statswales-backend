@@ -108,7 +108,16 @@ export async function getSortedPivotColumns(
   }
 }
 
-async function pivotToJson(res: Response, pivot: DuckDBResult, columnOrder: string[]): Promise<void> {
+function reorderRow(row: DuckDBValue[], columnMapping: number[]): DuckDBValue[] {
+  return columnMapping.map((srcIdx) => row[srcIdx]);
+}
+
+async function pivotToJson(
+  res: Response,
+  pivot: DuckDBResult,
+  columnOrder: string[],
+  columnMapping: number[]
+): Promise<void> {
   res.setHeader('content-type', 'application/json');
   res.flushHeaders();
   res.write('{ "pivot": [');
@@ -121,7 +130,9 @@ async function pivotToJson(res: Response, pivot: DuckDBResult, columnOrder: stri
         res.write(',\n');
       }
       const jsonRow =
-        '{' + columnOrder.map((col, i) => `${JSON.stringify(col)}:${JSON.stringify(row[i])}`).join(',') + '}';
+        '{' +
+        columnOrder.map((col, i) => `${JSON.stringify(col)}:${JSON.stringify(row[columnMapping[i]])}`).join(',') +
+        '}';
       res.write(jsonRow);
     }
   }
@@ -135,6 +146,7 @@ async function pivotToFrontend(
   lang: string,
   pivot: DuckDBResult,
   columnOrder: string[],
+  columnMapping: number[],
   queryStore: QueryStore,
   pageOptions: PageOptions
 ): Promise<void> {
@@ -190,7 +202,8 @@ async function pivotToFrontend(
       } else {
         res.write(',\n');
       }
-      res.write(JSON.stringify(row));
+      const reorderedRow = reorderRow(row, columnMapping);
+      res.write(JSON.stringify(reorderedRow));
       rowCount++;
     }
   }
@@ -210,7 +223,12 @@ async function pivotToFrontend(
   res.end();
 }
 
-async function pivotToCsv(res: Response, pivot: DuckDBResult, columnOrder: string[]): Promise<void> {
+async function pivotToCsv(
+  res: Response,
+  pivot: DuckDBResult,
+  columnOrder: string[],
+  columnMapping: number[]
+): Promise<void> {
   res.writeHead(200, {
     // eslint-disable-next-line @typescript-eslint/naming-convention
     'Content-Type': 'text/csv',
@@ -222,7 +240,8 @@ async function pivotToCsv(res: Response, pivot: DuckDBResult, columnOrder: strin
 
   for await (const rows of pivot.yieldRows()) {
     for (const row of rows) {
-      stream.write(row);
+      const reorderedRow = reorderRow(row, columnMapping);
+      stream.write(reorderedRow);
     }
   }
   res.write('\n');
@@ -230,7 +249,12 @@ async function pivotToCsv(res: Response, pivot: DuckDBResult, columnOrder: strin
   stream.end();
 }
 
-async function pivotToExcel(res: Response, pivot: DuckDBResult, columnOrder: string[]): Promise<void> {
+async function pivotToExcel(
+  res: Response,
+  pivot: DuckDBResult,
+  columnOrder: string[],
+  columnMapping: number[]
+): Promise<void> {
   res.writeHead(200, {
     // eslint-disable-next-line @typescript-eslint/naming-convention
     'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
@@ -251,8 +275,9 @@ async function pivotToExcel(res: Response, pivot: DuckDBResult, columnOrder: str
   for await (const rows of pivot.yieldRows()) {
     for (const row of rows) {
       if (row === null) break;
-      const data = row.map((val: DuckDBValue) => {
-        if (!val) return null;
+      const data = columnMapping.map((srcIdx) => {
+        const val = row[srcIdx];
+        if (val === null || val === undefined) return null;
         return isNaN(Number(val)) ? val : Number(val);
       });
       worksheet.addRow(data).commit();
@@ -269,7 +294,12 @@ async function pivotToExcel(res: Response, pivot: DuckDBResult, columnOrder: str
   await workbook.commit();
 }
 
-async function pivotToHtml(res: Response, pivot: DuckDBResult, columnOrder: string[]): Promise<void> {
+async function pivotToHtml(
+  res: Response,
+  pivot: DuckDBResult,
+  columnOrder: string[],
+  columnMapping: number[]
+): Promise<void> {
   res.setHeader('content-type', 'text/html');
   res.flushHeaders();
   res.write(
@@ -296,8 +326,9 @@ async function pivotToHtml(res: Response, pivot: DuckDBResult, columnOrder: stri
   for await (const rows of pivot.yieldRows()) {
     for (const row of rows) {
       res.write('<tr>');
-      row.forEach((value: DuckDBValue, idx: number) => {
-        if (idx === 0) {
+      columnMapping.forEach((srcIdx, i) => {
+        const value = row[srcIdx];
+        if (i === 0) {
           res.write(`<th>${value === null ? '' : value}</th>`);
         } else {
           res.write(`<td>${value === null ? '' : value}</td>`);
@@ -321,22 +352,29 @@ export async function createPivotOutputUsingDuckDB(
   try {
     await duckdb.run('CALL pg_clear_cache();');
     const pivot = await duckdb.stream(pivotQuery);
-    const columnOrder = await getSortedPivotColumns(pivot.columnNames(), pageOptions, queryStore, lang);
+    const rawColumns = pivot.columnNames();
+    const columnOrder = await getSortedPivotColumns(rawColumns, pageOptions, queryStore, lang);
+
+    // Build a mapping from sorted column positions to original row indices.
+    // When no reordering occurred this is the identity [0, 1, 2, ...].
+    const rawIndexMap = new Map(rawColumns.map((col, i) => [col, i]));
+    const columnMapping = columnOrder.map((col) => rawIndexMap.get(col)!);
+
     switch (pageOptions.format) {
       case OutputFormats.Json:
-        await pivotToJson(res, pivot, columnOrder);
+        await pivotToJson(res, pivot, columnOrder, columnMapping);
         break;
       case OutputFormats.Csv:
-        await pivotToCsv(res, pivot, columnOrder);
+        await pivotToCsv(res, pivot, columnOrder, columnMapping);
         break;
       case OutputFormats.Excel:
-        await pivotToExcel(res, pivot, columnOrder);
+        await pivotToExcel(res, pivot, columnOrder, columnMapping);
         break;
       case OutputFormats.Html:
-        await pivotToHtml(res, pivot, columnOrder);
+        await pivotToHtml(res, pivot, columnOrder, columnMapping);
         break;
       case OutputFormats.Frontend:
-        await pivotToFrontend(res, lang, pivot, columnOrder, queryStore, pageOptions);
+        await pivotToFrontend(res, lang, pivot, columnOrder, columnMapping, queryStore, pageOptions);
         break;
     }
   } catch (err) {
