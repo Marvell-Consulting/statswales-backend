@@ -1,4 +1,4 @@
-import { Duration, add, parse, sub } from 'date-fns';
+import { Duration, add, parseISO, sub } from 'date-fns';
 
 import { YearType } from '../../src/enums/year-type';
 import { createDatePeriodTableQuery, dateDimensionReferenceTableCreator } from '../../src/services/date-matching';
@@ -102,7 +102,7 @@ describe('date-matching', () => {
     test('Calendar year starts Jan 1 and ends Dec 31', () => {
       const extractor: DateExtractor = { type: YearType.Calendar, yearFormat: 'YYYY' };
       const result = dateDimensionReferenceTableCreator(extractor, [{ dateCode: '2023' }]);
-      const expectedStart = parse('2023-01-01', 'yyyy-MM-dd', new Date());
+      const expectedStart = parseISO('2023-01-01T00:00:00Z');
       const expectedEnd = add(expectedStart, { months: 12, seconds: -1 });
       expect(result[0].start).toEqual(expectedStart);
       expect(result[0].end).toEqual(expectedEnd);
@@ -111,7 +111,7 @@ describe('date-matching', () => {
     test('Financial year starts Apr 1 and ends Mar 31', () => {
       const extractor: DateExtractor = { type: YearType.Financial, yearFormat: 'YYYYYY' };
       const result = dateDimensionReferenceTableCreator(extractor, [{ dateCode: '202324' }]);
-      const expectedStart = parse('2023-04-01', 'yyyy-MM-dd', new Date());
+      const expectedStart = parseISO('2023-04-01T00:00:00Z');
       const expectedEnd = add(expectedStart, { months: 12, seconds: -1 });
       expect(result[0].start).toEqual(expectedStart);
       expect(result[0].end).toEqual(expectedEnd);
@@ -120,7 +120,7 @@ describe('date-matching', () => {
     test('Tax year starts Apr 6 and ends Apr 5', () => {
       const extractor: DateExtractor = { type: YearType.Tax, yearFormat: 'YYYYYY' };
       const result = dateDimensionReferenceTableCreator(extractor, [{ dateCode: '202324' }]);
-      const expectedStart = parse('2023-04-06', 'yyyy-MM-dd', new Date());
+      const expectedStart = parseISO('2023-04-06T00:00:00Z');
       const expectedEnd = add(expectedStart, { months: 12, seconds: -1 });
       expect(result[0].start).toEqual(expectedStart);
       expect(result[0].end).toEqual(expectedEnd);
@@ -129,16 +129,16 @@ describe('date-matching', () => {
     test('Academic year starts Sep 1 and ends Aug 31', () => {
       const extractor: DateExtractor = { type: YearType.Academic, yearFormat: 'YYYY/YY' };
       const result = dateDimensionReferenceTableCreator(extractor, [{ dateCode: '2023/24' }]);
-      const expectedStart = parse('2023-09-01', 'yyyy-MM-dd', new Date());
+      const expectedStart = parseISO('2023-09-01T00:00:00Z');
       const expectedEnd = add(expectedStart, { months: 12, seconds: -1 });
       expect(result[0].start).toEqual(expectedStart);
       expect(result[0].end).toEqual(expectedEnd);
     });
 
-    test('Higher Academic year starts Sep 1 and ends Aug 31', () => {
+    test('Higher Academic year starts Aug 1 and ends Jul 31', () => {
       const extractor: DateExtractor = { type: YearType.HigherAcademic, yearFormat: 'YYYY/YY' };
       const result = dateDimensionReferenceTableCreator(extractor, [{ dateCode: '2023/24' }]);
-      const expectedStart = parse('2023-08-01', 'yyyy-MM-dd', new Date());
+      const expectedStart = parseISO('2023-08-01T00:00:00Z');
       const expectedEnd = add(expectedStart, { months: 12, seconds: -1 });
       expect(result[0].start).toEqual(expectedStart);
       expect(result[0].end).toEqual(expectedEnd);
@@ -147,7 +147,7 @@ describe('date-matching', () => {
     test('Meteorological year starts Mar 1 and ends Feb 28/29', () => {
       const extractor: DateExtractor = { type: YearType.Meteorological, yearFormat: 'YYYY-YY' };
       const result = dateDimensionReferenceTableCreator(extractor, [{ dateCode: '2023-24' }]);
-      const expectedStart = parse('2023-03-01', 'yyyy-MM-dd', new Date());
+      const expectedStart = parseISO('2023-03-01T00:00:00Z');
       const expectedEnd = add(expectedStart, { months: 12, seconds: -1 });
       expect(result[0].start).toEqual(expectedStart);
       expect(result[0].end).toEqual(expectedEnd);
@@ -161,7 +161,7 @@ describe('date-matching', () => {
         startMonth: 6
       };
       const result = dateDimensionReferenceTableCreator(extractor, [{ dateCode: '202324' }]);
-      const expectedStart = parse('2023-06-15', 'yyyy-MM-dd', new Date());
+      const expectedStart = parseISO('2023-06-15T00:00:00Z');
       const expectedEnd = add(expectedStart, { months: 12, seconds: -1 });
       expect(result[0].start).toEqual(expectedStart);
       expect(result[0].end).toEqual(expectedEnd);
@@ -269,7 +269,7 @@ describe('date-matching', () => {
       expect(result.length).toBe(2);
       expect(result[0].dateCode).toBe('01-12-2023');
       expect(result[0].type).toBe('specific_day');
-      const expectedDate = parse('01-12-2023', 'dd-MM-yyyy', new Date());
+      const expectedDate = parseISO('2023-12-01T00:00:00Z');
       expect(result[0].start).toEqual(expectedDate);
     });
 
@@ -292,7 +292,7 @@ describe('date-matching', () => {
   describe('dateDimensionReferenceTableCreator - rolling / period-ending dates', () => {
     const extractor: DateExtractor = { type: YearType.Rolling, dateFormat: 'dd/MM/yyyy' };
     const endDateStr = '31/03/2024';
-    const parsedEndDate = parse(endDateStr, 'dd/MM/yyyy', new Date());
+    const parsedEndDate = parseISO('2024-03-31T00:00:00Z');
 
     function expectedDates(increment: Duration) {
       return {
