@@ -81,11 +81,11 @@ describe('ConsumerRevisionDTO', () => {
       expect(dto.approved_at).toBeUndefined();
     });
 
-    it('should map coverage start and end dates to ISO strings', () => {
+    it('should map coverage start and end dates to date-only strings', () => {
       const dto = ConsumerRevisionDTO.fromRevision(makeRevision());
 
-      expect(dto.coverage_start_date).toBe('2020-01-01T00:00:00.000Z');
-      expect(dto.coverage_end_date).toBe('2024-12-31T00:00:00.000Z');
+      expect(dto.coverage_start_date).toBe('2020-01-01');
+      expect(dto.coverage_end_date).toBe('2024-12-31');
     });
 
     it('should handle null coverage dates', () => {

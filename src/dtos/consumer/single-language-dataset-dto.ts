@@ -34,8 +34,8 @@ export class SingleLanguageDatasetDTO {
         auto_redirect: dataset.replacementAutoRedirect ?? false
       };
     }
-    dto.start_date = dataset.startDate?.toISOString();
-    dto.end_date = dataset.endDate?.toISOString();
+    dto.start_date = dataset.startDate?.toISOString().split('T')[0];
+    dto.end_date = dataset.endDate?.toISOString().split('T')[0];
 
     dto.dimensions = dataset.dimensions?.map((dimension: Dimension) =>
       SingleLanguageDimensionDTO.fromDimension(dimension, lang)

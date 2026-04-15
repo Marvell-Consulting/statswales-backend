@@ -35,8 +35,8 @@ export class SingleLanguageRevisionDTO {
     revDto.publish_at = revision.publishAt?.toISOString();
     revDto.rounding_applied = revision.roundingApplied;
     revDto.update_frequency = revision.updateFrequency;
-    revDto.coverage_start_date = revision.startDate?.toISOString();
-    revDto.coverage_end_date = revision.endDate?.toISOString();
+    revDto.coverage_start_date = revision.startDate?.toISOString().split('T')[0];
+    revDto.coverage_end_date = revision.endDate?.toISOString().split('T')[0];
     revDto.designation = revision.designation;
 
     revDto.related_links = revision.relatedLinks?.map((link: RelatedLink) => RelatedLinkDTO.fromRelatedLink(link));
