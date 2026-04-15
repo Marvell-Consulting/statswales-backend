@@ -57,7 +57,10 @@ export class Dataset extends BaseEntity {
     type: 'date',
     nullable: true,
     transformer: {
-      to: (value: Date | null) => (value ? value.toISOString().split('T')[0] : null),
+      to: (value: Date | string | null) => {
+        if (!value) return null;
+        return value instanceof Date ? value.toISOString().split('T')[0] : value;
+      },
       from: (value: string | null) => (value ? new Date(value) : null)
     }
   })
@@ -68,7 +71,10 @@ export class Dataset extends BaseEntity {
     type: 'date',
     nullable: true,
     transformer: {
-      to: (value: Date | null) => (value ? value.toISOString().split('T')[0] : null),
+      to: (value: Date | string | null) => {
+        if (!value) return null;
+        return value instanceof Date ? value.toISOString().split('T')[0] : value;
+      },
       from: (value: string | null) => (value ? new Date(value) : null)
     }
   })
