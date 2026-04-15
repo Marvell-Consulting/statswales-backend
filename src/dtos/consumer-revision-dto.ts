@@ -41,8 +41,8 @@ export class ConsumerRevisionDTO {
     revDto.unpublished_at = revision.unpublishedAt?.toISOString();
     revDto.approved_at = revision.approvedAt?.toISOString();
 
-    revDto.coverage_start_date = revision.startDate?.toISOString();
-    revDto.coverage_end_date = revision.endDate?.toISOString();
+    revDto.coverage_start_date = revision.startDate?.toISOString().split('T')[0];
+    revDto.coverage_end_date = revision.endDate?.toISOString().split('T')[0];
     revDto.rounding_applied = revision.roundingApplied;
     revDto.update_frequency = revision.updateFrequency;
     revDto.designation = revision.designation;
