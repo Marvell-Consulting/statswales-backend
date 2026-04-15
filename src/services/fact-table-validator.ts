@@ -108,7 +108,7 @@ export const factTableValidatorFromSource = async (
 
   logger.debug('Validating that all data values are numeric values');
   const numericValidationQuery = pgformat(
-    "SELECT %I as data_value FROM %I.%I WHERE CAST(%I AS TEXT) !~ '^([+-]?[0-9]+[.]?[0-9]*|[.][0-9]+|[0-9]{2}:[0-9]{2}(:[0-9]{2})?)$';",
+    "SELECT %I as data_value FROM %I.%I WHERE CAST(%I AS TEXT) !~ '^([+-]?[0-9]+[.]?[0-9]*|[.][0-9]+|(?:[01][0-9]|2[0-3]):[0-5][0-9](?::[0-5][0-9])?)$';",
     dataValCol.column_name,
     schema,
     FACT_TABLE_NAME,
