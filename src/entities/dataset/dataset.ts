@@ -56,7 +56,10 @@ export class Dataset extends BaseEntity {
     name: 'start_date',
     type: 'date',
     nullable: true,
-    transformer: { to: (value: Date | null) => value, from: (value: string | null) => (value ? new Date(value) : null) }
+    transformer: {
+      to: (value: Date | null) => (value ? value.toISOString().split('T')[0] : null),
+      from: (value: string | null) => (value ? new Date(value) : null)
+    }
   })
   startDate: Date | null;
 
@@ -64,7 +67,10 @@ export class Dataset extends BaseEntity {
     name: 'end_date',
     type: 'date',
     nullable: true,
-    transformer: { to: (value: Date | null) => value, from: (value: string | null) => (value ? new Date(value) : null) }
+    transformer: {
+      to: (value: Date | null) => (value ? value.toISOString().split('T')[0] : null),
+      from: (value: string | null) => (value ? new Date(value) : null)
+    }
   })
   endDate: Date | null;
 

@@ -556,8 +556,8 @@ export const createDateDimensionLookup = async (
           reference: row.dateCode,
           language: row.lang,
           description: row.description,
-          start_date: row.start,
-          end_date: row.end,
+          start_date: row.start.toISOString().split('T')[0],
+          end_date: row.end.toISOString().split('T')[0],
           type: row.type,
           sort_order: row.end.getTime(),
           hierarchy: row.hierarchy
@@ -591,8 +591,8 @@ export const createDateDimensionLookup = async (
         row.dateCode,
         row.lang,
         row.description,
-        row.start,
-        row.end,
+        row.start.toISOString().split('T')[0],
+        row.end.toISOString().split('T')[0],
         row.type,
         row.end.getTime(),
         row.hierarchy

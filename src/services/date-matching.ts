@@ -56,11 +56,26 @@ export const createDatePeriodTableQuery = (
   );
 };
 
+// Wrap a Date as a UTC TZDate so date-fns arithmetic (add/sub/isBefore)
+// operates in UTC rather than the server's local timezone.
+function toUTC(date: Date): TZDate {
+  return new TZDate(date, 'UTC');
+}
+
 // Parse a date string into a UTC midnight Date, avoiding local-timezone pollution.
 // Uses date-fns parse to understand the format, then reconstructs as UTC.
+// Returns invalid dates unchanged so downstream isValid() checks still work.
 function parseAsUTC(value: string, formatStr: string): Date {
   const parsed = parse(value, formatStr, new Date());
-  return new Date(Date.UTC(parsed.getFullYear(), parsed.getMonth(), parsed.getDate()));
+  if (!isValid(parsed)) {
+    return parsed;
+  }
+  return toUTC(new Date(Date.UTC(parsed.getFullYear(), parsed.getMonth(), parsed.getDate())));
+}
+
+// Parse an ISO date string as UTC, returning a TZDate for timezone-safe arithmetic.
+function parseISOasUTC(value: string): TZDate {
+  return toUTC(parseISO(value));
 }
 
 // Format a Date in UTC, regardless of server timezone.
@@ -290,8 +305,8 @@ function periodTableCreator(
   const endYear = Math.max(...dataYears);
   const type = yearType(dateFormat.type, dateFormat.startDay, dateFormat.startMonth);
 
-  let year = parseISO(`${startYear}-${type.start}T00:00:00Z`);
-  const end = add(parseISO(`${endYear}-${type.start}T00:00:00Z`), { years: 1 });
+  let year = parseISOasUTC(`${startYear}-${type.start}T00:00:00Z`);
+  const end = add(parseISOasUTC(`${endYear}-${type.start}T00:00:00Z`), { years: 1 });
   // Quarters and month numbers are different depending on the type of year
   let quarterIndex = 1;
   let monthIndex = 1;
@@ -436,7 +451,7 @@ function specificDateTableCreator(dateFormat: DateExtractor, dataColumn: string[
 
       case 'yyyy-MM-dd':
       case 'YYYY-MM-DD':
-        parsedDate = parseISO(`${value}T00:00:00Z`);
+        parsedDate = parseISOasUTC(`${value}T00:00:00Z`);
         break;
 
       case 'yyyyMMdd':
@@ -444,7 +459,7 @@ function specificDateTableCreator(dateFormat: DateExtractor, dataColumn: string[
         year = value.substring(0, 4);
         month = value.substring(4, 6);
         day = value.substring(6, 8);
-        parsedDate = parseISO(`${year}-${month}-${day}T00:00:00Z`);
+        parsedDate = parseISOasUTC(`${year}-${month}-${day}T00:00:00Z`);
         break;
 
       default:
@@ -492,13 +507,13 @@ function periodDateTableCreator(dateFormat: DateExtractor, dataColumn: string[])
         parsedDate = parseAsUTC(value, 'dd-MM-yyyy');
         break;
       case 'YYYY-MM-DD':
-        parsedDate = parseISO(`${value}T00:00:00Z`);
+        parsedDate = parseISOasUTC(`${value}T00:00:00Z`);
         break;
       case 'YYYYMMDD':
         year = value.substring(0, 4);
         month = value.substring(4, 6);
         day = value.substring(6, 8);
-        parsedDate = parseISO(`${year}-${month}-${day}T00:00:00Z`);
+        parsedDate = parseISOasUTC(`${year}-${month}-${day}T00:00:00Z`);
         break;
 
       default:
