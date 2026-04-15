@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 
-import { add, parseISO, sub } from 'date-fns';
+import { parseISO } from 'date-fns';
 
 import { logger } from '../../src/utils/logger';
 import { YearType } from '../../src/enums/year-type';
@@ -324,15 +324,11 @@ describe('Date matching table generation', () => {
       expect(refTable.length).toBe(26);
       expect(refTable[0].dateCode).toBe('20231201');
       expect(refTable[0].start).toStrictEqual(parseISO('2023-12-01T00:00:00.000Z'));
-      expect(refTable[0].end).toStrictEqual(
-        sub(add(parseISO('2023-12-01T00:00:00.000Z'), { days: 1 }), { seconds: 1 })
-      );
+      expect(refTable[0].end).toStrictEqual(parseISO('2023-12-01T00:00:00.000Z'));
       expect(refTable[0].type).toBe('specific_day');
       expect(refTable[2].dateCode).toBe('20240101');
       expect(refTable[2].start).toStrictEqual(parseISO('2024-01-01T00:00:00.000Z'));
-      expect(refTable[2].end).toStrictEqual(
-        sub(add(parseISO('2024-01-01T00:00:00.000Z'), { days: 1 }), { seconds: 1 })
-      );
+      expect(refTable[2].end).toStrictEqual(parseISO('2024-01-01T00:00:00.000Z'));
       expect(refTable[1].type).toBe('specific_day');
     });
 
@@ -360,15 +356,11 @@ describe('Date matching table generation', () => {
       expect(refTable.length).toBe(26);
       expect(refTable[0].dateCode).toBe('01/12/2023');
       expect(refTable[0].start).toStrictEqual(parseISO('2023-12-01T00:00:00.000Z'));
-      expect(refTable[0].end).toStrictEqual(
-        sub(add(parseISO('2023-12-01T00:00:00.000Z'), { days: 1 }), { seconds: 1 })
-      );
+      expect(refTable[0].end).toStrictEqual(parseISO('2023-12-01T00:00:00.000Z'));
       expect(refTable[0].type).toBe('specific_day');
       expect(refTable[2].dateCode).toBe('01/01/2024');
       expect(refTable[2].start).toStrictEqual(parseISO('2024-01-01T00:00:00.000Z'));
-      expect(refTable[2].end).toStrictEqual(
-        sub(add(parseISO('2024-01-01T00:00:00.000Z'), { days: 1 }), { seconds: 1 })
-      );
+      expect(refTable[2].end).toStrictEqual(parseISO('2024-01-01T00:00:00.000Z'));
       expect(refTable[2].type).toBe('specific_day');
     });
 

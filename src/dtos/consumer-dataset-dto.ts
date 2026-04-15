@@ -46,8 +46,8 @@ export class ConsumerDatasetDTO {
       dto.published_revision = ConsumerRevisionDTO.fromRevision(dataset.publishedRevision);
     }
 
-    dto.start_date = typeof dataset.startDate === 'string' ? dataset.startDate : dataset.startDate?.toISOString();
-    dto.end_date = typeof dataset.endDate === 'string' ? dataset.endDate : dataset.endDate?.toISOString();
+    dto.start_date = dataset.startDate?.toISOString();
+    dto.end_date = dataset.endDate?.toISOString();
 
     return dto;
   }

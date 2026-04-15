@@ -42,8 +42,8 @@ export const createDatePeriodTableQuery = (
         %I %s,
         language VARCHAR(5),
         description VARCHAR,
-        start_date TIMESTAMP WITHOUT TIME ZONE,
-        end_date TIMESTAMP WITHOUT TIME ZONE,
+        start_date DATE,
+        end_date DATE,
         date_type VARCHAR,
         sort_order BIGINT,
         hierarchy %s
@@ -291,7 +291,7 @@ function periodTableCreator(
   const type = yearType(dateFormat.type, dateFormat.startDay, dateFormat.startMonth);
 
   let year = parseISO(`${startYear}-${type.start}T00:00:00Z`);
-  const end = add(parseISO(`${endYear}-${type.start}T00:00:00Z`), { years: 1, seconds: -1 });
+  const end = add(parseISO(`${endYear}-${type.start}T00:00:00Z`), { years: 1 });
   // Quarters and month numbers are different depending on the type of year
   let quarterIndex = 1;
   let monthIndex = 1;
@@ -353,7 +353,7 @@ function periodTableCreator(
         lang: locale.toLowerCase(),
         description,
         start: year,
-        end: add(year, { months: formatObj.increment, seconds: -1 }),
+        end: sub(add(year, { months: formatObj.increment }), { days: 1 }),
         type: t(`date_format.${subType}.${dateFormat.type}`, { lng: locale }),
         hierarchy: parent
       });
@@ -376,7 +376,7 @@ function periodTableCreator(
               ? formatUTC(displayYear, 'yyyy')
               : `${formatUTC(displayYear, 'yyyy')}-${formatUTC(add(displayYear, { years: 1 }), 'yy')}`,
           start: year,
-          end: add(year, { months: 12, seconds: -1 }),
+          end: sub(add(year, { months: 12 }), { days: 1 }),
           type: t(`date_format.year.${dateFormat.type}`, { lng: locale }),
           hierarchy: null
         });
@@ -461,7 +461,7 @@ function specificDateTableCreator(dateFormat: DateExtractor, dataColumn: string[
         lang: locale.toLowerCase(),
         description: formatUTC(parsedDate, 'dd/MM/yyyy'),
         start: parsedDate,
-        end: sub(add(parsedDate, { days: 1 }), { seconds: 1 }),
+        end: parsedDate,
         type: 'specific_day',
         hierarchy: null
       });
@@ -513,7 +513,7 @@ function periodDateTableCreator(dateFormat: DateExtractor, dataColumn: string[])
     for (const locale of SUPPORTED_LOCALES) {
       const fullDate = `${parsedDate.getUTCDate()} ${t(`months.${parsedDate.getUTCMonth() + 1}`, { lng: locale })} ${parsedDate.getUTCFullYear()}`;
       const startDate = sub(add(parsedDate, { days: 1 }), type.increment);
-      const endDate = add(parsedDate, { days: 1, seconds: -1 });
+      const endDate = parsedDate;
       logger.debug(`Start Date = ${startDate}, EndDate = ${endDate}`);
       referenceTable.push({
         dateCode: row.toString(),

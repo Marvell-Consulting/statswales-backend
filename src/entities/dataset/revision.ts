@@ -122,9 +122,19 @@ export class Revision extends BaseEntity {
   })
   cubeType: CubeType | null;
 
-  @Column({ name: 'start_date', type: 'timestamp without time zone', nullable: true })
+  @Column({
+    name: 'start_date',
+    type: 'date',
+    nullable: true,
+    transformer: { to: (value: Date | null) => value, from: (value: string | null) => (value ? new Date(value) : null) }
+  })
   startDate: Date | null;
 
-  @Column({ name: 'end_date', type: 'timestamp without time zone', nullable: true })
+  @Column({
+    name: 'end_date',
+    type: 'date',
+    nullable: true,
+    transformer: { to: (value: Date | null) => value, from: (value: string | null) => (value ? new Date(value) : null) }
+  })
   endDate: Date | null;
 }

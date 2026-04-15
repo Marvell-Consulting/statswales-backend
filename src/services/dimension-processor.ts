@@ -754,8 +754,8 @@ async function getDatePreviewWithExtractor(
       SELECT
           %I.%I as %I,
           %I.description,
-          to_char(%I.start_date, 'YYYY-MM-DD"T"HH24:MI:SS"Z"') as start_date,
-          to_char(%I.end_date, 'YYYY-MM-DD"T"HH24:MI:SS"Z"') as end_date,
+          to_char(%I.start_date, 'YYYY-MM-DD') as start_date,
+          to_char(%I.end_date, 'YYYY-MM-DD') as end_date,
           %I.date_type
       FROM %I.%I
       WHERE %I.language = %L
