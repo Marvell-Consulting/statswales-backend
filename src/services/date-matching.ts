@@ -1,4 +1,5 @@
 import { add, format, isBefore, isDate, isValid, parse, parseISO, sub, Duration } from 'date-fns';
+import { TZDate } from '@date-fns/tz';
 
 import { logger } from '../utils/logger';
 import { YearType } from '../enums/year-type';
@@ -41,8 +42,8 @@ export const createDatePeriodTableQuery = (
         %I %s,
         language VARCHAR(5),
         description VARCHAR,
-        start_date TIMESTAMP WITHOUT TIME ZONE,
-        end_date TIMESTAMP WITHOUT TIME ZONE,
+        start_date DATE,
+        end_date DATE,
         date_type VARCHAR,
         sort_order BIGINT,
         hierarchy %s
@@ -54,6 +55,33 @@ export const createDatePeriodTableQuery = (
     factTableColumn.columnDatatype
   );
 };
+
+// Wrap a Date as a UTC TZDate so date-fns arithmetic (add/sub/isBefore)
+// operates in UTC rather than the server's local timezone.
+function toUTC(date: Date): TZDate {
+  return new TZDate(date, 'UTC');
+}
+
+// Parse a date string into a UTC midnight Date, avoiding local-timezone pollution.
+// Uses date-fns parse to understand the format, then reconstructs as UTC.
+// Returns invalid dates unchanged so downstream isValid() checks still work.
+function parseAsUTC(value: string, formatStr: string): Date {
+  const parsed = parse(value, formatStr, new Date());
+  if (!isValid(parsed)) {
+    return parsed;
+  }
+  return toUTC(new Date(Date.UTC(parsed.getFullYear(), parsed.getMonth(), parsed.getDate())));
+}
+
+// Parse an ISO date string as UTC, returning a TZDate for timezone-safe arithmetic.
+function parseISOasUTC(value: string): TZDate {
+  return toUTC(parseISO(value));
+}
+
+// Format a Date in UTC, regardless of server timezone.
+function formatUTC(date: Date, formatStr: string): string {
+  return format(new TZDate(date, 'UTC'), formatStr);
+}
 
 // Date parsing methods start here
 function yearType(type: YearType, startDay = 1, startMonth = 1): YearTypeDetails {
@@ -277,8 +305,8 @@ function periodTableCreator(
   const endYear = Math.max(...dataYears);
   const type = yearType(dateFormat.type, dateFormat.startDay, dateFormat.startMonth);
 
-  let year = parse(`${startYear}-${type.start}`, 'yyyy-MM-dd', new Date());
-  const end = add(parse(`${endYear}-${type.start}`, 'yyyy-MM-dd', new Date()), { years: 1, seconds: -1 });
+  let year = parseISOasUTC(`${startYear}-${type.start}T00:00:00Z`);
+  const end = add(parseISOasUTC(`${endYear}-${type.start}T00:00:00Z`), { years: 1 });
   // Quarters and month numbers are different depending on the type of year
   let quarterIndex = 1;
   let monthIndex = 1;
@@ -288,27 +316,27 @@ function periodTableCreator(
   // While loop builds our table we can match against and load into our Cube
   let displayYear = year;
   while (isBefore(year, end)) {
-    const monthNo = parseInt(format(year, 'MM'), 10);
+    const monthNo = parseInt(formatUTC(year, 'MM'), 10);
     const dateStr = formatObj.formatStr
-      .replace('[full-start]', format(displayYear, 'yyyy'))
-      .replace('[full-end]', format(add(displayYear, { years: 1 }), 'yyyy'))
-      .replace('[end-year]', format(add(displayYear, { years: 1 }), 'yy'))
+      .replace('[full-start]', formatUTC(displayYear, 'yyyy'))
+      .replace('[full-end]', formatUTC(add(displayYear, { years: 1 }), 'yyyy'))
+      .replace('[end-year]', formatUTC(add(displayYear, { years: 1 }), 'yy'))
       .replace('[quarterNo]', quarterIndex.toString())
-      .replace('[monthStr]', format(year, 'MMM'))
+      .replace('[monthStr]', formatUTC(year, 'MMM'))
       .replace('[monthNo]', String(monthNo).padStart(2, '0'));
 
     let parent: string | null = null;
     if (parentType === ParentType.Year) {
       parent = yearFormat
-        .replace('[full-start]', format(displayYear, 'yyyy'))
-        .replace('[full-end]', format(add(displayYear, { years: 1 }), 'yyyy'))
-        .replace('[end-year]', format(add(displayYear, { years: 1 }), 'yy'));
+        .replace('[full-start]', formatUTC(displayYear, 'yyyy'))
+        .replace('[full-end]', formatUTC(add(displayYear, { years: 1 }), 'yyyy'))
+        .replace('[end-year]', formatUTC(add(displayYear, { years: 1 }), 'yy'));
     }
     if (parentType === ParentType.Quarter) {
       parent = quarterFormat
-        .replace('[full-start]', format(displayYear, 'yyyy'))
-        .replace('[full-end]', format(add(displayYear, { years: 1 }), 'yyyy'))
-        .replace('[end-year]', format(add(displayYear, { years: 1 }), 'yy'))
+        .replace('[full-start]', formatUTC(displayYear, 'yyyy'))
+        .replace('[full-end]', formatUTC(add(displayYear, { years: 1 }), 'yyyy'))
+        .replace('[end-year]', formatUTC(add(displayYear, { years: 1 }), 'yy'))
         .replace('[quarterNo]', quarterIndex.toString());
     }
 
@@ -318,20 +346,20 @@ function periodTableCreator(
         case GeneratorType.Year:
           description =
             dateFormat.type === YearType.Calendar
-              ? format(displayYear, 'yyyy')
-              : `${format(displayYear, 'yyyy')}${type.separator}${format(add(displayYear, { years: 1 }), 'yy')}`;
+              ? formatUTC(displayYear, 'yyyy')
+              : `${formatUTC(displayYear, 'yyyy')}${type.separator}${formatUTC(add(displayYear, { years: 1 }), 'yy')}`;
           break;
         case GeneratorType.Quarter:
           description =
             dateFormat.type === YearType.Calendar
-              ? `${t('date_format.quarter_abr', { lng: locale })}${quarterIndex} ${format(displayYear, 'yyyy')}`
-              : `${t('date_format.quarter_abr', { lng: locale })}${quarterIndex} ${format(displayYear, 'yyyy')}${type.separator}${format(add(displayYear, { years: 1 }), 'yy')}`;
+              ? `${t('date_format.quarter_abr', { lng: locale })}${quarterIndex} ${formatUTC(displayYear, 'yyyy')}`
+              : `${t('date_format.quarter_abr', { lng: locale })}${quarterIndex} ${formatUTC(displayYear, 'yyyy')}${type.separator}${formatUTC(add(displayYear, { years: 1 }), 'yy')}`;
           break;
         case GeneratorType.Month:
           description =
             dateFormat.type === YearType.Calendar
-              ? `${t(`months.${monthNo}`, { lng: locale })} ${format(displayYear, 'yyyy')}`
-              : `${t(`months.${monthNo}`, { lng: locale })} ${format(displayYear, 'yyyy')}${type.separator}${format(add(displayYear, { years: 1 }), 'yy')}`;
+              ? `${t(`months.${monthNo}`, { lng: locale })} ${formatUTC(displayYear, 'yyyy')}`
+              : `${t(`months.${monthNo}`, { lng: locale })} ${formatUTC(displayYear, 'yyyy')}${type.separator}${formatUTC(add(displayYear, { years: 1 }), 'yy')}`;
           break;
       }
 
@@ -340,7 +368,7 @@ function periodTableCreator(
         lang: locale.toLowerCase(),
         description,
         start: year,
-        end: add(year, { months: formatObj.increment, seconds: -1 }),
+        end: sub(add(year, { months: formatObj.increment }), { days: 1 }),
         type: t(`date_format.${subType}.${dateFormat.type}`, { lng: locale }),
         hierarchy: parent
       });
@@ -348,11 +376,11 @@ function periodTableCreator(
 
     if (dateFormat.quarterTotalIsFifthQuart && quarterIndex === 4) {
       const yearStr = formatObj.formatStr
-        .replace('[full-start]', format(displayYear, 'yyyy'))
-        .replace('[full-end]', format(add(displayYear, { years: 1 }), 'yyyy'))
-        .replace('[end-year]', format(add(displayYear, { years: 1 }), 'yy'))
+        .replace('[full-start]', formatUTC(displayYear, 'yyyy'))
+        .replace('[full-end]', formatUTC(add(displayYear, { years: 1 }), 'yyyy'))
+        .replace('[end-year]', formatUTC(add(displayYear, { years: 1 }), 'yy'))
         .replace('[quarterNo]', (quarterIndex + 1).toString())
-        .replace('[monthStr]', format(year, 'MMM'))
+        .replace('[monthStr]', formatUTC(year, 'MMM'))
         .replace('[monthNo]', String(monthNo).padStart(2, '0'));
       for (const locale of SUPPORTED_LOCALES) {
         referenceTable.push({
@@ -360,10 +388,10 @@ function periodTableCreator(
           lang: locale.toLowerCase(),
           description:
             dateFormat.type === YearType.Calendar
-              ? format(displayYear, 'yyyy')
-              : `${format(displayYear, 'yyyy')}-${format(add(displayYear, { years: 1 }), 'yy')}`,
+              ? formatUTC(displayYear, 'yyyy')
+              : `${formatUTC(displayYear, 'yyyy')}-${formatUTC(add(displayYear, { years: 1 }), 'yy')}`,
           start: year,
-          end: add(year, { months: 12, seconds: -1 }),
+          end: sub(add(year, { months: 12 }), { days: 1 }),
           type: t(`date_format.year.${dateFormat.type}`, { lng: locale }),
           hierarchy: null
         });
@@ -413,17 +441,17 @@ function specificDateTableCreator(dateFormat: DateExtractor, dataColumn: string[
     switch (dateFormat.dateFormat) {
       case 'dd/MM/yyyy':
       case 'DD/MM/YYYY':
-        parsedDate = parse(value, 'dd/MM/yyyy', new Date());
+        parsedDate = parseAsUTC(value, 'dd/MM/yyyy');
         break;
 
       case 'dd-MM-yyyy':
       case 'DD-MM-YYYY':
-        parsedDate = parse(value, 'dd-MM-yyyy', new Date());
+        parsedDate = parseAsUTC(value, 'dd-MM-yyyy');
         break;
 
       case 'yyyy-MM-dd':
       case 'YYYY-MM-DD':
-        parsedDate = parseISO(`${value}T00:00:00Z`);
+        parsedDate = parseISOasUTC(`${value}T00:00:00Z`);
         break;
 
       case 'yyyyMMdd':
@@ -431,7 +459,7 @@ function specificDateTableCreator(dateFormat: DateExtractor, dataColumn: string[
         year = value.substring(0, 4);
         month = value.substring(4, 6);
         day = value.substring(6, 8);
-        parsedDate = parseISO(`${year}-${month}-${day}T00:00:00Z`);
+        parsedDate = parseISOasUTC(`${year}-${month}-${day}T00:00:00Z`);
         break;
 
       default:
@@ -446,9 +474,9 @@ function specificDateTableCreator(dateFormat: DateExtractor, dataColumn: string[
       referenceTable.push({
         dateCode: value,
         lang: locale.toLowerCase(),
-        description: format(parsedDate, 'dd/MM/yyyy'),
+        description: formatUTC(parsedDate, 'dd/MM/yyyy'),
         start: parsedDate,
-        end: sub(add(parsedDate, { days: 1 }), { seconds: 1 }),
+        end: parsedDate,
         type: 'specific_day',
         hierarchy: null
       });
@@ -473,19 +501,19 @@ function periodDateTableCreator(dateFormat: DateExtractor, dataColumn: string[])
     let year: string;
     switch (dateFormat.dateFormat?.toUpperCase()) {
       case 'DD/MM/YYYY':
-        parsedDate = parse(value, 'dd/MM/yyyy', new Date());
+        parsedDate = parseAsUTC(value, 'dd/MM/yyyy');
         break;
       case 'DD-MM-YYYY':
-        parsedDate = parse(value, 'dd-MM-yyyy', new Date());
+        parsedDate = parseAsUTC(value, 'dd-MM-yyyy');
         break;
       case 'YYYY-MM-DD':
-        parsedDate = parse(value, 'yyyy-MM-dd', new Date());
+        parsedDate = parseISOasUTC(`${value}T00:00:00Z`);
         break;
       case 'YYYYMMDD':
         year = value.substring(0, 4);
         month = value.substring(4, 6);
         day = value.substring(6, 8);
-        parsedDate = parse(`${year}-${month}-${day}`, 'yyyy-MM-dd', new Date());
+        parsedDate = parseISOasUTC(`${year}-${month}-${day}T00:00:00Z`);
         break;
 
       default:
@@ -498,9 +526,9 @@ function periodDateTableCreator(dateFormat: DateExtractor, dataColumn: string[])
     }
 
     for (const locale of SUPPORTED_LOCALES) {
-      const fullDate = `${parsedDate.getDate()} ${t(`months.${parsedDate.getMonth() + 1}`, { lng: locale })} ${parsedDate.getFullYear()}`;
+      const fullDate = `${parsedDate.getUTCDate()} ${t(`months.${parsedDate.getUTCMonth() + 1}`, { lng: locale })} ${parsedDate.getUTCFullYear()}`;
       const startDate = sub(add(parsedDate, { days: 1 }), type.increment);
-      const endDate = add(parsedDate, { days: 1, seconds: -1 });
+      const endDate = parsedDate;
       logger.debug(`Start Date = ${startDate}, EndDate = ${endDate}`);
       referenceTable.push({
         dateCode: row.toString(),

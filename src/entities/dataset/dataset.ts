@@ -52,10 +52,32 @@ export class Dataset extends BaseEntity {
   @Column({ name: 'replacement_auto_redirect', type: 'boolean', nullable: false, default: false })
   replacementAutoRedirect: boolean;
 
-  @Column({ name: 'start_date', type: 'date', nullable: true })
+  @Column({
+    name: 'start_date',
+    type: 'date',
+    nullable: true,
+    transformer: {
+      to: (value: Date | string | null) => {
+        if (!value) return null;
+        return value instanceof Date ? value.toISOString().split('T')[0] : value;
+      },
+      from: (value: string | null) => (value ? new Date(value) : null)
+    }
+  })
   startDate: Date | null;
 
-  @Column({ name: 'end_date', type: 'date', nullable: true })
+  @Column({
+    name: 'end_date',
+    type: 'date',
+    nullable: true,
+    transformer: {
+      to: (value: Date | string | null) => {
+        if (!value) return null;
+        return value instanceof Date ? value.toISOString().split('T')[0] : value;
+      },
+      from: (value: string | null) => (value ? new Date(value) : null)
+    }
+  })
   endDate: Date | null;
 
   @OneToMany(() => Dimension, (dimension) => dimension.dataset, { cascade: true })

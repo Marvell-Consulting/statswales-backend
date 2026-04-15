@@ -1,8 +1,14 @@
-import { Duration, add, parse, sub } from 'date-fns';
+import { Duration, add, parseISO, sub } from 'date-fns';
+import { TZDate } from '@date-fns/tz';
 
 import { YearType } from '../../src/enums/year-type';
 import { createDatePeriodTableQuery, dateDimensionReferenceTableCreator } from '../../src/services/date-matching';
 import { DateExtractor } from '../../src/extractors/date-extractor';
+
+// Helper to create a UTC TZDate, matching production code behaviour.
+function utc(iso: string): TZDate {
+  return new TZDate(parseISO(iso), 'UTC');
+}
 import { FactTableColumn } from '../../src/entities/dataset/fact-table-column';
 
 jest.mock('../../src/utils/logger', () => ({
@@ -29,8 +35,8 @@ describe('date-matching', () => {
     test('includes required fixed columns with correct types', () => {
       const sql = createDatePeriodTableQuery(col, 'public', 'date_lookup');
       expect(sql).toContain('language VARCHAR(5)');
-      expect(sql).toContain('start_date TIMESTAMP WITHOUT TIME ZONE');
-      expect(sql).toContain('end_date TIMESTAMP WITHOUT TIME ZONE');
+      expect(sql).toContain('start_date DATE');
+      expect(sql).toContain('end_date DATE');
       expect(sql).toContain('sort_order BIGINT');
     });
 
@@ -102,55 +108,43 @@ describe('date-matching', () => {
     test('Calendar year starts Jan 1 and ends Dec 31', () => {
       const extractor: DateExtractor = { type: YearType.Calendar, yearFormat: 'YYYY' };
       const result = dateDimensionReferenceTableCreator(extractor, [{ dateCode: '2023' }]);
-      const expectedStart = parse('2023-01-01', 'yyyy-MM-dd', new Date());
-      const expectedEnd = add(expectedStart, { months: 12, seconds: -1 });
-      expect(result[0].start).toEqual(expectedStart);
-      expect(result[0].end).toEqual(expectedEnd);
+      expect(result[0].start).toEqual(utc('2023-01-01T00:00:00Z'));
+      expect(result[0].end).toEqual(utc('2023-12-31T00:00:00Z'));
     });
 
     test('Financial year starts Apr 1 and ends Mar 31', () => {
       const extractor: DateExtractor = { type: YearType.Financial, yearFormat: 'YYYYYY' };
       const result = dateDimensionReferenceTableCreator(extractor, [{ dateCode: '202324' }]);
-      const expectedStart = parse('2023-04-01', 'yyyy-MM-dd', new Date());
-      const expectedEnd = add(expectedStart, { months: 12, seconds: -1 });
-      expect(result[0].start).toEqual(expectedStart);
-      expect(result[0].end).toEqual(expectedEnd);
+      expect(result[0].start).toEqual(utc('2023-04-01T00:00:00Z'));
+      expect(result[0].end).toEqual(utc('2024-03-31T00:00:00Z'));
     });
 
     test('Tax year starts Apr 6 and ends Apr 5', () => {
       const extractor: DateExtractor = { type: YearType.Tax, yearFormat: 'YYYYYY' };
       const result = dateDimensionReferenceTableCreator(extractor, [{ dateCode: '202324' }]);
-      const expectedStart = parse('2023-04-06', 'yyyy-MM-dd', new Date());
-      const expectedEnd = add(expectedStart, { months: 12, seconds: -1 });
-      expect(result[0].start).toEqual(expectedStart);
-      expect(result[0].end).toEqual(expectedEnd);
+      expect(result[0].start).toEqual(utc('2023-04-06T00:00:00Z'));
+      expect(result[0].end).toEqual(utc('2024-04-05T00:00:00Z'));
     });
 
     test('Academic year starts Sep 1 and ends Aug 31', () => {
       const extractor: DateExtractor = { type: YearType.Academic, yearFormat: 'YYYY/YY' };
       const result = dateDimensionReferenceTableCreator(extractor, [{ dateCode: '2023/24' }]);
-      const expectedStart = parse('2023-09-01', 'yyyy-MM-dd', new Date());
-      const expectedEnd = add(expectedStart, { months: 12, seconds: -1 });
-      expect(result[0].start).toEqual(expectedStart);
-      expect(result[0].end).toEqual(expectedEnd);
+      expect(result[0].start).toEqual(utc('2023-09-01T00:00:00Z'));
+      expect(result[0].end).toEqual(utc('2024-08-31T00:00:00Z'));
     });
 
-    test('Higher Academic year starts Sep 1 and ends Aug 31', () => {
+    test('Higher Academic year starts Aug 1 and ends Jul 31', () => {
       const extractor: DateExtractor = { type: YearType.HigherAcademic, yearFormat: 'YYYY/YY' };
       const result = dateDimensionReferenceTableCreator(extractor, [{ dateCode: '2023/24' }]);
-      const expectedStart = parse('2023-08-01', 'yyyy-MM-dd', new Date());
-      const expectedEnd = add(expectedStart, { months: 12, seconds: -1 });
-      expect(result[0].start).toEqual(expectedStart);
-      expect(result[0].end).toEqual(expectedEnd);
+      expect(result[0].start).toEqual(utc('2023-08-01T00:00:00Z'));
+      expect(result[0].end).toEqual(utc('2024-07-31T00:00:00Z'));
     });
 
     test('Meteorological year starts Mar 1 and ends Feb 28/29', () => {
       const extractor: DateExtractor = { type: YearType.Meteorological, yearFormat: 'YYYY-YY' };
       const result = dateDimensionReferenceTableCreator(extractor, [{ dateCode: '2023-24' }]);
-      const expectedStart = parse('2023-03-01', 'yyyy-MM-dd', new Date());
-      const expectedEnd = add(expectedStart, { months: 12, seconds: -1 });
-      expect(result[0].start).toEqual(expectedStart);
-      expect(result[0].end).toEqual(expectedEnd);
+      expect(result[0].start).toEqual(utc('2023-03-01T00:00:00Z'));
+      expect(result[0].end).toEqual(utc('2024-02-29T00:00:00Z'));
     });
 
     test('Rolling year uses custom startDay and startMonth', () => {
@@ -161,10 +155,8 @@ describe('date-matching', () => {
         startMonth: 6
       };
       const result = dateDimensionReferenceTableCreator(extractor, [{ dateCode: '202324' }]);
-      const expectedStart = parse('2023-06-15', 'yyyy-MM-dd', new Date());
-      const expectedEnd = add(expectedStart, { months: 12, seconds: -1 });
-      expect(result[0].start).toEqual(expectedStart);
-      expect(result[0].end).toEqual(expectedEnd);
+      expect(result[0].start).toEqual(utc('2023-06-15T00:00:00Z'));
+      expect(result[0].end).toEqual(utc('2024-06-14T00:00:00Z'));
     });
   });
 
@@ -269,8 +261,7 @@ describe('date-matching', () => {
       expect(result.length).toBe(2);
       expect(result[0].dateCode).toBe('01-12-2023');
       expect(result[0].type).toBe('specific_day');
-      const expectedDate = parse('01-12-2023', 'dd-MM-yyyy', new Date());
-      expect(result[0].start).toEqual(expectedDate);
+      expect(result[0].start).toEqual(utc('2023-12-01T00:00:00Z'));
     });
 
     test('yyyy-MM-dd format parses correctly', () => {
@@ -292,12 +283,12 @@ describe('date-matching', () => {
   describe('dateDimensionReferenceTableCreator - rolling / period-ending dates', () => {
     const extractor: DateExtractor = { type: YearType.Rolling, dateFormat: 'dd/MM/yyyy' };
     const endDateStr = '31/03/2024';
-    const parsedEndDate = parse(endDateStr, 'dd/MM/yyyy', new Date());
+    const parsedEndDate = utc('2024-03-31T00:00:00Z');
 
     function expectedDates(increment: Duration) {
       return {
         start: sub(add(parsedEndDate, { days: 1 }), increment),
-        end: add(parsedEndDate, { days: 1, seconds: -1 })
+        end: parsedEndDate
       };
     }
 
@@ -429,5 +420,50 @@ describe('date-matching', () => {
       const q1 = result.find((item) => item.dateCode === '202324Q1');
       expect(q1?.hierarchy).toBeNull();
     });
+  });
+
+  describe('dateDimensionReferenceTableCreator - timezone independence', () => {
+    const originalTZ = process.env.TZ;
+
+    afterEach(() => {
+      if (originalTZ === undefined) {
+        delete process.env.TZ;
+      } else {
+        process.env.TZ = originalTZ;
+      }
+    });
+
+    test.each(['America/New_York', 'Asia/Kolkata', 'Pacific/Auckland'])(
+      'Financial year dates are identical under TZ=%s',
+      (tz) => {
+        process.env.TZ = tz;
+        const extractor: DateExtractor = { type: YearType.Financial, yearFormat: 'YYYYYY' };
+        const result = dateDimensionReferenceTableCreator(extractor, [{ dateCode: '202324' }]);
+        expect(result[0].start.getTime()).toBe(Date.UTC(2023, 3, 1));
+        expect(result[0].end.getTime()).toBe(Date.UTC(2024, 2, 31));
+      }
+    );
+
+    test.each(['America/New_York', 'Asia/Kolkata', 'Pacific/Auckland'])(
+      'Point-in-time dates are identical under TZ=%s',
+      (tz) => {
+        process.env.TZ = tz;
+        const extractor: DateExtractor = { type: YearType.PointInTime, dateFormat: 'dd/MM/yyyy' };
+        const result = dateDimensionReferenceTableCreator(extractor, [{ dateCode: '01/04/2023' }]);
+        expect(result[0].start.getTime()).toBe(Date.UTC(2023, 3, 1));
+        expect(result[0].end.getTime()).toBe(Date.UTC(2023, 3, 1));
+      }
+    );
+
+    test.each(['America/New_York', 'Asia/Kolkata', 'Pacific/Auckland'])(
+      'Rolling period-ending dates are identical under TZ=%s',
+      (tz) => {
+        process.env.TZ = tz;
+        const extractor: DateExtractor = { type: YearType.Rolling, dateFormat: 'dd/MM/yyyy' };
+        const result = dateDimensionReferenceTableCreator(extractor, [{ dateCode: 'YE31/03/2024' }]);
+        expect(result[0].start.getTime()).toBe(Date.UTC(2023, 3, 1));
+        expect(result[0].end.getTime()).toBe(Date.UTC(2024, 2, 31));
+      }
+    );
   });
 });
