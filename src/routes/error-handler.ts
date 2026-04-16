@@ -31,6 +31,11 @@ export const errorHandler: ErrorRequestHandler = (err: any, req: Request, res: R
       res.status(404);
       break;
 
+    case 503:
+      logger.warn(err, `503 service unavailable for ${req.originalUrl}: ${message}`);
+      res.status(503);
+      break;
+
     case 500:
     default:
       logger.error(err, `unknown error detected for ${req.originalUrl}: ${message}`);
