@@ -1,5 +1,6 @@
 import { RedisStore } from 'connect-redis';
 import session, { MemoryStore, Store } from 'express-session';
+import { NextFunction, Request, Response } from 'express';
 import { createClient } from 'redis';
 
 import { config } from '../config';
@@ -7,11 +8,13 @@ import { logger } from '../utils/logger';
 import { SessionStore } from '../config/session-store.enum';
 
 let store: Store;
+let redisClient: ReturnType<typeof createClient> | undefined;
+const usingRedis = config.session.store === SessionStore.Redis;
 
-if (config.session.store === SessionStore.Redis) {
+if (usingRedis) {
   logger.debug('Initializing Redis session store...');
 
-  const redisClient = createClient({
+  redisClient = createClient({
     url: config.session.redisUrl,
     password: config.session.redisPassword,
     disableOfflineQueue: true,
@@ -35,7 +38,7 @@ if (config.session.store === SessionStore.Redis) {
   store = new MemoryStore({});
 }
 
-export default session({
+const sessionMiddleware = session({
   secret: config.session.secret,
   name: 'statswales.backend',
   store,
@@ -47,3 +50,28 @@ export default session({
     maxAge: config.session.maxAge
   }
 });
+
+export interface SessionStoreStatus {
+  type: 'redis' | 'memory';
+  connected: boolean;
+}
+
+export const getSessionStoreStatus = (): SessionStoreStatus => {
+  return {
+    type: usingRedis ? 'redis' : 'memory',
+    connected: redisClient ? redisClient.isReady : true
+  };
+};
+
+export default (req: Request, res: Response, next: NextFunction): void => {
+  sessionMiddleware(req, res, (err?: unknown) => {
+    if (err) {
+      const sessionError = Object.assign(new Error('errors.session_store_unavailable'), {
+        status: 503,
+        cause: err
+      });
+      return next(sessionError);
+    }
+    next();
+  });
+};

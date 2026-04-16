@@ -45,10 +45,11 @@ describe('Healthcheck', () => {
   });
 
   describe('Server readiness', () => {
-    test('/healthcheck/ready returns success', async () => {
+    test('/healthcheck/ready returns success with session store status', async () => {
       const res = await request(app).get('/healthcheck/ready');
       expect(res.status).toBe(200);
-      expect(res.body).toEqual({ message: 'success' });
+      expect(res.body.message).toBe('success');
+      expect(res.body.sessionStore).toEqual({ type: 'memory', connected: true });
     });
   });
 

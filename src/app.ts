@@ -42,7 +42,6 @@ app.set('trust proxy', 1);
 app.use(httpLogger);
 app.use(i18nextMiddleware.handle(i18next));
 app.use(cookieParser());
-app.use(session);
 app.use(requestContext);
 app.use(strictTransport);
 app.use(initServices);
@@ -53,7 +52,7 @@ app.get('/', rateLimiter, (req: Request, res: Response) => {
   res.json({ message: 'success' }); // prevent 404s on root path (avoids logs being flooded with 404s)
 });
 
-app.use('/auth', rateLimiter, authRouter);
+app.use('/auth', rateLimiter, session, authRouter);
 app.use('/healthcheck', rateLimiter, healthcheckRouter);
 app.use('/docs', rateLimiter, combinedDocRouter);
 app.use('/v1/docs', rateLimiter, apiDocRouter);
