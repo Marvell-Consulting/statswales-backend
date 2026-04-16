@@ -1334,7 +1334,7 @@ function toUniqueMeasureDetailsByRef(measureTable: MeasureRow[]): UniqueMeasureD
   return Array.from(map.values());
 }
 
-function postgresMeasureFormats(): Map<string, MeasureFormat> {
+export function postgresMeasureFormats(): Map<string, MeasureFormat> {
   const measureFormats: Map<string, MeasureFormat> = new Map();
   measureFormats.set('decimal', {
     name: 'decimal',
