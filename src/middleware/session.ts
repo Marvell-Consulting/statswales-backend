@@ -30,7 +30,7 @@ if (usingRedis) {
 
   redisClient.on('connect', () => logger.info('Redis session store initialized'));
   redisClient.on('error', (err) => logger.error(err, `Redis error`));
-  redisClient.connect();
+  redisClient.connect().catch((err) => logger.error(err, 'Redis initial connection failed, will retry'));
 
   store = new RedisStore({ client: redisClient, prefix: 'sw3b:' });
 } else {
@@ -66,11 +66,14 @@ export const getSessionStoreStatus = (): SessionStoreStatus => {
 export default (req: Request, res: Response, next: NextFunction): void => {
   sessionMiddleware(req, res, (err?: unknown) => {
     if (err) {
-      const sessionError = Object.assign(new Error('errors.session_store_unavailable'), {
-        status: 503,
-        cause: err
-      });
-      return next(sessionError);
+      if (redisClient && !redisClient.isReady) {
+        const sessionError = Object.assign(new Error('errors.session_store_unavailable'), {
+          status: 503,
+          cause: err
+        });
+        return next(sessionError);
+      }
+      return next(err);
     }
     next();
   });
