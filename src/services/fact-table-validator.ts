@@ -106,7 +106,7 @@ export const factTableValidatorFromSource = async (
     );
   }
 
-  logger.debug('Validating that all data values are numeric values');
+  logger.debug('Validating that all data values are numeric or time based values');
   const numericValidationQuery = pgformat(
     "SELECT %I as data_value FROM %I.%I WHERE CAST(%I AS TEXT) !~ '^([+-]?[0-9]+[.]?[0-9]*|[.][0-9]+|(?:[01][0-9]|2[0-3]):[0-5][0-9](?::[0-5][0-9])?)$';",
     dataValCol.column_name,
@@ -117,10 +117,12 @@ export const factTableValidatorFromSource = async (
   const numericValidationQueryRunner = dbManager.getCubeDataSource().createQueryRunner();
   let failedValues: { data_value: string }[];
   try {
-    logger.trace(`Validating that data values are numeric values with query:\n\n${numericValidationQuery}\n\n`);
+    logger.trace(
+      `Validating that data values are numeric or time based values with query:\n\n${numericValidationQuery}\n\n`
+    );
     failedValues = await numericValidationQueryRunner.query(numericValidationQuery);
   } catch (err) {
-    logger.error(err, 'Something went wrong trying to validate data values as numeric values');
+    logger.error(err, 'Something went wrong trying to validate data values as numeric or time based values');
     throw new FactTableValidationException(
       'Something went wrong trying to validate data values',
       FactTableValidationExceptionType.UnknownError,
@@ -132,7 +134,7 @@ export const factTableValidatorFromSource = async (
 
   if (failedValues.length > 0) {
     const exception = new FactTableValidationException(
-      'Failed to validate data values contain only numeric values.',
+      'Failed to validate data values contain only numeric or time based values.',
       FactTableValidationExceptionType.NonNumericDataValueColumn,
       400
     );
