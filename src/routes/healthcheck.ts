@@ -6,6 +6,7 @@ import { User } from '../entities/user/user';
 import { dbManager } from '../db/database-manager';
 import { logger } from '../utils/logger';
 import { SUPPORTED_LOCALES } from '../middleware/translation';
+import { getSessionStoreStatus } from '../middleware/session';
 import { StorageService } from '../interfaces/storage-service';
 import { Locale } from '../enums/locale';
 import { UserDTO } from '../dtos/user/user-dto';
@@ -91,7 +92,7 @@ const checkConnections = async (req: Request, res: Response): Promise<void> => {
     return;
   }
 
-  res.json({ message: 'success' });
+  res.json({ message: 'success', sessionStore: getSessionStoreStatus() });
 };
 
 healthcheck.get('/', (req: Request, res: Response) => {

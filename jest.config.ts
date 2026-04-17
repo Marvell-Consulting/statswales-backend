@@ -14,10 +14,10 @@ const config: Config = {
   // add threshold to ensure we don't drop below the current level of coverage
   coverageThreshold: {
     global: {
-      statements: 57,
-      branches: 43,
-      functions: 52,
-      lines: 56,
+      statements: 61,
+      branches: 49,
+      functions: 57,
+      lines: 61,
     },
   },
   coveragePathIgnorePatterns: [
