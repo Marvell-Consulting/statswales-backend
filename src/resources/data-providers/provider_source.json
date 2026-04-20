@@ -4652,5 +4652,17 @@
     "language": "en-gb",
     "name": "Social Care Capacity and Demand data",
     "provider_id": "957edc2c-0234-4a04-a15d-758da2105c49"
+  },
+  {
+    "id": "4243c3ec-11d6-448f-9d05-7f08c6a9c8cc",
+    "language": "cy-gb",
+    "name": "Platfform Data Tân ac Achub",
+    "provider_id": "0333a8dc-d7b0-49ff-bb8e-93f2ec41aaf0"
+  },
+  {
+    "id": "4243c3ec-11d6-448f-9d05-7f08c6a9c8cc",
+    "language": "en-gb",
+    "name": "Fire and Rescue Data Platform (FaRDaP)",
+    "provider_id": "0333a8dc-d7b0-49ff-bb8e-93f2ec41aaf0"
   }
 ]
