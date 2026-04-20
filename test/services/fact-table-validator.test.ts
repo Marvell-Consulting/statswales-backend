@@ -173,6 +173,38 @@ describe('factTableValidatorFromSource', () => {
     });
   });
 
+  describe('ignore column matching with multiple ignore entries', () => {
+    it('matches the correct ignore column when there are multiple ignore entries', async () => {
+      // Covers the false branch at line 78: iterating past a non-matching ignore column
+      const dataset: Dataset = {
+        id: 'dataset-1',
+        draftRevision: { id: 'rev-1', revisionIndex: 1, dataTable: { id: 'dt-1' } } as Revision,
+        factTable: [
+          makeFactTableColumn({ columnName: 'date', columnIndex: 0 }),
+          makeFactTableColumn({ columnName: 'data', columnIndex: 1 }),
+          makeFactTableColumn({ columnName: 'measure', columnIndex: 2 }),
+          makeFactTableColumn({ columnName: 'notes', columnIndex: 3 }),
+          makeFactTableColumn({ columnName: 'extra1', columnIndex: 4 }),
+          makeFactTableColumn({ columnName: 'extra2', columnIndex: 5 })
+        ] as FactTableColumn[]
+      } as Dataset;
+
+      const sources = makeSourceAssignment();
+      // Two ignore columns: when matching 'extra2', the loop first visits 'extra1' (no match) then 'extra2' (match)
+      sources.ignore = [
+        { column_index: 4, column_name: 'extra1', column_type: FactTableColumnType.Ignore },
+        { column_index: 5, column_name: 'extra2', column_type: FactTableColumnType.Ignore }
+      ];
+
+      mockQuery.mockResolvedValueOnce([]); // numeric validation
+      mockQuery.mockResolvedValueOnce(undefined); // drop PK
+      mockQuery.mockResolvedValueOnce(undefined); // add PK
+      mockQuery.mockResolvedValueOnce([]); // note codes
+
+      await expect(factTableValidatorFromSource(dataset, sources)).resolves.toBeUndefined();
+    });
+  });
+
   describe('duplicate fact detection', () => {
     it('throws DuplicateFact when duplicate rows are found', async () => {
       const dataset = makeDataset();
@@ -259,6 +291,94 @@ describe('factTableValidatorFromSource', () => {
     });
   });
 
+  describe('duplicate and incomplete checks both clear after unique index failure', () => {
+    it('throws UnknownError when both duplicate and incomplete fact checks find nothing', async () => {
+      // Covers the false branch at line 191: identifyIncompleteFacts returns undefined,
+      // falling through to the final UnknownError throw
+      const dataset = makeDataset();
+      const sources = makeSourceAssignment();
+
+      // Query 1: numeric validation passes
+      mockQuery.mockResolvedValueOnce([]);
+      // Query 2: drop PK succeeds
+      mockQuery.mockResolvedValueOnce(undefined);
+      // Query 3: add PK fails with unique index error
+      mockQuery.mockRejectedValueOnce(new Error('could not create unique index'));
+      // Query 4: identifyDuplicateFacts → no duplicates found
+      mockQuery.mockResolvedValueOnce([]);
+      // Query 5: identifyIncompleteFacts → no incomplete facts found
+      mockQuery.mockResolvedValueOnce([]);
+
+      const error = await getValidationError(dataset, sources);
+      expect(error).toBeDefined();
+      expect(error!.type).toBe(FactTableValidationExceptionType.UnknownError);
+      expect(error!.status).toBe(500);
+    });
+  });
+
+  describe('identifyDuplicateFacts query failure', () => {
+    it('returns UnknownError when the duplicate-facts detection query itself throws', async () => {
+      const dataset = makeDataset();
+      const sources = makeSourceAssignment();
+
+      // Query 1: numeric validation passes
+      mockQuery.mockResolvedValueOnce([]);
+      // Query 2: drop PK succeeds
+      mockQuery.mockResolvedValueOnce(undefined);
+      // Query 3: add PK fails with unique index error → triggers identifyDuplicateFacts
+      mockQuery.mockRejectedValueOnce(new Error('could not create unique index'));
+      // Query 4: identifyDuplicateFacts query itself throws
+      mockQuery.mockRejectedValueOnce(new Error('db connection lost'));
+
+      const error = await getValidationError(dataset, sources);
+      expect(error).toBeDefined();
+      expect(error!.type).toBe(FactTableValidationExceptionType.UnknownError);
+      expect(error!.status).toBe(400);
+    });
+  });
+
+  describe('identifyIncompleteFacts query failure', () => {
+    it('returns UnknownError when the incomplete-facts detection query throws (via null values path)', async () => {
+      const dataset = makeDataset();
+      const sources = makeSourceAssignment();
+
+      // Query 1: numeric validation passes
+      mockQuery.mockResolvedValueOnce([]);
+      // Query 2: drop PK succeeds
+      mockQuery.mockResolvedValueOnce(undefined);
+      // Query 3: add PK fails with null values error → triggers identifyIncompleteFacts
+      mockQuery.mockRejectedValueOnce(new Error('contains null values'));
+      // Query 4: identifyIncompleteFacts query itself throws
+      mockQuery.mockRejectedValueOnce(new Error('db connection lost'));
+
+      const error = await getValidationError(dataset, sources);
+      expect(error).toBeDefined();
+      expect(error!.type).toBe(FactTableValidationExceptionType.UnknownError);
+      expect(error!.status).toBe(400);
+    });
+
+    it('returns UnknownError when incomplete-facts detection query throws (via unique-index path fallthrough)', async () => {
+      const dataset = makeDataset();
+      const sources = makeSourceAssignment();
+
+      // Query 1: numeric validation passes
+      mockQuery.mockResolvedValueOnce([]);
+      // Query 2: drop PK succeeds
+      mockQuery.mockResolvedValueOnce(undefined);
+      // Query 3: add PK fails with unique index error
+      mockQuery.mockRejectedValueOnce(new Error('could not create unique index'));
+      // Query 4: identifyDuplicateFacts → no duplicates found
+      mockQuery.mockResolvedValueOnce([]);
+      // Query 5: identifyIncompleteFacts query itself throws
+      mockQuery.mockRejectedValueOnce(new Error('db connection lost'));
+
+      const error = await getValidationError(dataset, sources);
+      expect(error).toBeDefined();
+      expect(error!.type).toBe(FactTableValidationExceptionType.UnknownError);
+      expect(error!.status).toBe(400);
+    });
+  });
+
   describe('primary key failure (unknown error)', () => {
     it('throws UnknownError when PK fails with an unexpected error message', async () => {
       const dataset = makeDataset();
@@ -290,6 +410,24 @@ describe('factTableValidatorFromSource', () => {
       expect(error).toBeDefined();
       expect(error!.type).toBe(FactTableValidationExceptionType.NoDataTable);
       expect(error!.status).toBe(500);
+    });
+  });
+
+  describe('drop primary key failure', () => {
+    it('continues and succeeds when the drop PK query fails', async () => {
+      const dataset = makeDataset();
+      const sources = makeSourceAssignment();
+
+      // Query 1: numeric validation passes
+      mockQuery.mockResolvedValueOnce([]);
+      // Query 2: drop PK fails — error is caught and logged, execution continues
+      mockQuery.mockRejectedValueOnce(new Error('could not drop constraint'));
+      // Query 3: add PK succeeds
+      mockQuery.mockResolvedValueOnce(undefined);
+      // Query 4: note codes → empty (no bad codes)
+      mockQuery.mockResolvedValueOnce([]);
+
+      await expect(factTableValidatorFromSource(dataset, sources)).resolves.toBeUndefined();
     });
   });
 
@@ -344,6 +482,49 @@ describe('factTableValidatorFromSource', () => {
       expect(error).toBeDefined();
       expect(error!.type).toBe(FactTableValidationExceptionType.NoNoteCodes);
       expect(error!.status).toBe(500);
+    });
+
+    it('rethrows when the column names query fails while reporting bad note codes', async () => {
+      const dataset = makeDataset();
+      const sources = makeSourceAssignment();
+
+      // Query 1: numeric validation passes
+      mockQuery.mockResolvedValueOnce([]);
+      // Query 2: drop PK succeeds
+      mockQuery.mockResolvedValueOnce(undefined);
+      // Query 3: add PK succeeds
+      mockQuery.mockResolvedValueOnce(undefined);
+      // Query 4: note code extraction → bad codes found
+      mockQuery.mockResolvedValueOnce([{ codes: 'xyz' }]);
+      // Query 5: column names query fails
+      mockQuery.mockRejectedValueOnce(new Error('information_schema unavailable'));
+
+      await expect(factTableValidatorFromSource(dataset, sources)).rejects.toThrow('information_schema unavailable');
+    });
+
+    it('rethrows when the broken-note-code-lines query fails', async () => {
+      const dataset = makeDataset();
+      const sources = makeSourceAssignment();
+
+      // Query 1: numeric validation passes
+      mockQuery.mockResolvedValueOnce([]);
+      // Query 2: drop PK succeeds
+      mockQuery.mockResolvedValueOnce(undefined);
+      // Query 3: add PK succeeds
+      mockQuery.mockResolvedValueOnce(undefined);
+      // Query 4: note code extraction → bad codes found
+      mockQuery.mockResolvedValueOnce([{ codes: 'xyz' }]);
+      // Query 5: column names query succeeds
+      mockQuery.mockResolvedValueOnce([
+        { column_name: 'date' },
+        { column_name: 'data' },
+        { column_name: 'measure' },
+        { column_name: 'notes' }
+      ]);
+      // Query 6: broken rows query fails
+      mockQuery.mockRejectedValueOnce(new Error('broken rows query failed'));
+
+      await expect(factTableValidatorFromSource(dataset, sources)).rejects.toThrow('broken rows query failed');
     });
   });
 
@@ -528,5 +709,15 @@ describe('sourceAssignmentFromFactTable', () => {
     expect(result.noteCodes).toBeNull();
     expect(result.dimensions).toHaveLength(0);
     expect(result.ignore).toHaveLength(0);
+  });
+});
+
+describe('FactTableValidationException', () => {
+  it('defaults status to 400 when no status argument is provided', () => {
+    const err = new FactTableValidationException('test message', FactTableValidationExceptionType.UnknownError);
+    expect(err.status).toBe(400);
+    expect(err.message).toBe('test message');
+    expect(err.type).toBe(FactTableValidationExceptionType.UnknownError);
+    expect(err.tag).toBe(`errors.fact_table_validation.${FactTableValidationExceptionType.UnknownError}`);
   });
 });

@@ -28,7 +28,12 @@ import { MeasureRow } from '../entities/dataset/measure-row';
 import { SUPPORTED_LOCALES } from '../middleware/translation';
 import { DisplayType } from '../enums/display-type';
 import { getFileService } from '../utils/get-file-service';
-import { measureTableCreateStatement, VALIDATION_TABLE_NAME } from './cube-builder';
+import {
+  FACT_TABLE_NAME,
+  measureTableCreateStatement,
+  postgresMeasureFormats,
+  VALIDATION_TABLE_NAME
+} from './cube-builder';
 import { FileValidationErrorType, FileValidationException } from '../exceptions/validation-exception';
 import { FactTableColumn } from '../entities/dataset/fact-table-column';
 import { Locale } from '../enums/locale';
@@ -550,6 +555,54 @@ export const validateMeasureLookupTable = async (
   if (referenceErrors) {
     await lookupTable.remove();
     return referenceErrors;
+  }
+
+  const dataValuesColumn = dataset.factTable?.find((val) => val.columnType === FactTableColumnType.DataValues);
+  if (!dataValuesColumn) {
+    return viewErrorGenerators(500, dataset.id, 'patch', `errors.measure_validation.unknown_error`, {
+      mismatch: false
+    });
+  }
+  const validateDataValuesAgainstFormatRunner = dbManager.getCubeDataSource().createQueryRunner();
+  try {
+    // Check for casting errors here to add support for time type data values.
+    for (const row of measureTable) {
+      let caseStatement = postgresMeasureFormats().get(row.format.toLowerCase())?.method;
+      if (caseStatement) {
+        caseStatement
+          .replace('WHEN measure.reference = |REF| THEN ', '')
+          .replace('|DEC|', row.decimal ? `${row.decimal}` : '0')
+          .replace('|ZEROS|', row.decimal ? `.${'0'.repeat(row.decimal)}` : '')
+          .replace('|COL|', pgformat('%I.%I', FACT_TABLE_NAME, dataValuesColumn.columnName));
+      } else {
+        caseStatement = pgformat('CAST(%I.%I AS VARCHAR)', FACT_TABLE_NAME, dataValuesColumn.columnName);
+      }
+      const query = pgformat(
+        'SELECT COUNT(%s) AS data_value_count FROM %I.%I AS fact_table WHERE %I = %L',
+        caseStatement,
+        draftRevision.id,
+        FACT_TABLE_NAME,
+        updatedMeasure.factTableColumn,
+        row.reference
+      );
+      logger.trace(`Running query to validate format: ${query}`);
+      await validateDataValuesAgainstFormatRunner.query(query);
+    }
+  } catch (error) {
+    logger.error(error, 'Someone tried using the wrong format against a data value');
+    try {
+      await validateDataValuesAgainstFormatRunner.query(
+        pgformat('DROP TABLE IF EXISTS %I.%I', draftRevision.id, actionId)
+      );
+      await lookupTable.remove();
+    } catch (cleanupError) {
+      logger.error(cleanupError, 'Failed to clean up temporary measure resources after format validation error');
+    }
+    return viewErrorGenerators(400, dataset.id, 'patch', `errors.measure_validation.format_error`, {
+      mismatch: false
+    });
+  } finally {
+    await validateDataValuesAgainstFormatRunner.release();
   }
 
   const languageErrors = await validateLookupTableLanguages(
