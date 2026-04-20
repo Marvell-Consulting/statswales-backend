@@ -589,6 +589,14 @@ export const validateMeasureLookupTable = async (
     }
   } catch (error) {
     logger.error(error, 'Someone tried using the wrong format against a data value');
+    try {
+      await validateDataValuesAgainstFormatRunner.query(
+        pgformat('DROP TABLE IF EXISTS %I.%I', draftRevision.id, actionId)
+      );
+      await lookupTable.remove();
+    } catch (cleanupError) {
+      logger.error(cleanupError, 'Failed to clean up temporary measure resources after format validation error');
+    }
     return viewErrorGenerators(400, dataset.id, 'patch', `errors.measure_validation.format_error`, {
       mismatch: false
     });
