@@ -322,15 +322,16 @@ export const DatasetStatsRepository = dataSource.getRepository(Dataset).extend({
       WITH latest_revisions AS (
         ${latestPublishedRevisionsQuery}
       )
-      SELECT similarity(rm1.title, rm2.title) AS similarity_score, rm1.title AS title_1, rm2.title AS title_2
+      SELECT s.similarity_score, rm1.title AS title_1, rm2.title AS title_2
       FROM revision_metadata rm1
       JOIN revision_metadata rm2 ON rm1.revision_id <> rm2.revision_id
-      AND similarity(rm1.title, rm2.title) >= 0.6
-      WHERE LOWER(rm1.language) = $1
+      CROSS JOIN LATERAL (SELECT similarity(rm1.title, rm2.title)) AS s(similarity_score)
+      WHERE s.similarity_score >= 0.6
+        AND LOWER(rm1.language) = $1
         AND LOWER(rm2.language) = $1
         AND rm1.revision_id IN (SELECT id FROM latest_revisions)
         AND rm2.revision_id IN (SELECT id FROM latest_revisions)
-      ORDER  BY similarity_score DESC`,
+      ORDER BY s.similarity_score DESC`,
       [lang]
     );
 

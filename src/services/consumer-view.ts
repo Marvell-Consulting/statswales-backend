@@ -338,12 +338,12 @@ export const createStreamingJSONFilteredView = async (
   const lang = locale.split('-')[0];
   const viewName = checkAvailableViews(view);
   const [cubeDBConn] = (await dbManager.getCubeDataSource().driver.obtainMasterConnection()) as [PoolClient];
-  const filterTableColumnQueryResult: QueryResult<FactTableToDimensionName> = await cubeDBConn.query(
-    pgformat('SELECT DISTINCT fact_table_column, dimension_name, language FROM %I.filter_table;', revisionId)
-  );
 
   try {
     await cubeDBConn.query('BEGIN');
+    const filterTableColumnQueryResult: QueryResult<FactTableToDimensionName> = await cubeDBConn.query(
+      pgformat('SELECT DISTINCT fact_table_column, dimension_name, language FROM %I.filter_table;', revisionId)
+    );
     const coreView = await coreViewChooser(lang, revisionId);
     const selectColumns = await getColumns(revisionId, lang, viewName);
     const baseQuery = createBaseQuery(
@@ -379,6 +379,11 @@ export const createStreamingJSONFilteredView = async (
   } catch (error) {
     await cubeDBConn.query('ROLLBACK').catch(() => {});
     logger.error(error, 'Something went wrong trying to read from the view of the cube');
+    if (!res.headersSent) {
+      res.status(500).end();
+    } else if (!res.writableEnded) {
+      res.destroy(error instanceof Error ? error : undefined);
+    }
   } finally {
     cubeDBConn.release();
   }
@@ -396,12 +401,12 @@ export const createStreamingCSVFilteredView = async (
   const lang = locale.split('-')[0];
   const viewName = checkAvailableViews(view);
   const [cubeDBConn] = (await dbManager.getCubeDataSource().driver.obtainMasterConnection()) as [PoolClient];
-  const filterTableColumnQueryResult: QueryResult<FactTableToDimensionName> = await cubeDBConn.query(
-    pgformat('SELECT DISTINCT fact_table_column, dimension_name, language FROM %I.filter_table;', revisionId)
-  );
 
   try {
     await cubeDBConn.query('BEGIN');
+    const filterTableColumnQueryResult: QueryResult<FactTableToDimensionName> = await cubeDBConn.query(
+      pgformat('SELECT DISTINCT fact_table_column, dimension_name, language FROM %I.filter_table;', revisionId)
+    );
     const coreView = await coreViewChooser(lang, revisionId);
     const selectColumns = await getColumns(revisionId, lang, viewName);
     const baseQuery = createBaseQuery(
@@ -435,6 +440,11 @@ export const createStreamingCSVFilteredView = async (
   } catch (error) {
     await cubeDBConn.query('ROLLBACK').catch(() => {});
     logger.error(error, 'Something went wrong trying to read from the view of the cube');
+    if (!res.headersSent) {
+      res.status(500).end();
+    } else if (!res.writableEnded) {
+      res.destroy(error instanceof Error ? error : undefined);
+    }
   } finally {
     cubeDBConn.release();
   }
@@ -452,12 +462,12 @@ export const createStreamingExcelFilteredView = async (
   const lang = locale.split('-')[0];
   const viewName = checkAvailableViews(view);
   const [cubeDBConn] = (await dbManager.getCubeDataSource().driver.obtainMasterConnection()) as [PoolClient];
-  const filterTableColumnQueryResult: QueryResult<FactTableToDimensionName> = await cubeDBConn.query(
-    pgformat('SELECT DISTINCT fact_table_column, dimension_name, language FROM %I.filter_table;', revisionId)
-  );
 
   try {
     await cubeDBConn.query('BEGIN');
+    const filterTableColumnQueryResult: QueryResult<FactTableToDimensionName> = await cubeDBConn.query(
+      pgformat('SELECT DISTINCT fact_table_column, dimension_name, language FROM %I.filter_table;', revisionId)
+    );
     const coreView = await coreViewChooser(lang, revisionId);
     const selectColumns = await getColumns(revisionId, lang, viewName);
     const baseQuery = createBaseQuery(
@@ -514,6 +524,11 @@ export const createStreamingExcelFilteredView = async (
   } catch (error) {
     await cubeDBConn.query('ROLLBACK').catch(() => {});
     logger.error(error, 'Something went wrong trying to read from the view of the cube');
+    if (!res.headersSent) {
+      res.status(500).end();
+    } else if (!res.writableEnded) {
+      res.destroy(error instanceof Error ? error : undefined);
+    }
   } finally {
     cubeDBConn.release();
   }
@@ -683,6 +698,11 @@ export const createStreamingPostgresPivotView = async (
   } catch (error) {
     await cubeDBConn.query('ROLLBACK').catch(() => {});
     logger.error(error, 'Something went wrong trying to read from the view of the cube');
+    if (!res.headersSent) {
+      res.status(500).json({ messages: 'Something went wrong trying to read from the view of the cube' });
+    } else if (!res.writableEnded) {
+      res.destroy(error instanceof Error ? error : undefined);
+    }
   } finally {
     cubeDBConn.release();
   }
