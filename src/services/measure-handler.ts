@@ -569,8 +569,8 @@ export const validateMeasureLookupTable = async (
     for (const row of measureTable) {
       let caseStatement = postgresMeasureFormats().get(row.format.toLowerCase())?.method;
       if (caseStatement) {
-        caseStatement
-          .replace('WHEN measure.reference = |REF| THEN ', '')
+        caseStatement = caseStatement
+          .replace('WHEN measure.reference = |REF| THEN', '')
           .replace('|DEC|', row.decimal ? `${row.decimal}` : '0')
           .replace('|ZEROS|', row.decimal ? `.${'0'.repeat(row.decimal)}` : '')
           .replace('|COL|', pgformat('%I.%I', FACT_TABLE_NAME, dataValuesColumn.columnName));
