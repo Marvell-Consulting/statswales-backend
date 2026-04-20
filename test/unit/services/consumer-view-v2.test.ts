@@ -151,7 +151,10 @@ function createMockDbStream(rows: Record<string, unknown>[]): Readable {
 // Helper to create a mock pool client
 function createMockPoolClient(stream: Readable) {
   return {
-    query: jest.fn().mockReturnValue(stream),
+    query: jest.fn().mockImplementation((q: string) => {
+      if (q === 'BEGIN' || q === 'COMMIT' || q === 'ROLLBACK') return Promise.resolve();
+      return stream;
+    }),
     release: mockRelease
   };
 }

@@ -30,6 +30,7 @@ export async function sendCsv(query: string, queryStore: QueryStore, res: Respon
   let hasData = false;
 
   try {
+    await cubeDBConn.query('BEGIN');
     dbStream = cubeDBConn.query(new QueryStream(query, [], { highWaterMark: HIGH_WATER_MARK }));
     dbStream.on('data', () => (hasData = true));
 
@@ -40,11 +41,13 @@ export async function sendCsv(query: string, queryStore: QueryStore, res: Respon
 
     await pipeline(dbStream, csvStream, res, { end: false });
 
+    await cubeDBConn.query('COMMIT');
     if (!hasData) {
       res.write('\n'); // Write a newline for empty CSV to avoid zero-byte file issues in some clients
     }
     res.end();
   } catch (err) {
+    await cubeDBConn.query('ROLLBACK').catch(() => {});
     logger.error(err, `Error sending CSV for query id ${queryStore.id}`);
     dbStream?.destroy();
     if (!res.headersSent) {
@@ -62,6 +65,7 @@ export async function sendExcel(query: string, queryStore: QueryStore, res: Resp
   let dbStream: QueryStream | null = null;
 
   try {
+    await cubeDBConn.query('BEGIN');
     dbStream = cubeDBConn.query(new QueryStream(query, [], { highWaterMark: HIGH_WATER_MARK }));
 
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
@@ -106,7 +110,9 @@ export async function sendExcel(query: string, queryStore: QueryStore, res: Resp
 
     worksheet.commit();
     await workbook.commit();
+    await cubeDBConn.query('COMMIT');
   } catch (err) {
+    await cubeDBConn.query('ROLLBACK').catch(() => {});
     logger.error(err, `Error sending Excel for query id ${queryStore.id}`);
     dbStream?.destroy();
     if (!res.headersSent) {
@@ -124,6 +130,7 @@ export async function sendJson(query: string, queryStore: QueryStore, res: Respo
   let dbStream: QueryStream | null = null;
 
   try {
+    await cubeDBConn.query('BEGIN');
     dbStream = cubeDBConn.query(new QueryStream(query, [], { highWaterMark: HIGH_WATER_MARK }));
 
     res.setHeader('Content-Type', 'application/json');
@@ -142,8 +149,10 @@ export async function sendJson(query: string, queryStore: QueryStore, res: Respo
     }
 
     res.write(']');
+    await cubeDBConn.query('COMMIT');
     res.end();
   } catch (err) {
+    await cubeDBConn.query('ROLLBACK').catch(() => {});
     logger.error(err, `Error sending JSON for query id ${queryStore.id}`);
     dbStream?.destroy();
     if (!res.headersSent) {
@@ -161,6 +170,7 @@ export async function sendHtml(query: string, queryStore: QueryStore, res: Respo
   let dbStream: QueryStream | null = null;
 
   try {
+    await cubeDBConn.query('BEGIN');
     dbStream = cubeDBConn.query(new QueryStream(query, [], { highWaterMark: HIGH_WATER_MARK }));
 
     res.setHeader('Content-Type', 'text/html');
@@ -207,8 +217,10 @@ export async function sendHtml(query: string, queryStore: QueryStore, res: Respo
       res.write(`</tbody>`);
     }
     res.write(`</table></body></html>`);
+    await cubeDBConn.query('COMMIT');
     res.end();
   } catch (err) {
+    await cubeDBConn.query('ROLLBACK').catch(() => {});
     logger.error(err, `Error sending HTML for query id ${queryStore.id}`);
     dbStream?.destroy();
     if (!res.headersSent) {

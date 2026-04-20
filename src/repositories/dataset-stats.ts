@@ -317,8 +317,6 @@ export const DatasetStatsRepository = dataSource.getRepository(Dataset).extend({
   async similarTitles(locale: Locale): Promise<SimilarTitlesResult[]> {
     const lang = locale.includes('en') ? 'en-gb' : 'cy-gb';
 
-    await this.query(`SET pg_trgm.similarity_threshold = 0.6`);
-
     const results: SimilarTitlesResult[] = await this.query(
       `
       WITH latest_revisions AS (
@@ -327,7 +325,7 @@ export const DatasetStatsRepository = dataSource.getRepository(Dataset).extend({
       SELECT similarity(rm1.title, rm2.title) AS similarity_score, rm1.title AS title_1, rm2.title AS title_2
       FROM revision_metadata rm1
       JOIN revision_metadata rm2 ON rm1.revision_id <> rm2.revision_id
-      AND rm1.title % rm2.title
+      AND similarity(rm1.title, rm2.title) >= 0.6
       WHERE LOWER(rm1.language) = $1
         AND LOWER(rm2.language) = $1
         AND rm1.revision_id IN (SELECT id FROM latest_revisions)

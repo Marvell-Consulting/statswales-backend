@@ -343,6 +343,7 @@ export const createStreamingJSONFilteredView = async (
   );
 
   try {
+    await cubeDBConn.query('BEGIN');
     const coreView = await coreViewChooser(lang, revisionId);
     const selectColumns = await getColumns(revisionId, lang, viewName);
     const baseQuery = createBaseQuery(
@@ -373,8 +374,10 @@ export const createStreamingJSONFilteredView = async (
       rows = await cursor.read(CURSOR_ROW_LIMIT);
     }
     res.write(']');
+    await cubeDBConn.query('COMMIT');
     res.end();
   } catch (error) {
+    await cubeDBConn.query('ROLLBACK').catch(() => {});
     logger.error(error, 'Something went wrong trying to read from the view of the cube');
   } finally {
     cubeDBConn.release();
@@ -398,6 +401,7 @@ export const createStreamingCSVFilteredView = async (
   );
 
   try {
+    await cubeDBConn.query('BEGIN');
     const coreView = await coreViewChooser(lang, revisionId);
     const selectColumns = await getColumns(revisionId, lang, viewName);
     const baseQuery = createBaseQuery(
@@ -426,8 +430,10 @@ export const createStreamingCSVFilteredView = async (
     } else {
       res.write('\n');
     }
+    await cubeDBConn.query('COMMIT');
     res.end();
   } catch (error) {
+    await cubeDBConn.query('ROLLBACK').catch(() => {});
     logger.error(error, 'Something went wrong trying to read from the view of the cube');
   } finally {
     cubeDBConn.release();
@@ -451,6 +457,7 @@ export const createStreamingExcelFilteredView = async (
   );
 
   try {
+    await cubeDBConn.query('BEGIN');
     const coreView = await coreViewChooser(lang, revisionId);
     const selectColumns = await getColumns(revisionId, lang, viewName);
     const baseQuery = createBaseQuery(
@@ -503,7 +510,9 @@ export const createStreamingExcelFilteredView = async (
     }
     worksheet.commit();
     await workbook.commit();
+    await cubeDBConn.query('COMMIT');
   } catch (error) {
+    await cubeDBConn.query('ROLLBACK').catch(() => {});
     logger.error(error, 'Something went wrong trying to read from the view of the cube');
   } finally {
     cubeDBConn.release();
@@ -629,6 +638,7 @@ export const createStreamingPostgresPivotView = async (
   // queryRunner.query() does not support Cursor so we need to obtain underlying PostgreSQL connection
   const [cubeDBConn] = (await dbManager.getCubeDataSource().driver.obtainMasterConnection()) as [PoolClient];
   try {
+    await cubeDBConn.query('BEGIN');
     const coreView = await coreViewChooser(lang, revisionId);
     const pivotQuery = createSQLStandardPivotQuery(
       revisionId,
@@ -668,8 +678,10 @@ export const createStreamingPostgresPivotView = async (
     res.write('],');
     res.write(`"Performance" : ${JSON.stringify(performanceObject)}`);
     res.write('}');
+    await cubeDBConn.query('COMMIT');
     res.end();
   } catch (error) {
+    await cubeDBConn.query('ROLLBACK').catch(() => {});
     logger.error(error, 'Something went wrong trying to read from the view of the cube');
   } finally {
     cubeDBConn.release();
