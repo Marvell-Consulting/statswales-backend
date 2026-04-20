@@ -577,7 +577,7 @@ export const validateMeasureLookupTable = async (
         caseStatement = pgformat('CAST(%I.%I AS VARCHAR)', FACT_TABLE_NAME, dataValuesColumn.columnName);
       }
       const query = pgformat(
-        'SELECT %s AS data_value FROM %I.%I AS fact_table WHERE %I = %L',
+        'SELECT COUNT(%s) AS data_value_count FROM %I.%I AS fact_table WHERE %I = %L',
         caseStatement,
         draftRevision.id,
         FACT_TABLE_NAME,
