@@ -567,13 +567,14 @@ export const validateMeasureLookupTable = async (
   try {
     // Check for casting errors here to add support for time type data values.
     for (const row of measureTable) {
-      let caseStatement = postgresMeasureFormats()
-        .get(row.format.toLowerCase())
-        ?.method.replace('WHEN measure.reference = |REF| THEN ', '')
-        .replace('|DEC|', row.decimal ? `${row.decimal}` : '0')
-        .replace('|ZEROS|', row.decimal ? `.${'0'.repeat(row.decimal)}` : '')
-        .replace('|COL|', pgformat('%I.%I', FACT_TABLE_NAME, dataValuesColumn.columnName));
-      if (!caseStatement) {
+      let caseStatement = postgresMeasureFormats().get(row.format.toLowerCase())?.method;
+      if (caseStatement) {
+        caseStatement
+          .replace('WHEN measure.reference = |REF| THEN ', '')
+          .replace('|DEC|', row.decimal ? `${row.decimal}` : '0')
+          .replace('|ZEROS|', row.decimal ? `.${'0'.repeat(row.decimal)}` : '')
+          .replace('|COL|', pgformat('%I.%I', FACT_TABLE_NAME, dataValuesColumn.columnName));
+      } else {
         caseStatement = pgformat('CAST(%I.%I AS VARCHAR)', FACT_TABLE_NAME, dataValuesColumn.columnName);
       }
       const query = pgformat(
