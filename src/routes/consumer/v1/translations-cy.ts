@@ -56,7 +56,7 @@ const schemaTranslations: Record<string, SchemaTranslation> = {
     properties: {
       id: { description: 'Dynodydd unigryw ar gyfer y set ddata' },
       title: {
-        description: "Teitl y set ddata (yn yr iaith y gofynnwyd amdani trwy'r pennawd derbyn-iaith)"
+        description: "Teitl y set ddata (yn yr iaith y gofynnwyd amdani trwy'r pennawd Accept-Language)"
       },
       first_published_at: { description: 'Dyddiad cyhoeddi cyntaf y set ddata mewn fformat ISO 8601' },
       last_updated_at: { description: "Dyddiad y diweddariad mwyaf diweddar i'r set ddata mewn fformat ISO 8601" },
@@ -164,7 +164,7 @@ export const v1CyTranslations: TranslationMap = {
         "Rhestr o'r hyn sy'n eistedd dan bwnc penodedig – naill ai is-bynciau neu setiau data cyhoeddedig wedi'u tagio wrth y pwnc hwnnw yn uniongyrchol."
     },
     'GET /{dataset_id}': {
-      '200': "Gwrthrych json sy'n cynnwys yr holl fetadata ar gyfer set ddata gyhoeddedig"
+      '200': "Gwrthrych JSON sy'n cynnwys yr holl fetadata ar gyfer set ddata gyhoeddedig"
     },
     'GET /{dataset_id}/view': {
       '200': 'Golwg ar ffurf tudalen o set ddata gyhoeddedig, gyda chyfleoedd dewisol i ddidoli a hidlo'

@@ -126,7 +126,7 @@
         ],
         "responses": {
           "200": {
-            "description": "Gwrthrych json sy'n cynnwys yr holl fetadata ar gyfer set ddata gyhoeddedig",
+            "description": "Gwrthrych JSON sy'n cynnwys yr holl fetadata ar gyfer set ddata gyhoeddedig",
             "content": {
               "application/json": {
                 "schema": {
@@ -618,7 +618,7 @@
           },
           "title": {
             "type": "string",
-            "description": "Teitl y set ddata (yn yr iaith y gofynnwyd amdani trwy'r pennawd derbyn-iaith)"
+            "description": "Teitl y set ddata (yn yr iaith y gofynnwyd amdani trwy'r pennawd Accept-Language)"
           },
           "first_published_at": {
             "type": "string",
