@@ -38,7 +38,10 @@ jest.mock('../../../src/utils/logger', () => ({
 }));
 
 // Import after mocks
-import { factTableValidatorFromSource, sourceAssignmentFromFactTable } from '../../../src/services/fact-table-validator';
+import {
+  factTableValidatorFromSource,
+  sourceAssignmentFromFactTable
+} from '../../../src/services/fact-table-validator';
 
 // --- Helpers ---
 
