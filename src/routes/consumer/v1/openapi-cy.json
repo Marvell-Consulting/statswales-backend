@@ -2,8 +2,8 @@
   "openapi": "3.1.1",
   "info": {
     "version": "1.0.0",
-    "title": "API cyhoeddus YstadegauCymru",
-    "description": "Bydd y dudalen hon yn eich helpu i ddefnyddio'r API cyhoeddus ar gyfer YstadegauCymru. Os oes angen unrhyw gymorth arall arnoch,\n      <a href=\"mailto:StatsWales@gov.wales\">cysylltwch ag YstadegauCymru</a>."
+    "title": "API cyhoeddus StatsCymru",
+    "description": "Bydd y dudalen hon yn eich helpu i ddefnyddio'r API cyhoeddus ar gyfer StatsCymru. Os bydd angen unrhyw gymorth arall arnoch,\n      <a href=\"mailto:StatsWales@gov.wales\">cysylltwch â StatsCymru</a>."
   },
   "servers": [
     {
@@ -15,7 +15,7 @@
     "/": {
       "get": {
         "summary": "Cael rhestr o'r holl setiau data cyhoeddedig",
-        "description": "Mae'r pwynt terfyn hwn yn dychwelyd rhestr o'r holl setiau data cyhoeddedig.",
+        "description": "Mae'r pwynt terfyn hwn yn rhoi rhestr o'r holl setiau data cyhoeddedig.",
         "parameters": [
           {
             "$ref": "#/components/parameters/language"
@@ -29,7 +29,7 @@
         ],
         "responses": {
           "200": {
-            "description": "Rhestr dudalenedig o'r holl setiau data cyhoeddedig",
+            "description": "Rhestr ar ffurf tudalen o'r holl setiau data cyhoeddedig",
             "content": {
               "application/json": {
                 "schema": {
@@ -44,8 +44,8 @@
     },
     "/topic": {
       "get": {
-        "summary": "Cael rhestr o bynciau lefel uchaf",
-        "description": "Mae setiau data wedi'u tagio i bynciau. Mae pynciau lefel uchaf, megis 'Iechyd a gofal cymdeithasol', a all fod ag is-bynciau, megis 'Gwasanaethau deintyddol'. Mae'r pwynt terfyn hwn yn dychwelyd rhestr o'r holl bynciau lefel uchaf sydd ag o leiaf un set ddata gyhoeddedig wedi'i thagio iddynt.",
+        "summary": "Cael rhestr o'r holl bynciau lefel uchaf",
+        "description": "Mae setiau data wedi cael eu tagio wrth bynciau. Ceir pynciau lefel uchaf, megis 'Iechyd a gofal cymdeithasol', sy'n gallu cynnwys is-bynciau, fel 'Gwasanaethau deintyddol'. Mae'r pwynt terfyn hwn yn rhoi rhestr o'r holl bynciau lefel uchaf y mae ganddynt o leiaf un set ddata gyhoeddedig wedi'i thagio wrthynt.",
         "parameters": [
           {
             "$ref": "#/components/parameters/language"
@@ -53,7 +53,7 @@
         ],
         "responses": {
           "200": {
-            "description": "Rhestr o'r holl bynciau lefel uchaf sydd ag o leiaf un set ddata gyhoeddedig wedi'i thagio iddynt.",
+            "description": "Rhestr o'r holl bynciau lefel uchaf sydd ag o leiaf un set ddata gyhoeddedig wedi'i thagio wrthynt.",
             "content": {
               "application/json": {
                 "schema": {
@@ -73,8 +73,8 @@
     },
     "/topic/{topic_id}": {
       "get": {
-        "summary": "Cael rhestr o'r hyn sydd o dan bwnc penodol",
-        "description": "Mae setiau data wedi'u tagio i bynciau. Mae pynciau lefel uchaf, megis 'Iechyd a gofal cymdeithasol', a all fod ag is-bynciau, megis 'Gwasanaethau deintyddol'. Ar gyfer topic_id penodol, mae'r pwynt terfyn hwn yn dychwelyd rhestr o'r hyn sydd o dan y pwnc hwnnw - naill ai is-bynciau neu setiau data cyhoeddedig wedi'u tagio'n uniongyrchol i'r pwnc hwnnw.",
+        "summary": "Cael rhestr o'r hyn sy'n eistedd dan bwnc penodedig",
+        "description": "Mae setiau data wedi'u tagio wrth bynciau. Ceir pynciau lefel uchaf, megis 'Iechyd a gofal cymdeithasol', sy'n gallu cynnwys is-bynciau fel 'Gwasanaethau deintyddol'. Ar gyfer topic_id penodedig, mae'r pwynt terfyn hwn yn rhoi rhestr o'r hyn sy'n eistedd dan y pwnc hwnnw – naill ai is-bynciau neu setiau data cyhoeddedig wedi'u tagio yn uniongyrchol wrth y pwnc hwnnw.",
         "parameters": [
           {
             "$ref": "#/components/parameters/language"
@@ -94,7 +94,7 @@
         ],
         "responses": {
           "200": {
-            "description": "Rhestr o'r hyn sydd o dan bwnc penodol - naill ai is-bynciau neu setiau data cyhoeddedig wedi'u tagio'n uniongyrchol i'r pwnc hwnnw.",
+            "description": "Rhestr o'r hyn sy'n eistedd dan bwnc penodedig – naill ai is-bynciau neu setiau data cyhoeddedig wedi'u tagio wrth y pwnc hwnnw yn uniongyrchol.",
             "content": {
               "application/json": {
                 "schema": {
@@ -115,7 +115,7 @@
     "/{dataset_id}": {
       "get": {
         "summary": "Cael metadata set ddata gyhoeddedig",
-        "description": "Mae'r pwynt terfyn hwn yn dychwelyd yr holl fetadata ar gyfer set ddata gyhoeddedig.",
+        "description": "Mae'r pwynt terfyn hwn yn rhoi'r holl fetadata ar gyfer set ddata gyhoeddedig.",
         "parameters": [
           {
             "$ref": "#/components/parameters/language"
@@ -126,7 +126,7 @@
         ],
         "responses": {
           "200": {
-            "description": "Gwrthrych JSON sy'n cynnwys yr holl fetadata ar gyfer set ddata gyhoeddedig",
+            "description": "Gwrthrych json sy'n cynnwys yr holl fetadata ar gyfer set ddata gyhoeddedig",
             "content": {
               "application/json": {
                 "schema": {
@@ -145,8 +145,8 @@
     },
     "/{dataset_id}/view": {
       "get": {
-        "summary": "Cael golwg tudalenedig o set ddata gyhoeddedig",
-        "description": "Mae'r pwynt terfyn hwn yn dychwelyd golwg tudalenedig o set ddata gyhoeddedig, gyda threfnu a hidlo dewisol.",
+        "summary": "Cael golwg ar ffurf tudalen o set ddata gyhoeddedig",
+        "description": "Mae'r pwynt terfyn hwn yn rhoi golwg ar ffurf tudalen o set ddata gyhoeddedig, gyda chyfleoedd dewisol i ddidoli a hidlo.",
         "parameters": [
           {
             "$ref": "#/components/parameters/language"
@@ -169,7 +169,7 @@
         ],
         "responses": {
           "200": {
-            "description": "Golwg tudalenedig o set ddata gyhoeddedig, gyda threfnu a hidlo dewisol",
+            "description": "Golwg ar ffurf tudalen o set ddata gyhoeddedig, gyda chyfleoedd dewisol i ddidoli a hidlo",
             "content": {
               "application/json": {
                 "schema": {
@@ -184,8 +184,8 @@
     },
     "/{dataset_id}/view/filters": {
       "get": {
-        "summary": "Cael rhestr o'r hidlyddion sydd ar gael ar gyfer golwg tudalenedig o set ddata gyhoeddedig",
-        "description": "Mae'r pwynt terfyn hwn yn dychwelyd rhestr o'r hidlyddion sydd ar gael ar gyfer golwg tudalenedig o set ddata gyhoeddedig. Mae'r rhain yn seiliedig ar y newidynnau a ddefnyddir yn y set ddata, er enghraifft awdurdodau lleol neu flynyddoedd ariannol.",
+        "summary": "Cael rhestr o'r hidlwyr sydd ar gael ar gyfer golwg ar ffurf tudalen o set ddata gyhoeddedig",
+        "description": "Mae'r pwynt terfyn hwn yn rhoi rhestr o'r hidlwyr sydd ar gael ar gyfer golwg ar ffurf tudalen o set ddata gyhoeddedig. Mae'r rhain yn seiliedig ar y newidynnau a ddefnyddir yn y set ddata, er enghraifft awdurdodau lleol neu flynyddoedd ariannol.",
         "parameters": [
           {
             "$ref": "#/components/parameters/language"
@@ -196,7 +196,7 @@
         ],
         "responses": {
           "200": {
-            "description": "Rhestr o'r hidlyddion sydd ar gael ar gyfer golwg tudalenedig o set ddata gyhoeddedig",
+            "description": "Rhestr o'r hidlwyr sydd ar gael ar gyfer golwg ar ffurf tudalen o set ddata gyhoeddedig",
             "content": {
               "application/json": {
                 "schema": {
@@ -212,7 +212,7 @@
     "/{dataset_id}/download/{format}": {
       "get": {
         "summary": "Lawrlwytho set ddata gyhoeddedig fel ffeil",
-        "description": "Mae'r pwynt terfyn hwn yn dychwelyd ffeil set ddata gyhoeddedig mewn fformat penodol.",
+        "description": "Mae'r pwynt terfyn hwn yn rhoi ffeil set ddata gyhoeddedig mewn fformat penodedig.",
         "parameters": [
           {
             "$ref": "#/components/parameters/language"
@@ -235,7 +235,7 @@
         ],
         "responses": {
           "200": {
-            "description": "Ffeil set ddata gyhoeddedig mewn fformat penodol",
+            "description": "Ffeil set ddata gyhoeddedig mewn fformat penodedig",
             "content": {
               "application/octet-stream": {
                 "schema": {
@@ -256,7 +256,7 @@
       "language": {
         "name": "lang",
         "in": "query",
-        "description": "Iaith i'w defnyddio ar gyfer yr ymateb, \"cy\" neu \"cy-gb\" ar gyfer Cymraeg a \"en\" neu \"en-gb\" ar gyfer Saesneg",
+        "description": "Iaith i'w defnyddio ar gyfer yr ymateb, \"cy\" neu \"cy-gb\" ar gyfer Cymraeg ac \"en\" neu \"en-gb\" ar gyfer Saesneg",
         "required": false,
         "schema": {
           "type": "string",
@@ -272,7 +272,7 @@
       "dataset_id": {
         "name": "dataset_id",
         "in": "path",
-        "description": "Dynodwr unigryw y set ddata a ddymunir",
+        "description": "Dynodydd unigryw y set ddata a ddymunir",
         "required": true,
         "schema": {
           "type": "string",
@@ -283,7 +283,7 @@
       "topic_id": {
         "name": "topic_id",
         "in": "path",
-        "description": "Dynodwr unigryw y pwnc a ddymunir",
+        "description": "Dynodydd unigryw y pwnc a ddymunir",
         "required": true,
         "schema": {
           "type": "integer"
@@ -293,7 +293,7 @@
       "format": {
         "name": "format",
         "in": "path",
-        "description": "Fformat ffeil ar gyfer y lawrlwythiad",
+        "description": "Fformat ffeil y lawrlwythiad",
         "required": true,
         "schema": {
           "type": "string",
@@ -308,7 +308,7 @@
       "page_number": {
         "name": "page_number",
         "in": "query",
-        "description": "Rhif tudalen ar gyfer tudalennu",
+        "description": "Rhif y dudalen ar gyfer tudalennu",
         "required": false,
         "schema": {
           "type": "integer",
@@ -328,7 +328,7 @@
       "sort_by": {
         "name": "sort_by",
         "in": "query",
-        "description": "Colofnau i drefnu'r data yn ôl. Dylai'r gwerth fod yn arae JSON o wrthrychau wedi'i anfon fel llinyn wedi'i amgodio URL.",
+        "description": "Colofnau er mwyn didoli'r data. Dylai'r gwerth fod yn aráe JSON o wrthrychau a anfonir fel llinyn URL wedi'i amgodio.",
         "required": false,
         "content": {
           "application/json": {
@@ -356,7 +356,7 @@
       "filter": {
         "name": "filter",
         "in": "query",
-        "description": "Priodweddau i hidlo'r data yn ôl. Dylai'r gwerth fod yn arae JSON o wrthrychau wedi'i anfon fel llinyn wedi'i amgodio URL.",
+        "description": "Nodweddion er mwyn hidlo'r data. Dylai'r gwerth fod yn aráe JSON o wrthrychau a anfonir fel llinyn URL wedi'i amgodio.",
         "required": false,
         "schema": {
           "type": "string",
@@ -388,36 +388,36 @@
           "id": {
             "type": "string",
             "format": "uuid",
-            "description": "Dynodwr unigryw ar gyfer y diwygiad"
+            "description": "Dynodydd unigryw ar gyfer y diwygiad"
           },
           "revision_index": {
             "type": "integer",
-            "description": "Rhif fersiwn, yn dechrau o 1"
+            "description": "Rhif y fersiwn, gan gychwyn o 1"
           },
           "dataset_id": {
             "type": "string",
             "format": "uuid",
-            "description": "Dynodwr unigryw ar gyfer y set ddata y mae'r diwygiad hwn yn perthyn iddi"
+            "description": "Dynodydd unigryw ar gyfer y set ddata y mae'r diwygiad hwn yn perthyn iddi"
           },
           "previous_revision_id": {
             "type": "string",
             "format": "uuid",
-            "description": "Dynodwr unigryw ar gyfer y diwygiad blaenorol, os oes un"
+            "description": "Dynodydd unigryw ar gyfer y diwygiad blaenorol, os o gwbl"
           },
           "created_at": {
             "type": "string",
             "format": "date-time",
-            "description": "Dyddiad creu'r diwygiad ar fformat ISO 8601"
+            "description": "Dyddiad creu y diwygiad mewn fformat ISO 8601"
           },
           "updated_at": {
             "type": "string",
             "format": "date-time",
-            "description": "Dyddiad diweddaru diwethaf y diwygiad ar fformat ISO 8601"
+            "description": "Dyddiad diweddariad diwethaf y diwygiad mewn fformat ISO 8601"
           },
           "publish_at": {
             "type": "string",
             "format": "date-time",
-            "description": "Dyddiad cyhoeddi'r diwygiad ar fformat ISO 8601"
+            "description": "Dyddiad cyhoeddi y diwygiad mewn fformat ISO 8601"
           },
           "metadata": {
             "type": "array",
@@ -426,50 +426,50 @@
               "properties": {
                 "language": {
                   "type": "string",
-                  "description": "Iaith y metadata, e.e. \"en\" ar gyfer Saesneg, \"cy\" ar gyfer Cymraeg"
+                  "description": "Iaith y metadata, e.e., \"en\" ar gyfer Saesneg, \"cy\" ar gyfer Cymraeg"
                 },
                 "title": {
                   "type": "string",
-                  "description": "Teitl y diwygiad yn yr iaith a nodwyd"
+                  "description": "Teitl y diwygiad yn yr iaith benodedig"
                 },
                 "summary": {
                   "type": "string",
-                  "description": "Crynodeb o'r diwygiad yn yr iaith a nodwyd"
+                  "description": "Crynodeb o'r diwygiad yn yr iaith benodedig"
                 },
                 "collection": {
                   "type": "string",
-                  "description": "Enw'r casgliad ar gyfer y diwygiad yn yr iaith a nodwyd"
+                  "description": "Enw casglu ar gyfer y diwygiad yn yr iaith benodedig"
                 },
                 "quality": {
                   "type": "string",
-                  "description": "Gwybodaeth ansawdd ar gyfer y diwygiad yn yr iaith a nodwyd"
+                  "description": "Gwybodaeth o ansawdd ar gyfer y diwygiad yn yr iaith benodedig"
                 },
                 "rounding_description": {
                   "type": "string",
-                  "description": "Disgrifiad o'r talgrynnu a gymhwyswyd i'r data yn y diwygiad hwn"
+                  "description": "Disgrifiad o'r talgrynnu a weithredir i'r data yn y diwygiad hwn"
                 }
               }
             },
-            "description": "Arae o barau allwedd-gwerth metadata ar gyfer y diwygiad"
+            "description": "Aráe parau gwerth-allweddol metadata ar gyfer y diwygiad"
           },
           "rounding_applied": {
             "type": "boolean",
-            "description": "Yn nodi a gymhwyswyd talgrynnu i'r data yn y diwygiad hwn"
+            "description": "Mae'n dynodi a wnaethpwyd gwaith talgrynnu i'r data yn y diwygiad hwn"
           },
           "update_frequency": {
             "type": "object",
             "properties": {
               "is_updated": {
                 "type": "boolean",
-                "description": "Yn nodi a yw'r set ddata'n cael ei diweddaru'n rheolaidd"
+                "description": "Mae'n dynodi a chaiff y set ddata ei diweddaru'n rheolaidd"
               },
               "frequency_value": {
                 "type": "integer",
-                "description": "Gwerth rhifiadol amlder y diweddaru"
+                "description": "Gwerth rhifol amlder y diwygio"
               },
               "frequency_unit": {
                 "type": "string",
-                "description": "Uned amlder y diweddaru",
+                "description": "Uned amlder y diwygio",
                 "enum": [
                   "day",
                   "week",
@@ -490,7 +490,7 @@
               "properties": {
                 "id": {
                   "type": "string",
-                  "description": "Dynodwr unigryw ar gyfer y ddolen gysylltiedig"
+                  "description": "Dynodydd unigryw ar gyfer y ddolen gysylltiedig"
                 },
                 "url": {
                   "type": "string",
@@ -508,7 +508,7 @@
                 "created_at": {
                   "type": "string",
                   "format": "date-time",
-                  "description": "Dyddiad creu'r ddolen gysylltiedig ar fformat ISO 8601"
+                  "description": "Dyddiad creu y ddolen gysylltiedig mewn fformat ISO 8601"
                 }
               }
             }
@@ -527,22 +527,22 @@
           "id": {
             "type": "string",
             "format": "uuid",
-            "description": "Dynodwr unigryw ar gyfer y set ddata"
+            "description": "Dynodydd unigryw y set ddata"
           },
           "live": {
             "type": "string",
             "format": "date-time",
-            "description": "Dyddiad cyhoeddi cyntaf y set ddata ar fformat ISO 8601"
+            "description": "Dyddiad cyhoeddi cyntaf y set ddata mewn fformat ISO 8601"
           },
           "start_date": {
             "type": "string",
             "format": "date",
-            "description": "Dyddiad dechrau y set ddata ar fformat ISO 8601"
+            "description": "Dyddiad cychwyn y set ddata mewn fformat ISO 8601"
           },
           "end_date": {
             "type": "string",
             "format": "date",
-            "description": "Dyddiad diwedd y set ddata ar fformat ISO 8601"
+            "description": "Dyddiad gorffen y set ddata mewn fformat ISO 8601"
           },
           "published_revision": {
             "$ref": "#/components/schemas/Revision"
@@ -614,26 +614,26 @@
           "id": {
             "type": "string",
             "format": "uuid",
-            "description": "Dynodwr unigryw ar gyfer y set ddata"
+            "description": "Dynodydd unigryw ar gyfer y set ddata"
           },
           "title": {
             "type": "string",
-            "description": "Teitl y set ddata (yn yr iaith a ofynnwyd amdani drwy'r pennawd accept-language)"
+            "description": "Teitl y set ddata (yn yr iaith y gofynnwyd amdani trwy'r pennawd derbyn-iaith)"
           },
           "first_published_at": {
             "type": "string",
             "format": "date-time",
-            "description": "Dyddiad cyhoeddi cyntaf y set ddata ar fformat ISO 8601"
+            "description": "Dyddiad cyhoeddi cyntaf y set ddata mewn fformat ISO 8601"
           },
           "last_updated_at": {
             "type": "string",
             "format": "date-time",
-            "description": "Dyddiad y diweddariad diweddaraf i'r set ddata ar fformat ISO 8601"
+            "description": "Dyddiad y diweddariad mwyaf diweddar i'r set ddata mewn fformat ISO 8601"
           },
           "archived_at": {
             "type": "string",
             "format": "date-time",
-            "description": "Dyddiad archifio'r set ddata ar fformat ISO 8601, os yn berthnasol"
+            "description": "Dyddiad pan archifwyd y set ddata mewn fformat ISO 8601, os yw hynny'n berthnasol"
           }
         }
       },
@@ -648,7 +648,7 @@
           },
           "count": {
             "type": "integer",
-            "description": "Cyfanswm nifer y setiau data"
+            "description": "Cyfanswm y setiau data"
           }
         },
         "example": {
@@ -675,22 +675,22 @@
           },
           "current_page": {
             "type": "integer",
-            "description": "Rhif y dudalen gyfredol"
+            "description": "Rhif y dudalen bresennol"
           },
           "page_info": {
             "type": "object",
             "properties": {
               "total_records": {
                 "type": "integer",
-                "description": "Cyfanswm nifer y cofnodion yn y set ddata"
+                "description": "Cyfanswm y cofnodion yn y set ddata"
               },
               "start_record": {
                 "type": "integer",
-                "description": "Rhif y cofnod cychwynnol ar gyfer y dudalen gyfredol"
+                "description": "Rhif cofnod cychwynnol ar gyfer y dudalen bresennol"
               },
               "end_record": {
                 "type": "integer",
-                "description": "Rhif y cofnod olaf ar gyfer y dudalen gyfredol"
+                "description": "Rhif cofnod olaf ar gyfer y dudalen bresennol"
               }
             }
           },
@@ -700,7 +700,7 @@
           },
           "total_pages": {
             "type": "integer",
-            "description": "Cyfanswm nifer y tudalennau sydd ar gael"
+            "description": "Cyfanswm y tudalennau sydd ar gael"
           },
           "headers": {
             "type": "array",
@@ -709,7 +709,7 @@
               "properties": {
                 "index": {
                   "type": "integer",
-                  "description": "Mynegai'r pennawd"
+                  "description": "Mynegai y pennawd"
                 },
                 "name": {
                   "type": "string",
@@ -724,7 +724,7 @@
           },
           "data": {
             "type": "array",
-            "description": "Data tabulaidd ar gyfer y set ddata",
+            "description": "Data tablaidd ar gyfer y set ddata",
             "items": {
               "type": "array",
               "items": {
@@ -749,7 +749,7 @@
           },
           "name": {
             "type": "string",
-            "description": "Enw yn yr iaith gyfredol",
+            "description": "Enw yn yr iaith bresennol",
             "example": "Transport"
           },
           "name_en": {
@@ -779,7 +779,7 @@
           },
           "name": {
             "type": "string",
-            "description": "Enw yn yr iaith gyfredol",
+            "description": "Enw yn yr iaith bresennol",
             "example": "Air"
           },
           "name_en": {
