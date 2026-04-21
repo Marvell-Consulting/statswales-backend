@@ -1,6 +1,6 @@
 import { EntityNotFoundError } from 'typeorm';
 
-import { dbManager } from '../../src/db/database-manager';
+import { ensureWorkerDataSources, resetDatabase } from '../helpers/reset-database';
 import { Dataset } from '../../src/entities/dataset/dataset';
 import { Dimension } from '../../src/entities/dataset/dimension';
 import { DimensionMetadata } from '../../src/entities/dataset/dimension-metadata';
@@ -71,23 +71,9 @@ async function createLookupTable(): Promise<LookupTable> {
 
 describe('DimensionRepository', () => {
   beforeAll(async () => {
-    try {
-      await dbManager.initDataSources();
-      await dbManager.getAppDataSource().dropDatabase();
-      await dbManager.getAppDataSource().runMigrations();
-      await user.save();
-    } catch (err) {
-      // eslint-disable-next-line no-console
-      console.error('Failed to initialise test database', err);
-      await dbManager.getAppDataSource().dropDatabase();
-      await dbManager.destroyDataSources();
-      process.exit(1);
-    }
-  });
-
-  afterAll(async () => {
-    await dbManager.getAppDataSource().dropDatabase();
-    await dbManager.destroyDataSources();
+    await ensureWorkerDataSources();
+    await resetDatabase();
+    await user.save();
   });
 
   describe('getById', () => {

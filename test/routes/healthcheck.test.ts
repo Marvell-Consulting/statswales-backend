@@ -5,7 +5,7 @@ import { dbManager } from '../../src/db/database-manager';
 import { initPassport } from '../../src/middleware/passport-auth';
 import { SUPPORTED_LOCALES } from '../../src/middleware/translation';
 import { Locale } from '../../src/enums/locale';
-import { logger } from '../../src/utils/logger';
+import { ensureWorkerDataSources, resetDatabase } from '../helpers/reset-database';
 
 import { getTestUser } from '../helpers/get-test-user';
 import { getAuthHeader } from '../helpers/auth-header';
@@ -23,17 +23,9 @@ jest.mock('../../src/services/blob-storage', () => {
 
 describe('Healthcheck', () => {
   beforeAll(async () => {
-    try {
-      await dbManager.initDataSources();
-      await dbManager.getAppDataSource().dropDatabase();
-      await dbManager.getAppDataSource().runMigrations();
-      await initPassport(dbManager.getAppDataSource());
-    } catch (error) {
-      logger.error(error, 'Could not initialise test database');
-      await dbManager.getAppDataSource().dropDatabase();
-      await dbManager.destroyDataSources();
-      process.exit(1);
-    }
+    await ensureWorkerDataSources();
+    await resetDatabase();
+    await initPassport(dbManager.getAppDataSource());
   });
 
   describe('Server up', () => {
@@ -126,10 +118,5 @@ describe('Healthcheck', () => {
         user: UserDTO.fromUser(testUser, Locale.English)
       });
     });
-  });
-
-  afterAll(async () => {
-    await dbManager.getAppDataSource().dropDatabase();
-    await dbManager.destroyDataSources();
   });
 });

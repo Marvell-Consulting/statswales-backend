@@ -1,6 +1,6 @@
 import { EntityNotFoundError } from 'typeorm';
 
-import { dbManager } from '../../src/db/database-manager';
+import { ensureWorkerDataSources, resetDatabase } from '../helpers/reset-database';
 import { Dataset } from '../../src/entities/dataset/dataset';
 import { Revision } from '../../src/entities/dataset/revision';
 import { DataTable } from '../../src/entities/dataset/data-table';
@@ -85,40 +85,26 @@ async function createRevisionWithMetadata(
 
 describe('DatasetRepository', () => {
   beforeAll(async () => {
-    try {
-      await dbManager.initDataSources();
-      await dbManager.getAppDataSource().dropDatabase();
-      await dbManager.getAppDataSource().runMigrations();
-      await user.save();
+    await ensureWorkerDataSources();
+    await resetDatabase();
+    await user.save();
 
-      // Create a user group with metadata (required for listAll / listForUser INNER JOINs)
-      userGroup = new UserGroup();
-      userGroup.id = uuidV4();
-      await userGroup.save();
+    // Create a user group with metadata (required for listAll / listForUser INNER JOINs)
+    userGroup = new UserGroup();
+    userGroup.id = uuidV4();
+    await userGroup.save();
 
-      const ugMetaEn = new UserGroupMetadata();
-      ugMetaEn.id = userGroup.id;
-      ugMetaEn.language = Locale.EnglishGb;
-      ugMetaEn.name = 'Test Group EN';
-      await ugMetaEn.save();
+    const ugMetaEn = new UserGroupMetadata();
+    ugMetaEn.id = userGroup.id;
+    ugMetaEn.language = Locale.EnglishGb;
+    ugMetaEn.name = 'Test Group EN';
+    await ugMetaEn.save();
 
-      const ugMetaCy = new UserGroupMetadata();
-      ugMetaCy.id = userGroup.id;
-      ugMetaCy.language = Locale.WelshGb;
-      ugMetaCy.name = 'Test Group CY';
-      await ugMetaCy.save();
-    } catch (err) {
-      // eslint-disable-next-line no-console
-      console.error('Failed to initialise test database', err);
-      await dbManager.getAppDataSource().dropDatabase();
-      await dbManager.destroyDataSources();
-      process.exit(1);
-    }
-  });
-
-  afterAll(async () => {
-    await dbManager.getAppDataSource().dropDatabase();
-    await dbManager.destroyDataSources();
+    const ugMetaCy = new UserGroupMetadata();
+    ugMetaCy.id = userGroup.id;
+    ugMetaCy.language = Locale.WelshGb;
+    ugMetaCy.name = 'Test Group CY';
+    await ugMetaCy.save();
   });
 
   describe('getById', () => {

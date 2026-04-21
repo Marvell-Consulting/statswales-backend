@@ -12,11 +12,10 @@ import { UserGroup } from '../../src/entities/user/user-group';
 import { UserGroupRole } from '../../src/entities/user/user-group-role';
 import { GroupRole } from '../../src/enums/group-role';
 import { Revision } from '../../src/entities/dataset/revision';
-import { logger } from '../../src/utils/logger';
+import { ensureWorkerDataSources, resetDatabase } from '../helpers/reset-database';
 import { getTestUser, getTestUserGroup } from '../helpers/get-test-user';
 import { getAuthHeader } from '../helpers/auth-header';
 import BlobStorage from '../../src/services/blob-storage';
-import { QueryRunner } from 'typeorm';
 import { FactTableValidationExceptionType } from '../../src/enums/fact-table-validation-exception-type';
 import { DatasetRepository } from '../../src/repositories/dataset';
 
@@ -28,7 +27,6 @@ const CSV_DIR = path.resolve(__dirname, '../sample-files/csv');
 
 const user: User = getTestUser('validation-test-user');
 let userGroup = getTestUserGroup('Validation Group');
-let queryRunner: QueryRunner;
 const createdRevisions: string[] = [];
 
 // Helper to create a dataset, upload a CSV, and assign sources in one go
@@ -60,43 +58,12 @@ function minimalSourceAssignment(): SourceAssignmentDTO[] {
 
 describe('Fact table validation (integration)', () => {
   beforeAll(async () => {
-    try {
-      await dbManager.initDataSources();
-      await dbManager.getAppDataSource().dropDatabase();
-      await dbManager.getAppDataSource().runMigrations();
-      await initPassport(dbManager.getAppDataSource());
-      queryRunner = dbManager.getAppDataSource().createQueryRunner();
-      await queryRunner.dropSchema('data_tables', true, true);
-      await queryRunner.dropSchema('lookup_tables', true, true);
-      await queryRunner.createSchema('data_tables', true);
-      await queryRunner.createSchema('lookup_tables', true);
-      userGroup = (await dbManager.getAppDataSource().getRepository(UserGroup).save(userGroup)) as UserGroup;
-      user.groupRoles = [UserGroupRole.create({ group: userGroup as UserGroup, roles: [GroupRole.Editor] })];
-      await user.save();
-    } catch (error) {
-      logger.error(error, 'Could not initialise test database for validation tests');
-      await dbManager.getAppDataSource().dropDatabase();
-      await dbManager.destroyDataSources();
-      process.exit(1);
-    } finally {
-      await queryRunner.release();
-    }
-  });
-
-  afterAll(async () => {
-    const qr = dbManager.getAppDataSource().createQueryRunner();
-    await qr.dropSchema('data_tables', true, true);
-    await qr.dropSchema('lookup_tables', true, true);
-    for (const revId of createdRevisions) {
-      try {
-        await qr.dropSchema(revId, true, true);
-      } catch (_) {
-        /* empty */
-      }
-    }
-    await qr.release();
-    await dbManager.getAppDataSource().dropDatabase();
-    await dbManager.destroyDataSources();
+    await ensureWorkerDataSources();
+    await resetDatabase();
+    await initPassport(dbManager.getAppDataSource());
+    userGroup = (await dbManager.getAppDataSource().getRepository(UserGroup).save(userGroup)) as UserGroup;
+    user.groupRoles = [UserGroupRole.create({ group: userGroup as UserGroup, roles: [GroupRole.Editor] })];
+    await user.save();
   });
 
   describe('First revision - valid data', () => {

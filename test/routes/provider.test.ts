@@ -3,6 +3,7 @@ import request from 'supertest';
 import app from '../../src/app';
 import { dbManager } from '../../src/db/database-manager';
 import { initPassport } from '../../src/middleware/passport-auth';
+import { ensureWorkerDataSources, resetDatabase } from '../helpers/reset-database';
 import { User } from '../../src/entities/user/user';
 import { Provider } from '../../src/entities/dataset/provider';
 import { ProviderSource } from '../../src/entities/dataset/provider-source';
@@ -50,19 +51,12 @@ const sources: Partial<ProviderSource>[] = [
 
 describe('Providers', () => {
   beforeAll(async () => {
-    try {
-      await dbManager.initDataSources();
-      await dbManager.getAppDataSource().dropDatabase();
-      await dbManager.getAppDataSource().runMigrations();
-      await initPassport(dbManager.getAppDataSource());
-      await user.save();
-      await dbManager.getAppDataSource().manager.save(Provider, providers);
-      await dbManager.getAppDataSource().manager.save(ProviderSource, sources);
-    } catch (_err) {
-      await dbManager.getAppDataSource().dropDatabase();
-      await dbManager.destroyDataSources();
-      process.exit(1);
-    }
+    await ensureWorkerDataSources();
+    await resetDatabase();
+    await initPassport(dbManager.getAppDataSource());
+    await user.save();
+    await dbManager.getAppDataSource().manager.save(Provider, providers);
+    await dbManager.getAppDataSource().manager.save(ProviderSource, sources);
   });
 
   test('Get all providers', async () => {
@@ -80,10 +74,5 @@ describe('Providers', () => {
 
     expect(res.status).toBe(200);
     expect(res.body).toEqual(expected);
-  });
-
-  afterAll(async () => {
-    await dbManager.getAppDataSource().dropDatabase();
-    await dbManager.destroyDataSources();
   });
 });

@@ -1,6 +1,6 @@
 import { EntityNotFoundError } from 'typeorm';
 
-import { dbManager } from '../../src/db/database-manager';
+import { ensureWorkerDataSources, resetDatabase } from '../helpers/reset-database';
 import { Dataset } from '../../src/entities/dataset/dataset';
 import { Revision } from '../../src/entities/dataset/revision';
 import { RevisionMetadata } from '../../src/entities/dataset/revision-metadata';
@@ -79,23 +79,9 @@ async function createRevisionWithMetadata(
 
 describe('PublishedDatasetRepository', () => {
   beforeAll(async () => {
-    try {
-      await dbManager.initDataSources();
-      await dbManager.getAppDataSource().dropDatabase();
-      await dbManager.getAppDataSource().runMigrations();
-      await user.save();
-    } catch (err) {
-      // eslint-disable-next-line no-console
-      console.error('Failed to initialise test database', err);
-      await dbManager.getAppDataSource().dropDatabase();
-      await dbManager.destroyDataSources();
-      process.exit(1);
-    }
-  });
-
-  afterAll(async () => {
-    await dbManager.getAppDataSource().dropDatabase();
-    await dbManager.destroyDataSources();
+    await ensureWorkerDataSources();
+    await resetDatabase();
+    await user.save();
   });
 
   describe('getById', () => {

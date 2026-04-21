@@ -1,36 +1,72 @@
 import type { Config } from 'jest';
 import { createJsWithTsPreset } from 'ts-jest';
 
-const config: Config = {
-  ...createJsWithTsPreset({ tsconfig: 'tsconfig.spec.json' }),
-  // openid-client and it's deps are now published as ESM and need transpiling to CJS
+// A test file belongs to the `integration` project iff it touches a real DB
+// (dbManager / cubeDataSource). All others belong to `unit`.
+const INTEGRATION_TEST_MATCH = [
+  '<rootDir>/test/routes/**/*.test.ts',
+  '<rootDir>/test/repositories/**/*.test.ts',
+  '<rootDir>/test/services/cube-handler.test.ts',
+  '<rootDir>/test/services/duckdb.test.ts'
+];
+
+const sharedPreset = createJsWithTsPreset({ tsconfig: 'tsconfig.spec.json' });
+
+const sharedConfig = {
+  ...sharedPreset,
+  // openid-client and its deps are now published as ESM and need transpiling to CJS
   transformIgnorePatterns: ['/node_modules/(?!(openid-client|oauth4webapi|jose|nanoid)/)'],
-  verbose: true,
-  reporters: ['default', ['jest-junit', { outputDirectory: 'coverage/test-report', outputName: 'junit-report.xml' }]],
-  testEnvironment: 'node',
-  coverageDirectory: './coverage',
-  collectCoverage: true,
-  coverageReporters: ['cobertura', 'lcov', 'html', 'text'],
-  // add threshold to ensure we don't drop below the current level of coverage
-  coverageThreshold: {
-    global: {
-      statements: 61,
-      branches: 49,
-      functions: 57,
-      lines: 61,
-    },
-  },
+  testEnvironment: 'node' as const,
   coveragePathIgnorePatterns: [
     '/node_modules',
     '/test/',
     '/src/migrations',
     '/src/controllers/auth.ts',
     'src/middleware/passport-auth.ts'
-  ],
-  setupFiles: ['<rootDir>/test/helpers/jest-setup.ts'],
-  maxWorkers: 1, // TODO: temporary solution to test parallelism issue
-  roots: ['<rootDir>/test'],
-  testMatch: ['**/*.test.ts'],
+  ]
+};
+
+const config: Config = {
+  verbose: true,
+  reporters: ['default', ['jest-junit', { outputDirectory: 'coverage/test-report', outputName: 'junit-report.xml' }]],
+  coverageDirectory: './coverage',
+  collectCoverage: true,
+  coverageReporters: ['cobertura', 'lcov', 'html', 'text'],
+  coverageThreshold: {
+    global: {
+      statements: 61,
+      branches: 49,
+      functions: 57,
+      lines: 61
+    }
+  },
+  projects: [
+    {
+      ...sharedConfig,
+      displayName: 'unit',
+      setupFiles: ['<rootDir>/test/helpers/jest-setup.ts'],
+      roots: ['<rootDir>/test'],
+      testMatch: ['<rootDir>/test/**/*.test.ts'],
+      // Regex patterns against absolute paths — exclude the integration dirs/files
+      testPathIgnorePatterns: [
+        '/test/routes/',
+        '/test/repositories/',
+        '/test/services/cube-handler\\.test\\.ts',
+        '/test/services/duckdb\\.test\\.ts'
+      ]
+    },
+    {
+      ...sharedConfig,
+      displayName: 'integration',
+      globalSetup: '<rootDir>/test/helpers/global-setup.ts',
+      globalTeardown: '<rootDir>/test/helpers/global-teardown.ts',
+      // worker-db-env.ts must come first so TEST_DB_DATABASE is set before any app module imports
+      setupFiles: ['<rootDir>/test/helpers/worker-db-env.ts', '<rootDir>/test/helpers/jest-setup.ts'],
+      roots: ['<rootDir>/test'],
+      testMatch: INTEGRATION_TEST_MATCH,
+      maxWorkers: '50%'
+    }
+  ]
 };
 
 export default config;

@@ -1,7 +1,6 @@
 import request from 'supertest';
 // eslint-disable-next-line import/no-unresolved
 import { parse } from 'csv-parse/sync';
-import { QueryRunner } from 'typeorm';
 import { format as pgformat } from '@scaleleap/pg-format';
 
 import app from '../../src/app';
@@ -19,7 +18,7 @@ import { FactTableColumn } from '../../src/entities/dataset/fact-table-column';
 import { FactTableColumnType } from '../../src/enums/fact-table-column-type';
 import { DataTableAction } from '../../src/enums/data-table-action';
 import { FileType } from '../../src/enums/file-type';
-import { logger } from '../../src/utils/logger';
+import { ensureWorkerDataSources, resetDatabase } from '../helpers/reset-database';
 import { getTestUser, getTestUserGroup } from '../helpers/get-test-user';
 import { cubeDataSource } from '../../src/db/cube-source';
 import { createAllCubeFiles } from '../../src/services/cube-builder';
@@ -40,7 +39,6 @@ const dataTableId = 'd67ee3c4-a63b-4aad-98a0-b0e0ee541bc3';
 
 const user: User = getTestUser();
 let userGroup = getTestUserGroup('Download Test Group');
-let queryRunner: QueryRunner;
 
 /**
  * Creates a large test dataset with TOTAL_ROWS rows in the cube database,
@@ -139,32 +137,13 @@ async function createLargePublishedDataset(): Promise<void> {
 
 describe('Consumer V2 download format page_size tests', () => {
   beforeAll(async () => {
-    try {
-      await dbManager.initDataSources();
-      await dbManager.getAppDataSource().dropDatabase();
-      await dbManager.getAppDataSource().runMigrations();
-      await initPassport(dbManager.getAppDataSource());
-
-      queryRunner = dbManager.getAppDataSource().createQueryRunner();
-      await queryRunner.dropSchema('data_tables', true, true);
-      await queryRunner.dropSchema('lookup_tables', true, true);
-      await queryRunner.dropSchema(revisionId, true, true);
-      await queryRunner.createSchema('data_tables', true);
-      await queryRunner.createSchema('lookup_tables', true);
-
-      userGroup = await dbManager.getAppDataSource().getRepository(UserGroup).save(userGroup);
-      user.groupRoles = [UserGroupRole.create({ group: userGroup, roles: [GroupRole.Editor] })];
-      await user.save();
-
-      await createLargePublishedDataset();
-    } catch (error) {
-      logger.error(error, 'Could not initialise test database for download tests');
-      await dbManager.getAppDataSource().dropDatabase();
-      await dbManager.destroyDataSources();
-      process.exit(1);
-    } finally {
-      await queryRunner.release();
-    }
+    await ensureWorkerDataSources();
+    await resetDatabase();
+    await initPassport(dbManager.getAppDataSource());
+    userGroup = await dbManager.getAppDataSource().getRepository(UserGroup).save(userGroup);
+    user.groupRoles = [UserGroupRole.create({ group: userGroup, roles: [GroupRole.Editor] })];
+    await user.save();
+    await createLargePublishedDataset();
   }, 60_000);
 
   describe('download formats return all rows without page_size cap', () => {
@@ -256,14 +235,5 @@ describe('Consumer V2 download format page_size tests', () => {
       expect(res.status).toBe(200);
       expect(res.body.page_info.page_size).toBe(MAX_PAGE_SIZE);
     });
-  });
-
-  afterAll(async () => {
-    queryRunner = dbManager.getAppDataSource().createQueryRunner();
-    await queryRunner.dropSchema('data_tables', true, true);
-    await queryRunner.dropSchema(revisionId, true, true);
-    await queryRunner.release();
-    await dbManager.getAppDataSource().dropDatabase();
-    await dbManager.destroyDataSources();
   });
 });

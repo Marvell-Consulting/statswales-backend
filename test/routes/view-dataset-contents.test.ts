@@ -4,7 +4,7 @@ import app from '../../src/app';
 import { dbManager } from '../../src/db/database-manager';
 import { initPassport } from '../../src/middleware/passport-auth';
 import { User } from '../../src/entities/user/user';
-import { logger } from '../../src/utils/logger';
+import { ensureWorkerDataSources, resetDatabase } from '../helpers/reset-database';
 import { DatasetRepository } from '../../src/repositories/dataset';
 
 import { createFullDataset } from '../helpers/test-helper';
@@ -14,7 +14,6 @@ import BlobStorage from '../../src/services/blob-storage';
 import { UserGroup } from '../../src/entities/user/user-group';
 import { UserGroupRole } from '../../src/entities/user/user-group-role';
 import { GroupRole } from '../../src/enums/group-role';
-import { QueryRunner } from 'typeorm';
 
 jest.mock('../../src/services/blob-storage');
 
@@ -29,33 +28,15 @@ const revision1Id = '85f0e416-8bd1-4946-9e2c-1c958897c6ef';
 const import1Id = 'fa07be9d-3495-432d-8c1f-d0fc6daae359';
 const user: User = getTestUser();
 let userGroup = getTestUserGroup('Test Group');
-let queryRunner: QueryRunner;
-
 describe('API Endpoints for viewing the contents of a dataset', () => {
   beforeAll(async () => {
-    try {
-      await dbManager.initDataSources();
-      await dbManager.getAppDataSource().dropDatabase();
-      await dbManager.getAppDataSource().runMigrations();
-      await initPassport(dbManager.getAppDataSource());
-      queryRunner = dbManager.getAppDataSource().createQueryRunner();
-      await queryRunner.dropSchema('data_tables', true, true);
-      await queryRunner.dropSchema('lookup_tables', true, true);
-      await queryRunner.dropSchema(revision1Id, true, true);
-      await queryRunner.createSchema('data_tables', true);
-      await queryRunner.createSchema('lookup_tables', true);
-      userGroup = await dbManager.getAppDataSource().getRepository(UserGroup).save(userGroup);
-      user.groupRoles = [UserGroupRole.create({ group: userGroup, roles: [GroupRole.Editor] })];
-      await user.save();
-      await createFullDataset(dataset1Id, revision1Id, import1Id, user);
-    } catch (error) {
-      logger.error(error, 'Could not initialise test database');
-      await dbManager.getAppDataSource().dropDatabase();
-      await dbManager.destroyDataSources();
-      process.exit(1);
-    } finally {
-      await queryRunner.release();
-    }
+    await ensureWorkerDataSources();
+    await resetDatabase();
+    await initPassport(dbManager.getAppDataSource());
+    userGroup = await dbManager.getAppDataSource().getRepository(UserGroup).save(userGroup);
+    user.groupRoles = [UserGroupRole.create({ group: userGroup, roles: [GroupRole.Editor] })];
+    await user.save();
+    await createFullDataset(dataset1Id, revision1Id, import1Id, user);
   });
 
   test('Get a view of cube returns the dataset', async () => {
@@ -97,14 +78,5 @@ describe('API Endpoints for viewing the contents of a dataset', () => {
     const res = await request(app).get(`/dataset/NOT-VALID-ID`).set(getAuthHeader(user));
     expect(res.status).toBe(404);
     expect(res.body).toEqual({ error: 'Dataset id is invalid or missing' });
-  });
-
-  afterAll(async () => {
-    queryRunner = dbManager.getAppDataSource().createQueryRunner();
-    await queryRunner.dropSchema('data_tables', true, true);
-    await queryRunner.dropSchema(revision1Id, true, true);
-    await queryRunner.release();
-    await dbManager.getAppDataSource().dropDatabase();
-    await dbManager.destroyDataSources();
   });
 });

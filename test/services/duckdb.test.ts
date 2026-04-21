@@ -1,7 +1,7 @@
 import path from 'node:path';
 
 import BlobStorage from '../../src/services/blob-storage';
-import { dbManager } from '../../src/db/database-manager';
+import { ensureWorkerDataSources, resetDatabase } from '../helpers/reset-database';
 import { DataTable } from '../../src/entities/dataset/data-table';
 import { FileType } from '../../src/enums/file-type';
 import { validateFileAndExtractTableInfo } from '../../src/services/incoming-file-processor';
@@ -16,37 +16,8 @@ BlobStorage.prototype.saveBuffer = jest.fn();
 
 describe('DuckDB concurrency integration', () => {
   beforeAll(async () => {
-    try {
-      await dbManager.initDataSources();
-      await dbManager.getAppDataSource().dropDatabase();
-      await dbManager.getAppDataSource().runMigrations();
-      const queryRunner = dbManager.getAppDataSource().createQueryRunner();
-      try {
-        await queryRunner.createSchema('data_tables', true);
-      } finally {
-        await queryRunner.release();
-      }
-    } catch (error) {
-      logger.error(error, 'Could not initialise test database');
-      await dbManager.getAppDataSource().dropDatabase();
-      await dbManager.destroyDataSources();
-      process.exit(1);
-    }
-  });
-
-  afterAll(async () => {
-    try {
-      const queryRunner = dbManager.getAppDataSource().createQueryRunner();
-      try {
-        await queryRunner.dropSchema('data_tables', true, true);
-      } finally {
-        await queryRunner.release();
-      }
-      await dbManager.getAppDataSource().dropDatabase();
-      await dbManager.destroyDataSources();
-    } catch (error) {
-      logger.error(error, 'Error during test teardown');
-    }
+    await ensureWorkerDataSources();
+    await resetDatabase();
   });
 
   test('20 concurrent imports succeed without OOM', async () => {

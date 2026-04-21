@@ -3,7 +3,7 @@ import request from 'supertest';
 import app from '../../src/app';
 import { dbManager } from '../../src/db/database-manager';
 import { initPassport } from '../../src/middleware/passport-auth';
-import { logger } from '../../src/utils/logger';
+import { ensureWorkerDataSources, resetDatabase } from '../helpers/reset-database';
 
 import { getTestUser } from '../helpers/get-test-user';
 import { getAuthHeader } from '../helpers/auth-header';
@@ -20,17 +20,9 @@ jest.mock('../../src/services/blob-storage', () => {
 
 describe('Request timeout integration', () => {
   beforeAll(async () => {
-    try {
-      await dbManager.initDataSources();
-      await dbManager.getAppDataSource().dropDatabase();
-      await dbManager.getAppDataSource().runMigrations();
-      await initPassport(dbManager.getAppDataSource());
-    } catch (error) {
-      logger.error(error, 'Could not initialise test database');
-      await dbManager.getAppDataSource().dropDatabase();
-      await dbManager.destroyDataSources();
-      process.exit(1);
-    }
+    await ensureWorkerDataSources();
+    await resetDatabase();
+    await initPassport(dbManager.getAppDataSource());
   });
 
   describe('routes with default timeout', () => {
@@ -80,10 +72,5 @@ describe('Request timeout integration', () => {
       const res = await request(app).get('/v2/00000000-0000-0000-0000-000000000000/pivot/some-filter-id');
       expect(res.status).not.toBe(504);
     });
-  });
-
-  afterAll(async () => {
-    await dbManager.getAppDataSource().dropDatabase();
-    await dbManager.destroyDataSources();
   });
 });

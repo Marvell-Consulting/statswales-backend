@@ -3,6 +3,7 @@ import request from 'supertest';
 import app from '../../src/app';
 import { dbManager } from '../../src/db/database-manager';
 import { initPassport } from '../../src/middleware/passport-auth';
+import { ensureWorkerDataSources, resetDatabase } from '../helpers/reset-database';
 import { User } from '../../src/entities/user/user';
 import { Topic } from '../../src/entities/dataset/topic';
 import { TopicDTO } from '../../src/dtos/topic-dto';
@@ -37,18 +38,11 @@ const topics: Partial<Topic>[] = [
 
 describe('Topics', () => {
   beforeAll(async () => {
-    try {
-      await dbManager.initDataSources();
-      await dbManager.getAppDataSource().dropDatabase();
-      await dbManager.getAppDataSource().runMigrations();
-      await initPassport(dbManager.getAppDataSource());
-      await user.save();
-      await dbManager.getAppDataSource().manager.save(Topic, topics);
-    } catch (_err) {
-      await dbManager.getAppDataSource().dropDatabase();
-      await dbManager.destroyDataSources();
-      process.exit(1);
-    }
+    await ensureWorkerDataSources();
+    await resetDatabase();
+    await initPassport(dbManager.getAppDataSource());
+    await user.save();
+    await dbManager.getAppDataSource().manager.save(Topic, topics);
   });
 
   test('Get all Topics', async () => {
@@ -57,10 +51,5 @@ describe('Topics', () => {
 
     expect(res.status).toBe(200);
     expect(res.body).toEqual(expected);
-  });
-
-  afterAll(async () => {
-    await dbManager.getAppDataSource().dropDatabase();
-    await dbManager.destroyDataSources();
   });
 });

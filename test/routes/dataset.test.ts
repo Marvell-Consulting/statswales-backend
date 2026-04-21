@@ -18,7 +18,7 @@ import { DatasetRepository } from '../../src/repositories/dataset';
 import { DataTableRepository } from '../../src/repositories/data-table';
 import { DataTableDto } from '../../src/dtos/data-table-dto';
 import { Locale } from '../../src/enums/locale';
-import { logger } from '../../src/utils/logger';
+import { ensureWorkerDataSources, resetDatabase } from '../helpers/reset-database';
 import { withMetadataAndProviders } from '../../src/repositories/revision';
 
 import { createFullDataset } from '../helpers/test-helper';
@@ -28,7 +28,6 @@ import BlobStorage from '../../src/services/blob-storage';
 import { UserGroup } from '../../src/entities/user/user-group';
 import { UserGroupRole } from '../../src/entities/user/user-group-role';
 import { GroupRole } from '../../src/enums/group-role';
-import { QueryRunner } from 'typeorm';
 
 jest.mock('../../src/services/blob-storage');
 
@@ -37,31 +36,15 @@ const revision1Id = '85f0e416-8bd1-4946-9e2c-1c958897c6ef';
 const dataTableId = 'fa07be9d-3495-432d-8c1f-d0fc6daae359';
 const user: User = getTestUser('test user');
 let userGroup = getTestUserGroup('Test Group');
-let queryRunner: QueryRunner;
-
 describe('API Endpoints for viewing dataset objects', () => {
   beforeAll(async () => {
-    try {
-      await dbManager.initDataSources();
-      await dbManager.getAppDataSource().dropDatabase();
-      await dbManager.getAppDataSource().runMigrations();
-      queryRunner = dbManager.getAppDataSource().createQueryRunner();
-      await queryRunner.dropSchema('data_tables', true, true);
-      await queryRunner.dropSchema(revision1Id, true, true);
-      await queryRunner.createSchema('data_tables', true);
-      await initPassport(dbManager.getAppDataSource());
-      userGroup = await dbManager.getAppDataSource().getRepository(UserGroup).save(userGroup);
-      user.groupRoles = [UserGroupRole.create({ group: userGroup, roles: [GroupRole.Editor] })];
-      await user.save();
-      await createFullDataset(dataset1Id, revision1Id, dataTableId, user);
-    } catch (error) {
-      logger.error(error, 'Could not initialise test database');
-      await dbManager.getAppDataSource().dropDatabase();
-      await dbManager.destroyDataSources();
-      process.exit(1);
-    } finally {
-      await queryRunner.release();
-    }
+    await ensureWorkerDataSources();
+    await resetDatabase();
+    await initPassport(dbManager.getAppDataSource());
+    userGroup = await dbManager.getAppDataSource().getRepository(UserGroup).save(userGroup);
+    user.groupRoles = [UserGroupRole.create({ group: userGroup, roles: [GroupRole.Editor] })];
+    await user.save();
+    await createFullDataset(dataset1Id, revision1Id, dataTableId, user);
   });
 
   test('Check fixtures loaded successfully', async () => {
@@ -284,10 +267,5 @@ describe('API Endpoints for viewing dataset objects', () => {
         });
       });
     });
-  });
-
-  afterAll(async () => {
-    await dbManager.getAppDataSource().dropDatabase();
-    await dbManager.destroyDataSources();
   });
 });

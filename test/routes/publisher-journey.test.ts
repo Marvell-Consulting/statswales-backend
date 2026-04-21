@@ -19,7 +19,7 @@ import { Locale } from '../../src/enums/locale';
 import { DatasetRepository, withDraftAndMetadata } from '../../src/repositories/dataset';
 import { DataTable } from '../../src/entities/dataset/data-table';
 import { DatasetService } from '../../src/services/dataset';
-import { logger } from '../../src/utils/logger';
+import { ensureWorkerDataSources, resetDatabase } from '../helpers/reset-database';
 import { RevisionRepository } from '../../src/repositories/revision';
 import { RevisionMetadataDTO } from '../../src/dtos/revision-metadata-dto';
 import { uuidV4 } from '../../src/utils/uuid';
@@ -30,7 +30,6 @@ import BlobStorage from '../../src/services/blob-storage';
 import { UserGroup } from '../../src/entities/user/user-group';
 import { GroupRole } from '../../src/enums/group-role';
 import { UserGroupRole } from '../../src/entities/user/user-group-role';
-import { QueryRunner } from 'typeorm';
 import { getFileService } from '../../src/utils/get-file-service';
 import { MAX_PAGE_SIZE, MIN_PAGE_SIZE } from '../../src/utils/page-defaults';
 
@@ -50,36 +49,19 @@ const user: User = getTestUser('test user');
 let userGroup = getTestUserGroup('Test Group');
 
 let datasetService: DatasetService;
-let queryRunner: QueryRunner;
 
 describe('API Endpoints', () => {
   beforeAll(async () => {
-    try {
-      await dbManager.initDataSources();
-      await dbManager.getAppDataSource().dropDatabase();
-      await dbManager.getAppDataSource().runMigrations();
-      await initPassport(dbManager.getAppDataSource());
-      queryRunner = dbManager.getAppDataSource().createQueryRunner();
-      await queryRunner.dropSchema('data_tables', true, true);
-      await queryRunner.dropSchema('lookup_tables', true, true);
-      await queryRunner.dropSchema(revision1Id, true, true);
-      await queryRunner.createSchema('data_tables', true);
-      await queryRunner.createSchema('lookup_tables', true);
-      userGroup = await dbManager.getAppDataSource().getRepository(UserGroup).save(userGroup);
-      user.groupRoles = [UserGroupRole.create({ group: userGroup, roles: [GroupRole.Editor] })];
-      await user.save();
-      await createFullDataset(dataset1Id, revision1Id, import1Id, user);
-      createdRevisions.push(revision1Id);
-      const fileService = getFileService();
-      datasetService = new DatasetService(Locale.EnglishGb, fileService);
-    } catch (error) {
-      logger.error(error, 'Could not initialise test database');
-      await dbManager.getAppDataSource().dropDatabase();
-      await dbManager.destroyDataSources();
-      process.exit(1);
-    } finally {
-      await queryRunner.release();
-    }
+    await ensureWorkerDataSources();
+    await resetDatabase();
+    await initPassport(dbManager.getAppDataSource());
+    userGroup = await dbManager.getAppDataSource().getRepository(UserGroup).save(userGroup);
+    user.groupRoles = [UserGroupRole.create({ group: userGroup, roles: [GroupRole.Editor] })];
+    await user.save();
+    await createFullDataset(dataset1Id, revision1Id, import1Id, user);
+    createdRevisions.push(revision1Id);
+    const fileService = getFileService();
+    datasetService = new DatasetService(Locale.EnglishGb, fileService);
   });
 
   test('Successful test initialisation', async () => {
@@ -804,21 +786,5 @@ describe('API Endpoints', () => {
         expect(res.status).toBe(201);
       });
     });
-  });
-
-  afterAll(async () => {
-    const queryRunner = dbManager.getAppDataSource().createQueryRunner();
-    await queryRunner.dropSchema('data_tables', true, true);
-    await queryRunner.dropSchema('lookup_tables', true, true);
-    for (const revID of createdRevisions) {
-      try {
-        await queryRunner.dropSchema(revID, true, true);
-      } catch (_) {
-        /* empty */
-      }
-    }
-    await queryRunner.release();
-    await dbManager.getAppDataSource().dropDatabase();
-    await dbManager.destroyDataSources();
   });
 });

@@ -3,7 +3,7 @@ import request from 'supertest';
 import app from '../../src/app';
 import { dbManager } from '../../src/db/database-manager';
 import { initPassport } from '../../src/middleware/passport-auth';
-import { logger } from '../../src/utils/logger';
+import { ensureWorkerDataSources, resetDatabase } from '../helpers/reset-database';
 import { config } from '../../src/config';
 
 // Need to mock blob storage as it is included in services middleware for every route
@@ -20,17 +20,9 @@ jest.mock('../../src/services/blob-storage', () => {
 
 describe('Healthcheck', () => {
   beforeAll(async () => {
-    try {
-      await dbManager.initDataSources();
-      await dbManager.getAppDataSource().dropDatabase();
-      await dbManager.getAppDataSource().runMigrations();
-      await initPassport(dbManager.getAppDataSource());
-    } catch (error) {
-      logger.error(error, 'Could not initialise test database');
-      await dbManager.getAppDataSource().dropDatabase();
-      await dbManager.destroyDataSources();
-      process.exit(1);
-    }
+    await ensureWorkerDataSources();
+    await resetDatabase();
+    await initPassport(dbManager.getAppDataSource());
   });
 
   test('/auth/providers returns a list of enabled providers', async () => {
@@ -38,10 +30,5 @@ describe('Healthcheck', () => {
     const res = await request(app).get('/auth/providers');
     expect(res.status).toBe(200);
     expect(res.body).toEqual({ enabled: expectedProviders });
-  });
-
-  afterAll(async () => {
-    await dbManager.getAppDataSource().dropDatabase();
-    await dbManager.destroyDataSources();
   });
 });
