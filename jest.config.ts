@@ -4,10 +4,7 @@ import { createJsWithTsPreset } from 'ts-jest';
 // A test file belongs to the `integration` project iff it touches a real DB
 // (dbManager / cubeDataSource). All others belong to `unit`.
 const INTEGRATION_TEST_MATCH = [
-  '<rootDir>/test/routes/**/*.test.ts',
-  '<rootDir>/test/repositories/**/*.test.ts',
-  '<rootDir>/test/services/cube-handler.test.ts',
-  '<rootDir>/test/services/duckdb.test.ts'
+  '<rootDir>/test/integration/**/*.test.ts'
 ];
 
 const sharedPreset = createJsWithTsPreset({ tsconfig: 'tsconfig.spec.json' });
@@ -46,14 +43,7 @@ const config: Config = {
       displayName: 'unit',
       setupFiles: ['<rootDir>/test/helpers/jest-setup.ts'],
       roots: ['<rootDir>/test'],
-      testMatch: ['<rootDir>/test/**/*.test.ts'],
-      // Regex patterns against absolute paths — exclude the integration dirs/files
-      testPathIgnorePatterns: [
-        '/test/routes/',
-        '/test/repositories/',
-        '/test/services/cube-handler\\.test\\.ts',
-        '/test/services/duckdb\\.test\\.ts'
-      ]
+      testMatch: ['<rootDir>/test/unit/**/*.test.ts']
     },
     {
       ...sharedConfig,
