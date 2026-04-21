@@ -3,9 +3,7 @@ import { dbManager } from '../../src/db/database-manager';
 // Registered at import time (synchronous, before any test runs) so jest-circus allows it.
 // Each test file gets its own module instance, so each file gets its own afterAll registration.
 afterAll(async () => {
-  if (dbManager.getAppDataSource().isInitialized) {
-    await dbManager.destroyDataSources();
-  }
+  await dbManager.destroyDataSources();
 });
 
 /**

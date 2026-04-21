@@ -18,7 +18,7 @@ jest.mock('../../../src/services/blob-storage', () => {
   };
 });
 
-describe('Healthcheck', () => {
+describe('Auth routes', () => {
   beforeAll(async () => {
     await ensureWorkerDataSources();
     await resetDatabase();
