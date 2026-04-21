@@ -350,10 +350,6 @@ export const PublishedDatasetRepository = dataSource.getRepository(Dataset).exte
     const lang = locale.includes('en') ? Locale.EnglishGb : Locale.WelshGb;
     const offset = page && limit ? (page - 1) * limit : undefined;
     const baseQuery = getBaseSearchQuery(lang);
-    const similarityThreshold = 0.7;
-
-    await this.query(`SET pg_trgm.similarity_threshold = ${similarityThreshold}`);
-
     if (locale.includes('en') && !forceSimple) {
       baseQuery.andWhere(`pr.fts @@ websearch_to_tsquery('english', :keywords)`);
     } else {

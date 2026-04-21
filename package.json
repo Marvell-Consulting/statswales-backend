@@ -17,7 +17,7 @@
     "test": "jest --coverage",
     "test:ci": "jest --ci --coverage --config=jest.config.ts --maxWorkers=2",
     "check": "npm-run-all prettier:fix lint:fix test clean build",
-    "predev": "docker-compose up -d blobstorage db-dev valkey clamav",
+    "predev": "docker-compose up -d blobstorage db-dev pgbouncer valkey clamav",
     "dev:check": "npm-run-all check dev",
     "dev": "ts-node-dev --respawn --transpile-only src/server.ts | pino-colada",
     "start": "node dist/server.js",
