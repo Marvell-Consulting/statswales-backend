@@ -36,7 +36,8 @@ export class DatabaseManager {
   }
 
   async destroyDataSources(): Promise<void> {
-    await Promise.all([this.appDataSource.destroy(), this.cubeDataSource.destroy()]);
+    const sources = [this.appDataSource, this.cubeDataSource].filter((ds) => ds.isInitialized);
+    await Promise.all(sources.map((ds) => ds.destroy()));
     this.logger.info('Datasources destroyed');
   }
 

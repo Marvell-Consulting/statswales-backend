@@ -15,7 +15,7 @@
     "build": "tsc && npm run copy-assets && npm run docs:generate",
     "pretest": "docker-compose up -d db-test",
     "test": "jest --coverage",
-    "test:ci": "jest --ci --coverage --config=jest.config.ts",
+    "test:ci": "jest --ci --coverage --config=jest.config.ts --maxWorkers=2",
     "check": "npm-run-all prettier:fix lint:fix test clean build",
     "predev": "docker-compose up -d blobstorage db-dev valkey clamav",
     "dev:check": "npm-run-all check dev",
