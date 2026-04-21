@@ -1,12 +1,6 @@
 import type { Config } from 'jest';
 import { createJsWithTsPreset } from 'ts-jest';
 
-// A test file belongs to the `integration` project iff it touches a real DB
-// (dbManager / cubeDataSource). All others belong to `unit`.
-const INTEGRATION_TEST_MATCH = [
-  '<rootDir>/test/integration/**/*.test.ts'
-];
-
 const sharedPreset = createJsWithTsPreset({ tsconfig: 'tsconfig.spec.json' });
 
 const sharedConfig = {
@@ -47,13 +41,15 @@ const config: Config = {
     },
     {
       ...sharedConfig,
+      // A test file belongs to the `integration` project if it touches a real DB
+      // (dbManager / cubeDataSource). All others belong to `unit`.
       displayName: 'integration',
       globalSetup: '<rootDir>/test/helpers/global-setup.ts',
       globalTeardown: '<rootDir>/test/helpers/global-teardown.ts',
       // worker-db-env.ts must come first so TEST_DB_DATABASE is set before any app module imports
       setupFiles: ['<rootDir>/test/helpers/worker-db-env.ts', '<rootDir>/test/helpers/jest-setup.ts'],
       roots: ['<rootDir>/test'],
-      testMatch: INTEGRATION_TEST_MATCH,
+      testMatch: ['<rootDir>/test/integration/**/*.test.ts'],
       maxWorkers: '50%'
     }
   ]
