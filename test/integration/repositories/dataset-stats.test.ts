@@ -1,14 +1,14 @@
-import { dbManager } from '../../src/db/database-manager';
-import { Dataset } from '../../src/entities/dataset/dataset';
-import { Revision } from '../../src/entities/dataset/revision';
-import { RevisionMetadata } from '../../src/entities/dataset/revision-metadata';
-import { DatasetStatsRepository } from '../../src/repositories/dataset-stats';
-import { getTestUser } from '../helpers/get-test-user';
-import { User } from '../../src/entities/user/user';
-import { uuidV4 } from '../../src/utils/uuid';
-import { Locale } from '../../src/enums/locale';
+import { dbManager } from '../../../src/db/database-manager';
+import { Dataset } from '../../../src/entities/dataset/dataset';
+import { Revision } from '../../../src/entities/dataset/revision';
+import { RevisionMetadata } from '../../../src/entities/dataset/revision-metadata';
+import { DatasetStatsRepository } from '../../../src/repositories/dataset-stats';
+import { getTestUser } from '../../helpers/get-test-user';
+import { User } from '../../../src/entities/user/user';
+import { uuidV4 } from '../../../src/utils/uuid';
+import { Locale } from '../../../src/enums/locale';
 
-jest.mock('../../src/services/blob-storage', () => {
+jest.mock('../../../src/services/blob-storage', () => {
   return function BlobStorage() {
     return {
       getContainerClient: jest.fn().mockReturnValue({
