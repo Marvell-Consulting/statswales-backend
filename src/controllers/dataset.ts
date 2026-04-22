@@ -70,6 +70,7 @@ import { DataOptionsDTO, DEFAULT_DATA_OPTIONS, FRONTEND_DATA_OPTIONS } from '../
 import { NotFoundException } from '../exceptions/not-found.exception';
 import { QueryStoreRepository } from '../repositories/query-store';
 import { parsePageOptions } from '../utils/parse-page-options';
+import { resolvePreviewRevisionId } from '../utils/revision';
 import { OutputFormats } from '../enums/output-formats';
 import { buildDataQuery, sendCsv, sendExcel, sendFrontendView, sendJson } from '../services/consumer-view-v2';
 import { QueryStore } from '../entities/query-store';
@@ -308,10 +309,7 @@ export const datasetPreview = async (req: Request, res: Response, next: NextFunc
 
   try {
     const endRevision = await RevisionRepository.findOneBy({ id: dataset.endRevisionId });
-
-    // A fresh draft update revision has no dataTable of its own until the user uploads a new file;
-    // preview the currently-published revision in that case so update-in-progress datasets still render.
-    const previewRevisionId = endRevision?.dataTableId ? dataset.endRevisionId : dataset.publishedRevisionId;
+    const previewRevisionId = resolvePreviewRevisionId(endRevision, dataset);
 
     if (!previewRevisionId) return next(new NotFoundException('errors.no_data_table'));
 

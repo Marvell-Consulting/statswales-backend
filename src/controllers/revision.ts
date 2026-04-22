@@ -41,6 +41,7 @@ import { TempFile } from '../interfaces/temp-file';
 import { DEFAULT_PAGE_SIZE } from '../utils/page-defaults';
 import { attachUpdateDataTableToRevision } from '../services/revision';
 import { performanceReporting } from '../utils/performance-reporting';
+import { resolvePreviewRevisionId } from '../utils/revision';
 import { CubeBuildResult } from '../dtos/cube-build-result';
 import { bootstrapCubeBuildProcess } from '../utils/lookup-table-utils';
 import { BuiltLogEntryDto } from '../dtos/build-log';
@@ -148,12 +149,19 @@ export const getRevisionPreview = async (req: Request, res: Response, next: Next
 
 export const getRevisionPreviewFilters = async (req: Request, res: Response): Promise<void> => {
   const revision: Revision = res.locals.revision;
+  const dataset: Dataset = res.locals.dataset;
   const lang = req.language.length < 5 ? `${req.language}-gb` : req.language.toLowerCase();
   if (!revision) {
     throw new NotFoundException('errors.no_revision');
   }
 
-  const filters = await getFilters(revision.id, lang);
+  const filtersRevisionId = resolvePreviewRevisionId(revision, dataset);
+
+  if (!filtersRevisionId) {
+    throw new NotFoundException('errors.no_data_table');
+  }
+
+  const filters = await getFilters(filtersRevisionId, lang);
   res.json(filters);
 };
 
