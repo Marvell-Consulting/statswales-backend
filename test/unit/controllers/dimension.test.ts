@@ -3,6 +3,7 @@ import { Readable } from 'node:stream';
 
 import { UnknownException } from '../../../src/exceptions/unknown.exception';
 import { DimensionType } from '../../../src/enums/dimension-type';
+import { RevisionTask } from '../../../src/interfaces/revision-task';
 import { uuidV4 } from '../../../src/utils/uuid';
 
 // Mock logger
@@ -175,7 +176,7 @@ function createMockDataset(id?: string) {
     draftRevision: {
       id: uuidV4(),
       revisionIndex: 1,
-      tasks: null,
+      tasks: null as RevisionTask | null,
       dataTable: { dataTableDescriptions: [] },
       save: jest.fn().mockResolvedValue(undefined)
     },
