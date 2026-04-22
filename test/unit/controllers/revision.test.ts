@@ -156,7 +156,8 @@ import {
   getDataTablePreview,
   removeFactTableFromRevision,
   getRevisionBuildLog,
-  getRevisionPreview
+  getRevisionPreview,
+  getRevisionPreviewFilters
 } from '../../../src/controllers/revision';
 import { DataTable } from '../../../src/entities/dataset/data-table';
 import { getFilePreview } from '../../../src/services/incoming-file-processor';
@@ -673,6 +674,56 @@ describe('Revision controller', () => {
 
       expect(mockNext).toHaveBeenCalledWith(expect.any(NotFoundException));
       expect((mockNext.mock.calls[0][0] as unknown as NotFoundException).message).toBe('errors.no_data_table');
+    });
+  });
+
+  describe('getRevisionPreviewFilters', () => {
+    const mockGetFilters = jest.requireMock('../../../src/services/consumer-view').getFilters;
+
+    beforeEach(() => {
+      mockGetFilters.mockReset();
+    });
+
+    it('should return filters against the requested revision when it has a data table', async () => {
+      const revision = createMockRevision({ dataTableId: uuidV4() });
+      const filters = [{ columnName: 'year' }];
+      mockGetFilters.mockResolvedValue(filters);
+
+      const req = createMockRequest();
+      const res = createMockResponse({ locals: { dataset: createMockDataset(), revision } });
+
+      await getRevisionPreviewFilters(req, res);
+
+      expect(mockGetFilters).toHaveBeenCalledWith(revision.id, expect.any(String));
+      expect(res.json).toHaveBeenCalledWith(filters);
+    });
+
+    it('should fall back to the published revision filters when the draft has no data table', async () => {
+      const dataset = createMockDataset();
+      dataset.publishedRevisionId = uuidV4();
+      const revision = createMockRevision({ dataTableId: undefined });
+      const filters = [{ columnName: 'year' }];
+      mockGetFilters.mockResolvedValue(filters);
+
+      const req = createMockRequest();
+      const res = createMockResponse({ locals: { dataset, revision } });
+
+      await getRevisionPreviewFilters(req, res);
+
+      expect(mockGetFilters).toHaveBeenCalledWith(dataset.publishedRevisionId, expect.any(String));
+      expect(res.json).toHaveBeenCalledWith(filters);
+    });
+
+    it('should throw NotFoundException when neither the revision nor a published revision has a data table', async () => {
+      const revision = createMockRevision({ dataTableId: undefined });
+      const req = createMockRequest();
+      const res = createMockResponse({ locals: { dataset: createMockDataset(), revision } });
+
+      await expect(getRevisionPreviewFilters(req, res)).rejects.toMatchObject({
+        name: 'NotFoundException',
+        message: 'errors.no_data_table'
+      });
+      expect(mockGetFilters).not.toHaveBeenCalled();
     });
   });
 });

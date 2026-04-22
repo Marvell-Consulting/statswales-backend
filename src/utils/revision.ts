@@ -1,4 +1,5 @@
 import { ConsumerRevisionDTO } from '../dtos/consumer-revision-dto';
+import { Dataset } from '../entities/dataset/dataset';
 import { Revision } from '../entities/dataset/revision';
 import { Dimension } from '../entities/dataset/dimension';
 import { DateExtractor } from '../extractors/date-extractor';
@@ -8,6 +9,18 @@ export interface CoverageRange {
   startDate: Date | null;
   endDate: Date | null;
 }
+
+// Fresh draft update revisions (cloned from the published revision via deepCloneRevision) have no data table id
+// yet, so anything that queries the per-revision schema must use the previously-published revision id until the draft
+// has its own data. Use this helper to decide which revision id to query; it returns undefined only when neither side
+// has a cube.
+export const resolvePreviewRevisionId = (
+  revision: Pick<Revision, 'id' | 'dataTableId'> | null | undefined,
+  dataset: Pick<Dataset, 'publishedRevisionId'> | null | undefined
+): string | undefined => {
+  if (revision?.dataTableId) return revision.id;
+  return dataset?.publishedRevisionId;
+};
 
 export const isPublished = (rev: Revision | ConsumerRevisionDTO): boolean => {
   const now = new Date();
