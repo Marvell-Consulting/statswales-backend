@@ -308,14 +308,19 @@ export const datasetPreview = async (req: Request, res: Response, next: NextFunc
 
   try {
     const endRevision = await RevisionRepository.findOneBy({ id: dataset.endRevisionId });
-    if (!endRevision?.dataTableId) return next(new NotFoundException('errors.no_data_table'));
+
+    // A fresh draft update revision has no dataTable of its own until the user uploads a new file;
+    // preview the currently-published revision in that case so update-in-progress datasets still render.
+    const previewRevisionId = endRevision?.dataTableId ? dataset.endRevisionId : dataset.publishedRevisionId;
+
+    if (!previewRevisionId) return next(new NotFoundException('errors.no_data_table'));
 
     const pageOptions = await parsePageOptions(req);
     const dataOptions = pageOptions.format === OutputFormats.Frontend ? FRONTEND_DATA_OPTIONS : DEFAULT_DATA_OPTIONS;
 
     const queryStore = filterId
       ? await QueryStoreRepository.getById(filterId)
-      : await QueryStoreRepository.getByRequest(dataset.id, dataset.endRevisionId, dataOptions);
+      : await QueryStoreRepository.getByRequest(dataset.id, previewRevisionId, dataOptions);
 
     const query = await buildDataQuery(queryStore, pageOptions);
     await sendFormattedResponse(query, queryStore, pageOptions, res);

@@ -826,7 +826,7 @@ describe('Dataset controller', () => {
       expect(mockNext).toHaveBeenCalledWith(expect.any(BadRequestException));
     });
 
-    it('should return 404 when revision has no data table', async () => {
+    it('should return 404 when end revision has no data table and there is no published revision', async () => {
       const datasetId = uuidV4();
       const endRevisionId = uuidV4();
       const dataset = createMockDataset(datasetId);
@@ -844,7 +844,7 @@ describe('Dataset controller', () => {
       expect((mockNext.mock.calls[0][0] as unknown as NotFoundException).message).toBe('errors.no_data_table');
     });
 
-    it('should return 404 when revision is not found', async () => {
+    it('should return 404 when revision is not found and there is no published revision', async () => {
       const datasetId = uuidV4();
       const endRevisionId = uuidV4();
       const dataset = createMockDataset(datasetId);
@@ -859,6 +859,29 @@ describe('Dataset controller', () => {
 
       expect(mockNext).toHaveBeenCalledWith(expect.any(NotFoundException));
       expect((mockNext.mock.calls[0][0] as unknown as NotFoundException).message).toBe('errors.no_data_table');
+    });
+
+    it('should preview the published revision when a draft update has no data table yet', async () => {
+      const datasetId = uuidV4();
+      const endRevisionId = uuidV4();
+      const publishedRevisionId = uuidV4();
+      const dataset = createMockDataset(datasetId);
+      dataset.endRevisionId = endRevisionId;
+      dataset.publishedRevisionId = publishedRevisionId;
+
+      mockRevisionFindOneBy.mockResolvedValue({ id: endRevisionId, dataTableId: null });
+      mockParsePageOptions.mockResolvedValue({ format: OutputFormats.Frontend });
+      mockQueryStoreGetByRequest.mockResolvedValue({ id: 'qs-1' });
+      mockBuildDataQuery.mockResolvedValue('SELECT 1');
+      mockSendFrontendView.mockResolvedValue(undefined);
+
+      const req = createMockRequest();
+      const res = createMockResponse({ locals: { datasetId, dataset } });
+
+      await datasetPreview(req, res, mockNext);
+
+      expect(mockNext).not.toHaveBeenCalled();
+      expect(mockQueryStoreGetByRequest).toHaveBeenCalledWith(datasetId, publishedRevisionId, expect.anything());
     });
 
     it('should proceed when revision has data table', async () => {
