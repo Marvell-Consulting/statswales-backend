@@ -170,16 +170,25 @@ function createMockDimension(overrides: Record<string, unknown> = {}) {
   };
 }
 
+type MockDraftRevision = {
+  id: string;
+  revisionIndex: number;
+  tasks: RevisionTask | null;
+  dataTable: { dataTableDescriptions: unknown[] };
+  save: jest.Mock;
+};
+
 function createMockDataset(id?: string) {
+  const draftRevision: MockDraftRevision = {
+    id: uuidV4(),
+    revisionIndex: 1,
+    tasks: null,
+    dataTable: { dataTableDescriptions: [] },
+    save: jest.fn().mockResolvedValue(undefined)
+  };
   return {
     id: id || uuidV4(),
-    draftRevision: {
-      id: uuidV4(),
-      revisionIndex: 1,
-      tasks: null as RevisionTask | null,
-      dataTable: { dataTableDescriptions: [] },
-      save: jest.fn().mockResolvedValue(undefined)
-    },
+    draftRevision,
     factTable: [{ columnName: 'col1', columnType: 'dimension' }]
   };
 }
