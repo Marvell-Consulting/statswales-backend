@@ -370,6 +370,64 @@ describe('date-matching', () => {
     });
   });
 
+  // Period-ending codes are supported across four date formats. Parameterise across
+  // format × code so any regression in parseAsUTC/parseISOasUTC or the substring(2)
+  // value extraction fails loudly for every combination.
+  describe('dateDimensionReferenceTableCreator - rolling codes across all 4 date formats', () => {
+    const endDate = utc('2024-03-31T00:00:00Z');
+
+    const formats: Array<{ dateFormat: string; encode: (end: typeof endDate) => string }> = [
+      { dateFormat: 'dd/MM/yyyy', encode: () => '31/03/2024' },
+      { dateFormat: 'dd-MM-yyyy', encode: () => '31-03-2024' },
+      { dateFormat: 'yyyy-MM-dd', encode: () => '2024-03-31' },
+      { dateFormat: 'yyyyMMdd', encode: () => '20240331' }
+    ];
+
+    const rollingCodes: Array<{ code: string; increment: Duration }> = [
+      { code: 'YE', increment: { years: 1 } },
+      { code: 'HE', increment: { months: 6 } },
+      { code: 'QE', increment: { months: 3 } },
+      { code: 'ME', increment: { months: 1 } },
+      { code: 'FE', increment: { weeks: 2 } },
+      { code: 'WE', increment: { weeks: 1 } },
+      { code: '1Y', increment: { years: 1 } },
+      { code: '2Y', increment: { years: 2 } },
+      { code: '5Y', increment: { years: 5 } },
+      { code: '9Y', increment: { years: 9 } },
+      { code: 'XY', increment: { years: 10 } }
+    ];
+
+    for (const { dateFormat, encode } of formats) {
+      describe(`format=${dateFormat}`, () => {
+        const extractor: DateExtractor = { type: YearType.Rolling, dateFormat };
+        const dateStr = encode(endDate);
+
+        test.each(rollingCodes)('$code produces correct span', ({ code, increment }) => {
+          const dateCode = `${code}${dateStr}`;
+          const result = dateDimensionReferenceTableCreator(extractor, [{ dateCode }]);
+          expect(result[0].dateCode).toBe(dateCode);
+          expect(result[0].end).toEqual(endDate);
+          expect(result[0].start).toEqual(sub(add(endDate, { days: 1 }), increment));
+        });
+      });
+    }
+
+    // Negative: separator-joined variants (e.g. YE-2024-03-31) are NOT
+    // supported. Pinning this behaviour so any future change to
+    // substring(2) / value extraction is a deliberate decision.
+    describe('unsupported separator variants', () => {
+      test.each([
+        ['dd/MM/yyyy', 'YE-31/03/2024'],
+        ['dd-MM-yyyy', 'YE-31-03-2024'],
+        ['yyyy-MM-dd', 'YE-2024-03-31'],
+        ['yyyyMMdd', 'YE-20240331']
+      ])('format=%s rejects dash-separated value %s', (dateFormat, dateCode) => {
+        const extractor: DateExtractor = { type: YearType.Rolling, dateFormat };
+        expect(() => dateDimensionReferenceTableCreator(extractor, [{ dateCode }])).toThrow();
+      });
+    });
+  });
+
   describe('dateDimensionReferenceTableCreator - hierarchy linking', () => {
     test('quarter entries link to their parent year code', () => {
       const extractor: DateExtractor = {
