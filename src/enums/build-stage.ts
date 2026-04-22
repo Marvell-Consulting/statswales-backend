@@ -3,6 +3,7 @@ export enum BuildStage {
   FactTable = 'fact_table',
   Measure = 'measure',
   Dimensions = 'dimensions',
+  UpdateFilterTable = 'update_filter_table',
   NoteCodes = 'note_codes',
   CoreView = 'core_view',
   ValidationTableBuild = 'validation_table_build',

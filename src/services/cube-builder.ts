@@ -547,17 +547,20 @@ function createCubeBaseTables(revisionId: string, buildId: string, factTableQuer
   statements.push(
     pgformat(
       `
-        CREATE TABLE %I.${FILTER_TABLE_NAME} (
+        CREATE TABLE %I.%I (
          reference VARCHAR,
          language VARCHAR,
          fact_table_column VARCHAR,
          dimension_name VARCHAR,
          description VARCHAR,
+         sort_order VARCHAR,
          hierarchy VARCHAR,
+         count INT,
          PRIMARY KEY (reference, language, fact_table_column)
         );
       `,
-      buildId
+      buildId,
+      FILTER_TABLE_NAME
     )
   );
   statements.push(
@@ -1246,8 +1249,9 @@ function setupMeasureAndDataValuesNoLookup(
     );
     statements.push(
       pgformat(
-        `INSERT INTO %I.${FILTER_TABLE_NAME} SELECT DISTINCT CAST(%I AS VARCHAR), %L, %L, %L, CAST(%I AS VARCHAR), null FROM %I.%I ORDER BY %I;`,
+        `INSERT INTO %I.%I SELECT DISTINCT CAST(%I AS VARCHAR), %L, %L, %L, CAST(%I AS VARCHAR), null, null FROM %I.%I ORDER BY %I;`,
         buildId,
+        FILTER_TABLE_NAME,
         measureColumn.columnName,
         locale.toLowerCase(),
         measureColumn.columnName,
@@ -1501,8 +1505,9 @@ function setupMeasureAndDataValuesWithLookup(
     const columnName = t('column_headers.measure', { lng: locale });
     statements.push(
       pgformat(
-        `INSERT INTO %I.${FILTER_TABLE_NAME} SELECT CAST(reference AS VARCHAR), language, %L, %L, description, CAST(hierarchy AS VARCHAR) FROM %I.measure WHERE language = %L ORDER BY sort_order, reference;`,
+        `INSERT INTO %I.%I SELECT CAST(reference AS VARCHAR), language, %L, %L, description, NULL, CAST(hierarchy AS VARCHAR) FROM %I.measure WHERE language = %L ORDER BY sort_order, reference;`,
         buildId,
+        FILTER_TABLE_NAME,
         measureColumn.columnName,
         columnName,
         buildId,
@@ -1559,10 +1564,11 @@ function rawDimensionProcessor(
     }
     statements.push(
       pgformat(
-        `INSERT INTO %I.${FILTER_TABLE_NAME}
-       SELECT DISTINCT CAST(%I AS VARCHAR), %L, %L, %L, CAST (%I AS VARCHAR), NULL
+        `INSERT INTO %I.%I
+       SELECT DISTINCT CAST(%I AS VARCHAR), %L, %L, %L, CAST (%I AS VARCHAR), NULL, NULL
        FROM %I.%I ORDER BY %I;`,
         buildId,
+        FILTER_TABLE_NAME,
         dimension.factTableColumn,
         locale.toLowerCase(),
         dimension.factTableColumn,
@@ -1670,8 +1676,10 @@ function setupLookupTableDimension(
     )
   );
 
+  let direction = 'ASC';
   if (dimension.type === DimensionType.DatePeriod || dimension.type === DimensionType.Date) {
     orderByStatements.push(pgformat('%I.sort_order DESC', dimTable));
+    direction = 'DESC';
   } else {
     orderByStatements.push(pgformat('%I.sort_order', dimTable));
   }
@@ -1680,21 +1688,22 @@ function setupLookupTableDimension(
     const columnName = dimension.metadata.find((info) => info.language === locale)?.name || dimension.factTableColumn;
     statements.push(
       pgformat(
-        `INSERT INTO %I.${FILTER_TABLE_NAME}
-              SELECT reference, language, fact_table_column, dimension_name, description, hierarchy
+        `INSERT INTO %I.%I
+              SELECT reference, language, fact_table_column, dimension_name, description, sort_order, hierarchy
               FROM (SELECT DISTINCT
-              CAST(%I AS VARCHAR) AS reference, language, %L AS fact_table_column, %L AS dimension_name, description, hierarchy, sort_order
+              CAST(%I AS VARCHAR) AS reference, language, %L AS fact_table_column, %L AS dimension_name, description, sort_order, hierarchy
             FROM %I.%I
             WHERE language = %L
-            ORDER BY sort_order, description);`,
+            ORDER BY sort_order %s, description);`,
         buildId,
+        FILTER_TABLE_NAME,
         dimension.factTableColumn,
         dimension.factTableColumn,
         columnName,
         buildId,
         dimTable,
         locale.toLowerCase(),
-        dimension.factTableColumn
+        direction
       )
     );
   }
@@ -1792,10 +1801,11 @@ function setupNumericDimension(
     const columnName = dimension.metadata.find((info) => info.language === locale)?.name || dimension.factTableColumn;
     statements.push(
       pgformat(
-        `INSERT INTO %I.${FILTER_TABLE_NAME}
-         SELECT DISTINCT CAST(%I AS VARCHAR), %L, %L, %L, CAST (%I AS VARCHAR), NULL
+        `INSERT INTO %I.%I
+         SELECT DISTINCT CAST(%I AS VARCHAR), %L, %L, %L, CAST (%I AS VARCHAR), NULL, NULL
          FROM %I.%I ORDER BY %I;`,
         buildId,
+        FILTER_TABLE_NAME,
         dimension.factTableColumn,
         locale.toLowerCase(),
         dimension.factTableColumn,
@@ -1861,10 +1871,11 @@ function setupTextDimension(
     const columnName = dimension.metadata.find((info) => info.language === locale)?.name || dimension.factTableColumn;
     statements.push(
       pgformat(
-        `INSERT INTO %I.${FILTER_TABLE_NAME}
+        `INSERT INTO %I.%I
          SELECT DISTINCT CAST(%I AS VARCHAR), %L, %L, %L, CAST (%I AS VARCHAR), NULL
          FROM %I.%I;`,
         buildId,
+        FILTER_TABLE_NAME,
         dimension.factTableColumn,
         locale.toLowerCase(),
         dimension.factTableColumn,
@@ -2123,6 +2134,35 @@ function createNotesTable(
   return { buildStage: BuildStage.NoteCodes, statements };
 }
 
+function updateFilterTableCounts(buildId: string, dataset: Dataset): TransactionBlock {
+  const statements: string[] = [];
+  for (const col of dataset.factTable!) {
+    if (col.columnType === FactTableColumnType.DataValues || col.columnType === FactTableColumnType.Ignore) {
+      continue;
+    }
+    statements.push(
+      pgformat(
+        'UPDATE %I.%I SET count = ft.count FROM (' +
+          '  SELECT CAST(%I AS VARCHAR) as reference, COUNT(%I) as count FROM %I.%I GROUP BY %I ' +
+          ') as ft ' +
+          'WHERE %I.reference = ft.reference;',
+        buildId,
+        FILTER_TABLE_NAME,
+        col.columnName,
+        col.columnName,
+        buildId,
+        FACT_TABLE_NAME,
+        col.columnName,
+        FILTER_TABLE_NAME
+      )
+    );
+  }
+  return {
+    buildStage: BuildStage.UpdateFilterTable,
+    statements
+  };
+}
+
 function createViewsFromConfig(
   buildId: string,
   baseViewName: string,
@@ -2280,6 +2320,8 @@ function createFullCube(
       orderByStatements
     )
   );
+
+  transactionBlocks.push(updateFilterTableCounts(buildId, dataset));
 
   transactionBlocks.push(
     createNotesTable(
