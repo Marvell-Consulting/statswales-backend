@@ -1602,7 +1602,7 @@ function updateColumnName(existingColumnNames: Set<string>, proposedColumnName: 
   return columnName;
 }
 
-function setupLookupTableDimension(
+export function setupLookupTableDimension(
   buildId: string,
   dataset: Dataset,
   dimension: Dimension,

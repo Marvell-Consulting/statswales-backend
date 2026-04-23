@@ -53,6 +53,7 @@ import {
   createMeasureLookupTable,
   createLookupTableDimension,
   setupCubeBuilder,
+  setupLookupTableDimension,
   FACT_TABLE_NAME
 } from '../../../src/services/cube-builder';
 
@@ -60,6 +61,8 @@ import { FactTableColumnType } from '../../../src/enums/fact-table-column-type';
 import { BuildStage } from '../../../src/enums/build-stage';
 import { DataTableAction } from '../../../src/enums/data-table-action';
 import { DisplayType } from '../../../src/enums/display-type';
+import { DimensionType } from '../../../src/enums/dimension-type';
+import { Locale } from '../../../src/enums/locale';
 import { FactTableColumn } from '../../../src/entities/dataset/fact-table-column';
 import { Dataset } from '../../../src/entities/dataset/dataset';
 import { Measure } from '../../../src/entities/dataset/measure';
@@ -116,6 +119,27 @@ function makeDataTableDescription(columnName: string, factTableColumn: string, c
 
 function makeDataTable(action: DataTableAction, descriptions: DataTableDescription[], id = 'data-table-1'): DataTable {
   return { action, dataTableDescriptions: descriptions, id } as DataTable;
+}
+
+function makeDimension(type: DimensionType, factTableColumn: string): Dimension {
+  return {
+    type,
+    factTableColumn,
+    metadata: [],
+    lookupTable: { id: 'lookup-table-uuid' } as LookupTable
+  } as unknown as Dimension;
+}
+
+function makeSetupLookupArgs() {
+  const locales = [Locale.EnglishGb, Locale.WelshGb];
+  return {
+    coreCubeViewSelectBuilder: new Map(locales.map((l) => [l, [] as string[]])),
+    columnNames: new Map(locales.map((l) => [l, new Set<string>()])),
+    indexColumns: new Map(locales.map((l) => [l, [] as string[]])),
+    joinStatements: [] as string[],
+    orderByStatements: [] as string[],
+    viewConfig: []
+  };
 }
 
 function makeDataset(overrides?: {
@@ -750,4 +774,73 @@ describe('dataTableActions', () => {
       expect(stmts).toHaveLength(0);
     });
   });
+});
+
+// ===========================================================================
+describe('setupLookupTableDimension — filter table sort direction', () => {
+  const DATE_TYPES = [DimensionType.DatePeriod, DimensionType.Date];
+  const NON_DATE_TYPES = [DimensionType.LookupTable];
+
+  function callSetup(dimensionType: DimensionType) {
+    const factTableCol = makeCol('date_col', 0, FactTableColumnType.Dimension);
+    const dataset = makeDataset({ factTable: [factTableCol] });
+    const dimension = makeDimension(dimensionType, 'date_col');
+    const args = makeSetupLookupArgs();
+    const stmts = setupLookupTableDimension(
+      'b1',
+      dataset,
+      dimension,
+      args.coreCubeViewSelectBuilder,
+      args.columnNames,
+      args.indexColumns,
+      args.joinStatements,
+      args.orderByStatements,
+      args.viewConfig
+    );
+    return { stmts, orderByStatements: args.orderByStatements };
+  }
+
+  function filterInserts(stmts: string[]) {
+    return stmts.filter((s) => s.includes('INSERT INTO') && s.includes('filter_table'));
+  }
+
+  for (const dimType of DATE_TYPES) {
+    describe(`DimensionType.${dimType}`, () => {
+      it('inserts into filter_table with ORDER BY sort_order DESC', () => {
+        const { stmts } = callSetup(dimType);
+        const inserts = filterInserts(stmts);
+        expect(inserts.length).toBeGreaterThan(0);
+        for (const stmt of inserts) {
+          expect(stmt).toContain('ORDER BY sort_order DESC');
+          expect(stmt).not.toContain('ORDER BY sort_order ASC');
+        }
+      });
+
+      it('pushes DESC to orderByStatements for core view ORDER BY', () => {
+        const { orderByStatements } = callSetup(dimType);
+        expect(orderByStatements).toHaveLength(1);
+        expect(orderByStatements[0]).toContain('sort_order DESC');
+      });
+    });
+  }
+
+  for (const dimType of NON_DATE_TYPES) {
+    describe(`DimensionType.${dimType}`, () => {
+      it('inserts into filter_table with ORDER BY sort_order ASC', () => {
+        const { stmts } = callSetup(dimType);
+        const inserts = filterInserts(stmts);
+        expect(inserts.length).toBeGreaterThan(0);
+        for (const stmt of inserts) {
+          expect(stmt).toContain('ORDER BY sort_order ASC');
+          expect(stmt).not.toContain('ORDER BY sort_order DESC');
+        }
+      });
+
+      it('does not push DESC to orderByStatements for core view ORDER BY', () => {
+        const { orderByStatements } = callSetup(dimType);
+        expect(orderByStatements).toHaveLength(1);
+        expect(orderByStatements[0]).not.toContain('DESC');
+      });
+    });
+  }
 });
