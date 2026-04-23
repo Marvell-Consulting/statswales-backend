@@ -1,9 +1,11 @@
 import { Request, Response, Router } from 'express';
 import passport from 'passport';
 import { isString } from 'lodash';
+import { Pool } from 'pg';
 
 import { User } from '../entities/user/user';
 import { dbManager } from '../db/database-manager';
+import { checkDb } from '../db/db-check';
 import { logger } from '../utils/logger';
 import { SUPPORTED_LOCALES } from '../middleware/translation';
 import { getSessionStoreStatus } from '../middleware/session';
@@ -11,7 +13,6 @@ import { StorageService } from '../interfaces/storage-service';
 import { Locale } from '../enums/locale';
 import { UserDTO } from '../dtos/user/user-dto';
 import { config } from '../config';
-import { Client, Pool } from 'pg';
 
 const healthcheck = Router();
 
@@ -53,29 +54,6 @@ const dbPoolStats = (pool: Pool): PoolStats | Error => {
   };
 };
 
-// Use a one-off connection rather than the pool so a saturated pool can't make
-// the readiness probe hang past Azure's probe timeout.
-const checkDb = async (): Promise<boolean> => {
-  const client = new Client({
-    host: config.database.host,
-    port: config.database.port,
-    user: config.database.username,
-    password: config.database.password,
-    database: config.database.database,
-    ssl: config.database.ssl,
-    application_name: 'sw3-backend-healthcheck',
-    connectionTimeoutMillis: config.healthcheck.dbTimeoutMs
-  });
-
-  try {
-    await client.connect();
-    await client.query('SELECT 1 AS connected');
-  } finally {
-    await client.end().catch(() => undefined);
-  }
-  return true;
-};
-
 const checkStorage = async (fileService: StorageService): Promise<boolean> => {
   await fileService.getServiceClient().getProperties();
   return true;
@@ -91,13 +69,15 @@ const checkConnections = async (req: Request, res: Response): Promise<void> => {
   const poolStats: (PoolStats | Error)[] = [dbPoolStats(dbManager.getAppPool()), dbPoolStats(dbManager.getCubePool())];
 
   try {
-    const results = await Promise.all([
-      Promise.race([checkDb(), timeout(healthConfig.dbTimeoutMs, 'db')]),
-      Promise.race([checkStorage(req.fileService), timeout(healthConfig.storageTimeoutMs, 'file storage')])
+    // checkDb enforces its own timeouts via the pg Client so no outer race is needed.
+    await checkDb();
+    const storageResult = await Promise.race([
+      checkStorage(req.fileService),
+      timeout(healthConfig.storageTimeoutMs, 'file storage')
     ]);
-    results.forEach((result) => {
-      if (isString(result) && result.includes('timeout')) throw new Error(result);
-    });
+    if (isString(storageResult) && storageResult.includes('timeout')) {
+      throw new Error(storageResult);
+    }
   } catch (err) {
     logger.error(err, `connection check failed - poolStats: ${JSON.stringify(poolStats || [])}`);
     res.status(500).json({ error: 'connection check failed' });
