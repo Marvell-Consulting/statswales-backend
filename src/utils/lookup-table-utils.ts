@@ -319,7 +319,7 @@ export const validateLookupTableHierarchyValues = async (
   logger.debug(`Hierarchy Length = ${flattenedHierarchyTree.length}, Lookup length = ${lookup.length}`);
   if (flattenedHierarchyTree.length != lookup.length) {
     logger.debug('Flattened hierarchy length does not match table length.  Hierarchy validation failed.');
-    return viewErrorGenerators(400, dataset.id, 'patch', `${validationType}_validation.bad_hierarchy`, {
+    return viewErrorGenerators(400, dataset.id, 'patch', `errors.${validationType}_validation.bad_hierarchy`, {
       mismatch: false
     });
   }
