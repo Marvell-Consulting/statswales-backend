@@ -300,7 +300,7 @@ export const validateLookupTableHierarchyValues = async (
   let lookup: FilterRow[];
   try {
     const lookupQuery = pgformat(
-      `SELECT %I as reference, language, %L, %L, %I as description, hierarchy FROM %I.%I where language = 'en-gb';`,
+      `SELECT %I as reference, language, %L as fact_table_column, %L as dimension_name, description, hierarchy FROM %I.%I where language = 'en-gb';`,
       joinColumn,
       joinColumn,
       joinColumn,
