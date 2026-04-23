@@ -558,18 +558,6 @@ export const validateMeasureLookupTable = async (
     return referenceErrors;
   }
 
-  const hierarchyErrors = await validateLookupTableHierarchyValues(
-    draftRevision.id,
-    dataset,
-    'reference',
-    actionId,
-    'measure'
-  );
-  if (hierarchyErrors) {
-    await lookupTable.remove();
-    return hierarchyErrors;
-  }
-
   const dataValuesColumn = dataset.factTable?.find((val) => val.columnType === FactTableColumnType.DataValues);
   if (!dataValuesColumn) {
     return viewErrorGenerators(500, dataset.id, 'patch', `errors.measure_validation.unknown_error`, {
@@ -628,6 +616,18 @@ export const validateMeasureLookupTable = async (
   if (languageErrors) {
     await lookupTable.remove();
     return languageErrors;
+  }
+
+  const hierarchyErrors = await validateLookupTableHierarchyValues(
+    draftRevision.id,
+    dataset,
+    'reference',
+    actionId,
+    'measure'
+  );
+  if (hierarchyErrors) {
+    await lookupTable.remove();
+    return hierarchyErrors;
   }
 
   const tableValidationErrors = await validateMeasureTableContent(dataset.id, draftRevision.id, actionId, extractor);

@@ -304,10 +304,10 @@ export const validateLookupTableHierarchyValues = async (
       joinColumn,
       joinColumn,
       joinColumn,
-      joinColumn,
       schemaID,
       lookupTableName
     );
+    logger.trace(`Creating fake filter table by running query: ${lookupQuery}`);
     lookup = await cubeDB.query(lookupQuery);
   } catch (error) {
     logger.error(error, 'Something went wrong trying to get the references and hierarchy from the lookup table');
