@@ -88,8 +88,6 @@ const checkConnections = async (req: Request, res: Response): Promise<void> => {
     });
   } catch (err) {
     logger.error(err, `connection check failed - poolStats: ${JSON.stringify(poolStats || [])}`);
-    res.status(500).json({ error: 'connection check failed' });
-    return;
   }
 
   res.json({ message: 'success', sessionStore: getSessionStoreStatus() });
