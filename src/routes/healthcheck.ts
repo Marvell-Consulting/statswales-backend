@@ -11,7 +11,7 @@ import { StorageService } from '../interfaces/storage-service';
 import { Locale } from '../enums/locale';
 import { UserDTO } from '../dtos/user/user-dto';
 import { config } from '../config';
-import { Pool } from 'pg';
+import { Client, Pool } from 'pg';
 
 const healthcheck = Router();
 
@@ -53,13 +53,26 @@ const dbPoolStats = (pool: Pool): PoolStats | Error => {
   };
 };
 
-const checkAppDb = async (): Promise<boolean> => {
-  await dbManager.getAppDataSource().manager.query('SELECT 1 AS connected');
-  return true;
-};
+// Use a one-off connection rather than the pool so a saturated pool can't make
+// the readiness probe hang past Azure's probe timeout.
+const checkDb = async (): Promise<boolean> => {
+  const client = new Client({
+    host: config.database.host,
+    port: config.database.port,
+    user: config.database.username,
+    password: config.database.password,
+    database: config.database.database,
+    ssl: config.database.ssl,
+    application_name: 'sw3-backend-healthcheck',
+    connectionTimeoutMillis: config.healthcheck.dbTimeoutMs
+  });
 
-const checkCubeDb = async (): Promise<boolean> => {
-  await dbManager.getCubeDataSource().manager.query('SELECT 1 AS connected');
+  try {
+    await client.connect();
+    await client.query('SELECT 1 AS connected');
+  } finally {
+    await client.end().catch(() => undefined);
+  }
   return true;
 };
 
@@ -79,8 +92,7 @@ const checkConnections = async (req: Request, res: Response): Promise<void> => {
 
   try {
     const results = await Promise.all([
-      Promise.race([checkAppDb(), timeout(healthConfig.dbTimeoutMs, 'app-db')]),
-      Promise.race([checkCubeDb(), timeout(healthConfig.dbTimeoutMs, 'cube-db')]),
+      Promise.race([checkDb(), timeout(healthConfig.dbTimeoutMs, 'db')]),
       Promise.race([checkStorage(req.fileService), timeout(healthConfig.storageTimeoutMs, 'file storage')])
     ]);
     results.forEach((result) => {
@@ -88,12 +100,14 @@ const checkConnections = async (req: Request, res: Response): Promise<void> => {
     });
   } catch (err) {
     logger.error(err, `connection check failed - poolStats: ${JSON.stringify(poolStats || [])}`);
+    res.status(500).json({ error: 'connection check failed' });
+    return;
   }
 
   res.json({ message: 'success', sessionStore: getSessionStoreStatus() });
 };
 
-healthcheck.get('/', (req: Request, res: Response) => {
+healthcheck.get('/', (_req: Request, res: Response) => {
   res.json({ message: 'success' }); // server is up
 });
 
