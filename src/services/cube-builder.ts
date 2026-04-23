@@ -1602,7 +1602,7 @@ function updateColumnName(existingColumnNames: Set<string>, proposedColumnName: 
   return columnName;
 }
 
-function setupLookupTableDimension(
+export function setupLookupTableDimension(
   buildId: string,
   dataset: Dataset,
   dimension: Dimension,
@@ -1670,8 +1670,10 @@ function setupLookupTableDimension(
     )
   );
 
+  let sortDirection = 'ASC';
   if (dimension.type === DimensionType.DatePeriod || dimension.type === DimensionType.Date) {
     orderByStatements.push(pgformat('%I.sort_order DESC', dimTable));
+    sortDirection = 'DESC';
   } else {
     orderByStatements.push(pgformat('%I.sort_order', dimTable));
   }
@@ -1680,21 +1682,22 @@ function setupLookupTableDimension(
     const columnName = dimension.metadata.find((info) => info.language === locale)?.name || dimension.factTableColumn;
     statements.push(
       pgformat(
-        `INSERT INTO %I.${FILTER_TABLE_NAME}
+        `INSERT INTO %I.%I
               SELECT reference, language, fact_table_column, dimension_name, description, hierarchy
               FROM (SELECT DISTINCT
               CAST(%I AS VARCHAR) AS reference, language, %L AS fact_table_column, %L AS dimension_name, description, hierarchy, sort_order
             FROM %I.%I
             WHERE language = %L
-            ORDER BY sort_order, description);`,
+            ORDER BY sort_order %s, description);`,
         buildId,
+        FILTER_TABLE_NAME,
         dimension.factTableColumn,
         dimension.factTableColumn,
         columnName,
         buildId,
         dimTable,
         locale.toLowerCase(),
-        dimension.factTableColumn
+        sortDirection
       )
     );
   }
