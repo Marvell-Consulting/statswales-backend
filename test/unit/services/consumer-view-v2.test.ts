@@ -45,7 +45,15 @@ jest.mock('../../../src/repositories/dataset', () => ({
 
 // Mock consumer utils
 jest.mock('../../../src/utils/consumer', () => ({
-  transformHierarchy: jest.fn((col, dim, data) => ({ column: col, dimension: dim, data }))
+  transformHierarchy: jest.fn((col, dim, data) => ({
+    column: col,
+    dimension: dim,
+    values: data.map((r: { reference: string; description: string }) => ({
+      reference: r.reference,
+      description: r.description
+    }))
+  })),
+  flattenHierarchy: jest.fn((nodes) => nodes ?? [])
 }));
 
 // Mock column headers

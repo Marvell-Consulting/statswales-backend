@@ -10,6 +10,10 @@ import { Locale } from '../enums/locale';
 import { t } from 'i18next';
 import { DataOptionsDTO } from '../dtos/data-options-dto';
 
+export function flattenHierarchy(nodes: FilterValues[]): FilterValues[] {
+  return nodes.flatMap((node) => [node, ...(node.children ? flattenHierarchy(node.children) : [])]);
+}
+
 export function transformHierarchy(factTableColumn: string, columnName: string, input: FilterRow[]): FilterTable {
   const nodeMap = new Map<string, FilterValues>(); // reference → node
   const childrenMap = new Map<string, FilterValues[]>(); // parentRef → children

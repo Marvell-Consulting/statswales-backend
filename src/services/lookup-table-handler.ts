@@ -9,6 +9,7 @@ import {
   columnIdentification,
   convertDataTableToLookupTable,
   lookForPossibleJoinColumn,
+  validateLookupTableHierarchyValues,
   validateLookupTableLanguages
 } from '../utils/lookup-table-utils';
 import { Dataset } from '../entities/dataset/dataset';
@@ -154,6 +155,20 @@ export const validateLookupTable = async (
     return viewErrorGenerators(500, dataset.id, 'patch', 'errors.dimension_validation.lookup_table_loading_failed', {
       mismatch: false
     });
+  }
+
+  const hierarchyTestResult = await validateLookupTableHierarchyValues(
+    mockCubeId,
+    dataset,
+    factTableColumn.columnName,
+    lookupTable.id,
+    'lookup_table'
+  );
+  if (hierarchyTestResult) {
+    void cleanUpPostgresValidationSchema(mockCubeId, lookupTable.id).catch((err) => {
+      logger.error(err, 'Something went wrong trying to clean up the mock cube');
+    });
+    return hierarchyTestResult;
   }
 
   const languageErrors = await validateLookupTableLanguages(

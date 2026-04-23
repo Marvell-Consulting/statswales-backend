@@ -12,5 +12,6 @@ export enum CubeValidationType {
   NoFirstRevision = 'no_first_revision',
   CubeCreationFailed = 'cube_creation_failed',
   UnknownFileType = 'unknown_file_type',
+  HierarchyError = 'hierarchy_error',
   UnknownError = 'unknown_error'
 }

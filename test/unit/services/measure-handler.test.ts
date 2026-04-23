@@ -99,6 +99,7 @@ jest.mock('../../../src/utils/lookup-table-utils', () => ({
   convertDataTableToLookupTable: jest.fn(),
   lookForJoinColumn: jest.fn(),
   validateLookupTableReferenceValues: jest.fn().mockResolvedValue(null),
+  validateLookupTableHierarchyValues: jest.fn().mockResolvedValue(undefined),
   validateLookupTableLanguages: jest.fn().mockResolvedValue(null),
   validateMeasureTableContent: jest.fn().mockResolvedValue(null),
   columnIdentification: jest.fn().mockImplementation((info: { columnName: string }) => ({
