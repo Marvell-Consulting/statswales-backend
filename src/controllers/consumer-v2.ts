@@ -1,4 +1,5 @@
 import { NextFunction, Request, Response } from 'express';
+import { EntityNotFoundError } from 'typeorm';
 
 import { logger } from '../utils/logger';
 import { Locale } from '../enums/locale';
@@ -160,6 +161,9 @@ export const getPublishedDatasetData = async (req: Request, res: Response, next:
       logger.error(err, 'Error detected fetching data after headers already sent');
       return;
     }
+    if (err instanceof EntityNotFoundError) {
+      return next(new NotFoundException('errors.filter_id_not_found'));
+    }
     if (err instanceof NotFoundException || err instanceof BadRequestException) {
       return next(err);
     }
@@ -189,6 +193,9 @@ export const getPublishedDatasetPivot = async (req: Request, res: Response, next
     const pivotQuery = await createPivotQuery(lang, queryStore, pageOptions);
     await createPivotOutputUsingDuckDB(res, lang, pivotQuery, pageOptions, queryStore);
   } catch (err) {
+    if (err instanceof EntityNotFoundError) {
+      return next(new NotFoundException('errors.filter_id_not_found'));
+    }
     if (err instanceof NotFoundException || err instanceof BadRequestException) {
       return next(err);
     }
@@ -210,12 +217,11 @@ export const getFilterIdDetails = async (req: Request, res: Response, next: Next
       ? await QueryStoreRepository.getById(filterId)
       : await QueryStoreRepository.getByRequest(dataset.id, publishedRevision.id, dataOptions);
 
-    if (!queryStore) {
-      throw new NotFoundException('errors.filter_id_not_found');
-    }
-
     res.status(200).send(QueryStoreDto.fromQueryStore(queryStore));
   } catch (err) {
+    if (err instanceof EntityNotFoundError) {
+      return next(new NotFoundException('errors.filter_id_not_found'));
+    }
     if (err instanceof NotFoundException || err instanceof BadRequestException) {
       return next(err);
     }
@@ -257,6 +263,9 @@ export const getPublishedDatasetPivotFromId = async (
     logger.debug(`Generating pivot query output using query ${pivotQuery}`);
     await createPivotOutputUsingDuckDB(res, lang, pivotQuery, pageOptions, queryStore);
   } catch (err) {
+    if (err instanceof EntityNotFoundError) {
+      return next(new NotFoundException('errors.filter_id_not_found'));
+    }
     if (err instanceof NotFoundException || err instanceof BadRequestException) {
       return next(err);
     }
