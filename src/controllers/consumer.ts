@@ -115,7 +115,7 @@ export const downloadPublishedDataset = async (req: Request, res: Response, next
 
   if (formatError) {
     const availableFormats = Object.values(DownloadFormat).join(', ');
-    next(new BadRequestException(`file format must be specified (${availableFormats})`));
+    next(new BadRequestException(`a valid file format must be specified (${availableFormats})`));
     return;
   }
 
