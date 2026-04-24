@@ -1,4 +1,5 @@
 import { NextFunction, Request, Response } from 'express';
+import { QueryFailedError } from 'typeorm';
 
 import { logger } from '../utils/logger';
 import { Locale } from '../enums/locale';
@@ -12,7 +13,6 @@ import {
   createStreamingCSVFilteredView,
   createStreamingExcelFilteredView,
   createStreamingJSONFilteredView,
-  createStreamingPostgresPivotView,
   getFilters
 } from '../services/consumer-view';
 import { hasError, formatValidator } from '../validators';
@@ -87,6 +87,13 @@ export const getPublishedDatasetView = async (req: Request, res: Response): Prom
     const preview = await createFrontendView(dataset, publishedRevision.id, lang, pageNumber, pageSize, sortBy, filter);
     res.status(200).json(preview);
   } catch (error) {
+    if (error instanceof QueryFailedError && /column .* does not exist/i.test(error.message)) {
+      logger.warn(error, 'Cube rejected a client-supplied column (filter or sort)');
+      const hasSortBy = typeof req.query.sort_by === 'string' && req.query.sort_by.length > 0;
+      const hasFilter = typeof req.query.filter === 'string' && req.query.filter.length > 0;
+      const errorKey = hasSortBy && !hasFilter ? 'errors.invalid_sort_by' : 'errors.filter.invalid';
+      throw new BadRequestException(errorKey);
+    }
     logger.error(error, 'Something went wrong trying to query the cube');
     throw new UnknownException('errors.consumer_view.cube_query_failed');
   }
@@ -111,7 +118,7 @@ export const downloadPublishedDataset = async (req: Request, res: Response, next
 
   if (formatError) {
     const availableFormats = Object.values(DownloadFormat).join(', ');
-    next(new BadRequestException(`file format must be specified (${availableFormats})`));
+    next(new BadRequestException(`a valid file format must be specified (${availableFormats})`));
     return;
   }
 
@@ -156,43 +163,6 @@ export const downloadPublishedDataset = async (req: Request, res: Response, next
   }
 };
 
-export const getPostgresPivotTable = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-  const dataset = await PublishedDatasetRepository.getById(res.locals.datasetId, withAll);
-
-  let filter: FilterInterface[] | undefined;
-  try {
-    filter = req.query.filter ? (JSON.parse(req.query.filter as string) as FilterInterface[]) : undefined;
-  } catch (err) {
-    logger.warn(err, 'Error parsing filter query parameters');
-    throw new BadRequestException('errors.filter.invalid');
-  }
-
-  const xAxis = req.query.x?.toString();
-  if (!xAxis) {
-    logger.warn(`No X Axis present`);
-    throw new BadRequestException('No X Axis present');
-  }
-
-  const yAxis = req.query.y?.toString();
-  if (!yAxis) {
-    logger.warn(`No Y Axis present`);
-    throw new BadRequestException('No Y Axis present');
-  }
-
-  const publishedRevision = dataset.publishedRevision;
-
-  if (!publishedRevision?.onlineCubeFilename) {
-    next(new NotFoundException('errors.no_revision'));
-    return;
-  }
-  try {
-    void createStreamingPostgresPivotView(res, publishedRevision.id, req.language, xAxis, yAxis, filter);
-  } catch (err) {
-    logger.error(err, 'An error occurred trying to produce postgres pivot as JSON');
-    next(new UnknownException());
-  }
-};
-
 export const listRootTopics = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   logger.info('fetching root level topics with at least one published dataset');
 
@@ -219,7 +189,7 @@ export const listSubTopics = async (req: Request, res: Response, next: NextFunct
   const topicId = req.params.topic_id;
   const lang = req.language as Locale;
 
-  if (topicId && !/\d+/.test(topicId)) {
+  if (topicId && !/^\d+$/.test(topicId)) {
     next(new NotFoundException('errors.invalid_topic_id'));
     return;
   }
@@ -233,8 +203,14 @@ export const listSubTopics = async (req: Request, res: Response, next: NextFunct
     }
   });
 
+  const topic = topicId ? await TopicRepository.findOneBy({ id: parseInt(topicId, 10) }) : undefined;
+
+  if (topicId && !topic) {
+    next(new NotFoundException('errors.topic_not_found'));
+    return;
+  }
+
   try {
-    const topic = topicId ? await TopicRepository.findOneByOrFail({ id: parseInt(topicId, 10) }) : undefined;
     const subTopics = await PublishedDatasetRepository.listPublishedTopics(lang, topicId);
     const parents = topic ? await TopicRepository.getParents(topic.path) : undefined;
     const isLeafTopic = topic && subTopics.length === 0;
@@ -261,7 +237,7 @@ export const listSubTopics = async (req: Request, res: Response, next: NextFunct
   }
 };
 
-export const getPublicationHistory = async (req: Request, res: Response): Promise<void> => {
+export const getPublicationHistory = async (_req: Request, res: Response): Promise<void> => {
   const revisions = await PublishedDatasetRepository.getHistoryById(res.locals.datasetId);
   const revisionDTOs = revisions.map((rev) => ConsumerRevisionDTO.fromRevision(rev));
 
