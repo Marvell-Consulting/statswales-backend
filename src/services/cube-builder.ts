@@ -596,11 +596,7 @@ function setFactCountInCube(buildId: string): string {
 }
 
 export function createValidationTableQuery(schemaId: string): string {
-  return pgformat(
-    `CREATE TABLE %I.%I (reference TEXT, fact_table_column TEXT, PRIMARY KEY (reference, fact_table_column));`,
-    schemaId,
-    VALIDATION_TABLE_NAME
-  );
+  return pgformat(`CREATE TABLE %I.%I (reference TEXT, fact_table_column TEXT);`, schemaId, VALIDATION_TABLE_NAME);
 }
 
 export function setupValidationTableFromDataset(buildId: string, dataset: Dataset): TransactionBlock {
@@ -616,8 +612,6 @@ export function setupValidationTableFromDataset(buildId: string, dataset: Datase
     unionParts.push(createValidationTableEntries(buildId, dimColumnName));
   }
   statements.push(pgformat('INSERT INTO %I.%I %s;', buildId, VALIDATION_TABLE_NAME, unionParts.join(' UNION ALL ')));
-  statements.push(pgformat(`CREATE INDEX ON %I.%I (reference);`, buildId, VALIDATION_TABLE_NAME));
-  statements.push(pgformat(`CREATE INDEX ON %I.%I (fact_table_column);`, buildId, VALIDATION_TABLE_NAME));
   statements.push(setFactCountInCube(buildId));
   statements.push('COMMIT;');
 
