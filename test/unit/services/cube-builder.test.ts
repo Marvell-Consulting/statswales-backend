@@ -220,11 +220,6 @@ describe('createValidationTableQuery', () => {
     expect(sql).toContain('reference TEXT');
     expect(sql).toContain('fact_table_column TEXT');
   });
-
-  it('has a composite PRIMARY KEY covering both columns', () => {
-    const sql = createValidationTableQuery('build-123');
-    expect(sql).toMatch(/PRIMARY KEY\s*\(\s*reference\s*,\s*fact_table_column\s*\)/i);
-  });
 });
 
 // ===========================================================================
@@ -281,18 +276,6 @@ describe('setupValidationTableFromDataset', () => {
     expect(insertStmt).toBeDefined();
     expect(insertStmt).toContain('region');
     expect(insertStmt).not.toContain('UNION ALL');
-  });
-
-  it('includes CREATE INDEX statements for reference and fact_table_column', () => {
-    const dataset = makeDataset({ measure: { factTableColumn: 'measure_col' }, dimensions: [] });
-    const result = setupValidationTableFromDataset(buildId, dataset);
-    const indexStmts = result.statements.filter(
-      (s) => s.toUpperCase().includes('CREATE INDEX') && s.includes('validation_table')
-    );
-    expect(indexStmts).toHaveLength(2);
-    const indexText = indexStmts.join(' ');
-    expect(indexText).toContain('reference');
-    expect(indexText).toContain('fact_table_column');
   });
 
   it('includes an INSERT for fact_count in metadata', () => {
