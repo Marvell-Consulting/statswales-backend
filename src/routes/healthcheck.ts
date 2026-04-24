@@ -1,9 +1,11 @@
 import { Request, Response, Router } from 'express';
 import passport from 'passport';
 import { isString } from 'lodash';
+import { Pool } from 'pg';
 
 import { User } from '../entities/user/user';
 import { dbManager } from '../db/database-manager';
+import { checkDb } from '../db/db-check';
 import { logger } from '../utils/logger';
 import { SUPPORTED_LOCALES } from '../middleware/translation';
 import { getSessionStoreStatus } from '../middleware/session';
@@ -11,7 +13,6 @@ import { StorageService } from '../interfaces/storage-service';
 import { Locale } from '../enums/locale';
 import { UserDTO } from '../dtos/user/user-dto';
 import { config } from '../config';
-import { Pool } from 'pg';
 
 const healthcheck = Router();
 
@@ -53,16 +54,6 @@ const dbPoolStats = (pool: Pool): PoolStats | Error => {
   };
 };
 
-const checkAppDb = async (): Promise<boolean> => {
-  await dbManager.getAppDataSource().manager.query('SELECT 1 AS connected');
-  return true;
-};
-
-const checkCubeDb = async (): Promise<boolean> => {
-  await dbManager.getCubeDataSource().manager.query('SELECT 1 AS connected');
-  return true;
-};
-
 const checkStorage = async (fileService: StorageService): Promise<boolean> => {
   await fileService.getServiceClient().getProperties();
   return true;
@@ -78,14 +69,15 @@ const checkConnections = async (req: Request, res: Response): Promise<void> => {
   const poolStats: (PoolStats | Error)[] = [dbPoolStats(dbManager.getAppPool()), dbPoolStats(dbManager.getCubePool())];
 
   try {
-    const results = await Promise.all([
-      Promise.race([checkAppDb(), timeout(healthConfig.dbTimeoutMs, 'app-db')]),
-      Promise.race([checkCubeDb(), timeout(healthConfig.dbTimeoutMs, 'cube-db')]),
-      Promise.race([checkStorage(req.fileService), timeout(healthConfig.storageTimeoutMs, 'file storage')])
+    // checkDb enforces its own timeouts via the pg Client so no outer race is needed.
+    await checkDb();
+    const storageResult = await Promise.race([
+      checkStorage(req.fileService),
+      timeout(healthConfig.storageTimeoutMs, 'file storage')
     ]);
-    results.forEach((result) => {
-      if (isString(result) && result.includes('timeout')) throw new Error(result);
-    });
+    if (isString(storageResult) && storageResult.includes('timeout')) {
+      throw new Error(storageResult);
+    }
   } catch (err) {
     logger.error(err, `connection check failed - poolStats: ${JSON.stringify(poolStats || [])}`);
     res.status(500).json({ error: 'connection check failed' });
@@ -95,7 +87,7 @@ const checkConnections = async (req: Request, res: Response): Promise<void> => {
   res.json({ message: 'success', sessionStore: getSessionStoreStatus() });
 };
 
-healthcheck.get('/', (req: Request, res: Response) => {
+healthcheck.get('/', (_req: Request, res: Response) => {
   res.json({ message: 'success' }); // server is up
 });
 

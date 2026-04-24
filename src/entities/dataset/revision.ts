@@ -87,7 +87,7 @@ export class Revision extends BaseEntity {
   unpublishedAt: Date | null;
 
   @Column({ name: 'tasks', type: 'jsonb', nullable: true })
-  tasks: RevisionTask;
+  tasks: RevisionTask | null;
 
   @Column({ type: 'boolean', name: 'rounding_applied', nullable: true })
   roundingApplied?: boolean;
