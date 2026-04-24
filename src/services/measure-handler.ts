@@ -12,6 +12,7 @@ import {
   convertDataTableToLookupTable,
   languageMatcherCaseStatement,
   lookForJoinColumn,
+  validateLookupTableHierarchyValues,
   validateLookupTableLanguages,
   validateLookupTableReferenceValues,
   validateMeasureTableContent
@@ -615,6 +616,18 @@ export const validateMeasureLookupTable = async (
   if (languageErrors) {
     await lookupTable.remove();
     return languageErrors;
+  }
+
+  const hierarchyErrors = await validateLookupTableHierarchyValues(
+    draftRevision.id,
+    dataset,
+    'reference',
+    actionId,
+    'measure'
+  );
+  if (hierarchyErrors) {
+    await lookupTable.remove();
+    return hierarchyErrors;
   }
 
   const tableValidationErrors = await validateMeasureTableContent(dataset.id, draftRevision.id, actionId, extractor);

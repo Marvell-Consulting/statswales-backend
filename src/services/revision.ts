@@ -28,7 +28,7 @@ import {
 import { CubeBuildType } from '../enums/cube-build-type';
 import { Dimension } from '../entities/dataset/dimension';
 import { Dataset } from '../entities/dataset/dataset';
-import { validateLookupTableReferenceValues } from '../utils/lookup-table-utils';
+import { validateLookupTableHierarchyValues, validateLookupTableReferenceValues } from '../utils/lookup-table-utils';
 import { MeasureRow } from '../entities/dataset/measure-row';
 import { DateExtractor } from '../extractors/date-extractor';
 import { config } from '../config';
@@ -273,6 +273,19 @@ async function validateMeasure(
     err.type = CubeValidationType.MeasureNonMatchedRows;
     throw err;
   }
+
+  const hierarchyErrors = await validateLookupTableHierarchyValues(
+    buildId,
+    dataset,
+    'reference',
+    `measure`,
+    'dimension'
+  );
+  if (hierarchyErrors) {
+    const err = new CubeValidationException('Validation failed');
+    err.type = CubeValidationType.HierarchyError;
+    throw err;
+  }
 }
 
 export async function createDateTableInValidationCube(
@@ -324,6 +337,18 @@ async function validateDimension(
   if (referenceErrors) {
     const err = new CubeValidationException('Validation failed');
     err.type = CubeValidationType.DimensionNonMatchedRows;
+    throw err;
+  }
+  const hierarchyErrors = await validateLookupTableHierarchyValues(
+    buildId,
+    dataset,
+    joinColumn,
+    lookupTableName,
+    'dimension'
+  );
+  if (hierarchyErrors) {
+    const err = new CubeValidationException('Validation failed');
+    err.type = CubeValidationType.HierarchyError;
     throw err;
   }
 }

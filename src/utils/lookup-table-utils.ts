@@ -29,6 +29,8 @@ import { Dimension } from '../entities/dataset/dimension';
 import { revisionStartAndEndDateFinder } from './revision';
 import { DateDimensionTypes, LookupTableTypes } from '../enums/dimension-type';
 import { RevisionRepository } from '../repositories/revision';
+import { flattenHierarchy, transformHierarchy } from './consumer';
+import { FilterRow } from '../interfaces/filter-row';
 
 export function convertDataTableToLookupTable(dataTable: DataTable): LookupTable {
   const lookupTable = new LookupTable();
@@ -285,6 +287,42 @@ export const validateLookupTableLanguages = async (
     return viewErrorGenerators(500, dataset.id, 'patch', `errors.${validationType}_validation.unknown_error`, {});
   }
   return undefined;
+};
+
+export const validateLookupTableHierarchyValues = async (
+  schemaID: string,
+  dataset: Dataset,
+  joinColumn: string,
+  lookupTableName: string,
+  validationType: string
+): Promise<ViewErrDTO | undefined> => {
+  const cubeDB = dbManager.getCubeDataSource().createQueryRunner();
+  let lookup: FilterRow[];
+  try {
+    const lookupQuery = pgformat(
+      `SELECT %I as reference, language, %L as fact_table_column, %L as dimension_name, description, hierarchy FROM %I.%I where language = 'en-gb';`,
+      joinColumn,
+      joinColumn,
+      joinColumn,
+      schemaID,
+      lookupTableName
+    );
+    logger.trace(`Creating fake filter table by running query: ${lookupQuery}`);
+    lookup = await cubeDB.query(lookupQuery);
+  } catch (error) {
+    logger.error(error, 'Something went wrong trying to get the references and hierarchy from the lookup table');
+    return viewErrorGenerators(500, dataset.id, 'patch', 'errors.unknown_error', {});
+  } finally {
+    await cubeDB.release();
+  }
+  const flattenedHierarchyTree = flattenHierarchy(transformHierarchy(joinColumn, joinColumn, lookup).values);
+  logger.debug(`Hierarchy Length = ${flattenedHierarchyTree.length}, Lookup length = ${lookup.length}`);
+  if (flattenedHierarchyTree.length != lookup.length) {
+    logger.debug('Flattened hierarchy length does not match table length.  Hierarchy validation failed.');
+    return viewErrorGenerators(400, dataset.id, 'patch', `errors.${validationType}_validation.bad_hierarchy`, {
+      mismatch: false
+    });
+  }
 };
 
 export const validateLookupTableReferenceValues = async (

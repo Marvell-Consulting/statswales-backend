@@ -13,7 +13,7 @@ import { FilterTable } from '../interfaces/filter-table';
 import { dbManager } from '../db/database-manager';
 import { QueryStore } from '../entities/query-store';
 import { BadRequestException } from '../exceptions/bad-request.exception';
-import { transformHierarchy } from '../utils/consumer';
+import { flattenHierarchy, transformHierarchy } from '../utils/consumer';
 import { DatasetRepository } from '../repositories/dataset';
 import { PageOptions } from '../interfaces/page-options';
 import { logger } from '../utils/logger';
@@ -258,6 +258,16 @@ export async function sendFilters(query: string, res: Response): Promise<void> {
         continue;
       }
       const hierarchy = transformHierarchy(data[0].fact_table_column, data[0].dimension_name, data);
+      const flattenedHierarchy = flattenHierarchy(hierarchy.values);
+      // If there's a problem with the hierarchy, bin it off
+      if (data.length != flattenedHierarchy.length) {
+        hierarchy.values = data.map((val) => {
+          return {
+            reference: val.reference,
+            description: val.description
+          };
+        });
+      }
       filterData.push(hierarchy);
     }
     res.json(filterData);

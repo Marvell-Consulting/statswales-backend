@@ -48,6 +48,7 @@ jest.mock('../../../src/utils/lookup-table-utils', () => ({
   convertDataTableToLookupTable: jest.fn(),
   lookForPossibleJoinColumn: jest.fn(),
   validateLookupTableLanguages: jest.fn().mockResolvedValue(null),
+  validateLookupTableHierarchyValues: jest.fn().mockResolvedValue(undefined),
   columnIdentification: jest.fn().mockImplementation((info: { columnName: string }) => ({
     name: info.columnName,
     lang: info.columnName.toLowerCase().includes('cy') ? 'cy-gb' : 'en-gb'
