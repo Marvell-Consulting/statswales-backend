@@ -104,12 +104,22 @@ describe('Consumer V2 — data + pivot endpoints', () => {
     const dRes = await request(app)
       .post(`/v2/${DATASET_ID}/data`)
       .send({ filters: [{ YearCode: ['2020'] }], options: { use_raw_column_names: true } });
+    if (dRes.status !== 200 || typeof dRes.body.filterId !== 'string') {
+      throw new Error(
+        `Failed to create dataFilterId in beforeAll: status=${dRes.status}, body=${JSON.stringify(dRes.body)}`
+      );
+    }
     dataFilterId = dRes.body.filterId;
 
     // Create a pivot filter for /pivot/:filter_id.
     const pRes = await request(app)
       .post(`/v2/${DATASET_ID}/pivot`)
       .send({ pivot: { x: 'AreaCode', y: 'YearCode' }, options: { use_raw_column_names: true } });
+    if (pRes.status !== 200 || typeof pRes.body.filterId !== 'string') {
+      throw new Error(
+        `Failed to create pivotFilterId in beforeAll: status=${pRes.status}, body=${JSON.stringify(pRes.body)}`
+      );
+    }
     pivotFilterId = pRes.body.filterId;
   }, 120_000);
 
