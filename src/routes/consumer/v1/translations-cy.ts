@@ -47,7 +47,7 @@ const schemaTranslations: Record<string, SchemaTranslation> = {
   Dataset: {
     properties: {
       id: { description: 'Dynodydd unigryw y set ddata' },
-      live: { description: 'Dyddiad cyhoeddi cyntaf y set ddata mewn fformat ISO 8601' },
+      first_published_at: { description: 'Dyddiad cyhoeddi cyntaf y set ddata mewn fformat ISO 8601' },
       start_date: { description: 'Dyddiad cychwyn y set ddata mewn fformat ISO 8601' },
       end_date: { description: 'Dyddiad gorffen y set ddata mewn fformat ISO 8601' }
     }
