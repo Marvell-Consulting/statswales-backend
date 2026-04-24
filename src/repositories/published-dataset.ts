@@ -2,15 +2,11 @@ import { performance } from 'node:perf_hooks';
 
 import {
   FindOneOptions,
-  FindManyOptions,
   And,
   Not,
   IsNull,
   LessThan,
   FindOptionsRelations,
-  In,
-  Like,
-  Raw,
   SelectQueryBuilder,
   Brackets
 } from 'typeorm';
@@ -159,18 +155,30 @@ export const PublishedDatasetRepository = dataSource.getRepository(Dataset).exte
 
     const revisionIds = latestPublishedRevisions.map((revision) => revision.id);
 
-    // if no topicId provided, fetch topics where path equals the id (i.e. root level topics)
-    const path = topicId ? { path: Like(`${topicId}.%`) } : { path: Raw('"Topic"."id"::text') };
+    if (revisionIds.length === 0) return [];
 
-    const findOpts: FindManyOptions<Topic> = {
-      where: {
-        revisionTopics: { revisionId: In(revisionIds) },
-        ...path
-      },
-      order: lang.includes(Locale.Welsh) ? { nameCY: 'ASC' } : { nameEN: 'ASC' }
-    };
+    const qb = this.manager.getRepository(Topic).createQueryBuilder('t');
 
-    return this.manager.getRepository(Topic).find(findOpts);
+    if (topicId) {
+      qb.where('t.path LIKE :prefix', { prefix: `${topicId}.%` });
+    } else {
+      qb.where('t.path NOT LIKE :dotted', { dotted: '%.%' });
+    }
+
+    // include a topic if it — or any of its descendants — is tagged to a published revision
+    qb.andWhere(
+      `EXISTS (
+        SELECT 1 FROM revision_topic rt
+        INNER JOIN topic tagged ON tagged.id = rt.topic_id
+        WHERE rt.revision_id IN (:...revisionIds)
+          AND (tagged.path = t.path OR tagged.path LIKE t.path || '.%')
+      )`,
+      { revisionIds }
+    );
+
+    qb.orderBy(lang.includes(Locale.Welsh) ? 't.name_cy' : 't.name_en', 'ASC');
+
+    return qb.getMany();
   },
 
   async listPublishedByTopic(
