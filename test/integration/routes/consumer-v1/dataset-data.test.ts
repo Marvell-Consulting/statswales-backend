@@ -35,7 +35,7 @@ const rowBuilder = (i: number): unknown[] => [
   Math.round((i + 1) * 10.5 * 100) / 100
 ];
 
-describe('Consumer V1 — dataset data endpoints (/view, /view/filters, /download, /pivot/postgres)', () => {
+describe('Consumer V1 — dataset data endpoints (/view, /view/filters, /download)', () => {
   beforeAll(async () => {
     await ensureWorkerDataSources();
     await resetDatabase();
@@ -159,20 +159,20 @@ describe('Consumer V1 — dataset data endpoints (/view, /view/filters, /downloa
   });
 
   describe('GET /v1/:dataset_id/download/:format — file download', () => {
-    it('CSV returns text/csv attachment with ROW_COUNT rows', async () => {
+    it('CSV streams text/csv with ROW_COUNT rows (no attachment header — programmatic consumer)', async () => {
       const res = await request(app).get(`/v1/${DATASET_ID}/download/csv`);
       expect(res.status).toBe(200);
       expect(res.headers['content-type']).toMatch(/text\/csv/);
-      expect(res.headers['content-disposition']).toMatch(/attachment/);
+      expect(res.headers['content-disposition']).toBeUndefined();
       const rows = parseCsv(res.text, { columns: true });
       expect(rows.length).toBe(ROW_COUNT);
     });
 
-    it('JSON returns application/json attachment with ROW_COUNT rows', async () => {
+    it('JSON streams application/json with ROW_COUNT rows (no attachment header — programmatic consumer)', async () => {
       const res = await request(app).get(`/v1/${DATASET_ID}/download/json`);
       expect(res.status).toBe(200);
       expect(res.headers['content-type']).toMatch(/application\/json/);
-      expect(res.headers['content-disposition']).toMatch(/attachment/);
+      expect(res.headers['content-disposition']).toBeUndefined();
       const data = JSON.parse(res.text);
       expect(Array.isArray(data)).toBe(true);
       expect(data.length).toBe(ROW_COUNT);
@@ -211,45 +211,6 @@ describe('Consumer V1 — dataset data endpoints (/view, /view/filters, /downloa
 
     it('returns 404 for a non-existent dataset', async () => {
       const res = await request(app).get('/v1/99999999-9999-4999-8999-999999999999/download/csv');
-      expect(res.status).toBe(404);
-    });
-  });
-
-  describe('GET /v1/:dataset_id/pivot/postgres — postgres pivot (undocumented endpoint)', () => {
-    // NOTE: Undocumented in OpenAPI (#swagger.ignore = true, api.ts:230).
-    // Also: controller uses `void createStreamingPostgresPivotView(...)` at consumer.ts:189
-    // — fire-and-forget, so streaming errors cannot be caught. Tests assert the synchronous
-    // pre-checks (missing x/y, 404 for missing dataset) work correctly and the request
-    // completes with 200 for a valid call.
-    it('returns 400 when x axis is missing', async () => {
-      const res = await request(app).get(`/v1/${DATASET_ID}/pivot/postgres`).query({ y: 'AreaCode' });
-      expect(res.status).toBe(400);
-    });
-
-    it('returns 400 when y axis is missing', async () => {
-      const res = await request(app).get(`/v1/${DATASET_ID}/pivot/postgres`).query({ x: 'YearCode' });
-      expect(res.status).toBe(400);
-    });
-
-    it('returns 400 for malformed filter JSON', async () => {
-      const res = await request(app)
-        .get(`/v1/${DATASET_ID}/pivot/postgres`)
-        .query({ x: 'YearCode', y: 'AreaCode', filter: 'not json' });
-      expect(res.status).toBe(400);
-    });
-
-    it('returns 400 with a descriptive message when x/y do not match any dimension', async () => {
-      // The fixture has no dimensions, so YearCode/AreaCode are raw fact-table columns and
-      // won't appear in the filter_table. The endpoint should reject clearly.
-      const res = await request(app).get(`/v1/${DATASET_ID}/pivot/postgres`).query({ x: 'YearCode', y: 'AreaCode' });
-      expect(res.status).toBe(400);
-      expect(res.body.messages).toMatch(/not found/i);
-    });
-
-    it('returns 404 for a non-existent dataset', async () => {
-      const res = await request(app)
-        .get('/v1/99999999-9999-4999-8999-999999999999/pivot/postgres')
-        .query({ x: 'YearCode', y: 'AreaCode' });
       expect(res.status).toBe(404);
     });
   });

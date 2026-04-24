@@ -11,7 +11,6 @@ import {
   listSubTopics,
   listRootTopics,
   getPublishedDatasetFilters,
-  getPostgresPivotTable,
   getPublicationHistory
 } from '../../../controllers/consumer';
 import { NotFoundException } from '../../../exceptions/not-found.exception';
@@ -142,6 +141,7 @@ publicApiRouter.get(
 publicApiRouter.get(
   '/:dataset_id/history',
   loadPublishedDataset(),
+  // internal frontend use only, don't include in docs. Not secret, just don't want to maintain the contract.
   /* #swagger.ignore = true */
   getPublicationHistory
 );
@@ -222,11 +222,4 @@ publicApiRouter.get(
   */
   longTimeout,
   downloadPublishedDataset
-);
-
-publicApiRouter.get(
-  '/:dataset_id/pivot/postgres',
-  loadPublishedDataset(),
-  /* #swagger.ignore = true */
-  getPostgresPivotTable
 );

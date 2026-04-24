@@ -30,8 +30,7 @@ const DATASET_ENDPOINTS = [
   (id: string) => `/v1/${id}/history`,
   (id: string) => `/v1/${id}/view`,
   (id: string) => `/v1/${id}/view/filters`,
-  (id: string) => `/v1/${id}/download/csv`,
-  (id: string) => `/v1/${id}/pivot/postgres`
+  (id: string) => `/v1/${id}/download/csv`
 ];
 
 describe('Consumer V1 — cross-cutting behaviour (CORS, method guard, Vary, 404 sweeps)', () => {
