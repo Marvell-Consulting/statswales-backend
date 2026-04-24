@@ -393,7 +393,7 @@ export const getPublishedDatasetFilters = async (req: Request, res: Response, ne
 
   try {
     const locale = req.language as Locale;
-    const query = await getFilterTableQuery(publishedRevision.id, locale);
+    const query = getFilterTableQuery(publishedRevision.id, locale);
     await sendFilters(query, res);
   } catch (err) {
     if (err instanceof NotFoundException || err instanceof BadRequestException) {
@@ -477,7 +477,7 @@ export const listSubTopics = async (req: Request, res: Response, next: NextFunct
   }
 };
 
-export const getPublicationHistory = async (req: Request, res: Response): Promise<void> => {
+export const getPublicationHistory = async (_req: Request, res: Response): Promise<void> => {
   const revisions = await PublishedDatasetRepository.getHistoryById(res.locals.datasetId);
   const revisionDTOs = revisions.map((rev) => ConsumerRevisionDTO.fromRevision(rev));
 
