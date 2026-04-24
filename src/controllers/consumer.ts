@@ -219,7 +219,7 @@ export const listSubTopics = async (req: Request, res: Response, next: NextFunct
   const topicId = req.params.topic_id;
   const lang = req.language as Locale;
 
-  if (topicId && !/\d+/.test(topicId)) {
+  if (topicId && !/^\d+$/.test(topicId)) {
     next(new NotFoundException('errors.invalid_topic_id'));
     return;
   }
