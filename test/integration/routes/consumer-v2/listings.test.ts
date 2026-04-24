@@ -287,9 +287,9 @@ describe('Consumer V2 — listings (/, /topic, /topic/:topic_id)', () => {
       expect(res.status).toBe(404);
     });
 
-    // Same bug as v1 defect 3 — controller uses unanchored /\d+/ on topic_id, so "100abc"
-    // matches and parseInt yields 100. Intended: treat non-integer as invalid → 404.
-    it('topic_id with trailing garbage (e.g. "100abc") should be rejected', async () => {
+    // Regression test: controller previously used an unanchored /\d+/ on topic_id so
+    // "100abc" matched and parseInt yielded 100. Anchored to /^\d+$/ — non-integer → 404.
+    it('topic_id with trailing garbage (e.g. "100abc") is rejected', async () => {
       const res = await request(app).get(`/v2/topic/${TOPIC_HEALTH}abc`);
       expect(res.status).toBe(404);
     });

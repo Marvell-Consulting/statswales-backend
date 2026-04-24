@@ -219,18 +219,12 @@ describe('Consumer V2 — data + pivot endpoints', () => {
 
     it('returns 404 for a non-existent filter_id', async () => {
       const res = await request(app).get(`/v2/${DATASET_ID}/data/88888888-8888-4888-8888-888888888888`);
-      // A missing filter_id results in QueryStoreRepository.getById throwing —
-      // the controller logs and returns UnknownException (500). Intended: 404.
-      expect([404, 500]).toContain(res.status);
-      if (res.status !== 404) {
-        // Flag — this is a likely defect.
-        expect(res.status).toBe(404);
-      }
+      expect(res.status).toBe(404);
     });
 
     it('returns 404 for a malformed filter_id', async () => {
       const res = await request(app).get(`/v2/${DATASET_ID}/data/not-a-uuid`);
-      expect([400, 404, 500]).toContain(res.status);
+      expect(res.status).toBe(404);
     });
   });
 
@@ -247,17 +241,14 @@ describe('Consumer V2 — data + pivot endpoints', () => {
 
     it('returns 404 for a non-existent filter_id', async () => {
       const res = await request(app).get(`/v2/${DATASET_ID}/pivot/88888888-8888-4888-8888-888888888888`);
-      expect([404, 500]).toContain(res.status);
-      if (res.status !== 404) {
-        expect(res.status).toBe(404);
-      }
+      expect(res.status).toBe(404);
     });
   });
 
   describe('GET /v2/:dataset_id/data/:filter_id/pivot — experimental (undocumented)', () => {
     // NOTE: hidden at src/routes/consumer/v2/api.ts:501 and commented as not-for-consumers.
-    // This test exercises the happy path to capture current behaviour; decision on whether to
-    // keep/document/remove is for the user (same conversation as v1 /pivot/postgres removal).
+    // Exercised here to capture current behaviour; decision on whether to keep/document/remove
+    // is for the user (same conversation as v1 /pivot/postgres removal).
     it('missing x/y → 400', async () => {
       const res = await request(app).get(`/v2/${DATASET_ID}/data/${dataFilterId}/pivot`);
       expect(res.status).toBe(400);
@@ -267,7 +258,7 @@ describe('Consumer V2 — data + pivot endpoints', () => {
       const res = await request(app)
         .get(`/v2/${DATASET_ID}/data/${dataFilterId}/pivot`)
         .query({ x: 'AreaCode', y: 'YearCode', format: 'json' });
-      expect([200, 400]).toContain(res.status);
+      expect(res.status).toBe(200);
     });
   });
 });

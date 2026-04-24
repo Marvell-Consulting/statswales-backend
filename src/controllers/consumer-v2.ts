@@ -287,7 +287,7 @@ export const generatePivotFilterId = async (req: Request, res: Response, next: N
       dataOptions.options = DEFAULT_DATA_OPTIONS.options;
     }
 
-    const lang = langToLocale(dataOptions.locale);
+    const lang = langToLocale(req.language);
     const filterTable = await getFilterTable(publishedRevision.id);
 
     let xCol = dataOptions.pivot.x;

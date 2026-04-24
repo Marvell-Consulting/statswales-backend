@@ -18,7 +18,7 @@ describe('DataOptionsDTO validation', () => {
       pivot: {
         backend: 'duckdb',
         include_performance: false,
-        x: ['dim1'],
+        x: 'dim1',
         y: 'measure1'
       },
       filters: [{ region: ['wales'] }],

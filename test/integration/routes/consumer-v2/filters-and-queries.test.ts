@@ -103,9 +103,12 @@ describe('Consumer V2 — filters + query-store endpoints', () => {
       const res = await request(app).get(`/v2/${DATASET_ID}/filters`);
       expect(res.status).toBe(200);
       expect(res.headers['content-type']).toMatch(/application\/json/);
-      // Response is an array of Filter objects; each has columnName + values.
-      // (Lookup-backed dimensions would also carry reference/description per value.)
-      expect(Array.isArray(res.body) || Array.isArray(res.body.data) || typeof res.body === 'object').toBe(true);
+      expect(Array.isArray(res.body)).toBe(true);
+      expect(res.body.length).toBeGreaterThan(0);
+      const filter = res.body[0];
+      expect(typeof filter.factTableColumn).toBe('string');
+      expect(typeof filter.columnName).toBe('string');
+      expect(Array.isArray(filter.values)).toBe(true);
     });
 
     it('returns 404 for a non-existent dataset', async () => {
@@ -275,13 +278,11 @@ describe('Consumer V2 — filters + query-store endpoints', () => {
     // NOTE: swagger-ignored at src/routes/consumer/v2/api.ts:467. The controller computes a
     // default-options QueryStore when filter_id is absent. Record behaviour so we can decide
     // later whether to document or remove it.
-    it('returns a QueryStore shape for the default query (or 404)', async () => {
+    it('returns a QueryStore shape for the default query', async () => {
       const res = await request(app).get(`/v2/${DATASET_ID}/query/`);
-      expect([200, 404]).toContain(res.status);
-      if (res.status === 200) {
-        expect(res.body).toHaveProperty('id');
-        expect(res.body.datasetId).toBe(DATASET_ID);
-      }
+      expect(res.status).toBe(200);
+      expect(res.body).toHaveProperty('id');
+      expect(res.body.datasetId).toBe(DATASET_ID);
     });
   });
 });

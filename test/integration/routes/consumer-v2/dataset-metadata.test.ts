@@ -86,7 +86,7 @@ describe('Consumer V2 — dataset metadata (/:dataset_id)', () => {
       expect(res.body).toHaveProperty('published_revision');
       // v2's Dataset DTO intentionally omits the full revisions[] array that v1 includes —
       // the OpenAPI schema (src/routes/consumer/v2/openapi-en.json) only defines
-      // published_revision. History is available via the (hidden) /revision/:revision_id.
+      // published_revision.
       expect(res.body).not.toHaveProperty('revisions');
     });
 
