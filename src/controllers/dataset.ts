@@ -27,7 +27,7 @@ import { BadRequestException } from '../exceptions/bad-request.exception';
 import { ViewErrDTO } from '../dtos/view-dto';
 import { arrayValidator, dtoValidator } from '../validators/dto-validator';
 import { RevisionMetadataDTO } from '../dtos/revision-metadata-dto';
-import { createAllCubeFiles } from '../services/cube-builder';
+import { createAllCubeFiles, updateFilterTableToLatest } from '../services/cube-builder';
 import {
   createDimensionsFromSourceAssignment,
   ValidatedSourceAssignment,
@@ -802,6 +802,72 @@ async function rebuildDatasetList(buildLogEntry: BuildLog, revisionList: Revisio
       }
     }
     buildScript.current_build = null;
+    buildScript.total_builds++;
+    buildLogEntry.buildScript = JSON.stringify(buildScript, null, 2);
+    await buildLogEntry.save();
+  }
+  if (failedBuilds.length > 0) buildLogEntry.errors = JSON.stringify(failedBuilds, null, 2);
+  buildLogEntry.completeBuild(CubeBuildStatus.Completed);
+  await buildLogEntry.save();
+  logger.info(`[${buildLogEntry.id}]: Finished rebuild of ${buildTypeStr} cubes`);
+}
+
+export const rebuildAllFilterTables = async (req: Request, res: Response): Promise<void> => {
+  const user = req.user as User;
+
+  const activeBuilds = await BuildLogRepository.getAllActiveBulkBuilds();
+  if (activeBuilds.length > 1) {
+    logger.info(`There is already an active rebuild process with id ${activeBuilds[0].id}...`);
+    res
+      .status(409)
+      .json({
+        build_id: activeBuilds[0].id,
+        message: 'There is already an active rebuild process. Track with the build_id.'
+      })
+      .end();
+    return;
+  }
+  const buildLogEntry = await BuildLog.startBuild(null, CubeBuildType.AllFilterTables, user.id);
+  res.status(202).json({ build_id: buildLogEntry.id }).end();
+  void rebuildFilterTableListList(buildLogEntry, await RevisionRepository.getAllRevisionIds());
+};
+
+async function rebuildFilterTableListList(buildLogEntry: BuildLog, revisionList: RevisionList[]): Promise<void> {
+  const buildTypeStr = 'all filter tables';
+
+  logger.info(`[${buildLogEntry.id}]: Starting process to rebuild ${buildTypeStr}`);
+  const failedBuilds: {
+    buildId: string;
+    revisionId: string;
+    error: string;
+  }[] = [];
+
+  const buildScript = {
+    current_build: null as string | null,
+    total_builds: 0,
+    successful_builds: 0,
+    failed_builds: 0,
+    all_builds: [] as string[],
+    successfully_built: [] as string[],
+    failed_to_build: [] as string[]
+  };
+
+  for (const rev of revisionList) {
+    const buildId = randomUUID();
+    try {
+      buildScript.all_builds.push(buildId);
+      buildScript.current_build = rev.id;
+      buildLogEntry.buildScript = JSON.stringify(buildScript, null, 2);
+      buildLogEntry.status = CubeBuildStatus.Building;
+      await buildLogEntry.save();
+      await updateFilterTableToLatest(rev.dataset_id, rev.id);
+      buildScript.successful_builds++;
+      buildScript.successfully_built.push(buildId);
+    } catch (err) {
+      logger.error(err);
+      buildScript.failed_builds++;
+      buildScript.failed_to_build.push(buildId);
+    }
     buildScript.total_builds++;
     buildLogEntry.buildScript = JSON.stringify(buildScript, null, 2);
     await buildLogEntry.save();

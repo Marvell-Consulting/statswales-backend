@@ -1,6 +1,12 @@
 import { Router } from 'express';
 
-import { listAllDatasets, rebuildAll, rebuildDrafts, rebuildQueryStore } from '../controllers/dataset';
+import {
+  listAllDatasets,
+  rebuildAll,
+  rebuildAllFilterTables,
+  rebuildDrafts,
+  rebuildQueryStore
+} from '../controllers/dataset';
 import { ensureDeveloper } from '../middleware/ensure-developer';
 
 export const devRouter = Router();
@@ -22,3 +28,4 @@ devRouter.post('/rebuild/all', rebuildAll);
 devRouter.post('/rebuild/drafts', rebuildDrafts);
 
 devRouter.post('/rebuild/query-store', rebuildQueryStore);
+devRouter.post('/rebuild/filter-tables', rebuildAllFilterTables);

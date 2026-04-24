@@ -5,6 +5,7 @@ export enum BuildStage {
   Dimensions = 'dimensions',
   NoteCodes = 'note_codes',
   CoreView = 'core_view',
+  UpdateFilterTable = 'update_filter_table',
   ValidationTableBuild = 'validation_table_build',
   PostBuildMetadata = 'post_build_metadata',
   ViewMaterialisation = 'view_materialisation'
