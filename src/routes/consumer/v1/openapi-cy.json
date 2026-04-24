@@ -59,11 +59,6 @@
                 "schema": {
                   "$ref": "#/components/schemas/RootTopics"
                 }
-              },
-              "application/xml": {
-                "schema": {
-                  "$ref": "#/components/schemas/RootTopics"
-                }
               }
             }
           }
@@ -100,11 +95,6 @@
                 "schema": {
                   "$ref": "#/components/schemas/PublishedTopics"
                 }
-              },
-              "application/xml": {
-                "schema": {
-                  "$ref": "#/components/schemas/PublishedTopics"
-                }
               }
             }
           }
@@ -129,11 +119,6 @@
             "description": "Gwrthrych JSON sy'n cynnwys yr holl fetadata ar gyfer set ddata gyhoeddedig",
             "content": {
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Dataset"
-                }
-              },
-              "application/xml": {
                 "schema": {
                   "$ref": "#/components/schemas/Dataset"
                 }

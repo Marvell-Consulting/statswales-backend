@@ -91,7 +91,11 @@ publicApiRouter.get(
     #swagger.parameters['$ref'] = ['#/components/parameters/language']
     #swagger.responses[200] = {
       description: 'A list of all top-level topics that have at least one published dataset tagged to them.',
-      schema: { $ref: "#/components/schemas/RootTopics" }
+      content: {
+        'application/json': {
+          schema: { $ref: "#/components/schemas/RootTopics" }
+        }
+      }
     }
   */
   listRootTopics
@@ -114,7 +118,11 @@ publicApiRouter.get(
     ]
     #swagger.responses[200] = {
       description: 'A list of what sits under a given topic - either sub-topics or published datasets tagged directly to that topic.',
-      schema: { $ref: "#/components/schemas/PublishedTopics" }
+      content: {
+        'application/json': {
+          schema: { $ref: "#/components/schemas/PublishedTopics" }
+        }
+      }
     }
   */
   listSubTopics
@@ -132,7 +140,11 @@ publicApiRouter.get(
     ]
     #swagger.responses[200] = {
       description: 'A json object containing all metadata for a published dataset',
-      schema: { $ref: "#/components/schemas/Dataset" }
+      content: {
+        'application/json': {
+          schema: { $ref: "#/components/schemas/Dataset" }
+        }
+      }
     }
   */
   getPublishedDatasetById
