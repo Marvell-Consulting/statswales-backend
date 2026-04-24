@@ -254,7 +254,7 @@ describe('Consumer V1 — listings (/, /topic, /topic/:topic_id)', () => {
       // Non-leaf → no datasets
       expect(res.body.datasets).toBeUndefined();
       // Parents: Health is a root topic, so parents should be an empty array or undefined
-      expect(res.body.parents === undefined || Array.isArray(res.body.parents)).toBe(true);
+      expect(res.body.parents === undefined || res.body.parents.length === 0).toBe(true);
     });
 
     it('for a leaf topic returns paginated datasets tagged directly to it', async () => {

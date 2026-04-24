@@ -89,7 +89,10 @@ export const getPublishedDatasetView = async (req: Request, res: Response): Prom
   } catch (error) {
     if (error instanceof QueryFailedError && /column .* does not exist/i.test(error.message)) {
       logger.warn(error, 'Cube rejected a client-supplied column (filter or sort)');
-      throw new BadRequestException('errors.filter.invalid');
+      const hasSortBy = typeof req.query.sort_by === 'string' && req.query.sort_by.length > 0;
+      const hasFilter = typeof req.query.filter === 'string' && req.query.filter.length > 0;
+      const errorKey = hasSortBy && !hasFilter ? 'errors.invalid_sort_by' : 'errors.filter.invalid';
+      throw new BadRequestException(errorKey);
     }
     logger.error(error, 'Something went wrong trying to query the cube');
     throw new UnknownException('errors.consumer_view.cube_query_failed');

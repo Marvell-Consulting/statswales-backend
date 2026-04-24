@@ -127,11 +127,11 @@ describe('Consumer V1 — dataset metadata (/:dataset_id, /:dataset_id/history)'
       // Per project convention, unset optional fields should be absent, not null.
       const res = await request(app).get(`/v1/${LOOSE_DATASET_ID}`);
       // We don't enumerate every optional field; spot-check the known optional ones.
-      expect(res.body.archived_at ?? undefined).not.toBeNull();
-      expect(res.body.replaced_by ?? undefined).not.toBeNull();
-      expect(res.body.start_date ?? undefined).not.toBeNull();
-      expect(res.body.end_date ?? undefined).not.toBeNull();
-      expect(res.body.published_revision.unpublished_at ?? undefined).not.toBeNull();
+      expect(res.body).not.toHaveProperty('archived_at');
+      expect(res.body).not.toHaveProperty('replaced_by');
+      expect(res.body).not.toHaveProperty('start_date');
+      expect(res.body).not.toHaveProperty('end_date');
+      expect(res.body.published_revision).not.toHaveProperty('unpublished_at');
     });
 
     it('returns 404 for a malformed UUID', async () => {
