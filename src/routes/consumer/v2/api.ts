@@ -52,7 +52,7 @@ export const ensurePublishedDataset = async (req: Request, res: Response, next: 
 
 publicApiV2Router.use(cors()); // allow browser XMLHttpRequests from any domain
 
-publicApiV2Router.use((req: Request, res: Response, next: NextFunction) => {
+publicApiV2Router.use((_req: Request, res: Response, next: NextFunction) => {
   res.vary('Accept-Language'); // vary response cache on language header
   next();
 });
@@ -121,7 +121,11 @@ publicApiV2Router.get(
     #swagger.parameters['$ref'] = ['#/components/parameters/language']
     #swagger.responses[200] = {
       description: 'A list of all top-level topics that have at least one published dataset tagged to them.',
-      schema: { $ref: "#/components/schemas/RootTopics" }
+      content: {
+        'application/json': {
+          schema: { $ref: "#/components/schemas/RootTopics" }
+        }
+      }
     }
   */
   listRootTopics
@@ -146,7 +150,11 @@ publicApiV2Router.get(
     #swagger.responses[200] = {
       description: "A list of what sits under a given topic - either sub-topics or published datasets tagged directly
         to that topic.",
-      schema: { $ref: "#/components/schemas/PublishedTopics" }
+      content: {
+        'application/json': {
+          schema: { $ref: "#/components/schemas/PublishedTopics" }
+        }
+      }
     }
   */
   listSubTopics
@@ -166,7 +174,11 @@ publicApiV2Router.get(
     ]
     #swagger.responses[200] = {
       description: 'A json object containing all metadata for a published dataset',
-      schema: { $ref: "#/components/schemas/Dataset" }
+      content: {
+        'application/json': {
+          schema: { $ref: "#/components/schemas/Dataset" }
+        }
+      }
     }
   */
   getPublishedDatasetById
