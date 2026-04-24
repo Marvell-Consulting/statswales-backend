@@ -181,8 +181,8 @@ describe('Consumer V2 — filters + query-store endpoints', () => {
 
     it('identical pivot bodies return the same FilterId', async () => {
       const body = { pivot: { x: 'AreaCode', y: 'YearCode' }, options: { use_raw_column_names: true } };
-      const a = await request(app).post(`/v2/${DATASET_ID}/pivot`).set('Accept-Language', 'en-GB').send(body);
-      const b = await request(app).post(`/v2/${DATASET_ID}/pivot`).set('Accept-Language', 'en-GB').send(body);
+      const a = await request(app).post(`/v2/${DATASET_ID}/pivot`).send(body);
+      const b = await request(app).post(`/v2/${DATASET_ID}/pivot`).send(body);
       expect(a.status).toBe(200);
       expect(b.status).toBe(200);
       expect(typeof a.body.filterId).toBe('string');

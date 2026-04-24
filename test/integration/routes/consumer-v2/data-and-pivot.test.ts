@@ -106,13 +106,9 @@ describe('Consumer V2 — data + pivot endpoints', () => {
       .send({ filters: [{ YearCode: ['2020'] }], options: { use_raw_column_names: true } });
     dataFilterId = dRes.body.filterId;
 
-    // Create a pivot filter for /pivot/:filter_id. We set Accept-Language here to work
-    // around a known v2 defect where generatePivotFilterId accesses queryStore.query[req.language]
-    // without normalising req.language → locale. Without the explicit header this POST 500s
-    // on `totalPivotLines` backfill because queryStore.query['en'] is undefined.
+    // Create a pivot filter for /pivot/:filter_id.
     const pRes = await request(app)
       .post(`/v2/${DATASET_ID}/pivot`)
-      .set('Accept-Language', 'en-GB')
       .send({ pivot: { x: 'AreaCode', y: 'YearCode' }, options: { use_raw_column_names: true } });
     pivotFilterId = pRes.body.filterId;
   }, 120_000);

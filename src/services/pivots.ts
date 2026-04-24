@@ -7,6 +7,7 @@ import { acquireDuckDB } from './duckdb';
 import { t } from '../middleware/translation';
 import { DuckDBResult, DuckDBValue } from '@duckdb/node-api';
 import { logger } from '../utils/logger';
+import { Locale } from '../enums/locale';
 import { OutputFormats } from '../enums/output-formats';
 import { format as csvFormat } from '@fast-csv/format';
 import ExcelJS from 'exceljs';
@@ -388,17 +389,8 @@ export async function createPivotOutputUsingDuckDB(
   }
 }
 
-export function langToLocale(lang: string): string {
-  if (!lang) return 'en-GB';
-  if (lang.length === 5) lang = lang.substring(0, 2);
-  switch (lang) {
-    case 'en':
-      return 'en-GB';
-    case 'cy':
-      return 'cy-GB';
-    default:
-      return 'en-GB';
-  }
+export function langToLocale(lang: string | undefined | null): Locale {
+  return lang?.toLowerCase().startsWith('cy') ? Locale.WelshGb : Locale.EnglishGb;
 }
 
 export function validateColOnly(columnName: string, locale: string, filterTable: FactTableToDimensionName[]): string {

@@ -348,9 +348,12 @@ export const generatePivotFilterId = async (req: Request, res: Response, next: N
 
     // Backfill totalPivotLines for this query if it has not been computed yet.
     if (queryStore.totalPivotLines == null) {
-      const query = await createPivotQuery(req.language, queryStore, {
+      // queryStore.query is keyed by full locale ('en-GB' / 'cy-GB'), so normalise
+      // before passing — req.language may come in as a short code like 'en'.
+      const locale = langToLocale(req.language);
+      const query = await createPivotQuery(locale, queryStore, {
         format: OutputFormats.Json,
-        locale: req.language as Locale,
+        locale,
         pageNumber: 0,
         sort: [],
         x: dataOptions.pivot.x,
