@@ -296,23 +296,23 @@ export const generatePivotFilterId = async (req: Request, res: Response, next: N
       try {
         xCol = resolveFactColumnToDimension(xCol, lang, filterTable);
       } catch (_) {
-        throw new BadRequestException('X Column not found in dataset');
+        throw new BadRequestException('errors.invalid_pivot_x_column');
       }
       try {
         yCol = resolveFactColumnToDimension(yCol, lang, filterTable);
       } catch (_) {
-        throw new BadRequestException('Y Column not found in dataset');
+        throw new BadRequestException('errors.invalid_pivot_y_column');
       }
     } else {
       try {
         xCol = resolveDimensionToFactTableColumn(xCol, filterTable);
       } catch (_) {
-        throw new BadRequestException('X Column not found in dataset');
+        throw new BadRequestException('errors.invalid_pivot_x_column');
       }
       try {
         yCol = resolveDimensionToFactTableColumn(yCol, filterTable);
       } catch (_) {
-        throw new BadRequestException('Y Column not found in dataset');
+        throw new BadRequestException('errors.invalid_pivot_y_column');
       }
     }
 
@@ -331,7 +331,7 @@ export const generatePivotFilterId = async (req: Request, res: Response, next: N
         }
 
         if (filterValues.length > 1) {
-          throw new BadRequestException('Non X and Y columns cannot contain multiple values');
+          throw new BadRequestException('errors.pivot_non_axis_multi_value');
         }
       }
     }
