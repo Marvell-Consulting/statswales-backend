@@ -233,8 +233,14 @@ export const listSubTopics = async (req: Request, res: Response, next: NextFunct
     }
   });
 
+  const topic = topicId ? await TopicRepository.findOneBy({ id: parseInt(topicId, 10) }) : undefined;
+
+  if (topicId && !topic) {
+    next(new NotFoundException('errors.topic_not_found'));
+    return;
+  }
+
   try {
-    const topic = topicId ? await TopicRepository.findOneByOrFail({ id: parseInt(topicId, 10) }) : undefined;
     const subTopics = await PublishedDatasetRepository.listPublishedTopics(lang, topicId);
     const parents = topic ? await TopicRepository.getParents(topic.path) : undefined;
     const isLeafTopic = topic && subTopics.length === 0;
