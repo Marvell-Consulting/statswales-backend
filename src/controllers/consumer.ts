@@ -1,4 +1,5 @@
 import { NextFunction, Request, Response } from 'express';
+import { QueryFailedError } from 'typeorm';
 
 import { logger } from '../utils/logger';
 import { Locale } from '../enums/locale';
@@ -87,6 +88,10 @@ export const getPublishedDatasetView = async (req: Request, res: Response): Prom
     const preview = await createFrontendView(dataset, publishedRevision.id, lang, pageNumber, pageSize, sortBy, filter);
     res.status(200).json(preview);
   } catch (error) {
+    if (error instanceof QueryFailedError && /column .* does not exist/i.test(error.message)) {
+      logger.warn(error, 'Cube rejected a client-supplied column (filter or sort)');
+      throw new BadRequestException('errors.filter.invalid');
+    }
     logger.error(error, 'Something went wrong trying to query the cube');
     throw new UnknownException('errors.consumer_view.cube_query_failed');
   }
