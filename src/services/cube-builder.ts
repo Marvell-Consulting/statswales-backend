@@ -36,7 +36,6 @@ import { UniqueMeasureDetails } from '../interfaces/unique-measure-details';
 import { MeasureFormat } from '../interfaces/measure-format';
 import { RevisionRepository } from '../repositories/revision';
 import { QueryStore } from '../entities/query-store';
-import { stat } from 'node:fs/promises';
 
 export const FACT_TABLE_NAME = 'fact_table';
 export const METADATA_TABLE_NAME = 'metadata';
