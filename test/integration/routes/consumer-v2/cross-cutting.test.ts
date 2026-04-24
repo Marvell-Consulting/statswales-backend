@@ -34,8 +34,7 @@ const GET_DATASET_ENDPOINTS = [
   (id: string) => `/v2/${id}/data`,
   (id: string) => `/v2/${id}/data/${MISSING_FILTER}`,
   (id: string) => `/v2/${id}/pivot/${MISSING_FILTER}`,
-  (id: string) => `/v2/${id}/query/${MISSING_FILTER}`,
-  (id: string) => `/v2/${id}/revision/${MISSING_ID}`
+  (id: string) => `/v2/${id}/query/${MISSING_FILTER}`
 ];
 
 const POST_DATASET_ENDPOINTS = [(id: string) => `/v2/${id}/data`, (id: string) => `/v2/${id}/pivot`];

@@ -7,7 +7,6 @@ import {
   getPublishedDatasetById,
   listSubTopics,
   listRootTopics,
-  getPublishedRevisionById,
   getPublishedDatasetData,
   getPublishedDatasetFilters,
   generateFilterId,
@@ -20,7 +19,6 @@ import {
 import { NotFoundException } from '../../../exceptions/not-found.exception';
 import { longTimeout } from '../../../middleware/timeout';
 import { PublishedDatasetRepository } from '../../../repositories/published-dataset';
-import { PublishedRevisionRepository } from '../../../repositories/published-revision';
 import { hasError, uuidValidator } from '../../../validators';
 
 export const publicApiV2Router = Router();
@@ -49,31 +47,6 @@ export const ensurePublishedDataset = async (req: Request, res: Response, next: 
     return;
   }
 
-  next();
-};
-
-export const ensurePublishedRevision = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-  const revisionIdError = await hasError(uuidValidator('revision_id'), req);
-
-  if (revisionIdError) {
-    next(new NotFoundException('errors.revision_id_invalid'));
-    return;
-  }
-
-  try {
-    logger.debug(`Loading published revision ${req.params.dataset_id}...`);
-    const revision = await PublishedRevisionRepository.getById(req.params.revision_id);
-
-    if (revision.datasetId !== res.locals.datasetId) {
-      throw new Error('revision does not belong to dataset');
-    }
-
-    res.locals.revision_id = revision.id;
-    res.locals.revision = revision;
-  } catch (_err) {
-    next(new NotFoundException('errors.no_revision'));
-    return;
-  }
   next();
 };
 
@@ -197,14 +170,6 @@ publicApiV2Router.get(
     }
   */
   getPublishedDatasetById
-);
-
-publicApiV2Router.get(
-  '/:dataset_id/revision/:revision_id',
-  ensurePublishedDataset,
-  ensurePublishedRevision,
-  /* #swagger.ignore = true */
-  getPublishedRevisionById
 );
 
 publicApiV2Router.get(

@@ -26,7 +26,6 @@ import {
 } from '../services/consumer-view-v2';
 import { Dataset } from '../entities/dataset/dataset';
 import { DataOptionsDTO, DEFAULT_DATA_OPTIONS, FRONTEND_DATA_OPTIONS, PivotOptionsDTO } from '../dtos/data-options-dto';
-import { SingleLanguageRevisionDTO } from '../dtos/consumer/single-language-revision-dto';
 import { PageOptions } from '../interfaces/page-options';
 import { dtoValidator } from '../validators/dto-validator';
 import { QueryStoreRepository } from '../repositories/query-store';
@@ -85,13 +84,6 @@ export const getPublishedDatasetById = async (req: Request, res: Response): Prom
   }
 
   res.json(datasetDTO);
-};
-
-export const getPublishedRevisionById = async (req: Request, res: Response): Promise<void> => {
-  const lang = req.language as Locale;
-  const revision = await PublishedRevisionRepository.getById(res.locals.revision_id);
-  const revisionDto = SingleLanguageRevisionDTO.fromRevision(revision, lang);
-  res.json(revisionDto);
 };
 
 async function parsePivotPageOptions(req: Request, validateXY = true): Promise<PageOptions> {
