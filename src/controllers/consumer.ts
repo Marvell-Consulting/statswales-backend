@@ -234,7 +234,7 @@ export const listSubTopics = async (req: Request, res: Response, next: NextFunct
   }
 };
 
-export const getPublicationHistory = async (req: Request, res: Response): Promise<void> => {
+export const getPublicationHistory = async (_req: Request, res: Response): Promise<void> => {
   const revisions = await PublishedDatasetRepository.getHistoryById(res.locals.datasetId);
   const revisionDTOs = revisions.map((rev) => ConsumerRevisionDTO.fromRevision(rev));
 
