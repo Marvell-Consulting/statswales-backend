@@ -271,66 +271,70 @@ export const generatePivotFilterId = async (req: Request, res: Response, next: N
   const publishedRevision = await PublishedRevisionRepository.getLatestByDatasetId(dataset.id);
   if (!publishedRevision) return next(new NotFoundException('errors.no_published_revision'));
 
-  const dataOptions = await dtoValidator(PivotOptionsDTO, req.body);
-
-  if (dataOptions.pivot.x.split(',').length > 1 || dataOptions.pivot.y.split(',').length > 1) {
-    throw new BadRequestException('errors.pivot_only_one_column');
-  }
-
-  if (!dataOptions.options) {
-    dataOptions.options = DEFAULT_DATA_OPTIONS.options;
-  }
-
-  const lang = langToLocale(dataOptions.locale);
-  const filterTable = await getFilterTable(publishedRevision.id);
-
-  let xCol = dataOptions.pivot.x;
-  let yCol = dataOptions.pivot.y;
-  if (dataOptions.options?.use_raw_column_names) {
-    try {
-      xCol = resolveFactColumnToDimension(xCol, lang, filterTable);
-    } catch (_) {
-      throw new BadRequestException('X Column not found in dataset');
-    }
-    try {
-      yCol = resolveFactColumnToDimension(yCol, lang, filterTable);
-    } catch (_) {
-      throw new BadRequestException('Y Column not found in dataset');
-    }
-  } else {
-    try {
-      xCol = resolveDimensionToFactTableColumn(xCol, filterTable);
-    } catch (_) {
-      throw new BadRequestException('X Column not found in dataset');
-    }
-    try {
-      yCol = resolveDimensionToFactTableColumn(yCol, filterTable);
-    } catch (_) {
-      throw new BadRequestException('Y Column not found in dataset');
-    }
-  }
-
-  if (dataOptions?.filters && dataOptions?.filters.length > 0) {
-    for (const filter of dataOptions.filters) {
-      let colName = Object.keys(filter)[0];
-      const filterValues = Object.values(filter)[0] as string[];
-      if (dataOptions.options?.use_raw_column_names) {
-        colName = resolveFactColumnToDimension(colName, lang, filterTable);
-      } else {
-        colName = resolveDimensionToFactTableColumn(colName, filterTable);
-      }
-
-      if (colName === xCol || colName === yCol) {
-        continue;
-      }
-
-      if (filterValues.length > 1) {
-        throw new BadRequestException('Non X and Y columns cannot contain multiple values');
-      }
-    }
-  }
-
   try {
+    const dataOptions = await dtoValidator(PivotOptionsDTO, req.body);
+
+    if (!dataOptions.pivot?.x || !dataOptions.pivot?.y) {
+      throw new BadRequestException('errors.invalid_pivot_params');
+    }
+
+    if (dataOptions.pivot.x.split(',').length > 1 || dataOptions.pivot.y.split(',').length > 1) {
+      throw new BadRequestException('errors.pivot_only_one_column');
+    }
+
+    if (!dataOptions.options) {
+      dataOptions.options = DEFAULT_DATA_OPTIONS.options;
+    }
+
+    const lang = langToLocale(dataOptions.locale);
+    const filterTable = await getFilterTable(publishedRevision.id);
+
+    let xCol = dataOptions.pivot.x;
+    let yCol = dataOptions.pivot.y;
+    if (dataOptions.options?.use_raw_column_names) {
+      try {
+        xCol = resolveFactColumnToDimension(xCol, lang, filterTable);
+      } catch (_) {
+        throw new BadRequestException('X Column not found in dataset');
+      }
+      try {
+        yCol = resolveFactColumnToDimension(yCol, lang, filterTable);
+      } catch (_) {
+        throw new BadRequestException('Y Column not found in dataset');
+      }
+    } else {
+      try {
+        xCol = resolveDimensionToFactTableColumn(xCol, filterTable);
+      } catch (_) {
+        throw new BadRequestException('X Column not found in dataset');
+      }
+      try {
+        yCol = resolveDimensionToFactTableColumn(yCol, filterTable);
+      } catch (_) {
+        throw new BadRequestException('Y Column not found in dataset');
+      }
+    }
+
+    if (dataOptions?.filters && dataOptions?.filters.length > 0) {
+      for (const filter of dataOptions.filters) {
+        let colName = Object.keys(filter)[0];
+        const filterValues = Object.values(filter)[0] as string[];
+        if (dataOptions.options?.use_raw_column_names) {
+          colName = resolveFactColumnToDimension(colName, lang, filterTable);
+        } else {
+          colName = resolveDimensionToFactTableColumn(colName, filterTable);
+        }
+
+        if (colName === xCol || colName === yCol) {
+          continue;
+        }
+
+        if (filterValues.length > 1) {
+          throw new BadRequestException('Non X and Y columns cannot contain multiple values');
+        }
+      }
+    }
+
     const queryStore = await QueryStoreRepository.getByRequest(dataset.id, publishedRevision.id, dataOptions);
 
     // Backfill totalPivotLines for this query if it has not been computed yet.
@@ -350,6 +354,9 @@ export const generatePivotFilterId = async (req: Request, res: Response, next: N
     }
     res.json({ filterId: queryStore.id });
   } catch (err) {
+    if (err instanceof NotFoundException || err instanceof BadRequestException) {
+      return next(err);
+    }
     logger.error(err, 'Error generating filter ID');
     return next(new UnknownException());
   }
