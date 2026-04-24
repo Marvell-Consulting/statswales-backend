@@ -426,6 +426,7 @@ publicApiV2Router.get(
   getPublishedDatasetPivotFromId
 );
 
+// Debugging-only: returns the default query configuration for the dataset (no filter ID).
 publicApiV2Router.get(
   '/:dataset_id/query/',
   ensurePublishedDataset,
