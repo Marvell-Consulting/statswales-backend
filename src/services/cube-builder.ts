@@ -556,7 +556,7 @@ function createCubeBaseTables(revisionId: string, buildId: string, factTableQuer
          description VARCHAR,
          sort_order TEXT,
          hierarchy VARCHAR,
-         reference_count BIGINT,
+         reference_count BIGINT DEFAULT 0,
          PRIMARY KEY (reference, language, fact_table_column)
         );
       `,
@@ -1245,7 +1245,7 @@ function setupMeasureAndDataValuesNoLookup(
     );
     statements.push(
       pgformat(
-        `INSERT INTO %I.%I SELECT DISTINCT CAST(%I AS VARCHAR), %L, %L, %L, CAST(%I AS VARCHAR), null, null FROM %I.%I ORDER BY %I;`,
+        `INSERT INTO %I.%I SELECT DISTINCT CAST(%I AS VARCHAR), %L, %L, %L, CAST(%I AS VARCHAR), NULL, NULL, 0 FROM %I.%I ORDER BY %I;`,
         buildId,
         FILTER_TABLE_NAME,
         measureColumn.columnName,
@@ -1561,7 +1561,7 @@ function rawDimensionProcessor(
     statements.push(
       pgformat(
         `INSERT INTO %I.%I
-       SELECT DISTINCT CAST(%I AS VARCHAR), %L, %L, %L, CAST (%I AS VARCHAR), NULL, NULL
+       SELECT DISTINCT CAST(%I AS VARCHAR), %L, %L, %L, CAST (%I AS VARCHAR), NULL, NULL, 0
        FROM %I.%I ORDER BY %I;`,
         buildId,
         FILTER_TABLE_NAME,
@@ -1798,7 +1798,7 @@ function setupNumericDimension(
     statements.push(
       pgformat(
         `INSERT INTO %I.%I
-         SELECT DISTINCT CAST(%I AS VARCHAR), %L, %L, %L, CAST (%I AS VARCHAR), NULL, NULL
+         SELECT DISTINCT CAST(%I AS VARCHAR), %L, %L, %L, CAST (%I AS VARCHAR), NULL, NULL, NULL
          FROM %I.%I ORDER BY %I;`,
         buildId,
         FILTER_TABLE_NAME,
@@ -1868,7 +1868,7 @@ function setupTextDimension(
     statements.push(
       pgformat(
         `INSERT INTO %I.%I
-         SELECT DISTINCT CAST(%I AS VARCHAR), %L, %L, %L, CAST (%I AS VARCHAR), NULL, NULL
+         SELECT DISTINCT CAST(%I AS VARCHAR), %L, %L, %L, CAST (%I AS VARCHAR), NULL, NULL, 0
          FROM %I.%I;`,
         buildId,
         FILTER_TABLE_NAME,
@@ -2035,11 +2035,27 @@ function updateFilterTableCounts(buildId: string, factTable: FactTableColumn[]):
   }
   statements.push(
     pgformat(
-      'INSERT INTO %I.%I (key, value) VALUES (%L, %L);',
+      'UPDATE %I.%I SET value = %L WHERE key = %L;',
+      buildId,
+      METADATA_TABLE_NAME,
+      FILTER_TABLE_VERSION,
+      CubeMetaDataKeys.FilterTableVersion
+    )
+  );
+  statements.push(
+    pgformat(
+      'INSERT INTO %I.%I (key, value) ' +
+        'SELECT %L, %L ' +
+        'WHERE NOT EXISTS (' +
+        '  SELECT 1 FROM %I.%I WHERE key = %L' +
+        ');',
       buildId,
       METADATA_TABLE_NAME,
       CubeMetaDataKeys.FilterTableVersion,
-      FILTER_TABLE_VERSION
+      FILTER_TABLE_VERSION,
+      buildId,
+      METADATA_TABLE_NAME,
+      CubeMetaDataKeys.FilterTableVersion
     )
   );
   statements.push('COMMIT;');
@@ -2052,7 +2068,9 @@ function updateFilterTableCounts(buildId: string, factTable: FactTableColumn[]):
 function alterFilterTableBlock(cubeId: string): TransactionBlock {
   const statements: string[] = ['BEGIN TRANSACTION;'];
   statements.push(pgformat('ALTER TABLE %I.%I ADD IF NOT EXISTS sort_order TEXT;', cubeId, FILTER_TABLE_NAME));
-  statements.push(pgformat('ALTER TABLE %I.%I ADD IF NOT EXISTS reference_count BIGINT;', cubeId, FILTER_TABLE_NAME));
+  statements.push(
+    pgformat('ALTER TABLE %I.%I ADD IF NOT EXISTS reference_count BIGINT DEFAULT 0;', cubeId, FILTER_TABLE_NAME)
+  );
   statements.push('COMMIT;');
   return {
     buildStage: BuildStage.UpdateFilterTable,
@@ -2082,11 +2100,13 @@ function createFilterTableSortOrders(cubeId: string, dataset: Dataset): Transact
   if (dataset.measure?.lookupTable) {
     statements.push(
       pgformat(
-        'UPDATE %I.%I SET sort_order = lookup.sort_order FROM (SELECT CAST(reference AS VARCHAR) AS reference, sort_order FROM %I.measure) AS lookup WHERE %I.reference = lookup.reference;',
+        'UPDATE %I.%I SET sort_order = lookup.sort_order FROM (SELECT CAST(reference AS VARCHAR) AS reference, sort_order FROM %I.measure) AS lookup WHERE %I.reference = lookup.reference AND %I.fact_table_column = %L;',
         cubeId,
         FILTER_TABLE_NAME,
         cubeId,
-        FILTER_TABLE_NAME
+        FILTER_TABLE_NAME,
+        FILTER_TABLE_NAME,
+        dataset.measure.factTableColumn
       )
     );
   }
