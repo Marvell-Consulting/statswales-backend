@@ -2035,11 +2035,27 @@ function updateFilterTableCounts(buildId: string, factTable: FactTableColumn[]):
   }
   statements.push(
     pgformat(
-      'INSERT INTO %I.%I (key, value) VALUES (%L, %L);',
+      'UPDATE %I.%I SET value = %L WHERE key = %L;',
+      buildId,
+      METADATA_TABLE_NAME,
+      FILTER_TABLE_VERSION,
+      CubeMetaDataKeys.FilterTableVersion
+    )
+  );
+  statements.push(
+    pgformat(
+      'INSERT INTO %I.%I (key, value) ' +
+        'SELECT %L, %L ' +
+        'WHERE NOT EXISTS (' +
+        '  SELECT 1 FROM %I.%I WHERE key = %L' +
+        ');',
       buildId,
       METADATA_TABLE_NAME,
       CubeMetaDataKeys.FilterTableVersion,
-      FILTER_TABLE_VERSION
+      FILTER_TABLE_VERSION,
+      buildId,
+      METADATA_TABLE_NAME,
+      CubeMetaDataKeys.FilterTableVersion
     )
   );
   statements.push('COMMIT;');
