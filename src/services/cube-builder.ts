@@ -1245,7 +1245,7 @@ function setupMeasureAndDataValuesNoLookup(
     );
     statements.push(
       pgformat(
-        `INSERT INTO %I.%I SELECT DISTINCT CAST(%I AS VARCHAR), %L, %L, %L, CAST(%I AS VARCHAR), null, null FROM %I.%I ORDER BY %I;`,
+        `INSERT INTO %I.%I SELECT DISTINCT CAST(%I AS VARCHAR), %L, %L, %L, CAST(%I AS VARCHAR), null, null, null FROM %I.%I ORDER BY %I;`,
         buildId,
         FILTER_TABLE_NAME,
         measureColumn.columnName,
