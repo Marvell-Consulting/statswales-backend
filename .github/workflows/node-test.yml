@@ -46,3 +46,5 @@ jobs:
     - run: npm run lint:ci
     - run: npm run build
     - run: npm run test:ci
+      env:
+        LOG_LEVEL: error
