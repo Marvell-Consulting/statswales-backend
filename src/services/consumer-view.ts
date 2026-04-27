@@ -42,6 +42,8 @@ interface FilterRow {
   dimension_name: string;
   description: string;
   hierarchy: string;
+  sort_order: string;
+  reference_count: number;
 }
 
 export const getFilters = async (revisionId: string, language: string): Promise<FilterTable[]> => {

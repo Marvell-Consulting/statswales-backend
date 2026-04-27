@@ -23,7 +23,8 @@ export function transformHierarchy(factTableColumn: string, columnName: string, 
   for (const row of input) {
     const node: FilterValues = {
       reference: row.reference,
-      description: row.description
+      description: row.description,
+      count: row.reference_count
     };
     nodeMap.set(row.reference, node);
 
