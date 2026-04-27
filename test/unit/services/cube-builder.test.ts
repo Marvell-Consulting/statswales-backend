@@ -366,7 +366,7 @@ describe('measureTableCreateStatement', () => {
     expect(sql).toContain('hierarchy TEXT');
     expect(sql).toContain('language TEXT');
     expect(sql).toContain('description TEXT');
-    expect(sql).toContain('sort_order INTEGER');
+    expect(sql).toContain('sort_order BIGINT');
     expect(sql).toContain('format TEXT');
     expect(sql).toContain('decimals INTEGER');
     expect(sql).toContain('measure_type TEXT');
