@@ -1282,7 +1282,7 @@ export const measureTableCreateStatement = (
                         language TEXT,
                         description TEXT,
                         notes TEXT,
-                        sort_order BIGINT,
+                        sort_order TEXT,
                         format TEXT,
                         decimals INTEGER,
                         measure_type TEXT,
@@ -2051,7 +2051,7 @@ function updateFilterTableCounts(buildId: string, factTable: FactTableColumn[]):
 
 function alterFilterTableBlock(cubeId: string): TransactionBlock {
   const statements: string[] = ['BEGIN TRANSACTION;'];
-  statements.push(pgformat('ALTER TABLE %I.%I ADD IF NOT EXISTS sort_order BIGINT;', cubeId, FILTER_TABLE_NAME));
+  statements.push(pgformat('ALTER TABLE %I.%I ADD IF NOT EXISTS sort_order TEXT;', cubeId, FILTER_TABLE_NAME));
   statements.push(pgformat('ALTER TABLE %I.%I ADD IF NOT EXISTS reference_count BIGINT;', cubeId, FILTER_TABLE_NAME));
   statements.push('COMMIT;');
   return {
