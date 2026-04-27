@@ -2066,13 +2066,15 @@ function createFilterTableSortOrders(cubeId: string, dataset: Dataset): Transact
     if (!dim.lookupTable) continue;
     statements.push(
       pgformat(
-        'UPDATE %I.%I SET sort_order = lookup.sort_order FROM (SELECT CAST(%I AS VARCHAR) AS reference, sort_order FROM %I.%I) AS lookup WHERE %I.reference = lookup.reference;',
+        'UPDATE %I.%I SET sort_order = lookup.sort_order FROM (SELECT CAST(%I AS VARCHAR) AS reference, sort_order FROM %I.%I) AS lookup WHERE %I.reference = lookup.reference AND %I.fact_table_column = %L;',
         cubeId,
         FILTER_TABLE_NAME,
         dim.factTableColumn,
         cubeId,
         `${makeCubeSafeString(dim.factTableColumn)}_lookup`,
-        FILTER_TABLE_NAME
+        FILTER_TABLE_NAME,
+        FILTER_TABLE_NAME,
+        dim.factTableColumn
       )
     );
   }
