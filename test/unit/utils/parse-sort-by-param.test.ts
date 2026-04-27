@@ -83,19 +83,18 @@ describe('parseSortByParam', () => {
     expect(() => parseSortByParam('title:up')).toThrow(BadRequestException);
   });
 
-  it('should throw BadRequestException for non-identifier column names (spaces)', () => {
-    expect(() => parseSortByParam('not json')).toThrow(BadRequestException);
-    expect(() => parseSortByParam('col name:asc')).toThrow(BadRequestException);
+  it('should accept display names with spaces (translated dimension headers)', () => {
+    expect(parseSortByParam('Financial year:asc')).toEqual(['Financial year|asc']);
+    expect(parseSortByParam('Data values:desc')).toEqual(['Data values|desc']);
   });
 
-  it('should throw BadRequestException for non-identifier column names (punctuation)', () => {
-    expect(() => parseSortByParam('col-name:asc')).toThrow(BadRequestException);
-    expect(() => parseSortByParam('a;b:asc')).toThrow(BadRequestException);
+  it('should accept display names with punctuation', () => {
+    expect(parseSortByParam('col-name:asc')).toEqual(['col-name|asc']);
   });
 
-  it('should throw BadRequestException when JSON columnName is not a valid identifier', () => {
-    const json = JSON.stringify([{ columnName: 'not an ident', direction: 'ASC' }]);
-    expect(() => parseSortByParam(json)).toThrow(BadRequestException);
+  it('should accept JSON columnName with spaces', () => {
+    const json = JSON.stringify([{ columnName: 'Financial year', direction: 'ASC' }]);
+    expect(parseSortByParam(json)).toEqual(['Financial year|asc']);
   });
 
   it('should accept identifier column names with underscores and digits', () => {
