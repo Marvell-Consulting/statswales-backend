@@ -1868,7 +1868,7 @@ function setupTextDimension(
     statements.push(
       pgformat(
         `INSERT INTO %I.%I
-         SELECT DISTINCT CAST(%I AS VARCHAR), %L, %L, %L, CAST (%I AS VARCHAR), NULL, NULL
+         SELECT DISTINCT CAST(%I AS VARCHAR), %L, %L, %L, CAST (%I AS VARCHAR), NULL, NULL, NULL
          FROM %I.%I;`,
         buildId,
         FILTER_TABLE_NAME,
