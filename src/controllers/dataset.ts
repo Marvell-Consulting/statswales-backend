@@ -853,6 +853,7 @@ async function rebuildFilterTableListList(buildLogEntry: BuildLog, revisionList:
   };
 
   for (const rev of revisionList) {
+    if (!rev.data_table_id) continue;
     const buildId = randomUUID();
     try {
       buildScript.all_builds.push(buildId);
