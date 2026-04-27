@@ -224,7 +224,9 @@ export async function seedPublishedDataset(opts: SeedPublishedDatasetOpts): Prom
     await cubeDB.release();
   }
 
-  await createAllCubeFiles(opts.datasetId, opts.revisionId);
+  // awaitMaterialisation=true: tests need core_view_en to exist before they query it.
+  // The default fire-and-forget mode races the POST and 500s on slower CI runners.
+  await createAllCubeFiles(opts.datasetId, opts.revisionId, undefined, undefined, undefined, true);
 
   return { datasetId: opts.datasetId, revisionId: opts.revisionId, dataTableId: opts.dataTableId };
 }
@@ -392,7 +394,7 @@ export async function addPublishedRevision(opts: {
     } finally {
       await cubeDB.release();
     }
-    await createAllCubeFiles(opts.datasetId, revision.id);
+    await createAllCubeFiles(opts.datasetId, revision.id, undefined, undefined, undefined, true);
   }
 
   return revision;
