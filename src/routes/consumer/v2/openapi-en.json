@@ -126,11 +126,6 @@
                 "schema": {
                   "$ref": "#/components/schemas/RootTopics"
                 }
-              },
-              "application/xml": {
-                "schema": {
-                  "$ref": "#/components/schemas/RootTopics"
-                }
               }
             }
           }
@@ -170,11 +165,6 @@
                 "schema": {
                   "$ref": "#/components/schemas/PublishedTopics"
                 }
-              },
-              "application/xml": {
-                "schema": {
-                  "$ref": "#/components/schemas/PublishedTopics"
-                }
               }
             }
           }
@@ -202,11 +192,6 @@
             "description": "A json object containing all metadata for a published dataset",
             "content": {
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Dataset"
-                }
-              },
-              "application/xml": {
                 "schema": {
                   "$ref": "#/components/schemas/Dataset"
                 }

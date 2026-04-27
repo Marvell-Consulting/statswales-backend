@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto';
+
 import { format as pgformat } from '@scaleleap/pg-format';
 
 import { User } from '../../src/entities/user/user';
@@ -11,6 +13,11 @@ import { FactTableColumn } from '../../src/entities/dataset/fact-table-column';
 import { FactTableColumnType } from '../../src/enums/fact-table-column-type';
 import { DataTableAction } from '../../src/enums/data-table-action';
 import { FileType } from '../../src/enums/file-type';
+import { Dimension } from '../../src/entities/dataset/dimension';
+import { DimensionMetadata } from '../../src/entities/dataset/dimension-metadata';
+import { LookupTable } from '../../src/entities/dataset/lookup-table';
+import { Measure } from '../../src/entities/dataset/measure';
+import { DimensionType } from '../../src/enums/dimension-type';
 import { cubeDataSource } from '../../src/db/cube-source';
 import { createAllCubeFiles } from '../../src/services/cube-builder';
 
@@ -24,6 +31,47 @@ export interface BilingualText {
 export interface FactColumnSpec {
   name: string;
   datatype: string; // e.g. 'BIGINT', 'DOUBLE PRECISION', 'VARCHAR'
+  /**
+   * Classifies this column for the cube builder. Defaults to Unknown.
+   * Set one column to DataValues so the cube builds as a FullCube (which triggers
+   * setupDimensions and populates filter_table) rather than a BaseCube.
+   */
+  columnType?: FactTableColumnType;
+}
+
+export interface LookupRow {
+  /** Value of the fact-table column this row maps — e.g. 'W06000001' for AreaCode. */
+  reference: string | number;
+  /**
+   * Language short code — 'en' or 'cy'. The helper expands this to the lowercase locale
+   * ('en-gb' / 'cy-gb') used by the cube-builder's filter_table WHERE clause.
+   * Each reference should appear for every language.
+   */
+  language: 'en' | 'cy';
+  description: string;
+  sortOrder?: number;
+  hierarchy?: string | null;
+  notes?: string | null;
+}
+
+const LOCALE_FOR_LANG: Record<'en' | 'cy', string> = {
+  en: 'en-gb',
+  cy: 'cy-gb'
+};
+
+export interface DimensionSpec {
+  /** Fact-table column name being described by this dimension (must also appear in factColumns). */
+  factTableColumn: string;
+  /** Dimension type (LookupTable, DatePeriod, Numeric, ...). Defaults to LookupTable. */
+  type?: DimensionType;
+  /** Required for LookupTable-like types. Fixed ID so tests can reference it. */
+  lookupTableId?: string;
+  /** Postgres type for the reference column in the lookup table — must match the fact column. */
+  referenceDatatype?: string;
+  /** Rows to populate the lookup table with. Provide each reference in both 'en' and 'cy'. */
+  lookupRows?: LookupRow[];
+  /** Optional human-readable name for the dimension. Used as the column label in filter_table. */
+  name?: BilingualText;
 }
 
 export interface SeedPublishedDatasetOpts {
@@ -45,6 +93,8 @@ export interface SeedPublishedDatasetOpts {
   firstPublishedAt?: Date;
   /** Omit userGroup linkage (useful for tests that assert publisher block is absent). */
   skipUserGroup?: boolean;
+  /** Lookup-backed dimensions. Required for v2 filter/pivot tests that resolve columns via filter_table. */
+  dimensions?: DimensionSpec[];
 }
 
 const DEFAULT_FACT_COLUMNS: FactColumnSpec[] = [
@@ -88,7 +138,7 @@ export async function seedPublishedDataset(opts: SeedPublishedDatasetOpts): Prom
       FactTableColumn.create({
         columnName: col.name,
         columnIndex: idx,
-        columnType: FactTableColumnType.Unknown,
+        columnType: col.columnType ?? FactTableColumnType.Unknown,
         columnDatatype: col.datatype
       })
     )
@@ -130,6 +180,20 @@ export async function seedPublishedDataset(opts: SeedPublishedDatasetOpts): Prom
     publishedRevisionId: opts.revisionId
   });
 
+  // If the fact table declares a Measure column, wire up a Measure entity so the cube-builder's
+  // setupMeasuresAndDataValues path doesn't dereference a null `dataset.measure`.
+  const measureColumn = factColumns.find((c) => c.columnType === FactTableColumnType.Measure);
+  if (measureColumn) {
+    await Measure.create({
+      dataset: { id: opts.datasetId } as Dataset,
+      factTableColumn: measureColumn.name,
+      joinColumn: null,
+      extractor: null,
+      lookupTable: null,
+      measureTable: null
+    }).save();
+  }
+
   if (opts.topicIds && opts.topicIds.length > 0) {
     await RevisionTopic.save(
       opts.topicIds.map((topicId) => RevisionTopic.create({ revisionId: opts.revisionId, topicId }))
@@ -152,13 +216,105 @@ export async function seedPublishedDataset(opts: SeedPublishedDatasetOpts): Prom
         await cubeDB.query(`INSERT INTO data_tables."${opts.dataTableId}" VALUES ${valuesSql};`);
       }
     }
+
+    if (opts.dimensions && opts.dimensions.length > 0) {
+      await seedDimensions(opts.datasetId, factColumns, opts.dimensions, cubeDB);
+    }
   } finally {
     await cubeDB.release();
   }
 
-  await createAllCubeFiles(opts.datasetId, opts.revisionId);
+  // awaitMaterialisation=true: tests need core_view_en to exist before they query it.
+  // The default fire-and-forget mode races the POST and 500s on slower CI runners.
+  await createAllCubeFiles(opts.datasetId, opts.revisionId, undefined, undefined, undefined, true);
 
   return { datasetId: opts.datasetId, revisionId: opts.revisionId, dataTableId: opts.dataTableId };
+}
+
+/**
+ * Creates Dimension + LookupTable entities and populates `lookup_tables.<id>` in the cube with
+ * rows in the SW3 format expected by cube-builder (createLookupTableDimension copies that table
+ * verbatim into the build schema and then INSERTs into filter_table from it).
+ *
+ * Must be invoked BEFORE createAllCubeFiles so the build reads the dimensions from the dataset
+ * and the lookup_tables.<id> rows are in place when the cube is materialised.
+ */
+async function seedDimensions(
+  datasetId: string,
+  factColumns: FactColumnSpec[],
+  dimensions: DimensionSpec[],
+  cubeDB: { query: (sql: string) => Promise<unknown> }
+): Promise<void> {
+  for (const spec of dimensions) {
+    const factCol = factColumns.find((c) => c.name === spec.factTableColumn);
+    if (!factCol) {
+      throw new Error(
+        `seedDimensions: dimension.factTableColumn "${spec.factTableColumn}" is not declared in factColumns`
+      );
+    }
+    const type = spec.type ?? DimensionType.LookupTable;
+    const lookupTableId = spec.lookupTableId ?? randomUUID();
+    const referenceDatatype = spec.referenceDatatype ?? factCol.datatype;
+
+    const lookupTable = await LookupTable.create({
+      id: lookupTableId,
+      filename: `${lookupTableId}.csv`,
+      originalFilename: 'test-lookup.csv',
+      hash: `test-hash-${lookupTableId}`,
+      mimeType: 'text/csv',
+      fileType: FileType.Csv,
+      isStatsWales2Format: false
+    }).save();
+
+    const dimension = await Dimension.create({
+      datasetId,
+      type,
+      factTableColumn: spec.factTableColumn,
+      joinColumn: null,
+      isSliceDimension: false,
+      extractor: null,
+      lookupTable
+    }).save();
+
+    const name = spec.name ?? { en: spec.factTableColumn, cy: spec.factTableColumn };
+    await DimensionMetadata.save([
+      DimensionMetadata.create({ id: dimension.id, language: 'en-GB', name: name.en }),
+      DimensionMetadata.create({ id: dimension.id, language: 'cy-GB', name: name.cy })
+    ]);
+
+    await cubeDB.query(
+      pgformat(
+        `CREATE TABLE lookup_tables.%I (
+           %I ${referenceDatatype},
+           language VARCHAR(5),
+           description TEXT,
+           hierarchy VARCHAR,
+           sort_order INTEGER,
+           notes TEXT
+         );`,
+        lookupTableId,
+        spec.factTableColumn
+      )
+    );
+
+    const rows = spec.lookupRows ?? [];
+    if (rows.length > 0) {
+      const valuesSql = rows
+        .map((r) =>
+          pgformat(
+            '(%L, %L, %L, %L, %L, %L)',
+            r.reference,
+            LOCALE_FOR_LANG[r.language],
+            r.description,
+            r.hierarchy ?? null,
+            r.sortOrder ?? null,
+            r.notes ?? null
+          )
+        )
+        .join(',');
+      await cubeDB.query(pgformat('INSERT INTO lookup_tables.%I VALUES ', lookupTableId) + valuesSql + ';');
+    }
+  }
 }
 
 /**
@@ -238,7 +394,7 @@ export async function addPublishedRevision(opts: {
     } finally {
       await cubeDB.release();
     }
-    await createAllCubeFiles(opts.datasetId, revision.id);
+    await createAllCubeFiles(opts.datasetId, revision.id, undefined, undefined, undefined, true);
   }
 
   return revision;

@@ -17,11 +17,11 @@ class PivotDTO {
   @IsOptional()
   include_performance: boolean; // Default: false
 
-  @IsString({ each: true })
-  x: string | string[];
+  @IsString()
+  x: string;
 
-  @IsString({ each: true })
-  y: string | string[];
+  @IsString()
+  y: string;
 }
 
 class ColumnOptionsDTO {

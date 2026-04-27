@@ -7,7 +7,6 @@ import {
   getPublishedDatasetById,
   listSubTopics,
   listRootTopics,
-  getPublishedRevisionById,
   getPublishedDatasetData,
   getPublishedDatasetFilters,
   generateFilterId,
@@ -20,7 +19,6 @@ import {
 import { NotFoundException } from '../../../exceptions/not-found.exception';
 import { longTimeout } from '../../../middleware/timeout';
 import { PublishedDatasetRepository } from '../../../repositories/published-dataset';
-import { PublishedRevisionRepository } from '../../../repositories/published-revision';
 import { hasError, uuidValidator } from '../../../validators';
 
 export const publicApiV2Router = Router();
@@ -52,34 +50,9 @@ export const ensurePublishedDataset = async (req: Request, res: Response, next: 
   next();
 };
 
-export const ensurePublishedRevision = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-  const revisionIdError = await hasError(uuidValidator('revision_id'), req);
-
-  if (revisionIdError) {
-    next(new NotFoundException('errors.revision_id_invalid'));
-    return;
-  }
-
-  try {
-    logger.debug(`Loading published revision ${req.params.dataset_id}...`);
-    const revision = await PublishedRevisionRepository.getById(req.params.revision_id);
-
-    if (revision.datasetId !== res.locals.datasetId) {
-      throw new Error('revision does not belong to dataset');
-    }
-
-    res.locals.revision_id = revision.id;
-    res.locals.revision = revision;
-  } catch (_err) {
-    next(new NotFoundException('errors.no_revision'));
-    return;
-  }
-  next();
-};
-
 publicApiV2Router.use(cors()); // allow browser XMLHttpRequests from any domain
 
-publicApiV2Router.use((req: Request, res: Response, next: NextFunction) => {
+publicApiV2Router.use((_req: Request, res: Response, next: NextFunction) => {
   res.vary('Accept-Language'); // vary response cache on language header
   next();
 });
@@ -148,7 +121,11 @@ publicApiV2Router.get(
     #swagger.parameters['$ref'] = ['#/components/parameters/language']
     #swagger.responses[200] = {
       description: 'A list of all top-level topics that have at least one published dataset tagged to them.',
-      schema: { $ref: "#/components/schemas/RootTopics" }
+      content: {
+        'application/json': {
+          schema: { $ref: "#/components/schemas/RootTopics" }
+        }
+      }
     }
   */
   listRootTopics
@@ -173,7 +150,11 @@ publicApiV2Router.get(
     #swagger.responses[200] = {
       description: "A list of what sits under a given topic - either sub-topics or published datasets tagged directly
         to that topic.",
-      schema: { $ref: "#/components/schemas/PublishedTopics" }
+      content: {
+        'application/json': {
+          schema: { $ref: "#/components/schemas/PublishedTopics" }
+        }
+      }
     }
   */
   listSubTopics
@@ -193,18 +174,14 @@ publicApiV2Router.get(
     ]
     #swagger.responses[200] = {
       description: 'A json object containing all metadata for a published dataset',
-      schema: { $ref: "#/components/schemas/Dataset" }
+      content: {
+        'application/json': {
+          schema: { $ref: "#/components/schemas/Dataset" }
+        }
+      }
     }
   */
   getPublishedDatasetById
-);
-
-publicApiV2Router.get(
-  '/:dataset_id/revision/:revision_id',
-  ensurePublishedDataset,
-  ensurePublishedRevision,
-  /* #swagger.ignore = true */
-  getPublishedRevisionById
 );
 
 publicApiV2Router.get(
@@ -461,6 +438,7 @@ publicApiV2Router.get(
   getPublishedDatasetPivotFromId
 );
 
+// Debugging-only: returns the default query configuration for the dataset (no filter ID).
 publicApiV2Router.get(
   '/:dataset_id/query/',
   ensurePublishedDataset,
