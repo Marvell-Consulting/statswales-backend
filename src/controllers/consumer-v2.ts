@@ -380,7 +380,10 @@ export const generateFilterId = async (req: Request, res: Response, next: NextFu
     if (err instanceof NotFoundException || err instanceof BadRequestException) {
       return next(err);
     }
-    logger.error(err, 'Error generating filter ID');
+    logger.error(
+      { err, datasetId: dataset.id, revisionId: publishedRevision.id, body: req.body },
+      'Error generating filter ID'
+    );
     return next(new UnknownException());
   }
 };
