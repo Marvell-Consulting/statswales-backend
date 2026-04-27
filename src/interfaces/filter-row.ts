@@ -6,5 +6,5 @@ export interface FilterRow {
   description: string;
   hierarchy: string;
   sort_order: string;
-  reference_count: number;
+  reference_count: string | null;
 }
