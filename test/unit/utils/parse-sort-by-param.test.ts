@@ -82,6 +82,26 @@ describe('parseSortByParam', () => {
   it('should throw BadRequestException for invalid direction', () => {
     expect(() => parseSortByParam('title:up')).toThrow(BadRequestException);
   });
+
+  it('should throw BadRequestException for non-identifier column names (spaces)', () => {
+    expect(() => parseSortByParam('not json')).toThrow(BadRequestException);
+    expect(() => parseSortByParam('col name:asc')).toThrow(BadRequestException);
+  });
+
+  it('should throw BadRequestException for non-identifier column names (punctuation)', () => {
+    expect(() => parseSortByParam('col-name:asc')).toThrow(BadRequestException);
+    expect(() => parseSortByParam('a;b:asc')).toThrow(BadRequestException);
+  });
+
+  it('should throw BadRequestException when JSON columnName is not a valid identifier', () => {
+    const json = JSON.stringify([{ columnName: 'not an ident', direction: 'ASC' }]);
+    expect(() => parseSortByParam(json)).toThrow(BadRequestException);
+  });
+
+  it('should accept identifier column names with underscores and digits', () => {
+    expect(parseSortByParam('area_code_1:asc')).toEqual(['area_code_1|asc']);
+    expect(parseSortByParam('_leading_underscore')).toEqual(['_leading_underscore|asc']);
+  });
 });
 
 describe('parseSortByToObjects', () => {

@@ -157,18 +157,18 @@ export const validateLookupTable = async (
     });
   }
 
-  const hierarchyTestResult = await validateLookupTableHierarchyValues(
+  const hierarchyErrors = await validateLookupTableHierarchyValues(
     mockCubeId,
     dataset,
     factTableColumn.columnName,
     lookupTable.id,
     'lookup_table'
   );
-  if (hierarchyTestResult) {
+  if (hierarchyErrors) {
     void cleanUpPostgresValidationSchema(mockCubeId, lookupTable.id).catch((err) => {
       logger.error(err, 'Something went wrong trying to clean up the mock cube');
     });
-    return hierarchyTestResult;
+    return hierarchyErrors;
   }
 
   const languageErrors = await validateLookupTableLanguages(

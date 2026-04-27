@@ -59,11 +59,6 @@
                 "schema": {
                   "$ref": "#/components/schemas/RootTopics"
                 }
-              },
-              "application/xml": {
-                "schema": {
-                  "$ref": "#/components/schemas/RootTopics"
-                }
               }
             }
           }
@@ -100,11 +95,6 @@
                 "schema": {
                   "$ref": "#/components/schemas/PublishedTopics"
                 }
-              },
-              "application/xml": {
-                "schema": {
-                  "$ref": "#/components/schemas/PublishedTopics"
-                }
               }
             }
           }
@@ -129,11 +119,6 @@
             "description": "A json object containing all metadata for a published dataset",
             "content": {
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Dataset"
-                }
-              },
-              "application/xml": {
                 "schema": {
                   "$ref": "#/components/schemas/Dataset"
                 }
@@ -529,7 +514,7 @@
             "format": "uuid",
             "description": "Unique identifier for the dataset"
           },
-          "live": {
+          "first_published_at": {
             "type": "string",
             "format": "date-time",
             "description": "First publication date of the dataset in ISO 8601 format"
@@ -557,7 +542,7 @@
         },
         "example": {
           "id": "141baa8a-2ed0-45cb-ad4a-83de8c2333b5",
-          "live": "2023-01-01T00:00:00Z",
+          "first_published_at": "2023-01-01T00:00:00Z",
           "start_date": "2020-01-01",
           "end_date": "2023-12-31",
           "published_revision": {
