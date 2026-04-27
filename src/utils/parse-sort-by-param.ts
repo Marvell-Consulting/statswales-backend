@@ -27,6 +27,10 @@ export function parseSortByParam(raw: string | undefined): string[] {
       return parsed.map((s) => {
         const columnName = s.columnName?.trim();
         if (!columnName) throw new Error('missing columnName');
+        // `|` is the internal delimiter; rejecting it stops a column with an
+        // embedded `|` from injecting attacker-controlled text into the
+        // direction slot when downstream callers re-split.
+        if (columnName.includes('|')) throw new Error(`invalid columnName: ${columnName}`);
         const dir = (s.direction || 'asc').toLowerCase();
         if (dir !== 'asc' && dir !== 'desc') throw new Error(`invalid direction: ${dir}`);
         return `${columnName}|${dir}`;
@@ -40,8 +44,10 @@ export function parseSortByParam(raw: string | undefined): string[] {
     return trimmed.split(',').map((segment) => {
       const parts = segment.trim().split(':');
       if (parts.length > 2) throw new Error('too many colons');
-      const [column, direction] = parts;
+      const column = parts[0]?.trim();
+      const direction = parts[1]?.trim();
       if (!column) throw new Error('empty column name');
+      if (column.includes('|')) throw new Error(`invalid column name: ${column}`);
       const dir = (direction || 'asc').toLowerCase();
       if (dir !== 'asc' && dir !== 'desc') throw new Error(`invalid direction: ${dir}`);
       return `${column}|${dir}`;

@@ -101,6 +101,20 @@ describe('parseSortByParam', () => {
     expect(parseSortByParam('area_code_1:asc')).toEqual(['area_code_1|asc']);
     expect(parseSortByParam('_leading_underscore')).toEqual(['_leading_underscore|asc']);
   });
+
+  it('should trim whitespace inside a colon-separated segment', () => {
+    expect(parseSortByParam('Financial year :asc')).toEqual(['Financial year|asc']);
+    expect(parseSortByParam('title: DESC ')).toEqual(['title|desc']);
+  });
+
+  it('should throw BadRequestException when columnName contains the internal `|` delimiter', () => {
+    // Without this guard, `column|injected:asc` would encode to `column|injected|asc`
+    // and downstream callers that split on `|` would treat `injected` as the direction,
+    // bypassing the asc/desc check and reaching pgformat's unescaped `%s`.
+    expect(() => parseSortByParam('column|injected:asc')).toThrow(BadRequestException);
+    const json = JSON.stringify([{ columnName: 'column|injected', direction: 'ASC' }]);
+    expect(() => parseSortByParam(json)).toThrow(BadRequestException);
+  });
 });
 
 describe('parseSortByToObjects', () => {
