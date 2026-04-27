@@ -24,7 +24,7 @@ export function transformHierarchy(factTableColumn: string, columnName: string, 
     const node: FilterValues = {
       reference: row.reference,
       description: row.description,
-      count: row.reference_count != null ? Number(row.reference_count) : undefined
+      count: row.reference_count != null ? row.reference_count : undefined
     };
     nodeMap.set(row.reference, node);
 

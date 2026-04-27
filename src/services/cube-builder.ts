@@ -2016,7 +2016,7 @@ function updateFilterTableCounts(buildId: string, factTable: FactTableColumn[]):
     }
     statements.push(
       pgformat(
-        'UPDATE %I.%I SET reference_count = ft.count FROM (' +
+        'UPDATE %I.%I SET reference_count = COALESCE(ft.count, 0) FROM (' +
           '  SELECT CAST(%I AS VARCHAR) as reference, COUNT(%I) as count FROM %I.%I GROUP BY %I ' +
           ') as ft ' +
           'WHERE %I.reference = ft.reference AND %I.fact_table_column = %L;',

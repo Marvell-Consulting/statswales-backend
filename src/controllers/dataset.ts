@@ -854,20 +854,19 @@ async function rebuildFilterTableListList(buildLogEntry: BuildLog, revisionList:
 
   for (const rev of revisionList) {
     if (!rev.data_table_id && rev.revision_index === 1) continue;
-    const buildId = randomUUID();
     try {
-      buildScript.all_builds.push(buildId);
+      buildScript.all_builds.push(rev.id);
       buildScript.current_build = rev.id;
       buildLogEntry.buildScript = JSON.stringify(buildScript, null, 2);
       buildLogEntry.status = CubeBuildStatus.Building;
       await buildLogEntry.save();
       await updateFilterTableToLatest(rev.dataset_id, rev.id);
       buildScript.successful_builds++;
-      buildScript.successfully_built.push(buildId);
+      buildScript.successfully_built.push(rev.id);
     } catch (err) {
       logger.error(err);
       buildScript.failed_builds++;
-      buildScript.failed_to_build.push(buildId);
+      buildScript.failed_to_build.push(rev.id);
     }
     buildScript.total_builds++;
     buildLogEntry.buildScript = JSON.stringify(buildScript, null, 2);
