@@ -201,7 +201,13 @@ publicApiV2Router.get(
       <ul>
         <li>'reference' code</li>
         <li>human-readable 'description'</li>
-      </ul>"
+      </ul>
+      <p>Values have a:</p>
+      <ul>
+        <li>'count'</li>
+        <li>Total number of facts associated with a reference if known (defaults to 1 if not known)</li>
+      </ul>
+      "
     #swagger.autoQuery = false
     #swagger.parameters['$ref'] = [
       '#/components/parameters/language',
