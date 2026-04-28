@@ -4,6 +4,7 @@ import { NotFoundException } from '../../../src/exceptions/not-found.exception';
 import { Dataset } from '../../../src/entities/dataset/dataset';
 import { Revision } from '../../../src/entities/dataset/revision';
 import { uuidV4 } from '../../../src/utils/uuid';
+import { dbManager } from '../../../src/db/database-manager';
 
 // Mock logger
 jest.mock('../../../src/utils/logger', () => ({
@@ -362,7 +363,8 @@ describe('consumer-v2 controller - scheduled publish date handling', () => {
       mockGetLatestByDatasetId.mockResolvedValue(publishedRev);
       (dbManager.getCubeDataSource as jest.Mock).mockReturnValue({
         createQueryRunner: jest.fn().mockReturnValue({
-          query: jest.fn().mockResolvedValue([{ value: '2' }])
+          query: jest.fn().mockResolvedValue([{ value: '2' }]),
+          release: jest.fn().mockResolvedValue(undefined)
         })
       });
       mockGetFilterTableQuery.mockResolvedValue('SELECT 1');

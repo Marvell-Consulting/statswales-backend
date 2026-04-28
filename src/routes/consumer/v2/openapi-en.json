@@ -1402,10 +1402,6 @@
             "type": "string",
             "description": "Human-readable label (language-dependent)"
           },
-          "count": {
-            "type": "string",
-            "description": "Number of facts associated with a reference (defaults to 1 if not known)"
-          },
           "children": {
             "type": "array",
             "items": {
