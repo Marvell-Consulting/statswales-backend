@@ -15,6 +15,7 @@ export class UpdateBuildTypes1777045658893 implements MigrationInterface {
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {
+    await queryRunner.query(`DELETE FROM "build_log" WHERE "type" = 'all_filter_tables'`);
     await queryRunner.query(
       `CREATE TYPE "public"."build_log_type_enum_old" AS ENUM('base_cube', 'validation_cube', 'full_cube', 'all_cubes', 'draft_cubes')`
     );
