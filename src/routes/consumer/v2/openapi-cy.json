@@ -1402,6 +1402,10 @@
             "type": "string",
             "description": "Label darllenadwy (yn dibynnu ar iaith)"
           },
+          "count": {
+            "type": "string",
+            "description": "Cyfanswm nifer y ffeithiau sy'n gysylltiedig â chyfeiriad os yw'n hysbys (rhagosodiad i 1 os nad yw'n hysbys)"
+          },
           "children": {
             "type": "array",
             "items": {
