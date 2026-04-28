@@ -188,12 +188,12 @@ export async function getFilterTable(revisionId: string): Promise<FilterRow[]> {
 export function getFilterTableQuery(revisionId: string, locale?: Locale): string {
   if (!locale) {
     return pgformat(
-      'SELECT reference, language, fact_table_column, dimension_name, description, hierarchy FROM %I.filter_table;',
+      'SELECT reference, language, fact_table_column, dimension_name, description, sort_order, hierarchy, reference_count FROM %I.filter_table;',
       revisionId
     );
   }
   return pgformat(
-    'SELECT reference, language, fact_table_column, dimension_name, description, hierarchy FROM %I.filter_table WHERE language LIKE %L;',
+    'SELECT reference, language, fact_table_column, dimension_name, description, sort_order, hierarchy, reference_count FROM %I.filter_table WHERE language LIKE %L;',
     revisionId,
     `${locale.toLowerCase().split('-')[0]}%`
   );
