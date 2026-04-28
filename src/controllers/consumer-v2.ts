@@ -409,7 +409,10 @@ export const getPublishedDatasetFilters = async (req: Request, res: Response, ne
         CubeMetaDataKeys.FilterTableVersion
       )
     );
-    if (filterTableVersionRes.length > 0) filterTableVersion = 2;
+    if (filterTableVersionRes.length > 0) {
+      const parsedFilterTableVersion = parseInt(filterTableVersionRes[0].value, 10);
+      if (!Number.isNaN(parsedFilterTableVersion)) filterTableVersion = parsedFilterTableVersion;
+    }
   } catch (err) {
     logger.warn(err, 'Something went wrong trying to query for filter table version.');
   } finally {
