@@ -353,14 +353,18 @@ describe('consumer-v2 controller - scheduled publish date handling', () => {
       expect(mockGetFilterTableQuery).toHaveBeenCalledWith(publishedRev.id, 1, 'en');
     });
 
-    it('should use the newer filter table version when the metadata key exists', async () => {
+    it('should use the newer filter table version when the query runner returns version 2', async () => {
       const dataset = createMockDataset();
       const publishedRev = createMockRevision();
       const req = createMockRequest({ language: 'en' } as Partial<Request>);
       const res = createMockResponse({ locals: { datasetId: dataset.id, dataset } });
 
       mockGetLatestByDatasetId.mockResolvedValue(publishedRev);
-      mockGetMetadataByKey.mockResolvedValue({ key: 'filterTableVersion' });
+      (dbManager.getCubeDataSource as jest.Mock).mockReturnValue({
+        createQueryRunner: jest.fn().mockReturnValue({
+          query: jest.fn().mockResolvedValue([{ value: '2' }])
+        })
+      });
       mockGetFilterTableQuery.mockResolvedValue('SELECT 1');
 
       // eslint-disable-next-line @typescript-eslint/no-require-imports
