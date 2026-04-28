@@ -1685,7 +1685,7 @@ export function setupLookupTableDimension(
     statements.push(
       pgformat(
         `INSERT INTO %I.%I
-              SELECT reference, language, fact_table_column, dimension_name, description, sort_order, hierarchy, NULL
+              SELECT reference, language, fact_table_column, dimension_name, description, sort_order, hierarchy, 0
               FROM (SELECT DISTINCT
               CAST(%I AS VARCHAR) AS reference, language, %L AS fact_table_column, %L AS dimension_name, description, sort_order AS sort_order, hierarchy
             FROM %I.%I
@@ -2016,18 +2016,17 @@ function updateFilterTableCounts(buildId: string, factTable: FactTableColumn[]):
     }
     statements.push(
       pgformat(
-        'UPDATE %I.%I SET reference_count = COALESCE((' +
-          '  SELECT COUNT(ft.%I) FROM %I.%I ft ' +
-          '  WHERE CAST(ft.%I AS VARCHAR) = %I.%I.reference' +
-          '), 0) ' +
-          'WHERE %I.fact_table_column = %L;',
+        'UPDATE %I.%I SET reference_count = ft.count FROM (' +
+          '  SELECT CAST(%I AS VARCHAR) as reference, COUNT(%I) as count FROM %I.%I GROUP BY %I ' +
+          ') as ft ' +
+          'WHERE %I.reference = ft.reference AND %I.fact_table_column = %L;',
         buildId,
         FILTER_TABLE_NAME,
+        col.columnName,
         col.columnName,
         buildId,
         FACT_TABLE_NAME,
         col.columnName,
-        FILTER_TABLE_NAME,
         FILTER_TABLE_NAME,
         FILTER_TABLE_NAME,
         col.columnName

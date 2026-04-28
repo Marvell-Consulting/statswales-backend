@@ -816,7 +816,7 @@ export const rebuildAllFilterTables = async (req: Request, res: Response): Promi
   const user = req.user as User;
 
   const activeBuilds = await BuildLogRepository.getAllActiveBulkBuilds();
-  if (activeBuilds.length > 1) {
+  if (activeBuilds.length > 0) {
     logger.info(`There is already an active rebuild process with id ${activeBuilds[0].id}...`);
     res
       .status(409)
@@ -870,6 +870,11 @@ async function rebuildAllFilterTablesForRevisions(
       logger.error(err);
       buildScript.failed_builds++;
       buildScript.failed_to_build.push(rev.id);
+      failedBuilds.push({
+        revisionId: rev.id,
+        buildId: rev.id,
+        error: JSON.stringify(err)
+      });
     }
     buildScript.total_builds++;
     buildLogEntry.buildScript = JSON.stringify(buildScript, null, 2);
