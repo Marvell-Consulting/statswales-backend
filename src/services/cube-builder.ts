@@ -2008,7 +2008,7 @@ function setupDimensions(
   };
 }
 
-function updateFilterTableCounts(buildId: string, factTable: FactTableColumn[]): TransactionBlock {
+export function updateFilterTableCounts(buildId: string, factTable: FactTableColumn[]): TransactionBlock {
   const statements: string[] = ['BEGIN TRANSACTION;'];
   for (const col of factTable) {
     if (col.columnType === FactTableColumnType.DataValues || col.columnType === FactTableColumnType.Ignore) {
