@@ -829,10 +829,13 @@ export const rebuildAllFilterTables = async (req: Request, res: Response): Promi
   }
   const buildLogEntry = await BuildLog.startBuild(null, CubeBuildType.AllFilterTables, user.id);
   res.status(202).json({ build_id: buildLogEntry.id }).end();
-  void rebuildFilterTableListList(buildLogEntry, await RevisionRepository.getAllRevisionIds());
+  void rebuildAllFilterTablesForRevisions(buildLogEntry, await RevisionRepository.getAllRevisionIds());
 };
 
-async function rebuildFilterTableListList(buildLogEntry: BuildLog, revisionList: RevisionList[]): Promise<void> {
+async function rebuildAllFilterTablesForRevisions(
+  buildLogEntry: BuildLog,
+  revisionList: RevisionList[]
+): Promise<void> {
   const buildTypeStr = 'all filter tables';
 
   logger.info(`[${buildLogEntry.id}]: Starting process to rebuild ${buildTypeStr}`);
