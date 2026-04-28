@@ -204,7 +204,7 @@ export async function getFilterTable(revisionId: string): Promise<FilterRow[]> {
 export function getFilterTableQuery(revisionId: string, version: number, locale?: Locale): string {
   // reference_count defaults to 1 otherwise we'll disable all filters on the frontend
   let columns =
-    'reference, language, fact_table_column, dimension_name, description, NULL as sort_order, hierarchy, 1 as reference_count';
+    'reference, language, fact_table_column, dimension_name, description, NULL as sort_order, hierarchy, CAST(1 as BIGINT) as reference_count';
   if (version > 1) {
     columns =
       'reference, language, fact_table_column, dimension_name, description, sort_order, hierarchy, reference_count';
