@@ -2100,10 +2100,11 @@ function createFilterTableSortOrders(cubeId: string, dataset: Dataset): Transact
   if (dataset.measure?.lookupTable) {
     statements.push(
       pgformat(
-        'UPDATE %I.%I SET sort_order = lookup.sort_order FROM (SELECT CAST(reference AS VARCHAR) AS reference, sort_order FROM %I.measure) AS lookup WHERE %I.reference = lookup.reference AND %I.fact_table_column = %L;',
+        'UPDATE %I.%I SET sort_order = lookup.sort_order FROM (SELECT CAST(reference AS VARCHAR) AS reference, language, sort_order FROM %I.measure) AS lookup WHERE %I.reference = lookup.reference AND %I.language = lookup.language AND %I.fact_table_column = %L;',
         cubeId,
         FILTER_TABLE_NAME,
         cubeId,
+        FILTER_TABLE_NAME,
         FILTER_TABLE_NAME,
         FILTER_TABLE_NAME,
         dataset.measure.factTableColumn
