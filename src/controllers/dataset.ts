@@ -873,7 +873,7 @@ async function rebuildAllFilterTablesForRevisions(
       failedBuilds.push({
         revisionId: rev.id,
         buildId: rev.id,
-        error: JSON.stringify(err)
+        error: err instanceof Error ? err.stack ?? err.message : String(err)
       });
     }
     buildScript.total_builds++;
