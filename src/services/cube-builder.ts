@@ -1501,7 +1501,7 @@ function setupMeasureAndDataValuesWithLookup(
     const columnName = t('column_headers.measure', { lng: locale });
     statements.push(
       pgformat(
-        `INSERT INTO %I.%I SELECT CAST(reference AS VARCHAR), language, %L, %L, description, sort_order, CAST(hierarchy AS VARCHAR), NULL FROM %I.measure WHERE language = %L ORDER BY sort_order, reference;`,
+        `INSERT INTO %I.%I SELECT CAST(reference AS VARCHAR), language, %L, %L, description, sort_order, CAST(hierarchy AS VARCHAR), 0 FROM %I.measure WHERE language = %L ORDER BY sort_order, reference;`,
         buildId,
         FILTER_TABLE_NAME,
         measureColumn.columnName,
