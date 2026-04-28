@@ -187,7 +187,12 @@ export async function getFilterTable(revisionId: string): Promise<FilterRow[]> {
         CubeMetaDataKeys.FilterTableVersion
       )
     );
-    if (filterTableVersionRes.length > 0) filterTableVersion = 2;
+    if (filterTableVersionRes.length > 0) {
+      const parsedFilterTableVersion = Number.parseInt(filterTableVersionRes[0].value, 10);
+      if (Number.isInteger(parsedFilterTableVersion)) {
+        filterTableVersion = parsedFilterTableVersion;
+      }
+    }
     const result = await cubeDataSource.query(getFilterTableQuery(revisionId, filterTableVersion));
     return result as FilterRow[];
   } catch (err) {
