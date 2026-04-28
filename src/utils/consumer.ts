@@ -3,12 +3,13 @@ import { FilterRow } from '../interfaces/filter-row';
 import { FactTableToDimensionName } from '../interfaces/fact-table-column-to-dimension-name';
 import { dbManager } from '../db/database-manager';
 import { format as pgformat } from '@scaleleap/pg-format/lib/pg-format';
-import { CORE_VIEW_NAME } from '../services/cube-builder';
+import { CORE_VIEW_NAME, FILTER_TABLE_NAME, METADATA_TABLE_NAME } from '../services/cube-builder';
 import { logger } from './logger';
 import cubeConfig from '../config/cube-view.json';
 import { Locale } from '../enums/locale';
 import { t } from 'i18next';
 import { DataOptionsDTO } from '../dtos/data-options-dto';
+import { CubeMetaDataKeys } from '../enums/cube-metadata-keys';
 
 export function flattenHierarchy(nodes: FilterValues[]): FilterValues[] {
   return nodes.flatMap((node) => [node, ...(node.children ? flattenHierarchy(node.children) : [])]);
@@ -176,8 +177,18 @@ export async function getColumns(revisionId: string, lang: string, view: string)
 
 export async function getFilterTable(revisionId: string): Promise<FilterRow[]> {
   const cubeDataSource = dbManager.getCubeDataSource();
+  let filterTableVersion = 1;
   try {
-    const result = await cubeDataSource.query(getFilterTableQuery(revisionId));
+    const filterTableVersionRes: { value: string }[] = await cubeDataSource.query(
+      pgformat(
+        'SELECT value FROM %I.%I WHERE key = %L',
+        revisionId,
+        METADATA_TABLE_NAME,
+        CubeMetaDataKeys.FilterTableVersion
+      )
+    );
+    if (filterTableVersionRes.length > 0) filterTableVersion = 2;
+    const result = await cubeDataSource.query(getFilterTableQuery(revisionId, filterTableVersion));
     return result as FilterRow[];
   } catch (err) {
     logger.error(err, `Something went wrong trying to get the filter table from cube ${revisionId}`);
@@ -185,16 +196,22 @@ export async function getFilterTable(revisionId: string): Promise<FilterRow[]> {
   }
 }
 
-export function getFilterTableQuery(revisionId: string, locale?: Locale): string {
+export function getFilterTableQuery(revisionId: string, version: number, locale?: Locale): string {
+  // reference_count defaults to 1 otherwise we'll disable all filters on the frontend
+  let columns =
+    'reference, language, fact_table_column, dimension_name, description, NULL as sort_order, hierarchy, 1 as reference_count';
+  if (version > 1) {
+    columns =
+      'reference, language, fact_table_column, dimension_name, description, sort_order, hierarchy, reference_count';
+  }
   if (!locale) {
-    return pgformat(
-      'SELECT reference, language, fact_table_column, dimension_name, description, sort_order, hierarchy, reference_count FROM %I.filter_table;',
-      revisionId
-    );
+    return pgformat('SELECT %s FROM %I.%I;', columns, revisionId, FILTER_TABLE_NAME);
   }
   return pgformat(
-    'SELECT reference, language, fact_table_column, dimension_name, description, sort_order, hierarchy, reference_count FROM %I.filter_table WHERE language LIKE %L;',
+    'SELECT %s FROM %I.%I WHERE language LIKE %L;',
+    columns,
     revisionId,
+    FILTER_TABLE_NAME,
     `${locale.toLowerCase().split('-')[0]}%`
   );
 }

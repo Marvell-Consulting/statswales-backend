@@ -1,5 +1,6 @@
 import { NextFunction, Request, Response } from 'express';
 import { EntityNotFoundError } from 'typeorm';
+import { format as pgformat } from '@scaleleap/pg-format';
 
 import { logger } from '../utils/logger';
 import { Locale } from '../enums/locale';
@@ -55,6 +56,9 @@ import { DatasetListItemDTO } from '../dtos/dataset-list-item-dto';
 import { ResultsetWithCount } from '../interfaces/resultset-with-count';
 import { SearchLog } from '../entities/search-log';
 import { QueryStoreDto } from '../dtos/query-store-dto';
+import { dbManager } from '../db/database-manager';
+import { METADATA_TABLE_NAME } from '../services/cube-builder';
+import { CubeMetaDataKeys } from '../enums/cube-metadata-keys';
 
 export const listPublishedDatasets = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   logger.info('Listing published datasets...');
@@ -394,9 +398,27 @@ export const getPublishedDatasetFilters = async (req: Request, res: Response, ne
   const publishedRevision = await PublishedRevisionRepository.getLatestByDatasetId(dataset.id);
   if (!publishedRevision) return next(new NotFoundException('errors.no_published_revision'));
 
+  let filterTableVersion = 1;
+  const cubeDataSource = dbManager.getCubeDataSource().createQueryRunner();
+  try {
+    const filterTableVersionRes: { value: string }[] = await cubeDataSource.query(
+      pgformat(
+        'SELECT value FROM %I.%I WHERE key = %L',
+        publishedRevision.id,
+        METADATA_TABLE_NAME,
+        CubeMetaDataKeys.FilterTableVersion
+      )
+    );
+    if (filterTableVersionRes.length > 0) filterTableVersion = 2;
+  } catch (err) {
+    logger.warn(err, 'Something went wrong trying to query for filter table version.');
+  } finally {
+    await cubeDataSource.release();
+  }
+
   try {
     const locale = req.language as Locale;
-    const query = getFilterTableQuery(publishedRevision.id, locale);
+    const query = getFilterTableQuery(publishedRevision.id, filterTableVersion, locale);
     await sendFilters(query, res);
   } catch (err) {
     if (err instanceof NotFoundException || err instanceof BadRequestException) {

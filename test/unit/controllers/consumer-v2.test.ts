@@ -338,7 +338,7 @@ describe('consumer-v2 controller - scheduled publish date handling', () => {
 
       await getPublishedDatasetFilters(req, res, mockNext);
 
-      expect(mockGetFilterTableQuery).toHaveBeenCalledWith(publishedRev.id, 'en');
+      expect(mockGetFilterTableQuery).toHaveBeenCalledWith(publishedRev.id, 1, 'en');
     });
   });
 });
