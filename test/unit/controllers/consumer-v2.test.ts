@@ -106,6 +106,18 @@ jest.mock('../../../src/services/pivots', () => ({
   langToLocale: jest.fn().mockReturnValue('en-GB')
 }));
 
+// Mock dbManager
+jest.mock('../../../src/db/database-manager', () => ({
+  dbManager: {
+    getCubeDataSource: jest.fn().mockReturnValue({
+      createQueryRunner: jest.fn().mockReturnValue({
+        query: jest.fn().mockResolvedValue([]),
+        release: jest.fn().mockResolvedValue(undefined)
+      })
+    })
+  }
+}));
+
 import {
   getPublishedDatasetData,
   getPublishedDatasetFilters,
