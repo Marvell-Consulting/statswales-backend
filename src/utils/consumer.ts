@@ -10,6 +10,7 @@ import { Locale } from '../enums/locale';
 import { t } from 'i18next';
 import { DataOptionsDTO } from '../dtos/data-options-dto';
 import { CubeMetaDataKeys } from '../enums/cube-metadata-keys';
+import { DataSource } from 'typeorm';
 
 export function flattenHierarchy(nodes: FilterValues[]): FilterValues[] {
   return nodes.flatMap((node) => [node, ...(node.children ? flattenHierarchy(node.children) : [])]);
@@ -176,9 +177,10 @@ export async function getColumns(revisionId: string, lang: string, view: string)
 }
 
 export async function getFilterTable(revisionId: string): Promise<FilterRow[]> {
-  const cubeDataSource = dbManager.getCubeDataSource();
   let filterTableVersion = 1;
+  let cubeDataSource: DataSource;
   try {
+    cubeDataSource = dbManager.getCubeDataSource();
     const filterTableVersionRes: { value: string }[] = await cubeDataSource.query(
       pgformat(
         'SELECT value FROM %I.%I WHERE key = %L',
@@ -193,6 +195,12 @@ export async function getFilterTable(revisionId: string): Promise<FilterRow[]> {
         filterTableVersion = parsedFilterTableVersion;
       }
     }
+  } catch (err) {
+    logger.warn(err, 'Unable to query cubes metadata');
+  }
+
+  try {
+    cubeDataSource = dbManager.getCubeDataSource();
     const result = await cubeDataSource.query(getFilterTableQuery(revisionId, filterTableVersion));
     return result as FilterRow[];
   } catch (err) {
