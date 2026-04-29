@@ -1,4 +1,5 @@
 import express, { NextFunction, Router, Request, Response } from 'express';
+import { EntityNotFoundError } from 'typeorm';
 import cors from 'cors';
 
 import { logger } from '../../../utils/logger';
@@ -37,13 +38,17 @@ export const ensurePublishedDataset = async (req: Request, res: Response, next: 
     const dataset = await PublishedDatasetRepository.getById(req.params.dataset_id);
 
     if (!dataset.publishedRevisionId) {
-      throw new Error('dataset has no published revision');
+      throw new NotFoundException('errors.no_dataset');
     }
 
     res.locals.datasetId = dataset.id;
     res.locals.dataset = dataset;
-  } catch (_err) {
-    next(new NotFoundException('errors.no_dataset'));
+  } catch (err) {
+    if (err instanceof EntityNotFoundError || err instanceof NotFoundException) {
+      next(new NotFoundException('errors.no_dataset'));
+      return;
+    }
+    next(err);
     return;
   }
 
