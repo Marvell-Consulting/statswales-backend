@@ -129,11 +129,13 @@ describe('Consumer V1 — cross-cutting behaviour (CORS, method guard, Vary, 404
       jest.restoreAllMocks();
     });
 
-    it('non-EntityNotFoundError from PublishedDatasetRepository.getById surfaces as 500', async () => {
+    it('non-EntityNotFoundError from PublishedDatasetRepository.getById surfaces as a sanitized JSON 500', async () => {
       jest.spyOn(PublishedDatasetRepository, 'getById').mockRejectedValueOnce(new Error('connection terminated'));
 
       const res = await request(app).get(`/v1/${DATASET_ID}`);
       expect(res.status).toBe(500);
+      expect(res.headers['content-type']).toMatch(/application\/json/);
+      expect(res.text).not.toContain('connection terminated');
     });
   });
 

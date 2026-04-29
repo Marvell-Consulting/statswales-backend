@@ -18,6 +18,7 @@ import {
   getFilterIdDetails
 } from '../../../controllers/consumer-v2';
 import { NotFoundException } from '../../../exceptions/not-found.exception';
+import { UnknownException } from '../../../exceptions/unknown.exception';
 import { longTimeout } from '../../../middleware/timeout';
 import { PublishedDatasetRepository } from '../../../repositories/published-dataset';
 import { hasError, uuidValidator } from '../../../validators';
@@ -44,11 +45,16 @@ export const ensurePublishedDataset = async (req: Request, res: Response, next: 
     res.locals.datasetId = dataset.id;
     res.locals.dataset = dataset;
   } catch (err) {
-    if (err instanceof EntityNotFoundError || err instanceof NotFoundException) {
+    if (err instanceof EntityNotFoundError) {
       next(new NotFoundException('errors.no_dataset'));
       return;
     }
-    next(err);
+    if (err instanceof NotFoundException) {
+      next(err);
+      return;
+    }
+    logger.error(err, `Failed to load published dataset ${req.params.dataset_id}`);
+    next(new UnknownException());
     return;
   }
 
