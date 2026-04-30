@@ -651,7 +651,7 @@ describe('pivots service', () => {
       it('writes a blank cell (not 0) when the DuckDB value is an empty string', async () => {
         // Number('') === 0, so without the explicit '' check the cell would be written as 0.
         const columns = ['Area', '2020', '2021'];
-        const rows: DuckDBValue[][] = [['Cardiff', '' as unknown as DuckDBValue, 200]];
+        const rows: DuckDBValue[][] = [['Cardiff', '', 200]];
         setupMockDuckDB(columns, rows);
 
         const res = createMockBinaryResponse();
