@@ -311,7 +311,8 @@ import {
   getHistory,
   datasetActionRequest,
   rebuildAll,
-  rebuildDrafts
+  rebuildDrafts,
+  rebuildAllFilterTables
 } from '../../../src/controllers/dataset';
 
 function createMockDataset(id?: string): Dataset {
@@ -1560,6 +1561,42 @@ describe('Dataset controller', () => {
 
       expect(res.status).toHaveBeenCalledWith(202);
       expect(res.json).toHaveBeenCalledWith({ build_id: 'new-build-2' });
+    });
+  });
+
+  describe('rebuildAllFilterTables', () => {
+    it('should return 409 when active bulk build exists', async () => {
+      mockGetAllActiveBulkBuilds.mockResolvedValue([{ id: 'build-1' }, { id: 'build-2' }]);
+
+      const req = createMockRequest();
+      const res = createMockResponse();
+
+      await rebuildAllFilterTables(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(409);
+      expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ build_id: 'build-1' }));
+    });
+
+    it('should return 202 with build_id when no active builds', async () => {
+      mockGetAllActiveBulkBuilds.mockResolvedValue([]);
+      const mockBuildLog = {
+        id: 'new-build-3',
+        type: 'all_filter_tables',
+        buildScript: null,
+        status: 'queued',
+        save: jest.fn().mockResolvedValue(undefined),
+        completeBuild: jest.fn()
+      };
+      mockStartBuild.mockResolvedValue(mockBuildLog);
+      mockGetAllRevisionIds.mockResolvedValue([]);
+
+      const req = createMockRequest();
+      const res = createMockResponse();
+
+      await rebuildAllFilterTables(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(202);
+      expect(res.json).toHaveBeenCalledWith({ build_id: 'new-build-3' });
     });
   });
 });

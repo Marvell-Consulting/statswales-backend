@@ -338,7 +338,7 @@ export const v2CyTranslations: TranslationMap = {
     'GET /{dataset_id}/filters': {
       summary: 'Cael hidlwyr sydd ar gael ar gyfer set ddata',
       description:
-        "<p>Mae'n dychwelyd rhestr o newidynnau mewn set ddata, y mae modd eu hidlo, a phob gwerth hidladwy ar gyfer pob newidyn.</p>  <p>Mae gan newidynnau:</p>  <ul>  <li>enw 'factTableColumn' a ddefnyddir pan gaiff y set ddata ei chreu yn y lle cyntaf</li>  <li>'columnName' y gall rhywun ei ddarllen</li>  </ul>  <p>Mae gan werthoedd:</p>  <ul>  <li>cod 'reference'</li>  <li>'description' y gall rhywun ei ddarllen</li>  </ul>"
+        "<p>Mae'n dychwelyd rhestr o newidynnau mewn set ddata, y mae modd eu hidlo, a phob gwerth hidladwy ar gyfer pob newidyn.</p>  <p>Mae gan newidynnau:</p>  <ul>  <li>enw 'factTableColumn' a ddefnyddir pan gaiff y set ddata ei chreu yn y lle cyntaf</li>  <li>'columnName' y gall rhywun ei ddarllen</li>  </ul>  <p>Mae gan werthoedd:</p>  <ul>  <li>cod 'reference'</li>  <li>'description' y gall rhywun ei ddarllen</li> </ul> <p>Mae gan werthoedd:</p> <ul> <li>'count'</li> <li>Cyfanswm nifer y ffeithiau sy'n gysylltiedig â chyfeiriad os yw'n hysbys (rhagosodiad i 1 os nad yw'n hysbys)</li> </ul>"
     },
     'POST /{dataset_id}/data': {
       summary: 'Creu ID hidlo ar gyfer ymholiad penodol',

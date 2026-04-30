@@ -3,5 +3,6 @@ export enum CubeBuildType {
   ValidationCube = 'validation_cube',
   FullCube = 'full_cube',
   AllCubes = 'all_cubes',
+  AllFilterTables = 'all_filter_tables',
   DraftCubes = 'draft_cubes'
 }

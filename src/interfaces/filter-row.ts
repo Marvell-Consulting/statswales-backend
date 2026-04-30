@@ -5,4 +5,6 @@ export interface FilterRow {
   dimension_name: string;
   description: string;
   hierarchy: string;
+  sort_order?: string | null;
+  reference_count?: string | null;
 }

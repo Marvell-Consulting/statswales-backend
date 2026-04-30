@@ -54,7 +54,11 @@ import {
   createLookupTableDimension,
   setupCubeBuilder,
   setupLookupTableDimension,
-  FACT_TABLE_NAME
+  updateFilterTableCounts,
+  FACT_TABLE_NAME,
+  FILTER_TABLE_NAME,
+  METADATA_TABLE_NAME,
+  FILTER_TABLE_VERSION
 } from '../../../src/services/cube-builder';
 
 import { FactTableColumnType } from '../../../src/enums/fact-table-column-type';
@@ -366,7 +370,7 @@ describe('measureTableCreateStatement', () => {
     expect(sql).toContain('hierarchy TEXT');
     expect(sql).toContain('language TEXT');
     expect(sql).toContain('description TEXT');
-    expect(sql).toContain('sort_order INTEGER');
+    expect(sql).toContain('sort_order TEXT');
     expect(sql).toContain('format TEXT');
     expect(sql).toContain('decimals INTEGER');
     expect(sql).toContain('measure_type TEXT');
@@ -826,4 +830,108 @@ describe('setupLookupTableDimension — filter table sort direction', () => {
       });
     });
   }
+});
+
+// ===========================================================================
+describe('updateFilterTableCounts', () => {
+  const BUILD_ID = 'test-build-id';
+
+  const COUNTED_TYPES = [
+    FactTableColumnType.Dimension,
+    FactTableColumnType.Time,
+    FactTableColumnType.Measure,
+    FactTableColumnType.NoteCodes,
+    FactTableColumnType.Unknown,
+    FactTableColumnType.LineNumber
+  ] as const;
+
+  const SKIPPED_TYPES = [FactTableColumnType.DataValues, FactTableColumnType.Ignore] as const;
+
+  it('wraps statements in a transaction', () => {
+    const { statements } = updateFilterTableCounts(BUILD_ID, []);
+    expect(statements[0]).toBe('BEGIN TRANSACTION;');
+    expect(statements[statements.length - 1]).toBe('COMMIT;');
+  });
+
+  it('returns buildStage UpdateFilterTable', () => {
+    const block = updateFilterTableCounts(BUILD_ID, []);
+    expect(block.buildStage).toBe(BuildStage.UpdateFilterTable);
+  });
+
+  it('always emits the metadata version UPDATE statement', () => {
+    const { statements } = updateFilterTableCounts(BUILD_ID, []);
+    const versionUpdate = statements.find(
+      (s) => s.includes(METADATA_TABLE_NAME) && s.includes('SET value') && s.includes('filter_table_version')
+    );
+    expect(versionUpdate).toBeDefined();
+    // FILTER_TABLE_VERSION is a number; pgformat %L renders it without quotes
+    expect(versionUpdate).toContain(` ${FILTER_TABLE_VERSION} `);
+  });
+
+  it('always emits the metadata version INSERT-IF-NOT-EXISTS statement', () => {
+    const { statements } = updateFilterTableCounts(BUILD_ID, []);
+    const versionInsert = statements.find(
+      (s) => s.includes(METADATA_TABLE_NAME) && s.includes('INSERT INTO') && s.includes('filter_table_version')
+    );
+    expect(versionInsert).toBeDefined();
+    expect(versionInsert).toContain('WHERE NOT EXISTS');
+    expect(versionInsert).toContain(` ${FILTER_TABLE_VERSION}`);
+  });
+
+  for (const colType of SKIPPED_TYPES) {
+    it(`skips ${colType} columns — no UPDATE emitted for that column`, () => {
+      const col = makeCol('skipped_col', 0, colType);
+      const { statements } = updateFilterTableCounts(BUILD_ID, [col]);
+      const updates = statements.filter((s) => s.startsWith('UPDATE') && s.includes('"skipped_col"'));
+      expect(updates).toHaveLength(0);
+    });
+  }
+
+  for (const colType of COUNTED_TYPES) {
+    it(`emits a reference_count UPDATE for ${colType} columns`, () => {
+      const col = makeCol('year_col', 0, colType);
+      const { statements } = updateFilterTableCounts(BUILD_ID, [col]);
+      const updates = statements.filter((s) => s.includes('reference_count'));
+      expect(updates).toHaveLength(1);
+    });
+  }
+
+  it('references the correct schema, fact table, and filter table in the UPDATE', () => {
+    const col = makeCol('region', 0, FactTableColumnType.Dimension);
+    const { statements } = updateFilterTableCounts(BUILD_ID, [col]);
+    // pgformat only quotes identifiers that need it — simple names like filter_table are unquoted
+    const update = statements.find((s) => s.includes('reference_count'))!;
+    expect(update).toContain(`"${BUILD_ID}"`);
+    expect(update).toContain(FILTER_TABLE_NAME);
+    expect(update).toContain(FACT_TABLE_NAME);
+    expect(update).toContain('region');
+    expect(update).toContain('reference_count');
+  });
+
+  it('filters by fact_table_column using the column name literal', () => {
+    const col = makeCol('region', 0, FactTableColumnType.Dimension);
+    const { statements } = updateFilterTableCounts(BUILD_ID, [col]);
+    const update = statements.find((s) => s.includes('reference_count'))!;
+    // %L produces a quoted string literal — the column name must appear as a value, not an identifier
+    expect(update).toContain("fact_table_column = 'region'");
+  });
+
+  it('emits one UPDATE per counted column', () => {
+    const cols = [
+      makeCol('region', 0, FactTableColumnType.Dimension),
+      makeCol('year', 1, FactTableColumnType.Time),
+      makeCol('value', 2, FactTableColumnType.DataValues), // skipped
+      makeCol('notes', 3, FactTableColumnType.Ignore) // skipped
+    ];
+    const { statements } = updateFilterTableCounts(BUILD_ID, cols);
+    const countUpdates = statements.filter((s) => s.includes('reference_count'));
+    expect(countUpdates).toHaveLength(2);
+  });
+
+  it('produces no column UPDATE statements when all columns are skipped types', () => {
+    const cols = [makeCol('value', 0, FactTableColumnType.DataValues), makeCol('flag', 1, FactTableColumnType.Ignore)];
+    const { statements } = updateFilterTableCounts(BUILD_ID, cols);
+    const countUpdates = statements.filter((s) => s.includes('reference_count'));
+    expect(countUpdates).toHaveLength(0);
+  });
 });

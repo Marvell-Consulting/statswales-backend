@@ -4,6 +4,7 @@ import { NotFoundException } from '../../../src/exceptions/not-found.exception';
 import { Dataset } from '../../../src/entities/dataset/dataset';
 import { Revision } from '../../../src/entities/dataset/revision';
 import { uuidV4 } from '../../../src/utils/uuid';
+import { dbManager } from '../../../src/db/database-manager';
 
 // Mock logger
 jest.mock('../../../src/utils/logger', () => ({
@@ -104,6 +105,18 @@ jest.mock('../../../src/services/pivots', () => ({
   createPivotQuery: jest.fn(),
   createPivotOutputUsingDuckDB: jest.fn(),
   langToLocale: jest.fn().mockReturnValue('en-GB')
+}));
+
+// Mock dbManager
+jest.mock('../../../src/db/database-manager', () => ({
+  dbManager: {
+    getCubeDataSource: jest.fn().mockReturnValue({
+      createQueryRunner: jest.fn().mockReturnValue({
+        query: jest.fn().mockResolvedValue([]),
+        release: jest.fn().mockResolvedValue(undefined)
+      })
+    })
+  }
 }));
 
 import {
@@ -338,7 +351,31 @@ describe('consumer-v2 controller - scheduled publish date handling', () => {
 
       await getPublishedDatasetFilters(req, res, mockNext);
 
-      expect(mockGetFilterTableQuery).toHaveBeenCalledWith(publishedRev.id, 'en');
+      expect(mockGetFilterTableQuery).toHaveBeenCalledWith(publishedRev.id, 1, 'en');
+    });
+
+    it('should use the newer filter table version when the query runner returns version 2', async () => {
+      const dataset = createMockDataset();
+      const publishedRev = createMockRevision();
+      const req = createMockRequest({ language: 'en' } as Partial<Request>);
+      const res = createMockResponse({ locals: { datasetId: dataset.id, dataset } });
+
+      mockGetLatestByDatasetId.mockResolvedValue(publishedRev);
+      (dbManager.getCubeDataSource as jest.Mock).mockReturnValue({
+        createQueryRunner: jest.fn().mockReturnValue({
+          query: jest.fn().mockResolvedValue([{ value: '2' }]),
+          release: jest.fn().mockResolvedValue(undefined)
+        })
+      });
+      mockGetFilterTableQuery.mockResolvedValue('SELECT 1');
+
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const { sendFilters } = require('../../../src/services/consumer-view-v2');
+      sendFilters.mockResolvedValue(undefined);
+
+      await getPublishedDatasetFilters(req, res, mockNext);
+
+      expect(mockGetFilterTableQuery).toHaveBeenCalledWith(publishedRev.id, 2, 'en');
     });
   });
 });

@@ -33,7 +33,10 @@ export const BuildLogRepository = dataSource.getRepository(BuildLog).extend({
 
   async getAllActiveBulkBuilds(): Promise<BuildLog[]> {
     return BuildLog.find({
-      where: { type: In([CubeBuildType.AllCubes, CubeBuildType.DraftCubes]), status: Not(CubeBuildStatus.Completed) }
+      where: {
+        type: In([CubeBuildType.AllCubes, CubeBuildType.DraftCubes, CubeBuildType.AllFilterTables]),
+        status: Not(CubeBuildStatus.Completed)
+      }
     });
   },
 

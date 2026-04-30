@@ -42,6 +42,7 @@ export const METADATA_TABLE_NAME = 'metadata';
 export const FILTER_TABLE_NAME = 'filter_table';
 export const VALIDATION_TABLE_NAME = 'validation_table';
 export const CORE_VIEW_NAME = 'core_view';
+export const FILTER_TABLE_VERSION = 2;
 
 // Create the cube in the postgres database.  Handles the following:
 // - Getting the full dataset for the build
@@ -547,23 +548,27 @@ function createCubeBaseTables(revisionId: string, buildId: string, factTableQuer
   statements.push(
     pgformat(
       `
-        CREATE TABLE %I.${FILTER_TABLE_NAME} (
+        CREATE TABLE %I.%I (
          reference VARCHAR,
          language VARCHAR,
          fact_table_column VARCHAR,
          dimension_name VARCHAR,
          description VARCHAR,
+         sort_order TEXT,
          hierarchy VARCHAR,
+         reference_count BIGINT DEFAULT 0,
          PRIMARY KEY (reference, language, fact_table_column)
         );
       `,
-      buildId
+      buildId,
+      FILTER_TABLE_NAME
     )
   );
   statements.push(
     pgformat(
-      `INSERT INTO %I.${METADATA_TABLE_NAME} VALUES (%L, %L);`,
+      `INSERT INTO %I.%I VALUES (%L, %L);`,
       buildId,
+      METADATA_TABLE_NAME,
       CubeMetaDataKeys.BuildScript,
       statements.join('\n')
     )
@@ -1240,8 +1245,9 @@ function setupMeasureAndDataValuesNoLookup(
     );
     statements.push(
       pgformat(
-        `INSERT INTO %I.${FILTER_TABLE_NAME} SELECT DISTINCT CAST(%I AS VARCHAR), %L, %L, %L, CAST(%I AS VARCHAR), null FROM %I.%I ORDER BY %I;`,
+        `INSERT INTO %I.%I SELECT DISTINCT CAST(%I AS VARCHAR), %L, %L, %L, CAST(%I AS VARCHAR), NULL, NULL, 0 FROM %I.%I ORDER BY %I;`,
         buildId,
+        FILTER_TABLE_NAME,
         measureColumn.columnName,
         locale.toLowerCase(),
         measureColumn.columnName,
@@ -1276,7 +1282,7 @@ export const measureTableCreateStatement = (
                         language TEXT,
                         description TEXT,
                         notes TEXT,
-                        sort_order INTEGER,
+                        sort_order TEXT,
                         format TEXT,
                         decimals INTEGER,
                         measure_type TEXT,
@@ -1495,8 +1501,9 @@ function setupMeasureAndDataValuesWithLookup(
     const columnName = t('column_headers.measure', { lng: locale });
     statements.push(
       pgformat(
-        `INSERT INTO %I.${FILTER_TABLE_NAME} SELECT CAST(reference AS VARCHAR), language, %L, %L, description, CAST(hierarchy AS VARCHAR) FROM %I.measure WHERE language = %L ORDER BY sort_order, reference;`,
+        `INSERT INTO %I.%I SELECT CAST(reference AS VARCHAR), language, %L, %L, description, sort_order, CAST(hierarchy AS VARCHAR), 0 FROM %I.measure WHERE language = %L ORDER BY sort_order, reference;`,
         buildId,
+        FILTER_TABLE_NAME,
         measureColumn.columnName,
         columnName,
         buildId,
@@ -1553,10 +1560,11 @@ function rawDimensionProcessor(
     }
     statements.push(
       pgformat(
-        `INSERT INTO %I.${FILTER_TABLE_NAME}
-       SELECT DISTINCT CAST(%I AS VARCHAR), %L, %L, %L, CAST (%I AS VARCHAR), NULL
+        `INSERT INTO %I.%I
+       SELECT DISTINCT CAST(%I AS VARCHAR), %L, %L, %L, CAST (%I AS VARCHAR), NULL, NULL, 0
        FROM %I.%I ORDER BY %I;`,
         buildId,
+        FILTER_TABLE_NAME,
         dimension.factTableColumn,
         locale.toLowerCase(),
         dimension.factTableColumn,
@@ -1677,9 +1685,9 @@ export function setupLookupTableDimension(
     statements.push(
       pgformat(
         `INSERT INTO %I.%I
-              SELECT reference, language, fact_table_column, dimension_name, description, hierarchy
+              SELECT reference, language, fact_table_column, dimension_name, description, sort_order, hierarchy, 0
               FROM (SELECT DISTINCT
-              CAST(%I AS VARCHAR) AS reference, language, %L AS fact_table_column, %L AS dimension_name, description, hierarchy, sort_order
+              CAST(%I AS VARCHAR) AS reference, language, %L AS fact_table_column, %L AS dimension_name, description, sort_order AS sort_order, hierarchy
             FROM %I.%I
             WHERE language = %L
             ORDER BY sort_order %s, description);`,
@@ -1789,10 +1797,11 @@ function setupNumericDimension(
     const columnName = dimension.metadata.find((info) => info.language === locale)?.name || dimension.factTableColumn;
     statements.push(
       pgformat(
-        `INSERT INTO %I.${FILTER_TABLE_NAME}
-         SELECT DISTINCT CAST(%I AS VARCHAR), %L, %L, %L, CAST (%I AS VARCHAR), NULL
+        `INSERT INTO %I.%I
+         SELECT DISTINCT CAST(%I AS VARCHAR), %L, %L, %L, CAST (%I AS VARCHAR), NULL, NULL, NULL
          FROM %I.%I ORDER BY %I;`,
         buildId,
+        FILTER_TABLE_NAME,
         dimension.factTableColumn,
         locale.toLowerCase(),
         dimension.factTableColumn,
@@ -1858,10 +1867,11 @@ function setupTextDimension(
     const columnName = dimension.metadata.find((info) => info.language === locale)?.name || dimension.factTableColumn;
     statements.push(
       pgformat(
-        `INSERT INTO %I.${FILTER_TABLE_NAME}
-         SELECT DISTINCT CAST(%I AS VARCHAR), %L, %L, %L, CAST (%I AS VARCHAR), NULL
+        `INSERT INTO %I.%I
+         SELECT DISTINCT CAST(%I AS VARCHAR), %L, %L, %L, CAST (%I AS VARCHAR), NULL, NULL, 0
          FROM %I.%I;`,
         buildId,
+        FILTER_TABLE_NAME,
         dimension.factTableColumn,
         locale.toLowerCase(),
         dimension.factTableColumn,
@@ -1996,6 +2006,148 @@ function setupDimensions(
     statements,
     indexColumns
   };
+}
+
+export function updateFilterTableCounts(buildId: string, factTable: FactTableColumn[]): TransactionBlock {
+  const statements: string[] = ['BEGIN TRANSACTION;'];
+  for (const col of factTable) {
+    if (col.columnType === FactTableColumnType.DataValues || col.columnType === FactTableColumnType.Ignore) {
+      continue;
+    }
+    statements.push(
+      pgformat(
+        'UPDATE %I.%I SET reference_count = ft.count FROM (' +
+          '  SELECT CAST(%I AS VARCHAR) as reference, COUNT(%I) as count FROM %I.%I GROUP BY %I ' +
+          ') as ft ' +
+          'WHERE %I.reference = ft.reference AND %I.fact_table_column = %L;',
+        buildId,
+        FILTER_TABLE_NAME,
+        col.columnName,
+        col.columnName,
+        buildId,
+        FACT_TABLE_NAME,
+        col.columnName,
+        FILTER_TABLE_NAME,
+        FILTER_TABLE_NAME,
+        col.columnName
+      )
+    );
+  }
+  statements.push(
+    pgformat(
+      'UPDATE %I.%I SET value = %L WHERE key = %L;',
+      buildId,
+      METADATA_TABLE_NAME,
+      FILTER_TABLE_VERSION,
+      CubeMetaDataKeys.FilterTableVersion
+    )
+  );
+  statements.push(
+    pgformat(
+      'INSERT INTO %I.%I (key, value) ' +
+        'SELECT %L, %L ' +
+        'WHERE NOT EXISTS (' +
+        '  SELECT 1 FROM %I.%I WHERE key = %L' +
+        ');',
+      buildId,
+      METADATA_TABLE_NAME,
+      CubeMetaDataKeys.FilterTableVersion,
+      FILTER_TABLE_VERSION,
+      buildId,
+      METADATA_TABLE_NAME,
+      CubeMetaDataKeys.FilterTableVersion
+    )
+  );
+  statements.push('COMMIT;');
+  return {
+    buildStage: BuildStage.UpdateFilterTable,
+    statements
+  };
+}
+
+function alterFilterTableBlock(cubeId: string): TransactionBlock {
+  const statements: string[] = ['BEGIN TRANSACTION;'];
+  statements.push(pgformat('ALTER TABLE %I.%I ADD IF NOT EXISTS sort_order TEXT;', cubeId, FILTER_TABLE_NAME));
+  statements.push(
+    pgformat('ALTER TABLE %I.%I ADD IF NOT EXISTS reference_count BIGINT DEFAULT 0;', cubeId, FILTER_TABLE_NAME)
+  );
+  statements.push('COMMIT;');
+  return {
+    buildStage: BuildStage.UpdateFilterTable,
+    statements
+  };
+}
+
+function createFilterTableSortOrders(cubeId: string, dataset: Dataset): TransactionBlock {
+  const statements: string[] = ['BEGIN TRANSACTION;'];
+  for (const dim of dataset.dimensions) {
+    if (!dim.lookupTable) continue;
+    statements.push(
+      pgformat(
+        'UPDATE %I.%I SET sort_order = lookup.sort_order FROM (SELECT CAST(%I AS VARCHAR) AS reference, language, sort_order FROM %I.%I) AS lookup WHERE %I.reference = lookup.reference AND %I.language = lookup.language AND %I.fact_table_column = %L;',
+        cubeId,
+        FILTER_TABLE_NAME,
+        dim.factTableColumn,
+        cubeId,
+        `${makeCubeSafeString(dim.factTableColumn)}_lookup`,
+        FILTER_TABLE_NAME,
+        FILTER_TABLE_NAME,
+        FILTER_TABLE_NAME,
+        dim.factTableColumn
+      )
+    );
+  }
+
+  if (dataset.measure?.lookupTable) {
+    statements.push(
+      pgformat(
+        'UPDATE %I.%I SET sort_order = lookup.sort_order FROM (SELECT CAST(reference AS VARCHAR) AS reference, language, sort_order FROM %I.measure) AS lookup WHERE %I.reference = lookup.reference AND %I.language = lookup.language AND %I.fact_table_column = %L;',
+        cubeId,
+        FILTER_TABLE_NAME,
+        cubeId,
+        FILTER_TABLE_NAME,
+        FILTER_TABLE_NAME,
+        FILTER_TABLE_NAME,
+        dataset.measure.factTableColumn
+      )
+    );
+  }
+
+  statements.push('COMMIT;');
+  return {
+    buildStage: BuildStage.UpdateFilterTable,
+    statements
+  };
+}
+
+export async function updateFilterTableToLatest(datasetId: string, cubeId: string): Promise<string> {
+  const buildScript: string[] = [];
+  const datasetRelations: FindOptionsRelations<Dataset> = {
+    factTable: true,
+    dimensions: { lookupTable: true },
+    measure: { lookupTable: true }
+  };
+  const dataset = await DatasetRepository.getById(datasetId, datasetRelations);
+  const transactionBlocks: TransactionBlock[] = [];
+  transactionBlocks.push(alterFilterTableBlock(cubeId));
+  transactionBlocks.push(createFilterTableSortOrders(cubeId, dataset));
+  transactionBlocks.push(updateFilterTableCounts(cubeId, dataset.factTable!));
+  for (const block of transactionBlocks) {
+    const cubeDB = dbManager.getCubeDataSource().createQueryRunner();
+    buildScript.push(block.statements.join('\n'));
+    try {
+      logger.trace(`Running query:\n\n${block.statements.join('\n')}\n\n`);
+      await cubeDB.query(block.statements.join('\n'));
+      logger.debug(`Filter table for cube ${cubeId} updated successfully.`);
+    } catch (err) {
+      await cubeDB.query('ROLLBACK;');
+      logger.error(err, 'Something went wrong trying to update the filter table to the latest version');
+      throw err;
+    } finally {
+      void cubeDB.release();
+    }
+  }
+  return buildScript.join('\n\n');
 }
 
 function setupMeasuresAndDataValues(
@@ -2277,6 +2429,8 @@ function createFullCube(
       orderByStatements
     )
   );
+
+  transactionBlocks.push(updateFilterTableCounts(buildId, dataset.factTable!));
 
   transactionBlocks.push(
     createNotesTable(

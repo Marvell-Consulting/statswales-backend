@@ -9,5 +9,6 @@ export enum CubeMetaDataKeys {
   NoteCodes = 'note_codes',
   LookupTables = 'lookup_tables',
   BuildScript = 'build_script',
-  BuildResults = 'build_results'
+  BuildResults = 'build_results',
+  FilterTableVersion = 'filter_table_version'
 }

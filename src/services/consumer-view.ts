@@ -19,6 +19,7 @@ import { t } from 'i18next';
 import cubeConfig from '../config/cube-view.json';
 import { FactTableToDimensionName } from '../interfaces/fact-table-column-to-dimension-name';
 import { coreViewChooser, transformHierarchy } from '../utils/consumer';
+import { FilterRow } from '../interfaces/filter-row';
 
 const EXCEL_ROW_LIMIT = 1048500; // Excel Limit is 1048576 but removed 76 rows
 const CURSOR_ROW_LIMIT = 500;
@@ -33,15 +34,6 @@ interface FilterTable {
   columnName: string;
   factTableColumn: string;
   values: FilterValues[];
-}
-
-interface FilterRow {
-  reference: string;
-  language: string;
-  fact_table_column: string;
-  dimension_name: string;
-  description: string;
-  hierarchy: string;
 }
 
 export const getFilters = async (revisionId: string, language: string): Promise<FilterTable[]> => {
