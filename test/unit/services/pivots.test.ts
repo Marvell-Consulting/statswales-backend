@@ -647,6 +647,38 @@ describe('pivots service', () => {
       });
     });
 
+    describe('Excel output', () => {
+      it('writes a blank cell (not 0) when the DuckDB value is an empty string', async () => {
+        // Number('') === 0, so without the explicit '' check the cell would be written as 0.
+        const columns = ['Area', '2020', '2021'];
+        const rows: DuckDBValue[][] = [['Cardiff', '' as unknown as DuckDBValue, 200]];
+        setupMockDuckDB(columns, rows);
+
+        const res = createMockBinaryResponse();
+        const queryStore = createMockQueryStore();
+        const pageOptions = defaultPageOptions({ format: OutputFormats.Excel });
+
+        mockGetFilterTable.mockResolvedValue([]);
+        mockResolveDimensionToFactTableColumn.mockReturnValue('period_col');
+        mockGetById.mockResolvedValue({ dimensions: [] });
+
+        await createPivotOutputUsingDuckDB(res, 'en', 'PIVOT (...)', pageOptions, queryStore);
+
+        const buffer = await res.getBuffer();
+        const workbook = new ExcelJS.Workbook();
+        // @ts-expect-error ExcelJS types expect old Buffer, Node 24 returns Buffer<ArrayBuffer>
+        await workbook.xlsx.load(buffer);
+
+        const worksheet = workbook.getWorksheet(1)!;
+        const dataRow = worksheet.getRow(2).values as (string | number | null)[];
+
+        // ExcelJS row values are 1-indexed (index 0 is empty)
+        expect(dataRow[1]).toBe('Cardiff');
+        expect(dataRow[2]).toBeUndefined(); // blank cell — ExcelJS omits it from the values array
+        expect(dataRow[3]).toBe(200);
+      });
+    });
+
     describe('column reordering aligns cell data with headers', () => {
       // DuckDB returns columns in its own order (e.g. ['Area', '2020', '2022', '2021']),
       // but getSortedPivotColumns reorders them (e.g. ['Area', '2022', '2021', '2020']).
