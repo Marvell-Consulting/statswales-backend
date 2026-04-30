@@ -670,12 +670,12 @@ describe('pivots service', () => {
         await workbook.xlsx.load(buffer);
 
         const worksheet = workbook.getWorksheet(1)!;
-        const dataRow = worksheet.getRow(2).values as (string | number | null)[];
+        const dataRow = worksheet.getRow(2);
 
-        // ExcelJS row values are 1-indexed (index 0 is empty)
-        expect(dataRow[1]).toBe('Cardiff');
-        expect(dataRow[2]).toBeUndefined(); // blank cell — ExcelJS omits it from the values array
-        expect(dataRow[3]).toBe(200);
+        // ExcelJS cells are 1-indexed
+        expect(dataRow.getCell(1).value).toBe('Cardiff');
+        expect(dataRow.getCell(2).value).toBeNull(); // blank cell
+        expect(dataRow.getCell(3).value).toBe(200);
       });
     });
 
