@@ -1,5 +1,5 @@
 import { NextFunction, Router, Request, Response } from 'express';
-import { FindOptionsRelations } from 'typeorm';
+import { EntityNotFoundError, FindOptionsRelations } from 'typeorm';
 import cors from 'cors';
 
 import { logger } from '../../../utils/logger';
@@ -14,6 +14,7 @@ import {
   getPublicationHistory
 } from '../../../controllers/consumer';
 import { NotFoundException } from '../../../exceptions/not-found.exception';
+import { UnknownException } from '../../../exceptions/unknown.exception';
 import { longTimeout } from '../../../middleware/timeout';
 import { PublishedDatasetRepository } from '../../../repositories/published-dataset';
 import { hasError, datasetIdValidator } from '../../../validators';
@@ -36,8 +37,13 @@ export const loadPublishedDataset = (relations?: FindOptionsRelations<Dataset>) 
       const dataset = await PublishedDatasetRepository.getById(req.params.dataset_id, relations);
       res.locals.datasetId = dataset.id;
       res.locals.dataset = dataset;
-    } catch (_err) {
-      next(new NotFoundException('errors.no_dataset'));
+    } catch (err) {
+      if (err instanceof EntityNotFoundError) {
+        next(new NotFoundException('errors.no_dataset'));
+        return;
+      }
+      logger.error(err, `Failed to load published dataset ${req.params.dataset_id}`);
+      next(new UnknownException());
       return;
     }
 
