@@ -207,7 +207,7 @@
           "Data"
         ],
         "summary": "Get available filters for a dataset",
-        "description": "<p>Returns a list of variables in a dataset that can be  filtered, and all filterable values for each variable.</p>  <p>Variables have a:</p>  <ul>  <li>'factTableColumn' name which is used when the dataset is originally created</li>  <li>human-readable 'columnName'</li>  </ul>  <p>Values have a:</p>  <ul>  <li>'reference' code</li>  <li>human-readable 'description'</li>  </ul>  ",
+        "description": "<p>Returns a list of variables in a dataset that can be  filtered, and all filterable values for each variable.</p>  <p>Variables have a:</p>  <ul>  <li>'factTableColumn' name which is used when the dataset is originally created</li>  <li>human-readable 'columnName'</li>  </ul>  <p>Values have a:</p>  <ul>  <li>'reference' code</li>  <li>human-readable 'description'</li>  </ul>  <p>Values have a:</p>  <ul>  <li>'count'</li>  <li>Total number of facts associated with a reference if known (defaults to 1 if not known)</li>  </ul>  ",
         "parameters": [
           {
             "$ref": "#/components/parameters/language"
