@@ -11,6 +11,7 @@ import { ensureWorkerDataSources, resetDatabase } from '../../../helpers/reset-d
 import { getTestUser, getTestUserGroup } from '../../../helpers/get-test-user';
 import { seedPublishedDataset } from '../../../helpers/seed-published-dataset';
 import BlobStorage from '../../../../src/services/blob-storage';
+import { PublishedDatasetRepository } from '../../../../src/repositories/published-dataset';
 
 jest.mock('../../../../src/services/blob-storage');
 BlobStorage.prototype.listFiles = jest.fn().mockReturnValue([]);
@@ -121,6 +122,21 @@ describe('Consumer V1 — cross-cutting behaviour (CORS, method guard, Vary, 404
         expect(res.status).toBe(404);
       });
     }
+  });
+
+  describe('DB error during dataset load returns 500 (SW-1253)', () => {
+    afterEach(() => {
+      jest.restoreAllMocks();
+    });
+
+    it('non-EntityNotFoundError from PublishedDatasetRepository.getById surfaces as a sanitized JSON 500', async () => {
+      jest.spyOn(PublishedDatasetRepository, 'getById').mockRejectedValueOnce(new Error('connection terminated'));
+
+      const res = await request(app).get(`/v1/${DATASET_ID}`);
+      expect(res.status).toBe(500);
+      expect(res.headers['content-type']).toMatch(/application\/json/);
+      expect(res.text).not.toContain('connection terminated');
+    });
   });
 
   describe('Error response shape', () => {

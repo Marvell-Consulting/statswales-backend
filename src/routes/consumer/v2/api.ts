@@ -1,4 +1,5 @@
 import express, { NextFunction, Router, Request, Response } from 'express';
+import { EntityNotFoundError } from 'typeorm';
 import cors from 'cors';
 
 import { logger } from '../../../utils/logger';
@@ -17,6 +18,7 @@ import {
   getFilterIdDetails
 } from '../../../controllers/consumer-v2';
 import { NotFoundException } from '../../../exceptions/not-found.exception';
+import { UnknownException } from '../../../exceptions/unknown.exception';
 import { longTimeout } from '../../../middleware/timeout';
 import { PublishedDatasetRepository } from '../../../repositories/published-dataset';
 import { hasError, uuidValidator } from '../../../validators';
@@ -37,13 +39,22 @@ export const ensurePublishedDataset = async (req: Request, res: Response, next: 
     const dataset = await PublishedDatasetRepository.getById(req.params.dataset_id);
 
     if (!dataset.publishedRevisionId) {
-      throw new Error('dataset has no published revision');
+      throw new NotFoundException('errors.no_dataset');
     }
 
     res.locals.datasetId = dataset.id;
     res.locals.dataset = dataset;
-  } catch (_err) {
-    next(new NotFoundException('errors.no_dataset'));
+  } catch (err) {
+    if (err instanceof EntityNotFoundError) {
+      next(new NotFoundException('errors.no_dataset'));
+      return;
+    }
+    if (err instanceof NotFoundException) {
+      next(err);
+      return;
+    }
+    logger.error(err, `Failed to load published dataset ${req.params.dataset_id}`);
+    next(new UnknownException());
     return;
   }
 
