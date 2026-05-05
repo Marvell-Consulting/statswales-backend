@@ -455,14 +455,17 @@ export const withdrawFromPublication = async (req: Request, res: Response, next:
 const MAX_TIME_OUT = 30 * 60 * 1000;
 const INCREMENT = 10000;
 async function rebuildQueryStoreAfterCubeBuild(build: BuildLog, revision: Revision): Promise<void> {
-  let timeout = 0;
-  while (timeout <= MAX_TIME_OUT && !CompleteStatus.includes(build.status)) {
+  const startTime = Date.now();
+  const deadline = startTime + MAX_TIME_OUT;
+
+  while (Date.now() < deadline && !CompleteStatus.includes(build.status)) {
     await sleep(INCREMENT);
-    timeout += INCREMENT;
     await build.reload();
   }
 
-  if (timeout > MAX_TIME_OUT && !CompleteStatus.includes(build.status)) {
+  const timeout = Date.now() - startTime;
+
+  if (Date.now() >= deadline && !CompleteStatus.includes(build.status)) {
     logger.warn(
       { buildId: build.id, revisionId: revision.id, status: build.status, timeout },
       'Skipping query store rebuild because cube build polling timed out before reaching a complete status'
