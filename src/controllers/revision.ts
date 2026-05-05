@@ -467,7 +467,7 @@ export const regenerateRevisionCube = async (req: Request, res: Response, next: 
     await sleep(5000);
     let build: BuildLog;
     try {
-      build = await BuildLog.findOneOrFail({ where: { id: buildId.toString() } });
+      build = await BuildLog.findOneOrFail({ where: { id: buildId } });
     } catch (err) {
       logger.error(err, 'Failed to find build log entry');
       throw err;
