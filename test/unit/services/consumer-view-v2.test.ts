@@ -19,6 +19,14 @@ const mockCubeQuery = jest.fn();
 const mockObtainMasterConnection = jest.fn();
 const mockRelease = jest.fn();
 
+// Mock QueryStoreRepository
+const mockRebuildQueryEntry = jest.fn();
+jest.mock('../../../src/repositories/query-store', () => ({
+  QueryStoreRepository: {
+    rebuildQueryEntry: (...args: unknown[]) => mockRebuildQueryEntry(...args)
+  }
+}));
+
 jest.mock('../../../src/db/database-manager', () => ({
   dbManager: {
     getCubeDataSource: () => ({
@@ -190,6 +198,7 @@ describe('consumer-view-v2 service', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     mockRelease.mockResolvedValue(undefined);
+    mockRebuildQueryEntry.mockResolvedValue(undefined);
   });
 
   describe('sendCsv', () => {
@@ -629,6 +638,91 @@ describe('consumer-view-v2 service', () => {
 
       const jsonArg = (res.json as jest.Mock).mock.calls[0][0];
       expect(jsonArg.note_codes).toEqual([]);
+    });
+
+    it('should retry with core_view when a query using core_view_mat fails', async () => {
+      mockCubeQuery
+        .mockResolvedValueOnce([]) // filters query
+        .mockResolvedValueOnce([]) // note_codes query
+        .mockRejectedValueOnce(new Error('relation does not exist')) // first data query fails
+        .mockResolvedValueOnce([{ col1: 'val1' }]); // retry with core_view succeeds
+
+      mockGetById.mockResolvedValue({ id: 'dataset-id', factTable: [], dimensions: [] });
+
+      const queryStore = createMockQueryStore({ totalLines: 1 });
+      const pageOptions: PageOptions = {
+        format: OutputFormats.Frontend,
+        sort: [],
+        locale: Locale.EnglishGb,
+        pageNumber: 1,
+        pageSize: 10
+      };
+      const res = createMockStreamResponse();
+
+      await sendFrontendView('SELECT * FROM "schema".core_view_mat', queryStore, pageOptions, res);
+
+      expect(mockCubeQuery).toHaveBeenCalledTimes(4);
+      const retryCall = mockCubeQuery.mock.calls[3][0] as string;
+      expect(retryCall).toContain('core_view');
+      expect(retryCall).not.toContain('core_view_mat');
+      expect(mockRebuildQueryEntry).toHaveBeenCalledWith(queryStore.id);
+      expect(res.json).toHaveBeenCalled();
+    });
+
+    it('should retry with core_view_mat when a query using core_view fails', async () => {
+      mockCubeQuery
+        .mockResolvedValueOnce([]) // filters query
+        .mockResolvedValueOnce([]) // note_codes query
+        .mockRejectedValueOnce(new Error('relation does not exist')) // first data query fails
+        .mockResolvedValueOnce([{ col1: 'val1' }]); // retry with core_view_mat succeeds
+
+      mockGetById.mockResolvedValue({ id: 'dataset-id', factTable: [], dimensions: [] });
+
+      const queryStore = createMockQueryStore({ totalLines: 1 });
+      const pageOptions: PageOptions = {
+        format: OutputFormats.Frontend,
+        sort: [],
+        locale: Locale.EnglishGb,
+        pageNumber: 1,
+        pageSize: 10
+      };
+      const res = createMockStreamResponse();
+
+      await sendFrontendView('SELECT * FROM "schema".core_view', queryStore, pageOptions, res);
+
+      expect(mockCubeQuery).toHaveBeenCalledTimes(4);
+      const retryCall = mockCubeQuery.mock.calls[3][0] as string;
+      expect(retryCall).toContain('core_view_mat');
+      expect(mockRebuildQueryEntry).toHaveBeenCalledWith(queryStore.id);
+      expect(res.json).toHaveBeenCalled();
+    });
+
+    it('should surface the retry error when both the original query and the retry fail', async () => {
+      const retryError = new Error('retry also failed');
+      mockCubeQuery
+        .mockResolvedValueOnce([]) // filters query
+        .mockResolvedValueOnce([]) // note_codes query
+        .mockRejectedValueOnce(new Error('first attempt failed')) // first data query fails
+        .mockRejectedValueOnce(retryError); // retry also fails
+
+      mockGetById.mockResolvedValue({ id: 'dataset-id', factTable: [], dimensions: [] });
+
+      const queryStore = createMockQueryStore({ totalLines: 1 });
+      const pageOptions: PageOptions = {
+        format: OutputFormats.Frontend,
+        sort: [],
+        locale: Locale.EnglishGb,
+        pageNumber: 1,
+        pageSize: 10
+      };
+      const res = createMockStreamResponse();
+
+      await expect(
+        sendFrontendView('SELECT * FROM "schema".core_view_mat', queryStore, pageOptions, res)
+      ).rejects.toThrow('retry also failed');
+
+      expect(mockCubeQuery).toHaveBeenCalledTimes(4);
+      expect(mockRebuildQueryEntry).not.toHaveBeenCalled();
     });
   });
 
