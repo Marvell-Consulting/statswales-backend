@@ -300,9 +300,7 @@ async function runAndRetryQuery(query: string, queryStore: QueryStore, cubeDataS
       logger.warn(retryError, 'Query still failed after retrying');
       throw retryError;
     }
-    void QueryStoreRepository.rebuildQueriesForRevision(queryStore.revisionId).catch((err) => {
-      logger.warn(err, `Rebuild query store entries for revision ${queryStore.revisionId} failed.`);
-    });
+    void QueryStoreRepository.rebuildQueryEntry(queryStore.id);
   }
   return rows;
 }
