@@ -281,9 +281,13 @@ export async function sendFilters(query: string, res: Response): Promise<void> {
   }
 }
 
-async function runAndRetryQuery(query: string, queryStore: QueryStore, cubeDataSource: DataSource): Promise<never[]> {
+async function runAndRetryQuery(
+  query: string,
+  queryStore: QueryStore,
+  cubeDataSource: DataSource
+): Promise<Record<string, unknown>[]> {
   logger.debug(`Fetching view data for query id ${queryStore.id}...`);
-  let rows: never[];
+  let rows: Record<string, unknown>[];
   try {
     rows = await cubeDataSource.query(query);
   } catch (error) {
