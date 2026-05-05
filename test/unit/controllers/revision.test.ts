@@ -842,6 +842,72 @@ describe('Revision controller', () => {
       expect(res.status).toHaveBeenCalledWith(202);
     });
 
+    it('should not rebuild the query store until the build status reaches Completed', async () => {
+      const pastDate = new Date(Date.now() - 24 * 60 * 60 * 1000);
+      const revision = createMockRevision({ publishAt: pastDate });
+      const mockBuild = {
+        id: 'mock-build-id',
+        status: CubeBuildStatus.Building as CubeBuildStatus,
+        reload: jest.fn()
+      };
+      mockBuild.reload.mockImplementation(async () => {
+        if (mockBuild.reload.mock.calls.length >= 2) {
+          mockBuild.status = CubeBuildStatus.Completed;
+        }
+      });
+      mockBuildLogFindOneOrFail.mockResolvedValue(mockBuild);
+
+      const req = createMockRequest();
+      const res = createMockResponse({ locals: { datasetId: uuidV4(), revision } });
+
+      await regenerateRevisionCube(req, res, mockNext);
+      // The fire-and-forget is still polling — rebuild must not have been triggered yet
+      expect(mockRebuildQueriesForRevision).not.toHaveBeenCalled();
+
+      // Drain all pending microtasks so the polling loop can run to completion
+      await new Promise<void>((resolve) => setImmediate(resolve));
+
+      expect(mockBuild.reload).toHaveBeenCalledTimes(2);
+      expect(mockRebuildQueriesForRevision).toHaveBeenCalledWith(revision.id);
+    });
+
+    it('should skip query store rebuild when the cube build fails', async () => {
+      const pastDate = new Date(Date.now() - 24 * 60 * 60 * 1000);
+      const revision = createMockRevision({ publishAt: pastDate });
+      const mockBuild = createMockBuildLog(CubeBuildStatus.Failed);
+      mockBuildLogFindOneOrFail.mockResolvedValue(mockBuild);
+
+      const req = createMockRequest();
+      const res = createMockResponse({ locals: { datasetId: uuidV4(), revision } });
+
+      await regenerateRevisionCube(req, res, mockNext);
+      await new Promise<void>((resolve) => setImmediate(resolve));
+
+      expect(mockRebuildQueriesForRevision).not.toHaveBeenCalled();
+      expect(mockBuild.reload).not.toHaveBeenCalled();
+    });
+
+    it('should skip query store rebuild when polling times out before the build completes', async () => {
+      const pastDate = new Date(Date.now() - 24 * 60 * 60 * 1000);
+      const revision = createMockRevision({ publishAt: pastDate });
+      const mockBuild = {
+        id: 'mock-build-id',
+        status: CubeBuildStatus.Building,
+        reload: jest.fn().mockResolvedValue(undefined)
+      };
+      mockBuildLogFindOneOrFail.mockResolvedValue(mockBuild);
+
+      const req = createMockRequest();
+      const res = createMockResponse({ locals: { datasetId: uuidV4(), revision } });
+
+      await regenerateRevisionCube(req, res, mockNext);
+      await new Promise<void>((resolve) => setImmediate(resolve));
+
+      expect(mockRebuildQueriesForRevision).not.toHaveBeenCalled();
+      // MAX_TIME_OUT (30 * 60 * 1000) / INCREMENT (10000) + 1 = 181 iterations before timeout fires
+      expect(mockBuild.reload).toHaveBeenCalledTimes(181);
+    });
+
     it('should call next with UnknownException when bootstrapCubeBuildProcess fails', async () => {
       mockBootstrapCubeBuildProcess.mockRejectedValue(new Error('bootstrap failed'));
       const revision = createMockRevision();
