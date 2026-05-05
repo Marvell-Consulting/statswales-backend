@@ -485,7 +485,9 @@ export const regenerateRevisionCube = async (req: Request, res: Response, next: 
       await QueryStore.delete({ revisionId: revision.id });
     } else {
       // Only rebuild the query store after the cube has been completely rebuilt
-      void rebuildQueryStoreAfterCubeBuild(build, revision);
+      void rebuildQueryStoreAfterCubeBuild(build, revision).catch((err: Error) => {
+        logger.warn(err, 'Query store rebuild threw an error after cube build');
+      });
     }
   } catch (err) {
     logger.error(err, `Something went wrong trying to create the cube`);
