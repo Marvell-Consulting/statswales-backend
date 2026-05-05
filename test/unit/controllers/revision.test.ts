@@ -835,7 +835,9 @@ describe('Revision controller', () => {
       const res = createMockResponse({ locals: { datasetId: uuidV4(), revision } });
 
       await regenerateRevisionCube(req, res, mockNext);
+      await Promise.resolve();
 
+      expect(mockQueryStoreRebuildQueriesForRevision).toHaveBeenCalled();
       expect(mockQueryStoreDelete).not.toHaveBeenCalled();
       expect(res.status).toHaveBeenCalledWith(202);
     });
