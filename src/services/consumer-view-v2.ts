@@ -301,7 +301,9 @@ async function runAndRetryQuery(
       logger.warn(retryError, 'Query still failed after retrying');
       throw retryError;
     }
-    void QueryStoreRepository.rebuildQueryEntry(queryStore.id);
+    void QueryStoreRepository.rebuildQueryEntry(queryStore.id).catch((rebuildError) => {
+      logger.warn(rebuildError, `Failed to rebuild query entry for query id ${queryStore.id}`);
+    });
   }
   return rows;
 }
