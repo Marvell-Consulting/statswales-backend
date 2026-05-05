@@ -288,12 +288,9 @@ async function runAndRetryQuery(query: string, queryStore: QueryStore, cubeDataS
     rows = await cubeDataSource.query(query);
   } catch (error) {
     logger.warn(error, 'Query failed trying alternative view name');
-    let retryQuery = query;
-    if (query.includes('core_view_mat')) {
-      retryQuery = query.replace('core_view_mat', 'core_view');
-    } else {
-      retryQuery = query.replace('core_view', 'core_view_mat');
-    }
+    const retryQuery = query.includes('core_view_mat')
+      ? query.replace('core_view_mat', 'core_view')
+      : query.replace('core_view', 'core_view_mat');
     try {
       rows = await cubeDataSource.query(retryQuery);
     } catch (retryError) {
