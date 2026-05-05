@@ -52,7 +52,7 @@ Each directory has a single responsibility. Code that does not fit a directory's
 | `entities/`     | TypeORM entity classes. Schema/relation definitions and entity-local invariants only.           |
 | `extractors/`   | Helpers that extract typed values from source data columns during ingest.                       |
 | `exceptions/`   | Typed error classes only.                                                                       |
-| `enums/`        | Enum/const definitions. Type-only.                                                              |
+| `enums/`        | Enum and runtime constant definitions.                                                          |
 | `interfaces/`   | TypeScript interface definitions. Type-only.                                                    |
 | `types/`        | Shared type aliases. Type-only.                                                                 |
 | `utils/`        | Small, pure, stateless, framework-agnostic helpers reusable across layers.                      |
@@ -120,12 +120,15 @@ Each directory has a single responsibility. Code that does not fit a directory's
 
 ## Allowed dependency direction
 
-```
-routes → controllers → services → repositories → entities
-                                ↘ db
-```
+Allowed forward imports:
 
-Any layer may import from `utils/`, `dtos/`, `enums/`, `exceptions/`, `interfaces/`, `types/`, and `validators/`. Flag any reverse-direction import introduced by the PR (e.g. a repository importing from a service, a util importing from a service or repository).
+- `routes/` → `controllers/`, `middleware/`
+- `controllers/` → `services/`, `repositories/`
+- `services/` → `repositories/`, other `services/`
+- `repositories/` → `entities/`, `db/`
+- `entities/` → other `entities/`
+
+Any layer may import from `utils/`, `dtos/`, `enums/`, `exceptions/`, `interfaces/`, `types/`, and `validators/`. Flag any reverse-direction import introduced by the PR (e.g. a repository importing from a service, a util importing from a service or repository, a service importing from a controller).
 
 ## Review heuristics — quick checklist
 
