@@ -19,6 +19,8 @@ import { PageOptions } from '../interfaces/page-options';
 import { logger } from '../utils/logger';
 import { ConsumerDatasetDTO } from '../dtos/consumer-dataset-dto';
 import { getColumnHeaders } from '../utils/column-headers';
+import { QueryStoreRepository } from '../repositories/query-store';
+import { DataSource } from 'typeorm';
 
 const EXCEL_ROW_LIMIT = 1048576 - 76; // Excel Limit is 1,048,576 but removed 76 rows because ?
 const HIGH_WATER_MARK = 500; // max rows to buffer in memory at once when streaming from the database
@@ -279,6 +281,32 @@ export async function sendFilters(query: string, res: Response): Promise<void> {
   }
 }
 
+async function runAndRetryQuery(query: string, queryStore: QueryStore, cubeDataSource: DataSource): Promise<never[]> {
+  logger.debug(`Fetching view data for query id ${queryStore.id}...`);
+  let rows: never[];
+  try {
+    rows = await cubeDataSource.query(query);
+  } catch (error) {
+    logger.warn(error, 'Query failed trying alternative view name');
+    let retryQuery = query;
+    if (query.includes('core_view_mat')) {
+      retryQuery = query.replace('core_view_mat', 'core_view');
+    } else {
+      retryQuery = query.replace('core_view', 'core_view_mat');
+    }
+    try {
+      rows = await cubeDataSource.query(retryQuery);
+    } catch (retryError) {
+      logger.warn(retryError, 'Query still failed after retrying');
+      throw retryError;
+    }
+    void QueryStoreRepository.rebuildQueriesForRevision(queryStore.revisionId).catch((err) => {
+      logger.warn(err, `Rebuild query store entries for revision ${queryStore.revisionId} failed.`);
+    });
+  }
+  return rows;
+}
+
 export async function sendFrontendView(
   query: string,
   queryStore: QueryStore,
@@ -317,8 +345,7 @@ export async function sendFrontendView(
     logger.debug(`Fetching dataset ${queryStore.datasetId}...`);
     const dataset = await DatasetRepository.getById(queryStore.datasetId, { factTable: true, dimensions: true });
 
-    logger.debug(`Fetching view data for query id ${queryStore.id}...`);
-    const rows = await cubeDataSource.query(query);
+    const rows = await runAndRetryQuery(query, queryStore, cubeDataSource);
     logger.debug(`Fetched ${rows.length} rows`);
 
     // Build headers from the first row if available
