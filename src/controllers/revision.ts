@@ -49,7 +49,6 @@ import { buildStatusValidator, buildTypeValidator, hasError } from '../validator
 import { CubeBuildType } from '../enums/cube-build-type';
 import { CubeBuildStatus } from '../enums/cube-build-status';
 import { BuildLogRepository } from '../repositories/build-log';
-import { QueryStore } from '../entities/query-store';
 import { randomUUID } from 'node:crypto';
 import { sleep } from '../utils/sleep';
 import { BuildLog } from '../entities/dataset/build-log';
