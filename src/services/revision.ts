@@ -34,6 +34,11 @@ import { DateExtractor } from '../extractors/date-extractor';
 import { config } from '../config';
 import { revisionStartAndEndDateFinder, widenCoverageRange } from '../utils/revision';
 import { factTableValidatorFromSource, sourceAssignmentFromFactTable } from './fact-table-validator';
+import { performance } from 'node:perf_hooks';
+import { sleep } from '../utils/sleep';
+import { BuildLog, CompleteStatus } from '../entities/dataset/build-log';
+import { CubeBuildStatus } from '../enums/cube-build-status';
+import { QueryStoreRepository } from '../repositories/query-store';
 
 export async function attachUpdateDataTableToRevision(
   datasetId: string,
@@ -351,4 +356,36 @@ async function validateDimension(
     err.type = CubeValidationType.HierarchyError;
     throw err;
   }
+}
+
+const MAX_TIME_OUT = 30 * 60 * 1000;
+const INCREMENT = 10000;
+export async function rebuildQueryStoreAfterCubeBuild(build: BuildLog, revision: Revision): Promise<void> {
+  const startTime = Date.now();
+  const deadline = startTime + MAX_TIME_OUT;
+
+  while (Date.now() < deadline && !CompleteStatus.includes(build.status)) {
+    await sleep(INCREMENT);
+    await build.reload();
+  }
+
+  const timeout = Date.now() - startTime;
+
+  if (Date.now() >= deadline && !CompleteStatus.includes(build.status)) {
+    logger.warn(
+      { buildId: build.id, revisionId: revision.id, status: build.status, timeout },
+      'Skipping query store rebuild because cube build polling timed out before reaching a complete status'
+    );
+    return;
+  }
+
+  if (build.status !== CubeBuildStatus.Completed) {
+    logger.warn(
+      { buildId: build.id, revisionId: revision.id, status: build.status },
+      'Skipping query store rebuild because cube build did not complete successfully'
+    );
+    return;
+  }
+
+  await QueryStoreRepository.rebuildQueriesForRevision(revision.id);
 }

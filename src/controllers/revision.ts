@@ -39,7 +39,7 @@ import {
 import { cleanupTmpFile, uploadAvScan } from '../services/virus-scanner';
 import { TempFile } from '../interfaces/temp-file';
 import { DEFAULT_PAGE_SIZE } from '../utils/page-defaults';
-import { attachUpdateDataTableToRevision } from '../services/revision';
+import { attachUpdateDataTableToRevision, rebuildQueryStoreAfterCubeBuild } from '../services/revision';
 import { performanceReporting } from '../utils/performance-reporting';
 import { resolvePreviewRevisionId } from '../utils/revision';
 import { CubeBuildResult } from '../dtos/cube-build-result';
@@ -50,10 +50,9 @@ import { CubeBuildType } from '../enums/cube-build-type';
 import { CubeBuildStatus } from '../enums/cube-build-status';
 import { BuildLogRepository } from '../repositories/build-log';
 import { QueryStore } from '../entities/query-store';
-import { QueryStoreRepository } from '../repositories/query-store';
 import { randomUUID } from 'node:crypto';
 import { sleep } from '../utils/sleep';
-import { BuildLog, CompleteStatus } from '../entities/dataset/build-log';
+import { BuildLog } from '../entities/dataset/build-log';
 
 export const getDataTable = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   const revision: Revision = res.locals.revision;
@@ -451,38 +450,6 @@ export const withdrawFromPublication = async (req: Request, res: Response, next:
     next(err);
   }
 };
-
-const MAX_TIME_OUT = 30 * 60 * 1000;
-const INCREMENT = 10000;
-async function rebuildQueryStoreAfterCubeBuild(build: BuildLog, revision: Revision): Promise<void> {
-  const startTime = Date.now();
-  const deadline = startTime + MAX_TIME_OUT;
-
-  while (Date.now() < deadline && !CompleteStatus.includes(build.status)) {
-    await sleep(INCREMENT);
-    await build.reload();
-  }
-
-  const timeout = Date.now() - startTime;
-
-  if (Date.now() >= deadline && !CompleteStatus.includes(build.status)) {
-    logger.warn(
-      { buildId: build.id, revisionId: revision.id, status: build.status, timeout },
-      'Skipping query store rebuild because cube build polling timed out before reaching a complete status'
-    );
-    return;
-  }
-
-  if (build.status !== CubeBuildStatus.Completed) {
-    logger.warn(
-      { buildId: build.id, revisionId: revision.id, status: build.status },
-      'Skipping query store rebuild because cube build did not complete successfully'
-    );
-    return;
-  }
-
-  await QueryStoreRepository.rebuildQueriesForRevision(revision.id);
-}
 
 export const regenerateRevisionCube = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   const datasetId: string = res.locals.datasetId;
