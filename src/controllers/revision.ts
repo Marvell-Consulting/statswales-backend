@@ -457,6 +457,15 @@ async function rebuildQueryStoreAfterCubeBuild(build: BuildLog, revision: Revisi
     await sleep(10000);
     await build.reload();
   }
+
+  if (build.status !== CubeBuildStatus.Completed) {
+    logger.warn(
+      { buildId: build.id, revisionId: revision.id, status: build.status },
+      'Skipping query store rebuild because cube build did not complete successfully'
+    );
+    return;
+  }
+
   await QueryStoreRepository.rebuildQueriesForRevision(revision.id);
 }
 
