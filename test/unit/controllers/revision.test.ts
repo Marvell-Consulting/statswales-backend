@@ -837,7 +837,7 @@ describe('Revision controller', () => {
       await regenerateRevisionCube(req, res, mockNext);
       await Promise.resolve();
 
-      expect(mockQueryStoreRebuildQueriesForRevision).toHaveBeenCalled();
+      expect(mockRebuildQueriesForRevision).toHaveBeenCalled();
       expect(mockQueryStoreDelete).not.toHaveBeenCalled();
       expect(res.status).toHaveBeenCalledWith(202);
     });
