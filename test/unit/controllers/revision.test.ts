@@ -769,11 +769,26 @@ describe('Revision controller', () => {
     }
 
     beforeEach(() => {
+      // Fake Date.now() so the sleep mock can advance time by ms without
+      // running the polling loop for real wall-clock time.
+      jest.useFakeTimers({ doNotFake: ['setImmediate', 'nextTick', 'queueMicrotask'] });
+      const sleepMock = jest.requireMock('../../../src/utils/sleep').sleep;
+      sleepMock.mockImplementation((ms: number) => {
+        jest.advanceTimersByTime(ms);
+        return Promise.resolve();
+      });
+
       mockBootstrapCubeBuildProcess.mockResolvedValue(undefined);
       mockCreateAllCubeFiles.mockResolvedValue(undefined);
       mockQueryStoreDelete.mockResolvedValue(undefined);
       mockRebuildQueriesForRevision.mockResolvedValue(undefined);
       mockBuildLogFindOneOrFail.mockResolvedValue(createMockBuildLog());
+    });
+
+    afterEach(() => {
+      jest.useRealTimers();
+      const sleepMock = jest.requireMock('../../../src/utils/sleep').sleep;
+      sleepMock.mockResolvedValue(undefined);
     });
 
     it('should return 202 with a build_id on success', async () => {
@@ -904,8 +919,8 @@ describe('Revision controller', () => {
       await new Promise<void>((resolve) => setImmediate(resolve));
 
       expect(mockRebuildQueriesForRevision).not.toHaveBeenCalled();
-      // MAX_TIME_OUT (30 * 60 * 1000) / INCREMENT (10000) + 1 = 181 iterations before timeout fires
-      expect(mockBuild.reload).toHaveBeenCalledTimes(181);
+      // MAX_TIME_OUT (30 * 60 * 1000) / INCREMENT (10000) = 180 iterations before timeout fires
+      expect(mockBuild.reload).toHaveBeenCalledTimes(180);
     });
 
     it('should call next with UnknownException when bootstrapCubeBuildProcess fails', async () => {
