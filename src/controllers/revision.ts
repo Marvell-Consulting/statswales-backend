@@ -452,9 +452,13 @@ export const withdrawFromPublication = async (req: Request, res: Response, next:
   }
 };
 
+const MAX_TIME_OUT = 30 * 60 * 1000;
+const INCREMENT = 10000;
 async function rebuildQueryStoreAfterCubeBuild(build: BuildLog, revision: Revision): Promise<void> {
-  while (!CompleteStatus.includes(build.status)) {
-    await sleep(10000);
+  let timeout = 0;
+  while (timeout <= MAX_TIME_OUT || !CompleteStatus.includes(build.status)) {
+    await sleep(INCREMENT);
+    timeout += INCREMENT;
     await build.reload();
   }
 
