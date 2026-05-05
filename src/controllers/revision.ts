@@ -456,10 +456,18 @@ const MAX_TIME_OUT = 30 * 60 * 1000;
 const INCREMENT = 10000;
 async function rebuildQueryStoreAfterCubeBuild(build: BuildLog, revision: Revision): Promise<void> {
   let timeout = 0;
-  while (timeout <= MAX_TIME_OUT || !CompleteStatus.includes(build.status)) {
+  while (timeout <= MAX_TIME_OUT && !CompleteStatus.includes(build.status)) {
     await sleep(INCREMENT);
     timeout += INCREMENT;
     await build.reload();
+  }
+
+  if (timeout > MAX_TIME_OUT && !CompleteStatus.includes(build.status)) {
+    logger.warn(
+      { buildId: build.id, revisionId: revision.id, status: build.status, timeout },
+      'Skipping query store rebuild because cube build polling timed out before reaching a complete status'
+    );
+    return;
   }
 
   if (build.status !== CubeBuildStatus.Completed) {
