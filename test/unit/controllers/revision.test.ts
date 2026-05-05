@@ -146,6 +146,36 @@ jest.mock('../../../src/utils/performance-reporting', () => ({
   performanceReporting: jest.fn()
 }));
 
+// Mock sleep
+jest.mock('../../../src/utils/sleep', () => ({
+  sleep: jest.fn().mockResolvedValue(undefined)
+}));
+
+// Mock BuildLog entity
+const mockBuildLogFindOneOrFail = jest.fn();
+jest.mock('../../../src/entities/dataset/build-log', () => ({
+  BuildLog: {
+    findOneOrFail: (...args: unknown[]) => mockBuildLogFindOneOrFail(...args)
+  },
+  CompleteStatus: ['completed', 'failed']
+}));
+
+// Mock QueryStore entity
+const mockQueryStoreDelete = jest.fn();
+jest.mock('../../../src/entities/query-store', () => ({
+  QueryStore: {
+    delete: (...args: unknown[]) => mockQueryStoreDelete(...args)
+  }
+}));
+
+// Mock QueryStoreRepository
+const mockRebuildQueriesForRevision = jest.fn();
+jest.mock('../../../src/repositories/query-store', () => ({
+  QueryStoreRepository: {
+    rebuildQueriesForRevision: (...args: unknown[]) => mockRebuildQueriesForRevision(...args)
+  }
+}));
+
 import {
   updateRevisionPublicationDate,
   submitForPublication,
@@ -157,7 +187,8 @@ import {
   removeFactTableFromRevision,
   getRevisionBuildLog,
   getRevisionPreview,
-  getRevisionPreviewFilters
+  getRevisionPreviewFilters,
+  regenerateRevisionCube
 } from '../../../src/controllers/revision';
 import { DataTable } from '../../../src/entities/dataset/data-table';
 import { getFilePreview } from '../../../src/services/incoming-file-processor';
@@ -724,6 +755,113 @@ describe('Revision controller', () => {
         message: 'errors.no_data_table'
       });
       expect(mockGetFilters).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('regenerateRevisionCube', () => {
+    const mockBootstrapCubeBuildProcess = jest.requireMock(
+      '../../../src/utils/lookup-table-utils'
+    ).bootstrapCubeBuildProcess;
+    const mockCreateAllCubeFiles = jest.requireMock('../../../src/services/cube-builder').createAllCubeFiles;
+
+    function createMockBuildLog(status = CubeBuildStatus.Completed) {
+      return { id: 'mock-build-id', status, reload: jest.fn() };
+    }
+
+    beforeEach(() => {
+      mockBootstrapCubeBuildProcess.mockResolvedValue(undefined);
+      mockCreateAllCubeFiles.mockResolvedValue(undefined);
+      mockQueryStoreDelete.mockResolvedValue(undefined);
+      mockRebuildQueriesForRevision.mockResolvedValue(undefined);
+      mockBuildLogFindOneOrFail.mockResolvedValue(createMockBuildLog());
+    });
+
+    it('should return 202 with a build_id on success', async () => {
+      const revision = createMockRevision({ publishAt: null });
+      const req = createMockRequest();
+      const res = createMockResponse({ locals: { datasetId: uuidV4(), revision } });
+
+      await regenerateRevisionCube(req, res, mockNext);
+
+      expect(res.status).toHaveBeenCalledWith(202);
+      expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ build_id: expect.any(String) }));
+      expect(mockNext).not.toHaveBeenCalled();
+    });
+
+    it('should start the cube build using the same build_id returned in the response', async () => {
+      const datasetId = uuidV4();
+      const revision = createMockRevision({ publishAt: null });
+      const req = createMockRequest();
+      const res = createMockResponse({ locals: { datasetId, revision } });
+
+      await regenerateRevisionCube(req, res, mockNext);
+
+      const responseBody = (res.json as jest.Mock).mock.calls[0][0];
+      const buildId = responseBody.build_id;
+      expect(mockCreateAllCubeFiles).toHaveBeenCalledWith(
+        datasetId,
+        revision.id,
+        expect.anything(),
+        CubeBuildType.FullCube,
+        buildId
+      );
+    });
+
+    it('should delete query store entries for an unpublished revision with no publish date', async () => {
+      const revision = createMockRevision({ publishAt: null });
+      const req = createMockRequest();
+      const res = createMockResponse({ locals: { datasetId: uuidV4(), revision } });
+
+      await regenerateRevisionCube(req, res, mockNext);
+
+      expect(mockQueryStoreDelete).toHaveBeenCalledWith({ revisionId: revision.id });
+    });
+
+    it('should delete query store entries for a revision with a future publish date', async () => {
+      const futureDate = new Date(Date.now() + 24 * 60 * 60 * 1000);
+      const revision = createMockRevision({ publishAt: futureDate });
+      const req = createMockRequest();
+      const res = createMockResponse({ locals: { datasetId: uuidV4(), revision } });
+
+      await regenerateRevisionCube(req, res, mockNext);
+
+      expect(mockQueryStoreDelete).toHaveBeenCalledWith({ revisionId: revision.id });
+    });
+
+    it('should trigger a query store rebuild (not delete) for a published revision', async () => {
+      const pastDate = new Date(Date.now() - 24 * 60 * 60 * 1000);
+      const revision = createMockRevision({ publishAt: pastDate });
+      const req = createMockRequest();
+      const res = createMockResponse({ locals: { datasetId: uuidV4(), revision } });
+
+      await regenerateRevisionCube(req, res, mockNext);
+
+      expect(mockQueryStoreDelete).not.toHaveBeenCalled();
+      expect(res.status).toHaveBeenCalledWith(202);
+    });
+
+    it('should call next with UnknownException when bootstrapCubeBuildProcess fails', async () => {
+      mockBootstrapCubeBuildProcess.mockRejectedValue(new Error('bootstrap failed'));
+      const revision = createMockRevision();
+      const req = createMockRequest();
+      const res = createMockResponse({ locals: { datasetId: uuidV4(), revision } });
+
+      await regenerateRevisionCube(req, res, mockNext);
+
+      expect(mockNext).toHaveBeenCalledWith(expect.any(UnknownException));
+      expect(res.status).not.toHaveBeenCalledWith(202);
+    });
+
+    it('should call next with UnknownException when the build log cannot be found', async () => {
+      mockBuildLogFindOneOrFail.mockRejectedValue(new Error('build log not found'));
+      const revision = createMockRevision();
+      const req = createMockRequest();
+      const res = createMockResponse({ locals: { datasetId: uuidV4(), revision } });
+
+      await regenerateRevisionCube(req, res, mockNext);
+
+      expect(mockNext).toHaveBeenCalledWith(expect.any(UnknownException));
+      expect(res.status).not.toHaveBeenCalledWith(202);
     });
   });
 });
