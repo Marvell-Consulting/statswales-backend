@@ -472,10 +472,7 @@ export const regenerateRevisionCube = async (req: Request, res: Response, next: 
       logger.error(err, 'Failed to find build log entry');
       throw err;
     }
-    if (!revision.publishAt || revision.publishAt.getTime() > Date.now()) {
-      await QueryStore.delete({ revisionId: revision.id });
-    } else {
-      // Only rebuild the query store after the cube has been completely rebuilt
+    if (revision.publishAt && revision.publishAt.getTime() > Date.now()) {
       void rebuildQueryStoreAfterCubeBuild(build, revision).catch((err: Error) => {
         logger.warn(err, 'Query store rebuild threw an error after cube build');
       });
