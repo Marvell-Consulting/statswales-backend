@@ -137,8 +137,10 @@ jest.mock('../../../src/services/consumer-view', () => ({
 }));
 
 // Mock revision service
+const mockRebuildQueryStoreAfterCubeBuild = jest.fn();
 jest.mock('../../../src/services/revision', () => ({
-  attachUpdateDataTableToRevision: jest.fn()
+  attachUpdateDataTableToRevision: jest.fn(),
+  rebuildQueryStoreAfterCubeBuild: (...args: unknown[]) => mockRebuildQueryStoreAfterCubeBuild(...args)
 }));
 
 // Mock performance-reporting
@@ -842,6 +844,31 @@ describe('Revision controller', () => {
 
       expect(mockNext).toHaveBeenCalledWith(expect.any(UnknownException));
       expect(res.status).not.toHaveBeenCalledWith(202);
+    });
+
+    it('should schedule query-store rebuild when the revision is published', async () => {
+      const pastDate = new Date('2020-01-01');
+      const revision = createMockRevision({ approvedAt: pastDate, publishAt: pastDate });
+      const mockBuild = createMockBuildLog();
+      mockBuildLogFindOneOrFail.mockResolvedValue(mockBuild);
+      mockRebuildQueryStoreAfterCubeBuild.mockResolvedValue(undefined);
+
+      const req = createMockRequest();
+      const res = createMockResponse({ locals: { datasetId: uuidV4(), revision } });
+
+      await regenerateRevisionCube(req, res, mockNext);
+
+      expect(mockRebuildQueryStoreAfterCubeBuild).toHaveBeenCalledWith(mockBuild, revision);
+    });
+
+    it('should not schedule query-store rebuild when the revision is not published', async () => {
+      const revision = createMockRevision({ publishAt: null });
+      const req = createMockRequest();
+      const res = createMockResponse({ locals: { datasetId: uuidV4(), revision } });
+
+      await regenerateRevisionCube(req, res, mockNext);
+
+      expect(mockRebuildQueryStoreAfterCubeBuild).not.toHaveBeenCalled();
     });
   });
 });
