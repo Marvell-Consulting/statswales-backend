@@ -577,19 +577,23 @@ export async function rebuildDatasetList(
     }
 
     await build.reload();
-    if (build.status === CubeBuildStatus.Failed) {
-      logger.warn(`[${buildLogEntry.id}]: Cube for revision ${rev.id} has been failed to rebuild.`);
+    if (build.status === CubeBuildStatus.Completed) {
+      buildScript.successfully_built.push(build.id);
+      buildScript.successful_builds++;
+      logger.info(`[${buildLogEntry.id}]: Cube for revision ${rev.id} has been rebuilt successfully.`);
+    } else {
+      const buildError =
+        build.errors ?? `Cube build finished with unexpected status: ${build.status}`;
+      logger.warn(
+        `[${buildLogEntry.id}]: Cube for revision ${rev.id} failed to rebuild with status ${build.status}.`
+      );
       buildScript.failed_to_build.push(build.id);
       buildScript.failed_builds++;
       failedBuilds.push({
         buildId: build.id,
         revisionId: rev.id,
-        error: build.errors ?? ''
+        error: buildError
       });
-    } else {
-      buildScript.successfully_built.push(build.id);
-      buildScript.successful_builds++;
-      logger.info(`[${buildLogEntry.id}]: Cube for revision ${rev.id} has been rebuilt successfully.`);
     }
     buildScript.current_build = null;
     buildScript.total_builds++;
