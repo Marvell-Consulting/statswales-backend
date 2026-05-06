@@ -532,6 +532,14 @@ export async function rebuildDatasetList(
       await bootstrapCubeBuildProcess(rev.dataset_id, rev.id);
     } catch (err) {
       logger.warn(err, `[${buildLogEntry.id}]: Failed to rebuild cube for revision ${rev.id}`);
+      build.completeBuild(CubeBuildStatus.Failed, JSON.stringify(err));
+      await build.save();
+      buildScript.failed_to_build.push(build.id);
+      buildScript.failed_builds++;
+      buildScript.current_build = null;
+      buildScript.total_builds++;
+      buildLogEntry.buildScript = JSON.stringify(buildScript, null, 2);
+      await buildLogEntry.save();
       failedBuilds.push({
         buildId: build.id.toString(),
         revisionId: rev.id,
