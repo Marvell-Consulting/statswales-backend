@@ -41,7 +41,7 @@ import { TempFile } from '../interfaces/temp-file';
 import { DEFAULT_PAGE_SIZE } from '../utils/page-defaults';
 import { attachUpdateDataTableToRevision, rebuildQueryStoreAfterCubeBuild } from '../services/revision';
 import { performanceReporting } from '../utils/performance-reporting';
-import { resolvePreviewRevisionId } from '../utils/revision';
+import { isPublished, resolvePreviewRevisionId } from '../utils/revision';
 import { CubeBuildResult } from '../dtos/cube-build-result';
 import { bootstrapCubeBuildProcess } from '../utils/lookup-table-utils';
 import { BuiltLogEntryDto } from '../dtos/build-log';
@@ -471,7 +471,7 @@ export const regenerateRevisionCube = async (req: Request, res: Response, next: 
       logger.error(err, 'Failed to find build log entry');
       throw err;
     }
-    if (revision.publishAt && revision.publishAt.getTime() > Date.now()) {
+    if (isPublished(revision)) {
       void rebuildQueryStoreAfterCubeBuild(build, revision).catch((err: Error) => {
         logger.warn(err, 'Query store rebuild threw an error after cube build');
       });
