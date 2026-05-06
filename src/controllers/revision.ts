@@ -1,5 +1,6 @@
 import { Readable } from 'node:stream';
 import { performance } from 'node:perf_hooks';
+import { randomUUID } from 'node:crypto';
 
 import { NextFunction, Request, Response } from 'express';
 import { t } from 'i18next';
@@ -47,7 +48,6 @@ import { buildStatusValidator, buildTypeValidator, hasError } from '../validator
 import { CubeBuildType } from '../enums/cube-build-type';
 import { CubeBuildStatus } from '../enums/cube-build-status';
 import { BuildLogRepository } from '../repositories/build-log';
-import { randomUUID } from 'node:crypto';
 
 export const getDataTable = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   const revision: Revision = res.locals.revision;
