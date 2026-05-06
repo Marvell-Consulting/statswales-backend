@@ -164,6 +164,7 @@ export const updateMeasureMetadata = async (req: Request, res: Response, next: N
   await updateRevisionTasks(dataset, dataset.measure.id, 'measure');
   const build = await BuildLog.startBuild(dataset.draftRevision!, CubeBuildType.FullCube, userId);
 
+  res.status(202);
   res.json({
     dimension: DimensionMetadataDTO.fromDimensionMetadata(updatedMeasureMetadata),
     build_id: build.id
