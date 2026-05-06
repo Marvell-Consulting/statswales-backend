@@ -2,7 +2,6 @@ import { BaseEntity, Column, CreateDateColumn, Entity, JoinColumn, ManyToOne, Pr
 import { Revision } from './revision';
 import { CubeBuildStatus } from '../../enums/cube-build-status';
 import { CubeBuildType } from '../../enums/cube-build-type';
-import { RevisionList } from '../../repositories/revision';
 
 export const CompleteStatus = [CubeBuildStatus.Completed, CubeBuildStatus.Failed];
 
@@ -53,7 +52,7 @@ export class BuildLog extends BaseEntity {
   revision: Revision | null;
 
   public static async startBuild(
-    revision: Revision | RevisionList | null,
+    revision: { id: string } | Revision | null,
     type: CubeBuildType,
     userId?: string,
     buildId?: string
