@@ -582,11 +582,8 @@ export async function rebuildDatasetList(
       buildScript.successful_builds++;
       logger.info(`[${buildLogEntry.id}]: Cube for revision ${rev.id} has been rebuilt successfully.`);
     } else {
-      const buildError =
-        build.errors ?? `Cube build finished with unexpected status: ${build.status}`;
-      logger.warn(
-        `[${buildLogEntry.id}]: Cube for revision ${rev.id} failed to rebuild with status ${build.status}.`
-      );
+      const buildError = build.errors ?? `Cube build finished with unexpected status: ${build.status}`;
+      logger.warn(`[${buildLogEntry.id}]: Cube for revision ${rev.id} failed to rebuild with status ${build.status}.`);
       buildScript.failed_to_build.push(build.id);
       buildScript.failed_builds++;
       failedBuilds.push({
