@@ -106,16 +106,22 @@ describe('POST /dataset/:dataset_id/revision/by-id/:revision_id', () => {
   });
 
   test('creates a BuildLog row in the database for the returned build_id', async () => {
-    jest.mocked(createAllCubeFiles).mockImplementation(async (_datasetId, _revisionId, userId, buildType, buildId) => {
-      const revision = await Revision.findOneBy({ id: _revisionId });
-      await BuildLog.startBuild(revision, buildType!, userId, buildId);
+    let createAllCubeFilesPromise: Promise<void> | undefined;
+
+    jest.mocked(createAllCubeFiles).mockImplementation((_datasetId, _revisionId, userId, buildType, buildId) => {
+      createAllCubeFilesPromise = (async () => {
+        const revision = await Revision.findOneBy({ id: _revisionId });
+        await BuildLog.startBuild(revision, buildType!, userId, buildId);
+      })();
+
+      return createAllCubeFilesPromise;
     });
 
     const res = await request(app).post(endpoint()).set(getAuthHeader(user));
     expect(res.status).toBe(202);
 
-    // Allow the fire-and-forget promise to settle before querying the DB
-    await new Promise<void>((resolve) => setTimeout(resolve, 100));
+    expect(createAllCubeFilesPromise).toBeDefined();
+    await createAllCubeFilesPromise;
 
     const buildLog = await BuildLog.findOneBy({ id: res.body.build_id });
     expect(buildLog).not.toBeNull();
