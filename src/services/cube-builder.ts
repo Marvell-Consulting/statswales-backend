@@ -55,7 +55,7 @@ export const createAllCubeFiles = async (
   datasetId: string,
   buildRevisionId: string,
   userId?: string,
-  buildType: CubeBuildType | undefined = CubeBuildType.FullCube,
+  buildType: CubeBuildType = CubeBuildType.FullCube,
   build?: BuildLog,
   awaitMaterialisation = false
 ): Promise<void> => {
