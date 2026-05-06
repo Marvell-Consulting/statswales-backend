@@ -780,8 +780,6 @@ describe('Revision controller', () => {
 
       mockBootstrapCubeBuildProcess.mockResolvedValue(undefined);
       mockCreateAllCubeFiles.mockResolvedValue(undefined);
-      mockQueryStoreDelete.mockResolvedValue(undefined);
-      mockRebuildQueriesForRevision.mockResolvedValue(undefined);
       mockBuildLogFindOneOrFail.mockResolvedValue(createMockBuildLog());
     });
 
