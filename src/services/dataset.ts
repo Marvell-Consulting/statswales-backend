@@ -556,7 +556,7 @@ export async function rebuildDatasetList(
 
     await build.reload();
     if (build.status === CubeBuildStatus.Failed) {
-      logger.warn(`[${buildLogEntry}]: Cube for revision ${rev.id} has been failed to rebuild.`);
+      logger.warn(`[${buildLogEntry.id}]: Cube for revision ${rev.id} has been failed to rebuild.`);
       buildScript.failed_to_build.push(build.id);
       buildScript.failed_builds++;
       failedBuilds.push({
