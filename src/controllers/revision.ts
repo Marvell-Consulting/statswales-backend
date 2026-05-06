@@ -1,5 +1,6 @@
 import { Readable } from 'node:stream';
 import { performance } from 'node:perf_hooks';
+import { randomUUID } from 'node:crypto';
 
 import { NextFunction, Request, Response } from 'express';
 import { t } from 'i18next';
@@ -40,17 +41,13 @@ import { cleanupTmpFile, uploadAvScan } from '../services/virus-scanner';
 import { TempFile } from '../interfaces/temp-file';
 import { DEFAULT_PAGE_SIZE } from '../utils/page-defaults';
 import { attachUpdateDataTableToRevision } from '../services/revision';
-import { performanceReporting } from '../utils/performance-reporting';
 import { resolvePreviewRevisionId } from '../utils/revision';
-import { CubeBuildResult } from '../dtos/cube-build-result';
 import { bootstrapCubeBuildProcess } from '../utils/lookup-table-utils';
 import { BuiltLogEntryDto } from '../dtos/build-log';
 import { buildStatusValidator, buildTypeValidator, hasError } from '../validators';
 import { CubeBuildType } from '../enums/cube-build-type';
 import { CubeBuildStatus } from '../enums/cube-build-status';
 import { BuildLogRepository } from '../repositories/build-log';
-import { QueryStore } from '../entities/query-store';
-import { QueryStoreRepository } from '../repositories/query-store';
 
 export const getDataTable = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   const revision: Revision = res.locals.revision;
@@ -453,44 +450,22 @@ export const regenerateRevisionCube = async (req: Request, res: Response, next: 
   const datasetId: string = res.locals.datasetId;
   const revision: Revision = res.locals.revision;
   const userId = req.user?.id;
-
-  const startTime = new Date(Date.now());
-  const start = performance.now();
+  const buildId = randomUUID();
   try {
     await bootstrapCubeBuildProcess(datasetId, revision.id);
-    await createAllCubeFiles(datasetId, revision.id, userId);
-    // If this is draft revision we can just purge the query store,
-    // otherwise we can attempt to rebuild all the queries preserving
-    // their IDs so as not to break peoples links.
-    if (!revision.publishAt || revision.publishAt.getTime() > Date.now()) {
-      await QueryStore.delete({ revisionId: revision.id });
-    } else {
-      await QueryStoreRepository.rebuildQueriesForRevision(revision.id);
-    }
   } catch (err) {
-    logger.error(err, `Something went wrong trying to create the cube`);
+    logger.error(err, `Something went wrong trying to bootstrap the cube build process`);
     const exception = new UnknownException('errors.cube_builder.cube_build_failed');
-    exception.performance = {
-      message: 'Cube regeneration failed',
-      memory_usage: process.memoryUsage(),
-      start_time: startTime,
-      finish_time: new Date(Date.now()),
-      total_time: performance.now() - start,
-      error: err as Error
-    };
     next(exception);
     return;
   }
-  performanceReporting(performance.now() - start, 30000, 'Full Cube Rebuild');
-  res.status(201);
-  const reporting: CubeBuildResult = {
-    message: 'Cube regeneration in postgres successful',
-    memory_usage: process.memoryUsage(),
-    start_time: startTime,
-    finish_time: new Date(Date.now()),
-    total_time: performance.now() - start
-  };
-  res.json(reporting);
+  void createAllCubeFiles(datasetId, revision.id, userId, CubeBuildType.FullCube, buildId).catch((err) => {
+    logger.warn(err, `Async cube build with build id ${buildId} failed with an error.`);
+  });
+  res.status(202);
+  res.json({
+    build_id: buildId
+  });
 };
 
 // export const downloadRevisionCubeFile = async (req: Request, res: Response) => {
