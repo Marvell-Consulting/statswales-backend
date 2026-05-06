@@ -562,7 +562,7 @@ export async function rebuildDatasetList(
       failedBuilds.push({
         buildId: build.id,
         revisionId: rev.id,
-        error: JSON.stringify(build.errors)
+        error: build.errors ?? ''
       });
     } else {
       buildScript.successfully_built.push(build.id);
