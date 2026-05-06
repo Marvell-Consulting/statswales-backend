@@ -57,6 +57,7 @@ import { format as pgformat } from '@scaleleap/pg-format/lib/pg-format';
 import { TaskAction } from '../enums/task-action';
 import { TaskService } from '../services/task';
 import { UserGroup } from '../entities/user/user-group';
+import { CubeBuildStatus } from '../enums/cube-build-status';
 import { CubeBuildType } from '../enums/cube-build-type';
 import { BuildLog } from '../entities/dataset/build-log';
 import { RevisionRepository } from '../repositories/revision';
@@ -695,9 +696,18 @@ export const rebuildAll = async (req: Request, res: Response): Promise<void> => 
       .end();
     return;
   }
+  const revisionIds = await RevisionRepository.getAllRevisionIds();
   const buildLogEntry = await BuildLog.startBuild(null, CubeBuildType.AllCubes, user.id);
   res.status(202).json({ build_id: buildLogEntry.id }).end();
-  void rebuildDatasetList(buildLogEntry, await RevisionRepository.getAllRevisionIds(), user);
+  rebuildDatasetList(buildLogEntry, revisionIds, user).catch(async (err) => {
+    logger.error(err, `[${buildLogEntry.id}]: Unhandled error in rebuildAll background task`);
+    buildLogEntry.completeBuild(
+      CubeBuildStatus.Failed,
+      undefined,
+      err instanceof Error ? (err.stack ?? err.message) : String(err)
+    );
+    await buildLogEntry.save();
+  });
 };
 
 export const rebuildDrafts = async (req: Request, res: Response): Promise<void> => {
@@ -715,9 +725,18 @@ export const rebuildDrafts = async (req: Request, res: Response): Promise<void> 
       .end();
     return;
   }
+  const revisionIds = await RevisionRepository.getAllDraftRevisionIds();
   const buildLogEntry = await BuildLog.startBuild(null, CubeBuildType.DraftCubes, user.id);
-  void rebuildDatasetList(buildLogEntry, await RevisionRepository.getAllDraftRevisionIds(), user);
   res.status(202).json({ build_id: buildLogEntry.id }).end();
+  rebuildDatasetList(buildLogEntry, revisionIds, user).catch(async (err) => {
+    logger.error(err, `[${buildLogEntry.id}]: Unhandled error in rebuildDrafts background task`);
+    buildLogEntry.completeBuild(
+      CubeBuildStatus.Failed,
+      undefined,
+      err instanceof Error ? (err.stack ?? err.message) : String(err)
+    );
+    await buildLogEntry.save();
+  });
 };
 
 export const rebuildAllFilterTables = async (req: Request, res: Response): Promise<void> => {
@@ -735,7 +754,16 @@ export const rebuildAllFilterTables = async (req: Request, res: Response): Promi
       .end();
     return;
   }
+  const revisionIds = await RevisionRepository.getAllRevisionIds();
   const buildLogEntry = await BuildLog.startBuild(null, CubeBuildType.AllFilterTables, user.id);
-  void rebuildAllFilterTablesForRevisions(buildLogEntry, await RevisionRepository.getAllRevisionIds());
   res.status(202).json({ build_id: buildLogEntry.id }).end();
+  rebuildAllFilterTablesForRevisions(buildLogEntry, revisionIds).catch(async (err) => {
+    logger.error(err, `[${buildLogEntry.id}]: Unhandled error in rebuildAllFilterTables background task`);
+    buildLogEntry.completeBuild(
+      CubeBuildStatus.Failed,
+      undefined,
+      err instanceof Error ? (err.stack ?? err.message) : String(err)
+    );
+    await buildLogEntry.save();
+  });
 };
