@@ -458,7 +458,7 @@ export const regenerateRevisionCube = async (req: Request, res: Response, next: 
     logger.error(err, `Something went wrong trying to bootstrap the cube build process`);
     const exception = new UnknownException('errors.cube_builder.cube_build_failed');
     const buildErrorDetails = err instanceof Error ? (err.stack ?? err.message) : String(err);
-    build.completeBuild(CubeBuildStatus.Failed, `Boot strap failed.`, buildErrorDetails);
+    build.completeBuild(CubeBuildStatus.Failed, `Bootstrap failed.`, buildErrorDetails);
     await build.save();
     next(exception);
     return;
