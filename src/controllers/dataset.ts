@@ -538,8 +538,6 @@ export const updateSources = async (req: Request, res: Response, next: NextFunct
     }
   }
 
-
-
   const updatedDataset = await DatasetRepository.getById(dataset.id);
   const build = await BuildLog.startBuild(revision, CubeBuildType.FullCube, userId);
 
