@@ -640,12 +640,12 @@ describe('consumer-view-v2 service', () => {
       expect(jsonArg.note_codes).toEqual([]);
     });
 
-    it('should retry with core_view when a query using core_view_mat fails', async () => {
+    it('should retry with core_view_en when a query using core_view_mat_en fails', async () => {
       mockCubeQuery
         .mockResolvedValueOnce([]) // filters query
         .mockResolvedValueOnce([]) // note_codes query
         .mockRejectedValueOnce(new Error('relation does not exist')) // first data query fails
-        .mockResolvedValueOnce([{ col1: 'val1' }]); // retry with core_view succeeds
+        .mockResolvedValueOnce([{ col1: 'val1' }]); // retry with core_view_en succeeds
 
       mockGetById.mockResolvedValue({ id: 'dataset-id', factTable: [], dimensions: [] });
 
@@ -659,22 +659,22 @@ describe('consumer-view-v2 service', () => {
       };
       const res = createMockStreamResponse();
 
-      await sendFrontendView('SELECT * FROM "schema".core_view_mat', queryStore, pageOptions, res);
+      await sendFrontendView('SELECT * FROM "schema".core_view_mat_en', queryStore, pageOptions, res);
 
       expect(mockCubeQuery).toHaveBeenCalledTimes(4);
       const retryCall = mockCubeQuery.mock.calls[3][0] as string;
-      expect(retryCall).toContain('core_view');
-      expect(retryCall).not.toContain('core_view_mat');
+      expect(retryCall).toContain('core_view_en');
+      expect(retryCall).not.toContain('core_view_mat_en');
       expect(mockRebuildQueryEntry).toHaveBeenCalledWith(queryStore.id);
       expect(res.json).toHaveBeenCalled();
     });
 
-    it('should retry with core_view_mat when a query using core_view fails', async () => {
+    it('should retry with core_view_mat_en when a query using core_view_en fails', async () => {
       mockCubeQuery
         .mockResolvedValueOnce([]) // filters query
         .mockResolvedValueOnce([]) // note_codes query
         .mockRejectedValueOnce(new Error('relation does not exist')) // first data query fails
-        .mockResolvedValueOnce([{ col1: 'val1' }]); // retry with core_view_mat succeeds
+        .mockResolvedValueOnce([{ col1: 'val1' }]); // retry with core_view_mat_en succeeds
 
       mockGetById.mockResolvedValue({ id: 'dataset-id', factTable: [], dimensions: [] });
 
@@ -688,11 +688,11 @@ describe('consumer-view-v2 service', () => {
       };
       const res = createMockStreamResponse();
 
-      await sendFrontendView('SELECT * FROM "schema".core_view', queryStore, pageOptions, res);
+      await sendFrontendView('SELECT * FROM "schema".core_view_en', queryStore, pageOptions, res);
 
       expect(mockCubeQuery).toHaveBeenCalledTimes(4);
       const retryCall = mockCubeQuery.mock.calls[3][0] as string;
-      expect(retryCall).toContain('core_view_mat');
+      expect(retryCall).toContain('core_view_mat_en');
       expect(mockRebuildQueryEntry).toHaveBeenCalledWith(queryStore.id);
       expect(res.json).toHaveBeenCalled();
     });
@@ -718,7 +718,7 @@ describe('consumer-view-v2 service', () => {
       const res = createMockStreamResponse();
 
       await expect(
-        sendFrontendView('SELECT * FROM "schema".core_view_mat', queryStore, pageOptions, res)
+        sendFrontendView('SELECT * FROM "schema".core_view_mat_en', queryStore, pageOptions, res)
       ).rejects.toThrow('retry also failed');
 
       expect(mockCubeQuery).toHaveBeenCalledTimes(4);
