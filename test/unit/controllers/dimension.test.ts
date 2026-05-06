@@ -98,6 +98,15 @@ jest.mock('../../../src/services/cube-builder', () => ({
   createAllCubeFiles: jest.fn().mockResolvedValue(undefined)
 }));
 
+// Mock BuildLog entity
+const mockStartBuild = jest.fn().mockResolvedValue({ id: 'test-build-id' });
+jest.mock('../../../src/entities/dataset/build-log', () => ({
+  BuildLog: {
+    startBuild: (...args: unknown[]) => mockStartBuild(...args)
+  },
+  CompleteStatus: ['completed', 'failed']
+}));
+
 // Mock view-error-generators
 const mockViewErrorGenerators = jest.fn();
 jest.mock('../../../src/utils/view-error-generators', () => ({

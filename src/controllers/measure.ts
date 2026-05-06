@@ -20,8 +20,8 @@ import { createAllCubeFiles } from '../services/cube-builder';
 import { cleanupTmpFile, uploadAvScan } from '../services/virus-scanner';
 import { TempFile } from '../interfaces/temp-file';
 import { updateRevisionTasks } from '../utils/update-revision-tasks';
-import { randomUUID } from 'node:crypto';
 import { CubeBuildType } from '../enums/cube-build-type';
+import { BuildLog } from '../entities/dataset/build-log';
 
 export const resetMeasure = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   const dataset = res.locals.dataset;
@@ -74,7 +74,7 @@ export const attachLookupTableToMeasure = async (req: Request, res: Response, ne
     draftRevision: { dataTable: true }
   });
 
-  const buildID = randomUUID();
+  let build: BuildLog;
 
   try {
     const dataTable = await validateAndUpload(tmpFile, dataset.id, 'lookup_table');
@@ -87,8 +87,9 @@ export const attachLookupTableToMeasure = async (req: Request, res: Response, ne
       res.json(result);
       return;
     }
+    build = await BuildLog.startBuild(dataset.draftRevision, CubeBuildType.FullCube, userId);
     result.extension = {
-      build_id: buildID
+      build_id: build.id
     };
     await updateRevisionTasks(dataset, dataset.measure.id, 'measure');
     res.status((result as ViewErrDTO).status || 200);
@@ -96,15 +97,14 @@ export const attachLookupTableToMeasure = async (req: Request, res: Response, ne
   } catch (err) {
     logger.error(err, `An error occurred trying to process and upload the file`);
     next(new UnknownException('errors.upload_error'));
+    return;
   } finally {
     void cleanupTmpFile(tmpFile);
   }
 
-  void createAllCubeFiles(dataset.id, dataset.draftRevision!.id, userId, CubeBuildType.FullCube, buildID).catch(
-    (err) => {
-      logger.error(err, 'Something went wrong trying to build the cube when attaching a measure lookup');
-    }
-  );
+  void createAllCubeFiles(dataset.id, dataset.draftRevision!.id, userId, CubeBuildType.FullCube, build).catch((err) => {
+    logger.error(err, 'Something went wrong trying to build the cube when attaching a measure lookup');
+  });
 };
 
 export const getPreviewOfMeasure = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
@@ -162,19 +162,18 @@ export const updateMeasureMetadata = async (req: Request, res: Response, next: N
 
   const updatedMeasureMetadata = await metadata.save();
   await updateRevisionTasks(dataset, dataset.measure.id, 'measure');
-  const buildID = randomUUID();
-  await createAllCubeFiles(dataset.id, dataset.draftRevision!.id, userId, CubeBuildType.FullCube, buildID).catch(
-    (err) => {
-      logger.error(
-        err,
-        `Something went wrong trying to build the cube after buildID=${buildID} for datasetId=${dataset.id} and revisionId=${dataset.draftRevision!.id}`
-      );
-    }
-  );
+  const build = await BuildLog.startBuild(dataset.draftRevision!, CubeBuildType.FullCube, userId);
 
   res.json({
     dimension: DimensionMetadataDTO.fromDimensionMetadata(updatedMeasureMetadata),
-    build_id: buildID
+    build_id: build.id
+  });
+
+  void createAllCubeFiles(dataset.id, dataset.draftRevision!.id, userId, CubeBuildType.FullCube, build).catch((err) => {
+    logger.error(
+      err,
+      `Something went wrong trying to build the cube after buildID=${build.id} for datasetId=${dataset.id} and revisionId=${dataset.draftRevision!.id}`
+    );
   });
 };
 

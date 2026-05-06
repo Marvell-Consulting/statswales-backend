@@ -56,7 +56,7 @@ export const createAllCubeFiles = async (
   buildRevisionId: string,
   userId?: string,
   buildType = CubeBuildType.FullCube,
-  buildId = crypto.randomUUID(),
+  build?: BuildLog,
   awaitMaterialisation = false
 ): Promise<void> => {
   // const datasetRelations: FindOptionsRelations<Dataset> = {
@@ -84,7 +84,7 @@ export const createAllCubeFiles = async (
     throw new CubeValidationException('Failed to find buildRevision in dataset.');
   }
 
-  const build = await BuildLog.startBuild(buildRevision, buildType, userId, buildId);
+  if (!build) build = await BuildLog.startBuild(buildRevision, buildType, userId);
 
   if (!buildRevision.dataTable && buildRevision.revisionIndex === 1) {
     logger.warn(`First revision for revision ${buildRevision.id} has no data table.  Unable to proceed with build.`);

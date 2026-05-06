@@ -1297,6 +1297,7 @@ describe('Dataset controller', () => {
       mockFactTableValidatorFromSource.mockResolvedValue(undefined);
       mockCreateDimensionsFromSourceAssignment.mockResolvedValue(undefined);
       mockFromDataset.mockReturnValue(mockDto);
+      mockStartBuild.mockResolvedValue({ id: 'test-build-id' });
 
       const req = createMockRequest({ body: { col: 'dimension' } });
       const res = createMockResponse({ locals: { datasetId } });

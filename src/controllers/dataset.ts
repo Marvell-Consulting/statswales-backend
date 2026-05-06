@@ -542,15 +542,16 @@ export const updateSources = async (req: Request, res: Response, next: NextFunct
     }
   }
 
-  const buildId = randomUUID();
+  const build = await BuildLog.startBuild(revision, CubeBuildType.FullCube, userId);
+
   const updatedDataset = await DatasetRepository.getById(dataset.id);
   res.json({
     dataset: DatasetDTO.fromDataset(updatedDataset),
-    build_id: buildId
+    build_id: build.id
   });
 
-  void createAllCubeFiles(updatedDataset.id, revision.id, userId, CubeBuildType.FullCube, buildId).catch((err) => {
-    logger.error(err, `Failed to create cube files for build ${buildId}`);
+  void createAllCubeFiles(updatedDataset.id, revision.id, userId, CubeBuildType.FullCube, build).catch((err) => {
+    logger.error(err, `Failed to create cube files for build ${build.id}`);
   });
 };
 
@@ -766,18 +767,14 @@ async function rebuildDatasetList(buildLogEntry: BuildLog, revisionList: Revisio
       continue;
     }
 
-    void createAllCubeFiles(rev.dataset_id, rev.id, user.id, CubeBuildType.FullCube, buildId).catch((err: Error) => {
+    const build = await BuildLog.startBuild(rev, CubeBuildType.FullCube, user.id);
+
+    void createAllCubeFiles(rev.dataset_id, rev.id, user.id, CubeBuildType.FullCube, build).catch((err: Error) => {
       logger.warn(err, 'Cube builder threw an error while trying to rebuild the cube');
     });
 
     await sleep(5000);
-    let build: BuildLog;
-    try {
-      build = await BuildLog.findOneOrFail({ where: { id: buildId.toString() } });
-    } catch (err) {
-      logger.error(err, 'Failed to find build log entry');
-      continue;
-    }
+
     while (!CompleteStatus.includes(build.status)) {
       await sleep(10000);
       await build.reload();
@@ -795,11 +792,6 @@ async function rebuildDatasetList(buildLogEntry: BuildLog, revisionList: Revisio
       buildScript.successfully_built.push(buildId);
       buildScript.successful_builds++;
       logger.info(`[${buildLogEntry.id}]: Cube for revision ${rev.id} has been rebuilt successfully.`);
-      if (buildLogEntry.type === CubeBuildType.DraftCubes) {
-        await QueryStore.delete({ revisionId: rev.id });
-      } else {
-        await QueryStoreRepository.rebuildQueriesForRevision(rev.id);
-      }
     }
     buildScript.current_build = null;
     buildScript.total_builds++;

@@ -101,17 +101,17 @@ describe('POST /dataset/:dataset_id/revision/by-id/:revision_id', () => {
       revisionId,
       expect.anything(),
       CubeBuildType.FullCube,
-      res.body.build_id
+      expect.objectContaining({ id: res.body.build_id })
     );
   });
 
   test('creates a BuildLog row in the database for the returned build_id', async () => {
     let createAllCubeFilesPromise: Promise<void> | undefined;
 
-    jest.mocked(createAllCubeFiles).mockImplementation((_datasetId, _revisionId, userId, buildType, buildId) => {
+    jest.mocked(createAllCubeFiles).mockImplementation((_datasetId, _revisionId, userId, buildType, _build) => {
       createAllCubeFilesPromise = (async () => {
         const revision = await Revision.findOneBy({ id: _revisionId });
-        await BuildLog.startBuild(revision, buildType!, userId, buildId);
+        await BuildLog.startBuild(revision, buildType!, userId);
       })();
 
       return createAllCubeFilesPromise;
