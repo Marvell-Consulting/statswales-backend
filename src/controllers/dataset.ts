@@ -540,17 +540,11 @@ export const updateSources = async (req: Request, res: Response, next: NextFunct
 
   const updatedDataset = await DatasetRepository.getById(dataset.id);
   const build = await BuildLog.startBuild(revision, CubeBuildType.FullCube, userId);
-
-  try {
-    res.status(202);
-    res.json({
-      dataset: DatasetDTO.fromDataset(updatedDataset),
-      build_id: build.id
-    });
-  } catch (_) {
-    await build.remove();
-  }
-
+  res.status(202);
+  res.json({
+    dataset: DatasetDTO.fromDataset(updatedDataset),
+    build_id: build.id
+  });
   void createAllCubeFiles(updatedDataset.id, revision.id, userId, CubeBuildType.FullCube, build).catch((err) => {
     logger.error(err, `Failed to create cube files for build ${build.id}`);
   });
