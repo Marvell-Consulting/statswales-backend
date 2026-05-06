@@ -20,6 +20,7 @@ import BlobStorage from '../../../src/services/blob-storage';
 jest.mock('../../../src/services/blob-storage');
 
 jest.mock('../../../src/utils/lookup-table-utils', () => ({
+  ...jest.requireActual('../../../src/utils/lookup-table-utils'),
   bootstrapCubeBuildProcess: jest.fn().mockResolvedValue(undefined)
 }));
 
