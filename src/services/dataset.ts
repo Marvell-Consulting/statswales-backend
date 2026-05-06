@@ -543,7 +543,7 @@ export async function rebuildDatasetList(
       failedBuilds.push({
         buildId: build.id.toString(),
         revisionId: rev.id,
-        error: JSON.stringify(err)
+        error: err instanceof Error ? (err.stack ?? err.message) : String(err)
       });
       continue;
     }
