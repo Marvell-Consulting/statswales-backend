@@ -716,8 +716,8 @@ export const rebuildDrafts = async (req: Request, res: Response): Promise<void> 
     return;
   }
   const buildLogEntry = await BuildLog.startBuild(null, CubeBuildType.DraftCubes, user.id);
-  res.status(202).json({ build_id: buildLogEntry.id }).end();
   void rebuildDatasetList(buildLogEntry, await RevisionRepository.getAllDraftRevisionIds(), user);
+  res.status(202).json({ build_id: buildLogEntry.id }).end();
 };
 
 export const rebuildAllFilterTables = async (req: Request, res: Response): Promise<void> => {
@@ -736,6 +736,6 @@ export const rebuildAllFilterTables = async (req: Request, res: Response): Promi
     return;
   }
   const buildLogEntry = await BuildLog.startBuild(null, CubeBuildType.AllFilterTables, user.id);
-  res.status(202).json({ build_id: buildLogEntry.id }).end();
   void rebuildAllFilterTablesForRevisions(buildLogEntry, await RevisionRepository.getAllRevisionIds());
+  res.status(202).json({ build_id: buildLogEntry.id }).end();
 };
