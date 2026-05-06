@@ -1,5 +1,3 @@
-import { randomUUID } from 'node:crypto';
-
 import { NextFunction, Request, Response } from 'express';
 import { t } from 'i18next';
 import JSZip from 'jszip';
@@ -749,9 +747,9 @@ async function rebuildDatasetList(buildLogEntry: BuildLog, revisionList: Revisio
   };
 
   for (const rev of revisionList) {
-    const buildId = randomUUID();
-    buildScript.all_builds.push(buildId);
-    buildScript.current_build = buildId;
+    const build = await BuildLog.startBuild(rev, CubeBuildType.FullCube, user.id);
+    buildScript.all_builds.push(build.id);
+    buildScript.current_build = build.id;
     buildLogEntry.buildScript = JSON.stringify(buildScript, null, 2);
     buildLogEntry.status = CubeBuildStatus.Building;
     await buildLogEntry.save();
@@ -760,14 +758,12 @@ async function rebuildDatasetList(buildLogEntry: BuildLog, revisionList: Revisio
     } catch (err) {
       logger.warn(err, `[${buildLogEntry.id}]: Failed to rebuild cube for revision ${rev.id}`);
       failedBuilds.push({
-        buildId: buildId.toString(),
+        buildId: build.id.toString(),
         revisionId: rev.id,
         error: JSON.stringify(err)
       });
       continue;
     }
-
-    const build = await BuildLog.startBuild(rev, CubeBuildType.FullCube, user.id);
 
     void createAllCubeFiles(rev.dataset_id, rev.id, user.id, CubeBuildType.FullCube, build).catch((err: Error) => {
       logger.warn(err, 'Cube builder threw an error while trying to rebuild the cube');
@@ -781,15 +777,15 @@ async function rebuildDatasetList(buildLogEntry: BuildLog, revisionList: Revisio
     }
     if (build.status === CubeBuildStatus.Failed) {
       logger.warn(`[${buildLogEntry}]: Cube for revision ${rev.id} has been failed to rebuild.`);
-      buildScript.failed_to_build.push(buildId);
+      buildScript.failed_to_build.push(build.id);
       buildScript.failed_builds++;
       failedBuilds.push({
-        buildId,
+        buildId: build.id,
         revisionId: rev.id,
         error: JSON.stringify(build.errors)
       });
     } else {
-      buildScript.successfully_built.push(buildId);
+      buildScript.successfully_built.push(build.id);
       buildScript.successful_builds++;
       logger.info(`[${buildLogEntry.id}]: Cube for revision ${rev.id} has been rebuilt successfully.`);
     }
