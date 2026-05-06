@@ -12,15 +12,18 @@ import { TaskAction } from '../../../src/enums/task-action';
 import { OutputFormats } from '../../../src/enums/output-formats';
 
 // Mock logger
-jest.mock('../../../src/utils/logger', () => ({
-  logger: {
+jest.mock('../../../src/utils/logger', () => {
+  const logger = {
     debug: jest.fn(),
     info: jest.fn(),
     error: jest.fn(),
     warn: jest.fn(),
-    trace: jest.fn()
-  }
-}));
+    trace: jest.fn(),
+    child: jest.fn()
+  };
+  logger.child.mockReturnValue(logger);
+  return { logger };
+});
 
 // Mock blob storage
 jest.mock('../../../src/services/blob-storage', () => {
@@ -259,11 +262,6 @@ jest.mock('../../../src/utils/file-utils', () => ({
   addDirectoryToZip: jest.fn()
 }));
 
-// Mock sleep
-jest.mock('../../../src/utils/sleep', () => ({
-  sleep: jest.fn().mockResolvedValue(undefined)
-}));
-
 // Mock BuildLog entity
 const mockStartBuild = jest.fn();
 jest.mock('../../../src/entities/dataset/build-log', () => ({
@@ -283,9 +281,14 @@ jest.mock('../../../src/dtos/revision-metadata-dto', () => ({
 }));
 
 // Mock i18next
-jest.mock('i18next', () => ({
-  t: jest.fn((key: string) => key)
-}));
+jest.mock('i18next', () => {
+  const mock = {
+    t: jest.fn((key: string) => key),
+    use: jest.fn().mockReturnThis(),
+    init: jest.fn().mockReturnThis()
+  };
+  return { ...mock, default: mock };
+});
 
 import {
   listUserDatasets,

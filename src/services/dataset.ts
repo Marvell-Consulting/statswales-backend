@@ -12,7 +12,7 @@ import {
   withDraftAndProviders,
   withDraftAndTopics
 } from '../repositories/dataset';
-import { RevisionRepository } from '../repositories/revision';
+import { RevisionList, RevisionRepository } from '../repositories/revision';
 import { logger } from '../utils/logger';
 import { DataTableAction } from '../enums/data-table-action';
 import { RevisionProviderDTO } from '../dtos/revision-provider-dto';
@@ -25,7 +25,7 @@ import { BadRequestException } from '../exceptions/bad-request.exception';
 import { TasklistStateDTO } from '../dtos/tasklist-state-dto';
 import { EventLog } from '../entities/event-log';
 
-import { createAllCubeFiles } from './cube-builder';
+import { createAllCubeFiles, updateFilterTableToLatest } from './cube-builder';
 import { validateAndUpload } from './incoming-file-processor';
 import { removeAllDimensions, removeMeasure } from './dimension-processor';
 import { UserGroupRepository } from '../repositories/user-group';
@@ -47,6 +47,9 @@ import { TempFile } from '../interfaces/temp-file';
 import { dbManager } from '../db/database-manager';
 import { getFileService } from '../utils/get-file-service';
 import { bootstrapCubeBuildProcess } from '../utils/lookup-table-utils';
+import { BuildLog } from '../entities/dataset/build-log';
+import { CubeBuildType } from '../enums/cube-build-type';
+import { CubeBuildStatus } from '../enums/cube-build-status';
 
 export class DatasetService {
   lang: Locale;
@@ -489,4 +492,136 @@ export class DatasetService {
     dataset = await this.createRevision(datasetId, user);
     await createAllCubeFiles(dataset.id, dataset.draftRevision!.id, user.id);
   }
+}
+
+export async function rebuildDatasetList(
+  buildLogEntry: BuildLog,
+  revisionList: RevisionList[],
+  user: User
+): Promise<void> {
+  let buildTypeStr = 'all';
+  if (buildLogEntry.type === CubeBuildType.DraftCubes) {
+    buildTypeStr = 'all draft';
+  }
+
+  logger.info(`[${buildLogEntry.id}]: Starting process to rebuild ${buildTypeStr} cubes`);
+  const failedBuilds: {
+    buildId: string;
+    revisionId: string;
+    error: string;
+  }[] = [];
+
+  const buildScript = {
+    current_build: null as string | null,
+    total_builds: 0,
+    successful_builds: 0,
+    failed_builds: 0,
+    all_builds: [] as string[],
+    successfully_built: [] as string[],
+    failed_to_build: [] as string[]
+  };
+
+  for (const rev of revisionList) {
+    const build = await BuildLog.startBuild(rev, CubeBuildType.FullCube, user.id);
+    buildScript.all_builds.push(build.id);
+    buildScript.current_build = build.id;
+    buildLogEntry.buildScript = JSON.stringify(buildScript, null, 2);
+    buildLogEntry.status = CubeBuildStatus.Building;
+    await buildLogEntry.save();
+    try {
+      await bootstrapCubeBuildProcess(rev.dataset_id, rev.id);
+    } catch (err) {
+      logger.warn(err, `[${buildLogEntry.id}]: Failed to rebuild cube for revision ${rev.id}`);
+      failedBuilds.push({
+        buildId: build.id.toString(),
+        revisionId: rev.id,
+        error: JSON.stringify(err)
+      });
+      continue;
+    }
+
+    await createAllCubeFiles(rev.dataset_id, rev.id, user.id, CubeBuildType.FullCube, build, true).catch(
+      (err: Error) => {
+        logger.warn(err, 'Cube builder threw an error while trying to rebuild the cube');
+      }
+    );
+
+    await build.reload();
+    if (build.status === CubeBuildStatus.Failed) {
+      logger.warn(`[${buildLogEntry}]: Cube for revision ${rev.id} has been failed to rebuild.`);
+      buildScript.failed_to_build.push(build.id);
+      buildScript.failed_builds++;
+      failedBuilds.push({
+        buildId: build.id,
+        revisionId: rev.id,
+        error: JSON.stringify(build.errors)
+      });
+    } else {
+      buildScript.successfully_built.push(build.id);
+      buildScript.successful_builds++;
+      logger.info(`[${buildLogEntry.id}]: Cube for revision ${rev.id} has been rebuilt successfully.`);
+    }
+    buildScript.current_build = null;
+    buildScript.total_builds++;
+    buildLogEntry.buildScript = JSON.stringify(buildScript, null, 2);
+    await buildLogEntry.save();
+  }
+  if (failedBuilds.length > 0) buildLogEntry.errors = JSON.stringify(failedBuilds, null, 2);
+  buildLogEntry.completeBuild(CubeBuildStatus.Completed);
+  await buildLogEntry.save();
+  logger.info(`[${buildLogEntry.id}]: Finished rebuild of ${buildTypeStr} cubes`);
+}
+
+export async function rebuildAllFilterTablesForRevisions(
+  buildLogEntry: BuildLog,
+  revisionList: RevisionList[]
+): Promise<void> {
+  const buildTypeStr = 'all filter tables';
+
+  logger.info(`[${buildLogEntry.id}]: Starting process to rebuild ${buildTypeStr}`);
+  const failedBuilds: {
+    buildId: string;
+    revisionId: string;
+    error: string;
+  }[] = [];
+
+  const buildScript = {
+    current_build: null as string | null,
+    total_builds: 0,
+    successful_builds: 0,
+    failed_builds: 0,
+    all_builds: [] as string[],
+    successfully_built: [] as string[],
+    failed_to_build: [] as string[]
+  };
+
+  for (const rev of revisionList) {
+    if (!rev.data_table_id && rev.revision_index === 1) continue;
+    try {
+      buildScript.all_builds.push(rev.id);
+      buildScript.current_build = rev.id;
+      buildLogEntry.buildScript = JSON.stringify(buildScript, null, 2);
+      buildLogEntry.status = CubeBuildStatus.Building;
+      await buildLogEntry.save();
+      await updateFilterTableToLatest(rev.dataset_id, rev.id);
+      buildScript.successful_builds++;
+      buildScript.successfully_built.push(rev.id);
+    } catch (err) {
+      logger.error(err);
+      buildScript.failed_builds++;
+      buildScript.failed_to_build.push(rev.id);
+      failedBuilds.push({
+        revisionId: rev.id,
+        buildId: rev.id,
+        error: err instanceof Error ? (err.stack ?? err.message) : String(err)
+      });
+    }
+    buildScript.total_builds++;
+    buildLogEntry.buildScript = JSON.stringify(buildScript, null, 2);
+    await buildLogEntry.save();
+  }
+  if (failedBuilds.length > 0) buildLogEntry.errors = JSON.stringify(failedBuilds, null, 2);
+  buildLogEntry.completeBuild(CubeBuildStatus.Completed);
+  await buildLogEntry.save();
+  logger.info(`[${buildLogEntry.id}]: Finished rebuild of ${buildTypeStr} cubes`);
 }

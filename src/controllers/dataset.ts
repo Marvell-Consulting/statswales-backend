@@ -25,7 +25,7 @@ import { BadRequestException } from '../exceptions/bad-request.exception';
 import { ViewErrDTO } from '../dtos/view-dto';
 import { arrayValidator, dtoValidator } from '../validators/dto-validator';
 import { RevisionMetadataDTO } from '../dtos/revision-metadata-dto';
-import { createAllCubeFiles, updateFilterTableToLatest } from '../services/cube-builder';
+import { createAllCubeFiles } from '../services/cube-builder';
 import {
   createDimensionsFromSourceAssignment,
   ValidatedSourceAssignment,
@@ -57,12 +57,9 @@ import { format as pgformat } from '@scaleleap/pg-format/lib/pg-format';
 import { TaskAction } from '../enums/task-action';
 import { TaskService } from '../services/task';
 import { UserGroup } from '../entities/user/user-group';
-import { bootstrapCubeBuildProcess } from '../utils/lookup-table-utils';
-import { CubeBuildStatus } from '../enums/cube-build-status';
 import { CubeBuildType } from '../enums/cube-build-type';
-import { BuildLog, CompleteStatus } from '../entities/dataset/build-log';
-import { sleep } from '../utils/sleep';
-import { RevisionList, RevisionRepository } from '../repositories/revision';
+import { BuildLog } from '../entities/dataset/build-log';
+import { RevisionRepository } from '../repositories/revision';
 import { BuildLogRepository } from '../repositories/build-log';
 import { DataOptionsDTO, DEFAULT_DATA_OPTIONS, FRONTEND_DATA_OPTIONS } from '../dtos/data-options-dto';
 import { NotFoundException } from '../exceptions/not-found.exception';
@@ -73,6 +70,7 @@ import { OutputFormats } from '../enums/output-formats';
 import { buildDataQuery, sendCsv, sendExcel, sendFrontendView, sendJson } from '../services/consumer-view-v2';
 import { QueryStore } from '../entities/query-store';
 import { PageOptions } from '../interfaces/page-options';
+import { rebuildAllFilterTablesForRevisions, rebuildDatasetList } from '../services/dataset';
 
 export const listUserDatasets = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
@@ -723,83 +721,6 @@ export const rebuildDrafts = async (req: Request, res: Response): Promise<void> 
   void rebuildDatasetList(buildLogEntry, await RevisionRepository.getAllDraftRevisionIds(), user);
 };
 
-async function rebuildDatasetList(buildLogEntry: BuildLog, revisionList: RevisionList[], user: User): Promise<void> {
-  let buildTypeStr = 'all';
-  if (buildLogEntry.type === CubeBuildType.DraftCubes) {
-    buildTypeStr = 'all draft';
-  }
-
-  logger.info(`[${buildLogEntry.id}]: Starting process to rebuild ${buildTypeStr} cubes`);
-  const failedBuilds: {
-    buildId: string;
-    revisionId: string;
-    error: string;
-  }[] = [];
-
-  const buildScript = {
-    current_build: null as string | null,
-    total_builds: 0,
-    successful_builds: 0,
-    failed_builds: 0,
-    all_builds: [] as string[],
-    successfully_built: [] as string[],
-    failed_to_build: [] as string[]
-  };
-
-  for (const rev of revisionList) {
-    const build = await BuildLog.startBuild(rev, CubeBuildType.FullCube, user.id);
-    buildScript.all_builds.push(build.id);
-    buildScript.current_build = build.id;
-    buildLogEntry.buildScript = JSON.stringify(buildScript, null, 2);
-    buildLogEntry.status = CubeBuildStatus.Building;
-    await buildLogEntry.save();
-    try {
-      await bootstrapCubeBuildProcess(rev.dataset_id, rev.id);
-    } catch (err) {
-      logger.warn(err, `[${buildLogEntry.id}]: Failed to rebuild cube for revision ${rev.id}`);
-      failedBuilds.push({
-        buildId: build.id.toString(),
-        revisionId: rev.id,
-        error: JSON.stringify(err)
-      });
-      continue;
-    }
-
-    void createAllCubeFiles(rev.dataset_id, rev.id, user.id, CubeBuildType.FullCube, build).catch((err: Error) => {
-      logger.warn(err, 'Cube builder threw an error while trying to rebuild the cube');
-    });
-
-    await sleep(5000);
-
-    while (!CompleteStatus.includes(build.status)) {
-      await sleep(10000);
-      await build.reload();
-    }
-    if (build.status === CubeBuildStatus.Failed) {
-      logger.warn(`[${buildLogEntry}]: Cube for revision ${rev.id} has been failed to rebuild.`);
-      buildScript.failed_to_build.push(build.id);
-      buildScript.failed_builds++;
-      failedBuilds.push({
-        buildId: build.id,
-        revisionId: rev.id,
-        error: JSON.stringify(build.errors)
-      });
-    } else {
-      buildScript.successfully_built.push(build.id);
-      buildScript.successful_builds++;
-      logger.info(`[${buildLogEntry.id}]: Cube for revision ${rev.id} has been rebuilt successfully.`);
-    }
-    buildScript.current_build = null;
-    buildScript.total_builds++;
-    buildLogEntry.buildScript = JSON.stringify(buildScript, null, 2);
-    await buildLogEntry.save();
-  }
-  if (failedBuilds.length > 0) buildLogEntry.errors = JSON.stringify(failedBuilds, null, 2);
-  buildLogEntry.completeBuild(CubeBuildStatus.Completed);
-  await buildLogEntry.save();
-  logger.info(`[${buildLogEntry.id}]: Finished rebuild of ${buildTypeStr} cubes`);
-}
-
 export const rebuildAllFilterTables = async (req: Request, res: Response): Promise<void> => {
   const user = req.user as User;
 
@@ -819,57 +740,3 @@ export const rebuildAllFilterTables = async (req: Request, res: Response): Promi
   res.status(202).json({ build_id: buildLogEntry.id }).end();
   void rebuildAllFilterTablesForRevisions(buildLogEntry, await RevisionRepository.getAllRevisionIds());
 };
-
-async function rebuildAllFilterTablesForRevisions(
-  buildLogEntry: BuildLog,
-  revisionList: RevisionList[]
-): Promise<void> {
-  const buildTypeStr = 'all filter tables';
-
-  logger.info(`[${buildLogEntry.id}]: Starting process to rebuild ${buildTypeStr}`);
-  const failedBuilds: {
-    buildId: string;
-    revisionId: string;
-    error: string;
-  }[] = [];
-
-  const buildScript = {
-    current_build: null as string | null,
-    total_builds: 0,
-    successful_builds: 0,
-    failed_builds: 0,
-    all_builds: [] as string[],
-    successfully_built: [] as string[],
-    failed_to_build: [] as string[]
-  };
-
-  for (const rev of revisionList) {
-    if (!rev.data_table_id && rev.revision_index === 1) continue;
-    try {
-      buildScript.all_builds.push(rev.id);
-      buildScript.current_build = rev.id;
-      buildLogEntry.buildScript = JSON.stringify(buildScript, null, 2);
-      buildLogEntry.status = CubeBuildStatus.Building;
-      await buildLogEntry.save();
-      await updateFilterTableToLatest(rev.dataset_id, rev.id);
-      buildScript.successful_builds++;
-      buildScript.successfully_built.push(rev.id);
-    } catch (err) {
-      logger.error(err);
-      buildScript.failed_builds++;
-      buildScript.failed_to_build.push(rev.id);
-      failedBuilds.push({
-        revisionId: rev.id,
-        buildId: rev.id,
-        error: err instanceof Error ? (err.stack ?? err.message) : String(err)
-      });
-    }
-    buildScript.total_builds++;
-    buildLogEntry.buildScript = JSON.stringify(buildScript, null, 2);
-    await buildLogEntry.save();
-  }
-  if (failedBuilds.length > 0) buildLogEntry.errors = JSON.stringify(failedBuilds, null, 2);
-  buildLogEntry.completeBuild(CubeBuildStatus.Completed);
-  await buildLogEntry.save();
-  logger.info(`[${buildLogEntry.id}]: Finished rebuild of ${buildTypeStr} cubes`);
-}
