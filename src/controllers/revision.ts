@@ -1,6 +1,5 @@
 import { Readable } from 'node:stream';
 import { performance } from 'node:perf_hooks';
-import { randomUUID } from 'node:crypto';
 
 import { NextFunction, Request, Response } from 'express';
 import { t } from 'i18next';
@@ -48,6 +47,7 @@ import { buildStatusValidator, buildTypeValidator, hasError } from '../validator
 import { CubeBuildType } from '../enums/cube-build-type';
 import { CubeBuildStatus } from '../enums/cube-build-status';
 import { BuildLogRepository } from '../repositories/build-log';
+import { BuildLog } from '../entities/dataset/build-log';
 
 export const getDataTable = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   const revision: Revision = res.locals.revision;
@@ -450,21 +450,26 @@ export const regenerateRevisionCube = async (req: Request, res: Response, next: 
   const datasetId: string = res.locals.datasetId;
   const revision: Revision = res.locals.revision;
   const userId = req.user?.id;
-  const buildId = randomUUID();
+  const build = await BuildLog.startBuild(revision, CubeBuildType.FullCube, userId);
+
   try {
     await bootstrapCubeBuildProcess(datasetId, revision.id);
   } catch (err) {
     logger.error(err, `Something went wrong trying to bootstrap the cube build process`);
     const exception = new UnknownException('errors.cube_builder.cube_build_failed');
+    const buildErrorDetails = err instanceof Error ? (err.stack ?? err.message) : String(err);
+    build.completeBuild(CubeBuildStatus.Failed, `Bootstrap failed.`, buildErrorDetails);
+    await build.save();
     next(exception);
     return;
   }
-  void createAllCubeFiles(datasetId, revision.id, userId, CubeBuildType.FullCube, buildId).catch((err) => {
-    logger.warn(err, `Async cube build with build id ${buildId} failed with an error.`);
-  });
   res.status(202);
   res.json({
-    build_id: buildId
+    build_id: build.id
+  });
+
+  void createAllCubeFiles(datasetId, revision.id, userId, CubeBuildType.FullCube, build).catch((err) => {
+    logger.warn(err, `Async cube build with build id ${build.id} failed with an error.`);
   });
 };
 

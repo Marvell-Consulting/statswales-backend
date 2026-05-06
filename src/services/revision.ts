@@ -34,6 +34,7 @@ import { DateExtractor } from '../extractors/date-extractor';
 import { config } from '../config';
 import { revisionStartAndEndDateFinder, widenCoverageRange } from '../utils/revision';
 import { factTableValidatorFromSource, sourceAssignmentFromFactTable } from './fact-table-validator';
+import { BuildLog } from '../entities/dataset/build-log';
 
 export async function attachUpdateDataTableToRevision(
   datasetId: string,
@@ -110,10 +111,10 @@ export async function attachUpdateDataTableToRevision(
   dataTable.action = updateAction;
   revision.dataTable = dataTable;
   await revision.save();
-  const buildId = crypto.randomUUID();
+  const build = await BuildLog.startBuild(revision, CubeBuildType.ValidationCube, userId);
 
   try {
-    await createAllCubeFiles(dataset.id, revision.id, userId, CubeBuildType.ValidationCube, buildId);
+    await createAllCubeFiles(dataset.id, revision.id, userId, CubeBuildType.ValidationCube, build);
   } catch (err) {
     const error = err as CubeValidationException;
     const end = performance.now();
@@ -128,12 +129,12 @@ export async function attachUpdateDataTableToRevision(
   dataset.draftRevision = revision;
   const validatedSourceAssignment = sourceAssignmentFromFactTable(dataset.factTable!);
   try {
-    await factTableValidatorFromSource(dataset, validatedSourceAssignment, buildId);
+    await factTableValidatorFromSource(dataset, validatedSourceAssignment, build.id);
   } catch (err) {
     const end = performance.now();
     const time = Math.round(end - start);
     logger.info(`Cube update validation took ${time}ms`);
-    if (!config.cube_builder.preserve_failed) void cleanUpValidationCube(buildId);
+    if (!config.cube_builder.preserve_failed) void cleanUpValidationCube(build.id);
     await dataTable.remove();
     throw err;
   }
@@ -151,7 +152,7 @@ export async function attachUpdateDataTableToRevision(
   });
 
   try {
-    await validateMeasure(buildId, dataset, measureColumn, dataset.measure.measureTable!);
+    await validateMeasure(build.id, dataset, measureColumn, dataset.measure.measureTable!);
   } catch (err) {
     logger.warn(err, 'Validating measure failed.  Adding it to the revision tasks');
     revisionTasks.measure = { id: dataset.measure.id, lookupTableUpdated: false };
@@ -174,12 +175,12 @@ export async function attachUpdateDataTableToRevision(
       let updateDimension: Dimension | undefined;
       switch (dimension.type) {
         case DimensionType.LookupTable:
-          await createLookupTableInValidationCube(buildId, dimension, factTableColumn);
+          await createLookupTableInValidationCube(build.id, dimension, factTableColumn);
           break;
         case DimensionType.DatePeriod:
         case DimensionType.Date:
           updateDimension = await createDateTableInValidationCube(
-            buildId,
+            build.id,
             datasetId,
             lookupTableName,
             factTableColumn,
@@ -188,7 +189,7 @@ export async function attachUpdateDataTableToRevision(
           break;
       }
       await validateDimension(
-        buildId,
+        build.id,
         dataset,
         factTableColumn.columnName,
         factTableColumn.columnName,
@@ -208,7 +209,7 @@ export async function attachUpdateDataTableToRevision(
         const time = Math.round(end - start);
         logger.info(`Cube update validation took ${time}ms`);
         logger.error(err, `An error occurred trying to validate the file`);
-        if (!config.cube_builder.preserve_failed) void cleanUpValidationCube(buildId);
+        if (!config.cube_builder.preserve_failed) void cleanUpValidationCube(build.id);
         throw new BadRequestException('errors.data_table_validation_error');
       }
     }
@@ -229,7 +230,7 @@ export async function attachUpdateDataTableToRevision(
 
   dataTable.revision = revision;
   await dataTable.save();
-  if (!config.cube_builder.preserve_failed) void cleanUpValidationCube(buildId);
+  if (!config.cube_builder.preserve_failed) void cleanUpValidationCube(build.id);
 }
 
 async function cleanUpValidationCube(buildId: string): Promise<void> {

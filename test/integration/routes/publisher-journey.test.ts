@@ -467,7 +467,7 @@ describe('API Endpoints', () => {
   });
 
   describe('Step 4 - Create dimensions', () => {
-    test('Create dimensions from user supplied JSON returns 200 and updated dataset with dimensions attached', async () => {
+    test('Create dimensions from user supplied JSON returns 202 and updated dataset with dimensions attached', async () => {
       const testDatasetId = uuidV4();
       const testRevisionId = uuidV4();
       const testFileImportId = uuidV4();
@@ -539,7 +539,7 @@ describe('API Endpoints', () => {
         .send(sourceAssignment)
         .set(getAuthHeader(user));
 
-      expect(res.status).toBe(200);
+      expect(res.status).toBe(202);
       const updatedDataset = await DatasetRepository.getById(testDatasetId, { dimensions: true });
       if (!updatedDataset) {
         throw new Error('Dataset not found');

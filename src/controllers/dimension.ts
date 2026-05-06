@@ -30,8 +30,8 @@ import { getFileService } from '../utils/get-file-service';
 import { TempFile } from '../interfaces/temp-file';
 import { cleanupTmpFile, uploadAvScan } from '../services/virus-scanner';
 import { updateRevisionTasks } from '../utils/update-revision-tasks';
-import { randomUUID } from 'node:crypto';
 import { CubeBuildType } from '../enums/cube-build-type';
+import { BuildLog } from '../entities/dataset/build-log';
 
 export const getDimensionInfo = async (req: Request, res: Response): Promise<void> => {
   res.json(DimensionDTO.fromDimension(res.locals.dimension));
@@ -135,7 +135,7 @@ export const attachLookupTableToDimension = async (req: Request, res: Response, 
     return;
   }
 
-  const buildId = randomUUID();
+  let build: BuildLog;
 
   try {
     const dataTable = await validateAndUpload(tmpFile, datasetId, 'lookup_table');
@@ -147,23 +147,23 @@ export const attachLookupTableToDimension = async (req: Request, res: Response, 
       res.json(result);
       return;
     }
-    result.extension = {
-      build_id: buildId
-    };
     await updateRevisionTasks(dataset, dimension.id, 'dimension');
+    build = await BuildLog.startBuild(draftRevision, CubeBuildType.FullCube, userId);
+    result.extension = {
+      build_id: build.id
+    };
     res.json(result);
   } catch (err) {
     logger.error(err, `An error occurred trying to handle the lookup table`);
     next(new UnknownException('errors.upload_error'));
+    return;
   } finally {
     void cleanupTmpFile(tmpFile);
   }
 
-  void createAllCubeFiles(dataset.id, dataset.draftRevision!.id, userId, CubeBuildType.FullCube, buildId).catch(
-    (err) => {
-      logger.error(err, 'Something went wrong trying to build the cube after attaching a lookup table');
-    }
-  );
+  void createAllCubeFiles(dataset.id, dataset.draftRevision!.id, userId, CubeBuildType.FullCube, build).catch((err) => {
+    logger.error(err, 'Something went wrong trying to build the cube after attaching a lookup table');
+  });
 };
 
 export const updateDimension = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
@@ -173,12 +173,12 @@ export const updateDimension = async (req: Request, res: Response, next: NextFun
   const dimensionPatchRequest = req.body as DimensionPatchDto;
   let preview: ViewDTO | ViewErrDTO;
 
-  const buildId = randomUUID();
-
   const dataset = await DatasetRepository.getById(res.locals.datasetId, {
     factTable: true,
     draftRevision: { dataTable: { dataTableDescriptions: true } }
   });
+
+  let build: BuildLog;
 
   try {
     const draftRevision = dataset.draftRevision;
@@ -234,21 +234,21 @@ export const updateDimension = async (req: Request, res: Response, next: NextFun
     } else {
       await updateRevisionTasks(dataset, dimension.id, 'dimension');
     }
+    build = await BuildLog.startBuild(draftRevision, CubeBuildType.FullCube, userId);
     preview.extension = {
-      build_id: buildId
+      build_id: build.id
     };
     res.status(202);
     res.json(preview);
   } catch (err) {
     logger.error(err, `An error occurred trying to update the dimension`);
     next(new UnknownException('errors.dimension_update'));
+    return;
   }
 
-  void createAllCubeFiles(dataset.id, dataset.draftRevision!.id, userId, CubeBuildType.FullCube, buildId).catch(
-    (err) => {
-      logger.error(err, 'Something went wrong trying to build the cube when updating the dimension');
-    }
-  );
+  void createAllCubeFiles(dataset.id, dataset.draftRevision!.id, userId, CubeBuildType.FullCube, build).catch((err) => {
+    logger.error(err, 'Something went wrong trying to build the cube when updating the dimension');
+  });
 };
 
 export const updateDimensionMetadata = async (req: Request, res: Response): Promise<void> => {
@@ -274,17 +274,15 @@ export const updateDimensionMetadata = async (req: Request, res: Response): Prom
   await metadata.save();
   const updatedDimension = await Dimension.findOneByOrFail({ id: dimension.id });
   await updateRevisionTasks(dataset, dimension.id, 'dimension');
-  const buildId = randomUUID();
+  const build = await BuildLog.startBuild(dataset.draftRevision!, CubeBuildType.FullCube, userId);
   res.status(202);
   res.json({
     dimension: DimensionDTO.fromDimension(updatedDimension),
-    build_id: buildId
+    build_id: build.id
   });
-  void createAllCubeFiles(dataset.id, dataset.draftRevision!.id, userId, CubeBuildType.FullCube, buildId).catch(
-    (err) => {
-      logger.error(err, 'Something went wrong trying to build the cube after updating the dimensions metadata');
-    }
-  );
+  void createAllCubeFiles(dataset.id, dataset.draftRevision!.id, userId, CubeBuildType.FullCube, build).catch((err) => {
+    logger.error(err, 'Something went wrong trying to build the cube after updating the dimensions metadata');
+  });
 };
 
 export const getDimensionLookupTableInfo = async (req: Request, res: Response): Promise<void> => {
