@@ -33,7 +33,7 @@ When suggesting an improvement that is out of scope for the current PR, say so e
 - Raw promise chains where `async`/`await` would be clearer.
 - New filenames that are not kebab-case (e.g. `dataset-status.ts`, `incoming-file-processor.ts` are correct).
 - Multiple unrelated features in one file. One feature per file.
-- Exported function names that do not match the verb-first/noun-first convention: verbs for actions (`createDataset`, `updateMetadata`), nouns for queries (`getDatasetById`, `listUserDatasets`).
+- Exported function names that do not use clear verb-led names: action verbs for commands (`createDataset`, `updateMetadata`) and query verbs for reads (`getDatasetById`, `listUserDatasets`, `findLatestRelease`). Avoid ambiguous names.
 - Comments that restate what well-named code already says. Useful comments explain a non-obvious *why*.
 
 ## Directory layout (`src/`)
