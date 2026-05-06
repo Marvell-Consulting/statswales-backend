@@ -147,11 +147,11 @@ export const attachLookupTableToDimension = async (req: Request, res: Response, 
       res.json(result);
       return;
     }
+    await updateRevisionTasks(dataset, dimension.id, 'dimension');
     build = await BuildLog.startBuild(draftRevision, CubeBuildType.FullCube, userId);
     result.extension = {
       build_id: build.id
     };
-    await updateRevisionTasks(dataset, dimension.id, 'dimension');
     res.json(result);
   } catch (err) {
     logger.error(err, `An error occurred trying to handle the lookup table`);
