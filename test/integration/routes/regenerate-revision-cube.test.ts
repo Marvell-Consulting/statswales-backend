@@ -25,6 +25,7 @@ jest.mock('../../../src/utils/lookup-table-utils', () => ({
 }));
 
 jest.mock('../../../src/services/cube-builder', () => ({
+  ...jest.requireActual('../../../src/services/cube-builder'),
   createAllCubeFiles: jest.fn().mockResolvedValue(undefined)
 }));
 
