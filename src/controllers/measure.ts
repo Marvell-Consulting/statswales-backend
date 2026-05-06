@@ -87,11 +87,16 @@ export const attachLookupTableToMeasure = async (req: Request, res: Response, ne
       res.json(result);
       return;
     }
+    await updateRevisionTasks(dataset, dataset.measure.id, 'measure');
     build = await BuildLog.startBuild(dataset.draftRevision, CubeBuildType.FullCube, userId);
     result.extension = {
       build_id: build.id
     };
-    await updateRevisionTasks(dataset, dataset.measure.id, 'measure');
+    void createAllCubeFiles(dataset.id, dataset.draftRevision!.id, userId, CubeBuildType.FullCube, build).catch(
+      (err) => {
+        logger.error(err, 'Something went wrong trying to build the cube when attaching a measure lookup');
+      }
+    );
     res.status((result as ViewErrDTO).status || 200);
     res.json(result);
   } catch (err) {
@@ -101,10 +106,6 @@ export const attachLookupTableToMeasure = async (req: Request, res: Response, ne
   } finally {
     void cleanupTmpFile(tmpFile);
   }
-
-  void createAllCubeFiles(dataset.id, dataset.draftRevision!.id, userId, CubeBuildType.FullCube, build).catch((err) => {
-    logger.error(err, 'Something went wrong trying to build the cube when attaching a measure lookup');
-  });
 };
 
 export const getPreviewOfMeasure = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
