@@ -36,6 +36,8 @@ import { UniqueMeasureDetails } from '../interfaces/unique-measure-details';
 import { MeasureFormat } from '../interfaces/measure-format';
 import { RevisionRepository } from '../repositories/revision';
 import { QueryStore } from '../entities/query-store';
+import { isPublished } from '../utils/revision';
+import { QueryStoreRepository } from '../repositories/query-store';
 
 export const FACT_TABLE_NAME = 'fact_table';
 export const METADATA_TABLE_NAME = 'metadata';
@@ -179,18 +181,13 @@ export const createAllCubeFiles = async (
   build.status = CubeBuildStatus.Materializing;
   await build.save();
 
-  // Purge query store on unpublished cube changes
-  if (dataset.draftRevisionId === buildRevisionId) {
-    await QueryStore.delete({ revisionId: buildRevisionId });
-  }
-
   if (awaitMaterialisation) {
     logger.debug('Awaiting materialised view creation...');
-    await createMaterialisedView(buildRevisionId, dataset, build.id, cubeBuild, cubeBuildConfig);
+    await createMaterialisedView(buildRevision, dataset, build.id, cubeBuild, cubeBuildConfig);
   } else {
     // don't wait for this, can happen in the background so we can send the response earlier
     logger.debug(`Fire-and-forget materialised view creation for revision ${buildRevisionId}`);
-    void createMaterialisedView(buildRevisionId, dataset, build.id, cubeBuild, cubeBuildConfig).catch((err) => {
+    void createMaterialisedView(buildRevision, dataset, build.id, cubeBuild, cubeBuildConfig).catch((err) => {
       logger.error(
         err,
         `[build ID: ${build.id}] An error occurred trying to create materialised view for revision ${buildRevisionId}`
@@ -350,7 +347,7 @@ async function createBasePostgresCube(
 }
 
 async function createMaterialisedView(
-  revisionId: string,
+  revision: Revision,
   dataset: Dataset,
   buildId: string,
   cubeBuilder: CubeBuilder,
@@ -367,21 +364,23 @@ async function createMaterialisedView(
     const lang = locale.toLowerCase().split('-')[0];
     const materializedViewName = `${CORE_VIEW_NAME}_mat_${lang}`;
     const originalCoreViewSQL =
-      cubeBuilder.coreViewSQL.get(locale) || pgformat('SELECT * FROM %I.%I;', revisionId, FACT_TABLE_NAME);
+      cubeBuilder.coreViewSQL.get(locale) || pgformat('SELECT * FROM %I.%I;', revision.id, FACT_TABLE_NAME);
     statements.push(
       pgformat(
         'CREATE MATERIALIZED VIEW %I.%I AS %s;',
-        revisionId,
+        revision.id,
         materializedViewName,
-        originalCoreViewSQL.replaceAll(build.id, revisionId)
+        originalCoreViewSQL.replaceAll(build.id, revision.id)
       )
     );
-    statements.push(...createViewsFromConfig(revisionId, materializedViewName, locale, viewConfig, dataset.factTable!));
-    statements.push(pgformat('DROP VIEW %I.%I;', revisionId, `${CORE_VIEW_NAME}_${lang}`));
+    statements.push(
+      ...createViewsFromConfig(revision.id, materializedViewName, locale, viewConfig, dataset.factTable!)
+    );
+    statements.push(pgformat('DROP VIEW %I.%I;', revision.id, `${CORE_VIEW_NAME}_${lang}`));
     statements.push(
       pgformat(
         `UPDATE %I.${METADATA_TABLE_NAME} SET value = %L WHERE key = %L;`,
-        revisionId,
+        revision.id,
         CubeBuildStatus.Completed,
         CubeMetaDataKeys.BuildStatus
       )
@@ -389,7 +388,7 @@ async function createMaterialisedView(
     statements.push(
       pgformat(
         `INSERT INTO %I.${METADATA_TABLE_NAME} VALUES(%L, %L);`,
-        revisionId,
+        revision.id,
         CubeMetaDataKeys.BuildFinished,
         new Date().toISOString()
       )
@@ -401,7 +400,7 @@ async function createMaterialisedView(
       }
     }
     for (const col of indexCols) {
-      statements.push(pgformat('CREATE INDEX ON %I.%I (%I);', revisionId, materializedViewName, col));
+      statements.push(pgformat('CREATE INDEX ON %I.%I (%I);', revision.id, materializedViewName, col));
     }
   }
   statements.push('COMMIT;');
@@ -410,14 +409,12 @@ async function createMaterialisedView(
   for (const blk of cubeBuilder.transactionBlocks) {
     fullBuildScriptArr.push(...blk.statements);
   }
-  const buildStatements = statements.join('\n').replaceAll(build.id, revisionId);
+  const buildStatements = statements.join('\n').replaceAll(build.id, revision.id);
 
   const cubeDB = dbManager.getCubeDataSource().createQueryRunner();
   try {
     logger.trace(`Running query:\n\n${buildStatements}\n\n`);
     await cubeDB.query(buildStatements);
-    build.completeBuild(CubeBuildStatus.Completed, fullBuildScriptArr.join('\n'));
-    await build.save();
     performanceReporting(Math.round(performance.now() - viewCreation), 3000, 'Setting up the materialized views');
   } catch (error) {
     await cubeDB.query('ROLLBACK;');
@@ -426,13 +423,13 @@ async function createMaterialisedView(
         'BEGIN TRANSACTION;',
         pgformat(
           `UPDATE %I.${METADATA_TABLE_NAME} SET value = %L WHERE key = %L;`,
-          revisionId,
+          revision.id,
           CubeBuildStatus.Failed,
           CubeMetaDataKeys.BuildStatus
         ),
         pgformat(
           `UPDATE %I.${METADATA_TABLE_NAME} SET value = %L WHERE key = %L;`,
-          revisionId,
+          revision.id,
           JSON.stringify(error),
           CubeMetaDataKeys.BuildResults
         ),
@@ -452,6 +449,30 @@ async function createMaterialisedView(
   } finally {
     void cubeDB.release();
   }
+
+  const queryStoreCreation = performance.now();
+  try {
+    if (isPublished(revision)) {
+      await QueryStoreRepository.rebuildQueriesForRevision(revision.id);
+    } else {
+      await QueryStore.delete({ revisionId: revision.id });
+    }
+    performanceReporting(Math.round(performance.now() - queryStoreCreation), 3000, 'Processing the query store');
+  } catch (error) {
+    performanceReporting(Math.round(performance.now() - queryStoreCreation), 3000, 'Processing the query store');
+    logger.error(error, `Something went wrong trying to rebuild query store for revision ${revision.id}`);
+    build.completeBuild(CubeBuildStatus.Failed, fullBuildScriptArr.join('\n'), JSON.stringify(error));
+    await build.save();
+    throw error;
+  }
+
+  build.completeBuild(CubeBuildStatus.Completed, fullBuildScriptArr.join('\n'));
+  await build.save();
+  performanceReporting(
+    Math.round(performance.now() - viewCreation),
+    3000,
+    'Setting up the materialized views and dealing with the query store'
+  );
 }
 
 /*
