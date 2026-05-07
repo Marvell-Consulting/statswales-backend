@@ -73,7 +73,7 @@ describe('Fact table validation (integration)', () => {
         .patch(`/dataset/${datasetId}/sources`)
         .set(getAuthHeader(user))
         .send(minimalSourceAssignment());
-      expect(res.status).toBe(200);
+      expect(res.status).toBe(202);
       expect(res.body.dataset).toBeDefined();
       expect(res.body.build_id).toBeDefined();
     });
@@ -153,7 +153,7 @@ describe('Fact table validation (integration)', () => {
         .patch(`/dataset/${datasetId}/sources`)
         .set(getAuthHeader(user))
         .send(minimalSourceAssignment());
-      expect(assignRes.status).toBe(200);
+      expect(assignRes.status).toBe(202);
 
       // Step 2: Simulate publication
       const revision = await Revision.findOneOrFail({ where: { id: revisionId } });
@@ -195,7 +195,7 @@ describe('Fact table validation (integration)', () => {
         .patch(`/dataset/${datasetId}/sources`)
         .set(getAuthHeader(user))
         .send(minimalSourceAssignment());
-      expect(assignRes.status).toBe(200);
+      expect(assignRes.status).toBe(202);
 
       // Step 2: Simulate publication by directly updating the database
       // Mark the revision as approved/published

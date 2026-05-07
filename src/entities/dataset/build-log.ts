@@ -52,7 +52,7 @@ export class BuildLog extends BaseEntity {
   revision: Revision | null;
 
   public static async startBuild(
-    revision: Revision | null,
+    revision: { id: string } | Revision | null,
     type: CubeBuildType,
     userId?: string,
     buildId?: string
