@@ -144,6 +144,14 @@ export const updateMeasureMetadata = async (req: Request, res: Response, next: N
     next(new NotFoundException('errors.measure_invalid'));
   }
 
+  const draftRevision = dataset.draftRevision;
+
+  if (!draftRevision) {
+    logger.error('No draft revision found on dataset');
+    next(new UnknownException('errors.no_revision'));
+    return;
+  }
+
   const update = req.body as DimensionMetadataDTO;
   let metadata = measure.metadata.find((meta: MeasureMetadata) => meta.language === update.language);
 
@@ -163,7 +171,7 @@ export const updateMeasureMetadata = async (req: Request, res: Response, next: N
 
   const updatedMeasureMetadata = await metadata.save();
   await updateRevisionTasks(dataset, dataset.measure.id, 'measure');
-  const build = await BuildLog.startBuild(dataset.draftRevision!, CubeBuildType.FullCube, userId);
+  const build = await BuildLog.startBuild(draftRevision, CubeBuildType.FullCube, userId);
 
   res.status(202);
   res.json({
@@ -171,7 +179,7 @@ export const updateMeasureMetadata = async (req: Request, res: Response, next: N
     build_id: build.id
   });
 
-  void createAllCubeFiles(dataset.id, dataset.draftRevision!.id, userId, CubeBuildType.FullCube, build).catch((err) => {
+  void createAllCubeFiles(dataset.id, draftRevision.id, userId, CubeBuildType.FullCube, build).catch((err) => {
     logger.error(
       err,
       `Something went wrong trying to build the cube after buildID=${build.id} for datasetId=${dataset.id} and revisionId=${dataset.draftRevision!.id}`

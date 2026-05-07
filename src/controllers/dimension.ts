@@ -161,7 +161,7 @@ export const attachLookupTableToDimension = async (req: Request, res: Response, 
     void cleanupTmpFile(tmpFile);
   }
 
-  void createAllCubeFiles(dataset.id, dataset.draftRevision!.id, userId, CubeBuildType.FullCube, build).catch((err) => {
+  void createAllCubeFiles(dataset.id, draftRevision.id, userId, CubeBuildType.FullCube, build).catch((err) => {
     logger.error(err, 'Something went wrong trying to build the cube after attaching a lookup table');
   });
 };
@@ -180,15 +180,15 @@ export const updateDimension = async (req: Request, res: Response, next: NextFun
 
   let build: BuildLog;
 
+  const draftRevision = dataset.draftRevision;
+
+  if (!draftRevision) {
+    logger.error('No draft revision found on dataset');
+    next(new UnknownException('errors.no_revision'));
+    return;
+  }
+
   try {
-    const draftRevision = dataset.draftRevision;
-
-    if (!draftRevision) {
-      logger.error('No draft revision found on dataset');
-      next(new UnknownException('errors.no_revision'));
-      return;
-    }
-
     switch (dimensionPatchRequest.dimension_type) {
       case DimensionType.DatePeriod:
       case DimensionType.Date:
@@ -246,17 +246,26 @@ export const updateDimension = async (req: Request, res: Response, next: NextFun
     return;
   }
 
-  void createAllCubeFiles(dataset.id, dataset.draftRevision!.id, userId, CubeBuildType.FullCube, build).catch((err) => {
+  void createAllCubeFiles(dataset.id, draftRevision.id, userId, CubeBuildType.FullCube, build).catch((err) => {
     logger.error(err, 'Something went wrong trying to build the cube when updating the dimension');
   });
 };
 
-export const updateDimensionMetadata = async (req: Request, res: Response): Promise<void> => {
+export const updateDimensionMetadata = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   const dimension = res.locals.dimension;
   const userId = req.user?.id;
   const dataset = await DatasetRepository.getById(res.locals.datasetId, {
     draftRevision: { dataTable: { dataTableDescriptions: true } }
   });
+
+  const draftRevision = dataset.draftRevision;
+
+  if (!draftRevision) {
+    logger.error('No draft revision found on dataset');
+    next(new UnknownException('errors.no_revision'));
+    return;
+  }
+
   const update = req.body as DimensionMetadataDTO;
   let metadata = dimension.metadata.find((meta: DimensionMetadata) => meta.language === update.language);
 
@@ -280,7 +289,7 @@ export const updateDimensionMetadata = async (req: Request, res: Response): Prom
     dimension: DimensionDTO.fromDimension(updatedDimension),
     build_id: build.id
   });
-  void createAllCubeFiles(dataset.id, dataset.draftRevision!.id, userId, CubeBuildType.FullCube, build).catch((err) => {
+  void createAllCubeFiles(dataset.id, draftRevision.id, userId, CubeBuildType.FullCube, build).catch((err) => {
     logger.error(err, 'Something went wrong trying to build the cube after updating the dimensions metadata');
   });
 };

@@ -71,7 +71,7 @@ import { OutputFormats } from '../enums/output-formats';
 import { buildDataQuery, sendCsv, sendExcel, sendFrontendView, sendJson } from '../services/consumer-view-v2';
 import { QueryStore } from '../entities/query-store';
 import { PageOptions } from '../interfaces/page-options';
-import { rebuildAllFilterTablesForRevisions, rebuildDatasetList } from '../services/dataset';
+import { rebuildAllFilterTablesForRevisions, rebuildCubesForRevisions } from '../services/revision';
 
 export const listUserDatasets = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
@@ -699,7 +699,7 @@ export const rebuildAll = async (req: Request, res: Response): Promise<void> => 
   const revisionIds = await RevisionRepository.getAllRevisionIds();
   const buildLogEntry = await BuildLog.startBuild(null, CubeBuildType.AllCubes, user.id);
   res.status(202).json({ build_id: buildLogEntry.id }).end();
-  rebuildDatasetList(buildLogEntry, revisionIds, user).catch(async (err) => {
+  void rebuildCubesForRevisions(buildLogEntry, revisionIds, user).catch(async (err) => {
     logger.error(err, `[${buildLogEntry.id}]: Unhandled error in rebuildAll background task`);
     buildLogEntry.completeBuild(
       CubeBuildStatus.Failed,
@@ -728,7 +728,7 @@ export const rebuildDrafts = async (req: Request, res: Response): Promise<void> 
   const revisionIds = await RevisionRepository.getAllDraftRevisionIds();
   const buildLogEntry = await BuildLog.startBuild(null, CubeBuildType.DraftCubes, user.id);
   res.status(202).json({ build_id: buildLogEntry.id }).end();
-  rebuildDatasetList(buildLogEntry, revisionIds, user).catch(async (err) => {
+  void rebuildCubesForRevisions(buildLogEntry, revisionIds, user).catch(async (err) => {
     logger.error(err, `[${buildLogEntry.id}]: Unhandled error in rebuildDrafts background task`);
     buildLogEntry.completeBuild(
       CubeBuildStatus.Failed,
