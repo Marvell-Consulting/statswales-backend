@@ -43,9 +43,13 @@ jest.mock('../../../src/utils/consumer', () => ({
 import { FilterInterface } from '../../../src/interfaces/filterInterface';
 import { v1FilterToDataOptions, QueryStoreRepository } from '../../../src/repositories/query-store';
 
+// Mirror of generateHash in src/repositories/query-store.ts — the prefix is only
+// prepended when a non-empty namespace is given, matching production behaviour
+// so the v1/v2 isolation test exercises the real branching.
 function hash(datasetId: string, revisionId: string, options: unknown, namespace = 'v1'): string {
+  const prefix = namespace ? `${namespace}:` : '';
   return createHash('sha256')
-    .update(`${namespace}:${datasetId}:${revisionId}:${JSON.stringify(options)}`)
+    .update(`${prefix}${datasetId}:${revisionId}:${JSON.stringify(options)}`)
     .digest('hex');
 }
 

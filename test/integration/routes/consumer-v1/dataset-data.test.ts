@@ -132,8 +132,8 @@ describe('Consumer V1 — dataset data endpoints (/view, /view/filters, /downloa
     });
 
     it('caches total_records across repeated requests for the same filter', async () => {
-      // Wipe any query_store entries left by earlier tests in this revision so the
-      // first request below is a guaranteed cache miss.
+      // Wipe any query_store entries left by earlier tests in this revision so we
+      // can pin the test's single expected row deterministically below.
       await QueryStore.delete({ revisionId: REVISION_ID });
 
       const filter = JSON.stringify([{ columnName: 'YearCode', values: ['2021'] }]);
@@ -142,11 +142,15 @@ describe('Consumer V1 — dataset data endpoints (/view, /view/filters, /downloa
       expect(miss.status).toBe(200);
       expect(Number(miss.body.page_info.total_records)).toBe(15);
 
+      // The view request should have written exactly one query_store row for this
+      // revision; assert that explicitly rather than picking an arbitrary match.
+      const entries = await QueryStore.findBy({ revisionId: REVISION_ID });
+      expect(entries).toHaveLength(1);
+
       // Mutate the cached row to a sentinel. If the next request hits the cube, we'd
       // see 15 again; if it hits the cache, we'll see the sentinel.
-      const entry = await QueryStore.findOneByOrFail({ revisionId: REVISION_ID });
-      entry.totalLines = 9999;
-      await entry.save();
+      entries[0].totalLines = 9999;
+      await entries[0].save();
 
       const hit = await request(app).get(`/v1/${DATASET_ID}/view`).query({ filter });
       expect(hit.status).toBe(200);
