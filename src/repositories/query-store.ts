@@ -5,20 +5,48 @@ import { customAlphabet } from 'nanoid';
 
 import { dataSource } from '../db/data-source';
 import { dbManager } from '../db/database-manager';
-import { DataOptionsDTO } from '../dtos/data-options-dto';
+import { DataOptionsDTO, FRONTEND_DATA_OPTIONS } from '../dtos/data-options-dto';
 import { QueryStore } from '../entities/query-store';
 import { logger } from '../utils/logger';
 import { Locale } from '../enums/locale';
 import { FactTableToDimensionName } from '../interfaces/fact-table-column-to-dimension-name';
+import { FilterInterface, FilterV2 } from '../interfaces/filterInterface';
 import { SUPPORTED_LOCALES } from '../middleware/translation';
 import { checkAvailableViews, getFilterTable, coreViewChooser, getColumns, createBaseQuery } from '../utils/consumer';
 
 const nanoId = customAlphabet('1234567890abcdefghjklmnpqrstuvwxy', 12);
 
-function generateHash(datasetId: string, revisionId: string, options: DataOptionsDTO): string {
+function generateHash(datasetId: string, revisionId: string, options: DataOptionsDTO, namespace?: string): string {
+  const prefix = namespace ? `${namespace}:` : '';
   return createHash('sha256')
-    .update(`${datasetId}:${revisionId}:${JSON.stringify(options)}`)
+    .update(`${prefix}${datasetId}:${revisionId}:${JSON.stringify(options)}`)
     .digest('hex');
+}
+
+// Marker prefix for v1 cache entries so their hashes can never collide with v2.
+const V1_HASH_NAMESPACE = 'v1';
+
+// Translates a v1 filter list into a DataOptionsDTO whose hash is stable across
+// client-side reorderings. Sort matters here, not for SQL correctness, but to
+// guarantee that two v1 requests with the same filter set produce the same
+// query_store hash regardless of how the client laid out the query string.
+//
+// `use_raw_column_names: true` is required because v1's `filter` query param
+// uses fact-table column names; v2's `createBaseQuery` only resolves them
+// correctly when this flag is set. View selection is irrelevant to the count.
+export function v1FilterToDataOptions(filter?: FilterInterface[]): DataOptionsDTO {
+  const filters: FilterV2[] = (filter ?? [])
+    .map((f) => ({ columnName: f.columnName, values: [...f.values].sort() }))
+    .sort((a, b) => a.columnName.localeCompare(b.columnName))
+    .map(({ columnName, values }) => ({ [columnName]: values }));
+
+  return {
+    filters,
+    options: {
+      ...FRONTEND_DATA_OPTIONS.options,
+      use_raw_column_names: true
+    }
+  };
 }
 
 interface QueryStoreUpdate {
@@ -72,6 +100,17 @@ async function generateQuery(dataOptions: DataOptionsDTO, revisionId: string): P
   };
 }
 
+async function runCountAgainstCube(baseQuery: string): Promise<number> {
+  const totalsQuery = pgformat('SELECT count(*) as "totalLines" from (%s);', baseQuery);
+  const connection = dbManager.getCubeDataSource().createQueryRunner();
+  try {
+    const totals: { totalLines: string }[] = await connection.query(totalsQuery);
+    return Number(totals[0].totalLines);
+  } finally {
+    void connection.release();
+  }
+}
+
 export const QueryStoreRepository = dataSource.getRepository(QueryStore).extend({
   async getById(id: string): Promise<QueryStore> {
     logger.debug(`Loading query store by id ${id}...`);
@@ -81,6 +120,68 @@ export const QueryStoreRepository = dataSource.getRepository(QueryStore).extend(
   async getByFullHash(hash: string): Promise<QueryStore> {
     logger.debug(`Loading query store by full hash ${hash}...`);
     return this.findOneByOrFail({ hash });
+  },
+
+  // Cache-or-compute helper for the v1 datatable count. v1's filter contract
+  // is broader than v2 (it permits any fact-table column, dimensioned or not),
+  // so we deliberately don't run the v1 request through v2's generateQuery —
+  // we wrap the COUNT directly here using v1's already-built baseQuery.
+  //
+  // The entry is persisted to query_store with placeholder `query`/`columnMapping`
+  // fields. On cube rebuild, `rebuildQueriesForRevision` will attempt to
+  // regenerate via generateQuery; if the filter references non-dimensioned
+  // columns that path will throw and the entry is removed (existing fallback
+  // in `rebuildQueriesForRevision`). The cache then repopulates on the next
+  // v1 request. Dimensioned filters survive the rebuild cleanly.
+  async getTotalLinesForV1(
+    datasetId: string,
+    revisionId: string,
+    filter: FilterInterface[] | undefined,
+    baseQuery: string
+  ): Promise<number> {
+    const dataOptions = v1FilterToDataOptions(filter);
+    const hash = generateHash(datasetId, revisionId, dataOptions, V1_HASH_NAMESPACE);
+
+    const cached = await QueryStore.findOneBy({ hash });
+    if (cached) {
+      return cached.totalLines;
+    }
+
+    const totalLines = await runCountAgainstCube(baseQuery);
+
+    let id = nanoId();
+    let remainingAttempts = 10;
+    while (remainingAttempts > 0) {
+      const existing = await QueryStore.findOneBy({ id });
+      if (!existing) break;
+      remainingAttempts--;
+      id = nanoId();
+    }
+    if (remainingAttempts === 0) {
+      logger.warn(`Failed to generate unique id for v1 query_store entry — skipping persistence`);
+      return totalLines;
+    }
+
+    const entry = QueryStore.create({
+      id,
+      datasetId,
+      revisionId,
+      requestObject: dataOptions,
+      hash,
+      query: {},
+      totalLines,
+      columnMapping: []
+    });
+
+    try {
+      await entry.save();
+    } catch (err) {
+      // Concurrent writers may have inserted the same hash between our lookup
+      // and save — that's fine, the cache is still warm. Log and continue.
+      logger.debug(err, `Failed to persist v1 query_store entry for hash ${hash} (likely a concurrent write)`);
+    }
+
+    return totalLines;
   },
 
   async getByRequest(datasetId: string, revisionId: string, dataOptions: DataOptionsDTO): Promise<QueryStore> {

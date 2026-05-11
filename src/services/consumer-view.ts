@@ -11,6 +11,7 @@ import { DatasetDTO } from '../dtos/dataset-dto';
 import { Dataset } from '../entities/dataset/dataset';
 import { logger } from '../utils/logger';
 import { DatasetRepository } from '../repositories/dataset';
+import { QueryStoreRepository } from '../repositories/query-store';
 import { SortByInterface } from '../interfaces/sort-by-interface';
 import { FilterInterface } from '../interfaces/filterInterface';
 import { dbManager } from '../db/database-manager';
@@ -216,18 +217,7 @@ export const createFrontendView = async (
     filterBy
   );
 
-  const totalsQuery = pgformat('SELECT count(*) as "totalLines" from (%s);', baseQuery);
-  const totalsQueryConnection = dbManager.getCubeDataSource().createQueryRunner();
-  let totals: { totalLines: string }[];
-  try {
-    totals = await totalsQueryConnection.query(totalsQuery);
-  } catch (err) {
-    logger.error(err, 'Failed to extract totals using the base query');
-    throw err;
-  } finally {
-    void totalsQueryConnection.release();
-  }
-  const totalLines = Number(totals[0].totalLines);
+  const totalLines = await QueryStoreRepository.getTotalLinesForV1(dataset.id, revisionId, filterBy, baseQuery);
   const totalPages = Math.max(1, Math.ceil(totalLines / pageSize));
   const errors = validateParams(pageNumber, totalPages, pageSize);
 

@@ -12,6 +12,7 @@ import { GroupRole } from '../../../../src/enums/group-role';
 import { ensureWorkerDataSources, resetDatabase } from '../../../helpers/reset-database';
 import { getTestUser, getTestUserGroup } from '../../../helpers/get-test-user';
 import { seedPublishedDataset } from '../../../helpers/seed-published-dataset';
+import { QueryStore } from '../../../../src/entities/query-store';
 import BlobStorage from '../../../../src/services/blob-storage';
 
 jest.mock('../../../../src/services/blob-storage');
@@ -128,6 +129,31 @@ describe('Consumer V1 — dataset data endpoints (/view, /view/filters, /downloa
     it('returns 404 for a non-existent dataset', async () => {
       const res = await request(app).get('/v1/99999999-9999-4999-8999-999999999999/view');
       expect(res.status).toBe(404);
+    });
+
+    it('caches total_records across repeated requests for the same filter', async () => {
+      // Wipe any query_store entries left by earlier tests in this revision so the
+      // first request below is a guaranteed cache miss.
+      await QueryStore.delete({ revisionId: REVISION_ID });
+
+      const filter = JSON.stringify([{ columnName: 'YearCode', values: ['2021'] }]);
+
+      const miss = await request(app).get(`/v1/${DATASET_ID}/view`).query({ filter });
+      expect(miss.status).toBe(200);
+      expect(Number(miss.body.page_info.total_records)).toBe(15);
+
+      // Mutate the cached row to a sentinel. If the next request hits the cube, we'd
+      // see 15 again; if it hits the cache, we'll see the sentinel.
+      const entry = await QueryStore.findOneByOrFail({ revisionId: REVISION_ID });
+      entry.totalLines = 9999;
+      await entry.save();
+
+      const hit = await request(app).get(`/v1/${DATASET_ID}/view`).query({ filter });
+      expect(hit.status).toBe(200);
+      expect(Number(hit.body.page_info.total_records)).toBe(9999);
+
+      // Leave the table clean for downstream tests.
+      await QueryStore.delete({ revisionId: REVISION_ID });
     });
   });
 
