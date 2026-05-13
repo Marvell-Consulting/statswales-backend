@@ -417,19 +417,18 @@ export async function buildDataQuery(queryStore: QueryStore, pageOptions: PageOp
     query = pgformat('%s ORDER BY %s', query, sortBy.join(', '));
   }
 
-  // if no page size is provided we return all rows (which may be zero for the current query)
-  const limit = pageSize || queryStore.totalLines;
-  const offset = (pageNumber - 1) * limit;
+  // if no page size is provided we return all rows (bulk CSV/Excel export path)
+  if (pageSize !== undefined) {
+    const offset = (pageNumber - 1) * pageSize;
 
-  // prevent div by zero
-  const totalPages = limit <= 0 ? 0 : Math.ceil(queryStore.totalLines / limit);
+    // prevent div by zero
+    const totalPages = pageSize <= 0 ? 0 : Math.ceil(queryStore.totalLines / pageSize);
 
-  if (totalPages > 0 && pageNumber > totalPages) {
-    throw new BadRequestException('errors.page_number_too_high');
-  }
+    if (totalPages > 0 && pageNumber > totalPages) {
+      throw new BadRequestException('errors.page_number_too_high');
+    }
 
-  if (pageNumber) {
-    query = pgformat(`%s LIMIT %L OFFSET %L;`, query, limit, offset);
+    query = pgformat(`%s LIMIT %L OFFSET %L;`, query, pageSize, offset);
   }
 
   logger.debug(`Query = ${query}`);

@@ -22,7 +22,7 @@ import { ensureWorkerDataSources, resetDatabase } from '../../helpers/reset-data
 import { getTestUser, getTestUserGroup } from '../../helpers/get-test-user';
 import { cubeDataSource } from '../../../src/db/cube-source';
 import { createAllCubeFiles } from '../../../src/services/cube-builder';
-import { MAX_PAGE_SIZE } from '../../../src/utils/page-defaults';
+import { DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE } from '../../../src/utils/page-defaults';
 import BlobStorage from '../../../src/services/blob-storage';
 
 jest.mock('../../../src/services/blob-storage');
@@ -158,7 +158,7 @@ describe('Consumer V2 download format page_size tests', () => {
       expect(rows.length).toBe(TOTAL_ROWS);
     });
 
-    it('JSON download returns all rows', async () => {
+    it('JSON returns DEFAULT_PAGE_SIZE rows when page_size omitted', async () => {
       const res = await request(app).get(`/v2/${datasetId}/data`).query({ format: 'json' });
 
       expect(res.status).toBe(200);
@@ -167,7 +167,7 @@ describe('Consumer V2 download format page_size tests', () => {
 
       const data = JSON.parse(res.text);
       expect(Array.isArray(data)).toBe(true);
-      expect(data.length).toBe(TOTAL_ROWS);
+      expect(data.length).toBe(DEFAULT_PAGE_SIZE);
     });
 
     it('Excel download succeeds with correct content type', async () => {
@@ -197,13 +197,18 @@ describe('Consumer V2 download format page_size tests', () => {
       expect(rows.length).toBe(TOTAL_ROWS);
     });
 
-    it('accepts page_size above MAX_PAGE_SIZE for json', async () => {
+    it('rejects page_size above MAX_PAGE_SIZE for json', async () => {
       const res = await request(app).get(`/v2/${datasetId}/data`).query({ format: 'json', page_size: 50_000 });
 
-      expect(res.status).toBe(200);
+      expect(res.status).toBe(400);
+    });
 
+    it('returns up to MAX_PAGE_SIZE rows when json page_size = MAX_PAGE_SIZE', async () => {
+      const res = await request(app).get(`/v2/${datasetId}/data`).query({ format: 'json', page_size: MAX_PAGE_SIZE });
+
+      expect(res.status).toBe(200);
       const data = JSON.parse(res.text);
-      expect(data.length).toBe(TOTAL_ROWS);
+      expect(data.length).toBe(MAX_PAGE_SIZE);
     });
   });
 

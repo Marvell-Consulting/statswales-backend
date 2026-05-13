@@ -14,7 +14,11 @@ const defaultPageSize = (format: OutputFormats): number | undefined => {
   return isDownloadFormat(format) ? undefined : DEFAULT_PAGE_SIZE;
 };
 
-export async function parsePageOptions(req: Request): Promise<PageOptions> {
+export interface ParsePageOptionsOpts {
+  requireFormat?: boolean;
+}
+
+export async function parsePageOptions(req: Request, opts: ParsePageOptionsOpts = {}): Promise<PageOptions> {
   logger.debug('Parsing page options from request...');
   const validations = [format2Validator(), pageNumberValidator(), pageSizeValidator()];
 
@@ -27,7 +31,13 @@ export async function parsePageOptions(req: Request): Promise<PageOptions> {
   }
 
   const params = matchedData(req);
-  const format = (params.format as OutputFormats) ?? OutputFormats.Json;
+  const formatParam = params.format as OutputFormats | undefined;
+
+  if (opts.requireFormat && !formatParam) {
+    throw new BadRequestException('errors.output_format_required');
+  }
+
+  const format = formatParam ?? OutputFormats.Json;
   const pageNumber = params.page_number ?? 1;
   const pageSize = params.page_size ?? defaultPageSize(format);
   const locale = req.language as Locale;

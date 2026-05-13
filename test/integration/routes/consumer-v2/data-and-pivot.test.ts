@@ -142,14 +142,32 @@ describe('Consumer V2 — data + pivot endpoints', () => {
       expect(rows.length).toBe(ROW_COUNT);
     });
 
-    it('JSON download returns all rows with attachment header', async () => {
+    it('JSON download returns rows up to DEFAULT_PAGE_SIZE with attachment header', async () => {
       const res = await request(app).get(`/v2/${DATASET_ID}/data`).query({ format: 'json' });
       expect(res.status).toBe(200);
       expect(res.headers['content-type']).toMatch(/application\/json/);
       expect(res.headers['content-disposition']).toMatch(/attachment/);
       const data = JSON.parse(res.text);
       expect(Array.isArray(data)).toBe(true);
+      // ROW_COUNT (12) is below DEFAULT_PAGE_SIZE (100) so the full set is returned.
       expect(data.length).toBe(ROW_COUNT);
+    });
+
+    it('returns 400 when output_format is missing', async () => {
+      const res = await request(app).get(`/v2/${DATASET_ID}/data`);
+      expect(res.status).toBe(400);
+    });
+
+    it('returns 400 when JSON page_size exceeds MAX_PAGE_SIZE', async () => {
+      const res = await request(app).get(`/v2/${DATASET_ID}/data`).query({ format: 'json', page_size: 10_001 });
+      expect(res.status).toBe(400);
+    });
+
+    it('JSON honours page_size when supplied', async () => {
+      const res = await request(app).get(`/v2/${DATASET_ID}/data`).query({ format: 'json', page_size: 5 });
+      expect(res.status).toBe(200);
+      const data = JSON.parse(res.text);
+      expect(data.length).toBe(5);
     });
 
     it('XLSX download returns a spreadsheetml zip', async () => {
@@ -218,12 +236,14 @@ describe('Consumer V2 — data + pivot endpoints', () => {
     });
 
     it('returns 404 for a non-existent filter_id', async () => {
-      const res = await request(app).get(`/v2/${DATASET_ID}/data/88888888-8888-4888-8888-888888888888`);
+      const res = await request(app)
+        .get(`/v2/${DATASET_ID}/data/88888888-8888-4888-8888-888888888888`)
+        .query({ format: 'frontend' });
       expect(res.status).toBe(404);
     });
 
     it('returns 404 for a malformed filter_id', async () => {
-      const res = await request(app).get(`/v2/${DATASET_ID}/data/not-a-uuid`);
+      const res = await request(app).get(`/v2/${DATASET_ID}/data/not-a-uuid`).query({ format: 'frontend' });
       expect(res.status).toBe(404);
     });
   });
@@ -235,12 +255,14 @@ describe('Consumer V2 — data + pivot endpoints', () => {
     });
 
     it('returns 400 (errors.not_a_pivot_filter) when filter_id was not created with pivot', async () => {
-      const res = await request(app).get(`/v2/${DATASET_ID}/pivot/${dataFilterId}`);
+      const res = await request(app).get(`/v2/${DATASET_ID}/pivot/${dataFilterId}`).query({ format: 'json' });
       expect(res.status).toBe(400);
     });
 
     it('returns 404 for a non-existent filter_id', async () => {
-      const res = await request(app).get(`/v2/${DATASET_ID}/pivot/88888888-8888-4888-8888-888888888888`);
+      const res = await request(app)
+        .get(`/v2/${DATASET_ID}/pivot/88888888-8888-4888-8888-888888888888`)
+        .query({ format: 'json' });
       expect(res.status).toBe(404);
     });
   });
