@@ -40,7 +40,11 @@ interface FilterTable {
 export const getFilters = async (revisionId: string, language: string): Promise<FilterTable[]> => {
   const cubeDB = dbManager.getCubeDataSource().createQueryRunner();
   try {
-    const filterTableQuery = pgformat('SELECT * FROM %I.filter_table WHERE language = %L;', revisionId, language);
+    const filterTableQuery = pgformat(
+      'SELECT * FROM %I.filter_table WHERE language = %L ORDER BY sort_order, reference;',
+      revisionId,
+      language
+    );
     const filterTable: FilterRow[] = await cubeDB.query(filterTableQuery);
     const columnData = new Map<string, FilterRow[]>();
 
