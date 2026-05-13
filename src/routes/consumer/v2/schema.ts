@@ -3,7 +3,7 @@
 import { DownloadFormat } from '../../../enums/download-format';
 import { DataValueType } from '../../../enums/data-value-type';
 import { OutputFormats } from '../../../enums/output-formats';
-import { DEFAULT_PAGE_SIZE } from '../../../utils/page-defaults';
+import { DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE } from '../../../utils/page-defaults';
 
 export const schemaV2 = {
   info: {
@@ -78,7 +78,10 @@ export const schemaV2 = {
         name: 'format',
         in: 'query',
         description:
-          'Output format for the response. <code>csv</code> and <code>xlsx</code> return the full dataset as a streamed file attachment. <code>json</code>, <code>frontend</code> and <code>html</code> return paginated responses (default <code>page_size</code> 100, max 10,000).',
+          `Output format for the response. <code>csv</code> and <code>xlsx</code> return the full dataset as a ` +
+          `streamed file attachment. <code>json</code>, <code>frontend</code> and <code>html</code> return ` +
+          `paginated responses (default <code>page_size</code> ${DEFAULT_PAGE_SIZE}, ` +
+          `max ${MAX_PAGE_SIZE.toLocaleString('en-GB')}).`,
         required: true,
         schema: { type: 'string', enum: Object.values(OutputFormats) }
       },
