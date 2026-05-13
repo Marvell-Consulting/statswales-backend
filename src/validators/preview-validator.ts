@@ -52,15 +52,15 @@ export function validateParams(page_number: number, max_page_number: number, pag
       user_message: [
         {
           lang: Locale.English,
-          message: t('errors.page_number_to_high', { lng: Locale.English, page_number: max_page_number })
+          message: t('errors.page_number_too_high', { lng: Locale.English, page_number: max_page_number })
         },
         {
           lang: Locale.Welsh,
-          message: t('errors.page_number_to_high', { lng: Locale.Welsh, page_number: max_page_number })
+          message: t('errors.page_number_too_high', { lng: Locale.Welsh, page_number: max_page_number })
         }
       ],
       message: {
-        key: 'errors.page_number_to_high',
+        key: 'errors.page_number_too_high',
         params: { page_number: max_page_number }
       }
     });
@@ -69,10 +69,10 @@ export function validateParams(page_number: number, max_page_number: number, pag
     errors.push({
       field: 'page_number',
       user_message: [
-        { lang: Locale.English, message: t('errors.page_number_to_low', { lng: Locale.English }) },
-        { lang: Locale.Welsh, message: t('errors.page_number_to_low', { lng: Locale.Welsh }) }
+        { lang: Locale.English, message: t('errors.page_number_too_low', { lng: Locale.English }) },
+        { lang: Locale.Welsh, message: t('errors.page_number_too_low', { lng: Locale.Welsh }) }
       ],
-      message: { key: 'errors.page_number_to_low', params: {} }
+      message: { key: 'errors.page_number_too_low', params: {} }
     });
   }
   return errors;
