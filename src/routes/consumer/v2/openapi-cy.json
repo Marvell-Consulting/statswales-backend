@@ -549,8 +549,8 @@
       "output_format": {
         "name": "format",
         "in": "query",
-        "description": "Output format for the response. Download formats (csv, xlsx, json) return the full dataset as a file attachment. Frontend and html return paginated or streamed responses.",
-        "required": false,
+        "description": "Output format for the response. <code>csv</code> and <code>xlsx</code> return the full dataset as a streamed file attachment. <code>json</code>, <code>frontend</code> and <code>html</code> return paginated responses (default <code>page_size</code> 100, max 10,000).",
+        "required": true,
         "schema": {
           "type": "string",
           "enum": [
@@ -559,8 +559,7 @@
             "xlsx",
             "frontend",
             "html"
-          ],
-          "default": "json"
+          ]
         }
       },
       "sort_by": {

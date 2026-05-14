@@ -367,10 +367,11 @@ publicApiV2Router.get(
   /*
     #swagger.tags = ['Data']
     #swagger.summary = "Get paginated data for a dataset"
-    #swagger.description = "Returns rows for the latest published revision as a
-      JSON array of objects. Each object has column names as keys. The
-      response includes a Content-Disposition header for download. To apply
-      filters, first create a filter via POST /{dataset_id}/data, then use
+    #swagger.description = "Returns rows for the latest published revision in the format
+      specified by the required <code>format</code> parameter. <code>csv</code> and <code>xlsx</code>
+      return the full dataset as a streamed file attachment. <code>json</code>, <code>frontend</code>
+      and <code>html</code> return paginated responses (default <code>page_size</code> 100, max 10,000).
+      To apply filters, first create a filter via POST /{dataset_id}/data, then use
       GET /{dataset_id}/data/{filter_id}."
     #swagger.autoQuery = false
     #swagger.parameters['$ref'] = [
@@ -401,7 +402,10 @@ publicApiV2Router.get(
     #swagger.tags = ['Data']
     #swagger.summary = "Get a filtered data table for a dataset"
     #swagger.description = "Returns current data for a published dataset, filtered and displayed according to the
-      chosen options for a specific filter ID."
+      chosen options for a specific filter ID. The required <code>format</code> parameter selects the response shape:
+      <code>csv</code> and <code>xlsx</code> stream the full filtered dataset, while <code>json</code>,
+      <code>frontend</code> and <code>html</code> return paginated responses (default <code>page_size</code> 100,
+      max 10,000)."
     #swagger.autoQuery = false
     #swagger.parameters['$ref'] = [
       '#/components/parameters/language',

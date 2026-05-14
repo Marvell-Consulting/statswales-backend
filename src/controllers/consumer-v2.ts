@@ -116,7 +116,12 @@ async function parsePivotPageOptions(req: Request, validateXY = true): Promise<P
     if (yAxis.length === 1) yAxis = yAxis[0];
   }
 
-  const format = (params.format as OutputFormats) ?? OutputFormats.Json;
+  const formatParam = params.format as OutputFormats | undefined;
+  if (!formatParam) {
+    throw new BadRequestException('errors.output_format_required');
+  }
+
+  const format = formatParam;
   const pageSize = params.page_size ?? (isDownloadFormat(format) ? undefined : DEFAULT_PAGE_SIZE);
 
   if (!isDownloadFormat(format) && pageSize !== undefined && pageSize > MAX_PAGE_SIZE) {
@@ -143,7 +148,7 @@ export const getPublishedDatasetData = async (req: Request, res: Response, next:
   if (!publishedRevision) return next(new NotFoundException('errors.no_published_revision'));
 
   try {
-    const pageOptions = await parsePageOptions(req);
+    const pageOptions = await parsePageOptions(req, { requireFormat: true });
     const dataOptions = pageOptions.format === OutputFormats.Frontend ? FRONTEND_DATA_OPTIONS : DEFAULT_DATA_OPTIONS;
 
     const queryStore = filterId

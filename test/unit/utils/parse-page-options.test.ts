@@ -43,7 +43,7 @@ describe('parsePageOptions', () => {
     mockRequest = {
       query: {},
       language: Locale.English
-    } as Partial<Request>;
+    } as MockRequest;
 
     mockValidationResult = {
       isEmpty: jest.fn().mockReturnValue(true),
@@ -66,13 +66,13 @@ describe('parsePageOptions', () => {
   });
 
   describe('successful parsing', () => {
-    it('should return default values when no query parameters are provided (json is a download format)', async () => {
+    it('should return default values when no query parameters are provided (json falls back to DEFAULT_PAGE_SIZE)', async () => {
       const result = await parsePageOptions(mockRequest as Request);
 
       expect(result).toEqual({
         format: OutputFormats.Json,
         pageNumber: 1,
-        pageSize: undefined,
+        pageSize: DEFAULT_PAGE_SIZE,
         sort: [],
         locale: Locale.English
       });
@@ -103,7 +103,7 @@ describe('parsePageOptions', () => {
       });
     });
 
-    it('should parse format as json when specified with undefined pageSize (download format)', async () => {
+    it('should parse format as json with DEFAULT_PAGE_SIZE when page_size omitted', async () => {
       mockRequest.query = {
         format: 'json'
       };
@@ -115,7 +115,7 @@ describe('parsePageOptions', () => {
       const result = await parsePageOptions(mockRequest as Request);
 
       expect(result.format).toBe(OutputFormats.Json);
-      expect(result.pageSize).toBeUndefined();
+      expect(result.pageSize).toBe(DEFAULT_PAGE_SIZE);
     });
 
     it('should parse format as csv when specified with undefined pageSize', async () => {
@@ -433,14 +433,16 @@ describe('parsePageOptions', () => {
       expect(result.pageSize).toBe(50_000);
     });
 
-    it('should accept page_size above MAX_PAGE_SIZE for json format', async () => {
+    it('should reject page_size above MAX_PAGE_SIZE for json format', async () => {
       (matchedData as jest.Mock).mockReturnValue({
         format: OutputFormats.Json,
-        page_size: 50_000
+        page_size: MAX_PAGE_SIZE + 1
       });
 
-      const result = await parsePageOptions(mockRequest as Request);
-      expect(result.pageSize).toBe(50_000);
+      await expect(parsePageOptions(mockRequest as Request)).rejects.toThrow(BadRequestException);
+      await expect(parsePageOptions(mockRequest as Request)).rejects.toThrow(
+        `page_size must not exceed ${MAX_PAGE_SIZE}`
+      );
     });
 
     it('should accept page_size above MAX_PAGE_SIZE for xlsx format', async () => {
@@ -461,6 +463,35 @@ describe('parsePageOptions', () => {
 
       const result = await parsePageOptions(mockRequest as Request);
       expect(result.pageSize).toBe(MAX_PAGE_SIZE);
+    });
+  });
+
+  describe('requireFormat option', () => {
+    it('should throw when format is missing and requireFormat is true', async () => {
+      (matchedData as jest.Mock).mockReturnValue({});
+
+      await expect(parsePageOptions(mockRequest as Request, { requireFormat: true })).rejects.toThrow(
+        BadRequestException
+      );
+      await expect(parsePageOptions(mockRequest as Request, { requireFormat: true })).rejects.toThrow(
+        'errors.output_format_required'
+      );
+    });
+
+    it('should accept a valid format when requireFormat is true', async () => {
+      (matchedData as jest.Mock).mockReturnValue({ format: OutputFormats.Csv });
+
+      const result = await parsePageOptions(mockRequest as Request, { requireFormat: true });
+
+      expect(result.format).toBe(OutputFormats.Csv);
+    });
+
+    it('should default to json when format is missing and requireFormat is false', async () => {
+      (matchedData as jest.Mock).mockReturnValue({});
+
+      const result = await parsePageOptions(mockRequest as Request);
+
+      expect(result.format).toBe(OutputFormats.Json);
     });
   });
 });

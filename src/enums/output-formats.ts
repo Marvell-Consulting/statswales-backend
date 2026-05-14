@@ -7,11 +7,7 @@ export enum OutputFormats {
   // Parquet = 'parquet'
 }
 
-const DOWNLOAD_FORMATS: ReadonlySet<OutputFormats> = new Set([
-  OutputFormats.Csv,
-  OutputFormats.Excel,
-  OutputFormats.Json
-]);
+const DOWNLOAD_FORMATS: ReadonlySet<OutputFormats> = new Set([OutputFormats.Csv, OutputFormats.Excel]);
 
 export function isDownloadFormat(format: OutputFormats): boolean {
   return DOWNLOAD_FORMATS.has(format);

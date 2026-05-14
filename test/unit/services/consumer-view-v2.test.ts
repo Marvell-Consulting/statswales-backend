@@ -901,13 +901,13 @@ describe('consumer-view-v2 service', () => {
       await expect(buildDataQuery(queryStore, pageOptions)).rejects.toThrow('No query found');
     });
 
-    it('should return all rows when no pageSize provided', async () => {
+    it('should omit LIMIT/OFFSET when no pageSize provided (bulk-export path)', async () => {
       const queryStore = createMockQueryStore({
         query: { 'en-GB': 'SELECT * FROM test_table' },
         totalLines: 100
       });
       const pageOptions: PageOptions = {
-        format: OutputFormats.Frontend,
+        format: OutputFormats.Csv,
         sort: [],
         locale: Locale.EnglishGb,
         pageNumber: 1
@@ -916,8 +916,8 @@ describe('consumer-view-v2 service', () => {
 
       const result = await buildDataQuery(queryStore, pageOptions);
 
-      expect(result).toContain('LIMIT');
-      expect(result).toContain('100'); // Should use totalLines as limit
+      expect(result).not.toContain('LIMIT');
+      expect(result).not.toContain('OFFSET');
     });
 
     it('should handle zero total lines', async () => {
