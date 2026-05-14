@@ -136,15 +136,15 @@ describe('API Endpoints', () => {
             user_message: [
               {
                 lang: Locale.English,
-                message: t('errors.page_number_to_high', { lng: Locale.English, page_number: 15 })
+                message: t('errors.page_number_too_high', { lng: Locale.English, page_number: 15 })
               },
               {
                 lang: Locale.Welsh,
-                message: t('errors.page_number_to_high', { lng: Locale.Welsh, page_number: 15 })
+                message: t('errors.page_number_too_high', { lng: Locale.Welsh, page_number: 15 })
               }
             ],
             message: {
-              key: 'errors.page_number_to_high',
+              key: 'errors.page_number_too_high',
               params: { page_number: 15 }
             }
           }

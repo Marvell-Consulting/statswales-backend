@@ -35,8 +35,9 @@
     "problem": "There is a problem",
     "name_missing": "Dataset Name Missing",
     "page_size": "Page size must be between {{min_page_size}} and {{max_page_size}}",
-    "page_number_to_high": "Page number must be less than or equal to {{page_number}}",
-    "page_number_to_low": "Page number must be greater than 0",
+    "output_format_required": "Output format is required",
+    "page_number_too_high": "Page number must be less than or equal to {{page_number}}",
+    "page_number_too_low": "Page number must be greater than 0",
     "no_datafile": "No datafile attached to Dataset",
     "download_from_filestore": "Error downloading file from file store",
     "upload": {
