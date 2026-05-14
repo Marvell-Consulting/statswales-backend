@@ -41,7 +41,7 @@ export const getFilters = async (revisionId: string, language: string): Promise<
   const cubeDB = dbManager.getCubeDataSource().createQueryRunner();
   try {
     const filterTableQuery = pgformat(
-      'SELECT * FROM %I.filter_table WHERE language = %L ORDER BY sort_order, reference;',
+      'SELECT * FROM %I.filter_table WHERE language = %L ORDER BY sort_order, description, reference;',
       revisionId,
       language
     );
