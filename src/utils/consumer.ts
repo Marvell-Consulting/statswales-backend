@@ -213,19 +213,22 @@ export function getFilterTableQuery(revisionId: string, version: number, locale?
   // reference_count defaults to 1 otherwise we'll disable all filters on the frontend
   let columns =
     'reference, language, fact_table_column, dimension_name, description, NULL as sort_order, hierarchy, CAST(1 as BIGINT) as reference_count';
+  let sortBy = ' description, reference';
   if (version > 1) {
     columns =
       'reference, language, fact_table_column, dimension_name, description, sort_order, hierarchy, reference_count';
+    sortBy = ' sort_order, description, reference';
   }
   if (!locale) {
     return pgformat('SELECT %s FROM %I.%I;', columns, revisionId, FILTER_TABLE_NAME);
   }
   return pgformat(
-    'SELECT %s FROM %I.%I WHERE language LIKE %L;',
+    'SELECT %s FROM %I.%I WHERE language LIKE %L ORDER BY %s;',
     columns,
     revisionId,
     FILTER_TABLE_NAME,
-    `${locale.toLowerCase().split('-')[0]}%`
+    `${locale.toLowerCase().split('-')[0]}%`,
+    sortBy
   );
 }
 
