@@ -1,4 +1,4 @@
-import { dbManager } from '../../../src/db/database-manager';
+import { ensureWorkerDataSources } from '../../helpers/reset-database';
 
 import { BuildLogRepository } from '../../../src/repositories/build-log';
 import { DatasetRepository } from '../../../src/repositories/dataset';
@@ -39,11 +39,9 @@ const appNameViaRepo = async (repo: { query: (sql: string) => Promise<AppNameRow
 
 describe('TypeORM pool binding (SW-1265)', () => {
   beforeAll(async () => {
-    await dbManager.initDataSources();
-  });
-
-  afterAll(async () => {
-    await dbManager.destroyDataSources();
+    // share the standard worker-data-source lifecycle so this file plays nicely with parallel workers;
+    // reset-database.ts registers the matching afterAll teardown.
+    await ensureWorkerDataSources();
   });
 
   describe.each([

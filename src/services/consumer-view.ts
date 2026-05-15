@@ -4,8 +4,8 @@ import { PoolClient, QueryResult } from 'pg';
 import Cursor from 'pg-cursor';
 import { format as pgformat } from '@scaleleap/pg-format/lib/pg-format';
 import { format as csvFormat } from '@fast-csv/format';
-
-import { FindOptionsRelations } from 'typeorm';
+import { t } from 'i18next';
+import type { FindOptionsRelations } from 'typeorm';
 
 import { validateParams } from '../validators/preview-validator';
 import { ViewDTO, ViewErrDTO } from '../dtos/view-dto';
@@ -13,21 +13,20 @@ import { DatasetDTO } from '../dtos/dataset-dto';
 import { Dataset } from '../entities/dataset/dataset';
 import { logger } from '../utils/logger';
 import { QueryStoreRepository } from '../repositories/query-store';
-
-// Caller-supplied dataset loader: lets the publisher path go through DatasetRepository (publisher pool,
-// supports drafts) and the consumer path through PublishedDatasetRepository (consumer pool,
-// published-only). Without this, consumer routes would borrow connections from the publisher pool.
-export type DatasetLoader = (id: string, relations?: FindOptionsRelations<Dataset>) => Promise<Dataset>;
 import { SortByInterface } from '../interfaces/sort-by-interface';
 import { FilterInterface } from '../interfaces/filterInterface';
 import { dbManager } from '../db/database-manager';
 import { getColumnHeaders } from '../utils/column-headers';
-import { t } from 'i18next';
 import cubeConfig from '../config/cube-view.json';
 import { FactTableToDimensionName } from '../interfaces/fact-table-column-to-dimension-name';
 import { coreViewChooser, dateColumnsFromDimensions, sortFilterRows, transformHierarchy } from '../utils/consumer';
 import { FilterRow } from '../interfaces/filter-row';
 import { Dimension } from '../entities/dataset/dimension';
+
+// Caller-supplied dataset loader: lets the publisher path go through DatasetRepository (publisher pool,
+// supports drafts) and the consumer path through PublishedDatasetRepository (consumer pool,
+// published-only). Without this, consumer routes would borrow connections from the publisher pool.
+export type DatasetLoader = (id: string, relations?: FindOptionsRelations<Dataset>) => Promise<Dataset>;
 
 const EXCEL_ROW_LIMIT = 1048500; // Excel Limit is 1048576 but removed 76 rows
 const CURSOR_ROW_LIMIT = 500;
