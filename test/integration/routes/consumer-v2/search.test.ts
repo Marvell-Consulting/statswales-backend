@@ -39,7 +39,7 @@ describe('Consumer V2 — GET /v2/search', () => {
     await resetDatabase();
     await initPassport();
 
-    userGroup = await dbManager.getConsumerDataSource().getRepository(UserGroup).save(userGroup);
+    userGroup = await dbManager.getPublisherDataSource().getRepository(UserGroup).save(userGroup);
     user.groupRoles = [UserGroupRole.create({ group: userGroup, roles: [GroupRole.Editor] })];
     await user.save();
 

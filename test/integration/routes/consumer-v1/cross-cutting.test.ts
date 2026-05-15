@@ -40,7 +40,7 @@ describe('Consumer V1 — cross-cutting behaviour (CORS, method guard, Vary, 404
     await resetDatabase();
     await initPassport();
 
-    userGroup = await dbManager.getConsumerDataSource().getRepository(UserGroup).save(userGroup);
+    userGroup = await dbManager.getPublisherDataSource().getRepository(UserGroup).save(userGroup);
     user.groupRoles = [UserGroupRole.create({ group: userGroup, roles: [GroupRole.Editor] })];
     await user.save();
 

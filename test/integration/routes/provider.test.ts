@@ -55,8 +55,8 @@ describe('Providers', () => {
     await resetDatabase();
     await initPassport();
     await user.save();
-    await dbManager.getConsumerDataSource().manager.save(Provider, providers);
-    await dbManager.getConsumerDataSource().manager.save(ProviderSource, sources);
+    await dbManager.getPublisherDataSource().manager.save(Provider, providers);
+    await dbManager.getPublisherDataSource().manager.save(ProviderSource, sources);
   });
 
   test('Get all providers', async () => {

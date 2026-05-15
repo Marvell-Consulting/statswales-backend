@@ -22,6 +22,7 @@ import { Topic } from '../entities/dataset/topic';
 import { Revision } from '../entities/dataset/revision';
 import { SortByInterface } from '../interfaces/sort-by-interface';
 import { SearchResultDTO } from '../dtos/search-result-dto';
+import { UserGroup } from '../entities/user/user-group';
 
 export const withAll: FindOptionsRelations<Dataset> = {
   createdBy: true,
@@ -253,6 +254,17 @@ export const PublishedDatasetRepository = consumerDataSource.getRepository(Datas
     const [data, count] = await Promise.all([resultQuery.getRawMany(), countQuery.getCount()]);
 
     return { data, count };
+  },
+
+  // Resolves the publisher (UserGroup + Organisation) for a published dataset via the consumer pool,
+  // so consumer routes don't have to borrow a publisher-pool connection from UserGroupRepository.
+  async getPublisherOrganisation(datasetId: string): Promise<UserGroup | null> {
+    const dataset = await this.findOne({
+      where: { id: datasetId },
+      relations: { userGroup: { metadata: true, organisation: { metadata: true } } }
+    });
+
+    return dataset?.userGroup ?? null;
   },
 
   async getHistoryById(datasetId: string): Promise<Revision[]> {

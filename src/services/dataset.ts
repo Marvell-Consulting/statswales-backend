@@ -482,7 +482,7 @@ export class DatasetService {
 
     // mark the current published revision as unpublished
     dataset.publishedRevision.unpublishedAt = new Date();
-    await dataset.publishedRevision.save();
+    await RevisionRepository.save(dataset.publishedRevision);
     logger.info(`Revision ${dataset.publishedRevision.id} marked as unpublished`);
 
     // create a new draft revision based on the now unpublished revision
