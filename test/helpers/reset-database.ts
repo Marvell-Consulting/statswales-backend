@@ -20,9 +20,9 @@ afterAll(async () => {
  * on the app pool also covers in-flight work on the cube pool.
  */
 async function waitForIdleConnections(timeoutMs = 10000, intervalMs = 50): Promise<void> {
-  if (!dbManager.getAppDataSource().isInitialized) return;
+  if (!dbManager.getConsumerDataSource().isInitialized) return;
   const deadline = Date.now() + timeoutMs;
-  const qr = dbManager.getAppDataSource().createQueryRunner();
+  const qr = dbManager.getConsumerDataSource().createQueryRunner();
   try {
     while (Date.now() < deadline) {
       const rows: { active: number }[] = await qr.query(`
@@ -54,9 +54,9 @@ async function waitForIdleConnections(timeoutMs = 10000, intervalMs = 50): Promi
  * Safe to call from every integration test's beforeAll — idempotent within a single test file.
  */
 export async function ensureWorkerDataSources(): Promise<void> {
-  if (dbManager.getAppDataSource().isInitialized) return;
+  if (dbManager.getConsumerDataSource().isInitialized) return;
   await dbManager.initDataSources();
-  await dbManager.getAppDataSource().runMigrations();
+  await dbManager.getConsumerDataSource().runMigrations();
 }
 
 /**
@@ -68,7 +68,7 @@ export async function resetDatabase(): Promise<void> {
   // Let any unawaited cube-builder cleanup finish before we drop the dynamic schemas, otherwise the
   // two DROP SCHEMA CASCADE statements race on the same UUID schema.
   await waitForIdleConnections();
-  const qr = dbManager.getAppDataSource().createQueryRunner();
+  const qr = dbManager.getConsumerDataSource().createQueryRunner();
   try {
     const tables: { tablename: string }[] = await qr.query(`
       SELECT tablename FROM pg_tables

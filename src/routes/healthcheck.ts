@@ -66,7 +66,11 @@ const timeout = (timer: number, service: string): Promise<string> =>
 
 const checkConnections = async (req: Request, res: Response): Promise<void> => {
   const healthConfig = config.healthcheck;
-  const poolStats: (PoolStats | Error)[] = [dbPoolStats(dbManager.getAppPool()), dbPoolStats(dbManager.getCubePool())];
+  const poolStats: (PoolStats | Error)[] = [
+    dbPoolStats(dbManager.getConsumerPool()),
+    dbPoolStats(dbManager.getPublisherPool()),
+    dbPoolStats(dbManager.getCubePool())
+  ];
 
   try {
     // checkDb enforces its own timeouts via the pg Client so no outer race is needed.
@@ -110,7 +114,8 @@ healthcheck.get('/jwt', passport.authenticate('jwt', { session: false }), (req: 
 healthcheck.get('/db', (_req: Request, res: Response) => {
   try {
     res.json({
-      appPool: dbPoolStats(dbManager.getAppPool()),
+      consumerPool: dbPoolStats(dbManager.getConsumerPool()),
+      publisherPool: dbPoolStats(dbManager.getPublisherPool()),
       cubePool: dbPoolStats(dbManager.getCubePool())
     });
   } catch (error) {

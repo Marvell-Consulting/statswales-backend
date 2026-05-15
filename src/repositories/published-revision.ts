@@ -1,8 +1,8 @@
-import { dataSource } from '../db/data-source';
+import { consumerDataSource } from '../db/consumer-source';
 import { Revision } from '../entities/dataset/revision';
 import { And, FindOneOptions, FindOptionsRelations, IsNull, LessThan, Not } from 'typeorm';
 
-export const PublishedRevisionRepository = dataSource.getRepository(Revision).extend({
+export const PublishedRevisionRepository = consumerDataSource.getRepository(Revision).extend({
   async getById(id: string, relations: FindOptionsRelations<Revision> = {}): Promise<Revision> {
     const now = new Date();
 

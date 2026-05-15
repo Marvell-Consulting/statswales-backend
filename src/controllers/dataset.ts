@@ -336,7 +336,8 @@ export const sendFormattedResponse = async (
 ): Promise<void> => {
   switch (pageOptions.format) {
     case OutputFormats.Frontend:
-      return sendFrontendView(query, queryStore, pageOptions, res);
+      // publisher preview: load via DatasetRepository so drafts resolve and we stay on the publisher pool
+      return sendFrontendView(query, queryStore, pageOptions, res, DatasetRepository.getById.bind(DatasetRepository));
     case OutputFormats.Csv:
       return sendCsv(query, queryStore, res);
     case OutputFormats.Excel:

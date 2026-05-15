@@ -40,9 +40,9 @@ describe('Topics', () => {
   beforeAll(async () => {
     await ensureWorkerDataSources();
     await resetDatabase();
-    await initPassport(dbManager.getAppDataSource());
+    await initPassport();
     await user.save();
-    await dbManager.getAppDataSource().manager.save(Topic, topics);
+    await dbManager.getConsumerDataSource().manager.save(Topic, topics);
   });
 
   test('Get all Topics', async () => {

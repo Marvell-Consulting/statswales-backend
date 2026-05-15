@@ -1,7 +1,6 @@
 import request from 'supertest';
 
 import app from '../../../src/app';
-import { dbManager } from '../../../src/db/database-manager';
 import { initPassport } from '../../../src/middleware/passport-auth';
 import { SUPPORTED_LOCALES } from '../../../src/middleware/translation';
 import { Locale } from '../../../src/enums/locale';
@@ -25,7 +24,7 @@ describe('Healthcheck', () => {
   beforeAll(async () => {
     await ensureWorkerDataSources();
     await resetDatabase();
-    await initPassport(dbManager.getAppDataSource());
+    await initPassport();
   });
 
   describe('Server up', () => {

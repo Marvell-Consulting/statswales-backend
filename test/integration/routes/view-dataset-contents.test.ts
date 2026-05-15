@@ -32,8 +32,8 @@ describe('API Endpoints for viewing the contents of a dataset', () => {
   beforeAll(async () => {
     await ensureWorkerDataSources();
     await resetDatabase();
-    await initPassport(dbManager.getAppDataSource());
-    userGroup = await dbManager.getAppDataSource().getRepository(UserGroup).save(userGroup);
+    await initPassport();
+    userGroup = await dbManager.getConsumerDataSource().getRepository(UserGroup).save(userGroup);
     user.groupRoles = [UserGroupRole.create({ group: userGroup, roles: [GroupRole.Editor] })];
     await user.save();
     await createFullDataset(dataset1Id, revision1Id, import1Id, user);

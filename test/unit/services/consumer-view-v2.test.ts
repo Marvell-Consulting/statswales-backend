@@ -581,7 +581,7 @@ describe('consumer-view-v2 service', () => {
       };
       const res = createMockStreamResponse();
 
-      await sendFrontendView('SELECT * FROM data', queryStore, pageOptions, res);
+      await sendFrontendView('SELECT * FROM data', queryStore, pageOptions, res, mockGetById);
 
       expect(res.json).toHaveBeenCalled();
       const jsonArg = (res.json as jest.Mock).mock.calls[0][0];
@@ -611,7 +611,7 @@ describe('consumer-view-v2 service', () => {
       };
       const res = createMockStreamResponse();
 
-      await sendFrontendView('SELECT * FROM data', queryStore, pageOptions, res);
+      await sendFrontendView('SELECT * FROM data', queryStore, pageOptions, res, mockGetById);
 
       // First query should use 'cy-gb' language
       expect(mockCubeQuery.mock.calls[0][0]).toContain('cy-gb');
@@ -635,7 +635,7 @@ describe('consumer-view-v2 service', () => {
       };
       const res = createMockStreamResponse();
 
-      await sendFrontendView('SELECT * FROM data', queryStore, pageOptions, res);
+      await sendFrontendView('SELECT * FROM data', queryStore, pageOptions, res, mockGetById);
 
       const jsonArg = (res.json as jest.Mock).mock.calls[0][0];
       expect(jsonArg.note_codes).toEqual([]);
@@ -660,7 +660,7 @@ describe('consumer-view-v2 service', () => {
       };
       const res = createMockStreamResponse();
 
-      await sendFrontendView('SELECT * FROM "schema".core_view_mat_en', queryStore, pageOptions, res);
+      await sendFrontendView('SELECT * FROM "schema".core_view_mat_en', queryStore, pageOptions, res, mockGetById);
 
       expect(mockCubeQuery).toHaveBeenCalledTimes(4);
       const retryCall = mockCubeQuery.mock.calls[3][0] as string;
@@ -689,7 +689,7 @@ describe('consumer-view-v2 service', () => {
       };
       const res = createMockStreamResponse();
 
-      await sendFrontendView('SELECT * FROM "schema".core_view_en', queryStore, pageOptions, res);
+      await sendFrontendView('SELECT * FROM "schema".core_view_en', queryStore, pageOptions, res, mockGetById);
 
       expect(mockCubeQuery).toHaveBeenCalledTimes(4);
       const retryCall = mockCubeQuery.mock.calls[3][0] as string;
@@ -719,7 +719,7 @@ describe('consumer-view-v2 service', () => {
       const res = createMockStreamResponse();
 
       await expect(
-        sendFrontendView('SELECT * FROM "schema".core_view_mat_en', queryStore, pageOptions, res)
+        sendFrontendView('SELECT * FROM "schema".core_view_mat_en', queryStore, pageOptions, res, mockGetById)
       ).rejects.toThrow('retry also failed');
 
       expect(mockCubeQuery).toHaveBeenCalledTimes(4);
