@@ -24,7 +24,6 @@ import { parseSortByToObjects } from '../utils/parse-sort-by-param';
 import { DownloadFormat } from '../enums/download-format';
 import { DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE } from '../utils/page-defaults';
 import { clamp } from '../utils/clamp';
-import { UserGroupRepository } from '../repositories/user-group';
 import { PublisherDTO } from '../dtos/publisher-dto';
 import { ConsumerRevisionDTO } from '../dtos/consumer-revision-dto';
 
@@ -50,8 +49,10 @@ export const getPublishedDatasetById = async (req: Request, res: Response): Prom
   const datasetDTO = ConsumerDatasetDTO.fromDataset(dataset);
 
   if (dataset.userGroupId) {
-    const userGroup = await UserGroupRepository.getByIdWithOrganisation(dataset.userGroupId);
-    datasetDTO.publisher = PublisherDTO.fromUserGroup(userGroup, req.language as Locale);
+    const userGroup = await PublishedDatasetRepository.getPublisherOrganisation(dataset.id);
+    if (userGroup) {
+      datasetDTO.publisher = PublisherDTO.fromUserGroup(userGroup, req.language as Locale);
+    }
   }
 
   res.json(datasetDTO);

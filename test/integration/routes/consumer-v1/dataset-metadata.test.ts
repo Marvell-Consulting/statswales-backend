@@ -38,7 +38,7 @@ describe('Consumer V1 — dataset metadata (/:dataset_id, /:dataset_id/history)'
     await resetDatabase();
     await initPassport();
 
-    userGroup = await dbManager.getConsumerDataSource().getRepository(UserGroup).save(userGroup);
+    userGroup = await dbManager.getPublisherDataSource().getRepository(UserGroup).save(userGroup);
     user.groupRoles = [UserGroupRole.create({ group: userGroup, roles: [GroupRole.Editor] })];
     await user.save();
 

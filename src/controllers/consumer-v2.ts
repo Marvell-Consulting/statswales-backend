@@ -47,7 +47,6 @@ import {
 import { parseSortByParam, parseSortByToObjects } from '../utils/parse-sort-by-param';
 import { ConsumerDatasetDTO } from '../dtos/consumer-dataset-dto';
 import { PublisherDTO } from '../dtos/publisher-dto';
-import { UserGroupRepository } from '../repositories/user-group';
 import { createPivotOutputUsingDuckDB, createPivotQuery, getPivotRowCount, langToLocale } from '../services/pivots';
 import { FieldValidationError, matchedData } from 'express-validator';
 import { parsePageOptions } from '../utils/parse-page-options';
@@ -83,8 +82,10 @@ export const getPublishedDatasetById = async (req: Request, res: Response): Prom
   const datasetDTO = ConsumerDatasetDTO.fromDataset(dataset);
 
   if (dataset.userGroupId) {
-    const userGroup = await UserGroupRepository.getByIdWithOrganisation(dataset.userGroupId);
-    datasetDTO.publisher = PublisherDTO.fromUserGroup(userGroup, lang);
+    const userGroup = await PublishedDatasetRepository.getPublisherOrganisation(dataset.id);
+    if (userGroup) {
+      datasetDTO.publisher = PublisherDTO.fromUserGroup(userGroup, lang);
+    }
   }
 
   res.json(datasetDTO);

@@ -61,7 +61,7 @@ describe('Fact table validation (integration)', () => {
     await ensureWorkerDataSources();
     await resetDatabase();
     await initPassport();
-    userGroup = (await dbManager.getConsumerDataSource().getRepository(UserGroup).save(userGroup)) as UserGroup;
+    userGroup = (await dbManager.getPublisherDataSource().getRepository(UserGroup).save(userGroup)) as UserGroup;
     user.groupRoles = [UserGroupRole.create({ group: userGroup as UserGroup, roles: [GroupRole.Editor] })];
     await user.save();
   });

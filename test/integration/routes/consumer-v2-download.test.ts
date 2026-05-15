@@ -140,7 +140,7 @@ describe('Consumer V2 download format page_size tests', () => {
     await ensureWorkerDataSources();
     await resetDatabase();
     await initPassport();
-    userGroup = await dbManager.getConsumerDataSource().getRepository(UserGroup).save(userGroup);
+    userGroup = await dbManager.getPublisherDataSource().getRepository(UserGroup).save(userGroup);
     user.groupRoles = [UserGroupRole.create({ group: userGroup, roles: [GroupRole.Editor] })];
     await user.save();
     await createLargePublishedDataset();

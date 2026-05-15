@@ -42,7 +42,7 @@ describe('Topics', () => {
     await resetDatabase();
     await initPassport();
     await user.save();
-    await dbManager.getConsumerDataSource().manager.save(Topic, topics);
+    await dbManager.getPublisherDataSource().manager.save(Topic, topics);
   });
 
   test('Get all Topics', async () => {
