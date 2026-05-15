@@ -71,20 +71,20 @@ describe('DatasetStatsRepository', () => {
   beforeAll(async () => {
     try {
       await dbManager.initDataSources();
-      await dbManager.getAppDataSource().dropDatabase();
-      await dbManager.getAppDataSource().runMigrations();
+      await dbManager.getConsumerDataSource().dropDatabase();
+      await dbManager.getConsumerDataSource().runMigrations();
       await user.save();
     } catch (err) {
       // eslint-disable-next-line no-console
       console.error('Failed to initialise test database', err);
-      await dbManager.getAppDataSource().dropDatabase();
+      await dbManager.getConsumerDataSource().dropDatabase();
       await dbManager.destroyDataSources();
       process.exit(1);
     }
   });
 
   afterAll(async () => {
-    await dbManager.getAppDataSource().dropDatabase();
+    await dbManager.getConsumerDataSource().dropDatabase();
     await dbManager.destroyDataSources();
   });
 

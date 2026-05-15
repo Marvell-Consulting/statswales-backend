@@ -53,10 +53,10 @@ describe('Providers', () => {
   beforeAll(async () => {
     await ensureWorkerDataSources();
     await resetDatabase();
-    await initPassport(dbManager.getAppDataSource());
+    await initPassport();
     await user.save();
-    await dbManager.getAppDataSource().manager.save(Provider, providers);
-    await dbManager.getAppDataSource().manager.save(ProviderSource, sources);
+    await dbManager.getConsumerDataSource().manager.save(Provider, providers);
+    await dbManager.getConsumerDataSource().manager.save(ProviderSource, sources);
   });
 
   test('Get all providers', async () => {

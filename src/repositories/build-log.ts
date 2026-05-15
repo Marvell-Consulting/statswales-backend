@@ -1,10 +1,10 @@
-import { dataSource } from '../db/data-source';
+import { publisherDataSource } from '../db/publisher-source';
 import { BuildLog } from '../entities/dataset/build-log';
 import { CubeBuildType } from '../enums/cube-build-type';
 import { And, FindManyOptions, In, Not } from 'typeorm';
 import { CubeBuildStatus } from '../enums/cube-build-status';
 
-export const BuildLogRepository = dataSource.getRepository(BuildLog).extend({
+export const BuildLogRepository = publisherDataSource.getRepository(BuildLog).extend({
   async getBy(type?: CubeBuildType, status?: CubeBuildStatus, take = 30, skip = 0): Promise<BuildLog[]> {
     const findOpts: FindManyOptions<BuildLog> = {
       where: { status, type },

@@ -1,9 +1,9 @@
-import { dataSource } from '../db/data-source';
+import { publisherDataSource } from '../db/publisher-source';
 import { Dimension } from '../entities/dataset/dimension';
 
-export const DimensionRepository = dataSource.getRepository(Dimension).extend({
+export const DimensionRepository = publisherDataSource.getRepository(Dimension).extend({
   async getById(dimensionId: string): Promise<Dimension> {
-    return dataSource.getRepository(Dimension).findOneOrFail({
+    return publisherDataSource.getRepository(Dimension).findOneOrFail({
       where: {
         id: dimensionId
       },
@@ -15,7 +15,7 @@ export const DimensionRepository = dataSource.getRepository(Dimension).extend({
   },
 
   async getByDatasetId(id: string): Promise<Dimension[]> {
-    return dataSource.getRepository(Dimension).find({
+    return publisherDataSource.getRepository(Dimension).find({
       where: {
         datasetId: id
       },

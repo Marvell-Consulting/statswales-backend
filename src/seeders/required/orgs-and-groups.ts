@@ -2,7 +2,7 @@ import 'dotenv/config';
 import { DataSource, DeepPartial, IsNull } from 'typeorm';
 
 import { logger } from '../../utils/logger';
-import { dataSource } from '../../db/data-source';
+import { consumerDataSource } from '../../db/consumer-source';
 import { Organisation } from '../../entities/user/organisation';
 import { Locale } from '../../enums/locale';
 import { Dataset } from '../../entities/dataset/dataset';
@@ -74,13 +74,13 @@ export class OrgsAndGroupsSeeder {
 
 Promise.resolve()
   .then(async () => {
-    if (!dataSource.isInitialized) await dataSource.initialize();
-    await new OrgsAndGroupsSeeder(dataSource).run();
+    if (!consumerDataSource.isInitialized) await consumerDataSource.initialize();
+    await new OrgsAndGroupsSeeder(consumerDataSource).run();
   })
   .catch(async (err) => {
     logger.error(err);
     process.exitCode = 1;
   })
   .finally(async () => {
-    if (dataSource.isInitialized) await dataSource.destroy();
+    if (consumerDataSource.isInitialized) await consumerDataSource.destroy();
   });

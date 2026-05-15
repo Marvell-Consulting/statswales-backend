@@ -2,7 +2,7 @@ import 'dotenv/config';
 import { DataSource, DeepPartial } from 'typeorm';
 
 import { logger } from '../../utils/logger';
-import { dataSource } from '../../db/data-source';
+import { consumerDataSource } from '../../db/consumer-source';
 import { Provider } from '../../entities/dataset/provider';
 import { ProviderSource } from '../../entities/dataset/provider-source';
 import providers from '../../resources/data-providers/provider.json';
@@ -44,13 +44,13 @@ export class DataProviderSeeder {
 
 Promise.resolve()
   .then(async () => {
-    if (!dataSource.isInitialized) await dataSource.initialize();
-    await new DataProviderSeeder(dataSource).run();
+    if (!consumerDataSource.isInitialized) await consumerDataSource.initialize();
+    await new DataProviderSeeder(consumerDataSource).run();
   })
   .catch(async (err) => {
     logger.error(err);
     process.exitCode = 1;
   })
   .finally(async () => {
-    if (dataSource.isInitialized) await dataSource.destroy();
+    if (consumerDataSource.isInitialized) await consumerDataSource.destroy();
   });

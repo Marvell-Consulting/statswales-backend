@@ -1,5 +1,6 @@
 import { Dataset } from '../entities/dataset/dataset';
 import { DimensionUpdateTask } from '../interfaces/revision-task';
+import { RevisionRepository } from '../repositories/revision';
 
 export async function updateRevisionTasks(dataset: Dataset, id: string, type: 'dimension' | 'measure'): Promise<void> {
   if (dataset.draftRevision && dataset.draftRevision?.revisionIndex != 1) {
@@ -31,6 +32,6 @@ export async function updateRevisionTasks(dataset: Dataset, id: string, type: 'd
       }
       revision.tasks = tasks;
     }
-    await revision.save();
+    await RevisionRepository.save(revision);
   }
 }

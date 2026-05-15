@@ -18,7 +18,7 @@ import {
 import { hasError, formatValidator } from '../validators';
 import { TopicDTO } from '../dtos/topic-dto';
 import { PublishedTopicsDTO } from '../dtos/published-topics-dto';
-import { TopicRepository } from '../repositories/topic';
+import { PublishedTopicRepository } from '../repositories/published-topic';
 import { FilterInterface } from '../interfaces/filterInterface';
 import { parseSortByToObjects } from '../utils/parse-sort-by-param';
 import { DownloadFormat } from '../enums/download-format';
@@ -84,7 +84,16 @@ export const getPublishedDatasetView = async (req: Request, res: Response): Prom
   }
 
   try {
-    const preview = await createFrontendView(dataset, publishedRevision.id, lang, pageNumber, pageSize, sortBy, filter);
+    const preview = await createFrontendView(
+      dataset,
+      publishedRevision.id,
+      lang,
+      pageNumber,
+      pageSize,
+      PublishedDatasetRepository.getById.bind(PublishedDatasetRepository),
+      sortBy,
+      filter
+    );
     res.status(200).json(preview);
   } catch (error) {
     if (error instanceof QueryFailedError && /column .* does not exist/i.test(error.message)) {
@@ -203,7 +212,7 @@ export const listSubTopics = async (req: Request, res: Response, next: NextFunct
     }
   });
 
-  const topic = topicId ? await TopicRepository.findOneBy({ id: parseInt(topicId, 10) }) : undefined;
+  const topic = topicId ? await PublishedTopicRepository.findOneBy({ id: parseInt(topicId, 10) }) : undefined;
 
   if (topicId && !topic) {
     next(new NotFoundException('errors.topic_not_found'));
@@ -212,7 +221,7 @@ export const listSubTopics = async (req: Request, res: Response, next: NextFunct
 
   try {
     const subTopics = await PublishedDatasetRepository.listPublishedTopics(lang, topicId);
-    const parents = topic ? await TopicRepository.getParents(topic.path) : undefined;
+    const parents = topic ? await PublishedTopicRepository.getParents(topic.path) : undefined;
     const isLeafTopic = topic && subTopics.length === 0;
     let datasets;
 

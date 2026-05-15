@@ -11,9 +11,9 @@ afterAll(async () => {
  * Safe to call from every integration test's beforeAll — idempotent within a single test file.
  */
 export async function ensureWorkerDataSources(): Promise<void> {
-  if (dbManager.getAppDataSource().isInitialized) return;
+  if (dbManager.getConsumerDataSource().isInitialized) return;
   await dbManager.initDataSources();
-  await dbManager.getAppDataSource().runMigrations();
+  await dbManager.getConsumerDataSource().runMigrations();
 }
 
 /**
@@ -22,7 +22,7 @@ export async function ensureWorkerDataSources(): Promise<void> {
  * drops/recreates the dynamic cube schemas so the next suite starts with a clean slate.
  */
 export async function resetDatabase(): Promise<void> {
-  const qr = dbManager.getAppDataSource().createQueryRunner();
+  const qr = dbManager.getConsumerDataSource().createQueryRunner();
   try {
     const tables: { tablename: string }[] = await qr.query(`
       SELECT tablename FROM pg_tables

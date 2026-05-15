@@ -78,7 +78,9 @@ export class EntitySubscriber implements EntitySubscriberInterface {
         client: this.getClient()
       };
 
-      await EventLog.save<EventLog>(log);
+      // route the audit row through the same EntityManager that fired the event so it lands on
+      // whichever pool the originating write used (publisher vs consumer)
+      await event.manager.getRepository(EventLog).save(log);
     } catch (err) {
       logger.error(err, 'failed to write to event log');
     }
