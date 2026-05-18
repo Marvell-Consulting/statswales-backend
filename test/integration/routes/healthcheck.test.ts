@@ -9,6 +9,7 @@ import { ensureWorkerDataSources, resetDatabase } from '../../helpers/reset-data
 import { getTestUser } from '../../helpers/get-test-user';
 import { getAuthHeader } from '../../helpers/auth-header';
 import { UserDTO } from '../../../src/dtos/user/user-dto';
+import { config } from '../../../src/config';
 
 jest.mock('../../../src/services/blob-storage', () => {
   return function BlobStorage() {
@@ -89,13 +90,17 @@ describe('Healthcheck', () => {
   });
 
   describe('Database pools', () => {
-    test('/healthcheck/db returns an array of pool stats', async () => {
-      const res = await request(app).get('/healthcheck/db');
-      expect(res.status).toBe(200);
-      expect(Array.isArray(res.body.pools)).toBe(true);
-      expect(res.body.pools).toHaveLength(3);
+    const originalDbStatsKey = config.healthcheck.dbStatsKey;
 
-      for (const pool of res.body.pools) {
+    afterEach(() => {
+      config.healthcheck.dbStatsKey = originalDbStatsKey;
+    });
+
+    const expectPoolStatsShape = (pools: unknown): void => {
+      expect(Array.isArray(pools)).toBe(true);
+      expect(pools).toHaveLength(3);
+
+      for (const pool of pools as unknown[]) {
         expect(pool).toEqual(
           expect.objectContaining({
             name: expect.any(String),
@@ -113,6 +118,34 @@ describe('Healthcheck', () => {
           })
         );
       }
+    };
+
+    test('/healthcheck/db returns an array of pool stats when no key is configured', async () => {
+      config.healthcheck.dbStatsKey = undefined;
+      const res = await request(app).get('/healthcheck/db');
+      expect(res.status).toBe(200);
+      expectPoolStatsShape(res.body.pools);
+    });
+
+    test('/healthcheck/db returns 401 when a key is configured but no header is sent', async () => {
+      config.healthcheck.dbStatsKey = 'super-secret-key';
+      const res = await request(app).get('/healthcheck/db');
+      expect(res.status).toBe(401);
+    });
+
+    test('/healthcheck/db returns 401 when a key is configured but the header is wrong', async () => {
+      config.healthcheck.dbStatsKey = 'super-secret-key';
+      // eslint-disable-next-line @typescript-eslint/naming-convention
+      const res = await request(app).get('/healthcheck/db').set({ 'x-healthcheck-key': 'wrong-key' });
+      expect(res.status).toBe(401);
+    });
+
+    test('/healthcheck/db returns pool stats when the configured key matches', async () => {
+      config.healthcheck.dbStatsKey = 'super-secret-key';
+      // eslint-disable-next-line @typescript-eslint/naming-convention
+      const res = await request(app).get('/healthcheck/db').set({ 'x-healthcheck-key': 'super-secret-key' });
+      expect(res.status).toBe(200);
+      expectPoolStatsShape(res.body.pools);
     });
   });
 

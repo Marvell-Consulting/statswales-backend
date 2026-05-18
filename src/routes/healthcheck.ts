@@ -1,4 +1,6 @@
-import { Request, Response, Router } from 'express';
+import { timingSafeEqual } from 'node:crypto';
+
+import { NextFunction, Request, Response, Router } from 'express';
 import passport from 'passport';
 import { isString } from 'lodash';
 import { Pool } from 'pg';
@@ -111,7 +113,29 @@ healthcheck.get('/jwt', passport.authenticate('jwt', { session: false }), (req: 
   res.json({ message: 'success', user: UserDTO.fromUser(req.user as User, req.language as Locale) });
 });
 
-healthcheck.get('/db', (_req: Request, res: Response) => {
+// Guards /healthcheck/db with a shared secret. When config.healthcheck.dbStatsKey is unset
+// (local/CI) the endpoint stays open; when set (prod) callers must send a matching
+// x-healthcheck-key header. Compared in constant time to avoid leaking the key via timing.
+const requireDbStatsKey = (req: Request, res: Response, next: NextFunction): void => {
+  const expected = config.healthcheck.dbStatsKey;
+  if (!expected) {
+    next();
+    return;
+  }
+
+  const provided = req.header('x-healthcheck-key') ?? '';
+  const expectedBuf = Buffer.from(expected);
+  const providedBuf = Buffer.from(provided);
+
+  if (providedBuf.length === expectedBuf.length && timingSafeEqual(providedBuf, expectedBuf)) {
+    next();
+    return;
+  }
+
+  res.status(401).json({ error: 'unauthorised' });
+};
+
+healthcheck.get('/db', requireDbStatsKey, (_req: Request, res: Response) => {
   try {
     res.json({
       pools: [
