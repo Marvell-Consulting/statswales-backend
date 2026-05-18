@@ -19,7 +19,7 @@ import { DatasetRepository } from '../repositories/dataset';
 import { createAllCubeFiles } from '../services/cube-builder';
 import { cleanupTmpFile, uploadAvScan } from '../services/virus-scanner';
 import { TempFile } from '../interfaces/temp-file';
-import { updateRevisionTasks } from '../utils/update-revision-tasks';
+import { updateRevisionTasks } from '../services/revision';
 import { CubeBuildType } from '../enums/cube-build-type';
 import { BuildLog } from '../entities/dataset/build-log';
 
