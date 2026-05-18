@@ -1,7 +1,7 @@
 import { FindOptionsRelations, FindOneOptions } from 'typeorm';
 import { has, pick } from 'lodash';
 
-import { dataSource } from '../db/data-source';
+import { publisherDataSource } from '../db/publisher-source';
 import { logger } from '../utils/logger';
 import { DataTable } from '../entities/dataset/data-table';
 import { Revision } from '../entities/dataset/revision';
@@ -46,7 +46,7 @@ export type RevisionList = {
   revision_index: number;
 };
 
-export const RevisionRepository = dataSource.getRepository(Revision).extend({
+export const RevisionRepository = publisherDataSource.getRepository(Revision).extend({
   async getById(id: string, relations: FindOptionsRelations<Revision> = withDataTable): Promise<Revision> {
     const findOptions: FindOneOptions<Revision> = { where: { id }, relations };
 
@@ -80,7 +80,7 @@ export const RevisionRepository = dataSource.getRepository(Revision).extend({
       return RevisionMetadata.create({ revision, language, title: language === lang ? title : '' });
     });
 
-    await dataSource.getRepository(RevisionMetadata).save(metadata);
+    await publisherDataSource.getRepository(RevisionMetadata).save(metadata);
 
     return this.getById(revision.id, { metadata: true });
   },
@@ -94,7 +94,7 @@ export const RevisionRepository = dataSource.getRepository(Revision).extend({
     await this.merge(revision, splitMeta.revision).save();
 
     // props that are translated live in revision metadata
-    const metaRepo = dataSource.getRepository(RevisionMetadata);
+    const metaRepo = publisherDataSource.getRepository(RevisionMetadata);
     const existingMeta: RevisionMetadata = await metaRepo.findOneOrFail({
       where: { id: revision.id, language: metaDto.language }
     });
@@ -110,13 +110,13 @@ export const RevisionRepository = dataSource.getRepository(Revision).extend({
   },
 
   async approvePublication(revisionId: string, onlineCubeFilename: string, approver: User): Promise<Revision> {
-    const scheduledRevision = await dataSource.getRepository(Revision).findOneOrFail({
+    const scheduledRevision = await publisherDataSource.getRepository(Revision).findOneOrFail({
       where: { id: revisionId },
       relations: { dataset: true }
     });
 
     if (scheduledRevision.revisionIndex === 0) {
-      const result = await dataSource.query(
+      const result = await publisherDataSource.query(
         `SELECT MAX(revision_index) AS max_index FROM revision WHERE dataset_id = $1 AND approved_at IS NOT NULL;`,
         [scheduledRevision.dataset.id]
       );
@@ -142,7 +142,7 @@ export const RevisionRepository = dataSource.getRepository(Revision).extend({
   },
 
   async revertToDraft(revisionId: string): Promise<Revision> {
-    const revision = await dataSource.getRepository(Revision).findOneOrFail({
+    const revision = await publisherDataSource.getRepository(Revision).findOneOrFail({
       where: { id: revisionId },
       relations: { dataset: true }
     });

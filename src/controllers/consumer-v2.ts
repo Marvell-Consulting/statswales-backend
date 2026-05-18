@@ -12,7 +12,7 @@ import { BadRequestException } from '../exceptions/bad-request.exception';
 import { isDownloadFormat, OutputFormats } from '../enums/output-formats';
 import { TopicDTO } from '../dtos/topic-dto';
 import { PublishedTopicsDTO } from '../dtos/published-topics-dto';
-import { TopicRepository } from '../repositories/topic';
+import { PublishedTopicRepository } from '../repositories/published-topic';
 import { DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE } from '../utils/page-defaults';
 import { clamp } from '../utils/clamp';
 import { ConsumerRevisionDTO } from '../dtos/consumer-revision-dto';
@@ -47,14 +47,13 @@ import {
 import { parseSortByParam, parseSortByToObjects } from '../utils/parse-sort-by-param';
 import { ConsumerDatasetDTO } from '../dtos/consumer-dataset-dto';
 import { PublisherDTO } from '../dtos/publisher-dto';
-import { UserGroupRepository } from '../repositories/user-group';
 import { createPivotOutputUsingDuckDB, createPivotQuery, getPivotRowCount, langToLocale } from '../services/pivots';
 import { FieldValidationError, matchedData } from 'express-validator';
 import { parsePageOptions } from '../utils/parse-page-options';
 import { SearchMode } from '../enums/search-mode';
 import { DatasetListItemDTO } from '../dtos/dataset-list-item-dto';
 import { ResultsetWithCount } from '../interfaces/resultset-with-count';
-import { SearchLog } from '../entities/search-log';
+import { SearchLogRepository } from '../repositories/search-log';
 import { QueryStoreDto } from '../dtos/query-store-dto';
 import { dbManager } from '../db/database-manager';
 import { METADATA_TABLE_NAME } from '../services/cube-builder';
@@ -83,8 +82,10 @@ export const getPublishedDatasetById = async (req: Request, res: Response): Prom
   const datasetDTO = ConsumerDatasetDTO.fromDataset(dataset);
 
   if (dataset.userGroupId) {
-    const userGroup = await UserGroupRepository.getByIdWithOrganisation(dataset.userGroupId);
-    datasetDTO.publisher = PublisherDTO.fromUserGroup(userGroup, lang);
+    const userGroup = await PublishedDatasetRepository.getPublisherOrganisation(dataset.id);
+    if (userGroup) {
+      datasetDTO.publisher = PublisherDTO.fromUserGroup(userGroup, lang);
+    }
   }
 
   res.json(datasetDTO);
@@ -476,7 +477,7 @@ export const listSubTopics = async (req: Request, res: Response, next: NextFunct
     }
   });
 
-  const topic = topicId ? await TopicRepository.findOneBy({ id: parseInt(topicId, 10) }) : undefined;
+  const topic = topicId ? await PublishedTopicRepository.findOneBy({ id: parseInt(topicId, 10) }) : undefined;
 
   if (topicId && !topic) {
     next(new NotFoundException('errors.topic_not_found'));
@@ -485,7 +486,7 @@ export const listSubTopics = async (req: Request, res: Response, next: NextFunct
 
   try {
     const subTopics = await PublishedDatasetRepository.listPublishedTopics(lang, topicId);
-    const parents = topic ? await TopicRepository.getParents(topic.path) : undefined;
+    const parents = topic ? await PublishedTopicRepository.getParents(topic.path) : undefined;
     const isLeafTopic = topic && subTopics.length === 0;
     let datasets;
 
@@ -525,7 +526,14 @@ export const sendFormattedResponse = async (
 ): Promise<void> => {
   switch (pageOptions.format) {
     case OutputFormats.Frontend:
-      return sendFrontendView(query, queryStore, pageOptions, res);
+      // consumer view: load via PublishedDatasetRepository (consumer pool, published-only)
+      return sendFrontendView(
+        query,
+        queryStore,
+        pageOptions,
+        res,
+        PublishedDatasetRepository.getById.bind(PublishedDatasetRepository)
+      );
     case OutputFormats.Csv:
       return sendCsv(query, queryStore, res);
     case OutputFormats.Excel:
@@ -580,7 +588,7 @@ export const searchPublishedDatasets = async (req: Request, res: Response, next:
         throw new BadRequestException('errors.invalid_search_mode');
     }
 
-    await SearchLog.create({ mode, keywords, resultCount: results.count }).save();
+    await SearchLogRepository.save(SearchLogRepository.create({ mode, keywords, resultCount: results.count }));
 
     res.json(results);
   } catch (err) {

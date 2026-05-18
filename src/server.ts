@@ -13,7 +13,7 @@ Promise.resolve()
   .then(async () => {
     await dbManager.initDataSources();
     await dbManager.initEntitySubscriber();
-    await initPassport(dbManager.getAppDataSource());
+    await initPassport();
   })
   .then(() => {
     app.listen(PORT, async () => {

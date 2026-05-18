@@ -69,6 +69,8 @@ export interface AppConfig {
     ssl?: boolean;
     synchronize?: boolean;
     poolSize?: number;
+    consumerPoolSize?: number;
+    publisherPoolSize?: number;
     maxUses?: number;
     idleTimeoutMs?: number;
     connectionTimeoutMs?: number;

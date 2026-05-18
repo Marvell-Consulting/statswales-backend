@@ -14,13 +14,13 @@ import { dbManager } from '../db/database-manager';
 import { QueryStore } from '../entities/query-store';
 import { BadRequestException } from '../exceptions/bad-request.exception';
 import { flattenHierarchy, transformHierarchy } from '../utils/consumer';
-import { DatasetRepository } from '../repositories/dataset';
 import { PageOptions } from '../interfaces/page-options';
 import { logger } from '../utils/logger';
 import { ConsumerDatasetDTO } from '../dtos/consumer-dataset-dto';
 import { getColumnHeaders } from '../utils/column-headers';
 import { QueryStoreRepository } from '../repositories/query-store';
 import { DataSource } from 'typeorm';
+import { DatasetLoader } from './consumer-view';
 
 const EXCEL_ROW_LIMIT = 1048576 - 76; // Excel Limit is 1,048,576 but removed 76 rows because ?
 const HIGH_WATER_MARK = 500; // max rows to buffer in memory at once when streaming from the database
@@ -312,7 +312,8 @@ export async function sendFrontendView(
   query: string,
   queryStore: QueryStore,
   pageOptions: PageOptions,
-  res: Response
+  res: Response,
+  loader: DatasetLoader
 ): Promise<void> {
   logger.info(`Sending Frontend View for query id ${queryStore.id}...`);
   const cubeDataSource = dbManager.getCubeDataSource();
@@ -344,7 +345,7 @@ export async function sendFrontendView(
     }
 
     logger.debug(`Fetching dataset ${queryStore.datasetId}...`);
-    const dataset = await DatasetRepository.getById(queryStore.datasetId, { factTable: true, dimensions: true });
+    const dataset = await loader(queryStore.datasetId, { factTable: true, dimensions: true });
 
     const rows = await runAndRetryQuery(query, queryStore, cubeDataSource);
     logger.debug(`Fetched ${rows.length} rows`);

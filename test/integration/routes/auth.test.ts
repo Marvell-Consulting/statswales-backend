@@ -1,7 +1,6 @@
 import request from 'supertest';
 
 import app from '../../../src/app';
-import { dbManager } from '../../../src/db/database-manager';
 import { initPassport } from '../../../src/middleware/passport-auth';
 import { ensureWorkerDataSources, resetDatabase } from '../../helpers/reset-database';
 import { config } from '../../../src/config';
@@ -22,7 +21,7 @@ describe('Auth routes', () => {
   beforeAll(async () => {
     await ensureWorkerDataSources();
     await resetDatabase();
-    await initPassport(dbManager.getAppDataSource());
+    await initPassport();
   });
 
   test('/auth/providers returns a list of enabled providers', async () => {

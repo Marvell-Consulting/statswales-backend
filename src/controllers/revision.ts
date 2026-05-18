@@ -128,7 +128,16 @@ export const getRevisionPreview = async (req: Request, res: Response, next: Next
 
   try {
     const end = performance.now();
-    const cubePreview = await createFrontendView(dataset, revision.id, lang, page_number, page_size, sortBy, filters);
+    const cubePreview = await createFrontendView(
+      dataset,
+      revision.id,
+      lang,
+      page_number,
+      page_size,
+      DatasetRepository.getById.bind(DatasetRepository),
+      sortBy,
+      filters
+    );
     const time = Math.round(end - start);
     logger.info(`Cube revision preview took ${time}ms`);
 

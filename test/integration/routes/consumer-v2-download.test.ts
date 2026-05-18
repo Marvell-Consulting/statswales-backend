@@ -131,16 +131,17 @@ async function createLargePublishedDataset(): Promise<void> {
     await cubeDB.release();
   }
 
-  // Build cube views so the consumer API can query the data
-  await createAllCubeFiles(datasetId, revisionId);
+  // Build cube views so the consumer API can query the data. awaitMaterialisation = true ensures
+  // the materialised view (core_view_mat_en) exists before any test queries it.
+  await createAllCubeFiles(datasetId, revisionId, undefined, undefined, undefined, true);
 }
 
 describe('Consumer V2 download format page_size tests', () => {
   beforeAll(async () => {
     await ensureWorkerDataSources();
     await resetDatabase();
-    await initPassport(dbManager.getAppDataSource());
-    userGroup = await dbManager.getAppDataSource().getRepository(UserGroup).save(userGroup);
+    await initPassport();
+    userGroup = await dbManager.getPublisherDataSource().getRepository(UserGroup).save(userGroup);
     user.groupRoles = [UserGroupRole.create({ group: userGroup, roles: [GroupRole.Editor] })];
     await user.save();
     await createLargePublishedDataset();
