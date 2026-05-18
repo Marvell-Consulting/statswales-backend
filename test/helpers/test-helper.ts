@@ -128,7 +128,8 @@ export async function createSmallDataset(
   }
 
   try {
-    await createAllCubeFiles(savedDataset.id, revision.id);
+    // awaitMaterialisation = true ensures the materialised view exists before any test queries it
+    await createAllCubeFiles(savedDataset.id, revision.id, undefined, undefined, undefined, true);
   } catch (error) {
     logger.error(error);
   }
