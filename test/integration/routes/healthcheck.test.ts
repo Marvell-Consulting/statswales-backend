@@ -10,6 +10,7 @@ import { getTestUser } from '../../helpers/get-test-user';
 import { getAuthHeader } from '../../helpers/auth-header';
 import { UserDTO } from '../../../src/dtos/user/user-dto';
 import { config } from '../../../src/config';
+import { AppEnv } from '../../../src/config/env.enum';
 
 jest.mock('../../../src/services/blob-storage', () => {
   return function BlobStorage() {
@@ -91,9 +92,11 @@ describe('Healthcheck', () => {
 
   describe('Database pools', () => {
     const originalDbStatsKey = config.healthcheck.dbStatsKey;
+    const originalEnv = config.env;
 
     afterEach(() => {
       config.healthcheck.dbStatsKey = originalDbStatsKey;
+      config.env = originalEnv;
     });
 
     const expectPoolStatsShape = (pools: unknown): void => {
@@ -120,11 +123,26 @@ describe('Healthcheck', () => {
       }
     };
 
-    test('/healthcheck/db returns an array of pool stats when no key is configured', async () => {
+    test('/healthcheck/db returns an array of pool stats when no key is configured in local/CI', async () => {
       config.healthcheck.dbStatsKey = undefined;
+      config.env = AppEnv.Ci;
       const res = await request(app).get('/healthcheck/db');
       expect(res.status).toBe(200);
       expectPoolStatsShape(res.body.pools);
+    });
+
+    test('/healthcheck/db returns 404 when no key is configured outside local/CI', async () => {
+      config.healthcheck.dbStatsKey = undefined;
+      config.env = AppEnv.Prod;
+      const res = await request(app).get('/healthcheck/db');
+      expect(res.status).toBe(404);
+    });
+
+    test('/healthcheck/db enforces the key even in local/CI once one is configured', async () => {
+      config.healthcheck.dbStatsKey = 'super-secret-key';
+      config.env = AppEnv.Ci;
+      const res = await request(app).get('/healthcheck/db');
+      expect(res.status).toBe(401);
     });
 
     test('/healthcheck/db returns 401 when a key is configured but no header is sent', async () => {
