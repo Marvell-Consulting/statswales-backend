@@ -114,9 +114,11 @@ healthcheck.get('/jwt', passport.authenticate('jwt', { session: false }), (req: 
 healthcheck.get('/db', (_req: Request, res: Response) => {
   try {
     res.json({
-      consumerPool: dbPoolStats(dbManager.getConsumerPool()),
-      publisherPool: dbPoolStats(dbManager.getPublisherPool()),
-      cubePool: dbPoolStats(dbManager.getCubePool())
+      pools: [
+        dbPoolStats(dbManager.getConsumerPool()),
+        dbPoolStats(dbManager.getPublisherPool()),
+        dbPoolStats(dbManager.getCubePool())
+      ]
     });
   } catch (error) {
     logger.error(error, 'Error fetching database pool information');

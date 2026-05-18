@@ -88,6 +88,34 @@ describe('Healthcheck', () => {
     });
   });
 
+  describe('Database pools', () => {
+    test('/healthcheck/db returns an array of pool stats', async () => {
+      const res = await request(app).get('/healthcheck/db');
+      expect(res.status).toBe(200);
+      expect(Array.isArray(res.body.pools)).toBe(true);
+      expect(res.body.pools).toHaveLength(3);
+
+      for (const pool of res.body.pools) {
+        expect(pool).toEqual(
+          expect.objectContaining({
+            name: expect.any(String),
+            connectionTimeout: expect.stringMatching(/^\d+ms$/),
+            idleTimeout: expect.stringMatching(/^\d+ms$/),
+            clients: expect.objectContaining({
+              min: expect.any(Number),
+              max: expect.any(Number),
+              idle: expect.any(Number),
+              waiting: expect.any(Number),
+              expired: expect.any(Number),
+              total: expect.any(Number),
+              isFull: expect.any(Boolean)
+            })
+          })
+        );
+      }
+    });
+  });
+
   describe('Authentication', () => {
     test('/heathcheck/jwt returns 401 without a bearer token', async () => {
       const res = await request(app).get('/healthcheck/jwt');
