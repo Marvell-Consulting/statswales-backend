@@ -74,6 +74,7 @@ export const createLookupTableQuery = (
   referenceColumnType: string,
   otherColumns?: string[]
 ): string => {
+  const normalizedType = referenceColumnType === 'DOUBLE' ? 'DOUBLE PRECISION' : referenceColumnType;
   const otherColumnsStatement: string[] = [];
   if (otherColumns && otherColumns.length > 0) {
     otherColumns.forEach((column) => {
@@ -85,7 +86,7 @@ export const createLookupTableQuery = (
     schemaName,
     lookupTableName,
     referenceColumnName,
-    referenceColumnType,
+    normalizedType,
     otherColumnsStatement.length > 0 ? `, ${otherColumnsStatement.join(', ')}` : ''
   );
 };

@@ -1293,6 +1293,7 @@ export const measureTableCreateStatement = (
   buildId?: string,
   tableName = 'measure'
 ): string => {
+  const normalizedType = joinColumnType === 'DOUBLE' ? 'DOUBLE PRECISION' : joinColumnType;
   if (buildId) {
     tableName = pgformat('%I.%I', buildId, tableName);
   }
@@ -1311,8 +1312,8 @@ export const measureTableCreateStatement = (
       );
     `,
     tableName,
-    joinColumnType,
-    joinColumnType
+    normalizedType,
+    normalizedType
   );
 };
 

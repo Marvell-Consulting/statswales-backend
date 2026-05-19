@@ -36,6 +36,8 @@ export const createDatePeriodTableQuery = (
   schemaId: string,
   tableName: string
 ): string => {
+  const normalizedDatatype =
+    factTableColumn.columnDatatype === 'DOUBLE' ? 'DOUBLE PRECISION' : factTableColumn.columnDatatype;
   return pgformat(
     `
       CREATE TABLE %I.%I (
@@ -51,8 +53,8 @@ export const createDatePeriodTableQuery = (
     schemaId,
     tableName,
     factTableColumn.columnName,
-    factTableColumn.columnDatatype,
-    factTableColumn.columnDatatype
+    normalizedDatatype,
+    normalizedDatatype
   );
 };
 

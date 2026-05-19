@@ -247,7 +247,7 @@ async function createBaseFactTable(dataset: Dataset, dataTable: DataTable): Prom
     const factTableCol = new FactTableColumn();
     factTableCol.columnType = FactTableColumnType.Unknown;
     factTableCol.columnName = col.columnName;
-    factTableCol.columnDatatype = col.columnDatatype;
+    factTableCol.columnDatatype = col.columnDatatype === 'DOUBLE' ? 'DOUBLE PRECISION' : col.columnDatatype;
     factTableCol.columnIndex = col.columnIndex;
     factTableCol.id = dataset.id;
     factTableCol.dataset = dataset;
