@@ -478,6 +478,42 @@ describe('validateLookupTable', () => {
       expect(result.errors[0].message.key).toBe('errors.dimension_validation.lookup_table_loading_failed');
     });
 
+    it('returns 400 with sort_contains_text when convertLookupTableToSW3Format throws a bigint syntax error', async () => {
+      const dataset = makeDataset();
+      setupJoinColumnFoundMocks();
+      (convertLookupTableToSW3Format as jest.Mock).mockRejectedValueOnce(
+        new Error('invalid input syntax for type bigint: "not a number"')
+      );
+
+      const result = (await validateLookupTable(
+        validProtoTable,
+        dataset,
+        draftRevision,
+        dimension,
+        'en-GB'
+      )) as ViewErrDTO;
+
+      expect(result.status).toBe(400);
+      expect(result.errors[0].message.key).toBe('errors.dimension_validation.sort_contains_text');
+    });
+
+    it('returns 500 (not 400) when convertLookupTableToSW3Format throws an unrelated error', async () => {
+      const dataset = makeDataset();
+      setupJoinColumnFoundMocks();
+      (convertLookupTableToSW3Format as jest.Mock).mockRejectedValueOnce(new Error('some other db error'));
+
+      const result = (await validateLookupTable(
+        validProtoTable,
+        dataset,
+        draftRevision,
+        dimension,
+        'en-GB'
+      )) as ViewErrDTO;
+
+      expect(result.status).toBe(500);
+      expect(result.errors[0].message.key).toBe('errors.dimension_validation.lookup_table_loading_failed');
+    });
+
     it('returns the language error when validateLookupTableLanguages returns an error DTO', async () => {
       const dataset = makeDataset();
       setupJoinColumnFoundMocks();

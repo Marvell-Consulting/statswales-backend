@@ -575,7 +575,7 @@ function createCubeBaseTables(revisionId: string, buildId: string, factTableQuer
          fact_table_column VARCHAR,
          dimension_name VARCHAR,
          description VARCHAR,
-         sort_order TEXT,
+         sort_order BIGINT,
          hierarchy VARCHAR,
          reference_count BIGINT DEFAULT 0,
          PRIMARY KEY (reference, language, fact_table_column)
@@ -1266,7 +1266,7 @@ function setupMeasureAndDataValuesNoLookup(
     );
     statements.push(
       pgformat(
-        `INSERT INTO %I.%I SELECT DISTINCT CAST(%I AS VARCHAR), %L, %L, %L, CAST(%I AS VARCHAR), NULL, NULL, 0 FROM %I.%I ORDER BY %I;`,
+        `INSERT INTO %I.%I SELECT DISTINCT CAST(%I AS VARCHAR), %L, %L, %L, CAST(%I AS VARCHAR), NULL::BIGINT, NULL, 0 FROM %I.%I ORDER BY %I;`,
         buildId,
         FILTER_TABLE_NAME,
         measureColumn.columnName,
@@ -1303,7 +1303,7 @@ export const measureTableCreateStatement = (
                         language TEXT,
                         description TEXT,
                         notes TEXT,
-                        sort_order TEXT,
+                        sort_order BIGINT,
                         format TEXT,
                         decimals INTEGER,
                         measure_type TEXT,
@@ -1522,7 +1522,7 @@ function setupMeasureAndDataValuesWithLookup(
     const columnName = t('column_headers.measure', { lng: locale });
     statements.push(
       pgformat(
-        `INSERT INTO %I.%I SELECT CAST(reference AS VARCHAR), language, %L, %L, description, sort_order, CAST(hierarchy AS VARCHAR), 0 FROM %I.measure WHERE language = %L ORDER BY sort_order, reference;`,
+        `INSERT INTO %I.%I SELECT CAST(reference AS VARCHAR), language, %L, %L, description, CAST (sort_order AS BIGINT), CAST(hierarchy AS VARCHAR), 0 FROM %I.measure WHERE language = %L ORDER BY sort_order, reference;`,
         buildId,
         FILTER_TABLE_NAME,
         measureColumn.columnName,
@@ -1582,7 +1582,7 @@ function rawDimensionProcessor(
     statements.push(
       pgformat(
         `INSERT INTO %I.%I
-       SELECT DISTINCT CAST(%I AS VARCHAR), %L, %L, %L, CAST (%I AS VARCHAR), NULL, NULL, 0
+       SELECT DISTINCT CAST(%I AS VARCHAR), %L, %L, %L, CAST (%I AS VARCHAR), NULL::BIGINT, NULL, 0
        FROM %I.%I ORDER BY %I;`,
         buildId,
         FILTER_TABLE_NAME,
@@ -1708,7 +1708,7 @@ export function setupLookupTableDimension(
         `INSERT INTO %I.%I
               SELECT reference, language, fact_table_column, dimension_name, description, sort_order, hierarchy, 0
               FROM (SELECT DISTINCT
-              CAST(%I AS VARCHAR) AS reference, language, %L AS fact_table_column, %L AS dimension_name, description, sort_order AS sort_order, hierarchy
+              CAST(%I AS VARCHAR) AS reference, language, %L AS fact_table_column, %L AS dimension_name, description, CAST (sort_order AS BIGINT) AS sort_order, hierarchy
             FROM %I.%I
             WHERE language = %L
             ORDER BY sort_order %s, description);`,
@@ -1889,7 +1889,7 @@ function setupTextDimension(
     statements.push(
       pgformat(
         `INSERT INTO %I.%I
-         SELECT DISTINCT CAST(%I AS VARCHAR), %L, %L, %L, CAST (%I AS VARCHAR), NULL, NULL, 0
+         SELECT DISTINCT CAST(%I AS VARCHAR), %L, %L, %L, CAST (%I AS VARCHAR), NULL::BIGINT, NULL, 0
          FROM %I.%I;`,
         buildId,
         FILTER_TABLE_NAME,
@@ -2086,9 +2086,17 @@ export function updateFilterTableCounts(buildId: string, factTable: FactTableCol
   };
 }
 
-function alterFilterTableBlock(cubeId: string): TransactionBlock {
+export function alterFilterTableBlock(cubeId: string): TransactionBlock {
   const statements: string[] = ['BEGIN TRANSACTION;'];
-  statements.push(pgformat('ALTER TABLE %I.%I ADD IF NOT EXISTS sort_order TEXT;', cubeId, FILTER_TABLE_NAME));
+  statements.push(pgformat('ALTER TABLE %I.%I ADD IF NOT EXISTS sort_order BIGINT;', cubeId, FILTER_TABLE_NAME));
+  // Migrate existing TEXT columns to BIGINT; non-numeric values are nulled out rather than failing.
+  statements.push(
+    pgformat(
+      `ALTER TABLE %I.%I ALTER COLUMN sort_order TYPE BIGINT USING (CASE WHEN sort_order::TEXT ~ '^-?[0-9]+$' THEN (sort_order::TEXT)::BIGINT ELSE NULL END);`,
+      cubeId,
+      FILTER_TABLE_NAME
+    )
+  );
   statements.push(
     pgformat('ALTER TABLE %I.%I ADD IF NOT EXISTS reference_count BIGINT DEFAULT 0;', cubeId, FILTER_TABLE_NAME)
   );
@@ -2105,7 +2113,7 @@ function createFilterTableSortOrders(cubeId: string, dataset: Dataset): Transact
     if (!dim.lookupTable) continue;
     statements.push(
       pgformat(
-        'UPDATE %I.%I SET sort_order = lookup.sort_order FROM (SELECT CAST(%I AS VARCHAR) AS reference, language, sort_order FROM %I.%I) AS lookup WHERE %I.reference = lookup.reference AND %I.language = lookup.language AND %I.fact_table_column = %L;',
+        'UPDATE %I.%I SET sort_order = lookup.sort_order FROM (SELECT CAST(%I AS VARCHAR) AS reference, language, CAST (sort_order AS BIGINT) as sort_order FROM %I.%I) AS lookup WHERE %I.reference = lookup.reference AND %I.language = lookup.language AND %I.fact_table_column = %L;',
         cubeId,
         FILTER_TABLE_NAME,
         dim.factTableColumn,
@@ -2122,7 +2130,7 @@ function createFilterTableSortOrders(cubeId: string, dataset: Dataset): Transact
   if (dataset.measure?.lookupTable) {
     statements.push(
       pgformat(
-        'UPDATE %I.%I SET sort_order = lookup.sort_order FROM (SELECT CAST(reference AS VARCHAR) AS reference, language, sort_order FROM %I.measure) AS lookup WHERE %I.reference = lookup.reference AND %I.language = lookup.language AND %I.fact_table_column = %L;',
+        'UPDATE %I.%I SET sort_order = lookup.sort_order FROM (SELECT CAST(reference AS VARCHAR) AS reference, language, CAST (sort_order AS BIGINT) AS sort_order FROM %I.measure) AS lookup WHERE %I.reference = lookup.reference AND %I.language = lookup.language AND %I.fact_table_column = %L;',
         cubeId,
         FILTER_TABLE_NAME,
         cubeId,

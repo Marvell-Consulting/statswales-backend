@@ -682,6 +682,7 @@ describe('Revision controller', () => {
 
     beforeEach(() => {
       mockGetFilters.mockReset();
+      mockDatasetGetById.mockResolvedValue({ dimensions: [] });
     });
 
     it('should return filters against the requested revision when it has a data table', async () => {
@@ -694,7 +695,7 @@ describe('Revision controller', () => {
 
       await getRevisionPreviewFilters(req, res);
 
-      expect(mockGetFilters).toHaveBeenCalledWith(revision.id, expect.any(String));
+      expect(mockGetFilters).toHaveBeenCalledWith(revision.id, expect.any(String), expect.any(Array));
       expect(res.json).toHaveBeenCalledWith(filters);
     });
 
@@ -710,7 +711,7 @@ describe('Revision controller', () => {
 
       await getRevisionPreviewFilters(req, res);
 
-      expect(mockGetFilters).toHaveBeenCalledWith(dataset.publishedRevisionId, expect.any(String));
+      expect(mockGetFilters).toHaveBeenCalledWith(dataset.publishedRevisionId, expect.any(String), expect.any(Array));
       expect(res.json).toHaveBeenCalledWith(filters);
     });
 

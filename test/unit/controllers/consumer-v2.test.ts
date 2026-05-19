@@ -59,12 +59,23 @@ jest.mock('../../../src/services/consumer-view-v2', () => ({
   sendJson: jest.fn()
 }));
 
+// Mock PublishedDatasetRepository
+const mockPublishedDatasetGetById = jest.fn();
+jest.mock('../../../src/repositories/published-dataset', () => ({
+  PublishedDatasetRepository: {
+    getById: (...args: unknown[]) => mockPublishedDatasetGetById(...args)
+  },
+  withPublishedRevision: {},
+  withAll: {}
+}));
+
 // Mock consumer utils
 const mockGetFilterTableQuery = jest.fn();
 const mockGetFilterTable = jest.fn();
 jest.mock('../../../src/utils/consumer', () => ({
   getFilterTable: (...args: unknown[]) => mockGetFilterTable(...args),
   getFilterTableQuery: (...args: unknown[]) => mockGetFilterTableQuery(...args),
+  dateColumnsFromDimensions: jest.fn(() => new Set<string>()),
   resolveDimensionToFactTableColumn: jest.fn(),
   resolveFactColumnToDimension: jest.fn()
 }));
@@ -344,6 +355,7 @@ describe('consumer-v2 controller - scheduled publish date handling', () => {
 
       mockGetLatestByDatasetId.mockResolvedValue(publishedRev);
       mockGetFilterTableQuery.mockResolvedValue('SELECT 1');
+      mockPublishedDatasetGetById.mockResolvedValue({ dimensions: [] });
 
       // eslint-disable-next-line @typescript-eslint/no-require-imports
       const { sendFilters } = require('../../../src/services/consumer-view-v2');
@@ -368,6 +380,7 @@ describe('consumer-v2 controller - scheduled publish date handling', () => {
         })
       });
       mockGetFilterTableQuery.mockResolvedValue('SELECT 1');
+      mockPublishedDatasetGetById.mockResolvedValue({ dimensions: [] });
 
       // eslint-disable-next-line @typescript-eslint/no-require-imports
       const { sendFilters } = require('../../../src/services/consumer-view-v2');

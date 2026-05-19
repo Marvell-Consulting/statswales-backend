@@ -61,7 +61,8 @@ jest.mock('../../../src/utils/consumer', () => ({
       description: r.description
     }))
   })),
-  flattenHierarchy: jest.fn((nodes) => nodes ?? [])
+  flattenHierarchy: jest.fn((nodes) => nodes ?? []),
+  sortFilterRows: jest.fn((rows) => rows)
 }));
 
 // Mock column headers

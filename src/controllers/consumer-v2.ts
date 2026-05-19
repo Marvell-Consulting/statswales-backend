@@ -39,6 +39,7 @@ import {
   searchModeValidator
 } from '../validators';
 import {
+  dateColumnsFromDimensions,
   getFilterTable,
   getFilterTableQuery,
   resolveDimensionToFactTableColumn,
@@ -427,7 +428,8 @@ export const getPublishedDatasetFilters = async (req: Request, res: Response, ne
   try {
     const locale = req.language as Locale;
     const query = getFilterTableQuery(publishedRevision.id, filterTableVersion, locale);
-    await sendFilters(query, res);
+    const datasetWithDimensions = await PublishedDatasetRepository.getById(dataset.id, { dimensions: true });
+    await sendFilters(query, res, dateColumnsFromDimensions(datasetWithDimensions.dimensions ?? []));
   } catch (err) {
     if (err instanceof NotFoundException || err instanceof BadRequestException) {
       return next(err);
