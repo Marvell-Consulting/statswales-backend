@@ -45,8 +45,9 @@ export const getFilters = async (
 ): Promise<FilterTable[]> => {
   const cubeDB = dbManager.getCubeDataSource().createQueryRunner();
   try {
-    // Ordering is applied per column below — sort_order is TEXT so it cannot be ordered
-    // correctly (numerically, and descending for dates) in SQL.
+    // Row ordering is applied per column below via sortFilterRows(), not in SQL: sort_order is
+    // stored as TEXT and needs numeric parsing plus a fallback for missing/non-numeric values,
+    // and date dimensions need a descending direction.
     const filterTableQuery = pgformat('SELECT * FROM %I.filter_table WHERE language = %L;', revisionId, language);
     const filterTable: FilterRow[] = await cubeDB.query(filterTableQuery);
     const columnData = new Map<string, FilterRow[]>();

@@ -277,8 +277,10 @@ export function getFilterTableQuery(revisionId: string, version: number, locale?
     columns =
       'reference, language, fact_table_column, dimension_name, description, sort_order, hierarchy, reference_count';
   }
-  // Ordering is applied per column in sortFilterRows() — sort_order is TEXT so it cannot be
-  // ordered correctly (numerically, and descending for dates) in SQL.
+  // Row ordering is applied per column in sortFilterRows(), not in SQL: sort_order is stored as
+  // TEXT and needs numeric parsing plus a fallback for missing/non-numeric values, and date
+  // dimensions need a descending direction — all kept in one shared comparator across the
+  // preview, v1 and v2 read paths.
   if (!locale) {
     return pgformat('SELECT %s FROM %I.%I;', columns, revisionId, FILTER_TABLE_NAME);
   }
