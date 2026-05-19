@@ -151,6 +151,9 @@ export const validateLookupTable = async (
       lookupReferenceColumn
     );
   } catch (err) {
+    void cleanUpPostgresValidationSchema(mockCubeId, lookupTable.id).catch((cleanupErr) => {
+      logger.error(cleanupErr, 'Something went wrong trying to clean up the mock cube');
+    });
     if (err instanceof Error && err.message.includes('invalid input syntax for type bigint')) {
       return viewErrorGenerators(400, dataset.id, 'patch', 'errors.dimension_validation.sort_contains_text', {
         mismatch: false
@@ -196,6 +199,9 @@ export const validateLookupTable = async (
     await saveValidatedLookupTableToDatabase(mockCubeId, lookupTable.id);
   } catch (err) {
     logger.error(err, 'Something went wrong trying to save the lookup table or clean up the mock cube.');
+    void cleanUpPostgresValidationSchema(mockCubeId, lookupTable.id).catch((cleanupErr) => {
+      logger.error(cleanupErr, 'Something went wrong trying to clean up the mock cube');
+    });
     return viewErrorGenerators(500, dataset.id, 'patch', `errors.lookup_table_validation.unknown_error`, {});
   }
 
