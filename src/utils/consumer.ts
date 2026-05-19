@@ -11,6 +11,8 @@ import { t } from 'i18next';
 import { DataOptionsDTO } from '../dtos/data-options-dto';
 import { CubeMetaDataKeys } from '../enums/cube-metadata-keys';
 import { DataSource } from 'typeorm';
+import { Dimension } from '../entities/dataset/dimension';
+import { DimensionType } from '../enums/dimension-type';
 
 export function flattenHierarchy(nodes: FilterValues[]): FilterValues[] {
   return nodes.flatMap((node) => [node, ...(node.children ? flattenHierarchy(node.children) : [])]);
@@ -66,6 +68,64 @@ export function transformHierarchy(factTableColumn: string, columnName: string, 
     columnName: columnName,
     values: roots
   };
+}
+
+/**
+ * Parses a filter_table.sort_order value (stored as TEXT) into a number. Returns null when the
+ * value is absent or non-numeric, so callers can fall back to alphabetical ordering.
+ */
+function parseSortOrder(value?: string | null): number | null {
+  if (value === null || value === undefined || value === '') return null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+/**
+ * Returns the set of fact-table columns backed by a date dimension. Date filter values are
+ * ordered descending (newest first), so the read path needs to know which columns are dates.
+ *
+ * Only Date and DatePeriod are treated as descending — this must stay in sync with the
+ * descending branch of setupLookupTableDimension() in cube-builder.ts (the `sort_order DESC`
+ * insert). DimensionType also defines TimePeriod and Time, but the cube builder has no
+ * processing path for them yet, so they are deliberately excluded here.
+ */
+export function dateColumnsFromDimensions(dimensions: Dimension[]): Set<string> {
+  return new Set(
+    dimensions
+      .filter((dim) => dim.type === DimensionType.Date || dim.type === DimensionType.DatePeriod)
+      .map((dim) => dim.factTableColumn)
+  );
+}
+
+/**
+ * Orders the filter values for a single column:
+ *  - values with a sort order from the lookup table are ordered by it numerically;
+ *  - values with no sort order fall back to ascending alphabetical order of the description;
+ *  - date dimensions are reversed so the most recent period comes first.
+ *
+ * filter_table.sort_order is TEXT, so it must be compared numerically here rather than in SQL
+ * (a lexical sort would place "10" before "2"). Sorting the flat row list before
+ * transformHierarchy() is enough — that function preserves input order at every hierarchy level.
+ */
+export function sortFilterRows(rows: FilterRow[], isDateDimension: boolean): FilterRow[] {
+  const sorted = [...rows].sort((rowA, rowB) => {
+    const sortA = parseSortOrder(rowA.sort_order);
+    const sortB = parseSortOrder(rowB.sort_order);
+
+    if (sortA !== null && sortB !== null) {
+      if (sortA !== sortB) return sortA - sortB;
+    } else if (sortA !== null) {
+      return -1; // a value with a sort order ranks ahead of one without
+    } else if (sortB !== null) {
+      return 1;
+    }
+
+    const byDescription = (rowA.description ?? '').localeCompare(rowB.description ?? '');
+    if (byDescription !== 0) return byDescription;
+    return (rowA.reference ?? '').localeCompare(rowB.reference ?? '');
+  });
+
+  return isDateDimension ? sorted.reverse() : sorted;
 }
 
 export function resolveDimensionToFactTableColumn(
@@ -213,22 +273,23 @@ export function getFilterTableQuery(revisionId: string, version: number, locale?
   // reference_count defaults to 1 otherwise we'll disable all filters on the frontend
   let columns =
     'reference, language, fact_table_column, dimension_name, description, NULL as sort_order, hierarchy, CAST(1 as BIGINT) as reference_count';
-  let sortBy = ' description, reference';
   if (version > 1) {
     columns =
       'reference, language, fact_table_column, dimension_name, description, sort_order, hierarchy, reference_count';
-    sortBy = ' sort_order, description, reference';
   }
+  // Row ordering is applied per column in sortFilterRows(), not in SQL: sort_order is stored as
+  // TEXT and needs numeric parsing plus a fallback for missing/non-numeric values, and date
+  // dimensions need a descending direction — all kept in one shared comparator across the
+  // preview, v1 and v2 read paths.
   if (!locale) {
     return pgformat('SELECT %s FROM %I.%I;', columns, revisionId, FILTER_TABLE_NAME);
   }
   return pgformat(
-    'SELECT %s FROM %I.%I WHERE language LIKE %L ORDER BY %s;',
+    'SELECT %s FROM %I.%I WHERE language LIKE %L;',
     columns,
     revisionId,
     FILTER_TABLE_NAME,
-    `${locale.toLowerCase().split('-')[0]}%`,
-    sortBy
+    `${locale.toLowerCase().split('-')[0]}%`
   );
 }
 

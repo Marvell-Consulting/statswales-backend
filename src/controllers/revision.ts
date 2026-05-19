@@ -158,7 +158,8 @@ export const getRevisionPreviewFilters = async (req: Request, res: Response): Pr
     throw new NotFoundException('errors.no_data_table');
   }
 
-  const filters = await getFilters(filtersRevisionId, lang);
+  const datasetWithDimensions = await DatasetRepository.getById(dataset.id, { dimensions: true });
+  const filters = await getFilters(filtersRevisionId, lang, datasetWithDimensions.dimensions ?? []);
   res.json(filters);
 };
 
