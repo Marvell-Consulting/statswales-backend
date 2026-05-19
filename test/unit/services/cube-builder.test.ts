@@ -55,6 +55,7 @@ import {
   setupCubeBuilder,
   setupLookupTableDimension,
   updateFilterTableCounts,
+  alterFilterTableBlock,
   FACT_TABLE_NAME,
   FILTER_TABLE_NAME,
   METADATA_TABLE_NAME,
@@ -370,7 +371,7 @@ describe('measureTableCreateStatement', () => {
     expect(sql).toContain('hierarchy TEXT');
     expect(sql).toContain('language TEXT');
     expect(sql).toContain('description TEXT');
-    expect(sql).toContain('sort_order TEXT');
+    expect(sql).toContain('sort_order BIGINT');
     expect(sql).toContain('format TEXT');
     expect(sql).toContain('decimals INTEGER');
     expect(sql).toContain('measure_type TEXT');
@@ -830,6 +831,26 @@ describe('setupLookupTableDimension — filter table sort direction', () => {
       });
     });
   }
+
+  describe('sort_order BIGINT casting', () => {
+    it('casts sort_order as BIGINT in the filter_table INSERT for lookup table dimensions', () => {
+      const { stmts } = callSetup(DimensionType.LookupTable);
+      const inserts = filterInserts(stmts);
+      expect(inserts.length).toBeGreaterThan(0);
+      for (const stmt of inserts) {
+        expect(stmt).toContain('CAST (sort_order AS BIGINT)');
+      }
+    });
+
+    it('casts sort_order as BIGINT for date-period lookup table dimensions too', () => {
+      const { stmts } = callSetup(DimensionType.DatePeriod);
+      const inserts = filterInserts(stmts);
+      expect(inserts.length).toBeGreaterThan(0);
+      for (const stmt of inserts) {
+        expect(stmt).toContain('CAST (sort_order AS BIGINT)');
+      }
+    });
+  });
 });
 
 // ===========================================================================
@@ -933,5 +954,50 @@ describe('updateFilterTableCounts', () => {
     const { statements } = updateFilterTableCounts(BUILD_ID, cols);
     const countUpdates = statements.filter((s) => s.includes('reference_count'));
     expect(countUpdates).toHaveLength(0);
+  });
+});
+
+// ===========================================================================
+describe('alterFilterTableBlock', () => {
+  const CUBE_ID = 'test-cube-id';
+
+  it('wraps statements in a transaction', () => {
+    const { statements } = alterFilterTableBlock(CUBE_ID);
+    expect(statements[0]).toBe('BEGIN TRANSACTION;');
+    expect(statements[statements.length - 1]).toBe('COMMIT;');
+  });
+
+  it('returns buildStage UpdateFilterTable', () => {
+    const block = alterFilterTableBlock(CUBE_ID);
+    expect(block.buildStage).toBe(BuildStage.UpdateFilterTable);
+  });
+
+  it('adds sort_order column as BIGINT if not exists', () => {
+    const { statements } = alterFilterTableBlock(CUBE_ID);
+    const addStmt = statements.find((s) => s.includes('ADD IF NOT EXISTS') && s.includes('sort_order'));
+    expect(addStmt).toBeDefined();
+    expect(addStmt).toContain('sort_order BIGINT');
+  });
+
+  it('includes ALTER COLUMN to migrate existing TEXT sort_order to BIGINT', () => {
+    const { statements } = alterFilterTableBlock(CUBE_ID);
+    const alterStmt = statements.find((s) => s.includes('ALTER COLUMN') && s.includes('sort_order'));
+    expect(alterStmt).toBeDefined();
+    expect(alterStmt).toContain('TYPE BIGINT');
+    expect(alterStmt).toContain('USING');
+  });
+
+  it('ALTER COLUMN statement comes after ADD IF NOT EXISTS so the column is guaranteed to exist', () => {
+    const { statements } = alterFilterTableBlock(CUBE_ID);
+    const addIdx = statements.findIndex((s) => s.includes('ADD IF NOT EXISTS') && s.includes('sort_order'));
+    const alterIdx = statements.findIndex((s) => s.includes('ALTER COLUMN') && s.includes('sort_order'));
+    expect(addIdx).toBeGreaterThanOrEqual(0);
+    expect(alterIdx).toBeGreaterThan(addIdx);
+  });
+
+  it('nulls non-numeric values in the USING clause rather than failing', () => {
+    const { statements } = alterFilterTableBlock(CUBE_ID);
+    const alterStmt = statements.find((s) => s.includes('ALTER COLUMN') && s.includes('sort_order'));
+    expect(alterStmt).toContain('ELSE NULL');
   });
 });

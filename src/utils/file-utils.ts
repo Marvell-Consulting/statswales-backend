@@ -81,7 +81,7 @@ export const createLookupTableQuery = (
     });
   }
   return pgformat(
-    'CREATE TABLE %I.%I (%I %s NOT NULL, language VARCHAR(5) NOT NULL, description TEXT NOT NULL, notes TEXT, sort_order INTEGER, hierarchy VARCHAR %s);',
+    'CREATE TABLE %I.%I (%I %s NOT NULL, language VARCHAR(5) NOT NULL, description TEXT NOT NULL, notes TEXT, sort_order BIGINT, hierarchy VARCHAR %s);',
     schemaName,
     lookupTableName,
     referenceColumnName,
@@ -122,7 +122,7 @@ export async function loadFileIntoLookupTablesSchema(
         );
         const notesCol = extractor.notesColumns?.find((col) => col.lang.toLowerCase() === locale.toLowerCase());
         const notesColStr = notesCol ? pgformat('%I', notesCol.name) : 'NULL';
-        const sortStr = extractor.sortColumn ? pgformat('%I', extractor.sortColumn) : 'NULL';
+        const sortStr = extractor.sortColumn ? pgformat('CAST (%I AS BIGINT)', extractor.sortColumn) : 'NULL::BIGINT';
         const hierarchyCol = hierarchySelectExpression(extractor.hierarchyColumn);
         dataExtractorParts.push(
           pgformat(
@@ -149,7 +149,7 @@ export async function loadFileIntoLookupTablesSchema(
     } else {
       const languageMatcher = languageMatcherCaseStatement(extractor.languageColumn);
       const notesStr = extractor.notesColumns ? pgformat('%I', extractor.notesColumns[0].name) : 'NULL';
-      const sortStr = extractor.sortColumn ? pgformat('%I', extractor.sortColumn) : 'NULL';
+      const sortStr = extractor.sortColumn ? pgformat('CAST (%I AS BIGINT)', extractor.sortColumn) : 'NULL::BIGINT';
       const hierarchyStr = hierarchySelectExpression(extractor.hierarchyColumn);
       const dataExtractorParts = pgformat(
         `SELECT %I AS %I, %s as language, %I as description, %s as notes, %s as sort_order, %s as hierarchy FROM %I.%I;`,
@@ -247,7 +247,7 @@ export async function convertLookupTableToSW3Format(
       );
       const notesCol = extractor.notesColumns?.find((col) => col.lang.toLowerCase() === locale.toLowerCase());
       const notesColStr = notesCol ? pgformat('%I', notesCol.name) : 'NULL';
-      const sortStr = extractor.sortColumn ? pgformat('%I', extractor.sortColumn) : 'NULL';
+      const sortStr = extractor.sortColumn ? pgformat('CAST (%I AS BIGINT)', extractor.sortColumn) : 'NULL::BIGINT';
       const hierarchyCol = hierarchySelectExpression(extractor.hierarchyColumn);
       dataExtractorParts.push(
         pgformat(
@@ -269,7 +269,7 @@ export async function convertLookupTableToSW3Format(
   } else {
     const languageMatcher = languageMatcherCaseStatement(extractor.languageColumn);
     const notesStr = extractor.notesColumns ? pgformat('%I', extractor.notesColumns[0].name) : 'NULL';
-    const sortStr = extractor.sortColumn ? pgformat('%I', extractor.sortColumn) : 'NULL';
+    const sortStr = extractor.sortColumn ? pgformat('CAST (%I AS BIGINT)', extractor.sortColumn) : 'NULL::BIGINT';
     const hierarchyStr = hierarchySelectExpression(extractor.hierarchyColumn);
     const dataExtractorParts = pgformat(
       `SELECT %I AS %I, %s as language, %I as description, %s as notes, %s as sort_order, %s as hierarchy %s FROM %I.%I;`,
