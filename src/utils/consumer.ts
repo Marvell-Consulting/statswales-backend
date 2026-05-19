@@ -33,7 +33,7 @@ export function transformHierarchy(factTableColumn: string, columnName: string, 
     nodeMap.set(String(row.reference), node);
 
     // Queue up children by parent ref
-    if (row.hierarchy) {
+    if (row.hierarchy !== null && row.hierarchy !== undefined) {
       if (!childrenMap.has(String(row.hierarchy))) {
         childrenMap.set(String(row.hierarchy), []);
       }

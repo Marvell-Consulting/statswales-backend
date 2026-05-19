@@ -1,3 +1,5 @@
+import 'reflect-metadata';
+
 jest.mock('../../../src/utils/logger', () => ({
   logger: { debug: jest.fn(), info: jest.fn(), error: jest.fn(), warn: jest.fn(), trace: jest.fn() }
 }));
