@@ -9,6 +9,7 @@ import { SUPPORTED_LOCALES, t } from '../middleware/translation';
 import { CubeValidationException } from '../exceptions/cube-error-exception';
 import { CubeValidationType } from '../enums/cube-validation-type';
 import { performanceReporting } from '../utils/performance-reporting';
+import { normalizeSqlDatatype } from '../utils/sql-datatype';
 import { format as pgformat } from '@scaleleap/pg-format/lib/pg-format';
 import { dbManager } from '../db/database-manager';
 import { DataTable } from '../entities/dataset/data-table';
@@ -515,11 +516,7 @@ export function setupCubeBuilder(dataset: Dataset, buildId: string): FactTableIn
         factIdentifiers.push(field);
       }
       factTableDef.push(field.columnName);
-      return pgformat(
-        '%I %s',
-        field.columnName,
-        field.columnDatatype === 'DOUBLE' ? 'DOUBLE PRECISION' : field.columnDatatype
-      );
+      return pgformat('%I %s', field.columnName, normalizeSqlDatatype(field.columnDatatype));
     });
   const factTableCreationQuery = pgformat(
     `CREATE TABLE %I.%I (%s);`,
@@ -1293,7 +1290,7 @@ export const measureTableCreateStatement = (
   buildId?: string,
   tableName = 'measure'
 ): string => {
-  const normalizedType = joinColumnType === 'DOUBLE' ? 'DOUBLE PRECISION' : joinColumnType;
+  const normalizedType = normalizeSqlDatatype(joinColumnType);
   if (buildId) {
     tableName = pgformat('%I.%I', buildId, tableName);
   }

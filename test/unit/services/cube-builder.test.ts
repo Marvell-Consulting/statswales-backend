@@ -404,6 +404,14 @@ describe('measureTableCreateStatement', () => {
     expect(sql1).toContain('measure');
     expect(sql2).toContain('custom_measure');
   });
+
+  it('normalises DOUBLE to DOUBLE PRECISION for both reference and hierarchy columns', () => {
+    const sql = measureTableCreateStatement('DOUBLE');
+    expect(sql).toContain('reference DOUBLE PRECISION');
+    expect(sql).toContain('hierarchy DOUBLE PRECISION');
+    expect(sql).not.toMatch(/reference DOUBLE(?! PRECISION)/);
+    expect(sql).not.toMatch(/hierarchy DOUBLE(?! PRECISION)/);
+  });
 });
 
 // ===========================================================================

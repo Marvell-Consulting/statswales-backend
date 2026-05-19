@@ -224,6 +224,19 @@ describe('DatasetRepository', () => {
         expect(col.columnType).toBe(FactTableColumnType.Unknown);
       }
     });
+
+    it('should normalise DOUBLE to DOUBLE PRECISION when persisting fact table columns', async () => {
+      const freshDataset = await createDataset(user);
+      const dataTable = {
+        dataTableDescriptions: [{ columnName: 'measure_value', columnIndex: 0, columnDatatype: 'DOUBLE' }]
+      } as DataTable;
+
+      await DatasetRepository.replaceFactTable(freshDataset, dataTable);
+
+      const result = await DatasetRepository.getById(freshDataset.id, { factTable: true });
+      expect(result.factTable).toHaveLength(1);
+      expect(result.factTable![0].columnDatatype).toBe('DOUBLE PRECISION');
+    });
   });
 
   describe('publish', () => {

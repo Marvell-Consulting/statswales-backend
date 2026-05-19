@@ -10,6 +10,7 @@ import { SourceAssignmentException } from '../exceptions/source-assignment.excep
 import { Dataset } from '../entities/dataset/dataset';
 import { DimensionType } from '../enums/dimension-type';
 import { logger } from '../utils/logger';
+import { normalizeSqlDatatype } from '../utils/sql-datatype';
 import { Dimension } from '../entities/dataset/dimension';
 import { SUPPORTED_LOCALES } from '../middleware/translation';
 import { DimensionMetadata } from '../entities/dataset/dimension-metadata';
@@ -247,7 +248,7 @@ async function createBaseFactTable(dataset: Dataset, dataTable: DataTable): Prom
     const factTableCol = new FactTableColumn();
     factTableCol.columnType = FactTableColumnType.Unknown;
     factTableCol.columnName = col.columnName;
-    factTableCol.columnDatatype = col.columnDatatype === 'DOUBLE' ? 'DOUBLE PRECISION' : col.columnDatatype;
+    factTableCol.columnDatatype = normalizeSqlDatatype(col.columnDatatype);
     factTableCol.columnIndex = col.columnIndex;
     factTableCol.id = dataset.id;
     factTableCol.dataset = dataset;
