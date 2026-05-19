@@ -24,18 +24,18 @@ export function transformHierarchy(factTableColumn: string, columnName: string, 
   // First, create node instances for all inputs
   for (const row of input) {
     const node: FilterValues = {
-      reference: row.reference,
+      reference: String(row.reference),
       description: row.description,
       count: row.reference_count != null ? row.reference_count : undefined
     };
-    nodeMap.set(row.reference, node);
+    nodeMap.set(String(row.reference), node);
 
     // Queue up children by parent ref
     if (row.hierarchy) {
-      if (!childrenMap.has(row.hierarchy)) {
-        childrenMap.set(row.hierarchy, []);
+      if (!childrenMap.has(String(row.hierarchy))) {
+        childrenMap.set(String(row.hierarchy), []);
       }
-      childrenMap.get(row.hierarchy)!.push(node);
+      childrenMap.get(String(row.hierarchy))!.push(node);
     }
   }
 

@@ -180,7 +180,7 @@ export const DatasetRepository = dataSource.getRepository(Dataset).extend({
         id: dataset.id,
         columnName: dataTableCol.columnName,
         columnIndex: dataTableCol.columnIndex,
-        columnDatatype: dataTableCol.columnDatatype,
+        columnDatatype: dataTableCol.columnDatatype === 'DOUBLE' ? 'DOUBLE PRECISION' : dataTableCol.columnDatatype,
         columnType: FactTableColumnType.Unknown
       });
 
