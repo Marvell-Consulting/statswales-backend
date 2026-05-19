@@ -116,7 +116,7 @@ export function resolveFactDescriptionToReference(referenceValues: string[], fil
   const resolvedValues: string[] = [];
   for (const val of referenceValues) {
     const resVal = filterTable.find((row) => row.description.toLowerCase() === val.toLowerCase());
-    if (resVal) resolvedValues.push(resVal?.reference);
+    if (resVal) resolvedValues.push(String(resVal.reference));
     else throw new Error('Value not found');
   }
   return resolvedValues;

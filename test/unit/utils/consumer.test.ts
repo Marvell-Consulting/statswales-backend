@@ -24,7 +24,7 @@ const baseRow = (overrides: Partial<FilterRow>): FilterRow => ({
   fact_table_column: 'col',
   dimension_name: 'dim',
   description: '',
-  hierarchy: null as unknown as string,
+  hierarchy: null,
   ...overrides
 });
 
@@ -32,7 +32,7 @@ describe('transformHierarchy', () => {
   describe('with string references', () => {
     it('builds a two-level hierarchy', () => {
       const rows: FilterRow[] = [
-        baseRow({ reference: 'parent', description: 'Parent', hierarchy: null as unknown as string }),
+        baseRow({ reference: 'parent', description: 'Parent', hierarchy: null }),
         baseRow({ reference: 'child', description: 'Child', hierarchy: 'parent' })
       ];
 
@@ -47,12 +47,11 @@ describe('transformHierarchy', () => {
 
   describe('with numeric (double) references at runtime', () => {
     it('correctly links children to parents when reference and hierarchy are numbers', () => {
-      // Simulate what PostgreSQL returns for a DOUBLE column — numbers at runtime
-      // despite the TypeScript type being `string`.
-      const rows = [
-        baseRow({ reference: 1.0 as unknown as string, description: 'Parent', hierarchy: null as unknown as string }),
-        baseRow({ reference: 2.0 as unknown as string, description: 'Child', hierarchy: 1.0 as unknown as string })
-      ] as FilterRow[];
+      // Simulate what PostgreSQL returns for a DOUBLE column — numbers at runtime.
+      const rows: FilterRow[] = [
+        baseRow({ reference: 1.0, description: 'Parent', hierarchy: null }),
+        baseRow({ reference: 2.0, description: 'Child', hierarchy: 1.0 })
+      ];
 
       const result = transformHierarchy('col', 'dim', rows);
 
@@ -63,11 +62,11 @@ describe('transformHierarchy', () => {
     });
 
     it('does not lose children from the output when references are doubles', () => {
-      const rows = [
-        baseRow({ reference: 1.0 as unknown as string, description: 'Root', hierarchy: null as unknown as string }),
-        baseRow({ reference: 2.0 as unknown as string, description: 'Child A', hierarchy: 1.0 as unknown as string }),
-        baseRow({ reference: 3.0 as unknown as string, description: 'Child B', hierarchy: 1.0 as unknown as string })
-      ] as FilterRow[];
+      const rows: FilterRow[] = [
+        baseRow({ reference: 1.0, description: 'Root', hierarchy: null }),
+        baseRow({ reference: 2.0, description: 'Child A', hierarchy: 1.0 }),
+        baseRow({ reference: 3.0, description: 'Child B', hierarchy: 1.0 })
+      ];
 
       const result = transformHierarchy('col', 'dim', rows);
       const flat = flattenHierarchy(result.values);
@@ -76,11 +75,11 @@ describe('transformHierarchy', () => {
     });
 
     it('builds a three-level hierarchy with double references', () => {
-      const rows = [
-        baseRow({ reference: 1.0 as unknown as string, description: 'Root', hierarchy: null as unknown as string }),
-        baseRow({ reference: 2.0 as unknown as string, description: 'Mid', hierarchy: 1.0 as unknown as string }),
-        baseRow({ reference: 3.0 as unknown as string, description: 'Leaf', hierarchy: 2.0 as unknown as string })
-      ] as FilterRow[];
+      const rows: FilterRow[] = [
+        baseRow({ reference: 1.0, description: 'Root', hierarchy: null }),
+        baseRow({ reference: 2.0, description: 'Mid', hierarchy: 1.0 }),
+        baseRow({ reference: 3.0, description: 'Leaf', hierarchy: 2.0 })
+      ];
 
       const result = transformHierarchy('col', 'dim', rows);
 

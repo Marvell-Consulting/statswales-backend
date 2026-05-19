@@ -265,7 +265,7 @@ export async function sendFilters(query: string, res: Response): Promise<void> {
       if (data.length != flattenedHierarchy.length) {
         hierarchy.values = data.map((val) => {
           return {
-            reference: val.reference,
+            reference: String(val.reference),
             description: val.description
           };
         });
