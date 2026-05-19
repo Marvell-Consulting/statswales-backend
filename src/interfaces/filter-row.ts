@@ -5,6 +5,6 @@ export interface FilterRow {
   dimension_name: string;
   description: string;
   hierarchy: string;
-  sort_order?: string | null; // This is actually a bigint
+  sort_order?: string | null; // Backed by a BIGINT column in the DB, but represented here as a string.
   reference_count?: string | null;
 }
