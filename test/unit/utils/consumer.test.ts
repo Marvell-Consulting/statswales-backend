@@ -91,6 +91,46 @@ describe('transformHierarchy', () => {
       expect(result.values[0].children![0].children![0].reference).toBe('3');
     });
   });
+
+  describe('with mixed-type references (the real-world regression)', () => {
+    // The original bug: a DOUBLE PRECISION reference column returns numbers at runtime while
+    // a VARCHAR hierarchy column returns strings, so `reference === hierarchy` is always false
+    // even when the values are numerically equal (e.g. 2.0 !== '2').
+
+    it('links a numeric reference to a string hierarchy value', () => {
+      // reference comes back as number (DOUBLE col), hierarchy as string (VARCHAR col)
+      const rows: FilterRow[] = [
+        baseRow({ reference: 1, description: 'Parent', hierarchy: null }),
+        baseRow({ reference: 2.0, description: 'Child', hierarchy: '1' })
+      ];
+
+      const result = transformHierarchy('col', 'dim', rows);
+
+      expect(result.values).toHaveLength(1);
+      expect(result.values[0].reference).toBe('1');
+      expect(result.values[0].children).toHaveLength(1);
+      expect(result.values[0].children![0].reference).toBe('2');
+    });
+
+    it('links a string reference to a numeric hierarchy value', () => {
+      // reference comes back as string (VARCHAR col), hierarchy as number (DOUBLE col).
+      // hierarchy: 1.0 points to the parent whose reference is '1' — String(1.0) must equal '1'.
+      const rows: FilterRow[] = [
+        baseRow({ reference: '1', description: 'Root', hierarchy: null }),
+        baseRow({ reference: '2', description: 'Child', hierarchy: 1.0 }),
+        baseRow({ reference: '3', description: 'Grandchild', hierarchy: 2.0 })
+      ];
+
+      const result = transformHierarchy('col', 'dim', rows);
+
+      expect(result.values).toHaveLength(1);
+      expect(result.values[0].reference).toBe('1');
+      expect(result.values[0].children).toHaveLength(1);
+      expect(result.values[0].children![0].reference).toBe('2');
+      expect(result.values[0].children![0].children).toHaveLength(1);
+      expect(result.values[0].children![0].children![0].reference).toBe('3');
+    });
+  });
 });
 
 describe('flattenHierarchy', () => {
