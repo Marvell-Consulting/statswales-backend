@@ -31,6 +31,7 @@ const DATA_TABLE_ID = 'cccccccc-cccc-4ccc-8cc2-bbbbbbbbbbbb';
 const REGION_LOOKUP_ID = 'cabcdef0-0000-4000-8000-000000000001';
 const PERIOD_LOOKUP_ID = 'cabcdef0-0000-4000-8000-000000000002';
 const CATEGORY_LOOKUP_ID = 'cabcdef0-0000-4000-8000-000000000003';
+const AREA_LOOKUP_ID = 'cabcdef0-0000-4000-8000-000000000004';
 
 // 12 regions — enough that a lexical (text) sort of the sort_order column diverges from a
 // numeric one ("10" sorts before "2"). Descriptions deliberately descend alphabetically as
@@ -76,13 +77,46 @@ const categoryLookupRows: LookupRow[] = CATEGORY_REFS.flatMap((reference) => [
   { reference, language: 'cy' as const, description: categoryDescriptions[reference] }
 ]);
 
+// A hierarchical dimension: one root with 11 children. Children must nest under the root and
+// be ordered by sort_order numerically — 11 children means a lexical sort would mis-place 10
+// and 11. Child descriptions descend alphabetically as sort_order ascends.
+const AREA_ROOT_REF = 'A00';
+const AREA_CHILD_WORDS = [
+  'Kilo',
+  'Juliet',
+  'India',
+  'Hotel',
+  'Golf',
+  'Foxtrot',
+  'Echo',
+  'Delta',
+  'Charlie',
+  'Bravo',
+  'Alpha'
+];
+const AREA_CHILD_REFS = AREA_CHILD_WORDS.map((_, idx) => `A${String(idx + 1).padStart(2, '0')}`);
+
+const areaLookupRows: LookupRow[] = [
+  { reference: AREA_ROOT_REF, language: 'en', description: 'All areas', sortOrder: 1, hierarchy: null },
+  { reference: AREA_ROOT_REF, language: 'cy', description: 'Pob ardal', sortOrder: 1, hierarchy: null },
+  ...AREA_CHILD_WORDS.flatMap((word, idx) => {
+    const reference = AREA_CHILD_REFS[idx];
+    const sortOrder = idx + 1; // 1..11
+    return [
+      { reference, language: 'en' as const, description: word, sortOrder, hierarchy: AREA_ROOT_REF },
+      { reference, language: 'cy' as const, description: word, sortOrder, hierarchy: AREA_ROOT_REF }
+    ];
+  })
+];
+
 const ROW_COUNT = REGION_REFS.length * PERIOD_REFS.length; // 48 — one row per (region, period)
 
 const rowBuilder = (i: number): unknown[] => {
   const region = REGION_REFS[Math.floor(i / PERIOD_REFS.length)];
   const period = PERIOD_REFS[i % PERIOD_REFS.length];
   const category = CATEGORY_REFS[i % CATEGORY_REFS.length];
-  return [region, period, category, 'count', Math.round((i + 1) * 10.5 * 100) / 100, null];
+  const area = AREA_CHILD_REFS[i % AREA_CHILD_REFS.length];
+  return [region, period, category, area, 'count', Math.round((i + 1) * 10.5 * 100) / 100, null];
 };
 
 // Expected orderings per the product requirement:
@@ -92,6 +126,8 @@ const rowBuilder = (i: number): unknown[] => {
 const EXPECTED_REGION_ORDER = REGION_REFS; // sort_order 1..12
 const EXPECTED_PERIOD_ORDER = [...PERIOD_REFS].reverse(); // dates descending
 const EXPECTED_CATEGORY_ORDER = ['CAT2', 'CAT1', 'CAT3']; // Alpha, Beta, Gamma
+const EXPECTED_AREA_ROOTS = [AREA_ROOT_REF]; // only the root sits at the top level
+const EXPECTED_AREA_CHILDREN = AREA_CHILD_REFS; // children ordered by sort_order 1..11
 
 interface FilterValue {
   reference: string;
@@ -104,10 +140,19 @@ interface FilterTable {
   values: FilterValue[];
 }
 
-const referencesFor = (filters: FilterTable[], factTableColumn: string): string[] => {
+const filterFor = (filters: FilterTable[], factTableColumn: string): FilterTable => {
   const filter = filters.find((f) => f.factTableColumn === factTableColumn);
   if (!filter) throw new Error(`No filter returned for column ${factTableColumn}`);
-  return filter.values.map((v) => v.reference);
+  return filter;
+};
+
+const referencesFor = (filters: FilterTable[], factTableColumn: string): string[] =>
+  filterFor(filters, factTableColumn).values.map((v) => v.reference);
+
+const childReferencesFor = (filters: FilterTable[], factTableColumn: string, parentRef: string): string[] => {
+  const parent = filterFor(filters, factTableColumn).values.find((v) => v.reference === parentRef);
+  if (!parent) throw new Error(`No top-level value ${parentRef} for column ${factTableColumn}`);
+  return (parent.children ?? []).map((c) => c.reference);
 };
 
 describe('Preview & consumer filters — value sort order', () => {
@@ -134,6 +179,7 @@ describe('Preview & consumer filters — value sort order', () => {
         { name: 'RegionCode', datatype: 'VARCHAR', columnType: FactTableColumnType.Dimension },
         { name: 'PeriodCode', datatype: 'VARCHAR', columnType: FactTableColumnType.Dimension },
         { name: 'CategoryCode', datatype: 'VARCHAR', columnType: FactTableColumnType.Dimension },
+        { name: 'AreaCode', datatype: 'VARCHAR', columnType: FactTableColumnType.Dimension },
         { name: 'MeasureCode', datatype: 'VARCHAR', columnType: FactTableColumnType.Measure },
         { name: 'Data', datatype: 'DOUBLE PRECISION', columnType: FactTableColumnType.DataValues },
         { name: 'NoteCode', datatype: 'VARCHAR', columnType: FactTableColumnType.NoteCodes }
@@ -159,6 +205,12 @@ describe('Preview & consumer filters — value sort order', () => {
           lookupTableId: CATEGORY_LOOKUP_ID,
           name: { en: 'Category', cy: 'Categori' },
           lookupRows: categoryLookupRows
+        },
+        {
+          factTableColumn: 'AreaCode',
+          lookupTableId: AREA_LOOKUP_ID,
+          name: { en: 'Area', cy: 'Ardal' },
+          lookupRows: areaLookupRows
         }
       ]
     });
@@ -185,6 +237,13 @@ describe('Preview & consumer filters — value sort order', () => {
       expect(res.status).toBe(200);
       expect(referencesFor(res.body, 'CategoryCode')).toEqual(EXPECTED_CATEGORY_ORDER);
     });
+
+    it('nests hierarchical values and orders children by sort order numerically', async () => {
+      const res = await request(app).get(`/v2/${DATASET_ID}/filters`);
+      expect(res.status).toBe(200);
+      expect(referencesFor(res.body, 'AreaCode')).toEqual(EXPECTED_AREA_ROOTS);
+      expect(childReferencesFor(res.body, 'AreaCode', AREA_ROOT_REF)).toEqual(EXPECTED_AREA_CHILDREN);
+    });
   });
 
   // getFilters() is the shared code path behind the publisher preview filters
@@ -206,12 +265,21 @@ describe('Preview & consumer filters — value sort order', () => {
       expect(referencesFor(filters, 'CategoryCode')).toEqual(EXPECTED_CATEGORY_ORDER);
     });
 
+    it('nests hierarchical values and orders children by sort order numerically', async () => {
+      const filters = (await getFilters(REVISION_ID, 'en-gb', dimensions)) as unknown as FilterTable[];
+      expect(referencesFor(filters, 'AreaCode')).toEqual(EXPECTED_AREA_ROOTS);
+      expect(childReferencesFor(filters, 'AreaCode', AREA_ROOT_REF)).toEqual(EXPECTED_AREA_CHILDREN);
+    });
+
     it('preview filter order matches the consumer v2 filter order exactly', async () => {
       const previewFilters = (await getFilters(REVISION_ID, 'en-gb', dimensions)) as unknown as FilterTable[];
       const consumerRes = await request(app).get(`/v2/${DATASET_ID}/filters`);
-      for (const column of ['RegionCode', 'PeriodCode', 'CategoryCode']) {
+      for (const column of ['RegionCode', 'PeriodCode', 'CategoryCode', 'AreaCode']) {
         expect(referencesFor(previewFilters, column)).toEqual(referencesFor(consumerRes.body, column));
       }
+      expect(childReferencesFor(previewFilters, 'AreaCode', AREA_ROOT_REF)).toEqual(
+        childReferencesFor(consumerRes.body, 'AreaCode', AREA_ROOT_REF)
+      );
     });
   });
 });

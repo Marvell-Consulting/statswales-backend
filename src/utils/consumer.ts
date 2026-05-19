@@ -83,6 +83,11 @@ function parseSortOrder(value?: string | null): number | null {
 /**
  * Returns the set of fact-table columns backed by a date dimension. Date filter values are
  * ordered descending (newest first), so the read path needs to know which columns are dates.
+ *
+ * Only Date and DatePeriod are treated as descending — this must stay in sync with the
+ * descending branch of setupLookupTableDimension() in cube-builder.ts (the `sort_order DESC`
+ * insert). DimensionType also defines TimePeriod and Time, but the cube builder has no
+ * processing path for them yet, so they are deliberately excluded here.
  */
 export function dateColumnsFromDimensions(dimensions: Dimension[]): Set<string> {
   return new Set(
