@@ -5,7 +5,9 @@ import { Dataset } from '../../../src/entities/dataset/dataset';
 import { Revision } from '../../../src/entities/dataset/revision';
 import { RevisionMetadata } from '../../../src/entities/dataset/revision-metadata';
 import { PublishedDatasetRepository, withPublishedRevision } from '../../../src/repositories/published-dataset';
+import { RevisionTopic } from '../../../src/entities/dataset/revision-topic';
 import { getTestUser } from '../../helpers/get-test-user';
+import { seedTopic } from '../../helpers/seed-published-dataset';
 import { User } from '../../../src/entities/user/user';
 import { uuidV4 } from '../../../src/utils/uuid';
 import { Locale } from '../../../src/enums/locale';
@@ -667,6 +669,142 @@ describe('PublishedDatasetRepository', () => {
       );
       const ids = result.data.map((d) => d.id);
       expect(ids).not.toContain(unpubDs.id);
+    });
+  });
+
+  // SW-1276: a dataset that is archived AND has a replacement AND has the auto-redirect flag set
+  // is hidden from every consumer listing. Archived datasets without an auto-redirect stay visible
+  // (there is no replacement to send the user to).
+  describe('SW-1276 — hides archived datasets with an auto-redirect', () => {
+    let replacementDs: Dataset;
+
+    // Publishes a dataset (firstPublishedAt + a single approved, past-dated revision with metadata).
+    const createPublished = async (title: string, lang: Locale = Locale.EnglishGb): Promise<Revision> => {
+      const ds = await createDataset(user, { firstPublishedAt: pastDate(48) });
+      return createRevisionWithMetadata(
+        ds,
+        user,
+        1,
+        title,
+        lang,
+        { publishAt: pastDate(24), approvedAt: pastDate(48) },
+        `${title} summary`
+      );
+    };
+
+    // Archives a dataset. `replacement` defaults to true (points at replacementDs); `autoRedirect`
+    // defaults to false. Only archived + replacement + autoRedirect should be hidden.
+    const archive = async (
+      datasetId: string,
+      opts: { replacement?: boolean; autoRedirect?: boolean } = {}
+    ): Promise<void> => {
+      await Dataset.update(datasetId, {
+        archivedAt: pastDate(1),
+        replacementDatasetId: opts.replacement === false ? null : replacementDs.id,
+        replacementAutoRedirect: opts.autoRedirect ?? false
+      });
+    };
+
+    beforeAll(async () => {
+      const replacementRev = await createPublished('SW1276 Replacement Dataset');
+      replacementDs = (await PublishedDatasetRepository.findOneByOrFail({ id: replacementRev.datasetId })) as Dataset;
+    });
+
+    describe('listPublishedByLanguage', () => {
+      it('hides a dataset archived with a replacement and an auto-redirect', async () => {
+        const rev = await createPublished('SW1276 Lang Hidden');
+        await archive(rev.datasetId, { replacement: true, autoRedirect: true });
+
+        const result = await PublishedDatasetRepository.listPublishedByLanguage(Locale.EnglishGb, 1, 1000);
+        expect(result.data.map((d: any) => d.id)).not.toContain(rev.datasetId);
+      });
+
+      it('keeps an archived dataset that has no replacement', async () => {
+        const rev = await createPublished('SW1276 Lang Archived No Replacement');
+        await archive(rev.datasetId, { replacement: false });
+
+        const result = await PublishedDatasetRepository.listPublishedByLanguage(Locale.EnglishGb, 1, 1000);
+        expect(result.data.map((d: any) => d.id)).toContain(rev.datasetId);
+      });
+
+      it('keeps an archived dataset with a replacement but no auto-redirect', async () => {
+        const rev = await createPublished('SW1276 Lang Archived No Auto-redirect');
+        await archive(rev.datasetId, { replacement: true, autoRedirect: false });
+
+        const result = await PublishedDatasetRepository.listPublishedByLanguage(Locale.EnglishGb, 1, 1000);
+        expect(result.data.map((d: any) => d.id)).toContain(rev.datasetId);
+      });
+    });
+
+    // searchBasic, searchBasicSplit, searchFTS and searchFuzzy all share getBaseSearchQuery,
+    // so exercising one search method covers the filter for all four.
+    describe('search (getBaseSearchQuery)', () => {
+      it('hides a redirected, archived dataset from search results', async () => {
+        const rev = await createPublished('SW1276search Hidden Result');
+        await archive(rev.datasetId, { replacement: true, autoRedirect: true });
+
+        const result = await PublishedDatasetRepository.searchBasic(Locale.EnglishGb, 'SW1276search', 1, 100);
+        expect(result.data.map((d) => d.id)).not.toContain(rev.datasetId);
+      });
+
+      it('keeps an archived dataset without an auto-redirect in search results', async () => {
+        const rev = await createPublished('SW1276search Visible Result');
+        await archive(rev.datasetId, { replacement: true, autoRedirect: false });
+
+        const result = await PublishedDatasetRepository.searchBasic(Locale.EnglishGb, 'SW1276search', 1, 100);
+        expect(result.data.map((d) => d.id)).toContain(rev.datasetId);
+      });
+    });
+
+    describe('listPublishedByTopic / listPublishedTopics', () => {
+      const TOPIC_MIXED = 9200; // tagged by one hidden and one visible dataset
+      const TOPIC_HIDDEN_ONLY = 9201; // tagged only by a hidden dataset
+
+      let hiddenDsId: string;
+      let visibleDsId: string;
+
+      beforeAll(async () => {
+        await seedTopic({ id: TOPIC_MIXED, path: `${TOPIC_MIXED}`, nameEN: 'SW1276 Mixed', nameCY: 'SW1276 Cymysg' });
+        await seedTopic({
+          id: TOPIC_HIDDEN_ONLY,
+          path: `${TOPIC_HIDDEN_ONLY}`,
+          nameEN: 'SW1276 Hidden Only',
+          nameCY: 'SW1276 Cudd yn Unig'
+        });
+
+        const hiddenRev = await createPublished('SW1276 Topic Hidden');
+        hiddenDsId = hiddenRev.datasetId;
+        await RevisionTopic.save(RevisionTopic.create({ revisionId: hiddenRev.id, topicId: TOPIC_MIXED }));
+        await archive(hiddenDsId, { replacement: true, autoRedirect: true });
+
+        const visibleRev = await createPublished('SW1276 Topic Visible');
+        visibleDsId = visibleRev.datasetId;
+        await RevisionTopic.save(RevisionTopic.create({ revisionId: visibleRev.id, topicId: TOPIC_MIXED }));
+        await archive(visibleDsId, { replacement: true, autoRedirect: false });
+
+        const hiddenOnlyRev = await createPublished('SW1276 Topic Hidden Only');
+        await RevisionTopic.save(RevisionTopic.create({ revisionId: hiddenOnlyRev.id, topicId: TOPIC_HIDDEN_ONLY }));
+        await archive(hiddenOnlyRev.datasetId, { replacement: true, autoRedirect: true });
+      });
+
+      it('listPublishedByTopic hides redirected datasets but keeps the rest', async () => {
+        const result = await PublishedDatasetRepository.listPublishedByTopic(
+          String(TOPIC_MIXED),
+          Locale.EnglishGb,
+          1,
+          1000
+        );
+        const ids = result.data.map((d: any) => d.id);
+        expect(ids).toContain(visibleDsId);
+        expect(ids).not.toContain(hiddenDsId);
+      });
+
+      it('listPublishedTopics omits a topic whose only dataset is hidden', async () => {
+        const topics = await PublishedDatasetRepository.listPublishedTopics(Locale.EnglishGb);
+        const ids = topics.map((t) => t.id);
+        expect(ids).toContain(TOPIC_MIXED);
+        expect(ids).not.toContain(TOPIC_HIDDEN_ONLY);
+      });
     });
   });
 });

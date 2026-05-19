@@ -48,6 +48,11 @@ export const withPublishedRevision: FindOptionsRelations<Dataset> = {
   replacementDataset: { publishedRevision: { metadata: true } }
 };
 
+// a dataset archived with an auto-redirect to a replacement is hidden from all
+// consumer listings — see SW-1276
+const HIDE_REDIRECTED_ARCHIVED =
+  'NOT (d.archived_at IS NOT NULL AND d.replacement_dataset_id IS NOT NULL AND d.replacement_auto_redirect = TRUE)';
+
 export const PublishedDatasetRepository = dataSource.getRepository(Dataset).extend({
   async getById(id: string, relations: FindOptionsRelations<Dataset> = {}): Promise<Dataset> {
     const start = performance.now();
@@ -131,6 +136,7 @@ export const PublishedDatasetRepository = dataSource.getRepository(Dataset).exte
       )
       .andWhere('d.first_published_at IS NOT NULL')
       .andWhere('d.first_published_at < NOW()')
+      .andWhere(HIDE_REDIRECTED_ARCHIVED)
       .groupBy('d.id, r.id, r.title, d.first_published_at, r.publish_at, d.archived_at');
 
     const offset = (page - 1) * limit;
@@ -146,9 +152,11 @@ export const PublishedDatasetRepository = dataSource.getRepository(Dataset).exte
       .getRepository(Revision)
       .createQueryBuilder('r')
       .select('DISTINCT ON (r.dataset_id) r.id AS id')
+      .innerJoin('r.dataset', 'd')
       .where('r.publish_at < NOW()')
       .andWhere('r.approved_at < NOW()')
       .andWhere('r.unpublished_at IS NULL')
+      .andWhere(HIDE_REDIRECTED_ARCHIVED)
       .orderBy('r.dataset_id')
       .addOrderBy('r.publish_at', 'DESC')
       .getRawMany();
@@ -219,6 +227,7 @@ export const PublishedDatasetRepository = dataSource.getRepository(Dataset).exte
       .andWhere('r.topic_ids @> ARRAY[:topicId]', { topicId })
       .andWhere('d.first_published_at IS NOT NULL')
       .andWhere('d.first_published_at < NOW()')
+      .andWhere(HIDE_REDIRECTED_ARCHIVED)
       .groupBy('d.id, r.id, r.title, d.first_published_at, r.publish_at, d.archived_at');
 
     const offset = (page - 1) * limit;
@@ -502,7 +511,8 @@ const getBaseSearchQuery = (lang: Locale): SelectQueryBuilder<Dataset> => {
     .addCommonTableExpression(latestPublishedRevisionCte, 'published_rev')
     .innerJoin('published_rev', 'pr', 'pr.dataset_id = d.id')
     .andWhere('d.first_published_at IS NOT NULL')
-    .andWhere('d.first_published_at < NOW()');
+    .andWhere('d.first_published_at < NOW()')
+    .andWhere(HIDE_REDIRECTED_ARCHIVED);
 
   return baseQb;
 };
