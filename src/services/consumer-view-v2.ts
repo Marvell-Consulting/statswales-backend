@@ -13,7 +13,7 @@ import { FilterTable } from '../interfaces/filter-table';
 import { dbManager } from '../db/database-manager';
 import { QueryStore } from '../entities/query-store';
 import { BadRequestException } from '../exceptions/bad-request.exception';
-import { flattenHierarchy, transformHierarchy } from '../utils/consumer';
+import { flattenHierarchy, sortFilterRows, transformHierarchy } from '../utils/consumer';
 import { DatasetRepository } from '../repositories/dataset';
 import { PageOptions } from '../interfaces/page-options';
 import { logger } from '../utils/logger';
@@ -234,7 +234,7 @@ export async function sendHtml(query: string, queryStore: QueryStore, res: Respo
   }
 }
 
-export async function sendFilters(query: string, res: Response): Promise<void> {
+export async function sendFilters(query: string, res: Response, dateColumns: Set<string> = new Set()): Promise<void> {
   logger.debug('Sending filters...');
   const [cubeDBConn] = (await dbManager.getCubeDataSource().driver.obtainMasterConnection()) as [PoolClient];
 
@@ -255,10 +255,11 @@ export async function sendFilters(query: string, res: Response): Promise<void> {
 
     const filterData: FilterTable[] = [];
     for (const col of columnData.keys()) {
-      const data = columnData.get(col);
-      if (!data) {
+      const unsorted = columnData.get(col);
+      if (!unsorted) {
         continue;
       }
+      const data = sortFilterRows(unsorted, dateColumns.has(col));
       const hierarchy = transformHierarchy(data[0].fact_table_column, data[0].dimension_name, data);
       const flattenedHierarchy = flattenHierarchy(hierarchy.values);
       // If there's a problem with the hierarchy, bin it off

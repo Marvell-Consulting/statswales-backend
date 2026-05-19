@@ -10,6 +10,8 @@ import { GroupRole } from '../../../../src/enums/group-role';
 import { DimensionType } from '../../../../src/enums/dimension-type';
 import { FactTableColumnType } from '../../../../src/enums/fact-table-column-type';
 import { getFilters } from '../../../../src/services/consumer-view';
+import { DatasetRepository } from '../../../../src/repositories/dataset';
+import { Dimension } from '../../../../src/entities/dataset/dimension';
 import { ensureWorkerDataSources, resetDatabase } from '../../../helpers/reset-database';
 import { getTestUser, getTestUserGroup } from '../../../helpers/get-test-user';
 import { seedPublishedDataset, LookupRow } from '../../../helpers/seed-published-dataset';
@@ -109,6 +111,10 @@ const referencesFor = (filters: FilterTable[], factTableColumn: string): string[
 };
 
 describe('Preview & consumer filters — value sort order', () => {
+  // The dataset's dimensions, loaded after seeding. getFilters() needs them to know which
+  // columns are dates — exactly as the preview and v1 consumer controllers supply them.
+  let dimensions: Dimension[] = [];
+
   beforeAll(async () => {
     await ensureWorkerDataSources();
     await resetDatabase();
@@ -156,6 +162,9 @@ describe('Preview & consumer filters — value sort order', () => {
         }
       ]
     });
+
+    const dataset = await DatasetRepository.getById(DATASET_ID, { dimensions: true });
+    dimensions = dataset.dimensions ?? [];
   }, 120_000);
 
   describe('consumer v2 — GET /v2/:dataset_id/filters', () => {
@@ -183,22 +192,22 @@ describe('Preview & consumer filters — value sort order', () => {
   // (GET /v1/:dataset_id/view/filters). The preview must match what the consumer renders.
   describe('preview / v1 — getFilters()', () => {
     it('orders lookup values by the lookup sort order (numerically, not lexically)', async () => {
-      const filters = (await getFilters(REVISION_ID, 'en-gb')) as unknown as FilterTable[];
+      const filters = (await getFilters(REVISION_ID, 'en-gb', dimensions)) as unknown as FilterTable[];
       expect(referencesFor(filters, 'RegionCode')).toEqual(EXPECTED_REGION_ORDER);
     });
 
     it('orders date dimension values descending (newest first)', async () => {
-      const filters = (await getFilters(REVISION_ID, 'en-gb')) as unknown as FilterTable[];
+      const filters = (await getFilters(REVISION_ID, 'en-gb', dimensions)) as unknown as FilterTable[];
       expect(referencesFor(filters, 'PeriodCode')).toEqual(EXPECTED_PERIOD_ORDER);
     });
 
     it('orders values with no sort order ascending alphabetically by description', async () => {
-      const filters = (await getFilters(REVISION_ID, 'en-gb')) as unknown as FilterTable[];
+      const filters = (await getFilters(REVISION_ID, 'en-gb', dimensions)) as unknown as FilterTable[];
       expect(referencesFor(filters, 'CategoryCode')).toEqual(EXPECTED_CATEGORY_ORDER);
     });
 
     it('preview filter order matches the consumer v2 filter order exactly', async () => {
-      const previewFilters = (await getFilters(REVISION_ID, 'en-gb')) as unknown as FilterTable[];
+      const previewFilters = (await getFilters(REVISION_ID, 'en-gb', dimensions)) as unknown as FilterTable[];
       const consumerRes = await request(app).get(`/v2/${DATASET_ID}/filters`);
       for (const column of ['RegionCode', 'PeriodCode', 'CategoryCode']) {
         expect(referencesFor(previewFilters, column)).toEqual(referencesFor(consumerRes.body, column));

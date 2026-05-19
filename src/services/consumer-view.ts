@@ -19,8 +19,9 @@ import { getColumnHeaders } from '../utils/column-headers';
 import { t } from 'i18next';
 import cubeConfig from '../config/cube-view.json';
 import { FactTableToDimensionName } from '../interfaces/fact-table-column-to-dimension-name';
-import { coreViewChooser, transformHierarchy } from '../utils/consumer';
+import { coreViewChooser, dateColumnsFromDimensions, sortFilterRows, transformHierarchy } from '../utils/consumer';
 import { FilterRow } from '../interfaces/filter-row';
+import { Dimension } from '../entities/dataset/dimension';
 
 const EXCEL_ROW_LIMIT = 1048500; // Excel Limit is 1048576 but removed 76 rows
 const CURSOR_ROW_LIMIT = 500;
@@ -37,14 +38,16 @@ interface FilterTable {
   values: FilterValues[];
 }
 
-export const getFilters = async (revisionId: string, language: string): Promise<FilterTable[]> => {
+export const getFilters = async (
+  revisionId: string,
+  language: string,
+  dimensions: Dimension[] = []
+): Promise<FilterTable[]> => {
   const cubeDB = dbManager.getCubeDataSource().createQueryRunner();
   try {
-    const filterTableQuery = pgformat(
-      'SELECT * FROM %I.filter_table WHERE language = %L ORDER BY sort_order, description, reference;',
-      revisionId,
-      language
-    );
+    // Ordering is applied per column below — sort_order is TEXT so it cannot be ordered
+    // correctly (numerically, and descending for dates) in SQL.
+    const filterTableQuery = pgformat('SELECT * FROM %I.filter_table WHERE language = %L;', revisionId, language);
     const filterTable: FilterRow[] = await cubeDB.query(filterTableQuery);
     const columnData = new Map<string, FilterRow[]>();
 
@@ -58,6 +61,7 @@ export const getFilters = async (revisionId: string, language: string): Promise<
       columnData.set(row.fact_table_column, data);
     }
 
+    const dateColumns = dateColumnsFromDimensions(dimensions);
     const filterData: FilterTable[] = [];
 
     for (const col of columnData.keys()) {
@@ -65,7 +69,8 @@ export const getFilters = async (revisionId: string, language: string): Promise<
       if (!data) {
         continue;
       }
-      const hierarchy = transformHierarchy(data[0].fact_table_column, data[0].dimension_name, data);
+      const sorted = sortFilterRows(data, dateColumns.has(col));
+      const hierarchy = transformHierarchy(sorted[0].fact_table_column, sorted[0].dimension_name, sorted);
       filterData.push(hierarchy);
     }
 
