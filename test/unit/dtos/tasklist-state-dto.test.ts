@@ -695,6 +695,203 @@ describe('TasklistStateDTO', () => {
 
       expect(result.import).toBe(TaskListStatus.Incomplete);
     });
+
+    // A publisher reports that after importing
+    // their completed translation CSV, the "Export text fields for translation" tasklist
+    // item flips back to Incomplete, blocking publication. updateTranslations() in
+    // services/dataset.ts sets metaEN/CY.updatedAt = NOW on every successful import, so
+    // post-import the condition `lastExport.createdAt < lastMetaUpdateAt` is always true.
+    // That means exportStale reduces entirely to importStale (changesSinceImport), and
+    // the only way export can revert to Incomplete after import is if collectTranslations()
+    // produces values that do not exactly match the imported CSV data.
+    describe('post-import state (SW-1278)', () => {
+      it('keeps export Completed after a realistic import where updatedAt > lastExport.createdAt', () => {
+        const dataset = {} as Dataset;
+        const exportTime = new Date('2026-05-20T10:00:00');
+        const importTime = new Date('2026-05-20T11:00:00');
+
+        const revision = {
+          metadata: [
+            { language: 'en', updatedAt: importTime },
+            { language: 'cy', updatedAt: importTime }
+          ]
+        } as unknown as Revision;
+
+        const translationEvents = [
+          {
+            action: 'import',
+            createdAt: importTime,
+            data: [{ key: 'title', english: 'Foo', cymraeg: 'Ffw' }]
+          },
+          {
+            action: 'export',
+            createdAt: exportTime,
+            data: [{ key: 'title', english: 'Foo', cymraeg: '' }]
+          }
+        ] as unknown as EventLog[];
+
+        mockCollectTranslations.collectTranslations.mockReturnValue([{ key: 'title', english: 'Foo', cymraeg: 'Ffw' }]);
+
+        const result = TasklistStateDTO.translationStatus(dataset, revision, translationEvents);
+
+        expect(result).toEqual({
+          import: TaskListStatus.Completed,
+          export: TaskListStatus.Completed
+        });
+      });
+
+      it('flips both items to Incomplete when current translations diverge from the last import payload', () => {
+        // The mechanism that invalidates the export item after an import is the
+        // content diff between current state and the import event payload — not
+        // anything timestamp-related on its own. Any divergence (a metadata edit,
+        // a related-link rename, a CSV trim mismatch) flips both items. The
+        // specific divergence used here (trailing whitespace) is incidental.
+        const dataset = {} as Dataset;
+        const exportTime = new Date('2026-05-20T10:00:00');
+        const importTime = new Date('2026-05-20T11:00:00');
+
+        const revision = {
+          metadata: [
+            { language: 'en', updatedAt: importTime },
+            { language: 'cy', updatedAt: importTime }
+          ]
+        } as unknown as Revision;
+
+        const translationEvents = [
+          {
+            action: 'import',
+            createdAt: importTime,
+            data: [{ key: 'title', english: 'Foo', cymraeg: 'Ffw' }]
+          },
+          {
+            action: 'export',
+            createdAt: exportTime,
+            data: [{ key: 'title', english: 'Foo', cymraeg: '' }]
+          }
+        ] as unknown as EventLog[];
+
+        mockCollectTranslations.collectTranslations.mockReturnValue([
+          { key: 'title', english: 'Foo ', cymraeg: 'Ffw' }
+        ]);
+
+        const result = TasklistStateDTO.translationStatus(dataset, revision, translationEvents);
+
+        expect(result.import).toBe(TaskListStatus.Incomplete);
+        expect(result.export).toBe(TaskListStatus.Incomplete);
+      });
+
+      it('flips export to Incomplete when current value is null but imported value is a string', () => {
+        const dataset = {} as Dataset;
+        const exportTime = new Date('2026-05-20T10:00:00');
+        const importTime = new Date('2026-05-20T11:00:00');
+
+        const revision = {
+          metadata: [
+            { language: 'en', updatedAt: importTime },
+            { language: 'cy', updatedAt: importTime }
+          ]
+        } as unknown as Revision;
+
+        const translationEvents = [
+          {
+            action: 'import',
+            createdAt: importTime,
+            data: [{ key: 'title', english: 'Foo', cymraeg: 'Ffw' }]
+          },
+          {
+            action: 'export',
+            createdAt: exportTime,
+            data: [{ key: 'title', english: 'Foo', cymraeg: '' }]
+          }
+        ] as unknown as EventLog[];
+
+        mockCollectTranslations.collectTranslations.mockReturnValue([{ key: 'title', english: null, cymraeg: 'Ffw' }]);
+
+        const result = TasklistStateDTO.translationStatus(dataset, revision, translationEvents);
+
+        expect(result.import).toBe(TaskListStatus.Incomplete);
+        expect(result.export).toBe(TaskListStatus.Incomplete);
+      });
+
+      it('flips export to Incomplete when current translations contain a key that was not in the import payload', () => {
+        const dataset = {} as Dataset;
+        const exportTime = new Date('2026-05-20T10:00:00');
+        const importTime = new Date('2026-05-20T11:00:00');
+        const metaEditTime = new Date('2026-05-20T12:00:00');
+
+        const revision = {
+          metadata: [
+            { language: 'en', updatedAt: metaEditTime },
+            { language: 'cy', updatedAt: metaEditTime }
+          ]
+        } as unknown as Revision;
+
+        const translationEvents = [
+          {
+            action: 'import',
+            createdAt: importTime,
+            data: [{ key: 'title', english: 'Foo', cymraeg: 'Ffw' }]
+          },
+          {
+            action: 'export',
+            createdAt: exportTime,
+            data: [{ key: 'title', english: 'Foo', cymraeg: '' }]
+          }
+        ] as unknown as EventLog[];
+
+        // A new translatable field appeared after the import (e.g. roundingDescription
+        // became visible because roundingApplied was toggled on).
+        mockCollectTranslations.collectTranslations.mockReturnValue([
+          { key: 'title', english: 'Foo', cymraeg: 'Ffw' },
+          { key: 'roundingDescription', english: 'rounded', cymraeg: 'crwn' }
+        ]);
+
+        const result = TasklistStateDTO.translationStatus(dataset, revision, translationEvents);
+
+        expect(result.import).toBe(TaskListStatus.Incomplete);
+        expect(result.export).toBe(TaskListStatus.Incomplete);
+      });
+
+      it('correctly flips export to Incomplete when metadata is edited after a successful import', () => {
+        // Legitimate stale case — pin this down so a future fix to SW-1278 doesn't
+        // over-correct and break the case where the user really did change metadata
+        // after importing.
+        const dataset = {} as Dataset;
+        const exportTime = new Date('2026-05-20T10:00:00');
+        const importTime = new Date('2026-05-20T11:00:00');
+        const metaEditTime = new Date('2026-05-20T12:00:00');
+
+        const revision = {
+          metadata: [
+            { language: 'en', updatedAt: metaEditTime },
+            { language: 'cy', updatedAt: metaEditTime }
+          ]
+        } as unknown as Revision;
+
+        const translationEvents = [
+          {
+            action: 'import',
+            createdAt: importTime,
+            data: [{ key: 'title', english: 'Foo', cymraeg: 'Ffw' }]
+          },
+          {
+            action: 'export',
+            createdAt: exportTime,
+            data: [{ key: 'title', english: 'Foo', cymraeg: '' }]
+          }
+        ] as unknown as EventLog[];
+
+        // User edited the English title after importing.
+        mockCollectTranslations.collectTranslations.mockReturnValue([
+          { key: 'title', english: 'Foo v2', cymraeg: 'Ffw' }
+        ]);
+
+        const result = TasklistStateDTO.translationStatus(dataset, revision, translationEvents);
+
+        expect(result.import).toBe(TaskListStatus.Incomplete);
+        expect(result.export).toBe(TaskListStatus.Incomplete);
+      });
+    });
   });
 
   describe('fromDataset', () => {
