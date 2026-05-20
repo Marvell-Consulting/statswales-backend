@@ -2,6 +2,7 @@ import { add, format, isBefore, isDate, isValid, parse, parseISO, sub, Duration 
 import { TZDate } from '@date-fns/tz';
 
 import { logger } from '../utils/logger';
+import { normalizeSqlDatatype } from '../utils/sql-datatype';
 import { YearType } from '../enums/year-type';
 import { DateExtractor } from '../extractors/date-extractor';
 import { SUPPORTED_LOCALES, t } from '../middleware/translation';
@@ -36,6 +37,7 @@ export const createDatePeriodTableQuery = (
   schemaId: string,
   tableName: string
 ): string => {
+  const normalizedDatatype = normalizeSqlDatatype(factTableColumn.columnDatatype);
   return pgformat(
     `
       CREATE TABLE %I.%I (
@@ -51,8 +53,8 @@ export const createDatePeriodTableQuery = (
     schemaId,
     tableName,
     factTableColumn.columnName,
-    factTableColumn.columnDatatype,
-    factTableColumn.columnDatatype
+    normalizedDatatype,
+    normalizedDatatype
   );
 };
 

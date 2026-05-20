@@ -4,6 +4,7 @@ import { FindOneOptions, FindOptionsRelations, QueryBuilder, SelectQueryBuilder 
 import { has, set } from 'lodash';
 
 import { logger } from '../utils/logger';
+import { normalizeSqlDatatype } from '../utils/sql-datatype';
 import { dataSource } from '../db/data-source';
 import { Dataset } from '../entities/dataset/dataset';
 import { DatasetListItemDTO } from '../dtos/dataset-list-item-dto';
@@ -180,7 +181,7 @@ export const DatasetRepository = dataSource.getRepository(Dataset).extend({
         id: dataset.id,
         columnName: dataTableCol.columnName,
         columnIndex: dataTableCol.columnIndex,
-        columnDatatype: dataTableCol.columnDatatype,
+        columnDatatype: normalizeSqlDatatype(dataTableCol.columnDatatype),
         columnType: FactTableColumnType.Unknown
       });
 

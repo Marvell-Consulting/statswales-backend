@@ -56,6 +56,18 @@ describe('date-matching', () => {
       expect(sql).toContain('lookup');
       expect(sql).toContain('hierarchy BIGINT');
     });
+
+    test('normalises DOUBLE to DOUBLE PRECISION for both the reference column and hierarchy', () => {
+      const doubleCol = {
+        columnName: 'measure_value',
+        columnDatatype: 'DOUBLE'
+      } as unknown as FactTableColumn;
+      const sql = createDatePeriodTableQuery(doubleCol, 'public', 'date_lookup');
+      expect(sql).toContain('measure_value DOUBLE PRECISION');
+      expect(sql).toContain('hierarchy DOUBLE PRECISION');
+      expect(sql).not.toMatch(/measure_value DOUBLE(?! PRECISION)/);
+      expect(sql).not.toMatch(/hierarchy DOUBLE(?! PRECISION)/);
+    });
   });
 
   describe('dateDimensionReferenceTableCreator - year format variants', () => {

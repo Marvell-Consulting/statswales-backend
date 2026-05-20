@@ -8,6 +8,7 @@ import { format as pgformat } from '@scaleleap/pg-format';
 
 import { Dataset } from '../entities/dataset/dataset';
 import { FileImportInterface } from '../entities/dataset/file-import.interface';
+import { normalizeSqlDatatype } from './sql-datatype';
 import { FileType } from '../enums/file-type';
 import { logger } from './logger';
 import { getFileService } from './get-file-service';
@@ -74,6 +75,7 @@ export const createLookupTableQuery = (
   referenceColumnType: string,
   otherColumns?: string[]
 ): string => {
+  const normalizedType = normalizeSqlDatatype(referenceColumnType);
   const otherColumnsStatement: string[] = [];
   if (otherColumns && otherColumns.length > 0) {
     otherColumns.forEach((column) => {
@@ -85,7 +87,7 @@ export const createLookupTableQuery = (
     schemaName,
     lookupTableName,
     referenceColumnName,
-    referenceColumnType,
+    normalizedType,
     otherColumnsStatement.length > 0 ? `, ${otherColumnsStatement.join(', ')}` : ''
   );
 };
