@@ -30,6 +30,7 @@ async function waitForIdleConnections(timeoutMs = 10000, intervalMs = 50): Promi
         FROM pg_stat_activity
         WHERE datname = current_database()
           AND pid <> pg_backend_pid()
+          AND backend_type = 'client backend'
           AND state = 'active'
       `);
       if ((rows[0]?.active ?? 0) === 0) return;
@@ -38,7 +39,13 @@ async function waitForIdleConnections(timeoutMs = 10000, intervalMs = 50): Promi
   } catch {
     // best-effort drain — fall through to teardown/reset
   } finally {
-    await qr.release();
+    // release() can itself reject (e.g. the connection already dropped); swallow it so the
+    // best-effort drain never fails the suite.
+    try {
+      await qr.release();
+    } catch {
+      // ignore
+    }
   }
 }
 

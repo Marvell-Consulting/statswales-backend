@@ -1,6 +1,6 @@
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { Client } from 'pg';
-import { DuckDBInstance } from '@duckdb/node-api';
+import { DuckDBConnection, DuckDBInstance } from '@duckdb/node-api';
 
 interface GlobalConfig {
   maxWorkers: number;
@@ -17,9 +17,11 @@ const BASE_DB = 'statswales-backend-test';
 async function installPostgresExtension(): Promise<void> {
   const attempts = 3;
   for (let attempt = 1; attempt <= attempts; attempt++) {
-    const instance = await DuckDBInstance.create(':memory:');
-    const conn = await instance.connect();
+    let instance: DuckDBInstance | undefined;
+    let conn: DuckDBConnection | undefined;
     try {
+      instance = await DuckDBInstance.create(':memory:');
+      conn = await instance.connect();
       await conn.run(`INSTALL postgres;`);
       return;
     } catch (err) {
@@ -28,8 +30,8 @@ async function installPostgresExtension(): Promise<void> {
       }
       await new Promise((resolve) => setTimeout(resolve, 1000 * attempt));
     } finally {
-      conn.disconnectSync();
-      instance.closeSync();
+      conn?.disconnectSync();
+      instance?.closeSync();
     }
   }
 }
