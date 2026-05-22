@@ -891,6 +891,91 @@ describe('TasklistStateDTO', () => {
         expect(result.import).toBe(TaskListStatus.Incomplete);
         expect(result.export).toBe(TaskListStatus.Incomplete);
       });
+
+      // The actual SW-1278 repro. The affected dataset has a dimension whose
+      // factTableColumn is literally "reason", which shares the key "reason" with
+      // the metadata reason field (the update reason). collectTranslations and the
+      // import payload both contain two rows keyed "reason" that differ only by
+      // `type`. The diff matched on `key` alone, so the metadata "reason" row
+      // cross-matched the dimension "reason" row and reported a spurious change —
+      // flipping export to Incomplete on every import. The collision is structural,
+      // so it fires whether or not the import actually changed anything: covered both
+      // ways below — a no-op re-import of the unchanged file, and the normal flow
+      // where the publisher fills in the Welsh before re-importing.
+      const collidingRows = (cy: { dimension: string; title: string; reason: string }) => [
+        { type: 'dimension', key: 'reason', english: 'Reason for non-contact', cymraeg: cy.dimension },
+        { type: 'metadata', key: 'title', english: 'HCWP', cymraeg: cy.title },
+        {
+          type: 'metadata',
+          key: 'reason',
+          english: 'This update includes the latest annual data.',
+          cymraeg: cy.reason
+        }
+      ];
+
+      const welsh = { dimension: 'Y rheswm am y diffyg cysylltu', title: 'RPIC', reason: 'Diweddariad' };
+
+      it('keeps both items Completed on a no-op re-import of the unchanged file when a dimension key collides with a metadata key', () => {
+        const dataset = {} as Dataset;
+        const exportTime = new Date('2026-05-20T10:00:00');
+        const importTime = new Date('2026-05-20T11:00:00');
+
+        const revision = {
+          metadata: [
+            { language: 'en', updatedAt: importTime },
+            { language: 'cy', updatedAt: importTime }
+          ]
+        } as unknown as Revision;
+
+        // Welsh already present; the user re-imports the exported file untouched, so
+        // the export, import and current state are all identical.
+        const roundTripped = collidingRows(welsh);
+
+        const translationEvents = [
+          { action: 'import', createdAt: importTime, data: roundTripped },
+          { action: 'export', createdAt: exportTime, data: roundTripped }
+        ] as unknown as EventLog[];
+
+        mockCollectTranslations.collectTranslations.mockReturnValue(collidingRows(welsh));
+
+        const result = TasklistStateDTO.translationStatus(dataset, revision, translationEvents);
+
+        expect(result).toEqual({
+          import: TaskListStatus.Completed,
+          export: TaskListStatus.Completed
+        });
+      });
+
+      it('keeps both items Completed after a normal import that fills in the Welsh when a dimension key collides with a metadata key', () => {
+        const dataset = {} as Dataset;
+        const exportTime = new Date('2026-05-20T10:00:00');
+        const importTime = new Date('2026-05-20T11:00:00');
+
+        const revision = {
+          metadata: [
+            { language: 'en', updatedAt: importTime },
+            { language: 'cy', updatedAt: importTime }
+          ]
+        } as unknown as Revision;
+
+        const blank = { dimension: '', title: '', reason: '' };
+
+        // Exported with blank Welsh; the publisher fills it in and re-imports. Current
+        // state matches the imported (now-translated) payload.
+        const translationEvents = [
+          { action: 'import', createdAt: importTime, data: collidingRows(welsh) },
+          { action: 'export', createdAt: exportTime, data: collidingRows(blank) }
+        ] as unknown as EventLog[];
+
+        mockCollectTranslations.collectTranslations.mockReturnValue(collidingRows(welsh));
+
+        const result = TasklistStateDTO.translationStatus(dataset, revision, translationEvents);
+
+        expect(result).toEqual({
+          import: TaskListStatus.Completed,
+          export: TaskListStatus.Completed
+        });
+      });
     });
   });
 

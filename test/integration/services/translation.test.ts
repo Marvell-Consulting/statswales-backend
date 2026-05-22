@@ -10,6 +10,7 @@ import { dbManager } from '../../../src/db/database-manager';
 import { initPassport } from '../../../src/middleware/passport-auth';
 import { Dataset } from '../../../src/entities/dataset/dataset';
 import { Revision } from '../../../src/entities/dataset/revision';
+import { Dimension } from '../../../src/entities/dataset/dimension';
 import { DimensionMetadata } from '../../../src/entities/dataset/dimension-metadata';
 import { RevisionMetadata } from '../../../src/entities/dataset/revision-metadata';
 import { EventLog } from '../../../src/entities/event-log';
@@ -274,6 +275,49 @@ describe('Translation round trip (SW-1278)', () => {
     metaEn.reason = 'Annual refresh';
     await metaEn.save();
     const metaCy = reloadedDataset.draftRevision!.metadata.find((m) => m.language === Locale.WelshGb)!;
+    metaCy.reason = '';
+    await metaCy.save();
+
+    const refreshed = await DatasetRepository.getById(dataset.id, withMetadataForTranslation);
+    const exported = collectTranslations(refreshed);
+    const imported = fillWelsh(exported);
+
+    await simulateExportThenImport(revision.id, exported, imported, new Date(Date.now() - 60_000));
+
+    const state = await datasetService.getTasklistState(dataset.id, Locale.EnglishGb);
+
+    expect(state.translation.import).toBe(TaskListStatus.Completed);
+    expect(state.translation.export).toBe(TaskListStatus.Completed);
+  });
+
+  it('marks both Completed after a normal import (Welsh filled in) when a dimension key collides with the metadata reason key', async () => {
+    // The exact production repro for SW-1278. The reported dataset has a dimension whose
+    // factTableColumn is "reason", which shares the translation key "reason" with the
+    // metadata reason field on an update revision. collectTranslations emits two rows
+    // keyed "reason" (one dimension, one metadata) and the tasklist diff used to match
+    // on key alone, cross-matching them and flipping export to Incomplete on a no-op
+    // re-import. This drives the real round trip end to end.
+    const { dataset, revision } = await seedDataset({ title: 'Collision dataset' });
+
+    // Update revision → the metadata `reason` key is in scope.
+    revision.revisionIndex = 2;
+    await revision.save();
+
+    // Rename a dimension's column to "reason" so its key collides with metadata reason.
+    const collidingDim = dataset.dimensions[0];
+    collidingDim.factTableColumn = 'reason';
+    await Dimension.getRepository().save(collidingDim);
+    const dimMetaEn = collidingDim.metadata.find((m) => m.language.includes('en'))!;
+    dimMetaEn.name = 'Reason for non-contact';
+    await DimensionMetadata.getRepository().save(dimMetaEn);
+
+    // Give the metadata reason a value distinct from the dimension name — the cross-match
+    // only produces a spurious diff when the two "reason" rows hold different text.
+    const reloaded = await DatasetRepository.getById(dataset.id, withMetadataForTranslation);
+    const metaEn = reloaded.draftRevision!.metadata.find((m) => m.language === Locale.EnglishGb)!;
+    metaEn.reason = 'This update includes the latest annual data.';
+    await metaEn.save();
+    const metaCy = reloaded.draftRevision!.metadata.find((m) => m.language === Locale.WelshGb)!;
     metaCy.reason = '';
     await metaCy.save();
 
