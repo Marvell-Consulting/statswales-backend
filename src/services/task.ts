@@ -111,7 +111,9 @@ export class TaskService {
         if (replacement.archivedAt) {
           throw new BadRequestException('errors.request_archive.replacement_archived');
         }
-        const title = replacement.publishedRevision?.metadata?.find((m) => m.language.includes(Locale.English))?.title;
+        const title = replacement.publishedRevision?.metadata?.find((m) =>
+          m.language.toLowerCase().includes(Locale.English)
+        )?.title;
         metadata.replacementDatasetId = replacementDatasetId;
         metadata.replacementDatasetTitle = title;
         metadata.autoRedirect = autoRedirect ?? false;

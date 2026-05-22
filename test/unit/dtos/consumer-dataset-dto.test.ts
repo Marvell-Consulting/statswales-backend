@@ -97,6 +97,29 @@ describe('ConsumerDatasetDTO', () => {
       expect(ConsumerDatasetDTO.fromDataset(dataset, Locale.Welsh).replaced_by?.dataset_title).toBe('Teitl Cymraeg');
     });
 
+    it('should match the replacement language case-insensitively', () => {
+      const dataset = makeDataset({
+        replacementDatasetId: 'rep-ds-1',
+        replacementAutoRedirect: true,
+        replacementDataset: {
+          publishedRevision: {
+            metadata: [
+              { language: 'cy-GB', title: 'Teitl Cymraeg' },
+              { language: 'en-GB', title: 'Replacement Title' }
+            ]
+          }
+        }
+      });
+
+      // request language may arrive as a lower-case full locale (e.g. 'en-gb')
+      expect(ConsumerDatasetDTO.fromDataset(dataset, 'en-gb' as Locale).replaced_by?.dataset_title).toBe(
+        'Replacement Title'
+      );
+      expect(ConsumerDatasetDTO.fromDataset(dataset, 'cy-gb' as Locale).replaced_by?.dataset_title).toBe(
+        'Teitl Cymraeg'
+      );
+    });
+
     it('should default auto_redirect to false when replacementAutoRedirect is falsy', () => {
       const dto = ConsumerDatasetDTO.fromDataset(
         makeDataset({

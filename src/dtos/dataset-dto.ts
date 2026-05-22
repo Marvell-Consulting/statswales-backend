@@ -47,9 +47,10 @@ export class DatasetDTO {
 
     if (dataset.replacementDatasetId) {
       const metadata = dataset.replacementDataset?.publishedRevision?.metadata;
+      const langCode = lang.toLowerCase();
       dto.replaced_by = {
         dataset_id: dataset.replacementDatasetId,
-        dataset_title: metadata?.find((m) => m.language.includes(lang))?.title ?? undefined,
+        dataset_title: metadata?.find((m) => m.language.toLowerCase().includes(langCode))?.title ?? undefined,
         auto_redirect: dataset.replacementAutoRedirect ?? false
       };
     }
