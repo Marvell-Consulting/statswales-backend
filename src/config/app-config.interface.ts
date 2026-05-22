@@ -33,6 +33,7 @@ export interface AppConfig {
   healthcheck: {
     dbTimeoutMs: number;
     storageTimeoutMs: number;
+    dbStatsKey?: string; // when set, /healthcheck/db requires a matching x-healthcheck-key header
   };
   language: {
     availableTranslations: Locale[];
@@ -122,5 +123,6 @@ export const optionalProperties = [
   'blob',
   'datalake',
   'cube_builder',
-  'bypassToken'
+  'bypassToken',
+  'dbStatsKey'
 ];
