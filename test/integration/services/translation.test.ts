@@ -54,7 +54,6 @@ async function seedDataset(opts: {
   collection?: string;
   quality?: string;
   withRelatedLink?: boolean;
-  dimensionColumnNames?: string[];
 }): Promise<SeededDataset> {
   const datasetId = uuidV4();
   const revisionId = uuidV4();

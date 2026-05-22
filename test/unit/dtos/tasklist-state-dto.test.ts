@@ -780,7 +780,7 @@ describe('TasklistStateDTO', () => {
         expect(result.export).toBe(TaskListStatus.Incomplete);
       });
 
-      it('flips export to Incomplete when current value is null but imported value is a string', () => {
+      it('flips both items to Incomplete when current value is null but imported value is a string', () => {
         const dataset = {} as Dataset;
         const exportTime = new Date('2026-05-20T10:00:00');
         const importTime = new Date('2026-05-20T11:00:00');
@@ -813,7 +813,7 @@ describe('TasklistStateDTO', () => {
         expect(result.export).toBe(TaskListStatus.Incomplete);
       });
 
-      it('flips export to Incomplete when current translations contain a key that was not in the import payload', () => {
+      it('flips both items to Incomplete when current translations contain a key that was not in the import payload', () => {
         const dataset = {} as Dataset;
         const exportTime = new Date('2026-05-20T10:00:00');
         const importTime = new Date('2026-05-20T11:00:00');
@@ -852,7 +852,7 @@ describe('TasklistStateDTO', () => {
         expect(result.export).toBe(TaskListStatus.Incomplete);
       });
 
-      it('correctly flips export to Incomplete when metadata is edited after a successful import', () => {
+      it('correctly flips both items to Incomplete when metadata is edited after a successful import', () => {
         // Legitimate stale case — pin this down so a future fix to SW-1278 doesn't
         // over-correct and break the case where the user really did change metadata
         // after importing.
