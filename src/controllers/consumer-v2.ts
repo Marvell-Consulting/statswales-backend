@@ -81,7 +81,7 @@ export const listPublishedDatasets = async (req: Request, res: Response, next: N
 export const getPublishedDatasetById = async (req: Request, res: Response): Promise<void> => {
   const lang = req.language as Locale;
   const dataset = await PublishedDatasetRepository.getById(res.locals.datasetId, withPublishedRevision);
-  const datasetDTO = ConsumerDatasetDTO.fromDataset(dataset);
+  const datasetDTO = ConsumerDatasetDTO.fromDataset(dataset, lang);
 
   if (dataset.userGroupId) {
     const userGroup = await UserGroupRepository.getByIdWithOrganisation(dataset.userGroupId);

@@ -7,6 +7,7 @@ import { Revision } from '../entities/dataset/revision';
 import { DimensionDTO } from './dimension-dto';
 import { ConsumerRevisionDTO } from './consumer-revision-dto';
 import { PublisherDTO } from './publisher-dto';
+import { Locale } from '../enums/locale';
 
 // WARNING: Make sure to filter any props the consumer side should not have access to
 export class ConsumerDatasetDTO {
@@ -21,16 +22,17 @@ export class ConsumerDatasetDTO {
   end_date?: string;
   publisher?: PublisherDTO;
 
-  static fromDataset(dataset: Dataset): ConsumerDatasetDTO {
+  static fromDataset(dataset: Dataset, lang: Locale = Locale.English): ConsumerDatasetDTO {
     const dto = new ConsumerDatasetDTO();
     dto.id = dataset.id;
     dto.first_published_at = dataset.firstPublishedAt?.toISOString();
     dto.archived_at = dataset.archivedAt?.toISOString();
 
     if (dataset.replacementDatasetId) {
+      const metadata = dataset.replacementDataset?.publishedRevision?.metadata;
       dto.replaced_by = {
         dataset_id: dataset.replacementDatasetId,
-        dataset_title: dataset.replacementDataset?.publishedRevision?.metadata?.[0]?.title ?? undefined,
+        dataset_title: metadata?.find((m) => m.language.includes(lang))?.title ?? undefined,
         auto_redirect: dataset.replacementAutoRedirect ?? false
       };
     }

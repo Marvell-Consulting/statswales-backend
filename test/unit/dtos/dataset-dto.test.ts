@@ -20,6 +20,7 @@ jest.mock('../../../src/dtos/task-dto', () => ({
 
 import { Dataset } from '../../../src/entities/dataset/dataset';
 import { DatasetDTO } from '../../../src/dtos/dataset-dto';
+import { Locale } from '../../../src/enums/locale';
 import { DimensionDTO } from '../../../src/dtos/dimension-dto';
 import { RevisionDTO } from '../../../src/dtos/revision-dto';
 import { MeasureDTO } from '../../../src/dtos/measure-dto';
@@ -190,13 +191,20 @@ describe('DatasetDTO', () => {
       expect(dto.replaced_by).toBeUndefined();
     });
 
-    it('should populate replaced_by when replacementDatasetId is set', () => {
+    it('should populate replaced_by with the English replacement title by default', () => {
+      // Welsh metadata is deliberately first in the array to guard against the previous
+      // metadata[0] bug that returned whichever language happened to be first.
       const dto = DatasetDTO.fromDataset(
         makeDataset({
           replacementDatasetId: 'rep-ds-1',
           replacementAutoRedirect: true,
           replacementDataset: {
-            publishedRevision: { metadata: [{ title: 'Replacement Title' }] }
+            publishedRevision: {
+              metadata: [
+                { language: 'cy-GB', title: 'Teitl Cymraeg' },
+                { language: 'en-GB', title: 'Replacement Title' }
+              ]
+            }
           }
         })
       );
@@ -206,6 +214,24 @@ describe('DatasetDTO', () => {
         dataset_title: 'Replacement Title',
         auto_redirect: true
       });
+    });
+
+    it('should resolve the replacement title in the requested language', () => {
+      const dataset = makeDataset({
+        replacementDatasetId: 'rep-ds-1',
+        replacementAutoRedirect: true,
+        replacementDataset: {
+          publishedRevision: {
+            metadata: [
+              { language: 'cy-GB', title: 'Teitl Cymraeg' },
+              { language: 'en-GB', title: 'Replacement Title' }
+            ]
+          }
+        }
+      });
+
+      expect(DatasetDTO.fromDataset(dataset, Locale.English).replaced_by?.dataset_title).toBe('Replacement Title');
+      expect(DatasetDTO.fromDataset(dataset, Locale.Welsh).replaced_by?.dataset_title).toBe('Teitl Cymraeg');
     });
 
     it('should default auto_redirect to false when replacementAutoRedirect is falsy', () => {
