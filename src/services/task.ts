@@ -10,6 +10,7 @@ import { PublishedDatasetRepository } from '../repositories/published-dataset';
 import { getPublishingStatus } from '../utils/dataset-status';
 import { PublishingStatus } from '../enums/publishing-status';
 import { BadRequestException } from '../exceptions/bad-request.exception';
+import { Locale } from '../enums/locale';
 
 export class TaskService {
   async create(
@@ -110,7 +111,9 @@ export class TaskService {
         if (replacement.archivedAt) {
           throw new BadRequestException('errors.request_archive.replacement_archived');
         }
-        const title = replacement.publishedRevision?.metadata?.[0]?.title;
+        const title = replacement.publishedRevision?.metadata?.find((m) =>
+          m.language.toLowerCase().includes(Locale.English)
+        )?.title;
         metadata.replacementDatasetId = replacementDatasetId;
         metadata.replacementDatasetTitle = title;
         metadata.autoRedirect = autoRedirect ?? false;

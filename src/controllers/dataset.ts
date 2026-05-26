@@ -152,7 +152,7 @@ export const getDatasetById = async (req: Request, res: Response): Promise<void>
       break;
   }
 
-  const datasetDTO = DatasetDTO.fromDataset(dataset);
+  const datasetDTO = DatasetDTO.fromDataset(dataset, req.language as Locale);
 
   if (userGroup) {
     datasetDTO.publisher = PublisherDTO.fromUserGroup(userGroup, req.language as Locale);
