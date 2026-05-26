@@ -9,6 +9,7 @@ const config = defineConfig([
   {
     // global ignores need to be in their own block otherwise they don't seem to work
     ignores: [
+      '.claude/**',
       '.docker/**',
       '.github/**',
       '.vscode/**',
