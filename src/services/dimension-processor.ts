@@ -811,11 +811,20 @@ async function getPreviewWithNumberExtractor(
       sampleSize
     );
   } else {
+    // TO_CHAR already returns text; an outer `format('%s', …)` wrapper used to
+    // surround this and is unnecessary — and pg-format would treat the inner
+    // %s as one of its own placeholders, breaking the query.
+    //
+    // The mask must use placeholder digits (`9` for "value with the specified
+    // number of digits", `0` for "value with leading zeros"). Interpolating
+    // `extractor.decimalPlaces` directly would insert a literal digit instead.
+    const decimalMask =
+      extractor.decimalPlaces > 0 ? `999,999,990.${'0'.repeat(extractor.decimalPlaces)}` : '999,999,990';
     query = pgformat(
-      `SELECT DISTINCT format('%s', TO_CHAR(ROUND(CAST(%I AS DECIMAL), %L), %L)) AS %I FROM %I.%I ORDER BY %I ASC LIMIT %L;`,
+      `SELECT DISTINCT TO_CHAR(ROUND(CAST(%I AS DECIMAL), %L), %L) AS %I FROM %I.%I ORDER BY %I ASC LIMIT %L;`,
       dimension.factTableColumn,
       extractor.decimalPlaces,
-      `999,999,990.${extractor.decimalPlaces}`,
+      decimalMask,
       dimension.factTableColumn,
       schemaID,
       FACT_TABLE_NAME,

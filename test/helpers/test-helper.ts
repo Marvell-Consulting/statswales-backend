@@ -128,7 +128,13 @@ export async function createSmallDataset(
   }
 
   try {
-    await createAllCubeFiles(savedDataset.id, revision.id);
+    // Pass `awaitMaterialisation = true` so we block until the background
+    // materialisation step that swaps `core_view_en` → `core_view_mat_en`
+    // (cube-builder.ts:380) has committed. Without this, tests that issue
+    // queries against `core_view_en` immediately after this helper returns
+    // can race the background DROP VIEW on slow CI — same class of fix as
+    // already applied in `seed-published-dataset.ts` (lines 229, 397).
+    await createAllCubeFiles(savedDataset.id, revision.id, undefined, undefined, undefined, true);
   } catch (error) {
     logger.error(error);
   }
