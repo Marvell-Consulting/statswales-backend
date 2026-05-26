@@ -36,6 +36,7 @@ export const rateLimiter = (req: Request, res: Response, next: NextFunction): vo
     timingSafeEqual(Buffer.from(bypassToken), Buffer.from(headerToken))
   ) {
     logger.debug('Rate limit bypass token matched, skipping rate limiting for this request.');
+    req.rateLimitBypass = true;
     next();
     return;
   }

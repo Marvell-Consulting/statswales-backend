@@ -33,8 +33,8 @@ function createApp() {
 
   const app = express();
   app.use(rateLimiter!);
-  app.get('/test', (_req: Request, res: Response) => {
-    res.status(200).json({ message: 'ok' });
+  app.get('/test', (req: Request, res: Response) => {
+    res.status(200).json({ message: 'ok', rateLimitBypass: req.rateLimitBypass ?? false });
   });
   return app;
 }
@@ -45,21 +45,23 @@ describe('rateLimiter middleware', () => {
       mockConfig.rateLimit.bypassToken = 'test-secret-token';
     });
 
-    test('bypasses rate limit when valid token header is present', async () => {
+    test('bypasses rate limit and flags req.rateLimitBypass=true when valid token header is present', async () => {
       const app = createApp();
 
       for (let i = 0; i < 5; i++) {
         const res = await request(app).get('/test').set('x-rate-limit-bypass', 'test-secret-token');
         expect(res.status).toBe(200);
+        expect(res.body.rateLimitBypass).toBe(true);
       }
     });
 
-    test('applies rate limit when no bypass header is present', async () => {
+    test('applies rate limit and leaves req.rateLimitBypass=false when no bypass header is present', async () => {
       const app = createApp();
 
       for (let i = 0; i < 2; i++) {
         const res = await request(app).get('/test');
         expect(res.status).toBe(200);
+        expect(res.body.rateLimitBypass).toBe(false);
       }
 
       const res = await request(app).get('/test');
@@ -67,12 +69,13 @@ describe('rateLimiter middleware', () => {
       expect(res.body).toEqual({ message: 'Too many requests, please try again later.' });
     });
 
-    test('applies rate limit when bypass header has wrong token', async () => {
+    test('applies rate limit and leaves req.rateLimitBypass=false when bypass header has wrong token', async () => {
       const app = createApp();
 
       for (let i = 0; i < 2; i++) {
         const res = await request(app).get('/test').set('x-rate-limit-bypass', 'wrong-token');
         expect(res.status).toBe(200);
+        expect(res.body.rateLimitBypass).toBe(false);
       }
 
       const res = await request(app).get('/test').set('x-rate-limit-bypass', 'wrong-token');
@@ -85,12 +88,13 @@ describe('rateLimiter middleware', () => {
       mockConfig.rateLimit.bypassToken = undefined;
     });
 
-    test('applies rate limit even when bypass header is present', async () => {
+    test('applies rate limit and leaves req.rateLimitBypass=false even when bypass header is present', async () => {
       const app = createApp();
 
       for (let i = 0; i < 2; i++) {
         const res = await request(app).get('/test').set('x-rate-limit-bypass', 'some-token');
         expect(res.status).toBe(200);
+        expect(res.body.rateLimitBypass).toBe(false);
       }
 
       const res = await request(app).get('/test').set('x-rate-limit-bypass', 'some-token');

@@ -9,5 +9,6 @@ declare module 'express-serve-static-core' {
     files?: Internal.Files;
     fileService: StorageService;
     datasetService: DatasetService;
+    rateLimitBypass?: boolean;
   }
 }
