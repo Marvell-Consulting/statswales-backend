@@ -502,7 +502,7 @@ describe('removeMeasure', () => {
     jest.clearAllMocks();
   });
 
-  it('deletes the measure rows, metadata and measure itself when there is no measure attached', async () => {
+  it('only deletes the Measure entity (not rows or metadata) when no measure is attached to the dataset', async () => {
     const dataset = { id: 'd-1', measure: undefined } as unknown as Dataset;
     await removeMeasure(dataset);
     expect(measureRepoDelete).toHaveBeenCalledWith({ dataset });

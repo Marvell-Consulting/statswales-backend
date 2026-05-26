@@ -72,17 +72,13 @@ jest.mock('../../../src/repositories/dataset', () => ({
 }));
 
 const mockDataTableFindOneByOrFail = jest.fn();
-jest.mock('../../../src/entities/dataset/data-table', () => ({
-  DataTable: jest.fn().mockImplementation(function (this: Record<string, unknown>) {
-    Object.assign(this, {});
-  })
-}));
-jest.doMock('../../../src/entities/dataset/data-table', () => {
-  function Ctor(this: Record<string, unknown>) {
-    /* fields populated by the caller */
-  }
-  (Ctor as unknown as Record<string, unknown>).findOneByOrFail = (...args: unknown[]) =>
-    mockDataTableFindOneByOrFail(...args);
+// Single factory providing both the constructor (so callers can do
+// `new DataTable()`) and the static `findOneByOrFail` used by `getFilePreview`.
+jest.mock('../../../src/entities/dataset/data-table', () => {
+  const Ctor = function (this: Record<string, unknown>) {
+    /* fields populated by caller */
+  } as unknown as Record<string, unknown> & (new () => unknown);
+  Ctor.findOneByOrFail = (...args: unknown[]) => mockDataTableFindOneByOrFail(...args);
   return { DataTable: Ctor };
 });
 
