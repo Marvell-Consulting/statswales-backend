@@ -188,6 +188,43 @@ describe('validateFileAndExtractTableInfo', () => {
     expect(mockDuckDBRun.mock.calls[1][0]).toContain('latin-1');
   });
 
+  it('applies the utf-8 → latin-1 fallback to GzipCsv files as well as plain CSVs', async () => {
+    mockDuckDBRun
+      .mockRejectedValueOnce(new Error('utf-8 read failed'))
+      .mockResolvedValueOnce(undefined) // latin-1 retry
+      .mockResolvedValue(undefined); // subsequent runs
+    mockDuckDBRunAndReadAll.mockResolvedValueOnce(makeReader([{ column_name: 'period' }, { column_name: 'value' }]));
+
+    const dataTable = makeDataTable(FileType.GzipCsv);
+    const result = await validateFileAndExtractTableInfo(
+      makeFile({ originalname: 'data.csv.gz', mimetype: 'application/x-gzip' }),
+      dataTable,
+      'data_table'
+    );
+
+    expect(result).toHaveLength(2);
+    expect(dataTable.encoding).toBe('latin-1');
+    // First call used utf-8, second used latin-1 — confirms both attempts went
+    // through the encoding branch rather than the no-encoding else branch.
+    expect(mockDuckDBRun.mock.calls[0][0]).toContain('utf-8');
+    expect(mockDuckDBRun.mock.calls[1][0]).toContain('latin-1');
+  });
+
+  it('reads a GzipCsv with UTF-8 on the happy path (no fallback needed)', async () => {
+    mockDuckDBRun.mockResolvedValue(undefined);
+    mockDuckDBRunAndReadAll.mockResolvedValueOnce(makeReader([{ column_name: 'period' }, { column_name: 'value' }]));
+
+    const dataTable = makeDataTable(FileType.GzipCsv);
+    await validateFileAndExtractTableInfo(
+      makeFile({ originalname: 'data.csv.gz', mimetype: 'application/x-gzip' }),
+      dataTable,
+      'data_table'
+    );
+
+    expect(dataTable.encoding).toBe('utf-8');
+    expect(mockDuckDBRun.mock.calls[0][0]).toContain('utf-8');
+  });
+
   it('throws InvalidUnicode when latin-1 fallback also hits a unicode error', async () => {
     const err = new Error('Invalid unicode bytes in stream');
     // attach a stack property since the code checks `(error as DuckDBException).stack`

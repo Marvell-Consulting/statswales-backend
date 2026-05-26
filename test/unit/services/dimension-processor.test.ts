@@ -655,6 +655,34 @@ describe('validateNumericDimension', () => {
     expect(result).toEqual({ status: 200, preview: 'ok' });
   });
 
+  it('builds the decimal preview query with a TO_CHAR mask of placeholder digits, not literal numbers', async () => {
+    mockQuery
+      // schema info: DOUBLE — fast-path to preview
+      .mockResolvedValueOnce([{ column_name: 'value', data_type: 'DOUBLE' }])
+      // totals
+      .mockResolvedValueOnce([{ totalLines: 4 }])
+      // preview
+      .mockResolvedValueOnce([{ value: '1.50' }]);
+
+    await validateNumericDimension(
+      { number_format: NumberType.Decimal, decimal_places: 2 } as Parameters<typeof validateNumericDimension>[0],
+      makeNumericDataset(),
+      makeNumericDimension()
+    );
+
+    // The third query is the preview SELECT. Its mask should contain '.00'
+    // (two placeholder digits) — not '.2' (the literal decimal-places count).
+    const previewSql = mockQuery.mock.calls[2][0] as string;
+    expect(previewSql).toContain('.00');
+    expect(previewSql).not.toMatch(/\.2(?!\d)/);
+  });
+
+  // Note: `decimal_places: 0` is rejected upstream by `validateNumericDimension`
+  // (the `!decimalPlaces` check treats 0 as missing and throws), so the
+  // `extractor.decimalPlaces > 0` branch of the mask builder isn't reachable
+  // from production today. The guard is kept for defence in depth in case the
+  // upstream check is later relaxed.
+
   it('returns a non-numerical-values error when text data does not match the requested integer format', async () => {
     mockQuery
       // schema-info: column is VARCHAR (no fast path)
