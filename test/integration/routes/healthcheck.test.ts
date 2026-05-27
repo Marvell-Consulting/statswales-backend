@@ -1,7 +1,6 @@
 import request from 'supertest';
 
 import app from '../../../src/app';
-import { dbManager } from '../../../src/db/database-manager';
 import { initPassport } from '../../../src/middleware/passport-auth';
 import { SUPPORTED_LOCALES } from '../../../src/middleware/translation';
 import { Locale } from '../../../src/enums/locale';
@@ -25,7 +24,7 @@ describe('Healthcheck', () => {
   beforeAll(async () => {
     await ensureWorkerDataSources();
     await resetDatabase();
-    await initPassport(dbManager.getAppDataSource());
+    await initPassport();
   });
 
   describe('Server up', () => {
@@ -86,6 +85,34 @@ describe('Healthcheck', () => {
       const res = await request(app).get('/healthcheck/language').set({ 'accept-language': Locale.WelshGb });
       expect(res.status).toBe(200);
       expect(res.body).toEqual({ lang: Locale.WelshGb, supported: SUPPORTED_LOCALES });
+    });
+  });
+
+  describe('Database pools', () => {
+    test('/healthcheck/db returns an array of pool stats', async () => {
+      const res = await request(app).get('/healthcheck/db');
+      expect(res.status).toBe(200);
+      expect(Array.isArray(res.body.pools)).toBe(true);
+      expect(res.body.pools).toHaveLength(3);
+
+      for (const pool of res.body.pools) {
+        expect(pool).toEqual(
+          expect.objectContaining({
+            name: expect.any(String),
+            connectionTimeout: expect.stringMatching(/^\d+ms$/),
+            idleTimeout: expect.stringMatching(/^\d+ms$/),
+            clients: expect.objectContaining({
+              min: expect.any(Number),
+              max: expect.any(Number),
+              idle: expect.any(Number),
+              waiting: expect.any(Number),
+              expired: expect.any(Number),
+              total: expect.any(Number),
+              isFull: expect.any(Boolean)
+            })
+          })
+        );
+      }
     });
   });
 

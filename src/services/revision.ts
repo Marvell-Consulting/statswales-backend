@@ -14,8 +14,9 @@ import { BadRequestException } from '../exceptions/bad-request.exception';
 import { CubeValidationException } from '../exceptions/cube-error-exception';
 import { UnknownException } from '../exceptions/unknown.exception';
 import { ColumnMatch } from '../interfaces/column-match';
-import { RevisionTask } from '../interfaces/revision-task';
+import { DimensionUpdateTask, RevisionTask } from '../interfaces/revision-task';
 import { DatasetRepository } from '../repositories/dataset';
+import { RevisionList, RevisionRepository } from '../repositories/revision';
 import { createDateDimensionLookup } from './dimension-processor';
 import { FactTableValidationExceptionType } from '../enums/fact-table-validation-exception-type';
 import { FactTableValidationException } from '../exceptions/fact-table-validation-exception';
@@ -40,7 +41,6 @@ import { config } from '../config';
 import { revisionStartAndEndDateFinder, widenCoverageRange } from '../utils/revision';
 import { factTableValidatorFromSource, sourceAssignmentFromFactTable } from './fact-table-validator';
 import { BuildLog } from '../entities/dataset/build-log';
-import { RevisionList } from '../repositories/revision';
 import { User } from '../entities/user/user';
 import { CubeBuildStatus } from '../enums/cube-build-status';
 
@@ -544,5 +544,39 @@ export async function rebuildAllFilterTablesForRevisions(
       err instanceof Error ? (err.stack ?? err.message) : String(err)
     );
     await buildLogEntry.save();
+  }
+}
+
+export async function updateRevisionTasks(dataset: Dataset, id: string, type: 'dimension' | 'measure'): Promise<void> {
+  if (dataset.draftRevision && dataset.draftRevision?.revisionIndex != 1) {
+    const revision = dataset.draftRevision;
+    const task: DimensionUpdateTask = { id, lookupTableUpdated: true };
+    if (!dataset.draftRevision.tasks) {
+      if (type === 'dimension') {
+        revision.tasks = { dimensions: [task], measure: undefined };
+      } else {
+        revision.tasks = { dimensions: [], measure: task };
+      }
+    } else {
+      const tasks = dataset.draftRevision.tasks;
+      if (type === 'dimension') {
+        const currentTask = tasks.dimensions.find((task) => task.id === id);
+        if (currentTask) {
+          tasks.dimensions.forEach((task) => {
+            if (task.id === id) task.lookupTableUpdated = true;
+          });
+        } else {
+          tasks.dimensions.push(task);
+        }
+      } else {
+        if (tasks.measure) {
+          tasks.measure.lookupTableUpdated = true;
+        } else {
+          tasks.measure = task;
+        }
+      }
+      revision.tasks = tasks;
+    }
+    await RevisionRepository.save(revision);
   }
 }

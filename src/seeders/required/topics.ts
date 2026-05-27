@@ -5,7 +5,7 @@ import { parse } from 'csv-parse';
 import { DataSource } from 'typeorm';
 
 import { logger } from '../../utils/logger';
-import { dataSource } from '../../db/data-source';
+import { publisherDataSource } from '../../db/publisher-source';
 import { Topic } from '../../entities/dataset/topic';
 
 interface CSVRow {
@@ -55,13 +55,13 @@ export class TopicsSeeder {
 
 Promise.resolve()
   .then(async () => {
-    if (!dataSource.isInitialized) await dataSource.initialize();
-    await new TopicsSeeder(dataSource).run();
+    if (!publisherDataSource.isInitialized) await publisherDataSource.initialize();
+    await new TopicsSeeder(publisherDataSource).run();
   })
   .catch(async (err) => {
     logger.error(err);
     process.exitCode = 1;
   })
   .finally(async () => {
-    if (dataSource.isInitialized) await dataSource.destroy();
+    if (publisherDataSource.isInitialized) await publisherDataSource.destroy();
   });

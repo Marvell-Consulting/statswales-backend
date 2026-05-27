@@ -18,13 +18,12 @@ import {
 import { hasError, formatValidator } from '../validators';
 import { TopicDTO } from '../dtos/topic-dto';
 import { PublishedTopicsDTO } from '../dtos/published-topics-dto';
-import { TopicRepository } from '../repositories/topic';
+import { PublishedTopicRepository } from '../repositories/published-topic';
 import { FilterInterface } from '../interfaces/filterInterface';
 import { parseSortByToObjects } from '../utils/parse-sort-by-param';
 import { DownloadFormat } from '../enums/download-format';
 import { DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE } from '../utils/page-defaults';
 import { clamp } from '../utils/clamp';
-import { UserGroupRepository } from '../repositories/user-group';
 import { PublisherDTO } from '../dtos/publisher-dto';
 import { ConsumerRevisionDTO } from '../dtos/consumer-revision-dto';
 
@@ -50,8 +49,10 @@ export const getPublishedDatasetById = async (req: Request, res: Response): Prom
   const datasetDTO = ConsumerDatasetDTO.fromDataset(dataset, req.language as Locale);
 
   if (dataset.userGroupId) {
-    const userGroup = await UserGroupRepository.getByIdWithOrganisation(dataset.userGroupId);
-    datasetDTO.publisher = PublisherDTO.fromUserGroup(userGroup, req.language as Locale);
+    const userGroup = await PublishedDatasetRepository.getPublisherOrganisation(dataset.id);
+    if (userGroup) {
+      datasetDTO.publisher = PublisherDTO.fromUserGroup(userGroup, req.language as Locale);
+    }
   }
 
   res.json(datasetDTO);
@@ -84,7 +85,16 @@ export const getPublishedDatasetView = async (req: Request, res: Response): Prom
   }
 
   try {
-    const preview = await createFrontendView(dataset, publishedRevision.id, lang, pageNumber, pageSize, sortBy, filter);
+    const preview = await createFrontendView(
+      dataset,
+      publishedRevision.id,
+      lang,
+      pageNumber,
+      pageSize,
+      PublishedDatasetRepository.getById.bind(PublishedDatasetRepository),
+      sortBy,
+      filter
+    );
     res.status(200).json(preview);
   } catch (error) {
     if (error instanceof QueryFailedError && /column .* does not exist/i.test(error.message)) {
@@ -206,7 +216,7 @@ export const listSubTopics = async (req: Request, res: Response, next: NextFunct
     }
   });
 
-  const topic = topicId ? await TopicRepository.findOneBy({ id: parseInt(topicId, 10) }) : undefined;
+  const topic = topicId ? await PublishedTopicRepository.findOneBy({ id: parseInt(topicId, 10) }) : undefined;
 
   if (topicId && !topic) {
     next(new NotFoundException('errors.topic_not_found'));
@@ -215,7 +225,7 @@ export const listSubTopics = async (req: Request, res: Response, next: NextFunct
 
   try {
     const subTopics = await PublishedDatasetRepository.listPublishedTopics(lang, topicId);
-    const parents = topic ? await TopicRepository.getParents(topic.path) : undefined;
+    const parents = topic ? await PublishedTopicRepository.getParents(topic.path) : undefined;
     const isLeafTopic = topic && subTopics.length === 0;
     let datasets;
 

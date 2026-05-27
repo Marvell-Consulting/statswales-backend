@@ -78,7 +78,10 @@ export class EntitySubscriber implements EntitySubscriberInterface {
         client: this.getClient()
       };
 
-      await EventLog.save<EventLog>(log);
+      // write via event.manager so the audit row uses the same connection as the originating write —
+      // today the subscriber only attaches to the publisher pool, but this keeps it correct if we
+      // ever attach to consumer too (consumer entities QueryStore/SearchLog are in ignoreTables).
+      await event.manager.getRepository(EventLog).save(log);
     } catch (err) {
       logger.error(err, 'failed to write to event log');
     }

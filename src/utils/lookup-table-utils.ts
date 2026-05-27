@@ -24,7 +24,6 @@ import { randomUUID } from 'node:crypto';
 import { createDateTableInValidationCube } from '../services/revision';
 import { getFileImportAndSaveToDisk, loadFileIntoLookupTablesSchema } from './file-utils';
 import { LookupTableExtractor } from '../extractors/lookup-table-extractor';
-import { Revision } from '../entities/dataset/revision';
 import { Dimension } from '../entities/dataset/dimension';
 import { revisionStartAndEndDateFinder } from './revision';
 import { DateDimensionTypes, LookupTableTypes } from '../enums/dimension-type';
@@ -641,10 +640,10 @@ export const bootstrapCubeBuildProcess = async (datasetId: string, revisionId: s
   }
   const revisedDimensions = await Dimension.findBy({ datasetId: datasetId });
   const coverage = revisionStartAndEndDateFinder(revisedDimensions);
-  const rev = await Revision.findOneByOrFail({ id: revisionId });
+  const rev = await RevisionRepository.findOneByOrFail({ id: revisionId });
   rev.startDate = coverage.startDate;
   rev.endDate = coverage.endDate;
-  await rev.save();
+  await RevisionRepository.save(rev);
 };
 
 async function bootStrapValidationTable(revisionSchema: string, dataset: Dataset): Promise<void> {

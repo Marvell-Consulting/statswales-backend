@@ -3,7 +3,7 @@ import { createHash } from 'node:crypto';
 import { format as pgformat } from '@scaleleap/pg-format/lib/pg-format';
 import { customAlphabet } from 'nanoid';
 
-import { dataSource } from '../db/data-source';
+import { consumerDataSource } from '../db/consumer-source';
 import { dbManager } from '../db/database-manager';
 import { DataOptionsDTO, FRONTEND_DATA_OPTIONS } from '../dtos/data-options-dto';
 import { QueryStore } from '../entities/query-store';
@@ -111,7 +111,7 @@ async function runCountAgainstCube(baseQuery: string): Promise<number> {
   }
 }
 
-export const QueryStoreRepository = dataSource.getRepository(QueryStore).extend({
+export const QueryStoreRepository = consumerDataSource.getRepository(QueryStore).extend({
   async getById(id: string): Promise<QueryStore> {
     logger.debug(`Loading query store by id ${id}...`);
     return this.findOneByOrFail({ id });
@@ -235,7 +235,7 @@ export const QueryStoreRepository = dataSource.getRepository(QueryStore).extend(
   },
 
   async rebuildAll(): Promise<void> {
-    await dataSource.query(
+    await consumerDataSource.query(
       'DELETE FROM query_store qs USING revision r WHERE qs.revision_id = r.id AND r.publish_at IS NULL OR r.publish_at > NOW();'
     );
 

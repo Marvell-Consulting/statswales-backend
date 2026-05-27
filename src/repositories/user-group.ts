@@ -1,5 +1,5 @@
 import { FindManyOptions } from 'typeorm';
-import { dataSource } from '../db/data-source';
+import { publisherDataSource } from '../db/publisher-source';
 import { UserGroupDTO } from '../dtos/user/user-group-dto';
 import { UserGroupListItemDTO } from '../dtos/user/user-group-list-item-dto';
 import { UserGroupMetadataDTO } from '../dtos/user/user-group-metadata-dto';
@@ -10,7 +10,7 @@ import { UserGroupStatus } from '../enums/user-group-status';
 import { ResultsetWithCount } from '../interfaces/resultset-with-count';
 import { UserGroupStats } from '../interfaces/dashboard-stats';
 
-export const UserGroupRepository = dataSource.getRepository(UserGroup).extend({
+export const UserGroupRepository = publisherDataSource.getRepository(UserGroup).extend({
   async getById(id: string): Promise<UserGroup> {
     return this.findOneByOrFail({ id });
   },
@@ -97,7 +97,7 @@ export const UserGroupRepository = dataSource.getRepository(UserGroup).extend({
 
   async createGroup(meta: UserGroupMetadataDTO[]): Promise<UserGroup> {
     const metadata = meta.map((m) => UserGroupMetadataDTO.toUserGroupMetadata(m));
-    return UserGroup.create({ metadata }).save();
+    return this.save(this.create({ metadata }));
   },
 
   async updateGroup(groupId: string, dto: UserGroupDTO): Promise<UserGroup> {
@@ -114,7 +114,7 @@ export const UserGroupRepository = dataSource.getRepository(UserGroup).extend({
 
     // delete any associated user roles when deactivating
     if (status === UserGroupStatus.Inactive && group.groupRoles && group.groupRoles.length > 0) {
-      await dataSource.getRepository(UserGroupRole).delete({ group: { id: groupId } });
+      await publisherDataSource.getRepository(UserGroupRole).delete({ group: { id: groupId } });
     }
 
     group.status = status;

@@ -1,4 +1,4 @@
-import { dataSource } from '../db/data-source';
+import { publisherDataSource } from '../db/publisher-source';
 import { logger } from '../utils/logger';
 import { Dataset } from '../entities/dataset/dataset';
 import { CORE_VIEW_NAME } from '../services/cube-builder';
@@ -48,7 +48,7 @@ const latestPublishedRevisionsQuery = `
   ORDER BY rev.dataset_id, rev.created_at DESC
 `;
 
-export const DatasetStatsRepository = dataSource.getRepository(Dataset).extend({
+export const DatasetStatsRepository = publisherDataSource.getRepository(Dataset).extend({
   async getDashboardStats(locale: Locale): Promise<DatasetStats> {
     logger.debug('Getting dashboard statistics for datasets');
 

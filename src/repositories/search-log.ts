@@ -1,8 +1,8 @@
 import { Between } from 'typeorm';
-import { dataSource } from '../db/data-source';
+import { consumerDataSource } from '../db/consumer-source';
 import { SearchLog } from '../entities/search-log';
 
-export const SearchLogRepository = dataSource.getRepository(SearchLog).extend({
+export const SearchLogRepository = consumerDataSource.getRepository(SearchLog).extend({
   getByPeriod(start: Date, end: Date): Promise<SearchLog[]> {
     return this.find({
       where: {

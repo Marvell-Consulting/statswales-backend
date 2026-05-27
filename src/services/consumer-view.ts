@@ -4,24 +4,29 @@ import { PoolClient, QueryResult } from 'pg';
 import Cursor from 'pg-cursor';
 import { format as pgformat } from '@scaleleap/pg-format/lib/pg-format';
 import { format as csvFormat } from '@fast-csv/format';
+import { t } from 'i18next';
+import type { FindOptionsRelations } from 'typeorm';
 
 import { validateParams } from '../validators/preview-validator';
 import { ViewDTO, ViewErrDTO } from '../dtos/view-dto';
 import { DatasetDTO } from '../dtos/dataset-dto';
 import { Dataset } from '../entities/dataset/dataset';
 import { logger } from '../utils/logger';
-import { DatasetRepository } from '../repositories/dataset';
 import { QueryStoreRepository } from '../repositories/query-store';
 import { SortByInterface } from '../interfaces/sort-by-interface';
 import { FilterInterface } from '../interfaces/filterInterface';
 import { dbManager } from '../db/database-manager';
 import { getColumnHeaders } from '../utils/column-headers';
-import { t } from 'i18next';
 import cubeConfig from '../config/cube-view.json';
 import { FactTableToDimensionName } from '../interfaces/fact-table-column-to-dimension-name';
 import { coreViewChooser, dateColumnsFromDimensions, sortFilterRows, transformHierarchy } from '../utils/consumer';
 import { FilterRow } from '../interfaces/filter-row';
 import { Dimension } from '../entities/dataset/dimension';
+
+// Caller-supplied dataset loader: lets the publisher path go through DatasetRepository (publisher pool,
+// supports drafts) and the consumer path through PublishedDatasetRepository (consumer pool,
+// published-only). Without this, consumer routes would borrow connections from the publisher pool.
+export type DatasetLoader = (id: string, relations?: FindOptionsRelations<Dataset>) => Promise<Dataset>;
 
 const EXCEL_ROW_LIMIT = 1048500; // Excel Limit is 1048576 but removed 76 rows
 const CURSOR_ROW_LIMIT = 500;
@@ -196,6 +201,7 @@ export const createFrontendView = async (
   locale: string,
   pageNumber: number,
   pageSize: number,
+  loader: DatasetLoader,
   sortBy?: SortByInterface[],
   filterBy?: FilterInterface[]
 ): Promise<ViewDTO | ViewErrDTO> => {
@@ -250,7 +256,7 @@ export const createFrontendView = async (
 
   // PATCH: Handle empty preview result
   if (!preview || preview.length === 0) {
-    const currentDataset = await DatasetRepository.getById(dataset.id);
+    const currentDataset = await loader(dataset.id);
     return {
       dataset: DatasetDTO.fromDataset(currentDataset),
       current_page: pageNumber,
@@ -282,7 +288,7 @@ export const createFrontendView = async (
   const tableHeaders = Object.keys(preview[0] as Record<string, never>);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const data = preview.map((row: any) => Object.values(row));
-  const currentDataset = await DatasetRepository.getById(dataset.id, { factTable: true, dimensions: true });
+  const currentDataset = await loader(dataset.id, { factTable: true, dimensions: true });
   const lastLine = startLine + data.length - 1;
   const headers = getColumnHeaders(currentDataset, tableHeaders, filterTable);
   let note_codes: string[] = [];
