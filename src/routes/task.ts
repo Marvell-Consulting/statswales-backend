@@ -38,10 +38,10 @@ const taskAuth = async (req: Request, res: Response, next: NextFunction): Promis
     logger.debug(`User has access to task ${task.id} via dataset ${dataset.id} and group ${dataset.userGroupId}`);
 
     res.locals.task = task;
+    next();
   } catch (error) {
     next(error);
   }
-  next();
 };
 
 // ****** TASK AUTHORISATION MIDDLEWARE ****** //
