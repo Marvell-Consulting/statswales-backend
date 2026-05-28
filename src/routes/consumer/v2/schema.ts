@@ -94,6 +94,18 @@ export const schemaV2 = {
         schema: { type: 'string' },
         example: 'title:asc,last_updated_at:desc'
       },
+      cursor: {
+        name: 'cursor',
+        in: 'query',
+        description:
+          `Opaque keyset cursor returned in <code>page_info.next_cursor</code> / <code>prev_cursor</code>. ` +
+          `Pass it back to fetch the next (or previous) slice of rows without paying the OFFSET cost. ` +
+          `Cursors are bound to a specific dataset revision, language and sort order — they become invalid ` +
+          `if any of those change, and the server will return <code>400</code> in that case. Mutually exclusive ` +
+          `with <code>page_number</code> > 1.`,
+        required: false,
+        schema: { type: 'string', maxLength: 2048 }
+      },
       filter: {
         name: 'filter',
         in: 'query',

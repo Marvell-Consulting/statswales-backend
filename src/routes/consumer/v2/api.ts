@@ -371,7 +371,11 @@ publicApiV2Router.get(
       specified by the required <code>format</code> parameter. <code>csv</code> and <code>xlsx</code>
       return the full dataset as a streamed file attachment. <code>json</code>, <code>frontend</code>
       and <code>html</code> return paginated responses (default <code>page_size</code> 100, max 10,000).
-      To apply filters, first create a filter via POST /{dataset_id}/data, then use
+      <br><br>Pagination supports two modes: <code>page_number</code>-based (OFFSET) for shallow paging,
+      and opaque <code>cursor</code>-based (keyset) for efficient deep paging. The response carries both
+      <code>next_cursor</code> and <code>prev_cursor</code> in <code>page_info</code> so clients can
+      switch into cursor mode at any point. The two modes are mutually exclusive within a single request.
+      <br><br>To apply filters, first create a filter via POST /{dataset_id}/data, then use
       GET /{dataset_id}/data/{filter_id}."
     #swagger.autoQuery = false
     #swagger.parameters['$ref'] = [
@@ -380,7 +384,8 @@ publicApiV2Router.get(
       '#/components/parameters/output_format',
       '#/components/parameters/page_number',
       '#/components/parameters/page_size',
-      '#/components/parameters/sort_by'
+      '#/components/parameters/sort_by',
+      '#/components/parameters/cursor'
     ]
     #swagger.responses[200] = {
       description: 'A JSON array of data row objects',
@@ -405,7 +410,8 @@ publicApiV2Router.get(
       chosen options for a specific filter ID. The required <code>format</code> parameter selects the response shape:
       <code>csv</code> and <code>xlsx</code> stream the full filtered dataset, while <code>json</code>,
       <code>frontend</code> and <code>html</code> return paginated responses (default <code>page_size</code> 100,
-      max 10,000)."
+      max 10,000). Both <code>page_number</code> and opaque <code>cursor</code> pagination are supported (mutually
+      exclusive within a single request) — see GET /{dataset_id}/data for details."
     #swagger.autoQuery = false
     #swagger.parameters['$ref'] = [
       '#/components/parameters/language',
@@ -414,6 +420,7 @@ publicApiV2Router.get(
       '#/components/parameters/page_number',
       '#/components/parameters/page_size',
       '#/components/parameters/sort_by',
+      '#/components/parameters/cursor',
       '#/components/parameters/filter_id'
     ]
     #swagger.responses[200] = {
