@@ -229,10 +229,6 @@ describe('Consumer V2 — data + pivot endpoints', () => {
     describe('cursor pagination', () => {
       it('frontend response includes next_cursor / prev_cursor in page_info', async () => {
         const res = await request(app).get(`/v2/${DATASET_ID}/data`).query({ format: 'frontend', page_size: 5 });
-        // eslint-disable-next-line no-console
-        console.log('DEBUG headers:', JSON.stringify(res.body.headers));
-        // eslint-disable-next-line no-console
-        console.log('DEBUG first row keys (data):', res.body.data?.[0]);
         expect(res.status).toBe(200);
         expect(res.body.page_info).toHaveProperty('next_cursor');
         expect(res.body.page_info).toHaveProperty('prev_cursor');
@@ -343,6 +339,12 @@ describe('Consumer V2 — data + pivot endpoints', () => {
         expect(back.status).toBe(200);
         // Walking back should land us on the original first-page rows
         expect(JSON.stringify(back.body.data)).toBe(JSON.stringify(first.body.data));
+        // Backward-direction responses must always carry next_cursor: we came
+        // from somewhere forward, so a forward link back to it has to exist.
+        // The first-page boundary still nulls prev_cursor (no rows further
+        // behind) — that's what stops the loop.
+        expect(back.body.page_info.next_cursor).toBeTruthy();
+        expect(back.body.page_info.prev_cursor).toBeNull();
       });
     });
   });

@@ -333,7 +333,7 @@ export async function sendFrontendView(
   const query = buildResult.sql;
 
   try {
-    const { pageNumber = 1, pageSize = queryStore.totalLines, locale, cursor } = pageOptions;
+    const { pageNumber = 1, pageSize = queryStore.totalLines, locale } = pageOptions;
     const lang = locale.includes('en') ? 'en-gb' : 'cy-gb';
     const langForHash = locale.includes('en') ? 'en-GB' : 'cy-GB';
 
@@ -423,15 +423,29 @@ export async function sendFrontendView(
     let next_cursor: string | null = null;
     let prev_cursor: string | null = null;
     if (buildResult.sortPlan && buildResult.sortPlan.length > 0 && buildResult.sortHash && rowKeyValues.length > 0) {
-      // Offset mode emits next_cursor whenever there are more rows after the
-      // current page — it's the seam the frontend uses to swap from
-      // page_number paging into cursor paging. Cursor mode emits next_cursor
-      // only when there is genuinely more data ahead (the over-fetch row).
+      // `hasMore` gates the direction the request just walked. Forward cursor
+      // requests over-fetch ahead → hasMore means more rows further forward.
+      // Backward requests over-fetch behind → hasMore means more rows further
+      // backward. The opposite direction's cursor is always emittable in
+      // cursor mode because we necessarily came from there.
+      //
+      // Offset mode only emits next_cursor — it's the seam the frontend uses
+      // to swap from page_number paging into cursor paging at the page-cap
+      // boundary. prev_cursor stays null because offset callers navigate
+      // backwards with page_number, not a cursor.
       const lastKeys = rowKeyValues[rowKeyValues.length - 1];
       const firstKeys = rowKeyValues[0];
-      const offsetHasMore = !isCursorMode && pageSize * pageNumber < queryStore.totalLines;
 
-      if ((!isCursorMode && offsetHasMore) || (isCursorMode && hasMore)) {
+      let emitNext = false;
+      let emitPrev = false;
+      if (isCursorMode) {
+        emitNext = buildResult.direction === 'b' ? true : hasMore;
+        emitPrev = buildResult.direction === 'b' ? hasMore : true;
+      } else {
+        emitNext = pageSize * pageNumber < queryStore.totalLines;
+      }
+
+      if (emitNext) {
         next_cursor = buildCursorFromRow(
           lastKeys,
           buildResult.sortPlan,
@@ -441,7 +455,7 @@ export async function sendFrontendView(
           buildResult.sortHash
         );
       }
-      if (isCursorMode && cursor) {
+      if (emitPrev) {
         prev_cursor = buildCursorFromRow(
           firstKeys,
           buildResult.sortPlan,
