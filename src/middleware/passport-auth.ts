@@ -109,7 +109,14 @@ const initEntraId = async (entraIdConfig: EntraIdConfig): Promise<void> => {
     callbackURL: `${config.backend.url}/auth/entraid/callback`
   };
 
-  const verify: VerifyFunction = async (tokens: Tokens, done: AuthenticateCallback) => {
+  passport.use(AuthProvider.EntraId, new OpenIdStrategy(strategyOptions, entraIdVerify(openidConfig)));
+};
+
+// Extracted as a named factory so the verify branches can be unit-tested without standing up a live
+// OIDC discovery. `openidConfig` is captured so userinfo can be fetched against the discovered provider.
+export const entraIdVerify =
+  (openidConfig: OpenIdConfig): VerifyFunction =>
+  async (tokens: Tokens, done: AuthenticateCallback) => {
     logger.debug('auth callback from entraid received');
     const { sub } = tokens.claims()!;
 
@@ -178,6 +185,3 @@ const initEntraId = async (entraIdConfig: EntraIdConfig): Promise<void> => {
       done(null, undefined, { message: 'Unknown error' });
     }
   };
-
-  passport.use(AuthProvider.EntraId, new OpenIdStrategy(strategyOptions, verify));
-};
