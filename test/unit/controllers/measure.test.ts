@@ -333,11 +333,9 @@ describe('Measure controller', () => {
       expect(res.status).not.toHaveBeenCalledWith(202);
     });
 
-    // BUG (#686 review): when the dataset has no measure the handler calls next(NotFoundException)
-    // but does not `return`, so it falls through to `measure.metadata.find(...)` and throws a
-    // TypeError on the null measure. Correct behaviour: forward NotFoundException and stop.
-    // Compare getPreviewOfMeasure / getMeasureInfo which return after the guard.
-    // This test asserts the correct behaviour and is expected to FAIL until the missing return is added.
+    // Regression (#686): previously the handler called next(NotFoundException) without a `return`,
+    // fell through to `measure.metadata.find(...)` and threw a TypeError on the null measure.
+    // It now returns after the guard, like getPreviewOfMeasure / getMeasureInfo.
     it('forwards NotFound and does not throw when the dataset has no measure', async () => {
       const dataset = { id: uuidV4(), draftRevision: { id: uuidV4() }, measure: null };
       mockGetById.mockResolvedValue(dataset);

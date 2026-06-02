@@ -155,11 +155,10 @@ describe('Admin controller', () => {
       expect(userGroupRepo.getById).not.toHaveBeenCalled();
     });
 
-    // BUG (#686 review): on the not-found path the catch calls next(NotFoundException) but does not
-    // `return`, so it falls through to the unconditional next() at the end of the function and calls
-    // next TWICE (once with the error, once without). The canonical datasetAuth middleware returns
-    // after next(error). Double next() lets the request continue to the route handler with no group
-    // loaded and risks ERR_HTTP_HEADERS_SENT. This asserts the correct behaviour and is expected to FAIL.
+    // Regression (#686): the catch block previously called next(NotFoundException) without a `return`,
+    // falling through to the unconditional next() at the end and calling next TWICE (once with the
+    // error, once without) — the "responds twice" class of bug. It now returns after next(error),
+    // matching the canonical datasetAuth middleware.
     it('calls next exactly once with NotFound when the group cannot be loaded', async () => {
       userGroupRepo.getById.mockRejectedValue(new Error('not in db'));
 
@@ -199,8 +198,8 @@ describe('Admin controller', () => {
       expect(userRepo.getById).not.toHaveBeenCalled();
     });
 
-    // BUG (#686 review): same missing `return` as loadUserGroup — next() is called twice on the
-    // not-found path. This asserts the correct behaviour and is expected to FAIL until the return is added.
+    // Regression (#686): same missing `return` as loadUserGroup — next() used to be called twice on
+    // the not-found path. It now returns after next(error).
     it('calls next exactly once with NotFound when the user cannot be loaded', async () => {
       userRepo.getById.mockRejectedValue(new Error('not in db'));
 

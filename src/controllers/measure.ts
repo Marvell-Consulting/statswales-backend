@@ -142,6 +142,7 @@ export const updateMeasureMetadata = async (req: Request, res: Response, next: N
   const measure = dataset.measure;
   if (!measure) {
     next(new NotFoundException('errors.measure_invalid'));
+    return;
   }
 
   const draftRevision = dataset.draftRevision;
