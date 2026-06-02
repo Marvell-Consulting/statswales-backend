@@ -35,7 +35,7 @@ const verify = entraIdVerify({} as never);
 describe('passport-auth entraIdVerify', () => {
   beforeEach(() => jest.clearAllMocks());
 
-  it('rejects when the entraid account has no sub or email', async () => {
+  it('rejects when the entraid account is missing an email', async () => {
     fetchUserInfo.mockResolvedValue({ sub: 'entra-sub-123' }); // no email
     const done = jest.fn();
 
@@ -94,5 +94,15 @@ describe('passport-auth entraIdVerify', () => {
     await Promise.resolve(verify(tokens, done));
 
     expect(done).toHaveBeenCalledWith(null, undefined, { message: 'Unknown error' });
+  });
+
+  it('rejects with a generic message when fetching user info throws', async () => {
+    fetchUserInfo.mockRejectedValue(new Error('provider unreachable'));
+    const done = jest.fn();
+
+    await Promise.resolve(verify(tokens, done));
+
+    expect(done).toHaveBeenCalledWith(null, undefined, { message: 'Unknown error' });
+    expect(findOne).not.toHaveBeenCalled();
   });
 });

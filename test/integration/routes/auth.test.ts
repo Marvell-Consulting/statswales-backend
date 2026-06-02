@@ -73,9 +73,25 @@ describe('Auth routes', () => {
     });
   });
 
-  // The happy path and the no-token / invalid-token / unknown-user cases live in healthcheck.test.ts.
-  // These cover the remaining JWT strategy branches in passport-auth.ts.
+  // Exercises the JWT strategy branches in passport-auth.ts via the protected /healthcheck/jwt probe.
+  // healthcheck.test.ts keeps a single 200 case as a smoke test of the route itself.
   describe('JWT auth middleware (passport-auth)', () => {
+    test('/healthcheck/jwt returns 401 without a bearer token', async () => {
+      const res = await request(app).get('/healthcheck/jwt');
+      expect(res.status).toBe(401);
+    });
+
+    test('/healthcheck/jwt returns 401 with an invalid bearer token', async () => {
+      const res = await request(app).get('/healthcheck/jwt').set({ Authorization: 'Bearer this-is-not-a-token' });
+      expect(res.status).toBe(401);
+    });
+
+    test('/healthcheck/jwt returns 401 with a valid token for a user that does not exist', async () => {
+      const unknownUser = getTestUser('Unknown JWT User');
+      const res = await request(app).get('/healthcheck/jwt').set(getAuthHeader(unknownUser));
+      expect(res.status).toBe(401);
+    });
+
     test('/healthcheck/jwt returns 401 for an expired token', async () => {
       const user = getTestUser('Expired Token User');
       await user.save();
@@ -108,6 +124,19 @@ describe('Auth routes', () => {
 
       const res = await request(app).get('/healthcheck/jwt').set(authHeader);
       expect(res.status).toBe(401);
+    });
+
+    test('/healthcheck/jwt returns 200 with a valid bearer token', async () => {
+      const user = getTestUser('Valid JWT User');
+      await user.save();
+
+      const res = await request(app).get('/healthcheck/jwt').set(getAuthHeader(user));
+
+      expect(res.status).toBe(200);
+      expect(res.body).toEqual({
+        message: 'success',
+        user: UserDTO.fromUser(user, Locale.English)
+      });
     });
   });
 });
