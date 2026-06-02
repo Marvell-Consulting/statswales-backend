@@ -109,20 +109,28 @@ const initEntraId = async (entraIdConfig: EntraIdConfig): Promise<void> => {
     callbackURL: `${config.backend.url}/auth/entraid/callback`
   };
 
-  const verify: VerifyFunction = async (tokens: Tokens, done: AuthenticateCallback) => {
+  passport.use(AuthProvider.EntraId, new OpenIdStrategy(strategyOptions, entraIdVerify(openidConfig)));
+};
+
+// Extracted as a named factory so the verify branches can be unit-tested without standing up a live
+// OIDC discovery. `openidConfig` is captured so userinfo can be fetched against the discovered provider.
+export const entraIdVerify =
+  (openidConfig: OpenIdConfig): VerifyFunction =>
+  async (tokens: Tokens, done: AuthenticateCallback) => {
     logger.debug('auth callback from entraid received');
-    const { sub } = tokens.claims()!;
-
-    logger.debug('fetching user info from entraid...');
-    const userInfo = await openIdClient.fetchUserInfo(openidConfig, tokens.access_token, sub);
-
-    if (!userInfo?.sub || !userInfo?.email) {
-      logger.warn('entraid auth failed: account is missing user id or email address and we need both');
-      done(null, undefined, { message: 'entraid account does not have a user id or email, cannot login' });
-      return;
-    }
 
     try {
+      const { sub } = tokens.claims()!;
+
+      logger.debug('fetching user info from entraid...');
+      const userInfo = await openIdClient.fetchUserInfo(openidConfig, tokens.access_token, sub);
+
+      if (!userInfo?.sub || !userInfo?.email) {
+        logger.warn('entraid auth failed: account is missing user id or email address and we need both');
+        done(null, undefined, { message: 'entraid account does not have a user id or email, cannot login' });
+        return;
+      }
+
       logger.debug('checking if user has previously logged in...');
 
       const existingUserById = await UserRepository.findOne({
@@ -178,6 +186,3 @@ const initEntraId = async (entraIdConfig: EntraIdConfig): Promise<void> => {
       done(null, undefined, { message: 'Unknown error' });
     }
   };
-
-  passport.use(AuthProvider.EntraId, new OpenIdStrategy(strategyOptions, verify));
-};

@@ -8,13 +8,7 @@ const sharedConfig = {
   // openid-client and its deps are now published as ESM and need transpiling to CJS
   transformIgnorePatterns: ['/node_modules/(?!(openid-client|oauth4webapi|jose|nanoid)/)'],
   testEnvironment: 'node' as const,
-  coveragePathIgnorePatterns: [
-    '/node_modules',
-    '/test/',
-    '/src/migrations',
-    '/src/controllers/auth.ts',
-    'src/middleware/passport-auth.ts'
-  ]
+  coveragePathIgnorePatterns: ['/node_modules', '/test/', '/src/migrations']
 };
 
 const config: Config = {

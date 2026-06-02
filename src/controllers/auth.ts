@@ -14,7 +14,7 @@ import { UserDTO } from '../dtos/user/user-dto';
 const domain = new URL(config.auth.jwt.cookieDomain).hostname;
 logger.debug(`JWT cookie domain is '${domain}'`);
 
-const checkTokenFitsInCookie = (token: string): void => {
+export const checkTokenFitsInCookie = (token: string): void => {
   const maxCookieSize = 4096; // Maximum size of a cookie in bytes
   const tokenSize = Buffer.byteLength(token, 'utf8');
 
