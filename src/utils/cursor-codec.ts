@@ -2,6 +2,9 @@ import { createHash } from 'node:crypto';
 
 import { BadRequestException } from '../exceptions/bad-request.exception';
 
+// Bump whenever the wire format or binding changes in a shipped release: old
+// cursors then fail the version check and 400, and the client restarts from
+// page 1. Still 1 — this format has never been released.
 export const CURSOR_VERSION = 1;
 export const MAX_CURSOR_LENGTH = 2048;
 
@@ -11,12 +14,12 @@ export type CursorDirection = 'f' | 'b';
 // pagination, so the codec must preserve a JSON null through encode/decode.
 export type CursorKeyValue = string | number | boolean | null;
 
+// Decoded, in-memory shape. On the wire it is serialised positionally as
+// [v, c, d, k] (see encodeCursor) so the token doesn't carry JSON key names
+// — that keeps the URL parameter short.
 export interface CursorPayload {
   v: number;
-  q: string; // queryStoreId
-  r: string; // revisionId
-  l: string; // language
-  h: string; // sortHash
+  c: string; // context hash — binds the cursor to its query/revision/lang/sort
   d: CursorDirection;
   k: CursorKeyValue[];
 }
@@ -44,9 +47,28 @@ export function computeSortHash(spec: CanonicalSortColumn[], language: string): 
   return createHash('sha256').update(canonical).digest('base64url').slice(0, 22);
 }
 
+// Single short hash binding a cursor to the query store, revision, language
+// and sort it was issued for. It is embedded in the token in place of the raw
+// ids; on decode we recompute it from the server-known values and compare.
+// A mismatch (cursor replayed against different filters/revision/lang/sort,
+// or tampered) produces a 400 rather than silently mis-paginating. None of
+// the inputs are transmitted — only this 22-char digest — so the binding is
+// free in URL terms.
+export function computeContextHash(
+  queryStoreId: string,
+  revisionId: string,
+  language: string,
+  sortHash: string
+): string {
+  const canonical = JSON.stringify([queryStoreId, revisionId, language.toLowerCase(), sortHash]);
+  return createHash('sha256').update(canonical).digest('base64url').slice(0, 22);
+}
+
 export function encodeCursor(payload: CursorPayload): string {
-  const json = JSON.stringify(payload);
-  return Buffer.from(json, 'utf8').toString('base64url');
+  // Serialise positionally — [v, c, d, k] — rather than as an object so the
+  // token carries no JSON key names.
+  const wire = [payload.v, payload.c, payload.d, payload.k];
+  return Buffer.from(JSON.stringify(wire), 'utf8').toString('base64url');
 }
 
 export function decodeCursor(raw: string, expected: CursorExpectation): CursorPayload {
@@ -68,34 +90,38 @@ export function decodeCursor(raw: string, expected: CursorExpectation): CursorPa
     throw new BadRequestException('errors.invalid_cursor');
   }
 
-  if (!isCursorPayload(parsed)) {
+  const payload = parseWire(parsed);
+  if (!payload) {
     throw new BadRequestException('errors.invalid_cursor');
   }
 
-  if (parsed.v !== CURSOR_VERSION) throw new BadRequestException('errors.invalid_cursor');
-  if (parsed.q !== expected.queryStoreId) throw new BadRequestException('errors.invalid_cursor');
-  if (parsed.r !== expected.revisionId) throw new BadRequestException('errors.invalid_cursor');
-  if (parsed.l !== expected.language) throw new BadRequestException('errors.invalid_cursor');
-  if (parsed.h !== expected.sortHash) throw new BadRequestException('errors.invalid_cursor');
-  if (parsed.k.length !== expected.keyArity) throw new BadRequestException('errors.invalid_cursor');
+  const expectedContext = computeContextHash(
+    expected.queryStoreId,
+    expected.revisionId,
+    expected.language,
+    expected.sortHash
+  );
 
-  return parsed;
+  if (payload.v !== CURSOR_VERSION) throw new BadRequestException('errors.invalid_cursor');
+  if (payload.c !== expectedContext) throw new BadRequestException('errors.invalid_cursor');
+  if (payload.k.length !== expected.keyArity) throw new BadRequestException('errors.invalid_cursor');
+
+  return payload;
 }
 
-function isCursorPayload(x: unknown): x is CursorPayload {
-  if (!x || typeof x !== 'object') return false;
-  const o = x as Record<string, unknown>;
-  if (typeof o.v !== 'number') return false;
-  if (typeof o.q !== 'string') return false;
-  if (typeof o.r !== 'string') return false;
-  if (typeof o.l !== 'string') return false;
-  if (typeof o.h !== 'string') return false;
-  if (o.d !== 'f' && o.d !== 'b') return false;
-  if (!Array.isArray(o.k)) return false;
-  for (const v of o.k) {
-    if (v === null) continue;
-    const t = typeof v;
-    if (t !== 'string' && t !== 'number' && t !== 'boolean') return false;
+// Validate and lift the positional wire array [v, c, d, k] into a typed
+// payload. Returns null on any shape mismatch.
+function parseWire(x: unknown): CursorPayload | null {
+  if (!Array.isArray(x) || x.length !== 4) return null;
+  const [v, c, d, k] = x;
+  if (typeof v !== 'number') return null;
+  if (typeof c !== 'string') return null;
+  if (d !== 'f' && d !== 'b') return null;
+  if (!Array.isArray(k)) return null;
+  for (const val of k) {
+    if (val === null) continue;
+    const t = typeof val;
+    if (t !== 'string' && t !== 'number' && t !== 'boolean') return null;
   }
-  return true;
+  return { v, c, d, k };
 }

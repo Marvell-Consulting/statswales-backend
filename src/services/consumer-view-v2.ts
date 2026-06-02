@@ -27,6 +27,7 @@ import {
   CursorKeyValue,
   CursorPayload,
   CURSOR_VERSION,
+  computeContextHash,
   computeSortHash,
   decodeCursor,
   encodeCursor
@@ -714,10 +715,7 @@ export function buildCursorFromRow(
   const key: CursorKeyValue[] = sortPlan.map((s) => normaliseKeyValue(row[s.sortIdent]));
   const payload: CursorPayload = {
     v: CURSOR_VERSION,
-    q: queryStore.id,
-    r: queryStore.revisionId,
-    l: language,
-    h: sortHash,
+    c: computeContextHash(queryStore.id, queryStore.revisionId, language, sortHash),
     d: direction,
     k: key
   };

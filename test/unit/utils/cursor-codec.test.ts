@@ -2,6 +2,7 @@ import {
   CURSOR_VERSION,
   CursorExpectation,
   CursorPayload,
+  computeContextHash,
   computeSortHash,
   decodeCursor,
   encodeCursor
@@ -16,17 +17,27 @@ const baseExpected: CursorExpectation = {
   keyArity: 2
 };
 
+const baseContext = computeContextHash(
+  baseExpected.queryStoreId,
+  baseExpected.revisionId,
+  baseExpected.language,
+  baseExpected.sortHash
+);
+
 function basePayload(overrides: Partial<CursorPayload> = {}): CursorPayload {
   return {
     v: CURSOR_VERSION,
-    q: baseExpected.queryStoreId,
-    r: baseExpected.revisionId,
-    l: baseExpected.language,
-    h: baseExpected.sortHash,
+    c: baseContext,
     d: 'f',
     k: [2022, 'W06000001'],
     ...overrides
   };
+}
+
+// Build an encoded token straight from a positional [v, c, d, k] wire array,
+// bypassing the typed encodeCursor so malformed shapes can be exercised.
+function encodeWire(wire: unknown): string {
+  return Buffer.from(JSON.stringify(wire), 'utf8').toString('base64url');
 }
 
 describe('computeSortHash', () => {
@@ -63,6 +74,38 @@ describe('computeSortHash', () => {
   it('differs across languages', () => {
     const a = computeSortHash([{ columnName: 'Year', direction: 'asc' }], 'en-GB');
     const b = computeSortHash([{ columnName: 'Year', direction: 'asc' }], 'cy-GB');
+    expect(a).not.toBe(b);
+  });
+});
+
+describe('computeContextHash', () => {
+  it('produces a stable hash for the same inputs', () => {
+    const a = computeContextHash('qs-1', 'rev-1', 'en-GB', baseExpected.sortHash);
+    const b = computeContextHash('qs-1', 'rev-1', 'en-GB', baseExpected.sortHash);
+    expect(a).toBe(b);
+  });
+
+  it('differs when the query store changes', () => {
+    const a = computeContextHash('qs-1', 'rev-1', 'en-GB', baseExpected.sortHash);
+    const b = computeContextHash('qs-2', 'rev-1', 'en-GB', baseExpected.sortHash);
+    expect(a).not.toBe(b);
+  });
+
+  it('differs when the revision changes', () => {
+    const a = computeContextHash('qs-1', 'rev-1', 'en-GB', baseExpected.sortHash);
+    const b = computeContextHash('qs-1', 'rev-2', 'en-GB', baseExpected.sortHash);
+    expect(a).not.toBe(b);
+  });
+
+  it('differs when the language changes', () => {
+    const a = computeContextHash('qs-1', 'rev-1', 'en-GB', baseExpected.sortHash);
+    const b = computeContextHash('qs-1', 'rev-1', 'cy-GB', baseExpected.sortHash);
+    expect(a).not.toBe(b);
+  });
+
+  it('differs when the sort hash changes', () => {
+    const a = computeContextHash('qs-1', 'rev-1', 'en-GB', baseExpected.sortHash);
+    const b = computeContextHash('qs-1', 'rev-1', 'en-GB', 'other-sort-hash');
     expect(a).not.toBe(b);
   });
 });
@@ -114,8 +157,13 @@ describe('decodeCursor rejections', () => {
     expect(() => decodeCursor(garbage, baseExpected)).toThrow(BadRequestException);
   });
 
-  it('rejects a JSON payload that is not a cursor object', () => {
-    const wrong = Buffer.from(JSON.stringify({ foo: 'bar' }), 'utf8').toString('base64url');
+  it('rejects a payload that is not a positional array', () => {
+    const wrong = encodeWire({ foo: 'bar' });
+    expect(() => decodeCursor(wrong, baseExpected)).toThrow(BadRequestException);
+  });
+
+  it('rejects a positional array of the wrong length', () => {
+    const wrong = encodeWire([CURSOR_VERSION, baseContext, 'f']);
     expect(() => decodeCursor(wrong, baseExpected)).toThrow(BadRequestException);
   });
 
@@ -150,14 +198,12 @@ describe('decodeCursor rejections', () => {
   });
 
   it('rejects a key tuple containing an object', () => {
-    const encoded = Buffer.from(JSON.stringify({ ...basePayload(), k: [{ nested: true }, 'x'] }), 'utf8').toString(
-      'base64url'
-    );
+    const encoded = encodeWire([CURSOR_VERSION, baseContext, 'f', [{ nested: true }, 'x']]);
     expect(() => decodeCursor(encoded, baseExpected)).toThrow(BadRequestException);
   });
 
   it('rejects an invalid direction', () => {
-    const encoded = Buffer.from(JSON.stringify({ ...basePayload(), d: 'x' }), 'utf8').toString('base64url');
+    const encoded = encodeWire([CURSOR_VERSION, baseContext, 'x', [2022, 'x']]);
     expect(() => decodeCursor(encoded, baseExpected)).toThrow(BadRequestException);
   });
 });
