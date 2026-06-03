@@ -9,7 +9,8 @@ import { DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE } from '../../../src/utils/page-defaul
 jest.mock('../../../src/validators', () => ({
   format2Validator: jest.fn(),
   pageNumberValidator: jest.fn(),
-  pageSizeValidator: jest.fn()
+  pageSizeValidator: jest.fn(),
+  cursorValidator: jest.fn()
 }));
 
 // Mock express-validator
@@ -28,7 +29,7 @@ jest.mock('../../../src/utils/logger', () => ({
   }
 }));
 
-import { format2Validator, pageNumberValidator, pageSizeValidator } from '../../../src/validators';
+import { cursorValidator, format2Validator, pageNumberValidator, pageSizeValidator } from '../../../src/validators';
 import { matchedData } from 'express-validator';
 
 type MockRequest = Partial<Request> & { language?: Locale };
@@ -58,6 +59,9 @@ describe('parsePageOptions', () => {
       run: jest.fn().mockResolvedValue(mockValidationResult)
     });
     (pageSizeValidator as jest.Mock).mockReturnValue({
+      run: jest.fn().mockResolvedValue(mockValidationResult)
+    });
+    (cursorValidator as jest.Mock).mockReturnValue({
       run: jest.fn().mockResolvedValue(mockValidationResult)
     });
 
@@ -463,6 +467,51 @@ describe('parsePageOptions', () => {
 
       const result = await parsePageOptions(mockRequest as Request);
       expect(result.pageSize).toBe(MAX_PAGE_SIZE);
+    });
+  });
+
+  describe('cursor parameter', () => {
+    it('passes a valid cursor through to the returned options', async () => {
+      (matchedData as jest.Mock).mockReturnValue({ cursor: 'opaque-token' });
+
+      const result = await parsePageOptions(mockRequest as Request);
+      expect(result.cursor).toBe('opaque-token');
+    });
+
+    it('leaves cursor undefined when not supplied', async () => {
+      const result = await parsePageOptions(mockRequest as Request);
+      expect(result.cursor).toBeUndefined();
+    });
+
+    it('accepts cursor + page_number=1 (default page_number, treated as no jump)', async () => {
+      (matchedData as jest.Mock).mockReturnValue({ cursor: 'tok', page_number: 1 });
+
+      const result = await parsePageOptions(mockRequest as Request);
+      expect(result.cursor).toBe('tok');
+      expect(result.pageNumber).toBe(1);
+    });
+
+    it('rejects cursor + page_number > 1 as mutually exclusive', async () => {
+      (matchedData as jest.Mock).mockReturnValue({ cursor: 'tok', page_number: 5 });
+
+      await expect(parsePageOptions(mockRequest as Request)).rejects.toThrow(BadRequestException);
+      await expect(parsePageOptions(mockRequest as Request)).rejects.toThrow(
+        'errors.cursor_and_page_number_mutually_exclusive'
+      );
+    });
+
+    it('throws BadRequestException when cursor validation fails', async () => {
+      const errorResult = {
+        isEmpty: jest.fn().mockReturnValue(false),
+        array: jest.fn().mockReturnValue([{ msg: 'Invalid cursor', path: 'cursor', type: 'field' }])
+      };
+
+      (cursorValidator as jest.Mock).mockReturnValue({
+        run: jest.fn().mockResolvedValue(errorResult)
+      });
+
+      await expect(parsePageOptions(mockRequest as Request)).rejects.toThrow(BadRequestException);
+      await expect(parsePageOptions(mockRequest as Request)).rejects.toThrow('Invalid cursor for cursor');
     });
   });
 

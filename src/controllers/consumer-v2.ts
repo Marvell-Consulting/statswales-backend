@@ -17,6 +17,7 @@ import { DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE } from '../utils/page-defaults';
 import { clamp } from '../utils/clamp';
 import { ConsumerRevisionDTO } from '../dtos/consumer-revision-dto';
 import {
+  BuildDataQueryResult,
   buildDataQuery,
   sendCsv,
   sendExcel,
@@ -157,8 +158,16 @@ export const getPublishedDatasetData = async (req: Request, res: Response, next:
       ? await QueryStoreRepository.getById(filterId)
       : await QueryStoreRepository.getByRequest(dataset.id, publishedRevision.id, dataOptions);
 
-    const query = await buildDataQuery(queryStore, pageOptions);
-    await sendFormattedResponse(query, queryStore, pageOptions, res);
+    // ensurePublishedDataset loads a lean dataset (no factTable). buildDataQuery
+    // needs the fact-table columns to resolve a deterministic sort plan for
+    // both cursor-mode and offset-mode pagination, so reload with factTable
+    // when it isn't already present.
+    const datasetForBuild = dataset.factTable
+      ? dataset
+      : await PublishedDatasetRepository.getById(dataset.id, { factTable: true });
+
+    const buildResult = await buildDataQuery(queryStore, pageOptions, datasetForBuild);
+    await sendFormattedResponse(buildResult, queryStore, pageOptions, res);
   } catch (err) {
     if (res.headersSent) {
       logger.error(err, 'Error detected fetching data after headers already sent');
@@ -521,29 +530,30 @@ export const getPublicationHistory = async (_req: Request, res: Response): Promi
 };
 
 export const sendFormattedResponse = async (
-  query: string,
+  buildResult: BuildDataQueryResult,
   queryStore: QueryStore,
   pageOptions: PageOptions,
   res: Response
 ): Promise<void> => {
+  const sql = buildResult.sql;
   switch (pageOptions.format) {
     case OutputFormats.Frontend:
       // consumer view: load via PublishedDatasetRepository (consumer pool, published-only)
       return sendFrontendView(
-        query,
+        buildResult,
         queryStore,
         pageOptions,
         res,
         PublishedDatasetRepository.getById.bind(PublishedDatasetRepository)
       );
     case OutputFormats.Csv:
-      return sendCsv(query, queryStore, res);
+      return sendCsv(sql, queryStore, res);
     case OutputFormats.Excel:
-      return sendExcel(query, queryStore, res);
+      return sendExcel(sql, queryStore, res);
     case OutputFormats.Json:
-      return sendJson(query, queryStore, res);
+      return sendJson(sql, queryStore, res);
     case OutputFormats.Html:
-      return sendHtml(query, queryStore, res);
+      return sendHtml(sql, queryStore, res);
     default:
       res.status(400).json({ error: 'Format not supported' });
   }
