@@ -387,7 +387,7 @@ describe('getMeasurePreview', () => {
         }
       ]);
 
-      const result = (await getMeasurePreview(dataset, 'en-GB', null)) as ViewDTO;
+      const result = (await getMeasurePreview(dataset, 'en-GB')) as ViewDTO;
 
       expect(result).toMatchObject({ current_page: 1, page_size: 1 });
     });
