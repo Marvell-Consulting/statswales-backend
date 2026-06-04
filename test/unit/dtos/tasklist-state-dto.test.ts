@@ -189,6 +189,60 @@ describe('TasklistStateDTO', () => {
         status: TaskListStatus.Unchanged
       });
     });
+
+    it('should return NotStarted when revision.tasks.measure has lookupTableUpdated=false', () => {
+      const dataset = {
+        measure: {
+          id: 'measure-1',
+          factTableColumn: 'value',
+          joinColumn: 'measure_col',
+          metadata: [{ language: 'en', name: 'Test Measure' }]
+        }
+      } as Dataset;
+      const revision = {
+        previousRevisionId: 'prev-123',
+        tasks: {
+          dimensions: [],
+          measure: { id: 'measure-1', lookupTableUpdated: false }
+        }
+      } as unknown as Revision;
+
+      const result = TasklistStateDTO.measureStatus(dataset, revision, 'en');
+
+      expect(result).toEqual({
+        type: 'measure',
+        id: 'measure-1',
+        name: 'Test Measure',
+        status: TaskListStatus.NotStarted
+      });
+    });
+
+    it('should return Updated when revision.tasks.measure has lookupTableUpdated=true', () => {
+      const dataset = {
+        measure: {
+          id: 'measure-1',
+          factTableColumn: 'value',
+          joinColumn: 'measure_col',
+          metadata: [{ language: 'en', name: 'Test Measure' }]
+        }
+      } as Dataset;
+      const revision = {
+        previousRevisionId: 'prev-123',
+        tasks: {
+          dimensions: [],
+          measure: { id: 'measure-1', lookupTableUpdated: true }
+        }
+      } as unknown as Revision;
+
+      const result = TasklistStateDTO.measureStatus(dataset, revision, 'en');
+
+      expect(result).toEqual({
+        type: 'measure',
+        id: 'measure-1',
+        name: 'Test Measure',
+        status: TaskListStatus.Updated
+      });
+    });
   });
 
   describe('dimensionStatus', () => {
