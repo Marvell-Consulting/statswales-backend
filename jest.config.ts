@@ -13,7 +13,6 @@ const sharedConfig = {
 
 const config: Config = {
   verbose: true,
-  reporters: ['default', ['jest-junit', { outputDirectory: 'coverage/test-report', outputName: 'junit-report.xml' }]],
   coverageDirectory: './coverage',
   collectCoverage: true,
   coverageReporters: ['cobertura', 'lcov', 'html', 'text'],
