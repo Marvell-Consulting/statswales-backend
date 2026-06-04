@@ -45,7 +45,6 @@ import { performanceReporting } from '../utils/performance-reporting';
 import { FileType } from '../enums/file-type';
 import { dbManager } from '../db/database-manager';
 import { MeasureMetadata } from '../entities/dataset/measure-metadata';
-import { RevisionTask } from '../interfaces/revision-task';
 import { loadFileIntoCube } from '../utils/file-utils';
 import { randomUUID } from 'node:crypto';
 
@@ -799,11 +798,7 @@ async function getMeasurePreviewWithExtractor(
   return viewGenerator(currentDataset, 1, pageInfo, pageSize, 1, headers, dataArray);
 }
 
-export const getMeasurePreview = async (
-  dataset: Dataset,
-  lang: string,
-  revisionTasks?: RevisionTask | null
-): Promise<ViewDTO | ViewErrDTO> => {
+export const getMeasurePreview = async (dataset: Dataset, lang: string): Promise<ViewDTO | ViewErrDTO> => {
   logger.debug(`Getting preview for measure: ${dataset.measure.id}`);
   const measure = dataset.measure;
 
@@ -812,6 +807,7 @@ export const getMeasurePreview = async (
   }
 
   try {
+    const revisionTasks = dataset.draftRevision?.tasks;
     // If there's a revision task for the measure empty the measure table to preview the raw column
     if (revisionTasks && revisionTasks.measure) measure.measureTable = [];
 
