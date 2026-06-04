@@ -12,15 +12,28 @@ import { FilterRow } from '../interfaces/filter-row';
 import { FilterTable } from '../interfaces/filter-table';
 import { dbManager } from '../db/database-manager';
 import { QueryStore } from '../entities/query-store';
+import { Dataset } from '../entities/dataset/dataset';
 import { BadRequestException } from '../exceptions/bad-request.exception';
 import { flattenHierarchy, sortFilterRows, transformHierarchy } from '../utils/consumer';
-import { DatasetRepository } from '../repositories/dataset';
 import { PageOptions } from '../interfaces/page-options';
 import { logger } from '../utils/logger';
 import { ConsumerDatasetDTO } from '../dtos/consumer-dataset-dto';
 import { getColumnHeaders } from '../utils/column-headers';
 import { QueryStoreRepository } from '../repositories/query-store';
 import { DataSource } from 'typeorm';
+import { DatasetLoader } from './consumer-view';
+import {
+  CursorDirection,
+  CursorKeyValue,
+  CursorPayload,
+  CURSOR_VERSION,
+  computeContextHash,
+  computeSortHash,
+  decodeCursor,
+  encodeCursor
+} from '../utils/cursor-codec';
+import { KeysetSortColumn, buildKeysetWhere } from './keyset-where-builder';
+import { resolveDefaultSort } from './default-sort-resolver';
 
 const EXCEL_ROW_LIMIT = 1048576 - 76; // Excel Limit is 1,048,576 but removed 76 rows because ?
 const HIGH_WATER_MARK = 500; // max rows to buffer in memory at once when streaming from the database
@@ -310,17 +323,20 @@ async function runAndRetryQuery(
 }
 
 export async function sendFrontendView(
-  query: string,
+  buildResult: BuildDataQueryResult,
   queryStore: QueryStore,
   pageOptions: PageOptions,
-  res: Response
+  res: Response,
+  loader: DatasetLoader
 ): Promise<void> {
   logger.info(`Sending Frontend View for query id ${queryStore.id}...`);
   const cubeDataSource = dbManager.getCubeDataSource();
+  const query = buildResult.sql;
 
   try {
     const { pageNumber = 1, pageSize = queryStore.totalLines, locale } = pageOptions;
     const lang = locale.includes('en') ? 'en-gb' : 'cy-gb';
+    const langForHash = locale.includes('en') ? 'en-GB' : 'cy-GB';
 
     const filters = await cubeDataSource.query(
       pgformat(
@@ -345,10 +361,45 @@ export async function sendFrontendView(
     }
 
     logger.debug(`Fetching dataset ${queryStore.datasetId}...`);
-    const dataset = await DatasetRepository.getById(queryStore.datasetId, { factTable: true, dimensions: true });
+    const dataset = await loader(queryStore.datasetId, { factTable: true, dimensions: true });
 
-    const rows = await runAndRetryQuery(query, queryStore, cubeDataSource);
+    let rows = await runAndRetryQuery(query, queryStore, cubeDataSource);
     logger.debug(`Fetched ${rows.length} rows`);
+
+    // Cursor mode over-fetches one row to detect whether more rows exist;
+    // pop the trailing row before shaping the response, then reverse if we
+    // were walking backwards.
+    let hasMore = false;
+    if (buildResult.mode === 'cursor' && rows.length > pageSize) {
+      hasMore = true;
+      rows = rows.slice(0, pageSize);
+    }
+    if (buildResult.mode === 'cursor' && buildResult.direction === 'b') {
+      rows = rows.slice().reverse();
+    }
+
+    // Capture sort-key values per row before we drop the `_sort` columns —
+    // we need them later when building next_cursor / prev_cursor. In offset
+    // mode we also harvest the keys so the response carries an initial cursor
+    // for the frontend's switch into cursor mode at the page-cap boundary.
+    const sortIdents = buildResult.sortPlan?.map((s) => s.sortIdent) ?? [];
+    const rowKeyValues: Record<string, unknown>[] = rows.map((row) => {
+      const captured: Record<string, unknown> = {};
+      for (const ident of sortIdents) captured[ident] = (row as Record<string, unknown>)[ident];
+      return captured;
+    });
+
+    // Strip injected `_sort` columns so the client only sees display columns.
+    if (sortIdents.length > 0) {
+      const dropSet = new Set(sortIdents);
+      rows = rows.map((row) => {
+        const out: Record<string, unknown> = {};
+        for (const [k, v] of Object.entries(row as Record<string, unknown>)) {
+          if (!dropSet.has(k)) out[k] = v;
+        }
+        return out;
+      });
+    }
 
     // Build headers from the first row if available
     let headers: ReturnType<typeof getColumnHeaders> | undefined;
@@ -361,9 +412,61 @@ export async function sendFrontendView(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const data = rows.map((row: any) => Object.values(row));
 
-    const start_record = pageSize * (pageNumber - 1);
-    const end_record = start_record + rows.length;
     const total_pages = Math.max(1, Math.ceil(queryStore.totalLines / pageSize));
+
+    // current_page / start_record / end_record are meaningless under cursor
+    // pagination — the response just carries totals + cursors there.
+    const isCursorMode = buildResult.mode === 'cursor';
+    const start_record = isCursorMode ? null : pageSize * (pageNumber - 1);
+    const end_record = isCursorMode ? null : (start_record ?? 0) + rows.length;
+    const current_page = isCursorMode ? null : pageNumber;
+
+    let next_cursor: string | null = null;
+    let prev_cursor: string | null = null;
+    if (buildResult.sortPlan && buildResult.sortPlan.length > 0 && buildResult.sortHash && rowKeyValues.length > 0) {
+      // `hasMore` gates the direction the request just walked. Forward cursor
+      // requests over-fetch ahead → hasMore means more rows further forward.
+      // Backward requests over-fetch behind → hasMore means more rows further
+      // backward. The opposite direction's cursor is always emittable in
+      // cursor mode because we necessarily came from there.
+      //
+      // Offset mode only emits next_cursor — it's the seam the frontend uses
+      // to swap from page_number paging into cursor paging at the page-cap
+      // boundary. prev_cursor stays null because offset callers navigate
+      // backwards with page_number, not a cursor.
+      const lastKeys = rowKeyValues[rowKeyValues.length - 1];
+      const firstKeys = rowKeyValues[0];
+
+      let emitNext = false;
+      let emitPrev = false;
+      if (isCursorMode) {
+        emitNext = buildResult.direction === 'b' ? true : hasMore;
+        emitPrev = buildResult.direction === 'b' ? hasMore : true;
+      } else {
+        emitNext = pageSize * pageNumber < queryStore.totalLines;
+      }
+
+      if (emitNext) {
+        next_cursor = buildCursorFromRow(
+          lastKeys,
+          buildResult.sortPlan,
+          'f',
+          queryStore,
+          langForHash,
+          buildResult.sortHash
+        );
+      }
+      if (emitPrev) {
+        prev_cursor = buildCursorFromRow(
+          firstKeys,
+          buildResult.sortPlan,
+          'b',
+          queryStore,
+          langForHash,
+          buildResult.sortHash
+        );
+      }
+    }
 
     const response = {
       dataset: ConsumerDatasetDTO.fromDataset(dataset),
@@ -372,12 +475,14 @@ export async function sendFrontendView(
       ...(headers && { headers }),
       data,
       page_info: {
-        current_page: pageNumber,
+        current_page,
         page_size: pageSize,
         total_pages,
         total_records: queryStore.totalLines,
         start_record,
-        end_record
+        end_record,
+        next_cursor,
+        prev_cursor
       }
     };
 
@@ -389,50 +494,241 @@ export async function sendFrontendView(
   }
 }
 
-export async function buildDataQuery(queryStore: QueryStore, pageOptions: PageOptions): Promise<string> {
-  logger.debug(`Building data query from query store id ${queryStore.id}...`);
-  const { locale, pageNumber, pageSize, sort } = pageOptions;
-  const lang = locale.includes('en') ? 'en-GB' : 'cy-GB';
-  let query = queryStore.query[lang] || queryStore.query['en-GB'];
+export interface SortColumnPlan {
+  // Display name as it appears in the core view (e.g. 'Year', 'Ardal').
+  displayName: string;
+  // The SQL identifier used in ORDER BY and the keyset WHERE — display
+  // name plus the translated `_sort` postfix (e.g. 'Year_sort').
+  sortIdent: string;
+  direction: 'asc' | 'desc';
+}
 
-  if (!query) {
+export type BuildDataMode = 'bulk' | 'offset' | 'cursor';
+
+export interface BuildDataQueryResult {
+  sql: string;
+  mode: BuildDataMode;
+  // Populated whenever the query is paginated. sendFrontendView consumes
+  // this to build next_cursor / prev_cursor from the returned rows.
+  sortPlan?: SortColumnPlan[];
+  // Forward or backward traversal — meaningful in cursor mode only.
+  direction?: CursorDirection;
+  // Hash used to bind cursors to a specific sort spec + language.
+  sortHash?: string;
+}
+
+export async function buildDataQuery(
+  queryStore: QueryStore,
+  pageOptions: PageOptions,
+  dataset?: Dataset
+): Promise<BuildDataQueryResult> {
+  logger.debug(`Building data query from query store id ${queryStore.id}...`);
+  const { locale, pageNumber, pageSize, sort, cursor } = pageOptions;
+  const lang = locale.includes('en') ? 'en-GB' : 'cy-GB';
+  const baseQuery = queryStore.query[lang] || queryStore.query['en-GB'];
+
+  if (!baseQuery) {
     throw new Error(`No query found for language ${lang} or fallback en-GB`);
   }
 
-  if (sort && sort.length > 0) {
-    const sortBy: string[] = [];
-    const sortColumnPostfix = `_${t('column_headers.sort', { lng: locale })}`;
-    const validColumns = queryStore.columnMapping
-      .filter((m) => m.language === lang.toLowerCase())
-      .map((m) => m.dimension_name);
-    validColumns.push(t('column_headers.data_values', { lng: locale }));
-
-    for (const sortOption of sort) {
-      const [colName, direction = 'asc'] = sortOption.split('|');
-      if (!validColumns.includes(colName)) {
-        throw new BadRequestException('errors.invalid_sort_by');
-      }
-      sortBy.push(pgformat('%I %s', `${colName}${sortColumnPostfix}`, direction.toUpperCase()));
-    }
-
-    query = pgformat('%s ORDER BY %s', query, sortBy.join(', '));
+  // Bulk export path (no pagination, no sort coercion, no cursor support).
+  if (pageSize === undefined) {
+    if (cursor) throw new BadRequestException('errors.cursor_unsupported_for_format');
+    logger.debug(`Query = ${baseQuery}`);
+    return { sql: baseQuery, mode: 'bulk' };
   }
 
-  // if no page size is provided we return all rows (bulk CSV/Excel export path)
-  if (pageSize !== undefined) {
-    const offset = (pageNumber - 1) * pageSize;
+  const sortPlan = resolveSortPlan(sort, queryStore, dataset, locale, lang);
+  const orderByClause = sortPlan.length > 0 ? buildOrderByClause(sortPlan) : '';
+  const sortHash = sortPlan.length > 0 ? computeSortHashForPlan(sortPlan, lang) : undefined;
 
-    // prevent div by zero
-    const totalPages = pageSize <= 0 ? 0 : Math.ceil(queryStore.totalLines / pageSize);
-
-    if (totalPages > 0 && pageNumber > totalPages) {
-      throw new BadRequestException('errors.page_number_too_high');
+  if (cursor) {
+    if (sortPlan.length === 0) {
+      // Without a resolvable order there is nothing to key off.
+      throw new BadRequestException('errors.cursor_requires_sort');
     }
 
-    query = pgformat(`%s LIMIT %L OFFSET %L;`, query, pageSize, offset);
+    const payload = decodeCursor(cursor, {
+      queryStoreId: queryStore.id,
+      revisionId: queryStore.revisionId,
+      language: lang,
+      sortHash: sortHash!,
+      keyArity: sortPlan.length
+    });
+
+    const sql = buildCursorSql(baseQuery, sortPlan, payload, pageSize, payload.d);
+    logger.debug(`Query = ${sql}`);
+    return { sql, mode: 'cursor', sortPlan, direction: payload.d, sortHash };
   }
 
-  logger.debug(`Query = ${query}`);
+  // Offset path.
+  const offset = (pageNumber - 1) * pageSize;
+  const totalPages = pageSize <= 0 ? 0 : Math.ceil(queryStore.totalLines / pageSize);
+  if (totalPages > 0 && pageNumber > totalPages) {
+    throw new BadRequestException('errors.page_number_too_high');
+  }
 
-  return query;
+  // Inject `_sort` columns so sendFrontendView can build a usable next_cursor
+  // from the returned rows (offset mode is the entry point the frontend uses
+  // before swapping into cursor mode at the page-cap boundary).
+  const queryWithSortIdents =
+    sortPlan.length > 0
+      ? injectSortIdentsIntoSelect(
+          baseQuery,
+          sortPlan.map((s) => s.sortIdent)
+        )
+      : baseQuery;
+
+  const orderedQuery = orderByClause ? pgformat('%s %s', queryWithSortIdents, orderByClause) : queryWithSortIdents;
+  const sql = pgformat(`%s LIMIT %L OFFSET %L;`, orderedQuery, pageSize, offset);
+  logger.debug(`Query = ${sql}`);
+  return { sql, mode: 'offset', sortPlan: sortPlan.length > 0 ? sortPlan : undefined, sortHash };
+}
+
+function resolveSortPlan(
+  userSort: string[],
+  queryStore: QueryStore,
+  dataset: Dataset | undefined,
+  locale: string,
+  lang: string
+): SortColumnPlan[] {
+  const sortPostfix = `_${t('column_headers.sort', { lng: locale })}`;
+  const langKey = lang.toLowerCase();
+  const validColumns = queryStore.columnMapping.filter((m) => m.language === langKey).map((m) => m.dimension_name);
+  validColumns.push(t('column_headers.data_values', { lng: locale }));
+  const validSet = new Set(validColumns);
+
+  const entries: Array<{ displayName: string; direction: 'asc' | 'desc' }> = [];
+  const seen = new Set<string>();
+
+  // 1. User-supplied sort_by first, with their chosen direction.
+  for (const sortOption of userSort ?? []) {
+    const [colName, direction = 'asc'] = sortOption.split('|');
+    if (!validSet.has(colName)) {
+      throw new BadRequestException('errors.invalid_sort_by');
+    }
+    if (seen.has(colName)) continue;
+    seen.add(colName);
+    entries.push({ displayName: colName, direction: direction.toLowerCase() === 'desc' ? 'desc' : 'asc' });
+  }
+
+  // 2. Append the default sort / PK tie-breakers in ASC for determinism.
+  //    resolveDefaultSort picks the time column first, falls back to first dim,
+  //    then appends remaining PK columns. We skip anything already in entries.
+  if (dataset) {
+    const defaults = resolveDefaultSort(dataset.factTable, queryStore.columnMapping, lang);
+    for (const d of defaults) {
+      if (seen.has(d.columnName)) continue;
+      seen.add(d.columnName);
+      entries.push({ displayName: d.columnName, direction: d.direction });
+    }
+  }
+
+  return entries.map((e) => ({
+    displayName: e.displayName,
+    sortIdent: `${e.displayName}${sortPostfix}`,
+    direction: e.direction
+  }));
+}
+
+function buildOrderByClause(sortPlan: SortColumnPlan[]): string {
+  const parts = sortPlan.map((s) => pgformat('%I %s', s.sortIdent, s.direction.toUpperCase()));
+  return `ORDER BY ${parts.join(', ')}`;
+}
+
+function computeSortHashForPlan(sortPlan: SortColumnPlan[], lang: string): string {
+  return computeSortHash(
+    sortPlan.map((s) => ({ columnName: s.displayName, direction: s.direction })),
+    lang
+  );
+}
+
+function buildCursorSql(
+  baseQuery: string,
+  sortPlan: SortColumnPlan[],
+  payload: CursorPayload,
+  pageSize: number,
+  direction: CursorDirection
+): string {
+  // For backward traversal we flip every ORDER BY direction so the LIMIT
+  // grabs rows immediately preceding the cursor; sendFrontendView reverses
+  // them client-side before emitting.
+  const orderedPlan: SortColumnPlan[] =
+    direction === 'b' ? sortPlan.map((s) => ({ ...s, direction: s.direction === 'asc' ? 'desc' : 'asc' })) : sortPlan;
+
+  const orderBy = buildOrderByClause(orderedPlan);
+  const keysetColumns: KeysetSortColumn[] = sortPlan.map((s) => ({
+    sqlIdent: s.sortIdent,
+    direction: s.direction
+  }));
+  const where = buildKeysetWhere(keysetColumns, payload.k, direction);
+
+  // The base query's SELECT projects display columns only (e.g. "Year",
+  // "Area"). Keyset comparisons need the `_sort` variants of those columns,
+  // so we amend the inner SELECT to also project them. sendFrontendView
+  // strips them before returning rows to the client.
+  const sortIdents = sortPlan.map((s) => s.sortIdent);
+  const innerQuery = injectSortIdentsIntoSelect(baseQuery, sortIdents);
+
+  // Wrap as a subquery so we don't have to reason about whether the inner
+  // query already has WHERE / ORDER BY clauses.
+  return pgformat(`SELECT * FROM (%s) AS t WHERE %s %s LIMIT %L;`, innerQuery, where, orderBy, pageSize + 1);
+}
+
+// Add `_sort` identifiers to the SELECT list of `baseQuery` so a wrapping
+// subquery can reference them. No-op when the base SELECT is `*` or already
+// projects every required identifier. Conservatively falls through if the
+// SELECT clause doesn't match our expected shape — the caller will then
+// surface a clear SQL error.
+function injectSortIdentsIntoSelect(baseQuery: string, sortIdents: string[]): string {
+  const match = baseQuery.match(/^(\s*SELECT\s+)(.*?)(\s+FROM\s+[\s\S]+)$/i);
+  if (!match) return baseQuery;
+  const [, prefix, cols, rest] = match;
+  const trimmed = cols.trim();
+  if (trimmed === '*') return baseQuery;
+
+  const missing = sortIdents.filter((id) => !columnAlreadyProjected(cols, id));
+  if (missing.length === 0) return baseQuery;
+
+  const extras = missing.map((id) => pgformat('%I', id)).join(', ');
+  return `${prefix}${cols}, ${extras}${rest}`;
+}
+
+function columnAlreadyProjected(selectList: string, ident: string): boolean {
+  // Cheap presence check — the base SELECT only ever quotes identifiers
+  // ("Area_sort") so a substring test catches the existing projections
+  // without parsing the SQL.
+  return selectList.includes(`"${ident}"`);
+}
+
+// Build the cursor payload for the row at `index` in the returned dataset,
+// given the resolved sort plan. The key tuple is composed from the row's
+// sort-postfixed columns so the next keyset query can resume past it.
+export function buildCursorFromRow(
+  row: Record<string, unknown>,
+  sortPlan: SortColumnPlan[],
+  direction: CursorDirection,
+  queryStore: QueryStore,
+  language: string,
+  sortHash: string
+): string {
+  const key: CursorKeyValue[] = sortPlan.map((s) => normaliseKeyValue(row[s.sortIdent]));
+  const payload: CursorPayload = {
+    v: CURSOR_VERSION,
+    c: computeContextHash(queryStore.id, queryStore.revisionId, language, sortHash),
+    d: direction,
+    k: key
+  };
+  return encodeCursor(payload);
+}
+
+function normaliseKeyValue(v: unknown): CursorKeyValue {
+  if (v === null || v === undefined) return null;
+  const t = typeof v;
+  if (t === 'string' || t === 'number' || t === 'boolean') return v as string | number | boolean;
+  // BIGINT comes back from node-postgres as a string by default; Date objects
+  // stringify safely. Fall back to JSON-roundtrip via String() for anything
+  // else exotic — the keyset comparison happens server-side via pgformat %L,
+  // which handles the implicit cast back to the column's Postgres type.
+  return String(v);
 }

@@ -1,6 +1,6 @@
 import { FindManyOptions, ILike, IsNull, Not } from 'typeorm';
 
-import { dataSource } from '../db/data-source';
+import { publisherDataSource } from '../db/publisher-source';
 import { RoleSelectionDTO } from '../dtos/user/role-selection-dto';
 import { UserCreateDTO } from '../dtos/user/user-create-dto';
 import { UserDTO } from '../dtos/user/user-dto';
@@ -14,7 +14,7 @@ import { UserStatus } from '../enums/user-status';
 import { ResultsetWithCount } from '../interfaces/resultset-with-count';
 import { UserStats } from '../interfaces/dashboard-stats';
 
-export const UserRepository = dataSource.getRepository(User).extend({
+export const UserRepository = publisherDataSource.getRepository(User).extend({
   async getById(id: string): Promise<User> {
     return this.findOneOrFail({
       where: { id },
@@ -28,8 +28,8 @@ export const UserRepository = dataSource.getRepository(User).extend({
 
   async createUser(dto: UserCreateDTO, provider = AuthProvider.EntraId): Promise<User> {
     const email = dto.email.toLowerCase();
-    const user = User.create({ email, provider });
-    return user.save();
+    const user = this.create({ email, provider });
+    return this.save(user);
   },
 
   async listByLanguage(

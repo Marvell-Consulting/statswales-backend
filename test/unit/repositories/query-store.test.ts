@@ -16,8 +16,8 @@ jest.mock('../../../src/entities/query-store', () => ({
   }
 }));
 
-jest.mock('../../../src/db/data-source', () => ({
-  dataSource: {
+jest.mock('../../../src/db/consumer-source', () => ({
+  consumerDataSource: {
     getRepository: () => ({ extend: (extension: Record<string, unknown>) => extension })
   }
 }));

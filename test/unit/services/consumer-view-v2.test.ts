@@ -581,7 +581,7 @@ describe('consumer-view-v2 service', () => {
       };
       const res = createMockStreamResponse();
 
-      await sendFrontendView('SELECT * FROM data', queryStore, pageOptions, res);
+      await sendFrontendView({ sql: 'SELECT * FROM data', mode: 'offset' }, queryStore, pageOptions, res, mockGetById);
 
       expect(res.json).toHaveBeenCalled();
       const jsonArg = (res.json as jest.Mock).mock.calls[0][0];
@@ -611,7 +611,7 @@ describe('consumer-view-v2 service', () => {
       };
       const res = createMockStreamResponse();
 
-      await sendFrontendView('SELECT * FROM data', queryStore, pageOptions, res);
+      await sendFrontendView({ sql: 'SELECT * FROM data', mode: 'offset' }, queryStore, pageOptions, res, mockGetById);
 
       // First query should use 'cy-gb' language
       expect(mockCubeQuery.mock.calls[0][0]).toContain('cy-gb');
@@ -635,7 +635,7 @@ describe('consumer-view-v2 service', () => {
       };
       const res = createMockStreamResponse();
 
-      await sendFrontendView('SELECT * FROM data', queryStore, pageOptions, res);
+      await sendFrontendView({ sql: 'SELECT * FROM data', mode: 'offset' }, queryStore, pageOptions, res, mockGetById);
 
       const jsonArg = (res.json as jest.Mock).mock.calls[0][0];
       expect(jsonArg.note_codes).toEqual([]);
@@ -660,7 +660,13 @@ describe('consumer-view-v2 service', () => {
       };
       const res = createMockStreamResponse();
 
-      await sendFrontendView('SELECT * FROM "schema".core_view_mat_en', queryStore, pageOptions, res);
+      await sendFrontendView(
+        { sql: 'SELECT * FROM "schema".core_view_mat_en', mode: 'offset' },
+        queryStore,
+        pageOptions,
+        res,
+        mockGetById
+      );
 
       expect(mockCubeQuery).toHaveBeenCalledTimes(4);
       const retryCall = mockCubeQuery.mock.calls[3][0] as string;
@@ -689,7 +695,13 @@ describe('consumer-view-v2 service', () => {
       };
       const res = createMockStreamResponse();
 
-      await sendFrontendView('SELECT * FROM "schema".core_view_en', queryStore, pageOptions, res);
+      await sendFrontendView(
+        { sql: 'SELECT * FROM "schema".core_view_en', mode: 'offset' },
+        queryStore,
+        pageOptions,
+        res,
+        mockGetById
+      );
 
       expect(mockCubeQuery).toHaveBeenCalledTimes(4);
       const retryCall = mockCubeQuery.mock.calls[3][0] as string;
@@ -719,7 +731,13 @@ describe('consumer-view-v2 service', () => {
       const res = createMockStreamResponse();
 
       await expect(
-        sendFrontendView('SELECT * FROM "schema".core_view_mat_en', queryStore, pageOptions, res)
+        sendFrontendView(
+          { sql: 'SELECT * FROM "schema".core_view_mat_en', mode: 'offset' },
+          queryStore,
+          pageOptions,
+          res,
+          mockGetById
+        )
       ).rejects.toThrow('retry also failed');
 
       expect(mockCubeQuery).toHaveBeenCalledTimes(4);
@@ -743,9 +761,10 @@ describe('consumer-view-v2 service', () => {
 
       const result = await buildDataQuery(queryStore, pageOptions);
 
-      expect(result).toContain('LIMIT');
-      expect(result).toContain('OFFSET');
-      expect(result).toContain('25'); // pageSize
+      expect(result.sql).toContain('LIMIT');
+      expect(result.sql).toContain('OFFSET');
+      expect(result.sql).toContain('25'); // pageSize
+      expect(result.mode).toBe('offset');
     });
 
     it('should use Welsh query for Welsh locale', async () => {
@@ -766,7 +785,7 @@ describe('consumer-view-v2 service', () => {
 
       const result = await buildDataQuery(queryStore, pageOptions);
 
-      expect(result).toContain('welsh');
+      expect(result.sql).toContain('welsh');
     });
 
     it('should fallback to English query if Welsh not available', async () => {
@@ -784,7 +803,7 @@ describe('consumer-view-v2 service', () => {
 
       const result = await buildDataQuery(queryStore, pageOptions);
 
-      expect(result).toContain('english');
+      expect(result.sql).toContain('english');
     });
 
     it('should add ORDER BY for sort options', async () => {
@@ -806,9 +825,9 @@ describe('consumer-view-v2 service', () => {
 
       const result = await buildDataQuery(queryStore, pageOptions);
 
-      expect(result).toContain('ORDER BY');
-      expect(result).toContain('ASC');
-      expect(result).toContain('DESC');
+      expect(result.sql).toContain('ORDER BY');
+      expect(result.sql).toContain('ASC');
+      expect(result.sql).toContain('DESC');
     });
 
     it('should allow sorting by Data values column', async () => {
@@ -827,8 +846,8 @@ describe('consumer-view-v2 service', () => {
 
       const result = await buildDataQuery(queryStore, pageOptions);
 
-      expect(result).toContain('ORDER BY');
-      expect(result).toContain('ASC');
+      expect(result.sql).toContain('ORDER BY');
+      expect(result.sql).toContain('ASC');
     });
 
     it('should throw BadRequestException for sort column not in view', async () => {
@@ -917,8 +936,9 @@ describe('consumer-view-v2 service', () => {
 
       const result = await buildDataQuery(queryStore, pageOptions);
 
-      expect(result).not.toContain('LIMIT');
-      expect(result).not.toContain('OFFSET');
+      expect(result.sql).not.toContain('LIMIT');
+      expect(result.sql).not.toContain('OFFSET');
+      expect(result.mode).toBe('bulk');
     });
 
     it('should handle zero total lines', async () => {
@@ -936,7 +956,45 @@ describe('consumer-view-v2 service', () => {
 
       // Should not throw - zero results is valid
       const result = await buildDataQuery(queryStore, pageOptions);
-      expect(result).toBeDefined();
+      expect(result.sql).toBeDefined();
+    });
+
+    describe('cursor mode', () => {
+      it('rejects a cursor when no usable sort plan can be resolved', async () => {
+        const queryStore = createMockQueryStore({
+          query: { 'en-GB': 'SELECT * FROM test_table' },
+          totalLines: 100,
+          columnMapping: []
+        });
+        // No dataset, no columnMapping → no default sort to anchor against
+        const pageOptions: PageOptions = {
+          format: OutputFormats.Frontend,
+          sort: [],
+          locale: Locale.EnglishGb,
+          pageNumber: 1,
+          pageSize: 10,
+          cursor: 'irrelevant'
+        };
+
+        await expect(buildDataQuery(queryStore, pageOptions)).rejects.toThrow(BadRequestException);
+      });
+
+      it('rejects a cursor in bulk-export mode', async () => {
+        const queryStore = createMockQueryStore({
+          query: { 'en-GB': 'SELECT * FROM test_table' },
+          totalLines: 100
+        });
+        const pageOptions: PageOptions = {
+          format: OutputFormats.Csv,
+          sort: [],
+          locale: Locale.EnglishGb,
+          pageNumber: 1,
+          // bulk-export path: pageSize undefined
+          cursor: 'irrelevant'
+        };
+
+        await expect(buildDataQuery(queryStore, pageOptions)).rejects.toThrow(BadRequestException);
+      });
     });
   });
 });

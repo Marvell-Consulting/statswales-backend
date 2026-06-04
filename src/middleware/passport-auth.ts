@@ -2,27 +2,25 @@ import passport, { AuthenticateCallback } from 'passport';
 import { Strategy as JWTStrategy, ExtractJwt } from 'passport-jwt';
 import * as openIdClient from 'openid-client';
 import { Strategy as OpenIdStrategy, type StrategyOptions, type VerifyFunction } from 'openid-client/passport';
-import { DataSource, Repository } from 'typeorm';
 import { isEqual } from 'lodash';
 
 import { logger } from '../utils/logger';
-import { User } from '../entities/user/user';
 import { config } from '../config';
 import { AuthProvider } from '../enums/auth-providers';
 import { asyncLocalStorage } from '../services/async-local-storage';
 import { UserDTO } from '../dtos/user/user-dto';
 import { getPermissionsForUserDTO } from '../utils/get-permissions-for-user';
 import { EntraIdConfig, JWTConfig } from '../config/app-config.interface';
+import { UserRepository } from '../repositories/user';
 
 type Tokens = openIdClient.TokenEndpointResponse & openIdClient.TokenEndpointResponseHelpers;
 type OpenIdConfig = openIdClient.Configuration;
 
-export const initPassport = async (dataSource: DataSource): Promise<void> => {
+export const initPassport = async (): Promise<void> => {
   logger.info('Configuring authentication providers...');
-  const userRepository: Repository<User> = dataSource.getRepository('User');
 
   try {
-    await initJwt(userRepository, config.auth.jwt);
+    await initJwt(config.auth.jwt);
     logger.debug('JWT auth initialized');
   } catch (error) {
     logger.error(error, 'could not initialize JWT auth');
@@ -30,7 +28,7 @@ export const initPassport = async (dataSource: DataSource): Promise<void> => {
 
   if (config.auth.providers.includes(AuthProvider.EntraId)) {
     try {
-      await initEntraId(userRepository, config.auth.entraid);
+      await initEntraId(config.auth.entraid);
       logger.debug('EntraID auth initialized');
     } catch (error) {
       logger.error(error, 'could not initialize EntraId auth');
@@ -40,7 +38,7 @@ export const initPassport = async (dataSource: DataSource): Promise<void> => {
   logger.info('Authentication providers initialized');
 };
 
-const initJwt = async (userRepository: Repository<User>, jwtConfig: JWTConfig): Promise<void> => {
+const initJwt = async (jwtConfig: JWTConfig): Promise<void> => {
   if (!jwtConfig.secret) {
     throw new Error('JWT configuration is missing');
   }
@@ -57,7 +55,7 @@ const initJwt = async (userRepository: Repository<User>, jwtConfig: JWTConfig): 
         const jwtUser = jwtPayload.user;
 
         try {
-          const user = await userRepository.findOne({
+          const user = await UserRepository.findOne({
             where: { id: jwtUser?.id },
             relations: { groupRoles: { group: { metadata: true } } }
           });
@@ -94,7 +92,7 @@ const initJwt = async (userRepository: Repository<User>, jwtConfig: JWTConfig): 
   );
 };
 
-const initEntraId = async (userRepository: Repository<User>, entraIdConfig: EntraIdConfig): Promise<void> => {
+const initEntraId = async (entraIdConfig: EntraIdConfig): Promise<void> => {
   if (!entraIdConfig.url || !entraIdConfig.clientId || !entraIdConfig.clientSecret) {
     throw new Error('entraid configuration is missing');
   }
@@ -111,23 +109,31 @@ const initEntraId = async (userRepository: Repository<User>, entraIdConfig: Entr
     callbackURL: `${config.backend.url}/auth/entraid/callback`
   };
 
-  const verify: VerifyFunction = async (tokens: Tokens, done: AuthenticateCallback) => {
+  passport.use(AuthProvider.EntraId, new OpenIdStrategy(strategyOptions, entraIdVerify(openidConfig)));
+};
+
+// Extracted as a named factory so the verify branches can be unit-tested without standing up a live
+// OIDC discovery. `openidConfig` is captured so userinfo can be fetched against the discovered provider.
+export const entraIdVerify =
+  (openidConfig: OpenIdConfig): VerifyFunction =>
+  async (tokens: Tokens, done: AuthenticateCallback) => {
     logger.debug('auth callback from entraid received');
-    const { sub } = tokens.claims()!;
-
-    logger.debug('fetching user info from entraid...');
-    const userInfo = await openIdClient.fetchUserInfo(openidConfig, tokens.access_token, sub);
-
-    if (!userInfo?.sub || !userInfo?.email) {
-      logger.warn('entraid auth failed: account is missing user id or email address and we need both');
-      done(null, undefined, { message: 'entraid account does not have a user id or email, cannot login' });
-      return;
-    }
 
     try {
+      const { sub } = tokens.claims()!;
+
+      logger.debug('fetching user info from entraid...');
+      const userInfo = await openIdClient.fetchUserInfo(openidConfig, tokens.access_token, sub);
+
+      if (!userInfo?.sub || !userInfo?.email) {
+        logger.warn('entraid auth failed: account is missing user id or email address and we need both');
+        done(null, undefined, { message: 'entraid account does not have a user id or email, cannot login' });
+        return;
+      }
+
       logger.debug('checking if user has previously logged in...');
 
-      const existingUserById = await userRepository.findOne({
+      const existingUserById = await UserRepository.findOne({
         where: {
           provider: AuthProvider.EntraId,
           providerUserId: userInfo.sub
@@ -138,20 +144,20 @@ const initEntraId = async (userRepository: Repository<User>, entraIdConfig: Entr
       if (existingUserById) {
         logger.debug('user found by provider id, updating user record with latest details from entraid');
 
-        await userRepository
-          .merge(existingUserById, {
+        await UserRepository.save(
+          UserRepository.merge(existingUserById, {
             email: userInfo.email.toLowerCase(),
             name: userInfo.name,
             lastLoginAt: new Date()
           })
-          .save();
+        );
 
         done(null, existingUserById);
         return;
       }
 
       logger.debug('no previous login found, falling back to email...');
-      const existingUserByEmail = await userRepository.findOne({
+      const existingUserByEmail = await UserRepository.findOne({
         where: { email: userInfo.email.toLowerCase() },
         relations: { groupRoles: { group: { metadata: true } } }
       });
@@ -159,14 +165,14 @@ const initEntraId = async (userRepository: Repository<User>, entraIdConfig: Entr
       if (existingUserByEmail) {
         logger.debug('user found by email, associating user record with entraid account');
 
-        await userRepository
-          .merge(existingUserByEmail, {
+        await UserRepository.save(
+          UserRepository.merge(existingUserByEmail, {
             provider: AuthProvider.EntraId,
             providerUserId: userInfo.sub,
             name: userInfo.name,
             lastLoginAt: new Date()
           })
-          .save();
+        );
 
         done(null, existingUserByEmail);
         return;
@@ -180,6 +186,3 @@ const initEntraId = async (userRepository: Repository<User>, entraIdConfig: Entr
       done(null, undefined, { message: 'Unknown error' });
     }
   };
-
-  passport.use(AuthProvider.EntraId, new OpenIdStrategy(strategyOptions, verify));
-};

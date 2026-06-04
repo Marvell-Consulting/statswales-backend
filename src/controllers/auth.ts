@@ -3,19 +3,18 @@ import { URL } from 'node:url';
 import { RequestHandler } from 'express';
 import passport, { AuthenticateOptions } from 'passport';
 import jwt from 'jsonwebtoken';
-import { Repository } from 'typeorm';
 
 import { config } from '../config';
 import { logger } from '../utils/logger';
 import { User } from '../entities/user/user';
 import { AuthProvider } from '../enums/auth-providers';
-import { dataSource } from '../db/data-source';
+import { UserRepository } from '../repositories/user';
 import { UserDTO } from '../dtos/user/user-dto';
 
 const domain = new URL(config.auth.jwt.cookieDomain).hostname;
 logger.debug(`JWT cookie domain is '${domain}'`);
 
-const checkTokenFitsInCookie = (token: string): void => {
+export const checkTokenFitsInCookie = (token: string): void => {
   const maxCookieSize = 4096; // Maximum size of a cookie in bytes
   const tokenSize = Buffer.byteLength(token, 'utf8');
 
@@ -44,8 +43,7 @@ export const loginLocal: RequestHandler = async (req, res) => {
 
   try {
     logger.debug('checking if user exists...');
-    const userRepository: Repository<User> = dataSource.getRepository('User');
-    const user = await userRepository.findOneOrFail({
+    const user = await UserRepository.findOneOrFail({
       where: { providerUserId: username, provider: 'local' },
       relations: { groupRoles: { group: { metadata: true } } }
     });

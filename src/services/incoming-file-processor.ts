@@ -57,7 +57,9 @@ export async function validateFileAndExtractTableInfo(
 
     try {
       logger.debug(`Attempting to read the file using duckdb`);
-      if (dataTable.fileType === FileType.Csv) {
+      // Both Csv and GzipCsv use the read_csv template that requires an
+      // encoding arg — try utf-8 first and fall back to latin-1 for either.
+      if (dataTable.fileType === FileType.Csv || dataTable.fileType === FileType.GzipCsv) {
         try {
           dataTable.encoding = 'utf-8';
           await duckdb.run(pgformat(createTableQuery, temporaryTableName, file.path, dataTable.encoding));

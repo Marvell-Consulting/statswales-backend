@@ -68,7 +68,14 @@ import { QueryStoreRepository } from '../repositories/query-store';
 import { parsePageOptions } from '../utils/parse-page-options';
 import { resolvePreviewRevisionId } from '../utils/revision';
 import { OutputFormats } from '../enums/output-formats';
-import { buildDataQuery, sendCsv, sendExcel, sendFrontendView, sendJson } from '../services/consumer-view-v2';
+import {
+  BuildDataQueryResult,
+  buildDataQuery,
+  sendCsv,
+  sendExcel,
+  sendFrontendView,
+  sendJson
+} from '../services/consumer-view-v2';
 import { QueryStore } from '../entities/query-store';
 import { PageOptions } from '../interfaces/page-options';
 import { rebuildAllFilterTablesForRevisions, rebuildCubesForRevisions } from '../services/revision';
@@ -152,7 +159,7 @@ export const getDatasetById = async (req: Request, res: Response): Promise<void>
       break;
   }
 
-  const datasetDTO = DatasetDTO.fromDataset(dataset);
+  const datasetDTO = DatasetDTO.fromDataset(dataset, req.language as Locale);
 
   if (userGroup) {
     datasetDTO.publisher = PublisherDTO.fromUserGroup(userGroup, req.language as Locale);
@@ -317,8 +324,8 @@ export const datasetPreview = async (req: Request, res: Response, next: NextFunc
       ? await QueryStoreRepository.getById(filterId)
       : await QueryStoreRepository.getByRequest(dataset.id, previewRevisionId, dataOptions);
 
-    const query = await buildDataQuery(queryStore, pageOptions);
-    await sendFormattedResponse(query, queryStore, pageOptions, res);
+    const buildResult = await buildDataQuery(queryStore, pageOptions, dataset);
+    await sendFormattedResponse(buildResult, queryStore, pageOptions, res);
   } catch (err) {
     if (err instanceof NotFoundException || err instanceof BadRequestException) {
       return next(err);
@@ -329,20 +336,28 @@ export const datasetPreview = async (req: Request, res: Response, next: NextFunc
 };
 
 export const sendFormattedResponse = async (
-  query: string,
+  buildResult: BuildDataQueryResult,
   queryStore: QueryStore,
   pageOptions: PageOptions,
   res: Response
 ): Promise<void> => {
+  const sql = buildResult.sql;
   switch (pageOptions.format) {
     case OutputFormats.Frontend:
-      return sendFrontendView(query, queryStore, pageOptions, res);
+      // publisher preview: load via DatasetRepository so drafts resolve and we stay on the publisher pool
+      return sendFrontendView(
+        buildResult,
+        queryStore,
+        pageOptions,
+        res,
+        DatasetRepository.getById.bind(DatasetRepository)
+      );
     case OutputFormats.Csv:
-      return sendCsv(query, queryStore, res);
+      return sendCsv(sql, queryStore, res);
     case OutputFormats.Excel:
-      return sendExcel(query, queryStore, res);
+      return sendExcel(sql, queryStore, res);
     case OutputFormats.Json:
-      return sendJson(query, queryStore, res);
+      return sendJson(sql, queryStore, res);
     default:
       res.status(400).json({ error: 'Format not supported' });
   }

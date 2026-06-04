@@ -212,7 +212,12 @@ export class TasklistStateDTO {
     const importedTranslations = lastImport?.data || [];
 
     const changesSinceImport = currentTranslations.some((t: TranslationDTO) => {
-      const imported = importedTranslations.find((i: TranslationDTO) => i.key === t.key);
+      // Match on both type and key: keys are only unique within a type, not across
+      // them. A dimension whose factTableColumn is e.g. "reason" collides with the
+      // metadata "reason" field, and matching on key alone cross-matches the two,
+      // reporting a spurious change on every import (SW-1278). validateImport pairs
+      // rows the same way.
+      const imported = importedTranslations.find((i: TranslationDTO) => i.type === t.type && i.key === t.key);
 
       if (!imported) {
         logger.debug(`"${t.key}" is a new translation since last import`);

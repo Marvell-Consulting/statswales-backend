@@ -1,7 +1,6 @@
 import request from 'supertest';
 
 import app from '../../../src/app';
-import { dbManager } from '../../../src/db/database-manager';
 import { initPassport } from '../../../src/middleware/passport-auth';
 import { SUPPORTED_LOCALES } from '../../../src/middleware/translation';
 import { Locale } from '../../../src/enums/locale';
@@ -25,7 +24,7 @@ describe('Healthcheck', () => {
   beforeAll(async () => {
     await ensureWorkerDataSources();
     await resetDatabase();
-    await initPassport(dbManager.getAppDataSource());
+    await initPassport();
   });
 
   describe('Server up', () => {
@@ -89,23 +88,38 @@ describe('Healthcheck', () => {
     });
   });
 
+  describe('Database pools', () => {
+    test('/healthcheck/db returns an array of pool stats', async () => {
+      const res = await request(app).get('/healthcheck/db');
+      expect(res.status).toBe(200);
+      expect(Array.isArray(res.body.pools)).toBe(true);
+      expect(res.body.pools).toHaveLength(3);
+
+      for (const pool of res.body.pools) {
+        expect(pool).toEqual(
+          expect.objectContaining({
+            name: expect.any(String),
+            connectionTimeout: expect.stringMatching(/^\d+ms$/),
+            idleTimeout: expect.stringMatching(/^\d+ms$/),
+            clients: expect.objectContaining({
+              min: expect.any(Number),
+              max: expect.any(Number),
+              idle: expect.any(Number),
+              waiting: expect.any(Number),
+              expired: expect.any(Number),
+              total: expect.any(Number),
+              isFull: expect.any(Boolean)
+            })
+          })
+        );
+      }
+    });
+  });
+
+  // Smoke test that /healthcheck/jwt is wired to JWT auth and returns 200 for a valid user. The full
+  // set of JWT strategy branches (missing / invalid / expired token, unknown user, changed permissions)
+  // lives in test/integration/routes/auth.test.ts alongside the other passport-auth tests.
   describe('Authentication', () => {
-    test('/heathcheck/jwt returns 401 without a bearer token', async () => {
-      const res = await request(app).get('/healthcheck/jwt');
-      expect(res.status).toBe(401);
-    });
-
-    test('/heathcheck/jwt returns 401 with an invalid bearer token', async () => {
-      const res = await request(app).get('/healthcheck/jwt').set({ Authorization: 'Bearer this-is-not-a-token' });
-      expect(res.status).toBe(401);
-    });
-
-    test('/heathcheck/jwt returns 401 with a valid bearer token but inactive user', async () => {
-      const inactiveUser = getTestUser('Inactive User');
-      const res = await request(app).get('/healthcheck/jwt').set(getAuthHeader(inactiveUser));
-      expect(res.status).toBe(401);
-    });
-
     test('/heathcheck/jwt returns 200 with a valid bearer token', async () => {
       const testUser = getTestUser();
       await testUser.save();

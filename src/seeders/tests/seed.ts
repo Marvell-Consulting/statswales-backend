@@ -1,7 +1,7 @@
 import 'dotenv/config';
 import { DataSource } from 'typeorm';
 
-import { dataSource } from '../../db/data-source';
+import { publisherDataSource } from '../../db/publisher-source';
 import { User } from '../../entities/user/user';
 import { config } from '../../config';
 import { AppEnv } from '../../config/env.enum';
@@ -59,13 +59,13 @@ export class TestSeeder {
 
 Promise.resolve()
   .then(async () => {
-    if (!dataSource.isInitialized) await dataSource.initialize();
-    await new TestSeeder(dataSource).run();
+    if (!publisherDataSource.isInitialized) await publisherDataSource.initialize();
+    await new TestSeeder(publisherDataSource).run();
   })
   .catch(async (err) => {
     logger.error(err);
     process.exitCode = 1;
   })
   .finally(async () => {
-    if (dataSource.isInitialized) await dataSource.destroy();
+    if (publisherDataSource.isInitialized) await publisherDataSource.destroy();
   });

@@ -39,6 +39,7 @@ export const loadUserGroup = async (req: Request, res: Response, next: NextFunct
     res.locals.userGroupId = group.id;
   } catch (_err) {
     next(new NotFoundException('errors.no_user_group'));
+    return;
   }
 
   next();
@@ -57,6 +58,7 @@ export const loadUser = async (req: Request, res: Response, next: NextFunction):
     res.locals.userId = user.id;
   } catch (_err) {
     next(new NotFoundException('errors.no_user'));
+    return;
   }
 
   next();

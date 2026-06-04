@@ -113,9 +113,9 @@ jest.mock('../../../src/utils/view-error-generators', () => ({
   viewErrorGenerators: (...args: unknown[]) => mockViewErrorGenerators(...args)
 }));
 
-// Mock update-revision-tasks
+// Mock updateRevisionTasks from the revision service
 const mockUpdateRevisionTasks = jest.fn();
-jest.mock('../../../src/utils/update-revision-tasks', () => ({
+jest.mock('../../../src/services/revision', () => ({
   updateRevisionTasks: (...args: unknown[]) => mockUpdateRevisionTasks(...args)
 }));
 

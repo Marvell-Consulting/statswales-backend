@@ -19,7 +19,7 @@ import { DatasetRepository } from '../repositories/dataset';
 import { createAllCubeFiles } from '../services/cube-builder';
 import { cleanupTmpFile, uploadAvScan } from '../services/virus-scanner';
 import { TempFile } from '../interfaces/temp-file';
-import { updateRevisionTasks } from '../utils/update-revision-tasks';
+import { updateRevisionTasks } from '../services/revision';
 import { CubeBuildType } from '../enums/cube-build-type';
 import { BuildLog } from '../entities/dataset/build-log';
 
@@ -144,6 +144,7 @@ export const updateMeasureMetadata = async (req: Request, res: Response, next: N
   const measure = dataset.measure;
   if (!measure) {
     next(new NotFoundException('errors.measure_invalid'));
+    return;
   }
 
   const draftRevision = dataset.draftRevision;

@@ -131,16 +131,21 @@ async function createLargePublishedDataset(): Promise<void> {
     await cubeDB.release();
   }
 
-  // Build cube views so the consumer API can query the data
-  await createAllCubeFiles(datasetId, revisionId);
+  // Build cube views so the consumer API can query the data.
+  // Pass `awaitMaterialisation = true` so we wait for the background
+  // materialisation step that swaps `core_view_en` → `core_view_mat_en`
+  // (cube-builder.ts:380). Without this, on slow CI the test queries
+  // `core_view_en` after the background DROP VIEW has run but before the
+  // materialised replacement is queryable.
+  await createAllCubeFiles(datasetId, revisionId, undefined, undefined, undefined, /* awaitMaterialisation */ true);
 }
 
 describe('Consumer V2 download format page_size tests', () => {
   beforeAll(async () => {
     await ensureWorkerDataSources();
     await resetDatabase();
-    await initPassport(dbManager.getAppDataSource());
-    userGroup = await dbManager.getAppDataSource().getRepository(UserGroup).save(userGroup);
+    await initPassport();
+    userGroup = await dbManager.getPublisherDataSource().getRepository(UserGroup).save(userGroup);
     user.groupRoles = [UserGroupRole.create({ group: userGroup, roles: [GroupRole.Editor] })];
     await user.save();
     await createLargePublishedDataset();

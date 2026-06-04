@@ -13,7 +13,7 @@ import {
 import { has, isObjectLike, omit, set } from 'lodash';
 
 import { logger } from '../utils/logger';
-import { dataSource } from '../db/data-source';
+import { consumerDataSource } from '../db/consumer-source';
 import { Dataset } from '../entities/dataset/dataset';
 import { DatasetListItemDTO } from '../dtos/dataset-list-item-dto';
 import { ResultsetWithCount } from '../interfaces/resultset-with-count';
@@ -22,6 +22,7 @@ import { Topic } from '../entities/dataset/topic';
 import { Revision } from '../entities/dataset/revision';
 import { SortByInterface } from '../interfaces/sort-by-interface';
 import { SearchResultDTO } from '../dtos/search-result-dto';
+import { UserGroup } from '../entities/user/user-group';
 
 export const withAll: FindOptionsRelations<Dataset> = {
   createdBy: true,
@@ -53,7 +54,7 @@ export const withPublishedRevision: FindOptionsRelations<Dataset> = {
 const HIDE_REDIRECTED_ARCHIVED =
   'NOT (d.archived_at IS NOT NULL AND d.replacement_dataset_id IS NOT NULL AND d.replacement_auto_redirect = TRUE)';
 
-export const PublishedDatasetRepository = dataSource.getRepository(Dataset).extend({
+export const PublishedDatasetRepository = consumerDataSource.getRepository(Dataset).extend({
   async getById(id: string, relations: FindOptionsRelations<Dataset> = {}): Promise<Dataset> {
     const start = performance.now();
     const now = new Date();
@@ -84,7 +85,7 @@ export const PublishedDatasetRepository = dataSource.getRepository(Dataset).exte
         : undefined;
 
       // publishedRevision must be manually loaded to ensure the publish_at has passed
-      const publishedRevision = await dataSource.getRepository(Revision).findOne({
+      const publishedRevision = await consumerDataSource.getRepository(Revision).findOne({
         where: { datasetId: id, approvedAt: LessThan(now), publishAt: LessThan(now), unpublishedAt: IsNull() },
         order: { publishAt: 'DESC' },
         relations
@@ -148,7 +149,7 @@ export const PublishedDatasetRepository = dataSource.getRepository(Dataset).exte
   },
 
   async listPublishedTopics(lang: Locale, topicId?: string): Promise<Topic[]> {
-    const latestPublishedRevisions = await dataSource
+    const latestPublishedRevisions = await consumerDataSource
       .getRepository(Revision)
       .createQueryBuilder('r')
       .select('DISTINCT ON (r.dataset_id) r.id AS id')
@@ -255,10 +256,21 @@ export const PublishedDatasetRepository = dataSource.getRepository(Dataset).exte
     return { data, count };
   },
 
+  // Resolves the publisher (UserGroup + Organisation) for a published dataset via the consumer pool,
+  // so consumer routes don't have to borrow a publisher-pool connection from UserGroupRepository.
+  async getPublisherOrganisation(datasetId: string): Promise<UserGroup | null> {
+    const dataset = await this.findOne({
+      where: { id: datasetId },
+      relations: { userGroup: { metadata: true, organisation: { metadata: true } } }
+    });
+
+    return dataset?.userGroup ?? null;
+  },
+
   async getHistoryById(datasetId: string): Promise<Revision[]> {
     const now = new Date();
 
-    return dataSource.getRepository(Revision).find({
+    return consumerDataSource.getRepository(Revision).find({
       where: {
         datasetId,
         publishAt: And(Not(IsNull()), LessThan(now)),
@@ -486,7 +498,7 @@ export const PublishedDatasetRepository = dataSource.getRepository(Dataset).exte
 });
 
 const getBaseSearchQuery = (lang: Locale): SelectQueryBuilder<Dataset> => {
-  const latestPublishedRevisionCte = dataSource
+  const latestPublishedRevisionCte = consumerDataSource
     .createQueryBuilder()
     .select([
       'rev.dataset_id AS dataset_id',
@@ -506,7 +518,7 @@ const getBaseSearchQuery = (lang: Locale): SelectQueryBuilder<Dataset> => {
     .orderBy('rev.dataset_id')
     .addOrderBy('rev.publish_at', 'DESC');
 
-  const baseQb = dataSource
+  const baseQb = consumerDataSource
     .createQueryBuilder(Dataset, 'd')
     .addCommonTableExpression(latestPublishedRevisionCte, 'published_rev')
     .innerJoin('published_rev', 'pr', 'pr.dataset_id = d.id')

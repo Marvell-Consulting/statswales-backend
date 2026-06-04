@@ -5,7 +5,7 @@ import { FieldValidationError, matchedData } from 'express-validator';
 import { isDownloadFormat, OutputFormats } from '../enums/output-formats';
 import { BadRequestException } from '../exceptions/bad-request.exception';
 import { PageOptions } from '../interfaces/page-options';
-import { format2Validator, pageNumberValidator, pageSizeValidator } from '../validators';
+import { cursorValidator, format2Validator, pageNumberValidator, pageSizeValidator } from '../validators';
 import { logger } from './logger';
 import { DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE } from './page-defaults';
 import { parseSortByParam } from './parse-sort-by-param';
@@ -20,7 +20,7 @@ export interface ParsePageOptionsOpts {
 
 export async function parsePageOptions(req: Request, opts: ParsePageOptionsOpts = {}): Promise<PageOptions> {
   logger.debug('Parsing page options from request...');
-  const validations = [format2Validator(), pageNumberValidator(), pageSizeValidator()];
+  const validations = [format2Validator(), pageNumberValidator(), pageSizeValidator(), cursorValidator()];
 
   for (const validation of validations) {
     const result = await validation.run(req);
@@ -42,10 +42,18 @@ export async function parsePageOptions(req: Request, opts: ParsePageOptionsOpts 
   const pageSize = params.page_size ?? defaultPageSize(format);
   const locale = req.language as Locale;
   const sort = parseSortByParam(req.query.sort_by as string);
+  const cursor = typeof params.cursor === 'string' ? params.cursor : undefined;
 
   if (!isDownloadFormat(format) && pageSize !== undefined && pageSize > MAX_PAGE_SIZE) {
     throw new BadRequestException(`page_size must not exceed ${MAX_PAGE_SIZE}`);
   }
 
-  return { format, pageNumber, pageSize, sort, locale };
+  // page_number and cursor are mutually exclusive — the caller has to pick a
+  // single pagination mode per request. page_number defaults to 1 when
+  // omitted, so a cursor + explicit page_number > 1 is what we reject.
+  if (cursor && (params.page_number ?? 1) > 1) {
+    throw new BadRequestException('errors.cursor_and_page_number_mutually_exclusive');
+  }
+
+  return { format, pageNumber, pageSize, sort, locale, cursor };
 }

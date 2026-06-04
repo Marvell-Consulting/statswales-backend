@@ -45,7 +45,6 @@ import {
 import { StorageService } from '../interfaces/storage-service';
 import { TempFile } from '../interfaces/temp-file';
 import { dbManager } from '../db/database-manager';
-import { getFileService } from '../utils/get-file-service';
 import { bootstrapCubeBuildProcess } from '../utils/lookup-table-utils';
 
 export class DatasetService {
@@ -118,6 +117,8 @@ export class DatasetService {
       col.factTableColumn = col.columnName;
     });
 
+    // the guard above already guarantees this is the first revision; keep the explicit check as a
+    // defensive backstop in case that guard is ever relaxed, so we never reset a later revision
     if (draftRevision.revisionIndex === 1) {
       await removeAllDimensions(dataset);
       await removeMeasure(dataset);
@@ -356,13 +357,12 @@ export class DatasetService {
     }
 
     const cubeDB = dbManager.getCubeDataSource().createQueryRunner();
-    const fileService = getFileService();
     try {
       logger.warn(`Deleting draft revision ${revisionId} from cube database and data lake...`);
       await cubeDB.query(pgformat('DROP SCHEMA IF EXISTS %I CASCADE', revisionId));
       if (draft.dataTable?.id) {
         await cubeDB.query(pgformat('DROP TABLE IF EXISTS data_tables.%I;', draft.dataTable?.id));
-        await fileService.delete(draft.dataTable.id, datasetId);
+        await this.fileService.delete(draft.dataTable.id, datasetId);
       }
     } catch (err) {
       logger.warn(
@@ -482,7 +482,7 @@ export class DatasetService {
 
     // mark the current published revision as unpublished
     dataset.publishedRevision.unpublishedAt = new Date();
-    await dataset.publishedRevision.save();
+    await RevisionRepository.save(dataset.publishedRevision);
     logger.info(`Revision ${dataset.publishedRevision.id} marked as unpublished`);
 
     // create a new draft revision based on the now unpublished revision

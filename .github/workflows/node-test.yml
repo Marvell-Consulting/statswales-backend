@@ -41,6 +41,15 @@ jobs:
       with:
         node-version: ${{ matrix.node-version }}
         cache: 'npm'
+    # Cache the DuckDB extension dir so the postgres extension installed in global-setup is
+    # restored offline on subsequent runs. Keyed on the lockfile so a DuckDB version bump busts it.
+    - name: Cache DuckDB extensions
+      uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+      with:
+        path: ~/.duckdb
+        key: duckdb-ext-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+        restore-keys: |
+          duckdb-ext-${{ runner.os }}-
     - run: npm ci
     - run: npm run prettier:ci
     - run: npm run lint:ci

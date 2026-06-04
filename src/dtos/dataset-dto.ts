@@ -9,6 +9,7 @@ import { FactTableColumnDto } from './fact-table-column-dto';
 import { TaskDTO } from './task-dto';
 import { Task } from '../entities/task/task';
 import { PublisherDTO } from './publisher-dto';
+import { Locale } from '../enums/locale';
 
 export class DatasetDTO {
   id: string;
@@ -35,7 +36,7 @@ export class DatasetDTO {
   tasks?: TaskDTO[];
   publisher?: PublisherDTO;
 
-  static fromDataset(dataset: Dataset): DatasetDTO {
+  static fromDataset(dataset: Dataset, lang: Locale = Locale.English): DatasetDTO {
     const dto = new DatasetDTO();
     dto.id = dataset.id;
     dto.created_at = dataset.createdAt.toISOString();
@@ -45,9 +46,11 @@ export class DatasetDTO {
     dto.archived_at = dataset.archivedAt?.toISOString();
 
     if (dataset.replacementDatasetId) {
+      const metadata = dataset.replacementDataset?.publishedRevision?.metadata;
+      const langCode = lang.toLowerCase();
       dto.replaced_by = {
         dataset_id: dataset.replacementDatasetId,
-        dataset_title: dataset.replacementDataset?.publishedRevision?.metadata?.[0]?.title ?? undefined,
+        dataset_title: metadata?.find((m) => m.language.toLowerCase().includes(langCode))?.title ?? undefined,
         auto_redirect: dataset.replacementAutoRedirect ?? false
       };
     }

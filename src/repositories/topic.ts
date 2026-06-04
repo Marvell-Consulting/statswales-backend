@@ -1,8 +1,8 @@
 import { In } from 'typeorm';
-import { dataSource } from '../db/data-source';
+import { publisherDataSource } from '../db/publisher-source';
 import { Topic } from '../entities/dataset/topic';
 
-export const TopicRepository = dataSource.getRepository(Topic).extend({
+export const TopicRepository = publisherDataSource.getRepository(Topic).extend({
   async listAll(): Promise<Topic[]> {
     return this.find();
   },

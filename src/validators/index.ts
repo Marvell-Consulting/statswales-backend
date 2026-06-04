@@ -31,6 +31,9 @@ export const pageNumberValidator = (): ValidationChain =>
 export const pageSizeValidator = (): ValidationChain =>
   check('page_size').optional().trim().notEmpty().isInt({ min: 1 }).toInt();
 
+export const cursorValidator = (): ValidationChain =>
+  check('cursor').optional().isString().isLength({ min: 1, max: 2048 });
+
 export const filterIdValidator = (): ValidationChain => check('filter_id').trim().notEmpty().isString();
 
 export const userStatusValidator = (): ValidationChain => body('status').isIn(Object.values(UserStatus));

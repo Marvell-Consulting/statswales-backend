@@ -63,9 +63,9 @@ describe('Consumer V2 — data + pivot endpoints', () => {
   beforeAll(async () => {
     await ensureWorkerDataSources();
     await resetDatabase();
-    await initPassport(dbManager.getAppDataSource());
+    await initPassport();
 
-    userGroup = await dbManager.getAppDataSource().getRepository(UserGroup).save(userGroup);
+    userGroup = await dbManager.getPublisherDataSource().getRepository(UserGroup).save(userGroup);
     user.groupRoles = [UserGroupRole.create({ group: userGroup, roles: [GroupRole.Editor] })];
     await user.save();
 
@@ -224,6 +224,128 @@ describe('Consumer V2 — data + pivot endpoints', () => {
     it('returns 404 for a non-existent dataset', async () => {
       const res = await request(app).get('/v2/99999999-9999-4999-8999-999999999999/data');
       expect(res.status).toBe(404);
+    });
+
+    describe('cursor pagination', () => {
+      it('frontend response includes next_cursor / prev_cursor in page_info', async () => {
+        const res = await request(app).get(`/v2/${DATASET_ID}/data`).query({ format: 'frontend', page_size: 5 });
+        expect(res.status).toBe(200);
+        expect(res.body.page_info).toHaveProperty('next_cursor');
+        expect(res.body.page_info).toHaveProperty('prev_cursor');
+        // First offset-mode page on a 12-row dataset with page_size=5 → there's more, so next_cursor is set
+        expect(typeof res.body.page_info.next_cursor).toBe('string');
+        expect(res.body.page_info.next_cursor.length).toBeGreaterThan(0);
+        expect(res.body.page_info.prev_cursor).toBeNull();
+      });
+
+      it('walking forward by cursor returns the same rows in the same order as offset paging', async () => {
+        const pageSize = 5;
+
+        // Offset traversal — establish ground truth
+        const offsetRows: unknown[] = [];
+        for (let p = 1; ; p++) {
+          const r = await request(app)
+            .get(`/v2/${DATASET_ID}/data`)
+            .query({ format: 'frontend', page_size: pageSize, page_number: p });
+          expect(r.status).toBe(200);
+          offsetRows.push(...r.body.data);
+          if (offsetRows.length >= r.body.page_info.total_records) break;
+        }
+        expect(offsetRows.length).toBe(ROW_COUNT);
+
+        // Cursor traversal — start from the first offset page's next_cursor, then walk
+        const first = await request(app)
+          .get(`/v2/${DATASET_ID}/data`)
+          .query({ format: 'frontend', page_size: pageSize });
+        expect(first.status).toBe(200);
+        const cursorRows: unknown[] = [...first.body.data];
+        let cursor: string | null = first.body.page_info.next_cursor;
+
+        while (cursor) {
+          const r = await request(app)
+            .get(`/v2/${DATASET_ID}/data`)
+            .query({ format: 'frontend', page_size: pageSize, cursor });
+          expect(r.status).toBe(200);
+          cursorRows.push(...r.body.data);
+          cursor = r.body.page_info.next_cursor;
+        }
+
+        expect(cursorRows.length).toBe(ROW_COUNT);
+        expect(JSON.stringify(cursorRows)).toBe(JSON.stringify(offsetRows));
+      });
+
+      it('returns null next_cursor on the final cursor-mode page', async () => {
+        const first = await request(app).get(`/v2/${DATASET_ID}/data`).query({ format: 'frontend', page_size: 100 }); // 100 > ROW_COUNT
+        // All rows fit on one page → there's no "next" page, so offset-mode next_cursor should be null
+        expect(first.status).toBe(200);
+        expect(first.body.page_info.next_cursor).toBeNull();
+      });
+
+      it('rejects a malformed cursor with 400', async () => {
+        const res = await request(app)
+          .get(`/v2/${DATASET_ID}/data`)
+          .query({ format: 'frontend', page_size: 5, cursor: 'not-a-real-cursor' });
+        expect(res.status).toBe(400);
+      });
+
+      it('rejects a cursor bound to a different queryStore (filter_id mismatch)', async () => {
+        // Get a valid cursor from the unfiltered endpoint
+        const unfiltered = await request(app).get(`/v2/${DATASET_ID}/data`).query({ format: 'frontend', page_size: 5 });
+        expect(unfiltered.status).toBe(200);
+        const cursor = unfiltered.body.page_info.next_cursor;
+        expect(typeof cursor).toBe('string');
+
+        // Replay it against the filtered endpoint, which has a different queryStoreId
+        const res = await request(app)
+          .get(`/v2/${DATASET_ID}/data/${dataFilterId}`)
+          .query({ format: 'frontend', page_size: 5, cursor });
+        expect(res.status).toBe(400);
+      });
+
+      it('rejects a cursor when the language differs from the one it was issued in', async () => {
+        const en = await request(app).get(`/v2/${DATASET_ID}/data`).query({ format: 'frontend', page_size: 5 });
+        const cursor = en.body.page_info.next_cursor;
+
+        const res = await request(app)
+          .get(`/v2/${DATASET_ID}/data`)
+          .query({ format: 'frontend', page_size: 5, cursor, lang: 'cy' });
+        expect(res.status).toBe(400);
+      });
+
+      it('rejects cursor + page_number > 1 as mutually exclusive', async () => {
+        const first = await request(app).get(`/v2/${DATASET_ID}/data`).query({ format: 'frontend', page_size: 5 });
+        const cursor = first.body.page_info.next_cursor;
+
+        const res = await request(app)
+          .get(`/v2/${DATASET_ID}/data`)
+          .query({ format: 'frontend', page_size: 5, cursor, page_number: 2 });
+        expect(res.status).toBe(400);
+      });
+
+      it('walks backwards using prev_cursor and returns the prior slice', async () => {
+        const pageSize = 5;
+        const first = await request(app)
+          .get(`/v2/${DATASET_ID}/data`)
+          .query({ format: 'frontend', page_size: pageSize });
+        const forward = await request(app)
+          .get(`/v2/${DATASET_ID}/data`)
+          .query({ format: 'frontend', page_size: pageSize, cursor: first.body.page_info.next_cursor });
+        expect(forward.status).toBe(200);
+        expect(forward.body.page_info.prev_cursor).toBeTruthy();
+
+        const back = await request(app)
+          .get(`/v2/${DATASET_ID}/data`)
+          .query({ format: 'frontend', page_size: pageSize, cursor: forward.body.page_info.prev_cursor });
+        expect(back.status).toBe(200);
+        // Walking back should land us on the original first-page rows
+        expect(JSON.stringify(back.body.data)).toBe(JSON.stringify(first.body.data));
+        // Backward-direction responses must always carry next_cursor: we came
+        // from somewhere forward, so a forward link back to it has to exist.
+        // The first-page boundary still nulls prev_cursor (no rows further
+        // behind) — that's what stops the loop.
+        expect(back.body.page_info.next_cursor).toBeTruthy();
+        expect(back.body.page_info.prev_cursor).toBeNull();
+      });
     });
   });
 
