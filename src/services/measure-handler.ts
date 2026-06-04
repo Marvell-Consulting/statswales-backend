@@ -802,7 +802,7 @@ async function getMeasurePreviewWithExtractor(
 export const getMeasurePreview = async (
   dataset: Dataset,
   lang: string,
-  revisionTasks?: RevisionTask
+  revisionTasks?: RevisionTask | null
 ): Promise<ViewDTO | ViewErrDTO> => {
   logger.debug(`Getting preview for measure: ${dataset.measure.id}`);
   const measure = dataset.measure;

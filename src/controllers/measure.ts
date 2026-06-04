@@ -123,8 +123,10 @@ export const getPreviewOfMeasure = async (req: Request, res: Response, next: Nex
     return;
   }
 
+  const draftRevisionTasks = dataset.draftRevision?.tasks;
+
   try {
-    const preview = await getMeasurePreview(dataset, lang);
+    const preview = await getMeasurePreview(dataset, lang, draftRevisionTasks);
     res.json(preview);
   } catch (err) {
     logger.error(err, `Something went wrong trying to get a preview of the measure`);

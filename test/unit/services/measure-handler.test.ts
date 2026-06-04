@@ -367,6 +367,31 @@ describe('getMeasurePreview', () => {
       expect(result).toMatchObject({ current_page: 1 });
     });
 
+    it('treats null revisionTasks as absent (uses with-extractor path when measureTable has rows)', async () => {
+      const dataset = makeDataset({
+        measureTable: [
+          { id: 'measure-1', reference: 'REF1', language: 'en-gb', description: 'Desc', format: 'integer' }
+        ]
+      });
+
+      mockQuery.mockResolvedValueOnce([
+        {
+          reference: 'REF1',
+          description: 'Desc 1',
+          notes: null,
+          sort_order: 1,
+          format: 'integer',
+          decimals: 0,
+          measure_type: null,
+          hierarchy: null
+        }
+      ]);
+
+      const result = (await getMeasurePreview(dataset, 'en-GB', null)) as ViewDTO;
+
+      expect(result).toMatchObject({ current_page: 1, page_size: 1 });
+    });
+
     it('uses the with-extractor path when measureTable has rows', async () => {
       const dataset = makeDataset({
         measureTable: [
