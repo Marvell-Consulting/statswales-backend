@@ -92,7 +92,7 @@ const checkConnections = async (req: Request, res: Response): Promise<void> => {
 };
 
 healthcheck.get('/', (_req: Request, res: Response) => {
-  res.json({ message: 'success' }); // server is up
+  res.json({ message: 'success', gitSha: config.build.gitSha }); // server is up
 });
 
 healthcheck.get('/ready', checkConnections); // server is up and has active connections to dependencies
