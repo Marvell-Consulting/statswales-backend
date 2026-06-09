@@ -22,6 +22,9 @@ export interface EntraIdConfig {
 
 export interface AppConfig {
   env: AppEnv;
+  build: {
+    gitSha: string;
+  };
   frontend: {
     port: number;
     url: string;

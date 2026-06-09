@@ -66,7 +66,9 @@ export class TasklistStateDTO {
     const isUpdate = Boolean(revision.previousRevisionId);
     let status = TaskListStatus.NotStarted;
 
-    if (isUpdate) {
+    if (revision.tasks?.measure) {
+      status = revision.tasks.measure.lookupTableUpdated ? TaskListStatus.Updated : TaskListStatus.NotStarted;
+    } else if (isUpdate) {
       status = TaskListStatus.Unchanged;
     } else if (measure.joinColumn) {
       status = TaskListStatus.Completed;

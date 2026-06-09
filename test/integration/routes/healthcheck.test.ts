@@ -31,7 +31,7 @@ describe('Healthcheck', () => {
     test('/healthcheck/ returns success', async () => {
       const res = await request(app).get('/healthcheck/');
       expect(res.status).toBe(200);
-      expect(res.body).toEqual({ message: 'success' });
+      expect(res.body).toEqual({ message: 'success', gitSha: 'unknown' });
     });
   });
 
@@ -116,23 +116,10 @@ describe('Healthcheck', () => {
     });
   });
 
+  // Smoke test that /healthcheck/jwt is wired to JWT auth and returns 200 for a valid user. The full
+  // set of JWT strategy branches (missing / invalid / expired token, unknown user, changed permissions)
+  // lives in test/integration/routes/auth.test.ts alongside the other passport-auth tests.
   describe('Authentication', () => {
-    test('/heathcheck/jwt returns 401 without a bearer token', async () => {
-      const res = await request(app).get('/healthcheck/jwt');
-      expect(res.status).toBe(401);
-    });
-
-    test('/heathcheck/jwt returns 401 with an invalid bearer token', async () => {
-      const res = await request(app).get('/healthcheck/jwt').set({ Authorization: 'Bearer this-is-not-a-token' });
-      expect(res.status).toBe(401);
-    });
-
-    test('/heathcheck/jwt returns 401 with a valid bearer token but inactive user', async () => {
-      const inactiveUser = getTestUser('Inactive User');
-      const res = await request(app).get('/healthcheck/jwt').set(getAuthHeader(inactiveUser));
-      expect(res.status).toBe(401);
-    });
-
     test('/heathcheck/jwt returns 200 with a valid bearer token', async () => {
       const testUser = getTestUser();
       await testUser.save();

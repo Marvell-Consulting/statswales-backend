@@ -33,6 +33,11 @@ HEALTHCHECK --interval=60s --timeout=3s --start-period=30s --retries=3 \
 ENV NODE_ENV=production
 EXPOSE 3000
 
+# Bake the git SHA into the image so the running app can report which commit it was built from.
+# Passed at build time by CI (build-args: GIT_SHA=${{ github.sha }}); defaults to "unknown" for local builds.
+ARG GIT_SHA=unknown
+ENV GIT_SHA=${GIT_SHA}
+
 # set the user to non-root (node)
 USER node
 
