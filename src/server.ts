@@ -30,7 +30,10 @@ Promise.resolve()
   })
   .then(() => {
     app.listen(PORT, async () => {
-      logger.info(`Server is running on port ${PORT}`);
+      logger.info(
+        { event: 'app_boot', gitSha: config.build.gitSha, appEnv: config.env, port: PORT },
+        `Server is running on port ${PORT}`
+      );
     });
   })
   .catch(async (err) => {

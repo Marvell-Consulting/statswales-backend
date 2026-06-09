@@ -12,6 +12,9 @@ const DEFAULT_TIMEOUT_MS = 2500;
 export const getDefaultConfig = (): AppConfig => {
   return {
     env: AppEnv.Default, // MUST be overridden by other configs
+    build: {
+      gitSha: process.env.GIT_SHA || 'unknown'
+    },
     frontend: {
       port: parseInt(process.env.FRONTEND_PORT || '3000', 10),
       url: process.env.FRONTEND_URL!

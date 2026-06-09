@@ -31,7 +31,7 @@ describe('Healthcheck', () => {
     test('/healthcheck/ returns success', async () => {
       const res = await request(app).get('/healthcheck/');
       expect(res.status).toBe(200);
-      expect(res.body).toEqual({ message: 'success' });
+      expect(res.body).toEqual({ message: 'success', gitSha: 'unknown' });
     });
   });
 
