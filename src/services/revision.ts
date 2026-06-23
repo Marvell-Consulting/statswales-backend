@@ -44,6 +44,13 @@ import { BuildLog } from '../entities/dataset/build-log';
 import { User } from '../entities/user/user';
 import { CubeBuildStatus } from '../enums/cube-build-status';
 
+const dimensionTypesNotToValidate = [
+  DimensionType.Text,
+  DimensionType.Numeric,
+  DimensionType.Symbol,
+  DimensionType.NoteCodes
+];
+
 export async function attachUpdateDataTableToRevision(
   datasetId: string,
   revision: Revision,
@@ -176,6 +183,11 @@ export async function attachUpdateDataTableToRevision(
     if (!factTableColumn) {
       logger.error(`Could not find fact table column for dimension ${dimension.id}`);
       throw new BadRequestException('errors.data_table_validation_error');
+    }
+
+    if (dimensionTypesNotToValidate.includes(dimension.type)) {
+      logger.debug(`Dimension ${dimension.id} is of type ${dimension.type}... Skipping validation`);
+      continue;
     }
 
     try {

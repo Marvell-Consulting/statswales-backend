@@ -1023,6 +1023,11 @@ export function dataTableActions(
         dataTableCol?.columnName
       )
     );
+    if (dataTableCol?.columnDatatype !== factTableCol.columnDatatype) {
+      buildStatements.push(
+        pgformat('ALTER TABLE %I.%I ALTER COLUMN %I TYPE TEXT;', buildId, FACT_TABLE_NAME, factTableCol.columnName)
+      );
+    }
   }
   logger.debug(`Performing action ${dataTable.action} on fact table for data table ${dataTable.id}`);
   switch (dataTable.action) {
