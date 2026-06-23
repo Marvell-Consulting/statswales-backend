@@ -1023,7 +1023,8 @@ export function dataTableActions(
         dataTableCol?.columnName
       )
     );
-    if (dataTableCol?.columnDatatype !== factTableCol.columnDatatype) {
+    const normalizedDataType = dataTableCol ? normalizeSqlDatatype(dataTableCol.columnDatatype) : undefined;
+    if (normalizedDataType && normalizedDataType !== normalizeSqlDatatype(factTableCol.columnDatatype)) {
       buildStatements.push(
         pgformat('ALTER TABLE %I.%I ALTER COLUMN %I TYPE TEXT;', buildId, FACT_TABLE_NAME, factTableCol.columnName)
       );
