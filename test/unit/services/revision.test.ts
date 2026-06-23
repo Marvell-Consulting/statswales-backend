@@ -313,6 +313,40 @@ describe('revision service', () => {
         attachUpdateDataTableToRevision('ds-1', revision as never, dataTable as never, DataTableAction.Add)
       ).rejects.toThrow('errors.data_table_validation_error');
     });
+
+    const SKIP_TYPES = [DimensionType.Text, DimensionType.Numeric, DimensionType.Symbol, DimensionType.NoteCodes];
+
+    for (const dimType of SKIP_TYPES) {
+      it(`skips lookup validation for ${dimType} dimensions`, async () => {
+        mockDatasetGetById.mockResolvedValue(
+          makeDataset({
+            dimensions: [{ id: 'dim-1', type: dimType, factTableColumn: 'col1', save: jest.fn() }]
+          })
+        );
+        const revision = makeRevision();
+        const dataTable = makeDataTable();
+
+        await attachUpdateDataTableToRevision('ds-1', revision as never, dataTable as never, DataTableAction.Add);
+
+        // validateLookupTableReferenceValues is called once for the measure only, not for the skipped dimension
+        expect(mockValidateReference).toHaveBeenCalledTimes(1);
+        expect(mockCreateLookupTableDimension).not.toHaveBeenCalled();
+      });
+    }
+
+    it('does not add skipped-type dimensions to revision tasks', async () => {
+      mockDatasetGetById.mockResolvedValue(
+        makeDataset({
+          dimensions: [{ id: 'dim-1', type: DimensionType.Text, factTableColumn: 'col1', save: jest.fn() }]
+        })
+      );
+      const revision = makeRevision();
+      const dataTable = makeDataTable();
+
+      await attachUpdateDataTableToRevision('ds-1', revision as never, dataTable as never, DataTableAction.Add);
+
+      expect((revision.tasks as { dimensions: unknown[] }).dimensions).toHaveLength(0);
+    });
   });
 
   describe('createDateTableInValidationCube', () => {
