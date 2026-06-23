@@ -792,9 +792,8 @@ describe('dataTableActions', () => {
       const intYearCol = makeCol('year', 0, FactTableColumnType.Dimension, 'INTEGER');
       const dataTable = makeDataTable(DataTableAction.ReplaceAll, matchingDescriptions);
       const stmts = dataTableActions(buildId, dataTable, factTableDef, notesCol, dataValuesCol, [intYearCol]);
-      const alterIdx = stmts.findIndex((s) => s.includes('ALTER COLUMN'));
-      const deleteIdx = stmts.findIndex((s) => s.includes('DELETE FROM'));
-      expect(alterIdx).toBeLessThan(deleteIdx);
+      expect(stmts[0]).toContain('ALTER COLUMN');
+      expect(stmts.some((s) => s.includes('DELETE FROM'))).toBe(true);
     });
 
     it('emits one ALTER COLUMN per mismatched fact identifier column', () => {
