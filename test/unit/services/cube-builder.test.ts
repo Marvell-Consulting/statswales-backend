@@ -770,6 +770,47 @@ describe('dataTableActions', () => {
       expect(stmts).toHaveLength(0);
     });
   });
+
+  describe('column datatype mismatch', () => {
+    it('emits ALTER COLUMN TYPE TEXT when fact column datatype differs from data table column', () => {
+      const intYearCol = makeCol('year', 0, FactTableColumnType.Dimension, 'INTEGER');
+      const dataTable = makeDataTable(DataTableAction.ReplaceAll, matchingDescriptions);
+      const stmts = dataTableActions(buildId, dataTable, factTableDef, notesCol, dataValuesCol, [intYearCol]);
+      const alterStmt = stmts.find((s) => s.includes('ALTER COLUMN') && s.includes('TYPE TEXT'));
+      expect(alterStmt).toBeDefined();
+      expect(alterStmt).toContain('b1.fact_table');
+      expect(alterStmt).toContain('year');
+    });
+
+    it('emits no ALTER COLUMN statement when datatypes match', () => {
+      const dataTable = makeDataTable(DataTableAction.ReplaceAll, matchingDescriptions);
+      const stmts = dataTableActions(buildId, dataTable, factTableDef, notesCol, dataValuesCol, factIdentifiers);
+      expect(stmts.filter((s) => s.includes('ALTER COLUMN'))).toHaveLength(0);
+    });
+
+    it('places ALTER COLUMN before action statements', () => {
+      const intYearCol = makeCol('year', 0, FactTableColumnType.Dimension, 'INTEGER');
+      const dataTable = makeDataTable(DataTableAction.ReplaceAll, matchingDescriptions);
+      const stmts = dataTableActions(buildId, dataTable, factTableDef, notesCol, dataValuesCol, [intYearCol]);
+      expect(stmts[0]).toContain('ALTER COLUMN');
+      expect(stmts.some((s) => s.includes('DELETE FROM'))).toBe(true);
+    });
+
+    it('emits one ALTER COLUMN per mismatched fact identifier column', () => {
+      const intYearCol = makeCol('year', 0, FactTableColumnType.Dimension, 'INTEGER');
+      const bigintRegionCol = makeCol('region', 1, FactTableColumnType.Dimension, 'BIGINT');
+      const descriptions = [
+        makeDataTableDescription('year', 'year', 0),
+        makeDataTableDescription('region', 'region', 1)
+      ];
+      const dataTable = makeDataTable(DataTableAction.ReplaceAll, descriptions);
+      const stmts = dataTableActions(buildId, dataTable, factTableDef, notesCol, dataValuesCol, [
+        intYearCol,
+        bigintRegionCol
+      ]);
+      expect(stmts.filter((s) => s.includes('ALTER COLUMN') && s.includes('TYPE TEXT'))).toHaveLength(2);
+    });
+  });
 });
 
 // ===========================================================================
