@@ -313,7 +313,9 @@ export const datasetPreview = async (req: Request, res: Response, next: NextFunc
 
   try {
     const endRevision = await RevisionRepository.findOneBy({ id: dataset.endRevisionId });
-    const previewRevisionId = resolvePreviewRevisionId(endRevision, dataset);
+    const previewRevisionId = dataset.draftRevisionId
+      ? dataset.draftRevisionId
+      : resolvePreviewRevisionId(endRevision, dataset);
 
     if (!previewRevisionId) return next(new NotFoundException('errors.no_data_table'));
 
