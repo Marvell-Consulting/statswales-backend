@@ -15,9 +15,11 @@ export interface CoverageRange {
 // has its own data. Use this helper to decide which revision id to query; it returns undefined only when neither side
 // has a cube.
 export const resolvePreviewRevisionId = (
-  revision: Pick<Revision, 'id' | 'dataTableId'> | null | undefined,
+  revision: Pick<Revision, 'id' | 'revisionIndex' | 'dataTableId'> | null | undefined,
   dataset: Pick<Dataset, 'publishedRevisionId'> | null | undefined
 ): string | undefined => {
+  // This is an update revision so there will always be a complete cube here
+  if (revision?.revisionIndex === 0) return revision.id;
   if (revision?.dataTableId) return revision.id;
   return dataset?.publishedRevisionId;
 };
