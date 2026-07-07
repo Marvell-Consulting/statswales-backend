@@ -4664,5 +4664,17 @@
     "language": "en-gb",
     "name": "Fire and Rescue Data Platform (FaRDaP)",
     "provider_id": "0333a8dc-d7b0-49ff-bb8e-93f2ec41aaf0"
+  },
+  {
+    "id": "33237476-9f5e-40b6-b653-d9a34f287144",
+    "language": "en-gb",
+    "name": "Welsh Hospital Pharmacy Stock Management System (WHPSMS)",
+    "provider_id": "f57e82cc-9c97-442b-a195-de74f443f36c"
+  },
+  {
+    "id": "33237476-9f5e-40b6-b653-d9a34f287144",
+    "language": "cy-gb",
+    "name": "System Rheoli Stoc Fferyllfa Ysbytai Cymru (WHPSMS)",
+    "provider_id": "f57e82cc-9c97-442b-a195-de74f443f36c"
   }
 ]
