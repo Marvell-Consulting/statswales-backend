@@ -10,10 +10,12 @@ export interface CoverageRange {
   endDate: Date | null;
 }
 
-// Fresh draft update revisions (cloned from the published revision via deepCloneRevision) have no data table id
-// yet, so anything that queries the per-revision schema must use the previously-published revision id until the draft
-// has its own data. Use this helper to decide which revision id to query; it returns undefined only when neither side
-// has a cube.
+// Draft update revisions (cloned from the published revision via deepCloneRevision) have revisionIndex 0 and have
+// no data table id of their own, but deepCloneRevision triggers a build that copies the cube from the previous
+// revision straight away, so their own revision id always has a queryable cube. Other draft revisions (e.g. the
+// first revision of a brand new dataset) have no cube until they get a data table id, so anything that queries the
+// per-revision schema must fall back to the previously-published revision id until then. Use this helper to decide
+// which revision id to query; it returns undefined only when neither side has a cube.
 export const resolvePreviewRevisionId = (
   revision: Pick<Revision, 'id' | 'revisionIndex' | 'dataTableId'> | null | undefined,
   dataset: Pick<Dataset, 'publishedRevisionId'> | null | undefined
