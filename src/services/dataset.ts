@@ -26,6 +26,10 @@ import { TasklistStateDTO } from '../dtos/tasklist-state-dto';
 import { EventLog } from '../entities/event-log';
 
 import { createAllCubeFiles } from './cube-builder';
+import { BuildLog } from '../entities/dataset/build-log';
+import { CubeBuildStatus } from '../enums/cube-build-status';
+import { CubeBuildType } from '../enums/cube-build-type';
+import { UnknownException } from '../exceptions/unknown.exception';
 import { validateAndUpload } from './incoming-file-processor';
 import { removeAllDimensions, removeMeasure } from './dimension-processor';
 import { UserGroupRepository } from '../repositories/user-group';
@@ -306,8 +310,25 @@ export class DatasetService {
 
   async approvePublication(datasetId: string, revisionId: string, user: User): Promise<Dataset> {
     const start = performance.now();
-    await bootstrapCubeBuildProcess(datasetId, revisionId);
-    await createAllCubeFiles(datasetId, revisionId, user.id, undefined, undefined, true);
+    // Open the build log before bootstrap so a failure in either the bootstrap or
+    // the build proper is recorded in build_log (bootstrap previously ran before any
+    // build_log row existed, so its failures were only visible in application logs).
+    const build = await BuildLog.startBuild({ id: revisionId }, CubeBuildType.FullCube, user.id);
+    try {
+      await bootstrapCubeBuildProcess(datasetId, revisionId);
+      await createAllCubeFiles(datasetId, revisionId, user.id, CubeBuildType.FullCube, build, true);
+    } catch (err) {
+      // createAllCubeFiles records and saves its own failure; only mark it here when the
+      // failure happened earlier (e.g. during bootstrap), so we don't clobber that detail.
+      if (build.status !== CubeBuildStatus.Failed && build.status !== CubeBuildStatus.Completed) {
+        const message = err instanceof Error ? err.message : String(err);
+        build.completeBuild(CubeBuildStatus.Failed, undefined, JSON.stringify({ message }));
+        await build.save();
+      }
+      logger.error(err, 'approvePublication: cube build failed during approval');
+      // Surface a clean, translated message instead of leaking the raw Postgres error.
+      throw new UnknownException('errors.cube_builder.cube_build_failed');
+    }
     const scheduledRevision = await RevisionRepository.approvePublication(revisionId, `${revisionId}.duckdb`, user);
     const approvedDataset = await DatasetRepository.publish(scheduledRevision);
     const time = Math.round(performance.now() - start);

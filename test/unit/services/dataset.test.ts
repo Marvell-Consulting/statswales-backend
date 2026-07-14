@@ -2,6 +2,7 @@ import { Locale } from '../../../src/enums/locale';
 import { TaskAction } from '../../../src/enums/task-action';
 import { TaskStatus } from '../../../src/enums/task-status';
 import { PublishingStatus } from '../../../src/enums/publishing-status';
+import { CubeBuildStatus } from '../../../src/enums/cube-build-status';
 import { BadRequestException } from '../../../src/exceptions/bad-request.exception';
 import { uuidV4 } from '../../../src/utils/uuid';
 import { User } from '../../../src/entities/user/user';
@@ -138,6 +139,13 @@ jest.mock('../../../src/services/cube-builder', () => ({
   createAllCubeFiles: (...a: unknown[]) => mockCreateAllCubeFiles(...a)
 }));
 
+const mockBuildLogStartBuild = jest.fn();
+jest.mock('../../../src/entities/dataset/build-log', () => ({
+  BuildLog: {
+    startBuild: (...a: unknown[]) => mockBuildLogStartBuild(...a)
+  }
+}));
+
 const mockValidateAndUpload = jest.fn();
 jest.mock('../../../src/services/incoming-file-processor', () => ({
   validateAndUpload: (...a: unknown[]) => mockValidateAndUpload(...a)
@@ -197,6 +205,18 @@ function withSave<T extends object>(obj: T): T & { save: jest.Mock } {
   const o = obj as T & { save: jest.Mock };
   o.save = jest.fn().mockResolvedValue(o);
   return o;
+}
+
+function makeBuildLog() {
+  const build = {
+    id: 'build-1',
+    status: CubeBuildStatus.Queued as CubeBuildStatus,
+    completeBuild: jest.fn(function (this: { status: CubeBuildStatus }, status: CubeBuildStatus) {
+      this.status = status;
+    }),
+    save: jest.fn().mockResolvedValue(undefined)
+  };
+  return build;
 }
 
 describe('DatasetService', () => {
@@ -433,6 +453,13 @@ describe('DatasetService', () => {
   });
 
   describe('approvePublication', () => {
+    let build: ReturnType<typeof makeBuildLog>;
+
+    beforeEach(() => {
+      build = makeBuildLog();
+      mockBuildLogStartBuild.mockResolvedValue(build);
+    });
+
     it('bootstraps, builds, approves and publishes', async () => {
       mockRevApprovePublication.mockResolvedValue({ id: 'rev-1' });
       mockDatasetPublish.mockResolvedValue({ id: 'ds-1', published: true });
@@ -442,6 +469,34 @@ describe('DatasetService', () => {
       expect(mockBootstrapCubeBuildProcess).toHaveBeenCalledWith('ds-1', 'rev-1');
       expect(mockCreateAllCubeFiles).toHaveBeenCalled();
       expect(result).toEqual({ id: 'ds-1', published: true });
+    });
+
+    it('marks the build failed and throws a generic 500 when the cube build fails, without publishing', async () => {
+      mockCreateAllCubeFiles.mockRejectedValueOnce(new Error('duplicate key value violates unique constraint'));
+
+      await expect(service.approvePublication('ds-1', 'rev-1', user)).rejects.toMatchObject({
+        message: 'errors.cube_builder.cube_build_failed',
+        status: 500
+      });
+
+      expect(build.completeBuild).toHaveBeenCalledWith(CubeBuildStatus.Failed, undefined, expect.any(String));
+      expect(build.save).toHaveBeenCalled();
+      // the raw Postgres error must not leak to the publisher
+      expect(mockRevApprovePublication).not.toHaveBeenCalled();
+      expect(mockDatasetPublish).not.toHaveBeenCalled();
+    });
+
+    it('records a failed build when the bootstrap step fails (before the build proper)', async () => {
+      mockBootstrapCubeBuildProcess.mockRejectedValueOnce(new Error('invalid input syntax for type bigint'));
+
+      await expect(service.approvePublication('ds-1', 'rev-1', user)).rejects.toMatchObject({
+        message: 'errors.cube_builder.cube_build_failed',
+        status: 500
+      });
+
+      expect(mockCreateAllCubeFiles).not.toHaveBeenCalled();
+      expect(build.completeBuild).toHaveBeenCalledWith(CubeBuildStatus.Failed, undefined, expect.any(String));
+      expect(build.save).toHaveBeenCalled();
     });
   });
 
