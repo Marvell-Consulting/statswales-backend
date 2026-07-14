@@ -30,7 +30,7 @@
   "errors": {
     "unknown_error": "Mae gwall anhysbys wedi digwydd",
     "cube_builder": {
-      "cube_build_failed": "Ni ellid adeiladu'r ciwb. Rhowch gynnig arall arni, a chysylltwch â'r gwasanaeth cymorth os yw'r broblem yn parhau."
+      "cube_build_failed": "Ni allai'r ciwb gael ei adeiladu. Ceisiwch eto, a chysylltwch â chymorth os yw'r broblem yn parhau."
     },
     "missing": "Enw ffeil ar Goll",
     "problem": "Mae problem wedi codi",
