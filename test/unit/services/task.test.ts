@@ -198,7 +198,7 @@ describe('TaskService', () => {
       mockTaskFind.mockResolvedValueOnce([]);
       await service.closeOpenPublishTasks('ds-1', user);
       expect(mockTaskFind).toHaveBeenCalledWith({
-        where: { datasetId: 'ds-1', open: true },
+        where: { datasetId: 'ds-1', action: TaskAction.Publish, open: true },
         order: { createdAt: 'DESC' }
       });
     });
