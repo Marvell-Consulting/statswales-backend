@@ -114,6 +114,12 @@ function createExtractor(
 ): MeasureLookupTableExtractor {
   if (tableMatcher?.description_columns) {
     logger.debug('Using user supplied table matcher to match columns');
+    if (tableMatcher.description_columns.length === 0) {
+      throw new FileValidationException(
+        'errors.measure_validation.no_description_columns',
+        FileValidationErrorType.InvalidCsv
+      );
+    }
     return {
       tableLanguage,
       sortColumn: findMatchedColumn(protoLookupTable, tableMatcher?.sort_column),

@@ -600,6 +600,27 @@ describe('validateMeasureLookupTable', () => {
       expect(result.errors[0].message.key).toBe('errors.measure_validation.no_description_columns');
     });
 
+    it('returns 400 error when a table matcher supplies an empty description_columns array', async () => {
+      // Truthy but empty array: without an explicit length check this bypasses the
+      // "no description columns" guard and previously blew up later on descriptionColumns[0].name.
+      const emptyDescriptionsMatcher: MeasureLookupPatchDTO = {
+        description_columns: [],
+        language_column: 'lang_col'
+      };
+      const dataset = makeDataset();
+
+      const result = (await validateMeasureLookupTable(
+        validProtoTable,
+        dataset,
+        '/tmp/file.csv',
+        'en-GB',
+        emptyDescriptionsMatcher
+      )) as ViewErrDTO;
+
+      expect(result.status).toBe(400);
+      expect(mockDuckdbRun).not.toHaveBeenCalled();
+    });
+
     it('returns 400 error when lookForJoinColumn throws', async () => {
       const dataset = makeDataset();
       (lookForJoinColumn as jest.Mock).mockImplementationOnce(() => {
