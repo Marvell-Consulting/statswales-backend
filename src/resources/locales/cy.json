@@ -29,6 +29,9 @@
   },
   "errors": {
     "unknown_error": "Mae gwall anhysbys wedi digwydd",
+    "cube_builder": {
+      "cube_build_failed": "Ni allai'r ciwb gael ei adeiladu. Ceisiwch eto, a chysylltwch â chymorth os yw'r broblem yn parhau."
+    },
     "missing": "Enw ffeil ar Goll",
     "problem": "Mae problem wedi codi",
     "name_missing": "Mae Enw’r Set Ddata ar Goll",
