@@ -687,7 +687,7 @@ export const datasetActionRequest = async (req: Request, res: Response, next: Ne
       await taskService.requestUnarchive(datasetId, user, reason);
       break;
     default:
-      next(new NotFoundException(`Action not supported via this endpoint: ${action}`));
+      next(new NotFoundException('errors.dataset_action.not_supported'));
       return;
   }
 
