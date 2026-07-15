@@ -21,7 +21,7 @@ export class OneOpenPublishTaskPerDataset1784116138829 implements MigrationInter
     // only the most recently created one so the unique index below can be created.
     await queryRunner.query(`
       UPDATE "task"
-      SET "open" = false, "status" = 'withdrawn'
+      SET "open" = false, "status" = 'withdrawn', "updated_at" = now()
       WHERE "action" = 'publish'
         AND "open" = true
         AND "id" NOT IN (
