@@ -1,4 +1,4 @@
-import { In, JsonContains } from 'typeorm';
+import { In, JsonContains, QueryFailedError } from 'typeorm';
 
 import { format as pgformat } from '@scaleleap/pg-format';
 import { RevisionMetadataDTO } from '../dtos/revision-metadata-dto';
@@ -267,7 +267,10 @@ export class DatasetService {
       throw new BadRequestException('errors.submit_for_publication.invalid_revision_id');
     }
 
-    const rejectedPublishTask = await this.getRejectedPublishTask(datasetId);
+    const openTasks = await this.getOpenTasks(datasetId);
+    const rejectedPublishTask = openTasks.find(
+      (task) => task.action === TaskAction.Publish && task.status === TaskStatus.Rejected
+    );
 
     if (rejectedPublishTask) {
       const comment = null; // clear the rejection comment
@@ -275,7 +278,30 @@ export class DatasetService {
       return; // resubmission of a rejected task
     }
 
-    await this.taskService.create(datasetId, TaskAction.Publish, user, undefined, { revisionId });
+    const pendingPublishTask = openTasks.find(
+      (task) => task.action === TaskAction.Publish && task.status === TaskStatus.Requested
+    );
+
+    if (pendingPublishTask) {
+      // already awaiting approval — treat a duplicate submission (e.g. a double click) as a no-op
+      // rather than creating a second open publish task
+      logger.info(`Dataset ${datasetId} already has a pending publish task; ignoring duplicate submission`);
+      return;
+    }
+
+    try {
+      await this.taskService.create(datasetId, TaskAction.Publish, user, undefined, { revisionId });
+    } catch (err) {
+      // Backstop for the concurrent-submit race: a partial unique index guarantees at most one
+      // open publish task per dataset, so a duplicate insert means another request won the race.
+      const pg =
+        err instanceof QueryFailedError ? (err.driverError as { code?: string; constraint?: string }) : undefined;
+      if (pg?.code === '23505' && pg?.constraint === 'UQ_task_one_open_publish_per_dataset') {
+        logger.warn(`Concurrent publish submission detected for dataset ${datasetId}; ignoring duplicate`);
+        return;
+      }
+      throw err;
+    }
   }
 
   async withdrawFromPublication(datasetId: string, revisionId: string, user: User): Promise<void> {
@@ -299,11 +325,15 @@ export class DatasetService {
       await this.fileService.delete(draftRevision.onlineCubeFilename, datasetId);
     }
 
-    const pendingPublicationTask = await this.getPendingPublishTask(datasetId);
+    // dataset.tasks was loaded above; derive open publish tasks from it to avoid a second DB read
+    const openPublishTasks = (dataset.tasks ?? []).filter((task) => task.action === TaskAction.Publish && task.open);
 
-    if (pendingPublicationTask) {
-      await this.taskService.withdrawPending(pendingPublicationTask.id, user);
+    if (openPublishTasks.length > 0) {
+      // close every open publish task (there should only be one, but close any duplicates too)
+      await this.taskService.closeOpenPublishTasks(datasetId, user, undefined, openPublishTasks);
     } else {
+      // the dataset was previously approved so its publish task is already closed; record a
+      // closed withdraw task so the event still appears in the dataset history
       await this.taskService.withdrawApproved(datasetId, draftRevision.id, user);
     }
   }

@@ -22,6 +22,7 @@ jest.mock('../../../src/utils/logger', () => ({
 // Mock TaskService
 const mockGetTasksForDataset = jest.fn();
 const mockUpdate = jest.fn();
+const mockCloseOpenPublishTasks = jest.fn();
 const mockRejectUnpublish = jest.fn();
 const mockApproveArchive = jest.fn();
 const mockRejectArchive = jest.fn();
@@ -31,6 +32,7 @@ jest.mock('../../../src/services/task', () => ({
   TaskService: jest.fn().mockImplementation(() => ({
     getTasksForDataset: (...args: unknown[]) => mockGetTasksForDataset(...args),
     update: (...args: unknown[]) => mockUpdate(...args),
+    closeOpenPublishTasks: (...args: unknown[]) => mockCloseOpenPublishTasks(...args),
     rejectUnpublish: (...args: unknown[]) => mockRejectUnpublish(...args),
     approveArchive: (...args: unknown[]) => mockApproveArchive(...args),
     rejectArchive: (...args: unknown[]) => mockRejectArchive(...args),
@@ -314,6 +316,7 @@ describe('Task controller', () => {
 
         expect(approvePublication).toHaveBeenCalledWith(dataset.id, dataset.draftRevisionId, user);
         expect(mockUpdate).toHaveBeenCalledWith(task.id, TaskStatus.Approved, false, user);
+        expect(mockCloseOpenPublishTasks).toHaveBeenCalledWith(dataset.id, user, task.id);
         expect(res.json).toHaveBeenCalledWith(taskDTO);
       });
 
@@ -348,6 +351,7 @@ describe('Task controller', () => {
 
         expect(rejectPublication).toHaveBeenCalledWith(dataset.id, dataset.draftRevisionId);
         expect(mockUpdate).toHaveBeenCalledWith(task.id, TaskStatus.Rejected, true, user, 'Not ready');
+        expect(mockCloseOpenPublishTasks).toHaveBeenCalledWith(dataset.id, user, task.id);
         expect(res.json).toHaveBeenCalledWith(taskDTO);
       });
     });

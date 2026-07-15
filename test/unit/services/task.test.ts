@@ -3,6 +3,7 @@ import { TaskAction } from '../../../src/enums/task-action';
 import { PublishingStatus } from '../../../src/enums/publishing-status';
 import { BadRequestException } from '../../../src/exceptions/bad-request.exception';
 import { uuidV4 } from '../../../src/utils/uuid';
+import type { Task } from '../../../src/entities/task/task';
 import { User } from '../../../src/entities/user/user';
 
 jest.mock('../../../src/utils/logger', () => ({
@@ -161,19 +162,40 @@ describe('TaskService', () => {
     });
   });
 
-  describe('withdrawPending', () => {
-    it('sets status Withdrawn and closes the task', async () => {
-      const existing = makeTask({ id: 'task-1' });
-      mockTaskFindOneByOrFail.mockResolvedValueOnce(existing);
+  describe('closeOpenPublishTasks', () => {
+    it('closes every open publish task in the pre-fetched list', async () => {
+      const t1 = makeTask({ id: 'task-1', datasetId: 'ds-1', action: TaskAction.Publish });
+      const t2 = makeTask({ id: 'task-2', datasetId: 'ds-1', action: TaskAction.Publish });
 
-      await service.withdrawPending('task-1', user);
+      await service.closeOpenPublishTasks('ds-1', user, undefined, [t1, t2] as unknown as Task[]);
 
-      expect(mockTaskMerge).toHaveBeenCalledWith(existing, {
-        status: TaskStatus.Withdrawn,
-        open: false,
-        updatedBy: user
+      expect(mockTaskFind).not.toHaveBeenCalled();
+      expect(mockTaskMerge).toHaveBeenCalledWith(t1, { status: TaskStatus.Withdrawn, open: false, updatedBy: user });
+      expect(mockTaskMerge).toHaveBeenCalledWith(t2, { status: TaskStatus.Withdrawn, open: false, updatedBy: user });
+      expect(t1.save).toHaveBeenCalled();
+      expect(t2.save).toHaveBeenCalled();
+    });
+
+    it('skips the excepted task from the pre-fetched list', async () => {
+      const keep = makeTask({ id: 'keep', datasetId: 'ds-1', action: TaskAction.Publish });
+      const sibling = makeTask({ id: 'sibling', datasetId: 'ds-1', action: TaskAction.Publish });
+
+      await service.closeOpenPublishTasks('ds-1', user, 'keep', [keep, sibling] as unknown as Task[]);
+
+      expect(sibling.save).toHaveBeenCalled();
+      expect(keep.save).not.toHaveBeenCalled();
+    });
+
+    it('falls back to a DB query when no task list is provided', async () => {
+      const t1 = makeTask({ id: 'task-1', datasetId: 'ds-1', action: TaskAction.Publish });
+      mockTaskFind.mockResolvedValueOnce([t1]);
+
+      await service.closeOpenPublishTasks('ds-1', user);
+      expect(mockTaskFind).toHaveBeenCalledWith({
+        where: { datasetId: 'ds-1', action: TaskAction.Publish, open: true },
+        order: { createdAt: 'DESC' }
       });
-      expect(existing.save).toHaveBeenCalled();
+      expect(t1.save).toHaveBeenCalled();
     });
   });
 
