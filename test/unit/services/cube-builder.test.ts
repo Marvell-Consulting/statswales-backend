@@ -54,6 +54,7 @@ import {
   createLookupTableDimension,
   setupCubeBuilder,
   setupLookupTableDimension,
+  setupMeasureAndDataValuesWithLookup,
   updateFilterTableCounts,
   alterFilterTableBlock,
   FACT_TABLE_NAME,
@@ -898,6 +899,84 @@ describe('setupLookupTableDimension — filter table sort direction', () => {
       for (const stmt of inserts) {
         expect(stmt).toContain('CAST (sort_order AS BIGINT)');
       }
+    });
+  });
+});
+
+// ===========================================================================
+// Regression: reference joins must be type-safe.
+//
+// When a data-table update changes a fact-table column's inferred datatype,
+// dataTableActions ALTERs that fact_table column to TEXT (see PR #698 / SW-1290),
+// but the measure/lookup reference column keeps its original (e.g. numeric) type.
+// A raw `measure.reference = fact_table."MeasureCode"` join then has no matching
+// operator and Postgres aborts CREATE VIEW core_view with error 42883
+// ("operator does not exist / no operator matches"), which fails the cube build on
+// approval. Casting both sides of the join to VARCHAR makes it robust to the
+// mismatch (references are semantically codes, so text comparison is correct).
+describe('reference joins are type-safe (cast to VARCHAR)', () => {
+  describe('measure join', () => {
+    function measureJoinFor(measureColDatatype: string) {
+      const measureColumn = makeCol('MeasureCode', 0, FactTableColumnType.Measure, measureColDatatype);
+      const dataValuesColumn = makeCol('Data', 1, FactTableColumnType.DataValues, 'DOUBLE PRECISION');
+      const measureTable = [
+        makeMeasureRow({ reference: '1', language: 'en-gb', description: 'Count', format: DisplayType.Integer }),
+        makeMeasureRow({ reference: '1', language: 'cy-gb', description: 'Cyfrif', format: DisplayType.Integer })
+      ];
+      const args = makeSetupLookupArgs();
+      setupMeasureAndDataValuesWithLookup(
+        'b1',
+        measureTable,
+        dataValuesColumn,
+        measureColumn,
+        undefined,
+        args.coreCubeViewSelectBuilder,
+        args.viewConfig,
+        args.columnNames,
+        args.joinStatements,
+        args.orderByStatements
+      );
+      return args.joinStatements.find((s) => s.includes('.measure on'));
+    }
+
+    it('casts both sides of the measure join to VARCHAR (numeric measure code)', () => {
+      const join = measureJoinFor('INTEGER');
+      expect(join).toBeDefined();
+      expect(join).toContain('CAST(measure.reference AS VARCHAR)');
+      expect(join).toContain(`CAST(${FACT_TABLE_NAME}."MeasureCode" AS VARCHAR)`);
+    });
+
+    it('does not emit a raw uncast measure.reference comparison', () => {
+      const join = measureJoinFor('INTEGER');
+      expect(join).not.toContain(`measure.reference=${FACT_TABLE_NAME}`);
+    });
+  });
+
+  describe('lookup dimension join', () => {
+    function dimensionJoin(factColDatatype: string) {
+      const factTableCol = makeCol('OrgCode', 0, FactTableColumnType.Dimension, factColDatatype);
+      const dataset = makeDataset({ factTable: [factTableCol] });
+      const dimension = makeDimension(DimensionType.LookupTable, 'OrgCode');
+      const args = makeSetupLookupArgs();
+      setupLookupTableDimension(
+        'b1',
+        dataset,
+        dimension,
+        args.coreCubeViewSelectBuilder,
+        args.columnNames,
+        args.indexColumns,
+        args.joinStatements,
+        args.orderByStatements,
+        args.viewConfig
+      );
+      return args.joinStatements.find((s) => s.includes('LEFT JOIN'));
+    }
+
+    it('casts both sides of the dimension lookup join to VARCHAR', () => {
+      const join = dimensionJoin('INTEGER');
+      expect(join).toBeDefined();
+      expect(join).toContain('AS VARCHAR)=CAST(');
+      expect(join).toContain(`CAST(${FACT_TABLE_NAME}."OrgCode" AS VARCHAR)`);
     });
   });
 });
