@@ -164,9 +164,12 @@ export class TaskService {
   }
 
   async closeOpenPublishTasks(datasetId: string, user: User, exceptTaskId?: string): Promise<void> {
-    const openPublishTasks = (await this.getTasksForDataset(datasetId, true)).filter(
-      (task) => task.action === TaskAction.Publish && task.id !== exceptTaskId
-    );
+    const openPublishTasks = (
+      await Task.find({
+        where: { datasetId, action: TaskAction.Publish, open: true },
+        order: { createdAt: 'DESC' }
+      })
+    ).filter((task) => task.id !== exceptTaskId);
 
     for (const task of openPublishTasks) {
       logger.info(`Closing open publish task ${task.id} for dataset ${datasetId}`);
