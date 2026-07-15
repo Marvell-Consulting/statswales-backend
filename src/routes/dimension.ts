@@ -69,8 +69,8 @@ router.get('/by-id/:dimension_id/preview', loadDimension, sendDimensionPreview);
 // the lookup table.
 router.post(
   '/by-id/:dimension_id/lookup',
-  ensureNoOpenPublishRequest,
   longTimeout,
+  ensureNoOpenPublishRequest,
   fileStreaming(),
   loadDimension,
   attachLookupTableToDimension

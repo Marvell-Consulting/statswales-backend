@@ -93,8 +93,8 @@ router.get('/by-id/:revision_id/preview/filters', loadRevision(), getRevisionPre
 // Upload an updated data file for the revision
 router.post(
   '/by-id/:revision_id/data-table',
-  ensureNoOpenPublishRequest,
   longTimeout,
+  ensureNoOpenPublishRequest,
   loadRevision(),
   fileStreaming(),
   updateDataTable
