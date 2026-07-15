@@ -1,4 +1,4 @@
-import { In, JsonContains } from 'typeorm';
+import { In, JsonContains, QueryFailedError } from 'typeorm';
 
 import { format as pgformat } from '@scaleleap/pg-format';
 import { RevisionMetadataDTO } from '../dtos/revision-metadata-dto';
@@ -275,7 +275,26 @@ export class DatasetService {
       return; // resubmission of a rejected task
     }
 
-    await this.taskService.create(datasetId, TaskAction.Publish, user, undefined, { revisionId });
+    const pendingPublishTask = await this.getPendingPublishTask(datasetId);
+
+    if (pendingPublishTask) {
+      // already awaiting approval — treat a duplicate submission (e.g. a double click) as a no-op
+      // rather than creating a second open publish task
+      logger.info(`Dataset ${datasetId} already has a pending publish task; ignoring duplicate submission`);
+      return;
+    }
+
+    try {
+      await this.taskService.create(datasetId, TaskAction.Publish, user, undefined, { revisionId });
+    } catch (err) {
+      // Backstop for the concurrent-submit race: a partial unique index guarantees at most one
+      // open publish task per dataset, so a duplicate insert means another request won the race.
+      if (err instanceof QueryFailedError && err.message.includes('violates unique constraint')) {
+        logger.warn(`Concurrent publish submission detected for dataset ${datasetId}; ignoring duplicate`);
+        return;
+      }
+      throw err;
+    }
   }
 
   async withdrawFromPublication(datasetId: string, revisionId: string, user: User): Promise<void> {
@@ -299,11 +318,14 @@ export class DatasetService {
       await this.fileService.delete(draftRevision.onlineCubeFilename, datasetId);
     }
 
-    const pendingPublicationTask = await this.getPendingPublishTask(datasetId);
+    const openPublishTasks = (await this.getOpenTasks(datasetId)).filter((task) => task.action === TaskAction.Publish);
 
-    if (pendingPublicationTask) {
-      await this.taskService.withdrawPending(pendingPublicationTask.id, user);
+    if (openPublishTasks.length > 0) {
+      // close every open publish task (there should only be one, but close any duplicates too)
+      await this.taskService.closeOpenPublishTasks(datasetId, user);
     } else {
+      // the dataset was previously approved so its publish task is already closed; record a
+      // closed withdraw task so the event still appears in the dataset history
       await this.taskService.withdrawApproved(datasetId, draftRevision.id, user);
     }
   }

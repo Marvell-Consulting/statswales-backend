@@ -34,13 +34,6 @@ export class TaskService {
     return await Task.findOneOrFail({ where: { id: taskId }, relations });
   }
 
-  async withdrawPending(taskId: string, user: User): Promise<Task> {
-    logger.info(`Withdrawing pending task ${taskId}`);
-    const task = await Task.findOneByOrFail({ id: taskId });
-    const updatedTask = Task.merge(task, { status: TaskStatus.Withdrawn, open: false, updatedBy: user });
-    return await updatedTask.save();
-  }
-
   async withdrawApproved(datasetId: string, revisionId: string, user: User): Promise<Task> {
     logger.info(`Withdrawing an approved but unpublished dataset`);
 
@@ -168,6 +161,18 @@ export class TaskService {
     const task = await this.getById(taskId, { dataset: true });
     logger.info(`Rejecting unarchive for dataset ${task.dataset?.id}`);
     return this.update(task.id, TaskStatus.Rejected, false, user, reason);
+  }
+
+  async closeOpenPublishTasks(datasetId: string, user: User, exceptTaskId?: string): Promise<void> {
+    const openPublishTasks = (await this.getTasksForDataset(datasetId, true)).filter(
+      (task) => task.action === TaskAction.Publish && task.id !== exceptTaskId
+    );
+
+    for (const task of openPublishTasks) {
+      logger.info(`Closing open publish task ${task.id} for dataset ${datasetId}`);
+      Task.merge(task, { status: TaskStatus.Withdrawn, open: false, updatedBy: user });
+      await task.save();
+    }
   }
 
   async update(taskId: string, status: TaskStatus, open: boolean, user: User, comment?: string | null): Promise<Task> {

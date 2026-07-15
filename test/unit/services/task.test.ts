@@ -161,19 +161,48 @@ describe('TaskService', () => {
     });
   });
 
-  describe('withdrawPending', () => {
-    it('sets status Withdrawn and closes the task', async () => {
-      const existing = makeTask({ id: 'task-1' });
-      mockTaskFindOneByOrFail.mockResolvedValueOnce(existing);
+  describe('closeOpenPublishTasks', () => {
+    it('closes every open publish task for the dataset', async () => {
+      const t1 = makeTask({ id: 'task-1', action: TaskAction.Publish });
+      const t2 = makeTask({ id: 'task-2', action: TaskAction.Publish });
+      mockTaskFind.mockResolvedValueOnce([t1, t2]);
 
-      await service.withdrawPending('task-1', user);
+      await service.closeOpenPublishTasks('ds-1', user);
 
-      expect(mockTaskMerge).toHaveBeenCalledWith(existing, {
+      expect(mockTaskMerge).toHaveBeenCalledWith(t1, {
         status: TaskStatus.Withdrawn,
         open: false,
         updatedBy: user
       });
-      expect(existing.save).toHaveBeenCalled();
+      expect(mockTaskMerge).toHaveBeenCalledWith(t2, {
+        status: TaskStatus.Withdrawn,
+        open: false,
+        updatedBy: user
+      });
+      expect(t1.save).toHaveBeenCalled();
+      expect(t2.save).toHaveBeenCalled();
+    });
+
+    it('skips the excepted task and ignores non-publish tasks', async () => {
+      const keep = makeTask({ id: 'keep', action: TaskAction.Publish });
+      const sibling = makeTask({ id: 'sibling', action: TaskAction.Publish });
+      const unpublish = makeTask({ id: 'unpub', action: TaskAction.Unpublish });
+      mockTaskFind.mockResolvedValueOnce([keep, sibling, unpublish]);
+
+      await service.closeOpenPublishTasks('ds-1', user, 'keep');
+
+      expect(sibling.save).toHaveBeenCalled();
+      expect(keep.save).not.toHaveBeenCalled();
+      expect(unpublish.save).not.toHaveBeenCalled();
+    });
+
+    it('only requests open tasks', async () => {
+      mockTaskFind.mockResolvedValueOnce([]);
+      await service.closeOpenPublishTasks('ds-1', user);
+      expect(mockTaskFind).toHaveBeenCalledWith({
+        where: { datasetId: 'ds-1', open: true },
+        order: { createdAt: 'DESC' }
+      });
     });
   });
 
