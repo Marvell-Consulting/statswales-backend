@@ -52,10 +52,12 @@ describe('lookForJoinColumn', () => {
     expect(result).toBe('ref_code');
   });
 
-  it('throws when the matcher-supplied join_column does not match any uploaded header', () => {
+  it('throws the unknown_matcher_column key when the matcher-supplied join_column does not match any uploaded header', () => {
     const tableMatcher: MeasureLookupPatchDTO = { join_column: 'x" OR 1=1 --' };
 
-    expect(() => lookForJoinColumn(protoLookupTable, 'measure_col', Locale.English, tableMatcher)).toThrow();
+    expect(() => lookForJoinColumn(protoLookupTable, 'measure_col', Locale.English, tableMatcher)).toThrow(
+      'errors.measure_validation.unknown_matcher_column'
+    );
   });
 
   it('falls back to a column starting with "ref" when no matcher is supplied', () => {

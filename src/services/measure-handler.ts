@@ -489,8 +489,12 @@ export const validateMeasureLookupTable = async (
   let confirmedJoinColumn: string | undefined;
   try {
     confirmedJoinColumn = lookForJoinColumn(protoLookupTable, measure.factTableColumn, tableLanguage, tableMatcher);
-  } catch (_err) {
-    return viewErrorGenerators(400, dataset.id, 'csv', 'errors.measure_validation.no_join_column', {
+  } catch (err) {
+    const errorKey =
+      err instanceof Error && err.message === 'errors.measure_validation.unknown_matcher_column'
+        ? err.message
+        : 'errors.measure_validation.no_join_column';
+    return viewErrorGenerators(400, dataset.id, 'csv', errorKey, {
       mismatch: false
     });
   }

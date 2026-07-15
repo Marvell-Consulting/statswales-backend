@@ -640,6 +640,24 @@ describe('validateMeasureLookupTable', () => {
       expect(result.errors[0].message.key).toBe('errors.measure_validation.no_join_column');
     });
 
+    it('propagates the unknown_matcher_column key when lookForJoinColumn rejects an invalid join_column', async () => {
+      const dataset = makeDataset();
+      (lookForJoinColumn as jest.Mock).mockImplementationOnce(() => {
+        throw new Error('errors.measure_validation.unknown_matcher_column');
+      });
+
+      const result = (await validateMeasureLookupTable(
+        validProtoTable,
+        dataset,
+        '/tmp/file.csv',
+        'en-GB',
+        tableMatcher
+      )) as ViewErrDTO;
+
+      expect(result.status).toBe(400);
+      expect(result.errors[0].message.key).toBe('errors.measure_validation.unknown_matcher_column');
+    });
+
     it('returns 400 error when lookForJoinColumn returns undefined', async () => {
       const dataset = makeDataset();
       (lookForJoinColumn as jest.Mock).mockReturnValueOnce(undefined);
