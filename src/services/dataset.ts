@@ -294,7 +294,12 @@ export class DatasetService {
     } catch (err) {
       // Backstop for the concurrent-submit race: a partial unique index guarantees at most one
       // open publish task per dataset, so a duplicate insert means another request won the race.
-      if (err instanceof QueryFailedError && err.message.includes('violates unique constraint')) {
+      const driverError = err instanceof QueryFailedError ? (err as any).driverError : undefined;
+      if (
+        err instanceof QueryFailedError &&
+        driverError?.code === '23505' &&
+        driverError?.constraint === 'UQ_task_one_open_publish_per_dataset'
+      ) {
         logger.warn(`Concurrent publish submission detected for dataset ${datasetId}; ignoring duplicate`);
         return;
       }
