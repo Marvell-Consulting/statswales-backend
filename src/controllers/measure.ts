@@ -8,6 +8,8 @@ import { DatasetDTO } from '../dtos/dataset-dto';
 import { MeasureLookupPatchDTO } from '../dtos/measure-lookup-patch-dto';
 import { NotFoundException } from '../exceptions/not-found.exception';
 import { UnknownException } from '../exceptions/unknown.exception';
+import { BadRequestException } from '../exceptions/bad-request.exception';
+import { dtoValidator } from '../validators/dto-validator';
 import { getMeasurePreview, validateMeasureLookupTable } from '../services/measure-handler';
 import { validateAndUpload } from '../services/incoming-file-processor';
 import { DimensionMetadataDTO } from '../dtos/dimension-metadata-dto';
@@ -79,7 +81,7 @@ export const attachLookupTableToMeasure = async (req: Request, res: Response, ne
   try {
     const dataTable = await validateAndUpload(tmpFile, dataset.id, 'lookup_table');
     const lang = req.language.toLowerCase();
-    const tableMatcher = req.body as MeasureLookupPatchDTO;
+    const tableMatcher = await dtoValidator(MeasureLookupPatchDTO, req.body);
     const result = await validateMeasureLookupTable(dataTable, dataset, tmpFile.path, lang, tableMatcher);
     if ((result as ViewErrDTO).status) {
       const error = result as ViewErrDTO;
@@ -100,6 +102,10 @@ export const attachLookupTableToMeasure = async (req: Request, res: Response, ne
     res.status((result as ViewErrDTO).status || 200);
     res.json(result);
   } catch (err) {
+    if (err instanceof BadRequestException) {
+      next(err);
+      return;
+    }
     logger.error(err, `An error occurred trying to process and upload the file`);
     next(new UnknownException('errors.upload_error'));
     return;

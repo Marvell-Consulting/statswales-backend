@@ -950,6 +950,30 @@ describe('validateMeasureLookupTable', () => {
       expect(mockRelease).toHaveBeenCalled();
     });
 
+    it('rejects a table matcher column that does not match an uploaded header (SW-1304 regression)', async () => {
+      // Crafted value from the SW-1304 exploit repro: breaks out of the quoted identifier and
+      // attempts to inject a sub-select. Since it isn't a real header, it must be rejected before
+      // DuckDB ever sees it.
+      const injectionPayload = `x" > 0 THEN 'float' ELSE (SELECT content FROM read_text('/etc/passwd')) END, "y`;
+      const maliciousMatcher: MeasureLookupPatchDTO = {
+        description_columns: ['description_en'],
+        language_column: 'lang_col',
+        decimal_column: injectionPayload
+      };
+      const dataset = makeDataset();
+
+      const result = (await validateMeasureLookupTable(
+        validProtoTable,
+        dataset,
+        '/tmp/file.csv',
+        'en-GB',
+        maliciousMatcher
+      )) as ViewErrDTO;
+
+      expect(result.status).toBe(400);
+      expect(mockDuckdbRun).not.toHaveBeenCalled();
+    });
+
     it('handles isSW2Format=true when two locale description columns are provided', async () => {
       // SW2 format: two description columns (one per locale), no language_column
       const sw2tableMatcher: MeasureLookupPatchDTO = {

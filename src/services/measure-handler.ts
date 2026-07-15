@@ -92,6 +92,21 @@ async function cleanUpMeasure(measureId: string): Promise<void> {
   }
 }
 
+// Ensures a user-supplied table matcher column name matches one of the actual uploaded headers before it is
+// allowed anywhere near SQL construction. Without this, an attacker-controlled string with no corresponding
+// header would flow straight into an identifier position (CWE-89, SW-1304).
+function findMatchedColumn(protoLookupTable: DataTable, columnName: string | undefined): string | undefined {
+  if (!columnName) return undefined;
+  const match = protoLookupTable.dataTableDescriptions.find((info) => info.columnName === columnName);
+  if (!match) {
+    throw new FileValidationException(
+      'errors.measure_validation.unknown_matcher_column',
+      FileValidationErrorType.InvalidCsv
+    );
+  }
+  return match.columnName;
+}
+
 function createExtractor(
   protoLookupTable: DataTable,
   tableLanguage: Locale,
@@ -101,23 +116,31 @@ function createExtractor(
     logger.debug('Using user supplied table matcher to match columns');
     return {
       tableLanguage,
-      sortColumn: tableMatcher?.sort_column,
-      formatColumn: tableMatcher?.format_column,
-      decimalColumn: tableMatcher?.decimal_column,
-      measureTypeColumn: tableMatcher?.measure_type_column,
-      descriptionColumns: tableMatcher.description_columns.map(
-        (desc) =>
-          protoLookupTable.dataTableDescriptions
-            .filter((info) => info.columnName === desc)
-            .map((info) => columnIdentification(info))[0]
-      ),
-      notesColumns: tableMatcher.notes_columns?.map(
-        (desc) =>
-          protoLookupTable.dataTableDescriptions
-            .filter((info) => info.columnName === desc)
-            .map((info) => columnIdentification(info))[0]
-      ),
-      languageColumn: tableMatcher?.language_column,
+      sortColumn: findMatchedColumn(protoLookupTable, tableMatcher?.sort_column),
+      formatColumn: findMatchedColumn(protoLookupTable, tableMatcher?.format_column),
+      decimalColumn: findMatchedColumn(protoLookupTable, tableMatcher?.decimal_column),
+      measureTypeColumn: findMatchedColumn(protoLookupTable, tableMatcher?.measure_type_column),
+      descriptionColumns: tableMatcher.description_columns.map((desc) => {
+        const info = protoLookupTable.dataTableDescriptions.find((info) => info.columnName === desc);
+        if (!info) {
+          throw new FileValidationException(
+            'errors.measure_validation.unknown_matcher_column',
+            FileValidationErrorType.InvalidCsv
+          );
+        }
+        return columnIdentification(info);
+      }),
+      notesColumns: tableMatcher.notes_columns?.map((desc) => {
+        const info = protoLookupTable.dataTableDescriptions.find((info) => info.columnName === desc);
+        if (!info) {
+          throw new FileValidationException(
+            'errors.measure_validation.unknown_matcher_column',
+            FileValidationErrorType.InvalidCsv
+          );
+        }
+        return columnIdentification(info);
+      }),
+      languageColumn: findMatchedColumn(protoLookupTable, tableMatcher?.language_column),
       isSW2Format: !tableMatcher?.language_column
     };
   } else {
@@ -218,16 +241,16 @@ async function createMeasureTable(
     logger.debug(`Setting up measure insert query`);
     let formatColumn = 'NULL AS format,';
     if (extractor.formatColumn) {
-      formatColumn = `"${extractor.formatColumn}"`;
+      formatColumn = pgformat('%I', extractor.formatColumn);
     } else if (!extractor.formatColumn && !extractor.decimalColumn) {
       formatColumn = `'text'`;
     } else if (!extractor.formatColumn && extractor.decimalColumn) {
-      formatColumn = `CASE WHEN "${extractor.decimalColumn}" > 0 THEN 'float' ELSE 'integer' END`;
+      formatColumn = pgformat('CASE WHEN %I > 0 THEN %L ELSE %L END', extractor.decimalColumn, 'float', 'integer');
     }
-    const decimalColumnDef = extractor.decimalColumn ? `"${extractor.decimalColumn}"` : 'NULL';
-    const sortOrderDef = extractor.sortColumn ? `"${extractor.sortColumn}"` : 'NULL';
-    const measureTypeDef = extractor.measureTypeColumn ? `"${extractor.measureTypeColumn}"` : 'NULL';
-    const hierarchyDef = extractor.hierarchyColumn ? `"${extractor.hierarchyColumn}"` : 'NULL';
+    const decimalColumnDef = extractor.decimalColumn ? pgformat('%I', extractor.decimalColumn) : 'NULL';
+    const sortOrderDef = extractor.sortColumn ? pgformat('%I', extractor.sortColumn) : 'NULL';
+    const measureTypeDef = extractor.measureTypeColumn ? pgformat('%I', extractor.measureTypeColumn) : 'NULL';
+    const hierarchyDef = extractor.hierarchyColumn ? pgformat('%I', extractor.hierarchyColumn) : 'NULL';
     let notesColumnDef = 'NULL';
     let buildMeasureViewQuery: string;
     if (extractor.isSW2Format) {
@@ -241,7 +264,7 @@ async function createMeasureTable(
         if (extractor.notesColumns) {
           const notesCol = extractor.notesColumns.find((col) => col.lang === locale.toLowerCase())?.name;
           if (notesCol) {
-            notesColumnDef = `"${notesCol}"`;
+            notesColumnDef = pgformat('%I', notesCol);
           }
         }
         viewComponents.push(
@@ -264,7 +287,7 @@ async function createMeasureTable(
       buildMeasureViewQuery = `${viewComponents.join('\nUNION\n')}`;
     } else {
       if (extractor.notesColumns && extractor.notesColumns.length > 0) {
-        notesColumnDef = `"${extractor.notesColumns[0].name}"`;
+        notesColumnDef = pgformat('%I', extractor.notesColumns[0].name);
       } else {
         notesColumnDef = 'NULL';
       }
