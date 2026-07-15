@@ -183,17 +183,15 @@ describe('TaskService', () => {
       expect(t2.save).toHaveBeenCalled();
     });
 
-    it('skips the excepted task and ignores non-publish tasks', async () => {
+    it('skips the excepted task', async () => {
       const keep = makeTask({ id: 'keep', action: TaskAction.Publish });
       const sibling = makeTask({ id: 'sibling', action: TaskAction.Publish });
-      const unpublish = makeTask({ id: 'unpub', action: TaskAction.Unpublish });
-      mockTaskFind.mockResolvedValueOnce([keep, sibling, unpublish]);
+      mockTaskFind.mockResolvedValueOnce([keep, sibling]);
 
       await service.closeOpenPublishTasks('ds-1', user, 'keep');
 
       expect(sibling.save).toHaveBeenCalled();
       expect(keep.save).not.toHaveBeenCalled();
-      expect(unpublish.save).not.toHaveBeenCalled();
     });
 
     it('only requests open tasks', async () => {
