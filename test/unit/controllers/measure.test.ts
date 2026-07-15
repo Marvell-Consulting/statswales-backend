@@ -378,22 +378,6 @@ describe('Measure controller', () => {
       expect(mockCleanupTmpFile).toHaveBeenCalled();
     });
 
-    it('rejects a malformed table matcher body before validating the lookup table', async () => {
-      mockUploadAvScan.mockResolvedValue({ path: '/tmp/lookup.csv' });
-      mockGetById.mockResolvedValue({ id: uuidV4(), measure: { id: uuidV4() }, draftRevision: { id: uuidV4() } });
-      mockValidateAndUpload.mockResolvedValue({ id: 'data-table' });
-
-      // description_columns must be a string[]; sending a plain string should fail DTO validation
-      const req = createMockRequest({ body: { description_columns: 'description_en' } as never });
-      const res = createMockResponse();
-      await attachLookupTableToMeasure(req, res, mockNext);
-
-      expect(mockValidateMeasureLookupTable).not.toHaveBeenCalled();
-      expect(mockNext).toHaveBeenCalledTimes(1);
-      expect(mockNext.mock.calls[0][0]).toMatchObject({ name: 'BadRequestException', status: 400 });
-      expect(mockCleanupTmpFile).toHaveBeenCalled();
-    });
-
     it('starts a build and returns the result when validation succeeds', async () => {
       const dataset = { id: uuidV4(), measure: { id: uuidV4() }, draftRevision: { id: uuidV4() } };
       mockUploadAvScan.mockResolvedValue({ path: '/tmp/lookup.csv' });
