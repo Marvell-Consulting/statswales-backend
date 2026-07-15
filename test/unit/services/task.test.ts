@@ -177,8 +177,8 @@ describe('TaskService', () => {
     });
 
     it('skips the excepted task from the pre-fetched list', async () => {
-      const keep = makeTask({ id: 'keep', action: TaskAction.Publish });
-      const sibling = makeTask({ id: 'sibling', action: TaskAction.Publish });
+      const keep = makeTask({ id: 'keep', datasetId: 'ds-1', action: TaskAction.Publish });
+      const sibling = makeTask({ id: 'sibling', datasetId: 'ds-1', action: TaskAction.Publish });
 
       await service.closeOpenPublishTasks('ds-1', user, 'keep', [keep, sibling] as unknown as Task[]);
 
@@ -187,11 +187,10 @@ describe('TaskService', () => {
     });
 
     it('falls back to a DB query when no task list is provided', async () => {
-      const t1 = makeTask({ id: 'task-1', action: TaskAction.Publish });
+      const t1 = makeTask({ id: 'task-1', datasetId: 'ds-1', action: TaskAction.Publish });
       mockTaskFind.mockResolvedValueOnce([t1]);
 
       await service.closeOpenPublishTasks('ds-1', user);
-
       expect(mockTaskFind).toHaveBeenCalledWith({
         where: { datasetId: 'ds-1', action: TaskAction.Publish, open: true },
         order: { createdAt: 'DESC' }
