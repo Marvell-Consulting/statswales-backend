@@ -294,12 +294,9 @@ export class DatasetService {
     } catch (err) {
       // Backstop for the concurrent-submit race: a partial unique index guarantees at most one
       // open publish task per dataset, so a duplicate insert means another request won the race.
-      const driverError = err instanceof QueryFailedError ? (err as any).driverError : undefined;
-      if (
-        err instanceof QueryFailedError &&
-        driverError?.code === '23505' &&
-        driverError?.constraint === 'UQ_task_one_open_publish_per_dataset'
-      ) {
+      const pg =
+        err instanceof QueryFailedError ? (err.driverError as { code?: string; constraint?: string }) : undefined;
+      if (pg?.code === '23505' && pg?.constraint === 'UQ_task_one_open_publish_per_dataset') {
         logger.warn(`Concurrent publish submission detected for dataset ${datasetId}; ignoring duplicate`);
         return;
       }
@@ -328,11 +325,12 @@ export class DatasetService {
       await this.fileService.delete(draftRevision.onlineCubeFilename, datasetId);
     }
 
-    const openPublishTasks = (await this.getOpenTasks(datasetId)).filter((task) => task.action === TaskAction.Publish);
+    // dataset.tasks was loaded above; derive open publish tasks from it to avoid a second DB read
+    const openPublishTasks = (dataset.tasks ?? []).filter((task) => task.action === TaskAction.Publish && task.open);
 
     if (openPublishTasks.length > 0) {
       // close every open publish task (there should only be one, but close any duplicates too)
-      await this.taskService.closeOpenPublishTasks(datasetId, user);
+      await this.taskService.closeOpenPublishTasks(datasetId, user, undefined, openPublishTasks);
     } else {
       // the dataset was previously approved so its publish task is already closed; record a
       // closed withdraw task so the event still appears in the dataset history

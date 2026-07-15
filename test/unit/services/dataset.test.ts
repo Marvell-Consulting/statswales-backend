@@ -432,7 +432,7 @@ describe('DatasetService', () => {
         code: '23505',
         constraint: 'UQ_task_one_open_publish_per_dataset'
       });
-      mockTaskCreate.mockRejectedValueOnce(new QueryFailedError('INSERT', undefined, driverError as any));
+      mockTaskCreate.mockRejectedValueOnce(new QueryFailedError('INSERT', undefined, driverError));
 
       await expect(service.submitForPublication('ds-1', 'rev-1', user)).resolves.toBeUndefined();
     });
@@ -456,31 +456,32 @@ describe('DatasetService', () => {
 
   describe('withdrawFromPublication', () => {
     it('closes every open publish task and deletes the online cube file', async () => {
-      mockDatasetGetById.mockResolvedValue({ id: 'ds-1', endRevision: {}, tasks: [] });
+      const openTasks = [
+        { id: 'task-1', action: TaskAction.Publish, status: TaskStatus.Requested, open: true },
+        { id: 'task-2', action: TaskAction.Publish, status: TaskStatus.Requested, open: true }
+      ];
+      mockDatasetGetById.mockResolvedValue({ id: 'ds-1', endRevision: {}, tasks: openTasks });
       mockGetPublishingStatus.mockReturnValue(PublishingStatus.PendingApproval);
       mockRevRevertToDraft.mockResolvedValue({ id: 'rev-1', onlineCubeFilename: 'cube.duckdb' });
-      mockTaskGetTasksForDataset.mockResolvedValue([
-        { id: 'task-1', action: TaskAction.Publish, status: TaskStatus.Requested },
-        { id: 'task-2', action: TaskAction.Publish, status: TaskStatus.Requested }
-      ]);
 
       await service.withdrawFromPublication('ds-1', 'rev-1', user);
 
       expect(fileService.delete).toHaveBeenCalledWith('cube.duckdb', 'ds-1');
-      expect(mockTaskCloseOpenPublishTasks).toHaveBeenCalledWith('ds-1', user);
+      expect(mockTaskCloseOpenPublishTasks).toHaveBeenCalledWith('ds-1', user, undefined, openTasks);
       expect(mockTaskWithdrawApproved).not.toHaveBeenCalled();
+      expect(mockTaskGetTasksForDataset).not.toHaveBeenCalled();
     });
 
     it('withdraws an approved (but unpublished) publication when there is no open publish task', async () => {
       mockDatasetGetById.mockResolvedValue({ id: 'ds-1', endRevision: {}, tasks: [] });
       mockGetPublishingStatus.mockReturnValue(PublishingStatus.Scheduled);
       mockRevRevertToDraft.mockResolvedValue({ id: 'rev-1' });
-      mockTaskGetTasksForDataset.mockResolvedValue([]);
 
       await service.withdrawFromPublication('ds-1', 'rev-1', user);
 
       expect(mockTaskWithdrawApproved).toHaveBeenCalledWith('ds-1', 'rev-1', user);
       expect(mockTaskCloseOpenPublishTasks).not.toHaveBeenCalled();
+      expect(mockTaskGetTasksForDataset).not.toHaveBeenCalled();
     });
 
     it('throws when there is no pending publication to withdraw', async () => {
