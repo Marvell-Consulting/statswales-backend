@@ -17,12 +17,14 @@ export enum FileValidationErrorType {
 export class FileValidationException extends Error {
   status = 400;
   errorTag: string;
-  message: string;
   type: FileValidationErrorType;
   extension: never;
 
   constructor(message: string, type: FileValidationErrorType, status = 400) {
     super(message);
+    // Class field declarations (even untyped ones like `message: string`) are defined immediately after
+    // super() returns, which would otherwise clobber the message Error's own constructor just set.
+    this.message = message;
     this.type = type;
     this.errorTag = `errors.file_validation.${type}`;
     this.status = status;

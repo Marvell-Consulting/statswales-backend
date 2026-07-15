@@ -506,7 +506,9 @@ export const validateMeasureLookupTable = async (
     extractor = createExtractor(protoLookupTable, tableLanguage, tableMatcher);
   } catch (error) {
     logger.error(error, `Something went wrong trying to create the measure lookup table extractor`);
-    return viewErrorGenerators(400, dataset.id, 'csv', 'errors.measure_validation.no_description_columns', {
+    const errorKey =
+      error instanceof FileValidationException ? error.message : 'errors.measure_validation.no_description_columns';
+    return viewErrorGenerators(400, dataset.id, 'csv', errorKey, {
       mismatch: false
     });
   }

@@ -618,6 +618,7 @@ describe('validateMeasureLookupTable', () => {
       )) as ViewErrDTO;
 
       expect(result.status).toBe(400);
+      expect(result.errors[0].message.key).toBe('errors.measure_validation.no_description_columns');
       expect(mockDuckdbRun).not.toHaveBeenCalled();
     });
 
@@ -992,6 +993,7 @@ describe('validateMeasureLookupTable', () => {
       )) as ViewErrDTO;
 
       expect(result.status).toBe(400);
+      expect(result.errors[0].message.key).toBe('errors.measure_validation.unknown_matcher_column');
       expect(mockDuckdbRun).not.toHaveBeenCalled();
     });
 
