@@ -31,6 +31,7 @@ import { RevisionRepository, withMetadataAndProviders } from '../repositories/re
 import { fileStreaming } from '../middleware/file-streaming';
 import { longTimeout } from '../middleware/timeout';
 import { getBuiltLogEntry } from '../controllers/build-log';
+import { ensureNoOpenPublishRequest } from '../middleware/ensure-no-open-publish-request';
 
 // middleware that loads the revision and stores it in res.locals
 // leave relations undefined to load the default relations
@@ -68,11 +69,11 @@ export const revisionRouter = router;
 
 // POST
 // Create a new revision for an update
-router.post('/', createNewRevision);
+router.post('/', ensureNoOpenPublishRequest, createNewRevision);
 
 // DELETE /dataset/:dataset_id/revision/by-id/:revision_id
 // Deletes a revision provided it is not published
-router.delete('/by-id/:revision_id', loadRevision({}), deleteDraftRevision);
+router.delete('/by-id/:revision_id', ensureNoOpenPublishRequest, loadRevision({}), deleteDraftRevision);
 
 // POST /dataset/:dataset_id/revision/by-id/:revision_id
 // Regenerates the revision cube
@@ -90,7 +91,14 @@ router.get('/by-id/:revision_id/preview/filters', loadRevision(), getRevisionPre
 
 // POST /dataset/:dataset_id/revision/id/:revision_id/data-table
 // Upload an updated data file for the revision
-router.post('/by-id/:revision_id/data-table', longTimeout, loadRevision(), fileStreaming(), updateDataTable);
+router.post(
+  '/by-id/:revision_id/data-table',
+  ensureNoOpenPublishRequest,
+  longTimeout,
+  loadRevision(),
+  fileStreaming(),
+  updateDataTable
+);
 
 // GET /dataset/:dataset_id/revision/by-id/:revision_id/data-table
 // Returns details of a data-table
@@ -103,7 +111,7 @@ router.get('/by-id/:revision_id/data-table/preview', loadRevision(), getDataTabl
 // PATCH /dataset/:dataset_id/revision/by-id/:revision_id/data-table/confirm
 // returns a JSON object with the current state of the revision including the data-table
 // and sources created from the data-table.
-router.patch('/by-id/:revision_id/data-table/confirm', loadRevision(), confirmFactTable);
+router.patch('/by-id/:revision_id/data-table/confirm', ensureNoOpenPublishRequest, loadRevision(), confirmFactTable);
 
 // GET /dataset/:dataset_id/revision/id/:revision_id/data-table/id/:fact_table_id/raw
 // Returns the original uploaded file back to the client
@@ -112,11 +120,22 @@ router.get('/by-id/:revision_id/data-table/raw', loadRevision(), downloadRawFact
 // DELETE /:dataset_id/revision/by-id/:revision_id/data-table
 // Removes the import record and associated file from BlobStorage clearing the way
 // for the user to upload a new file for the dataset.
-router.delete('/by-id/:revision_id/data-table', loadRevision(), removeFactTableFromRevision);
+router.delete(
+  '/by-id/:revision_id/data-table',
+  ensureNoOpenPublishRequest,
+  loadRevision(),
+  removeFactTableFromRevision
+);
 
 // PATCH /dataset/:dataset_id/revision/by-id/:revision_id/publish-at
 // Updates the publishAt date for the specified revision
-router.patch('/by-id/:revision_id/publish-at', loadRevision(), jsonParser, updateRevisionPublicationDate);
+router.patch(
+  '/by-id/:revision_id/publish-at',
+  ensureNoOpenPublishRequest,
+  loadRevision(),
+  jsonParser,
+  updateRevisionPublicationDate
+);
 
 // POST /dataset/:dataset_id/revision/by-id/<revision id>/approve
 // Approve the dataset's latest revision for publication

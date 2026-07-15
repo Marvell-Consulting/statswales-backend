@@ -13,6 +13,7 @@ import {
 } from '../controllers/measure';
 import { fileStreaming } from '../middleware/file-streaming';
 import { longTimeout } from '../middleware/timeout';
+import { ensureNoOpenPublishRequest } from '../middleware/ensure-no-open-publish-request';
 
 const jsonParser = express.json();
 
@@ -24,10 +25,10 @@ router.get('/', getMeasureInfo);
 
 // POST /:dataset_id/measure
 // Attaches a measure lookup table to a dataset and validates it.
-router.post('/', longTimeout, fileStreaming(), attachLookupTableToMeasure);
+router.post('/', ensureNoOpenPublishRequest, longTimeout, fileStreaming(), attachLookupTableToMeasure);
 
 // DELETE /dataset/:dataset_id/measure/reset
-router.delete('/reset', resetMeasure);
+router.delete('/reset', ensureNoOpenPublishRequest, resetMeasure);
 
 // GET /dataset/:dataset_id/dimension/id/:dimension_id/preview
 // Returns details of a dimension and a preview of the data
@@ -35,9 +36,9 @@ router.delete('/reset', resetMeasure);
 // preview as opposed to view which returns interpreted values.
 router.get('/preview', getPreviewOfMeasure);
 
-// PATCH /:dataset_id/dimension/by-id/:dimension_id/meta
-// Updates the dimension metadata
-router.patch('/metadata', jsonParser, updateMeasureMetadata);
+// PATCH /:dataset_id/measure/metadata
+// Updates the measure metadata
+router.patch('/metadata', ensureNoOpenPublishRequest, jsonParser, updateMeasureMetadata);
 
 router.get('/lookup', getMeasureLookupTableInfo);
 
