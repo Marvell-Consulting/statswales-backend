@@ -267,7 +267,10 @@ export class DatasetService {
       throw new BadRequestException('errors.submit_for_publication.invalid_revision_id');
     }
 
-    const rejectedPublishTask = await this.getRejectedPublishTask(datasetId);
+    const openTasks = await this.getOpenTasks(datasetId);
+    const rejectedPublishTask = openTasks.find(
+      (task) => task.action === TaskAction.Publish && task.status === TaskStatus.Rejected
+    );
 
     if (rejectedPublishTask) {
       const comment = null; // clear the rejection comment
@@ -275,7 +278,9 @@ export class DatasetService {
       return; // resubmission of a rejected task
     }
 
-    const pendingPublishTask = await this.getPendingPublishTask(datasetId);
+    const pendingPublishTask = openTasks.find(
+      (task) => task.action === TaskAction.Publish && task.status === TaskStatus.Requested
+    );
 
     if (pendingPublishTask) {
       // already awaiting approval — treat a duplicate submission (e.g. a double click) as a no-op

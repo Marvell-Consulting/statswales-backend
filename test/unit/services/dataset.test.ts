@@ -394,7 +394,7 @@ describe('DatasetService', () => {
   describe('submitForPublication', () => {
     it('creates a publish task on first submission', async () => {
       mockDatasetGetById.mockResolvedValue({ id: 'ds-1', draftRevision: { id: 'rev-1' } });
-      mockTaskGetTasksForDataset.mockResolvedValue([]); // no rejected task
+      mockTaskGetTasksForDataset.mockResolvedValue([]); // no open publish tasks
 
       await service.submitForPublication('ds-1', 'rev-1', user);
 
