@@ -13,7 +13,7 @@ export class OneOpenPublishTaskPerDataset1784116138829 implements MigrationInter
       FROM "revision" r
       WHERE t."action" = 'publish'
         AND t."open" = true
-        AND r."id" = (t."metadata"->>'revisionId')::uuid
+        AND r."id"::text = t."metadata"->>'revisionId'
         AND r."approved_at" IS NOT NULL
     `);
 
