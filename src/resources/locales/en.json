@@ -74,6 +74,9 @@
     },
     "translation_file": {
       "invalid": "Uploaded translation file keys do not match the exported file"
+    },
+    "dataset": {
+      "invalid_action": "Invalid action"
     }
   },
   "dimension_info": {

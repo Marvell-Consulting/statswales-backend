@@ -72,6 +72,9 @@
     },
     "translation_file": {
       "invalid": "Nid yw’r allweddi ffeil cyfieithu a lanlwythwyd yn cyfateb â’r ffeil a allgludwyd"
+    },
+    "dataset": {
+      "invalid_action": "Gweithred annilys"
     }
   },
   "dimension_info": {

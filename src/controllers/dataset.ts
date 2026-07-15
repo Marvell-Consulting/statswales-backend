@@ -660,7 +660,7 @@ export const datasetActionRequest = async (req: Request, res: Response, next: Ne
   const action = req.params.action as TaskAction;
 
   if (!Object.values(TaskAction).includes(action)) {
-    next(new NotFoundException(`Unknown action: ${action}`));
+    next(new NotFoundException('errors.dataset.invalid_action'));
     return;
   }
 
@@ -687,7 +687,7 @@ export const datasetActionRequest = async (req: Request, res: Response, next: Ne
       await taskService.requestUnarchive(datasetId, user, reason);
       break;
     default:
-      next(new NotFoundException(`Action not supported via this endpoint: ${action}`));
+      next(new NotFoundException('errors.dataset.invalid_action'));
       return;
   }
 
