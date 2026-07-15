@@ -3,7 +3,7 @@ import { TaskAction } from '../../../src/enums/task-action';
 import { PublishingStatus } from '../../../src/enums/publishing-status';
 import { BadRequestException } from '../../../src/exceptions/bad-request.exception';
 import { uuidV4 } from '../../../src/utils/uuid';
-import { Task } from '../../../src/entities/task/task';
+import type { Task } from '../../../src/entities/task/task';
 import { User } from '../../../src/entities/user/user';
 
 jest.mock('../../../src/utils/logger', () => ({
@@ -164,8 +164,8 @@ describe('TaskService', () => {
 
   describe('closeOpenPublishTasks', () => {
     it('closes every open publish task in the pre-fetched list', async () => {
-      const t1 = makeTask({ id: 'task-1', action: TaskAction.Publish });
-      const t2 = makeTask({ id: 'task-2', action: TaskAction.Publish });
+      const t1 = makeTask({ id: 'task-1', datasetId: 'ds-1', action: TaskAction.Publish });
+      const t2 = makeTask({ id: 'task-2', datasetId: 'ds-1', action: TaskAction.Publish });
 
       await service.closeOpenPublishTasks('ds-1', user, undefined, [t1, t2] as unknown as Task[]);
 
