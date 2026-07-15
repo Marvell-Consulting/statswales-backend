@@ -428,9 +428,11 @@ describe('DatasetService', () => {
     it('swallows a unique-constraint violation from a concurrent submission', async () => {
       mockDatasetGetById.mockResolvedValue({ id: 'ds-1', draftRevision: { id: 'rev-1' } });
       mockTaskGetTasksForDataset.mockResolvedValue([]);
-      mockTaskCreate.mockRejectedValueOnce(
-        new QueryFailedError('INSERT', undefined, new Error('duplicate key value violates unique constraint'))
-      );
+      const driverError = Object.assign(new Error('duplicate key value violates unique constraint'), {
+        code: '23505',
+        constraint: 'UQ_task_one_open_publish_per_dataset'
+      });
+      mockTaskCreate.mockRejectedValueOnce(new QueryFailedError('INSERT', undefined, driverError as any));
 
       await expect(service.submitForPublication('ds-1', 'rev-1', user)).resolves.toBeUndefined();
     });
