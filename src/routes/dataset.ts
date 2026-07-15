@@ -149,6 +149,6 @@ datasetRouter.use('/:dataset_id/dimension', dimensionRouter);
 datasetRouter.use('/:dataset_id/measure', measureRouter);
 
 // POST /dataset/:dataset_id/:action
-// Request an action (publish, unpublish, archive, unarchive, withdraw) for this dataset
-// Must be registered after specific sub-routers so that paths like /revision do not match :action first
+// Request an action (unpublish, archive, unarchive) for this dataset
+// Publish/withdraw are handled via revision endpoints
 datasetRouter.post('/:dataset_id/:action', jsonParser, datasetActionRequest);
