@@ -9,7 +9,7 @@ export class OneOpenPublishTaskPerDataset1784116138829 implements MigrationInter
     // dataset falsely reports "update pending approval".
     await queryRunner.query(`
       UPDATE "task" t
-      SET "open" = false, "status" = 'withdrawn'
+      SET "open" = false, "status" = 'withdrawn', "updated_at" = now()
       FROM "revision" r
       WHERE t."action" = 'publish'
         AND t."open" = true
