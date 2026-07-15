@@ -267,10 +267,11 @@ async function createMeasureTable(
         );
       }
       for (const locale of SUPPORTED_LOCALES) {
+        let localeNotesColumnDef = 'NULL';
         if (extractor.notesColumns) {
           const notesCol = extractor.notesColumns.find((col) => col.lang === locale.toLowerCase())?.name;
           if (notesCol) {
-            notesColumnDef = pgformat('%I', notesCol);
+            localeNotesColumnDef = pgformat('%I', notesCol);
           }
         }
         viewComponents.push(
@@ -279,7 +280,7 @@ async function createMeasureTable(
             joinColumn,
             locale.toLowerCase(),
             extractor.descriptionColumns.find((col) => col.lang === locale.toLowerCase())?.name,
-            notesColumnDef,
+            localeNotesColumnDef,
             sortOrderDef,
             formatColumn,
             decimalColumnDef,

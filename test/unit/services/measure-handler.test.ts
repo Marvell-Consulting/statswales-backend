@@ -1036,5 +1036,30 @@ describe('validateMeasureLookupTable', () => {
 
       expect(result).toMatchObject({ current_page: 1 });
     });
+
+    it('does not leak one locale notes column into another locale in the SW2 branch (regression)', async () => {
+      // Notes are only supplied for English. Without a per-iteration reset, the Welsh SELECT would
+      // incorrectly reuse the English notes column instead of falling back to NULL.
+      const sw2tableMatcher: MeasureLookupPatchDTO = {
+        description_columns: ['description_en', 'description_cy'],
+        notes_columns: ['notes_en']
+        // no language_column → isSW2Format = true
+      };
+      const sw2ProtoTable = makeProtoLookupTable(['description_en', 'description_cy', 'ref_code', 'notes_en']);
+
+      setupHappyPathMocks();
+      const dataset = makeDataset();
+
+      await validateMeasureLookupTable(sw2ProtoTable, dataset, '/tmp/file.csv', 'en-GB', sw2tableMatcher);
+
+      const insertCall = mockDuckdbRun.mock.calls.find(
+        ([sql]) => typeof sql === 'string' && sql.includes('INSERT INTO')
+      );
+      expect(insertCall).toBeDefined();
+      const [insertSql] = insertCall as [string];
+
+      expect(insertSql).toMatch(/'en-gb' AS language, description_en AS description, notes_en AS notes/);
+      expect(insertSql).toMatch(/'cy-gb' AS language, description_cy AS description, NULL AS notes/);
+    });
   });
 });
