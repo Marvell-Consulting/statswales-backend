@@ -115,9 +115,7 @@ export const lookForJoinColumn = (
       (col) => col.columnName === tableMatcher.join_column
     );
     if (!joinColumnMatch) {
-      throw new Error(
-        `Table matcher supplied join_column "${tableMatcher.join_column}" does not match an uploaded column`
-      );
+      throw new Error('errors.measure_validation.unknown_matcher_column');
     }
     return joinColumnMatch.columnName;
   }
