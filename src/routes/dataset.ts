@@ -139,10 +139,6 @@ datasetRouter.patch('/:dataset_id/group', ensureNoOpenPublishRequest, jsonParser
 // List the event history for this dataset
 datasetRouter.get('/:dataset_id/history', getHistory);
 
-// POST /dataset/:dataset_id/:action
-// Request an action (publish, unpublish, archive, unarchive, withdraw) for this dataset
-datasetRouter.post('/:dataset_id/:action', jsonParser, datasetActionRequest);
-
 // apply revision child routes
 datasetRouter.use('/:dataset_id/revision', revisionRouter);
 
@@ -151,3 +147,8 @@ datasetRouter.use('/:dataset_id/dimension', dimensionRouter);
 
 // apply measure child routes
 datasetRouter.use('/:dataset_id/measure', measureRouter);
+
+// POST /dataset/:dataset_id/:action
+// Request an action (unpublish, archive, unarchive) for this dataset
+// Publish/withdraw are handled via revision endpoints
+datasetRouter.post('/:dataset_id/:action', jsonParser, datasetActionRequest);

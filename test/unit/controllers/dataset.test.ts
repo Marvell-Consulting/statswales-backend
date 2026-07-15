@@ -1446,13 +1446,13 @@ describe('Dataset controller', () => {
   });
 
   describe('datasetActionRequest', () => {
-    it('should call next() for invalid action (falls through to 404)', async () => {
-      const req = createMockRequest({ params: { action: 'invalid_action' } });
+    it('should call next with NotFoundException for an unknown action', async () => {
+      const req = createMockRequest({ params: { action: 'withdraw' } });
       const res = createMockResponse({ locals: { datasetId: uuidV4() } });
 
       await datasetActionRequest(req, res, mockNext);
 
-      expect(mockNext).toHaveBeenCalledWith();
+      expect(mockNext).toHaveBeenCalledWith(expect.any(NotFoundException));
     });
 
     it('should throw BadRequestException for publish action', async () => {

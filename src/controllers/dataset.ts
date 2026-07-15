@@ -660,7 +660,7 @@ export const datasetActionRequest = async (req: Request, res: Response, next: Ne
   const action = req.params.action as TaskAction;
 
   if (!Object.values(TaskAction).includes(action)) {
-    next();
+    next(new NotFoundException('errors.dataset.invalid_action'));
     return;
   }
 
@@ -686,6 +686,9 @@ export const datasetActionRequest = async (req: Request, res: Response, next: Ne
     case TaskAction.Unarchive:
       await taskService.requestUnarchive(datasetId, user, reason);
       break;
+    default:
+      next(new NotFoundException('errors.dataset.invalid_action'));
+      return;
   }
 
   res.status(204).end();
