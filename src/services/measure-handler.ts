@@ -245,7 +245,7 @@ async function createMeasureTable(
     await loadFileIntoCube(duckdb, fileType, path, tmpTableName, 'memory');
     const viewComponents: string[] = [];
     logger.debug(`Setting up measure insert query`);
-    let formatColumn = 'NULL AS format,';
+    let formatColumn = 'NULL';
     if (extractor.formatColumn) {
       formatColumn = pgformat('%I', extractor.formatColumn);
     } else if (!extractor.formatColumn && !extractor.decimalColumn) {
