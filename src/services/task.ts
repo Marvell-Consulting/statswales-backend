@@ -168,9 +168,10 @@ export class TaskService {
       tasks ??
       (await Task.find({ where: { datasetId, action: TaskAction.Publish, open: true }, order: { createdAt: 'DESC' } }));
 
-    const toClose = candidates.filter(
-      (task) => task.action === TaskAction.Publish && task.open && task.id !== exceptTaskId
-    );
+    const toClose = candidates.filter((task) => {
+      const matchesDataset = task.datasetId === datasetId || task.dataset?.id === datasetId;
+      return matchesDataset && task.action === TaskAction.Publish && task.open && task.id !== exceptTaskId;
+    });
 
     for (const task of toClose) {
       logger.info(`Closing open publish task ${task.id} for dataset ${datasetId}`);
