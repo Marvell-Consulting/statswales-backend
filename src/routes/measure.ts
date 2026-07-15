@@ -25,7 +25,7 @@ router.get('/', getMeasureInfo);
 
 // POST /:dataset_id/measure
 // Attaches a measure lookup table to a dataset and validates it.
-router.post('/', ensureNoOpenPublishRequest, longTimeout, fileStreaming(), attachLookupTableToMeasure);
+router.post('/', longTimeout, ensureNoOpenPublishRequest, fileStreaming(), attachLookupTableToMeasure);
 
 // DELETE /dataset/:dataset_id/measure/reset
 router.delete('/reset', ensureNoOpenPublishRequest, resetMeasure);
