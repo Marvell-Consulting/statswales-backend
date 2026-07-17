@@ -632,6 +632,18 @@ describe('Admin controller', () => {
 
       expect(mockNext.mock.calls[0][0]).toBeInstanceOf(UnknownException);
     });
+
+    it('neutralizes formula-injection payloads in dataset titles (SW-1306 regression)', async () => {
+      datasetStatsRepo.similarTitles.mockResolvedValue([
+        { title_1: '=HYPERLINK("https://evil/")', title_2: 'Safe title', similarity_score: 0.5 }
+      ]);
+
+      const res = createMockResponse();
+      await similarDatasets(createMockRequest({ query: { by: DatasetSimilarBy.Title } as never }), res, mockNext);
+
+      const [rows] = mockStringify.mock.calls[0] as [Record<string, unknown>[]];
+      expect(rows[0]).toMatchObject({ title_1: `'=HYPERLINK("https://evil/")`, title_2: 'Safe title' });
+    });
   });
 
   describe('downloadSearchLogs', () => {
@@ -650,6 +662,22 @@ describe('Admin controller', () => {
       expect(searchLogRepo.getByPeriod).toHaveBeenCalled();
       expect(res.setHeader).toHaveBeenCalledWith('Content-Type', 'text/csv');
       expect(mockStringifyStream.pipe).toHaveBeenCalledWith(res);
+    });
+
+    it('neutralizes formula-injection payloads in search keywords (SW-1306 regression)', async () => {
+      searchLogRepo.getByPeriod.mockResolvedValue([
+        { createdAt: new Date('2026-01-01T00:00:00Z'), mode: 'simple', keywords: '=cmd|" /C calc"!A0', resultCount: 1 }
+      ]);
+
+      const res = createMockResponse();
+      await downloadSearchLogs(
+        createMockRequest({ query: { start: '2026-01-01', end: '2026-02-01' } as never }),
+        res,
+        mockNext
+      );
+
+      const [rows] = mockStringify.mock.calls[0] as [Record<string, unknown>[]];
+      expect(rows[0]).toMatchObject({ keywords: `'=cmd|" /C calc"!A0` });
     });
 
     it('passes UnknownException to next on error', async () => {

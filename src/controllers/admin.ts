@@ -18,6 +18,7 @@ import { UserCreateDTO } from '../dtos/user/user-create-dto';
 import { QueryFailedError } from 'typeorm';
 import { BadRequestException } from '../exceptions/bad-request.exception';
 import { GlobalRole } from '../enums/global-role';
+import { neutralizeCsvRecord } from '../utils/csv-sanitizer';
 import { RoleSelectionDTO } from '../dtos/user/role-selection-dto';
 import { UserStatus } from '../enums/user-status';
 import { UserGroupStatus } from '../enums/user-group-status';
@@ -355,7 +356,14 @@ export const similarDatasets = async (req: Request, res: Response, next: NextFun
     }
 
     res.setHeader('Content-Type', 'text/csv');
-    stringify(csv, { bom: true, header: true, quoted_string: true }).pipe(res);
+    stringify(
+      csv.map((row) => neutralizeCsvRecord(row as Record<string, unknown>)),
+      {
+        bom: true,
+        header: true,
+        quoted_string: true
+      }
+    ).pipe(res);
   } catch (err) {
     logger.error(err, 'Error getting similar datasets');
     next(new UnknownException());
@@ -377,7 +385,10 @@ export const downloadSearchLogs = async (req: Request, res: Response, next: Next
     }));
 
     res.setHeader('Content-Type', 'text/csv');
-    stringify(csv, { bom: true, header: true, quoted_string: true }).pipe(res);
+    stringify(
+      csv.map((row) => neutralizeCsvRecord(row)),
+      { bom: true, header: true, quoted_string: true }
+    ).pipe(res);
   } catch (err) {
     logger.error(err, 'Error getting search logs');
     next(new UnknownException());
