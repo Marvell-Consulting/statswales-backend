@@ -1,5 +1,6 @@
 import { Response } from 'express';
 import { pipeline } from 'node:stream/promises';
+import { Transform } from 'node:stream';
 import { escape } from 'lodash';
 import { PoolClient } from 'pg';
 import QueryStream from 'pg-query-stream';
@@ -34,9 +35,19 @@ import {
 } from '../utils/cursor-codec';
 import { KeysetSortColumn, buildKeysetWhere } from './keyset-where-builder';
 import { resolveDefaultSort } from './default-sort-resolver';
+import { neutralizeCsvCell, neutralizeCsvRecord, neutralizeCsvRow } from '../utils/csv-sanitizer';
 
 const EXCEL_ROW_LIMIT = 1048576 - 76; // Excel Limit is 1,048,576 but removed 76 rows because ?
 const HIGH_WATER_MARK = 500; // max rows to buffer in memory at once when streaming from the database
+
+function csvSanitizeTransform(): Transform {
+  return new Transform({
+    objectMode: true,
+    transform(row, _enc, callback): void {
+      callback(null, neutralizeCsvRecord(row as Record<string, unknown>));
+    }
+  });
+}
 
 export async function sendCsv(query: string, queryStore: QueryStore, res: Response): Promise<void> {
   logger.debug(`Sending CSV for query id ${queryStore.id}...`);
@@ -54,7 +65,7 @@ export async function sendCsv(query: string, queryStore: QueryStore, res: Respon
     res.setHeader('Content-Type', 'text/csv');
     res.setHeader('Content-Disposition', `attachment;filename=${queryStore.datasetId}.csv`);
 
-    await pipeline(dbStream, csvStream, res, { end: false });
+    await pipeline(dbStream, csvSanitizeTransform(), csvStream, res, { end: false });
 
     await cubeDBConn.query('COMMIT');
     if (!hasData) {
@@ -104,13 +115,13 @@ export async function sendExcel(query: string, queryStore: QueryStore, res: Resp
 
       // Add headers from first row
       if (isFirstRow) {
-        worksheet.addRow(Object.keys(row));
+        worksheet.addRow(neutralizeCsvRow(Object.keys(row)));
         isFirstRow = false;
       }
 
       const data = Object.values(row).map((val) => {
         if (!val) return null;
-        return isNaN(Number(val)) ? val : Number(val);
+        return isNaN(Number(val)) ? neutralizeCsvCell(val) : Number(val);
       });
       worksheet.addRow(data).commit();
 

@@ -2,6 +2,7 @@
 
 import { Readable, PassThrough } from 'node:stream';
 import { Response } from 'express';
+import ExcelJS from 'exceljs';
 
 // Mock logger before other imports
 jest.mock('../../../src/utils/logger', () => ({
@@ -145,6 +146,27 @@ function createMockStreamResponse(): Response & { writtenData: string[]; written
   return res;
 }
 
+// Helper to create a mock Response that captures binary data (for Excel tests)
+function createMockBinaryResponse(): Response & { getBuffer: () => Promise<Buffer> } {
+  const stream = new PassThrough();
+  const chunks: Buffer[] = [];
+  stream.on('data', (chunk) => chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)));
+
+  const res = stream as unknown as Response & { getBuffer: () => Promise<Buffer> };
+  res.setHeader = jest.fn().mockReturnThis();
+  res.flushHeaders = jest.fn();
+  res.status = jest.fn().mockReturnThis();
+  res.json = jest.fn();
+  (res as any).headersSent = false;
+  res.getBuffer = () =>
+    new Promise<Buffer>((resolve) => {
+      stream.on('end', () => resolve(Buffer.concat(chunks)));
+      if (stream.readableEnded) resolve(Buffer.concat(chunks));
+    });
+
+  return res;
+}
+
 // Helper to create a mock readable stream that emits rows asynchronously
 function createMockDbStream(rows: Record<string, unknown>[]): Readable {
   let index = 0;
@@ -231,6 +253,23 @@ describe('consumer-view-v2 service', () => {
       expect(output).toContain('value1');
     });
 
+    it('neutralizes formula-injection payloads in headers and cell values (SW-1306 regression)', async () => {
+      const rows = [{ '=HYPERLINK("https://evil/")': '=1+1', col2: '+SUM(A1:A2)' }];
+      const mockStream = createMockDbStream(rows);
+      const mockPoolClient = createMockPoolClient(mockStream);
+      mockObtainMasterConnection.mockResolvedValue([mockPoolClient]);
+
+      const queryStore = createMockQueryStore();
+      const res = createMockStreamResponse();
+
+      await sendCsv('SELECT * FROM test', queryStore, res);
+
+      const output = res.writtenData.join('');
+      expect(output).toContain(`'=HYPERLINK(""https://evil/"")`); // CSV-escaped quotes around the neutralized header
+      expect(output).toContain(`'=1+1`);
+      expect(output).toContain(`'+SUM(A1:A2)`);
+    });
+
     it('should write newline for empty result set', async () => {
       const mockStream = createMockDbStream([]);
       const mockPoolClient = createMockPoolClient(mockStream);
@@ -307,6 +346,31 @@ describe('consumer-view-v2 service', () => {
 
       expect(res.flushHeaders).toHaveBeenCalled();
       expect(mockRelease).toHaveBeenCalled();
+    });
+
+    it('neutralizes formula-injection payloads in headers and cell values (SW-1306 regression)', async () => {
+      const rows = [{ '=HYPERLINK("https://evil/")': '-2+3+cmd|" /C calc"!A0', col2: 100 }];
+      const mockStream = createMockDbStream(rows);
+      const mockPoolClient = createMockPoolClient(mockStream);
+      mockObtainMasterConnection.mockResolvedValue([mockPoolClient]);
+
+      const queryStore = createMockQueryStore();
+      const res = createMockBinaryResponse();
+
+      await sendExcel('SELECT * FROM test', queryStore, res);
+
+      const buffer = await res.getBuffer();
+      const workbook = new ExcelJS.Workbook();
+      // @ts-expect-error ExcelJS types expect old Buffer, Node 24 returns Buffer<ArrayBuffer>
+      await workbook.xlsx.load(buffer);
+
+      const worksheet = workbook.getWorksheet(1)!;
+      const headerRow = worksheet.getRow(1);
+      const dataRow = worksheet.getRow(2);
+
+      expect(headerRow.getCell(1).value).toBe(`'=HYPERLINK("https://evil/")`);
+      expect(dataRow.getCell(1).value).toBe(`'-2+3+cmd|" /C calc"!A0`);
+      expect(dataRow.getCell(2).value).toBe(100);
     });
 
     it('should release connection on error', async () => {

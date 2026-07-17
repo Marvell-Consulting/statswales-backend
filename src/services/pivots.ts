@@ -22,6 +22,7 @@ import { FilterRow } from '../interfaces/filter-row';
 import { UnknownException } from '../exceptions/unknown.exception';
 import { makeCubeSafeString } from './cube-builder';
 import { DimensionType, LookupTableTypes } from '../enums/dimension-type';
+import { neutralizeCsvCell, neutralizeCsvRow } from '../utils/csv-sanitizer';
 
 const EXCEL_ROW_LIMIT = 1048576 - 76; // Excel Limit is 1,048,576 but removed 76 rows because ?
 
@@ -236,12 +237,12 @@ async function pivotToCsv(
     // eslint-disable-next-line @typescript-eslint/naming-convention
     'Content-disposition': `attachment;filename=pivot-${Date.now()}.csv`
   });
-  const stream = csvFormat({ delimiter: ',', headers: columnOrder });
+  const stream = csvFormat({ delimiter: ',', headers: neutralizeCsvRow(columnOrder) as string[] });
   stream.pipe(res);
 
   for await (const rows of pivot.yieldRows()) {
     for (const row of rows) {
-      const reorderedRow = reorderRow(row, columnMapping);
+      const reorderedRow = neutralizeCsvRow(reorderRow(row, columnMapping));
       stream.write(reorderedRow);
     }
   }
@@ -272,14 +273,14 @@ async function pivotToExcel(
   let totalRows = 0;
   let worksheet = workbook.addWorksheet(`Sheet-${sheetCount}`);
 
-  worksheet.addRow(columnOrder);
+  worksheet.addRow(neutralizeCsvRow(columnOrder));
   for await (const rows of pivot.yieldRows()) {
     for (const row of rows) {
       if (row === null) break;
       const data = columnMapping.map((srcIdx) => {
         const val = row[srcIdx];
         if (val === null || val === undefined || val === '') return null;
-        return isNaN(Number(val)) ? val : Number(val);
+        return isNaN(Number(val)) ? neutralizeCsvCell(val) : Number(val);
       });
       worksheet.addRow(data).commit();
     }

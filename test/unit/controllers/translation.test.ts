@@ -160,6 +160,23 @@ describe('Translation controller', () => {
       expect(mockNext).toHaveBeenCalledTimes(1);
       expect(mockNext.mock.calls[0][0]).toBeInstanceOf(UnknownException);
     });
+
+    it('neutralizes formula-injection payloads in translation values (SW-1306 regression)', async () => {
+      const revisionId = uuidV4();
+      const dataset = { id: uuidV4(), draftRevision: { id: revisionId } };
+      const translations = [
+        { type: 'metadata', key: 'title', english: '=HYPERLINK("https://evil/")', cymraeg: 'Diogel' }
+      ];
+      mockGetById.mockResolvedValue(dataset);
+      mockCollectTranslations.mockReturnValue(translations);
+
+      const req = createMockRequest();
+      const res = createMockResponse();
+      await translationExport(req, res, mockNext);
+
+      const [rows] = mockStringify.mock.calls[0] as [Record<string, unknown>[]];
+      expect(rows[0]).toMatchObject({ english: `'=HYPERLINK("https://evil/")`, cymraeg: 'Diogel' });
+    });
   });
 
   describe('validateImport', () => {

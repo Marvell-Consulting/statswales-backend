@@ -22,6 +22,7 @@ import { FactTableToDimensionName } from '../interfaces/fact-table-column-to-dim
 import { coreViewChooser, dateColumnsFromDimensions, sortFilterRows, transformHierarchy } from '../utils/consumer';
 import { FilterRow } from '../interfaces/filter-row';
 import { Dimension } from '../entities/dataset/dimension';
+import { neutralizeCsvCell, neutralizeCsvRecord, neutralizeCsvRow } from '../utils/csv-sanitizer';
 
 // Caller-supplied dataset loader: lets the publisher path go through DatasetRepository (publisher pool,
 // supports drafts) and the consumer path through PublishedDatasetRepository (consumer pool,
@@ -426,7 +427,7 @@ export const createStreamingCSVFilteredView = async (
       while (rows.length > 0) {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         rows.map((row: any) => {
-          stream.write(row);
+          stream.write(neutralizeCsvRecord(row));
         });
         rows = await cursor.read(CURSOR_ROW_LIMIT);
       }
@@ -496,13 +497,13 @@ export const createStreamingExcelFilteredView = async (
     let totalRows = 0;
     let worksheet = workbook.addWorksheet(`Sheet-${sheetCount}`);
     if (rows.length > 0) {
-      worksheet.addRow(Object.keys(rows[0]));
+      worksheet.addRow(neutralizeCsvRow(Object.keys(rows[0])));
       while (rows.length > 0) {
         for (const row of rows) {
           if (row === null) break;
           const data = Object.values(row).map((val) => {
             if (!val) return null;
-            return isNaN(Number(val)) ? val : Number(val);
+            return isNaN(Number(val)) ? neutralizeCsvCell(val) : Number(val);
           });
           worksheet.addRow(Object.values(data)).commit();
         }
