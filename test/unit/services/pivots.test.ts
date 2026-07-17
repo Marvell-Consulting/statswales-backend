@@ -613,6 +613,29 @@ describe('pivots service', () => {
         expect(output).toContain('<tbody>');
         expect(output).toContain('</tbody>');
       });
+
+      it('escapes script tags and event handlers in cell values and headers (SW-1305 regression)', async () => {
+        const columns = ['Area', '<script>alert(1)</script>'];
+        const rows: DuckDBValue[][] = [['<img src=x onerror=alert(1)>', 'safe']];
+        setupMockDuckDB(columns, rows);
+
+        const res = createMockStreamResponse();
+        const queryStore = createMockQueryStore();
+        const pageOptions = defaultPageOptions({ format: OutputFormats.Html });
+
+        mockGetFilterTable.mockResolvedValue([]);
+        mockResolveDimensionToFactTableColumn.mockReturnValue('period_col');
+        mockGetById.mockResolvedValue({ dimensions: [] });
+
+        await createPivotOutputUsingDuckDB(res, 'en', 'PIVOT (...)', pageOptions, queryStore);
+
+        const output = res.writtenData.join('');
+
+        expect(output).not.toContain('<script>alert(1)</script>');
+        expect(output).not.toContain('<img src=x onerror=alert(1)>');
+        expect(output).toContain('&lt;script&gt;alert(1)&lt;/script&gt;');
+        expect(output).toContain('&lt;img src=x onerror=alert(1)&gt;');
+      });
     });
 
     describe('Frontend output', () => {
