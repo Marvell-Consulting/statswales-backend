@@ -120,7 +120,7 @@ export async function sendExcel(query: string, queryStore: QueryStore, res: Resp
       }
 
       const data = Object.values(row).map((val) => {
-        if (!val) return null;
+        if (val === null || val === undefined || val === '') return null;
         return isNaN(Number(val)) ? neutralizeCsvCell(val) : Number(val);
       });
       worksheet.addRow(data).commit();

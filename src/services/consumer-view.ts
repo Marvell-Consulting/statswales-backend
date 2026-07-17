@@ -425,10 +425,9 @@ export const createStreamingCSVFilteredView = async (
       const stream = csvFormat({ delimiter: ',', headers: true });
       stream.pipe(res);
       while (rows.length > 0) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        rows.map((row: any) => {
+        for (const row of rows) {
           stream.write(neutralizeCsvRecord(row));
-        });
+        }
         rows = await cursor.read(CURSOR_ROW_LIMIT);
       }
     } else {
@@ -502,7 +501,7 @@ export const createStreamingExcelFilteredView = async (
         for (const row of rows) {
           if (row === null) break;
           const data = Object.values(row).map((val) => {
-            if (!val) return null;
+            if (val === null || val === undefined || val === '') return null;
             return isNaN(Number(val)) ? neutralizeCsvCell(val) : Number(val);
           });
           worksheet.addRow(Object.values(data)).commit();
