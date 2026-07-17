@@ -504,7 +504,7 @@ export const createStreamingExcelFilteredView = async (
             if (val === null || val === undefined || val === '') return null;
             return isNaN(Number(val)) ? neutralizeCsvCell(val) : Number(val);
           });
-          worksheet.addRow(Object.values(data)).commit();
+          worksheet.addRow(data).commit();
         }
         totalRows += CURSOR_ROW_LIMIT;
         if (totalRows > EXCEL_ROW_LIMIT) {
