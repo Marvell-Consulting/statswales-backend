@@ -1,4 +1,5 @@
 import { Response } from 'express';
+import { escape } from 'lodash';
 
 import { format as pgformat } from '@scaleleap/pg-format/lib/pg-format';
 import { QueryStore } from '../entities/query-store';
@@ -322,7 +323,7 @@ async function pivotToHtml(
     return;
   }
   columnOrder.forEach((key) => {
-    res.write(`<th>${key}</th>`);
+    res.write(`<th>${escape(key)}</th>`);
   });
   res.write('</tr></thead><tbody>');
   for await (const rows of pivot.yieldRows()) {
@@ -331,9 +332,9 @@ async function pivotToHtml(
       columnMapping.forEach((srcIdx, i) => {
         const value = row[srcIdx];
         if (i === 0) {
-          res.write(`<th>${value === null ? '' : value}</th>`);
+          res.write(`<th>${value === null ? '' : escape(String(value))}</th>`);
         } else {
-          res.write(`<td>${value === null ? '' : value}</td>`);
+          res.write(`<td>${value === null ? '' : escape(String(value))}</td>`);
         }
       });
       res.write('</tr>');

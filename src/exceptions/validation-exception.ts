@@ -17,7 +17,6 @@ export enum FileValidationErrorType {
 export class FileValidationException extends Error {
   status = 400;
   errorTag: string;
-  message: string;
   type: FileValidationErrorType;
   extension: never;
 
