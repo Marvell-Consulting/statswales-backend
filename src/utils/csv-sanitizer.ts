@@ -5,7 +5,7 @@
 // into the string "'-5" just because "-" is a dangerous leading character for strings.
 export const neutralizeCsvCell = (value: unknown): unknown => {
   if (typeof value !== 'string') return value;
-  return /^[=+\-@\t\r]/.test(value) ? `'${value}` : value;
+  return /^[=+\-@\t\r\n]/.test(value) ? `'${value}` : value;
 };
 
 // Neutralizes every value in a positional row/array — CSV/XLSX data rows or header arrays.
