@@ -110,7 +110,15 @@ export const lookForJoinColumn = (
     col.columnName.toLowerCase().includes(t('lookup_column_headers.refcode', { lng: tableLanguage }).toLowerCase())
   );
 
-  if (tableMatcher?.join_column) return tableMatcher.join_column;
+  if (tableMatcher?.join_column) {
+    const joinColumnMatch = protoLookupTable.dataTableDescriptions.find(
+      (col) => col.columnName === tableMatcher.join_column
+    );
+    if (!joinColumnMatch) {
+      throw new Error('errors.measure_validation.unknown_matcher_column');
+    }
+    return joinColumnMatch.columnName;
+  }
   if (refCol) return refCol.columnName;
   if (refCodeCol) return refCodeCol.columnName;
 
