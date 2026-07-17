@@ -79,9 +79,9 @@ export const attachLookupTableToMeasure = async (req: Request, res: Response, ne
   let build: BuildLog;
 
   try {
+    const tableMatcher = await dtoValidator(MeasureLookupPatchDTO, req.body);
     const dataTable = await validateAndUpload(tmpFile, dataset.id, 'lookup_table');
     const lang = req.language.toLowerCase();
-    const tableMatcher = await dtoValidator(MeasureLookupPatchDTO, req.body);
     const result = await validateMeasureLookupTable(dataTable, dataset, tmpFile.path, lang, tableMatcher);
     if ((result as ViewErrDTO).status) {
       const error = result as ViewErrDTO;
