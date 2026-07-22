@@ -6,6 +6,7 @@ import app from './app';
 import { logger } from './utils/logger';
 import { initPassport } from './middleware/passport-auth';
 import { dbManager } from './db/database-manager';
+import { startScheduledJobs } from './jobs/scheduler';
 
 // Without these, an unawaited promise rejection (e.g. an abandoned pg pool acquisition)
 // terminates the process under Node's default --unhandled-rejections=throw, with no log
@@ -27,6 +28,7 @@ Promise.resolve()
     await dbManager.initDataSources();
     await dbManager.initEntitySubscriber();
     await initPassport();
+    startScheduledJobs();
   })
   .then(() => {
     app.listen(PORT, async () => {

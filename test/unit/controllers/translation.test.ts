@@ -32,8 +32,10 @@ jest.mock('../../../src/entities/event-log', () => ({
 }));
 
 const mockUploadAvScan = jest.fn();
+const mockCleanupTmpFile = jest.fn();
 jest.mock('../../../src/services/virus-scanner', () => ({
-  uploadAvScan: (...args: unknown[]) => mockUploadAvScan(...args)
+  uploadAvScan: (...args: unknown[]) => mockUploadAvScan(...args),
+  cleanupTmpFile: (...args: unknown[]) => mockCleanupTmpFile(...args)
 }));
 
 const mockCreateAllCubeFiles = jest.fn();
@@ -183,6 +185,7 @@ describe('Translation controller', () => {
       expect(res.status).toHaveBeenCalledWith(201);
       expect(res.json).toHaveBeenCalledWith({ id: dataset.id });
       expect(mockNext).not.toHaveBeenCalled();
+      expect(mockCleanupTmpFile).toHaveBeenCalledWith({ path: '/tmp/import.csv' });
     });
 
     it('forwards the av-scan error to next when the upload fails', async () => {
@@ -214,6 +217,7 @@ describe('Translation controller', () => {
       expect(mockNext.mock.calls[0][0]).toBeInstanceOf(BadRequestException);
       expect((mockNext.mock.calls[0][0] as unknown as Error).message).toBe('errors.translation_file.invalid.row_count');
       expect((req as any).fileService.saveStream).not.toHaveBeenCalled();
+      expect(mockCleanupTmpFile).toHaveBeenCalledWith({ path: '/tmp/import.csv' });
     });
 
     it('rejects with a keys error when a translation key is missing from the CSV', async () => {

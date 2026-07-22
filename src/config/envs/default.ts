@@ -118,6 +118,19 @@ export const getDefaultConfig = (): AppConfig => {
     },
     cube_builder: {
       preserve_failed: false
+    },
+    cron: {
+      enabled: process.env.CRON_ENABLED ? process.env.CRON_ENABLED.toLowerCase() === 'true' : true,
+      timezone: process.env.CRON_TIMEZONE || 'Europe/London',
+      nightlyCleanupSchedule: process.env.CRON_NIGHTLY_CLEANUP_SCHEDULE || '0 4 * * *'
+    },
+    cleanup: {
+      staleBuildTimeoutMs: process.env.CLEANUP_STALE_BUILD_TIMEOUT_MS
+        ? parseInt(process.env.CLEANUP_STALE_BUILD_TIMEOUT_MS, 10)
+        : 6 * 60 * 60 * 1000,
+      staleTempFileTimeoutMs: process.env.CLEANUP_STALE_TEMP_FILE_TIMEOUT_MS
+        ? parseInt(process.env.CLEANUP_STALE_TEMP_FILE_TIMEOUT_MS, 10)
+        : ONE_DAY_MS
     }
   };
 };

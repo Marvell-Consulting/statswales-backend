@@ -14,7 +14,7 @@ import { EventLog } from '../entities/event-log';
 import { collectTranslations } from '../utils/collect-translations';
 import { DatasetRepository, withMetadataForTranslation } from '../repositories/dataset';
 import { TempFile } from '../interfaces/temp-file';
-import { uploadAvScan } from '../services/virus-scanner';
+import { cleanupTmpFile, uploadAvScan } from '../services/virus-scanner';
 import { createAllCubeFiles } from '../services/cube-builder';
 
 // imported translation filename can be constant as we overwrite each time it's imported
@@ -133,6 +133,8 @@ export const validateImport = async (req: Request, res: Response, next: NextFunc
     }
     logger.error(error, 'Error importing translations');
     next(new UnknownException());
+  } finally {
+    cleanupTmpFile(tmpFile);
   }
 };
 

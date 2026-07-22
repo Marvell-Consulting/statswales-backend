@@ -1,7 +1,7 @@
 import { publisherDataSource } from '../db/publisher-source';
 import { BuildLog } from '../entities/dataset/build-log';
 import { CubeBuildType } from '../enums/cube-build-type';
-import { And, FindManyOptions, In, Not } from 'typeorm';
+import { And, FindManyOptions, In, LessThan, Not } from 'typeorm';
 import { CubeBuildStatus } from '../enums/cube-build-status';
 
 export const BuildLogRepository = publisherDataSource.getRepository(BuildLog).extend({
@@ -43,6 +43,17 @@ export const BuildLogRepository = publisherDataSource.getRepository(BuildLog).ex
   async getAllActiveBuilds(): Promise<BuildLog[]> {
     return BuildLog.find({
       where: { status: And(Not(CubeBuildStatus.Completed), Not(CubeBuildStatus.Failed)) }
+    });
+  },
+
+  // builds still active (not completed/failed) long after they started have almost certainly been
+  // abandoned by a process crash or restart, rather than genuinely still running
+  async getStuckBuilds(startedBefore: Date): Promise<BuildLog[]> {
+    return BuildLog.find({
+      where: {
+        status: And(Not(CubeBuildStatus.Completed), Not(CubeBuildStatus.Failed)),
+        startedAt: LessThan(startedBefore)
+      }
     });
   }
 });
