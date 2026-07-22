@@ -1,7 +1,10 @@
+import { QueryFailedError } from 'typeorm';
+
 import { Locale } from '../../../src/enums/locale';
 import { TaskAction } from '../../../src/enums/task-action';
 import { TaskStatus } from '../../../src/enums/task-status';
 import { PublishingStatus } from '../../../src/enums/publishing-status';
+import { CubeBuildStatus } from '../../../src/enums/cube-build-status';
 import { BadRequestException } from '../../../src/exceptions/bad-request.exception';
 import { uuidV4 } from '../../../src/utils/uuid';
 import { User } from '../../../src/entities/user/user';
@@ -71,14 +74,14 @@ jest.mock('../../../src/repositories/user-group', () => ({
 // --- TaskService (instantiated in the constructor) ---
 const mockTaskCreate = jest.fn();
 const mockTaskUpdate = jest.fn();
-const mockTaskWithdrawPending = jest.fn();
+const mockTaskCloseOpenPublishTasks = jest.fn();
 const mockTaskWithdrawApproved = jest.fn();
 const mockTaskGetTasksForDataset = jest.fn();
 jest.mock('../../../src/services/task', () => ({
   TaskService: jest.fn().mockImplementation(() => ({
     create: (...a: unknown[]) => mockTaskCreate(...a),
     update: (...a: unknown[]) => mockTaskUpdate(...a),
-    withdrawPending: (...a: unknown[]) => mockTaskWithdrawPending(...a),
+    closeOpenPublishTasks: (...a: unknown[]) => mockTaskCloseOpenPublishTasks(...a),
     withdrawApproved: (...a: unknown[]) => mockTaskWithdrawApproved(...a),
     getTasksForDataset: (...a: unknown[]) => mockTaskGetTasksForDataset(...a)
   }))
@@ -136,6 +139,13 @@ jest.mock('../../../src/dtos/tasklist-state-dto', () => ({
 const mockCreateAllCubeFiles = jest.fn();
 jest.mock('../../../src/services/cube-builder', () => ({
   createAllCubeFiles: (...a: unknown[]) => mockCreateAllCubeFiles(...a)
+}));
+
+const mockBuildLogStartBuild = jest.fn();
+jest.mock('../../../src/entities/dataset/build-log', () => ({
+  BuildLog: {
+    startBuild: (...a: unknown[]) => mockBuildLogStartBuild(...a)
+  }
 }));
 
 const mockValidateAndUpload = jest.fn();
@@ -197,6 +207,18 @@ function withSave<T extends object>(obj: T): T & { save: jest.Mock } {
   const o = obj as T & { save: jest.Mock };
   o.save = jest.fn().mockResolvedValue(o);
   return o;
+}
+
+function makeBuildLog() {
+  const build = {
+    id: 'build-1',
+    status: CubeBuildStatus.Queued as CubeBuildStatus,
+    completeBuild: jest.fn(function (this: { status: CubeBuildStatus }, status: CubeBuildStatus) {
+      this.status = status;
+    }),
+    save: jest.fn().mockResolvedValue(undefined)
+  };
+  return build;
 }
 
 describe('DatasetService', () => {
@@ -372,7 +394,7 @@ describe('DatasetService', () => {
   describe('submitForPublication', () => {
     it('creates a publish task on first submission', async () => {
       mockDatasetGetById.mockResolvedValue({ id: 'ds-1', draftRevision: { id: 'rev-1' } });
-      mockTaskGetTasksForDataset.mockResolvedValue([]); // no rejected task
+      mockTaskGetTasksForDataset.mockResolvedValue([]); // no open publish tasks
 
       await service.submitForPublication('ds-1', 'rev-1', user);
 
@@ -391,6 +413,40 @@ describe('DatasetService', () => {
       expect(mockTaskCreate).not.toHaveBeenCalled();
     });
 
+    it('is a no-op when a pending publish task already exists (duplicate submission)', async () => {
+      mockDatasetGetById.mockResolvedValue({ id: 'ds-1', draftRevision: { id: 'rev-1' } });
+      mockTaskGetTasksForDataset.mockResolvedValue([
+        { id: 'task-1', action: TaskAction.Publish, status: TaskStatus.Requested }
+      ]);
+
+      await service.submitForPublication('ds-1', 'rev-1', user);
+
+      expect(mockTaskCreate).not.toHaveBeenCalled();
+      expect(mockTaskUpdate).not.toHaveBeenCalled();
+    });
+
+    it('swallows a unique-constraint violation from a concurrent submission', async () => {
+      mockDatasetGetById.mockResolvedValue({ id: 'ds-1', draftRevision: { id: 'rev-1' } });
+      mockTaskGetTasksForDataset.mockResolvedValue([]);
+      const driverError = Object.assign(new Error('duplicate key value violates unique constraint'), {
+        code: '23505',
+        constraint: 'UQ_task_one_open_publish_per_dataset'
+      });
+      mockTaskCreate.mockRejectedValueOnce(new QueryFailedError('INSERT', undefined, driverError));
+
+      await expect(service.submitForPublication('ds-1', 'rev-1', user)).resolves.toBeUndefined();
+    });
+
+    it('rethrows errors from task creation that are not unique-constraint violations', async () => {
+      mockDatasetGetById.mockResolvedValue({ id: 'ds-1', draftRevision: { id: 'rev-1' } });
+      mockTaskGetTasksForDataset.mockResolvedValue([]);
+      mockTaskCreate.mockRejectedValueOnce(new Error('database exploded'));
+
+      const err = await captureError(service.submitForPublication('ds-1', 'rev-1', user));
+      expect(err).toBeInstanceOf(Error);
+      expect((err as Error).message).toBe('database exploded');
+    });
+
     it('throws when the revision id does not match the draft revision', async () => {
       mockDatasetGetById.mockResolvedValue({ id: 'ds-1', draftRevision: { id: 'other' } });
       const err = await captureError(service.submitForPublication('ds-1', 'rev-1', user));
@@ -399,29 +455,33 @@ describe('DatasetService', () => {
   });
 
   describe('withdrawFromPublication', () => {
-    it('withdraws a pending publication and deletes the online cube file', async () => {
-      mockDatasetGetById.mockResolvedValue({ id: 'ds-1', endRevision: {}, tasks: [] });
+    it('closes every open publish task and deletes the online cube file', async () => {
+      const openTasks = [
+        { id: 'task-1', action: TaskAction.Publish, status: TaskStatus.Requested, open: true },
+        { id: 'task-2', action: TaskAction.Publish, status: TaskStatus.Requested, open: true }
+      ];
+      mockDatasetGetById.mockResolvedValue({ id: 'ds-1', endRevision: {}, tasks: openTasks });
       mockGetPublishingStatus.mockReturnValue(PublishingStatus.PendingApproval);
       mockRevRevertToDraft.mockResolvedValue({ id: 'rev-1', onlineCubeFilename: 'cube.duckdb' });
-      mockTaskGetTasksForDataset.mockResolvedValue([
-        { id: 'task-1', action: TaskAction.Publish, status: TaskStatus.Requested }
-      ]);
 
       await service.withdrawFromPublication('ds-1', 'rev-1', user);
 
       expect(fileService.delete).toHaveBeenCalledWith('cube.duckdb', 'ds-1');
-      expect(mockTaskWithdrawPending).toHaveBeenCalledWith('task-1', user);
+      expect(mockTaskCloseOpenPublishTasks).toHaveBeenCalledWith('ds-1', user, undefined, openTasks);
+      expect(mockTaskWithdrawApproved).not.toHaveBeenCalled();
+      expect(mockTaskGetTasksForDataset).not.toHaveBeenCalled();
     });
 
-    it('withdraws an approved (but unpublished) publication when there is no pending task', async () => {
+    it('withdraws an approved (but unpublished) publication when there is no open publish task', async () => {
       mockDatasetGetById.mockResolvedValue({ id: 'ds-1', endRevision: {}, tasks: [] });
       mockGetPublishingStatus.mockReturnValue(PublishingStatus.Scheduled);
       mockRevRevertToDraft.mockResolvedValue({ id: 'rev-1' });
-      mockTaskGetTasksForDataset.mockResolvedValue([]);
 
       await service.withdrawFromPublication('ds-1', 'rev-1', user);
 
       expect(mockTaskWithdrawApproved).toHaveBeenCalledWith('ds-1', 'rev-1', user);
+      expect(mockTaskCloseOpenPublishTasks).not.toHaveBeenCalled();
+      expect(mockTaskGetTasksForDataset).not.toHaveBeenCalled();
     });
 
     it('throws when there is no pending publication to withdraw', async () => {
@@ -433,6 +493,13 @@ describe('DatasetService', () => {
   });
 
   describe('approvePublication', () => {
+    let build: ReturnType<typeof makeBuildLog>;
+
+    beforeEach(() => {
+      build = makeBuildLog();
+      mockBuildLogStartBuild.mockResolvedValue(build);
+    });
+
     it('bootstraps, builds, approves and publishes', async () => {
       mockRevApprovePublication.mockResolvedValue({ id: 'rev-1' });
       mockDatasetPublish.mockResolvedValue({ id: 'ds-1', published: true });
@@ -442,6 +509,34 @@ describe('DatasetService', () => {
       expect(mockBootstrapCubeBuildProcess).toHaveBeenCalledWith('ds-1', 'rev-1');
       expect(mockCreateAllCubeFiles).toHaveBeenCalled();
       expect(result).toEqual({ id: 'ds-1', published: true });
+    });
+
+    it('marks the build failed and throws a generic 500 when the cube build fails, without publishing', async () => {
+      mockCreateAllCubeFiles.mockRejectedValueOnce(new Error('duplicate key value violates unique constraint'));
+
+      await expect(service.approvePublication('ds-1', 'rev-1', user)).rejects.toMatchObject({
+        message: 'errors.cube_builder.cube_build_failed',
+        status: 500
+      });
+
+      expect(build.completeBuild).toHaveBeenCalledWith(CubeBuildStatus.Failed, undefined, expect.any(String));
+      expect(build.save).toHaveBeenCalled();
+      // the raw Postgres error must not leak to the publisher
+      expect(mockRevApprovePublication).not.toHaveBeenCalled();
+      expect(mockDatasetPublish).not.toHaveBeenCalled();
+    });
+
+    it('records a failed build when the bootstrap step fails (before the build proper)', async () => {
+      mockBootstrapCubeBuildProcess.mockRejectedValueOnce(new Error('invalid input syntax for type bigint'));
+
+      await expect(service.approvePublication('ds-1', 'rev-1', user)).rejects.toMatchObject({
+        message: 'errors.cube_builder.cube_build_failed',
+        status: 500
+      });
+
+      expect(mockCreateAllCubeFiles).not.toHaveBeenCalled();
+      expect(build.completeBuild).toHaveBeenCalledWith(CubeBuildStatus.Failed, undefined, expect.any(String));
+      expect(build.save).toHaveBeenCalled();
     });
   });
 

@@ -1,8 +1,14 @@
 import { ConsumerRevisionDTO } from '../../../src/dtos/consumer-revision-dto';
+import { Dataset } from '../../../src/entities/dataset/dataset';
 import { Dimension } from '../../../src/entities/dataset/dimension';
 import { Revision } from '../../../src/entities/dataset/revision';
 import { DimensionType } from '../../../src/enums/dimension-type';
-import { isPublished, revisionStartAndEndDateFinder, widenCoverageRange } from '../../../src/utils/revision';
+import {
+  isPublished,
+  resolvePreviewRevisionId,
+  revisionStartAndEndDateFinder,
+  widenCoverageRange
+} from '../../../src/utils/revision';
 
 describe('revision utils', () => {
   beforeEach(() => {
@@ -153,6 +159,57 @@ describe('revision utils', () => {
       // Range must stay 2020-2023, not narrow to 2021-2022
       expect(result.startDate).toEqual(new Date('2020-01-01'));
       expect(result.endDate).toEqual(new Date('2023-12-31'));
+    });
+  });
+
+  describe('resolvePreviewRevisionId', () => {
+    it('should return the revision id when revisionIndex is 0, even without a dataTableId', () => {
+      const revision = { id: 'draft-update-rev', revisionIndex: 0, dataTableId: null } as unknown as Revision;
+      const dataset = { publishedRevisionId: 'published-rev' } as unknown as Dataset;
+
+      expect(resolvePreviewRevisionId(revision, dataset)).toBe('draft-update-rev');
+    });
+
+    it('should prefer the revisionIndex === 0 branch over the published fallback', () => {
+      const revision = { id: 'draft-update-rev', revisionIndex: 0, dataTableId: undefined } as unknown as Revision;
+
+      expect(resolvePreviewRevisionId(revision, undefined)).toBe('draft-update-rev');
+    });
+
+    it('should return the revision id when it has a dataTableId and is not an update revision', () => {
+      const revision = { id: 'rev-with-cube', revisionIndex: 1, dataTableId: 'table-1' } as unknown as Revision;
+      const dataset = { publishedRevisionId: 'published-rev' } as unknown as Dataset;
+
+      expect(resolvePreviewRevisionId(revision, dataset)).toBe('rev-with-cube');
+    });
+
+    it('should fall back to the dataset publishedRevisionId when revision has no cube and is not index 0', () => {
+      const revision = { id: 'fresh-draft', revisionIndex: 2, dataTableId: null } as unknown as Revision;
+      const dataset = { publishedRevisionId: 'published-rev' } as unknown as Dataset;
+
+      expect(resolvePreviewRevisionId(revision, dataset)).toBe('published-rev');
+    });
+
+    it('should fall back to the dataset publishedRevisionId when revision is null', () => {
+      const dataset = { publishedRevisionId: 'published-rev' } as unknown as Dataset;
+
+      expect(resolvePreviewRevisionId(null, dataset)).toBe('published-rev');
+    });
+
+    it('should fall back to the dataset publishedRevisionId when revision is undefined', () => {
+      const dataset = { publishedRevisionId: 'published-rev' } as unknown as Dataset;
+
+      expect(resolvePreviewRevisionId(undefined, dataset)).toBe('published-rev');
+    });
+
+    it('should return undefined when neither revision nor dataset has a usable id', () => {
+      const revision = { id: 'fresh-draft', revisionIndex: 2, dataTableId: null } as unknown as Revision;
+
+      expect(resolvePreviewRevisionId(revision, undefined)).toBeUndefined();
+    });
+
+    it('should return undefined when both revision and dataset are missing', () => {
+      expect(resolvePreviewRevisionId(null, null)).toBeUndefined();
     });
   });
 

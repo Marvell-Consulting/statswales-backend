@@ -1408,7 +1408,7 @@ export function postgresMeasureFormats(): Map<string, MeasureFormat> {
   return measureFormats;
 }
 
-function setupMeasureAndDataValuesWithLookup(
+export function setupMeasureAndDataValuesWithLookup(
   buildId: string,
   measureTable: MeasureRow[],
   dataValuesColumn: FactTableColumn,
@@ -1515,7 +1515,10 @@ function setupMeasureAndDataValuesWithLookup(
   });
   joinStatements.push(
     pgformat(
-      'LEFT JOIN %I.measure on measure.reference=%I.%I AND measure.language=#LANG#',
+      // Cast both sides to VARCHAR: a data-table update can ALTER the fact_table
+      // column to TEXT (dataTableActions) while measure.reference keeps its original
+      // (e.g. numeric) type, which would otherwise fail with Postgres error 42883.
+      'LEFT JOIN %I.measure on CAST(measure.reference AS VARCHAR)=CAST(%I.%I AS VARCHAR) AND measure.language=#LANG#',
       buildId,
       FACT_TABLE_NAME,
       measureColumn.columnName
@@ -1686,7 +1689,10 @@ export function setupLookupTableDimension(
   });
   joinStatements.push(
     pgformat(
-      `LEFT JOIN %I.%I on %I.%I=%I.%I AND %I.language=#LANG#`,
+      // Cast both sides to VARCHAR for the same reason as the measure join above:
+      // a data-table update can leave the fact_table column type diverged from the
+      // lookup reference column type, which would fail with Postgres error 42883.
+      `LEFT JOIN %I.%I on CAST(%I.%I AS VARCHAR)=CAST(%I.%I AS VARCHAR) AND %I.language=#LANG#`,
       buildId,
       dimTable,
       dimTable,

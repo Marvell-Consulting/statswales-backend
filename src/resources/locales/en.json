@@ -31,6 +31,9 @@
   },
   "errors": {
     "unknown_error": "An unknown error occurred",
+    "cube_builder": {
+      "cube_build_failed": "The cube could not be built. Please try again, and contact support if the problem continues."
+    },
     "missing": "Filename Missing",
     "problem": "There is a problem",
     "name_missing": "Dataset Name Missing",
@@ -71,6 +74,9 @@
     },
     "translation_file": {
       "invalid": "Uploaded translation file keys do not match the exported file"
+    },
+    "dataset": {
+      "invalid_action": "Invalid action"
     }
   },
   "dimension_info": {

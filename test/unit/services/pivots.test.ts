@@ -571,6 +571,28 @@ describe('pivots service', () => {
         expect(lines[0]).toBe('Area,2020,2021');
         expect(lines[1]).toBe('Cardiff,100,200');
       });
+
+      it('neutralizes formula-injection payloads in headers and cell values (SW-1306 regression)', async () => {
+        const columns = ['Area', '=HYPERLINK("https://evil/")'];
+        const rows: DuckDBValue[][] = [['=1+1', '+SUM(A1:A2)']];
+        setupMockDuckDB(columns, rows);
+
+        const res = createMockStreamResponse();
+        const queryStore = createMockQueryStore();
+        const pageOptions = defaultPageOptions({ format: OutputFormats.Csv });
+
+        mockGetFilterTable.mockResolvedValue([]);
+        mockResolveDimensionToFactTableColumn.mockReturnValue('period_col');
+        mockGetById.mockResolvedValue({ dimensions: [] });
+
+        await createPivotOutputUsingDuckDB(res, 'en', 'PIVOT (...)', pageOptions, queryStore);
+
+        const output = res.writtenData.join('');
+        const lines = output.trim().split('\n');
+
+        expect(lines[0]).toBe('Area,"\'=HYPERLINK(""https://evil/"")"');
+        expect(lines[1]).toBe(`'=1+1,'+SUM(A1:A2)`);
+      });
     });
 
     describe('HTML output', () => {
@@ -612,6 +634,29 @@ describe('pivots service', () => {
         const output = res.writtenData.join('');
         expect(output).toContain('<tbody>');
         expect(output).toContain('</tbody>');
+      });
+
+      it('escapes script tags and event handlers in cell values and headers (SW-1305 regression)', async () => {
+        const columns = ['Area', '<script>alert(1)</script>'];
+        const rows: DuckDBValue[][] = [['<img src=x onerror=alert(1)>', 'safe']];
+        setupMockDuckDB(columns, rows);
+
+        const res = createMockStreamResponse();
+        const queryStore = createMockQueryStore();
+        const pageOptions = defaultPageOptions({ format: OutputFormats.Html });
+
+        mockGetFilterTable.mockResolvedValue([]);
+        mockResolveDimensionToFactTableColumn.mockReturnValue('period_col');
+        mockGetById.mockResolvedValue({ dimensions: [] });
+
+        await createPivotOutputUsingDuckDB(res, 'en', 'PIVOT (...)', pageOptions, queryStore);
+
+        const output = res.writtenData.join('');
+
+        expect(output).not.toContain('<script>alert(1)</script>');
+        expect(output).not.toContain('<img src=x onerror=alert(1)>');
+        expect(output).toContain('&lt;script&gt;alert(1)&lt;/script&gt;');
+        expect(output).toContain('&lt;img src=x onerror=alert(1)&gt;');
       });
     });
 
@@ -676,6 +721,35 @@ describe('pivots service', () => {
         expect(dataRow.getCell(1).value).toBe('Cardiff');
         expect(dataRow.getCell(2).value).toBeNull(); // blank cell
         expect(dataRow.getCell(3).value).toBe(200);
+      });
+
+      it('neutralizes formula-injection payloads in headers and cell values (SW-1306 regression)', async () => {
+        const columns = ['Area', '=HYPERLINK("https://evil/")'];
+        const rows: DuckDBValue[][] = [['-2+3+cmd|" /C calc"!A0', 100]];
+        setupMockDuckDB(columns, rows);
+
+        const res = createMockBinaryResponse();
+        const queryStore = createMockQueryStore();
+        const pageOptions = defaultPageOptions({ format: OutputFormats.Excel });
+
+        mockGetFilterTable.mockResolvedValue([]);
+        mockResolveDimensionToFactTableColumn.mockReturnValue('period_col');
+        mockGetById.mockResolvedValue({ dimensions: [] });
+
+        await createPivotOutputUsingDuckDB(res, 'en', 'PIVOT (...)', pageOptions, queryStore);
+
+        const buffer = await res.getBuffer();
+        const workbook = new ExcelJS.Workbook();
+        // @ts-expect-error ExcelJS types expect old Buffer, Node 24 returns Buffer<ArrayBuffer>
+        await workbook.xlsx.load(buffer);
+
+        const worksheet = workbook.getWorksheet(1)!;
+        const headerRow = worksheet.getRow(1);
+        const dataRow = worksheet.getRow(2);
+
+        expect(headerRow.getCell(2).value).toBe(`'=HYPERLINK("https://evil/")`);
+        expect(dataRow.getCell(1).value).toBe(`'-2+3+cmd|" /C calc"!A0`);
+        expect(dataRow.getCell(2).value).toBe(100);
       });
     });
 

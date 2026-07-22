@@ -16,6 +16,7 @@ import { DatasetRepository, withMetadataForTranslation } from '../repositories/d
 import { TempFile } from '../interfaces/temp-file';
 import { cleanupTmpFile, uploadAvScan } from '../services/virus-scanner';
 import { createAllCubeFiles } from '../services/cube-builder';
+import { neutralizeCsvRecord } from '../utils/csv-sanitizer';
 
 // imported translation filename can be constant as we overwrite each time it's imported
 const TRANSLATION_FILENAME = 'translation-import.csv';
@@ -65,7 +66,10 @@ export const translationExport = async (req: Request, res: Response, next: NextF
     });
 
     res.setHeader('Content-Type', 'text/csv');
-    stringify(translations, { bom: true, header: true, quoted_string: true }).pipe(res);
+    stringify(
+      translations.map((row) => neutralizeCsvRecord(row as unknown as Record<string, unknown>)),
+      { bom: true, header: true, quoted_string: true }
+    ).pipe(res);
   } catch (error) {
     logger.error(error, 'Error exporting translations');
     next(new UnknownException());

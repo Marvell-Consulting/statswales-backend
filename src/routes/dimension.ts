@@ -18,6 +18,7 @@ import { NotFoundException } from '../exceptions/not-found.exception';
 import { DimensionRepository } from '../repositories/dimension';
 import { fileStreaming } from '../middleware/file-streaming';
 import { longTimeout } from '../middleware/timeout';
+import { ensureNoOpenPublishRequest } from '../middleware/ensure-no-open-publish-request';
 
 export const loadDimension = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   const dimensionIdError = await hasError(dimensionIdValidator(), req);
@@ -55,7 +56,7 @@ router.get('/by-id/:dimension_id', loadDimension, getDimensionInfo);
 
 // DELETE /dataset/:dataset_id/dimension/id/:dimension_id/reset
 // Resets the dimensions type back to "Raw" and removes the extractor
-router.delete('/by-id/:dimension_id/reset', loadDimension, resetDimension);
+router.delete('/by-id/:dimension_id/reset', ensureNoOpenPublishRequest, loadDimension, resetDimension);
 
 // GET /dataset/:dataset_id/dimension/id/:dimension_id/preview
 // Returns details of a dimension and a preview of the data
@@ -66,16 +67,29 @@ router.get('/by-id/:dimension_id/preview', loadDimension, sendDimensionPreview);
 // POST /:dataset_id/dimension/by-id/:dimension_id/lookup
 // Attaches a lookup table to do a dimension and validates
 // the lookup table.
-router.post('/by-id/:dimension_id/lookup', longTimeout, fileStreaming(), loadDimension, attachLookupTableToDimension);
+router.post(
+  '/by-id/:dimension_id/lookup',
+  longTimeout,
+  ensureNoOpenPublishRequest,
+  fileStreaming(),
+  loadDimension,
+  attachLookupTableToDimension
+);
 
 // PATCH /dataset/:dataset_id/dimension/id/:dimension_id/
 // Takes a patch request and validates the request against the fact table
 // If it fails, it sends back an error
-router.patch('/by-id/:dimension_id', jsonParser, loadDimension, updateDimension);
+router.patch('/by-id/:dimension_id', ensureNoOpenPublishRequest, jsonParser, loadDimension, updateDimension);
 
 // PATCH /:dataset_id/dimension/by-id/:dimension_id/meta
 // Updates the dimension metadata
-router.patch('/by-id/:dimension_id/metadata', jsonParser, loadDimension, updateDimensionMetadata);
+router.patch(
+  '/by-id/:dimension_id/metadata',
+  ensureNoOpenPublishRequest,
+  jsonParser,
+  loadDimension,
+  updateDimensionMetadata
+);
 
 router.get('/by-id/:dimension_id/lookup', loadDimension, getDimensionLookupTableInfo);
 

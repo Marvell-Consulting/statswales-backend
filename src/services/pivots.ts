@@ -1,4 +1,5 @@
 import { Response } from 'express';
+import { escape } from 'lodash';
 
 import { format as pgformat } from '@scaleleap/pg-format/lib/pg-format';
 import { QueryStore } from '../entities/query-store';
@@ -22,6 +23,7 @@ import { FilterRow } from '../interfaces/filter-row';
 import { UnknownException } from '../exceptions/unknown.exception';
 import { makeCubeSafeString } from './cube-builder';
 import { DimensionType, LookupTableTypes } from '../enums/dimension-type';
+import { neutralizeCsvCell, neutralizeCsvRow } from '../utils/csv-sanitizer';
 
 const EXCEL_ROW_LIMIT = 1048576 - 76; // Excel Limit is 1,048,576 but removed 76 rows because ?
 
@@ -236,12 +238,12 @@ async function pivotToCsv(
     // eslint-disable-next-line @typescript-eslint/naming-convention
     'Content-disposition': `attachment;filename=pivot-${Date.now()}.csv`
   });
-  const stream = csvFormat({ delimiter: ',', headers: columnOrder });
+  const stream = csvFormat({ delimiter: ',', headers: neutralizeCsvRow(columnOrder) as string[] });
   stream.pipe(res);
 
   for await (const rows of pivot.yieldRows()) {
     for (const row of rows) {
-      const reorderedRow = reorderRow(row, columnMapping);
+      const reorderedRow = neutralizeCsvRow(reorderRow(row, columnMapping));
       stream.write(reorderedRow);
     }
   }
@@ -272,14 +274,14 @@ async function pivotToExcel(
   let totalRows = 0;
   let worksheet = workbook.addWorksheet(`Sheet-${sheetCount}`);
 
-  worksheet.addRow(columnOrder);
+  worksheet.addRow(neutralizeCsvRow(columnOrder));
   for await (const rows of pivot.yieldRows()) {
     for (const row of rows) {
       if (row === null) break;
       const data = columnMapping.map((srcIdx) => {
         const val = row[srcIdx];
         if (val === null || val === undefined || val === '') return null;
-        return isNaN(Number(val)) ? val : Number(val);
+        return isNaN(Number(val)) ? neutralizeCsvCell(val) : Number(val);
       });
       worksheet.addRow(data).commit();
     }
@@ -321,7 +323,7 @@ async function pivotToHtml(
     return;
   }
   columnOrder.forEach((key) => {
-    res.write(`<th>${key}</th>`);
+    res.write(`<th>${escape(key)}</th>`);
   });
   res.write('</tr></thead><tbody>');
   for await (const rows of pivot.yieldRows()) {
@@ -330,9 +332,9 @@ async function pivotToHtml(
       columnMapping.forEach((srcIdx, i) => {
         const value = row[srcIdx];
         if (i === 0) {
-          res.write(`<th>${value === null ? '' : value}</th>`);
+          res.write(`<th>${value === null ? '' : escape(String(value))}</th>`);
         } else {
-          res.write(`<td>${value === null ? '' : value}</td>`);
+          res.write(`<td>${value === null ? '' : escape(String(value))}</td>`);
         }
       });
       res.write('</tr>');

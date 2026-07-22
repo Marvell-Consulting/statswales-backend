@@ -600,6 +600,28 @@ describe('validateMeasureLookupTable', () => {
       expect(result.errors[0].message.key).toBe('errors.measure_validation.no_description_columns');
     });
 
+    it('returns 400 error when a table matcher supplies an empty description_columns array', async () => {
+      // Truthy but empty array: without an explicit length check this bypasses the
+      // "no description columns" guard and previously blew up later on descriptionColumns[0].name.
+      const emptyDescriptionsMatcher: MeasureLookupPatchDTO = {
+        description_columns: [],
+        language_column: 'lang_col'
+      };
+      const dataset = makeDataset();
+
+      const result = (await validateMeasureLookupTable(
+        validProtoTable,
+        dataset,
+        '/tmp/file.csv',
+        'en-GB',
+        emptyDescriptionsMatcher
+      )) as ViewErrDTO;
+
+      expect(result.status).toBe(400);
+      expect(result.errors[0].message.key).toBe('errors.measure_validation.no_description_columns');
+      expect(mockDuckdbRun).not.toHaveBeenCalled();
+    });
+
     it('returns 400 error when lookForJoinColumn throws', async () => {
       const dataset = makeDataset();
       (lookForJoinColumn as jest.Mock).mockImplementationOnce(() => {
@@ -616,6 +638,24 @@ describe('validateMeasureLookupTable', () => {
 
       expect(result.status).toBe(400);
       expect(result.errors[0].message.key).toBe('errors.measure_validation.no_join_column');
+    });
+
+    it('propagates the unknown_matcher_column key when lookForJoinColumn rejects an invalid join_column', async () => {
+      const dataset = makeDataset();
+      (lookForJoinColumn as jest.Mock).mockImplementationOnce(() => {
+        throw new Error('errors.measure_validation.unknown_matcher_column');
+      });
+
+      const result = (await validateMeasureLookupTable(
+        validProtoTable,
+        dataset,
+        '/tmp/file.csv',
+        'en-GB',
+        tableMatcher
+      )) as ViewErrDTO;
+
+      expect(result.status).toBe(400);
+      expect(result.errors[0].message.key).toBe('errors.measure_validation.unknown_matcher_column');
     });
 
     it('returns 400 error when lookForJoinColumn returns undefined', async () => {
@@ -950,6 +990,31 @@ describe('validateMeasureLookupTable', () => {
       expect(mockRelease).toHaveBeenCalled();
     });
 
+    it('rejects a table matcher column that does not match an uploaded header (SW-1304 regression)', async () => {
+      // Crafted value from the SW-1304 exploit repro: breaks out of the quoted identifier and
+      // attempts to inject a sub-select. Since it isn't a real header, it must be rejected before
+      // DuckDB ever sees it.
+      const injectionPayload = `x" > 0 THEN 'float' ELSE (SELECT content FROM read_text('/etc/passwd')) END, "y`;
+      const maliciousMatcher: MeasureLookupPatchDTO = {
+        description_columns: ['description_en'],
+        language_column: 'lang_col',
+        decimal_column: injectionPayload
+      };
+      const dataset = makeDataset();
+
+      const result = (await validateMeasureLookupTable(
+        validProtoTable,
+        dataset,
+        '/tmp/file.csv',
+        'en-GB',
+        maliciousMatcher
+      )) as ViewErrDTO;
+
+      expect(result.status).toBe(400);
+      expect(result.errors[0].message.key).toBe('errors.measure_validation.unknown_matcher_column');
+      expect(mockDuckdbRun).not.toHaveBeenCalled();
+    });
+
     it('handles isSW2Format=true when two locale description columns are provided', async () => {
       // SW2 format: two description columns (one per locale), no language_column
       const sw2tableMatcher: MeasureLookupPatchDTO = {
@@ -970,6 +1035,31 @@ describe('validateMeasureLookupTable', () => {
       )) as ViewDTO;
 
       expect(result).toMatchObject({ current_page: 1 });
+    });
+
+    it('does not leak one locale notes column into another locale in the SW2 branch (regression)', async () => {
+      // Notes are only supplied for English. Without a per-iteration reset, the Welsh SELECT would
+      // incorrectly reuse the English notes column instead of falling back to NULL.
+      const sw2tableMatcher: MeasureLookupPatchDTO = {
+        description_columns: ['description_en', 'description_cy'],
+        notes_columns: ['notes_en']
+        // no language_column → isSW2Format = true
+      };
+      const sw2ProtoTable = makeProtoLookupTable(['description_en', 'description_cy', 'ref_code', 'notes_en']);
+
+      setupHappyPathMocks();
+      const dataset = makeDataset();
+
+      await validateMeasureLookupTable(sw2ProtoTable, dataset, '/tmp/file.csv', 'en-GB', sw2tableMatcher);
+
+      const insertCall = mockDuckdbRun.mock.calls.find(
+        ([sql]) => typeof sql === 'string' && sql.includes('INSERT INTO')
+      );
+      expect(insertCall).toBeDefined();
+      const [insertSql] = insertCall as [string];
+
+      expect(insertSql).toMatch(/'en-gb' AS language, description_en AS description, notes_en AS notes/);
+      expect(insertSql).toMatch(/'cy-gb' AS language, description_cy AS description, NULL AS notes/);
     });
   });
 });

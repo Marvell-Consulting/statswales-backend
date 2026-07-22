@@ -1,4 +1,4 @@
-import { In, JsonContains } from 'typeorm';
+import { In, JsonContains, QueryFailedError } from 'typeorm';
 
 import { format as pgformat } from '@scaleleap/pg-format';
 import { RevisionMetadataDTO } from '../dtos/revision-metadata-dto';
@@ -26,6 +26,10 @@ import { TasklistStateDTO } from '../dtos/tasklist-state-dto';
 import { EventLog } from '../entities/event-log';
 
 import { createAllCubeFiles } from './cube-builder';
+import { BuildLog } from '../entities/dataset/build-log';
+import { CubeBuildStatus } from '../enums/cube-build-status';
+import { CubeBuildType } from '../enums/cube-build-type';
+import { UnknownException } from '../exceptions/unknown.exception';
 import { validateAndUpload } from './incoming-file-processor';
 import { removeAllDimensions, removeMeasure } from './dimension-processor';
 import { UserGroupRepository } from '../repositories/user-group';
@@ -263,7 +267,10 @@ export class DatasetService {
       throw new BadRequestException('errors.submit_for_publication.invalid_revision_id');
     }
 
-    const rejectedPublishTask = await this.getRejectedPublishTask(datasetId);
+    const openTasks = await this.getOpenTasks(datasetId);
+    const rejectedPublishTask = openTasks.find(
+      (task) => task.action === TaskAction.Publish && task.status === TaskStatus.Rejected
+    );
 
     if (rejectedPublishTask) {
       const comment = null; // clear the rejection comment
@@ -271,7 +278,30 @@ export class DatasetService {
       return; // resubmission of a rejected task
     }
 
-    await this.taskService.create(datasetId, TaskAction.Publish, user, undefined, { revisionId });
+    const pendingPublishTask = openTasks.find(
+      (task) => task.action === TaskAction.Publish && task.status === TaskStatus.Requested
+    );
+
+    if (pendingPublishTask) {
+      // already awaiting approval — treat a duplicate submission (e.g. a double click) as a no-op
+      // rather than creating a second open publish task
+      logger.info(`Dataset ${datasetId} already has a pending publish task; ignoring duplicate submission`);
+      return;
+    }
+
+    try {
+      await this.taskService.create(datasetId, TaskAction.Publish, user, undefined, { revisionId });
+    } catch (err) {
+      // Backstop for the concurrent-submit race: a partial unique index guarantees at most one
+      // open publish task per dataset, so a duplicate insert means another request won the race.
+      const pg =
+        err instanceof QueryFailedError ? (err.driverError as { code?: string; constraint?: string }) : undefined;
+      if (pg?.code === '23505' && pg?.constraint === 'UQ_task_one_open_publish_per_dataset') {
+        logger.warn(`Concurrent publish submission detected for dataset ${datasetId}; ignoring duplicate`);
+        return;
+      }
+      throw err;
+    }
   }
 
   async withdrawFromPublication(datasetId: string, revisionId: string, user: User): Promise<void> {
@@ -295,19 +325,40 @@ export class DatasetService {
       await this.fileService.delete(draftRevision.onlineCubeFilename, datasetId);
     }
 
-    const pendingPublicationTask = await this.getPendingPublishTask(datasetId);
+    // dataset.tasks was loaded above; derive open publish tasks from it to avoid a second DB read
+    const openPublishTasks = (dataset.tasks ?? []).filter((task) => task.action === TaskAction.Publish && task.open);
 
-    if (pendingPublicationTask) {
-      await this.taskService.withdrawPending(pendingPublicationTask.id, user);
+    if (openPublishTasks.length > 0) {
+      // close every open publish task (there should only be one, but close any duplicates too)
+      await this.taskService.closeOpenPublishTasks(datasetId, user, undefined, openPublishTasks);
     } else {
+      // the dataset was previously approved so its publish task is already closed; record a
+      // closed withdraw task so the event still appears in the dataset history
       await this.taskService.withdrawApproved(datasetId, draftRevision.id, user);
     }
   }
 
   async approvePublication(datasetId: string, revisionId: string, user: User): Promise<Dataset> {
     const start = performance.now();
-    await bootstrapCubeBuildProcess(datasetId, revisionId);
-    await createAllCubeFiles(datasetId, revisionId, user.id, undefined, undefined, true);
+    // Open the build log before bootstrap so a failure in either the bootstrap or
+    // the build proper is recorded in build_log (bootstrap previously ran before any
+    // build_log row existed, so its failures were only visible in application logs).
+    const build = await BuildLog.startBuild({ id: revisionId }, CubeBuildType.FullCube, user.id);
+    try {
+      await bootstrapCubeBuildProcess(datasetId, revisionId);
+      await createAllCubeFiles(datasetId, revisionId, user.id, CubeBuildType.FullCube, build, true);
+    } catch (err) {
+      // createAllCubeFiles records and saves its own failure; only mark it here when the
+      // failure happened earlier (e.g. during bootstrap), so we don't clobber that detail.
+      if (build.status !== CubeBuildStatus.Failed && build.status !== CubeBuildStatus.Completed) {
+        const message = err instanceof Error ? err.message : String(err);
+        build.completeBuild(CubeBuildStatus.Failed, undefined, JSON.stringify({ message }));
+        await build.save();
+      }
+      logger.error(err, 'approvePublication: cube build failed during approval');
+      // Surface a clean, translated message instead of leaking the raw Postgres error.
+      throw new UnknownException('errors.cube_builder.cube_build_failed');
+    }
     const scheduledRevision = await RevisionRepository.approvePublication(revisionId, `${revisionId}.duckdb`, user);
     const approvedDataset = await DatasetRepository.publish(scheduledRevision);
     const time = Math.round(performance.now() - start);

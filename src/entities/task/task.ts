@@ -37,7 +37,7 @@ export class Task extends BaseEntity {
   open: boolean;
 
   @Index('IDX_task_dataset_id')
-  @Column({ name: 'dataset_id', type: 'text', nullable: true })
+  @Column({ name: 'dataset_id', type: 'uuid', nullable: true })
   datasetId?: string;
 
   @ManyToOne(() => Dataset, (dataset) => dataset.tasks, { nullable: true, onDelete: 'CASCADE' })
