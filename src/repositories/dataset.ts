@@ -294,5 +294,17 @@ export const DatasetRepository = publisherDataSource.getRepository(Dataset).exte
     dataset.replacementDatasetId = null;
     dataset.replacementAutoRedirect = false;
     return await this.save(dataset);
+  },
+
+  // revision ids whose cube schema is still "live" for their dataset - the current draft being
+  // edited and/or the current published revision - as distinct from every other revision a dataset
+  // has ever had, whose cube schema is only kept around for historical record
+  async getActiveRevisionIds(): Promise<string[]> {
+    const rows: { revision_id: string }[] = await this.query(
+      `SELECT draft_revision_id AS revision_id FROM dataset WHERE draft_revision_id IS NOT NULL
+       UNION
+       SELECT published_revision_id AS revision_id FROM dataset WHERE published_revision_id IS NOT NULL`
+    );
+    return rows.map((row) => row.revision_id);
   }
 });

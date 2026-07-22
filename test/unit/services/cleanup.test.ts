@@ -16,13 +16,26 @@ jest.mock('../../../src/db/database-manager', () => ({
   dbManager: {
     getCubeDataSource: jest.fn(() => ({
       createQueryRunner: jest.fn(() => ({ query: mockQuery, release: mockRelease }))
-    }))
+    })),
+    getPublisherDataSource: jest.fn()
   }
+}));
+
+// the lock's own acquire/release behaviour is covered by test/unit/utils/advisory-lock.test.ts;
+// here we only care that the wrapped work runs
+jest.mock('../../../src/utils/advisory-lock', () => ({
+  withAdvisoryLock: (_dataSource: unknown, _lockKey: number, fn: () => Promise<unknown>) => fn()
 }));
 
 jest.mock('../../../src/repositories/build-log', () => ({
   BuildLogRepository: {
     getStuckBuilds: jest.fn()
+  }
+}));
+
+jest.mock('../../../src/repositories/dataset', () => ({
+  DatasetRepository: {
+    getActiveRevisionIds: jest.fn()
   }
 }));
 
@@ -40,8 +53,13 @@ jest.mock('node:os', () => ({
 
 import { readdir, stat, unlink } from 'node:fs/promises';
 
-import { cleanupOrphanedCubeBuilds, cleanupStaleTempFiles } from '../../../src/services/cleanup';
+import {
+  cleanupOrphanedCubeBuilds,
+  cleanupStaleTempFiles,
+  cleanupSupersededMaterializedViews
+} from '../../../src/services/cleanup';
 import { BuildLogRepository } from '../../../src/repositories/build-log';
+import { DatasetRepository } from '../../../src/repositories/dataset';
 import { CubeBuildStatus } from '../../../src/enums/cube-build-status';
 import { CubeBuildType } from '../../../src/enums/cube-build-type';
 
@@ -128,5 +146,39 @@ describe('cleanupStaleTempFiles', () => {
 
     await expect(cleanupStaleTempFiles(500)).resolves.not.toThrow();
     expect(unlink).not.toHaveBeenCalled();
+  });
+});
+
+describe('cleanupSupersededMaterializedViews', () => {
+  afterEach(() => jest.clearAllMocks());
+
+  it('drops materialized views for schemas that are not a current draft or published revision', async () => {
+    (DatasetRepository.getActiveRevisionIds as jest.Mock).mockResolvedValue(['draft-rev', 'published-rev']);
+    mockQuery.mockResolvedValueOnce([
+      { schemaname: 'draft-rev', matviewname: 'core_view_mat_en' },
+      { schemaname: 'published-rev', matviewname: 'core_view_mat_en' },
+      { schemaname: 'old-rev', matviewname: 'core_view_mat_en' },
+      { schemaname: 'old-rev', matviewname: 'core_view_mat_cy' }
+    ]);
+
+    await cleanupSupersededMaterializedViews();
+
+    const dropCalls = mockQuery.mock.calls.filter(([sql]) => sql.startsWith('DROP MATERIALIZED VIEW'));
+    expect(dropCalls).toHaveLength(2);
+    expect(dropCalls.map(([sql]) => sql)).toEqual([
+      expect.stringContaining('old-rev'),
+      expect.stringContaining('old-rev')
+    ]);
+    expect(dropCalls.some(([sql]) => sql.includes('draft-rev'))).toBe(false);
+    expect(dropCalls.some(([sql]) => sql.includes('published-rev'))).toBe(false);
+  });
+
+  it('does nothing when every materialized view belongs to a current draft or published revision', async () => {
+    (DatasetRepository.getActiveRevisionIds as jest.Mock).mockResolvedValue(['draft-rev']);
+    mockQuery.mockResolvedValueOnce([{ schemaname: 'draft-rev', matviewname: 'core_view_mat_en' }]);
+
+    await cleanupSupersededMaterializedViews();
+
+    expect(mockQuery.mock.calls.some(([sql]) => sql.startsWith('DROP MATERIALIZED VIEW'))).toBe(false);
   });
 });
