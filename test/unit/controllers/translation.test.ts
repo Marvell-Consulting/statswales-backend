@@ -32,8 +32,10 @@ jest.mock('../../../src/entities/event-log', () => ({
 }));
 
 const mockUploadAvScan = jest.fn();
+const mockCleanupTmpFile = jest.fn();
 jest.mock('../../../src/services/virus-scanner', () => ({
-  uploadAvScan: (...args: unknown[]) => mockUploadAvScan(...args)
+  uploadAvScan: (...args: unknown[]) => mockUploadAvScan(...args),
+  cleanupTmpFile: (...args: unknown[]) => mockCleanupTmpFile(...args)
 }));
 
 const mockCreateAllCubeFiles = jest.fn();
@@ -182,7 +184,8 @@ describe('Translation controller', () => {
   describe('validateImport', () => {
     it('stores the upload and returns the dataset DTO when the CSV matches the existing translations', async () => {
       const dataset = { id: uuidV4() };
-      mockUploadAvScan.mockResolvedValue({ path: '/tmp/import.csv' });
+      const tmpFile = { path: '/tmp/import.csv' };
+      mockUploadAvScan.mockResolvedValue(tmpFile);
       mockGetById.mockResolvedValue(dataset);
       mockCollectTranslations.mockReturnValue([{ type: 'metadata', key: 'title', english: 'old', cymraeg: 'hen' }]);
       mockCreateReadStream.mockImplementation(() => csvStream(['metadata,title,New EN,Newydd CY']));
@@ -200,6 +203,7 @@ describe('Translation controller', () => {
       expect(res.status).toHaveBeenCalledWith(201);
       expect(res.json).toHaveBeenCalledWith({ id: dataset.id });
       expect(mockNext).not.toHaveBeenCalled();
+      expect(mockCleanupTmpFile).toHaveBeenCalledWith(tmpFile);
     });
 
     it('forwards the av-scan error to next when the upload fails', async () => {
@@ -212,10 +216,12 @@ describe('Translation controller', () => {
 
       expect(mockNext).toHaveBeenCalledWith(scanError);
       expect(mockGetById).not.toHaveBeenCalled();
+      expect(mockCleanupTmpFile).not.toHaveBeenCalled();
     });
 
     it('rejects with a row-count error when the CSV has a different number of rows', async () => {
-      mockUploadAvScan.mockResolvedValue({ path: '/tmp/import.csv' });
+      const tmpFile = { path: '/tmp/import.csv' };
+      mockUploadAvScan.mockResolvedValue(tmpFile);
       mockGetById.mockResolvedValue({ id: uuidV4() });
       mockCollectTranslations.mockReturnValue([
         { type: 'metadata', key: 'title', english: 'a', cymraeg: 'b' },
@@ -231,10 +237,12 @@ describe('Translation controller', () => {
       expect(mockNext.mock.calls[0][0]).toBeInstanceOf(BadRequestException);
       expect((mockNext.mock.calls[0][0] as unknown as Error).message).toBe('errors.translation_file.invalid.row_count');
       expect((req as any).fileService.saveStream).not.toHaveBeenCalled();
+      expect(mockCleanupTmpFile).toHaveBeenCalledWith(tmpFile);
     });
 
     it('rejects with a keys error when a translation key is missing from the CSV', async () => {
-      mockUploadAvScan.mockResolvedValue({ path: '/tmp/import.csv' });
+      const tmpFile = { path: '/tmp/import.csv' };
+      mockUploadAvScan.mockResolvedValue(tmpFile);
       mockGetById.mockResolvedValue({ id: uuidV4() });
       mockCollectTranslations.mockReturnValue([{ type: 'metadata', key: 'title', english: 'a', cymraeg: 'b' }]);
       // same row count but a different key
@@ -246,6 +254,7 @@ describe('Translation controller', () => {
 
       expect(mockNext).toHaveBeenCalledTimes(1);
       expect((mockNext.mock.calls[0][0] as unknown as Error).message).toBe('errors.translation_file.invalid.keys');
+      expect(mockCleanupTmpFile).toHaveBeenCalledWith(tmpFile);
     });
   });
 
