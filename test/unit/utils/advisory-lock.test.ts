@@ -13,7 +13,7 @@ describe('withAdvisoryLock', () => {
   });
 
   it('runs the callback and releases the lock when it acquires the lock', async () => {
-    const release = jest.fn();
+    const release = jest.fn().mockResolvedValue(undefined);
     const query = jest
       .fn()
       .mockResolvedValueOnce([{ locked: true }]) // pg_try_advisory_lock
@@ -31,7 +31,7 @@ describe('withAdvisoryLock', () => {
   });
 
   it('skips the callback and returns undefined when the lock is held elsewhere', async () => {
-    const release = jest.fn();
+    const release = jest.fn().mockResolvedValue(undefined);
     const query = jest.fn().mockResolvedValueOnce([{ locked: false }]);
     const dataSource = makeDataSource(query, release) as any;
     const fn = jest.fn();
@@ -45,7 +45,7 @@ describe('withAdvisoryLock', () => {
   });
 
   it('still releases the lock and the connection when the callback throws', async () => {
-    const release = jest.fn();
+    const release = jest.fn().mockResolvedValue(undefined);
     const query = jest
       .fn()
       .mockResolvedValueOnce([{ locked: true }])
