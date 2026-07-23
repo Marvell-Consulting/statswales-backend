@@ -113,8 +113,8 @@ export async function cleanupSupersededMaterializedViews(): Promise<void> {
     const cubeRunner = dbManager.getCubeDataSource().createQueryRunner();
     try {
       const matviews: { schemaname: string; matviewname: string }[] = await cubeRunner.query(
-        `SELECT schemaname, matviewname FROM pg_matviews WHERE matviewname LIKE $1`,
-        ['core_view_mat_%']
+        `SELECT schemaname, matviewname FROM pg_matviews WHERE matviewname LIKE $1 ESCAPE '\\'`,
+        ['core\\_view\\_mat\\_%']
       );
 
       const staleMatviews = matviews.filter((matview) => !keepSchemas.has(matview.schemaname));
