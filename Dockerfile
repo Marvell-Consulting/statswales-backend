@@ -44,4 +44,4 @@ ENV GIT_SHA=${GIT_SHA}
 # set the user to non-root (node)
 USER node
 
-CMD ["sh", "-c", "/app/node_modules/typeorm/cli.js migration:run --dataSource=./dist/db/publisher-source.js && exec node dist/server.js"]
+CMD ["sh", "-c", "node /app/node_modules/typeorm/cli.js migration:run --dataSource=./dist/db/publisher-source.js && exec node dist/server.js"]
