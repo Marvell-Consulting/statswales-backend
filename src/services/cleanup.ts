@@ -48,7 +48,7 @@ export async function cleanupOrphanedCubeBuilds(staleAfterMs: number): Promise<v
       } catch (err) {
         logger.error(err, `cleanup: failed to drop orphaned cube schema for build ${build.id}`);
       } finally {
-        void runner.release();
+        await runner.release().catch((err) => logger.error(err, 'cleanup: failed to release cube query runner'));
       }
     }
 
