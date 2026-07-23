@@ -57,7 +57,9 @@ export async function cleanupOrphanedCubeBuilds(staleAfterMs: number): Promise<v
       undefined,
       'Build timed out and was reconciled by the nightly cleanup job'
     );
-    await build.save();
+    await build
+      .save()
+      .catch((err) => logger.error(err, `cleanup: failed to persist failed status for build ${build.id}`));
   }
 }
 
