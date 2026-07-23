@@ -43,27 +43,29 @@ export async function cleanupOrphanedCubeBuilds(staleAfterMs: number): Promise<v
 
     logger.warn(`cleanup: found ${stuckBuilds.length} orphaned cube build(s) started before ${cutoff.toISOString()}`);
 
-    for (const build of stuckBuilds) {
-      if (SCHEMA_OWNING_BUILD_TYPES.includes(build.type) && UNRENAMED_BUILD_STATUSES.includes(build.status)) {
-        const runner = dbManager.getCubeDataSource().createQueryRunner();
-        try {
-          await runner.query(pgformat('DROP SCHEMA IF EXISTS %I CASCADE', build.id));
-          logger.info(`cleanup: dropped orphaned cube schema for build ${build.id}`);
-        } catch (err) {
-          logger.error(err, `cleanup: failed to drop orphaned cube schema for build ${build.id}`);
-        } finally {
-          await runner.release().catch((err) => logger.error(err, 'cleanup: failed to release cube query runner'));
+    const cubeRunner = dbManager.getCubeDataSource().createQueryRunner();
+    try {
+      for (const build of stuckBuilds) {
+        if (SCHEMA_OWNING_BUILD_TYPES.includes(build.type) && UNRENAMED_BUILD_STATUSES.includes(build.status)) {
+          try {
+            await cubeRunner.query(pgformat('DROP SCHEMA IF EXISTS %I CASCADE', build.id));
+            logger.info(`cleanup: dropped orphaned cube schema for build ${build.id}`);
+          } catch (err) {
+            logger.error(err, `cleanup: failed to drop orphaned cube schema for build ${build.id}`);
+          }
         }
-      }
 
-      build.completeBuild(
-        CubeBuildStatus.Failed,
-        undefined,
-        'Build timed out and was reconciled by the nightly cleanup job'
-      );
-      await build
-        .save()
-        .catch((err) => logger.error(err, `cleanup: failed to persist failed status for build ${build.id}`));
+        build.completeBuild(
+          CubeBuildStatus.Failed,
+          undefined,
+          'Build timed out and was reconciled by the nightly cleanup job'
+        );
+        await build
+          .save()
+          .catch((err) => logger.error(err, `cleanup: failed to persist failed status for build ${build.id}`));
+      }
+    } finally {
+      await cubeRunner.release().catch((err) => logger.error(err, 'cleanup: failed to release cube query runner'));
     }
   });
 }
