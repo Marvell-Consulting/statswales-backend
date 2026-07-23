@@ -136,7 +136,7 @@ export async function cleanupSupersededMaterializedViews(): Promise<void> {
 
       for (const { schemaname, matviewname } of staleMatviews) {
         try {
-          await cubeRunner.query(pgformat('DROP MATERIALIZED VIEW IF EXISTS %I.%I', schemaname, matviewname));
+          await cubeRunner.query(pgformat('DROP MATERIALIZED VIEW IF EXISTS %I.%I CASCADE', schemaname, matviewname));
         } catch (err) {
           logger.error(err, `cleanup: failed to drop materialized view ${schemaname}.${matviewname}`);
         }
