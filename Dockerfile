@@ -24,7 +24,8 @@ COPY package*.json ./
 # install only production dependencies, then remove npm — it isn't needed at
 # runtime (CMD runs node directly), and its bundled node-tar is what Trivy
 # flags for CVE-2026-59873. Deleting it drops the vulnerable copy from the image.
-RUN npm ci --omit=dev && \
+RUN npm ci --omit=dev --no-audit --no-fund && \
+    npm cache clean --force && rm -rf /root/.npm && \
     rm -rf /usr/local/lib/node_modules/npm /usr/local/bin/npm /usr/local/bin/npx
 
 # copy in the built application source from the builder image
