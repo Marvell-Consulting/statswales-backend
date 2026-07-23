@@ -142,7 +142,9 @@ export async function cleanupSupersededMaterializedViews(): Promise<void> {
         }
       }
     } finally {
-      void cubeRunner.release();
+      await cubeRunner
+        .release()
+        .catch((err) => logger.error(err, 'cleanup: failed to release cube query runner'));
     }
   });
 }

@@ -27,9 +27,11 @@ export async function withAdvisoryLock<T>(
     try {
       return await fn();
     } finally {
-      await runner.query('SELECT pg_advisory_unlock($1)', [lockKey]);
+      await runner
+        .query('SELECT pg_advisory_unlock($1)', [lockKey])
+        .catch((err) => logger.error(err, `advisory-lock: failed to release lock ${lockKey}`));
     }
   } finally {
-    await runner.release();
+    await runner.release().catch((err) => logger.error(err, 'advisory-lock: failed to release query runner'));
   }
 }
