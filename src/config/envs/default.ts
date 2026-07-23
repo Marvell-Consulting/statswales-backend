@@ -125,12 +125,16 @@ export const getDefaultConfig = (): AppConfig => {
       nightlyCleanupSchedule: process.env.CRON_NIGHTLY_CLEANUP_SCHEDULE || '0 4 * * *'
     },
     cleanup: {
-      staleBuildTimeoutMs: process.env.CLEANUP_STALE_BUILD_TIMEOUT_MS
-        ? parseInt(process.env.CLEANUP_STALE_BUILD_TIMEOUT_MS, 10)
-        : 6 * 60 * 60 * 1000,
-      staleTempFileTimeoutMs: process.env.CLEANUP_STALE_TEMP_FILE_TIMEOUT_MS
-        ? parseInt(process.env.CLEANUP_STALE_TEMP_FILE_TIMEOUT_MS, 10)
-        : ONE_DAY_MS
+      staleBuildTimeoutMs:
+        process.env.CLEANUP_STALE_BUILD_TIMEOUT_MS &&
+        Number.isFinite(Number(process.env.CLEANUP_STALE_BUILD_TIMEOUT_MS))
+          ? Number(process.env.CLEANUP_STALE_BUILD_TIMEOUT_MS)
+          : 6 * 60 * 60 * 1000,
+      staleTempFileTimeoutMs:
+        process.env.CLEANUP_STALE_TEMP_FILE_TIMEOUT_MS &&
+        Number.isFinite(Number(process.env.CLEANUP_STALE_TEMP_FILE_TIMEOUT_MS))
+          ? Number(process.env.CLEANUP_STALE_TEMP_FILE_TIMEOUT_MS)
+          : ONE_DAY_MS
     }
   };
 };
