@@ -27,6 +27,12 @@ RUN npm ci --omit=dev
 # copy in the built application source from the builder image
 COPY --from=builder --chown=node:node /app/dist ./dist
 
+# install only production dependencies, then remove npm — it isn't needed at
+# runtime (CMD runs node directly), and its bundled node-tar is what Trivy
+# flags for CVE-2026-59873. Deleting it drops the vulnerable copy from the image.
+RUN npm ci --omit=dev && \
+    rm -rf /usr/local/lib/node_modules/npm /usr/local/bin/npm /usr/local/bin/npx
+
 HEALTHCHECK --interval=60s --timeout=3s --start-period=30s --retries=3 \
     CMD curl --fail http://localhost:3000/healthcheck/ || exit 1
 
