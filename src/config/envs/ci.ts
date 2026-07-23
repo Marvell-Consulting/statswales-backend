@@ -64,6 +64,9 @@ export function getCIConfig(): AppConfig {
     duckdb: {
       threads: 2,
       memory: '256MB'
+    },
+    cron: {
+      enabled: false
     }
   });
 }

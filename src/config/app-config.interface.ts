@@ -114,6 +114,15 @@ export interface AppConfig {
   cube_builder: {
     preserve_failed: boolean;
   };
+  cron: {
+    enabled: boolean;
+    timezone: string;
+    nightlyCleanupSchedule: string;
+  };
+  cleanup: {
+    staleBuildTimeoutMs: number;
+    staleTempFileTimeoutMs: number;
+  };
 }
 
 // list any optional properties here so we can ignore missing values when we check the config on boot
