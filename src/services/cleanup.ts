@@ -24,43 +24,48 @@ const UNRENAMED_BUILD_STATUSES = [CubeBuildStatus.Queued, CubeBuildStatus.Buildi
 // named as 32 hex chars with no extension - anything else in the temp dir is left alone
 const TMP_FILENAME_PATTERN = /^[0-9a-f]{32}$/;
 
-// arbitrary constant identifying this job's advisory lock; only needs to be unique among any
-// other advisory locks this app takes out (there are none today)
+// arbitrary constants identifying each job's advisory lock; only need to be unique among any
+// other advisory locks this app takes out
+const ORPHANED_BUILD_CLEANUP_LOCK_KEY = 8234178;
 const MATERIALIZED_VIEW_CLEANUP_LOCK_KEY = 8234179;
 
+// Runs behind an advisory lock since every app replica shares one Postgres database and would
+// otherwise all race to reconcile (and drop cube schemas for) the same stuck builds concurrently.
 export async function cleanupOrphanedCubeBuilds(staleAfterMs: number): Promise<void> {
-  const cutoff = new Date(Date.now() - staleAfterMs);
-  const stuckBuilds = await BuildLogRepository.getStuckBuilds(cutoff);
+  await withAdvisoryLock(dbManager.getPublisherDataSource(), ORPHANED_BUILD_CLEANUP_LOCK_KEY, async () => {
+    const cutoff = new Date(Date.now() - staleAfterMs);
+    const stuckBuilds = await BuildLogRepository.getStuckBuilds(cutoff);
 
-  if (stuckBuilds.length === 0) {
-    logger.info('cleanup: no orphaned cube builds found');
-    return;
-  }
-
-  logger.warn(`cleanup: found ${stuckBuilds.length} orphaned cube build(s) started before ${cutoff.toISOString()}`);
-
-  for (const build of stuckBuilds) {
-    if (SCHEMA_OWNING_BUILD_TYPES.includes(build.type) && UNRENAMED_BUILD_STATUSES.includes(build.status)) {
-      const runner = dbManager.getCubeDataSource().createQueryRunner();
-      try {
-        await runner.query(pgformat('DROP SCHEMA IF EXISTS %I CASCADE', build.id));
-        logger.info(`cleanup: dropped orphaned cube schema for build ${build.id}`);
-      } catch (err) {
-        logger.error(err, `cleanup: failed to drop orphaned cube schema for build ${build.id}`);
-      } finally {
-        await runner.release().catch((err) => logger.error(err, 'cleanup: failed to release cube query runner'));
-      }
+    if (stuckBuilds.length === 0) {
+      logger.info('cleanup: no orphaned cube builds found');
+      return;
     }
 
-    build.completeBuild(
-      CubeBuildStatus.Failed,
-      undefined,
-      'Build timed out and was reconciled by the nightly cleanup job'
-    );
-    await build
-      .save()
-      .catch((err) => logger.error(err, `cleanup: failed to persist failed status for build ${build.id}`));
-  }
+    logger.warn(`cleanup: found ${stuckBuilds.length} orphaned cube build(s) started before ${cutoff.toISOString()}`);
+
+    for (const build of stuckBuilds) {
+      if (SCHEMA_OWNING_BUILD_TYPES.includes(build.type) && UNRENAMED_BUILD_STATUSES.includes(build.status)) {
+        const runner = dbManager.getCubeDataSource().createQueryRunner();
+        try {
+          await runner.query(pgformat('DROP SCHEMA IF EXISTS %I CASCADE', build.id));
+          logger.info(`cleanup: dropped orphaned cube schema for build ${build.id}`);
+        } catch (err) {
+          logger.error(err, `cleanup: failed to drop orphaned cube schema for build ${build.id}`);
+        } finally {
+          await runner.release().catch((err) => logger.error(err, 'cleanup: failed to release cube query runner'));
+        }
+      }
+
+      build.completeBuild(
+        CubeBuildStatus.Failed,
+        undefined,
+        'Build timed out and was reconciled by the nightly cleanup job'
+      );
+      await build
+        .save()
+        .catch((err) => logger.error(err, `cleanup: failed to persist failed status for build ${build.id}`));
+    }
+  });
 }
 
 export async function cleanupStaleTempFiles(staleAfterMs: number): Promise<void> {

@@ -10,7 +10,7 @@ jest.mock('../../../src/utils/logger', () => ({
 }));
 
 const mockQuery = jest.fn();
-const mockRelease = jest.fn();
+const mockRelease = jest.fn().mockResolvedValue(undefined);
 
 jest.mock('../../../src/db/database-manager', () => ({
   dbManager: {
@@ -71,7 +71,7 @@ describe('cleanupOrphanedCubeBuilds', () => {
     type: CubeBuildType.FullCube,
     status: CubeBuildStatus.Building,
     completeBuild: jest.fn(),
-    save: jest.fn(),
+    save: jest.fn().mockResolvedValue(undefined),
     ...overrides
   });
 
