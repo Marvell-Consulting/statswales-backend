@@ -21,8 +21,8 @@ WORKDIR /app
 
 COPY package*.json ./
 
-# install only production dependencies then remove tar from NPM as we won't
-# installing further packages from this point and its flagged for CVE-2026-59873.
+# install only production dependencies, then remove tar from npm as we won't be
+# installing further packages from this point and it's flagged for CVE-2026-59873.
 # Deleting it drops the vulnerable copy from the image.
 RUN npm ci --omit=dev && rm -rf /usr/local/lib/node_modules/npm/node_modules/tar
 
