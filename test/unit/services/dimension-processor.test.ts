@@ -17,7 +17,15 @@ jest.mock('../../../src/db/database-manager', () => ({
 jest.mock('../../../src/services/cube-builder', () => ({
   FACT_TABLE_NAME: 'fact_table',
   VALIDATION_TABLE_NAME: 'validation_table',
-  makeCubeSafeString: (s: string) => s
+  // Mirrors the real implementation (lowercase, spaces -> underscore, strip
+  // anything that isn't a letter or underscore) so tests that rely on it
+  // sanitising path-traversal characters (e.g. '../', leading '/') exercise
+  // realistic behaviour rather than a pass-through stub.
+  makeCubeSafeString: (str: string) =>
+    str
+      .toLowerCase()
+      .replace(/[ ]/g, '_')
+      .replace(/[^a-zA-Z_]/g, '')
 }));
 
 jest.mock('../../../src/middleware/translation', () => ({
@@ -36,11 +44,18 @@ jest.mock('../../../src/utils/logger', () => ({
 }));
 
 const mockFileServiceDelete = jest.fn();
+const mockFileServiceSaveBuffer = jest.fn().mockResolvedValue(undefined);
 jest.mock('../../../src/utils/get-file-service', () => ({
   getFileService: () => ({
     delete: (...args: unknown[]) => mockFileServiceDelete(...args),
-    saveBuffer: jest.fn()
+    saveBuffer: (...args: unknown[]) => mockFileServiceSaveBuffer(...args)
   })
+}));
+
+const mockDateDimensionReferenceTableCreator = jest.fn();
+jest.mock('../../../src/services/date-matching', () => ({
+  createDatePeriodTableQuery: jest.fn().mockReturnValue('CREATE TABLE placeholder;'),
+  dateDimensionReferenceTableCreator: (...args: unknown[]) => mockDateDimensionReferenceTableCreator(...args)
 }));
 
 // Active-record-style spies — these closures back the mocked Dimension /
@@ -61,11 +76,16 @@ jest.mock('../../../src/entities/dataset/dimension', () => ({
 }));
 
 const mockLookupTableFindOneBy = jest.fn();
-jest.mock('../../../src/entities/dataset/lookup-table', () => ({
-  LookupTable: {
-    findOneBy: (...args: unknown[]) => mockLookupTableFindOneBy(...args)
-  }
-}));
+jest.mock('../../../src/entities/dataset/lookup-table', () => {
+  // Construct a function (so callers can do `new LookupTable()`) with the
+  // static repository methods attached, mirroring the FactTableColumn mock
+  // below.
+  const Ctor = function (this: Record<string, unknown>) {
+    this.save = jest.fn().mockResolvedValue(undefined);
+  } as unknown as Record<string, unknown> & (new () => unknown);
+  Ctor.findOneBy = (...args: unknown[]) => mockLookupTableFindOneBy(...args);
+  return { LookupTable: Ctor };
+});
 
 const measureRepoDelete = jest.fn();
 jest.mock('../../../src/entities/dataset/measure', () => ({
@@ -142,9 +162,13 @@ import { DataTable } from '../../../src/entities/dataset/data-table';
 import { Dataset } from '../../../src/entities/dataset/dataset';
 import { Dimension } from '../../../src/entities/dataset/dimension';
 import { Revision } from '../../../src/entities/dataset/revision';
+import { FactTableColumn } from '../../../src/entities/dataset/fact-table-column';
+import { DateExtractor } from '../../../src/extractors/date-extractor';
+import { DateReferenceDataItem } from '../../../src/services/date-matching';
 import {
   cleanUpDimension,
   cleanupDimensionMeasureAndFactTable,
+  createDateDimensionLookup,
   createDimensionsFromSourceAssignment,
   getDimensionPreview,
   getFactTableColumnPreview,
@@ -1033,5 +1057,70 @@ describe('createDimensionsFromSourceAssignment', () => {
     await expect(createDimensionsFromSourceAssignment(dataset, dataTable, validated)).rejects.toThrow(
       SourceAssignmentException
     );
+  });
+});
+
+describe('createDateDimensionLookup', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockQuery.mockReset();
+    mockRelease.mockReset();
+    mockDateDimensionReferenceTableCreator.mockReset();
+    mockFileServiceSaveBuffer.mockReset().mockResolvedValue(undefined);
+  });
+
+  function makeFakeDateDimensionTable(): DateReferenceDataItem[] {
+    const start = new Date('2023-01-01T00:00:00Z');
+    const end = new Date('2023-12-31T00:00:00Z');
+    return [
+      { dateCode: '2023', lang: 'en-gb', description: 'Year 2023', start, end, type: 'year', hierarchy: null },
+      { dateCode: '2023', lang: 'cy-gb', description: 'Blwyddyn 2023', start, end, type: 'year', hierarchy: null }
+    ];
+  }
+
+  // SW-1312: factTableColumn.columnName is the raw uploaded CSV header, fully
+  // attacker-controlled. It must never be able to steer the storage filename
+  // outside of the dataset's own prefix (e.g. via '../' segments or a leading
+  // '/'), since the lookup table file is written using this filename under
+  // the dataset's storage directory.
+  it('sanitizes a path-traversal column header so the lookup file cannot escape the dataset prefix', async () => {
+    mockQuery
+      .mockResolvedValueOnce([{ date_data: '2023' }]) // dateData lookup
+      .mockResolvedValueOnce(undefined); // transaction statements
+
+    mockDateDimensionReferenceTableCreator.mockReturnValue(makeFakeDateDimensionTable());
+
+    const maliciousColumn = {
+      columnName: '../../some-other-dataset-id/evil',
+      columnDatatype: 'VARCHAR'
+    } as unknown as FactTableColumn;
+
+    const result = await createDateDimensionLookup('schema-1', 'dataset-1', 'dim-table', maliciousColumn, {
+      type: 'calendar'
+    } as unknown as DateExtractor);
+
+    expect(mockFileServiceSaveBuffer).toHaveBeenCalledTimes(1);
+    const [filename, directory] = mockFileServiceSaveBuffer.mock.calls[0] as [string, string, Buffer];
+    expect(directory).toBe('dataset-1');
+    expect(filename).not.toContain('/');
+    expect(filename).not.toContain('\\');
+    expect(filename).not.toContain('..');
+
+    // The saved LookupTable entity's filenames must match what was written to storage.
+    expect(result.lookupTable.filename).toBe(filename);
+    expect(result.lookupTable.originalFilename).toBe(filename);
+  });
+
+  it('leaves an already-safe column header unchanged (aside from case-folding)', async () => {
+    mockQuery.mockResolvedValueOnce([{ date_data: '2023' }]).mockResolvedValueOnce(undefined);
+    mockDateDimensionReferenceTableCreator.mockReturnValue(makeFakeDateDimensionTable());
+
+    const safeColumn = { columnName: 'reporting_period', columnDatatype: 'VARCHAR' } as unknown as FactTableColumn;
+
+    const result = await createDateDimensionLookup('schema-1', 'dataset-1', 'dim-table', safeColumn, {
+      type: 'calendar'
+    } as unknown as DateExtractor);
+
+    expect(result.lookupTable.filename).toBe(`${result.lookupTable.id}_reporting_period_date_tbl.csv`);
   });
 });
