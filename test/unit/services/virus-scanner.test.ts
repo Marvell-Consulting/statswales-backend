@@ -84,6 +84,7 @@ describe('uploadAvScan', () => {
       const { unlink } = await import('node:fs/promises');
       await unlink(tmpFile.path).catch(() => {});
     }
+  });
 
   it('rejects and fails closed when the scan result is infected', async () => {
     const req = buildRequest(Readable.from(['infected content']));
