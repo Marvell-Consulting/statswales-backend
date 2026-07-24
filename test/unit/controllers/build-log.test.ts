@@ -2,8 +2,12 @@ import { Request, Response, NextFunction } from 'express';
 
 import { BadRequestException } from '../../../src/exceptions/bad-request.exception';
 import { NotFoundException } from '../../../src/exceptions/not-found.exception';
+import { ForbiddenException } from '../../../src/exceptions/forbidden.exception';
 import { CubeBuildStatus } from '../../../src/enums/cube-build-status';
 import { CubeBuildType } from '../../../src/enums/cube-build-type';
+import { GlobalRole } from '../../../src/enums/global-role';
+import { User } from '../../../src/entities/user/user';
+import { UserGroupRole } from '../../../src/entities/user/user-group-role';
 import { uuidV4 } from '../../../src/utils/uuid';
 
 jest.mock('../../../src/utils/logger', () => ({
@@ -17,10 +21,10 @@ jest.mock('../../../src/repositories/build-log', () => ({
   }
 }));
 
-const mockFindOneByOrFail = jest.fn();
+const mockFindOneOrFail = jest.fn();
 jest.mock('../../../src/entities/dataset/build-log', () => ({
   BuildLog: {
-    findOneByOrFail: (...args: unknown[]) => mockFindOneByOrFail(...args)
+    findOneOrFail: (...args: unknown[]) => mockFindOneOrFail(...args)
   }
 }));
 
@@ -43,12 +47,38 @@ jest.mock('../../../src/validators', () => ({
 
 import { getBuildLog, getBuiltLogEntry } from '../../../src/controllers/build-log';
 
-function createMockRequest(overrides: Partial<Request> = {}): Request {
-  return { params: {}, query: {}, ...overrides } as unknown as Request;
+function createMockUser(overrides: Partial<User> = {}): User {
+  const user = new User();
+  user.id = uuidV4();
+  user.name = 'Test User';
+  user.email = 'test@example.com';
+  user.globalRoles = [];
+  user.groupRoles = [];
+  Object.assign(user, overrides);
+  return user;
 }
 
-function createMockResponse(): Response {
-  const res = { status: jest.fn(), send: jest.fn() } as unknown as Response;
+function createMockGroupRole(groupId: string): UserGroupRole {
+  const groupRole = new UserGroupRole();
+  groupRole.groupId = groupId;
+  return groupRole;
+}
+
+// default test user can access everything: ServiceAdmin satisfies the getBuildLog role gate and
+// Developer bypasses the getBuiltLogEntry group check, keeping tests that aren't about authorisation
+// focused on their own behaviour. Tests that specifically exercise access control override this.
+function createMockRequest(overrides: Partial<Request> = {}): Request {
+  return {
+    params: {},
+    query: {},
+    locals: {},
+    user: createMockUser({ globalRoles: [GlobalRole.ServiceAdmin, GlobalRole.Developer] }),
+    ...overrides
+  } as unknown as Request;
+}
+
+function createMockResponse(overrides: Partial<Response> = {}): Response {
+  const res = { status: jest.fn(), send: jest.fn(), locals: {}, ...overrides } as unknown as Response;
   (res.status as jest.Mock).mockReturnValue(res);
   (res.send as jest.Mock).mockReturnValue(res);
   return res;
@@ -125,12 +155,55 @@ describe('Build log controller', () => {
       expect(mockNext.mock.calls[0][0]).toBeInstanceOf(BadRequestException);
       expect(mockGetBy).not.toHaveBeenCalled();
     });
+
+    it('rejects with Forbidden when the caller is neither a service admin nor a developer', async () => {
+      const req = createMockRequest({ user: createMockUser({ globalRoles: [] }) });
+      const res = createMockResponse();
+
+      await getBuildLog(req, res, mockNext);
+
+      expect(mockNext).toHaveBeenCalledTimes(1);
+      expect(mockNext.mock.calls[0][0]).toBeInstanceOf(ForbiddenException);
+      expect(mockGetBy).not.toHaveBeenCalled();
+    });
+
+    it('allows a service admin to list build logs', async () => {
+      mockGetBy.mockResolvedValue([]);
+      const req = createMockRequest({ user: createMockUser({ globalRoles: [GlobalRole.ServiceAdmin] }) });
+      const res = createMockResponse();
+
+      await getBuildLog(req, res, mockNext);
+
+      expect(mockNext).not.toHaveBeenCalled();
+      expect(mockGetBy).toHaveBeenCalled();
+    });
+
+    it('allows a developer to list build logs', async () => {
+      mockGetBy.mockResolvedValue([]);
+      const req = createMockRequest({ user: createMockUser({ globalRoles: [GlobalRole.Developer] }) });
+      const res = createMockResponse();
+
+      await getBuildLog(req, res, mockNext);
+
+      expect(mockNext).not.toHaveBeenCalled();
+      expect(mockGetBy).toHaveBeenCalled();
+    });
   });
 
   describe('getBuiltLogEntry', () => {
-    it('returns the full build log entry DTO when found', async () => {
-      const build = { id: uuidV4() };
-      mockFindOneByOrFail.mockResolvedValue(build);
+    function createMockBuild(overrides: { revisionId?: string; userGroupId?: string | null } = {}) {
+      const revisionId = overrides.revisionId ?? uuidV4();
+      const userGroupId = overrides.userGroupId === undefined ? 'group-a' : overrides.userGroupId;
+      return {
+        id: uuidV4(),
+        revisionId,
+        revision: { id: revisionId, dataset: userGroupId ? { userGroupId } : null }
+      };
+    }
+
+    it('returns the full build log entry DTO when found (developer bypasses group check)', async () => {
+      const build = createMockBuild({ userGroupId: 'some-other-group' });
+      mockFindOneOrFail.mockResolvedValue(build);
       mockFromBuildLogFull.mockReturnValue({ dto: build.id });
 
       const req = createMockRequest({ params: { build_id: build.id } });
@@ -138,7 +211,97 @@ describe('Build log controller', () => {
 
       await getBuiltLogEntry(req, res);
 
-      expect(mockFindOneByOrFail).toHaveBeenCalledWith({ id: build.id });
+      expect(mockFindOneOrFail).toHaveBeenCalledWith({
+        where: { id: build.id },
+        relations: { revision: { dataset: true } }
+      });
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(res.send).toHaveBeenCalledWith({ dto: build.id });
+    });
+
+    it('returns the entry when the caller belongs to the dataset group (non-developer)', async () => {
+      const build = createMockBuild({ userGroupId: 'group-a' });
+      mockFindOneOrFail.mockResolvedValue(build);
+      mockFromBuildLogFull.mockReturnValue({ dto: build.id });
+
+      const req = createMockRequest({
+        params: { build_id: build.id },
+        user: createMockUser({ globalRoles: [], groupRoles: [createMockGroupRole('group-a')] })
+      });
+      const res = createMockResponse();
+
+      await getBuiltLogEntry(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(res.send).toHaveBeenCalledWith({ dto: build.id });
+    });
+
+    it('throws Forbidden when a group-A user requests a group-B build (IDOR on /build/:id)', async () => {
+      const build = createMockBuild({ userGroupId: 'group-b' });
+      mockFindOneOrFail.mockResolvedValue(build);
+
+      const req = createMockRequest({
+        params: { build_id: build.id },
+        user: createMockUser({ globalRoles: [], groupRoles: [createMockGroupRole('group-a')] })
+      });
+      const res = createMockResponse();
+
+      await expect(getBuiltLogEntry(req, res)).rejects.toBeInstanceOf(ForbiddenException);
+      expect(res.send).not.toHaveBeenCalled();
+    });
+
+    it('throws Forbidden when the caller has no group membership at all', async () => {
+      const build = createMockBuild({ userGroupId: 'group-b' });
+      mockFindOneOrFail.mockResolvedValue(build);
+
+      const req = createMockRequest({
+        params: { build_id: build.id },
+        user: createMockUser({ globalRoles: [], groupRoles: [] })
+      });
+      const res = createMockResponse();
+
+      await expect(getBuiltLogEntry(req, res)).rejects.toBeInstanceOf(ForbiddenException);
+    });
+
+    it('throws Forbidden when the build has no associated dataset and the caller is not a developer', async () => {
+      const build = createMockBuild({ userGroupId: null });
+      mockFindOneOrFail.mockResolvedValue(build);
+
+      const req = createMockRequest({
+        params: { build_id: build.id },
+        user: createMockUser({ globalRoles: [], groupRoles: [createMockGroupRole('group-a')] })
+      });
+      const res = createMockResponse();
+
+      await expect(getBuiltLogEntry(req, res)).rejects.toBeInstanceOf(ForbiddenException);
+    });
+
+    it('throws NotFound on the nested revision route when the build belongs to a different revision', async () => {
+      const build = createMockBuild({ revisionId: uuidV4(), userGroupId: 'group-a' });
+      mockFindOneOrFail.mockResolvedValue(build);
+
+      const req = createMockRequest({
+        params: { build_id: build.id },
+        user: createMockUser({ globalRoles: [], groupRoles: [createMockGroupRole('group-a')] })
+      });
+      const res = createMockResponse({ locals: { revision_id: uuidV4() } });
+
+      await expect(getBuiltLogEntry(req, res)).rejects.toBeInstanceOf(NotFoundException);
+    });
+
+    it('succeeds on the nested revision route when the build belongs to the authorised revision', async () => {
+      const build = createMockBuild({ userGroupId: 'group-a' });
+      mockFindOneOrFail.mockResolvedValue(build);
+      mockFromBuildLogFull.mockReturnValue({ dto: build.id });
+
+      const req = createMockRequest({
+        params: { build_id: build.id },
+        user: createMockUser({ globalRoles: [], groupRoles: [createMockGroupRole('group-a')] })
+      });
+      const res = createMockResponse({ locals: { revision_id: build.revisionId } });
+
+      await getBuiltLogEntry(req, res);
+
       expect(res.status).toHaveBeenCalledWith(200);
       expect(res.send).toHaveBeenCalledWith({ dto: build.id });
     });
@@ -148,11 +311,11 @@ describe('Build log controller', () => {
       const res = createMockResponse();
 
       await expect(getBuiltLogEntry(req, res)).rejects.toBeInstanceOf(NotFoundException);
-      expect(mockFindOneByOrFail).not.toHaveBeenCalled();
+      expect(mockFindOneOrFail).not.toHaveBeenCalled();
     });
 
     it('throws NotFound when the build cannot be loaded', async () => {
-      mockFindOneByOrFail.mockRejectedValue(new Error('not in db'));
+      mockFindOneOrFail.mockRejectedValue(new Error('not in db'));
 
       const req = createMockRequest({ params: { build_id: uuidV4() } });
       const res = createMockResponse();
