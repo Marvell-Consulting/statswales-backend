@@ -62,7 +62,7 @@ describe('API Endpoints for viewing the contents of a dataset', () => {
     expect(res.body.data[23]).toEqual(['201314', '522', 4636, '1', '1', null]);
   });
 
-  test('Get a dataset view returns 500 if there is no revision on the dataset', async () => {
+  test('Get a dataset view returns 404 if there is no revision on the dataset', async () => {
     const dataset = await DatasetRepository.create({ createdBy: user, userGroupId: userGroup.id }).save();
 
     const res = await request(app)
