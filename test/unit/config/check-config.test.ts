@@ -126,22 +126,61 @@ describe('checkConfig', () => {
   });
 
   describe('local/CI leniency for unconfigured auth providers and storage backends', () => {
-    it('does not throw when entraid/blob/datalake secrets are missing in a local config', () => {
+    // buildValidConfig defaults to storage.store: FileStore.DataLake and auth.providers: [AuthProvider.EntraId],
+    // so blob is the *unused* storage backend here - only its secret can be safely missing.
+    it('does not throw when the unused storage backend secret is missing in a local config', () => {
       const config = buildValidConfig(AppEnv.Local);
-      set(config, 'auth.entraid.clientSecret', undefined);
       set(config, 'storage.blob.accountKey', undefined);
-      set(config, 'storage.datalake.accountKey', undefined);
 
       expect(() => checkConfigFor(config)()).not.toThrow();
     });
 
-    it('does not throw when entraid/blob/datalake secrets are missing in a CI config', () => {
+    it('does not throw when the unused storage backend secret is missing in a CI config', () => {
       const config = buildValidConfig(AppEnv.Ci);
-      set(config, 'auth.entraid.clientSecret', undefined);
       set(config, 'storage.blob.accountKey', undefined);
-      set(config, 'storage.datalake.accountKey', undefined);
 
       expect(() => checkConfigFor(config)()).not.toThrow();
+    });
+
+    it('does not throw when entraid secrets are missing and EntraId is not an enabled auth provider', () => {
+      const config = buildValidConfig(AppEnv.Local);
+      config.auth.providers = [AuthProvider.Jwt];
+      set(config, 'auth.entraid.clientSecret', undefined);
+
+      expect(() => checkConfigFor(config)()).not.toThrow();
+    });
+
+    it('still fails boot in a local config when the *selected* storage backend is missing its secret', () => {
+      // storage.store is FileStore.DataLake by default, so datalake credentials are in use here
+      const config = buildValidConfig(AppEnv.Local);
+      set(config, 'storage.datalake.accountKey', undefined);
+
+      expect(() => checkConfigFor(config)()).toThrow('storage.datalake.accountKey is invalid or missing');
+    });
+
+    it('still fails boot in a CI config when the *selected* storage backend is missing its secret', () => {
+      const config = buildValidConfig(AppEnv.Ci);
+      set(config, 'storage.datalake.accountKey', undefined);
+
+      expect(() => checkConfigFor(config)()).toThrow('storage.datalake.accountKey is invalid or missing');
+    });
+
+    it('still fails boot in a local config when storage.store is an unrecognised value, since getFileService() falls back to datalake for anything that is not exactly "blob"', () => {
+      const config = buildValidConfig(AppEnv.Local);
+      // simulates an unvalidated/garbage FILE_STORE env var - local.ts casts it with `as FileStore`
+      // without validating it against the enum, so this reaches checkConfig as a non-empty string
+      config.storage.store = 'not-a-real-store' as FileStore;
+      set(config, 'storage.datalake.accountKey', undefined);
+
+      expect(() => checkConfigFor(config)()).toThrow('storage.datalake.accountKey is invalid or missing');
+    });
+
+    it('still fails boot in a local config when EntraId is an enabled auth provider but its secret is missing', () => {
+      // auth.providers includes AuthProvider.EntraId by default, so entraid credentials are in use here
+      const config = buildValidConfig(AppEnv.Local);
+      set(config, 'auth.entraid.clientSecret', undefined);
+
+      expect(() => checkConfigFor(config)()).toThrow('auth.entraid.clientSecret is invalid or missing');
     });
 
     it('still fails boot in a local config when session.secret is empty', () => {
