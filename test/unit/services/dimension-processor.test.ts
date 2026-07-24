@@ -156,9 +156,9 @@ import { DataTable } from '../../../src/entities/dataset/data-table';
 import { Dataset } from '../../../src/entities/dataset/dataset';
 import { Dimension } from '../../../src/entities/dataset/dimension';
 import { Revision } from '../../../src/entities/dataset/revision';
-import { FactTableColumn } from '../../../src/entities/dataset/fact-table-column';
-import { DateExtractor } from '../../../src/extractors/date-extractor';
-import { DateReferenceDataItem } from '../../../src/services/date-matching';
+import type { FactTableColumn } from '../../../src/entities/dataset/fact-table-column';
+import type { DateExtractor } from '../../../src/extractors/date-extractor';
+import type { DateReferenceDataItem } from '../../../src/services/date-matching';
 import {
   cleanUpDimension,
   cleanupDimensionMeasureAndFactTable,
