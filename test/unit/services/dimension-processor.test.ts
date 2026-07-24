@@ -15,17 +15,11 @@ jest.mock('../../../src/db/database-manager', () => ({
 }));
 
 jest.mock('../../../src/services/cube-builder', () => ({
+  // Use the real makeCubeSafeString rather than re-implementing its sanitisation logic here, so
+  // this test can't drift from (and silently stop matching) the production implementation.
+  ...jest.requireActual('../../../src/services/cube-builder'),
   FACT_TABLE_NAME: 'fact_table',
-  VALIDATION_TABLE_NAME: 'validation_table',
-  // Mirrors the real implementation (lowercase, spaces -> underscore, strip
-  // anything that isn't a letter or underscore) so tests that rely on it
-  // sanitising path-traversal characters (e.g. '../', leading '/') exercise
-  // realistic behaviour rather than a pass-through stub.
-  makeCubeSafeString: (str: string) =>
-    str
-      .toLowerCase()
-      .replace(/[ ]/g, '_')
-      .replace(/[^a-zA-Z_]/g, '')
+  VALIDATION_TABLE_NAME: 'validation_table'
 }));
 
 jest.mock('../../../src/middleware/translation', () => ({
