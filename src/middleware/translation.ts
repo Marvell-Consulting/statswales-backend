@@ -27,7 +27,13 @@ i18next
     },
     fallbackLng: config.language.fallback,
     preload: AVAILABLE_LANGUAGES,
-    debug: false
+    debug: false,
+    // Never echo an unrecognised key back to the caller verbatim — keys are sometimes
+    // derived from raw error messages (e.g. DB/driver errors), so returning them as-is
+    // would leak internal detail to API consumers. Return a fixed, generic string
+    // instead. This is a hardcoded literal (not a nested t() call) so it can never
+    // recurse back into this handler, regardless of locale/resource load state.
+    parseMissingKeyHandler: () => 'An unknown error occurred'
   });
 
 const t = i18next.t;

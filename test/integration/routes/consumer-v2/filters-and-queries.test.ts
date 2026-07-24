@@ -12,6 +12,7 @@ import { getTestUser, getTestUserGroup } from '../../../helpers/get-test-user';
 import { seedPublishedDataset } from '../../../helpers/seed-published-dataset';
 import { FactTableColumnType } from '../../../../src/enums/fact-table-column-type';
 import BlobStorage from '../../../../src/services/blob-storage';
+import { PublishedDatasetRepository } from '../../../../src/repositories/published-dataset';
 
 jest.mock('../../../../src/services/blob-storage');
 BlobStorage.prototype.listFiles = jest.fn().mockReturnValue([]);
@@ -119,6 +120,24 @@ describe('Consumer V2 — filters + query-store endpoints', () => {
     it('returns 404 for a malformed UUID', async () => {
       const res = await request(app).get('/v2/not-a-uuid/filters');
       expect(res.status).toBe(404);
+    });
+
+    it('returns a generic error message (not raw DB/driver text) when a downstream call fails', async () => {
+      // Simulate a raw TypeORM/pg driver style failure surfacing from a downstream call, to
+      // confirm the anonymous, public-facing caller never receives internal error detail.
+      const dbError = new Error('relation "12345678-1234-4123-8123-123456789012"."fact_table" does not exist');
+      const spy = jest.spyOn(PublishedDatasetRepository, 'getById').mockRejectedValueOnce(dbError);
+
+      try {
+        const res = await request(app).get(`/v2/${DATASET_ID}/filters`);
+        expect(res.status).toBe(500);
+        expect(res.body.error).toBe('An unknown error occurred');
+        expect(res.body.error).not.toContain('relation');
+        expect(res.body.error).not.toContain('fact_table');
+        expect(JSON.stringify(res.body)).not.toContain(dbError.message);
+      } finally {
+        spy.mockRestore();
+      }
     });
   });
 

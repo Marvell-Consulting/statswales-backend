@@ -444,7 +444,8 @@ export const getPublishedDatasetFilters = async (req: Request, res: Response, ne
     if (err instanceof NotFoundException || err instanceof BadRequestException) {
       return next(err);
     }
-    next(err);
+    logger.error(err, 'Error getting published dataset filters');
+    return next(new UnknownException());
   }
 };
 
