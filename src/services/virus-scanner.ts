@@ -28,6 +28,9 @@ const getAVPassthrough = async (): Promise<Transform> => {
 
   const { host, port, timeout } = clamav;
 
+  // NodeClam.init() pings the clamd daemon before resolving as long as `bypassTest` is left at its default (false),
+  // which it is here. If the daemon is unreachable, init() rejects and the catch block below fails the upload
+  // closed, so we don't need to duplicate that reachability check ourselves.
   const clamscan = await new NodeClam().init({
     clamdscan: { host, port, timeout, localFallback: false }
   });
@@ -116,6 +119,17 @@ export const uploadAvScan = async (req: Request): Promise<TempFile> => {
         const viruses = result.viruses.join(', ');
         logger.warn(`AV Scan complete. File "${filename}" is infected with: "${viruses}", time: ${time}ms`);
         reject(new BadRequestException('errors.file_upload.infected'));
+        return;
+      }
+
+      // clamscan can return isInfected as null (rather than true/false) when the daemon's response could not be
+      // parsed, e.g. a truncated reply or a "COMMAND READ TIMED OUT" response. This is not a clean result and must
+      // not be treated as one, otherwise an unscanned file could be stored and served to users. Fail closed unless
+      // we have an explicit, unambiguous "clean" result.
+      if (result.isInfected !== false || result.timeout) {
+        cleanupTmpFile(tmpFile);
+        logger.warn(result, `AV Scan complete. File "${filename}" returned an inconclusive result, time: ${time}ms`);
+        reject(new UnknownException('errors.file_upload.scan_failure'));
         return;
       }
 
