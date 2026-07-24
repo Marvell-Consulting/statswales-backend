@@ -130,7 +130,14 @@ export const uploadAvScan = async (req: Request): Promise<TempFile> => {
       // parsed, e.g. a truncated reply or a "COMMAND READ TIMED OUT" response. This is not a clean result and must
       // not be treated as one, otherwise an unscanned file could be stored and served to users. Fail closed unless
       // we have an explicit, unambiguous "clean" result.
-      if (result.isInfected !== false || result.timeout) {
+      if (result.timeout) {
+        cleanupTmpFile(tmpFile);
+        logger.warn(result, `AV Scan complete. File "${filename}" timed out, time: ${time}ms`);
+        reject(new UnknownException('errors.file_upload.av_timeout'));
+        return;
+      }
+
+      if (result.isInfected !== false) {
         cleanupTmpFile(tmpFile);
         logger.warn(result, `AV Scan complete. File "${filename}" returned an inconclusive result, time: ${time}ms`);
         reject(new UnknownException('errors.file_upload.scan_failure'));
