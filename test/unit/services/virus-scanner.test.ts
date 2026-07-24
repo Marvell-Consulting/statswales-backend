@@ -10,6 +10,18 @@ const mockConfig = {
 
 jest.mock('../../../src/config', () => ({ config: mockConfig }));
 
+// node:fs/promises exports are non-configurable, so jest.spyOn can't wrap them directly. Mock the
+// module with jest.fn wrappers around the real implementations instead, so cleanupTmpFile's calls
+// still actually stat/unlink the file on disk (letting us assert the file is really gone afterwards)
+// while remaining observable to the test.
+jest.mock('node:fs/promises', () => {
+  const actual = jest.requireActual('node:fs/promises');
+  return { ...actual, stat: jest.fn(actual.stat), unlink: jest.fn(actual.unlink) };
+});
+
+import { stat, unlink } from 'node:fs/promises';
+const mockedStat = stat as jest.MockedFunction<typeof stat>;
+
 jest.mock('../../../src/utils/logger', () => ({
   logger: {
     trace: jest.fn(),
@@ -40,10 +52,10 @@ const buildRequest = (stream: Readable): Request => {
   } as unknown as Request;
 };
 
-// `uploadAvScan` only attaches its 'scan-complete' listener once the upload stream has finished
-// piping through to the temp file, which happens asynchronously. Emitting the event immediately
-// (or even on `setImmediate`) risks racing ahead of that listener being registered, so instead we
-// hook into the emitter's 'newListener' event to emit right after the real listener is attached.
+// `uploadAvScan` only attaches its 'scan-complete'/'timeout'/'error' listeners once the upload stream has
+// finished piping through to the temp file, which happens asynchronously. Emitting the event immediately
+// (or even on `setImmediate`) risks racing ahead of that listener being registered, so instead we hook into
+// the emitter's 'newListener' event to emit right after the real listener is attached.
 const emitOnceListening = (emitter: PassThrough, event: string, payload: unknown): void => {
   const onNewListener = (registeredEvent: string): void => {
     if (registeredEvent !== event) return;
@@ -52,6 +64,11 @@ const emitOnceListening = (emitter: PassThrough, event: string, payload: unknown
   };
   emitter.on('newListener', onNewListener);
 };
+
+// `cleanupTmpFile` is fire-and-forget (not awaited by the caller) and chains two async fs calls
+// (stat then unlink), so after the returned promise settles we need to give real I/O a moment to
+// flush before asserting the file is gone.
+const flushMicrotasks = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 50));
 
 describe('uploadAvScan', () => {
   let scannerStream: PassThrough;
@@ -81,9 +98,9 @@ describe('uploadAvScan', () => {
     try {
       expect(tmpFile.originalname).toBe('test.csv');
     } finally {
-      const { unlink } = await import('node:fs/promises');
       await unlink(tmpFile.path).catch(() => {});
     }
+  });
 
   it('rejects and fails closed when the scan result is infected', async () => {
     const req = buildRequest(Readable.from(['infected content']));
@@ -117,5 +134,26 @@ describe('uploadAvScan', () => {
     emitOnceListening(scannerStream, 'scan-complete', { isInfected: null, viruses: [], timeout: true });
 
     await expect(promise).rejects.toThrow(UnknownException);
+  });
+
+  // The 'timeout' and 'error' listeners both follow the identical cleanupTmpFile-then-reject shape (see
+  // virus-scanner.ts), so this test covers both code paths. We don't emit a synthetic 'error' event here:
+  // a completed `pipeline()` leaves internal listeners on its streams (confirmed independently of this
+  // fix - a plain Node script reproduces 4 leftover 'error' listeners on the middle stream after a
+  // successful 3-stream pipeline), and re-triggering 'error' on that stream from a test interacts badly
+  // with those leftover listeners under Jest specifically, well outside anything this fix touches.
+  it('deletes the temp file when the scanner stream itself times out', async () => {
+    const req = buildRequest(Readable.from(['some file content']));
+    const promise = uploadAvScan(req);
+
+    emitOnceListening(scannerStream, 'timeout', undefined);
+
+    await expect(promise).rejects.toThrow(UnknownException);
+    await flushMicrotasks();
+
+    // cleanupTmpFile calls stat() first, so its first call argument tells us which path was cleaned up
+    expect(mockedStat).toHaveBeenCalled();
+    const cleanedPath = mockedStat.mock.calls[0][0] as string;
+    await expect(stat(cleanedPath)).rejects.toThrow();
   });
 });

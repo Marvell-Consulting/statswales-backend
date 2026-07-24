@@ -104,10 +104,14 @@ export const uploadAvScan = async (req: Request): Promise<TempFile> => {
 
   // wait for the scan to complete before returning the temporary file
   return new Promise((resolve, reject) => {
-    virusScanner.on('timeout', () => reject(new UnknownException('errors.file_upload.av_timeout')));
+    virusScanner.on('timeout', () => {
+      cleanupTmpFile(tmpFile);
+      reject(new UnknownException('errors.file_upload.av_timeout'));
+    });
 
     virusScanner.on('error', (err) => {
       logger.error(err, 'There was a problem with the virus scanner');
+      cleanupTmpFile(tmpFile);
       reject(new UnknownException('errors.file_upload.scan_failure'));
     });
 
