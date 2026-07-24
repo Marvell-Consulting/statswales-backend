@@ -139,6 +139,20 @@ describe('Consumer V2 — filters + query-store endpoints', () => {
         spy.mockRestore();
       }
     });
+
+    it('returns the generic error message in Welsh for a Welsh caller, instead of always answering in English', async () => {
+      const dbError = new Error('relation "12345678-1234-4123-8123-123456789012"."fact_table" does not exist');
+      const spy = jest.spyOn(PublishedDatasetRepository, 'getById').mockRejectedValueOnce(dbError);
+
+      try {
+        const res = await request(app).get(`/v2/${DATASET_ID}/filters`).query({ lang: 'cy' });
+        expect(res.status).toBe(500);
+        expect(res.body.error).toBe('Mae gwall anhysbys wedi digwydd');
+        expect(JSON.stringify(res.body)).not.toContain(dbError.message);
+      } finally {
+        spy.mockRestore();
+      }
+    });
   });
 
   describe('POST /v2/:dataset_id/data — generate filter ID', () => {

@@ -445,7 +445,7 @@ export const getPublishedDatasetFilters = async (req: Request, res: Response, ne
       return next(err);
     }
     logger.error(err, 'Error getting published dataset filters');
-    return next(new UnknownException());
+    return next(new UnknownException('errors.unknown_error'));
   }
 };
 
