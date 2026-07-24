@@ -21,6 +21,8 @@ jest.mock('node:fs/promises', () => {
 
 import { stat, unlink } from 'node:fs/promises';
 const mockedStat = stat as jest.MockedFunction<typeof stat>;
+const mockedUnlink = unlink as jest.MockedFunction<typeof unlink>;
+const actualUnlink = jest.requireActual<typeof import('node:fs/promises')>('node:fs/promises').unlink;
 
 jest.mock('../../../src/utils/logger', () => ({
   logger: {
@@ -65,10 +67,18 @@ const emitOnceListening = (emitter: PassThrough, event: string, payload: unknown
   emitter.on('newListener', onNewListener);
 };
 
-// `cleanupTmpFile` is fire-and-forget (not awaited by the caller) and chains two async fs calls
-// (stat then unlink), so after the returned promise settles we need to give real I/O a moment to
-// flush before asserting the file is gone.
-const flushMicrotasks = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 50));
+// `cleanupTmpFile` is fire-and-forget (not awaited by the caller), so tests can't just await
+// `uploadAvScan`'s rejection to know cleanup has finished. Rather than sleeping a fixed duration
+// (flaky under slow I/O), install a one-time wrapper around the next `unlink` call that resolves
+// once the real unlink has actually completed.
+const waitForNextUnlink = (): Promise<void> =>
+  new Promise((resolve) => {
+    mockedUnlink.mockImplementationOnce(async (...args: Parameters<typeof unlink>) => {
+      const result = await actualUnlink(...args);
+      resolve();
+      return result;
+    });
+  });
 
 describe('uploadAvScan', () => {
   let scannerStream: PassThrough;
@@ -106,6 +116,9 @@ describe('uploadAvScan', () => {
     const req = buildRequest(Readable.from(['infected content']));
     const promise = uploadAvScan(req);
 
+    // this scan-complete branch also calls cleanupTmpFile; wait for it so the temp file is gone
+    // before the next test runs, rather than leaving a fire-and-forget unlink pending in the background
+    const cleanupDone = waitForNextUnlink();
     emitOnceListening(scannerStream, 'scan-complete', {
       isInfected: true,
       viruses: ['Eicar-Test-Signature'],
@@ -113,6 +126,7 @@ describe('uploadAvScan', () => {
     });
 
     await expect(promise).rejects.toThrow(BadRequestException);
+    await cleanupDone;
   });
 
   it('rejects and fails closed when clamscan cannot classify the result (isInfected: null)', async () => {
@@ -121,19 +135,23 @@ describe('uploadAvScan', () => {
     const req = buildRequest(Readable.from(['some file content']));
     const promise = uploadAvScan(req);
 
+    const cleanupDone = waitForNextUnlink();
     emitOnceListening(scannerStream, 'scan-complete', { isInfected: null, viruses: [], timeout: false });
 
     await expect(promise).rejects.toThrow(UnknownException);
+    await cleanupDone;
   });
 
   it('rejects and fails closed when the scan result is flagged as timed out', async () => {
     const req = buildRequest(Readable.from(['some file content']));
     const promise = uploadAvScan(req);
 
+    const cleanupDone = waitForNextUnlink();
     // clamscan sets `timeout: true` alongside `isInfected: null` on a "COMMAND READ TIMED OUT" response
     emitOnceListening(scannerStream, 'scan-complete', { isInfected: null, viruses: [], timeout: true });
 
     await expect(promise).rejects.toThrow(UnknownException);
+    await cleanupDone;
   });
 
   // The 'timeout' and 'error' listeners both follow the identical cleanupTmpFile-then-reject shape (see
@@ -146,10 +164,11 @@ describe('uploadAvScan', () => {
     const req = buildRequest(Readable.from(['some file content']));
     const promise = uploadAvScan(req);
 
+    const cleanupDone = waitForNextUnlink();
     emitOnceListening(scannerStream, 'timeout', undefined);
 
     await expect(promise).rejects.toThrow(UnknownException);
-    await flushMicrotasks();
+    await cleanupDone;
 
     // cleanupTmpFile calls stat() first, so its first call argument tells us which path was cleaned up
     expect(mockedStat).toHaveBeenCalled();
