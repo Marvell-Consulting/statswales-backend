@@ -78,8 +78,12 @@ describe('uploadAvScan', () => {
     emitOnceListening(scannerStream, 'scan-complete', { isInfected: false, viruses: [], timeout: false });
 
     const tmpFile = await promise;
-    expect(tmpFile.originalname).toBe('test.csv');
-  });
+    try {
+      expect(tmpFile.originalname).toBe('test.csv');
+    } finally {
+      const { unlink } = await import('node:fs/promises');
+      await unlink(tmpFile.path).catch(() => {});
+    }
 
   it('rejects and fails closed when the scan result is infected', async () => {
     const req = buildRequest(Readable.from(['infected content']));
