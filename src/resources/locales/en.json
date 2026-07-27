@@ -74,6 +74,12 @@
     "remove_file": "Error removing file from temporary blob storage",
     "invalid_dto": "Invalid request object",
     "metadata_name_required": "A name is required when creating metadata for a new language",
+    "column_matching": {
+      "invalid": "Column matching must be valid JSON"
+    },
+    "update_action": {
+      "invalid": "Update action is missing or invalid"
+    },
     "revision_already_approved": "Cannot change the publish date for a revision which has already been approved",
     "publish_at": {
       "invalid": "Publish at is missing or invalid",
