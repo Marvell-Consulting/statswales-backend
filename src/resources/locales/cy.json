@@ -72,6 +72,12 @@
     "remove_file": "Gwall wrth symud y ffeil o’r storfa blob dros dro",
     "invalid_dto": "Gwrthrych cais annilys",
     "metadata_name_required": "Mae angen enw wrth greu metadata ar gyfer iaith newydd",
+    "column_matching": {
+      "invalid": "Mae angen i baru colofnau fod yn JSON dilys"
+    },
+    "update_action": {
+      "invalid": "Mae gweithred diweddaru ar goll neu'n annilys"
+    },
     "revision_already_approved": "Ni ellir newid y dyddiad cyhoeddi ar gyfer diwygiad a gymeradwywyd yn barod",
     "publish_at": {
       "invalid": "Mae cyhoeddi ar yn annilys neu ar goll",
