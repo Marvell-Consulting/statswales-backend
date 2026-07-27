@@ -33,7 +33,7 @@ describe('auth controller', () => {
       (config as { env: AppEnv }).env = env;
 
       const req = { query: {} };
-      await loginLocal(req as unknown as Request, res as Response, jest.fn());
+      await loginLocal(req as unknown as Request, res as Response);
 
       expect(res.sendStatus).toHaveBeenCalledWith(404);
       expect(res.redirect).not.toHaveBeenCalled();
