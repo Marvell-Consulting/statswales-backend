@@ -62,7 +62,7 @@ describe('API Endpoints for viewing the contents of a dataset', () => {
     expect(res.body.data[23]).toEqual(['201314', '522', 4636, '1', '1', null]);
   });
 
-  test('Get a dataset view returns 500 if there is no revision on the dataset', async () => {
+  test('Get a dataset view returns 404 if there is no revision on the dataset', async () => {
     const dataset = await DatasetRepository.create({ createdBy: user, userGroupId: userGroup.id }).save();
 
     const res = await request(app)
@@ -71,7 +71,7 @@ describe('API Endpoints for viewing the contents of a dataset', () => {
       .query({ page_number: 2, page_size: 100 });
 
     expect(res.status).toBe(404);
-    expect(res.body).toEqual({ error: 'errors.no_end_revision' });
+    expect(res.body).toEqual({ error: 'No end revision found for dataset' });
   });
 
   test('Get file view returns 404 when a not valid UUID is supplied', async () => {

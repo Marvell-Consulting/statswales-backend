@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 
 import { NotFoundException } from '../../../src/exceptions/not-found.exception';
+import { UnknownException } from '../../../src/exceptions/unknown.exception';
 import { Dataset } from '../../../src/entities/dataset/dataset';
 import { Revision } from '../../../src/entities/dataset/revision';
 import { uuidV4 } from '../../../src/utils/uuid';
@@ -389,6 +390,30 @@ describe('consumer-v2 controller - scheduled publish date handling', () => {
       await getPublishedDatasetFilters(req, res, mockNext);
 
       expect(mockGetFilterTableQuery).toHaveBeenCalledWith(publishedRev.id, 2, 'en');
+    });
+
+    it('should call next with a generic UnknownException (not the raw DB error) when a downstream call fails', async () => {
+      const dataset = createMockDataset();
+      const publishedRev = createMockRevision();
+      const req = createMockRequest({ language: 'en' } as Partial<Request>);
+      const res = createMockResponse({ locals: { datasetId: dataset.id, dataset } });
+
+      mockGetLatestByDatasetId.mockResolvedValue(publishedRev);
+      mockGetFilterTableQuery.mockResolvedValue('SELECT 1');
+
+      // Simulate a raw TypeORM/pg driver style error (e.g. QueryFailedError), which must
+      // never be forwarded to the anonymous, public-facing caller verbatim.
+      const dbError = new Error('relation "12345678-1234-4123-8123-123456789012"."fact_table" does not exist');
+      mockPublishedDatasetGetById.mockRejectedValue(dbError);
+
+      await getPublishedDatasetFilters(req, res, mockNext);
+
+      expect(mockNext).toHaveBeenCalledTimes(1);
+      const errArg = mockNext.mock.calls[0][0];
+      expect(errArg).toBeInstanceOf(UnknownException);
+      expect(errArg).not.toBe(dbError);
+      expect(String(errArg.message)).not.toContain('relation');
+      expect(String(errArg.message)).not.toContain('fact_table');
     });
   });
 });

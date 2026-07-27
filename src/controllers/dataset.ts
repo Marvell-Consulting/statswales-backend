@@ -485,8 +485,8 @@ export const updateSources = async (req: Request, res: Response, next: NextFunct
   const dataTable = revision?.dataTable;
   const userId = req.user?.id;
 
-  if (!Array.isArray(req.body) || req.body.length === 0) {
-    next(new BadRequestException('Could not assign source types to import'));
+  if (!sourceAssignment) {
+    next(new BadRequestException('errors.invalid_source_assignment'));
     return;
   }
 

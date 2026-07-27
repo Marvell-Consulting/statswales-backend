@@ -21,8 +21,12 @@ WORKDIR /app
 
 COPY package*.json ./
 
-# install only production dependencies
-RUN npm ci --omit=dev
+# install only production dependencies, then remove npm — it isn't needed at
+# runtime (CMD runs node directly), and its bundled node-tar is what Trivy
+# flags for CVE-2026-59873. Deleting it drops the vulnerable copy from the image.
+RUN npm ci --omit=dev --no-audit --no-fund && \
+    npm cache clean --force && rm -rf /root/.npm && \
+    rm -rf /usr/local/lib/node_modules/npm /usr/local/bin/npm /usr/local/bin/npx
 
 # copy in the built application source from the builder image
 COPY --from=builder --chown=node:node /app/dist ./dist
@@ -41,4 +45,4 @@ ENV GIT_SHA=${GIT_SHA}
 # set the user to non-root (node)
 USER node
 
-CMD ["sh", "-c", "npm run migration:run-prod && exec node dist/server.js"]
+CMD ["sh", "-c", "/app/node_modules/.bin/typeorm migration:run --dataSource=./dist/db/publisher-source.js && exec node dist/server.js"]

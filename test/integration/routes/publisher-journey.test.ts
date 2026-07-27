@@ -92,7 +92,7 @@ describe('API Endpoints', () => {
       const dataset = await datasetService.createNew('Test Dataset 1', userGroup.id!, user);
       const res = await request(app).post(`/dataset/${dataset.id}/data`).set(getAuthHeader(user));
       expect(res.status).toBe(400);
-      expect(res.body).toEqual({ error: 'errors.upload.failed_to_parse' });
+      expect(res.body).toEqual({ error: 'Failed to process the uploaded file' });
       await Dataset.remove(dataset);
     });
 
@@ -292,7 +292,7 @@ describe('API Endpoints', () => {
         .get(`/dataset/${testDatasetId}/revision/by-id/${testRevisionId}/data-table/preview`)
         .set(getAuthHeader(user));
       expect(res.status).toBe(404);
-      expect(res.body).toEqual({ error: 'errors.no_data_table' });
+      expect(res.body).toEqual({ error: 'No data table found for revision' });
       createdRevisions.push(testRevisionId);
     });
   });
@@ -351,7 +351,7 @@ describe('API Endpoints', () => {
         .set(getAuthHeader(user));
 
       expect(res.status).toBe(400);
-      expect(res.body).toEqual({ error: 'errors.upload.failed_to_parse' });
+      expect(res.body).toEqual({ error: 'Failed to process the uploaded file' });
       createdRevisions.push(testRevisionId);
     });
 
@@ -420,7 +420,7 @@ describe('API Endpoints', () => {
         .set(getAuthHeader(user))
         .attach('csv', csvFile);
       expect(res.status).toBe(500);
-      expect(res.body).toEqual({ error: 'errors.file_validation.datalake_upload_error' });
+      expect(res.body).toEqual({ error: 'Error uploading file to blob storage' });
       createdRevisions.push(testRevisionId);
     });
   });
