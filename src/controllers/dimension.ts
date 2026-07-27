@@ -272,11 +272,8 @@ export const updateDimensionMetadata = async (req: Request, res: Response, next:
   try {
     update = await dtoValidator(DimensionMetadataDTO, req.body);
   } catch (err) {
-    if (err instanceof BadRequestException) {
-      next(err);
-      return;
-    }
-    throw err;
+    next(err);
+    return;
   }
   let metadata = dimension.metadata.find((meta: DimensionMetadata) => meta.language === update.language);
 
