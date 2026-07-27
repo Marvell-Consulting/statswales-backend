@@ -486,7 +486,7 @@ export const updateSources = async (req: Request, res: Response, next: NextFunct
   const userId = req.user?.id;
 
   if (!sourceAssignment) {
-    next(new BadRequestException('Could not assign source types to import'));
+    next(new BadRequestException('errors.invalid_source_assignment'));
     return;
   }
 

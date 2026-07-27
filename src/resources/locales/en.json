@@ -45,7 +45,11 @@
     "download_from_filestore": "Error downloading file from file store",
     "upload": {
       "no_title": "No title for the dataset has been provided",
-      "no_csv": "No CSV data provided"
+      "no_csv": "No CSV data provided",
+      "failed_to_parse": "Failed to process the uploaded file"
+    },
+    "file_validation": {
+      "datalake_upload_error": "Error uploading file to blob storage"
     },
     "dataset_id_invalid": "Dataset id is invalid or missing",
     "revision_id_invalid": "Revision id is invalid or missing",
@@ -56,6 +60,8 @@
     "info_update_error": "Could not update the dataset info",
     "no_dataset": "Dataset could not be found",
     "no_revision": "No revision found for dataset",
+    "no_end_revision": "No end revision found for dataset",
+    "no_data_table": "No data table found for revision",
     "no_file_import": "No import found for dataset",
     "upload_error": "Error uploading the file",
     "move_file_error": "Error moving file from temporary blob storage to Data Lake. Please try again.",

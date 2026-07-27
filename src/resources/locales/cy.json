@@ -43,7 +43,11 @@
     "download_from_filestore": "Gwall wrth lawrlwytho’r ffeil o’r storfa ffeiliau",
     "upload": {
       "no_title": "Ni ddarparwyd teitl ar gyfer y set ddata",
-      "no_csv": "Ni ddarparwyd data CSV"
+      "no_csv": "Ni ddarparwyd data CSV",
+      "failed_to_parse": "Methwyd â phrosesu’r ffeil a lanlwythwyd"
+    },
+    "file_validation": {
+      "datalake_upload_error": "Gwall wrth lanlwytho ffeil i’r storfa blob"
     },
     "dataset_id_invalid": "Mae id y set ddata yn annilys neu ar goll",
     "revision_id_invalid": "Mae’r id diwygio yn annilys neu ar goll",
@@ -54,6 +58,8 @@
     "info_update_error": "Ni fu modd diweddaru gwybodaeth y set ddata",
     "no_dataset": "Set ddata heb ei chanfod",
     "no_revision": "Diwygiad heb ei ganfod ar gyfer y set ddata",
+    "no_end_revision": "Diwygiad terfynol heb ei ganfod ar gyfer y set ddata",
+    "no_data_table": "Tabl data heb ei ganfod ar gyfer y diwygiad",
     "no_file_import": "Mewngludiad heb ei ganfod ar gyfer y set ddata",
     "upload_error": "Gwall wrth lanlwytho’r ffeil",
     "move_file_error": "Gwall wrth symud y ffeil o storfa blob dros dro i’r Llyn Data.  Rhowch gynnig arall ar hyn.",
