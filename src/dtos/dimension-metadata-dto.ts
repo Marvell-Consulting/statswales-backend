@@ -1,9 +1,10 @@
-import { IsOptional, IsString } from 'class-validator';
+import { IsNotEmpty, IsOptional, IsString } from 'class-validator';
 
 import { MetadataInterface } from '../interfaces/metadata-interface';
 
 export class DimensionMetadataDTO {
   @IsString()
+  @IsNotEmpty()
   language: string;
 
   @IsString()
