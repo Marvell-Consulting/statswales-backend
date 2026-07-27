@@ -8,7 +8,7 @@ export class DimensionMetadataDTO {
 
   @IsString()
   @IsOptional()
-  name: string;
+  name?: string;
 
   @IsString()
   @IsOptional()
