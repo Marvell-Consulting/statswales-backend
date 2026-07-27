@@ -329,6 +329,24 @@ describe('Measure controller', () => {
       expect(res.json).toHaveBeenCalledWith({ dimension: { name: 'Updated' }, build_id: 'build-1' });
     });
 
+    it('rejects with BadRequestException when creating metadata for a new language without a name', async () => {
+      const dataset = {
+        id: uuidV4(),
+        draftRevision: { id: uuidV4() },
+        measure: { id: uuidV4(), metadata: [] }
+      };
+      mockGetById.mockResolvedValue(dataset);
+
+      const req = createMockRequest({ body: { language: 'en-GB', notes: 'note' } as never });
+      const res = createMockResponse();
+
+      await updateMeasureMetadata(req, res, mockNext);
+
+      expect(mockNext).toHaveBeenCalledWith(expect.any(BadRequestException));
+      expect(mockMeasureMetadataCtor).not.toHaveBeenCalled();
+      expect(res.status).not.toHaveBeenCalledWith(202);
+    });
+
     it('rejects with BadRequestException when the metadata body fails DTO validation', async () => {
       const dataset = {
         id: uuidV4(),

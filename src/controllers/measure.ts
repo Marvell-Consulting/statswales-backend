@@ -172,6 +172,10 @@ export const updateMeasureMetadata = async (req: Request, res: Response, next: N
   let metadata = measure.metadata.find((meta: MeasureMetadata) => meta.language === update.language);
 
   if (!metadata) {
+    if (!update.name) {
+      next(new BadRequestException('errors.metadata_name_required'));
+      return;
+    }
     metadata = new MeasureMetadata();
     metadata.measure = measure;
     metadata.language = update.language;

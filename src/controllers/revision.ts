@@ -46,6 +46,8 @@ import { BuiltLogEntryDto } from '../dtos/build-log';
 import { buildStatusValidator, buildTypeValidator, hasError } from '../validators';
 import { CubeBuildType } from '../enums/cube-build-type';
 import { CubeBuildStatus } from '../enums/cube-build-status';
+import { dbManager } from '../db/database-manager';
+import { format as pgformat } from '@scaleleap/pg-format/lib/pg-format';
 import { BuildLogRepository } from '../repositories/build-log';
 import { BuildLog } from '../entities/dataset/build-log';
 
@@ -244,6 +246,23 @@ export const getRevisionInfo = async (req: Request, res: Response): Promise<void
   res.json(RevisionDTO.fromRevision(revision));
 };
 
+async function cleanupOrphanedDataTable(req: Request, datasetId: string, dataTable: DataTable): Promise<void> {
+  const cubeDB = dbManager.getCubeDataSource().createQueryRunner();
+  try {
+    await cubeDB.query(pgformat('DROP TABLE IF EXISTS data_tables.%I;', dataTable.id));
+  } catch (err) {
+    logger.warn(err, `Failed to drop orphaned data table ${dataTable.id} from cube database`);
+  } finally {
+    await cubeDB.release();
+  }
+
+  try {
+    await req.fileService.delete(dataTable.filename, datasetId);
+  } catch (err) {
+    logger.warn(err, `Failed to delete orphaned data table file ${dataTable.filename} from data lake`);
+  }
+}
+
 export const updateDataTable = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   const datasetId: string = res.locals.datasetId;
   const revision: Revision = res.locals.revision;
@@ -298,6 +317,7 @@ export const updateDataTable = async (req: Request, res: Response, next: NextFun
         try {
           columnMatcher = JSON.parse(req.body.column_matching) as ColumnMatch[];
         } catch (_err) {
+          await cleanupOrphanedDataTable(req, datasetId, dataTable);
           next(new BadRequestException('errors.column_matching.invalid'));
           return;
         }
@@ -306,6 +326,7 @@ export const updateDataTable = async (req: Request, res: Response, next: NextFun
       const updateAction = req.body.update_action ? (req.body.update_action as DataTableAction) : DataTableAction.Add;
 
       if (!Object.values(DataTableAction).includes(updateAction)) {
+        await cleanupOrphanedDataTable(req, datasetId, dataTable);
         next(new BadRequestException('errors.update_action.invalid'));
         return;
       }

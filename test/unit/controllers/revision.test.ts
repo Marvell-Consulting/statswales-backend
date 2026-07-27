@@ -95,6 +95,23 @@ jest.mock('../../../src/services/incoming-file-processor', () => ({
   validateAndUpload: jest.fn()
 }));
 
+// Mock dbManager
+jest.mock('../../../src/db/database-manager', () => ({
+  dbManager: {
+    getCubeDataSource: jest.fn().mockReturnValue({
+      createQueryRunner: jest.fn().mockReturnValue({
+        query: jest.fn().mockResolvedValue(undefined),
+        release: jest.fn().mockResolvedValue(undefined)
+      })
+    })
+  }
+}));
+
+// Mock pg-format
+jest.mock('@scaleleap/pg-format/lib/pg-format', () => ({
+  format: jest.fn((...args: unknown[]) => String(args[0]))
+}));
+
 // Mock validators
 const mockHasError = jest.fn();
 jest.mock('../../../src/validators', () => ({
@@ -484,7 +501,7 @@ describe('Revision controller', () => {
 
   describe('updateDataTable', () => {
     const tmpFile = { path: '/tmp/file', originalname: 'file.csv', mimetype: 'text/csv', size: 100 };
-    const uploadedDataTable = { id: 'dt-1' };
+    const uploadedDataTable = { id: 'dt-1', filename: 'dt-1.csv' };
 
     beforeEach(() => {
       (uploadAvScan as jest.Mock).mockResolvedValue(tmpFile);
@@ -502,6 +519,13 @@ describe('Revision controller', () => {
 
       expect(mockNext).toHaveBeenCalledWith(expect.any(BadRequestException));
       expect(attachUpdateDataTableToRevision).not.toHaveBeenCalled();
+
+      // the data table created by validateAndUpload before this guard runs must not be orphaned
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const { dbManager } = require('../../../src/db/database-manager');
+      const queryRunner = dbManager.getCubeDataSource().createQueryRunner();
+      expect(queryRunner.query).toHaveBeenCalled();
+      expect((req as any).fileService.delete).toHaveBeenCalledWith(uploadedDataTable.filename, datasetId);
     });
 
     it('should reject with BadRequestException when column_matching is malformed JSON', async () => {
@@ -515,6 +539,13 @@ describe('Revision controller', () => {
 
       expect(mockNext).toHaveBeenCalledWith(expect.any(BadRequestException));
       expect(attachUpdateDataTableToRevision).not.toHaveBeenCalled();
+
+      // the data table created by validateAndUpload before this guard runs must not be orphaned
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const { dbManager } = require('../../../src/db/database-manager');
+      const queryRunner = dbManager.getCubeDataSource().createQueryRunner();
+      expect(queryRunner.query).toHaveBeenCalled();
+      expect((req as any).fileService.delete).toHaveBeenCalledWith(uploadedDataTable.filename, datasetId);
     });
   });
 

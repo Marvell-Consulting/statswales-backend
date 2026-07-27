@@ -281,6 +281,10 @@ export const updateDimensionMetadata = async (req: Request, res: Response, next:
   let metadata = dimension.metadata.find((meta: DimensionMetadata) => meta.language === update.language);
 
   if (!metadata) {
+    if (!update.name) {
+      next(new BadRequestException('errors.metadata_name_required'));
+      return;
+    }
     metadata = new DimensionMetadata();
     metadata.dimension = dimension;
     metadata.language = update.language;

@@ -154,6 +154,7 @@ import {
   getDimensionLookupTableInfo,
   downloadDimensionLookupTable
 } from '../../../src/controllers/dimension';
+import { DimensionMetadata } from '../../../src/entities/dataset/dimension-metadata';
 
 function createMockDimension(overrides: Record<string, unknown> = {}) {
   return {
@@ -717,6 +718,21 @@ describe('Dimension controller', () => {
       await updateDimensionMetadata(req, res, mockNext);
 
       expect(mockNext).toHaveBeenCalledWith(expect.any(BadRequestException));
+      expect(res.status).not.toHaveBeenCalledWith(202);
+    });
+
+    it('should reject with BadRequestException when creating metadata for a new language without a name', async () => {
+      const dimension = createMockDimension({ metadata: [] });
+      const dataset = createMockDataset();
+      mockDatasetGetById.mockResolvedValue(dataset);
+
+      const req = createMockRequest({ body: { language: 'cy', notes: 'Welsh notes' } });
+      const res = createMockResponse({ locals: { dimension, datasetId: dataset.id } });
+
+      await updateDimensionMetadata(req, res, mockNext);
+
+      expect(mockNext).toHaveBeenCalledWith(expect.any(BadRequestException));
+      expect(DimensionMetadata).not.toHaveBeenCalled();
       expect(res.status).not.toHaveBeenCalledWith(202);
     });
   });
