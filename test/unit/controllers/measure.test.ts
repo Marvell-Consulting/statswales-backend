@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 
 import { NotFoundException } from '../../../src/exceptions/not-found.exception';
 import { UnknownException } from '../../../src/exceptions/unknown.exception';
+import { BadRequestException } from '../../../src/exceptions/bad-request.exception';
 import { uuidV4 } from '../../../src/utils/uuid';
 
 jest.mock('../../../src/utils/logger', () => ({
@@ -33,10 +34,18 @@ jest.mock('../../../src/dtos/lookup-table-dto', () => ({
   LookupTableDTO: { fromLookupTable: (...args: unknown[]) => mockFromLookupTable(...args) }
 }));
 
+// Keep the real DimensionMetadataDTO class (needed for class-validator decorators used by dtoValidator),
+// but stub out the static factory method used to build response DTOs.
 const mockFromDimensionMetadata = jest.fn();
-jest.mock('../../../src/dtos/dimension-metadata-dto', () => ({
-  DimensionMetadataDTO: { fromDimensionMetadata: (...args: unknown[]) => mockFromDimensionMetadata(...args) }
-}));
+jest.mock('../../../src/dtos/dimension-metadata-dto', () => {
+  const actual = jest.requireActual('../../../src/dtos/dimension-metadata-dto');
+  return {
+    ...actual,
+    DimensionMetadataDTO: Object.assign(actual.DimensionMetadataDTO, {
+      fromDimensionMetadata: (...args: unknown[]) => mockFromDimensionMetadata(...args)
+    })
+  };
+});
 
 const mockGetMeasurePreview = jest.fn();
 const mockValidateMeasureLookupTable = jest.fn();
@@ -318,6 +327,24 @@ describe('Measure controller', () => {
       expect(mockUpdateRevisionTasks).toHaveBeenCalledWith(dataset, dataset.measure.id, 'measure');
       expect(res.status).toHaveBeenCalledWith(202);
       expect(res.json).toHaveBeenCalledWith({ dimension: { name: 'Updated' }, build_id: 'build-1' });
+    });
+
+    it('rejects with BadRequestException when the metadata body fails DTO validation', async () => {
+      const dataset = {
+        id: uuidV4(),
+        draftRevision: { id: uuidV4() },
+        measure: { id: uuidV4(), metadata: [] }
+      };
+      mockGetById.mockResolvedValue(dataset);
+
+      // language is required (@IsString) and must be a string
+      const req = createMockRequest({ body: { language: 123, name: 'Updated' } as never });
+      const res = createMockResponse();
+
+      await updateMeasureMetadata(req, res, mockNext);
+
+      expect(mockNext).toHaveBeenCalledWith(expect.any(BadRequestException));
+      expect(res.status).not.toHaveBeenCalledWith(202);
     });
 
     it('passes UnknownException to next when there is no draft revision', async () => {

@@ -292,10 +292,24 @@ export const updateDataTable = async (req: Request, res: Response, next: NextFun
       logger.debug('Attaching data table to first revision');
       await RevisionRepository.save({ ...revision, dataTable });
     } else {
-      const columnMatcher = req.body.column_matching
-        ? (JSON.parse(req.body.column_matching) as ColumnMatch[])
-        : undefined;
+      let columnMatcher: ColumnMatch[] | undefined;
+
+      if (req.body.column_matching) {
+        try {
+          columnMatcher = JSON.parse(req.body.column_matching) as ColumnMatch[];
+        } catch (_err) {
+          next(new BadRequestException('errors.column_matching.invalid'));
+          return;
+        }
+      }
+
       const updateAction = req.body.update_action ? (req.body.update_action as DataTableAction) : DataTableAction.Add;
+
+      if (!Object.values(DataTableAction).includes(updateAction)) {
+        next(new BadRequestException('errors.update_action.invalid'));
+        return;
+      }
+
       await attachUpdateDataTableToRevision(datasetId, revision, dataTable, updateAction, columnMatcher, userId);
     }
   } catch (err) {

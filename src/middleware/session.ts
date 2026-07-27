@@ -47,7 +47,8 @@ const sessionMiddleware = session({
   proxy: true,
   cookie: {
     secure: config.session.secure,
-    maxAge: config.session.maxAge
+    maxAge: config.session.maxAge,
+    sameSite: 'lax'
   }
 });
 
