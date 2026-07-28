@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import { Readable } from 'node:stream';
 
 import { UnknownException } from '../../../src/exceptions/unknown.exception';
+import { BadRequestException } from '../../../src/exceptions/bad-request.exception';
 import { DimensionType } from '../../../src/enums/dimension-type';
 import { RevisionTask } from '../../../src/interfaces/revision-task';
 import { uuidV4 } from '../../../src/utils/uuid';
@@ -41,13 +42,6 @@ const mockFromDimension = jest.fn();
 jest.mock('../../../src/dtos/dimension-dto', () => ({
   DimensionDTO: {
     fromDimension: (...args: unknown[]) => mockFromDimension(...args)
-  }
-}));
-
-// Mock DimensionMetadataDTO
-jest.mock('../../../src/dtos/dimension-metadata-dto', () => ({
-  DimensionMetadataDTO: {
-    fromDimensionMetadata: jest.fn()
   }
 }));
 
@@ -160,6 +154,7 @@ import {
   getDimensionLookupTableInfo,
   downloadDimensionLookupTable
 } from '../../../src/controllers/dimension';
+import { DimensionMetadata } from '../../../src/entities/dataset/dimension-metadata';
 
 function createMockDimension(overrides: Record<string, unknown> = {}) {
   return {
@@ -709,6 +704,36 @@ describe('Dimension controller', () => {
           build_id: expect.any(String)
         })
       );
+    });
+
+    it('should reject with BadRequestException when the metadata body fails DTO validation', async () => {
+      const dimension = createMockDimension({ metadata: [] });
+      const dataset = createMockDataset();
+      mockDatasetGetById.mockResolvedValue(dataset);
+
+      // language is required (@IsString) and must be a string
+      const req = createMockRequest({ body: { language: 123, name: 'New Name' } });
+      const res = createMockResponse({ locals: { dimension, datasetId: dataset.id } });
+
+      await updateDimensionMetadata(req, res, mockNext);
+
+      expect(mockNext).toHaveBeenCalledWith(expect.any(BadRequestException));
+      expect(res.status).not.toHaveBeenCalledWith(202);
+    });
+
+    it('should reject with BadRequestException when creating metadata for a new language without a name', async () => {
+      const dimension = createMockDimension({ metadata: [] });
+      const dataset = createMockDataset();
+      mockDatasetGetById.mockResolvedValue(dataset);
+
+      const req = createMockRequest({ body: { language: 'cy', notes: 'Welsh notes' } });
+      const res = createMockResponse({ locals: { dimension, datasetId: dataset.id } });
+
+      await updateDimensionMetadata(req, res, mockNext);
+
+      expect(mockNext).toHaveBeenCalledWith(expect.any(BadRequestException));
+      expect(DimensionMetadata).not.toHaveBeenCalled();
+      expect(res.status).not.toHaveBeenCalledWith(202);
     });
   });
 

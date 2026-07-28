@@ -32,6 +32,7 @@ import {
   validateSourceAssignment
 } from '../services/dimension-processor';
 import { SourceAssignmentException } from '../exceptions/source-assignment.exception';
+import { SourceAssignmentDTO } from '../dtos/source-assignment-dto';
 import { FactTableColumn } from '../entities/dataset/fact-table-column';
 import { Dataset } from '../entities/dataset/dataset';
 import { FactTableColumnDto } from '../dtos/fact-table-column-dto';
@@ -482,12 +483,22 @@ export const updateSources = async (req: Request, res: Response, next: NextFunct
   const dataset = await DatasetRepository.getById(res.locals.datasetId, withDraftAndDataTable);
   const revision = dataset.draftRevision;
   const dataTable = revision?.dataTable;
-  const sourceAssignment = req.body;
   const userId = req.user?.id;
 
-  if (!sourceAssignment) {
+  if (!Array.isArray(req.body) || req.body.length === 0) {
     next(new BadRequestException('errors.invalid_source_assignment'));
     return;
+  }
+
+  let sourceAssignment: SourceAssignmentDTO[];
+  try {
+    sourceAssignment = await arrayValidator(SourceAssignmentDTO, req.body);
+  } catch (err) {
+    if (err instanceof BadRequestException) {
+      next(err);
+      return;
+    }
+    throw err;
   }
 
   if (!revision || revision.revisionIndex !== 1) {

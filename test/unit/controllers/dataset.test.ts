@@ -10,6 +10,7 @@ import { uuidV4 } from '../../../src/utils/uuid';
 import { DatasetInclude } from '../../../src/enums/dataset-include';
 import { TaskAction } from '../../../src/enums/task-action';
 import { OutputFormats } from '../../../src/enums/output-formats';
+import { FactTableColumnType } from '../../../src/enums/fact-table-column-type';
 
 // Mock logger
 jest.mock('../../../src/utils/logger', () => {
@@ -1211,6 +1212,10 @@ describe('Dataset controller', () => {
   });
 
   describe('updateSources', () => {
+    const validSourceAssignment = [
+      { column_index: 0, column_name: 'dimension', column_type: FactTableColumnType.Dimension }
+    ];
+
     it('should reject when no sourceAssignment body', async () => {
       const datasetId = uuidV4();
       const dataset = createMockDataset(datasetId);
@@ -1226,6 +1231,43 @@ describe('Dataset controller', () => {
       expect(mockNext).toHaveBeenCalledWith(expect.any(BadRequestException));
     });
 
+    it('should reject when sourceAssignment body is not an array', async () => {
+      const datasetId = uuidV4();
+      const dataset = createMockDataset(datasetId);
+      dataset.draftRevision = createMockRevision() as any;
+
+      mockDatasetGetById.mockResolvedValue(dataset);
+
+      const req = createMockRequest({ body: { col: 'dimension' } });
+      const res = createMockResponse({ locals: { datasetId } });
+
+      await updateSources(req, res, mockNext);
+
+      expect(mockNext).toHaveBeenCalledWith(expect.any(BadRequestException));
+    });
+
+    it('should reject when sourceAssignment entries fail DTO validation', async () => {
+      const datasetId = uuidV4();
+      const dataset = createMockDataset(datasetId);
+      dataset.draftRevision = createMockRevision() as any;
+
+      mockDatasetGetById.mockResolvedValue(dataset);
+
+      const validationErr = new BadRequestException('errors.invalid_dto', 400, []);
+      mockArrayValidator.mockRejectedValue(validationErr);
+
+      // column_type is not a valid FactTableColumnType and column_index is not a number
+      const req = createMockRequest({
+        body: [{ column_index: 'not-a-number', column_name: 'dimension', column_type: 'not-a-real-type' }]
+      });
+      const res = createMockResponse({ locals: { datasetId } });
+
+      await updateSources(req, res, mockNext);
+
+      expect(mockNext).toHaveBeenCalledWith(validationErr);
+      expect(mockValidateSourceAssignment).not.toHaveBeenCalled();
+    });
+
     it('should reject when revision is not first revision', async () => {
       const datasetId = uuidV4();
       const dataset = createMockDataset(datasetId);
@@ -1234,8 +1276,9 @@ describe('Dataset controller', () => {
       dataset.draftRevision = revision;
 
       mockDatasetGetById.mockResolvedValue(dataset);
+      mockArrayValidator.mockResolvedValue(validSourceAssignment);
 
-      const req = createMockRequest({ body: { col: 'dimension' } });
+      const req = createMockRequest({ body: validSourceAssignment });
       const res = createMockResponse({ locals: { datasetId } });
 
       await updateSources(req, res, mockNext);
@@ -1251,8 +1294,9 @@ describe('Dataset controller', () => {
       dataset.draftRevision = revision;
 
       mockDatasetGetById.mockResolvedValue(dataset);
+      mockArrayValidator.mockResolvedValue(validSourceAssignment);
 
-      const req = createMockRequest({ body: { col: 'dimension' } });
+      const req = createMockRequest({ body: validSourceAssignment });
       const res = createMockResponse({ locals: { datasetId } });
 
       await updateSources(req, res, mockNext);
@@ -1268,13 +1312,14 @@ describe('Dataset controller', () => {
       dataset.draftRevision = revision;
 
       mockDatasetGetById.mockResolvedValue(dataset);
+      mockArrayValidator.mockResolvedValue(validSourceAssignment);
       jest.requireMock('../../../src/exceptions/source-assignment.exception');
       const assignmentError = { status: 422, message: 'bad assignment' };
       mockValidateSourceAssignment.mockImplementation(() => {
         throw assignmentError;
       });
 
-      const req = createMockRequest({ body: { col: 'dimension' } });
+      const req = createMockRequest({ body: validSourceAssignment });
       const res = createMockResponse({ locals: { datasetId } });
 
       await updateSources(req, res, mockNext);
@@ -1296,13 +1341,14 @@ describe('Dataset controller', () => {
       mockDatasetGetById
         .mockResolvedValueOnce(dataset) // first call for updateSources
         .mockResolvedValueOnce(updatedDataset); // second call after source assignment
+      mockArrayValidator.mockResolvedValue(validSourceAssignment);
       mockValidateSourceAssignment.mockReturnValue({ validated: true });
       mockFactTableValidatorFromSource.mockResolvedValue(undefined);
       mockCreateDimensionsFromSourceAssignment.mockResolvedValue(undefined);
       mockFromDataset.mockReturnValue(mockDto);
       mockStartBuild.mockResolvedValue({ id: 'test-build-id' });
 
-      const req = createMockRequest({ body: { col: 'dimension' } });
+      const req = createMockRequest({ body: validSourceAssignment });
       const res = createMockResponse({ locals: { datasetId } });
 
       await updateSources(req, res, mockNext);

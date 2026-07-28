@@ -2,8 +2,9 @@ import { Request, Response } from 'express';
 import passport from 'passport';
 import jwt from 'jsonwebtoken';
 
-import { checkTokenFitsInCookie, loginEntraID } from '../../../src/controllers/auth';
+import { checkTokenFitsInCookie, loginEntraID, loginLocal } from '../../../src/controllers/auth';
 import { config } from '../../../src/config';
+import { AppEnv } from '../../../src/config/env.enum';
 
 describe('auth controller', () => {
   describe('checkTokenFitsInCookie', () => {
@@ -13,6 +14,29 @@ describe('auth controller', () => {
 
     it('throws for a token larger than 4096 bytes', () => {
       expect(() => checkTokenFitsInCookie('a'.repeat(4097))).toThrow(/exceeds the maximum cookie size/);
+    });
+  });
+
+  describe('loginLocal', () => {
+    let res: Partial<Response> & { sendStatus: jest.Mock; redirect: jest.Mock };
+    const originalEnv = config.env;
+
+    beforeEach(() => {
+      res = { sendStatus: jest.fn(), redirect: jest.fn() };
+    });
+
+    afterEach(() => {
+      (config as { env: AppEnv }).env = originalEnv;
+    });
+
+    it.each([AppEnv.Prod, AppEnv.Staging])('responds with 404 and does not proceed when env is %s', async (env) => {
+      (config as { env: AppEnv }).env = env;
+
+      const req = { query: {} };
+      await loginLocal(req as unknown as Request, res as Response);
+
+      expect(res.sendStatus).toHaveBeenCalledWith(404);
+      expect(res.redirect).not.toHaveBeenCalled();
     });
   });
 

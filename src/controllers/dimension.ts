@@ -13,6 +13,8 @@ import { LookupTable } from '../entities/dataset/lookup-table';
 import { UnknownException } from '../exceptions/unknown.exception';
 import { DimensionMetadataDTO } from '../dtos/dimension-metadata-dto';
 import { validateAndUpload } from '../services/incoming-file-processor';
+import { dtoValidator } from '../validators/dto-validator';
+import { BadRequestException } from '../exceptions/bad-request.exception';
 import {
   createAndValidateDateDimension,
   getDimensionPreview,
@@ -266,10 +268,20 @@ export const updateDimensionMetadata = async (req: Request, res: Response, next:
     return;
   }
 
-  const update = req.body as DimensionMetadataDTO;
+  let update: DimensionMetadataDTO;
+  try {
+    update = await dtoValidator(DimensionMetadataDTO, req.body);
+  } catch (err) {
+    next(err);
+    return;
+  }
   let metadata = dimension.metadata.find((meta: DimensionMetadata) => meta.language === update.language);
 
   if (!metadata) {
+    if (!update.name) {
+      next(new BadRequestException('errors.metadata_name_required'));
+      return;
+    }
     metadata = new DimensionMetadata();
     metadata.dimension = dimension;
     metadata.language = update.language;

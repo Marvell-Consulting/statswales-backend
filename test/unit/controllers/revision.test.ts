@@ -157,10 +157,13 @@ import {
   removeFactTableFromRevision,
   getRevisionBuildLog,
   getRevisionPreview,
-  getRevisionPreviewFilters
+  getRevisionPreviewFilters,
+  updateDataTable
 } from '../../../src/controllers/revision';
 import { DataTable } from '../../../src/entities/dataset/data-table';
-import { getFilePreview } from '../../../src/services/incoming-file-processor';
+import { getFilePreview, validateAndUpload } from '../../../src/services/incoming-file-processor';
+import { uploadAvScan } from '../../../src/services/virus-scanner';
+import { attachUpdateDataTableToRevision } from '../../../src/services/revision';
 
 function createMockDataset(id?: string): Dataset {
   const dataset = new Dataset();
@@ -476,6 +479,54 @@ describe('Revision controller', () => {
       await getDataTable(req, res, mockNext);
 
       expect(mockNext).toHaveBeenCalledWith(expect.any(UnknownException));
+    });
+  });
+
+  describe('updateDataTable', () => {
+    const tmpFile = { path: '/tmp/file', originalname: 'file.csv', mimetype: 'text/csv', size: 100 };
+    const uploadedDataTable = { id: 'dt-1', filename: 'dt-1.csv' };
+
+    beforeEach(() => {
+      (uploadAvScan as jest.Mock).mockResolvedValue(tmpFile);
+      (validateAndUpload as jest.Mock).mockResolvedValue(uploadedDataTable);
+    });
+
+    it('should reject with BadRequestException when update_action is not a valid DataTableAction, without touching the existing data table', async () => {
+      const datasetId = uuidV4();
+      const existingDataTable = { id: 'dt-existing', filename: 'existing.csv' };
+      const revision = createMockRevision({ revisionIndex: 2, dataTable: existingDataTable as any });
+
+      const req = createMockRequest({ body: { update_action: 'not_a_real_action' } });
+      const res = createMockResponse({ locals: { datasetId, revision } });
+
+      await updateDataTable(req, res, mockNext);
+
+      expect(mockNext).toHaveBeenCalledWith(expect.any(BadRequestException));
+      expect(attachUpdateDataTableToRevision).not.toHaveBeenCalled();
+
+      // rejection must happen before the existing data table is touched or a replacement is uploaded
+      expect((req as any).fileService.delete).not.toHaveBeenCalled();
+      expect((DataTable.getRepository() as any).remove).not.toHaveBeenCalled();
+      expect(validateAndUpload).not.toHaveBeenCalled();
+    });
+
+    it('should reject with BadRequestException when column_matching is malformed JSON, without touching the existing data table', async () => {
+      const datasetId = uuidV4();
+      const existingDataTable = { id: 'dt-existing', filename: 'existing.csv' };
+      const revision = createMockRevision({ revisionIndex: 2, dataTable: existingDataTable as any });
+
+      const req = createMockRequest({ body: { column_matching: 'not-json{' } });
+      const res = createMockResponse({ locals: { datasetId, revision } });
+
+      await updateDataTable(req, res, mockNext);
+
+      expect(mockNext).toHaveBeenCalledWith(expect.any(BadRequestException));
+      expect(attachUpdateDataTableToRevision).not.toHaveBeenCalled();
+
+      // rejection must happen before the existing data table is touched or a replacement is uploaded
+      expect((req as any).fileService.delete).not.toHaveBeenCalled();
+      expect((DataTable.getRepository() as any).remove).not.toHaveBeenCalled();
+      expect(validateAndUpload).not.toHaveBeenCalled();
     });
   });
 

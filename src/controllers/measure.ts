@@ -159,10 +159,20 @@ export const updateMeasureMetadata = async (req: Request, res: Response, next: N
     return;
   }
 
-  const update = req.body as DimensionMetadataDTO;
+  let update: DimensionMetadataDTO;
+  try {
+    update = await dtoValidator(DimensionMetadataDTO, req.body);
+  } catch (err) {
+    next(err);
+    return;
+  }
   let metadata = measure.metadata.find((meta: MeasureMetadata) => meta.language === update.language);
 
   if (!metadata) {
+    if (!update.name) {
+      next(new BadRequestException('errors.metadata_name_required'));
+      return;
+    }
     metadata = new MeasureMetadata();
     metadata.measure = measure;
     metadata.language = update.language;

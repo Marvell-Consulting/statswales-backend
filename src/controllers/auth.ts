@@ -10,6 +10,7 @@ import { User } from '../entities/user/user';
 import { AuthProvider } from '../enums/auth-providers';
 import { UserRepository } from '../repositories/user';
 import { UserDTO } from '../dtos/user/user-dto';
+import { AppEnv } from '../config/env.enum';
 
 const domain = new URL(config.auth.jwt.cookieDomain).hostname;
 logger.debug(`JWT cookie domain is '${domain}'`);
@@ -30,6 +31,13 @@ export const checkTokenFitsInCookie = (token: string): void => {
 
 // should only ever be used in testing environments
 export const loginLocal: RequestHandler = async (req, res) => {
+  // Defensive check: this route should already be excluded from prod/staging by the auth providers
+  // config list (see src/routes/auth.ts), but we assert it here too, belt-and-braces.
+  if (config.env === AppEnv.Prod || config.env === AppEnv.Staging) {
+    res.sendStatus(404);
+    return;
+  }
+
   logger.debug('auth request from local form received');
 
   const returnURL = `${config.frontend.url}/auth/callback`;

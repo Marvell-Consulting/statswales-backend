@@ -1,9 +1,22 @@
+import { IsNotEmpty, IsOptional, IsString } from 'class-validator';
+
 import { MetadataInterface } from '../interfaces/metadata-interface';
 
 export class DimensionMetadataDTO {
+  @IsString()
+  @IsNotEmpty()
   language: string;
-  name: string;
+
+  @IsString()
+  @IsOptional()
+  name?: string;
+
+  @IsString()
+  @IsOptional()
   description?: string;
+
+  @IsString()
+  @IsOptional()
   notes?: string;
 
   static fromDimensionMetadata(dimensionInfo: MetadataInterface): DimensionMetadataDTO {
