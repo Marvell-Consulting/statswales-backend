@@ -138,8 +138,7 @@ jest.mock('../../../src/services/consumer-view', () => ({
 
 // Mock revision service
 jest.mock('../../../src/services/revision', () => ({
-  attachUpdateDataTableToRevision: jest.fn(),
-  cleanupOrphanedDataTable: jest.fn()
+  attachUpdateDataTableToRevision: jest.fn()
 }));
 
 // Mock performance-reporting
@@ -164,7 +163,7 @@ import {
 import { DataTable } from '../../../src/entities/dataset/data-table';
 import { getFilePreview, validateAndUpload } from '../../../src/services/incoming-file-processor';
 import { uploadAvScan } from '../../../src/services/virus-scanner';
-import { attachUpdateDataTableToRevision, cleanupOrphanedDataTable } from '../../../src/services/revision';
+import { attachUpdateDataTableToRevision } from '../../../src/services/revision';
 
 function createMockDataset(id?: string): Dataset {
   const dataset = new Dataset();
@@ -492,9 +491,10 @@ describe('Revision controller', () => {
       (validateAndUpload as jest.Mock).mockResolvedValue(uploadedDataTable);
     });
 
-    it('should reject with BadRequestException when update_action is not a valid DataTableAction', async () => {
+    it('should reject with BadRequestException when update_action is not a valid DataTableAction, without touching the existing data table', async () => {
       const datasetId = uuidV4();
-      const revision = createMockRevision({ revisionIndex: 2, dataTable: null });
+      const existingDataTable = { id: 'dt-existing', filename: 'existing.csv' };
+      const revision = createMockRevision({ revisionIndex: 2, dataTable: existingDataTable as any });
 
       const req = createMockRequest({ body: { update_action: 'not_a_real_action' } });
       const res = createMockResponse({ locals: { datasetId, revision } });
@@ -504,13 +504,16 @@ describe('Revision controller', () => {
       expect(mockNext).toHaveBeenCalledWith(expect.any(BadRequestException));
       expect(attachUpdateDataTableToRevision).not.toHaveBeenCalled();
 
-      // the data table created by validateAndUpload before this guard runs must not be orphaned
-      expect(cleanupOrphanedDataTable).toHaveBeenCalledWith(datasetId, uploadedDataTable, (req as any).fileService);
+      // rejection must happen before the existing data table is touched or a replacement is uploaded
+      expect((req as any).fileService.delete).not.toHaveBeenCalled();
+      expect((DataTable.getRepository() as any).remove).not.toHaveBeenCalled();
+      expect(validateAndUpload).not.toHaveBeenCalled();
     });
 
-    it('should reject with BadRequestException when column_matching is malformed JSON', async () => {
+    it('should reject with BadRequestException when column_matching is malformed JSON, without touching the existing data table', async () => {
       const datasetId = uuidV4();
-      const revision = createMockRevision({ revisionIndex: 2, dataTable: null });
+      const existingDataTable = { id: 'dt-existing', filename: 'existing.csv' };
+      const revision = createMockRevision({ revisionIndex: 2, dataTable: existingDataTable as any });
 
       const req = createMockRequest({ body: { column_matching: 'not-json{' } });
       const res = createMockResponse({ locals: { datasetId, revision } });
@@ -520,8 +523,10 @@ describe('Revision controller', () => {
       expect(mockNext).toHaveBeenCalledWith(expect.any(BadRequestException));
       expect(attachUpdateDataTableToRevision).not.toHaveBeenCalled();
 
-      // the data table created by validateAndUpload before this guard runs must not be orphaned
-      expect(cleanupOrphanedDataTable).toHaveBeenCalledWith(datasetId, uploadedDataTable, (req as any).fileService);
+      // rejection must happen before the existing data table is touched or a replacement is uploaded
+      expect((req as any).fileService.delete).not.toHaveBeenCalled();
+      expect((DataTable.getRepository() as any).remove).not.toHaveBeenCalled();
+      expect(validateAndUpload).not.toHaveBeenCalled();
     });
   });
 

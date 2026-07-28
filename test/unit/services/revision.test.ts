@@ -101,7 +101,6 @@ jest.mock('../../../src/config', () => ({
 // Import after mocks
 import {
   attachUpdateDataTableToRevision,
-  cleanupOrphanedDataTable,
   createDateTableInValidationCube,
   rebuildCubesForRevisions,
   rebuildAllFilterTablesForRevisions,
@@ -185,36 +184,6 @@ describe('revision service', () => {
     mockWidenCoverageRange.mockReturnValue({ startDate: new Date('2019-01-01'), endDate: new Date('2021-12-31') });
     mockBootstrapCubeBuildProcess.mockResolvedValue(undefined);
     mockUpdateFilterTableToLatest.mockResolvedValue(undefined);
-  });
-
-  describe('cleanupOrphanedDataTable', () => {
-    const dataTable = { id: 'dt-1', filename: 'dt-1.csv' };
-
-    it('drops the orphaned cube table and deletes the file from storage', async () => {
-      const fileService = { delete: jest.fn().mockResolvedValue(undefined) };
-
-      await cleanupOrphanedDataTable('ds-1', dataTable as never, fileService as never);
-
-      expect(mockQuery).toHaveBeenCalledWith(expect.stringContaining('DROP TABLE IF EXISTS data_tables."dt-1"'));
-      expect(mockRelease).toHaveBeenCalled();
-      expect(fileService.delete).toHaveBeenCalledWith('dt-1.csv', 'ds-1');
-    });
-
-    it('swallows errors dropping the cube table and still attempts to delete the file', async () => {
-      const fileService = { delete: jest.fn().mockResolvedValue(undefined) };
-      mockQuery.mockRejectedValueOnce(new Error('drop failed'));
-
-      await expect(cleanupOrphanedDataTable('ds-1', dataTable as never, fileService as never)).resolves.not.toThrow();
-
-      expect(mockRelease).toHaveBeenCalled();
-      expect(fileService.delete).toHaveBeenCalledWith('dt-1.csv', 'ds-1');
-    });
-
-    it('swallows errors deleting the file from storage', async () => {
-      const fileService = { delete: jest.fn().mockRejectedValue(new Error('delete failed')) };
-
-      await expect(cleanupOrphanedDataTable('ds-1', dataTable as never, fileService as never)).resolves.not.toThrow();
-    });
   });
 
   describe('attachUpdateDataTableToRevision', () => {

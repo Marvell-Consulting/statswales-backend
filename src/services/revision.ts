@@ -43,7 +43,6 @@ import { factTableValidatorFromSource, sourceAssignmentFromFactTable } from './f
 import { BuildLog } from '../entities/dataset/build-log';
 import { User } from '../entities/user/user';
 import { CubeBuildStatus } from '../enums/cube-build-status';
-import { StorageService } from '../interfaces/storage-service';
 
 const dimensionTypesNotToValidate = [
   DimensionType.Text,
@@ -51,27 +50,6 @@ const dimensionTypesNotToValidate = [
   DimensionType.Symbol,
   DimensionType.NoteCodes
 ];
-
-export async function cleanupOrphanedDataTable(
-  datasetId: string,
-  dataTable: DataTable,
-  fileService: StorageService
-): Promise<void> {
-  const cubeDB = dbManager.getCubeDataSource().createQueryRunner();
-  try {
-    await cubeDB.query(pgformat('DROP TABLE IF EXISTS data_tables.%I;', dataTable.id));
-  } catch (err) {
-    logger.warn(err, `Failed to drop orphaned data table ${dataTable.id} from cube database`);
-  } finally {
-    await cubeDB.release();
-  }
-
-  try {
-    await fileService.delete(dataTable.filename, datasetId);
-  } catch (err) {
-    logger.warn(err, `Failed to delete orphaned data table file ${dataTable.filename} from data lake`);
-  }
-}
 
 export async function attachUpdateDataTableToRevision(
   datasetId: string,

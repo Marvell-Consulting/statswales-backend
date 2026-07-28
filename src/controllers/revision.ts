@@ -39,7 +39,7 @@ import {
 import { cleanupTmpFile, uploadAvScan } from '../services/virus-scanner';
 import { TempFile } from '../interfaces/temp-file';
 import { DEFAULT_PAGE_SIZE } from '../utils/page-defaults';
-import { attachUpdateDataTableToRevision, cleanupOrphanedDataTable } from '../services/revision';
+import { attachUpdateDataTableToRevision } from '../services/revision';
 import { resolvePreviewRevisionId } from '../utils/revision';
 import { bootstrapCubeBuildProcess } from '../utils/lookup-table-utils';
 import { BuiltLogEntryDto } from '../dtos/build-log';
@@ -261,6 +261,31 @@ export const updateDataTable = async (req: Request, res: Response, next: NextFun
     return;
   }
 
+  // Validate the update request before touching the existing data table, so a bad request doesn't leave the
+  // revision without a data table.
+  let columnMatcher: ColumnMatch[] | undefined;
+  let updateAction: DataTableAction = DataTableAction.Add;
+
+  if (revision.revisionIndex !== 1) {
+    if (req.body.column_matching) {
+      try {
+        columnMatcher = JSON.parse(req.body.column_matching) as ColumnMatch[];
+      } catch (_err) {
+        cleanupTmpFile(tmpFile);
+        next(new BadRequestException('errors.column_matching.invalid'));
+        return;
+      }
+    }
+
+    updateAction = req.body.update_action ? (req.body.update_action as DataTableAction) : DataTableAction.Add;
+
+    if (!Object.values(DataTableAction).includes(updateAction)) {
+      cleanupTmpFile(tmpFile);
+      next(new BadRequestException('errors.update_action.invalid'));
+      return;
+    }
+  }
+
   if (revision.dataTable) {
     logger.debug(`Revision ${revision.id} already has a data table ${revision.dataTable.id}, removing it`);
     try {
@@ -292,26 +317,6 @@ export const updateDataTable = async (req: Request, res: Response, next: NextFun
       logger.debug('Attaching data table to first revision');
       await RevisionRepository.save({ ...revision, dataTable });
     } else {
-      let columnMatcher: ColumnMatch[] | undefined;
-
-      if (req.body.column_matching) {
-        try {
-          columnMatcher = JSON.parse(req.body.column_matching) as ColumnMatch[];
-        } catch (_err) {
-          await cleanupOrphanedDataTable(datasetId, dataTable, req.fileService);
-          next(new BadRequestException('errors.column_matching.invalid'));
-          return;
-        }
-      }
-
-      const updateAction = req.body.update_action ? (req.body.update_action as DataTableAction) : DataTableAction.Add;
-
-      if (!Object.values(DataTableAction).includes(updateAction)) {
-        await cleanupOrphanedDataTable(datasetId, dataTable, req.fileService);
-        next(new BadRequestException('errors.update_action.invalid'));
-        return;
-      }
-
       await attachUpdateDataTableToRevision(datasetId, revision, dataTable, updateAction, columnMatcher, userId);
     }
   } catch (err) {
