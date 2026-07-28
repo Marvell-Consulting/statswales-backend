@@ -48,6 +48,10 @@
   "overrides": {
     "exceljs": {
       "uuid": "^11.1.1"
+    },
+    "minimatch": "^10.2.5",
+    "test-exclude": {
+      "minimatch": "^3.1.5"
     }
   },
   "devDependencies": {
@@ -74,7 +78,7 @@
     "eslint-plugin-import": "^2.32.0",
     "eslint-plugin-prettier": "^5.5.4",
     "jest": "^30.2.0",
-    "npm-run-all": "^4.1.5",
+    "npm-run-all2": "^9.0.2",
     "pino-colada": "^2.2.2",
     "prettier": "^3.7.4",
     "rimraf": "^6.1.2",
