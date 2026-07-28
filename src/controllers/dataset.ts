@@ -495,8 +495,11 @@ export const updateSources = async (req: Request, res: Response, next: NextFunct
     sourceAssignment = await arrayValidator(SourceAssignmentDTO, req.body);
   } catch (err) {
     if (err instanceof BadRequestException) {
-    next(err);
-    return;
+      next(err);
+      return;
+    }
+    throw err;
+  }
 
   if (!revision || revision.revisionIndex !== 1) {
     next(new UnknownException('errors.no_first_revision'));
