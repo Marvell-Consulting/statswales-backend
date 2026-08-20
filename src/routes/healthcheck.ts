@@ -140,7 +140,9 @@ const requireDbStatsKey = (req: Request, res: Response, next: NextFunction): voi
   // always run timingSafeEqual, even on a length mismatch, so response time doesn't leak the key's length
   const comparisonBuf = sameLength ? providedBuf : Buffer.alloc(expectedBuf.length);
 
-  if (sameLength && timingSafeEqual(comparisonBuf, expectedBuf)) {
+  const matches = timingSafeEqual(comparisonBuf, expectedBuf);
+
+  if (sameLength && matches) {
     next();
     return;
   }
