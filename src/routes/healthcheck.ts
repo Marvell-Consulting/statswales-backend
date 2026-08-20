@@ -136,8 +136,11 @@ const requireDbStatsKey = (req: Request, res: Response, next: NextFunction): voi
   const provided = req.header('x-healthcheck-key') ?? '';
   const expectedBuf = Buffer.from(expected);
   const providedBuf = Buffer.from(provided);
+  const sameLength = providedBuf.length === expectedBuf.length;
+  // always run timingSafeEqual, even on a length mismatch, so response time doesn't leak the key's length
+  const comparisonBuf = sameLength ? providedBuf : Buffer.alloc(expectedBuf.length);
 
-  if (providedBuf.length === expectedBuf.length && timingSafeEqual(providedBuf, expectedBuf)) {
+  if (sameLength && timingSafeEqual(comparisonBuf, expectedBuf)) {
     next();
     return;
   }
