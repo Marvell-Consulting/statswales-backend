@@ -1,4 +1,4 @@
-import { timingSafeEqual } from 'node:crypto';
+import { createHash, timingSafeEqual } from 'node:crypto';
 
 import { NextFunction, Request, Response, Router } from 'express';
 import passport from 'passport';
@@ -134,15 +134,12 @@ const requireDbStatsKey = (req: Request, res: Response, next: NextFunction): voi
   }
 
   const provided = req.header('x-healthcheck-key') ?? '';
-  const expectedBuf = Buffer.from(expected);
-  const providedBuf = Buffer.from(provided);
-  const sameLength = providedBuf.length === expectedBuf.length;
-  // always run timingSafeEqual, even on a length mismatch, so response time doesn't leak the key's length
-  const comparisonBuf = sameLength ? providedBuf : Buffer.alloc(expectedBuf.length);
+  // hash both sides to a fixed-length digest so the comparison never branches on the
+  // provided key's length, and timingSafeEqual only ever sees equal-length buffers
+  const expectedHash = createHash('sha256').update(expected).digest();
+  const providedHash = createHash('sha256').update(provided).digest();
 
-  const matches = timingSafeEqual(comparisonBuf, expectedBuf);
-
-  if (sameLength && matches) {
+  if (timingSafeEqual(providedHash, expectedHash)) {
     next();
     return;
   }
