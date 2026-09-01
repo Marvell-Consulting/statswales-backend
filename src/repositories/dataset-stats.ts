@@ -39,13 +39,17 @@ export interface SameFactTableResult {
   datasets: string[];
 }
 
+// the revision currently live on the consumer site for each dataset: approved, publish date passed,
+// and not since unpublished. Ordered by publish_at (not created_at) so the most recently *published*
+// revision wins even if an older revision happened to be (re)approved more recently. This is the single
+// source of truth for "published" semantics across every stats query below — see SW-1329.
 const latestPublishedRevisionsQuery = `
-  SELECT DISTINCT ON (rev.dataset_id) rev.id
+  SELECT DISTINCT ON (rev.dataset_id) rev.id, rev.dataset_id
   FROM revision rev
   WHERE rev.approved_at IS NOT NULL
   AND rev.publish_at < NOW()
   AND rev.unpublished_at IS NULL
-  ORDER BY rev.dataset_id, rev.created_at DESC
+  ORDER BY rev.dataset_id, rev.publish_at DESC
 `;
 
 export const DatasetStatsRepository = publisherDataSource.getRepository(Dataset).extend({
@@ -89,14 +93,7 @@ export const DatasetStatsRepository = publisherDataSource.getRepository(Dataset)
           FROM revision rev
           ORDER BY rev.dataset_id, rev.created_at DESC
         ) r ON r.dataset_id = d.id
-        LEFT JOIN (
-          SELECT DISTINCT ON (rev.dataset_id) rev.id, rev.dataset_id
-          FROM revision rev
-          WHERE rev.approved_at IS NOT NULL
-          AND rev.publish_at < NOW()
-          AND rev.unpublished_at IS NULL
-          ORDER BY rev.dataset_id, rev.publish_at DESC
-        ) lpr ON lpr.dataset_id = d.id
+        LEFT JOIN (${latestPublishedRevisionsQuery}) lpr ON lpr.dataset_id = d.id
         LEFT JOIN revision pr ON d.published_revision_id = pr.id
         LEFT JOIN task t ON d.id = t.dataset_id AND t.open = true
       )
@@ -189,7 +186,7 @@ export const DatasetStatsRepository = publisherDataSource.getRepository(Dataset)
         JOIN revision_metadata rm ON rm.revision_id = r.id AND LOWER(rm.language) = $1
         JOIN provider_source ps ON rp.provider_source_id = ps.id AND LOWER(ps.language) = $1
         WHERE LOWER(rp.language) = $1
-        AND rp.revision_id IN (${latestPublishedRevisionsQuery})
+        AND rp.revision_id IN (SELECT id FROM (${latestPublishedRevisionsQuery}) lpr)
         GROUP BY r.dataset_id, r.id, rm.title
       ),
       grouped_sources AS (
@@ -307,7 +304,7 @@ export const DatasetStatsRepository = publisherDataSource.getRepository(Dataset)
             JOIN dimension dim ON dim.dataset_id = r.dataset_id
             JOIN dimension_metadata dm ON dm.dimension_id = dim.id AND LOWER(dm.language) = $1
           WHERE r.id IN (
-            ${latestPublishedRevisionsQuery}
+            SELECT id FROM (${latestPublishedRevisionsQuery}) lpr
             )
           GROUP BY r.dataset_id, r.id, rm.title
           HAVING COUNT(dim.id) > 1
@@ -361,7 +358,7 @@ export const DatasetStatsRepository = publisherDataSource.getRepository(Dataset)
       FROM revision r
       JOIN revision_metadata rm ON rm.revision_id = r.id AND LOWER(rm.language) = $1
       JOIN data_table dt ON r.data_table_id = dt.id
-      WHERE r.id IN (${latestPublishedRevisionsQuery})
+      WHERE r.id IN (SELECT id FROM (${latestPublishedRevisionsQuery}) lpr)
       GROUP BY dt.hash
       HAVING COUNT(r.id) > 1
       ORDER BY COUNT(r.id) DESC
