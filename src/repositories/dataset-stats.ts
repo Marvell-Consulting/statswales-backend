@@ -79,8 +79,9 @@ export const DatasetStatsRepository = publisherDataSource.getRepository(Dataset)
             WHEN t.action = 'unarchive' AND t.status = 'requested' THEN 'unarchive_requested'
             WHEN pr.unpublished_at IS NOT NULL AND pr.unpublished_at < NOW() THEN 'unpublished'
             -- a dataset with any currently live published revision counts as 'published', even if a
-            -- newer draft/scheduled revision is also in progress (see SW-1329)
-            WHEN lpr.id IS NOT NULL THEN 'published'
+            -- newer draft/scheduled revision is also in progress (see SW-1329). Guarded by
+            -- first_published_at to match the public API's published-dataset semantics exactly.
+            WHEN d.first_published_at IS NOT NULL AND d.first_published_at < NOW() AND lpr.id IS NOT NULL THEN 'published'
             WHEN d.first_published_at IS NOT NULL AND d.first_published_at < NOW() AND r.approved_at IS NOT NULL AND r.publish_at > NOW() THEN 'update_scheduled'
             WHEN d.first_published_at IS NOT NULL AND d.first_published_at > NOW() AND r.approved_at IS NOT NULL AND r.publish_at > NOW() THEN 'scheduled'
             WHEN d.first_published_at IS NOT NULL AND d.first_published_at < NOW() AND r.approved_at IS NULL THEN 'update_incomplete'
