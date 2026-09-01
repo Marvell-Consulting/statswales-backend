@@ -97,8 +97,10 @@ describe('checkConfig', () => {
     expect(() => checkConfigFor(buildValidConfig(AppEnv.Prod))()).not.toThrow();
   });
 
+  // storage.store is FileStore.DataLake and auth.providers includes EntraId in buildValidConfig, so
+  // the datalake and entraid blocks are *in use* here - missing values must fail boot in any env.
+  // (storage.blob is covered below: it's only in use when storage.store is FileStore.Blob)
   describe.each([
-    ['storage.blob.accountKey', 'AZURE_BLOB_STORAGE_ACCOUNT_KEY'],
     ['storage.datalake.accountKey', 'AZURE_DATALAKE_STORAGE_ACCOUNT_KEY'],
     ['auth.entraid.clientSecret', 'ENTRAID_CLIENT_SECRET'],
     ['session.secret', 'SESSION_SECRET']
@@ -122,6 +124,55 @@ describe('checkConfig', () => {
       set(config, path, '   ');
 
       expect(() => checkConfigFor(config)()).toThrow(`${path} is invalid or missing`);
+    });
+  });
+
+  describe('credential blocks are only required when their provider/backend is selected', () => {
+    it('does not throw in a prod-like config when the unused storage backend is entirely unconfigured', () => {
+      // prod runs the DataLake backend (storage.store defaults to FileStore.DataLake here), so blob
+      // credentials are never read - they must not be required
+      const config = buildValidConfig(AppEnv.Prod);
+      set(config, 'storage.blob.url', undefined);
+      set(config, 'storage.blob.accountName', undefined);
+      set(config, 'storage.blob.accountKey', undefined);
+      set(config, 'storage.blob.containerName', undefined);
+
+      expect(() => checkConfigFor(config)()).not.toThrow();
+    });
+
+    it('does not throw in a prod-like config when the unused storage backend secret is missing', () => {
+      const config = buildValidConfig(AppEnv.Prod);
+      set(config, 'storage.blob.accountKey', '');
+
+      expect(() => checkConfigFor(config)()).not.toThrow();
+    });
+
+    it('does not throw in a prod-like config when EntraId is not an enabled auth provider and its secrets are missing', () => {
+      const config = buildValidConfig(AppEnv.Prod);
+      config.auth.providers = [AuthProvider.Jwt];
+      set(config, 'auth.entraid.clientSecret', undefined);
+
+      expect(() => checkConfigFor(config)()).not.toThrow();
+    });
+
+    it('still fails boot in a prod-like config when the *selected* storage backend is missing its secret', () => {
+      const config = buildValidConfig(AppEnv.Prod);
+      config.storage.store = FileStore.Blob;
+      set(config, 'storage.blob.accountKey', undefined);
+
+      expect(() => checkConfigFor(config)()).toThrow('storage.blob.accountKey is invalid or missing');
+    });
+
+    it('still fails boot in a prod-like config when the selected backend flips and the newly unused backend is unconfigured', () => {
+      // with storage.store set to Blob, the datalake block becomes unused and must be allowed to be empty
+      const config = buildValidConfig(AppEnv.Prod);
+      config.storage.store = FileStore.Blob;
+      set(config, 'storage.datalake.url', undefined);
+      set(config, 'storage.datalake.accountName', undefined);
+      set(config, 'storage.datalake.accountKey', undefined);
+      set(config, 'storage.datalake.fileSystemName', undefined);
+
+      expect(() => checkConfigFor(config)()).not.toThrow();
     });
   });
 
