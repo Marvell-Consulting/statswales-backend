@@ -49,7 +49,7 @@ const latestPublishedRevisionsQuery = `
   WHERE rev.approved_at < NOW()
   AND rev.publish_at < NOW()
   AND rev.unpublished_at IS NULL
-  ORDER BY rev.dataset_id, rev.publish_at DESC
+  ORDER BY rev.dataset_id, rev.publish_at DESC, rev.approved_at DESC, rev.created_at DESC, rev.id
 `;
 
 export const DatasetStatsRepository = publisherDataSource.getRepository(Dataset).extend({
