@@ -42,7 +42,7 @@ export interface SameFactTableResult {
 // the revision currently live on the consumer site for each dataset: approved, publish date passed,
 // and not since unpublished. Ordered by publish_at (not created_at) so the most recently *published*
 // revision wins even if an older revision happened to be (re)approved more recently. This is the single
-// source of truth for "published" semantics across every stats query below — see SW-1329.
+// source of truth for selecting the "currently published" revision in the stats queries below — see SW-1329.
 const latestPublishedRevisionsQuery = `
   SELECT DISTINCT ON (rev.dataset_id) rev.id, rev.dataset_id
   FROM revision rev
