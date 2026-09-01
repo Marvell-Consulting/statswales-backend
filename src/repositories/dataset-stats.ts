@@ -46,7 +46,7 @@ export interface SameFactTableResult {
 const latestPublishedRevisionsQuery = `
   SELECT DISTINCT ON (rev.dataset_id) rev.id, rev.dataset_id
   FROM revision rev
-  WHERE rev.approved_at IS NOT NULL
+  WHERE rev.approved_at < NOW()
   AND rev.publish_at < NOW()
   AND rev.unpublished_at IS NULL
   ORDER BY rev.dataset_id, rev.publish_at DESC
