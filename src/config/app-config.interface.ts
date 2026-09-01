@@ -123,8 +123,9 @@ export interface AppConfig {
 export const optionalProperties = ['redisUrl', 'redisPassword', 'bypassToken'];
 
 // config blocks that hold real secrets/credentials which are only exercised once the corresponding auth
-// provider or storage backend is actually used. These can legitimately be left unset for local development
-// and CI, but only while that specific provider/backend isn't the one selected (see isBlockInUse in
-// check-config.ts, which still requires eg. storage.datalake.* when storage.store === 'datalake', even
-// locally) - and must always be present once deployed (staging/production) regardless of selection.
-export const devOptionalBlocks = ['entraid', 'blob', 'datalake'];
+// provider or storage backend is actually selected. They can legitimately be left unset in any
+// environment (local, CI or deployed) while that specific provider/backend isn't the one in use - but
+// once it is selected, its credentials are required everywhere (see isBlockInUse in check-config.ts,
+// which requires eg. storage.datalake.* when storage.store === 'datalake', even locally). This matches
+// getFileService(), which only ever constructs the selected backend.
+export const credentialBlocks = ['entraid', 'blob', 'datalake'];
