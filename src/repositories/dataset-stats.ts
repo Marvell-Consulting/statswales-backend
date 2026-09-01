@@ -74,7 +74,9 @@ export const DatasetStatsRepository = publisherDataSource.getRepository(Dataset)
             WHEN t.action = 'archive' AND t.status = 'requested' THEN 'archive_requested'
             WHEN t.action = 'unarchive' AND t.status = 'requested' THEN 'unarchive_requested'
             WHEN pr.unpublished_at IS NOT NULL AND pr.unpublished_at < NOW() THEN 'unpublished'
-            WHEN d.first_published_at IS NOT NULL AND d.first_published_at < NOW() AND r.approved_at IS NOT NULL AND r.publish_at < NOW() THEN 'published'
+            -- a dataset with any currently live published revision counts as 'published', even if a
+            -- newer draft/scheduled revision is also in progress (see SW-1329)
+            WHEN lpr.id IS NOT NULL THEN 'published'
             WHEN d.first_published_at IS NOT NULL AND d.first_published_at < NOW() AND r.approved_at IS NOT NULL AND r.publish_at > NOW() THEN 'update_scheduled'
             WHEN d.first_published_at IS NOT NULL AND d.first_published_at > NOW() AND r.approved_at IS NOT NULL AND r.publish_at > NOW() THEN 'scheduled'
             WHEN d.first_published_at IS NOT NULL AND d.first_published_at < NOW() AND r.approved_at IS NULL THEN 'update_incomplete'
@@ -87,6 +89,14 @@ export const DatasetStatsRepository = publisherDataSource.getRepository(Dataset)
           FROM revision rev
           ORDER BY rev.dataset_id, rev.created_at DESC
         ) r ON r.dataset_id = d.id
+        LEFT JOIN (
+          SELECT DISTINCT ON (rev.dataset_id) rev.id, rev.dataset_id
+          FROM revision rev
+          WHERE rev.approved_at IS NOT NULL
+          AND rev.publish_at < NOW()
+          AND rev.unpublished_at IS NULL
+          ORDER BY rev.dataset_id, rev.publish_at DESC
+        ) lpr ON lpr.dataset_id = d.id
         LEFT JOIN revision pr ON d.published_revision_id = pr.id
         LEFT JOIN task t ON d.id = t.dataset_id AND t.open = true
       )

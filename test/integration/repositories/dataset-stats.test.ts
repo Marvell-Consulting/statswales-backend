@@ -207,4 +207,55 @@ describe('DatasetStatsRepository', () => {
       expect(titles).not.toContain('Ystadegau Poblogaeth Cymru 2024');
     });
   });
+
+  describe('getDashboardStats', () => {
+    it('counts a dataset with a live published revision as published even when a newer draft revision exists', async () => {
+      const before = (await DatasetStatsRepository.getDashboardStats(Locale.EnglishGb)).summary;
+
+      const ds = await createDataset(user, { firstPublishedAt: pastDate(48) });
+
+      // the currently live revision
+      await createRevisionWithMetadata(ds, user, 1, 'SW-1329 Live Revision', Locale.EnglishGb, {
+        approvedAt: pastDate(48),
+        publishAt: pastDate(24)
+      });
+
+      // a newer, unapproved draft revision on top of the live one — the dataset is still
+      // live on the consumer site via the revision above, so it should still count as 'published'
+      await createRevisionWithMetadata(ds, user, 0, 'SW-1329 Draft Revision', Locale.EnglishGb, {
+        approvedAt: null,
+        publishAt: null
+      });
+
+      const after = (await DatasetStatsRepository.getDashboardStats(Locale.EnglishGb)).summary;
+
+      expect(after.published).toBe(before.published + 1);
+      expect(after.incomplete).toBe(before.incomplete);
+      expect(after.total).toBe(before.total + 1);
+    });
+
+    it('counts a dataset with a live published revision as published even when a newer scheduled revision exists', async () => {
+      const before = (await DatasetStatsRepository.getDashboardStats(Locale.EnglishGb)).summary;
+
+      const ds = await createDataset(user, { firstPublishedAt: pastDate(48) });
+
+      // the currently live revision
+      await createRevisionWithMetadata(ds, user, 1, 'SW-1329 Live Revision Scheduled', Locale.EnglishGb, {
+        approvedAt: pastDate(48),
+        publishAt: pastDate(24)
+      });
+
+      // a newer, approved revision scheduled to go live in the future
+      await createRevisionWithMetadata(ds, user, 0, 'SW-1329 Scheduled Revision', Locale.EnglishGb, {
+        approvedAt: pastDate(1),
+        publishAt: new Date(Date.now() + 24 * 60 * 60 * 1000)
+      });
+
+      const after = (await DatasetStatsRepository.getDashboardStats(Locale.EnglishGb)).summary;
+
+      expect(after.published).toBe(before.published + 1);
+      expect(after.scheduled).toBe(before.scheduled);
+      expect(after.total).toBe(before.total + 1);
+    });
+  });
 });
