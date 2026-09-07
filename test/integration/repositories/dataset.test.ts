@@ -435,4 +435,39 @@ describe('DatasetRepository', () => {
       expect(titles).toContain('User Group Dataset');
     });
   });
+
+  describe('getActiveRevisionIds', () => {
+    it('should return the draft and published revision ids for every dataset, and nothing else', async () => {
+      const dataset = await createDataset(user);
+      const publishedRev = await createRevision(dataset, user, 1);
+      const draftRev = await createRevision(dataset, user, 0);
+      const supersededRev = await createRevision(dataset, user, 2);
+
+      dataset.publishedRevision = publishedRev;
+      dataset.publishedRevisionId = publishedRev.id;
+      dataset.draftRevision = draftRev;
+      dataset.draftRevisionId = draftRev.id;
+      await dataset.save();
+
+      const activeRevisionIds = await DatasetRepository.getActiveRevisionIds();
+
+      expect(activeRevisionIds).toEqual(expect.arrayContaining([publishedRev.id, draftRev.id]));
+      expect(activeRevisionIds).not.toContain(supersededRev.id);
+    });
+
+    it('should not return duplicates when the draft and published revision are the same', async () => {
+      const dataset = await createDataset(user);
+      const rev = await createRevision(dataset, user, 1);
+
+      dataset.publishedRevision = rev;
+      dataset.publishedRevisionId = rev.id;
+      dataset.draftRevision = rev;
+      dataset.draftRevisionId = rev.id;
+      await dataset.save();
+
+      const activeRevisionIds = await DatasetRepository.getActiveRevisionIds();
+
+      expect(activeRevisionIds.filter((id) => id === rev.id)).toHaveLength(1);
+    });
+  });
 });
