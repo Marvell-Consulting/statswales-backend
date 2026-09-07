@@ -5,7 +5,11 @@ import { logger } from './logger';
 // A Postgres session-level advisory lock, held on a single dedicated connection for the
 // duration of `fn`. Guards against two overlapping executions of a job doing the same work at
 // once (eg. a manual run overlapping a scheduled one). No TTL or heartbeat bookkeeping is needed -
-// Postgres releases the lock itself if the connection drops, so it can never be left stuck held.
+// Postgres releases the lock itself once the connection closes. That's not quite guaranteed here
+// though: `runner.release()` returns the connection to the pool rather than closing it outright,
+// so if `pg_advisory_unlock` itself fails the lock can stay held on that pooled connection until
+// it's eventually recycled. We rethrow that failure (see below) specifically so it surfaces as a
+// loud job failure instead of silently blocking every subsequent run.
 export async function withAdvisoryLock<T>(
   dataSource: DataSource,
   lockKey: number,
