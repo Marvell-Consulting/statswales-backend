@@ -3,7 +3,7 @@ import { Readable } from 'node:stream';
 import { NextFunction, Request, Response } from 'express';
 
 import { Dimension } from '../entities/dataset/dimension';
-import { DataTable } from '../entities/dataset/data-table';
+import type { DataTable } from '../entities/dataset/data-table';
 import { DimensionMetadata } from '../entities/dataset/dimension-metadata';
 import { DimensionType } from '../enums/dimension-type';
 import { logger } from '../utils/logger';
@@ -145,14 +145,17 @@ export const attachLookupTableToDimension = async (req: Request, res: Response, 
   try {
     dataTable = await validateAndUpload(tmpFile, datasetId, 'lookup_table');
   } catch (err) {
-    const error = err as FileValidationException;
-    logger.error(error, `An error occurred trying to upload the lookup table`);
+    logger.error(err, `An error occurred trying to upload the lookup table`);
     void cleanupTmpFile(tmpFile);
 
-    if (error.status === 500) {
-      next(new UnknownException(error.errorTag));
+    if (err instanceof FileValidationException) {
+      if (err.status === 500) {
+        next(new UnknownException(err.errorTag));
+      } else {
+        next(new BadRequestException(err.errorTag));
+      }
     } else {
-      next(new BadRequestException(error.errorTag));
+      next(new UnknownException('errors.upload_error'));
     }
     return;
   }

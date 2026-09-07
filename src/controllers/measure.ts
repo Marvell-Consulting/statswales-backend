@@ -13,7 +13,7 @@ import { dtoValidator } from '../validators/dto-validator';
 import { getMeasurePreview, validateMeasureLookupTable } from '../services/measure-handler';
 import { validateAndUpload } from '../services/incoming-file-processor';
 import { FileValidationException } from '../exceptions/validation-exception';
-import { DataTable } from '../entities/dataset/data-table';
+import type { DataTable } from '../entities/dataset/data-table';
 import { DimensionMetadataDTO } from '../dtos/dimension-metadata-dto';
 import { MeasureMetadata } from '../entities/dataset/measure-metadata';
 import { LookupTableDTO } from '../dtos/lookup-table-dto';
