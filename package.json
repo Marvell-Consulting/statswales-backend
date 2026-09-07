@@ -39,6 +39,8 @@
     "seed:topics:js": "node ./dist/seeders/required/topics.js",
     "seed:search": "ts-node ./src/seeders/tests/search.ts",
     "seed:ci": "ts-node ./src/seeders/tests/seed.ts",
+    "cleanup:old-cubes": "ts-node ./src/jobs/cleanup-old-cubes.ts",
+    "cleanup:old-cubes:js": "node ./dist/jobs/cleanup-old-cubes.js",
     "init:ci": "typeorm migration:run -d ./dist/db/publisher-source.js && npm run seed:required:js && node ./dist/seeders/tests/seed.js",
     "init:prod": "typeorm migration:run -d ./dist/db/publisher-source.js && npm run seed:required:js"
   },
