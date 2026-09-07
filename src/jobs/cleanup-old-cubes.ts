@@ -9,17 +9,23 @@ import { cleanupSupersededMaterializedViews } from '../services/cleanup';
 // Azure container app job rather than an in-process cron task - see the terraform job definition
 // for the schedule. Kept separate from server.ts so this can be triggered, monitored and scaled
 // independently of the web process.
-Promise.resolve()
-  .then(async () => {
+async function main(): Promise<void> {
+  try {
     await dbManager.initDataSources();
     logger.info('cleanup-old-cubes: starting');
     await cleanupSupersededMaterializedViews();
     logger.info('cleanup-old-cubes: complete');
-  })
-  .catch((err) => {
+  } catch (err) {
     logger.error(err, 'cleanup-old-cubes: job failed');
     process.exitCode = 1;
-  })
-  .finally(async () => {
-    await dbManager.destroyDataSources();
-  });
+  } finally {
+    try {
+      await dbManager.destroyDataSources();
+    } catch (err) {
+      logger.error(err, 'cleanup-old-cubes: failed to destroy datasources');
+      process.exitCode = 1;
+    }
+  }
+}
+
+void main();

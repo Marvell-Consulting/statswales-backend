@@ -26,9 +26,12 @@ export async function withAdvisoryLock<T>(
     try {
       return await fn();
     } finally {
-      await runner
-        .query('SELECT pg_advisory_unlock($1)', [lockKey])
-        .catch((err) => logger.error(err, `advisory-lock: failed to release lock ${lockKey}`));
+      // rethrown (not just logged) so a stuck lock - which would otherwise cause every
+      // subsequent run to silently skip - fails loudly and gets investigated
+      await runner.query('SELECT pg_advisory_unlock($1)', [lockKey]).catch((err) => {
+        logger.error(err, `advisory-lock: failed to release lock ${lockKey}`);
+        throw err;
+      });
     }
   } finally {
     await runner.release().catch((err) => logger.error(err, 'advisory-lock: failed to release query runner'));

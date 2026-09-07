@@ -58,4 +58,19 @@ describe('withAdvisoryLock', () => {
     expect(query).toHaveBeenNthCalledWith(2, 'SELECT pg_advisory_unlock($1)', [123]);
     expect(release).toHaveBeenCalledTimes(1);
   });
+
+  it('rethrows when releasing the lock itself fails, so a stuck lock is not silently swallowed', async () => {
+    const release = jest.fn().mockResolvedValue(undefined);
+    const query = jest
+      .fn()
+      .mockResolvedValueOnce([{ locked: true }]) // pg_try_advisory_lock
+      .mockRejectedValueOnce(new Error('unlock failed')); // pg_advisory_unlock
+    const dataSource = makeDataSource(query, release) as any;
+    const fn = jest.fn().mockResolvedValue('result');
+
+    await expect(withAdvisoryLock(dataSource, 123, fn)).rejects.toThrow('unlock failed');
+
+    expect(fn).toHaveBeenCalledTimes(1);
+    expect(release).toHaveBeenCalledTimes(1);
+  });
 });

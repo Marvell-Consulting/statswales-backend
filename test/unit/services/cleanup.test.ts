@@ -79,4 +79,21 @@ describe('cleanupSupersededMaterializedViews', () => {
 
     expect(mockRelease).toHaveBeenCalledTimes(1);
   });
+
+  it('throws once every drop has been attempted if one or more materialized views failed to drop', async () => {
+    (DatasetRepository.getActiveRevisionIds as jest.Mock).mockResolvedValue([]);
+    mockQuery
+      .mockResolvedValueOnce([
+        { schemaname: 'old-rev-1', matviewname: 'core_view_mat_en' },
+        { schemaname: 'old-rev-2', matviewname: 'core_view_mat_en' }
+      ])
+      .mockRejectedValueOnce(new Error('drop failed')) // old-rev-1 drop
+      .mockResolvedValueOnce(undefined); // old-rev-2 drop
+
+    await expect(cleanupSupersededMaterializedViews()).rejects.toThrow(/failed to drop 1 of 2/);
+
+    const dropCalls = mockQuery.mock.calls.filter(([sql]) => sql.startsWith('DROP MATERIALIZED VIEW'));
+    expect(dropCalls).toHaveLength(2); // both attempted despite the first failing
+    expect(mockRelease).toHaveBeenCalledTimes(1); // runner still released
+  });
 });

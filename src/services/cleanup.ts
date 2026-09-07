@@ -38,12 +38,22 @@ export async function cleanupSupersededMaterializedViews(): Promise<void> {
         `cleanup: dropping ${staleMatviews.length} materialized view(s) across ${staleSchemaCount} superseded revision(s)`
       );
 
+      let failureCount = 0;
+
+      // errors are caught per-view so one bad drop doesn't stop the rest of the sweep, but any
+      // failure is still tracked and thrown once every view has been attempted, so the job as a
+      // whole is marked as failed rather than silently succeeding with views left undropped
       for (const { schemaname, matviewname } of staleMatviews) {
         try {
           await cubeRunner.query(pgformat('DROP MATERIALIZED VIEW IF EXISTS %I.%I CASCADE', schemaname, matviewname));
         } catch (err) {
+          failureCount++;
           logger.error(err, `cleanup: failed to drop materialized view ${schemaname}.${matviewname}`);
         }
+      }
+
+      if (failureCount > 0) {
+        throw new Error(`cleanup: failed to drop ${failureCount} of ${staleMatviews.length} materialized view(s)`);
       }
     } finally {
       await cubeRunner.release().catch((err) => logger.error(err, 'cleanup: failed to release cube query runner'));
