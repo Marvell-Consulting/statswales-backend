@@ -1,4 +1,6 @@
-import { Request, Response, Router } from 'express';
+import { createHash, timingSafeEqual } from 'node:crypto';
+
+import { NextFunction, Request, Response, Router } from 'express';
 import passport from 'passport';
 import { isString } from 'lodash';
 import { Pool } from 'pg';
@@ -13,6 +15,7 @@ import { StorageService } from '../interfaces/storage-service';
 import { Locale } from '../enums/locale';
 import { UserDTO } from '../dtos/user/user-dto';
 import { config } from '../config';
+import { AppEnv } from '../config/env.enum';
 
 const healthcheck = Router();
 
@@ -111,7 +114,40 @@ healthcheck.get('/jwt', passport.authenticate('jwt', { session: false }), (req: 
   res.json({ message: 'success', user: UserDTO.fromUser(req.user as User, req.language as Locale) });
 });
 
-healthcheck.get('/db', (_req: Request, res: Response) => {
+// Environments where /healthcheck/db may be hit without a key, for developer convenience.
+const KEYLESS_ENVS: AppEnv[] = [AppEnv.Local, AppEnv.Ci];
+
+// Guards /healthcheck/db with a shared secret. When config.healthcheck.dbStatsKey is set, callers
+// must send a matching x-healthcheck-key header (compared in constant time to avoid leaking the
+// key via timing). When the key is unset the endpoint stays open in local/CI, but everywhere else
+// it fails closed with a 404 — so an omitted app setting can't silently expose pool internals.
+const requireDbStatsKey = (req: Request, res: Response, next: NextFunction): void => {
+  const expected = config.healthcheck.dbStatsKey;
+
+  if (!expected) {
+    if (KEYLESS_ENVS.includes(config.env)) {
+      next();
+      return;
+    }
+    res.status(404).json({ error: 'not found' });
+    return;
+  }
+
+  const provided = req.header('x-healthcheck-key') ?? '';
+  // hash both sides to a fixed-length digest so the comparison never branches on the
+  // provided key's length, and timingSafeEqual only ever sees equal-length buffers
+  const expectedHash = createHash('sha256').update(expected).digest();
+  const providedHash = createHash('sha256').update(provided).digest();
+
+  if (timingSafeEqual(providedHash, expectedHash)) {
+    next();
+    return;
+  }
+
+  res.status(401).json({ error: 'unauthorised' });
+};
+
+healthcheck.get('/db', requireDbStatsKey, (_req: Request, res: Response) => {
   try {
     res.json({
       pools: [

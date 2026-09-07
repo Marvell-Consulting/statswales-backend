@@ -36,6 +36,7 @@ export interface AppConfig {
   healthcheck: {
     dbTimeoutMs: number;
     storageTimeoutMs: number;
+    dbStatsKey?: string; // when set, /healthcheck/db requires a matching x-healthcheck-key header
   };
   language: {
     availableTranslations: Locale[];
@@ -120,7 +121,7 @@ export interface AppConfig {
 // matched against the final segment of the config path (eg. 'session.redisUrl' -> 'redisUrl'), never as a
 // substring, so this must only ever contain full property names.
 // it would be nice to get them directly from the interface, but interfaces are compile-time only
-export const optionalProperties = ['redisUrl', 'redisPassword', 'bypassToken'];
+export const optionalProperties = ['redisUrl', 'redisPassword', 'bypassToken', 'dbStatsKey'];
 
 // config blocks that hold real secrets/credentials which are only exercised once the corresponding auth
 // provider or storage backend is actually selected. They can legitimately be left unset in any
