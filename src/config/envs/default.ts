@@ -34,7 +34,8 @@ export const getDefaultConfig = (): AppConfig => {
         : DEFAULT_TIMEOUT_MS,
       storageTimeoutMs: process.env.HEALTH_STORAGE_TIMEOUT_MS
         ? parseInt(process.env.HEALTH_STORAGE_TIMEOUT_MS, 10)
-        : DEFAULT_TIMEOUT_MS
+        : DEFAULT_TIMEOUT_MS,
+      dbStatsKey: process.env.HEALTH_DB_STATS_KEY?.trim() || undefined
     },
     session: {
       store: SessionStore.Redis,
