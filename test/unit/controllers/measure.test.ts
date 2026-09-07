@@ -3,6 +3,7 @@ import { Request, Response, NextFunction } from 'express';
 import { NotFoundException } from '../../../src/exceptions/not-found.exception';
 import { UnknownException } from '../../../src/exceptions/unknown.exception';
 import { BadRequestException } from '../../../src/exceptions/bad-request.exception';
+import { FileValidationErrorType, FileValidationException } from '../../../src/exceptions/validation-exception';
 import { uuidV4 } from '../../../src/utils/uuid';
 
 jest.mock('../../../src/utils/logger', () => ({
@@ -420,6 +421,24 @@ describe('Measure controller', () => {
       expect(res.status).toHaveBeenCalledWith(400);
       expect(res.json).toHaveBeenCalledWith({ status: 400, errors: ['bad'] });
       expect(mockStartBuild).not.toHaveBeenCalled();
+      expect(mockCleanupTmpFile).toHaveBeenCalled();
+    });
+
+    it('passes the file validation error tag to next when the lookup table encoding is invalid', async () => {
+      mockUploadAvScan.mockResolvedValue({ path: '/tmp/lookup.csv' });
+      mockGetById.mockResolvedValue({ id: uuidV4(), measure: { id: uuidV4() }, draftRevision: { id: uuidV4() } });
+      mockValidateAndUpload.mockRejectedValue(
+        new FileValidationException('File encoding is not supported', FileValidationErrorType.InvalidUnicode)
+      );
+
+      const req = createMockRequest({ body: {} as never });
+      const res = createMockResponse();
+      await attachLookupTableToMeasure(req, res, mockNext);
+
+      expect(mockValidateMeasureLookupTable).not.toHaveBeenCalled();
+      expect(mockNext).toHaveBeenCalledWith(
+        expect.objectContaining({ name: 'BadRequestException', message: 'errors.file_validation.invalid_unicode' })
+      );
       expect(mockCleanupTmpFile).toHaveBeenCalled();
     });
 

@@ -3,6 +3,7 @@ import { Readable } from 'node:stream';
 import { NextFunction, Request, Response } from 'express';
 
 import { Dimension } from '../entities/dataset/dimension';
+import type { DataTable } from '../entities/dataset/data-table';
 import { DimensionMetadata } from '../entities/dataset/dimension-metadata';
 import { DimensionType } from '../enums/dimension-type';
 import { logger } from '../utils/logger';
@@ -15,6 +16,7 @@ import { DimensionMetadataDTO } from '../dtos/dimension-metadata-dto';
 import { validateAndUpload } from '../services/incoming-file-processor';
 import { dtoValidator } from '../validators/dto-validator';
 import { BadRequestException } from '../exceptions/bad-request.exception';
+import { FileValidationException } from '../exceptions/validation-exception';
 import {
   createAndValidateDateDimension,
   getDimensionPreview,
@@ -138,9 +140,27 @@ export const attachLookupTableToDimension = async (req: Request, res: Response, 
   }
 
   let build: BuildLog;
+  let dataTable: DataTable;
 
   try {
-    const dataTable = await validateAndUpload(tmpFile, datasetId, 'lookup_table');
+    dataTable = await validateAndUpload(tmpFile, datasetId, 'lookup_table');
+  } catch (err) {
+    logger.error(err, `An error occurred trying to upload the lookup table`);
+    void cleanupTmpFile(tmpFile);
+
+    if (err instanceof FileValidationException) {
+      if (err.status === 500) {
+        next(new UnknownException(err.errorTag));
+      } else {
+        next(new BadRequestException(err.errorTag));
+      }
+    } else {
+      next(new UnknownException('errors.upload_error'));
+    }
+    return;
+  }
+
+  try {
     const result = await validateLookupTable(dataTable, dataset, draftRevision, dimension, language);
 
     if ((result as ViewErrDTO).status) {

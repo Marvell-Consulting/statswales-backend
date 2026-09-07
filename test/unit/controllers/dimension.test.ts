@@ -3,6 +3,7 @@ import { Readable } from 'node:stream';
 
 import { UnknownException } from '../../../src/exceptions/unknown.exception';
 import { BadRequestException } from '../../../src/exceptions/bad-request.exception';
+import { FileValidationErrorType, FileValidationException } from '../../../src/exceptions/validation-exception';
 import { DimensionType } from '../../../src/enums/dimension-type';
 import { RevisionTask } from '../../../src/interfaces/revision-task';
 import { uuidV4 } from '../../../src/utils/uuid';
@@ -436,6 +437,33 @@ describe('Dimension controller', () => {
       await attachLookupTableToDimension(req, res, mockNext);
 
       expect(mockNext).toHaveBeenCalledWith(expect.any(UnknownException));
+    });
+
+    it('should call next with BadRequestException carrying the file validation error tag when the lookup table encoding is invalid', async () => {
+      const tmpFile = { path: '/tmp/file.csv', originalname: 'file.csv', mimetype: 'text/csv' };
+      mockUploadAvScan.mockResolvedValue(tmpFile);
+
+      const dataset = createMockDataset();
+      mockDatasetGetById.mockResolvedValue(dataset);
+
+      const uploadError = new FileValidationException(
+        'File encoding is not supported',
+        FileValidationErrorType.InvalidUnicode
+      );
+      mockValidateAndUpload.mockRejectedValue(uploadError);
+
+      const req = createMockRequest();
+      const res = createMockResponse({
+        locals: { datasetId: dataset.id, dimension: createMockDimension() }
+      });
+
+      await attachLookupTableToDimension(req, res, mockNext);
+
+      expect(mockValidateLookupTable).not.toHaveBeenCalled();
+      expect(mockNext).toHaveBeenCalledWith(
+        expect.objectContaining({ name: 'BadRequestException', message: 'errors.file_validation.invalid_unicode' })
+      );
+      expect(mockCleanupTmpFile).toHaveBeenCalledWith(tmpFile);
     });
 
     it('should return validation error status when validateLookupTable returns error', async () => {
