@@ -1,7 +1,7 @@
 import { performance } from 'node:perf_hooks';
 
 import { FindOneOptions, FindOptionsRelations, QueryBuilder, SelectQueryBuilder } from 'typeorm';
-import { has, set } from 'lodash';
+import { has } from 'lodash';
 
 import { logger } from '../utils/logger';
 import { normalizeSqlDatatype } from '../utils/sql-datatype';
@@ -135,19 +135,28 @@ const listAllQuery = (qb: QueryBuilder<Dataset>, lang: Locale): SelectQueryBuild
 };
 
 export const DatasetRepository = publisherDataSource.getRepository(Dataset).extend({
-  async getById(id: string, relations: FindOptionsRelations<Dataset> = {}): Promise<Dataset> {
+  async getById(
+    id: string,
+    relations: FindOptionsRelations<Dataset> = {},
+    relationLoadStrategy?: FindOneOptions<Dataset>['relationLoadStrategy']
+  ): Promise<Dataset> {
     const start = performance.now();
-    const findOptions: FindOneOptions<Dataset> = { where: { id }, relations };
+    // TypeORM's `order` option on relation paths assumes the join strategy, so factTable/
+    // dataTableDescriptions ordering is applied in memory below instead - this keeps ordering
+    // correct regardless of which relationLoadStrategy a caller passes.
+    const findOptions: FindOneOptions<Dataset> = { where: { id }, relations, relationLoadStrategy };
+
+    const dataset = await this.findOneOrFail(findOptions);
 
     if (has(relations, 'factTable')) {
-      set(findOptions, 'order.factTable', { columnIndex: 'ASC' });
+      dataset.factTable?.sort((a, b) => a.columnIndex - b.columnIndex);
     }
 
     if (has(relations, 'revisions.dataTable.dataTableDescriptions')) {
-      set(findOptions, 'revisions.dataTable.dataTableDescriptions', { columnIndex: 'ASC' });
+      for (const revision of dataset.revisions ?? []) {
+        revision.dataTable?.dataTableDescriptions?.sort((a, b) => a.columnIndex - b.columnIndex);
+      }
     }
-
-    const dataset = await this.findOneOrFail(findOptions);
 
     const end = performance.now();
     const size = Math.round(Buffer.byteLength(JSON.stringify(dataset)) / 1024);
