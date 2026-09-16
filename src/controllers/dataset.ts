@@ -126,7 +126,12 @@ export const getDatasetById = async (req: Request, res: Response): Promise<void>
       break;
 
     case DatasetInclude.Developer:
-      dataset = await DatasetRepository.getById(datasetId, withDeveloperPreview);
+      // withDeveloperPreview joins five relations (some one-to-many) at once; the default join
+      // strategy multiplies that into a cartesian product of rows that can exhaust the process's
+      // heap on a dataset with many revisions/dimensions. 'query' issues one query per relation
+      // instead. Safe here because none of withDeveloperPreview's relations are self-referencing
+      // (unlike eg. Revision.previousRevision elsewhere), which the query strategy can't handle.
+      dataset = await DatasetRepository.getById(datasetId, withDeveloperPreview, 'query');
       break;
 
     case DatasetInclude.LatestRevision:
