@@ -4,6 +4,7 @@ import { ensureWorkerDataSources, resetDatabase } from '../../helpers/reset-data
 import { Dataset } from '../../../src/entities/dataset/dataset';
 import { Revision } from '../../../src/entities/dataset/revision';
 import { DataTable } from '../../../src/entities/dataset/data-table';
+import { DataTableDescription } from '../../../src/entities/dataset/data-table-description';
 import { FactTableColumn } from '../../../src/entities/dataset/fact-table-column';
 import { RevisionMetadata } from '../../../src/entities/dataset/revision-metadata';
 import { UserGroup } from '../../../src/entities/user/user-group';
@@ -13,6 +14,9 @@ import { getTestUser } from '../../helpers/get-test-user';
 import { User } from '../../../src/entities/user/user';
 import { Locale } from '../../../src/enums/locale';
 import { FactTableColumnType } from '../../../src/enums/fact-table-column-type';
+import { FileType } from '../../../src/enums/file-type';
+import { DataTableAction } from '../../../src/enums/data-table-action';
+import { SourceLocation } from '../../../src/enums/source-location';
 import { uuidV4 } from '../../../src/utils/uuid';
 
 jest.mock('../../../src/services/blob-storage', () => {
@@ -161,6 +165,58 @@ describe('DatasetRepository', () => {
       });
       expect(result.draftRevision).toBeDefined();
       expect(result.draftRevision!.id).toBeDefined();
+    });
+
+    // dataTableDescriptions ordering used to be attempted via TypeORM's `order` option, which only
+    // works under the join strategy - and was in fact written to the wrong key, so it never applied
+    // at all. It is now an in-memory sort after the fetch. Assert under both load strategies, since
+    // the developer preview passes 'query' and everything else uses the default.
+    describe.each([
+      ['default (join) strategy', undefined],
+      ['query strategy', 'query' as const]
+    ])('nested dataTableDescriptions ordering - %s', (_name, strategy) => {
+      let orderingDataset: Dataset;
+      let dataTable: DataTable;
+
+      beforeAll(async () => {
+        orderingDataset = await createDataset(user);
+        const rev = await createRevision(orderingDataset, user, 1);
+
+        dataTable = new DataTable();
+        dataTable.id = rev.id;
+        dataTable.mimeType = 'text/csv';
+        dataTable.fileType = FileType.Csv;
+        dataTable.filename = 'ordering.csv';
+        dataTable.originalFilename = 'ordering.csv';
+        dataTable.hash = 'hash';
+        dataTable.uploadedAt = new Date();
+        dataTable.action = DataTableAction.Add;
+        dataTable.sourceLocation = SourceLocation.Datalake;
+        // Deliberately inserted out of index order, so a missing sort is visible.
+        dataTable.dataTableDescriptions = [
+          DataTableDescription.create({ id: rev.id, columnName: 'col_c', columnIndex: 3, columnDatatype: 'varchar' }),
+          DataTableDescription.create({ id: rev.id, columnName: 'col_a', columnIndex: 1, columnDatatype: 'varchar' }),
+          DataTableDescription.create({ id: rev.id, columnName: 'col_b', columnIndex: 2, columnDatatype: 'varchar' })
+        ];
+        await dataTable.save();
+
+        rev.dataTable = dataTable;
+        rev.dataTableId = dataTable.id;
+        await rev.save();
+      });
+
+      it('returns dataTableDescriptions sorted by columnIndex', async () => {
+        const result = await DatasetRepository.getById(
+          orderingDataset.id,
+          { revisions: { dataTable: { dataTableDescriptions: true } } },
+          strategy
+        );
+
+        const descriptions = result.revisions?.[0]?.dataTable?.dataTableDescriptions;
+        expect(descriptions).toHaveLength(3);
+        expect(descriptions!.map((d) => d.columnIndex)).toEqual([1, 2, 3]);
+        expect(descriptions!.map((d) => d.columnName)).toEqual(['col_a', 'col_b', 'col_c']);
+      });
     });
 
     it('should throw EntityNotFoundError for non-existent id', async () => {
