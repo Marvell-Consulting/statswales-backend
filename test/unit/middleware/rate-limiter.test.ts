@@ -2,6 +2,7 @@ import express, { Request, Response } from 'express';
 import request from 'supertest';
 
 const mockConfig = {
+  session: { store: 'memory' },
   rateLimit: {
     windowMs: 60000,
     maxRequests: 2,
@@ -99,6 +100,69 @@ describe('rateLimiter middleware', () => {
 
       const res = await request(app).get('/test').set('x-rate-limit-bypass', 'some-token');
       expect(res.status).toBe(429);
+    });
+  });
+
+  describe('client IP keying', () => {
+    beforeEach(() => {
+      mockConfig.rateLimit.bypassToken = undefined;
+    });
+
+    test('counts requests per x-azure-socketip rather than per proxy address', async () => {
+      const app = createApp();
+
+      for (let i = 0; i < 2; i++) {
+        const res = await request(app).get('/test').set('x-azure-socketip', '203.0.113.1');
+        expect(res.status).toBe(200);
+      }
+
+      const limited = await request(app).get('/test').set('x-azure-socketip', '203.0.113.1');
+      expect(limited.status).toBe(429);
+
+      const otherClient = await request(app).get('/test').set('x-azure-socketip', '203.0.113.2');
+      expect(otherClient.status).toBe(200);
+    });
+
+    test('ignores x-forwarded-for so clients cannot rotate their rate limit key', async () => {
+      const app = createApp();
+
+      for (let i = 0; i < 2; i++) {
+        const res = await request(app)
+          .get('/test')
+          .set('x-azure-socketip', '203.0.113.1')
+          .set('x-forwarded-for', `198.51.100.${i}`);
+        expect(res.status).toBe(200);
+      }
+
+      const res = await request(app)
+        .get('/test')
+        .set('x-azure-socketip', '203.0.113.1')
+        .set('x-forwarded-for', '198.51.100.99');
+      expect(res.status).toBe(429);
+    });
+  });
+
+  describe('getClientIp', () => {
+    let getClientIp: (req: Request) => string;
+
+    beforeAll(() => {
+      jest.isolateModules(() => {
+        // eslint-disable-next-line @typescript-eslint/no-require-imports
+        getClientIp = require('../../../src/middleware/rate-limiter').getClientIp;
+      });
+    });
+
+    const fakeReq = (header: string | undefined, ip = '10.0.0.1'): Request =>
+      ({ ip, get: (name: string) => (name === 'x-azure-socketip' ? header : undefined) }) as unknown as Request;
+
+    test('prefers a valid x-azure-socketip header', () => {
+      expect(getClientIp(fakeReq('203.0.113.1'))).toBe('203.0.113.1');
+      expect(getClientIp(fakeReq('2001:db8::1'))).toBe('2001:db8::1');
+    });
+
+    test('falls back to req.ip when the header is missing or invalid', () => {
+      expect(getClientIp(fakeReq(undefined))).toBe('10.0.0.1');
+      expect(getClientIp(fakeReq('not-an-ip'))).toBe('10.0.0.1');
     });
   });
 });
