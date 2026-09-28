@@ -555,6 +555,27 @@ describe('Dataset controller', () => {
       expect(mockDatasetGetById).toHaveBeenCalledWith(datasetId, { dimensions: true });
       expect(res.json).toHaveBeenCalledWith(mockDto);
     });
+
+    // Regression guard. withDeveloperPreview pulls five relations, several of them one-to-many, and
+    // under TypeORM's default join strategy that becomes a cartesian product big enough to exhaust
+    // the heap - it crash-looped production on 2026-09-16/17. The 'query' argument is the fix and is
+    // easy to drop silently in a refactor, so assert it explicitly, not just the relation graph.
+    it('should load withDeveloperPreview with the query strategy for hydrate=developer', async () => {
+      const datasetId = uuidV4();
+      const dataset = createMockDataset(datasetId);
+      const mockDto = { id: datasetId };
+
+      mockDatasetGetById.mockResolvedValue(dataset);
+      mockFromDataset.mockReturnValue(mockDto);
+
+      const req = createMockRequest({ query: { hydrate: DatasetInclude.Developer } });
+      const res = createMockResponse({ locals: { datasetId, dataset: createMockDataset(datasetId) } });
+
+      await getDatasetById(req, res);
+
+      expect(mockDatasetGetById).toHaveBeenCalledWith(datasetId, { factTable: true }, 'query');
+      expect(res.json).toHaveBeenCalledWith(mockDto);
+    });
   });
 
   describe('deleteDraftDatasetById', () => {
