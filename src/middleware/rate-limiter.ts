@@ -41,7 +41,23 @@ const createStore = (): Store | undefined => {
     }
   });
 
-  client.on('error', (err) => logger.error(err, 'Rate limit redis error'));
+  // with pingInterval and reconnectStrategy at 1s an outage emits an error every second, so only log the first error
+  // of each outage and summarise the rest once the connection recovers
+  let suppressedErrors = -1;
+
+  client.on('error', (err) => {
+    if (++suppressedErrors === 0) {
+      logger.error(err, 'Rate limit redis error, suppressing further errors until reconnected');
+    }
+  });
+
+  client.on('ready', () => {
+    if (suppressedErrors > 0) {
+      logger.info(`Rate limit redis reconnected, ${suppressedErrors} further errors suppressed`);
+    }
+    suppressedErrors = -1;
+  });
+
   client.connect().catch((err) => logger.error(err, 'Rate limit redis initial connection failed, will retry'));
 
   return new RedisRateLimitStore(client);

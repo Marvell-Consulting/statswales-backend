@@ -142,6 +142,41 @@ describe('rateLimiter middleware', () => {
     });
   });
 
+  describe('redis error logging', () => {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { EventEmitter } = require('node:events');
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { logger } = require('../../../src/utils/logger');
+    let client: InstanceType<typeof EventEmitter>;
+
+    beforeEach(() => {
+      jest.clearAllMocks();
+      mockConfig.session.store = 'redis';
+      client = Object.assign(new EventEmitter(), { isReady: false, connect: jest.fn().mockResolvedValue(undefined) });
+      jest.isolateModules(() => {
+        jest.doMock('redis', () => ({ createClient: () => client }));
+        // eslint-disable-next-line @typescript-eslint/no-require-imports
+        require('../../../src/middleware/rate-limiter');
+      });
+    });
+
+    afterEach(() => {
+      mockConfig.session.store = 'memory';
+      jest.dontMock('redis');
+    });
+
+    test('logs only the first error of an outage and summarises on reconnect', () => {
+      for (let i = 0; i < 5; i++) client.emit('error', new Error('ECONNREFUSED'));
+      expect(logger.error).toHaveBeenCalledTimes(1);
+
+      client.emit('ready');
+      expect(logger.info).toHaveBeenCalledWith('Rate limit redis reconnected, 4 further errors suppressed');
+
+      client.emit('error', new Error('ECONNREFUSED'));
+      expect(logger.error).toHaveBeenCalledTimes(2);
+    });
+  });
+
   describe('getClientIp', () => {
     let getClientIp: (req: Request) => string;
 
