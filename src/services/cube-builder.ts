@@ -516,6 +516,13 @@ export function setupCubeBuilder(dataset: Dataset, buildId: string): FactTableIn
         factIdentifiers.push(field);
       }
       factTableDef.push(field.columnName);
+      // Data values always have to be a numeric type.  Because an integer can fit in a double
+      // but a double losses its decimal places in a bigint it makes sense to always set the data value
+      // to a double value.  This allows publishers to add a decimal value if they just started with
+      // whole numbers.
+      if (field.columnDatatype === FactTableColumnType.DataValues) {
+        return pgformat('%I %s', field.columnName, 'DOUBLE PRECISION');
+      }
       return pgformat('%I %s', field.columnName, normalizeSqlDatatype(field.columnDatatype));
     });
   const factTableCreationQuery = pgformat(
@@ -990,14 +997,7 @@ export function cleanupNotesCodeColumn(buildId: string, notesCodeColumn: FactTab
 
 function loadFactTableFromEarlierRevision(buildId: string, previousRevisionId: string): string[] {
   return [
-    pgformat('DROP TABLE IF EXISTS %I.%I;', buildId, FACT_TABLE_NAME),
-    pgformat(
-      'CREATE TABLE %I.%I AS SELECT * FROM %I.%I;',
-      buildId,
-      FACT_TABLE_NAME,
-      previousRevisionId,
-      FACT_TABLE_NAME
-    )
+    pgformat('INSERT INTO %I.%I SELECT * FROM %I.%I;', buildId, FACT_TABLE_NAME, previousRevisionId, FACT_TABLE_NAME)
   ];
 }
 
