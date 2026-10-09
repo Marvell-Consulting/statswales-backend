@@ -42,6 +42,7 @@ jest.mock('../../../src/entities/query-store', () => ({
 // --- Imports after mocks ---
 
 import {
+  alignFactTableWithPreviousCube,
   makeCubeSafeString,
   createValidationTableQuery,
   setupValidationTableFromDataset,
@@ -70,6 +71,7 @@ import { DisplayType } from '../../../src/enums/display-type';
 import { DimensionType } from '../../../src/enums/dimension-type';
 import { Locale } from '../../../src/enums/locale';
 import { FactTableColumn } from '../../../src/entities/dataset/fact-table-column';
+import { dbManager } from '../../../src/db/database-manager';
 import { Dataset } from '../../../src/entities/dataset/dataset';
 import { Measure } from '../../../src/entities/dataset/measure';
 import { Dimension } from '../../../src/entities/dataset/dimension';
@@ -616,6 +618,30 @@ describe('setupCubeBuilder', () => {
     expect(secondPos).toBeLessThan(thirdPos);
   });
 
+  it.each(['BIGINT', 'INTEGER', 'DECIMAL(10,2)', 'DOUBLE'])(
+    'creates a numeric (%s) DataValues column as DOUBLE PRECISION',
+    (datatype) => {
+      const factTable = [
+        makeCol('year', 0, FactTableColumnType.Dimension, 'BIGINT'),
+        makeCol('value', 1, FactTableColumnType.DataValues, datatype)
+      ];
+      const dataset = makeDataset({ factTable });
+      const info = setupCubeBuilder(dataset, 'b1');
+
+      expect(info.factTableCreationQuery).toContain('value DOUBLE PRECISION');
+      expect(info.factTableCreationQuery).toContain('year BIGINT');
+    }
+  );
+
+  it.each(['VARCHAR', 'TIME'])('keeps a non-numeric (%s) DataValues column as its own datatype', (datatype) => {
+    const factTable = [makeCol('value', 0, FactTableColumnType.DataValues, datatype)];
+    const dataset = makeDataset({ factTable });
+    const info = setupCubeBuilder(dataset, 'b1');
+
+    expect(info.factTableCreationQuery).toContain(`value ${datatype}`);
+    expect(info.factTableCreationQuery).not.toContain('DOUBLE PRECISION');
+  });
+
   it('produces a schema-qualified CREATE TABLE query using buildId', () => {
     const factTable = [makeCol('year', 0, FactTableColumnType.Dimension)];
     const dataset = makeDataset({ factTable });
@@ -623,6 +649,60 @@ describe('setupCubeBuilder', () => {
 
     // hyphenated buildId gets quoted; plain fact_table does not
     expect(info.factTableCreationQuery).toContain('"my-build-id".fact_table');
+  });
+});
+
+// ===========================================================================
+describe('alignFactTableWithPreviousCube', () => {
+  const mockQuery = jest.fn();
+  let saveSpy: jest.SpyInstance;
+
+  beforeEach(() => {
+    mockQuery.mockReset();
+    (dbManager.getCubeDataSource as jest.Mock).mockReturnValue({
+      createQueryRunner: () => ({ query: mockQuery, release: jest.fn() })
+    });
+    saveSpy = jest.spyOn(FactTableColumn, 'save').mockResolvedValue([] as never);
+  });
+
+  afterEach(() => saveSpy.mockRestore());
+
+  it('widens identifier columns that are TEXT in the previous cube but not in the fact table definition', async () => {
+    const factTable = [
+      makeCol('area', 0, FactTableColumnType.Dimension, 'BIGINT'),
+      makeCol('year', 1, FactTableColumnType.Time, 'BIGINT'),
+      makeCol('value', 2, FactTableColumnType.DataValues, 'BIGINT')
+    ];
+    mockQuery.mockResolvedValue([
+      { column_name: 'area', data_type: 'text' },
+      { column_name: 'year', data_type: 'bigint' },
+      { column_name: 'value', data_type: 'bigint' }
+    ]);
+
+    await alignFactTableWithPreviousCube(makeDataset({ factTable }), 'prev-rev');
+
+    expect(mockQuery).toHaveBeenCalledWith(expect.stringContaining('information_schema.columns'), [
+      'prev-rev',
+      FACT_TABLE_NAME
+    ]);
+    expect(factTable.map((col) => col.columnDatatype)).toEqual(['TEXT', 'BIGINT', 'BIGINT']);
+    expect(saveSpy).toHaveBeenCalledWith([factTable[0]]);
+  });
+
+  it('ignores non-identifier columns and columns already defined as TEXT', async () => {
+    const factTable = [
+      makeCol('notes', 0, FactTableColumnType.NoteCodes, 'VARCHAR'),
+      makeCol('area', 1, FactTableColumnType.Dimension, 'TEXT')
+    ];
+    mockQuery.mockResolvedValue([
+      { column_name: 'notes', data_type: 'text' },
+      { column_name: 'area', data_type: 'text' }
+    ]);
+
+    await alignFactTableWithPreviousCube(makeDataset({ factTable }), 'prev-rev');
+
+    expect(factTable.map((col) => col.columnDatatype)).toEqual(['VARCHAR', 'TEXT']);
+    expect(saveSpy).not.toHaveBeenCalled();
   });
 });
 

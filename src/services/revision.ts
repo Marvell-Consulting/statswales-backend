@@ -43,6 +43,7 @@ import { factTableValidatorFromSource, sourceAssignmentFromFactTable } from './f
 import { BuildLog } from '../entities/dataset/build-log';
 import { User } from '../entities/user/user';
 import { CubeBuildStatus } from '../enums/cube-build-status';
+import { normalizeSqlDatatype } from '../utils/sql-datatype';
 
 const dimensionTypesNotToValidate = [
   DimensionType.Text,
@@ -50,6 +51,20 @@ const dimensionTypesNotToValidate = [
   DimensionType.Symbol,
   DimensionType.NoteCodes
 ];
+
+// When an update's data table has a different datatype for an identifier column, the cube builder widens that
+// column to TEXT (see dataTableActions in cube-builder). Mirror that change in the fact table definition so the
+// definition matches the cube from this revision onwards (alignFactTableWithPreviousCube catches older datasets).
+export function factTableColumnsToWiden(factTable: FactTableColumn[], dataTable: DataTable): FactTableColumn[] {
+  const identifierTypes = [FactTableColumnType.Measure, FactTableColumnType.Dimension, FactTableColumnType.Time];
+  return factTable.filter((factTableCol) => {
+    if (!identifierTypes.includes(factTableCol.columnType)) return false;
+    const dataTableCol = dataTable.dataTableDescriptions.find((col) => col.factTableColumn === factTableCol.columnName);
+    if (!dataTableCol?.columnDatatype || !factTableCol.columnDatatype) return false;
+    const factTableType = normalizeSqlDatatype(factTableCol.columnDatatype);
+    return factTableType !== 'TEXT' && normalizeSqlDatatype(dataTableCol.columnDatatype) !== factTableType;
+  });
+}
 
 export async function attachUpdateDataTableToRevision(
   datasetId: string,
@@ -247,6 +262,13 @@ export async function attachUpdateDataTableToRevision(
   const end = performance.now();
   const time = Math.round(end - start);
   logger.info(`Cube update validation took ${time}ms`);
+
+  const columnsToWiden = factTableColumnsToWiden(dataset.factTable ?? [], dataTable);
+  if (columnsToWiden.length > 0) {
+    logger.debug(`Widening fact table columns to TEXT: ${columnsToWiden.map((col) => col.columnName).join(', ')}`);
+    columnsToWiden.forEach((col) => (col.columnDatatype = 'TEXT'));
+    await FactTableColumn.save(columnsToWiden);
+  }
 
   dataTable.revision = revision;
   await dataTable.save();
