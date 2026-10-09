@@ -43,8 +43,12 @@ jest.mock('../../../src/entities/dataset/build-log', () => ({
 }));
 
 const mockFactTableColumnFindOneOrFail = jest.fn();
+const mockFactTableColumnSave = jest.fn();
 jest.mock('../../../src/entities/dataset/fact-table-column', () => ({
-  FactTableColumn: { findOneOrFail: (...args: unknown[]) => mockFactTableColumnFindOneOrFail(...args) }
+  FactTableColumn: {
+    findOneOrFail: (...args: unknown[]) => mockFactTableColumnFindOneOrFail(...args),
+    save: (...args: unknown[]) => mockFactTableColumnSave(...args)
+  }
 }));
 
 // --- cube-builder ---
@@ -102,6 +106,7 @@ jest.mock('../../../src/config', () => ({
 import {
   attachUpdateDataTableToRevision,
   createDateTableInValidationCube,
+  factTableColumnsToWiden,
   rebuildCubesForRevisions,
   rebuildAllFilterTablesForRevisions,
   updateRevisionTasks
@@ -347,6 +352,32 @@ describe('revision service', () => {
 
       expect((revision.tasks as { dimensions: unknown[] }).dimensions).toHaveLength(0);
     });
+
+    it('widens fact table column metadata to TEXT when the update changes an identifier datatype', async () => {
+      const factTableCol = { columnName: 'col1', columnType: FactTableColumnType.Dimension, columnDatatype: 'BIGINT' };
+      mockDatasetGetById.mockResolvedValue(makeDataset({ factTable: [factTableCol] }));
+      const revision = makeRevision();
+      const dataTable = makeDataTable();
+      Object.assign(dataTable.dataTableDescriptions[0], { columnDatatype: 'VARCHAR' });
+
+      await attachUpdateDataTableToRevision('ds-1', revision as never, dataTable as never, DataTableAction.Add);
+
+      expect(factTableCol.columnDatatype).toBe('TEXT');
+      expect(mockFactTableColumnSave).toHaveBeenCalledWith([factTableCol]);
+    });
+
+    it('does not touch fact table column metadata when datatypes match', async () => {
+      const factTableCol = { columnName: 'col1', columnType: FactTableColumnType.Dimension, columnDatatype: 'BIGINT' };
+      mockDatasetGetById.mockResolvedValue(makeDataset({ factTable: [factTableCol] }));
+      const revision = makeRevision();
+      const dataTable = makeDataTable();
+      Object.assign(dataTable.dataTableDescriptions[0], { columnDatatype: 'BIGINT' });
+
+      await attachUpdateDataTableToRevision('ds-1', revision as never, dataTable as never, DataTableAction.Add);
+
+      expect(factTableCol.columnDatatype).toBe('BIGINT');
+      expect(mockFactTableColumnSave).not.toHaveBeenCalled();
+    });
   });
 
   describe('createDateTableInValidationCube', () => {
@@ -589,6 +620,47 @@ describe('revision service', () => {
       await updateRevisionTasks(dataset, 'measure-1', 'measure');
 
       expect(revision.tasks.measure).toEqual({ id: 'measure-1', lookupTableUpdated: true });
+    });
+  });
+
+  describe('factTableColumnsToWiden', () => {
+    const col = (columnName: string, columnType: FactTableColumnType, columnDatatype: string) =>
+      ({ columnName, columnType, columnDatatype }) as never;
+    const desc = (factTableColumn: string, columnDatatype: string) => ({ factTableColumn, columnDatatype });
+
+    it('returns identifier columns whose datatype differs from the data table', () => {
+      const factTable = [
+        col('dim', FactTableColumnType.Dimension, 'BIGINT'),
+        col('measure', FactTableColumnType.Measure, 'BIGINT'),
+        col('year', FactTableColumnType.Time, 'BIGINT')
+      ];
+      const dataTable = {
+        dataTableDescriptions: [desc('dim', 'VARCHAR'), desc('measure', 'BIGINT'), desc('year', 'VARCHAR')]
+      };
+
+      const result = factTableColumnsToWiden(factTable, dataTable as never);
+
+      expect(result.map((c: { columnName: string }) => c.columnName)).toEqual(['dim', 'year']);
+    });
+
+    it('ignores data values, note codes and columns that are already TEXT', () => {
+      const factTable = [
+        col('value', FactTableColumnType.DataValues, 'BIGINT'),
+        col('notes', FactTableColumnType.NoteCodes, 'VARCHAR'),
+        col('dim', FactTableColumnType.Dimension, 'TEXT')
+      ];
+      const dataTable = {
+        dataTableDescriptions: [desc('value', 'DOUBLE'), desc('notes', 'BIGINT'), desc('dim', 'BIGINT')]
+      };
+
+      expect(factTableColumnsToWiden(factTable, dataTable as never)).toEqual([]);
+    });
+
+    it('treats DOUBLE and DOUBLE PRECISION as the same datatype', () => {
+      const factTable = [col('dim', FactTableColumnType.Dimension, 'DOUBLE PRECISION')];
+      const dataTable = { dataTableDescriptions: [desc('dim', 'DOUBLE')] };
+
+      expect(factTableColumnsToWiden(factTable, dataTable as never)).toEqual([]);
     });
   });
 });
