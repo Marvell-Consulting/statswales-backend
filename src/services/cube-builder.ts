@@ -9,7 +9,7 @@ import { SUPPORTED_LOCALES, t } from '../middleware/translation';
 import { CubeValidationException } from '../exceptions/cube-error-exception';
 import { CubeValidationType } from '../enums/cube-validation-type';
 import { performanceReporting } from '../utils/performance-reporting';
-import { normalizeSqlDatatype } from '../utils/sql-datatype';
+import { isNumericSqlDatatype, normalizeSqlDatatype } from '../utils/sql-datatype';
 import { format as pgformat } from '@scaleleap/pg-format/lib/pg-format';
 import { dbManager } from '../db/database-manager';
 import { DataTable } from '../entities/dataset/data-table';
@@ -552,11 +552,11 @@ export function setupCubeBuilder(dataset: Dataset, buildId: string): FactTableIn
         factIdentifiers.push(field);
       }
       factTableDef.push(field.columnName);
-      // Data values always have to be a numeric type.  Because an integer can fit in a double
-      // but a double losses its decimal places in a bigint it makes sense to always set the data value
-      // to a double value.  This allows publishers to add a decimal value if they just started with
-      // whole numbers.
-      if (field.columnType === FactTableColumnType.DataValues) {
+      // Numeric data values are always stored as a double.  An integer fits in a double but a double
+      // loses its decimal places in an integer, so this allows publishers to add decimal values to a
+      // dataset that started with whole numbers.  Non-numeric data values (e.g. times such as 12:30,
+      // which the fact table validator allows) keep their own datatype.
+      if (field.columnType === FactTableColumnType.DataValues && isNumericSqlDatatype(field.columnDatatype)) {
         return pgformat('%I %s', field.columnName, 'DOUBLE PRECISION');
       }
       return pgformat('%I %s', field.columnName, normalizeSqlDatatype(field.columnDatatype));

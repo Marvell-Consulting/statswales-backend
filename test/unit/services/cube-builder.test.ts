@@ -618,16 +618,28 @@ describe('setupCubeBuilder', () => {
     expect(secondPos).toBeLessThan(thirdPos);
   });
 
-  it('always creates the DataValues column as DOUBLE PRECISION regardless of its source datatype', () => {
-    const factTable = [
-      makeCol('year', 0, FactTableColumnType.Dimension, 'BIGINT'),
-      makeCol('value', 1, FactTableColumnType.DataValues, 'BIGINT')
-    ];
+  it.each(['BIGINT', 'INTEGER', 'DECIMAL(10,2)', 'DOUBLE'])(
+    'creates a numeric (%s) DataValues column as DOUBLE PRECISION',
+    (datatype) => {
+      const factTable = [
+        makeCol('year', 0, FactTableColumnType.Dimension, 'BIGINT'),
+        makeCol('value', 1, FactTableColumnType.DataValues, datatype)
+      ];
+      const dataset = makeDataset({ factTable });
+      const info = setupCubeBuilder(dataset, 'b1');
+
+      expect(info.factTableCreationQuery).toContain('value DOUBLE PRECISION');
+      expect(info.factTableCreationQuery).toContain('year BIGINT');
+    }
+  );
+
+  it.each(['VARCHAR', 'TIME'])('keeps a non-numeric (%s) DataValues column as its own datatype', (datatype) => {
+    const factTable = [makeCol('value', 0, FactTableColumnType.DataValues, datatype)];
     const dataset = makeDataset({ factTable });
     const info = setupCubeBuilder(dataset, 'b1');
 
-    expect(info.factTableCreationQuery).toContain('value DOUBLE PRECISION');
-    expect(info.factTableCreationQuery).toContain('year BIGINT');
+    expect(info.factTableCreationQuery).toContain(`value ${datatype}`);
+    expect(info.factTableCreationQuery).not.toContain('DOUBLE PRECISION');
   });
 
   it('produces a schema-qualified CREATE TABLE query using buildId', () => {
