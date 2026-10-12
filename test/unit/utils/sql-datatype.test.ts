@@ -19,6 +19,7 @@ describe('isNumericSqlDatatype', () => {
     'BIGINT',
     'HUGEINT',
     'UBIGINT',
+    'INT1',
     'INT8',
     'FLOAT',
     'REAL',
@@ -37,4 +38,9 @@ describe('isNumericSqlDatatype', () => {
       expect(isNumericSqlDatatype(datatype)).toBe(false);
     }
   );
+
+  it('treats a missing datatype as non-numeric', () => {
+    expect(isNumericSqlDatatype(undefined as unknown as string)).toBe(false);
+    expect(isNumericSqlDatatype('')).toBe(false);
+  });
 });
