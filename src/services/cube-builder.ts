@@ -9,7 +9,7 @@ import { SUPPORTED_LOCALES, t } from '../middleware/translation';
 import { CubeValidationException } from '../exceptions/cube-error-exception';
 import { CubeValidationType } from '../enums/cube-validation-type';
 import { performanceReporting } from '../utils/performance-reporting';
-import { normalizeSqlDatatype } from '../utils/sql-datatype';
+import { isNumericSqlDatatype, normalizeSqlDatatype } from '../utils/sql-datatype';
 import { format as pgformat } from '@scaleleap/pg-format/lib/pg-format';
 import { dbManager } from '../db/database-manager';
 import { DataTable } from '../entities/dataset/data-table';
@@ -222,6 +222,9 @@ async function createBasePostgresCube(
   };
 
   const buildStart = performance.now();
+  if (buildRevision.previousRevisionId) {
+    await alignFactTableWithPreviousCube(dataset, buildRevision.previousRevisionId);
+  }
   const factTableInfo = await setupCubeBuilder(dataset, build.id);
   cubeBuilder.transactionBlocks.push(
     createCubeBaseTables(buildRevision.id, build.id, factTableInfo.factTableCreationQuery)
@@ -490,6 +493,39 @@ export const makeCubeSafeString = (str: string): string => {
     .replace(/[^a-zA-Z_]/g, '');
 };
 
+// Earlier revisions may have widened identifier columns to TEXT in the cube (see dataTableActions) without the
+// fact table definition being updated to match. As the new fact table is created from the definition, bring the
+// definition into line with the previous cube first so the previous revision's rows can be copied across.
+export async function alignFactTableWithPreviousCube(dataset: Dataset, previousRevisionId: string): Promise<void> {
+  const identifierTypes = [FactTableColumnType.Measure, FactTableColumnType.Dimension, FactTableColumnType.Time];
+  const cubeDB = dbManager.getCubeDataSource().createQueryRunner();
+  let previousColumns: { column_name: string; data_type: string }[];
+  try {
+    previousColumns = await cubeDB.query(
+      'SELECT column_name, data_type FROM information_schema.columns WHERE table_schema = $1 AND table_name = $2',
+      [previousRevisionId, FACT_TABLE_NAME]
+    );
+  } finally {
+    void cubeDB.release();
+  }
+
+  const textColumns = new Set(previousColumns.filter((col) => col.data_type === 'text').map((col) => col.column_name));
+  const columnsToWiden = (dataset.factTable ?? []).filter(
+    (col) =>
+      identifierTypes.includes(col.columnType) &&
+      textColumns.has(col.columnName) &&
+      normalizeSqlDatatype(col.columnDatatype) !== 'TEXT'
+  );
+  if (columnsToWiden.length === 0) return;
+
+  logger.info(
+    `Fact table definition for dataset ${dataset.id} is out of step with the previous cube, widening to TEXT: ` +
+      columnsToWiden.map((col) => col.columnName).join(', ')
+  );
+  columnsToWiden.forEach((col) => (col.columnDatatype = 'TEXT'));
+  await FactTableColumn.save(columnsToWiden);
+}
+
 export function setupCubeBuilder(dataset: Dataset, buildId: string): FactTableInfo {
   if (!dataset.factTable) {
     throw new Error(`Unable to find fact table for dataset ${dataset.id}`);
@@ -516,6 +552,13 @@ export function setupCubeBuilder(dataset: Dataset, buildId: string): FactTableIn
         factIdentifiers.push(field);
       }
       factTableDef.push(field.columnName);
+      // Numeric data values are always stored as a double.  An integer fits in a double but a double
+      // loses its decimal places in an integer, so this allows publishers to add decimal values to a
+      // dataset that started with whole numbers.  Non-numeric data values (e.g. times such as 12:30,
+      // which the fact table validator allows) keep their own datatype.
+      if (field.columnType === FactTableColumnType.DataValues && isNumericSqlDatatype(field.columnDatatype)) {
+        return pgformat('%I %s', field.columnName, 'DOUBLE PRECISION');
+      }
       return pgformat('%I %s', field.columnName, normalizeSqlDatatype(field.columnDatatype));
     });
   const factTableCreationQuery = pgformat(
@@ -988,13 +1031,20 @@ export function cleanupNotesCodeColumn(buildId: string, notesCodeColumn: FactTab
   );
 }
 
-function loadFactTableFromEarlierRevision(buildId: string, previousRevisionId: string): string[] {
+function loadFactTableFromEarlierRevision(
+  buildId: string,
+  previousRevisionId: string,
+  factTableDef: string[]
+): string[] {
+  // List the columns explicitly so rows are matched by name rather than position.
+  const columns = factTableDef.map((col) => pgformat('%I', col)).join(', ');
   return [
-    pgformat('DROP TABLE IF EXISTS %I.%I;', buildId, FACT_TABLE_NAME),
     pgformat(
-      'CREATE TABLE %I.%I AS SELECT * FROM %I.%I;',
+      'INSERT INTO %I.%I (%s) SELECT %s FROM %I.%I;',
       buildId,
       FACT_TABLE_NAME,
+      columns,
+      columns,
       previousRevisionId,
       FACT_TABLE_NAME
     )
@@ -1103,7 +1153,7 @@ function loadFactTableFromPreviousRevision(
   const buildStatements: string[] = ['BEGIN TRANSACTION;'];
   if (buildRevision.previousRevisionId) {
     logger.debug('Previous revision present... Loading previous fact table into new cube');
-    buildStatements.push(...loadFactTableFromEarlierRevision(buildId, buildRevision.previousRevisionId));
+    buildStatements.push(...loadFactTableFromEarlierRevision(buildId, buildRevision.previousRevisionId, factTableDef));
   }
   const dataTable = buildRevision.dataTable;
   if (!dataTable) {
