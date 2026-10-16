@@ -1,4 +1,4 @@
-import { FindOptionsRelations } from 'typeorm';
+import { EntityManager, FindOptionsRelations, Repository } from 'typeorm';
 
 import { logger } from '../utils/logger';
 import { Task, TaskMetadata } from '../entities/task/task';
@@ -11,8 +11,17 @@ import { getPublishingStatus } from '../utils/dataset-status';
 import { PublishingStatus } from '../enums/publishing-status';
 import { BadRequestException } from '../exceptions/bad-request.exception';
 import { Locale } from '../enums/locale';
+import { publisherDataSource } from '../db/publisher-source';
+import { withTransaction } from '../db/transaction';
 
 export class TaskService {
+  // pass a transactional EntityManager to run the task writes as part of that transaction
+  constructor(private readonly em: EntityManager = publisherDataSource.manager) {}
+
+  private get tasks(): Repository<Task> {
+    return this.em.getRepository(Task);
+  }
+
   async create(
     datasetId: string,
     action: TaskAction,
@@ -24,14 +33,14 @@ export class TaskService {
 
     const status = TaskStatus.Requested;
     const open = true;
-    const task = Task.create({ datasetId, action, createdBy, status, open, comment, metadata });
+    const task = this.tasks.create({ datasetId, action, createdBy, status, open, comment, metadata });
 
-    return await task.save();
+    return await this.tasks.save(task);
   }
 
   async getById(taskId: string, relations: FindOptionsRelations<Task> = {}): Promise<Task> {
     logger.info(`Getting task ${taskId}`);
-    return await Task.findOneOrFail({ where: { id: taskId }, relations });
+    return await this.tasks.findOneOrFail({ where: { id: taskId }, relations });
   }
 
   async withdrawApproved(datasetId: string, revisionId: string, user: User): Promise<Task> {
@@ -39,7 +48,7 @@ export class TaskService {
 
     // if the dataset was previously approved then the existing publish task was already closed, so we can't update it.
     // so instead create an extra closed withdraw task so that the event still appears in the dataset history
-    const task = Task.create({
+    const task = this.tasks.create({
       datasetId,
       action: TaskAction.Publish,
       status: TaskStatus.Withdrawn,
@@ -49,7 +58,7 @@ export class TaskService {
       updatedBy: user
     });
 
-    return task.save();
+    return this.tasks.save(task);
   }
 
   async requestUnpublish(datasetId: string, user: User, reason: string): Promise<Task> {
@@ -127,8 +136,11 @@ export class TaskService {
 
     const replacementDatasetId = task.metadata?.replacementDatasetId as string | undefined;
     const autoRedirect = task.metadata?.autoRedirect as boolean | undefined;
-    await DatasetRepository.archive(dataset.id, replacementDatasetId, autoRedirect);
-    return this.update(task.id, TaskStatus.Approved, false, user, null);
+
+    return withTransaction(async (em) => {
+      await em.withRepository(DatasetRepository).archive(dataset.id, replacementDatasetId, autoRedirect);
+      return new TaskService(em).update(task.id, TaskStatus.Approved, false, user, null);
+    }, this.em);
   }
 
   async rejectArchive(taskId: string, user: User, reason: string): Promise<Task> {
@@ -153,8 +165,10 @@ export class TaskService {
     const dataset = task.dataset!;
     logger.info(`Approving unarchive for dataset ${dataset.id}`);
 
-    await DatasetRepository.unarchive(dataset.id);
-    return this.update(task.id, TaskStatus.Approved, false, user, null);
+    return withTransaction(async (em) => {
+      await em.withRepository(DatasetRepository).unarchive(dataset.id);
+      return new TaskService(em).update(task.id, TaskStatus.Approved, false, user, null);
+    }, this.em);
   }
 
   async rejectUnarchive(taskId: string, user: User, reason: string): Promise<Task> {
@@ -163,35 +177,44 @@ export class TaskService {
     return this.update(task.id, TaskStatus.Rejected, false, user, reason);
   }
 
-  async closeOpenPublishTasks(datasetId: string, user: User, exceptTaskId?: string, tasks?: Task[]): Promise<void> {
+  // returns the tasks that were closed
+  async closeOpenPublishTasks(datasetId: string, user: User, exceptTaskId?: string, tasks?: Task[]): Promise<Task[]> {
     const candidates =
       tasks ??
-      (await Task.find({ where: { datasetId, action: TaskAction.Publish, open: true }, order: { createdAt: 'DESC' } }));
+      (await this.tasks.find({
+        where: { datasetId, action: TaskAction.Publish, open: true },
+        order: { createdAt: 'DESC' }
+      }));
 
     const toClose = candidates.filter((task) => {
       const matchesDataset = task.datasetId === datasetId || task.dataset?.id === datasetId;
       return matchesDataset && task.action === TaskAction.Publish && task.open && task.id !== exceptTaskId;
     });
 
-    for (const task of toClose) {
-      logger.info(`Closing open publish task ${task.id} for dataset ${datasetId}`);
-      Task.merge(task, { status: TaskStatus.Withdrawn, open: false, updatedBy: user });
-      await task.save();
-    }
+    if (toClose.length === 0) return [];
+
+    await withTransaction(async (em) => {
+      const tasks = em.getRepository(Task);
+      for (const task of toClose) {
+        logger.info(`Closing open publish task ${task.id} for dataset ${datasetId}`);
+        await tasks.save(tasks.merge(task, { status: TaskStatus.Withdrawn, open: false, updatedBy: user }));
+      }
+    }, this.em);
+
+    return toClose;
   }
 
   async update(taskId: string, status: TaskStatus, open: boolean, user: User, comment?: string | null): Promise<Task> {
     logger.debug(`Updating task ${taskId} with status ${status}`);
-    const task = await Task.findOneByOrFail({ id: taskId });
-    const updatedTask = Task.merge(task, { status, open, updatedBy: user, comment });
+    const task = await this.tasks.findOneByOrFail({ id: taskId });
 
-    return await updatedTask.save();
+    return await this.tasks.save(this.tasks.merge(task, { status, open, updatedBy: user, comment }));
   }
 
   async getTasksForDataset(datasetId: string, open?: boolean): Promise<Task[]> {
     logger.info(`Getting tasks for dataset ${datasetId}`);
 
-    return await Task.find({
+    return await this.tasks.find({
       where: { datasetId, open },
       order: { createdAt: 'DESC' }
     });

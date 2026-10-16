@@ -14,6 +14,16 @@ jest.mock('../../../src/utils/logger', () => ({
   logger: { debug: jest.fn(), info: jest.fn(), error: jest.fn(), warn: jest.fn(), trace: jest.fn() }
 }));
 
+// --- Transactions: run the callback with a manager that hands back the mocked repositories below ---
+const mockTransaction = jest.fn();
+const mockEm = {
+  withRepository: (repo: unknown) => repo,
+  getRepository: (entity: { getRepository: () => unknown }) => entity.getRepository()
+};
+jest.mock('../../../src/db/transaction', () => ({
+  withTransaction: (...a: unknown[]) => mockTransaction(...a)
+}));
+
 // --- DatasetRepository ---
 const mockDatasetCreate = jest.fn();
 const mockDatasetSave = jest.fn();
@@ -231,26 +241,42 @@ describe('DatasetService', () => {
     fileService = { delete: jest.fn() } as unknown as StorageService & { delete: jest.Mock };
     service = new DatasetService(Locale.EnglishGb, fileService);
     user = makeUser();
+    mockTransaction.mockImplementation((fn: (em: typeof mockEm) => Promise<unknown>) => fn(mockEm));
   });
 
   describe('createNew', () => {
     it('creates a dataset, first revision and metadata then returns the loaded dataset', async () => {
       const dataset = { id: 'ds-1' };
       const firstRev = { id: 'rev-1' };
-      mockDatasetCreate.mockReturnValue({ save: jest.fn().mockResolvedValue(dataset) });
-      mockRevCreate.mockReturnValue({ save: jest.fn().mockResolvedValue(firstRev) });
+      mockDatasetCreate.mockReturnValue(dataset);
+      mockRevCreate.mockReturnValue(firstRev);
       mockRevCreateMetadata.mockResolvedValue(undefined);
-      mockDatasetSave.mockResolvedValue(undefined);
+      mockDatasetSave.mockImplementation((ds: unknown) => Promise.resolve(ds));
+      mockRevSave.mockImplementation((rev: unknown) => Promise.resolve(rev));
       mockDatasetGetById.mockResolvedValue({ id: 'ds-1', loaded: true });
 
       const result = await service.createNew('My Title', 'group-1', user);
 
+      expect(mockTransaction).toHaveBeenCalledTimes(1);
+      expect(mockDatasetCreate).toHaveBeenCalledWith({ createdBy: user, userGroupId: 'group-1' });
       expect(mockRevCreate).toHaveBeenCalledWith({ dataset, createdBy: user, revisionIndex: 1 });
+      expect(mockRevSave).toHaveBeenCalledWith(firstRev);
       expect(mockRevCreateMetadata).toHaveBeenCalledWith(firstRev, 'My Title', Locale.EnglishGb);
       expect(mockDatasetSave).toHaveBeenCalledWith(
         expect.objectContaining({ draftRevision: firstRev, startRevision: firstRev, endRevision: firstRev })
       );
       expect(result).toEqual({ id: 'ds-1', loaded: true });
+    });
+
+    it('does not load the dataset when the transaction fails', async () => {
+      mockDatasetCreate.mockReturnValue({ id: 'ds-1' });
+      mockDatasetSave.mockResolvedValue({ id: 'ds-1' });
+      mockRevCreate.mockReturnValue({ id: 'rev-1' });
+      mockRevSave.mockRejectedValueOnce(new Error('insert failed'));
+
+      await expect(service.createNew('My Title', 'group-1', user)).rejects.toThrow('insert failed');
+      expect(mockRevCreateMetadata).not.toHaveBeenCalled();
+      expect(mockDatasetGetById).not.toHaveBeenCalled();
     });
   });
 
@@ -335,6 +361,7 @@ describe('DatasetService', () => {
         { groupId: 'keep', providerId: 'new', providerSourceId: 'newSrc' } as never
       ]);
 
+      expect(mockTransaction).toHaveBeenCalledTimes(1);
       expect(mockProviderRemove).toHaveBeenCalledWith([expect.objectContaining({ groupId: 'remove' })]);
       expect(mockProviderSave).toHaveBeenCalledWith([
         expect.objectContaining({ groupId: 'keep', providerId: 'new', providerSourceId: 'newSrc' })
@@ -351,6 +378,7 @@ describe('DatasetService', () => {
 
       await service.updateTopics('ds-1', ['10', '20']);
 
+      expect(mockTransaction).toHaveBeenCalledTimes(1);
       expect(mockTopicRemove).toHaveBeenCalledWith([{ id: 1 }]);
       expect(mockTopicSave).toHaveBeenCalledWith([
         { revisionId: 'rev-1', topicId: 10 },
@@ -385,6 +413,7 @@ describe('DatasetService', () => {
 
       await service.updateTranslations('ds-1', translations as never);
 
+      expect(mockTransaction).toHaveBeenCalledTimes(1);
       expect(mockDimensionSave).toHaveBeenCalled();
       expect(mockRevMetadataSave).toHaveBeenCalled();
       expect(mockRevSave).toHaveBeenCalled();
@@ -462,12 +491,15 @@ describe('DatasetService', () => {
       ];
       mockDatasetGetById.mockResolvedValue({ id: 'ds-1', endRevision: {}, tasks: openTasks });
       mockGetPublishingStatus.mockReturnValue(PublishingStatus.PendingApproval);
-      mockRevRevertToDraft.mockResolvedValue({ id: 'rev-1', onlineCubeFilename: 'cube.duckdb' });
+      mockRevRevertToDraft.mockResolvedValue({ revision: { id: 'rev-1' }, removedCubeFilename: 'cube.duckdb' });
+      mockTaskCloseOpenPublishTasks.mockResolvedValue(openTasks);
 
       await service.withdrawFromPublication('ds-1', 'rev-1', user);
 
+      expect(mockTransaction).toHaveBeenCalledTimes(1);
       expect(fileService.delete).toHaveBeenCalledWith('cube.duckdb', 'ds-1');
-      expect(mockTaskCloseOpenPublishTasks).toHaveBeenCalledWith('ds-1', user, undefined, openTasks);
+      // open tasks are re-queried inside the transaction rather than taken from the dataset loaded beforehand
+      expect(mockTaskCloseOpenPublishTasks).toHaveBeenCalledWith('ds-1', user);
       expect(mockTaskWithdrawApproved).not.toHaveBeenCalled();
       expect(mockTaskGetTasksForDataset).not.toHaveBeenCalled();
     });
@@ -475,13 +507,15 @@ describe('DatasetService', () => {
     it('withdraws an approved (but unpublished) publication when there is no open publish task', async () => {
       mockDatasetGetById.mockResolvedValue({ id: 'ds-1', endRevision: {}, tasks: [] });
       mockGetPublishingStatus.mockReturnValue(PublishingStatus.Scheduled);
-      mockRevRevertToDraft.mockResolvedValue({ id: 'rev-1' });
+      mockRevRevertToDraft.mockResolvedValue({ revision: { id: 'rev-1' }, removedCubeFilename: null });
+      mockTaskCloseOpenPublishTasks.mockResolvedValue([]);
 
       await service.withdrawFromPublication('ds-1', 'rev-1', user);
 
+      expect(mockTaskCloseOpenPublishTasks).toHaveBeenCalledWith('ds-1', user);
       expect(mockTaskWithdrawApproved).toHaveBeenCalledWith('ds-1', 'rev-1', user);
-      expect(mockTaskCloseOpenPublishTasks).not.toHaveBeenCalled();
       expect(mockTaskGetTasksForDataset).not.toHaveBeenCalled();
+      expect(fileService.delete).not.toHaveBeenCalled();
     });
 
     it('throws when there is no pending publication to withdraw', async () => {
@@ -489,6 +523,17 @@ describe('DatasetService', () => {
       mockGetPublishingStatus.mockReturnValue(PublishingStatus.Published);
       const err = await captureError(service.withdrawFromPublication('ds-1', 'rev-1', user));
       expect(err).toBeInstanceOf(BadRequestException);
+    });
+
+    it('does not delete the online cube file when the transaction fails', async () => {
+      mockDatasetGetById.mockResolvedValue({ id: 'ds-1', endRevision: {}, tasks: [] });
+      mockGetPublishingStatus.mockReturnValue(PublishingStatus.Scheduled);
+      mockRevRevertToDraft.mockResolvedValue({ revision: { id: 'rev-1' }, removedCubeFilename: 'cube.duckdb' });
+      mockTaskCloseOpenPublishTasks.mockResolvedValue([]);
+      mockTaskWithdrawApproved.mockRejectedValueOnce(new Error('insert failed'));
+
+      await expect(service.withdrawFromPublication('ds-1', 'rev-1', user)).rejects.toThrow('insert failed');
+      expect(fileService.delete).not.toHaveBeenCalled();
     });
   });
 
@@ -541,15 +586,43 @@ describe('DatasetService', () => {
   });
 
   describe('rejectPublication', () => {
-    it('reverts to draft and deletes the online cube file when present', async () => {
-      mockRevRevertToDraft.mockResolvedValue({ id: 'rev-1', onlineCubeFilename: 'cube.duckdb' });
-      await service.rejectPublication('ds-1', 'rev-1');
+    const rejectedTask = { id: 'task-1', status: TaskStatus.Rejected, open: true };
+
+    beforeEach(() => {
+      mockTaskUpdate.mockResolvedValue(rejectedTask);
+    });
+
+    it('reverts to draft, rejects the task and closes sibling tasks in one transaction', async () => {
+      mockRevRevertToDraft.mockResolvedValue({ revision: { id: 'rev-1' }, removedCubeFilename: null });
+
+      const result = await service.rejectPublication('ds-1', 'rev-1', 'task-1', user, 'Not ready');
+
+      expect(mockTransaction).toHaveBeenCalledTimes(1);
+      expect(mockRevRevertToDraft).toHaveBeenCalledWith('rev-1');
+      expect(mockTaskUpdate).toHaveBeenCalledWith('task-1', TaskStatus.Rejected, true, user, 'Not ready');
+      expect(mockTaskCloseOpenPublishTasks).toHaveBeenCalledWith('ds-1', user, 'task-1');
+      expect(result).toBe(rejectedTask);
+    });
+
+    it('deletes the online cube file when present', async () => {
+      mockRevRevertToDraft.mockResolvedValue({ revision: { id: 'rev-1' }, removedCubeFilename: 'cube.duckdb' });
+      await service.rejectPublication('ds-1', 'rev-1', 'task-1', user, 'Not ready');
       expect(fileService.delete).toHaveBeenCalledWith('cube.duckdb', 'ds-1');
     });
 
-    it('reverts to draft without deleting when no online cube file', async () => {
-      mockRevRevertToDraft.mockResolvedValue({ id: 'rev-1' });
-      await service.rejectPublication('ds-1', 'rev-1');
+    it('does not delete anything when no online cube file', async () => {
+      mockRevRevertToDraft.mockResolvedValue({ revision: { id: 'rev-1' }, removedCubeFilename: null });
+      await service.rejectPublication('ds-1', 'rev-1', 'task-1', user, 'Not ready');
+      expect(fileService.delete).not.toHaveBeenCalled();
+    });
+
+    it('does not delete the online cube file when the transaction fails', async () => {
+      mockRevRevertToDraft.mockResolvedValue({ revision: { id: 'rev-1' }, removedCubeFilename: 'cube.duckdb' });
+      mockTaskCloseOpenPublishTasks.mockRejectedValueOnce(new Error('update failed'));
+
+      await expect(service.rejectPublication('ds-1', 'rev-1', 'task-1', user, 'Not ready')).rejects.toThrow(
+        'update failed'
+      );
       expect(fileService.delete).not.toHaveBeenCalled();
     });
   });
@@ -566,6 +639,7 @@ describe('DatasetService', () => {
 
       await service.createRevision('ds-1', user);
 
+      expect(mockTransaction).toHaveBeenCalledTimes(1);
       expect(mockRevDeepClone).toHaveBeenCalledWith('pub-1', user);
       expect(mockDatasetSave).toHaveBeenCalledWith(
         expect.objectContaining({ draftRevision: { id: 'new-rev' }, endRevision: { id: 'new-rev' } })
@@ -692,26 +766,43 @@ describe('DatasetService', () => {
   });
 
   describe('approveUnpublish', () => {
-    it('marks the published revision unpublished and creates a fresh draft', async () => {
-      mockDatasetGetById
-        .mockResolvedValueOnce({ id: 'ds-1', publishedRevision: { id: 'pub-1' } }) // initial load
-        .mockResolvedValueOnce({ id: 'ds-1', draftRevision: { id: 'new-rev' } }); // from createRevision
+    const approvedTask = { id: 'task-1', status: TaskStatus.Approved, open: false };
+
+    beforeEach(() => {
+      mockDatasetGetById.mockResolvedValue({ id: 'ds-1', publishedRevision: { id: 'pub-1' } });
       mockDatasetFindOneOrFail.mockResolvedValue({ revisions: [{ id: 'r1' }], publishedRevision: { id: 'pub-1' } });
       mockIsPublished.mockReturnValue(true);
       mockRevDeepClone.mockResolvedValue({ id: 'new-rev' });
+      mockTaskUpdate.mockResolvedValue(approvedTask);
+    });
 
-      await service.approveUnpublish('ds-1', user);
+    it('unpublishes, creates a fresh draft and approves the task in one transaction, then builds the cube', async () => {
+      const result = await service.approveUnpublish('ds-1', 'task-1', user);
 
+      expect(mockTransaction).toHaveBeenCalledTimes(1);
       expect(mockRevSave).toHaveBeenCalledWith(
         expect.objectContaining({ id: 'pub-1', unpublishedAt: expect.any(Date) })
       );
+      expect(mockDatasetSave).toHaveBeenCalledWith(
+        expect.objectContaining({ draftRevision: { id: 'new-rev' }, endRevision: { id: 'new-rev' } })
+      );
+      expect(mockTaskUpdate).toHaveBeenCalledWith('task-1', TaskStatus.Approved, false, user, null);
       expect(mockCreateAllCubeFiles).toHaveBeenCalledWith('ds-1', 'new-rev', user.id);
+      expect(result).toBe(approvedTask);
+    });
+
+    it('does not build the cube when the transaction fails', async () => {
+      mockTaskUpdate.mockRejectedValueOnce(new Error('update failed'));
+
+      await expect(service.approveUnpublish('ds-1', 'task-1', user)).rejects.toThrow('update failed');
+      expect(mockCreateAllCubeFiles).not.toHaveBeenCalled();
     });
 
     it('throws when the dataset has no published revision', async () => {
       mockDatasetGetById.mockResolvedValue({ id: 'ds-1', publishedRevision: null });
-      const err = await captureError(service.approveUnpublish('ds-1', user));
+      const err = await captureError(service.approveUnpublish('ds-1', 'task-1', user));
       expect(err).toBeInstanceOf(Error);
+      expect(mockTransaction).not.toHaveBeenCalled();
     });
   });
 });
