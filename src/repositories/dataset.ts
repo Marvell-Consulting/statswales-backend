@@ -178,7 +178,7 @@ export const DatasetRepository = publisherDataSource.getRepository(Dataset).exte
   async replaceFactTable(dataset: Dataset, dataTable: DataTable): Promise<void> {
     if (dataset.factTable && dataset.factTable.length > 0) {
       logger.debug(`Existing factTable found for dataset ${dataset.id}, deleting`);
-      await publisherDataSource.getRepository(FactTableColumn).remove(dataset.factTable);
+      await this.manager.getRepository(FactTableColumn).remove(dataset.factTable);
     }
 
     logger.debug(`Creating fact table definitions for dataset ${dataset.id}`);
@@ -197,7 +197,7 @@ export const DatasetRepository = publisherDataSource.getRepository(Dataset).exte
       factColumns.push(factTableColumn);
     });
 
-    await publisherDataSource.getRepository(FactTableColumn).save(factColumns);
+    await this.manager.getRepository(FactTableColumn).save(factColumns);
   },
 
   async listAll(

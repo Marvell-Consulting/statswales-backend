@@ -1,4 +1,4 @@
-import { In, JsonContains, QueryFailedError } from 'typeorm';
+import { EntityManager, In, JsonContains, QueryFailedError } from 'typeorm';
 
 import { format as pgformat } from '@scaleleap/pg-format';
 import { RevisionMetadataDTO } from '../dtos/revision-metadata-dto';
@@ -20,6 +20,7 @@ import { RevisionProvider } from '../entities/dataset/revision-provider';
 import { RevisionTopic } from '../entities/dataset/revision-topic';
 import { DimensionRepository } from '../repositories/dimension';
 import { RevisionMetadata } from '../entities/dataset/revision-metadata';
+import { Revision } from '../entities/dataset/revision';
 import { isPublished } from '../utils/revision';
 import { BadRequestException } from '../exceptions/bad-request.exception';
 import { TasklistStateDTO } from '../dtos/tasklist-state-dto';
@@ -49,6 +50,7 @@ import {
 import { StorageService } from '../interfaces/storage-service';
 import { TempFile } from '../interfaces/temp-file';
 import { dbManager } from '../db/database-manager';
+import { withTransaction } from '../db/transaction';
 import { bootstrapCubeBuildProcess } from '../utils/lookup-table-utils';
 
 export class DatasetService {
@@ -65,20 +67,27 @@ export class DatasetService {
   async createNew(title: string, userGroupId: string, createdBy: User): Promise<Dataset> {
     logger.info(`Creating new dataset...`);
 
-    const dataset = await DatasetRepository.create({ createdBy, userGroupId }).save();
-    const firstRev = await RevisionRepository.create({ dataset, createdBy, revisionIndex: 1 }).save();
-    await RevisionRepository.createMetadata(firstRev, title, this.lang);
+    const { datasetId, revisionId } = await withTransaction(async (em) => {
+      const datasetRepo = em.withRepository(DatasetRepository);
+      const revisionRepo = em.withRepository(RevisionRepository);
 
-    await DatasetRepository.save({
-      ...dataset,
-      draftRevision: firstRev,
-      startRevision: firstRev,
-      endRevision: firstRev
+      const dataset = await datasetRepo.save(datasetRepo.create({ createdBy, userGroupId }));
+      const firstRev = await revisionRepo.save(revisionRepo.create({ dataset, createdBy, revisionIndex: 1 }));
+      await revisionRepo.createMetadata(firstRev, title, this.lang);
+
+      await datasetRepo.save({
+        ...dataset,
+        draftRevision: firstRev,
+        startRevision: firstRev,
+        endRevision: firstRev
+      });
+
+      return { datasetId: dataset.id, revisionId: firstRev.id };
     });
 
-    logger.info(`Dataset '${dataset.id}' created with draft revision '${firstRev.id}'`);
+    logger.info(`Dataset '${datasetId}' created with draft revision '${revisionId}'`);
 
-    return DatasetRepository.getById(dataset.id, withDraftAndMetadata);
+    return DatasetRepository.getById(datasetId, withDraftAndMetadata);
   }
 
   async getDatasetOverview(datasetId: string): Promise<Dataset> {
@@ -92,7 +101,9 @@ export class DatasetService {
 
   async updateMetadata(datasetId: string, metadata: RevisionMetadataDTO): Promise<Dataset> {
     const dataset = await DatasetRepository.getById(datasetId, withDraftAndMetadata);
-    await RevisionRepository.updateMetadata(dataset.draftRevision!, metadata);
+    await withTransaction((em) =>
+      em.withRepository(RevisionRepository).updateMetadata(dataset.draftRevision!, metadata)
+    );
 
     return DatasetRepository.getById(dataset.id, {});
   }
@@ -164,8 +175,6 @@ export class DatasetService {
       return !submitted.some((submitted) => submitted.groupId === existing.groupId);
     });
 
-    await RevisionProvider.getRepository().remove(toRemove);
-
     // update the data providers for both languages
     const toUpdate = existing
       .filter((existing) => submitted.some((submitted) => submitted.groupId === existing.groupId))
@@ -177,7 +186,11 @@ export class DatasetService {
         return updating;
       });
 
-    await RevisionProvider.getRepository().save(toUpdate);
+    await withTransaction(async (em) => {
+      const providerRepo = em.getRepository(RevisionProvider);
+      await providerRepo.remove(toRemove);
+      await providerRepo.save(toUpdate);
+    });
 
     logger.debug(
       `Removed ${toRemove.length} providers and updated ${toUpdate.length} providers for dataset ${datasetId}`
@@ -190,16 +203,19 @@ export class DatasetService {
     const dataset = await DatasetRepository.getById(datasetId, { draftRevision: { revisionTopics: true } });
     const revision = dataset.draftRevision!;
 
-    // remove any existing topic relations
-    const existingTopics = revision.revisionTopics;
-    await RevisionTopic.getRepository().remove(existingTopics);
+    await withTransaction(async (em) => {
+      const topicRepo = em.getRepository(RevisionTopic);
 
-    // save the new topic relations
-    const newTopics = topics.map((topicId: string) => {
-      return RevisionTopic.getRepository().create({ revisionId: revision.id, topicId: parseInt(topicId, 10) });
+      // remove any existing topic relations
+      await topicRepo.remove(revision.revisionTopics);
+
+      // save the new topic relations
+      const newTopics = topics.map((topicId: string) => {
+        return topicRepo.create({ revisionId: revision.id, topicId: parseInt(topicId, 10) });
+      });
+
+      await topicRepo.save(newTopics);
     });
-
-    await RevisionTopic.getRepository().save(newTopics);
 
     return DatasetRepository.getById(datasetId, withDraftAndTopics);
   }
@@ -230,8 +246,6 @@ export class DatasetService {
       dimMetaCY.updatedAt = now;
     });
 
-    await DimensionRepository.save(dimensions);
-
     logger.debug(`Updating metadata translations...`);
     const metaTranslations = translations.filter((t) => t.type === 'metadata');
     const metaEn = revision.metadata.find((meta) => meta.language === Locale.EnglishGb)!;
@@ -246,8 +260,6 @@ export class DatasetService {
     metaEn.updatedAt = now;
     metaCy.updatedAt = now;
 
-    await RevisionMetadata.getRepository().save([metaEn, metaCy]);
-
     logger.debug(`Updating related link translations...`);
     revision.relatedLinks?.forEach((link) => {
       const translation = translations.find((t) => t.type === 'link' && t.key === link.id);
@@ -255,7 +267,11 @@ export class DatasetService {
       link.labelCY = translation?.cymraeg;
     });
 
-    await RevisionRepository.save(revision);
+    await withTransaction(async (em) => {
+      await em.withRepository(DimensionRepository).save(dimensions);
+      await em.getRepository(RevisionMetadata).save([metaEn, metaCy]);
+      await em.withRepository(RevisionRepository).save(revision);
+    });
 
     return DatasetRepository.getById(datasetId, {});
   }
@@ -319,22 +335,27 @@ export class DatasetService {
       throw new BadRequestException('errors.withdraw.no_pending_publication');
     }
 
-    const draftRevision = await RevisionRepository.revertToDraft(revisionId);
-
-    if (draftRevision.onlineCubeFilename) {
-      await this.fileService.delete(draftRevision.onlineCubeFilename, datasetId);
-    }
-
     // dataset.tasks was loaded above; derive open publish tasks from it to avoid a second DB read
     const openPublishTasks = (dataset.tasks ?? []).filter((task) => task.action === TaskAction.Publish && task.open);
 
-    if (openPublishTasks.length > 0) {
-      // close every open publish task (there should only be one, but close any duplicates too)
-      await this.taskService.closeOpenPublishTasks(datasetId, user, undefined, openPublishTasks);
-    } else {
-      // the dataset was previously approved so its publish task is already closed; record a
-      // closed withdraw task so the event still appears in the dataset history
-      await this.taskService.withdrawApproved(datasetId, draftRevision.id, user);
+    const draftRevision = await withTransaction(async (em) => {
+      const taskService = new TaskService(em);
+      const draftRevision = await em.withRepository(RevisionRepository).revertToDraft(revisionId);
+
+      if (openPublishTasks.length > 0) {
+        // close every open publish task (there should only be one, but close any duplicates too)
+        await taskService.closeOpenPublishTasks(datasetId, user, undefined, openPublishTasks);
+      } else {
+        // the dataset was previously approved so its publish task is already closed; record a
+        // closed withdraw task so the event still appears in the dataset history
+        await taskService.withdrawApproved(datasetId, draftRevision.id, user);
+      }
+
+      return draftRevision;
+    });
+
+    if (draftRevision.onlineCubeFilename) {
+      await this.fileService.delete(draftRevision.onlineCubeFilename, datasetId);
     }
   }
 
@@ -367,18 +388,45 @@ export class DatasetService {
     return approvedDataset;
   }
 
-  async rejectPublication(datasetId: string, revisionId: string): Promise<void> {
-    const revision = await RevisionRepository.revertToDraft(revisionId);
+  async rejectPublication(
+    datasetId: string,
+    revisionId: string,
+    taskId: string,
+    user: User,
+    reason?: string | null
+  ): Promise<Task> {
+    const { revision, task } = await withTransaction(async (em) => {
+      const taskService = new TaskService(em);
+      const revision = await em.withRepository(RevisionRepository).revertToDraft(revisionId);
+
+      // task left open so it can be re-submitted
+      const task = await taskService.update(taskId, TaskStatus.Rejected, true, user, reason);
+
+      // close any duplicate sibling publish tasks, keeping only the rejected one open
+      await taskService.closeOpenPublishTasks(datasetId, user, task.id);
+
+      return { revision, task };
+    });
 
     if (revision.onlineCubeFilename) {
       await this.fileService.delete(revision.onlineCubeFilename, datasetId);
     }
+
+    return task;
   }
 
   async createRevision(datasetId: string, createdBy: User): Promise<Dataset> {
+    await withTransaction((em) => this.createDraftRevision(em, datasetId, createdBy));
+
+    return DatasetRepository.getById(datasetId, withDraftAndMetadata);
+  }
+
+  private async createDraftRevision(em: EntityManager, datasetId: string, createdBy: User): Promise<Revision> {
     logger.info(`Creating new revision for dataset: ${datasetId}...`);
 
-    const dataset = await DatasetRepository.findOneOrFail({
+    const datasetRepo = em.withRepository(DatasetRepository);
+
+    const dataset = await datasetRepo.findOneOrFail({
       where: { id: datasetId },
       relations: { publishedRevision: true, revisions: true }
     });
@@ -388,12 +436,12 @@ export class DatasetService {
     }
 
     const publishedRevision = dataset.publishedRevision!;
-    const newRevision = await RevisionRepository.deepCloneRevision(publishedRevision.id, createdBy);
+    const newRevision = await em.withRepository(RevisionRepository).deepCloneRevision(publishedRevision.id, createdBy);
     logger.info(`New draft revision created: ${newRevision.id}`);
 
-    await DatasetRepository.save({ id: datasetId, draftRevision: newRevision, endRevision: newRevision });
+    await datasetRepo.save({ id: datasetId, draftRevision: newRevision, endRevision: newRevision });
 
-    return DatasetRepository.getById(datasetId, withDraftAndMetadata);
+    return newRevision;
   }
 
   async deleteDraftRevision(datasetId: string, revisionId: string): Promise<void> {
@@ -522,22 +570,32 @@ export class DatasetService {
       .map((event) => flagUpdateTask(dataset, event));
   }
 
-  async approveUnpublish(datasetId: string, user: User): Promise<void> {
+  async approveUnpublish(datasetId: string, taskId: string, user: User): Promise<Task> {
     logger.info(`Unpublishing dataset ${datasetId}`);
 
-    let dataset = await DatasetRepository.getById(datasetId, { publishedRevision: true });
+    const dataset = await DatasetRepository.getById(datasetId, { publishedRevision: true });
+    const publishedRevision = dataset.publishedRevision;
 
-    if (!dataset.publishedRevision) {
+    if (!publishedRevision) {
       throw new Error(`Dataset ${datasetId} does not have a published revision`);
     }
 
-    // mark the current published revision as unpublished
-    dataset.publishedRevision.unpublishedAt = new Date();
-    await RevisionRepository.save(dataset.publishedRevision);
-    logger.info(`Revision ${dataset.publishedRevision.id} marked as unpublished`);
+    const { draftRevision, task } = await withTransaction(async (em) => {
+      // mark the current published revision as unpublished
+      publishedRevision.unpublishedAt = new Date();
+      await em.withRepository(RevisionRepository).save(publishedRevision);
 
-    // create a new draft revision based on the now unpublished revision
-    dataset = await this.createRevision(datasetId, user);
-    await createAllCubeFiles(dataset.id, dataset.draftRevision!.id, user.id);
+      // create a new draft revision based on the now unpublished revision
+      const draftRevision = await this.createDraftRevision(em, datasetId, user);
+      const task = await new TaskService(em).update(taskId, TaskStatus.Approved, false, user, null);
+
+      return { draftRevision, task };
+    });
+
+    logger.info(`Revision ${publishedRevision.id} marked as unpublished`);
+
+    await createAllCubeFiles(datasetId, draftRevision.id, user.id);
+
+    return task;
   }
 }

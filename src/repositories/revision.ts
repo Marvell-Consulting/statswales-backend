@@ -13,7 +13,6 @@ import { RevisionMetadataDTO } from '../dtos/revision-metadata-dto';
 import { RevisionProvider } from '../entities/dataset/revision-provider';
 import { RevisionTopic } from '../entities/dataset/revision-topic';
 
-import { DataTableRepository } from './data-table';
 import { BadRequestException } from '../exceptions/bad-request.exception';
 import { getPublishingStatus } from '../utils/dataset-status';
 import { PublishingStatus } from '../enums/publishing-status';
@@ -65,12 +64,10 @@ export const RevisionRepository = publisherDataSource.getRepository(Revision).ex
 
     if (revision.dataTable) {
       logger.debug(`Existing dataTable '${revision.dataTable.id}' for revision '${revision.id}' found, deleting`);
-      await DataTableRepository.remove(revision.dataTable);
+      await this.manager.getRepository(DataTable).remove(revision.dataTable);
     }
 
-    const updatedRevision = await this.merge(revision, { dataTable }).save();
-
-    return updatedRevision;
+    return this.save(this.merge(revision, { dataTable }));
   },
 
   async createMetadata(revision: Revision, title: string, lang: string): Promise<Revision> {
@@ -80,7 +77,7 @@ export const RevisionRepository = publisherDataSource.getRepository(Revision).ex
       return RevisionMetadata.create({ revision, language, title: language === lang ? title : '' });
     });
 
-    await publisherDataSource.getRepository(RevisionMetadata).save(metadata);
+    await this.manager.getRepository(RevisionMetadata).save(metadata);
 
     return this.getById(revision.id, { metadata: true });
   },
@@ -91,14 +88,14 @@ export const RevisionRepository = publisherDataSource.getRepository(Revision).ex
     const splitMeta = RevisionMetadataDTO.splitMeta(metaDto);
 
     // props that aren't translated live on the revision itself
-    await this.merge(revision, splitMeta.revision).save();
+    await this.save(this.merge(revision, splitMeta.revision));
 
     // props that are translated live in revision metadata
-    const metaRepo = publisherDataSource.getRepository(RevisionMetadata);
+    const metaRepo = this.manager.getRepository(RevisionMetadata);
     const existingMeta: RevisionMetadata = await metaRepo.findOneOrFail({
       where: { id: revision.id, language: metaDto.language }
     });
-    await metaRepo.merge(existingMeta, splitMeta.metadata).save();
+    await metaRepo.save(metaRepo.merge(existingMeta, splitMeta.metadata));
 
     return this.getById(revision.id, { metadata: true });
   },
@@ -110,13 +107,13 @@ export const RevisionRepository = publisherDataSource.getRepository(Revision).ex
   },
 
   async approvePublication(revisionId: string, onlineCubeFilename: string, approver: User): Promise<Revision> {
-    const scheduledRevision = await publisherDataSource.getRepository(Revision).findOneOrFail({
+    const scheduledRevision = await this.findOneOrFail({
       where: { id: revisionId },
       relations: { dataset: true }
     });
 
     if (scheduledRevision.revisionIndex === 0) {
-      const result = await publisherDataSource.query(
+      const result = await this.query(
         `SELECT MAX(revision_index) AS max_index FROM revision WHERE dataset_id = $1 AND approved_at IS NOT NULL;`,
         [scheduledRevision.dataset.id]
       );
@@ -128,9 +125,8 @@ export const RevisionRepository = publisherDataSource.getRepository(Revision).ex
     scheduledRevision.approvedAt = new Date();
     scheduledRevision.approvedBy = approver;
     scheduledRevision.onlineCubeFilename = onlineCubeFilename;
-    await scheduledRevision.save();
 
-    return scheduledRevision;
+    return this.save(scheduledRevision);
   },
 
   async getAllRevisionIds(): Promise<RevisionList[]> {
@@ -142,7 +138,7 @@ export const RevisionRepository = publisherDataSource.getRepository(Revision).ex
   },
 
   async revertToDraft(revisionId: string): Promise<Revision> {
-    const revision = await publisherDataSource.getRepository(Revision).findOneOrFail({
+    const revision = await this.findOneOrFail({
       where: { id: revisionId },
       relations: { dataset: true }
     });
@@ -162,12 +158,12 @@ export const RevisionRepository = publisherDataSource.getRepository(Revision).ex
     revision.approvedAt = null;
     revision.approvedBy = null;
     revision.onlineCubeFilename = null;
-    await revision.save();
+    await this.save(revision);
 
     dataset.draftRevisionId = revision.id;
     dataset.publishedRevisionId = revision.previousRevisionId;
 
-    await dataset.save();
+    await this.manager.save(dataset);
 
     return revision;
   },
@@ -213,14 +209,16 @@ export const RevisionRepository = publisherDataSource.getRepository(Revision).ex
       })
     );
 
-    return this.create({
-      ...copyProps,
-      previousRevisionId: prevRevision.id,
-      revisionIndex: 0,
-      createdBy,
-      metadata,
-      revisionProviders,
-      revisionTopics
-    }).save();
+    return this.save(
+      this.create({
+        ...copyProps,
+        previousRevisionId: prevRevision.id,
+        revisionIndex: 0,
+        createdBy,
+        metadata,
+        revisionProviders,
+        revisionTopics
+      })
+    );
   }
 });
