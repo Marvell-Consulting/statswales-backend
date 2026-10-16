@@ -491,13 +491,15 @@ describe('DatasetService', () => {
       ];
       mockDatasetGetById.mockResolvedValue({ id: 'ds-1', endRevision: {}, tasks: openTasks });
       mockGetPublishingStatus.mockReturnValue(PublishingStatus.PendingApproval);
-      mockRevRevertToDraft.mockResolvedValue({ id: 'rev-1', onlineCubeFilename: 'cube.duckdb' });
+      mockRevRevertToDraft.mockResolvedValue({ revision: { id: 'rev-1' }, removedCubeFilename: 'cube.duckdb' });
+      mockTaskCloseOpenPublishTasks.mockResolvedValue(openTasks);
 
       await service.withdrawFromPublication('ds-1', 'rev-1', user);
 
       expect(mockTransaction).toHaveBeenCalledTimes(1);
       expect(fileService.delete).toHaveBeenCalledWith('cube.duckdb', 'ds-1');
-      expect(mockTaskCloseOpenPublishTasks).toHaveBeenCalledWith('ds-1', user, undefined, openTasks);
+      // open tasks are re-queried inside the transaction rather than taken from the dataset loaded beforehand
+      expect(mockTaskCloseOpenPublishTasks).toHaveBeenCalledWith('ds-1', user);
       expect(mockTaskWithdrawApproved).not.toHaveBeenCalled();
       expect(mockTaskGetTasksForDataset).not.toHaveBeenCalled();
     });
@@ -505,13 +507,15 @@ describe('DatasetService', () => {
     it('withdraws an approved (but unpublished) publication when there is no open publish task', async () => {
       mockDatasetGetById.mockResolvedValue({ id: 'ds-1', endRevision: {}, tasks: [] });
       mockGetPublishingStatus.mockReturnValue(PublishingStatus.Scheduled);
-      mockRevRevertToDraft.mockResolvedValue({ id: 'rev-1' });
+      mockRevRevertToDraft.mockResolvedValue({ revision: { id: 'rev-1' }, removedCubeFilename: null });
+      mockTaskCloseOpenPublishTasks.mockResolvedValue([]);
 
       await service.withdrawFromPublication('ds-1', 'rev-1', user);
 
+      expect(mockTaskCloseOpenPublishTasks).toHaveBeenCalledWith('ds-1', user);
       expect(mockTaskWithdrawApproved).toHaveBeenCalledWith('ds-1', 'rev-1', user);
-      expect(mockTaskCloseOpenPublishTasks).not.toHaveBeenCalled();
       expect(mockTaskGetTasksForDataset).not.toHaveBeenCalled();
+      expect(fileService.delete).not.toHaveBeenCalled();
     });
 
     it('throws when there is no pending publication to withdraw', async () => {
@@ -524,7 +528,8 @@ describe('DatasetService', () => {
     it('does not delete the online cube file when the transaction fails', async () => {
       mockDatasetGetById.mockResolvedValue({ id: 'ds-1', endRevision: {}, tasks: [] });
       mockGetPublishingStatus.mockReturnValue(PublishingStatus.Scheduled);
-      mockRevRevertToDraft.mockResolvedValue({ id: 'rev-1', onlineCubeFilename: 'cube.duckdb' });
+      mockRevRevertToDraft.mockResolvedValue({ revision: { id: 'rev-1' }, removedCubeFilename: 'cube.duckdb' });
+      mockTaskCloseOpenPublishTasks.mockResolvedValue([]);
       mockTaskWithdrawApproved.mockRejectedValueOnce(new Error('insert failed'));
 
       await expect(service.withdrawFromPublication('ds-1', 'rev-1', user)).rejects.toThrow('insert failed');
@@ -588,7 +593,7 @@ describe('DatasetService', () => {
     });
 
     it('reverts to draft, rejects the task and closes sibling tasks in one transaction', async () => {
-      mockRevRevertToDraft.mockResolvedValue({ id: 'rev-1' });
+      mockRevRevertToDraft.mockResolvedValue({ revision: { id: 'rev-1' }, removedCubeFilename: null });
 
       const result = await service.rejectPublication('ds-1', 'rev-1', 'task-1', user, 'Not ready');
 
@@ -600,19 +605,19 @@ describe('DatasetService', () => {
     });
 
     it('deletes the online cube file when present', async () => {
-      mockRevRevertToDraft.mockResolvedValue({ id: 'rev-1', onlineCubeFilename: 'cube.duckdb' });
+      mockRevRevertToDraft.mockResolvedValue({ revision: { id: 'rev-1' }, removedCubeFilename: 'cube.duckdb' });
       await service.rejectPublication('ds-1', 'rev-1', 'task-1', user, 'Not ready');
       expect(fileService.delete).toHaveBeenCalledWith('cube.duckdb', 'ds-1');
     });
 
     it('does not delete anything when no online cube file', async () => {
-      mockRevRevertToDraft.mockResolvedValue({ id: 'rev-1' });
+      mockRevRevertToDraft.mockResolvedValue({ revision: { id: 'rev-1' }, removedCubeFilename: null });
       await service.rejectPublication('ds-1', 'rev-1', 'task-1', user, 'Not ready');
       expect(fileService.delete).not.toHaveBeenCalled();
     });
 
     it('does not delete the online cube file when the transaction fails', async () => {
-      mockRevRevertToDraft.mockResolvedValue({ id: 'rev-1', onlineCubeFilename: 'cube.duckdb' });
+      mockRevRevertToDraft.mockResolvedValue({ revision: { id: 'rev-1' }, removedCubeFilename: 'cube.duckdb' });
       mockTaskCloseOpenPublishTasks.mockRejectedValueOnce(new Error('update failed'));
 
       await expect(service.rejectPublication('ds-1', 'rev-1', 'task-1', user, 'Not ready')).rejects.toThrow(

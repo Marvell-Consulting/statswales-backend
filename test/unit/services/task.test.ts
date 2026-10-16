@@ -192,15 +192,17 @@ describe('TaskService', () => {
       const keep = makeTask({ id: 'keep', datasetId: 'ds-1', action: TaskAction.Publish });
       const sibling = makeTask({ id: 'sibling', datasetId: 'ds-1', action: TaskAction.Publish });
 
-      await service.closeOpenPublishTasks('ds-1', user, 'keep', [keep, sibling] as unknown as Task[]);
+      const closed = await service.closeOpenPublishTasks('ds-1', user, 'keep', [keep, sibling] as unknown as Task[]);
 
+      expect(closed).toEqual([sibling]);
       expect(mockTaskSave).toHaveBeenCalledWith(sibling);
       expect(mockTaskSave).not.toHaveBeenCalledWith(keep);
     });
 
     it('does not open a transaction when there is nothing to close', async () => {
-      await service.closeOpenPublishTasks('ds-1', user, undefined, []);
+      const closed = await service.closeOpenPublishTasks('ds-1', user, undefined, []);
 
+      expect(closed).toEqual([]);
       expect(mockTransaction).not.toHaveBeenCalled();
       expect(mockTaskSave).not.toHaveBeenCalled();
     });

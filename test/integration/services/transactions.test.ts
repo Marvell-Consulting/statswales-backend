@@ -13,6 +13,7 @@ import { Task } from '../../../src/entities/task/task';
 import { User } from '../../../src/entities/user/user';
 import { UserGroup } from '../../../src/entities/user/user-group';
 import { EventLog } from '../../../src/entities/event-log';
+import { DatasetRepository } from '../../../src/repositories/dataset';
 import { RevisionRepository } from '../../../src/repositories/revision';
 import { DatasetService } from '../../../src/services/dataset';
 import { TaskService } from '../../../src/services/task';
@@ -170,6 +171,24 @@ describe('SW-522 — writes are rolled back when a flow fails part way through',
 
       const tasks = await Task.find({ where: { datasetId: dataset.id } });
       expect(tasks).toEqual([expect.objectContaining({ status: TaskStatus.Withdrawn, open: false })]);
+
+      expect(fileService.delete).toHaveBeenCalledWith('cube.duckdb', dataset.id);
+    });
+
+    it('closes an open publish task that was created after the dataset was loaded', async () => {
+      const { dataset, revision, user } = await seedScheduledDataset();
+      const task = await createTask(dataset.id, TaskAction.Publish, user);
+
+      // simulate the task being created concurrently, after the dataset (and its tasks) were read
+      const getById = DatasetRepository.getById.bind(DatasetRepository);
+      jest
+        .spyOn(DatasetRepository, 'getById')
+        .mockImplementationOnce(async (...args) => ({ ...(await getById(...args)), tasks: [] }) as Dataset);
+
+      await service.withdrawFromPublication(dataset.id, revision.id, user);
+
+      const tasks = await Task.find({ where: { datasetId: dataset.id } });
+      expect(tasks).toEqual([expect.objectContaining({ id: task.id, status: TaskStatus.Withdrawn, open: false })]);
     });
   });
 
@@ -199,6 +218,17 @@ describe('SW-522 — writes are rolled back when a flow fails part way through',
       const reloadedTask = await Task.findOneByOrFail({ id: task.id });
       expect(reloadedTask.status).toBe(TaskStatus.Rejected);
       expect(reloadedTask.comment).toBe('Not ready');
+    });
+
+    it('deletes the online cube file once the rejection is committed', async () => {
+      const { dataset, revision, user } = await seedScheduledDataset();
+      const task = await createTask(dataset.id, TaskAction.Publish, user);
+
+      await service.rejectPublication(dataset.id, revision.id, task.id, user, 'Not ready');
+
+      const reloadedRevision = await Revision.findOneByOrFail({ id: revision.id });
+      expect(reloadedRevision.onlineCubeFilename).toBeNull();
+      expect(fileService.delete).toHaveBeenCalledWith('cube.duckdb', dataset.id);
     });
   });
 

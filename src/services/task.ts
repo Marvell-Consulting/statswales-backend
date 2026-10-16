@@ -177,7 +177,8 @@ export class TaskService {
     return this.update(task.id, TaskStatus.Rejected, false, user, reason);
   }
 
-  async closeOpenPublishTasks(datasetId: string, user: User, exceptTaskId?: string, tasks?: Task[]): Promise<void> {
+  // returns the tasks that were closed
+  async closeOpenPublishTasks(datasetId: string, user: User, exceptTaskId?: string, tasks?: Task[]): Promise<Task[]> {
     const candidates =
       tasks ??
       (await this.tasks.find({
@@ -190,7 +191,7 @@ export class TaskService {
       return matchesDataset && task.action === TaskAction.Publish && task.open && task.id !== exceptTaskId;
     });
 
-    if (toClose.length === 0) return;
+    if (toClose.length === 0) return [];
 
     await withTransaction(async (em) => {
       const tasks = em.getRepository(Task);
@@ -199,6 +200,8 @@ export class TaskService {
         await tasks.save(tasks.merge(task, { status: TaskStatus.Withdrawn, open: false, updatedBy: user }));
       }
     }, this.em);
+
+    return toClose;
   }
 
   async update(taskId: string, status: TaskStatus, open: boolean, user: User, comment?: string | null): Promise<Task> {

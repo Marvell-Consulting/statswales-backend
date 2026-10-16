@@ -335,27 +335,25 @@ export class DatasetService {
       throw new BadRequestException('errors.withdraw.no_pending_publication');
     }
 
-    // dataset.tasks was loaded above; derive open publish tasks from it to avoid a second DB read
-    const openPublishTasks = (dataset.tasks ?? []).filter((task) => task.action === TaskAction.Publish && task.open);
-
-    const draftRevision = await withTransaction(async (em) => {
+    const removedCubeFilename = await withTransaction(async (em) => {
       const taskService = new TaskService(em);
-      const draftRevision = await em.withRepository(RevisionRepository).revertToDraft(revisionId);
+      const { revision, removedCubeFilename } = await em.withRepository(RevisionRepository).revertToDraft(revisionId);
 
-      if (openPublishTasks.length > 0) {
-        // close every open publish task (there should only be one, but close any duplicates too)
-        await taskService.closeOpenPublishTasks(datasetId, user, undefined, openPublishTasks);
-      } else {
+      // close every open publish task (there should only be one, but close any duplicates too) - queried inside
+      // the transaction so a task created since the dataset was loaded above is not missed
+      const closedTasks = await taskService.closeOpenPublishTasks(datasetId, user);
+
+      if (closedTasks.length === 0) {
         // the dataset was previously approved so its publish task is already closed; record a
         // closed withdraw task so the event still appears in the dataset history
-        await taskService.withdrawApproved(datasetId, draftRevision.id, user);
+        await taskService.withdrawApproved(datasetId, revision.id, user);
       }
 
-      return draftRevision;
+      return removedCubeFilename;
     });
 
-    if (draftRevision.onlineCubeFilename) {
-      await this.fileService.delete(draftRevision.onlineCubeFilename, datasetId);
+    if (removedCubeFilename) {
+      await this.fileService.delete(removedCubeFilename, datasetId);
     }
   }
 
@@ -395,9 +393,9 @@ export class DatasetService {
     user: User,
     reason?: string | null
   ): Promise<Task> {
-    const { revision, task } = await withTransaction(async (em) => {
+    const { removedCubeFilename, task } = await withTransaction(async (em) => {
       const taskService = new TaskService(em);
-      const revision = await em.withRepository(RevisionRepository).revertToDraft(revisionId);
+      const { removedCubeFilename } = await em.withRepository(RevisionRepository).revertToDraft(revisionId);
 
       // task left open so it can be re-submitted
       const task = await taskService.update(taskId, TaskStatus.Rejected, true, user, reason);
@@ -405,11 +403,11 @@ export class DatasetService {
       // close any duplicate sibling publish tasks, keeping only the rejected one open
       await taskService.closeOpenPublishTasks(datasetId, user, task.id);
 
-      return { revision, task };
+      return { removedCubeFilename, task };
     });
 
-    if (revision.onlineCubeFilename) {
-      await this.fileService.delete(revision.onlineCubeFilename, datasetId);
+    if (removedCubeFilename) {
+      await this.fileService.delete(removedCubeFilename, datasetId);
     }
 
     return task;

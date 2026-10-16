@@ -137,7 +137,9 @@ export const RevisionRepository = publisherDataSource.getRepository(Revision).ex
     return this.query('SELECT id, dataset_id, data_table_id, revision_index FROM revision WHERE approved_at IS NULL');
   },
 
-  async revertToDraft(revisionId: string): Promise<Revision> {
+  // returns the reverted revision and the online cube filename it held, as the caller is responsible for deleting
+  // the file (outside any transaction) once the revert has been committed
+  async revertToDraft(revisionId: string): Promise<{ revision: Revision; removedCubeFilename: string | null }> {
     const revision = await this.findOneOrFail({
       where: { id: revisionId },
       relations: { dataset: true }
@@ -155,6 +157,8 @@ export const RevisionRepository = publisherDataSource.getRepository(Revision).ex
       revision.revisionIndex = 0;
     }
 
+    const removedCubeFilename = revision.onlineCubeFilename ?? null;
+
     revision.approvedAt = null;
     revision.approvedBy = null;
     revision.onlineCubeFilename = null;
@@ -165,7 +169,7 @@ export const RevisionRepository = publisherDataSource.getRepository(Revision).ex
 
     await this.manager.save(dataset);
 
-    return revision;
+    return { revision, removedCubeFilename };
   },
 
   async deepCloneRevision(revisionId: string, createdBy: User): Promise<Revision> {
