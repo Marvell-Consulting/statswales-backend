@@ -1,3 +1,5 @@
+import { EntityManager } from 'typeorm';
+
 import { TaskStatus } from '../../../src/enums/task-status';
 import { TaskAction } from '../../../src/enums/task-action';
 import { PublishingStatus } from '../../../src/enums/publishing-status';
@@ -16,21 +18,29 @@ jest.mock('../../../src/utils/logger', () => ({
   }
 }));
 
-// --- Task entity mock ---
+// --- Task repository mock (resolved via the EntityManager passed to TaskService) ---
 const mockTaskCreate = jest.fn();
 const mockTaskMerge = jest.fn();
+const mockTaskSave = jest.fn();
 const mockTaskFindOneOrFail = jest.fn();
 const mockTaskFindOneByOrFail = jest.fn();
 const mockTaskFind = jest.fn();
-jest.mock('../../../src/entities/task/task', () => ({
-  Task: {
-    create: (...args: unknown[]) => mockTaskCreate(...args),
-    merge: (...args: unknown[]) => mockTaskMerge(...args),
-    findOneOrFail: (...args: unknown[]) => mockTaskFindOneOrFail(...args),
-    findOneByOrFail: (...args: unknown[]) => mockTaskFindOneByOrFail(...args),
-    find: (...args: unknown[]) => mockTaskFind(...args)
-  }
-}));
+const mockTaskRepo = {
+  create: (...args: unknown[]) => mockTaskCreate(...args),
+  merge: (...args: unknown[]) => mockTaskMerge(...args),
+  save: (...args: unknown[]) => mockTaskSave(...args),
+  findOneOrFail: (...args: unknown[]) => mockTaskFindOneOrFail(...args),
+  findOneByOrFail: (...args: unknown[]) => mockTaskFindOneByOrFail(...args),
+  find: (...args: unknown[]) => mockTaskFind(...args)
+};
+
+// transactions run the callback with the same mock manager so writes can be asserted on the mocks above
+const mockTransaction = jest.fn();
+const mockEm = {
+  getRepository: () => mockTaskRepo,
+  withRepository: (repo: unknown) => repo,
+  transaction: (...args: unknown[]) => mockTransaction(...args)
+} as unknown as EntityManager;
 
 // --- Repository mocks ---
 const mockDatasetGetById = jest.fn();
@@ -72,7 +82,6 @@ interface MockTask {
   createdBy?: User | null;
   updatedBy?: User | null;
   dataset?: unknown;
-  save: jest.Mock;
 }
 
 function makeTask(overrides: Partial<MockTask> = {}): MockTask {
@@ -86,7 +95,6 @@ function makeTask(overrides: Partial<MockTask> = {}): MockTask {
     updatedBy: null,
     ...overrides
   } as MockTask;
-  task.save = jest.fn().mockResolvedValue(task);
   return task;
 }
 
@@ -100,8 +108,11 @@ describe('TaskService', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    service = new TaskService();
+    service = new TaskService(mockEm);
     user = makeUser();
+
+    mockTransaction.mockImplementation((fn: (em: EntityManager) => Promise<unknown>) => fn(mockEm));
+    mockTaskSave.mockImplementation((task: MockTask) => Promise.resolve(task));
 
     // sensible defaults
     mockTaskCreate.mockImplementation((props: Partial<MockTask>) => makeTask(props));
@@ -127,7 +138,7 @@ describe('TaskService', () => {
         comment: 'a comment',
         metadata
       });
-      expect(result.save).toHaveBeenCalled();
+      expect(mockTaskSave).toHaveBeenCalledWith(result);
     });
   });
 
@@ -156,7 +167,7 @@ describe('TaskService', () => {
         updatedBy: user,
         comment: 'done'
       });
-      expect(existing.save).toHaveBeenCalled();
+      expect(mockTaskSave).toHaveBeenCalledWith(existing);
       expect(result.status).toBe(TaskStatus.Approved);
       expect(result.open).toBe(false);
     });
@@ -172,18 +183,28 @@ describe('TaskService', () => {
       expect(mockTaskFind).not.toHaveBeenCalled();
       expect(mockTaskMerge).toHaveBeenCalledWith(t1, { status: TaskStatus.Withdrawn, open: false, updatedBy: user });
       expect(mockTaskMerge).toHaveBeenCalledWith(t2, { status: TaskStatus.Withdrawn, open: false, updatedBy: user });
-      expect(t1.save).toHaveBeenCalled();
-      expect(t2.save).toHaveBeenCalled();
+      expect(mockTaskSave).toHaveBeenCalledWith(t1);
+      expect(mockTaskSave).toHaveBeenCalledWith(t2);
+      expect(mockTransaction).toHaveBeenCalledTimes(1);
     });
 
     it('skips the excepted task from the pre-fetched list', async () => {
       const keep = makeTask({ id: 'keep', datasetId: 'ds-1', action: TaskAction.Publish });
       const sibling = makeTask({ id: 'sibling', datasetId: 'ds-1', action: TaskAction.Publish });
 
-      await service.closeOpenPublishTasks('ds-1', user, 'keep', [keep, sibling] as unknown as Task[]);
+      const closed = await service.closeOpenPublishTasks('ds-1', user, 'keep', [keep, sibling] as unknown as Task[]);
 
-      expect(sibling.save).toHaveBeenCalled();
-      expect(keep.save).not.toHaveBeenCalled();
+      expect(closed).toEqual([sibling]);
+      expect(mockTaskSave).toHaveBeenCalledWith(sibling);
+      expect(mockTaskSave).not.toHaveBeenCalledWith(keep);
+    });
+
+    it('does not open a transaction when there is nothing to close', async () => {
+      const closed = await service.closeOpenPublishTasks('ds-1', user, undefined, []);
+
+      expect(closed).toEqual([]);
+      expect(mockTransaction).not.toHaveBeenCalled();
+      expect(mockTaskSave).not.toHaveBeenCalled();
     });
 
     it('falls back to a DB query when no task list is provided', async () => {
@@ -195,7 +216,7 @@ describe('TaskService', () => {
         where: { datasetId: 'ds-1', action: TaskAction.Publish, open: true },
         order: { createdAt: 'DESC' }
       });
-      expect(t1.save).toHaveBeenCalled();
+      expect(mockTaskSave).toHaveBeenCalledWith(t1);
     });
   });
 
@@ -212,7 +233,7 @@ describe('TaskService', () => {
         createdBy: user,
         updatedBy: user
       });
-      expect(result.save).toHaveBeenCalled();
+      expect(mockTaskSave).toHaveBeenCalledWith(result);
     });
   });
 
@@ -336,6 +357,7 @@ describe('TaskService', () => {
 
       await service.approveArchive('task-1', user);
 
+      expect(mockTransaction).toHaveBeenCalledTimes(1);
       expect(mockDatasetArchive).toHaveBeenCalledWith('ds-1', 'ds-2', true);
       expect(mockTaskMerge).toHaveBeenCalledWith(
         task,
@@ -384,6 +406,7 @@ describe('TaskService', () => {
 
       await service.approveUnarchive('task-1', user);
 
+      expect(mockTransaction).toHaveBeenCalledTimes(1);
       expect(mockDatasetUnarchive).toHaveBeenCalledWith('ds-1');
       expect(mockTaskMerge).toHaveBeenCalledWith(
         task,

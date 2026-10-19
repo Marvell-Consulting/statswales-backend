@@ -67,17 +67,19 @@ export const taskDecision = async (req: Request, res: Response, next: NextFuncti
         }
         if (dto.decision === 'reject') {
           // task left open so it can be re-submitted
-          await req.datasetService.rejectPublication(dataset.id, dataset.draftRevisionId);
-          task = await taskService.update(task.id, TaskStatus.Rejected, true, user, dto.reason);
-          // close any duplicate sibling publish tasks, keeping only the rejected one open
-          await taskService.closeOpenPublishTasks(dataset.id, user, task.id);
+          task = await req.datasetService.rejectPublication(
+            dataset.id,
+            dataset.draftRevisionId,
+            task.id,
+            user,
+            dto.reason
+          );
         }
         break;
 
       case TaskAction.Unpublish:
         if (dto.decision === 'approve') {
-          await req.datasetService.approveUnpublish(dataset.id, user);
-          task = await taskService.update(task.id, TaskStatus.Approved, false, user, null);
+          task = await req.datasetService.approveUnpublish(dataset.id, task.id, user);
         }
         if (dto.decision === 'reject') {
           task = await taskService.rejectUnpublish(task.id, user, dto.reason);

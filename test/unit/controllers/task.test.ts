@@ -334,10 +334,9 @@ describe('Task controller', () => {
 
         mockIsApproverForDataset.mockReturnValue(true);
         mockDtoValidator.mockResolvedValue({ decision: 'reject', reason: 'Not ready' });
-        mockUpdate.mockResolvedValue(updatedTask);
         mockFromTask.mockReturnValue(taskDTO);
 
-        const rejectPublication = jest.fn().mockResolvedValue(undefined);
+        const rejectPublication = jest.fn().mockResolvedValue(updatedTask);
         const req = createMockRequest({
           user,
           body: { decision: 'reject', reason: 'Not ready' },
@@ -349,9 +348,9 @@ describe('Task controller', () => {
 
         await taskDecision(req, res, mockNext);
 
-        expect(rejectPublication).toHaveBeenCalledWith(dataset.id, dataset.draftRevisionId);
-        expect(mockUpdate).toHaveBeenCalledWith(task.id, TaskStatus.Rejected, true, user, 'Not ready');
-        expect(mockCloseOpenPublishTasks).toHaveBeenCalledWith(dataset.id, user, task.id);
+        // the task update and sibling task clean up now happen inside rejectPublication's transaction
+        expect(rejectPublication).toHaveBeenCalledWith(dataset.id, dataset.draftRevisionId, task.id, user, 'Not ready');
+        expect(mockFromTask).toHaveBeenCalledWith(updatedTask);
         expect(res.json).toHaveBeenCalledWith(taskDTO);
       });
     });
@@ -371,10 +370,9 @@ describe('Task controller', () => {
 
         mockIsApproverForDataset.mockReturnValue(true);
         mockDtoValidator.mockResolvedValue({ decision: 'approve' });
-        mockUpdate.mockResolvedValue(updatedTask);
         mockFromTask.mockReturnValue(taskDTO);
 
-        const approveUnpublish = jest.fn().mockResolvedValue(undefined);
+        const approveUnpublish = jest.fn().mockResolvedValue(updatedTask);
         const req = createMockRequest({
           user,
           body: { decision: 'approve' },
@@ -386,8 +384,9 @@ describe('Task controller', () => {
 
         await taskDecision(req, res, mockNext);
 
-        expect(approveUnpublish).toHaveBeenCalledWith(dataset.id, user);
-        expect(mockUpdate).toHaveBeenCalledWith(task.id, TaskStatus.Approved, false, user, null);
+        // the task update now happens inside approveUnpublish's transaction
+        expect(approveUnpublish).toHaveBeenCalledWith(dataset.id, task.id, user);
+        expect(mockFromTask).toHaveBeenCalledWith(updatedTask);
         expect(res.json).toHaveBeenCalledWith(taskDTO);
       });
 

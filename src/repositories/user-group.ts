@@ -103,22 +103,24 @@ export const UserGroupRepository = publisherDataSource.getRepository(UserGroup).
   async updateGroup(groupId: string, dto: UserGroupDTO): Promise<UserGroup> {
     const group = await this.findOneByOrFail({ id: groupId });
     const updates = UserGroupDTO.toUserGroup(dto);
-    return this.merge(group, updates).save();
+    return this.save(this.merge(group, updates));
   },
 
   async updateGroupStatus(groupId: string, status: UserGroupStatus): Promise<UserGroup> {
-    const group = await this.findOneOrFail({
-      where: { id: groupId },
-      relations: { groupRoles: true }
+    await this.manager.transaction(async (transactionEm) => {
+      const group = await transactionEm.findOneOrFail(UserGroup, {
+        where: { id: groupId },
+        relations: { groupRoles: true }
+      });
+
+      // delete any associated user roles when deactivating
+      if (status === UserGroupStatus.Inactive && group.groupRoles && group.groupRoles.length > 0) {
+        await transactionEm.getRepository(UserGroupRole).delete({ group: { id: groupId } });
+      }
+
+      group.status = status;
+      await transactionEm.save(group);
     });
-
-    // delete any associated user roles when deactivating
-    if (status === UserGroupStatus.Inactive && group.groupRoles && group.groupRoles.length > 0) {
-      await publisherDataSource.getRepository(UserGroupRole).delete({ group: { id: groupId } });
-    }
-
-    group.status = status;
-    await this.save(group);
 
     return this.findOneByOrFail({ id: groupId });
   },
