@@ -21,7 +21,7 @@ import { logger } from '../utils/logger';
 import { ConsumerDatasetDTO } from '../dtos/consumer-dataset-dto';
 import { getColumnHeaders } from '../utils/column-headers';
 import { QueryStoreRepository } from '../repositories/query-store';
-import { DataSource } from 'typeorm';
+import { DataSource, QueryFailedError } from 'typeorm';
 import { DatasetLoader } from './consumer-view';
 import {
   CursorDirection,
@@ -306,6 +306,11 @@ export async function sendFilters(query: string, res: Response, dateColumns: Set
   }
 }
 
+// Postgres SQLSTATE 42P01: undefined_table (covers views and materialized views)
+function isUndefinedTableError(error: unknown): boolean {
+  return error instanceof QueryFailedError && (error.driverError as { code?: string })?.code === '42P01';
+}
+
 async function runAndRetryQuery(
   query: string,
   queryStore: QueryStore,
@@ -316,10 +321,14 @@ async function runAndRetryQuery(
   try {
     rows = await cubeDataSource.query(query);
   } catch (error) {
+    // Only a missing view (e.g. core_view_<lang> dropped after materialisation)
+    // is worth retrying. Anything else would just fail again against the
+    // other view and mask the original error.
+    if (!isUndefinedTableError(error)) throw error;
     logger.warn(error, 'Query failed trying alternative view name');
     const retryQuery = query.includes('core_view_mat')
-      ? query.replace('core_view_mat', 'core_view')
-      : query.replace('core_view', 'core_view_mat');
+      ? query.replaceAll('core_view_mat', 'core_view')
+      : query.replaceAll('core_view', 'core_view_mat');
     try {
       rows = await cubeDataSource.query(retryQuery);
     } catch (retryError) {
@@ -737,9 +746,13 @@ function normaliseKeyValue(v: unknown): CursorKeyValue {
   if (v === null || v === undefined) return null;
   const t = typeof v;
   if (t === 'string' || t === 'number' || t === 'boolean') return v as string | number | boolean;
-  // BIGINT comes back from node-postgres as a string by default; Date objects
-  // stringify safely. Fall back to JSON-roundtrip via String() for anything
-  // else exotic — the keyset comparison happens server-side via pgformat %L,
-  // which handles the implicit cast back to the column's Postgres type.
+  // Date objects must be ISO-formatted: String(date) yields e.g. "Thu Mar 31
+  // 2022 23:59:59 GMT+0000 (Coordinated Universal Time)", which Postgres
+  // rejects as a timestamp literal.
+  if (v instanceof Date) return v.toISOString();
+  // BIGINT comes back from node-postgres as a string by default. Fall back to
+  // String() for anything else exotic — the keyset comparison happens
+  // server-side via pgformat %L, which handles the implicit cast back to the
+  // column's Postgres type.
   return String(v);
 }
