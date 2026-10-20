@@ -851,6 +851,39 @@ describe('consumer-view-v2 service', () => {
       expect(mockRebuildQueryEntry).not.toHaveBeenCalled();
     });
 
+    it('should not retry when the missing relation is not a core view', async () => {
+      const queryError = undefinedTableError();
+      mockCubeQuery
+        .mockResolvedValueOnce([]) // filters query
+        .mockResolvedValueOnce([]) // note_codes query
+        .mockRejectedValueOnce(queryError); // data query fails on a non-core-view relation
+
+      mockGetById.mockResolvedValue({ id: 'dataset-id', factTable: [], dimensions: [] });
+
+      const queryStore = createMockQueryStore({ totalLines: 1 });
+      const pageOptions: PageOptions = {
+        format: OutputFormats.Frontend,
+        sort: [],
+        locale: Locale.EnglishGb,
+        pageNumber: 1,
+        pageSize: 10
+      };
+      const res = createMockStreamResponse();
+
+      await expect(
+        sendFrontendView(
+          { sql: 'SELECT * FROM "schema".core_view_columns_en', mode: 'offset' },
+          queryStore,
+          pageOptions,
+          res,
+          mockGetById
+        )
+      ).rejects.toBe(queryError);
+
+      expect(mockCubeQuery).toHaveBeenCalledTimes(3);
+      expect(mockRebuildQueryEntry).not.toHaveBeenCalled();
+    });
+
     it('should replace every view reference when retrying', async () => {
       mockCubeQuery
         .mockResolvedValueOnce([]) // filters query

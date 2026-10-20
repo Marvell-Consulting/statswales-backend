@@ -329,12 +329,14 @@ async function runAndRetryQuery(
     // is worth retrying. Anything else would just fail again against the
     // other view and mask the original error.
     if (!isUndefinedTableError(error)) throw error;
-    logger.warn(error, 'Query failed trying alternative view name');
     // Match whole view names only, so e.g. core_view_columns_<lang> is untouched.
     const retryQuery =
       query.search(MAT_VIEW_REGEX) !== -1
         ? query.replace(MAT_VIEW_REGEX, 'core_view_$1')
         : query.replace(VIEW_REGEX, 'core_view_mat_$1');
+    // The missing relation isn't a core view, so retrying would fail the same way.
+    if (retryQuery === query) throw error;
+    logger.warn(error, 'Query failed trying alternative view name');
     try {
       rows = await cubeDataSource.query(retryQuery);
     } catch (retryError) {
@@ -759,7 +761,7 @@ function normaliseKeyValue(v: unknown): CursorKeyValue {
   // its offset rather than toISOString(): Postgres ignores the offset for
   // date/timestamp (recovering the original value) and honours it for
   // timestamptz.
-  if (v instanceof Date) return formatDate(v, "yyyy-MM-dd'T'HH:mm:ss.SSSxxx");
+  if (v instanceof Date && !Number.isNaN(v.getTime())) return formatDate(v, "yyyy-MM-dd'T'HH:mm:ss.SSSxxx");
   // BIGINT comes back from node-postgres as a string by default. Fall back to
   // String() for anything else exotic — the keyset comparison happens
   // server-side via pgformat %L, which handles the implicit cast back to the
