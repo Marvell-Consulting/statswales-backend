@@ -872,7 +872,7 @@ describe('consumer-view-v2 service', () => {
 
       await sendFrontendView(
         {
-          sql: 'SELECT * FROM "schema".core_view_en a JOIN "schema".core_view_en b ON true',
+          sql: 'SELECT * FROM "schema".core_view_en a JOIN "schema".core_view_en b ON true JOIN "schema".core_view_columns_en c ON true',
           mode: 'offset'
         },
         queryStore,
@@ -882,18 +882,21 @@ describe('consumer-view-v2 service', () => {
       );
 
       const retryCall = mockCubeQuery.mock.calls[3][0] as string;
-      expect(retryCall).toBe('SELECT * FROM "schema".core_view_mat_en a JOIN "schema".core_view_mat_en b ON true');
+      expect(retryCall).toBe(
+        'SELECT * FROM "schema".core_view_mat_en a JOIN "schema".core_view_mat_en b ON true JOIN "schema".core_view_columns_en c ON true'
+      );
     });
   });
 
   describe('buildCursorFromRow', () => {
-    it('should serialise Date sort keys as ISO strings', () => {
+    it('should serialise Date sort keys as ISO strings in local time with offset', () => {
       const queryStore = createMockQueryStore();
       const sortPlan = [
         { displayName: 'Period', sortIdent: 'Period_sort', direction: 'desc' as const },
         { displayName: 'Area', sortIdent: 'Area_sort', direction: 'asc' as const }
       ];
-      const row = { Period_sort: new Date('2022-03-31T23:59:59.000Z'), Area_sort: 5 };
+      // node-postgres builds Dates for date/timestamp columns from local-time components
+      const row = { Period_sort: new Date(2022, 2, 31, 23, 59, 59), Area_sort: 5 };
 
       const cursor = buildCursorFromRow(row, sortPlan, 'f', queryStore, 'en-gb', 'sort-hash');
       const decoded = decodeCursor(cursor, {
@@ -905,7 +908,7 @@ describe('consumer-view-v2 service', () => {
       });
 
       expect(decoded.v).toBe(CURSOR_VERSION);
-      expect(decoded.k).toEqual(['2022-03-31T23:59:59.000Z', 5]);
+      expect(decoded.k).toEqual([expect.stringMatching(/^2022-03-31T23:59:59\.000[+-]\d{2}:\d{2}$/), 5]);
     });
   });
 

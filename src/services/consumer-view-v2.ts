@@ -8,6 +8,7 @@ import { format as pgformat } from '@scaleleap/pg-format/lib/pg-format';
 import { format as csvFormat } from '@fast-csv/format';
 import ExcelJS from 'exceljs';
 import { t } from 'i18next';
+import { format as formatDate } from 'date-fns';
 
 import { FilterRow } from '../interfaces/filter-row';
 import { FilterTable } from '../interfaces/filter-table';
@@ -306,6 +307,9 @@ export async function sendFilters(query: string, res: Response, dateColumns: Set
   }
 }
 
+const MAT_VIEW_REGEX = /\bcore_view_mat_([a-z]{2})\b/g;
+const VIEW_REGEX = /\bcore_view_([a-z]{2})\b/g;
+
 // Postgres SQLSTATE 42P01: undefined_table (covers views and materialized views)
 function isUndefinedTableError(error: unknown): boolean {
   return error instanceof QueryFailedError && (error.driverError as { code?: string })?.code === '42P01';
@@ -326,9 +330,11 @@ async function runAndRetryQuery(
     // other view and mask the original error.
     if (!isUndefinedTableError(error)) throw error;
     logger.warn(error, 'Query failed trying alternative view name');
-    const retryQuery = query.includes('core_view_mat')
-      ? query.replaceAll('core_view_mat', 'core_view')
-      : query.replaceAll('core_view', 'core_view_mat');
+    // Match whole view names only, so e.g. core_view_columns_<lang> is untouched.
+    const retryQuery =
+      query.search(MAT_VIEW_REGEX) !== -1
+        ? query.replace(MAT_VIEW_REGEX, 'core_view_$1')
+        : query.replace(VIEW_REGEX, 'core_view_mat_$1');
     try {
       rows = await cubeDataSource.query(retryQuery);
     } catch (retryError) {
@@ -748,8 +754,12 @@ function normaliseKeyValue(v: unknown): CursorKeyValue {
   if (t === 'string' || t === 'number' || t === 'boolean') return v as string | number | boolean;
   // Date objects must be ISO-formatted: String(date) yields e.g. "Thu Mar 31
   // 2022 23:59:59 GMT+0000 (Coordinated Universal Time)", which Postgres
-  // rejects as a timestamp literal.
-  if (v instanceof Date) return v.toISOString();
+  // rejects as a timestamp literal. node-postgres parses date/timestamp
+  // columns in the process's local timezone, so format in local time with
+  // its offset rather than toISOString(): Postgres ignores the offset for
+  // date/timestamp (recovering the original value) and honours it for
+  // timestamptz.
+  if (v instanceof Date) return formatDate(v, "yyyy-MM-dd'T'HH:mm:ss.SSSxxx");
   // BIGINT comes back from node-postgres as a string by default. Fall back to
   // String() for anything else exotic — the keyset comparison happens
   // server-side via pgformat %L, which handles the implicit cast back to the
