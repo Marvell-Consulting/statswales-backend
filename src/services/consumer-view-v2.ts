@@ -8,6 +8,7 @@ import { format as pgformat } from '@scaleleap/pg-format/lib/pg-format';
 import { format as csvFormat } from '@fast-csv/format';
 import ExcelJS from 'exceljs';
 import { t } from 'i18next';
+import { format as formatDate } from 'date-fns';
 
 import { FilterRow } from '../interfaces/filter-row';
 import { FilterTable } from '../interfaces/filter-table';
@@ -21,7 +22,7 @@ import { logger } from '../utils/logger';
 import { ConsumerDatasetDTO } from '../dtos/consumer-dataset-dto';
 import { getColumnHeaders } from '../utils/column-headers';
 import { QueryStoreRepository } from '../repositories/query-store';
-import { DataSource } from 'typeorm';
+import { DataSource, QueryFailedError } from 'typeorm';
 import { DatasetLoader } from './consumer-view';
 import {
   CursorDirection,
@@ -306,6 +307,14 @@ export async function sendFilters(query: string, res: Response, dateColumns: Set
   }
 }
 
+const MAT_VIEW_REGEX = /\bcore_view_mat_([a-z]{2})\b/g;
+const VIEW_REGEX = /\bcore_view_([a-z]{2})\b/g;
+
+// Postgres SQLSTATE 42P01: undefined_table (covers views and materialized views)
+function isUndefinedTableError(error: unknown): boolean {
+  return error instanceof QueryFailedError && (error.driverError as { code?: string })?.code === '42P01';
+}
+
 async function runAndRetryQuery(
   query: string,
   queryStore: QueryStore,
@@ -316,10 +325,18 @@ async function runAndRetryQuery(
   try {
     rows = await cubeDataSource.query(query);
   } catch (error) {
+    // Only a missing view (e.g. core_view_<lang> dropped after materialisation)
+    // is worth retrying. Anything else would just fail again against the
+    // other view and mask the original error.
+    if (!isUndefinedTableError(error)) throw error;
+    // Match whole view names only, so e.g. core_view_columns_<lang> is untouched.
+    const retryQuery =
+      query.search(MAT_VIEW_REGEX) !== -1
+        ? query.replace(MAT_VIEW_REGEX, 'core_view_$1')
+        : query.replace(VIEW_REGEX, 'core_view_mat_$1');
+    // The missing relation isn't a core view, so retrying would fail the same way.
+    if (retryQuery === query) throw error;
     logger.warn(error, 'Query failed trying alternative view name');
-    const retryQuery = query.includes('core_view_mat')
-      ? query.replace('core_view_mat', 'core_view')
-      : query.replace('core_view', 'core_view_mat');
     try {
       rows = await cubeDataSource.query(retryQuery);
     } catch (retryError) {
@@ -737,9 +754,17 @@ function normaliseKeyValue(v: unknown): CursorKeyValue {
   if (v === null || v === undefined) return null;
   const t = typeof v;
   if (t === 'string' || t === 'number' || t === 'boolean') return v as string | number | boolean;
-  // BIGINT comes back from node-postgres as a string by default; Date objects
-  // stringify safely. Fall back to JSON-roundtrip via String() for anything
-  // else exotic — the keyset comparison happens server-side via pgformat %L,
-  // which handles the implicit cast back to the column's Postgres type.
+  // Date objects must be ISO-formatted: String(date) yields e.g. "Thu Mar 31
+  // 2022 23:59:59 GMT+0000 (Coordinated Universal Time)", which Postgres
+  // rejects as a timestamp literal. node-postgres parses date/timestamp
+  // columns in the process's local timezone, so format in local time with
+  // its offset rather than toISOString(): Postgres ignores the offset for
+  // date/timestamp (recovering the original value) and honours it for
+  // timestamptz.
+  if (v instanceof Date && !Number.isNaN(v.getTime())) return formatDate(v, "yyyy-MM-dd'T'HH:mm:ss.SSSxxx");
+  // BIGINT comes back from node-postgres as a string by default. Fall back to
+  // String() for anything else exotic — the keyset comparison happens
+  // server-side via pgformat %L, which handles the implicit cast back to the
+  // column's Postgres type.
   return String(v);
 }

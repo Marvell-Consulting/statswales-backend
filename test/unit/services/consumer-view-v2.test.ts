@@ -3,6 +3,7 @@
 import { Readable, PassThrough } from 'node:stream';
 import { Response } from 'express';
 import ExcelJS from 'exceljs';
+import { QueryFailedError } from 'typeorm';
 
 // Mock logger before other imports
 jest.mock('../../../src/utils/logger', () => ({
@@ -83,6 +84,7 @@ import { PageOptions } from '../../../src/interfaces/page-options';
 import { BadRequestException } from '../../../src/exceptions/bad-request.exception';
 import { Locale } from '../../../src/enums/locale';
 import { OutputFormats } from '../../../src/enums/output-formats';
+import { CURSOR_VERSION, decodeCursor } from '../../../src/utils/cursor-codec';
 import {
   sendCsv,
   sendExcel,
@@ -90,8 +92,15 @@ import {
   sendHtml,
   sendFilters,
   sendFrontendView,
-  buildDataQuery
+  buildDataQuery,
+  buildCursorFromRow
 } from '../../../src/services/consumer-view-v2';
+
+// Postgres undefined_table (42P01), as thrown when a core view has been dropped
+function undefinedTableError(): QueryFailedError {
+  const driverError = Object.assign(new Error('relation "schema.core_view_en" does not exist'), { code: '42P01' });
+  return new QueryFailedError('SELECT 1', [], driverError);
+}
 
 // Helper to create a mock QueryStore
 function createMockQueryStore(overrides: Partial<QueryStore> = {}): QueryStore {
@@ -709,7 +718,7 @@ describe('consumer-view-v2 service', () => {
       mockCubeQuery
         .mockResolvedValueOnce([]) // filters query
         .mockResolvedValueOnce([]) // note_codes query
-        .mockRejectedValueOnce(new Error('relation does not exist')) // first data query fails
+        .mockRejectedValueOnce(undefinedTableError()) // first data query fails
         .mockResolvedValueOnce([{ col1: 'val1' }]); // retry with core_view_en succeeds
 
       mockGetById.mockResolvedValue({ id: 'dataset-id', factTable: [], dimensions: [] });
@@ -744,7 +753,7 @@ describe('consumer-view-v2 service', () => {
       mockCubeQuery
         .mockResolvedValueOnce([]) // filters query
         .mockResolvedValueOnce([]) // note_codes query
-        .mockRejectedValueOnce(new Error('relation does not exist')) // first data query fails
+        .mockRejectedValueOnce(undefinedTableError()) // first data query fails
         .mockResolvedValueOnce([{ col1: 'val1' }]); // retry with core_view_mat_en succeeds
 
       mockGetById.mockResolvedValue({ id: 'dataset-id', factTable: [], dimensions: [] });
@@ -779,7 +788,7 @@ describe('consumer-view-v2 service', () => {
       mockCubeQuery
         .mockResolvedValueOnce([]) // filters query
         .mockResolvedValueOnce([]) // note_codes query
-        .mockRejectedValueOnce(new Error('first attempt failed')) // first data query fails
+        .mockRejectedValueOnce(undefinedTableError()) // first data query fails
         .mockRejectedValueOnce(retryError); // retry also fails
 
       mockGetById.mockResolvedValue({ id: 'dataset-id', factTable: [], dimensions: [] });
@@ -806,6 +815,133 @@ describe('consumer-view-v2 service', () => {
 
       expect(mockCubeQuery).toHaveBeenCalledTimes(4);
       expect(mockRebuildQueryEntry).not.toHaveBeenCalled();
+    });
+
+    it('should not retry against the alternative view when the error is not a missing relation', async () => {
+      const driverError = Object.assign(new Error('invalid input syntax for type timestamp'), { code: '22007' });
+      const queryError = new QueryFailedError('SELECT 1', [], driverError);
+      mockCubeQuery
+        .mockResolvedValueOnce([]) // filters query
+        .mockResolvedValueOnce([]) // note_codes query
+        .mockRejectedValueOnce(queryError); // data query fails for a non-view reason
+
+      mockGetById.mockResolvedValue({ id: 'dataset-id', factTable: [], dimensions: [] });
+
+      const queryStore = createMockQueryStore({ totalLines: 1 });
+      const pageOptions: PageOptions = {
+        format: OutputFormats.Frontend,
+        sort: [],
+        locale: Locale.EnglishGb,
+        pageNumber: 1,
+        pageSize: 10
+      };
+      const res = createMockStreamResponse();
+
+      await expect(
+        sendFrontendView(
+          { sql: 'SELECT * FROM "schema".core_view_mat_en', mode: 'offset' },
+          queryStore,
+          pageOptions,
+          res,
+          mockGetById
+        )
+      ).rejects.toBe(queryError);
+
+      expect(mockCubeQuery).toHaveBeenCalledTimes(3);
+      expect(mockRebuildQueryEntry).not.toHaveBeenCalled();
+    });
+
+    it('should not retry when the missing relation is not a core view', async () => {
+      const queryError = undefinedTableError();
+      mockCubeQuery
+        .mockResolvedValueOnce([]) // filters query
+        .mockResolvedValueOnce([]) // note_codes query
+        .mockRejectedValueOnce(queryError); // data query fails on a non-core-view relation
+
+      mockGetById.mockResolvedValue({ id: 'dataset-id', factTable: [], dimensions: [] });
+
+      const queryStore = createMockQueryStore({ totalLines: 1 });
+      const pageOptions: PageOptions = {
+        format: OutputFormats.Frontend,
+        sort: [],
+        locale: Locale.EnglishGb,
+        pageNumber: 1,
+        pageSize: 10
+      };
+      const res = createMockStreamResponse();
+
+      await expect(
+        sendFrontendView(
+          { sql: 'SELECT * FROM "schema".core_view_columns_en', mode: 'offset' },
+          queryStore,
+          pageOptions,
+          res,
+          mockGetById
+        )
+      ).rejects.toBe(queryError);
+
+      expect(mockCubeQuery).toHaveBeenCalledTimes(3);
+      expect(mockRebuildQueryEntry).not.toHaveBeenCalled();
+    });
+
+    it('should replace every view reference when retrying', async () => {
+      mockCubeQuery
+        .mockResolvedValueOnce([]) // filters query
+        .mockResolvedValueOnce([]) // note_codes query
+        .mockRejectedValueOnce(undefinedTableError()) // first data query fails
+        .mockResolvedValueOnce([{ col1: 'val1' }]); // retry succeeds
+
+      mockGetById.mockResolvedValue({ id: 'dataset-id', factTable: [], dimensions: [] });
+
+      const queryStore = createMockQueryStore({ totalLines: 1 });
+      const pageOptions: PageOptions = {
+        format: OutputFormats.Frontend,
+        sort: [],
+        locale: Locale.EnglishGb,
+        pageNumber: 1,
+        pageSize: 10
+      };
+      const res = createMockStreamResponse();
+
+      await sendFrontendView(
+        {
+          sql: 'SELECT * FROM "schema".core_view_en a JOIN "schema".core_view_en b ON true JOIN "schema".core_view_columns_en c ON true',
+          mode: 'offset'
+        },
+        queryStore,
+        pageOptions,
+        res,
+        mockGetById
+      );
+
+      const retryCall = mockCubeQuery.mock.calls[3][0] as string;
+      expect(retryCall).toBe(
+        'SELECT * FROM "schema".core_view_mat_en a JOIN "schema".core_view_mat_en b ON true JOIN "schema".core_view_columns_en c ON true'
+      );
+    });
+  });
+
+  describe('buildCursorFromRow', () => {
+    it('should serialise Date sort keys as ISO strings in local time with offset', () => {
+      const queryStore = createMockQueryStore();
+      const sortPlan = [
+        { displayName: 'Period', sortIdent: 'Period_sort', direction: 'desc' as const },
+        { displayName: 'Area', sortIdent: 'Area_sort', direction: 'asc' as const }
+      ];
+      // node-postgres builds Dates for date/timestamp columns from local-time components
+      const row = { Period_sort: new Date(2022, 2, 31, 23, 59, 59), Area_sort: 5 };
+
+      const cursor = buildCursorFromRow(row, sortPlan, 'f', queryStore, 'en-gb', 'sort-hash');
+      const decoded = decodeCursor(cursor, {
+        queryStoreId: queryStore.id,
+        revisionId: queryStore.revisionId,
+        language: 'en-gb',
+        sortHash: 'sort-hash',
+        keyArity: 2
+      });
+
+      expect(decoded.v).toBe(CURSOR_VERSION);
+      expect(decoded.k).toEqual([expect.stringMatching(/^2022-03-31T23:59:59\.000[+-]\d{2}:\d{2}$/), 5]);
     });
   });
 

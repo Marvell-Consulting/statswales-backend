@@ -4,8 +4,9 @@ import { BadRequestException } from '../exceptions/bad-request.exception';
 
 // Bump whenever the wire format or binding changes in a shipped release: old
 // cursors then fail the version check and 400, and the client restarts from
-// page 1. Still 1 — this format has never been released.
-export const CURSOR_VERSION = 1;
+// page 1. v2: Date key values are serialised as ISO strings (v1 used
+// Date.toString(), which Postgres can't parse as a timestamp).
+export const CURSOR_VERSION = 2;
 export const MAX_CURSOR_LENGTH = 2048;
 
 export type CursorDirection = 'f' | 'b';
