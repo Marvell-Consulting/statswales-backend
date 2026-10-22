@@ -4,6 +4,7 @@ import { Dataset } from '../entities/dataset/dataset';
 import { CORE_VIEW_NAME } from '../services/cube-builder';
 import { Locale } from '../enums/locale';
 import { DatasetStats } from '../interfaces/dashboard-stats';
+import { DateDimensionTypes } from '../enums/dimension-type';
 
 export interface ShareSourcesResult {
   sources: string[];
@@ -32,6 +33,14 @@ export interface SimilarTitlesResult {
   similarity_score: number;
 }
 
+export interface WithoutDateDimensionResult {
+  dataset_id: string;
+  title: string | null;
+  revision_by: string | null;
+  status: string;
+  publishing_status: string;
+}
+
 export interface SameFactTableResult {
   original_filenames: string[];
   datatable_hash: string;
@@ -52,6 +61,55 @@ const latestPublishedRevisionsQuery = `
   ORDER BY rev.dataset_id, rev.publish_at DESC, rev.approved_at DESC, rev.created_at DESC, rev.id
 `;
 
+const dateDimensionTypes = DateDimensionTypes.map((type) => `'${type}'`).join(', ');
+
+// the status and publishing status of every dataset, based on its latest revision. Also flags whether the
+// dataset has a dimension using the standardised date reference data (SW-1133).
+const datasetStatusQuery = `
+  SELECT
+    d.id,
+    r.id AS revision_id,
+    r.created_by AS revision_created_by,
+    EXISTS (
+      SELECT 1 FROM dimension dim
+      WHERE dim.dataset_id = d.id
+      AND dim.type IN (${dateDimensionTypes})
+    ) AS has_date_dimension,
+    CASE
+      WHEN d.archived_at IS NOT NULL AND d.archived_at < NOW() THEN 'archived'
+      WHEN pr.unpublished_at IS NOT NULL AND pr.unpublished_at < NOW() THEN 'offline'
+      WHEN d.first_published_at IS NOT NULL AND d.first_published_at < NOW() THEN 'live'
+      ELSE 'new'
+    END as status,
+    CASE
+      WHEN d.first_published_at IS NOT NULL AND t.action = 'publish' AND t.status = 'requested' THEN 'update_pending_approval'
+      WHEN t.action = 'publish' AND t.status = 'requested' THEN 'pending_approval'
+      WHEN t.action = 'publish' AND t.status = 'rejected' THEN 'changes_requested'
+      WHEN t.action = 'unpublish' AND t.status = 'requested' THEN 'unpublish_requested'
+      WHEN t.action = 'archive' AND t.status = 'requested' THEN 'archive_requested'
+      WHEN t.action = 'unarchive' AND t.status = 'requested' THEN 'unarchive_requested'
+      WHEN pr.unpublished_at IS NOT NULL AND pr.unpublished_at < NOW() THEN 'unpublished'
+      -- a dataset with any currently live published revision counts as 'published', even if a
+      -- newer draft/scheduled revision is also in progress (see SW-1329). Guarded by
+      -- first_published_at to match the public API's published-dataset semantics exactly.
+      WHEN d.first_published_at IS NOT NULL AND d.first_published_at < NOW() AND lpr.id IS NOT NULL THEN 'published'
+      WHEN d.first_published_at IS NOT NULL AND d.first_published_at < NOW() AND r.approved_at IS NOT NULL AND r.publish_at > NOW() THEN 'update_scheduled'
+      WHEN d.first_published_at IS NOT NULL AND d.first_published_at > NOW() AND r.approved_at IS NOT NULL AND r.publish_at > NOW() THEN 'scheduled'
+      WHEN d.first_published_at IS NOT NULL AND d.first_published_at < NOW() AND r.approved_at IS NULL THEN 'update_incomplete'
+      WHEN d.first_published_at IS NULL AND r.approved_at IS NULL THEN 'incomplete'
+      ELSE 'incomplete'
+    END as publishing_status
+  FROM dataset d
+  INNER JOIN (
+    SELECT DISTINCT ON (rev.dataset_id) rev.*
+    FROM revision rev
+    ORDER BY rev.dataset_id, rev.created_at DESC
+  ) r ON r.dataset_id = d.id
+  LEFT JOIN (${latestPublishedRevisionsQuery}) lpr ON lpr.dataset_id = d.id
+  LEFT JOIN revision pr ON d.published_revision_id = pr.id
+  LEFT JOIN task t ON d.id = t.dataset_id AND t.open = true
+`;
+
 export const DatasetStatsRepository = publisherDataSource.getRepository(Dataset).extend({
   async getDashboardStats(locale: Locale): Promise<DatasetStats> {
     logger.debug('Getting dashboard statistics for datasets');
@@ -62,41 +120,7 @@ export const DatasetStatsRepository = publisherDataSource.getRepository(Dataset)
 
     const statusQuery = this.query(`
       WITH dataset_stats AS (
-        SELECT
-          d.id,
-          CASE
-            WHEN d.archived_at IS NOT NULL AND d.archived_at < NOW() THEN 'archived'
-            WHEN pr.unpublished_at IS NOT NULL AND pr.unpublished_at < NOW() THEN 'offline'
-            WHEN d.first_published_at IS NOT NULL AND d.first_published_at < NOW() THEN 'live'
-            ELSE 'new'
-          END as status,
-          CASE
-            WHEN d.first_published_at IS NOT NULL AND t.action = 'publish' AND t.status = 'requested' THEN 'update_pending_approval'
-            WHEN t.action = 'publish' AND t.status = 'requested' THEN 'pending_approval'
-            WHEN t.action = 'publish' AND t.status = 'rejected' THEN 'changes_requested'
-            WHEN t.action = 'unpublish' AND t.status = 'requested' THEN 'unpublish_requested'
-            WHEN t.action = 'archive' AND t.status = 'requested' THEN 'archive_requested'
-            WHEN t.action = 'unarchive' AND t.status = 'requested' THEN 'unarchive_requested'
-            WHEN pr.unpublished_at IS NOT NULL AND pr.unpublished_at < NOW() THEN 'unpublished'
-            -- a dataset with any currently live published revision counts as 'published', even if a
-            -- newer draft/scheduled revision is also in progress (see SW-1329). Guarded by
-            -- first_published_at to match the public API's published-dataset semantics exactly.
-            WHEN d.first_published_at IS NOT NULL AND d.first_published_at < NOW() AND lpr.id IS NOT NULL THEN 'published'
-            WHEN d.first_published_at IS NOT NULL AND d.first_published_at < NOW() AND r.approved_at IS NOT NULL AND r.publish_at > NOW() THEN 'update_scheduled'
-            WHEN d.first_published_at IS NOT NULL AND d.first_published_at > NOW() AND r.approved_at IS NOT NULL AND r.publish_at > NOW() THEN 'scheduled'
-            WHEN d.first_published_at IS NOT NULL AND d.first_published_at < NOW() AND r.approved_at IS NULL THEN 'update_incomplete'
-            WHEN d.first_published_at IS NULL AND r.approved_at IS NULL THEN 'incomplete'
-            ELSE 'incomplete'
-          END as publishing_status
-        FROM dataset d
-        INNER JOIN (
-          SELECT DISTINCT ON (rev.dataset_id) rev.*
-          FROM revision rev
-          ORDER BY rev.dataset_id, rev.created_at DESC
-        ) r ON r.dataset_id = d.id
-        LEFT JOIN (${latestPublishedRevisionsQuery}) lpr ON lpr.dataset_id = d.id
-        LEFT JOIN revision pr ON d.published_revision_id = pr.id
-        LEFT JOIN task t ON d.id = t.dataset_id AND t.open = true
+        ${datasetStatusQuery}
       )
       SELECT
         COUNT(*) as total,
@@ -106,7 +130,8 @@ export const DatasetStatsRepository = publisherDataSource.getRepository(Dataset)
         COUNT(*) FILTER (WHERE publishing_status = 'incomplete' OR publishing_status = 'update_incomplete') as incomplete,
         COUNT(*) FILTER (WHERE publishing_status = 'pending_approval' OR publishing_status = 'update_pending_approval') as pending_approval,
         COUNT(*) FILTER (WHERE publishing_status = 'scheduled' OR publishing_status = 'update_scheduled') as scheduled,
-        COUNT(*) FILTER (WHERE publishing_status = 'unpublish_requested' OR publishing_status = 'archive_requested' OR publishing_status = 'unarchive_requested') as action_requested
+        COUNT(*) FILTER (WHERE publishing_status = 'unpublish_requested' OR publishing_status = 'archive_requested' OR publishing_status = 'unarchive_requested') as action_requested,
+        COUNT(*) FILTER (WHERE status <> 'archived' AND has_date_dimension = false) as without_date_dimension
       FROM dataset_stats
     `);
 
@@ -168,7 +193,34 @@ export const DatasetStatsRepository = publisherDataSource.getRepository(Dataset)
       total: Number(status[0].total)
     };
 
-    return { summary, largest, longest };
+    return { summary, largest, longest, without_date_dimension: Number(status[0].without_date_dimension) };
+  },
+
+  async withoutDateDimension(locale: Locale): Promise<WithoutDateDimensionResult[]> {
+    logger.debug('Getting datasets without a date dimension');
+
+    const lang = locale.includes('en') ? 'en-gb' : 'cy-gb';
+
+    return this.query(
+      `
+      WITH dataset_stats AS (
+        ${datasetStatusQuery}
+      )
+      SELECT
+        ds.id AS dataset_id,
+        rm.title AS title,
+        CASE WHEN u.name IS NOT NULL THEN u.name ELSE u.email END AS revision_by,
+        ds.status AS status,
+        ds.publishing_status AS publishing_status
+      FROM dataset_stats ds
+      LEFT JOIN revision_metadata rm ON rm.revision_id = ds.revision_id AND LOWER(rm.language) = $1
+      LEFT JOIN "user" u ON u.id = ds.revision_created_by
+      WHERE ds.status <> 'archived'
+      AND ds.has_date_dimension = false
+      ORDER BY rm.title
+    `,
+      [lang]
+    );
   },
 
   async shareSources(locale: Locale): Promise<ShareSourcesResult[]> {

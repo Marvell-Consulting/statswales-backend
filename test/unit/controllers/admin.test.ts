@@ -42,7 +42,8 @@ const datasetStatsRepo = {
   shareSources: jest.fn(),
   shareDimensions: jest.fn(),
   similarTitles: jest.fn(),
-  sameFactTable: jest.fn()
+  sameFactTable: jest.fn(),
+  withoutDateDimension: jest.fn()
 };
 jest.mock('../../../src/repositories/dataset-stats', () => ({ DatasetStatsRepository: datasetStatsRepo }));
 
@@ -99,6 +100,7 @@ import {
   updateUserStatus,
   dashboard,
   similarDatasets,
+  datasetsWithoutDateDimension,
   downloadSearchLogs
 } from '../../../src/controllers/admin';
 
@@ -643,6 +645,47 @@ describe('Admin controller', () => {
 
       const [rows] = mockStringify.mock.calls[0] as [Record<string, unknown>[]];
       expect(rows[0]).toMatchObject({ title_1: `'=HYPERLINK("https://evil/")`, title_2: 'Safe title' });
+    });
+  });
+
+  describe('datasetsWithoutDateDimension', () => {
+    it('streams the datasets without a date dimension report as CSV', async () => {
+      datasetStatsRepo.withoutDateDimension.mockResolvedValue([
+        {
+          dataset_id: 'ds-1',
+          title: 'No dates here',
+          revision_by: 'Test User',
+          status: 'live',
+          publishing_status: 'published'
+        },
+        { dataset_id: 'ds-2', title: null, revision_by: null, status: 'new', publishing_status: 'incomplete' }
+      ]);
+
+      const res = createMockResponse();
+      await datasetsWithoutDateDimension(createMockRequest(), res, mockNext);
+
+      expect(res.setHeader).toHaveBeenCalledWith('Content-Type', 'text/csv');
+      const [rows] = mockStringify.mock.calls[0] as [Record<string, unknown>[]];
+      expect(rows).toEqual([
+        {
+          dataset_id: 'ds-1',
+          title: 'No dates here',
+          revision_by: 'Test User',
+          status: 'live',
+          publishing_status: 'published'
+        },
+        { dataset_id: 'ds-2', title: '', revision_by: '', status: 'new', publishing_status: 'incomplete' }
+      ]);
+      expect(mockStringifyStream.pipe).toHaveBeenCalledWith(res);
+    });
+
+    it('passes UnknownException to next on error', async () => {
+      datasetStatsRepo.withoutDateDimension.mockRejectedValue(new Error('boom'));
+
+      const res = createMockResponse();
+      await datasetsWithoutDateDimension(createMockRequest(), res, mockNext);
+
+      expect(mockNext.mock.calls[0][0]).toBeInstanceOf(UnknownException);
     });
   });
 
