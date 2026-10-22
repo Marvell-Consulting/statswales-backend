@@ -679,6 +679,24 @@ describe('Admin controller', () => {
       expect(mockStringifyStream.pipe).toHaveBeenCalledWith(res);
     });
 
+    it('neutralizes formula-injection payloads in titles and revision_by (SW-1306 regression)', async () => {
+      datasetStatsRepo.withoutDateDimension.mockResolvedValue([
+        {
+          dataset_id: 'ds-1',
+          title: '=HYPERLINK("https://evil/")',
+          revision_by: '@SUM(A1:A2)',
+          status: 'live',
+          publishing_status: 'published'
+        }
+      ]);
+
+      const res = createMockResponse();
+      await datasetsWithoutDateDimension(createMockRequest(), res, mockNext);
+
+      const [rows] = mockStringify.mock.calls[0] as [Record<string, unknown>[]];
+      expect(rows[0]).toMatchObject({ title: `'=HYPERLINK("https://evil/")`, revision_by: `'@SUM(A1:A2)` });
+    });
+
     it('passes UnknownException to next on error', async () => {
       datasetStatsRepo.withoutDateDimension.mockRejectedValue(new Error('boom'));
 
