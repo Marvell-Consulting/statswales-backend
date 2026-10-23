@@ -9,6 +9,9 @@ import { uuidV4 } from '../../../src/utils/uuid';
 import { Locale } from '../../../src/enums/locale';
 import { Dimension } from '../../../src/entities/dataset/dimension';
 import { DimensionType } from '../../../src/enums/dimension-type';
+import { Task } from '../../../src/entities/task/task';
+import { TaskAction } from '../../../src/enums/task-action';
+import { TaskStatus } from '../../../src/enums/task-status';
 
 jest.mock('../../../src/services/blob-storage', () => {
   return function BlobStorage() {
@@ -75,6 +78,17 @@ async function createDimension(dataset: Dataset, type: DimensionType): Promise<D
   dim.type = type;
   dim.factTableColumn = `col_${type}`;
   return dim.save();
+}
+
+async function createOpenTask(dataset: Dataset, action: TaskAction, createdBy: User): Promise<Task> {
+  const task = new Task();
+  task.datasetId = dataset.id;
+  task.action = action;
+  task.status = TaskStatus.Requested;
+  task.open = true;
+  task.createdBy = createdBy;
+  task.updatedBy = createdBy;
+  return task.save();
 }
 
 describe('DatasetStatsRepository', () => {
@@ -304,6 +318,22 @@ describe('DatasetStatsRepository', () => {
         status: 'live',
         publishing_status: 'published'
       });
+    });
+
+    it('returns one row per dataset when the dataset has more than one open task', async () => {
+      const before = (await DatasetStatsRepository.getDashboardStats(Locale.EnglishGb)).without_date_dimension;
+
+      const ds = await createDataset(user);
+      await createRevisionWithMetadata(ds, user, 1, 'SW-1133 Multiple Open Tasks', Locale.EnglishGb);
+      await createDimension(ds, DimensionType.Text);
+      await createOpenTask(ds, TaskAction.Publish, user);
+      await createOpenTask(ds, TaskAction.Archive, user);
+
+      const after = (await DatasetStatsRepository.getDashboardStats(Locale.EnglishGb)).without_date_dimension;
+      expect(after).toBe(before + 1);
+
+      const result = await DatasetStatsRepository.withoutDateDimension(Locale.EnglishGb);
+      expect(result.filter((row) => row.dataset_id === ds.id)).toHaveLength(1);
     });
   });
 });

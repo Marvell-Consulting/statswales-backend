@@ -107,7 +107,15 @@ const datasetStatusQuery = `
   ) r ON r.dataset_id = d.id
   LEFT JOIN (${latestPublishedRevisionsQuery}) lpr ON lpr.dataset_id = d.id
   LEFT JOIN revision pr ON d.published_revision_id = pr.id
-  LEFT JOIN task t ON d.id = t.dataset_id AND t.open = true
+  -- only open publish tasks are unique per dataset, so pick the most recent open task to keep one row per dataset
+  LEFT JOIN LATERAL (
+    SELECT ot.action, ot.status
+    FROM task ot
+    WHERE ot.dataset_id = d.id
+    AND ot.open = true
+    ORDER BY ot.updated_at DESC, ot.id
+    LIMIT 1
+  ) t ON true
 `;
 
 export const DatasetStatsRepository = publisherDataSource.getRepository(Dataset).extend({
