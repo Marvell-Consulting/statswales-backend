@@ -17,6 +17,7 @@ import {
   updateUserGroupStatus,
   dashboard,
   similarDatasets,
+  datasetsWithoutDateDimension,
   downloadSearchLogs
 } from '../controllers/admin';
 import { ForbiddenException } from '../exceptions/forbidden.exception';
@@ -39,6 +40,7 @@ adminRouter.use((req, res, next) => {
 
 adminRouter.get('/dashboard', dashboard);
 adminRouter.get('/similar/datasets', similarDatasets);
+adminRouter.get('/datasets/without-date-dimension', datasetsWithoutDateDimension);
 
 adminRouter.get('/role', listRoles);
 

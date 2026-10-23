@@ -370,6 +370,30 @@ export const similarDatasets = async (req: Request, res: Response, next: NextFun
   }
 };
 
+export const datasetsWithoutDateDimension = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    logger.info('Getting datasets without a date dimension report...');
+    const datasets = await DatasetStatsRepository.withoutDateDimension(req.language as Locale);
+
+    const csv = datasets.map((row) => ({
+      dataset_id: row.dataset_id,
+      title: row.title ?? '',
+      revision_by: row.revision_by ?? '',
+      status: row.status,
+      publishing_status: row.publishing_status
+    }));
+
+    res.setHeader('Content-Type', 'text/csv');
+    stringify(
+      csv.map((row) => neutralizeCsvRecord(row)),
+      { bom: true, header: true, quoted_string: true }
+    ).pipe(res);
+  } catch (err) {
+    logger.error(err, 'Error getting datasets without a date dimension');
+    next(new UnknownException());
+  }
+};
+
 export const downloadSearchLogs = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
     logger.info('Getting search logs report...');

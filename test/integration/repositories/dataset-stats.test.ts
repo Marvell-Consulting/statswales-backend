@@ -7,6 +7,11 @@ import { getTestUser } from '../../helpers/get-test-user';
 import { User } from '../../../src/entities/user/user';
 import { uuidV4 } from '../../../src/utils/uuid';
 import { Locale } from '../../../src/enums/locale';
+import { Dimension } from '../../../src/entities/dataset/dimension';
+import { DimensionType } from '../../../src/enums/dimension-type';
+import { Task } from '../../../src/entities/task/task';
+import { TaskAction } from '../../../src/enums/task-action';
+import { TaskStatus } from '../../../src/enums/task-status';
 
 jest.mock('../../../src/services/blob-storage', () => {
   return function BlobStorage() {
@@ -65,6 +70,25 @@ async function createRevisionWithMetadata(
   meta.title = title;
   await meta.save();
   return rev;
+}
+
+async function createDimension(dataset: Dataset, type: DimensionType): Promise<Dimension> {
+  const dim = new Dimension();
+  dim.datasetId = dataset.id;
+  dim.type = type;
+  dim.factTableColumn = `col_${type}`;
+  return dim.save();
+}
+
+async function createOpenTask(dataset: Dataset, action: TaskAction, createdBy: User): Promise<Task> {
+  const task = new Task();
+  task.datasetId = dataset.id;
+  task.action = action;
+  task.status = TaskStatus.Requested;
+  task.open = true;
+  task.createdBy = createdBy;
+  task.updatedBy = createdBy;
+  return task.save();
 }
 
 describe('DatasetStatsRepository', () => {
@@ -256,6 +280,60 @@ describe('DatasetStatsRepository', () => {
       expect(after.published).toBe(before.published + 1);
       expect(after.scheduled).toBe(before.scheduled);
       expect(after.total).toBe(before.total + 1);
+    });
+  });
+
+  describe('withoutDateDimension', () => {
+    it('counts and lists non-archived datasets that have no date dimension', async () => {
+      const before = (await DatasetStatsRepository.getDashboardStats(Locale.EnglishGb)).without_date_dimension;
+
+      const noDates = await createDataset(user, { firstPublishedAt: pastDate(48) });
+      await createRevisionWithMetadata(noDates, user, 1, 'SW-1133 No Date Dimension', Locale.EnglishGb, {
+        approvedAt: pastDate(48),
+        publishAt: pastDate(24)
+      });
+      await createDimension(noDates, DimensionType.LookupTable);
+      await createDimension(noDates, DimensionType.Raw);
+
+      const withDates = await createDataset(user);
+      await createRevisionWithMetadata(withDates, user, 1, 'SW-1133 Has Date Dimension', Locale.EnglishGb);
+      await createDimension(withDates, DimensionType.DatePeriod);
+
+      const archived = await createDataset(user, { archivedAt: pastDate(1) });
+      await createRevisionWithMetadata(archived, user, 1, 'SW-1133 Archived No Date Dimension', Locale.EnglishGb);
+      await createDimension(archived, DimensionType.Text);
+
+      const after = (await DatasetStatsRepository.getDashboardStats(Locale.EnglishGb)).without_date_dimension;
+      expect(after).toBe(before + 1);
+
+      const result = await DatasetStatsRepository.withoutDateDimension(Locale.EnglishGb);
+      const ids = result.map((row) => row.dataset_id);
+
+      expect(ids).not.toContain(withDates.id);
+      expect(ids).not.toContain(archived.id);
+      expect(result.find((row) => row.dataset_id === noDates.id)).toEqual({
+        dataset_id: noDates.id,
+        title: 'SW-1133 No Date Dimension',
+        revision_by: user.name ?? user.email,
+        status: 'live',
+        publishing_status: 'published'
+      });
+    });
+
+    it('returns one row per dataset when the dataset has more than one open task', async () => {
+      const before = (await DatasetStatsRepository.getDashboardStats(Locale.EnglishGb)).without_date_dimension;
+
+      const ds = await createDataset(user);
+      await createRevisionWithMetadata(ds, user, 1, 'SW-1133 Multiple Open Tasks', Locale.EnglishGb);
+      await createDimension(ds, DimensionType.Text);
+      await createOpenTask(ds, TaskAction.Publish, user);
+      await createOpenTask(ds, TaskAction.Archive, user);
+
+      const after = (await DatasetStatsRepository.getDashboardStats(Locale.EnglishGb)).without_date_dimension;
+      expect(after).toBe(before + 1);
+
+      const result = await DatasetStatsRepository.withoutDateDimension(Locale.EnglishGb);
+      expect(result.filter((row) => row.dataset_id === ds.id)).toHaveLength(1);
     });
   });
 });
