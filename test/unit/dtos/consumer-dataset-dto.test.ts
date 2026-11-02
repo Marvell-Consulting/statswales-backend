@@ -1,5 +1,5 @@
-jest.mock('../../../src/dtos/dimension-dto', () => ({
-  DimensionDTO: { fromDimension: jest.fn().mockReturnValue({ id: 'dim-stub' }) }
+jest.mock('../../../src/dtos/consumer-dimension-dto', () => ({
+  ConsumerDimensionDTO: { fromDimension: jest.fn().mockReturnValue({ id: 'dim-stub' }) }
 }));
 
 jest.mock('../../../src/dtos/consumer-revision-dto', () => ({
@@ -14,7 +14,7 @@ import { Dataset } from '../../../src/entities/dataset/dataset';
 import { ConsumerDatasetDTO } from '../../../src/dtos/consumer-dataset-dto';
 import { Locale } from '../../../src/enums/locale';
 import { ConsumerRevisionDTO } from '../../../src/dtos/consumer-revision-dto';
-import { DimensionDTO } from '../../../src/dtos/dimension-dto';
+import { ConsumerDimensionDTO } from '../../../src/dtos/consumer-dimension-dto';
 
 describe('ConsumerDatasetDTO', () => {
   beforeEach(() => {
@@ -154,10 +154,12 @@ describe('ConsumerDatasetDTO', () => {
       expect(dto.revisions).toEqual([{ id: 'rev-stub' }]);
     });
 
-    it('should delegate dimensions mapping to DimensionDTO', () => {
-      const dto = ConsumerDatasetDTO.fromDataset(makeDataset({ dimensions: [{ id: 'd1' }] }));
+    it('should delegate dimensions mapping to ConsumerDimensionDTO with the published names', () => {
+      const names = [{ fact_table_column: 'AreaCode', dimension_name: 'Area', language: 'en-gb' }];
+      const dto = ConsumerDatasetDTO.fromDataset(makeDataset({ dimensions: [{ id: 'd1' }] }), Locale.English, names);
 
-      expect(DimensionDTO.fromDimension).toHaveBeenCalledTimes(1);
+      expect(ConsumerDimensionDTO.fromDimension).toHaveBeenCalledTimes(1);
+      expect(ConsumerDimensionDTO.fromDimension).toHaveBeenCalledWith({ id: 'd1' }, names);
       expect(dto.dimensions).toEqual([{ id: 'dim-stub' }]);
     });
 

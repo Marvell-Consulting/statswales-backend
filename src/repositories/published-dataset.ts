@@ -11,9 +11,12 @@ import {
   Brackets
 } from 'typeorm';
 import { has, isObjectLike, omit, set } from 'lodash';
+import { format as pgformat } from '@scaleleap/pg-format/lib/pg-format';
 
 import { logger } from '../utils/logger';
 import { consumerDataSource } from '../db/consumer-source';
+import { dbManager } from '../db/database-manager';
+import { FactTableToDimensionName } from '../interfaces/fact-table-column-to-dimension-name';
 import { Dataset } from '../entities/dataset/dataset';
 import { DatasetListItemDTO } from '../dtos/dataset-list-item-dto';
 import { ResultsetWithCount } from '../interfaces/resultset-with-count';
@@ -265,6 +268,12 @@ export const PublishedDatasetRepository = consumerDataSource.getRepository(Datas
     });
 
     return dataset?.userGroup ?? null;
+  },
+
+  async getPublishedDimensionNames(revisionId: string): Promise<FactTableToDimensionName[]> {
+    return dbManager
+      .getCubeDataSource()
+      .query(pgformat('SELECT DISTINCT fact_table_column, dimension_name, language FROM %I.filter_table;', revisionId));
   },
 
   async getHistoryById(datasetId: string): Promise<Revision[]> {
