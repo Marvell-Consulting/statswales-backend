@@ -75,7 +75,7 @@ describe('getChangesSinceApproval', () => {
 
     const changes = await getChangesSinceApproval(approvedRevision);
 
-    expect(changes).toEqual(['DescCode (en-GB) renamed after approval']);
+    expect(changes).toEqual(['DescCode (en-gb) renamed after approval']);
   });
 
   it('reports lookup tables replaced after approval', async () => {
@@ -126,7 +126,7 @@ describe('getChangesSinceApproval', () => {
       { fact_table_column: 'DescCode', dimension_name: 'Disgrifiad rhes', language: 'cy-gb' }
     ]);
 
-    expect(await getChangesSinceApproval(approvedRevision)).toEqual(['DescCode (en-GB) renamed after approval']);
+    expect(await getChangesSinceApproval(approvedRevision)).toEqual(['DescCode (en-gb) renamed after approval']);
   });
 
   it('does not treat a longer name as a numbered suffix', async () => {
@@ -135,7 +135,15 @@ describe('getChangesSinceApproval', () => {
       { fact_table_column: 'DescCode', dimension_name: 'Disgrifiad rhes', language: 'cy-gb' }
     ]);
 
-    expect(await getChangesSinceApproval(approvedRevision)).toEqual(['DescCode (en-GB) renamed after approval']);
+    expect(await getChangesSinceApproval(approvedRevision)).toEqual(['DescCode (en-gb) renamed after approval']);
+  });
+
+  it('reports a name removed from the metadata, which the cube builder would replace with the column', async () => {
+    mockGetByDatasetId.mockResolvedValue([
+      { factTableColumn: 'DescCode', metadata: [{ language: 'en-GB', name: 'Row description' }] }
+    ]);
+
+    expect(await getChangesSinceApproval(approvedRevision)).toEqual(['DescCode (cy-gb) renamed after approval']);
   });
 
   it('reports a language that has no name in the cube', async () => {
@@ -143,7 +151,7 @@ describe('getChangesSinceApproval', () => {
       { fact_table_column: 'DescCode', dimension_name: 'Row description', language: 'en-gb' }
     ]);
 
-    expect(await getChangesSinceApproval(approvedRevision)).toEqual(['DescCode (cy-GB) has no name in the cube']);
+    expect(await getChangesSinceApproval(approvedRevision)).toEqual(['DescCode (cy-gb) has no name in the cube']);
   });
 
   it('reports a dimension that is not in the cube', async () => {

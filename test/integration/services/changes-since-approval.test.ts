@@ -115,7 +115,7 @@ describe('getChangesSinceApproval', () => {
     await metadataRepo.update({ id: areaDimensionId, language: 'en-GB' }, { name: 'Unpublished area name' });
 
     try {
-      expect(await getChangesSinceApproval(revision)).toEqual(['AreaCode (en-GB) renamed after approval']);
+      expect(await getChangesSinceApproval(revision)).toEqual(['AreaCode (en-gb) renamed after approval']);
     } finally {
       await metadataRepo.update({ id: areaDimensionId, language: 'en-GB' }, { name: 'Area' });
     }

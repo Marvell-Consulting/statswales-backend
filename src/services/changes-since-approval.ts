@@ -48,12 +48,20 @@ export async function getChangesSinceApproval(revision: RevisionList): Promise<s
     const cubeNames = await getCubeNames(revision.id);
     const dimensions = await DimensionRepository.getByDatasetId(revision.dataset_id);
 
-    // the cube builder falls back to the fact table column when a dimension has no name
+    // compare every language in either the cube or the metadata, so a removed name is caught as well as a changed one
+    const languages = new Set([
+      ...cubeNames.map((row) => row.language.toLowerCase()),
+      ...dimensions.flatMap((dimension) => (dimension.metadata ?? []).map((meta) => meta.language.toLowerCase()))
+    ]);
+
+    // the cube builder falls back to the fact table column when a dimension has no name in a language
     const currentNames = dimensions.flatMap((dimension) =>
-      (dimension.metadata ?? []).map((meta) => ({
+      [...languages].map((language) => ({
         column: dimension.factTableColumn,
-        language: meta.language,
-        name: meta.name || dimension.factTableColumn
+        language,
+        name:
+          dimension.metadata?.find((meta) => meta.language.toLowerCase() === language)?.name ||
+          dimension.factTableColumn
       }))
     );
 
@@ -67,9 +75,7 @@ export async function getChangesSinceApproval(revision: RevisionList): Promise<s
       }
 
       for (const current of currentNames.filter((entry) => entry.column === dimension.factTableColumn)) {
-        const cubeName = cubeRows.find(
-          (row) => row.language.toLowerCase() === current.language.toLowerCase()
-        )?.dimension_name;
+        const cubeName = cubeRows.find((row) => row.language.toLowerCase() === current.language)?.dimension_name;
 
         if (cubeName === undefined) {
           changes.push(`${current.column} (${current.language}) has no name in the cube`);
