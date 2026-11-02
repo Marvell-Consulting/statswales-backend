@@ -18,6 +18,7 @@ import { DimensionUpdateTask, RevisionTask } from '../interfaces/revision-task';
 import { DatasetRepository } from '../repositories/dataset';
 import { RevisionList, RevisionRepository } from '../repositories/revision';
 import { createDateDimensionLookup } from './dimension-processor';
+import { getChangesSinceApproval } from './changes-since-approval';
 import { FactTableValidationExceptionType } from '../enums/fact-table-validation-exception-type';
 import { FactTableValidationException } from '../exceptions/fact-table-validation-exception';
 import {
@@ -421,10 +422,21 @@ export async function rebuildCubesForRevisions(
       failed_builds: 0,
       all_builds: [] as string[],
       successfully_built: [] as string[],
-      failed_to_build: [] as string[]
+      failed_to_build: [] as string[],
+      skipped_builds: 0,
+      skipped: [] as { revision_id: string; reasons: string[] }[]
     };
 
     for (const rev of revisionList) {
+      const changes = await getChangesSinceApproval(rev);
+      if (changes.length > 0) {
+        logger.warn(`[${buildLogEntry.id}]: Skipping approved revision ${rev.id}: ${changes.join('; ')}`);
+        buildScript.skipped.push({ revision_id: rev.id, reasons: changes });
+        buildScript.skipped_builds++;
+        buildLogEntry.buildScript = JSON.stringify(buildScript, null, 2);
+        await buildLogEntry.save();
+        continue;
+      }
       const build = await BuildLog.startBuild(rev, CubeBuildType.FullCube, user.id);
       buildScript.all_builds.push(build.id);
       buildScript.current_build = build.id;
@@ -538,11 +550,22 @@ export async function rebuildAllFilterTablesForRevisions(
       failed_builds: 0,
       all_builds: [] as string[],
       successfully_built: [] as string[],
-      failed_to_build: [] as string[]
+      failed_to_build: [] as string[],
+      skipped_builds: 0,
+      skipped: [] as { revision_id: string; reasons: string[] }[]
     };
 
     for (const rev of revisionList) {
       if (!rev.data_table_id && rev.revision_index === 1) continue;
+      const changes = await getChangesSinceApproval(rev);
+      if (changes.length > 0) {
+        logger.warn(`[${buildLogEntry.id}]: Skipping approved revision ${rev.id}: ${changes.join('; ')}`);
+        buildScript.skipped.push({ revision_id: rev.id, reasons: changes });
+        buildScript.skipped_builds++;
+        buildLogEntry.buildScript = JSON.stringify(buildScript, null, 2);
+        await buildLogEntry.save();
+        continue;
+      }
       try {
         buildScript.all_builds.push(rev.id);
         buildScript.current_build = rev.id;

@@ -43,6 +43,7 @@ export type RevisionList = {
   dataset_id: string;
   data_table_id: string | null;
   revision_index: number;
+  approved_at: Date | null;
 };
 
 export const RevisionRepository = publisherDataSource.getRepository(Revision).extend({
@@ -130,11 +131,13 @@ export const RevisionRepository = publisherDataSource.getRepository(Revision).ex
   },
 
   async getAllRevisionIds(): Promise<RevisionList[]> {
-    return this.query('SELECT id, dataset_id, data_table_id, revision_index FROM revision');
+    return this.query('SELECT id, dataset_id, data_table_id, revision_index, approved_at FROM revision');
   },
 
   async getAllDraftRevisionIds(): Promise<RevisionList[]> {
-    return this.query('SELECT id, dataset_id, data_table_id, revision_index FROM revision WHERE approved_at IS NULL');
+    return this.query(
+      'SELECT id, dataset_id, data_table_id, revision_index, approved_at FROM revision WHERE approved_at IS NULL'
+    );
   },
 
   // returns the reverted revision and the online cube filename it held, as the caller is responsible for deleting
