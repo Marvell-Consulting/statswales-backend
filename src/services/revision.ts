@@ -434,6 +434,7 @@ export async function rebuildCubesForRevisions(
         buildScript.skipped.push({ revision_id: rev.id, reasons: changes });
         buildScript.skipped_builds++;
         buildLogEntry.buildScript = JSON.stringify(buildScript, null, 2);
+        buildLogEntry.status = CubeBuildStatus.Building;
         await buildLogEntry.save();
         continue;
       }
@@ -514,6 +515,11 @@ export async function rebuildCubesForRevisions(
       buildLogEntry.buildScript = JSON.stringify(buildScript, null, 2);
       await buildLogEntry.save();
     }
+    if (buildScript.skipped_builds > 0) {
+      logger.warn(
+        `[${buildLogEntry.id}]: Skipped ${buildScript.skipped_builds} approved revisions with changes since approval; see the build script for details`
+      );
+    }
     if (failedBuilds.length > 0) buildLogEntry.errors = JSON.stringify(failedBuilds, null, 2);
     buildLogEntry.completeBuild(CubeBuildStatus.Completed);
     await buildLogEntry.save();
@@ -563,6 +569,7 @@ export async function rebuildAllFilterTablesForRevisions(
         buildScript.skipped.push({ revision_id: rev.id, reasons: changes });
         buildScript.skipped_builds++;
         buildLogEntry.buildScript = JSON.stringify(buildScript, null, 2);
+        buildLogEntry.status = CubeBuildStatus.Building;
         await buildLogEntry.save();
         continue;
       }
@@ -588,6 +595,11 @@ export async function rebuildAllFilterTablesForRevisions(
       buildScript.total_builds++;
       buildLogEntry.buildScript = JSON.stringify(buildScript, null, 2);
       await buildLogEntry.save();
+    }
+    if (buildScript.skipped_builds > 0) {
+      logger.warn(
+        `[${buildLogEntry.id}]: Skipped ${buildScript.skipped_builds} approved revisions with changes since approval; see the build script for details`
+      );
     }
     if (failedBuilds.length > 0) buildLogEntry.errors = JSON.stringify(failedBuilds, null, 2);
     buildLogEntry.completeBuild(CubeBuildStatus.Completed);

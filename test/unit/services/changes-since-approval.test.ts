@@ -106,11 +106,57 @@ describe('getChangesSinceApproval', () => {
     expect(mockGetColumnsWithLookupsUploadedSince).toHaveBeenCalledWith('ds-1', approvedAt);
   });
 
-  it('treats a revision as changed when the check itself fails', async () => {
-    mockGetPublishedDimensionNames.mockRejectedValue(new Error('relation "filter_table" does not exist'));
+  it('accepts the numbered suffix the cube builder adds to duplicate names', async () => {
+    mockGetPublishedDimensionNames.mockResolvedValue([
+      { fact_table_column: 'DescCode', dimension_name: 'Row description_1', language: 'en-gb' }
+    ]);
+
+    expect(await getChangesSinceApproval(approvedRevision)).toEqual([]);
+  });
+
+  it('does not treat a longer name as a numbered suffix', async () => {
+    mockGetPublishedDimensionNames.mockResolvedValue([
+      { fact_table_column: 'DescCode', dimension_name: 'Row description_old', language: 'en-gb' }
+    ]);
+
+    expect(await getChangesSinceApproval(approvedRevision)).toEqual(['DescCode (en-GB) renamed after approval']);
+  });
+
+  it('reports a dimension that is not in the cube', async () => {
+    mockGetPublishedDimensionNames.mockResolvedValue([]);
+
+    expect(await getChangesSinceApproval(approvedRevision)).toEqual(['DescCode is not in the cube']);
+  });
+
+  it('reports an approval time that is not a valid date without querying anything', async () => {
+    const changes = await getChangesSinceApproval({
+      ...approvedRevision,
+      approved_at: 'not a date' as unknown as Date
+    });
+
+    expect(changes).toEqual(['approval time "not a date" is not a valid date']);
+    expect(mockGetColumnsWithLookupsUploadedSince).not.toHaveBeenCalled();
+  });
+
+  it('gives a specific reason when the cube has no filter table', async () => {
+    mockGetPublishedDimensionNames.mockRejectedValue(
+      Object.assign(new Error('relation "rev-1.filter_table" does not exist'), { code: '42P01' })
+    );
+
+    expect(await getChangesSinceApproval(approvedRevision)).toEqual([
+      'cube has no filter table, so names cannot be checked'
+    ]);
+  });
+
+  it('treats a revision as changed when the check itself fails, keeping reasons already found', async () => {
+    mockGetColumnsWithLookupsUploadedSince.mockResolvedValue(['Year']);
+    mockGetPublishedDimensionNames.mockRejectedValue(new Error('connection terminated'));
 
     const changes = await getChangesSinceApproval(approvedRevision);
 
-    expect(changes).toEqual(['could not check for changes since approval']);
+    expect(changes).toEqual([
+      'lookup table for Year replaced after approval',
+      'could not check for changes since approval'
+    ]);
   });
 });
