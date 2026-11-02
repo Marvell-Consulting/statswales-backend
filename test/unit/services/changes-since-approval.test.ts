@@ -91,7 +91,8 @@ describe('getChangesSinceApproval', () => {
 
   it('compares unnamed dimensions using the fact table column, as the cube builder does', async () => {
     mockGetPublishedDimensionNames.mockResolvedValue([
-      { fact_table_column: 'DescCode', dimension_name: 'DescCode', language: 'en-gb' }
+      { fact_table_column: 'DescCode', dimension_name: 'DescCode', language: 'en-gb' },
+      { fact_table_column: 'DescCode', dimension_name: 'Disgrifiad rhes', language: 'cy-gb' }
     ]);
     mockGetByDatasetId.mockResolvedValue(dimensionNamed(''));
 
@@ -106,20 +107,43 @@ describe('getChangesSinceApproval', () => {
     expect(mockGetColumnsWithLookupsUploadedSince).toHaveBeenCalledWith('ds-1', approvedAt);
   });
 
-  it('accepts the numbered suffix the cube builder adds to duplicate names', async () => {
+  it('accepts the numbered suffix the cube builder adds when two dimensions share a name', async () => {
     mockGetPublishedDimensionNames.mockResolvedValue([
-      { fact_table_column: 'DescCode', dimension_name: 'Row description_1', language: 'en-gb' }
+      { fact_table_column: 'DescCode', dimension_name: 'Description', language: 'en-gb' },
+      { fact_table_column: 'OtherCode', dimension_name: 'Description_1', language: 'en-gb' }
+    ]);
+    mockGetByDatasetId.mockResolvedValue([
+      { factTableColumn: 'DescCode', metadata: [{ language: 'en-GB', name: 'Description' }] },
+      { factTableColumn: 'OtherCode', metadata: [{ language: 'en-GB', name: 'Description' }] }
     ]);
 
     expect(await getChangesSinceApproval(approvedRevision)).toEqual([]);
   });
 
-  it('does not treat a longer name as a numbered suffix', async () => {
+  it('reports a rename that only removes a numbered suffix when the name is not duplicated', async () => {
     mockGetPublishedDimensionNames.mockResolvedValue([
-      { fact_table_column: 'DescCode', dimension_name: 'Row description_old', language: 'en-gb' }
+      { fact_table_column: 'DescCode', dimension_name: 'Row description_1', language: 'en-gb' },
+      { fact_table_column: 'DescCode', dimension_name: 'Disgrifiad rhes', language: 'cy-gb' }
     ]);
 
     expect(await getChangesSinceApproval(approvedRevision)).toEqual(['DescCode (en-GB) renamed after approval']);
+  });
+
+  it('does not treat a longer name as a numbered suffix', async () => {
+    mockGetPublishedDimensionNames.mockResolvedValue([
+      { fact_table_column: 'DescCode', dimension_name: 'Row description_old', language: 'en-gb' },
+      { fact_table_column: 'DescCode', dimension_name: 'Disgrifiad rhes', language: 'cy-gb' }
+    ]);
+
+    expect(await getChangesSinceApproval(approvedRevision)).toEqual(['DescCode (en-GB) renamed after approval']);
+  });
+
+  it('reports a language that has no name in the cube', async () => {
+    mockGetPublishedDimensionNames.mockResolvedValue([
+      { fact_table_column: 'DescCode', dimension_name: 'Row description', language: 'en-gb' }
+    ]);
+
+    expect(await getChangesSinceApproval(approvedRevision)).toEqual(['DescCode (cy-GB) has no name in the cube']);
   });
 
   it('reports a dimension that is not in the cube', async () => {
@@ -146,6 +170,14 @@ describe('getChangesSinceApproval', () => {
     expect(await getChangesSinceApproval(approvedRevision)).toEqual([
       'cube has no filter table, so names cannot be checked'
     ]);
+  });
+
+  it('only reports a missing filter table when the cube query is the one that failed', async () => {
+    mockGetColumnsWithLookupsUploadedSince.mockRejectedValue(
+      Object.assign(new Error('relation "lookup_table" does not exist'), { code: '42P01' })
+    );
+
+    expect(await getChangesSinceApproval(approvedRevision)).toEqual(['could not check for changes since approval']);
   });
 
   it('treats a revision as changed when the check itself fails, keeping reasons already found', async () => {

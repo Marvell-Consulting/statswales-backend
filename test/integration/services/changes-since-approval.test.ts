@@ -121,6 +121,12 @@ describe('getChangesSinceApproval', () => {
     }
   });
 
+  it('reports a missing filter table using the real database error', async () => {
+    const noCube = { ...revision, id: 'cccccccc-cccc-4ccc-8cc1-dddddddddddd' };
+
+    expect(await getChangesSinceApproval(noCube)).toEqual(['cube has no filter table, so names cannot be checked']);
+  });
+
   it('reports a lookup table uploaded after approval', async () => {
     const lookupRepo = dbManager.getPublisherDataSource().getRepository(LookupTable);
     const later = new Date(new Date(revision.approved_at!).getTime() + 60_000);
