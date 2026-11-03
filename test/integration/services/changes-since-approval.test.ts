@@ -7,6 +7,7 @@ import { DimensionMetadata } from '../../../src/entities/dataset/dimension-metad
 import { LookupTable } from '../../../src/entities/dataset/lookup-table';
 import { GroupRole } from '../../../src/enums/group-role';
 import { FactTableColumnType } from '../../../src/enums/fact-table-column-type';
+import { DimensionType } from '../../../src/enums/dimension-type';
 import { RevisionList, RevisionRepository } from '../../../src/repositories/revision';
 import { getChangesSinceApproval } from '../../../src/services/changes-since-approval';
 import { ensureWorkerDataSources, resetDatabase } from '../../helpers/reset-database';
@@ -118,6 +119,17 @@ describe('getChangesSinceApproval', () => {
       expect(await getChangesSinceApproval(revision)).toEqual(['AreaCode (en-gb) renamed after approval']);
     } finally {
       await metadataRepo.update({ id: areaDimensionId, language: 'en-GB' }, { name: 'Area' });
+    }
+  });
+
+  it('reports a lookup dimension changed to text after approval', async () => {
+    const dimensionRepo = dbManager.getPublisherDataSource().getRepository(Dimension);
+    await dimensionRepo.update({ id: areaDimensionId }, { type: DimensionType.Text });
+
+    try {
+      expect(await getChangesSinceApproval(revision)).toEqual(['AreaCode type changed after approval']);
+    } finally {
+      await dimensionRepo.update({ id: areaDimensionId }, { type: DimensionType.LookupTable });
     }
   });
 

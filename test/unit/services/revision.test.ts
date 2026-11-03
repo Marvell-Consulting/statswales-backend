@@ -564,7 +564,8 @@ describe('revision service', () => {
       expect(log.completeBuild).toHaveBeenCalledWith(CubeBuildStatus.Completed);
     });
 
-    it('skips an approved revision whose dimensions changed after approval', async () => {
+    // the filter table update only reads the cube's own tables, so it cannot pick up draft changes
+    it('does not check approved revisions for changes since approval', async () => {
       mockGetChangesSinceApproval.mockResolvedValue(['lookup table for Year replaced after approval']);
       const log = makeBuildLog();
 
@@ -572,12 +573,8 @@ describe('revision service', () => {
         { id: 'rev-2', dataset_id: 'ds-1', data_table_id: 'dt-1', revision_index: 2, approved_at: new Date() } as never
       ]);
 
-      expect(mockUpdateFilterTableToLatest).not.toHaveBeenCalled();
-      const script = JSON.parse(log.buildScript);
-      expect(script.skipped).toEqual([
-        { revision_id: 'rev-2', reasons: ['lookup table for Year replaced after approval'] }
-      ]);
-      expect(log.completeBuild).toHaveBeenCalledWith(CubeBuildStatus.Completed);
+      expect(mockGetChangesSinceApproval).not.toHaveBeenCalled();
+      expect(mockUpdateFilterTableToLatest).toHaveBeenCalledWith('ds-1', 'rev-2');
     });
 
     it('records failures when rebuilding a filter table throws', async () => {

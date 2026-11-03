@@ -12,14 +12,17 @@ jest.mock('../../../src/repositories/dimension', () => ({
 }));
 
 const mockGetPublishedDimensionNames = jest.fn();
+const mockGetCubeTableNames = jest.fn();
 jest.mock('../../../src/repositories/published-dataset', () => ({
   PublishedDatasetRepository: {
-    getPublishedDimensionNames: (...args: unknown[]) => mockGetPublishedDimensionNames(...args)
+    getPublishedDimensionNames: (...args: unknown[]) => mockGetPublishedDimensionNames(...args),
+    getCubeTableNames: (...args: unknown[]) => mockGetCubeTableNames(...args)
   }
 }));
 
 import { getChangesSinceApproval } from '../../../src/services/changes-since-approval';
 import { RevisionList } from '../../../src/repositories/revision';
+import { DimensionType } from '../../../src/enums/dimension-type';
 
 describe('getChangesSinceApproval', () => {
   const approvedAt = new Date('2026-04-13T11:01:50Z');
@@ -40,6 +43,7 @@ describe('getChangesSinceApproval', () => {
   const dimensionNamed = (en: string, cy = 'Disgrifiad rhes') => [
     {
       factTableColumn: 'DescCode',
+      type: DimensionType.Text,
       metadata: [
         { language: 'en-GB', name: en },
         { language: 'cy-GB', name: cy }
@@ -51,6 +55,7 @@ describe('getChangesSinceApproval', () => {
     jest.clearAllMocks();
     mockGetColumnsWithLookupsUploadedSince.mockResolvedValue([]);
     mockGetPublishedDimensionNames.mockResolvedValue(cubeNames);
+    mockGetCubeTableNames.mockResolvedValue(['fact_table', 'filter_table']);
     mockGetByDatasetId.mockResolvedValue(dimensionNamed('Row description'));
   });
 
@@ -110,11 +115,94 @@ describe('getChangesSinceApproval', () => {
   it('accepts the numbered suffix the cube builder adds when two dimensions share a name', async () => {
     mockGetPublishedDimensionNames.mockResolvedValue([
       { fact_table_column: 'DescCode', dimension_name: 'Description', language: 'en-gb' },
-      { fact_table_column: 'OtherCode', dimension_name: 'Description_1', language: 'en-gb' }
+      { fact_table_column: 'OtherCode', dimension_name: 'Description_1', language: 'en-gb' },
+      { fact_table_column: 'DescCode', dimension_name: 'Disgrifiad', language: 'cy-gb' },
+      { fact_table_column: 'OtherCode', dimension_name: 'Disgrifiad_1', language: 'cy-gb' }
     ]);
     mockGetByDatasetId.mockResolvedValue([
-      { factTableColumn: 'DescCode', metadata: [{ language: 'en-GB', name: 'Description' }] },
-      { factTableColumn: 'OtherCode', metadata: [{ language: 'en-GB', name: 'Description' }] }
+      {
+        factTableColumn: 'DescCode',
+        type: DimensionType.Raw,
+        metadata: [
+          { language: 'en-GB', name: 'Description' },
+          { language: 'cy-GB', name: 'Disgrifiad' }
+        ]
+      },
+      {
+        factTableColumn: 'OtherCode',
+        type: DimensionType.Raw,
+        metadata: [
+          { language: 'en-GB', name: 'Description' },
+          { language: 'cy-GB', name: 'Disgrifiad' }
+        ]
+      }
+    ]);
+
+    expect(await getChangesSinceApproval(approvedRevision)).toEqual([]);
+  });
+
+  it('does not accept a numbered suffix for a lookup dimension, as its filter table name is never suffixed', async () => {
+    mockGetPublishedDimensionNames.mockResolvedValue([
+      { fact_table_column: 'DescCode', dimension_name: 'Description', language: 'en-gb' },
+      { fact_table_column: 'OtherCode', dimension_name: 'Description_1', language: 'en-gb' },
+      { fact_table_column: 'DescCode', dimension_name: 'Disgrifiad', language: 'cy-gb' },
+      { fact_table_column: 'OtherCode', dimension_name: 'Disgrifiad', language: 'cy-gb' }
+    ]);
+    mockGetCubeTableNames.mockResolvedValue(['desccode_lookup', 'othercode_lookup']);
+    mockGetByDatasetId.mockResolvedValue([
+      {
+        factTableColumn: 'DescCode',
+        type: DimensionType.LookupTable,
+        metadata: [
+          { language: 'en-GB', name: 'Description' },
+          { language: 'cy-GB', name: 'Disgrifiad' }
+        ]
+      },
+      {
+        factTableColumn: 'OtherCode',
+        type: DimensionType.LookupTable,
+        metadata: [
+          { language: 'en-GB', name: 'Description' },
+          { language: 'cy-GB', name: 'Disgrifiad' }
+        ]
+      }
+    ]);
+
+    expect(await getChangesSinceApproval(approvedRevision)).toEqual(['OtherCode (en-gb) renamed after approval']);
+  });
+
+  it('finds no changes for a lookup dimension whose cube has its lookup table', async () => {
+    mockGetCubeTableNames.mockResolvedValue(['fact_table', 'filter_table', 'desccode_lookup']);
+    mockGetByDatasetId.mockResolvedValue([{ ...dimensionNamed('Row description')[0], type: DimensionType.Date }]);
+
+    expect(await getChangesSinceApproval(approvedRevision)).toEqual([]);
+  });
+
+  it('reports a lookup dimension changed to another type after approval', async () => {
+    mockGetCubeTableNames.mockResolvedValue(['fact_table', 'filter_table', 'desccode_lookup']);
+
+    expect(await getChangesSinceApproval(approvedRevision)).toEqual(['DescCode type changed after approval']);
+  });
+
+  it('reports a dimension changed to a lookup after approval', async () => {
+    mockGetByDatasetId.mockResolvedValue([
+      { ...dimensionNamed('Row description')[0], type: DimensionType.LookupTable }
+    ]);
+
+    expect(await getChangesSinceApproval(approvedRevision)).toEqual(['DescCode type changed after approval']);
+  });
+
+  it('ignores metadata in a language the cube builder does not use', async () => {
+    mockGetByDatasetId.mockResolvedValue([
+      {
+        factTableColumn: 'DescCode',
+        type: DimensionType.Text,
+        metadata: [
+          { language: 'en-GB', name: 'Row description' },
+          { language: 'cy-GB', name: 'Disgrifiad rhes' },
+          { language: 'en', name: 'Stray name' }
+        ]
+      }
     ]);
 
     expect(await getChangesSinceApproval(approvedRevision)).toEqual([]);
@@ -140,7 +228,11 @@ describe('getChangesSinceApproval', () => {
 
   it('reports a name removed from the metadata, which the cube builder would replace with the column', async () => {
     mockGetByDatasetId.mockResolvedValue([
-      { factTableColumn: 'DescCode', metadata: [{ language: 'en-GB', name: 'Row description' }] }
+      {
+        factTableColumn: 'DescCode',
+        type: DimensionType.Text,
+        metadata: [{ language: 'en-GB', name: 'Row description' }]
+      }
     ]);
 
     expect(await getChangesSinceApproval(approvedRevision)).toEqual(['DescCode (cy-gb) renamed after approval']);

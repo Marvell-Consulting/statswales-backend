@@ -556,23 +556,11 @@ export async function rebuildAllFilterTablesForRevisions(
       failed_builds: 0,
       all_builds: [] as string[],
       successfully_built: [] as string[],
-      failed_to_build: [] as string[],
-      skipped_builds: 0,
-      skipped: [] as { revision_id: string; reasons: string[] }[]
+      failed_to_build: [] as string[]
     };
 
     for (const rev of revisionList) {
       if (!rev.data_table_id && rev.revision_index === 1) continue;
-      const changes = await getChangesSinceApproval(rev);
-      if (changes.length > 0) {
-        logger.warn(`[${buildLogEntry.id}]: Skipping approved revision ${rev.id}: ${changes.join('; ')}`);
-        buildScript.skipped.push({ revision_id: rev.id, reasons: changes });
-        buildScript.skipped_builds++;
-        buildLogEntry.buildScript = JSON.stringify(buildScript, null, 2);
-        buildLogEntry.status = CubeBuildStatus.Building;
-        await buildLogEntry.save();
-        continue;
-      }
       try {
         buildScript.all_builds.push(rev.id);
         buildScript.current_build = rev.id;
@@ -595,11 +583,6 @@ export async function rebuildAllFilterTablesForRevisions(
       buildScript.total_builds++;
       buildLogEntry.buildScript = JSON.stringify(buildScript, null, 2);
       await buildLogEntry.save();
-    }
-    if (buildScript.skipped_builds > 0) {
-      logger.warn(
-        `[${buildLogEntry.id}]: Skipped ${buildScript.skipped_builds} approved revisions with changes since approval; see the build script for details`
-      );
     }
     if (failedBuilds.length > 0) buildLogEntry.errors = JSON.stringify(failedBuilds, null, 2);
     buildLogEntry.completeBuild(CubeBuildStatus.Completed);
