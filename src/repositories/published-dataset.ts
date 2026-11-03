@@ -41,6 +41,13 @@ export const withAll: FindOptionsRelations<Dataset> = {
   replacementDataset: { publishedRevision: { metadata: true } }
 };
 
+// Dimension metadata and lookup tables are shared with any draft update, so they are not loaded here.
+// The v1 dataset response takes dimension names from the published cube instead.
+export const withConsumerDataset: FindOptionsRelations<Dataset> = {
+  ...withAll,
+  dimensions: true
+};
+
 export const withPublishedRevision: FindOptionsRelations<Dataset> = {
   createdBy: true,
   userGroup: { metadata: true, organisation: { metadata: true } },
