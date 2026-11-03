@@ -117,13 +117,13 @@ describe('Consumer V1 — dataset dimensions (/:dataset_id)', () => {
     const res = await request(app).get(`/v1/${DATASET_ID}`);
     expect(res.status).toBe(200);
 
-    const area = getAreaDimension(res.body);
-    expect(area?.metadata).toEqual(
-      expect.arrayContaining([
-        { language: 'en-GB', name: 'Area' },
-        { language: 'cy-GB', name: 'Ardal' }
-      ])
+    const metadata = [...(getAreaDimension(res.body)?.metadata ?? [])].sort((a, b) =>
+      a.language.localeCompare(b.language)
     );
+    expect(metadata).toEqual([
+      { language: 'cy-GB', name: 'Ardal' },
+      { language: 'en-GB', name: 'Area' }
+    ]);
     expect(JSON.stringify(res.body)).not.toContain('Unpublished');
   });
 

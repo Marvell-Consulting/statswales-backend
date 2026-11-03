@@ -4,7 +4,7 @@ import { QueryFailedError } from 'typeorm';
 import { logger } from '../utils/logger';
 import { Locale } from '../enums/locale';
 import { UnknownException } from '../exceptions/unknown.exception';
-import { PublishedDatasetRepository, withAll } from '../repositories/published-dataset';
+import { PublishedDatasetRepository, withAll, withConsumerDataset } from '../repositories/published-dataset';
 import { NotFoundException } from '../exceptions/not-found.exception';
 import { ConsumerDatasetDTO } from '../dtos/consumer-dataset-dto';
 import { BadRequestException } from '../exceptions/bad-request.exception';
@@ -46,7 +46,7 @@ export const listPublishedDatasets = async (req: Request, res: Response, next: N
 };
 
 export const getPublishedDatasetById = async (req: Request, res: Response): Promise<void> => {
-  const dataset = await PublishedDatasetRepository.getById(res.locals.datasetId, withAll);
+  const dataset = await PublishedDatasetRepository.getById(res.locals.datasetId, withConsumerDataset);
 
   let dimensionNames: FactTableToDimensionName[] = [];
   if (dataset.publishedRevision) {
