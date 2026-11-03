@@ -3,8 +3,9 @@ import { isBefore } from 'date-fns';
 import { Dataset } from '../entities/dataset/dataset';
 import { Dimension } from '../entities/dataset/dimension';
 import { Revision } from '../entities/dataset/revision';
+import { FactTableToDimensionName } from '../interfaces/fact-table-column-to-dimension-name';
 
-import { DimensionDTO } from './dimension-dto';
+import { ConsumerDimensionDTO } from './consumer-dimension-dto';
 import { ConsumerRevisionDTO } from './consumer-revision-dto';
 import { PublisherDTO } from './publisher-dto';
 import { Locale } from '../enums/locale';
@@ -15,14 +16,18 @@ export class ConsumerDatasetDTO {
   first_published_at?: string | null;
   archived_at?: string;
   replaced_by?: { dataset_id: string; dataset_title?: string; auto_redirect: boolean };
-  dimensions?: DimensionDTO[];
+  dimensions?: ConsumerDimensionDTO[];
   revisions: ConsumerRevisionDTO[];
   published_revision?: ConsumerRevisionDTO;
   start_date?: string;
   end_date?: string;
   publisher?: PublisherDTO;
 
-  static fromDataset(dataset: Dataset, lang: Locale = Locale.English): ConsumerDatasetDTO {
+  static fromDataset(
+    dataset: Dataset,
+    lang: Locale = Locale.English,
+    publishedDimensionNames?: FactTableToDimensionName[]
+  ): ConsumerDatasetDTO {
     const dto = new ConsumerDatasetDTO();
     dto.id = dataset.id;
     dto.first_published_at = dataset.firstPublishedAt?.toISOString();
@@ -43,7 +48,9 @@ export class ConsumerDatasetDTO {
       ?.filter((rev: Revision) => rev.approvedAt && rev.publishAt && isBefore(rev.publishAt, new Date()))
       .map((rev: Revision) => ConsumerRevisionDTO.fromRevision(rev));
 
-    dto.dimensions = dataset.dimensions?.map((dimension: Dimension) => DimensionDTO.fromDimension(dimension));
+    dto.dimensions = dataset.dimensions?.map((dimension: Dimension) =>
+      ConsumerDimensionDTO.fromDimension(dimension, publishedDimensionNames)
+    );
 
     if (dataset.publishedRevision) {
       dto.published_revision = ConsumerRevisionDTO.fromRevision(dataset.publishedRevision);

@@ -4,7 +4,7 @@ import { QueryFailedError } from 'typeorm';
 import { logger } from '../utils/logger';
 import { Locale } from '../enums/locale';
 import { UnknownException } from '../exceptions/unknown.exception';
-import { PublishedDatasetRepository, withAll } from '../repositories/published-dataset';
+import { PublishedDatasetRepository, withAll, withConsumerDataset } from '../repositories/published-dataset';
 import { NotFoundException } from '../exceptions/not-found.exception';
 import { ConsumerDatasetDTO } from '../dtos/consumer-dataset-dto';
 import { BadRequestException } from '../exceptions/bad-request.exception';
@@ -26,6 +26,7 @@ import { DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE } from '../utils/page-defaults';
 import { clamp } from '../utils/clamp';
 import { PublisherDTO } from '../dtos/publisher-dto';
 import { ConsumerRevisionDTO } from '../dtos/consumer-revision-dto';
+import { FactTableToDimensionName } from '../interfaces/fact-table-column-to-dimension-name';
 
 export const listPublishedDatasets = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   logger.info('Listing published datasets...');
@@ -45,8 +46,19 @@ export const listPublishedDatasets = async (req: Request, res: Response, next: N
 };
 
 export const getPublishedDatasetById = async (req: Request, res: Response): Promise<void> => {
-  const dataset = await PublishedDatasetRepository.getById(res.locals.datasetId, withAll);
-  const datasetDTO = ConsumerDatasetDTO.fromDataset(dataset, req.language as Locale);
+  const dataset = await PublishedDatasetRepository.getById(res.locals.datasetId, withConsumerDataset);
+
+  let dimensionNames: FactTableToDimensionName[] = [];
+  if (dataset.publishedRevision) {
+    try {
+      dimensionNames = await PublishedDatasetRepository.getPublishedDimensionNames(dataset.publishedRevision.id);
+    } catch (err) {
+      // never fall back to the dimension's own metadata, which may hold unpublished draft changes
+      logger.error(err, `Failed to read dimension names from the cube for revision ${dataset.publishedRevision.id}`);
+    }
+  }
+
+  const datasetDTO = ConsumerDatasetDTO.fromDataset(dataset, req.language as Locale, dimensionNames);
 
   if (dataset.userGroupId) {
     const userGroup = await PublishedDatasetRepository.getPublisherOrganisation(dataset.id);
