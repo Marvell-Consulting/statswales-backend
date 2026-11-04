@@ -18,6 +18,7 @@ import { DimensionUpdateTask, RevisionTask } from '../interfaces/revision-task';
 import { DatasetRepository } from '../repositories/dataset';
 import { RevisionList, RevisionRepository } from '../repositories/revision';
 import { createDateDimensionLookup } from './dimension-processor';
+import { getChangesSinceApproval } from './changes-since-approval';
 import { FactTableValidationExceptionType } from '../enums/fact-table-validation-exception-type';
 import { FactTableValidationException } from '../exceptions/fact-table-validation-exception';
 import {
@@ -421,10 +422,22 @@ export async function rebuildCubesForRevisions(
       failed_builds: 0,
       all_builds: [] as string[],
       successfully_built: [] as string[],
-      failed_to_build: [] as string[]
+      failed_to_build: [] as string[],
+      skipped_builds: 0,
+      skipped: [] as { revision_id: string; reasons: string[] }[]
     };
 
     for (const rev of revisionList) {
+      const changes = await getChangesSinceApproval(rev);
+      if (changes.length > 0) {
+        logger.warn(`[${buildLogEntry.id}]: Skipping approved revision ${rev.id}: ${changes.join('; ')}`);
+        buildScript.skipped.push({ revision_id: rev.id, reasons: changes });
+        buildScript.skipped_builds++;
+        buildLogEntry.buildScript = JSON.stringify(buildScript, null, 2);
+        buildLogEntry.status = CubeBuildStatus.Building;
+        await buildLogEntry.save();
+        continue;
+      }
       const build = await BuildLog.startBuild(rev, CubeBuildType.FullCube, user.id);
       buildScript.all_builds.push(build.id);
       buildScript.current_build = build.id;
@@ -501,6 +514,11 @@ export async function rebuildCubesForRevisions(
       buildScript.total_builds++;
       buildLogEntry.buildScript = JSON.stringify(buildScript, null, 2);
       await buildLogEntry.save();
+    }
+    if (buildScript.skipped_builds > 0) {
+      logger.warn(
+        `[${buildLogEntry.id}]: Skipped ${buildScript.skipped_builds} approved revisions with changes since approval; see the build script for details`
+      );
     }
     if (failedBuilds.length > 0) buildLogEntry.errors = JSON.stringify(failedBuilds, null, 2);
     buildLogEntry.completeBuild(CubeBuildStatus.Completed);

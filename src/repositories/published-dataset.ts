@@ -277,6 +277,13 @@ export const PublishedDatasetRepository = consumerDataSource.getRepository(Datas
     return dataset?.userGroup ?? null;
   },
 
+  async getCubeTableNames(revisionId: string): Promise<string[]> {
+    const rows: { tablename: string }[] = await dbManager
+      .getCubeDataSource()
+      .query('SELECT tablename FROM pg_catalog.pg_tables WHERE schemaname = $1;', [revisionId]);
+    return rows.map((row) => row.tablename);
+  },
+
   async getPublishedDimensionNames(revisionId: string): Promise<FactTableToDimensionName[]> {
     return dbManager
       .getCubeDataSource()

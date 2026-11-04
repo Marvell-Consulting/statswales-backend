@@ -97,6 +97,12 @@ jest.mock('../../../src/utils/revision', () => ({
   widenCoverageRange: (...args: unknown[]) => mockWidenCoverageRange(...args)
 }));
 
+// --- changes since approval ---
+const mockGetChangesSinceApproval = jest.fn();
+jest.mock('../../../src/services/changes-since-approval', () => ({
+  getChangesSinceApproval: (...args: unknown[]) => mockGetChangesSinceApproval(...args)
+}));
+
 // --- config ---
 jest.mock('../../../src/config', () => ({
   config: { cube_builder: { preserve_failed: false } }
@@ -177,6 +183,7 @@ describe('revision service', () => {
     // happy-path defaults
     mockDatasetGetById.mockImplementation(async () => makeDataset());
     mockStartBuild.mockImplementation(async () => makeBuild());
+    mockGetChangesSinceApproval.mockResolvedValue([]);
     mockCreateAllCubeFiles.mockResolvedValue(undefined);
     mockSourceAssignmentFromFactTable.mockReturnValue({});
     mockFactTableValidatorFromSource.mockResolvedValue(undefined);
@@ -480,6 +487,39 @@ describe('revision service', () => {
       expect(log.completeBuild).toHaveBeenCalledWith(CubeBuildStatus.Completed);
     });
 
+    it('skips an approved revision whose dimensions changed after approval', async () => {
+      mockGetChangesSinceApproval.mockResolvedValue(['DescCode (en-GB) renamed after approval']);
+      const log = makeBuildLog();
+      const rev = { id: 'rev-1', dataset_id: 'ds-1', approved_at: new Date('2026-04-13') };
+
+      await rebuildCubesForRevisions(log as never, [rev as never], user);
+
+      expect(mockGetChangesSinceApproval).toHaveBeenCalledWith(rev);
+      expect(mockStartBuild).not.toHaveBeenCalled();
+      expect(mockBootstrapCubeBuildProcess).not.toHaveBeenCalled();
+      const script = JSON.parse(log.buildScript);
+      expect(script.skipped_builds).toBe(1);
+      expect(script.skipped).toEqual([{ revision_id: 'rev-1', reasons: ['DescCode (en-GB) renamed after approval'] }]);
+      expect(log.completeBuild).toHaveBeenCalledWith(CubeBuildStatus.Completed);
+    });
+
+    it('rebuilds the other revisions in the list after skipping one', async () => {
+      mockGetChangesSinceApproval.mockResolvedValueOnce(['lookup table for Year replaced after approval']);
+      const log = makeBuildLog();
+
+      await rebuildCubesForRevisions(
+        log as never,
+        [
+          { id: 'rev-1', dataset_id: 'ds-1', approved_at: new Date('2026-04-13') } as never,
+          { id: 'rev-2', dataset_id: 'ds-2', approved_at: null } as never
+        ],
+        user
+      );
+
+      expect(mockBootstrapCubeBuildProcess).toHaveBeenCalledTimes(1);
+      expect(mockBootstrapCubeBuildProcess).toHaveBeenCalledWith('ds-2', 'rev-2');
+    });
+
     it('fails the whole build log when an unexpected error escapes the loop', async () => {
       mockStartBuild.mockRejectedValue(new Error('catastrophic'));
       const log = makeBuildLog();
@@ -522,6 +562,19 @@ describe('revision service', () => {
 
       expect(mockUpdateFilterTableToLatest).not.toHaveBeenCalled();
       expect(log.completeBuild).toHaveBeenCalledWith(CubeBuildStatus.Completed);
+    });
+
+    // the filter table update only reads the cube's own tables, so it cannot pick up draft changes
+    it('does not check approved revisions for changes since approval', async () => {
+      mockGetChangesSinceApproval.mockResolvedValue(['lookup table for Year replaced after approval']);
+      const log = makeBuildLog();
+
+      await rebuildAllFilterTablesForRevisions(log as never, [
+        { id: 'rev-2', dataset_id: 'ds-1', data_table_id: 'dt-1', revision_index: 2, approved_at: new Date() } as never
+      ]);
+
+      expect(mockGetChangesSinceApproval).not.toHaveBeenCalled();
+      expect(mockUpdateFilterTableToLatest).toHaveBeenCalledWith('ds-1', 'rev-2');
     });
 
     it('records failures when rebuilding a filter table throws', async () => {
