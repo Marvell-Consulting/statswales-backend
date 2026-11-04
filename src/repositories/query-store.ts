@@ -236,7 +236,7 @@ export const QueryStoreRepository = consumerDataSource.getRepository(QueryStore)
 
   async rebuildAll(): Promise<void> {
     await consumerDataSource.query(
-      'DELETE FROM query_store qs USING revision r WHERE qs.revision_id = r.id AND r.publish_at IS NULL OR r.publish_at > NOW();'
+      'DELETE FROM query_store qs USING revision r WHERE qs.revision_id = r.id AND (r.publish_at IS NULL OR r.publish_at > NOW());'
     );
 
     const publishedRevisionQueries: { id: string }[] = await this.createQueryBuilder('qs')
