@@ -61,7 +61,9 @@ describe('QueryStoreRepository.rebuildAll', () => {
     await user.save();
   });
 
-  beforeEach(() => {
+  beforeEach(async () => {
+    await QueryStore.createQueryBuilder().delete().execute();
+
     // rebuilding an entry needs a cube; this test only covers which entries are deleted
     rebuildEntry = jest.spyOn(QueryStoreRepository, 'rebuildQueryEntry').mockResolvedValue();
   });
@@ -87,6 +89,27 @@ describe('QueryStoreRepository.rebuildAll', () => {
     expect(remainingIds).toContain(publishedEntry.id);
     expect(remainingIds).not.toContain(scheduledEntry.id);
     expect(remainingIds).not.toContain(draftEntry.id);
+    expect(rebuildEntry).toHaveBeenCalledTimes(1);
+    expect(rebuildEntry).toHaveBeenCalledWith(publishedEntry.id);
+  });
+
+  it('deletes entries for revisions with a past publish date that are not approved', async () => {
+    const published = await createRevision({ approvedAt: hoursFromNow(-72), publishAt: hoursFromNow(-48) });
+    const unapproved = await createRevision({ approvedAt: null, publishAt: hoursFromNow(-24) });
+    const approvalPending = await createRevision({ approvedAt: hoursFromNow(24), publishAt: hoursFromNow(-24) });
+
+    const publishedEntry = await createEntry(published);
+    const unapprovedEntry = await createEntry(unapproved);
+    const approvalPendingEntry = await createEntry(approvalPending);
+
+    await QueryStoreRepository.rebuildAll();
+
+    const remainingIds = (await QueryStore.findBy({})).map((entry) => entry.id);
+
+    expect(remainingIds).toContain(publishedEntry.id);
+    expect(remainingIds).not.toContain(unapprovedEntry.id);
+    expect(remainingIds).not.toContain(approvalPendingEntry.id);
+    expect(rebuildEntry).toHaveBeenCalledTimes(1);
     expect(rebuildEntry).toHaveBeenCalledWith(publishedEntry.id);
   });
 });

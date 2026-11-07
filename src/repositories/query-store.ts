@@ -235,17 +235,18 @@ export const QueryStoreRepository = consumerDataSource.getRepository(QueryStore)
   },
 
   async rebuildAll(): Promise<void> {
+    // delete exactly the entries that are not rebuilt below, so the two can't drift apart
+    const isPublished =
+      'r.publish_at IS NOT NULL AND r.publish_at <= NOW() AND r.approved_at IS NOT NULL AND r.approved_at <= NOW()';
+
     await consumerDataSource.query(
-      'DELETE FROM query_store qs USING revision r WHERE qs.revision_id = r.id AND (r.publish_at IS NULL OR r.publish_at > NOW());'
+      `DELETE FROM query_store qs USING revision r WHERE qs.revision_id = r.id AND NOT (${isPublished});`
     );
 
     const publishedRevisionQueries: { id: string }[] = await this.createQueryBuilder('qs')
       .select('qs.id AS id')
       .innerJoin('revision', 'r', 'r.id = qs.revision_id')
-      .where('r.publish_at IS NOT NULL')
-      .andWhere('r.publish_at <= NOW()')
-      .andWhere('r.approved_at IS NOT NULL')
-      .andWhere('r.approved_at <= NOW()')
+      .where(isPublished)
       .getRawMany(); // only need the id, not the full object
 
     // rebuild qs for published revisions
