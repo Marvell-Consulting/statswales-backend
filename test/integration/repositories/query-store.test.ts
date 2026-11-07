@@ -112,4 +112,22 @@ describe('QueryStoreRepository.rebuildAll', () => {
     expect(rebuildEntry).toHaveBeenCalledTimes(1);
     expect(rebuildEntry).toHaveBeenCalledWith(publishedEntry.id);
   });
+
+  it('deletes entries whose revision has been deleted', async () => {
+    const published = await createRevision({ approvedAt: hoursFromNow(-72), publishAt: hoursFromNow(-48) });
+    const deletedDraft = await createRevision({});
+
+    const publishedEntry = await createEntry(published);
+    const orphanedEntry = await createEntry(deletedDraft);
+    await deletedDraft.remove();
+
+    await QueryStoreRepository.rebuildAll();
+
+    const remainingIds = (await QueryStore.findBy({})).map((entry) => entry.id);
+
+    expect(remainingIds).toContain(publishedEntry.id);
+    expect(remainingIds).not.toContain(orphanedEntry.id);
+    expect(rebuildEntry).toHaveBeenCalledTimes(1);
+    expect(rebuildEntry).toHaveBeenCalledWith(publishedEntry.id);
+  });
 });

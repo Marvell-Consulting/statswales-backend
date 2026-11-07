@@ -235,12 +235,13 @@ export const QueryStoreRepository = consumerDataSource.getRepository(QueryStore)
   },
 
   async rebuildAll(): Promise<void> {
-    // delete exactly the entries that are not rebuilt below, so the two can't drift apart
+    // delete exactly the entries that are not rebuilt below, so the two can't drift apart. This includes entries
+    // whose revision no longer exists, as deleting a draft revision does not delete its query store entries.
     const isPublished =
       'r.publish_at IS NOT NULL AND r.publish_at <= NOW() AND r.approved_at IS NOT NULL AND r.approved_at <= NOW()';
 
     await consumerDataSource.query(
-      `DELETE FROM query_store qs USING revision r WHERE qs.revision_id = r.id AND NOT (${isPublished});`
+      `DELETE FROM query_store qs WHERE NOT EXISTS (SELECT 1 FROM revision r WHERE r.id = qs.revision_id AND ${isPublished});`
     );
 
     const publishedRevisionQueries: { id: string }[] = await this.createQueryBuilder('qs')
