@@ -234,6 +234,12 @@ function createAllTypesOfPeriod(dateFormat: DateExtractor, dataColumn: string[])
   if (dateFormat.quarterFormat && dateFormat.quarterTotalIsFifthQuart) {
     logger.debug('5th quarter used to represent whole year totals');
     referenceTable = periodTableCreator(dateFormat, dataColumn, GeneratorType.Quarter, ParentType.Year);
+    if (dateFormat.monthFormat) {
+      logger.debug('Month format present... creating month entries');
+      referenceTable = referenceTable.concat(
+        periodTableCreator(dateFormat, dataColumn, GeneratorType.Month, ParentType.Quarter)
+      );
+    }
   } else {
     // We always need years generate those first
     logger.debug('Creating table for year');
@@ -396,7 +402,7 @@ function periodTableCreator(
           description:
             dateFormat.type === YearType.Calendar
               ? formatUTC(displayYear, 'yyyy')
-              : `${formatUTC(displayYear, 'yyyy')}-${formatUTC(add(displayYear, { years: 1 }), 'yy')}`,
+              : `${formatUTC(displayYear, 'yyyy')}${type.separator}${formatUTC(add(displayYear, { years: 1 }), 'yy')}`,
           // the year total covers the whole year, not the twelve months from the start of the fourth quarter
           start: displayYear,
           end: sub(add(displayYear, { months: 12 }), { days: 1 }),
