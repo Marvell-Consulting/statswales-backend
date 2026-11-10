@@ -93,6 +93,14 @@ export const getPublishedDatasetById = async (req: Request, res: Response): Prom
   res.json(datasetDTO);
 };
 
+// Loads a stored filter for a public endpoint. Filters are also created for revisions that are not published, so
+// only serve one while its revision is published. Throws EntityNotFoundError otherwise, which callers turn into a 404.
+async function getPublishedFilter(filterId: string): Promise<QueryStore> {
+  const queryStore = await QueryStoreRepository.getById(filterId);
+  await PublishedRevisionRepository.getById(queryStore.revisionId);
+  return queryStore;
+}
+
 async function parsePivotPageOptions(req: Request, validateXY = true): Promise<PageOptions> {
   logger.debug('Parsing page options from request...');
   const validations = [format2Validator(), pageNumberValidator(), pageSizeValidator()];
@@ -155,7 +163,7 @@ export const getPublishedDatasetData = async (req: Request, res: Response, next:
     const dataOptions = pageOptions.format === OutputFormats.Frontend ? FRONTEND_DATA_OPTIONS : DEFAULT_DATA_OPTIONS;
 
     const queryStore = filterId
-      ? await QueryStoreRepository.getById(filterId)
+      ? await getPublishedFilter(filterId)
       : await QueryStoreRepository.getByRequest(dataset.id, publishedRevision.id, dataOptions);
 
     // ensurePublishedDataset loads a lean dataset (no factTable). buildDataQuery
@@ -197,7 +205,7 @@ export const getPublishedDatasetPivot = async (req: Request, res: Response, next
     const dataOptions = pageOptions.format === OutputFormats.Frontend ? FRONTEND_DATA_OPTIONS : DEFAULT_DATA_OPTIONS;
 
     const queryStore = filterId
-      ? await QueryStoreRepository.getById(filterId)
+      ? await getPublishedFilter(filterId)
       : await QueryStoreRepository.getByRequest(dataset.id, publishedRevision.id, dataOptions);
 
     const lang = langToLocale(pageOptions.locale);
@@ -226,7 +234,7 @@ export const getFilterIdDetails = async (req: Request, res: Response, next: Next
   try {
     const dataOptions = pageOptions.format === OutputFormats.Frontend ? FRONTEND_DATA_OPTIONS : DEFAULT_DATA_OPTIONS;
     const queryStore = filterId
-      ? await QueryStoreRepository.getById(filterId)
+      ? await getPublishedFilter(filterId)
       : await QueryStoreRepository.getByRequest(dataset.id, publishedRevision.id, dataOptions);
 
     res.status(200).send(QueryStoreDto.fromQueryStore(queryStore));
@@ -258,7 +266,7 @@ export const getPublishedDatasetPivotFromId = async (
     const dataOptions = pageOptions.format === OutputFormats.Frontend ? FRONTEND_DATA_OPTIONS : DEFAULT_DATA_OPTIONS;
 
     const queryStore = filterId
-      ? await QueryStoreRepository.getById(filterId)
+      ? await getPublishedFilter(filterId)
       : await QueryStoreRepository.getByRequest(dataset.id, publishedRevision.id, dataOptions);
 
     if (!queryStore.requestObject.pivot) {
