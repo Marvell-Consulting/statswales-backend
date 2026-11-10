@@ -15,7 +15,7 @@ import { QueryStoreRepository } from '../../../../src/repositories/query-store';
 import BlobStorage from '../../../../src/services/blob-storage';
 import { ensureWorkerDataSources, resetDatabase } from '../../../helpers/reset-database';
 import { getTestUser, getTestUserGroup } from '../../../helpers/get-test-user';
-import { seedPublishedDataset } from '../../../helpers/seed-published-dataset';
+import { addPublishedRevision, seedPublishedDataset } from '../../../helpers/seed-published-dataset';
 
 jest.mock('../../../../src/services/blob-storage');
 BlobStorage.prototype.listFiles = jest.fn().mockReturnValue([]);
@@ -114,6 +114,17 @@ describe('Consumer V2 — filter IDs are only served for their own dataset and p
     withdrawnFilterId = await filterFor(WITHDRAWN);
     otherFilterId = await filterFor(OTHER);
 
+    // Publish a newer revision of the other dataset, so its filter now belongs to an earlier published revision.
+    await addPublishedRevision({
+      user,
+      datasetId: OTHER.dataset,
+      revisionId: 'ddddddd4-dddd-4ddd-8dd4-ffffffffffff',
+      dataTableId: 'ddddddd4-dddd-4ddd-8ddd-ffffffffffff',
+      previousRevisionId: OTHER.revision,
+      revisionIndex: 2,
+      rowCount: 0
+    });
+
     for (const id of [scheduledFilterId, scheduledPivotFilterId, withdrawnFilterId]) {
       await moveFilterToPublishedDataset(id);
     }
@@ -136,7 +147,7 @@ describe('Consumer V2 — filter IDs are only served for their own dataset and p
     expect(JSON.stringify(res.body)).not.toContain('44.5');
   });
 
-  it("serves the other dataset's filter under its own dataset", async () => {
+  it('serves a filter for an earlier published revision under its own dataset', async () => {
     const res = await request(app).get(`/v2/${OTHER.dataset}/data/${otherFilterId}`).query({ format: 'json' });
     expect(res.status).toBe(200);
     expect(JSON.stringify(res.body)).toContain('44.5');
