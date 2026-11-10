@@ -521,6 +521,47 @@ describe('date-matching', () => {
       expect(rows.find((item) => item.dateCode === '2025_1')?.hierarchy).toBe('2025_5');
       expect(rows.find((item) => item.dateCode === '2024_5')?.hierarchy).toBeNull();
     });
+
+    test('the year total covers the whole calendar year', () => {
+      const total = englishRows().find((item) => item.dateCode === '2024_5');
+
+      expect(total?.start).toEqual(utc('2024-01-01T00:00:00Z'));
+      expect(total?.end).toEqual(utc('2024-12-31T00:00:00Z'));
+    });
+
+    test('the year total covers the whole financial year', () => {
+      const financial: DateExtractor = {
+        type: YearType.Financial,
+        yearFormat: 'YYYYYY',
+        quarterFormat: 'QX',
+        quarterTotalIsFifthQuart: true
+      };
+      const codes = ['202324Q1', '202324Q2', '202324Q3', '202324Q4', '202324Q5'];
+      const result = dateDimensionReferenceTableCreator(
+        financial,
+        codes.map((dateCode) => ({ dateCode }))
+      );
+      const total = result.find((item) => item.dateCode === '202324Q5');
+
+      expect(total?.start).toEqual(utc('2023-04-01T00:00:00Z'));
+      expect(total?.end).toEqual(utc('2024-03-31T00:00:00Z'));
+    });
+
+    test('does not add year total rows to months when there is no quarter format', () => {
+      const monthsOnly: DateExtractor = {
+        type: YearType.Calendar,
+        yearFormat: 'YYYY',
+        monthFormat: 'mMM',
+        quarterTotalIsFifthQuart: true
+      };
+      const codes = ['2024', ...Array.from({ length: 12 }, (_, i) => `2024m${String(i + 1).padStart(2, '0')}`)];
+      const rows = dateDimensionReferenceTableCreator(
+        monthsOnly,
+        codes.map((dateCode) => ({ dateCode }))
+      ).filter((item) => item.lang === 'en-gb');
+
+      expect(rows.map((item) => item.dateCode).sort()).toEqual([...codes].sort());
+    });
   });
 
   describe('dateDimensionReferenceTableCreator - timezone independence', () => {
