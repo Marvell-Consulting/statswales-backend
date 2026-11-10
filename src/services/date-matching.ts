@@ -233,7 +233,7 @@ function createAllTypesOfPeriod(dateFormat: DateExtractor, dataColumn: string[])
   logger.debug(`date extractor = ${JSON.stringify(dateFormat)}`);
   if (dateFormat.quarterFormat && dateFormat.quarterTotalIsFifthQuart) {
     logger.debug('5th quarter used to represent whole year totals');
-    return periodTableCreator(dateFormat, dataColumn, GeneratorType.Quarter, ParentType.Year);
+    referenceTable = periodTableCreator(dateFormat, dataColumn, GeneratorType.Quarter, ParentType.Year);
   } else {
     // We always need years generate those first
     logger.debug('Creating table for year');
@@ -329,7 +329,12 @@ function periodTableCreator(
 
     let parent: string | null = null;
     if (parentType === ParentType.Year) {
-      parent = yearFormat
+      // when the year total is the fifth quarter, quarters belong to that code rather than a plain year code
+      const parentFormat =
+        dateFormat.quarterTotalIsFifthQuart && generationType === GeneratorType.Quarter
+          ? formatObj.formatStr.replace('[quarterNo]', '5')
+          : yearFormat;
+      parent = parentFormat
         .replace('[full-start]', formatUTC(displayYear, 'yyyy'))
         .replace('[full-end]', formatUTC(add(displayYear, { years: 1 }), 'yyyy'))
         .replace('[end-year]', formatUTC(add(displayYear, { years: 1 }), 'yy'));

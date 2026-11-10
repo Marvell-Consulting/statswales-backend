@@ -492,6 +492,37 @@ describe('date-matching', () => {
     });
   });
 
+  describe('dateDimensionReferenceTableCreator - fifth quarter as year total', () => {
+    const extractor: DateExtractor = {
+      type: YearType.Calendar,
+      yearFormat: 'YYYY',
+      quarterFormat: '_X',
+      quarterTotalIsFifthQuart: true
+    };
+
+    // a full year of quarters with its total, then a year that has only its first quarter so far
+    const dateCodes = ['2024_1', '2024_2', '2024_3', '2024_4', '2024_5', '2025_1', '2025_5'];
+    const englishRows = () =>
+      dateDimensionReferenceTableCreator(
+        extractor,
+        dateCodes.map((dateCode) => ({ dateCode }))
+      ).filter((item) => item.lang === 'en-gb');
+
+    test('only includes date codes that are in the data when the last year is not complete', () => {
+      const codes = englishRows().map((item) => item.dateCode);
+
+      expect(codes.sort()).toEqual([...dateCodes].sort());
+    });
+
+    test('quarter entries link to the fifth quarter code for their year', () => {
+      const rows = englishRows();
+
+      expect(rows.find((item) => item.dateCode === '2024_2')?.hierarchy).toBe('2024_5');
+      expect(rows.find((item) => item.dateCode === '2025_1')?.hierarchy).toBe('2025_5');
+      expect(rows.find((item) => item.dateCode === '2024_5')?.hierarchy).toBeNull();
+    });
+  });
+
   describe('dateDimensionReferenceTableCreator - timezone independence', () => {
     const originalTZ = process.env.TZ;
 
