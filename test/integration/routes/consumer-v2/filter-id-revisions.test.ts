@@ -7,6 +7,7 @@ import { User } from '../../../../src/entities/user/user';
 import { UserGroup } from '../../../../src/entities/user/user-group';
 import { UserGroupRole } from '../../../../src/entities/user/user-group-role';
 import { Revision } from '../../../../src/entities/dataset/revision';
+import { QueryStore } from '../../../../src/entities/query-store';
 import { GroupRole } from '../../../../src/enums/group-role';
 import { FactTableColumnType } from '../../../../src/enums/fact-table-column-type';
 import { FRONTEND_DATA_OPTIONS } from '../../../../src/dtos/data-options-dto';
@@ -30,6 +31,7 @@ const ONE_WEEK_MS = 7 * 24 * 60 * 60 * 1000;
 const PUBLISHED = { dataset: 'ddddddd1-dddd-4ddd-8dd1-dddddddddddd', revision: 'ddddddd1-dddd-4ddd-8dd1-aaaaaaaaaaaa' };
 const SCHEDULED = { dataset: 'ddddddd2-dddd-4ddd-8dd2-dddddddddddd', revision: 'ddddddd2-dddd-4ddd-8dd2-aaaaaaaaaaaa' };
 const WITHDRAWN = { dataset: 'ddddddd3-dddd-4ddd-8dd3-dddddddddddd', revision: 'ddddddd3-dddd-4ddd-8dd3-aaaaaaaaaaaa' };
+const OTHER = { dataset: 'ddddddd4-dddd-4ddd-8dd4-dddddddddddd', revision: 'ddddddd4-dddd-4ddd-8dd4-aaaaaaaaaaaa' };
 
 async function seed(ids: { dataset: string; revision: string }, prefix: string, value: number, publishAt?: Date) {
   await seedPublishedDataset({
@@ -77,11 +79,20 @@ async function filterFor(ids: { dataset: string; revision: string }, pivot = fal
   return entry.id;
 }
 
-describe('Consumer V2 — filter IDs are only served for published revisions', () => {
+// Files a stored filter under the published dataset, as a preview of a new revision of that dataset would.
+async function moveFilterToPublishedDataset(filterId: string): Promise<void> {
+  await dbManager
+    .getPublisherDataSource()
+    .getRepository(QueryStore)
+    .update({ id: filterId }, { datasetId: PUBLISHED.dataset });
+}
+
+describe('Consumer V2 — filter IDs are only served for their own dataset and published revisions', () => {
   let publishedFilterId: string;
   let scheduledFilterId: string;
   let scheduledPivotFilterId: string;
   let withdrawnFilterId: string;
+  let otherFilterId: string;
 
   beforeAll(async () => {
     await ensureWorkerDataSources();
@@ -95,11 +106,17 @@ describe('Consumer V2 — filter IDs are only served for published revisions', (
     await seed(PUBLISHED, 'ddddddd1', 11.5);
     await seed(SCHEDULED, 'ddddddd2', 22.5, new Date(Date.now() + ONE_WEEK_MS));
     await seed(WITHDRAWN, 'ddddddd3', 33.5);
+    await seed(OTHER, 'ddddddd4', 44.5);
 
     publishedFilterId = await filterFor(PUBLISHED);
     scheduledFilterId = await filterFor(SCHEDULED);
     scheduledPivotFilterId = await filterFor(SCHEDULED, true);
     withdrawnFilterId = await filterFor(WITHDRAWN);
+    otherFilterId = await filterFor(OTHER);
+
+    for (const id of [scheduledFilterId, scheduledPivotFilterId, withdrawnFilterId]) {
+      await moveFilterToPublishedDataset(id);
+    }
 
     await dbManager
       .getPublisherDataSource()
@@ -111,6 +128,18 @@ describe('Consumer V2 — filter IDs are only served for published revisions', (
     const res = await request(app).get(`/v2/${PUBLISHED.dataset}/data/${publishedFilterId}`).query({ format: 'json' });
     expect(res.status).toBe(200);
     expect(JSON.stringify(res.body)).toContain('11.5');
+  });
+
+  it('returns 404 for a filter that belongs to another published dataset', async () => {
+    const res = await request(app).get(`/v2/${PUBLISHED.dataset}/data/${otherFilterId}`).query({ format: 'json' });
+    expect(res.status).toBe(404);
+    expect(JSON.stringify(res.body)).not.toContain('44.5');
+  });
+
+  it("serves the other dataset's filter under its own dataset", async () => {
+    const res = await request(app).get(`/v2/${OTHER.dataset}/data/${otherFilterId}`).query({ format: 'json' });
+    expect(res.status).toBe(200);
+    expect(JSON.stringify(res.body)).toContain('44.5');
   });
 
   describe('a filter for a revision that is not published yet', () => {
