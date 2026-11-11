@@ -302,6 +302,18 @@ describe('consumer-view-v2 service', () => {
       expect(output).toContain(`'+SUM(A1:A2)`);
     });
 
+    it('reports a database error part way through as an error, not as a client disconnect', async () => {
+      const dbError = new Error('database failed');
+      const mockStream = createErrorStream([{ col1: 'value1' }], dbError);
+      mockObtainMasterConnection.mockResolvedValue([createMockPoolClient(mockStream)]);
+      const res = createMockStreamResponse();
+
+      await expect(sendCsv('SELECT * FROM test', createMockQueryStore(), res)).rejects.toBe(dbError);
+
+      expect(logger.error).toHaveBeenCalled();
+      expect(mockRelease).toHaveBeenCalledWith(false);
+    });
+
     it('should write newline for empty result set', async () => {
       const mockStream = createMockDbStream([]);
       const mockPoolClient = createMockPoolClient(mockStream);

@@ -380,7 +380,10 @@ export const createStreamingJSONFilteredView = async (
     }
     await writeAndWait(res, ']');
     await cubeDBConn.query('COMMIT');
-    res.end();
+    // the client may have gone since the last write; writing to a closed response does nothing, but skip it anyway
+    if (!res.destroyed) {
+      res.end();
+    }
   } catch (error) {
     if (isClientDisconnect(error, res)) {
       // Discard the connection rather than closing the cursor and rolling back: both wait for Postgres to reply on
@@ -456,7 +459,9 @@ export const createStreamingCSVFilteredView = async (
       await endPipedStream(stream, res);
     } else {
       await cubeDBConn.query('COMMIT');
-      res.end('\n');
+      if (!res.destroyed) {
+        res.end('\n');
+      }
     }
   } catch (error) {
     // free anything the CSV stream still holds; once the client has gone, nothing will read it

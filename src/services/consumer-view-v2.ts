@@ -74,10 +74,13 @@ export async function sendCsv(query: string, queryStore: QueryStore, res: Respon
     await unlessClosed(res, pipeline(dbStream, csvSanitizeTransform(), csvStream, res, { end: false }));
 
     await cubeDBConn.query('COMMIT');
-    if (!hasData) {
-      res.write('\n'); // Write a newline for empty CSV to avoid zero-byte file issues in some clients
+    // the client may have gone since the last row; writing to a closed response does nothing, but skip it anyway
+    if (!res.destroyed) {
+      if (!hasData) {
+        res.write('\n'); // Write a newline for empty CSV to avoid zero-byte file issues in some clients
+      }
+      res.end();
     }
-    res.end();
   } catch (err) {
     dbStream?.destroy();
     if (isClientDisconnect(err, res)) {
