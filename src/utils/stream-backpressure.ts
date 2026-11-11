@@ -92,7 +92,7 @@ export async function unlessClosed<T>(stream: Writable, work: Promise<T>): Promi
   // If the stream closes first, `work` may still reject later. Nobody is waiting for it then, so ignore that. Do this
   // before anything else, including the early exit below, or that later rejection would go unhandled.
   work.catch(() => {});
-  if (stream.destroyed) {
+  if (stream.destroyed || (stream.closed && !stream.writableFinished)) {
     throw new StreamClosedError();
   }
   let stopWatching = (): void => {};
@@ -126,6 +126,12 @@ export async function endPipedStream(
   destination: Writable,
   { endsDestination = true }: { endsDestination?: boolean } = {}
 ): Promise<void> {
+  // if the destination has already closed, its 'close' event has been and gone, so waiting for it would never end
+  if (destination.destroyed || destination.closed) {
+    if (!destination.writableFinished) {
+      throw new StreamClosedError();
+    }
+  }
   await new Promise<void>((resolve, reject) => {
     const doneEvent = endsDestination ? 'finish' : 'end';
     const doneEmitter = endsDestination ? destination : source;

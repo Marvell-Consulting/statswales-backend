@@ -160,6 +160,16 @@ describe('stream-backpressure', () => {
       expect(destination.writableEnded).toBe(false);
     });
 
+    it('rejects straight away if the destination has already closed', async () => {
+      const source = new PassThrough();
+      const destination = createHeldWritable();
+      source.pipe(destination);
+      destination.destroy();
+      await new Promise((resolve) => setImmediate(resolve));
+
+      await expect(endPipedStream(source, destination)).rejects.toBeInstanceOf(StreamClosedError);
+    });
+
     it('rejects, rather than waiting forever, if the source fails while flushing', async () => {
       const source = new PassThrough();
       const destination = createHeldWritable();

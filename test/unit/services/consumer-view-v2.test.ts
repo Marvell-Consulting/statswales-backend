@@ -695,6 +695,23 @@ describe('consumer-view-v2 service', () => {
       expect(logger.error).not.toHaveBeenCalled();
     });
 
+    it.each(downloads)(
+      '%s download closes the response if the database fails part way through',
+      async (_format, download) => {
+        const dbError = new Error('database failed');
+        mockObtainMasterConnection.mockResolvedValue([
+          createMockPoolClient(createErrorStream([{ id: 1, label: 'row 1' }], dbError))
+        ]);
+        const res = createStalledResponse();
+        res.resumeClient();
+
+        await expect(download('SELECT * FROM test', createMockQueryStore(), res)).rejects.toBe(dbError);
+
+        // the headers have gone, so the response can't carry an error status; it must be closed, not left open
+        expect(res.destroyed || res.writableEnded).toBe(true);
+      }
+    );
+
     it('JSON download sends every row as valid JSON', async () => {
       const db = createCountingDbStream(TOTAL);
       mockObtainMasterConnection.mockResolvedValue([createMockPoolClient(db.stream)]);

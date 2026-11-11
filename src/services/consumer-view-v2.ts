@@ -94,6 +94,10 @@ export async function sendCsv(query: string, queryStore: QueryStore, res: Respon
     logger.error(err, `Error sending CSV for query id ${queryStore.id}`);
     if (!res.headersSent) {
       res.status(500).end();
+    } else if (!res.writableEnded) {
+      // the output had already started, so the response can't carry an error status: close it rather than leave the
+      // client waiting for the rest
+      res.destroy();
     }
     throw err;
   } finally {
@@ -171,6 +175,10 @@ export async function sendExcel(query: string, queryStore: QueryStore, res: Resp
     logger.error(err, `Error sending Excel for query id ${queryStore.id}`);
     if (!res.headersSent) {
       res.status(500).end();
+    } else if (!res.writableEnded) {
+      // the output had already started, so the response can't carry an error status: close it rather than leave the
+      // client waiting for the rest
+      res.destroy();
     }
     throw err;
   } finally {
@@ -217,6 +225,10 @@ export async function sendJson(query: string, queryStore: QueryStore, res: Respo
     logger.error(err, `Error sending JSON for query id ${queryStore.id}`);
     if (!res.headersSent) {
       res.status(500).end();
+    } else if (!res.writableEnded) {
+      // the output had already started, so the response can't carry an error status: close it rather than leave the
+      // client waiting for the rest
+      res.destroy();
     }
     throw err;
   } finally {
@@ -288,6 +300,10 @@ export async function sendHtml(query: string, queryStore: QueryStore, res: Respo
     logger.error(err, `Error sending HTML for query id ${queryStore.id}`);
     if (!res.headersSent) {
       res.status(500).end();
+    } else if (!res.writableEnded) {
+      // the output had already started, so the response can't carry an error status: close it rather than leave the
+      // client waiting for the rest
+      res.destroy();
     }
     throw err;
   } finally {
