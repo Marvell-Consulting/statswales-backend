@@ -97,8 +97,11 @@ jobs:
         uses: docker/metadata-action@c299e40c65443455700f0fdfc63efafe5b349051 # v5.10.0
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          # `latest` is only moved by push and nightly builds of main (the default branch), as before. A manual run publishes
+          # just its sha tag, which is what deploys use, so it can't leave `latest` pointing at an older image if it
+          # finishes after a newer push build.
           tags: |
-            type=raw,value=latest,enable={{is_default_branch}}
+            type=raw,value=latest,enable=${{ github.event_name != 'workflow_dispatch' && github.ref == 'refs/heads/main' }}
             type=sha
 
       # Build and push Docker image with Buildx (don't push on PR)
