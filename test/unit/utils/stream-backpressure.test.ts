@@ -79,6 +79,26 @@ describe('stream-backpressure', () => {
       await expect(unlessClosed(createHeldWritable(), Promise.resolve('done'))).resolves.toBe('done');
     });
 
+    it('does not leave the work unhandled when the stream has already closed', async () => {
+      const unhandled: unknown[] = [];
+      const onUnhandled = (reason: unknown): void => {
+        unhandled.push(reason);
+      };
+      process.on('unhandledRejection', onUnhandled);
+      try {
+        const stream = createHeldWritable();
+        stream.destroy();
+        const work = new Promise((_resolve, reject) => setImmediate(() => reject(new Error('work failed later'))));
+
+        await expect(unlessClosed(stream, work)).rejects.toBeInstanceOf(StreamClosedError);
+        await new Promise((resolve) => setTimeout(resolve, 20));
+
+        expect(unhandled).toEqual([]);
+      } finally {
+        process.off('unhandledRejection', onUnhandled);
+      }
+    });
+
     it('rejects if the stream closes before the work finishes', async () => {
       const stream = createHeldWritable();
       const result = unlessClosed(stream, new Promise(() => {}));

@@ -89,11 +89,12 @@ export async function writeAndWait(stream: Writable, chunk: unknown, destination
 // Waits for `work`, but rejects straight away if `stream` closes or errors first. Use it for steps that would
 // otherwise wait forever on a client that has gone, such as finishing an Excel file.
 export async function unlessClosed<T>(stream: Writable, work: Promise<T>): Promise<T> {
+  // If the stream closes first, `work` may still reject later. Nobody is waiting for it then, so ignore that. Do this
+  // before anything else, including the early exit below, or that later rejection would go unhandled.
+  work.catch(() => {});
   if (stream.destroyed) {
     throw new StreamClosedError();
   }
-  // If the stream closes first, `work` may still reject later. Nobody is waiting for it then, so ignore that.
-  work.catch(() => {});
   let stopWatching = (): void => {};
   const closed = new Promise<never>((_resolve, reject) => {
     stopWatching = watchForClose([stream], reject);
