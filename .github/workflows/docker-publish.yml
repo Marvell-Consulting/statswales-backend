@@ -27,6 +27,13 @@ permissions:
   contents: read
   security-events: write
 
+# Push, nightly and pull request builds of the same ref run one at a time, so they finish in order and `latest` always
+# ends up on the newest build. Each manual run gets a group of its own, so it never waits behind a stuck build, which
+# is what the manual trigger is for.
+concurrency:
+  group: ${{ github.event_name == 'workflow_dispatch' && format('docker-manual-{0}', github.run_id) || format('docker-{0}', github.ref) }}
+  cancel-in-progress: false
+
 jobs:
   build:
     runs-on: ubuntu-latest
