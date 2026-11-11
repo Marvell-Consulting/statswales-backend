@@ -24,6 +24,13 @@ import { UnknownException } from '../exceptions/unknown.exception';
 import { makeCubeSafeString } from './cube-builder';
 import { DimensionType, LookupTableTypes } from '../enums/dimension-type';
 import { neutralizeCsvCell, neutralizeCsvRow } from '../utils/csv-sanitizer';
+import {
+  endPipedStream,
+  isClientDisconnect,
+  unlessClosed,
+  waitForCompressedDrain,
+  writeAndWait
+} from '../utils/stream-backpressure';
 
 const EXCEL_ROW_LIMIT = 1048576 - 76; // Excel Limit is 1,048,576 but removed 76 rows because ?
 
@@ -127,20 +134,17 @@ async function pivotToJson(
   let first = true;
   for await (const rows of pivot.yieldRows()) {
     for (const row of rows) {
-      if (first) {
-        first = false;
-      } else {
-        res.write(',\n');
-      }
       const jsonRow =
         '{' +
         columnOrder.map((col, i) => `${JSON.stringify(col)}:${JSON.stringify(row[columnMapping[i]])}`).join(',') +
         '}';
-      res.write(jsonRow);
+      // wait for the client whenever the response buffer is full, so a slow client can't make us hold the whole
+      // pivot in memory
+      await writeAndWait(res, `${first ? '' : ',\n'}${jsonRow}`);
+      first = false;
     }
   }
-  res.write(']');
-  res.write('}');
+  await writeAndWait(res, ']}');
   res.end();
 }
 
@@ -200,17 +204,15 @@ async function pivotToFrontend(
   let rowCount = 0;
   for await (const rows of pivot.yieldRows()) {
     for (const row of rows) {
-      if (firstRow) {
-        firstRow = false;
-      } else {
-        res.write(',\n');
-      }
       const reorderedRow = reorderRow(row, columnMapping);
-      res.write(JSON.stringify(reorderedRow));
+      // wait for the client whenever the response buffer is full, so a slow client can't make us hold the whole
+      // pivot in memory
+      await writeAndWait(res, `${firstRow ? '' : ',\n'}${JSON.stringify(reorderedRow)}`);
+      firstRow = false;
       rowCount++;
     }
   }
-  res.write('],');
+  await writeAndWait(res, '],');
   const totalPages = queryStore.totalPivotLines ? Math.max(1, Math.ceil(queryStore.totalPivotLines / pageSize)) : 0;
   const page_info = {
     current_page: pageNumber,
@@ -220,9 +222,7 @@ async function pivotToFrontend(
     start_record: startRecord,
     end_record: startRecord + rowCount
   };
-  res.write(`"page_info": ${JSON.stringify(page_info)}`);
-
-  res.write(`}`);
+  await writeAndWait(res, `"page_info": ${JSON.stringify(page_info)}}`);
   res.end();
 }
 
@@ -239,17 +239,26 @@ async function pivotToCsv(
     'Content-disposition': `attachment;filename=pivot-${Date.now()}.csv`
   });
   const stream = csvFormat({ delimiter: ',', headers: neutralizeCsvRow(columnOrder) as string[] });
-  stream.pipe(res);
+  // don't let the CSV stream end the response: we add a final new line once it has finished
+  stream.pipe(res, { end: false });
 
-  for await (const rows of pivot.yieldRows()) {
-    for (const row of rows) {
-      const reorderedRow = neutralizeCsvRow(reorderRow(row, columnMapping));
-      stream.write(reorderedRow);
+  try {
+    for await (const rows of pivot.yieldRows()) {
+      for (const row of rows) {
+        const reorderedRow = neutralizeCsvRow(reorderRow(row, columnMapping));
+        // wait for the client whenever the CSV stream's buffer is full, so a slow client can't make us hold the whole
+        // pivot in memory
+        await writeAndWait(stream, reorderedRow, res);
+      }
     }
+    // end the CSV stream and wait until everything in it has reached the response, before ending the response
+    await endPipedStream(stream, res, { endsDestination: false });
+  } catch (err) {
+    // free anything the CSV stream still holds; if the client has gone, nothing will read it
+    stream.destroy();
+    throw err;
   }
-  res.write('\n');
-  res.end();
-  stream.end();
+  res.end('\n');
 }
 
 async function pivotToExcel(
@@ -285,6 +294,9 @@ async function pivotToExcel(
       });
       worksheet.addRow(data).commit();
     }
+    // wait for the client before reading the next batch, so a slow client can't make us hold the whole pivot in
+    // memory
+    await waitForCompressedDrain(res);
     totalRows += rows.length;
     if (totalRows > EXCEL_ROW_LIMIT) {
       worksheet.commit();
@@ -294,7 +306,7 @@ async function pivotToExcel(
     }
   }
   worksheet.commit();
-  await workbook.commit();
+  await unlessClosed(res, workbook.commit());
 }
 
 async function pivotToHtml(
@@ -328,19 +340,19 @@ async function pivotToHtml(
   res.write('</tr></thead><tbody>');
   for await (const rows of pivot.yieldRows()) {
     for (const row of rows) {
-      res.write('<tr>');
-      columnMapping.forEach((srcIdx, i) => {
-        const value = row[srcIdx];
-        if (i === 0) {
-          res.write(`<th>${value === null ? '' : escape(String(value))}</th>`);
-        } else {
-          res.write(`<td>${value === null ? '' : escape(String(value))}</td>`);
-        }
-      });
-      res.write('</tr>');
+      const cells = columnMapping
+        .map((srcIdx, i) => {
+          const value = row[srcIdx];
+          const tag = i === 0 ? 'th' : 'td';
+          return `<${tag}>${value === null ? '' : escape(String(value))}</${tag}>`;
+        })
+        .join('');
+      // wait for the client whenever the response buffer is full, so a slow client can't make us hold the whole
+      // pivot in memory
+      await writeAndWait(res, `<tr>${cells}</tr>`);
     }
   }
-  res.write('</tbody>\n' + '</table>\n' + '</body>\n' + '</html>\n');
+  await writeAndWait(res, '</tbody>\n' + '</table>\n' + '</body>\n' + '</html>\n');
   res.end();
 }
 
@@ -381,6 +393,15 @@ export async function createPivotOutputUsingDuckDB(
         break;
     }
   } catch (err) {
+    if (isClientDisconnect(err, res)) {
+      logger.info(`Client disconnected before the pivot for query id ${queryStore.id} finished`);
+      return;
+    }
+    // if the output had already started, the response can't carry an error status, so close it rather than leave the
+    // client waiting for the rest
+    if (res.headersSent && !res.writableEnded) {
+      res.destroy();
+    }
     if (err instanceof Error && err.message.includes('Binder Error')) {
       throw new BadRequestException('Invalid sort by column');
     }

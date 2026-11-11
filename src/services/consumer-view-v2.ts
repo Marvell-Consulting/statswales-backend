@@ -37,9 +37,11 @@ import {
 import { KeysetSortColumn, buildKeysetWhere } from './keyset-where-builder';
 import { resolveDefaultSort } from './default-sort-resolver';
 import { neutralizeCsvCell, neutralizeCsvRecord, neutralizeCsvRow } from '../utils/csv-sanitizer';
+import { isClientDisconnect, unlessClosed, waitForCompressedDrain, writeAndWait } from '../utils/stream-backpressure';
 
 const EXCEL_ROW_LIMIT = 1048576 - 76; // Excel Limit is 1,048,576 but removed 76 rows because ?
 const HIGH_WATER_MARK = 500; // max rows to buffer in memory at once when streaming from the database
+const EXCEL_DRAIN_CHECK_ROWS = 500; // how often an Excel download checks whether the client has caught up
 
 function csvSanitizeTransform(): Transform {
   return new Transform({
@@ -54,6 +56,7 @@ export async function sendCsv(query: string, queryStore: QueryStore, res: Respon
   logger.debug(`Sending CSV for query id ${queryStore.id}...`);
   const [cubeDBConn] = (await dbManager.getCubeDataSource().driver.obtainMasterConnection()) as [PoolClient];
   let dbStream: QueryStream | null = null;
+  let discardConnection = false;
   let hasData = false;
 
   try {
@@ -66,23 +69,39 @@ export async function sendCsv(query: string, queryStore: QueryStore, res: Respon
     res.setHeader('Content-Type', 'text/csv');
     res.setHeader('Content-Disposition', `attachment;filename=${queryStore.datasetId}.csv`);
 
-    await pipeline(dbStream, csvSanitizeTransform(), csvStream, res, { end: false });
+    // pipeline() waits for every stream to close, and the database stream only closes once Postgres confirms its
+    // cursor is closed. Stop waiting as soon as the client has gone, so a disconnect can't leave us stuck on that.
+    await unlessClosed(res, pipeline(dbStream, csvSanitizeTransform(), csvStream, res, { end: false }));
 
     await cubeDBConn.query('COMMIT');
-    if (!hasData) {
-      res.write('\n'); // Write a newline for empty CSV to avoid zero-byte file issues in some clients
+    // the client may have gone since the last row; writing to a closed response does nothing, but skip it anyway
+    if (!res.destroyed) {
+      if (!hasData) {
+        res.write('\n'); // Write a newline for empty CSV to avoid zero-byte file issues in some clients
+      }
+      res.end();
     }
-    res.end();
   } catch (err) {
+    dbStream?.destroy();
+    if (isClientDisconnect(err, res)) {
+      // Discard the connection rather than rolling back, which waits for Postgres to reply on this connection and
+      // can hang behind the stream's cursor. Postgres rolls the transaction back when the connection closes.
+      discardConnection = true;
+      logger.info(`Client disconnected before the CSV download for query id ${queryStore.id} finished`);
+      return;
+    }
     await cubeDBConn.query('ROLLBACK').catch(() => {});
     logger.error(err, `Error sending CSV for query id ${queryStore.id}`);
-    dbStream?.destroy();
     if (!res.headersSent) {
       res.status(500).end();
+    } else if (!res.writableEnded) {
+      // the output had already started, so the response can't carry an error status: close it rather than leave the
+      // client waiting for the rest
+      res.destroy();
     }
     throw err;
   } finally {
-    await cubeDBConn.release();
+    await cubeDBConn.release(discardConnection);
   }
 }
 
@@ -90,6 +109,7 @@ export async function sendExcel(query: string, queryStore: QueryStore, res: Resp
   logger.debug(`Sending Excel for query id ${queryStore.id}...`);
   const [cubeDBConn] = (await dbManager.getCubeDataSource().driver.obtainMasterConnection()) as [PoolClient];
   let dbStream: QueryStream | null = null;
+  let discardConnection = false;
 
   try {
     await cubeDBConn.query('BEGIN');
@@ -127,6 +147,10 @@ export async function sendExcel(query: string, queryStore: QueryStore, res: Resp
       worksheet.addRow(data).commit();
 
       totalRows++;
+      // wait for the client every so often, so a slow client can't make us hold the whole result in memory
+      if (totalRows % EXCEL_DRAIN_CHECK_ROWS === 0) {
+        await waitForCompressedDrain(res);
+      }
       if (totalRows > EXCEL_ROW_LIMIT) {
         worksheet.commit();
         sheetCount++;
@@ -136,18 +160,29 @@ export async function sendExcel(query: string, queryStore: QueryStore, res: Resp
     }
 
     worksheet.commit();
-    await workbook.commit();
+    await unlessClosed(res, workbook.commit());
     await cubeDBConn.query('COMMIT');
   } catch (err) {
+    dbStream?.destroy();
+    if (isClientDisconnect(err, res)) {
+      // Discard the connection rather than rolling back, which waits for Postgres to reply on this connection and
+      // can hang behind the stream's cursor. Postgres rolls the transaction back when the connection closes.
+      discardConnection = true;
+      logger.info(`Client disconnected before the Excel download for query id ${queryStore.id} finished`);
+      return;
+    }
     await cubeDBConn.query('ROLLBACK').catch(() => {});
     logger.error(err, `Error sending Excel for query id ${queryStore.id}`);
-    dbStream?.destroy();
     if (!res.headersSent) {
       res.status(500).end();
+    } else if (!res.writableEnded) {
+      // the output had already started, so the response can't carry an error status: close it rather than leave the
+      // client waiting for the rest
+      res.destroy();
     }
     throw err;
   } finally {
-    await cubeDBConn.release();
+    await cubeDBConn.release(discardConnection);
   }
 }
 
@@ -155,6 +190,7 @@ export async function sendJson(query: string, queryStore: QueryStore, res: Respo
   logger.debug(`Sending JSON for query id ${queryStore.id}...`);
   const [cubeDBConn] = (await dbManager.getCubeDataSource().driver.obtainMasterConnection()) as [PoolClient];
   let dbStream: QueryStream | null = null;
+  let discardConnection = false;
 
   try {
     await cubeDBConn.query('BEGIN');
@@ -163,31 +199,40 @@ export async function sendJson(query: string, queryStore: QueryStore, res: Respo
     res.setHeader('Content-Type', 'application/json');
     res.setHeader('Content-Disposition', `attachment;filename=${queryStore.datasetId}.json`);
 
-    res.write('[');
+    await writeAndWait(res, '[');
     let isFirstRow = true;
 
     for await (const row of dbStream as AsyncIterable<unknown>) {
-      if (isFirstRow) {
-        isFirstRow = false;
-      } else {
-        res.write(',\n');
-      }
-      res.write(JSON.stringify(row));
+      // wait for the client whenever the response buffer is full, so a slow client can't make us hold the whole
+      // result in memory
+      await writeAndWait(res, `${isFirstRow ? '' : ',\n'}${JSON.stringify(row)}`);
+      isFirstRow = false;
     }
 
-    res.write(']');
+    await writeAndWait(res, ']');
     await cubeDBConn.query('COMMIT');
     res.end();
   } catch (err) {
+    dbStream?.destroy();
+    if (isClientDisconnect(err, res)) {
+      // Discard the connection rather than rolling back, which waits for Postgres to reply on this connection and
+      // can hang behind the stream's cursor. Postgres rolls the transaction back when the connection closes.
+      discardConnection = true;
+      logger.info(`Client disconnected before the JSON download for query id ${queryStore.id} finished`);
+      return;
+    }
     await cubeDBConn.query('ROLLBACK').catch(() => {});
     logger.error(err, `Error sending JSON for query id ${queryStore.id}`);
-    dbStream?.destroy();
     if (!res.headersSent) {
       res.status(500).end();
+    } else if (!res.writableEnded) {
+      // the output had already started, so the response can't carry an error status: close it rather than leave the
+      // client waiting for the rest
+      res.destroy();
     }
     throw err;
   } finally {
-    await cubeDBConn.release();
+    await cubeDBConn.release(discardConnection);
   }
 }
 
@@ -195,6 +240,7 @@ export async function sendHtml(query: string, queryStore: QueryStore, res: Respo
   logger.debug(`Sending HTML for query id ${queryStore.id}...`);
   const [cubeDBConn] = (await dbManager.getCubeDataSource().driver.obtainMasterConnection()) as [PoolClient];
   let dbStream: QueryStream | null = null;
+  let discardConnection = false;
 
   try {
     await cubeDBConn.query('BEGIN');
@@ -223,39 +269,45 @@ export async function sendHtml(query: string, queryStore: QueryStore, res: Respo
 
       // Add headers from first row
       if (isFirstRow) {
-        Object.keys(row).forEach((key) => {
-          res.write(`<th>${escape(key)}</th>`);
-        });
-        res.write('</tr></thead><tbody>');
+        const headers = Object.keys(row)
+          .map((key) => `<th>${escape(key)}</th>`)
+          .join('');
+        await writeAndWait(res, `${headers}</tr></thead><tbody>`);
         isFirstRow = false;
       }
 
-      // Add data row
-      res.write('<tr>');
-      Object.values(row).forEach((value) => {
-        res.write(`<td>${value === null ? '' : escape(value as string)}</td>`);
-      });
-      res.write('</tr>');
+      // Add data row, waiting for the client whenever the response buffer is full, so a slow client can't make us
+      // hold the whole result in memory
+      const cells = Object.values(row)
+        .map((value) => `<td>${value === null ? '' : escape(value as string)}</td>`)
+        .join('');
+      await writeAndWait(res, `<tr>${cells}</tr>`);
     }
 
-    if (!hasData) {
-      res.write(`</tr></thead><tbody></tbody>`);
-    } else {
-      res.write(`</tbody>`);
-    }
-    res.write(`</table></body></html>`);
+    await writeAndWait(res, `${hasData ? '</tbody>' : '</tr></thead><tbody></tbody>'}</table></body></html>`);
     await cubeDBConn.query('COMMIT');
     res.end();
   } catch (err) {
+    dbStream?.destroy();
+    if (isClientDisconnect(err, res)) {
+      // Discard the connection rather than rolling back, which waits for Postgres to reply on this connection and
+      // can hang behind the stream's cursor. Postgres rolls the transaction back when the connection closes.
+      discardConnection = true;
+      logger.info(`Client disconnected before the HTML download for query id ${queryStore.id} finished`);
+      return;
+    }
     await cubeDBConn.query('ROLLBACK').catch(() => {});
     logger.error(err, `Error sending HTML for query id ${queryStore.id}`);
-    dbStream?.destroy();
     if (!res.headersSent) {
       res.status(500).end();
+    } else if (!res.writableEnded) {
+      // the output had already started, so the response can't carry an error status: close it rather than leave the
+      // client waiting for the rest
+      res.destroy();
     }
     throw err;
   } finally {
-    await cubeDBConn.release();
+    await cubeDBConn.release(discardConnection);
   }
 }
 

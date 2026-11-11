@@ -104,6 +104,8 @@ import {
   createPivotOutputUsingDuckDB,
   getSortedPivotColumns
 } from '../../../src/services/pivots';
+import { createStalledResponse, settle } from '../../helpers/stalled-response';
+import { logger } from '../../../src/utils/logger';
 
 // Helper to create a mock QueryStore
 function createMockQueryStore(overrides: Partial<QueryStore> = {}): QueryStore {
@@ -138,6 +140,29 @@ function createMockDuckDBResult(
         yield rows;
       }
     }
+  };
+}
+
+// A pivot result that makes `batches` batches of `batchSize` rows only as they are read, and counts how many batches
+// it has made. Rows are padded so that buffers fill after a few hundred rows, whatever their exact sizes.
+function createCountingDuckDBResult(
+  batches: number,
+  batchSize: number
+): { result: ReturnType<typeof createMockDuckDBResult>; made: () => number } {
+  let made = 0;
+  const padding = 'x'.repeat(100);
+  return {
+    result: {
+      columnNames: () => ['Area', '2020', '2021'],
+      async *yieldRows() {
+        while (made < batches) {
+          const start = made * batchSize;
+          made++;
+          yield Array.from({ length: batchSize }, (_, i) => [`area ${start + i} ${padding}`, start + i, start + i]);
+        }
+      }
+    },
+    made: () => made
   };
 }
 
@@ -494,6 +519,131 @@ describe('pivots service', () => {
       mockDuckdbRun.mockResolvedValue({ rowCount: rows.length });
       mockDuckdbStream.mockResolvedValue(mockResult);
     }
+
+    describe('when the client reads slowly', () => {
+      const BATCHES = 100;
+      const BATCH_SIZE = 100;
+      const formats = [
+        OutputFormats.Json,
+        OutputFormats.Csv,
+        OutputFormats.Html,
+        OutputFormats.Excel,
+        OutputFormats.Frontend
+      ];
+
+      function setupCountingPivot(): () => number {
+        const pivot = createCountingDuckDBResult(BATCHES, BATCH_SIZE);
+        mockDuckdbRun.mockResolvedValue({ rowCount: BATCHES * BATCH_SIZE });
+        mockDuckdbStream.mockResolvedValue(pivot.result);
+        mockGetFilterTable.mockResolvedValue([]);
+        mockResolveDimensionToFactTableColumn.mockReturnValue('period_col');
+        mockGetById.mockResolvedValue({ dimensions: [] });
+        mockQueryRunnerQuery.mockResolvedValue([]);
+        return pivot.made;
+      }
+
+      it.each(formats)('%s output waits for the client before reading more rows', async (format) => {
+        const made = setupCountingPivot();
+        const res = createStalledResponse();
+
+        const done = createPivotOutputUsingDuckDB(
+          res,
+          'en',
+          'PIVOT (...)',
+          defaultPageOptions({ format }),
+          createMockQueryStore()
+        );
+        await settle(made);
+
+        expect(made()).toBeLessThan(BATCHES / 2);
+
+        res.resumeClient();
+        await done;
+
+        expect(made()).toBe(BATCHES);
+        expect(res.writableEnded).toBe(true);
+        expect(mockReleaseDuckDB).toHaveBeenCalledTimes(1);
+      });
+
+      it.each(formats)('%s output stops if the client disconnects', async (format) => {
+        const made = setupCountingPivot();
+        const res = createStalledResponse();
+
+        const done = createPivotOutputUsingDuckDB(
+          res,
+          'en',
+          'PIVOT (...)',
+          defaultPageOptions({ format }),
+          createMockQueryStore()
+        );
+        await settle(made);
+        res.destroy();
+        await done.catch(() => {});
+
+        expect(made()).toBeLessThan(BATCHES / 2);
+        expect(mockReleaseDuckDB).toHaveBeenCalledTimes(1);
+      });
+
+      it.each(formats)('%s output treats a disconnect as normal, not an error', async (format) => {
+        const made = setupCountingPivot();
+        const res = createStalledResponse();
+
+        const done = createPivotOutputUsingDuckDB(
+          res,
+          'en',
+          'PIVOT (...)',
+          defaultPageOptions({ format }),
+          createMockQueryStore()
+        );
+        await settle(made);
+        res.destroy();
+
+        await expect(done).resolves.toBeUndefined();
+        expect(logger.error).not.toHaveBeenCalled();
+      });
+
+      it.each(formats)('%s output closes the response if the pivot fails part way through', async (format) => {
+        mockDuckdbRun.mockResolvedValue({ rowCount: 2 });
+        mockDuckdbStream.mockResolvedValue({
+          columnNames: () => ['Area', '2020', '2021'],
+          async *yieldRows() {
+            yield [['Cardiff', 1, 2]];
+            throw new Error('pivot failed');
+          }
+        });
+        mockGetFilterTable.mockResolvedValue([]);
+        mockResolveDimensionToFactTableColumn.mockReturnValue('period_col');
+        mockGetById.mockResolvedValue({ dimensions: [] });
+        mockQueryRunnerQuery.mockResolvedValue([]);
+        const res = createStalledResponse();
+        res.resumeClient();
+
+        await expect(
+          createPivotOutputUsingDuckDB(res, 'en', 'PIVOT (...)', defaultPageOptions({ format }), createMockQueryStore())
+        ).rejects.toThrow();
+
+        expect(res.destroyed).toBe(true);
+      });
+
+      it('CSV output sends every row', async () => {
+        setupCountingPivot();
+        const res = createStalledResponse();
+        res.resumeClient();
+
+        await createPivotOutputUsingDuckDB(
+          res,
+          'en',
+          'PIVOT (...)',
+          defaultPageOptions({ format: OutputFormats.Csv }),
+          createMockQueryStore()
+        );
+
+        const lines = res.body().trim().split('\n');
+        const last = BATCHES * BATCH_SIZE - 1;
+        expect(lines).toHaveLength(BATCHES * BATCH_SIZE + 1);
+        expect(lines[lines.length - 1]).toBe(`area ${last} ${'x'.repeat(100)},${last},${last}`);
+      });
+    });
 
     describe('JSON output', () => {
       it('produces valid JSON with all data', async () => {
