@@ -602,6 +602,29 @@ describe('pivots service', () => {
         expect(logger.error).not.toHaveBeenCalled();
       });
 
+      it.each(formats)('%s output closes the response if the pivot fails part way through', async (format) => {
+        mockDuckdbRun.mockResolvedValue({ rowCount: 2 });
+        mockDuckdbStream.mockResolvedValue({
+          columnNames: () => ['Area', '2020', '2021'],
+          async *yieldRows() {
+            yield [['Cardiff', 1, 2]];
+            throw new Error('pivot failed');
+          }
+        });
+        mockGetFilterTable.mockResolvedValue([]);
+        mockResolveDimensionToFactTableColumn.mockReturnValue('period_col');
+        mockGetById.mockResolvedValue({ dimensions: [] });
+        mockQueryRunnerQuery.mockResolvedValue([]);
+        const res = createStalledResponse();
+        res.resumeClient();
+
+        await expect(
+          createPivotOutputUsingDuckDB(res, 'en', 'PIVOT (...)', defaultPageOptions({ format }), createMockQueryStore())
+        ).rejects.toThrow();
+
+        expect(res.destroyed).toBe(true);
+      });
+
       it('CSV output sends every row', async () => {
         setupCountingPivot();
         const res = createStalledResponse();

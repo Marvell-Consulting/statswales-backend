@@ -86,6 +86,16 @@ describe('stream-backpressure', () => {
       await expect(result).rejects.toBeInstanceOf(StreamClosedError);
     });
 
+    it('leaves a stream that closed early safe from a late error event', async () => {
+      const stream = createHeldWritable();
+      const result = unlessClosed(stream, new Promise(() => {}));
+      stream.destroy();
+      await expect(result).rejects.toBeInstanceOf(StreamClosedError);
+
+      // work that is still running, such as exceljs finishing a file, may make the stream emit an error later
+      expect(() => stream.emit('error', new Error('late write'))).not.toThrow();
+    });
+
     it('does not treat a stream closing after it has finished as a disconnect', async () => {
       const stream = createHeldWritable(1024);
       stream.release();

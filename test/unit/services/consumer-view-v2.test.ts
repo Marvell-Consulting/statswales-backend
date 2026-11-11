@@ -662,26 +662,26 @@ describe('consumer-view-v2 service', () => {
         await done.catch(() => {});
 
         expect(db.made()).toBeLessThan(TOTAL / 2);
-        expect(client.query).toHaveBeenCalledWith('ROLLBACK');
+        // the connection is discarded rather than rolled back, because a rollback waits for Postgres on that
+        // connection, which can hang
+        expect(client.query).not.toHaveBeenCalledWith('ROLLBACK');
         expect(mockRelease).toHaveBeenCalledTimes(1);
+        expect(mockRelease).toHaveBeenCalledWith(true);
       }
     );
 
-    it.each(downloads.filter(([format]) => format !== 'CSV'))(
-      '%s download treats a disconnect as normal, not an error',
-      async (_format, download) => {
-        const db = createCountingDbStream(TOTAL);
-        mockObtainMasterConnection.mockResolvedValue([createMockPoolClient(db.stream)]);
-        const res = createStalledResponse();
+    it.each(downloads)('%s download treats a disconnect as normal, not an error', async (_format, download) => {
+      const db = createCountingDbStream(TOTAL);
+      mockObtainMasterConnection.mockResolvedValue([createMockPoolClient(db.stream)]);
+      const res = createStalledResponse();
 
-        const done = download('SELECT * FROM test', createMockQueryStore(), res);
-        await settle(db.made);
-        res.destroy();
+      const done = download('SELECT * FROM test', createMockQueryStore(), res);
+      await settle(db.made);
+      res.destroy();
 
-        await expect(done).resolves.toBeUndefined();
-        expect(logger.error).not.toHaveBeenCalled();
-      }
-    );
+      await expect(done).resolves.toBeUndefined();
+      expect(logger.error).not.toHaveBeenCalled();
+    });
 
     it('JSON download sends every row as valid JSON', async () => {
       const db = createCountingDbStream(TOTAL);

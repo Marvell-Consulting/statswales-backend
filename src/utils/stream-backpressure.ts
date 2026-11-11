@@ -7,6 +7,13 @@ export class StreamClosedError extends Error {
   }
 }
 
+// True when an error from a download means the client went away before it finished, rather than something failing.
+// Covers our own StreamClosedError and errors such as ERR_STREAM_PREMATURE_CLOSE from pipeline() when the response
+// is destroyed.
+export function isClientDisconnect(err: unknown, res: Writable): boolean {
+  return err instanceof StreamClosedError || (res.destroyed && !res.writableFinished);
+}
+
 function isClosed(stream: Writable): boolean {
   return stream.destroyed || stream.writableEnded;
 }
@@ -95,6 +102,11 @@ export async function unlessClosed<T>(stream: Writable, work: Promise<T>): Promi
     return await Promise.race([work, closed]);
   } finally {
     stopWatching();
+    if (stream.destroyed && !stream.writableFinished) {
+      // `work` may still be running and write to the closed stream, which can emit 'error' later. Nobody is
+      // listening by then, and an unhandled 'error' event would crash the process, so ignore it.
+      stream.on('error', () => {});
+    }
   }
 }
 

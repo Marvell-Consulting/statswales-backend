@@ -25,8 +25,8 @@ import { makeCubeSafeString } from './cube-builder';
 import { DimensionType, LookupTableTypes } from '../enums/dimension-type';
 import { neutralizeCsvCell, neutralizeCsvRow } from '../utils/csv-sanitizer';
 import {
-  StreamClosedError,
   endPipedStream,
+  isClientDisconnect,
   unlessClosed,
   waitForCompressedDrain,
   writeAndWait
@@ -393,9 +393,14 @@ export async function createPivotOutputUsingDuckDB(
         break;
     }
   } catch (err) {
-    if (err instanceof StreamClosedError) {
+    if (isClientDisconnect(err, res)) {
       logger.info(`Client disconnected before the pivot for query id ${queryStore.id} finished`);
       return;
+    }
+    // if the output had already started, the response can't carry an error status, so close it rather than leave the
+    // client waiting for the rest
+    if (res.headersSent && !res.writableEnded) {
+      res.destroy();
     }
     if (err instanceof Error && err.message.includes('Binder Error')) {
       throw new BadRequestException('Invalid sort by column');

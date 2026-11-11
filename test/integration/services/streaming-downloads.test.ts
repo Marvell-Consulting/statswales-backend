@@ -90,7 +90,8 @@ describe('Streaming downloads against a real cube database', () => {
     const workbook = new ExcelJS.Workbook();
     // @ts-expect-error ExcelJS types expect old Buffer, Node 24 returns Buffer<ArrayBuffer>
     await workbook.xlsx.load(res.buffer());
-    return workbook.worksheets.reduce((total, sheet) => total + sheet.actualRowCount - 1, 0); // minus headers
+    // only the first sheet has a header row
+    return workbook.worksheets.reduce((total, sheet) => total + sheet.actualRowCount, 0) - 1;
   };
 
   const downloads: [

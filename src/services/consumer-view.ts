@@ -24,8 +24,8 @@ import { FilterRow } from '../interfaces/filter-row';
 import { Dimension } from '../entities/dataset/dimension';
 import { neutralizeCsvCell, neutralizeCsvRecord, neutralizeCsvRow } from '../utils/csv-sanitizer';
 import {
-  StreamClosedError,
   endPipedStream,
+  isClientDisconnect,
   unlessClosed,
   waitForCompressedDrain,
   writeAndWait
@@ -345,6 +345,7 @@ export const createStreamingJSONFilteredView = async (
   const viewName = checkAvailableViews(view);
   const [cubeDBConn] = (await dbManager.getCubeDataSource().driver.obtainMasterConnection()) as [PoolClient];
   let cursor: Cursor | undefined;
+  let discardConnection = false;
 
   try {
     await cubeDBConn.query('BEGIN');
@@ -381,13 +382,16 @@ export const createStreamingJSONFilteredView = async (
     await cubeDBConn.query('COMMIT');
     res.end();
   } catch (error) {
-    // close the cursor first: while it is open, it holds the connection and the rollback would wait behind it forever
-    await cursor?.close().catch(() => {});
-    await cubeDBConn.query('ROLLBACK').catch(() => {});
-    if (error instanceof StreamClosedError) {
+    if (isClientDisconnect(error, res)) {
+      // Discard the connection rather than closing the cursor and rolling back: both wait for Postgres to reply on
+      // this connection, which can hang. Postgres rolls the transaction back when the connection closes.
+      discardConnection = true;
       logger.info(`Client disconnected before the download of revision ${revisionId} finished`);
       return;
     }
+    // close the cursor first: while it is open, it holds the connection and the rollback would wait behind it forever
+    await cursor?.close().catch(() => {});
+    await cubeDBConn.query('ROLLBACK').catch(() => {});
     logger.error(error, 'Something went wrong trying to read from the view of the cube');
     if (!res.headersSent) {
       res.status(500).end();
@@ -395,7 +399,7 @@ export const createStreamingJSONFilteredView = async (
       res.destroy(error instanceof Error ? error : undefined);
     }
   } finally {
-    cubeDBConn.release();
+    cubeDBConn.release(discardConnection);
   }
 };
 
@@ -412,6 +416,7 @@ export const createStreamingCSVFilteredView = async (
   const viewName = checkAvailableViews(view);
   const [cubeDBConn] = (await dbManager.getCubeDataSource().driver.obtainMasterConnection()) as [PoolClient];
   let cursor: Cursor | undefined;
+  let discardConnection = false;
   let csvStream: CsvFormatterStream<Row, Row> | undefined;
 
   try {
@@ -456,13 +461,16 @@ export const createStreamingCSVFilteredView = async (
   } catch (error) {
     // free anything the CSV stream still holds; once the client has gone, nothing will read it
     csvStream?.destroy();
-    // close the cursor first: while it is open, it holds the connection and the rollback would wait behind it forever
-    await cursor?.close().catch(() => {});
-    await cubeDBConn.query('ROLLBACK').catch(() => {});
-    if (error instanceof StreamClosedError) {
+    if (isClientDisconnect(error, res)) {
+      // Discard the connection rather than closing the cursor and rolling back: both wait for Postgres to reply on
+      // this connection, which can hang. Postgres rolls the transaction back when the connection closes.
+      discardConnection = true;
       logger.info(`Client disconnected before the download of revision ${revisionId} finished`);
       return;
     }
+    // close the cursor first: while it is open, it holds the connection and the rollback would wait behind it forever
+    await cursor?.close().catch(() => {});
+    await cubeDBConn.query('ROLLBACK').catch(() => {});
     logger.error(error, 'Something went wrong trying to read from the view of the cube');
     if (!res.headersSent) {
       res.status(500).end();
@@ -470,7 +478,7 @@ export const createStreamingCSVFilteredView = async (
       res.destroy(error instanceof Error ? error : undefined);
     }
   } finally {
-    cubeDBConn.release();
+    cubeDBConn.release(discardConnection);
   }
 };
 
@@ -487,6 +495,7 @@ export const createStreamingExcelFilteredView = async (
   const viewName = checkAvailableViews(view);
   const [cubeDBConn] = (await dbManager.getCubeDataSource().driver.obtainMasterConnection()) as [PoolClient];
   let cursor: Cursor | undefined;
+  let discardConnection = false;
 
   try {
     await cubeDBConn.query('BEGIN');
@@ -550,13 +559,16 @@ export const createStreamingExcelFilteredView = async (
     await unlessClosed(res, workbook.commit());
     await cubeDBConn.query('COMMIT');
   } catch (error) {
-    // close the cursor first: while it is open, it holds the connection and the rollback would wait behind it forever
-    await cursor?.close().catch(() => {});
-    await cubeDBConn.query('ROLLBACK').catch(() => {});
-    if (error instanceof StreamClosedError) {
+    if (isClientDisconnect(error, res)) {
+      // Discard the connection rather than closing the cursor and rolling back: both wait for Postgres to reply on
+      // this connection, which can hang. Postgres rolls the transaction back when the connection closes.
+      discardConnection = true;
       logger.info(`Client disconnected before the download of revision ${revisionId} finished`);
       return;
     }
+    // close the cursor first: while it is open, it holds the connection and the rollback would wait behind it forever
+    await cursor?.close().catch(() => {});
+    await cubeDBConn.query('ROLLBACK').catch(() => {});
     logger.error(error, 'Something went wrong trying to read from the view of the cube');
     if (!res.headersSent) {
       res.status(500).end();
@@ -564,6 +576,6 @@ export const createStreamingExcelFilteredView = async (
       res.destroy(error instanceof Error ? error : undefined);
     }
   } finally {
-    cubeDBConn.release();
+    cubeDBConn.release(discardConnection);
   }
 };

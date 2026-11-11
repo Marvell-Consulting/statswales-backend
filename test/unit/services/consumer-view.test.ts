@@ -280,13 +280,11 @@ describe('consumer-view (v1) service', () => {
       await done;
 
       expect(db.reads()).toBeLessThan(BATCHES / 2);
-      // the cursor must be closed before the rollback, or the rollback waits behind it and never runs
-      expect(mockCursorClose).toHaveBeenCalled();
-      expect(mockCursorClose.mock.invocationCallOrder[0]).toBeLessThan(
-        mockPoolQuery.mock.invocationCallOrder[mockPoolQuery.mock.calls.findIndex(([q]) => q === 'ROLLBACK')]
-      );
-      expect(mockPoolQuery).toHaveBeenCalledWith('ROLLBACK');
+      // the connection is discarded rather than rolled back: closing the cursor and rolling back both wait for
+      // Postgres on that connection, which can hang
       expect(mockPoolRelease).toHaveBeenCalledTimes(1);
+      expect(mockPoolRelease).toHaveBeenCalledWith(true);
+      expect(mockPoolQuery).not.toHaveBeenCalledWith('ROLLBACK');
     });
   });
 
