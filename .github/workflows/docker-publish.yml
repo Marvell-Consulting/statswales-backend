@@ -29,6 +29,9 @@ permissions:
 
 jobs:
   build:
+    # A manual run publishes and signs the image like a push to main does, so only allow it on main. Otherwise anyone
+    # with write access could publish an unreviewed branch.
+    if: github.event_name != 'workflow_dispatch' || github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     permissions:
       contents: read
