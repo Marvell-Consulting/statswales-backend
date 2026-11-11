@@ -233,7 +233,13 @@ function createAllTypesOfPeriod(dateFormat: DateExtractor, dataColumn: string[])
   logger.debug(`date extractor = ${JSON.stringify(dateFormat)}`);
   if (dateFormat.quarterFormat && dateFormat.quarterTotalIsFifthQuart) {
     logger.debug('5th quarter used to represent whole year totals');
-    return periodTableCreator(dateFormat, dataColumn, GeneratorType.Quarter, ParentType.Year);
+    referenceTable = periodTableCreator(dateFormat, dataColumn, GeneratorType.Quarter, ParentType.Year);
+    if (dateFormat.monthFormat) {
+      logger.debug('Month format present... creating month entries');
+      referenceTable = referenceTable.concat(
+        periodTableCreator(dateFormat, dataColumn, GeneratorType.Month, ParentType.Quarter)
+      );
+    }
   } else {
     // We always need years generate those first
     logger.debug('Creating table for year');
@@ -329,7 +335,12 @@ function periodTableCreator(
 
     let parent: string | null = null;
     if (parentType === ParentType.Year) {
-      parent = yearFormat
+      // when the year total is the fifth quarter, quarters belong to that code rather than a plain year code
+      const parentFormat =
+        dateFormat.quarterTotalIsFifthQuart && generationType === GeneratorType.Quarter
+          ? formatObj.formatStr.replace('[quarterNo]', '5')
+          : yearFormat;
+      parent = parentFormat
         .replace('[full-start]', formatUTC(displayYear, 'yyyy'))
         .replace('[full-end]', formatUTC(add(displayYear, { years: 1 }), 'yyyy'))
         .replace('[end-year]', formatUTC(add(displayYear, { years: 1 }), 'yy'));
@@ -376,7 +387,7 @@ function periodTableCreator(
       });
     }
 
-    if (dateFormat.quarterTotalIsFifthQuart && quarterIndex === 4) {
+    if (dateFormat.quarterTotalIsFifthQuart && generationType === GeneratorType.Quarter && quarterIndex === 4) {
       const yearStr = formatObj.formatStr
         .replace('[full-start]', formatUTC(displayYear, 'yyyy'))
         .replace('[full-end]', formatUTC(add(displayYear, { years: 1 }), 'yyyy'))
@@ -391,9 +402,10 @@ function periodTableCreator(
           description:
             dateFormat.type === YearType.Calendar
               ? formatUTC(displayYear, 'yyyy')
-              : `${formatUTC(displayYear, 'yyyy')}-${formatUTC(add(displayYear, { years: 1 }), 'yy')}`,
-          start: year,
-          end: sub(add(year, { months: 12 }), { days: 1 }),
+              : `${formatUTC(displayYear, 'yyyy')}${type.separator}${formatUTC(add(displayYear, { years: 1 }), 'yy')}`,
+          // the year total covers the whole year, not the twelve months from the start of the fourth quarter
+          start: displayYear,
+          end: sub(add(displayYear, { months: 12 }), { days: 1 }),
           type: t(`date_format.year.${dateFormat.type}`, { lng: locale }),
           hierarchy: null
         });

@@ -492,6 +492,114 @@ describe('date-matching', () => {
     });
   });
 
+  describe('dateDimensionReferenceTableCreator - fifth quarter as year total', () => {
+    const extractor: DateExtractor = {
+      type: YearType.Calendar,
+      yearFormat: 'YYYY',
+      quarterFormat: '_X',
+      quarterTotalIsFifthQuart: true
+    };
+
+    // a full year of quarters with its total, then a year that has only its first quarter so far
+    const dateCodes = ['2024_1', '2024_2', '2024_3', '2024_4', '2024_5', '2025_1', '2025_5'];
+    const englishRows = () =>
+      dateDimensionReferenceTableCreator(
+        extractor,
+        dateCodes.map((dateCode) => ({ dateCode }))
+      ).filter((item) => item.lang === 'en-gb');
+
+    test('only includes date codes that are in the data when the last year is not complete', () => {
+      const codes = englishRows().map((item) => item.dateCode);
+
+      expect(codes.sort()).toEqual([...dateCodes].sort());
+    });
+
+    test('quarter entries link to the fifth quarter code for their year', () => {
+      const rows = englishRows();
+
+      expect(rows.find((item) => item.dateCode === '2024_2')?.hierarchy).toBe('2024_5');
+      expect(rows.find((item) => item.dateCode === '2025_1')?.hierarchy).toBe('2025_5');
+      expect(rows.find((item) => item.dateCode === '2024_5')?.hierarchy).toBeNull();
+    });
+
+    test('the year total covers the whole calendar year', () => {
+      const total = englishRows().find((item) => item.dateCode === '2024_5');
+
+      expect(total?.start).toEqual(utc('2024-01-01T00:00:00Z'));
+      expect(total?.end).toEqual(utc('2024-12-31T00:00:00Z'));
+    });
+
+    test('the year total covers the whole financial year', () => {
+      const financial: DateExtractor = {
+        type: YearType.Financial,
+        yearFormat: 'YYYYYY',
+        quarterFormat: 'QX',
+        quarterTotalIsFifthQuart: true
+      };
+      const codes = ['202324Q1', '202324Q2', '202324Q3', '202324Q4', '202324Q5'];
+      const result = dateDimensionReferenceTableCreator(
+        financial,
+        codes.map((dateCode) => ({ dateCode }))
+      );
+      const total = result.find((item) => item.dateCode === '202324Q5');
+
+      expect(total?.start).toEqual(utc('2023-04-01T00:00:00Z'));
+      expect(total?.end).toEqual(utc('2024-03-31T00:00:00Z'));
+    });
+
+    test('includes months, linked to their quarter, when there is a month format', () => {
+      const withMonths: DateExtractor = { ...extractor, monthFormat: 'mMM' };
+      const codes = [
+        '2024_1',
+        '2024_2',
+        '2024_3',
+        '2024_4',
+        '2024_5',
+        ...Array.from({ length: 12 }, (_, i) => `2024m${String(i + 1).padStart(2, '0')}`)
+      ];
+      const rows = dateDimensionReferenceTableCreator(
+        withMonths,
+        codes.map((dateCode) => ({ dateCode }))
+      ).filter((item) => item.lang === 'en-gb');
+
+      expect(rows.map((item) => item.dateCode).sort()).toEqual([...codes].sort());
+      expect(rows.find((item) => item.dateCode === '2024m02')?.hierarchy).toBe('2024_1');
+      expect(rows.find((item) => item.dateCode === '2024m11')?.hierarchy).toBe('2024_4');
+    });
+
+    test('the year total uses the separator for the type of year in its description', () => {
+      const academic: DateExtractor = {
+        type: YearType.Academic,
+        yearFormat: 'YYYY/YY',
+        quarterFormat: 'QX',
+        quarterTotalIsFifthQuart: true
+      };
+      const result = dateDimensionReferenceTableCreator(academic, [
+        { dateCode: '2023/24Q1' },
+        { dateCode: '2023/24Q5' }
+      ]);
+      const total = result.find((item) => item.dateCode === '2023/24Q5' && item.lang === 'en-gb');
+
+      expect(total?.description).toBe('2023/24');
+    });
+
+    test('does not add year total rows to months when there is no quarter format', () => {
+      const monthsOnly: DateExtractor = {
+        type: YearType.Calendar,
+        yearFormat: 'YYYY',
+        monthFormat: 'mMM',
+        quarterTotalIsFifthQuart: true
+      };
+      const codes = ['2024', ...Array.from({ length: 12 }, (_, i) => `2024m${String(i + 1).padStart(2, '0')}`)];
+      const rows = dateDimensionReferenceTableCreator(
+        monthsOnly,
+        codes.map((dateCode) => ({ dateCode }))
+      ).filter((item) => item.lang === 'en-gb');
+
+      expect(rows.map((item) => item.dateCode).sort()).toEqual([...codes].sort());
+    });
+  });
+
   describe('dateDimensionReferenceTableCreator - timezone independence', () => {
     const originalTZ = process.env.TZ;
 
