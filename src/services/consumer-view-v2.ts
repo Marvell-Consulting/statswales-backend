@@ -37,9 +37,11 @@ import {
 import { KeysetSortColumn, buildKeysetWhere } from './keyset-where-builder';
 import { resolveDefaultSort } from './default-sort-resolver';
 import { neutralizeCsvCell, neutralizeCsvRecord, neutralizeCsvRow } from '../utils/csv-sanitizer';
+import { StreamClosedError, unlessClosed, waitForCompressedDrain, writeAndWait } from '../utils/stream-backpressure';
 
 const EXCEL_ROW_LIMIT = 1048576 - 76; // Excel Limit is 1,048,576 but removed 76 rows because ?
 const HIGH_WATER_MARK = 500; // max rows to buffer in memory at once when streaming from the database
+const EXCEL_DRAIN_CHECK_ROWS = 500; // how often an Excel download checks whether the client has caught up
 
 function csvSanitizeTransform(): Transform {
   return new Transform({
@@ -127,6 +129,10 @@ export async function sendExcel(query: string, queryStore: QueryStore, res: Resp
       worksheet.addRow(data).commit();
 
       totalRows++;
+      // wait for the client every so often, so a slow client can't make us hold the whole result in memory
+      if (totalRows % EXCEL_DRAIN_CHECK_ROWS === 0) {
+        await waitForCompressedDrain(res);
+      }
       if (totalRows > EXCEL_ROW_LIMIT) {
         worksheet.commit();
         sheetCount++;
@@ -136,12 +142,16 @@ export async function sendExcel(query: string, queryStore: QueryStore, res: Resp
     }
 
     worksheet.commit();
-    await workbook.commit();
+    await unlessClosed(res, workbook.commit());
     await cubeDBConn.query('COMMIT');
   } catch (err) {
     await cubeDBConn.query('ROLLBACK').catch(() => {});
-    logger.error(err, `Error sending Excel for query id ${queryStore.id}`);
     dbStream?.destroy();
+    if (err instanceof StreamClosedError) {
+      logger.info(`Client disconnected before the Excel download for query id ${queryStore.id} finished`);
+      return;
+    }
+    logger.error(err, `Error sending Excel for query id ${queryStore.id}`);
     if (!res.headersSent) {
       res.status(500).end();
     }
@@ -163,25 +173,27 @@ export async function sendJson(query: string, queryStore: QueryStore, res: Respo
     res.setHeader('Content-Type', 'application/json');
     res.setHeader('Content-Disposition', `attachment;filename=${queryStore.datasetId}.json`);
 
-    res.write('[');
+    await writeAndWait(res, '[');
     let isFirstRow = true;
 
     for await (const row of dbStream as AsyncIterable<unknown>) {
-      if (isFirstRow) {
-        isFirstRow = false;
-      } else {
-        res.write(',\n');
-      }
-      res.write(JSON.stringify(row));
+      // wait for the client whenever the response buffer is full, so a slow client can't make us hold the whole
+      // result in memory
+      await writeAndWait(res, `${isFirstRow ? '' : ',\n'}${JSON.stringify(row)}`);
+      isFirstRow = false;
     }
 
-    res.write(']');
+    await writeAndWait(res, ']');
     await cubeDBConn.query('COMMIT');
     res.end();
   } catch (err) {
     await cubeDBConn.query('ROLLBACK').catch(() => {});
-    logger.error(err, `Error sending JSON for query id ${queryStore.id}`);
     dbStream?.destroy();
+    if (err instanceof StreamClosedError) {
+      logger.info(`Client disconnected before the JSON download for query id ${queryStore.id} finished`);
+      return;
+    }
+    logger.error(err, `Error sending JSON for query id ${queryStore.id}`);
     if (!res.headersSent) {
       res.status(500).end();
     }
@@ -223,19 +235,19 @@ export async function sendHtml(query: string, queryStore: QueryStore, res: Respo
 
       // Add headers from first row
       if (isFirstRow) {
-        Object.keys(row).forEach((key) => {
-          res.write(`<th>${escape(key)}</th>`);
-        });
-        res.write('</tr></thead><tbody>');
+        const headers = Object.keys(row)
+          .map((key) => `<th>${escape(key)}</th>`)
+          .join('');
+        await writeAndWait(res, `${headers}</tr></thead><tbody>`);
         isFirstRow = false;
       }
 
-      // Add data row
-      res.write('<tr>');
-      Object.values(row).forEach((value) => {
-        res.write(`<td>${value === null ? '' : escape(value as string)}</td>`);
-      });
-      res.write('</tr>');
+      // Add data row, waiting for the client whenever the response buffer is full, so a slow client can't make us
+      // hold the whole result in memory
+      const cells = Object.values(row)
+        .map((value) => `<td>${value === null ? '' : escape(value as string)}</td>`)
+        .join('');
+      await writeAndWait(res, `<tr>${cells}</tr>`);
     }
 
     if (!hasData) {
@@ -248,8 +260,12 @@ export async function sendHtml(query: string, queryStore: QueryStore, res: Respo
     res.end();
   } catch (err) {
     await cubeDBConn.query('ROLLBACK').catch(() => {});
-    logger.error(err, `Error sending HTML for query id ${queryStore.id}`);
     dbStream?.destroy();
+    if (err instanceof StreamClosedError) {
+      logger.info(`Client disconnected before the HTML download for query id ${queryStore.id} finished`);
+      return;
+    }
+    logger.error(err, `Error sending HTML for query id ${queryStore.id}`);
     if (!res.headersSent) {
       res.status(500).end();
     }

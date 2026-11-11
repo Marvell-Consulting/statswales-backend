@@ -95,6 +95,8 @@ import {
   buildDataQuery,
   buildCursorFromRow
 } from '../../../src/services/consumer-view-v2';
+import { createStalledResponse, settle } from '../../helpers/stalled-response';
+import { logger } from '../../../src/utils/logger';
 
 // Postgres undefined_table (42P01), as thrown when a core view has been dropped
 function undefinedTableError(): QueryFailedError {
@@ -194,6 +196,27 @@ function createMockDbStream(rows: Record<string, unknown>[]): Readable {
     }
   });
   return stream;
+}
+
+// A database stream that makes `total` rows only as they are read, and counts how many it has made. Rows are padded
+// so that buffers fill after a few hundred rows, whatever their exact sizes.
+function createCountingDbStream(total: number): { stream: Readable; made: () => number } {
+  let made = 0;
+  const padding = 'x'.repeat(100);
+  const stream = new Readable({
+    objectMode: true,
+    highWaterMark: 16,
+    // push synchronously, like a database that answers instantly, so only the reader decides how fast rows are made
+    read() {
+      if (made < total) {
+        this.push({ id: made, label: `row ${made} ${padding}` });
+        made++;
+      } else {
+        this.push(null);
+      }
+    }
+  });
+  return { stream, made: () => made };
 }
 
 // Helper to create a mock pool client
@@ -595,6 +618,93 @@ describe('consumer-view-v2 service', () => {
 
       await expect(sendHtml('SELECT * FROM test', queryStore, res)).rejects.toThrow('HTML query failed');
       expect(mockRelease).toHaveBeenCalled();
+    });
+  });
+
+  describe('when the client reads slowly', () => {
+    const TOTAL = 5000;
+    const downloads: [string, typeof sendCsv][] = [
+      ['CSV', sendCsv],
+      ['JSON', sendJson],
+      ['HTML', sendHtml],
+      ['Excel', sendExcel]
+    ];
+
+    it.each(downloads)('%s download waits for the client before reading more rows', async (_format, download) => {
+      const db = createCountingDbStream(TOTAL);
+      mockObtainMasterConnection.mockResolvedValue([createMockPoolClient(db.stream)]);
+      const res = createStalledResponse();
+
+      const done = download('SELECT * FROM test', createMockQueryStore(), res);
+      await settle();
+
+      expect(db.made()).toBeLessThan(TOTAL / 2);
+
+      res.resumeClient();
+      await done;
+
+      expect(db.made()).toBe(TOTAL);
+      expect(res.writableEnded).toBe(true);
+      expect(mockRelease).toHaveBeenCalledTimes(1);
+    });
+
+    it.each(downloads)(
+      '%s download stops and releases the connection if the client disconnects',
+      async (_format, download) => {
+        const db = createCountingDbStream(TOTAL);
+        const client = createMockPoolClient(db.stream);
+        mockObtainMasterConnection.mockResolvedValue([client]);
+        const res = createStalledResponse();
+
+        const done = download('SELECT * FROM test', createMockQueryStore(), res);
+        await settle();
+        res.destroy();
+        await done.catch(() => {});
+
+        expect(db.made()).toBeLessThan(TOTAL / 2);
+        expect(client.query).toHaveBeenCalledWith('ROLLBACK');
+        expect(mockRelease).toHaveBeenCalledTimes(1);
+      }
+    );
+
+    it.each(downloads.filter(([format]) => format !== 'CSV'))(
+      '%s download treats a disconnect as normal, not an error',
+      async (_format, download) => {
+        const db = createCountingDbStream(TOTAL);
+        mockObtainMasterConnection.mockResolvedValue([createMockPoolClient(db.stream)]);
+        const res = createStalledResponse();
+
+        const done = download('SELECT * FROM test', createMockQueryStore(), res);
+        await settle();
+        res.destroy();
+
+        await expect(done).resolves.toBeUndefined();
+        expect(logger.error).not.toHaveBeenCalled();
+      }
+    );
+
+    it('JSON download sends every row as valid JSON', async () => {
+      const db = createCountingDbStream(TOTAL);
+      mockObtainMasterConnection.mockResolvedValue([createMockPoolClient(db.stream)]);
+      const res = createStalledResponse();
+      res.resumeClient();
+
+      await sendJson('SELECT * FROM test', createMockQueryStore(), res);
+
+      expect(JSON.parse(res.body())).toHaveLength(TOTAL);
+    });
+
+    it('HTML download sends every row', async () => {
+      const db = createCountingDbStream(TOTAL);
+      mockObtainMasterConnection.mockResolvedValue([createMockPoolClient(db.stream)]);
+      const res = createStalledResponse();
+      res.resumeClient();
+
+      await sendHtml('SELECT * FROM test', createMockQueryStore(), res);
+
+      const body = res.body();
+      expect(body.match(/<tr>/g)).toHaveLength(TOTAL + 1); // the header row plus one per data row
+      expect(body.trim().endsWith('</table></body></html>')).toBe(true);
     });
   });
 

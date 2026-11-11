@@ -1,4 +1,5 @@
 import { Response } from 'express';
+import { finished } from 'node:stream/promises';
 import { escape } from 'lodash';
 
 import { format as pgformat } from '@scaleleap/pg-format/lib/pg-format';
@@ -24,6 +25,7 @@ import { UnknownException } from '../exceptions/unknown.exception';
 import { makeCubeSafeString } from './cube-builder';
 import { DimensionType, LookupTableTypes } from '../enums/dimension-type';
 import { neutralizeCsvCell, neutralizeCsvRow } from '../utils/csv-sanitizer';
+import { StreamClosedError, unlessClosed, waitForCompressedDrain, writeAndWait } from '../utils/stream-backpressure';
 
 const EXCEL_ROW_LIMIT = 1048576 - 76; // Excel Limit is 1,048,576 but removed 76 rows because ?
 
@@ -127,16 +129,14 @@ async function pivotToJson(
   let first = true;
   for await (const rows of pivot.yieldRows()) {
     for (const row of rows) {
-      if (first) {
-        first = false;
-      } else {
-        res.write(',\n');
-      }
       const jsonRow =
         '{' +
         columnOrder.map((col, i) => `${JSON.stringify(col)}:${JSON.stringify(row[columnMapping[i]])}`).join(',') +
         '}';
-      res.write(jsonRow);
+      // wait for the client whenever the response buffer is full, so a slow client can't make us hold the whole
+      // pivot in memory
+      await writeAndWait(res, `${first ? '' : ',\n'}${jsonRow}`);
+      first = false;
     }
   }
   res.write(']');
@@ -200,13 +200,11 @@ async function pivotToFrontend(
   let rowCount = 0;
   for await (const rows of pivot.yieldRows()) {
     for (const row of rows) {
-      if (firstRow) {
-        firstRow = false;
-      } else {
-        res.write(',\n');
-      }
       const reorderedRow = reorderRow(row, columnMapping);
-      res.write(JSON.stringify(reorderedRow));
+      // wait for the client whenever the response buffer is full, so a slow client can't make us hold the whole
+      // pivot in memory
+      await writeAndWait(res, `${firstRow ? '' : ',\n'}${JSON.stringify(reorderedRow)}`);
+      firstRow = false;
       rowCount++;
     }
   }
@@ -239,17 +237,21 @@ async function pivotToCsv(
     'Content-disposition': `attachment;filename=pivot-${Date.now()}.csv`
   });
   const stream = csvFormat({ delimiter: ',', headers: neutralizeCsvRow(columnOrder) as string[] });
-  stream.pipe(res);
+  // don't let the CSV stream end the response: we add a final new line once it has finished
+  stream.pipe(res, { end: false });
 
   for await (const rows of pivot.yieldRows()) {
     for (const row of rows) {
       const reorderedRow = neutralizeCsvRow(reorderRow(row, columnMapping));
-      stream.write(reorderedRow);
+      // wait for the client whenever the CSV stream's buffer is full, so a slow client can't make us hold the whole
+      // pivot in memory
+      await writeAndWait(stream, reorderedRow, res);
     }
   }
-  res.write('\n');
-  res.end();
+  // end the CSV stream and wait until everything in it has reached the response, before ending the response
   stream.end();
+  await unlessClosed(res, finished(stream));
+  res.end('\n');
 }
 
 async function pivotToExcel(
@@ -285,6 +287,9 @@ async function pivotToExcel(
       });
       worksheet.addRow(data).commit();
     }
+    // wait for the client before reading the next batch, so a slow client can't make us hold the whole pivot in
+    // memory
+    await waitForCompressedDrain(res);
     totalRows += rows.length;
     if (totalRows > EXCEL_ROW_LIMIT) {
       worksheet.commit();
@@ -294,7 +299,7 @@ async function pivotToExcel(
     }
   }
   worksheet.commit();
-  await workbook.commit();
+  await unlessClosed(res, workbook.commit());
 }
 
 async function pivotToHtml(
@@ -328,16 +333,16 @@ async function pivotToHtml(
   res.write('</tr></thead><tbody>');
   for await (const rows of pivot.yieldRows()) {
     for (const row of rows) {
-      res.write('<tr>');
-      columnMapping.forEach((srcIdx, i) => {
-        const value = row[srcIdx];
-        if (i === 0) {
-          res.write(`<th>${value === null ? '' : escape(String(value))}</th>`);
-        } else {
-          res.write(`<td>${value === null ? '' : escape(String(value))}</td>`);
-        }
-      });
-      res.write('</tr>');
+      const cells = columnMapping
+        .map((srcIdx, i) => {
+          const value = row[srcIdx];
+          const tag = i === 0 ? 'th' : 'td';
+          return `<${tag}>${value === null ? '' : escape(String(value))}</${tag}>`;
+        })
+        .join('');
+      // wait for the client whenever the response buffer is full, so a slow client can't make us hold the whole
+      // pivot in memory
+      await writeAndWait(res, `<tr>${cells}</tr>`);
     }
   }
   res.write('</tbody>\n' + '</table>\n' + '</body>\n' + '</html>\n');
@@ -381,6 +386,10 @@ export async function createPivotOutputUsingDuckDB(
         break;
     }
   } catch (err) {
+    if (err instanceof StreamClosedError) {
+      logger.info(`Client disconnected before the pivot for query id ${queryStore.id} finished`);
+      return;
+    }
     if (err instanceof Error && err.message.includes('Binder Error')) {
       throw new BadRequestException('Invalid sort by column');
     }

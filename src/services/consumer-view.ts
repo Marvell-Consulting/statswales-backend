@@ -23,6 +23,13 @@ import { coreViewChooser, dateColumnsFromDimensions, sortFilterRows, transformHi
 import { FilterRow } from '../interfaces/filter-row';
 import { Dimension } from '../entities/dataset/dimension';
 import { neutralizeCsvCell, neutralizeCsvRecord, neutralizeCsvRow } from '../utils/csv-sanitizer';
+import {
+  StreamClosedError,
+  endPipedStream,
+  unlessClosed,
+  waitForCompressedDrain,
+  writeAndWait
+} from '../utils/stream-backpressure';
 
 // Caller-supplied dataset loader: lets the publisher path go through DatasetRepository (publisher pool,
 // supports drafts) and the consumer path through PublishedDatasetRepository (consumer pool,
@@ -358,25 +365,26 @@ export const createStreamingJSONFilteredView = async (
     let rows = await cursor.read(CURSOR_ROW_LIMIT);
     res.setHeader('content-type', 'application/json');
     res.flushHeaders();
-    res.write('[');
+    await writeAndWait(res, '[');
     let firstRow = true;
     while (rows.length > 0) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      rows.forEach((row: any) => {
-        if (firstRow) {
-          firstRow = false;
-        } else {
-          res.write(',\n');
-        }
-        res.write(JSON.stringify(row));
-      });
+      for (const row of rows) {
+        // wait for the client whenever the response buffer is full, so a slow client can't make us hold the whole
+        // result in memory
+        await writeAndWait(res, `${firstRow ? '' : ',\n'}${JSON.stringify(row)}`);
+        firstRow = false;
+      }
       rows = await cursor.read(CURSOR_ROW_LIMIT);
     }
-    res.write(']');
+    await writeAndWait(res, ']');
     await cubeDBConn.query('COMMIT');
     res.end();
   } catch (error) {
     await cubeDBConn.query('ROLLBACK').catch(() => {});
+    if (error instanceof StreamClosedError) {
+      logger.info(`Client disconnected before the download of revision ${revisionId} finished`);
+      return;
+    }
     logger.error(error, 'Something went wrong trying to read from the view of the cube');
     if (!res.headersSent) {
       res.status(500).end();
@@ -426,17 +434,25 @@ export const createStreamingCSVFilteredView = async (
       stream.pipe(res);
       while (rows.length > 0) {
         for (const row of rows) {
-          stream.write(neutralizeCsvRecord(row));
+          // wait for the client whenever the CSV stream's buffer is full, so a slow client can't make us hold the
+          // whole result in memory
+          await writeAndWait(stream, neutralizeCsvRecord(row), res);
         }
         rows = await cursor.read(CURSOR_ROW_LIMIT);
       }
+      await cubeDBConn.query('COMMIT');
+      // ending the CSV stream ends the response once everything buffered in it has been written
+      await endPipedStream(stream, res);
     } else {
-      res.write('\n');
+      await cubeDBConn.query('COMMIT');
+      res.end('\n');
     }
-    await cubeDBConn.query('COMMIT');
-    res.end();
   } catch (error) {
     await cubeDBConn.query('ROLLBACK').catch(() => {});
+    if (error instanceof StreamClosedError) {
+      logger.info(`Client disconnected before the download of revision ${revisionId} finished`);
+      return;
+    }
     logger.error(error, 'Something went wrong trying to read from the view of the cube');
     if (!res.headersSent) {
       res.status(500).end();
@@ -506,6 +522,9 @@ export const createStreamingExcelFilteredView = async (
           });
           worksheet.addRow(data).commit();
         }
+        // wait for the client before reading the next batch, so a slow client can't make us hold the whole result
+        // in memory
+        await waitForCompressedDrain(res);
         totalRows += CURSOR_ROW_LIMIT;
         if (totalRows > EXCEL_ROW_LIMIT) {
           worksheet.commit();
@@ -517,10 +536,14 @@ export const createStreamingExcelFilteredView = async (
       }
     }
     worksheet.commit();
-    await workbook.commit();
+    await unlessClosed(res, workbook.commit());
     await cubeDBConn.query('COMMIT');
   } catch (error) {
     await cubeDBConn.query('ROLLBACK').catch(() => {});
+    if (error instanceof StreamClosedError) {
+      logger.info(`Client disconnected before the download of revision ${revisionId} finished`);
+      return;
+    }
     logger.error(error, 'Something went wrong trying to read from the view of the cube');
     if (!res.headersSent) {
       res.status(500).end();

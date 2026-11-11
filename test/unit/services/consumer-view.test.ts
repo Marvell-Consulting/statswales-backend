@@ -61,7 +61,13 @@ jest.mock('../../../src/utils/consumer', () => ({
 const mockCursorRead = jest.fn();
 jest.mock('pg-cursor', () => jest.fn().mockImplementation((query: string) => ({ __isCursor: true, query })));
 
-import { createStreamingCSVFilteredView, createStreamingExcelFilteredView } from '../../../src/services/consumer-view';
+import {
+  createStreamingCSVFilteredView,
+  createStreamingExcelFilteredView,
+  createStreamingJSONFilteredView
+} from '../../../src/services/consumer-view';
+import { createStalledResponse, settle } from '../../helpers/stalled-response';
+import { logger } from '../../../src/utils/logger';
 
 function setupDbMocks(rows: Record<string, unknown>[]): void {
   mockQueryRunnerQuery.mockResolvedValue([]); // no column-order metadata -> defaults to SELECT *
@@ -80,6 +86,31 @@ function setupDbMocks(rows: Record<string, unknown>[]): void {
     // filter_table lookup for column/dimension names
     return Promise.resolve({ rows: [] });
   });
+}
+
+// Rows are padded so that buffers fill after a few hundred rows, whatever their exact sizes.
+const PADDING = 'x'.repeat(100);
+const pagedRow = (n: number): Record<string, unknown> => ({ id: n, label: `row ${n} ${PADDING}` });
+
+// Serves `batches` batches of `batchSize` rows from the cursor, and counts how many batches have been read.
+function setupPagedDbMocks(batches: number, batchSize: number): { reads: () => number } {
+  let served = 0;
+  mockQueryRunnerQuery.mockResolvedValue([]);
+  mockPoolQuery.mockImplementation((arg: unknown) => {
+    if (arg === 'BEGIN' || arg === 'COMMIT' || arg === 'ROLLBACK') return Promise.resolve();
+    if (arg && typeof arg === 'object' && (arg as { __isCursor?: boolean }).__isCursor) {
+      return {
+        read: mockCursorRead.mockImplementation(() => {
+          if (served >= batches) return Promise.resolve([]);
+          const start = served * batchSize;
+          served++;
+          return Promise.resolve(Array.from({ length: batchSize }, (_, i) => pagedRow(start + i)));
+        })
+      };
+    }
+    return Promise.resolve({ rows: [] });
+  });
+  return { reads: () => served };
 }
 
 function createMockStreamResponse(): Response & { writtenData: string[] } {
@@ -139,6 +170,89 @@ describe('consumer-view (v1) service', () => {
       expect(output).toContain(`'=HYPERLINK(""https://evil/"")`);
       expect(output).toContain(`'=1+1`);
       expect(output).toContain(`'+SUM(A1:A2)`);
+    });
+  });
+
+  describe('when the client reads slowly', () => {
+    const BATCHES = 100;
+    const BATCH_SIZE = 100;
+    const LAST = BATCHES * BATCH_SIZE - 1;
+
+    it.each([
+      ['CSV', createStreamingCSVFilteredView],
+      ['JSON', createStreamingJSONFilteredView],
+      ['Excel', createStreamingExcelFilteredView]
+    ])('%s download waits for the client before reading more rows', async (_format, download) => {
+      const db = setupPagedDbMocks(BATCHES, BATCH_SIZE);
+      const res = createStalledResponse();
+
+      const done = download(res, 'test-revision-id', 'en-GB');
+      await settle();
+
+      expect(db.reads()).toBeLessThan(BATCHES / 2);
+
+      res.resumeClient();
+      await done;
+
+      expect(db.reads()).toBe(BATCHES);
+      expect(res.writableEnded).toBe(true);
+      expect(mockPoolRelease).toHaveBeenCalledTimes(1);
+    });
+
+    it.each([
+      ['CSV', createStreamingCSVFilteredView],
+      ['JSON', createStreamingJSONFilteredView],
+      ['Excel', createStreamingExcelFilteredView]
+    ])('%s download treats a disconnect as normal, not an error', async (_format, download) => {
+      setupPagedDbMocks(BATCHES, BATCH_SIZE);
+      const res = createStalledResponse();
+
+      const done = download(res, 'test-revision-id', 'en-GB');
+      await settle();
+      res.destroy();
+      await done;
+
+      expect(logger.error).not.toHaveBeenCalled();
+    });
+
+    it('CSV download sends every row', async () => {
+      setupPagedDbMocks(BATCHES, BATCH_SIZE);
+      const res = createStalledResponse();
+      res.resumeClient();
+
+      await createStreamingCSVFilteredView(res, 'test-revision-id', 'en-GB');
+
+      const lines = res.body().trim().split('\n');
+      expect(lines).toHaveLength(BATCHES * BATCH_SIZE + 1);
+      expect(lines[lines.length - 1]).toBe(`${LAST},${pagedRow(LAST).label}`);
+    });
+
+    it('JSON download sends every row as valid JSON', async () => {
+      setupPagedDbMocks(BATCHES, BATCH_SIZE);
+      const res = createStalledResponse();
+      res.resumeClient();
+
+      await createStreamingJSONFilteredView(res, 'test-revision-id', 'en-GB');
+
+      expect(JSON.parse(res.body())).toHaveLength(BATCHES * BATCH_SIZE);
+    });
+
+    it.each([
+      ['CSV', createStreamingCSVFilteredView],
+      ['JSON', createStreamingJSONFilteredView],
+      ['Excel', createStreamingExcelFilteredView]
+    ])('%s download stops and releases the connection if the client disconnects', async (_format, download) => {
+      const db = setupPagedDbMocks(BATCHES, BATCH_SIZE);
+      const res = createStalledResponse();
+
+      const done = download(res, 'test-revision-id', 'en-GB');
+      await settle();
+      res.destroy();
+      await done;
+
+      expect(db.reads()).toBeLessThan(BATCHES / 2);
+      expect(mockPoolQuery).toHaveBeenCalledWith('ROLLBACK');
+      expect(mockPoolRelease).toHaveBeenCalledTimes(1);
     });
   });
 
