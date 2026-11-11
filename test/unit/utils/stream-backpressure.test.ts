@@ -1,6 +1,12 @@
-import { Writable } from 'node:stream';
+import { PassThrough, Writable } from 'node:stream';
 
-import { StreamClosedError, unlessClosed, waitForDrain, writeAndWait } from '../../../src/utils/stream-backpressure';
+import {
+  StreamClosedError,
+  endPipedStream,
+  unlessClosed,
+  waitForDrain,
+  writeAndWait
+} from '../../../src/utils/stream-backpressure';
 
 // A writable that holds every write until release() is called, like a client that has stopped reading.
 function createHeldWritable(highWaterMark = 16): Writable & { release: () => void } {
@@ -87,6 +93,52 @@ describe('stream-backpressure', () => {
         stream.end('last', () => setImmediate(() => resolve('done')));
       });
       await expect(unlessClosed(stream, work)).resolves.toBe('done');
+    });
+  });
+
+  describe('endPipedStream', () => {
+    it('resolves once the destination has received everything', async () => {
+      const source = new PassThrough();
+      const destination = createHeldWritable(1024);
+      destination.release();
+      source.pipe(destination);
+      source.write('last');
+
+      await expect(endPipedStream(source, destination)).resolves.toBeUndefined();
+      expect(destination.writableFinished).toBe(true);
+    });
+
+    it('rejects with StreamClosedError if the destination closes before it finishes', async () => {
+      const source = new PassThrough();
+      const destination = createHeldWritable();
+      source.pipe(destination);
+      source.write('x'.repeat(100));
+
+      const ending = endPipedStream(source, destination);
+      destination.destroy();
+      await expect(ending).rejects.toBeInstanceOf(StreamClosedError);
+    });
+
+    it('with endsDestination: false, resolves once the source has passed everything on', async () => {
+      const source = new PassThrough();
+      const destination = createHeldWritable(1024);
+      destination.release();
+      source.pipe(destination, { end: false });
+      source.write('last');
+
+      await expect(endPipedStream(source, destination, { endsDestination: false })).resolves.toBeUndefined();
+      expect(destination.writableEnded).toBe(false);
+    });
+
+    it('rejects, rather than waiting forever, if the source fails while flushing', async () => {
+      const source = new PassThrough();
+      const destination = createHeldWritable();
+      source.pipe(destination);
+      source.write('x'.repeat(100));
+
+      const ending = endPipedStream(source, destination);
+      source.destroy(new Error('formatting failed'));
+      await expect(ending).rejects.toThrow('formatting failed');
     });
   });
 });

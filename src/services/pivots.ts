@@ -1,5 +1,4 @@
 import { Response } from 'express';
-import { finished } from 'node:stream/promises';
 import { escape } from 'lodash';
 
 import { format as pgformat } from '@scaleleap/pg-format/lib/pg-format';
@@ -25,7 +24,13 @@ import { UnknownException } from '../exceptions/unknown.exception';
 import { makeCubeSafeString } from './cube-builder';
 import { DimensionType, LookupTableTypes } from '../enums/dimension-type';
 import { neutralizeCsvCell, neutralizeCsvRow } from '../utils/csv-sanitizer';
-import { StreamClosedError, unlessClosed, waitForCompressedDrain, writeAndWait } from '../utils/stream-backpressure';
+import {
+  StreamClosedError,
+  endPipedStream,
+  unlessClosed,
+  waitForCompressedDrain,
+  writeAndWait
+} from '../utils/stream-backpressure';
 
 const EXCEL_ROW_LIMIT = 1048576 - 76; // Excel Limit is 1,048,576 but removed 76 rows because ?
 
@@ -139,8 +144,7 @@ async function pivotToJson(
       first = false;
     }
   }
-  res.write(']');
-  res.write('}');
+  await writeAndWait(res, ']}');
   res.end();
 }
 
@@ -208,7 +212,7 @@ async function pivotToFrontend(
       rowCount++;
     }
   }
-  res.write('],');
+  await writeAndWait(res, '],');
   const totalPages = queryStore.totalPivotLines ? Math.max(1, Math.ceil(queryStore.totalPivotLines / pageSize)) : 0;
   const page_info = {
     current_page: pageNumber,
@@ -218,9 +222,7 @@ async function pivotToFrontend(
     start_record: startRecord,
     end_record: startRecord + rowCount
   };
-  res.write(`"page_info": ${JSON.stringify(page_info)}`);
-
-  res.write(`}`);
+  await writeAndWait(res, `"page_info": ${JSON.stringify(page_info)}}`);
   res.end();
 }
 
@@ -249,8 +251,7 @@ async function pivotToCsv(
     }
   }
   // end the CSV stream and wait until everything in it has reached the response, before ending the response
-  stream.end();
-  await unlessClosed(res, finished(stream));
+  await endPipedStream(stream, res, { endsDestination: false });
   res.end('\n');
 }
 
@@ -345,7 +346,7 @@ async function pivotToHtml(
       await writeAndWait(res, `<tr>${cells}</tr>`);
     }
   }
-  res.write('</tbody>\n' + '</table>\n' + '</body>\n' + '</html>\n');
+  await writeAndWait(res, '</tbody>\n' + '</table>\n' + '</body>\n' + '</html>\n');
   res.end();
 }
 

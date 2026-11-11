@@ -59,6 +59,7 @@ jest.mock('../../../src/utils/consumer', () => ({
 // pg-cursor issues real protocol-level queries against a Client; stub it so cubeDBConn.query()
 // can recognise cursor instances and return a controllable `.read()`.
 const mockCursorRead = jest.fn();
+const mockCursorClose = jest.fn();
 jest.mock('pg-cursor', () => jest.fn().mockImplementation((query: string) => ({ __isCursor: true, query })));
 
 import {
@@ -76,6 +77,7 @@ function setupDbMocks(rows: Record<string, unknown>[]): void {
     if (arg && typeof arg === 'object' && (arg as { __isCursor?: boolean }).__isCursor) {
       let served = false;
       return {
+        close: mockCursorClose.mockResolvedValue(undefined),
         read: mockCursorRead.mockImplementation(() => {
           if (served) return Promise.resolve([]);
           served = true;
@@ -100,6 +102,7 @@ function setupPagedDbMocks(batches: number, batchSize: number): { reads: () => n
     if (arg === 'BEGIN' || arg === 'COMMIT' || arg === 'ROLLBACK') return Promise.resolve();
     if (arg && typeof arg === 'object' && (arg as { __isCursor?: boolean }).__isCursor) {
       return {
+        close: mockCursorClose.mockResolvedValue(undefined),
         read: mockCursorRead.mockImplementation(() => {
           if (served >= batches) return Promise.resolve([]);
           const start = served * batchSize;
@@ -251,6 +254,11 @@ describe('consumer-view (v1) service', () => {
       await done;
 
       expect(db.reads()).toBeLessThan(BATCHES / 2);
+      // the cursor must be closed before the rollback, or the rollback waits behind it and never runs
+      expect(mockCursorClose).toHaveBeenCalled();
+      expect(mockCursorClose.mock.invocationCallOrder[0]).toBeLessThan(
+        mockPoolQuery.mock.invocationCallOrder[mockPoolQuery.mock.calls.findIndex(([q]) => q === 'ROLLBACK')]
+      );
       expect(mockPoolQuery).toHaveBeenCalledWith('ROLLBACK');
       expect(mockPoolRelease).toHaveBeenCalledTimes(1);
     });

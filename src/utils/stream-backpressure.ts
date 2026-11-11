@@ -1,5 +1,4 @@
-import { Writable } from 'node:stream';
-import { finished } from 'node:stream/promises';
+import { Duplex, Writable } from 'node:stream';
 
 export class StreamClosedError extends Error {
   constructor() {
@@ -101,8 +100,53 @@ export async function unlessClosed<T>(stream: Writable, work: Promise<T>): Promi
 
 // Ends `source`, which is piped into `destination`, and waits until `destination` has finished. Use it instead of
 // ending the destination directly, which can cut off data still buffered in the source.
-export async function endPipedStream(source: Writable, destination: Writable): Promise<void> {
-  source.end();
-  // only wait for the writable side: a response is writable, and a duplex test double is never read
-  await finished(destination, { readable: false });
+//
+// Rejects with StreamClosedError if the destination closes first (the client disconnected). Rejects with the source's
+// error if the source fails while flushing: it then stops feeding the destination, which would otherwise never
+// finish. This listens for events directly because `finished()` treats a source that has ended its writable side as
+// done, even if it then fails before passing everything on.
+//
+// Pass `endsDestination: false` when the source was piped with `{ end: false }`. It then resolves once the source has
+// passed everything on, and the caller ends the destination itself.
+export async function endPipedStream(
+  source: Duplex,
+  destination: Writable,
+  { endsDestination = true }: { endsDestination?: boolean } = {}
+): Promise<void> {
+  await new Promise<void>((resolve, reject) => {
+    const doneEvent = endsDestination ? 'finish' : 'end';
+    const doneEmitter = endsDestination ? destination : source;
+    const cleanup = (): void => {
+      doneEmitter.off(doneEvent, onFinish);
+      destination.off('close', onDestinationClose);
+      destination.off('error', onError);
+      source.off('error', onError);
+      source.off('close', onSourceClose);
+    };
+    const onFinish = (): void => {
+      cleanup();
+      resolve();
+    };
+    const onDestinationClose = (): void => {
+      if (destination.writableFinished) return;
+      cleanup();
+      reject(new StreamClosedError());
+    };
+    const onError = (err: Error): void => {
+      cleanup();
+      reject(destination.destroyed && !destination.writableFinished ? new StreamClosedError() : err);
+    };
+    const onSourceClose = (): void => {
+      if (source.readableEnded) return;
+      cleanup();
+      reject(source.errored ?? new Error('The source stream closed before passing on all its data'));
+    };
+
+    doneEmitter.on(doneEvent, onFinish);
+    destination.on('close', onDestinationClose);
+    destination.on('error', onError);
+    source.on('error', onError);
+    source.on('close', onSourceClose);
+    source.end();
+  });
 }

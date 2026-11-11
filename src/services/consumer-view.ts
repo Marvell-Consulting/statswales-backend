@@ -344,6 +344,7 @@ export const createStreamingJSONFilteredView = async (
   const lang = locale.split('-')[0];
   const viewName = checkAvailableViews(view);
   const [cubeDBConn] = (await dbManager.getCubeDataSource().driver.obtainMasterConnection()) as [PoolClient];
+  let cursor: Cursor | undefined;
 
   try {
     await cubeDBConn.query('BEGIN');
@@ -361,7 +362,7 @@ export const createStreamingJSONFilteredView = async (
       sortBy,
       filterBy
     );
-    const cursor = cubeDBConn.query(new Cursor(baseQuery));
+    cursor = cubeDBConn.query(new Cursor(baseQuery));
     let rows = await cursor.read(CURSOR_ROW_LIMIT);
     res.setHeader('content-type', 'application/json');
     res.flushHeaders();
@@ -380,6 +381,8 @@ export const createStreamingJSONFilteredView = async (
     await cubeDBConn.query('COMMIT');
     res.end();
   } catch (error) {
+    // close the cursor first: while it is open, it holds the connection and the rollback would wait behind it forever
+    await cursor?.close().catch(() => {});
     await cubeDBConn.query('ROLLBACK').catch(() => {});
     if (error instanceof StreamClosedError) {
       logger.info(`Client disconnected before the download of revision ${revisionId} finished`);
@@ -408,6 +411,7 @@ export const createStreamingCSVFilteredView = async (
   const lang = locale.split('-')[0];
   const viewName = checkAvailableViews(view);
   const [cubeDBConn] = (await dbManager.getCubeDataSource().driver.obtainMasterConnection()) as [PoolClient];
+  let cursor: Cursor | undefined;
 
   try {
     await cubeDBConn.query('BEGIN');
@@ -425,7 +429,7 @@ export const createStreamingCSVFilteredView = async (
       sortBy,
       filterBy
     );
-    const cursor = cubeDBConn.query(new Cursor(baseQuery));
+    cursor = cubeDBConn.query(new Cursor(baseQuery));
     let rows = await cursor.read(CURSOR_ROW_LIMIT);
     res.setHeader('content-type', 'text/csv');
     res.flushHeaders();
@@ -448,6 +452,8 @@ export const createStreamingCSVFilteredView = async (
       res.end('\n');
     }
   } catch (error) {
+    // close the cursor first: while it is open, it holds the connection and the rollback would wait behind it forever
+    await cursor?.close().catch(() => {});
     await cubeDBConn.query('ROLLBACK').catch(() => {});
     if (error instanceof StreamClosedError) {
       logger.info(`Client disconnected before the download of revision ${revisionId} finished`);
@@ -476,6 +482,7 @@ export const createStreamingExcelFilteredView = async (
   const lang = locale.split('-')[0];
   const viewName = checkAvailableViews(view);
   const [cubeDBConn] = (await dbManager.getCubeDataSource().driver.obtainMasterConnection()) as [PoolClient];
+  let cursor: Cursor | undefined;
 
   try {
     await cubeDBConn.query('BEGIN');
@@ -493,7 +500,7 @@ export const createStreamingExcelFilteredView = async (
       sortBy,
       filterBy
     );
-    const cursor = cubeDBConn.query(new Cursor(baseQuery));
+    cursor = cubeDBConn.query(new Cursor(baseQuery));
     let rows = await cursor.read(CURSOR_ROW_LIMIT);
     res.writeHead(200, {
       // eslint-disable-next-line @typescript-eslint/naming-convention
@@ -539,6 +546,8 @@ export const createStreamingExcelFilteredView = async (
     await unlessClosed(res, workbook.commit());
     await cubeDBConn.query('COMMIT');
   } catch (error) {
+    // close the cursor first: while it is open, it holds the connection and the rollback would wait behind it forever
+    await cursor?.close().catch(() => {});
     await cubeDBConn.query('ROLLBACK').catch(() => {});
     if (error instanceof StreamClosedError) {
       logger.info(`Client disconnected before the download of revision ${revisionId} finished`);

@@ -145,8 +145,9 @@ export async function sendExcel(query: string, queryStore: QueryStore, res: Resp
     await unlessClosed(res, workbook.commit());
     await cubeDBConn.query('COMMIT');
   } catch (err) {
-    await cubeDBConn.query('ROLLBACK').catch(() => {});
+    // destroy the stream first, which closes its cursor: while that is open, the rollback would wait behind it
     dbStream?.destroy();
+    await cubeDBConn.query('ROLLBACK').catch(() => {});
     if (err instanceof StreamClosedError) {
       logger.info(`Client disconnected before the Excel download for query id ${queryStore.id} finished`);
       return;
@@ -187,8 +188,9 @@ export async function sendJson(query: string, queryStore: QueryStore, res: Respo
     await cubeDBConn.query('COMMIT');
     res.end();
   } catch (err) {
-    await cubeDBConn.query('ROLLBACK').catch(() => {});
+    // destroy the stream first, which closes its cursor: while that is open, the rollback would wait behind it
     dbStream?.destroy();
+    await cubeDBConn.query('ROLLBACK').catch(() => {});
     if (err instanceof StreamClosedError) {
       logger.info(`Client disconnected before the JSON download for query id ${queryStore.id} finished`);
       return;
@@ -250,17 +252,13 @@ export async function sendHtml(query: string, queryStore: QueryStore, res: Respo
       await writeAndWait(res, `<tr>${cells}</tr>`);
     }
 
-    if (!hasData) {
-      res.write(`</tr></thead><tbody></tbody>`);
-    } else {
-      res.write(`</tbody>`);
-    }
-    res.write(`</table></body></html>`);
+    await writeAndWait(res, `${hasData ? '</tbody>' : '</tr></thead><tbody></tbody>'}</table></body></html>`);
     await cubeDBConn.query('COMMIT');
     res.end();
   } catch (err) {
-    await cubeDBConn.query('ROLLBACK').catch(() => {});
+    // destroy the stream first, which closes its cursor: while that is open, the rollback would wait behind it
     dbStream?.destroy();
+    await cubeDBConn.query('ROLLBACK').catch(() => {});
     if (err instanceof StreamClosedError) {
       logger.info(`Client disconnected before the HTML download for query id ${queryStore.id} finished`);
       return;
