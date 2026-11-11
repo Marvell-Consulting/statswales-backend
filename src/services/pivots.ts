@@ -242,16 +242,22 @@ async function pivotToCsv(
   // don't let the CSV stream end the response: we add a final new line once it has finished
   stream.pipe(res, { end: false });
 
-  for await (const rows of pivot.yieldRows()) {
-    for (const row of rows) {
-      const reorderedRow = neutralizeCsvRow(reorderRow(row, columnMapping));
-      // wait for the client whenever the CSV stream's buffer is full, so a slow client can't make us hold the whole
-      // pivot in memory
-      await writeAndWait(stream, reorderedRow, res);
+  try {
+    for await (const rows of pivot.yieldRows()) {
+      for (const row of rows) {
+        const reorderedRow = neutralizeCsvRow(reorderRow(row, columnMapping));
+        // wait for the client whenever the CSV stream's buffer is full, so a slow client can't make us hold the whole
+        // pivot in memory
+        await writeAndWait(stream, reorderedRow, res);
+      }
     }
+    // end the CSV stream and wait until everything in it has reached the response, before ending the response
+    await endPipedStream(stream, res, { endsDestination: false });
+  } catch (err) {
+    // free anything the CSV stream still holds; if the client has gone, nothing will read it
+    stream.destroy();
+    throw err;
   }
-  // end the CSV stream and wait until everything in it has reached the response, before ending the response
-  await endPipedStream(stream, res, { endsDestination: false });
   res.end('\n');
 }
 

@@ -636,7 +636,7 @@ describe('consumer-view-v2 service', () => {
       const res = createStalledResponse();
 
       const done = download('SELECT * FROM test', createMockQueryStore(), res);
-      await settle();
+      await settle(db.made);
 
       expect(db.made()).toBeLessThan(TOTAL / 2);
 
@@ -657,7 +657,7 @@ describe('consumer-view-v2 service', () => {
         const res = createStalledResponse();
 
         const done = download('SELECT * FROM test', createMockQueryStore(), res);
-        await settle();
+        await settle(db.made);
         res.destroy();
         await done.catch(() => {});
 
@@ -675,7 +675,7 @@ describe('consumer-view-v2 service', () => {
         const res = createStalledResponse();
 
         const done = download('SELECT * FROM test', createMockQueryStore(), res);
-        await settle();
+        await settle(db.made);
         res.destroy();
 
         await expect(done).resolves.toBeUndefined();

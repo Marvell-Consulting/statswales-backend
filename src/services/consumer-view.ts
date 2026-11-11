@@ -3,7 +3,7 @@ import ExcelJS from 'exceljs';
 import { PoolClient, QueryResult } from 'pg';
 import Cursor from 'pg-cursor';
 import { format as pgformat } from '@scaleleap/pg-format/lib/pg-format';
-import { format as csvFormat } from '@fast-csv/format';
+import { CsvFormatterStream, Row, format as csvFormat } from '@fast-csv/format';
 import { t } from 'i18next';
 import type { FindOptionsRelations } from 'typeorm';
 
@@ -412,6 +412,7 @@ export const createStreamingCSVFilteredView = async (
   const viewName = checkAvailableViews(view);
   const [cubeDBConn] = (await dbManager.getCubeDataSource().driver.obtainMasterConnection()) as [PoolClient];
   let cursor: Cursor | undefined;
+  let csvStream: CsvFormatterStream<Row, Row> | undefined;
 
   try {
     await cubeDBConn.query('BEGIN');
@@ -434,7 +435,8 @@ export const createStreamingCSVFilteredView = async (
     res.setHeader('content-type', 'text/csv');
     res.flushHeaders();
     if (rows.length > 0) {
-      const stream = csvFormat({ delimiter: ',', headers: true });
+      csvStream = csvFormat({ delimiter: ',', headers: true });
+      const stream = csvStream;
       stream.pipe(res);
       while (rows.length > 0) {
         for (const row of rows) {
@@ -452,6 +454,8 @@ export const createStreamingCSVFilteredView = async (
       res.end('\n');
     }
   } catch (error) {
+    // free anything the CSV stream still holds; once the client has gone, nothing will read it
+    csvStream?.destroy();
     // close the cursor first: while it is open, it holds the connection and the rollback would wait behind it forever
     await cursor?.close().catch(() => {});
     await cubeDBConn.query('ROLLBACK').catch(() => {});

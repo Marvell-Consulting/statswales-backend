@@ -553,7 +553,7 @@ describe('pivots service', () => {
           defaultPageOptions({ format }),
           createMockQueryStore()
         );
-        await settle();
+        await settle(made);
 
         expect(made()).toBeLessThan(BATCHES / 2);
 
@@ -576,7 +576,7 @@ describe('pivots service', () => {
           defaultPageOptions({ format }),
           createMockQueryStore()
         );
-        await settle();
+        await settle(made);
         res.destroy();
         await done.catch(() => {});
 
@@ -585,7 +585,7 @@ describe('pivots service', () => {
       });
 
       it.each(formats)('%s output treats a disconnect as normal, not an error', async (format) => {
-        setupCountingPivot();
+        const made = setupCountingPivot();
         const res = createStalledResponse();
 
         const done = createPivotOutputUsingDuckDB(
@@ -595,7 +595,7 @@ describe('pivots service', () => {
           defaultPageOptions({ format }),
           createMockQueryStore()
         );
-        await settle();
+        await settle(made);
         res.destroy();
 
         await expect(done).resolves.toBeUndefined();

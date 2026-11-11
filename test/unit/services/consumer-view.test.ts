@@ -56,6 +56,20 @@ jest.mock('../../../src/utils/consumer', () => ({
   transformHierarchy: jest.fn()
 }));
 
+// Keep hold of each CSV stream the download creates, so tests can check what happens to it.
+const mockCsvStreams: { destroyed: boolean }[] = [];
+jest.mock('@fast-csv/format', () => {
+  const actual = jest.requireActual('@fast-csv/format');
+  return {
+    ...actual,
+    format: (...args: unknown[]) => {
+      const stream = actual.format(...args);
+      mockCsvStreams.push(stream);
+      return stream;
+    }
+  };
+});
+
 // pg-cursor issues real protocol-level queries against a Client; stub it so cubeDBConn.query()
 // can recognise cursor instances and return a controllable `.read()`.
 const mockCursorRead = jest.fn();
@@ -190,7 +204,7 @@ describe('consumer-view (v1) service', () => {
       const res = createStalledResponse();
 
       const done = download(res, 'test-revision-id', 'en-GB');
-      await settle();
+      await settle(db.reads);
 
       expect(db.reads()).toBeLessThan(BATCHES / 2);
 
@@ -207,15 +221,27 @@ describe('consumer-view (v1) service', () => {
       ['JSON', createStreamingJSONFilteredView],
       ['Excel', createStreamingExcelFilteredView]
     ])('%s download treats a disconnect as normal, not an error', async (_format, download) => {
-      setupPagedDbMocks(BATCHES, BATCH_SIZE);
+      const db = setupPagedDbMocks(BATCHES, BATCH_SIZE);
       const res = createStalledResponse();
 
       const done = download(res, 'test-revision-id', 'en-GB');
-      await settle();
+      await settle(db.reads);
       res.destroy();
       await done;
 
       expect(logger.error).not.toHaveBeenCalled();
+    });
+
+    it('CSV download destroys its CSV stream when the client disconnects, freeing what it has buffered', async () => {
+      const db = setupPagedDbMocks(BATCHES, BATCH_SIZE);
+      const res = createStalledResponse();
+
+      const done = createStreamingCSVFilteredView(res, 'test-revision-id', 'en-GB');
+      await settle(db.reads);
+      res.destroy();
+      await done;
+
+      expect(mockCsvStreams[mockCsvStreams.length - 1].destroyed).toBe(true);
     });
 
     it('CSV download sends every row', async () => {
@@ -249,7 +275,7 @@ describe('consumer-view (v1) service', () => {
       const res = createStalledResponse();
 
       const done = download(res, 'test-revision-id', 'en-GB');
-      await settle();
+      await settle(db.reads);
       res.destroy();
       await done;
 

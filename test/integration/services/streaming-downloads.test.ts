@@ -1,4 +1,7 @@
 import { Pool } from 'pg';
+import ExcelJS from 'exceljs';
+// eslint-disable-next-line import/no-unresolved
+import { parse as parseCsv } from 'csv-parse/sync';
 
 import { dbManager } from '../../../src/db/database-manager';
 import { initPassport } from '../../../src/middleware/passport-auth';
@@ -79,14 +82,29 @@ describe('Streaming downloads against a real cube database', () => {
     queryStore = await QueryStoreRepository.generate(DATASET_ID, REVISION_ID, FRONTEND_DATA_OPTIONS);
   }, 300_000);
 
-  const downloads: [string, (res: StalledResponse) => Promise<void>][] = [
-    ['v1 CSV', (res) => createStreamingCSVFilteredView(res, REVISION_ID, 'en-GB')],
-    ['v1 JSON', (res) => createStreamingJSONFilteredView(res, REVISION_ID, 'en-GB')],
-    ['v1 Excel', (res) => createStreamingExcelFilteredView(res, REVISION_ID, 'en-GB')],
-    ['v2 CSV', (res) => sendCsv(queryStore.query['en-GB'], queryStore, res)],
-    ['v2 JSON', (res) => sendJson(queryStore.query['en-GB'], queryStore, res)],
-    ['v2 HTML', (res) => sendHtml(queryStore.query['en-GB'], queryStore, res)],
-    ['v2 Excel', (res) => sendExcel(queryStore.query['en-GB'], queryStore, res)]
+  // Counts the data rows each format sends, so the test can check that every row arrived.
+  const csvRows = (res: StalledResponse): number => parseCsv(res.body(), { columns: true }).length;
+  const jsonRows = (res: StalledResponse): number => (JSON.parse(res.body()) as unknown[]).length;
+  const htmlRows = (res: StalledResponse): number => (res.body().match(/<tr>/g) ?? []).length - 1; // minus header
+  const excelRows = async (res: StalledResponse): Promise<number> => {
+    const workbook = new ExcelJS.Workbook();
+    // @ts-expect-error ExcelJS types expect old Buffer, Node 24 returns Buffer<ArrayBuffer>
+    await workbook.xlsx.load(res.buffer());
+    return workbook.worksheets.reduce((total, sheet) => total + sheet.actualRowCount - 1, 0); // minus headers
+  };
+
+  const downloads: [
+    string,
+    (res: StalledResponse) => Promise<void>,
+    (res: StalledResponse) => number | Promise<number>
+  ][] = [
+    ['v1 CSV', (res) => createStreamingCSVFilteredView(res, REVISION_ID, 'en-GB'), csvRows],
+    ['v1 JSON', (res) => createStreamingJSONFilteredView(res, REVISION_ID, 'en-GB'), jsonRows],
+    ['v1 Excel', (res) => createStreamingExcelFilteredView(res, REVISION_ID, 'en-GB'), excelRows],
+    ['v2 CSV', (res) => sendCsv(queryStore.query['en-GB'], queryStore, res), csvRows],
+    ['v2 JSON', (res) => sendJson(queryStore.query['en-GB'], queryStore, res), jsonRows],
+    ['v2 HTML', (res) => sendHtml(queryStore.query['en-GB'], queryStore, res), htmlRows],
+    ['v2 Excel', (res) => sendExcel(queryStore.query['en-GB'], queryStore, res), excelRows]
   ];
 
   it.each(downloads)(
@@ -96,7 +114,7 @@ describe('Streaming downloads against a real cube database', () => {
       const res = createStalledResponse();
 
       const done = download(res).catch(() => {});
-      await settle(200);
+      await settle(res.bytes);
       res.destroy();
       await finishesWithin(done, 10_000);
 
@@ -107,16 +125,16 @@ describe('Streaming downloads against a real cube database', () => {
 
   it.each(downloads)(
     '%s sends the whole result once a slow client catches up',
-    async (_name, download) => {
+    async (_name, download, countRows) => {
       const res = createStalledResponse();
 
       const done = download(res);
-      await settle(200);
+      await settle(res.bytes);
       res.resumeClient();
       await finishesWithin(done, 20_000);
 
       expect(res.writableEnded).toBe(true);
-      expect(res.body().length).toBeGreaterThan(ROW_COUNT * 10);
+      expect(await countRows(res)).toBe(ROW_COUNT);
     },
     30_000
   );
