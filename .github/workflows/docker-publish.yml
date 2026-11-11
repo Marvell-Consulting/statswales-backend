@@ -27,11 +27,14 @@ permissions:
   contents: read
   security-events: write
 
+# Run builds of the same branch or tag one at a time, so a manual run can't finish out of order with a push or
+# nightly build and leave `latest` pointing at an older image.
+concurrency:
+  group: docker-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   build:
-    # A manual run publishes and signs the image like a push to main does, so only allow it on main. Otherwise anyone
-    # with write access could publish an unreviewed branch.
-    if: github.event_name != 'workflow_dispatch' || github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -42,6 +45,15 @@ jobs:
       security-events: write
 
     steps:
+      # A manual run publishes and signs the image like a push to main does, so only allow it on main, otherwise anyone
+      # with write access could publish an unreviewed branch. Fail rather than skip, so the run doesn't look like a
+      # successful build.
+      - name: Only allow manual builds on main
+        if: github.event_name == 'workflow_dispatch' && github.ref != 'refs/heads/main'
+        run: |
+          echo "::error::Manual Docker builds are only allowed on main. Run the workflow again with main selected."
+          exit 1
+
       # Support for storing multi-platform images
       - name: Set up Docker
         uses: docker/setup-docker-action@e43656e248c0bd0647d3f5c195d116aacf6fcaf4 # v4.7.0
