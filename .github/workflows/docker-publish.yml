@@ -14,6 +14,8 @@ on:
     tags: ['v*.*.*']
   pull_request:
     branches: ['main']
+  # Lets the build be run by hand from the Actions tab, for example if a push build gets stuck.
+  workflow_dispatch:
 
 env:
   # Use docker.io for Docker Hub if empty
@@ -24,6 +26,13 @@ env:
 permissions:
   contents: read
   security-events: write
+
+# Push, nightly and pull request builds of the same ref run one at a time, so they finish in order and `latest` always
+# ends up on the newest build. Each manual run gets a group of its own, so it never waits behind a stuck build, which
+# is what the manual trigger is for.
+concurrency:
+  group: ${{ github.event_name == 'workflow_dispatch' && format('docker-manual-{0}', github.run_id) || format('docker-{0}', github.ref) }}
+  cancel-in-progress: false
 
 jobs:
   build:
@@ -37,6 +46,15 @@ jobs:
       security-events: write
 
     steps:
+      # A manual run publishes and signs the image like a push to main does, so only allow it on main, otherwise anyone
+      # with write access could publish an unreviewed branch. Fail rather than skip, so the run doesn't look like a
+      # successful build.
+      - name: Only allow manual builds on main
+        if: github.event_name == 'workflow_dispatch' && github.ref != 'refs/heads/main'
+        run: |
+          echo "::error::Manual Docker builds are only allowed on main. Start it again and choose main under 'Use workflow from'."
+          exit 1
+
       # Support for storing multi-platform images
       - name: Set up Docker
         uses: docker/setup-docker-action@e43656e248c0bd0647d3f5c195d116aacf6fcaf4 # v4.7.0
@@ -86,8 +104,11 @@ jobs:
         uses: docker/metadata-action@c299e40c65443455700f0fdfc63efafe5b349051 # v5.10.0
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          # `latest` is only moved by push and nightly builds of main (the default branch), as before. A manual run publishes
+          # just its sha tag, which is what deploys use, so it can't leave `latest` pointing at an older image if it
+          # finishes after a newer push build.
           tags: |
-            type=raw,value=latest,enable={{is_default_branch}}
+            type=raw,value=latest,enable=${{ github.event_name != 'workflow_dispatch' && github.ref == 'refs/heads/main' }}
             type=sha
 
       # Build and push Docker image with Buildx (don't push on PR)
