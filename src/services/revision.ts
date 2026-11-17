@@ -78,12 +78,19 @@ export async function attachUpdateDataTableToRevision(
   logger.debug('Attaching update data table to revision and validating cube');
   const start = performance.now();
 
-  const dataset = await DatasetRepository.getById(datasetId, {
-    factTable: true,
-    measure: { measureTable: true, metadata: true },
-    dimensions: { metadata: true, lookupTable: true },
-    revisions: { dataTable: { dataTableDescriptions: true } }
-  });
+  // 'query' loads each relation separately. Joined into one query, these one-to-many relations multiply into a row
+  // per combination: with every revision's column descriptions as well, a dataset with many updates returned enough
+  // rows to run the process out of heap (SW-1365). None of these relations refer to themselves, which 'query'
+  // can't load.
+  const dataset = await DatasetRepository.getById(
+    datasetId,
+    {
+      factTable: true,
+      measure: { measureTable: true, metadata: true },
+      dimensions: { metadata: true, lookupTable: true }
+    },
+    'query'
+  );
 
   // Validate all the columns against the fact table
   if (columnMatcher) {

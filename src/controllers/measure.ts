@@ -129,12 +129,17 @@ export const attachLookupTableToMeasure = async (req: Request, res: Response, ne
 export const getPreviewOfMeasure = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   const lang = req.language.toLowerCase();
 
-  const dataset = await DatasetRepository.getById(res.locals.datasetId, {
-    factTable: true,
-    measure: { metadata: true, measureTable: true, lookupTable: true },
-    draftRevision: { dataTable: { dataTableDescriptions: true } },
-    revisions: { dataTable: { dataTableDescriptions: true } }
-  });
+  // One query per relation, and no revisions, which the preview doesn't use: joined in one query these relations
+  // multiply into enough rows to run the process out of heap for a dataset with many updates (SW-1365).
+  const dataset = await DatasetRepository.getById(
+    res.locals.datasetId,
+    {
+      factTable: true,
+      measure: { metadata: true, measureTable: true, lookupTable: true },
+      draftRevision: { dataTable: { dataTableDescriptions: true } }
+    },
+    'query'
+  );
 
   if (!dataset.measure) {
     next(new NotFoundException('errors.measure_invalid'));

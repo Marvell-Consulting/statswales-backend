@@ -239,6 +239,26 @@ describe('Measure controller', () => {
       expect(res.json).toHaveBeenCalledWith({ rows: [] });
     });
 
+    // Regression guard for SW-1365: the preview doesn't use every revision's column descriptions, and joining them
+    // with the measure's rows in one query can run the process out of heap for a dataset with many updates.
+    it('loads the dataset without its revisions, one query per relation', async () => {
+      mockGetById.mockResolvedValue({ measure: { id: uuidV4() } });
+      mockGetMeasurePreview.mockResolvedValue({ rows: [] });
+
+      const req = createMockRequest();
+      await getPreviewOfMeasure(req, createMockResponse(), mockNext);
+
+      expect(mockGetById).toHaveBeenCalledWith(
+        expect.anything(),
+        {
+          factTable: true,
+          measure: { metadata: true, measureTable: true, lookupTable: true },
+          draftRevision: { dataTable: { dataTableDescriptions: true } }
+        },
+        'query'
+      );
+    });
+
     it('passes NotFound to next when there is no measure', async () => {
       mockGetById.mockResolvedValue({ measure: null });
 
