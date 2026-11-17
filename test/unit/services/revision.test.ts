@@ -199,6 +199,29 @@ describe('revision service', () => {
   });
 
   describe('attachUpdateDataTableToRevision', () => {
+    // Regression guard for SW-1365. Joining these one-to-many relations in one query, with every revision's
+    // column descriptions, returned hundreds of thousands of rows for a dataset with many updates and ran the
+    // process out of heap on 17 Nov 2026. Revisions aren't needed here, and 'query' loads each relation
+    // separately.
+    it('loads the dataset without its revisions, one query per relation', async () => {
+      await attachUpdateDataTableToRevision(
+        'ds-1',
+        makeRevision() as never,
+        makeDataTable() as never,
+        DataTableAction.Add
+      );
+
+      expect(mockDatasetGetById).toHaveBeenCalledWith(
+        'ds-1',
+        {
+          factTable: true,
+          measure: { measureTable: true, metadata: true },
+          dimensions: { metadata: true, lookupTable: true }
+        },
+        'query'
+      );
+    });
+
     it('validates and attaches the data table on the happy path (auto column matching)', async () => {
       const revision = makeRevision();
       const dataTable = makeDataTable();
