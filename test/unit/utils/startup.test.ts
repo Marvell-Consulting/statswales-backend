@@ -23,7 +23,7 @@ describe('isConnectionError', () => {
     }
   );
 
-  test.each(['57P01', '57P02', '57P03', '08000', '08001', '08003', '08004', '08006', '08007'])(
+  test.each(['57P01', '57P02', '57P03', '08000', '08001', '08003', '08004', '08006', '08007', '53300'])(
     'is true for the Postgres connection error %s',
     (code) => {
       expect(isConnectionError(withCode(code))).toBe(true);

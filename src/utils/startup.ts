@@ -23,7 +23,7 @@ export const markStartupComplete = (): void => {
 };
 
 // Network errors from Node, and Postgres SQLSTATEs for a server that is restarting or can't be reached
-// (class 08 connection exceptions, 57P01-57P03 shutdown and startup).
+// (class 08 connection exceptions, 57P01-57P03 shutdown and startup, 53300 no free connection slots).
 const CONNECTION_ERROR_CODES = new Set([
   'ECONNREFUSED',
   'ECONNRESET',
@@ -41,7 +41,9 @@ const CONNECTION_ERROR_CODES = new Set([
   '08003',
   '08004',
   '08006',
-  '08007'
+  '08007',
+  // too_many_connections: likely just after a restart, when every replica's pools reconnect at once.
+  '53300'
 ]);
 
 // Errors that pg and PgBouncer raise without a code, or with a code that also covers other problems.
