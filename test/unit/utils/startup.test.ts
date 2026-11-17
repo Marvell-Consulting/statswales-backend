@@ -51,8 +51,21 @@ describe('isConnectionError', () => {
     expect(isConnectionError(Object.assign(new Error('query failed'), { driverError: withCode('57P01') }))).toBe(true);
   });
 
-  test('is true when any error in an AggregateError is a connection error', () => {
-    expect(isConnectionError(new AggregateError([new Error('x'), withCode('ECONNREFUSED')]))).toBe(true);
+  test('is true when every error in an AggregateError is a connection error', () => {
+    expect(isConnectionError(new AggregateError([withCode('ECONNREFUSED'), withCode('ETIMEDOUT')]))).toBe(true);
+  });
+
+  test('is false when an AggregateError also holds an error that retrying will not fix', () => {
+    const login = withCode('28P01', 'password authentication failed');
+    expect(isConnectionError(new AggregateError([withCode('ECONNREFUSED'), login]))).toBe(false);
+  });
+
+  test('is false for an empty AggregateError', () => {
+    expect(isConnectionError(new AggregateError([]))).toBe(false);
+  });
+
+  test('is false for a message that only contains "timeout expired"', () => {
+    expect(isConnectionError(new Error('lock timeout expired while running migration'))).toBe(false);
   });
 
   test.each([

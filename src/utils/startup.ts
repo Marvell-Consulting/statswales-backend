@@ -46,7 +46,7 @@ const CONNECTION_ERROR_CODES = new Set([
 
 // Errors that pg and PgBouncer raise without a code, or with a code that also covers other problems.
 const CONNECTION_ERROR_MESSAGE =
-  /timeout expired|timeout exceeded when trying to connect|Connection terminated|server login has been failing|the database system is (starting up|shutting down)|no more connections allowed/i;
+  /^timeout expired$|timeout exceeded when trying to connect|Connection terminated|server login has been failing|the database system is (starting up|shutting down)|no more connections allowed/i;
 
 interface ErrorLike {
   code?: unknown;
@@ -64,7 +64,8 @@ export const isConnectionError = (err: unknown, seen = new Set<unknown>()): bool
   const { code, message, cause, driverError, errors } = err as ErrorLike;
   if (typeof code === 'string' && CONNECTION_ERROR_CODES.has(code)) return true;
   if (typeof message === 'string' && CONNECTION_ERROR_MESSAGE.test(message)) return true;
-  if (Array.isArray(errors) && errors.some((e) => isConnectionError(e, seen))) return true;
+  // pg raises an AggregateError when it tries several addresses. Retry only if every attempt failed to connect.
+  if (Array.isArray(errors) && errors.length) return errors.every((e) => isConnectionError(e, seen));
 
   return isConnectionError(driverError, seen) || isConnectionError(cause, seen);
 };

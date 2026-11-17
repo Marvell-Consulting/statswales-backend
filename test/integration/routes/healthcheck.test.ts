@@ -46,6 +46,16 @@ describe('Healthcheck', () => {
       expect(res.body).toEqual({ error: 'starting' });
     });
 
+    test.each(['/auth/local', '/healthcheck/jwt', '/v1/topic'])(
+      '%s returns 503 until startup is complete, before it needs passport or the database',
+      async (path) => {
+        markStartupPending();
+        const res = await request(app).get(path);
+        expect(res.status).toBe(503);
+        expect(res.body).toEqual({ error: 'starting' });
+      }
+    );
+
     test('/healthcheck/ready returns success with session store status', async () => {
       markStartupComplete();
       const res = await request(app).get('/healthcheck/ready');
