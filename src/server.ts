@@ -29,6 +29,12 @@ markStartupPending();
 
 const server = app.listen(PORT, () => {
   logger.info(`Listening on port ${PORT}, connecting to the database...`);
+  // Start only once the port is bound, so a server that couldn't listen is never marked as started.
+  start().catch(async (err) => {
+    logger.error(err, 'Startup failed, process will exit');
+    await dbManager.destroyDataSources().catch(() => undefined);
+    process.exit(1);
+  });
 });
 
 server.on('error', (err) => {
@@ -39,7 +45,7 @@ server.on('error', (err) => {
     .finally(() => process.exit(1));
 });
 
-const start = async (): Promise<void> => {
+async function start(): Promise<void> {
   await retryWhileDatabaseUnreachable(async () => {
     await dbManager.initDataSources();
     if (config.database.runMigrationsOnStart) {
@@ -54,10 +60,4 @@ const start = async (): Promise<void> => {
     { event: 'app_boot', gitSha: config.build.gitSha, appEnv: config.env, port: PORT },
     `Server is running on port ${PORT}`
   );
-};
-
-start().catch(async (err) => {
-  logger.error(err, 'Startup failed, process will exit');
-  await dbManager.destroyDataSources().catch(() => undefined);
-  process.exit(1);
-});
+}

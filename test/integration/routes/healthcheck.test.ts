@@ -39,6 +39,11 @@ describe('Healthcheck', () => {
   });
 
   describe('Server readiness', () => {
+    // These tests mark startup pending. Restore it so other tests see a started server.
+    afterEach(() => {
+      markStartupComplete();
+    });
+
     test('/healthcheck/ready returns 503 until startup is complete', async () => {
       markStartupPending();
       const res = await request(app).get('/healthcheck/ready');
