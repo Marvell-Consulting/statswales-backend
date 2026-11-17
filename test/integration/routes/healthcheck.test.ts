@@ -11,7 +11,7 @@ import { getAuthHeader } from '../../helpers/auth-header';
 import { UserDTO } from '../../../src/dtos/user/user-dto';
 import { config } from '../../../src/config';
 import { AppEnv } from '../../../src/config/env.enum';
-import { markStartupComplete } from '../../../src/utils/startup';
+import { markStartupComplete, markStartupPending } from '../../../src/utils/startup';
 
 jest.mock('../../../src/services/blob-storage', () => {
   return function BlobStorage() {
@@ -40,6 +40,7 @@ describe('Healthcheck', () => {
 
   describe('Server readiness', () => {
     test('/healthcheck/ready returns 503 until startup is complete', async () => {
+      markStartupPending();
       const res = await request(app).get('/healthcheck/ready');
       expect(res.status).toBe(503);
       expect(res.body).toEqual({ error: 'starting' });

@@ -9,6 +9,7 @@ import { publisherDataSource } from './publisher-source';
 import { cubeDataSource } from './cube-source';
 import { logger } from '../utils/logger';
 import { EntitySubscriber } from './entity-subscriber';
+import { pickStartupError } from '../utils/startup';
 
 import { BuildLog } from '../entities/dataset/build-log';
 import { DataTable } from '../entities/dataset/data-table';
@@ -104,8 +105,8 @@ export class DatabaseManager {
       this.initializeDataSource(this.publisherDataSource, 'Publisher'),
       this.initializeDataSource(this.cubeDataSource, 'Cube')
     ]);
-    const failed = results.find((result): result is PromiseRejectedResult => result.status === 'rejected');
-    if (failed) throw failed.reason;
+    const failures = results.filter((result): result is PromiseRejectedResult => result.status === 'rejected');
+    if (failures.length) throw pickStartupError(failures.map((failure) => failure.reason));
 
     this.bindEntityDataSources();
   }

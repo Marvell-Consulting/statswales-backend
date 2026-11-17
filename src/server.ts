@@ -6,7 +6,7 @@ import app from './app';
 import { logger } from './utils/logger';
 import { initPassport } from './middleware/passport-auth';
 import { dbManager } from './db/database-manager';
-import { markStartupComplete, retryWhileDatabaseUnreachable } from './utils/startup';
+import { markStartupComplete, markStartupPending, retryWhileDatabaseUnreachable } from './utils/startup';
 
 // Without these, an unawaited promise rejection (e.g. an abandoned pg pool acquisition)
 // terminates the process under Node's default --unhandled-rejections=throw, with no log
@@ -25,8 +25,18 @@ const PORT = config.backend.port;
 
 // Listen before connecting to the database, so the startup and liveness probes pass while it connects or waits for
 // a database that is restarting. /healthcheck/ready fails until startup is complete, so no traffic comes here first.
-app.listen(PORT, () => {
+markStartupPending();
+
+const server = app.listen(PORT, () => {
   logger.info(`Listening on port ${PORT}, connecting to the database...`);
+});
+
+server.on('error', (err) => {
+  logger.fatal(err, `Could not listen on port ${PORT}, process will exit`);
+  void dbManager
+    .destroyDataSources()
+    .catch(() => undefined)
+    .finally(() => process.exit(1));
 });
 
 const start = async (): Promise<void> => {

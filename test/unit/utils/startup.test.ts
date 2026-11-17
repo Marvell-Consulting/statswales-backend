@@ -8,6 +8,8 @@ import {
   isConnectionError,
   isStartupComplete,
   markStartupComplete,
+  markStartupPending,
+  pickStartupError,
   retryWhileDatabaseUnreachable
 } from '../../../src/utils/startup';
 
@@ -21,7 +23,7 @@ describe('isConnectionError', () => {
     }
   );
 
-  test.each(['57P01', '57P02', '57P03', '08000', '08001', '08003', '08004', '08006'])(
+  test.each(['57P01', '57P02', '57P03', '08000', '08001', '08003', '08004', '08006', '08007'])(
     'is true for the Postgres connection error %s',
     (code) => {
       expect(isConnectionError(withCode(code))).toBe(true);
@@ -35,7 +37,8 @@ describe('isConnectionError', () => {
     'timeout exceeded when trying to connect',
     'server login has been failing, cached error: connect failed (server_login_retry)',
     'the database system is starting up',
-    'the database system is shutting down'
+    'the database system is shutting down',
+    'no more connections allowed (max_client_conn)'
   ])('is true for the message "%s"', (message) => {
     expect(isConnectionError(new Error(message))).toBe(true);
   });
@@ -133,8 +136,24 @@ describe('retryWhileDatabaseUnreachable', () => {
   });
 });
 
+describe('pickStartupError', () => {
+  test('picks an error that is not a connection error, so startup fails at once', () => {
+    const login = withCode('28P01', 'password authentication failed');
+    expect(pickStartupError([withCode('ECONNREFUSED'), login, withCode('57P03')])).toBe(login);
+  });
+
+  test('picks the first error when they are all connection errors, so startup retries', () => {
+    const first = withCode('ECONNREFUSED');
+    expect(pickStartupError([first, withCode('57P03')])).toBe(first);
+  });
+});
+
 describe('startup state', () => {
-  test('is not complete until marked complete', () => {
+  // The server marks startup pending before it listens. Anything that imports the app without the server, such as
+  // the tests, sees it as complete.
+  test('is complete unless the server marks it pending, until it is marked complete', () => {
+    expect(isStartupComplete()).toBe(true);
+    markStartupPending();
     expect(isStartupComplete()).toBe(false);
     markStartupComplete();
     expect(isStartupComplete()).toBe(true);
