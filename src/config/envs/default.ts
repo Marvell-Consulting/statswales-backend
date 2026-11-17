@@ -73,7 +73,9 @@ export const getDefaultConfig = (): AppConfig => {
       idleTimeoutMs: parseInt(process.env.DB_IDLE_TIMEOUT_MS || '10000', 10),
       connectionTimeoutMs: parseInt(process.env.DB_CONNECTION_TIMEOUT_MS || '2000', 10),
       appStatementTimeoutMs: parseInt(process.env.DB_APP_STATEMENT_TIMEOUT_MS || '30000', 10),
-      cubeStatementTimeoutMs: parseInt(process.env.DB_CUBE_STATEMENT_TIMEOUT_MS || '120000', 10)
+      cubeStatementTimeoutMs: parseInt(process.env.DB_CUBE_STATEMENT_TIMEOUT_MS || '120000', 10),
+      // Set in the Docker image, so deployed servers migrate as they start. Off for local development and tests.
+      runMigrationsOnStart: process.env.DB_RUN_MIGRATIONS_ON_START === 'true'
     },
     auth: {
       providers: [],

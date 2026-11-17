@@ -84,6 +84,8 @@ npm run seed:ci
 
 The database schema is managed with [TypeORM](https://typeorm.io/) migrations.
 
+The Docker image sets `DB_RUN_MIGRATIONS_ON_START=true`, so a deployed server runs any pending migrations itself once it has connected to the database. If it can't reach the database, it keeps trying, and `/healthcheck/ready` returns 503 until it has connected and migrated. Locally, run migrations yourself with the commands below.
+
 Display the existing migrations:
 
 ```bash

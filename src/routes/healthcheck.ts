@@ -16,6 +16,7 @@ import { Locale } from '../enums/locale';
 import { UserDTO } from '../dtos/user/user-dto';
 import { config } from '../config';
 import { AppEnv } from '../config/env.enum';
+import { isStartupComplete } from '../utils/startup';
 
 const healthcheck = Router();
 
@@ -68,6 +69,12 @@ const timeout = (timer: number, service: string): Promise<string> =>
   });
 
 const checkConnections = async (req: Request, res: Response): Promise<void> => {
+  // Not ready until the server has connected to the database and run its migrations (see src/utils/startup.ts).
+  if (!isStartupComplete()) {
+    res.status(503).json({ error: 'starting' });
+    return;
+  }
+
   const healthConfig = config.healthcheck;
   const poolStats: (PoolStats | Error)[] = [
     dbPoolStats(dbManager.getConsumerPool()),

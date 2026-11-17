@@ -98,13 +98,26 @@ export class DatabaseManager {
   }
 
   async initDataSources(): Promise<void> {
-    await Promise.all([
+    // Wait for every source to settle before failing, so a retry never starts one that is still connecting.
+    const results = await Promise.allSettled([
       this.initializeDataSource(this.consumerDataSource, 'Consumer'),
       this.initializeDataSource(this.publisherDataSource, 'Publisher'),
       this.initializeDataSource(this.cubeDataSource, 'Cube')
     ]);
+    const failed = results.find((result): result is PromiseRejectedResult => result.status === 'rejected');
+    if (failed) throw failed.reason;
 
     this.bindEntityDataSources();
+  }
+
+  /** Runs any pending migrations on the publisher pool, all in one transaction, and returns their names. */
+  async runMigrations(): Promise<string[]> {
+    const migrations = await this.publisherDataSource.runMigrations({ transaction: 'all' });
+    const names = migrations.map((migration) => migration.name);
+    this.logger.info(
+      names.length ? `Ran ${names.length} migrations: ${names.join(', ')}` : 'No migrations are pending'
+    );
+    return names;
   }
 
   async destroyDataSources(): Promise<void> {

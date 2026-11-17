@@ -80,6 +80,7 @@ export interface AppConfig {
     connectionTimeoutMs?: number;
     appStatementTimeoutMs?: number;
     cubeStatementTimeoutMs?: number;
+    runMigrationsOnStart?: boolean;
   };
   auth: {
     providers: AuthProvider[];
