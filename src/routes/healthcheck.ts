@@ -16,6 +16,8 @@ import { Locale } from '../enums/locale';
 import { UserDTO } from '../dtos/user/user-dto';
 import { config } from '../config';
 import { AppEnv } from '../config/env.enum';
+import { isStartupComplete } from '../utils/startup';
+import { startupGate } from '../middleware/startup-gate';
 
 const healthcheck = Router();
 
@@ -68,6 +70,12 @@ const timeout = (timer: number, service: string): Promise<string> =>
   });
 
 const checkConnections = async (req: Request, res: Response): Promise<void> => {
+  // Not ready until the server has connected to the database and run its migrations (see src/utils/startup.ts).
+  if (!isStartupComplete()) {
+    res.status(503).json({ error: 'starting' });
+    return;
+  }
+
   const healthConfig = config.healthcheck;
   const poolStats: (PoolStats | Error)[] = [
     dbPoolStats(dbManager.getConsumerPool()),
@@ -110,9 +118,15 @@ healthcheck.get('/language', (req: Request, res: Response) => {
 });
 
 // for testing jwt auth is working
-healthcheck.get('/jwt', passport.authenticate('jwt', { session: false }), (req: Request, res: Response) => {
-  res.json({ message: 'success', user: UserDTO.fromUser(req.user as User, req.language as Locale) });
-});
+// Gated because passport's strategies are only set up once startup is complete.
+healthcheck.get(
+  '/jwt',
+  startupGate,
+  passport.authenticate('jwt', { session: false }),
+  (req: Request, res: Response) => {
+    res.json({ message: 'success', user: UserDTO.fromUser(req.user as User, req.language as Locale) });
+  }
+);
 
 // Environments where /healthcheck/db may be hit without a key, for developer convenience.
 const KEYLESS_ENVS: AppEnv[] = [AppEnv.Local, AppEnv.Ci];

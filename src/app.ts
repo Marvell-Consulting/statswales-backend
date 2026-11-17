@@ -14,6 +14,7 @@ import session from './middleware/session';
 import { requestContext } from './middleware/context';
 import { authRouter } from './routes/auth';
 import { healthcheckRouter } from './routes/healthcheck';
+import { startupGate } from './middleware/startup-gate';
 import { datasetRouter } from './routes/dataset';
 import { errorHandler } from './routes/error-handler';
 import { providerRouter } from './routes/provider';
@@ -52,8 +53,10 @@ app.get('/', rateLimiter, (req: Request, res: Response) => {
   res.json({ message: 'success' }); // prevent 404s on root path (avoids logs being flooded with 404s)
 });
 
-app.use('/auth', rateLimiter, session, authRouter);
 app.use('/healthcheck', rateLimiter, healthcheckRouter);
+// Every route after this returns 503 until the server has connected to the database and set up authentication.
+app.use(startupGate);
+app.use('/auth', rateLimiter, session, authRouter);
 app.use('/docs', rateLimiter, combinedDocRouter);
 app.use('/v1/docs', rateLimiter, apiDocRouter);
 app.use('/v2/docs', rateLimiter, apiV2DocRouter);

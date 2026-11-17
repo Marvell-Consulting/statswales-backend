@@ -6,6 +6,7 @@ import app from './app';
 import { logger } from './utils/logger';
 import { initPassport } from './middleware/passport-auth';
 import { dbManager } from './db/database-manager';
+import { markStartupComplete, markStartupPending, retryWhileDatabaseUnreachable } from './utils/startup';
 
 // Without these, an unawaited promise rejection (e.g. an abandoned pg pool acquisition)
 // terminates the process under Node's default --unhandled-rejections=throw, with no log
@@ -22,22 +23,41 @@ process.on('uncaughtException', (err: Error, origin: string) => {
 
 const PORT = config.backend.port;
 
-Promise.resolve()
-  .then(async () => {
-    await dbManager.initDataSources();
-    await dbManager.initEntitySubscriber();
-    await initPassport();
-  })
-  .then(() => {
-    app.listen(PORT, async () => {
-      logger.info(
-        { event: 'app_boot', gitSha: config.build.gitSha, appEnv: config.env, port: PORT },
-        `Server is running on port ${PORT}`
-      );
-    });
-  })
-  .catch(async (err) => {
-    logger.error(err);
-    await dbManager.destroyDataSources();
+// Listen before connecting to the database, so the startup and liveness probes pass while it connects or waits for
+// a database that is restarting. /healthcheck/ready fails until startup is complete, so no traffic comes here first.
+markStartupPending();
+
+const server = app.listen(PORT, () => {
+  logger.info(`Listening on port ${PORT}, connecting to the database...`);
+  // Start only once the port is bound, so a server that couldn't listen is never marked as started.
+  start().catch(async (err) => {
+    logger.error(err, 'Startup failed, process will exit');
+    await dbManager.destroyDataSources().catch(() => undefined);
     process.exit(1);
   });
+});
+
+server.on('error', (err) => {
+  logger.fatal(err, `Could not listen on port ${PORT}, process will exit`);
+  void dbManager
+    .destroyDataSources()
+    .catch(() => undefined)
+    .finally(() => process.exit(1));
+});
+
+async function start(): Promise<void> {
+  await retryWhileDatabaseUnreachable(async () => {
+    await dbManager.initDataSources();
+    if (config.database.runMigrationsOnStart) {
+      await dbManager.runMigrations();
+    }
+  });
+  await dbManager.initEntitySubscriber();
+  await initPassport();
+  markStartupComplete();
+
+  logger.info(
+    { event: 'app_boot', gitSha: config.build.gitSha, appEnv: config.env, port: PORT },
+    `Server is running on port ${PORT}`
+  );
+}

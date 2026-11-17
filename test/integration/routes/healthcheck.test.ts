@@ -11,6 +11,7 @@ import { getAuthHeader } from '../../helpers/auth-header';
 import { UserDTO } from '../../../src/dtos/user/user-dto';
 import { config } from '../../../src/config';
 import { AppEnv } from '../../../src/config/env.enum';
+import { markStartupComplete, markStartupPending } from '../../../src/utils/startup';
 
 jest.mock('../../../src/services/blob-storage', () => {
   return function BlobStorage() {
@@ -38,7 +39,30 @@ describe('Healthcheck', () => {
   });
 
   describe('Server readiness', () => {
+    // These tests mark startup pending. Restore it so other tests see a started server.
+    afterEach(() => {
+      markStartupComplete();
+    });
+
+    test('/healthcheck/ready returns 503 until startup is complete', async () => {
+      markStartupPending();
+      const res = await request(app).get('/healthcheck/ready');
+      expect(res.status).toBe(503);
+      expect(res.body).toEqual({ error: 'starting' });
+    });
+
+    test.each(['/auth/local', '/healthcheck/jwt', '/v1/topic'])(
+      '%s returns 503 until startup is complete, before it needs passport or the database',
+      async (path) => {
+        markStartupPending();
+        const res = await request(app).get(path);
+        expect(res.status).toBe(503);
+        expect(res.body).toEqual({ error: 'starting' });
+      }
+    );
+
     test('/healthcheck/ready returns success with session store status', async () => {
+      markStartupComplete();
       const res = await request(app).get('/healthcheck/ready');
       expect(res.status).toBe(200);
       expect(res.body.message).toBe('success');

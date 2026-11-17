@@ -9,6 +9,7 @@ import { publisherDataSource } from './publisher-source';
 import { cubeDataSource } from './cube-source';
 import { logger } from '../utils/logger';
 import { EntitySubscriber } from './entity-subscriber';
+import { pickStartupError } from '../utils/startup';
 
 import { BuildLog } from '../entities/dataset/build-log';
 import { DataTable } from '../entities/dataset/data-table';
@@ -98,13 +99,26 @@ export class DatabaseManager {
   }
 
   async initDataSources(): Promise<void> {
-    await Promise.all([
+    // Wait for every source to settle before failing, so a retry never starts one that is still connecting.
+    const results = await Promise.allSettled([
       this.initializeDataSource(this.consumerDataSource, 'Consumer'),
       this.initializeDataSource(this.publisherDataSource, 'Publisher'),
       this.initializeDataSource(this.cubeDataSource, 'Cube')
     ]);
+    const failures = results.filter((result): result is PromiseRejectedResult => result.status === 'rejected');
+    if (failures.length) throw pickStartupError(failures.map((failure) => failure.reason));
 
     this.bindEntityDataSources();
+  }
+
+  /** Runs any pending migrations on the publisher pool, all in one transaction, and returns their names. */
+  async runMigrations(): Promise<string[]> {
+    const migrations = await this.publisherDataSource.runMigrations({ transaction: 'all' });
+    const names = migrations.map((migration) => migration.name);
+    this.logger.info(
+      names.length ? `Ran ${names.length} migrations: ${names.join(', ')}` : 'No migrations are pending'
+    );
+    return names;
   }
 
   async destroyDataSources(): Promise<void> {

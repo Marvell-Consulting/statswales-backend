@@ -35,6 +35,8 @@ HEALTHCHECK --interval=60s --timeout=3s --start-period=30s --retries=3 \
     CMD curl --fail http://localhost:3000/healthcheck/ || exit 1
 
 ENV NODE_ENV=production
+# The server runs pending migrations once it has connected to the database (see src/utils/startup.ts).
+ENV DB_RUN_MIGRATIONS_ON_START=true
 EXPOSE 3000
 
 # Bake the git SHA into the image so the running app can report which commit it was built from.
@@ -45,4 +47,4 @@ ENV GIT_SHA=${GIT_SHA}
 # set the user to non-root (node)
 USER node
 
-CMD ["sh", "-c", "/app/node_modules/.bin/typeorm migration:run --dataSource=./dist/db/publisher-source.js && exec node dist/server.js"]
+CMD ["node", "dist/server.js"]
