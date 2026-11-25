@@ -17,6 +17,7 @@ import { QueryStore } from '../entities/query-store';
 import { Dataset } from '../entities/dataset/dataset';
 import { BadRequestException } from '../exceptions/bad-request.exception';
 import { flattenHierarchy, sortFilterRows, transformHierarchy } from '../utils/consumer';
+import { removeValuesWithNoData } from '../utils/filter-values';
 import { PageOptions } from '../interfaces/page-options';
 import { logger } from '../utils/logger';
 import { ConsumerDatasetDTO } from '../dtos/consumer-dataset-dto';
@@ -344,10 +345,12 @@ export async function sendFilters(query: string, res: Response, dateColumns: Set
         hierarchy.values = data.map((val) => {
           return {
             reference: String(val.reference),
-            description: val.description
+            description: val.description,
+            count: val.reference_count != null ? val.reference_count : undefined
           };
         });
       }
+      hierarchy.values = removeValuesWithNoData(hierarchy.values);
       filterData.push(hierarchy);
     }
     res.json(filterData);

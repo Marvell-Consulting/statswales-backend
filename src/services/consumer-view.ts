@@ -20,6 +20,7 @@ import { getColumnHeaders } from '../utils/column-headers';
 import cubeConfig from '../config/cube-view.json';
 import { FactTableToDimensionName } from '../interfaces/fact-table-column-to-dimension-name';
 import { coreViewChooser, dateColumnsFromDimensions, sortFilterRows, transformHierarchy } from '../utils/consumer';
+import { removeValuesWithNoData } from '../utils/filter-values';
 import { FilterRow } from '../interfaces/filter-row';
 import { Dimension } from '../entities/dataset/dimension';
 import { neutralizeCsvCell, neutralizeCsvRecord, neutralizeCsvRow } from '../utils/csv-sanitizer';
@@ -85,6 +86,7 @@ export const getFilters = async (
       }
       const sorted = sortFilterRows(data, dateColumns.has(col));
       const hierarchy = transformHierarchy(sorted[0].fact_table_column, sorted[0].dimension_name, sorted);
+      hierarchy.values = removeValuesWithNoData(hierarchy.values);
       filterData.push(hierarchy);
     }
 
