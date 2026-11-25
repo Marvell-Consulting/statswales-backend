@@ -95,11 +95,14 @@ interface FilterTable {
 const tree = (values: FilterValue[]): unknown[] =>
   values.map((v) => (v.children ? { [v.reference]: tree(v.children) } : v.reference));
 
-const valuesFor = (filters: FilterTable[], factTableColumn: string): unknown[] => {
+const filterFor = (filters: FilterTable[], factTableColumn: string): FilterTable => {
   const filter = filters.find((f) => f.factTableColumn === factTableColumn);
   if (!filter) throw new Error(`No filter returned for column ${factTableColumn}`);
-  return tree(filter.values);
+  return filter;
 };
+
+const valuesFor = (filters: FilterTable[], factTableColumn: string): unknown[] =>
+  tree(filterFor(filters, factTableColumn).values);
 
 describe('Filters leave out values with no data (SW-1410)', () => {
   let dimensions: Dimension[] = [];
@@ -172,9 +175,9 @@ describe('Filters leave out values with no data (SW-1410)', () => {
     it('leaves out a year in the date filter that has no data yet', async () => {
       const res = await request(app).get(`/v2/${DATASET_ID}/filters`);
       expect(res.status).toBe(200);
-      const period = res.body.find((f: FilterTable) => f.factTableColumn === 'PeriodCode');
-      expect(period.values.map((v: FilterValue) => v.reference)).toEqual(['2025']);
-      expect(period.values[0].children.map((v: FilterValue) => v.reference)).toEqual(['2025_2', '2025_1']);
+      const period = filterFor(res.body, 'PeriodCode');
+      expect(period.values.map((v) => v.reference)).toEqual(['2025']);
+      expect((period.values[0].children ?? []).map((v) => v.reference)).toEqual(['2025_2', '2025_1']);
     });
   });
 
