@@ -58,9 +58,10 @@ jest.mock('../../../src/utils/consumer', () => ({
   transformHierarchy: jest.fn((col, dim, data) => ({
     column: col,
     dimension: dim,
-    values: data.map((r: { reference: string; description: string }) => ({
+    values: data.map((r: { reference: string; description: string; reference_count?: string }) => ({
       reference: r.reference,
-      description: r.description
+      description: r.description,
+      count: r.reference_count
     }))
   })),
   flattenHierarchy: jest.fn((nodes) => nodes ?? []),
@@ -758,6 +759,39 @@ describe('consumer-view-v2 service', () => {
       const jsonArg = (res.json as jest.Mock).mock.calls[0][0];
       expect(jsonArg).toHaveLength(2); // Two columns: area and year
       expect(mockRelease).toHaveBeenCalled();
+    });
+
+    it('leaves out values that have no rows in the data (SW-1410)', async () => {
+      const mockRows = [
+        {
+          fact_table_column: 'vehicle',
+          dimension_name: 'Vehicle',
+          reference: '1',
+          description: 'Cars',
+          reference_count: '12',
+          hierarchy: null
+        },
+        {
+          fact_table_column: 'vehicle',
+          dimension_name: 'Vehicle',
+          reference: '2',
+          description: 'Pedestrians',
+          reference_count: '0',
+          hierarchy: null
+        }
+      ];
+      const mockPoolClient = {
+        query: jest.fn().mockResolvedValue({ rows: mockRows }),
+        release: mockRelease
+      };
+      mockObtainMasterConnection.mockResolvedValue([mockPoolClient]);
+
+      const res = createMockStreamResponse();
+
+      await sendFilters('SELECT * FROM filters', res);
+
+      const [vehicle] = (res.json as jest.Mock).mock.calls[0][0];
+      expect(vehicle.values.map((v: { description: string }) => v.description)).toEqual(['Cars']);
     });
 
     it('should release connection on error', async () => {
