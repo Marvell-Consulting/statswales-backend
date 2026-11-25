@@ -8,6 +8,7 @@ import { UserGroup } from '../../../../src/entities/user/user-group';
 import { UserGroupRole } from '../../../../src/entities/user/user-group-role';
 import { GroupRole } from '../../../../src/enums/group-role';
 import { FactTableColumnType } from '../../../../src/enums/fact-table-column-type';
+import { DimensionType } from '../../../../src/enums/dimension-type';
 import { getFilters } from '../../../../src/services/consumer-view';
 import { DatasetRepository } from '../../../../src/repositories/dataset';
 import { Dimension } from '../../../../src/entities/dataset/dimension';
@@ -31,6 +32,7 @@ const DATA_TABLE_ID = 'dddddddd-dddd-4ddd-8dd2-bbbbbbbbbbbb';
 
 const VEHICLE_LOOKUP_ID = 'dabcdef0-0000-4000-8000-000000000001';
 const AREA_LOOKUP_ID = 'dabcdef0-0000-4000-8000-000000000002';
+const PERIOD_LOOKUP_ID = 'dabcdef0-0000-4000-8000-000000000003';
 
 const bilingual = (row: Omit<LookupRow, 'language'>): LookupRow[] => [
   { ...row, language: 'en' },
@@ -57,13 +59,24 @@ const areaLookupRows: LookupRow[] = [
   ...bilingual({ reference: 'O01', description: 'Offshore', sortOrder: 1, hierarchy: 'OTHER' })
 ];
 
+// A date dimension: the lookup runs to a year the data does not reach yet.
+const periodLookupRows: LookupRow[] = [
+  ...bilingual({ reference: '2025', description: '2025', sortOrder: 1, hierarchy: null }),
+  ...bilingual({ reference: '2025_1', description: 'Q1 2025', sortOrder: 1, hierarchy: '2025' }),
+  ...bilingual({ reference: '2025_2', description: 'Q2 2025', sortOrder: 2, hierarchy: '2025' }),
+  ...bilingual({ reference: '2026', description: '2026', sortOrder: 2, hierarchy: null }),
+  ...bilingual({ reference: '2026_1', description: 'Q1 2026', sortOrder: 1, hierarchy: '2026' })
+];
+
 const VEHICLES_IN_DATA = ['CAR', 'BUS'];
 const AREAS_IN_DATA = ['A01', 'A02'];
+const PERIODS_IN_DATA = ['2025_1', '2025_2'];
 const ROW_COUNT = VEHICLES_IN_DATA.length * AREAS_IN_DATA.length;
 
 const rowBuilder = (i: number): unknown[] => [
   VEHICLES_IN_DATA[Math.floor(i / AREAS_IN_DATA.length)],
   AREAS_IN_DATA[i % AREAS_IN_DATA.length],
+  PERIODS_IN_DATA[i % PERIODS_IN_DATA.length],
   'count',
   i + 1,
   null
@@ -109,6 +122,7 @@ describe('Filters leave out values with no data (SW-1410)', () => {
       factColumns: [
         { name: 'VehicleCode', datatype: 'VARCHAR', columnType: FactTableColumnType.Dimension },
         { name: 'AreaCode', datatype: 'VARCHAR', columnType: FactTableColumnType.Dimension },
+        { name: 'PeriodCode', datatype: 'VARCHAR', columnType: FactTableColumnType.Dimension },
         { name: 'MeasureCode', datatype: 'VARCHAR', columnType: FactTableColumnType.Measure },
         { name: 'Data', datatype: 'DOUBLE PRECISION', columnType: FactTableColumnType.DataValues },
         { name: 'NoteCode', datatype: 'VARCHAR', columnType: FactTableColumnType.NoteCodes }
@@ -127,6 +141,13 @@ describe('Filters leave out values with no data (SW-1410)', () => {
           lookupTableId: AREA_LOOKUP_ID,
           name: { en: 'Area', cy: 'Ardal' },
           lookupRows: areaLookupRows
+        },
+        {
+          factTableColumn: 'PeriodCode',
+          type: DimensionType.DatePeriod,
+          lookupTableId: PERIOD_LOOKUP_ID,
+          name: { en: 'Period', cy: 'Cyfnod' },
+          lookupRows: periodLookupRows
         }
       ]
     });
@@ -146,6 +167,14 @@ describe('Filters leave out values with no data (SW-1410)', () => {
       const res = await request(app).get(`/v2/${DATASET_ID}/filters`);
       expect(res.status).toBe(200);
       expect(valuesFor(res.body, 'AreaCode')).toEqual([{ ALL: ['A01', 'A02'] }]);
+    });
+
+    it('leaves out a year in the date filter that has no data yet', async () => {
+      const res = await request(app).get(`/v2/${DATASET_ID}/filters`);
+      expect(res.status).toBe(200);
+      const period = res.body.find((f: FilterTable) => f.factTableColumn === 'PeriodCode');
+      expect(period.values.map((v: FilterValue) => v.reference)).toEqual(['2025']);
+      expect(period.values[0].children.map((v: FilterValue) => v.reference)).toEqual(['2025_2', '2025_1']);
     });
   });
 

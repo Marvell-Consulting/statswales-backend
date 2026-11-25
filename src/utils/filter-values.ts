@@ -1,6 +1,8 @@
 import { FilterValues } from '../interfaces/filter-table';
 
-const hasNoData = (value: FilterValues): boolean => value.count != null && Number(value.count) === 0;
+// An empty count is a missing count, not 0, so only a count that reads as a number is checked
+const hasNoData = (value: FilterValues): boolean =>
+  value.count != null && String(value.count).trim() !== '' && Number(value.count) === 0;
 
 function pruneValuesWithNoData(values: FilterValues[]): FilterValues[] {
   return values.flatMap((value) => {

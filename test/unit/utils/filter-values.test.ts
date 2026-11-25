@@ -58,4 +58,9 @@ describe('removeValuesWithNoData', () => {
     const result = removeValuesWithNoData([value('a', 0 as unknown as string), value('b', '1')]);
     expect(refs(result)).toEqual(['b']);
   });
+
+  it('keeps values whose count is an empty string, as that is a missing count rather than 0', () => {
+    const result = removeValuesWithNoData([value('a', ''), value('b', ' '), value('c', '0')]);
+    expect(refs(result)).toEqual(['a', 'b']);
+  });
 });

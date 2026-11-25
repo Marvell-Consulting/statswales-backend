@@ -96,6 +96,7 @@ import {
   buildDataQuery,
   buildCursorFromRow
 } from '../../../src/services/consumer-view-v2';
+import { flattenHierarchy } from '../../../src/utils/consumer';
 import { createStalledResponse, settle } from '../../helpers/stalled-response';
 import { logger } from '../../../src/utils/logger';
 
@@ -792,6 +793,41 @@ describe('consumer-view-v2 service', () => {
 
       const [vehicle] = (res.json as jest.Mock).mock.calls[0][0];
       expect(vehicle.values.map((v: { description: string }) => v.description)).toEqual(['Cars']);
+    });
+
+    it('leaves out values with no data when it falls back to a flat list for a broken hierarchy (SW-1410)', async () => {
+      const mockRows = [
+        {
+          fact_table_column: 'area',
+          dimension_name: 'Area',
+          reference: 'ALL',
+          description: 'All areas',
+          reference_count: '0',
+          hierarchy: null
+        },
+        {
+          fact_table_column: 'area',
+          dimension_name: 'Area',
+          reference: 'N',
+          description: 'North',
+          reference_count: '4',
+          hierarchy: 'ALL'
+        }
+      ];
+      const mockPoolClient = {
+        query: jest.fn().mockResolvedValue({ rows: mockRows }),
+        release: mockRelease
+      };
+      mockObtainMasterConnection.mockResolvedValue([mockPoolClient]);
+      // A hierarchy that loses a value when flattened is treated as broken, and the values are sent as a flat list
+      (flattenHierarchy as jest.Mock).mockReturnValueOnce([]);
+
+      const res = createMockStreamResponse();
+
+      await sendFilters('SELECT * FROM filters', res);
+
+      const [area] = (res.json as jest.Mock).mock.calls[0][0];
+      expect(area.values).toEqual([{ reference: 'N', description: 'North', count: '4' }]);
     });
 
     it('should release connection on error', async () => {
