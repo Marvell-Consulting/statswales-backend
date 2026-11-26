@@ -15,14 +15,14 @@ export interface ResolvedSortColumn {
 
 // Resolve a deterministic default sort + tie-breakers for keyset pagination.
 //
-// Strategy:
-//   1. Primary sort = first date column on the fact table (lowest columnIndex)
-//      if one exists; otherwise first Dimension column. A date column is a
-//      Time column, or a column whose dimension is a Date or DatePeriod.
-//   2. Tie-breakers = remaining composite-PK columns (Dimension/Measure/Time)
-//      in columnIndex order, with duplicates of the primary removed.
-//   3. Date columns sort DESC (newest first), matching the order the cube
-//      view and downloads use. Everything else sorts ASC.
+// The order follows the cube view's own ORDER BY, so the paged table lists
+// rows in the same order as downloads:
+//   1. The measure column first.
+//   2. Then the other composite-PK columns (Dimension/Time) in columnIndex
+//      order, which is the order the cube builder adds dimensions in.
+//   3. Date columns sort DESC (newest first), everything else ASC. A date
+//      column is a Time column, or one whose dimension is a Date or
+//      DatePeriod, the same test the cube builder uses.
 //
 // Columns that have no entry in queryStore.columnMapping for the requested
 // language are skipped — they can't be referenced in the core view's translated
@@ -61,12 +61,6 @@ export function resolveDefaultSort(
   const isDate = (c: FactTableColumn): boolean =>
     c.columnType === FactTableColumnType.Time || dateColumns.has(c.columnName);
 
-  const primary =
-    sorted.find((c) => isDate(c) && nameByFactColumn.has(c.columnName)) ||
-    sorted.find((c) => c.columnType === FactTableColumnType.Dimension && nameByFactColumn.has(c.columnName));
-
-  if (!primary) return [];
-
   const result: ResolvedSortColumn[] = [];
   const seenDisplayNames = new Set<string>();
 
@@ -78,7 +72,9 @@ export function resolveDefaultSort(
     result.push({ columnName: displayName, direction: isDate(col) ? 'desc' : 'asc' });
   };
 
-  append(primary);
+  for (const col of sorted) {
+    if (col.columnType === FactTableColumnType.Measure) append(col);
+  }
 
   for (const col of sorted) {
     if (!isPkType(col.columnType)) continue;

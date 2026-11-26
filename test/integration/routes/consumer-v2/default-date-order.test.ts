@@ -1,4 +1,6 @@
 import request from 'supertest';
+// eslint-disable-next-line import/no-unresolved
+import { parse as parseCsv } from 'csv-parse/sync';
 
 import app from '../../../../src/app';
 import { dbManager } from '../../../../src/db/database-manager';
@@ -18,7 +20,7 @@ jest.mock('../../../../src/services/blob-storage');
 BlobStorage.prototype.listFiles = jest.fn().mockReturnValue([]);
 BlobStorage.prototype.loadBuffer = jest.fn();
 
-// SW-1411: the data table should show the newest dates first, as downloads and v1 do.
+// SW-1411: the data table should list rows in the same order as downloads, with the newest dates first.
 
 const user: User = getTestUser('default date order test user');
 let userGroup = getTestUserGroup('Default Date Order Test Group');
@@ -70,7 +72,7 @@ const column = (body: { headers: Header[]; data: unknown[][] }, name: string): u
 
 const yearsNewestFirst = [...YEARS].reverse();
 
-describe('Data table shows the newest dates first (SW-1411)', () => {
+describe('Data table lists rows in the download order, newest dates first (SW-1411)', () => {
   beforeAll(async () => {
     await ensureWorkerDataSources();
     await resetDatabase();
@@ -86,7 +88,7 @@ describe('Data table shows the newest dates first (SW-1411)', () => {
       revisionId: REVISION_ID,
       dataTableId: DATA_TABLE_ID,
       title: { en: 'Default date order fixture', cy: 'Ffynhonnell trefn dyddiadau' },
-      // Area comes before Year in the data table, as in the dataset on the ticket
+      // Area comes before Year, so the date is not the first column
       factColumns: [
         { name: 'AreaCode', datatype: 'VARCHAR', columnType: FactTableColumnType.Dimension },
         { name: 'YearCode', datatype: 'VARCHAR', columnType: FactTableColumnType.Dimension },
@@ -114,11 +116,30 @@ describe('Data table shows the newest dates first (SW-1411)', () => {
     });
   }, 120_000);
 
-  it('starts with the newest year, then sorts areas in their usual order', async () => {
+  it('sorts by area, then the newest year first within each area', async () => {
     const res = await request(app).get(`/v2/${DATASET_ID}/data`).query({ format: 'frontend', page_size: ROW_COUNT });
     expect(res.status).toBe(200);
-    expect(column(res.body, 'Year')).toEqual(yearsNewestFirst.flatMap((year) => AREAS.map(() => year)));
-    expect(column(res.body, 'Area')).toEqual(yearsNewestFirst.flatMap(() => AREA_NAMES));
+    expect(column(res.body, 'Area')).toEqual(AREA_NAMES.flatMap((area) => YEARS.map(() => area)));
+    expect(column(res.body, 'Year')).toEqual(AREA_NAMES.flatMap(() => yearsNewestFirst));
+  });
+
+  it('lists rows in the same order as a CSV download', async () => {
+    const table = await request(app).get(`/v2/${DATASET_ID}/data`).query({ format: 'frontend', page_size: ROW_COUNT });
+    const csv = await request(app).get(`/v2/${DATASET_ID}/data`).query({ format: 'csv' });
+    expect(csv.status).toBe(200);
+
+    const csvRows: string[][] = parseCsv(csv.text, { from_line: 2 });
+    const areaAndYear = (rows: unknown[][], areaAt: number, yearAt: number): string[] =>
+      rows.map((row) => `${row[areaAt]} ${row[yearAt]}`);
+    const csvHeader: string[] = parseCsv(csv.text, { to_line: 1 })[0];
+
+    expect(
+      areaAndYear(
+        table.body.data,
+        table.body.headers.findIndex((h: Header) => h.name === 'Area'),
+        table.body.headers.findIndex((h: Header) => h.name === 'Year')
+      )
+    ).toEqual(areaAndYear(csvRows, csvHeader.indexOf('Area'), csvHeader.indexOf('Year')));
   });
 
   it('keeps the same order when paging with cursors', async () => {
