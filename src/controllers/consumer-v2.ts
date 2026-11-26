@@ -172,11 +172,12 @@ export const getPublishedDatasetData = async (req: Request, res: Response, next:
 
     // ensurePublishedDataset loads a lean dataset (no factTable). buildDataQuery
     // needs the fact-table columns to resolve a deterministic sort plan for
-    // both cursor-mode and offset-mode pagination, so reload with factTable
-    // when it isn't already present.
-    const datasetForBuild = dataset.factTable
-      ? dataset
-      : await PublishedDatasetRepository.getById(dataset.id, { factTable: true });
+    // both cursor-mode and offset-mode pagination, and the dimensions to sort
+    // date columns newest first, so reload with both when either is missing.
+    const datasetForBuild =
+      dataset.factTable && dataset.dimensions
+        ? dataset
+        : await PublishedDatasetRepository.getById(dataset.id, { factTable: true, dimensions: true });
 
     const buildResult = await buildDataQuery(queryStore, pageOptions, datasetForBuild);
     await sendFormattedResponse(buildResult, queryStore, pageOptions, res);

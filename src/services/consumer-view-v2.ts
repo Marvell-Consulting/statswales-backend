@@ -695,11 +695,12 @@ function resolveSortPlan(
     entries.push({ displayName: colName, direction: direction.toLowerCase() === 'desc' ? 'desc' : 'asc' });
   }
 
-  // 2. Append the default sort / PK tie-breakers in ASC for determinism.
-  //    resolveDefaultSort picks the time column first, falls back to first dim,
-  //    then appends remaining PK columns. We skip anything already in entries.
+  // 2. Append the default sort / PK tie-breakers for determinism.
+  //    resolveDefaultSort picks the date column first (newest first), falls back
+  //    to first dim, then appends remaining PK columns. We skip anything already
+  //    in entries.
   if (dataset) {
-    const defaults = resolveDefaultSort(dataset.factTable, queryStore.columnMapping, lang);
+    const defaults = resolveDefaultSort(dataset.factTable, queryStore.columnMapping, lang, dataset.dimensions);
     for (const d of defaults) {
       if (seen.has(d.columnName)) continue;
       seen.add(d.columnName);
