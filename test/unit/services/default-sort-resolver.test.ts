@@ -1,10 +1,16 @@
+import { Dimension } from '../../../src/entities/dataset/dimension';
 import { FactTableColumn } from '../../../src/entities/dataset/fact-table-column';
+import { DimensionType } from '../../../src/enums/dimension-type';
 import { FactTableColumnType } from '../../../src/enums/fact-table-column-type';
 import { FactTableToDimensionName } from '../../../src/interfaces/fact-table-column-to-dimension-name';
 import { resolveDefaultSort } from '../../../src/services/default-sort-resolver';
 
 function col(columnName: string, columnType: FactTableColumnType, columnIndex: number): FactTableColumn {
   return { columnName, columnType, columnIndex } as FactTableColumn;
+}
+
+function dim(factTableColumn: string, type: DimensionType): Dimension {
+  return { factTableColumn, type } as Dimension;
 }
 
 function mapping(fact: string, name: string, language: string): FactTableToDimensionName {
@@ -23,7 +29,7 @@ describe('resolveDefaultSort', () => {
     expect(resolveDefaultSort(ft, cm, 'en-GB')).toEqual([]);
   });
 
-  it('picks the first Time column as primary sort', () => {
+  it('sorts by the measure first, as the cube view does', () => {
     const ft = [
       col('area_code', FactTableColumnType.Dimension, 0),
       col('year_code', FactTableColumnType.Time, 1),
@@ -36,17 +42,17 @@ describe('resolveDefaultSort', () => {
       mapping('measure_code', 'Measure', 'en-gb')
     ];
     const result = resolveDefaultSort(ft, cm, 'en-GB');
-    expect(result[0]).toEqual({ columnName: 'Year', direction: 'asc' });
+    expect(result[0]).toEqual({ columnName: 'Measure', direction: 'asc' });
   });
 
-  it('falls back to the first Dimension when no Time column exists', () => {
+  it('starts with the first Dimension when there is no measure', () => {
     const ft = [col('area_code', FactTableColumnType.Dimension, 0), col('country', FactTableColumnType.Dimension, 1)];
     const cm = [mapping('area_code', 'Area', 'en-gb'), mapping('country', 'Country', 'en-gb')];
     const result = resolveDefaultSort(ft, cm, 'en-GB');
     expect(result[0]).toEqual({ columnName: 'Area', direction: 'asc' });
   });
 
-  it('appends remaining PK columns as ASC tie-breakers, de-duping the primary', () => {
+  it('follows the measure with the other PK columns in table order, sorting a Time column newest first', () => {
     const ft = [
       col('area_code', FactTableColumnType.Dimension, 0),
       col('year_code', FactTableColumnType.Time, 1),
@@ -59,9 +65,71 @@ describe('resolveDefaultSort', () => {
     ];
     const result = resolveDefaultSort(ft, cm, 'en-GB');
     expect(result).toEqual([
-      { columnName: 'Year', direction: 'asc' },
+      { columnName: 'Measure', direction: 'asc' },
       { columnName: 'Area', direction: 'asc' },
-      { columnName: 'Measure', direction: 'asc' }
+      { columnName: 'Year', direction: 'desc' }
+    ]);
+  });
+
+  it('sorts a date period dimension newest first, in its place in the table (SW-1411)', () => {
+    const ft = [
+      col('area_code', FactTableColumnType.Dimension, 0),
+      col('year_code', FactTableColumnType.Dimension, 1),
+      col('measure_code', FactTableColumnType.Measure, 2)
+    ];
+    const cm = [
+      mapping('area_code', 'Area', 'en-gb'),
+      mapping('year_code', 'Year', 'en-gb'),
+      mapping('measure_code', 'Measure', 'en-gb')
+    ];
+    const dimensions = [dim('area_code', DimensionType.LookupTable), dim('year_code', DimensionType.DatePeriod)];
+    expect(resolveDefaultSort(ft, cm, 'en-GB', dimensions)).toEqual([
+      { columnName: 'Measure', direction: 'asc' },
+      { columnName: 'Area', direction: 'asc' },
+      { columnName: 'Year', direction: 'desc' }
+    ]);
+  });
+
+  it('sorts a date dimension newest first', () => {
+    const ft = [col('date_code', FactTableColumnType.Dimension, 0), col('area_code', FactTableColumnType.Dimension, 1)];
+    const cm = [mapping('date_code', 'Date', 'en-gb'), mapping('area_code', 'Area', 'en-gb')];
+    const dimensions = [dim('date_code', DimensionType.Date), dim('area_code', DimensionType.Geography)];
+    expect(resolveDefaultSort(ft, cm, 'en-GB', dimensions)).toEqual([
+      { columnName: 'Date', direction: 'desc' },
+      { columnName: 'Area', direction: 'asc' }
+    ]);
+  });
+
+  it('sorts every date column newest first, not only the first', () => {
+    const ft = [
+      col('year_code', FactTableColumnType.Dimension, 0),
+      col('month_code', FactTableColumnType.Dimension, 1),
+      col('area_code', FactTableColumnType.Dimension, 2)
+    ];
+    const cm = [
+      mapping('year_code', 'Year', 'en-gb'),
+      mapping('month_code', 'Month', 'en-gb'),
+      mapping('area_code', 'Area', 'en-gb')
+    ];
+    const dimensions = [
+      dim('year_code', DimensionType.DatePeriod),
+      dim('month_code', DimensionType.Date),
+      dim('area_code', DimensionType.LookupTable)
+    ];
+    expect(resolveDefaultSort(ft, cm, 'en-GB', dimensions)).toEqual([
+      { columnName: 'Year', direction: 'desc' },
+      { columnName: 'Month', direction: 'desc' },
+      { columnName: 'Area', direction: 'asc' }
+    ]);
+  });
+
+  it('sorts dimensions that are not dates in ascending order, as before', () => {
+    const ft = [col('area_code', FactTableColumnType.Dimension, 0), col('code', FactTableColumnType.Dimension, 1)];
+    const cm = [mapping('area_code', 'Area', 'en-gb'), mapping('code', 'Code', 'en-gb')];
+    const dimensions = [dim('area_code', DimensionType.Geography), dim('code', DimensionType.Numeric)];
+    expect(resolveDefaultSort(ft, cm, 'en-GB', dimensions)).toEqual([
+      { columnName: 'Area', direction: 'asc' },
+      { columnName: 'Code', direction: 'asc' }
     ]);
   });
 
@@ -92,7 +160,7 @@ describe('resolveDefaultSort', () => {
       mapping('year_code', 'Blwyddyn', 'cy-gb')
     ];
     const result = resolveDefaultSort(ft, cm, 'cy-GB');
-    expect(result.map((r) => r.columnName)).toEqual(['Blwyddyn', 'Ardal']);
+    expect(result.map((r) => r.columnName)).toEqual(['Ardal', 'Blwyddyn']);
   });
 
   it('skips PK columns that lack a mapping for the requested language', () => {
@@ -107,7 +175,7 @@ describe('resolveDefaultSort', () => {
     expect(result.map((r) => r.columnName)).toEqual(['Year', 'Area']);
   });
 
-  it('respects columnIndex order when picking the primary', () => {
+  it('respects columnIndex order', () => {
     const ft = [col('area_code', FactTableColumnType.Dimension, 1), col('country', FactTableColumnType.Dimension, 0)];
     const cm = [mapping('area_code', 'Area', 'en-gb'), mapping('country', 'Country', 'en-gb')];
     const result = resolveDefaultSort(ft, cm, 'en-GB');

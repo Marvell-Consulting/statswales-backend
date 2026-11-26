@@ -1,4 +1,6 @@
+import { Dimension } from '../entities/dataset/dimension';
 import { FactTableColumn } from '../entities/dataset/fact-table-column';
+import { DimensionType } from '../enums/dimension-type';
 import { FactTableColumnType } from '../enums/fact-table-column-type';
 import { FactTableToDimensionName } from '../interfaces/fact-table-column-to-dimension-name';
 
@@ -13,11 +15,14 @@ export interface ResolvedSortColumn {
 
 // Resolve a deterministic default sort + tie-breakers for keyset pagination.
 //
-// Strategy:
-//   1. Primary sort = first Time column on the fact table (lowest columnIndex)
-//      if one exists; otherwise first Dimension column.
-//   2. Tie-breakers = remaining composite-PK columns (Dimension/Measure/Time)
-//      in columnIndex order, all ASC, with duplicates of the primary removed.
+// The order follows the cube view's own ORDER BY, so the paged table lists
+// rows in the same order as downloads:
+//   1. The measure column first.
+//   2. Then the other composite-PK columns (Dimension/Time) in columnIndex
+//      order, which is the order the cube builder adds dimensions in.
+//   3. Date columns sort DESC (newest first), everything else ASC. A date
+//      column is a Time column, or one whose dimension is a Date or
+//      DatePeriod, the same test the cube builder uses.
 //
 // Columns that have no entry in queryStore.columnMapping for the requested
 // language are skipped — they can't be referenced in the core view's translated
@@ -29,7 +34,8 @@ export interface ResolvedSortColumn {
 export function resolveDefaultSort(
   factTable: FactTableColumn[] | null | undefined,
   columnMapping: FactTableToDimensionName[],
-  language: string
+  language: string,
+  dimensions: Dimension[] = []
 ): ResolvedSortColumn[] {
   if (!factTable || factTable.length === 0) return [];
 
@@ -47,28 +53,32 @@ export function resolveDefaultSort(
   const isPkType = (t: FactTableColumnType): boolean =>
     t === FactTableColumnType.Time || t === FactTableColumnType.Dimension || t === FactTableColumnType.Measure;
 
-  const primary =
-    sorted.find((c) => c.columnType === FactTableColumnType.Time && nameByFactColumn.has(c.columnName)) ||
-    sorted.find((c) => c.columnType === FactTableColumnType.Dimension && nameByFactColumn.has(c.columnName));
-
-  if (!primary) return [];
+  const dateColumns = new Set(
+    dimensions
+      .filter((dim) => dim.type === DimensionType.Date || dim.type === DimensionType.DatePeriod)
+      .map((dim) => dim.factTableColumn)
+  );
+  const isDate = (c: FactTableColumn): boolean =>
+    c.columnType === FactTableColumnType.Time || dateColumns.has(c.columnName);
 
   const result: ResolvedSortColumn[] = [];
   const seenDisplayNames = new Set<string>();
 
-  const append = (factColName: string): void => {
-    const displayName = nameByFactColumn.get(factColName);
+  const append = (col: FactTableColumn): void => {
+    const displayName = nameByFactColumn.get(col.columnName);
     if (!displayName) return;
     if (seenDisplayNames.has(displayName)) return;
     seenDisplayNames.add(displayName);
-    result.push({ columnName: displayName, direction: 'asc' });
+    result.push({ columnName: displayName, direction: isDate(col) ? 'desc' : 'asc' });
   };
 
-  append(primary.columnName);
+  for (const col of sorted) {
+    if (col.columnType === FactTableColumnType.Measure) append(col);
+  }
 
   for (const col of sorted) {
     if (!isPkType(col.columnType)) continue;
-    append(col.columnName);
+    append(col);
   }
 
   return result;
